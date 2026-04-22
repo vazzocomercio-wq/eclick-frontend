@@ -2,11 +2,19 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
-import { PM, ScraperResult, brl } from '../types'
+import { PM, brl } from '../types'
 
 const SCRAPER = process.env.NEXT_PUBLIC_SCRAPER_URL ?? 'https://price-scraper-production-2e7c.up.railway.app'
 
 type Product = { id: string; name: string; price: number | null }
+
+type ScraperData = {
+  title?: string
+  price?: number
+  seller?: string
+  platform?: string
+  partial?: boolean
+}
 
 type Props = {
   orgId: string
@@ -19,8 +27,9 @@ export default function AddCompetitorModal({ orgId, onClose, onSaved }: Props) {
   const [productId, setProductId] = useState('')
   const [url, setUrl] = useState('')
   const [scraping, setScraping] = useState(false)
-  const [preview, setPreview] = useState<ScraperResult | null>(null)
-  const [scrapeError, setScrapeError] = useState('')
+  const [scraped, setScraped] = useState<ScraperData | null>(null)
+  const [manualPrice, setManualPrice] = useState('')
+  const [fetchError, setFetchError] = useState('')   // only for actual network / 5xx failures
   const [saving, setSaving] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -34,11 +43,12 @@ export default function AddCompetitorModal({ orgId, onClose, onSaved }: Props) {
       .then(({ data }) => setProducts(data ?? []))
   }, [orgId])
 
-  // Auto-scrape on URL paste with 800ms debounce
+  // Auto-scrape on URL change — 800ms debounce
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
-    setPreview(null)
-    setScrapeError('')
+    setScraped(null)
+    setManualPrice('')
+    setFetchError('')
     if (!url.startsWith('http')) return
 
     debounceRef.current = setTimeout(() => scrapeUrl(url), 800)
@@ -47,62 +57,64 @@ export default function AddCompetitorModal({ orgId, onClose, onSaved }: Props) {
 
   async function scrapeUrl(target: string) {
     setScraping(true)
-    setScrapeError('')
+    setFetchError('')
     try {
       const res = await fetch(`${SCRAPER}/scrape`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: target }),
       })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const data: ScraperResult = await res.json()
-      if (!data.price) throw new Error('Preço não encontrado na página.')
-      setPreview(data)
+      if (!res.ok) throw new Error(`Scraper retornou HTTP ${res.status}.`)
+      const data: ScraperData = await res.json()
+      // Accept whatever came back — price may be absent
+      setScraped(data)
     } catch (e: unknown) {
-      setScrapeError(e instanceof Error ? e.message : 'Falha ao buscar dados do concorrente.')
+      setFetchError(e instanceof Error ? e.message : 'Falha ao conectar com o scraper.')
     } finally {
       setScraping(false)
     }
   }
 
+  // Resolved price: scraped value takes priority, then manual input
+  const resolvedPrice = scraped?.price ?? (manualPrice ? parseFloat(manualPrice.replace(',', '.')) : null)
+  const needsManualPrice = scraped !== null && !scraped.price
+  const canSave = !!productId && !!url && scraped !== null && resolvedPrice !== null && !isNaN(resolvedPrice as number)
+
   async function handleSave() {
-    if (!productId || !url || !preview) return
+    if (!canSave) return
     setSaving(true)
     const supabase = createClient()
-
     const product = products.find(p => p.id === productId)
+    const platform = scraped?.platform ?? detectPlatform(url)
 
-    const { error } = await supabase.from('competitors').insert({
-      product_id: productId,
-      organization_id: orgId,
-      platform: preview.platform ?? detectPlatform(url),
-      url,
-      title: preview.title ?? null,
-      seller: preview.seller ?? null,
-      current_price: preview.price,
-      my_price: product?.price ?? null,
-      status: 'active',
-      last_checked: new Date().toISOString(),
-    })
+    const { data: inserted, error } = await supabase
+      .from('competitors')
+      .insert({
+        product_id: productId,
+        organization_id: orgId,
+        platform,
+        url,
+        title: scraped?.title ?? null,
+        seller: scraped?.seller ?? null,
+        current_price: resolvedPrice,
+        my_price: product?.price ?? null,
+        status: 'active',
+        last_checked: new Date().toISOString(),
+      })
+      .select('id')
+      .single()
 
-    if (!error) {
-      // Save first price_history entry
-      const { data: comp } = await supabase
-        .from('competitors')
-        .select('id')
-        .eq('url', url)
-        .eq('organization_id', orgId)
-        .maybeSingle()
-      if (comp) {
-        await supabase.from('price_history').insert({
-          competitor_id: comp.id,
-          price: preview.price,
-        })
-      }
+    if (!error && inserted) {
+      await supabase.from('price_history').insert({
+        competitor_id: inserted.id,
+        price: resolvedPrice,
+      })
       onSaved()
     }
     setSaving(false)
   }
+
+  const pm = scraped?.platform ? PM[scraped.platform] : null
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
@@ -122,6 +134,7 @@ export default function AddCompetitorModal({ orgId, onClose, onSaved }: Props) {
         </div>
 
         <div className="px-6 py-5 space-y-4">
+
           {/* Product select */}
           <div>
             <label className="block text-xs font-medium text-zinc-400 mb-1.5">
@@ -166,46 +179,80 @@ export default function AddCompetitorModal({ orgId, onClose, onSaved }: Props) {
             )}
           </div>
 
-          {/* Scrape error */}
-          {scrapeError && (
+          {/* Network / scraper failure — real error */}
+          {fetchError && (
             <div className="px-4 py-3 rounded-xl text-sm"
               style={{ background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.2)', color: '#f87171' }}>
-              {scrapeError}
+              {fetchError}
             </div>
           )}
 
-          {/* Preview */}
-          {preview && (
+          {/* Scraped preview */}
+          {scraped && (
             <div className="rounded-xl p-4 space-y-3"
               style={{ background: 'rgba(0,229,255,0.04)', border: '1px solid rgba(0,229,255,0.15)' }}>
               <div className="flex items-center justify-between">
                 <p className="text-[11px] font-semibold uppercase tracking-widest text-cyan-400">
                   Dados encontrados
                 </p>
-                {preview.platform && PM[preview.platform] && (
+                {pm && (
                   <span className="text-[10px] font-black px-2 py-0.5 rounded"
-                    style={{ background: PM[preview.platform].bg, color: PM[preview.platform].fg }}>
-                    {PM[preview.platform].label}
+                    style={{ background: pm.bg, color: pm.fg }}>
+                    {pm.label}
                   </span>
                 )}
               </div>
-              <p className="text-white text-sm font-medium leading-snug line-clamp-2">
-                {preview.title ?? '—'}
-              </p>
-              <div className="flex items-center gap-4">
+
+              {scraped.title && (
+                <p className="text-white text-sm font-medium leading-snug line-clamp-2">
+                  {scraped.title}
+                </p>
+              )}
+
+              {scraped.seller && (
+                <p className="text-zinc-400 text-[12px]">Vendedor: {scraped.seller}</p>
+              )}
+
+              {/* Price found automatically */}
+              {scraped.price && (
                 <div>
                   <p className="text-zinc-500 text-[10px]">Preço</p>
-                  <p className="text-white font-bold text-base">{brl(preview.price)}</p>
+                  <p className="text-white font-bold text-base">{brl(scraped.price)}</p>
                 </div>
-                {preview.seller && (
-                  <div>
-                    <p className="text-zinc-500 text-[10px]">Vendedor</p>
-                    <p className="text-zinc-300 text-sm">{preview.seller}</p>
-                  </div>
-                )}
+              )}
+            </div>
+          )}
+
+          {/* Manual price input — shown when scrape ran but found no price */}
+          {needsManualPrice && (
+            <div className="rounded-xl px-4 py-3 space-y-3"
+              style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.2)' }}>
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 shrink-0" style={{ color: '#f59e0b' }} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <p className="text-[13px]" style={{ color: '#f59e0b' }}>
+                  Preço não detectado automaticamente. Informe manualmente:
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-zinc-400 text-sm shrink-0">R$</span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="0,00"
+                  value={manualPrice}
+                  onChange={e => setManualPrice(e.target.value)}
+                  className="flex-1 px-3 py-2 rounded-lg text-sm text-white placeholder-zinc-600 border outline-none transition-all"
+                  style={{ background: '#1c1c1f', borderColor: manualPrice ? '#f59e0b' : '#3f3f46' }}
+                  onFocus={e => (e.target.style.borderColor = '#f59e0b')}
+                  onBlur={e => (e.target.style.borderColor = manualPrice ? '#f59e0b' : '#3f3f46')}
+                  autoFocus
+                />
               </div>
             </div>
           )}
+
         </div>
 
         {/* Footer */}
@@ -218,7 +265,7 @@ export default function AddCompetitorModal({ orgId, onClose, onSaved }: Props) {
           </button>
           <button
             onClick={handleSave}
-            disabled={!productId || !url || !preview || saving}
+            disabled={!canSave || saving}
             className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
             style={{ background: '#00E5FF', color: '#000' }}>
             {saving
@@ -227,6 +274,7 @@ export default function AddCompetitorModal({ orgId, onClose, onSaved }: Props) {
             }
           </button>
         </div>
+
       </div>
     </div>
   )
