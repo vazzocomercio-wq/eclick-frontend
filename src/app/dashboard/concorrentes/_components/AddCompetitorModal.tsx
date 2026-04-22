@@ -25,7 +25,7 @@ type ScraperData = {
 type Props = {
   orgId: string
   onClose: () => void
-  onSaved: () => void
+  onSaved: () => Promise<void>
 }
 
 // ── ProductSearch ─────────────────────────────────────────────────────────────
@@ -201,6 +201,7 @@ export default function AddCompetitorModal({ orgId, onClose, onSaved }: Props) {
   const [scraped, setScraped] = useState<ScraperData | null>(null)
   const [manualPrice, setManualPrice] = useState('')
   const [fetchError, setFetchError] = useState('')
+  const [saveError, setSaveError] = useState('')
   const [saving, setSaving] = useState(false)
   const scrapeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -252,6 +253,7 @@ export default function AddCompetitorModal({ orgId, onClose, onSaved }: Props) {
   async function handleSave() {
     if (!canSave || !selectedProduct) return
     setSaving(true)
+    setSaveError('')
     const supabase = createClient()
     const platform = scraped?.platform ?? detectPlatform(url)
 
@@ -272,14 +274,18 @@ export default function AddCompetitorModal({ orgId, onClose, onSaved }: Props) {
       .select('id')
       .single()
 
-    if (!error && inserted) {
-      await supabase.from('price_history').insert({
-        competitor_id: inserted.id,
-        price: resolvedPrice,
-      })
-      onSaved()
+    if (error || !inserted) {
+      setSaveError(error?.message ?? 'Erro ao salvar. Tente novamente.')
+      setSaving(false)
+      return
     }
-    setSaving(false)
+
+    await supabase.from('price_history').insert({
+      competitor_id: inserted.id,
+      price: resolvedPrice,
+    })
+
+    await onSaved()
   }
 
   const pm = scraped?.platform ? PM[scraped.platform] : null
@@ -411,6 +417,14 @@ export default function AddCompetitorModal({ orgId, onClose, onSaved }: Props) {
           )}
 
         </div>
+
+        {/* Save error */}
+        {saveError && (
+          <div className="mx-6 mb-2 px-4 py-3 rounded-xl text-sm"
+            style={{ background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.2)', color: '#f87171' }}>
+            {saveError}
+          </div>
+        )}
 
         {/* Footer */}
         <div className="flex items-center justify-end gap-3 px-6 py-4"

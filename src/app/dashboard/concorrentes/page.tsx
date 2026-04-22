@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { Competitor, PM, priceDiff, brl, relativeTime } from './types'
@@ -80,11 +80,11 @@ export default function ConcorrentesPage() {
   const [updating, setUpdating] = useState(false)
   const [updateProgress, setUpdateProgress] = useState<{ done: number; total: number } | null>(null)
 
-  function toast(msg: string, type: Toast['type'] = 'success') {
+  const toast = useCallback((msg: string, type: Toast['type'] = 'success') => {
     const id = Date.now()
     setToasts(prev => [...prev, { id, msg, type }])
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000)
-  }
+  }, [])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -413,7 +413,11 @@ export default function ConcorrentesPage() {
         <AddCompetitorModal
           orgId={orgId}
           onClose={() => setShowAdd(false)}
-          onSaved={() => { setShowAdd(false); load(); toast('Concorrente adicionado!') }}
+          onSaved={async () => {
+            setShowAdd(false)
+            await load()
+            toast('Concorrente adicionado com sucesso!')
+          }}
         />
       )}
 
