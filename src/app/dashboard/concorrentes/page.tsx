@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { Competitor, PM, priceDiff, brl, relativeTime } from './types'
@@ -37,7 +37,7 @@ function Toasts({ toasts }: { toasts: Toast[] }) {
 
 function DiffBadge({ diff }: { diff: number | null }) {
   if (diff == null) return <span className="text-zinc-600 text-xs">—</span>
-  const cheaper = diff < 0 // they are cheaper than us → bad for us
+  const cheaper = diff < 0
   const color = cheaper ? '#f87171' : diff > 0 ? '#34d399' : '#71717a'
   const sign = diff > 0 ? '+' : ''
   return (
@@ -61,6 +61,172 @@ function MetricCard({ label, value, sub, accent }: {
   )
 }
 
+// ── platform thumbnail ────────────────────────────────────────────────────────
+
+function PlatformThumb({ platform, photoUrl, size = 48 }: {
+  platform: string
+  photoUrl: string | null
+  size?: number
+}) {
+  const pm = PM[platform]
+  const sz = `${size}px`
+  const radius = 10
+
+  if (photoUrl) {
+    return (
+      <div style={{ width: sz, height: sz, borderRadius: radius, overflow: 'hidden', border: '1px solid #2e2e33', flexShrink: 0 }}>
+        <img src={photoUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+      </div>
+    )
+  }
+  if (pm) {
+    return (
+      <div style={{
+        width: sz, height: sz, borderRadius: radius,
+        background: pm.bg, color: pm.fg,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 11, fontWeight: 900, flexShrink: 0,
+      }}>
+        {platform.toUpperCase().slice(0, 2)}
+      </div>
+    )
+  }
+  return (
+    <div style={{
+      width: sz, height: sz, borderRadius: radius,
+      background: '#1c1c1f', border: '1px solid #2e2e33',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+    }}>
+      <svg width="20" height="20" fill="none" stroke="#52525b" viewBox="0 0 24 24" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+      </svg>
+    </div>
+  )
+}
+
+// ── product group (tbody) ─────────────────────────────────────────────────────
+
+type ProductGroup = {
+  productId: string
+  productName: string
+  competitors: Competitor[]
+}
+
+function ProductGroupBody({
+  group, expanded, onToggle, onVerify, onDetail, onDelete, onToggleStatus,
+}: {
+  group: ProductGroup
+  expanded: boolean
+  onToggle: () => void
+  onVerify: (c: Competitor) => Promise<void>
+  onDetail: (id: string) => void
+  onDelete: (id: string) => void
+  onToggleStatus: (c: Competitor) => void
+}) {
+  const myPrice = group.competitors[0]?.my_price ?? null
+  const activePrices = group.competitors
+    .filter(c => c.current_price != null)
+    .map(c => c.current_price as number)
+    .sort((a, b) => a - b)
+  const minCompPrice = activePrices[0] ?? null
+  const maxCompPrice = activePrices[activePrices.length - 1] ?? null
+  const cheaperCount = myPrice != null ? activePrices.filter(p => p < myPrice).length : null
+  const position = cheaperCount != null ? cheaperCount + 1 : null
+  const diffToCheapest = priceDiff(minCompPrice, myPrice)
+  const productPhoto = group.competitors[0]?.product_photo_urls?.[0] ?? null
+
+  return (
+    <tbody>
+      {/* Product header row */}
+      <tr
+        onClick={onToggle}
+        style={{
+          background: '#0d0d10',
+          borderBottom: '1px solid #2e2e33',
+          cursor: 'pointer',
+        }}
+      >
+        <td colSpan={7} className="px-4 py-3">
+          <div className="flex items-center gap-3">
+            <div style={{
+              width: 40, height: 40, borderRadius: 10, overflow: 'hidden',
+              border: '1px solid #2e2e33', flexShrink: 0,
+              background: '#1c1c1f', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              {productPhoto
+                ? <img src={productPhoto} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                : <svg width="18" height="18" fill="none" stroke="#52525b" viewBox="0 0 24 24" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                  </svg>
+              }
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-white text-sm font-semibold truncate">{group.productName}</p>
+              <p className="text-zinc-500 text-[11px]">{brl(myPrice)}</p>
+            </div>
+            <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full"
+              style={{ background: 'rgba(0,229,255,0.08)', color: '#00E5FF' }}>
+              {group.competitors.length} concorrente{group.competitors.length !== 1 ? 's' : ''}
+            </span>
+            <svg
+              style={{
+                width: 16, height: 16, color: '#52525b', flexShrink: 0,
+                transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                transition: 'transform 0.2s',
+              }}
+              fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
+          </div>
+        </td>
+      </tr>
+
+      {expanded && (
+        <>
+          {/* Summary bar */}
+          <tr style={{ background: '#0a0a0d', borderBottom: '1px solid #1e1e24' }}>
+            <td colSpan={7} className="px-6 py-2.5">
+              <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-[11px]">
+                {minCompPrice != null && (
+                  <span className="text-zinc-400">
+                    Mais barato: <span className="text-white font-semibold">{brl(minCompPrice)}</span>
+                  </span>
+                )}
+                {maxCompPrice != null && (
+                  <span className="text-zinc-400">
+                    Mais caro: <span className="text-white font-semibold">{brl(maxCompPrice)}</span>
+                  </span>
+                )}
+                {position != null && (
+                  <span className="text-zinc-400">
+                    Nossa posição: <span className="text-white font-semibold">{position}º mais barato</span>
+                  </span>
+                )}
+                {diffToCheapest != null && (
+                  <span className="text-zinc-400 flex items-center gap-1">
+                    Diff p/ mais barato: <DiffBadge diff={diffToCheapest} />
+                  </span>
+                )}
+              </div>
+            </td>
+          </tr>
+
+          {group.competitors.map(c => (
+            <CompetitorRow
+              key={c.id}
+              c={c}
+              onVerify={() => onVerify(c)}
+              onDetail={() => onDetail(c.id)}
+              onDelete={() => onDelete(c.id)}
+              onToggle={() => onToggleStatus(c)}
+            />
+          ))}
+        </>
+      )}
+    </tbody>
+  )
+}
+
 // ── main ──────────────────────────────────────────────────────────────────────
 
 export default function ConcorrentesPage() {
@@ -70,6 +236,7 @@ export default function ConcorrentesPage() {
   const [orgId, setOrgId] = useState<string | null>(null)
   const [showAdd, setShowAdd] = useState(false)
   const [toasts, setToasts] = useState<Toast[]>([])
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
 
   // filters
   const [filterProduct, setFilterProduct] = useState('all')
@@ -98,18 +265,23 @@ export default function ConcorrentesPage() {
       .from('competitors')
       .select(`
         id, product_id, organization_id, platform, url, title, seller,
-        current_price, my_price, status, last_checked, created_at,
-        products(name)
+        current_price, my_price, photo_url, status, last_checked, created_at,
+        products(name, photo_urls)
       `)
       .eq('organization_id', member.organization_id)
       .order('created_at', { ascending: false })
 
-    setCompetitors(
-      (data ?? []).map((c: Record<string, unknown>) => ({
+    const mapped = (data ?? []).map((c: Record<string, unknown>) => {
+      const prod = c.products as { name: string; photo_urls: string[] | null } | null
+      return {
         ...(c as Competitor),
-        product_name: (c.products as { name: string } | null)?.name ?? '—',
-      }))
-    )
+        product_name: prod?.name ?? '—',
+        product_photo_urls: prod?.photo_urls ?? null,
+      }
+    })
+
+    setCompetitors(mapped)
+    setExpanded(new Set(mapped.map(c => c.product_id)))
     setLoading(false)
   }, [])
 
@@ -132,11 +304,14 @@ export default function ConcorrentesPage() {
     .sort()
     .pop()
 
-  // ── filter ────────────────────────────────────────────────────────────────
+  // ── filter & group ────────────────────────────────────────────────────────
 
-  const uniqueProducts = [...new Map(competitors.map(c => [c.product_id, c.product_name])).entries()]
+  const uniqueProducts = useMemo(
+    () => [...new Map(competitors.map(c => [c.product_id, c.product_name])).entries()],
+    [competitors]
+  )
 
-  const filtered = competitors.filter(c => {
+  const filtered = useMemo(() => competitors.filter(c => {
     if (filterProduct !== 'all' && c.product_id !== filterProduct) return false
     if (filterPlatform !== 'all' && c.platform !== filterPlatform) return false
     if (filterPrice !== 'all') {
@@ -146,11 +321,36 @@ export default function ConcorrentesPage() {
       if (filterPrice === 'equal' && !(d != null && Math.abs(d) < 0.5)) return false
     }
     return true
-  })
+  }), [competitors, filterProduct, filterPlatform, filterPrice])
+
+  const groups = useMemo<ProductGroup[]>(() => {
+    const map = new Map<string, ProductGroup>()
+    for (const c of filtered) {
+      if (!map.has(c.product_id)) {
+        map.set(c.product_id, { productId: c.product_id, productName: c.product_name ?? '—', competitors: [] })
+      }
+      map.get(c.product_id)!.competitors.push(c)
+    }
+    return [...map.values()]
+  }, [filtered])
+
+  const competitorCounts = useMemo(() => {
+    const map: Record<string, number> = {}
+    competitors.forEach(c => { map[c.product_id] = (map[c.product_id] ?? 0) + 1 })
+    return map
+  }, [competitors])
+
+  function toggleExpanded(productId: string) {
+    setExpanded(prev => {
+      const next = new Set(prev)
+      next.has(productId) ? next.delete(productId) : next.add(productId)
+      return next
+    })
+  }
 
   // ── single verify ─────────────────────────────────────────────────────────
 
-  async function verifySingle(c: Competitor) {
+  const verifySingle = useCallback(async (c: Competitor) => {
     const supabase = createClient()
     try {
       const res = await fetch(`${SCRAPER}/scrape`, {
@@ -172,7 +372,7 @@ export default function ConcorrentesPage() {
     } catch {
       toast('Falha ao verificar preço.', 'error')
     }
-  }
+  }, [toast])
 
   // ── update all ────────────────────────────────────────────────────────────
 
@@ -301,7 +501,6 @@ export default function ConcorrentesPage() {
 
             {/* Filters */}
             <div className="flex flex-wrap items-center gap-2">
-              {/* Product filter */}
               <select value={filterProduct} onChange={e => setFilterProduct(e.target.value)}
                 className="px-3 py-1.5 rounded-lg text-[13px] border outline-none transition-all"
                 style={{ background: '#111114', borderColor: '#3f3f46', color: '#a1a1aa' }}>
@@ -311,7 +510,6 @@ export default function ConcorrentesPage() {
                 ))}
               </select>
 
-              {/* Platform filter */}
               <select value={filterPlatform} onChange={e => setFilterPlatform(e.target.value)}
                 className="px-3 py-1.5 rounded-lg text-[13px] border outline-none transition-all"
                 style={{ background: '#111114', borderColor: '#3f3f46', color: '#a1a1aa' }}>
@@ -319,17 +517,16 @@ export default function ConcorrentesPage() {
                 {Object.entries(PM).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
               </select>
 
-              {/* Price filter */}
               {(['all', 'cheaper', 'expensive', 'equal'] as const).map(f => {
                 const labels = { all: 'Todos', cheaper: 'Mais baratos', expensive: 'Mais caros', equal: 'Preço igual' }
-                const active = filterPrice === f
+                const isActive = filterPrice === f
                 return (
                   <button key={f} onClick={() => setFilterPrice(f)}
                     className="px-3 py-1.5 rounded-lg text-[12px] font-medium border transition-all"
                     style={{
-                      background: active ? 'rgba(0,229,255,0.08)' : 'transparent',
-                      borderColor: active ? '#00E5FF' : '#3f3f46',
-                      color: active ? '#00E5FF' : '#71717a',
+                      background: isActive ? 'rgba(0,229,255,0.08)' : 'transparent',
+                      borderColor: isActive ? '#00E5FF' : '#3f3f46',
+                      color: isActive ? '#00E5FF' : '#71717a',
                     }}>
                     {labels[f]}
                   </button>
@@ -362,38 +559,44 @@ export default function ConcorrentesPage() {
               </div>
             )}
 
-            {/* Table */}
-            {(loading || filtered.length > 0) && (
+            {/* Grouped accordion table */}
+            {(loading || groups.length > 0) && (
               <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid #1e1e24' }}>
                 <div className="overflow-x-auto">
-                  <table className="w-full border-collapse" style={{ minWidth: 860 }}>
+                  <table className="w-full border-collapse" style={{ minWidth: 760 }}>
                     <thead>
                       <tr style={{ background: '#0c0c0f', borderBottom: '1px solid #1e1e24' }}>
-                        {['PRODUTO', 'CONCORRENTE', 'PREÇO DELES', 'NOSSO PREÇO', 'DIFERENÇA', 'ÚLTIMA VER.', 'STATUS', ''].map(h => (
+                        {['CONCORRENTE', 'PREÇO DELES', 'NOSSO PREÇO', 'DIFERENÇA', 'ÚLTIMA VER.', 'STATUS', ''].map(h => (
                           <th key={h} className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-widest"
                             style={{ color: '#52525b' }}>{h}</th>
                         ))}
                       </tr>
                     </thead>
-                    <tbody>
-                      {loading
-                        ? [...Array(4)].map((_, i) => (
+                    {loading
+                      ? <tbody>
+                          {[...Array(4)].map((_, i) => (
                             <tr key={i} style={{ borderBottom: '1px solid #1e1e24' }}>
-                              {[...Array(8)].map((_, j) => (
+                              {[...Array(7)].map((_, j) => (
                                 <td key={j} className="px-4 py-4">
                                   <div className="h-3 rounded animate-pulse w-3/4" style={{ background: '#1e1e24' }} />
                                 </td>
                               ))}
                             </tr>
-                          ))
-                        : filtered.map(c => <CompetitorRow key={c.id} c={c}
-                            onVerify={() => verifySingle(c)}
-                            onDetail={() => router.push(`/dashboard/concorrentes/${c.id}`)}
-                            onDelete={() => deleteCompetitor(c.id)}
-                            onToggle={() => toggleStatus(c)}
-                          />)
-                      }
-                    </tbody>
+                          ))}
+                        </tbody>
+                      : groups.map(group => (
+                          <ProductGroupBody
+                            key={group.productId}
+                            group={group}
+                            expanded={expanded.has(group.productId)}
+                            onToggle={() => toggleExpanded(group.productId)}
+                            onVerify={verifySingle}
+                            onDetail={id => router.push(`/dashboard/concorrentes/${id}`)}
+                            onDelete={deleteCompetitor}
+                            onToggleStatus={toggleStatus}
+                          />
+                        ))
+                    }
                   </table>
                 </div>
               </div>
@@ -412,6 +615,7 @@ export default function ConcorrentesPage() {
       {showAdd && orgId && (
         <AddCompetitorModal
           orgId={orgId}
+          competitorCounts={competitorCounts}
           onClose={() => setShowAdd(false)}
           onSaved={async () => {
             setShowAdd(false)
@@ -430,7 +634,7 @@ export default function ConcorrentesPage() {
 
 function CompetitorRow({ c, onVerify, onDetail, onDelete, onToggle }: {
   c: Competitor
-  onVerify: () => void
+  onVerify: () => Promise<void>
   onDetail: () => void
   onDelete: () => void
   onToggle: () => void
@@ -456,22 +660,18 @@ function CompetitorRow({ c, onVerify, onDetail, onDelete, onToggle }: {
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
     >
-      {/* Produto */}
-      <td className="px-4 py-3">
-        <p className="text-white text-[13px] font-medium truncate max-w-[160px]">{c.product_name}</p>
-      </td>
-
-      {/* Concorrente */}
-      <td className="px-4 py-3 max-w-[220px]">
-        <div className="flex items-start gap-2">
-          {pm && (
-            <span className="text-[9px] font-black w-5 h-5 rounded flex items-center justify-center shrink-0 mt-0.5"
-              style={{ background: pm.bg, color: pm.fg }}>
-              {c.platform.toUpperCase().slice(0, 2)}
-            </span>
-          )}
+      {/* Concorrente with photo thumbnail */}
+      <td className="px-4 py-3 max-w-[280px]">
+        <div className="flex items-center gap-2.5 pl-2">
+          <PlatformThumb platform={c.platform} photoUrl={c.photo_url} size={48} />
           <div className="min-w-0">
-            <p className="text-white text-[13px] truncate">{c.title ?? c.url}</p>
+            {pm && (
+              <span className="inline-block text-[9px] font-black px-1.5 py-0.5 rounded mb-0.5"
+                style={{ background: pm.bg, color: pm.fg }}>
+                {pm.label}
+              </span>
+            )}
+            <p className="text-white text-[13px] truncate leading-tight">{c.title ?? c.url}</p>
             {c.seller && <p className="text-zinc-500 text-[11px] truncate">{c.seller}</p>}
           </div>
         </div>

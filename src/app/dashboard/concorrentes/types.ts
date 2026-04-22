@@ -10,11 +10,13 @@ export type Competitor = {
   seller: string | null
   current_price: number | null
   my_price: number | null
+  photo_url: string | null
   status: 'active' | 'paused'
   last_checked: string | null
   created_at: string
   // joined
   product_name?: string
+  product_photo_urls?: string[] | null
 }
 
 export type PriceHistory = {
