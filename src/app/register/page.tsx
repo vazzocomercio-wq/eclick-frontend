@@ -95,15 +95,7 @@ export default function RegisterPage() {
       >
         <div className="w-full max-w-md">
           <div className="flex flex-col items-center mb-8">
-            <div className="flex items-center gap-2.5 mb-1">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center font-bold text-black text-sm" style={{ background: '#00E5FF' }}>
-                eC
-              </div>
-              <span className="text-white font-bold text-2xl tracking-tight">e-Click</span>
-            </div>
-            <span className="text-xs font-semibold tracking-widest uppercase" style={{ color: '#00E5FF' }}>
-              Inteligência Comercial
-            </span>
+            <img src="/logo.png" alt="e-Click Inteligência Comercial" style={{ width: '220px', marginBottom: '8px' }} />
           </div>
           <div className="rounded-2xl border border-zinc-800 p-8 text-center" style={{ background: '#111113' }}>
             <div
@@ -138,18 +130,7 @@ export default function RegisterPage() {
 
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
-          <div className="flex items-center gap-2.5 mb-1">
-            <div
-              className="w-9 h-9 rounded-xl flex items-center justify-center font-bold text-black text-sm shrink-0"
-              style={{ background: '#00E5FF' }}
-            >
-              eC
-            </div>
-            <span className="text-white font-bold text-2xl tracking-tight">e-Click</span>
-          </div>
-          <span className="text-xs font-semibold tracking-widest uppercase" style={{ color: '#00E5FF' }}>
-            Inteligência Comercial
-          </span>
+          <img src="/logo.png" alt="e-Click Inteligência Comercial" style={{ width: '220px', marginBottom: '8px' }} />
         </div>
 
         {/* Card */}

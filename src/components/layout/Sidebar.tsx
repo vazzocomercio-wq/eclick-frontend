@@ -142,21 +142,10 @@ export default function Sidebar() {
     >
       {/* Logo */}
       <div
-        className="flex items-center gap-2.5 px-4 py-5 shrink-0"
+        className="flex items-center px-4 py-4 shrink-0"
         style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}
       >
-        <div
-          className="w-7 h-7 rounded-lg flex items-center justify-center text-[11px] font-black text-black shrink-0"
-          style={{ background: 'linear-gradient(135deg, #00E5FF, #00b8d4)' }}
-        >
-          eC
-        </div>
-        <div>
-          <p className="text-white text-[13px] font-bold leading-none tracking-tight">e-Click</p>
-          <p className="text-[10px] font-medium tracking-widest uppercase leading-none mt-0.5" style={{ color: '#00E5FF99' }}>
-            Inteligência Comercial
-          </p>
-        </div>
+        <img src="/logo.png" alt="e-Click Inteligência Comercial" style={{ width: '130px' }} />
       </div>
 
       {/* Nav */}
