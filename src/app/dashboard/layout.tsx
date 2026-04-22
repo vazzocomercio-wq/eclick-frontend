@@ -31,6 +31,15 @@ export default async function DashboardLayout({
 
   if (!user) redirect('/login')
 
+  const { data: membership } = await supabase
+    .from('organization_members')
+    .select('organization_id')
+    .eq('user_id', user.id)
+    .limit(1)
+    .maybeSingle()
+
+  if (!membership) redirect('/onboarding')
+
   return (
     <div
       className="flex h-screen overflow-hidden"
