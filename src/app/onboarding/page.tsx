@@ -4,6 +4,23 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 
+// ─── api call ──────────────────────────────────────────────────────────────
+
+async function createOrganization(payload: {
+  name: string
+  slug: string
+  platforms: string[]
+}): Promise<{ orgId: string } | { error: string }> {
+  const res = await fetch('/api/onboarding', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  const json = await res.json()
+  if (!res.ok) return { error: json.error ?? 'Erro desconhecido.' }
+  return { orgId: json.orgId }
+}
+
 // ─── helpers ───────────────────────────────────────────────────────────────
 
 function generateSlug(name: string): string {
@@ -176,46 +193,17 @@ export default function OnboardingPage() {
     setLoading(true)
     setError(null)
 
-    const supabase = createClient()
-    const candidates = [slug, `${slug}-${Math.random().toString(36).slice(2, 5)}`]
-    let orgId: string | null = null
+    const result = await createOrganization({
+      name: storeName.trim(),
+      slug,
+      platforms,
+    })
 
-    for (const candidate of candidates) {
-      const { data, error: orgErr } = await supabase
-        .from('organizations')
-        .insert({ name: storeName.trim(), slug: candidate })
-        .select('id')
-        .single()
-
-      if (!orgErr && data) { orgId = data.id; break }
-      if (orgErr?.code !== '23505') {
-        setError('Erro ao criar sua organização. Tente novamente.')
-        setLoading(false)
-        return
-      }
-    }
-
-    if (!orgId) {
-      setError('Não foi possível criar a organização. Tente um nome diferente.')
+    if ('error' in result) {
+      setError(result.error)
       setLoading(false)
       return
     }
-
-    // Owner member
-    const { error: memberErr } = await supabase
-      .from('organization_members')
-      .insert({ organization_id: orgId, user_id: userId, role: 'owner' })
-
-    if (memberErr) {
-      setError('Erro ao configurar sua conta. Tente novamente.')
-      setLoading(false)
-      return
-    }
-
-    // Marketplace stubs
-    await supabase.from('marketplaces_connections').insert(
-      platforms.map(platform => ({ organization_id: orgId!, platform }))
-    )
 
     router.push('/dashboard')
     router.refresh()
