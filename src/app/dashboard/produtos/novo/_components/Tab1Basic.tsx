@@ -1,6 +1,7 @@
 'use client'
 
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
+import { createClient } from '@/lib/supabase'
 import type { TabProps } from '../types'
 
 const inp = 'w-full bg-[#1c1c1f] border border-[#3f3f46] text-white text-sm rounded-lg px-3 py-2.5 outline-none transition-all placeholder-zinc-600 focus:border-[#00E5FF] focus:ring-1 focus:ring-[#00E5FF20]'
@@ -15,21 +16,65 @@ const CATEGORIES = [
   'Automotivo', 'Indústria e Comércio', 'Outros',
 ]
 
-export default function Tab1Basic({ data, set }: TabProps) {
-  const fileRef = useRef<HTMLInputElement>(null)
+type Props = TabProps & { orgId: string | null }
 
-  function handleFiles(files: FileList | null) {
+export default function Tab1Basic({ data, set, orgId }: Props) {
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [uploadingCount, setUploadingCount] = useState(0)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+
+  async function handleFiles(files: FileList | null) {
     if (!files) return
-    const arr = Array.from(files).slice(0, 10 - data.photos.length)
-    const urls = arr.map(f => URL.createObjectURL(f))
-    set('photos', [...data.photos, ...arr])
-    set('photoUrls', [...data.photoUrls, ...urls])
+    const total = data.photoUrls.length + uploadingCount
+    const arr = Array.from(files).slice(0, 10 - total)
+    if (arr.length === 0) return
+
+    setUploadError(null)
+    setUploadingCount(c => c + arr.length)
+
+    const supabase = createClient()
+    const folder = orgId ?? 'public'
+    const uploaded: string[] = []
+    const failed: string[] = []
+
+    await Promise.all(
+      arr.map(async (file) => {
+        const ext = file.name.split('.').pop() ?? 'jpg'
+        const path = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+
+        const { error } = await supabase.storage
+          .from('produtos')
+          .upload(path, file, { cacheControl: '3600', upsert: false })
+
+        if (error) {
+          failed.push(file.name)
+          return
+        }
+
+        const { data: pub } = supabase.storage.from('produtos').getPublicUrl(path)
+        uploaded.push(pub.publicUrl)
+      })
+    )
+
+    setUploadingCount(c => c - arr.length)
+
+    if (uploaded.length > 0) {
+      set('photoUrls', [...data.photoUrls, ...uploaded])
+    }
+    if (failed.length > 0) {
+      setUploadError(`Erro ao enviar: ${failed.join(', ')}. Verifique se o bucket "produtos" existe no Supabase Storage.`)
+    }
+
+    // Reset input so the same file can be re-selected after a failure
+    if (fileRef.current) fileRef.current.value = ''
   }
 
   function removePhoto(i: number) {
-    set('photos', data.photos.filter((_, idx) => idx !== i))
     set('photoUrls', data.photoUrls.filter((_, idx) => idx !== i))
   }
+
+  const totalSlots = data.photoUrls.length + uploadingCount
+  const canAddMore = totalSlots < 10
 
   return (
     <div className="space-y-8">
@@ -37,24 +82,35 @@ export default function Tab1Basic({ data, set }: TabProps) {
       {/* Photos */}
       <section>
         <p className={sec}>Fotos do produto</p>
+
+        {uploadError && (
+          <div className="mb-3 px-3 py-2.5 rounded-lg border text-[12px]"
+            style={{ background: 'rgba(248,113,113,0.08)', borderColor: 'rgba(248,113,113,0.2)', color: '#f87171' }}>
+            {uploadError}
+          </div>
+        )}
+
         <div className="flex flex-wrap gap-3">
+          {/* Uploaded photos */}
           {data.photoUrls.map((url, i) => (
-            <div key={url} className="relative group">
+            <div key={url} className="relative group shrink-0">
               <img
                 src={url}
                 alt=""
-                className="w-20 h-20 rounded-xl object-cover border-2"
+                className="w-20 h-20 rounded-xl object-cover border-2 transition-transform duration-200 group-hover:scale-[1.03]"
                 style={{ borderColor: i === 0 ? '#00E5FF' : '#3f3f46' }}
               />
               {i === 0 && (
-                <span className="absolute -top-1.5 -right-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full"
-                  style={{ background: '#00E5FF', color: '#000' }}>CAPA</span>
+                <span className="absolute -top-1.5 -right-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full z-10"
+                  style={{ background: '#00E5FF', color: '#000' }}>
+                  CAPA
+                </span>
               )}
               <button
                 type="button"
                 onClick={() => removePhoto(i)}
-                className="absolute top-1 right-1 w-5 h-5 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                style={{ background: 'rgba(0,0,0,0.7)' }}
+                className="absolute top-1 right-1 w-5 h-5 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                style={{ background: 'rgba(0,0,0,0.75)' }}
               >
                 <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -63,11 +119,24 @@ export default function Tab1Basic({ data, set }: TabProps) {
             </div>
           ))}
 
-          {data.photos.length < 10 && (
+          {/* Upload loading placeholders */}
+          {[...Array(uploadingCount)].map((_, i) => (
+            <div key={`loading-${i}`}
+              className="w-20 h-20 rounded-xl shrink-0 flex items-center justify-center border-2 border-dashed"
+              style={{ background: 'rgba(0,229,255,0.04)', borderColor: 'rgba(0,229,255,0.3)' }}>
+              <svg className="w-5 h-5 animate-spin" style={{ color: '#00E5FF' }} fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+            </div>
+          ))}
+
+          {/* Add button */}
+          {canAddMore && (
             <button
               type="button"
               onClick={() => fileRef.current?.click()}
-              className="w-20 h-20 rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-1 transition-colors"
+              className="w-20 h-20 rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-1 transition-colors shrink-0"
               style={{ borderColor: '#3f3f46' }}
               onMouseEnter={e => (e.currentTarget.style.borderColor = '#00E5FF')}
               onMouseLeave={e => (e.currentTarget.style.borderColor = '#3f3f46')}
@@ -79,8 +148,9 @@ export default function Tab1Basic({ data, set }: TabProps) {
             </button>
           )}
         </div>
+
         <p className="text-[11px] text-zinc-600 mt-2">
-          {data.photos.length}/10 fotos · A primeira imagem será a capa do anúncio
+          {totalSlots}/10 fotos · A primeira imagem será a capa do anúncio
         </p>
         <input ref={fileRef} type="file" accept="image/*" multiple className="hidden"
           onChange={e => handleFiles(e.target.files)} />

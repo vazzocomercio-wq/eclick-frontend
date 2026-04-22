@@ -110,24 +110,8 @@ export default function NovoProdutoPage() {
     return null
   }
 
-  // ── upload photos ────────────────────────────────────────────────────────
-  async function uploadPhotos(supabase: ReturnType<typeof createClient>): Promise<string[]> {
-    if (form.photos.length === 0) return []
-    const urls: string[] = []
-    for (const file of form.photos) {
-      const ext = file.name.split('.').pop()
-      const path = `products/${orgId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
-      const { error } = await supabase.storage.from('product-images').upload(path, file)
-      if (!error) {
-        const { data: pub } = supabase.storage.from('product-images').getPublicUrl(path)
-        urls.push(pub.publicUrl)
-      }
-    }
-    return urls
-  }
-
   // ── build payload ─────────────────────────────────────────────────────────
-  function buildPayload(photoUrls: string[], status: 'draft' | 'active') {
+  function buildPayload(status: 'draft' | 'active') {
     return {
       organization_id: orgId,
       status,
@@ -140,7 +124,7 @@ export default function NovoProdutoPage() {
       model: form.model.trim() || null,
       condition: form.condition,
       category: form.category || null,
-      photo_urls: photoUrls.length > 0 ? photoUrls : null,
+      photo_urls: form.photoUrls.length > 0 ? form.photoUrls : null,
       // Description
       ml_title: form.mlTitle.trim(),
       description: form.description.trim() || null,
@@ -212,8 +196,7 @@ export default function NovoProdutoPage() {
 
     setSaving(true)
     const supabase = createClient()
-    const photoUrls = await uploadPhotos(supabase)
-    const payload = buildPayload(photoUrls, status)
+    const payload = buildPayload(status)
 
     const { error } = await supabase.from('products').insert(payload)
     setSaving(false)
@@ -288,7 +271,7 @@ export default function NovoProdutoPage() {
         {/* ── Tab content ── */}
         <div className="flex-1 overflow-y-auto">
           <div className="max-w-3xl mx-auto px-6 py-7">
-            {tab === 1 && <Tab1Basic data={form} set={set} />}
+            {tab === 1 && <Tab1Basic data={form} set={set} orgId={orgId} />}
             {tab === 2 && <Tab2Description data={form} set={set} />}
             {tab === 3 && <Tab3Attributes data={form} set={set} />}
             {tab === 4 && <Tab4Variations data={form} set={set} />}
