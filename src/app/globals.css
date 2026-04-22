@@ -22,3 +22,8 @@ body {
   -moz-osx-font-smoothing: grayscale;
   margin: 0;
 }
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+select option { background: #1c1c1f; }
