@@ -25,38 +25,53 @@ function MlCallbackContent() {
     }
 
     ;(async () => {
-      const supabase = createClient()
-      const { data } = await supabase.auth.getSession()
-      const token = data.session?.access_token
+      try {
+        const supabase = createClient()
+        const { data } = await supabase.auth.getSession()
+        const token = data.session?.access_token
 
-      if (!token) {
-        setState('error')
-        setErrMsg('Sessão expirada. Faça login novamente.')
-        return
-      }
+        console.log('[ML Callback] code recebido:', code)
+        console.log('[ML Callback] backend URL:', BACKEND)
 
-      const redirectUri = process.env.NEXT_PUBLIC_ML_REDIRECT_URI ?? (window.location.origin + '/dashboard/integracoes/ml/callback')
+        if (!token) {
+          setState('error')
+          setErrMsg('Sessão expirada. Faça login novamente.')
+          return
+        }
 
-      const res = await fetch(`${BACKEND}/ml/connect`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ code, redirect_uri: redirectUri }),
-      })
+        const redirectUri = process.env.NEXT_PUBLIC_ML_REDIRECT_URI ?? (window.location.origin + '/dashboard/integracoes/ml/callback')
+        console.log('[ML Callback] redirect_uri enviado:', redirectUri)
 
-      if (!res.ok) {
+        const res = await fetch(`${BACKEND}/ml/connect`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ code, redirect_uri: redirectUri }),
+        })
+
+        console.log('[ML Callback] resposta backend:', res.status, res.statusText)
+
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}))
+          console.error('[ML Callback] erro backend:', body)
+          setState('error')
+          setErrMsg(`[${res.status}] ${body?.message ?? body?.error ?? 'Falha ao conectar conta.'}`)
+          return
+        }
+
         const body = await res.json().catch(() => ({}))
+        console.log('[ML Callback] sucesso:', body)
+        const nick = body?.nickname ? `&nickname=${encodeURIComponent(body.nickname)}` : ''
+        setState('success')
+        setTimeout(() => router.push(`/dashboard/integracoes?connected=1${nick}`), 2000)
+      } catch (err: unknown) {
+        console.error('[ML Callback] exceção:', err)
+        const msg = err instanceof Error ? err.message : String(err)
         setState('error')
-        setErrMsg(body?.message ?? 'Falha ao conectar conta.')
-        return
+        setErrMsg(`Erro de rede ou CORS: ${msg}`)
       }
-
-      const body = await res.json().catch(() => ({}))
-      const nick = body?.nickname ? `&nickname=${encodeURIComponent(body.nickname)}` : ''
-      setState('success')
-      setTimeout(() => router.push(`/dashboard/integracoes?connected=1${nick}`), 2000)
     })()
   }, [params, router])
 
