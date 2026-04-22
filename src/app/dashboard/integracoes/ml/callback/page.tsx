@@ -53,8 +53,10 @@ function MlCallbackContent() {
         return
       }
 
+      const body = await res.json().catch(() => ({}))
+      const nick = body?.nickname ? `&nickname=${encodeURIComponent(body.nickname)}` : ''
       setState('success')
-      setTimeout(() => router.push('/dashboard/integracoes'), 2000)
+      setTimeout(() => router.push(`/dashboard/integracoes?connected=1${nick}`), 2000)
     })()
   }, [params, router])
 

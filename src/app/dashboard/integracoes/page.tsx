@@ -11,6 +11,7 @@ type MlStatus = {
   seller_id: number
   expires_at: string
   access_token: string
+  nickname?: string | null
 } | null
 
 type Toast = { id: number; msg: string; type: 'success' | 'error' }
@@ -80,7 +81,7 @@ function MercadoLivreCard({
           <div>
             <p className="text-white text-sm font-semibold">Mercado Livre</p>
             <p className="text-zinc-500 text-xs mt-0.5">
-              {connected ? `Conta #${status!.seller_id} conectada` : 'Não conectado'}
+              {connected ? (status!.nickname ?? `Conta #${status!.seller_id}`) + ' conectado' : 'Não conectado'}
             </p>
           </div>
         </div>
@@ -122,7 +123,7 @@ function MercadoLivreCard({
       {connected && (
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-px" style={{ background: '#1e1e24' }}>
           {[
-            { label: 'Seller ID', value: String(status!.seller_id) },
+            { label: 'Conta', value: status!.nickname ?? `#${status!.seller_id}` },
             { label: 'Token expira', value: new Date(status!.expires_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) },
             { label: 'Status', value: 'Autenticado' },
           ].map(({ label, value }) => (
@@ -200,6 +201,17 @@ export default function IntegracoesPage() {
     setToasts(prev => [...prev, { id, msg, type }])
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000)
   }
+
+  // Show toast after OAuth redirect
+  useEffect(() => {
+    const search = window.location.search
+    if (search.includes('connected=1')) {
+      const params = new URLSearchParams(search)
+      const nick = params.get('nickname')
+      toast(nick ? `Mercado Livre conectado como ${nick}!` : 'Mercado Livre conectado!', 'success')
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+  }, [])
 
   // Load ML connection status
   useEffect(() => {
