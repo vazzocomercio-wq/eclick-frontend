@@ -345,7 +345,8 @@ export default function EditarProdutoPage() {
     originalPhotos.current = form.photoUrls
 
     setSaving(false)
-    toast('Alterações salvas!', 'success')
+    toast('Produto atualizado com sucesso!', 'success')
+    setTimeout(() => router.push('/dashboard/produtos'), 1000)
   }
 
   const progress = calcProgress(form)
