@@ -1,3 +1,5 @@
+'use client'
+
 function Sparkline({ values, color }: { values: number[]; color: string }) {
   const h = 40
   const w = 88
