@@ -5,6 +5,14 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 
+const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
+
+async function getAuthToken(): Promise<string | null> {
+  const supabase = createClient()
+  const { data } = await supabase.auth.getSession()
+  return data.session?.access_token ?? null
+}
+
 // ── types ────────────────────────────────────────────────────────────────────
 
 type WholesaleLevel = { id: string; minQty: string; price: string }
@@ -452,6 +460,147 @@ function ProductCard({ product, onDelete, onStatusChange, onDuplicate }: {
   )
 }
 
+// ── ML Import Modal ───────────────────────────────────────────────────────────
+
+type MlItem = {
+  id: string
+  title: string
+  price: number
+  available_quantity: number
+  thumbnail: string
+  status: string
+  sold_quantity: number
+}
+
+function MlImportModal({ onClose, onImported }: { onClose: () => void; onImported: () => void }) {
+  const [items, setItems] = useState<MlItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const [importing, setImporting] = useState<Set<string>>(new Set())
+  const [imported, setImported] = useState<Set<string>>(new Set())
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    ;(async () => {
+      const token = await getAuthToken()
+      if (!token) { setError('Sessão expirada.'); setLoading(false); return }
+      const res = await fetch(`${BACKEND}/ml/items?limit=50`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!res.ok) { setError('Falha ao carregar anúncios do ML.'); setLoading(false); return }
+      const { items: data } = await res.json()
+      setItems(data ?? [])
+      setLoading(false)
+    })()
+  }, [])
+
+  async function handleImport(mlItemId: string) {
+    setImporting(prev => new Set(prev).add(mlItemId))
+    const token = await getAuthToken()
+    if (!token) return
+    const res = await fetch(`${BACKEND}/ml/items/import`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ ml_item_id: mlItemId }),
+    })
+    setImporting(prev => { const n = new Set(prev); n.delete(mlItemId); return n })
+    if (res.ok) {
+      setImported(prev => new Set(prev).add(mlItemId))
+      onImported()
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}>
+      <div className="w-full max-w-2xl rounded-2xl overflow-hidden flex flex-col"
+        style={{ background: '#111114', border: '1px solid #1e1e24', maxHeight: '80vh' }}>
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 shrink-0"
+          style={{ borderBottom: '1px solid #1e1e24' }}>
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold"
+              style={{ background: '#ffe600', color: '#333' }}>ML</div>
+            <div>
+              <p className="text-white text-sm font-semibold">Importar do Mercado Livre</p>
+              <p className="text-zinc-500 text-xs">Selecione os anúncios para importar ao catálogo</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-zinc-500 hover:text-white transition-colors">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto">
+          {loading && (
+            <div className="flex items-center justify-center py-16">
+              <svg className="w-7 h-7 animate-spin" style={{ color: '#00E5FF' }} fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+            </div>
+          )}
+
+          {error && (
+            <div className="mx-6 my-4 px-4 py-3 rounded-xl text-sm"
+              style={{ background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.2)', color: '#f87171' }}>
+              {error}
+              {error.includes('conectar') || error.includes('ML') ? (
+                <Link href="/dashboard/integracoes" className="ml-2 underline" onClick={onClose}>Conectar conta</Link>
+              ) : null}
+            </div>
+          )}
+
+          {!loading && !error && items.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-16">
+              <p className="text-zinc-400 text-sm">Nenhum anúncio encontrado na sua conta ML.</p>
+            </div>
+          )}
+
+          {!loading && items.length > 0 && (
+            <div className="divide-y" style={{ borderColor: '#1e1e24' }}>
+              {items.map(item => {
+                const done = imported.has(item.id)
+                const busy = importing.has(item.id)
+                return (
+                  <div key={item.id} className="flex items-center gap-4 px-6 py-4">
+                    <img src={item.thumbnail} alt="" className="w-14 h-14 rounded-xl object-cover shrink-0"
+                      style={{ background: '#1c1c1f', border: '1px solid #2e2e33' }} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white text-sm font-medium truncate">{item.title}</p>
+                      <div className="flex items-center gap-3 mt-0.5">
+                        <span className="text-[12px] font-bold" style={{ color: '#00E5FF' }}>
+                          {item.price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        </span>
+                        <span className="text-[11px] text-zinc-500">{item.available_quantity} em estoque</span>
+                        <span className="text-[11px] text-zinc-600">{item.sold_quantity} vendidos</span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => !done && !busy && handleImport(item.id)}
+                      disabled={done || busy}
+                      className="shrink-0 px-4 py-1.5 rounded-lg text-[12px] font-semibold transition-all disabled:cursor-default"
+                      style={done
+                        ? { background: 'rgba(52,211,153,0.12)', color: '#34d399' }
+                        : busy
+                          ? { background: 'rgba(0,229,255,0.08)', color: '#00E5FF' }
+                          : { background: '#00E5FF', color: '#000' }
+                      }>
+                      {done ? '✓ Importado' : busy ? 'Importando…' : 'Importar'}
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── main page ─────────────────────────────────────────────────────────────────
 
 export default function ProdutosPage() {
@@ -463,6 +612,8 @@ export default function ProdutosPage() {
   const [view, setView]             = useState<'list' | 'grid'>('list')
   const [selected, setSelected]     = useState<Set<string>>(new Set())
   const [orgId, setOrgId]           = useState<string | null>(null)
+  const [showMlImport, setShowMlImport] = useState(false)
+  const [mlConnected, setMlConnected]   = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
@@ -485,6 +636,19 @@ export default function ProdutosPage() {
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  // Check ML connection
+  useEffect(() => {
+    ;(async () => {
+      const token = await getAuthToken()
+      if (!token) return
+      const res = await fetch(`${BACKEND}/ml/status`, { headers: { Authorization: `Bearer ${token}` } })
+      if (res.ok) {
+        const data = await res.json()
+        setMlConnected(!!data)
+      }
+    })()
+  }, [])
 
   // ── handlers ────────────────────────────────────────────────────────────────
 
@@ -569,14 +733,24 @@ export default function ProdutosPage() {
             {loading ? 'Carregando…' : `${products.length} produto${products.length !== 1 ? 's' : ''} no catálogo`}
           </p>
         </div>
-        <Link href="/dashboard/produtos/novo"
-          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all active:scale-[0.98]"
-          style={{ background: '#00E5FF', color: '#000' }}>
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-          </svg>
-          Novo Produto
-        </Link>
+        <div className="flex items-center gap-2">
+          {mlConnected && (
+            <button onClick={() => setShowMlImport(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold border transition-all active:scale-[0.98]"
+              style={{ borderColor: '#ffe600', color: '#ffe600', background: 'rgba(255,230,0,0.06)' }}>
+              <span className="text-[11px] font-black w-4 h-4 rounded flex items-center justify-center" style={{ background: '#ffe600', color: '#333' }}>ML</span>
+              Importar do ML
+            </button>
+          )}
+          <Link href="/dashboard/produtos/novo"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all active:scale-[0.98]"
+            style={{ background: '#00E5FF', color: '#000' }}>
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+            </svg>
+            Novo Produto
+          </Link>
+        </div>
       </div>
 
       {/* Controls */}
@@ -677,7 +851,7 @@ export default function ProdutosPage() {
       {!loading && products.length > 0 && filtered.length === 0 && (
         <div className="rounded-2xl border flex flex-col items-center justify-center py-14"
           style={{ background: '#111114', borderColor: '#1e1e24' }}>
-          <p className="text-zinc-400 text-sm">Nenhum produto encontrado para <strong className="text-white">"{search}"</strong></p>
+          <p className="text-zinc-400 text-sm">Nenhum produto encontrado para <strong className="text-white">&quot;{search}&quot;</strong></p>
           <button onClick={() => { setSearch(''); setFilter('all') }}
             className="mt-3 text-[12px] font-medium" style={{ color: '#00E5FF' }}>
             Limpar filtros
@@ -749,6 +923,13 @@ export default function ProdutosPage() {
             </div>
           ))}
         </div>
+      )}
+
+      {showMlImport && (
+        <MlImportModal
+          onClose={() => setShowMlImport(false)}
+          onImported={() => { load() }}
+        />
       )}
     </div>
   )

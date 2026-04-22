@@ -65,7 +65,7 @@ export default function Tab4Variations({ data, set }: TabProps) {
 
           {data.variations.length === 0 ? (
             <p className="text-zinc-500 text-sm text-center py-6">
-              Nenhuma variação adicionada. Clique em "Adicionar variação" abaixo.
+              Nenhuma variação adicionada. Clique em &quot;Adicionar variação&quot; abaixo.
             </p>
           ) : (
             <div className="rounded-xl border overflow-hidden" style={{ borderColor: '#1e1e24' }}>
