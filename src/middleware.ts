@@ -32,7 +32,6 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   const isPublicRoute =
-    pathname === '/' ||
     pathname.startsWith('/login') ||
     pathname.startsWith('/register') ||
     pathname.startsWith('/auth')
@@ -43,7 +42,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  if (user && (pathname.startsWith('/login') || pathname.startsWith('/register'))) {
+  if (user && (pathname === '/' || pathname.startsWith('/login') || pathname.startsWith('/register'))) {
     const url = request.nextUrl.clone()
     url.pathname = '/dashboard'
     return NextResponse.redirect(url)

@@ -82,21 +82,27 @@ export default function LoginPage() {
 
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
-          <div className="flex items-center gap-2.5 mb-1">
-            <div
-              className="w-9 h-9 rounded-xl flex items-center justify-center font-bold text-black text-sm shrink-0"
-              style={{ background: '#00E5FF' }}
-            >
-              eC
-            </div>
-            <span className="text-white font-bold text-2xl tracking-tight">e-Click</span>
-          </div>
-          <span
-            className="text-xs font-semibold tracking-widest uppercase"
-            style={{ color: '#00E5FF' }}
+          <h1
+            className="text-5xl font-black"
+            style={{
+              color: '#00E5FF',
+              fontFamily: 'system-ui, -apple-system, sans-serif',
+              letterSpacing: '-0.03em',
+              textShadow: '0 0 40px rgba(0,229,255,0.4), 0 0 80px rgba(0,229,255,0.15)',
+            }}
           >
-            Inteligência Comercial
-          </span>
+            e-CLICK
+          </h1>
+          <div className="flex items-center gap-2.5 mt-2">
+            <span className="h-px w-8 rounded-full" style={{ background: 'rgba(0,229,255,0.3)' }} />
+            <p
+              className="text-[9px] font-bold uppercase"
+              style={{ color: 'rgba(0,229,255,0.55)', letterSpacing: '0.38em' }}
+            >
+              Inteligência Comercial
+            </p>
+            <span className="h-px w-8 rounded-full" style={{ background: 'rgba(0,229,255,0.3)' }} />
+          </div>
         </div>
 
         {/* Card */}
