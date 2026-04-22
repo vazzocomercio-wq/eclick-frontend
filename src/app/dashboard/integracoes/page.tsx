@@ -202,7 +202,26 @@ export default function IntegracoesPage() {
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000)
   }
 
-  // Show toast after OAuth redirect
+  async function loadStatus() {
+    const token = await getToken()
+    if (!token) { setLoadingStatus(false); return }
+    try {
+      const res = await fetch(`${BACKEND}/ml/status`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setMlStatus(data ?? null)
+      } else {
+        console.error('[ML status] resposta:', res.status, res.statusText)
+      }
+    } catch (err) {
+      console.error('[ML status] erro de rede:', err)
+    }
+    setLoadingStatus(false)
+  }
+
+  // On mount: check for ?connected=1 then always load status
   useEffect(() => {
     const search = window.location.search
     if (search.includes('connected=1')) {
@@ -211,24 +230,7 @@ export default function IntegracoesPage() {
       toast(nick ? `Mercado Livre conectado como ${nick}!` : 'Mercado Livre conectado!', 'success')
       window.history.replaceState({}, '', window.location.pathname)
     }
-  }, [])
-
-  // Load ML connection status
-  useEffect(() => {
-    ;(async () => {
-      const token = await getToken()
-      if (!token) { setLoadingStatus(false); return }
-      try {
-        const res = await fetch(`${BACKEND}/ml/status`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        if (res.ok) {
-          const data = await res.json()
-          setMlStatus(data ?? null)
-        }
-      } catch (_) {}
-      setLoadingStatus(false)
-    })()
+    loadStatus()
   }, [])
 
   function handleConnect() {
