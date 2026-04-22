@@ -82,7 +82,7 @@ export default function LoginPage() {
 
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
-          <img src="/logo.png" alt="e-Click Inteligência Comercial" style={{ width: '220px', marginBottom: '8px' }} />
+          <img src="/logo.png" alt="e-Click Inteligência Comercial" style={{ width: '220px', marginBottom: '8px', mixBlendMode: 'screen' as const }} />
         </div>
 
         {/* Card */}

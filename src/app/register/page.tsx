@@ -95,7 +95,7 @@ export default function RegisterPage() {
       >
         <div className="w-full max-w-md">
           <div className="flex flex-col items-center mb-8">
-            <img src="/logo.png" alt="e-Click Inteligência Comercial" style={{ width: '220px', marginBottom: '8px' }} />
+            <img src="/logo.png" alt="e-Click Inteligência Comercial" style={{ width: '220px', marginBottom: '8px', mixBlendMode: 'screen' as const }} />
           </div>
           <div className="rounded-2xl border border-zinc-800 p-8 text-center" style={{ background: '#111113' }}>
             <div
@@ -130,7 +130,7 @@ export default function RegisterPage() {
 
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
-          <img src="/logo.png" alt="e-Click Inteligência Comercial" style={{ width: '220px', marginBottom: '8px' }} />
+          <img src="/logo.png" alt="e-Click Inteligência Comercial" style={{ width: '220px', marginBottom: '8px', mixBlendMode: 'screen' as const }} />
         </div>
 
         {/* Card */}

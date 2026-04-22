@@ -145,7 +145,7 @@ export default function Sidebar() {
         className="flex items-center px-4 py-4 shrink-0"
         style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}
       >
-        <img src="/logo.png" alt="e-Click Inteligência Comercial" style={{ width: '130px' }} />
+        <img src="/logo.png" alt="e-Click Inteligência Comercial" style={{ width: '130px', mixBlendMode: 'screen' as const }} />
       </div>
 
       {/* Nav */}
