@@ -203,12 +203,19 @@ function TableRow({
       <td className="px-3 py-3">
         <div className="flex items-start gap-3 min-w-0">
           {/* Thumbnail */}
-          <div className="w-12 h-12 rounded-lg shrink-0 overflow-hidden"
-            style={{ background: '#1c1c1f', border: '1px solid #2e2e33' }}>
+          <div className="rounded-xl shrink-0 overflow-hidden"
+            style={{ width: 72, height: 72, background: '#1c1c1f', border: '1px solid #2e2e33' }}>
             {cover
-              ? <img src={cover} alt="" className="w-full h-full object-cover" />
+              ? <img
+                  src={cover}
+                  alt=""
+                  className="w-full h-full object-cover transition-transform duration-200"
+                  style={{ display: 'block' }}
+                  onMouseEnter={e => (e.currentTarget.style.transform = 'scale(1.07)')}
+                  onMouseLeave={e => (e.currentTarget.style.transform = 'scale(1)')}
+                />
               : <div className="w-full h-full flex items-center justify-center">
-                  <svg className="w-5 h-5 text-zinc-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.25}>
+                  <svg className="w-6 h-6 text-zinc-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.25}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                   </svg>
                 </div>
@@ -345,7 +352,7 @@ function TableSkeleton() {
           </td>
           <td className="px-3 py-3">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-lg shrink-0" style={{ background: '#1e1e24' }} />
+              <div className="rounded-xl shrink-0" style={{ width: 72, height: 72, background: '#1e1e24' }} />
               <div className="space-y-2 flex-1">
                 <div className="h-3 rounded w-3/4" style={{ background: '#1e1e24' }} />
                 <div className="h-2.5 rounded w-1/3" style={{ background: '#1e1e24' }} />
