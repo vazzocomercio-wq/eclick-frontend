@@ -201,34 +201,52 @@ export default function VendasAoVivoPage() {
   const fetchOrders = useCallback(async () => {
     const { data: sess } = await createClient().auth.getSession()
     const token = sess.session?.access_token
-    if (!token) { setLoading(false); return }
+
+    console.log('[Vendas] BACKEND_URL:', BACKEND)
+    console.log('[Vendas] token:', token ? `${token.slice(0, 20)}…` : 'NULL')
+
+    if (!token) {
+      console.warn('[Vendas] Sem token — usuário não logado ou sessão expirada')
+      setLoading(false)
+      return
+    }
 
     // Step 1: verify connection via status (backend has fallback to first available record)
     try {
       const statusRes = await fetch(`${BACKEND}/ml/status`, {
         headers: { Authorization: `Bearer ${token}` },
       })
+      console.log('[Vendas] status HTTP:', statusRes.status)
       if (statusRes.ok) {
         const statusData = await statusRes.json()
+        console.log('[Vendas] status data:', JSON.stringify(statusData).slice(0, 150))
         if (statusData?.seller_id) setConnected(true)
+      } else {
+        const txt = await statusRes.text()
+        console.error('[Vendas] status error:', txt.slice(0, 200))
       }
-    } catch { /* ignore */ }
+    } catch (e) { console.error('[Vendas] status exception:', e) }
 
     // Step 2: fetch orders separately — failure here never blocks the connected view
     try {
       const res = await fetch(`${BACKEND}/ml/recent-orders?limit=100`, {
         headers: { Authorization: `Bearer ${token}` },
       })
+      console.log('[Vendas] recent-orders HTTP:', res.status)
       if (res.ok) {
-        const { orders: raw } = await res.json()
-        const next: Order[] = raw ?? []
+        const json = await res.json()
+        console.log('[Vendas] orders count:', json.orders?.length ?? 0)
+        const next: Order[] = json.orders ?? []
         const nextIds = new Set(next.map((o: Order) => o.id))
         newIdsRef.current = new Set([...nextIds].filter(id => !prevIdsRef.current.has(id) && prevIdsRef.current.size > 0))
         prevIdsRef.current = nextIds
         setOrders(next)
         setLastUpdated(new Date())
+      } else {
+        const txt = await res.text()
+        console.error('[Vendas] orders error:', txt.slice(0, 200))
       }
-    } catch { /* orders failed — keep connected state */ }
+    } catch (e) { console.error('[Vendas] orders exception:', e) }
 
     setLoading(false)
   }, [])

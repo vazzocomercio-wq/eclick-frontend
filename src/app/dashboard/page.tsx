@@ -373,9 +373,13 @@ export default function DashboardPage() {
     const token = await getToken()
     const supabase = createClient()
 
+    console.log('[Dashboard] BACKEND_URL:', BACKEND)
+    console.log('[Dashboard] token:', token ? `${token.slice(0, 20)}…` : 'NULL — ML fetches serão pulados')
+
     // Supabase products + competitors
     let loadedProducts: DBProduct[] = []
     const { data: member } = await supabase.from('organization_members').select('organization_id').maybeSingle()
+    console.log('[Dashboard] orgId (Supabase):', member?.organization_id ?? 'null')
     if (member?.organization_id) {
       const { data: prods } = await supabase
         .from('products')
@@ -384,6 +388,7 @@ export default function DashboardPage() {
         .limit(200)
       loadedProducts = prods ?? []
       setProducts(loadedProducts)
+      console.log('[Dashboard] produtos DB:', loadedProducts.length)
 
       if (loadedProducts.length > 0) {
         const { data: comps } = await supabase
@@ -404,40 +409,58 @@ export default function DashboardPage() {
       }
     }
 
-    if (token) {
-      const [ordersRes, questionsRes, claimsRes, sellerRes, myItemsRes] = await Promise.allSettled([
-        fetch(`${BACKEND}/ml/recent-orders?limit=200`,  { headers: { Authorization: `Bearer ${token}` } }),
-        fetch(`${BACKEND}/ml/questions`,                 { headers: { Authorization: `Bearer ${token}` } }),
-        fetch(`${BACKEND}/ml/claims`,                    { headers: { Authorization: `Bearer ${token}` } }),
-        fetch(`${BACKEND}/ml/seller-info`,               { headers: { Authorization: `Bearer ${token}` } }),
-        fetch(`${BACKEND}/ml/my-items?limit=1`,          { headers: { Authorization: `Bearer ${token}` } }),
-      ])
+    if (!token) {
+      console.warn('[Dashboard] Sem token — verifique se o usuário está logado e a sessão Supabase está ativa')
+      setLoading(false)
+      setRefreshing(false)
+      return
+    }
 
-      if (ordersRes.status === 'fulfilled' && ordersRes.value.ok) {
-        const { orders: raw } = await ordersRes.value.json()
-        setOrders(raw ?? [])
+    const [ordersRes, questionsRes, claimsRes, sellerRes, myItemsRes] = await Promise.allSettled([
+      fetch(`${BACKEND}/ml/recent-orders?limit=200`,  { headers: { Authorization: `Bearer ${token}` } }),
+      fetch(`${BACKEND}/ml/questions`,                 { headers: { Authorization: `Bearer ${token}` } }),
+      fetch(`${BACKEND}/ml/claims`,                    { headers: { Authorization: `Bearer ${token}` } }),
+      fetch(`${BACKEND}/ml/seller-info`,               { headers: { Authorization: `Bearer ${token}` } }),
+      fetch(`${BACKEND}/ml/my-items?limit=1`,          { headers: { Authorization: `Bearer ${token}` } }),
+    ])
+
+    console.log('[Dashboard] recent-orders:', ordersRes.status === 'fulfilled' ? ordersRes.value.status : `REJECTED(${(ordersRes as PromiseRejectedResult).reason})`)
+    console.log('[Dashboard] questions:', questionsRes.status === 'fulfilled' ? questionsRes.value.status : `REJECTED`)
+    console.log('[Dashboard] claims:', claimsRes.status === 'fulfilled' ? claimsRes.value.status : `REJECTED`)
+    console.log('[Dashboard] seller-info:', sellerRes.status === 'fulfilled' ? sellerRes.value.status : `REJECTED`)
+    console.log('[Dashboard] my-items:', myItemsRes.status === 'fulfilled' ? myItemsRes.value.status : `REJECTED`)
+
+    if (ordersRes.status === 'fulfilled') {
+      if (ordersRes.value.ok) {
+        const json = await ordersRes.value.json()
+        console.log('[Dashboard] orders data:', JSON.stringify(json).slice(0, 300))
+        setOrders(json.orders ?? [])
         setMlConnected(true)
+      } else {
+        const txt = await ordersRes.value.text()
+        console.error('[Dashboard] orders error body:', txt.slice(0, 300))
       }
-      if (questionsRes.status === 'fulfilled' && questionsRes.value.ok) {
-        const data = await questionsRes.value.json()
-        setQuestions(data?.total ?? 0)
-      }
-      if (claimsRes.status === 'fulfilled' && claimsRes.value.ok) {
-        const data = await claimsRes.value.json()
-        setClaims(Array.isArray(data?.data ?? data) ? (data?.data ?? data).length : (data?.total ?? 0))
-      }
-      if (sellerRes.status === 'fulfilled' && sellerRes.value.ok) {
-        const data = await sellerRes.value.json()
-        setSellerInfo({
-          power_seller_status: data?.seller_reputation?.power_seller_status ?? data?.power_seller_status ?? null,
-          level_id: data?.seller_reputation?.level_id ?? data?.level_id ?? null,
-          points: data?.seller_reputation?.transactions?.period?.total ?? null,
-        })
-      }
-      if (myItemsRes.status === 'fulfilled' && myItemsRes.value.ok) {
-        const data = await myItemsRes.value.json()
-        setMlItemsTotal(data?.total ?? null)
-      }
+    }
+    if (questionsRes.status === 'fulfilled' && questionsRes.value.ok) {
+      const data = await questionsRes.value.json()
+      setQuestions(data?.total ?? 0)
+    }
+    if (claimsRes.status === 'fulfilled' && claimsRes.value.ok) {
+      const data = await claimsRes.value.json()
+      setClaims(Array.isArray(data?.data ?? data) ? (data?.data ?? data).length : (data?.total ?? 0))
+    }
+    if (sellerRes.status === 'fulfilled' && sellerRes.value.ok) {
+      const data = await sellerRes.value.json()
+      console.log('[Dashboard] seller-info data:', JSON.stringify(data).slice(0, 200))
+      setSellerInfo({
+        power_seller_status: data?.seller_reputation?.power_seller_status ?? data?.power_seller_status ?? null,
+        level_id: data?.seller_reputation?.level_id ?? data?.level_id ?? null,
+        points: data?.seller_reputation?.transactions?.period?.total ?? null,
+      })
+    }
+    if (myItemsRes.status === 'fulfilled' && myItemsRes.value.ok) {
+      const data = await myItemsRes.value.json()
+      setMlItemsTotal(data?.total ?? null)
     }
 
     setLastUpdated(new Date())
