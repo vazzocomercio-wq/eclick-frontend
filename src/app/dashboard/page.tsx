@@ -33,6 +33,12 @@ type DBProduct = {
 type Period = 'today' | '7d' | '30d' | 'month'
 type Channel = 'all' | 'ml' | 'shopee' | 'amazon' | 'magalu'
 
+type SellerInfo = {
+  power_seller_status: string | null
+  level_id: string | null
+  points: number | null
+}
+
 // ── helpers ───────────────────────────────────────────────────────────────────
 
 function brl(v: number) { return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) }
@@ -48,9 +54,13 @@ function pct(a: number, b: number): number | null {
   return ((a - b) / b) * 100
 }
 
-function dayStr(d: Date) { return d.toISOString().slice(0, 10) }
-function todayStr() { return dayStr(new Date()) }
+// GMT-3 (Brasil)
+function brazilDate(d: Date = new Date()) { return new Date(d.getTime() - 3 * 60 * 60 * 1000) }
+function brazilDateStr(d: Date = new Date()) { return brazilDate(d).toISOString().slice(0, 10) }
+function todayBR() { return brazilDateStr() }
+function thisMonthBR() { return brazilDateStr().slice(0, 7) }
 function daysAgoDate(n: number) { const d = new Date(); d.setDate(d.getDate() - n); return d }
+function dayStr(d: Date) { return d.toISOString().slice(0, 10) }
 
 function isPaid(o: Order) { return o.status === 'paid' }
 
@@ -77,20 +87,18 @@ function calcMetrics(orders: Order[]) {
 }
 
 function filterByPeriod(orders: Order[], period: Period) {
-  const now = new Date()
   if (period === 'today') {
-    const ds = todayStr()
-    return orders.filter(o => o.date_created.slice(0, 10) === ds)
+    const ds = todayBR()
+    return orders.filter(o => brazilDateStr(new Date(o.date_created)) === ds)
   }
   if (period === '7d') {
     const from = daysAgoDate(7)
     return orders.filter(o => new Date(o.date_created) >= from)
   }
   if (period === 'month') {
-    const ym = todayStr().slice(0, 7)
-    return orders.filter(o => o.date_created.slice(0, 7) === ym)
+    const ym = thisMonthBR()
+    return orders.filter(o => brazilDateStr(new Date(o.date_created)).slice(0, 7) === ym)
   }
-  // 30d default
   const from = daysAgoDate(30)
   return orders.filter(o => new Date(o.date_created) >= from)
 }
@@ -102,7 +110,7 @@ function buildDailyChart(orders: Order[], days: number) {
   }
   for (const o of orders) {
     if (!isPaid(o)) continue
-    const ds = o.date_created.slice(0, 10)
+    const ds = brazilDateStr(new Date(o.date_created))
     if (map.has(ds)) map.set(ds, (map.get(ds) ?? 0) + (o.total_amount ?? 0))
   }
   return [...map.entries()].map(([date, value]) => ({
@@ -356,13 +364,17 @@ export default function DashboardPage() {
   const [refreshing, setRefreshing] = useState(false)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [mlConnected, setMlConnected] = useState(false)
+  const [sellerInfo, setSellerInfo] = useState<SellerInfo | null>(null)
+  const [mlItemsTotal, setMlItemsTotal] = useState<number | null>(null)
+  const [aboveConcPrice, setAboveConcPrice] = useState(0)
 
   const refresh = useCallback(async (isInitial = false) => {
     if (!isInitial) setRefreshing(true)
     const token = await getToken()
     const supabase = createClient()
 
-    // Supabase products (always available)
+    // Supabase products + competitors
+    let loadedProducts: DBProduct[] = []
     const { data: member } = await supabase.from('organization_members').select('organization_id').maybeSingle()
     if (member?.organization_id) {
       const { data: prods } = await supabase
@@ -370,15 +382,35 @@ export default function DashboardPage() {
         .select('id, name, price, stock, status, platforms')
         .eq('organization_id', member.organization_id)
         .limit(200)
-      setProducts(prods ?? [])
+      loadedProducts = prods ?? []
+      setProducts(loadedProducts)
+
+      if (loadedProducts.length > 0) {
+        const { data: comps } = await supabase
+          .from('competitors')
+          .select('product_id, price')
+          .in('product_id', loadedProducts.map(p => p.id))
+        if (comps && comps.length > 0) {
+          const minPrice = new Map<string, number>()
+          for (const c of comps) {
+            const cur = minPrice.get(c.product_id)
+            if (cur === undefined || c.price < cur) minPrice.set(c.product_id, c.price)
+          }
+          const above = loadedProducts.filter(p =>
+            p.price != null && minPrice.has(p.id) && p.price > (minPrice.get(p.id) ?? Infinity)
+          )
+          setAboveConcPrice(above.length)
+        }
+      }
     }
 
     if (token) {
-      // Parallel ML fetches
-      const [ordersRes, questionsRes, claimsRes] = await Promise.allSettled([
-        fetch(`${BACKEND}/ml/recent-orders?limit=100`, { headers: { Authorization: `Bearer ${token}` } }),
-        fetch(`${BACKEND}/ml/questions`,               { headers: { Authorization: `Bearer ${token}` } }),
-        fetch(`${BACKEND}/ml/claims`,                  { headers: { Authorization: `Bearer ${token}` } }),
+      const [ordersRes, questionsRes, claimsRes, sellerRes, myItemsRes] = await Promise.allSettled([
+        fetch(`${BACKEND}/ml/recent-orders?limit=200`,  { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${BACKEND}/ml/questions`,                 { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${BACKEND}/ml/claims`,                    { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${BACKEND}/ml/seller-info`,               { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${BACKEND}/ml/my-items?limit=1`,          { headers: { Authorization: `Bearer ${token}` } }),
       ])
 
       if (ordersRes.status === 'fulfilled' && ordersRes.value.ok) {
@@ -394,6 +426,18 @@ export default function DashboardPage() {
         const data = await claimsRes.value.json()
         setClaims(Array.isArray(data?.data ?? data) ? (data?.data ?? data).length : (data?.total ?? 0))
       }
+      if (sellerRes.status === 'fulfilled' && sellerRes.value.ok) {
+        const data = await sellerRes.value.json()
+        setSellerInfo({
+          power_seller_status: data?.seller_reputation?.power_seller_status ?? data?.power_seller_status ?? null,
+          level_id: data?.seller_reputation?.level_id ?? data?.level_id ?? null,
+          points: data?.seller_reputation?.transactions?.period?.total ?? null,
+        })
+      }
+      if (myItemsRes.status === 'fulfilled' && myItemsRes.value.ok) {
+        const data = await myItemsRes.value.json()
+        setMlItemsTotal(data?.total ?? null)
+      }
     }
 
     setLastUpdated(new Date())
@@ -406,13 +450,15 @@ export default function DashboardPage() {
   // ── Derived ──────────────────────────────────────────────────────────────────
 
   const periodOrders = useMemo(() => filterByPeriod(orders, period), [orders, period])
-  const yestOrders   = useMemo(() => orders.filter(o => o.date_created.slice(0, 10) === dayStr(daysAgoDate(1))), [orders])
+  const yestOrders   = useMemo(() => orders.filter(o => brazilDateStr(new Date(o.date_created)) === brazilDateStr(daysAgoDate(1))), [orders])
   const weekOrders   = useMemo(() => orders.filter(o => new Date(o.date_created) >= daysAgoDate(7)), [orders])
-  const monthOrders  = useMemo(() => orders.filter(o => o.date_created.slice(0, 7) === todayStr().slice(0, 7)), [orders])
+  const monthOrders  = useMemo(() => orders.filter(o => brazilDateStr(new Date(o.date_created)).slice(0, 7) === thisMonthBR()), [orders])
 
   const cur  = useMemo(() => calcMetrics(periodOrders), [periodOrders])
   const yest = useMemo(() => calcMetrics(yestOrders), [yestOrders])
   const week = useMemo(() => calcMetrics(weekOrders), [weekOrders])
+  const todayOrdersBR = useMemo(() => orders.filter(o => isPaid(o) && brazilDateStr(new Date(o.date_created)) === todayBR()), [orders])
+  const todayM = useMemo(() => calcMetrics(todayOrdersBR), [todayOrdersBR])
 
   const chartDays = period === 'today' ? 1 : period === '7d' ? 7 : 30
   const chartData = useMemo(() => buildDailyChart(orders, chartDays), [orders, chartDays])
@@ -489,11 +535,11 @@ export default function DashboardPage() {
       <section>
         <p className="text-zinc-500 text-[10px] uppercase tracking-widest font-semibold mb-3">KPIs Executivos</p>
         <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-2.5">
-          <KpiCard label="Faturamento hoje"  value={shortBrl(calcMetrics(orders.filter(o => isPaid(o) && o.date_created.slice(0,10) === todayStr())).revenue)} vsYest={pct(calcMetrics(orders.filter(o => isPaid(o) && o.date_created.slice(0,10) === todayStr())).revenue, yest.revenue)} vsWeek={null} color="#00E5FF" loading={loading} />
+          <KpiCard label="Faturamento hoje"  value={shortBrl(todayM.revenue)} vsYest={pct(todayM.revenue, yest.revenue)} vsWeek={null} color="#00E5FF" loading={loading} />
           <KpiCard label="Faturamento mês"   value={shortBrl(calcMetrics(monthOrders).revenue)} sub="mês atual" color="#34d399" loading={loading} />
-          <KpiCard label="Pedidos hoje"       value={String(calcMetrics(orders.filter(o => isPaid(o) && o.date_created.slice(0,10) === todayStr())).count)} vsYest={pct(calcMetrics(orders.filter(o => isPaid(o) && o.date_created.slice(0,10) === todayStr())).count, yest.count)} color="#a78bfa" loading={loading} />
+          <KpiCard label="Pedidos hoje"       value={String(todayM.count)} vsYest={pct(todayM.count, yest.count)} color="#a78bfa" loading={loading} />
           <KpiCard label="Ticket médio"       value={brl(cur.avgTicket)} vsYest={pct(cur.avgTicket, yest.avgTicket)} color="#fb923c" loading={loading} />
-          <KpiCard label="Conversão geral"    value="—"  sub="requer visitas" color="#60a5fa" loading={loading} />
+          <KpiCard label="Reputação ML"       value={sellerInfo?.level_id?.replace(/_/g, ' ') ?? '—'} sub={sellerInfo?.power_seller_status ?? (mlConnected ? '…' : 'ML desconect.')} color="#60a5fa" loading={loading} />
           <KpiCard label="Margem estimada"    value="—"  sub="requer CMV"    color="#f59e0b" loading={loading} />
           <KpiCard label="Investimento mídia" value="—"  sub="via Ads"       color="#f87171" loading={loading} />
           <KpiCard label="ROAS / ROI"         value="—"  sub="via Ads"       color="#e879f9" loading={loading} />
@@ -511,7 +557,7 @@ export default function DashboardPage() {
           <AlertCard label="Mensagens não lidas"    value="—"                   level="yellow"                                                    loading={loading} />
           <AlertCard label="Sem estoque"            value={noStockProds.length} level={noStockProds.length > 0 ? 'red' : 'green'}                  href="/dashboard/produtos" loading={loading} />
           <AlertCard label="Anúncios pausados"      value={pausedProds.length}  level={pausedProds.length > 3 ? 'yellow' : 'green'}                href="/dashboard/produtos" loading={loading} />
-          <AlertCard label="Campanhas ROI neg."     value="—"                   level="green"                                                     loading={loading} />
+          <AlertCard label="Acima da concorrência"  value={aboveConcPrice}      level={aboveConcPrice > 0 ? 'yellow' : 'green'}                   href="/dashboard/precos" loading={loading} />
         </div>
       </section>
 
@@ -616,10 +662,10 @@ export default function DashboardPage() {
           <SectorCard title="Catálogo" loading={loading} icon={
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.75}><path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
           } items={[
-            { label: 'Anúncios ativos', value: activeProds.length, color: '#34d399' },
+            { label: 'Ativos no ML', value: mlItemsTotal != null ? mlItemsTotal : activeProds.length, color: '#34d399' },
             { label: 'Pausados', value: pausedProds.length, color: pausedProds.length > 0 ? '#f59e0b' : '#71717a' },
             { label: 'Sem estoque', value: noStockProds.length, color: noStockProds.length > 0 ? '#f87171' : '#71717a' },
-            { label: 'Estoque crítico', value: lowStockProds.length, color: lowStockProds.length > 0 ? '#f59e0b' : '#71717a' },
+            { label: 'Acima da concorrência', value: aboveConcPrice, color: aboveConcPrice > 0 ? '#f59e0b' : '#71717a' },
           ]} />
 
           <SectorCard title="Atendimento" loading={loading} icon={

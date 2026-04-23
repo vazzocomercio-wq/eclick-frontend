@@ -160,7 +160,7 @@ export default function Sidebar() {
       </div>
 
       {/* Main nav */}
-      <nav className="flex-1 px-2 py-3 overflow-y-auto">
+      <nav className="flex-1 px-2 py-3 overflow-y-auto no-scrollbar">
         {MAIN.map((entry, i) => {
           if (entry.type === 'sep') return (
             <div key={i} className="px-3 pt-4 pb-1.5">
