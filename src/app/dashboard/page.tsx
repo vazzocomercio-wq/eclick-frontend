@@ -1,3 +1,4 @@
+// force-deploy-v3
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
@@ -715,12 +716,14 @@ export default function DashboardPage() {
       {/* LINHA 5.5 — Brazil Sales Map */}
       <section>
         {console.log('[MAP DEBUG] dashboard todayOrdersBR:', todayOrdersBR?.length, 'shipping_state[0]:', todayOrdersBR?.[0]?.shipping_state) as unknown as null}
-        <BrazilSalesMap
-          orders={loading ? [] : todayOrdersBR}
-          title="Vendas por Região Hoje"
-          height={350}
-          realtime={false}
-        />
+        <div style={{ border: '2px solid red', minHeight: 400, borderRadius: 12 }}>
+          <BrazilSalesMap
+            orders={loading ? [] : todayOrdersBR}
+            title="Vendas por Região Hoje"
+            height={350}
+            realtime={false}
+          />
+        </div>
       </section>
 
       {/* LINHA 6 — Sector Grid */}
