@@ -21,7 +21,8 @@ type Reputation = {
     claims?: { period?: string; rate?: number; value?: number }
     delayed_handling_time?: { period?: string; rate?: number; value?: number }
     cancellations?: { period?: string; rate?: number; value?: number }
-    mediation?: { period?: string; rate?: number; value?: number }
+    mediation?:  { period?: string; rate?: number; value?: number }
+    mediations?: { period?: string; rate?: number; value?: number }
   }
 }
 
@@ -182,10 +183,10 @@ export default function Page() {
     levelId === '1_red'          ? 0 : -1
 
   const qualMetrics = [
-    { label: 'Reclamacoes',        m: metrics.claims,                warn: 0.01,  crit: 0.03  },
-    { label: 'Mediacoes',          m: metrics.mediation,             warn: 0.005, crit: 0.02  },
-    { label: 'Cancelamentos',      m: metrics.cancellations,         warn: 0.02,  crit: 0.05  },
-    { label: 'Atraso no despacho', m: metrics.delayed_handling_time, warn: 0.05,  crit: 0.10  },
+    { label: 'Reclamacoes',        m: metrics.claims,                              warn: 0.01,  crit: 0.03  },
+    { label: 'Mediacoes',          m: metrics.mediations ?? metrics.mediation,     warn: 0.005, crit: 0.02  },
+    { label: 'Cancelamentos',      m: metrics.cancellations,                       warn: 0.02,  crit: 0.05  },
+    { label: 'Atraso no despacho', m: metrics.delayed_handling_time,               warn: 0.05,  crit: 0.10  },
   ]
 
   return (
