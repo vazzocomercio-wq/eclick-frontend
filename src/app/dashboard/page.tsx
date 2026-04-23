@@ -12,7 +12,11 @@ import {
 
 const BrazilSalesMap = dynamic(() => import('@/components/BrazilSalesMap'), {
   ssr: false,
-  loading: () => <div className="animate-pulse rounded-xl" style={{ height: 350, background: '#111114' }} />,
+  loading: () => (
+    <div className="h-[350px] bg-[#111114] rounded-xl animate-pulse flex items-center justify-center">
+      <span className="text-gray-500 text-sm">Carregando mapa...</span>
+    </div>
+  ),
 })
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
