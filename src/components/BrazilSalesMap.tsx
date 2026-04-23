@@ -1,262 +1,286 @@
 'use client'
 
-import { useState, useRef, useMemo } from 'react'
-import { ComposableMap, Geographies, Geography, Marker } from 'react-simple-maps'
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const brazilGeo = require('@/data/brazil-states.json')
+import { useState } from 'react'
 
-const STATE_COORDS: Record<string, [number, number]> = {
-  AC: [-70.55, -8.77],  AL: [-36.95, -9.71],
-  AM: [-60.02, -3.10],  AP: [-51.07,  1.41],
-  BA: [-41.72, -12.97], CE: [-38.54, -3.72],
-  DF: [-47.93, -15.78], ES: [-40.34, -19.19],
-  GO: [-49.31, -16.69], MA: [-44.30, -2.55],
-  MG: [-44.04, -18.51], MS: [-54.64, -20.44],
-  MT: [-56.10, -15.60], PA: [-48.50, -1.46],
-  PB: [-34.86, -7.12],  PE: [-37.86, -8.38],
-  PI: [-42.80, -5.09],  PR: [-51.55, -25.43],
-  RJ: [-43.18, -22.91], RN: [-36.53, -5.79],
-  RO: [-63.90, -10.83], RR: [-61.27,  2.82],
-  RS: [-53.08, -30.03], SC: [-50.00, -27.33],
-  SE: [-37.45, -10.91], SP: [-48.55, -22.98],
-  TO: [-48.32, -10.18],
+const STATE_POSITIONS: Record<string, { x: number; y: number; label: string }> = {
+  AC: { x: 112, y: 420, label: 'AC' },
+  AM: { x: 185, y: 310, label: 'AM' },
+  RR: { x: 225, y: 165, label: 'RR' },
+  AP: { x: 330, y: 170, label: 'AP' },
+  PA: { x: 390, y: 280, label: 'PA' },
+  TO: { x: 420, y: 390, label: 'TO' },
+  MA: { x: 470, y: 280, label: 'MA' },
+  PI: { x: 510, y: 320, label: 'PI' },
+  CE: { x: 560, y: 270, label: 'CE' },
+  RN: { x: 600, y: 285, label: 'RN' },
+  PB: { x: 590, y: 305, label: 'PB' },
+  PE: { x: 570, y: 330, label: 'PE' },
+  AL: { x: 585, y: 355, label: 'AL' },
+  SE: { x: 575, y: 375, label: 'SE' },
+  BA: { x: 510, y: 400, label: 'BA' },
+  RO: { x: 190, y: 430, label: 'RO' },
+  MT: { x: 280, y: 430, label: 'MT' },
+  GO: { x: 380, y: 470, label: 'GO' },
+  DF: { x: 400, y: 460, label: 'DF' },
+  MG: { x: 460, y: 480, label: 'MG' },
+  ES: { x: 520, y: 490, label: 'ES' },
+  RJ: { x: 490, y: 530, label: 'RJ' },
+  SP: { x: 410, y: 540, label: 'SP' },
+  MS: { x: 300, y: 520, label: 'MS' },
+  PR: { x: 370, y: 590, label: 'PR' },
+  SC: { x: 390, y: 640, label: 'SC' },
+  RS: { x: 360, y: 700, label: 'RS' },
+}
+
+// Handles both "BR-SP" and "SP" formats
+function extractUF(state: string | null | undefined): string | null {
+  if (!state) return null
+  const uf = state.includes('-') ? state.split('-').pop()! : state
+  return uf.toUpperCase()
 }
 
 export interface MapOrder {
-  id: string
-  total_amount: number
-  date_created: string
+  id?: string
   shipping_state?: string | null
   shipping_city?: string | null
-  items: Array<{ title: string }>
+  total_amount?: number
+  date_created?: string
+  items?: Array<{ title?: string }>
 }
 
-interface Props {
-  orders: MapOrder[]
+interface BrazilSalesMapProps {
+  orders?: MapOrder[]
   title?: string
   height?: number
   realtime?: boolean
-  newOrderIds?: Set<string>
+  newOrderIds?: Set<string> | string[]
 }
 
-interface Dot {
-  id: string
-  lng: number
-  lat: number
-  value: number
-  city: string
-  state: string
-  label: string
-  time: string
-  isNew: boolean
-}
-
-interface Tip {
+interface Point {
   x: number
   y: number
-  dot: Dot
+  uf: string
+  color: string
+  size: number
+  city: string
+  state: string
+  title: string
+  value: number
+  time: string
+  orderId: string
 }
 
-function spread(id: string, range = 0.5): [number, number] {
-  let h = 0
-  for (let i = 0; i < id.length; i++) h = ((h * 31) + id.charCodeAt(i)) | 0
-  const u = ((h >>> 0) % 10000) / 10000
-  const v = (((h >>> 14) >>> 0) % 10000) / 10000
-  return [(u - 0.5) * range * 2, (v - 0.5) * range * 2]
+interface Tooltip {
+  x: number
+  y: number
+  city: string
+  state: string
+  title: string
+  value: number
+  time: string
 }
 
 function dotColor(v: number): string {
-  if (v < 100) return '#3b82f6'
-  if (v < 300) return '#00E5FF'
-  if (v < 500) return '#22c55e'
-  return '#f59e0b'
+  if (v > 500) return '#f59e0b'
+  if (v > 300) return '#22c55e'
+  if (v > 100) return '#00E5FF'
+  return '#3b82f6'
 }
 
-function dotR(v: number): number {
-  if (v < 100) return 3.5
-  if (v < 300) return 4.5
-  if (v < 500) return 5.5
-  return 7
+function dotSize(v: number): number {
+  if (v > 500) return 7
+  if (v > 300) return 6
+  if (v > 100) return 5
+  return 4
 }
 
-function brl(v: number) {
-  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+function hasNewId(newOrderIds: Set<string> | string[] | undefined, id: string): boolean {
+  if (!newOrderIds) return false
+  if (newOrderIds instanceof Set) return newOrderIds.has(id)
+  return newOrderIds.includes(id)
 }
-
-const LEGEND = [
-  { color: '#3b82f6', label: '< R$100' },
-  { color: '#00E5FF', label: 'R$100–300' },
-  { color: '#22c55e', label: 'R$300–500' },
-  { color: '#f59e0b', label: '> R$500' },
-]
 
 export default function BrazilSalesMap({
-  orders,
-  title,
-  height = 350,
+  orders = [],
+  title = 'Mapa de Vendas',
+  height = 400,
   realtime = false,
   newOrderIds,
-}: Props) {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const [tip, setTip] = useState<Tip | null>(null)
+}: BrazilSalesMapProps) {
+  const [tooltip, setTooltip] = useState<Tooltip | null>(null)
 
-  const dots = useMemo<Dot[]>(() => {
-    return orders
-      .filter(o => o.shipping_state && STATE_COORDS[o.shipping_state])
-      .map(o => {
-        const base = STATE_COORDS[o.shipping_state!]
-        const [dx, dy] = spread(o.id)
-        const d = new Date(o.date_created)
-        return {
-          id: o.id,
-          lng: base[0] + dx,
-          lat: base[1] + dy,
-          value: o.total_amount,
-          city: o.shipping_city ?? o.shipping_state ?? '',
-          state: o.shipping_state!,
-          label: (o.items?.[0]?.title ?? '—').slice(0, 30),
-          time: d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-          isNew: !!(realtime && newOrderIds?.has(o.id)),
-        }
-      })
-  }, [orders, realtime, newOrderIds])
+  const points: Point[] = orders
+    .map((order, idx) => {
+      const uf = extractUF(order.shipping_state)
+      if (!uf || !STATE_POSITIONS[uf]) return null
+      const pos = STATE_POSITIONS[uf]
+      const spread = 18
+      const angle = (idx * 137.5) % 360
+      const dist = (idx % 4) * (spread / 4)
+      const x = pos.x + Math.cos((angle * Math.PI) / 180) * dist
+      const y = pos.y + Math.sin((angle * Math.PI) / 180) * dist
+      const value = order.total_amount ?? 0
+      return {
+        x,
+        y,
+        uf,
+        color: dotColor(value),
+        size: dotSize(value),
+        city: order.shipping_city ?? uf,
+        state: uf,
+        title: (order.items?.[0]?.title ?? '').substring(0, 30),
+        value,
+        time: order.date_created
+          ? new Date(order.date_created).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+          : '',
+        orderId: order.id ?? String(idx),
+      }
+    })
+    .filter((p): p is Point => p !== null)
 
-  const stateCount = useMemo(() => new Set(dots.map(d => d.state)).size, [dots])
-
-  function handleEnter(e: React.MouseEvent, dot: Dot) {
-    const rect = containerRef.current?.getBoundingClientRect()
-    if (!rect) return
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
-    setTip({ x, y, dot })
-  }
+  const stateCount = new Set(points.map(p => p.state)).size
 
   return (
-    <div ref={containerRef} className="relative w-full select-none" style={{ height }}>
-      <style>{`
-        @keyframes bsm-pulse {
-          0%   { r: 0;  opacity: 0.9; }
-          60%  { opacity: 0.4; }
-          100% { r: 16; opacity: 0; }
-        }
-        .bsm-pulse { animation: bsm-pulse 1.4s ease-out forwards; }
-      `}</style>
-
-      {/* Title + live badge */}
-      {title && (
-        <div className="absolute top-3 left-4 z-10 flex items-center gap-2">
-          <p className="text-white text-sm font-semibold">{title}</p>
+    <div className="bg-[#111114] rounded-xl border border-[#1a1a1f] p-4">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <h3 className="text-white font-semibold text-sm">{title}</h3>
           {realtime && (
-            <span className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full"
-              style={{ background: 'rgba(0,229,255,0.12)', color: '#00E5FF' }}>
-              <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: '#00E5FF' }} />
+            <span className="flex items-center gap-1 text-xs text-[#00E5FF]">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#00E5FF] animate-pulse" />
               Ao vivo
             </span>
           )}
         </div>
-      )}
-
-      {/* Counter top-right */}
-      <div className="absolute top-3 right-3 z-10 text-right">
-        <p className="text-white text-[11px] font-bold">{dots.length} vendas</p>
-        <p className="text-zinc-500 text-[10px]">{stateCount} estado{stateCount !== 1 ? 's' : ''}</p>
+        <span className="text-xs text-gray-400">
+          {points.length} venda{points.length !== 1 ? 's' : ''} · {stateCount} estado{stateCount !== 1 ? 's' : ''}
+        </span>
       </div>
 
-      {/* Map */}
-      <ComposableMap
-        projection="geoMercator"
-        projectionConfig={{ center: [-55, -15], scale: 830 }}
-        width={600}
-        height={500}
-        style={{ width: '100%', height: '100%' }}
-      >
-        <Geographies geography={brazilGeo}>
-          {({ geographies }) =>
-            geographies.map(geo => (
-              <Geography
-                key={geo.rsmKey}
-                geography={geo}
-                fill="#18181f"
-                stroke="#2e2e3c"
-                strokeWidth={0.6}
-                style={{ outline: 'none' }}
-              />
-            ))
-          }
-        </Geographies>
+      {/* Map area */}
+      <div className="relative" style={{ height }}>
+        {points.length === 0 ? (
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center">
+              <div className="text-4xl mb-2">🗺️</div>
+              <p className="text-gray-500 text-sm">Nenhuma venda registrada hoje</p>
+              <p className="text-gray-700 text-xs mt-1">Os endereços são carregados via API de envios</p>
+            </div>
+          </div>
+        ) : (
+          <svg
+            viewBox="0 0 700 800"
+            className="w-full h-full"
+            style={{ filter: 'drop-shadow(0 0 20px rgba(0,229,255,0.05))' }}
+          >
+            {/* Background shape representing Brazil */}
+            <ellipse cx="370" cy="420" rx="280" ry="340"
+              fill="#1a1a2e" stroke="#2a2a3f" strokeWidth="1" opacity="0.6" />
 
-        {dots.map(dot => (
-          <Marker key={dot.id} coordinates={[dot.lng, dot.lat]}>
-            {dot.isNew && (
-              <circle
-                className="bsm-pulse"
-                cx={0}
-                cy={0}
-                r={0}
-                fill="none"
-                stroke="#00E5FF"
-                strokeWidth={1.5}
-              />
+            {/* State labels */}
+            {Object.entries(STATE_POSITIONS).map(([uf, pos]) => (
+              <text
+                key={uf}
+                x={pos.x}
+                y={pos.y}
+                textAnchor="middle"
+                fill={points.some(p => p.state === uf) ? '#4a4a6a' : '#2a2a4a'}
+                fontSize="8"
+                fontFamily="monospace"
+              >
+                {uf}
+              </text>
+            ))}
+
+            {/* Sale dots */}
+            {points.map((point, idx) => {
+              const isNew = hasNewId(newOrderIds, point.orderId)
+              return (
+                <g key={idx}>
+                  {isNew && (
+                    <circle
+                      cx={point.x}
+                      cy={point.y}
+                      r={point.size + 4}
+                      fill="none"
+                      stroke="#00E5FF"
+                      strokeWidth="1.5"
+                      opacity="0.6"
+                    >
+                      <animate attributeName="r" from={point.size} to={point.size + 12} dur="1s" begin="0s" fill="freeze" />
+                      <animate attributeName="opacity" from="0.8" to="0" dur="1s" begin="0s" fill="freeze" />
+                    </circle>
+                  )}
+                  <circle
+                    cx={point.x}
+                    cy={point.y}
+                    r={point.size}
+                    fill={point.color}
+                    opacity={0.85}
+                    style={{ cursor: 'pointer' }}
+                    onMouseEnter={e => {
+                      const svg = e.currentTarget.closest('svg')!
+                      const rect = svg.getBoundingClientRect()
+                      const scaleX = rect.width / 700
+                      const scaleY = rect.height / 800
+                      setTooltip({
+                        x: point.x * scaleX,
+                        y: point.y * scaleY,
+                        city: point.city,
+                        state: point.state,
+                        title: point.title,
+                        value: point.value,
+                        time: point.time,
+                      })
+                    }}
+                    onMouseLeave={() => setTooltip(null)}
+                  />
+                </g>
+              )
+            })}
+          </svg>
+        )}
+
+        {/* Tooltip */}
+        {tooltip && (
+          <div
+            className="absolute z-10 rounded-lg p-2 text-xs pointer-events-none shadow-xl"
+            style={{
+              left: Math.min(tooltip.x + 10, 540),
+              top: Math.max(tooltip.y - 60, 4),
+              background: '#1a1a2e',
+              border: '1px solid rgba(0,229,255,0.2)',
+            }}
+          >
+            <p className="text-[#00E5FF] font-medium">{tooltip.city} · {tooltip.state}</p>
+            {tooltip.title && (
+              <p className="text-gray-300 mt-0.5">
+                {tooltip.title}{tooltip.title.length === 30 ? '…' : ''}
+              </p>
             )}
-            <circle
-              cx={0}
-              cy={0}
-              r={dotR(dot.value)}
-              fill={dotColor(dot.value)}
-              opacity={0.85}
-              style={{ cursor: 'pointer' }}
-              onMouseEnter={e => handleEnter(e, dot)}
-              onMouseLeave={() => setTip(null)}
-            />
-          </Marker>
-        ))}
-      </ComposableMap>
+            <p className="text-white font-semibold">
+              {tooltip.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+            </p>
+            {tooltip.time && <p className="text-gray-500 mt-0.5">{tooltip.time}</p>}
+          </div>
+        )}
+      </div>
 
-      {/* Legend bottom-right */}
-      <div className="absolute bottom-3 right-3 z-10 flex flex-col gap-1 p-2 rounded-lg"
-        style={{ background: 'rgba(0,0,0,0.6)', border: '1px solid rgba(255,255,255,0.06)' }}>
-        {LEGEND.map(l => (
-          <div key={l.label} className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: l.color }} />
-            <span className="text-zinc-400 text-[9px] font-medium">{l.label}</span>
+      {/* Legend */}
+      <div className="flex items-center gap-4 mt-2 justify-end">
+        {[
+          { color: '#3b82f6', label: '< R$100' },
+          { color: '#00E5FF', label: 'R$100–300' },
+          { color: '#22c55e', label: 'R$300–500' },
+          { color: '#f59e0b', label: '> R$500' },
+        ].map(({ color, label }) => (
+          <div key={label} className="flex items-center gap-1">
+            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
+            <span className="text-xs text-gray-500">{label}</span>
           </div>
         ))}
       </div>
-
-      {/* Tooltip */}
-      {tip && (
-        <div
-          className="absolute z-20 pointer-events-none rounded-lg px-3 py-2"
-          style={{
-            left: Math.min(tip.x + 14, (containerRef.current?.offsetWidth ?? 9999) - 165),
-            top: Math.max(tip.y - 72, 4),
-            background: '#18181b',
-            border: '1px solid #2e2e36',
-            minWidth: 155,
-            boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
-          }}
-        >
-          <p className="text-white text-[11px] font-semibold mb-0.5">{tip.dot.city} · {tip.dot.state}</p>
-          <p className="text-zinc-400 text-[10px] mb-0.5 leading-tight">
-            {tip.dot.label}{tip.dot.label.length === 30 ? '…' : ''}
-          </p>
-          <p className="text-[11px] font-bold" style={{ color: dotColor(tip.dot.value) }}>
-            {brl(tip.dot.value)}
-          </p>
-          <p className="text-zinc-600 text-[10px] mt-0.5">{tip.dot.time}</p>
-        </div>
-      )}
-
-      {/* Empty state */}
-      {dots.length === 0 && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none gap-2">
-          <svg className="w-8 h-8 text-zinc-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 6.75V15m6-6v8.25m.503 3.498l4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 00-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0z" />
-          </svg>
-          <p className="text-zinc-600 text-sm">Nenhuma venda com endereço disponível</p>
-          <p className="text-zinc-700 text-[10px]">Os endereços são carregados via API de envios</p>
-        </div>
-      )}
     </div>
   )
 }
