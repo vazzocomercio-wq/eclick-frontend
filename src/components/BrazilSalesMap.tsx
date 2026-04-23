@@ -1,36 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-
-const STATE_POSITIONS: Record<string, { x: number; y: number; label: string }> = {
-  AC: { x: 112, y: 420, label: 'AC' },
-  AM: { x: 185, y: 310, label: 'AM' },
-  RR: { x: 225, y: 165, label: 'RR' },
-  AP: { x: 330, y: 170, label: 'AP' },
-  PA: { x: 390, y: 280, label: 'PA' },
-  TO: { x: 420, y: 390, label: 'TO' },
-  MA: { x: 470, y: 280, label: 'MA' },
-  PI: { x: 510, y: 320, label: 'PI' },
-  CE: { x: 560, y: 270, label: 'CE' },
-  RN: { x: 600, y: 285, label: 'RN' },
-  PB: { x: 590, y: 305, label: 'PB' },
-  PE: { x: 570, y: 330, label: 'PE' },
-  AL: { x: 585, y: 355, label: 'AL' },
-  SE: { x: 575, y: 375, label: 'SE' },
-  BA: { x: 510, y: 400, label: 'BA' },
-  RO: { x: 190, y: 430, label: 'RO' },
-  MT: { x: 280, y: 430, label: 'MT' },
-  GO: { x: 380, y: 470, label: 'GO' },
-  DF: { x: 400, y: 460, label: 'DF' },
-  MG: { x: 460, y: 480, label: 'MG' },
-  ES: { x: 520, y: 490, label: 'ES' },
-  RJ: { x: 490, y: 530, label: 'RJ' },
-  SP: { x: 410, y: 540, label: 'SP' },
-  MS: { x: 300, y: 520, label: 'MS' },
-  PR: { x: 370, y: 590, label: 'PR' },
-  SC: { x: 390, y: 640, label: 'SC' },
-  RS: { x: 360, y: 700, label: 'RS' },
-}
+import { BRAZIL_VIEW_BOX, STATE_POSITIONS, STATE_PATHS } from '@/data/brazil-svg-paths'
 
 // Handles both "BR-SP" and "SP" formats
 function extractUF(state: string | null | undefined): string | null {
@@ -100,6 +71,9 @@ function hasNewId(newOrderIds: Set<string> | string[] | undefined, id: string): 
   return newOrderIds.includes(id)
 }
 
+// Parse viewBox to get dimensions
+const [vbX, vbY, vbW, vbH] = BRAZIL_VIEW_BOX.split(' ').map(Number)
+
 export default function BrazilSalesMap({
   orders = [],
   title = 'Mapa de Vendas',
@@ -109,14 +83,12 @@ export default function BrazilSalesMap({
 }: BrazilSalesMapProps) {
   const [tooltip, setTooltip] = useState<Tooltip | null>(null)
 
-  console.log('[BrazilSalesMap] montado — orders:', orders.length, '| title:', title, '| shipping_state[0]:', orders[0]?.shipping_state)
-
   const points: Point[] = orders
     .map((order, idx) => {
       const uf = extractUF(order.shipping_state)
       if (!uf || !STATE_POSITIONS[uf]) return null
       const pos = STATE_POSITIONS[uf]
-      const spread = 18
+      const spread = 14
       const angle = (idx * 137.5) % 360
       const dist = (idx % 4) * (spread / 4)
       const x = pos.x + Math.cos((angle * Math.PI) / 180) * dist
@@ -142,6 +114,9 @@ export default function BrazilSalesMap({
 
   const stateCount = new Set(points.map(p => p.state)).size
 
+  // Active state UFs (have sales)
+  const activeUFs = new Set(points.map(p => p.state))
+
   return (
     <div className="bg-[#111114] rounded-xl border border-[#1a1a1f] p-4">
       {/* Header */}
@@ -162,89 +137,92 @@ export default function BrazilSalesMap({
 
       {/* Map area */}
       <div className="relative" style={{ height }}>
-        {points.length === 0 ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-center">
-              <div className="text-4xl mb-2">🗺️</div>
-              <p className="text-gray-500 text-sm">Nenhuma venda registrada hoje</p>
-              <p className="text-gray-700 text-xs mt-1">Os endereços são carregados via API de envios</p>
-            </div>
-          </div>
-        ) : (
-          <svg
-            viewBox="80 120 560 680"
-            className="w-full h-full"
-            style={{ filter: 'drop-shadow(0 0 20px rgba(0,229,255,0.05))' }}
-          >
-            {/* Brazil shape — norte largo, sul afunila */}
-            <ellipse cx="350" cy="360" rx="220" ry="180"
-              fill="#1a1a2e" stroke="#2a2a3f" strokeWidth="1" opacity="0.5" />
-            <ellipse cx="380" cy="550" rx="140" ry="120"
-              fill="#1a1a2e" stroke="#2a2a3f" strokeWidth="1" opacity="0.5" />
+        <svg
+          viewBox={BRAZIL_VIEW_BOX}
+          className="w-full h-full"
+          style={{ filter: 'drop-shadow(0 0 20px rgba(0,229,255,0.04))' }}
+        >
+          {/* Real Brazil state paths */}
+          {Object.entries(STATE_PATHS).map(([uf, d]) => (
+            <path
+              key={uf}
+              d={d}
+              fill={activeUFs.has(uf) ? '#1e2a3a' : '#141418'}
+              stroke="#2a2a3f"
+              strokeWidth="0.5"
+              strokeLinejoin="round"
+            />
+          ))}
 
-            {/* State labels — contexto geográfico leve */}
-            {Object.entries(STATE_POSITIONS).map(([uf, pos]) => (
-              <text
-                key={uf}
-                x={pos.x}
-                y={pos.y}
-                textAnchor="middle"
-                fill={points.some(p => p.state === uf) ? '#ffffff25' : '#ffffff0f'}
-                fontSize="9"
-                fontFamily="monospace"
-                fontWeight={points.some(p => p.state === uf) ? '600' : '400'}
-              >
-                {uf}
-              </text>
-            ))}
+          {/* State labels */}
+          {Object.entries(STATE_POSITIONS).map(([uf, pos]) => (
+            <text
+              key={uf}
+              x={pos.x}
+              y={pos.y}
+              textAnchor="middle"
+              fill={activeUFs.has(uf) ? '#ffffff30' : '#ffffff0d'}
+              fontSize="7"
+              fontFamily="monospace"
+              fontWeight={activeUFs.has(uf) ? '700' : '400'}
+            >
+              {uf}
+            </text>
+          ))}
 
-            {/* Sale dots */}
-            {points.map((point, idx) => {
-              const isNew = hasNewId(newOrderIds, point.orderId)
-              return (
-                <g key={idx}>
-                  {isNew && (
-                    <circle
-                      cx={point.x}
-                      cy={point.y}
-                      r={point.size + 4}
-                      fill="none"
-                      stroke="#00E5FF"
-                      strokeWidth="1.5"
-                      opacity="0.6"
-                    >
-                      <animate attributeName="r" from={point.size} to={point.size + 12} dur="1s" begin="0s" fill="freeze" />
-                      <animate attributeName="opacity" from="0.8" to="0" dur="1s" begin="0s" fill="freeze" />
-                    </circle>
-                  )}
+          {/* Sale dots */}
+          {points.map((point, idx) => {
+            const isNew = hasNewId(newOrderIds, point.orderId)
+            return (
+              <g key={idx}>
+                {isNew && (
                   <circle
                     cx={point.x}
                     cy={point.y}
-                    r={point.size}
-                    fill={point.color}
-                    opacity={0.85}
-                    style={{ cursor: 'pointer' }}
-                    onMouseEnter={e => {
-                      const svg = e.currentTarget.closest('svg')!
-                      const rect = svg.getBoundingClientRect()
-                      const scaleX = rect.width / 700
-                      const scaleY = rect.height / 800
-                      setTooltip({
-                        x: point.x * scaleX,
-                        y: point.y * scaleY,
-                        city: point.city,
-                        state: point.state,
-                        title: point.title,
-                        value: point.value,
-                        time: point.time,
-                      })
-                    }}
-                    onMouseLeave={() => setTooltip(null)}
-                  />
-                </g>
-              )
-            })}
-          </svg>
+                    r={point.size + 4}
+                    fill="none"
+                    stroke="#00E5FF"
+                    strokeWidth="1.5"
+                    opacity="0.6"
+                  >
+                    <animate attributeName="r" from={point.size} to={point.size + 12} dur="1s" begin="0s" fill="freeze" />
+                    <animate attributeName="opacity" from="0.8" to="0" dur="1s" begin="0s" fill="freeze" />
+                  </circle>
+                )}
+                <circle
+                  cx={point.x}
+                  cy={point.y}
+                  r={point.size}
+                  fill={point.color}
+                  opacity={0.9}
+                  style={{ cursor: 'pointer' }}
+                  onMouseEnter={e => {
+                    const svg = e.currentTarget.closest('svg')!
+                    const rect = svg.getBoundingClientRect()
+                    const scaleX = rect.width / vbW
+                    const scaleY = rect.height / vbH
+                    setTooltip({
+                      x: (point.x - vbX) * scaleX,
+                      y: (point.y - vbY) * scaleY,
+                      city: point.city,
+                      state: point.state,
+                      title: point.title,
+                      value: point.value,
+                      time: point.time,
+                    })
+                  }}
+                  onMouseLeave={() => setTooltip(null)}
+                />
+              </g>
+            )
+          })}
+        </svg>
+
+        {/* Empty state overlay */}
+        {points.length === 0 && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <p className="text-gray-600 text-xs">Sem vendas com endereço no período</p>
+          </div>
         )}
 
         {/* Tooltip */}
