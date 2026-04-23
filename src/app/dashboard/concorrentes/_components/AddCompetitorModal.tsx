@@ -52,6 +52,17 @@ function extractMlbId(url: string): string | null {
   return match ? `MLB${match[1]}` : null
 }
 
+function extractSlug(url: string): string | null {
+  try {
+    const { pathname } = new URL(url)
+    // Take first path segment, skipping catalog prefixes like /p/ and suffixes like /_JM
+    const seg = pathname.split('/').find(s => s.length > 3 && !s.startsWith('_') && s !== 'p')
+    return seg ?? null
+  } catch {
+    return null
+  }
+}
+
 // ── ProductSearch ─────────────────────────────────────────────────────────────
 
 function ProductSearch({
@@ -229,47 +240,64 @@ export default function AddCompetitorModal({ orgId, competitorCounts, onClose, o
   // ── ML API fetch (no auth required) ────────────────────────────────────────
 
   const fetchMlData = useCallback(async (entryId: number, url: string) => {
-    const mlbId = extractMlbId(url)
-    if (!mlbId) {
-      // URL is ML domain but no MLB ID found — fall back to scraper
-      scrapeEntry(entryId, url)
-      return
-    }
-
     setEntries(prev => prev.map(e => e.id === entryId
       ? { ...e, scraping: true, fetchError: '', scraped: null, fetchSource: 'ml' }
       : e
     ))
 
     try {
-      const itemRes = await fetch(`${ML_API}/items/${mlbId}`)
-      if (!itemRes.ok) throw new Error(`ML API retornou HTTP ${itemRes.status}`)
-      const item = await itemRes.json()
+      const mlbId = extractMlbId(url)
+      let scraped: ScraperData
 
-      // Fetch seller nickname (non-fatal)
-      let seller = `Vendedor #${item.seller_id}`
-      try {
-        const userRes = await fetch(`${ML_API}/users/${item.seller_id}`)
-        if (userRes.ok) {
-          const user = await userRes.json()
-          if (user.nickname) seller = user.nickname
+      if (mlbId) {
+        // ── Direct item fetch by MLB ID ──────────────────────────────────────
+        const itemRes = await fetch(`${ML_API}/items/${mlbId}`)
+        if (!itemRes.ok) throw new Error(`ML API retornou HTTP ${itemRes.status}`)
+        const item = await itemRes.json()
+
+        // Fetch seller nickname (non-fatal)
+        let seller = `Vendedor #${item.seller_id}`
+        try {
+          const userRes = await fetch(`${ML_API}/users/${item.seller_id}`)
+          if (userRes.ok) {
+            const user = await userRes.json()
+            if (user.nickname) seller = user.nickname
+          }
+        } catch { /* non-fatal */ }
+
+        scraped = {
+          title: item.title ?? null,
+          price: typeof item.price === 'number' ? item.price : null,
+          seller,
+          platform: 'ml',
+          photo_url: item.thumbnail ?? null,
         }
-      } catch {
-        // non-fatal — keep default
+      } else {
+        // ── Friendly URL: extract slug and search ────────────────────────────
+        const slug = extractSlug(url)
+        if (!slug) throw new Error('Não foi possível extrair dados desta URL do Mercado Livre.')
+
+        const query = slug.replace(/-/g, ' ')
+        const searchRes = await fetch(
+          `${ML_API}/sites/MLB/search?q=${encodeURIComponent(query)}&limit=1`,
+        )
+        if (!searchRes.ok) throw new Error(`ML Search retornou HTTP ${searchRes.status}`)
+        const search = await searchRes.json()
+
+        const result = search.results?.[0]
+        if (!result) throw new Error('Nenhum produto encontrado para esta URL.')
+
+        scraped = {
+          title: result.title ?? null,
+          price: typeof result.price === 'number' ? result.price : null,
+          seller: result.seller?.nickname ?? null,
+          platform: 'ml',
+          photo_url: result.thumbnail ?? null,
+        }
       }
 
       setEntries(prev => prev.map(e => e.id === entryId
-        ? {
-            ...e,
-            scraping: false,
-            scraped: {
-              title: item.title ?? null,
-              price: typeof item.price === 'number' ? item.price : null,
-              seller,
-              platform: 'ml',
-              photo_url: item.thumbnail ?? null,
-            },
-          }
+        ? { ...e, scraping: false, scraped }
         : e
       ))
     } catch (err: unknown) {
