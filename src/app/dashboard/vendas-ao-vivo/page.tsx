@@ -534,31 +534,14 @@ export default function VendasAoVivoPage() {
         </div>
 
         {/* LINHA 3.5 — Brazil Sales Map */}
-        {(() => {
-          const todayOrders = orders.filter(o => o.date_created.slice(0, 10) === today)
-          return (
-            <div className="rounded-2xl overflow-hidden" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
-              <div className="px-6 pt-5 pb-2 flex items-center gap-3" style={{ borderBottom: '1px solid #1e1e24' }}>
-                <p className="text-white text-sm font-semibold">Mapa de Vendas do Dia</p>
-                <span className="flex items-center gap-1.5 text-[10px] font-semibold px-2 py-0.5 rounded-full"
-                  style={{ background: 'rgba(0,229,255,0.1)', color: '#00E5FF' }}>
-                  <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: '#00E5FF' }} />
-                  Ao vivo
-                </span>
-              </div>
-              {loading ? (
-                <div className="animate-pulse" style={{ height: 400, background: '#111114' }} />
-              ) : (
-                <BrazilSalesMap
-                  orders={todayOrders}
-                  height={400}
-                  realtime={true}
-                  newOrderIds={newIdsRef.current}
-                />
-              )}
-            </div>
-          )
-        })()}
+        {console.log('[MAP DEBUG] vendas-ao-vivo orders total:', orders?.length, 'hoje:', orders?.filter(o => o.date_created?.slice(0, 10) === today)?.length, 'shipping_state[0]:', orders?.[0]?.shipping_state) as unknown as null}
+        <BrazilSalesMap
+          orders={orders.filter(o => o.date_created.slice(0, 10) === today)}
+          title="Mapa de Vendas do Dia"
+          height={400}
+          realtime={true}
+          newOrderIds={newIdsRef.current}
+        />
 
         {/* LINHA 4 — Top products + Recent orders */}
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">

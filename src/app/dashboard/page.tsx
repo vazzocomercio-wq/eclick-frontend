@@ -714,23 +714,13 @@ export default function DashboardPage() {
 
       {/* LINHA 5.5 — Brazil Sales Map */}
       <section>
-        <div className="rounded-2xl overflow-hidden" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
-          <div className="px-6 pt-5 pb-2 flex items-center justify-between" style={{ borderBottom: '1px solid #1e1e24' }}>
-            <div>
-              <p className="text-white text-sm font-semibold">Vendas por Região Hoje</p>
-              <p className="text-zinc-500 text-xs mt-0.5">Pedidos pagos — período selecionado</p>
-            </div>
-          </div>
-          {loading ? (
-            <div className="animate-pulse" style={{ height: 350, background: '#111114' }} />
-          ) : (
-            <BrazilSalesMap
-              orders={todayOrdersBR}
-              height={350}
-              realtime={false}
-            />
-          )}
-        </div>
+        {console.log('[MAP DEBUG] dashboard todayOrdersBR:', todayOrdersBR?.length, 'shipping_state[0]:', todayOrdersBR?.[0]?.shipping_state) as unknown as null}
+        <BrazilSalesMap
+          orders={loading ? [] : todayOrdersBR}
+          title="Vendas por Região Hoje"
+          height={350}
+          realtime={false}
+        />
       </section>
 
       {/* LINHA 6 — Sector Grid */}

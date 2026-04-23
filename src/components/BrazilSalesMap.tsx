@@ -109,6 +109,8 @@ export default function BrazilSalesMap({
 }: BrazilSalesMapProps) {
   const [tooltip, setTooltip] = useState<Tooltip | null>(null)
 
+  console.log('[BrazilSalesMap] montado — orders:', orders.length, '| title:', title, '| shipping_state[0]:', orders[0]?.shipping_state)
+
   const points: Point[] = orders
     .map((order, idx) => {
       const uf = extractUF(order.shipping_state)
