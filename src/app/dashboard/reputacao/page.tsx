@@ -86,12 +86,13 @@ export default function Page() {
         ? await repRes.value.json().catch(() => ({}))
         : {}
 
-      // seller-info retorna level_id, power_seller_status, transactions no nível raiz
-      const infoData: Reputation = infoRes.status === 'fulfilled' && infoRes.value.ok
+      // seller-info retorna { id, nickname, seller_reputation: { level_id, ... } }
+      const infoRaw = infoRes.status === 'fulfilled' && infoRes.value.ok
         ? await infoRes.value.json().catch(() => ({}))
         : {}
+      const infoData: Reputation = (infoRaw?.seller_reputation as Reputation) ?? {}
 
-      console.log('sellerInfo recebido:', JSON.stringify(infoData))
+      console.log('sellerInfo recebido:', JSON.stringify(infoRaw).substring(0, 300))
 
       // Mesclar: reputation primeiro, seller-info como fallback por campo
       const merged: Reputation = {
@@ -219,11 +220,9 @@ export default function Page() {
               </span>
             ))}
           </div>
-          {psLabel && (
-            <p className="text-zinc-500 text-xs mt-2">
-              Voce aparece como {psLabel} para os compradores
-            </p>
-          )}
+          <p className="text-zinc-500 text-xs mt-2">
+            {level.label}{psLabel ? ` · ${psLabel}` : ''} · Voce aparece assim para os compradores
+          </p>
         </div>
       </div>
 
