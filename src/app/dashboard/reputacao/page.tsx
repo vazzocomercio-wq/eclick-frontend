@@ -18,11 +18,11 @@ type Reputation = {
   }
   metrics?: {
     sales?: { period?: string; completed?: number }
-    claims?: { period?: string; rate?: number; value?: number }
-    delayed_handling_time?: { period?: string; rate?: number; value?: number }
-    cancellations?: { period?: string; rate?: number; value?: number }
-    mediation?:  { period?: string; rate?: number; value?: number }
-    mediations?: { period?: string; rate?: number; value?: number }
+    claims?: { period?: string; rate?: number; value?: number; excluded?: { real_rate?: number; real_value?: number } }
+    delayed_handling_time?: { period?: string; rate?: number; value?: number; excluded?: { real_rate?: number; real_value?: number } }
+    cancellations?: { period?: string; rate?: number; value?: number; excluded?: { real_rate?: number; real_value?: number } }
+    mediation?:  { period?: string; rate?: number; value?: number; excluded?: { real_rate?: number; real_value?: number } }
+    mediations?: { period?: string; rate?: number; value?: number; excluded?: { real_rate?: number; real_value?: number } }
   }
 }
 
@@ -188,11 +188,12 @@ export default function Page() {
     levelId === '2_orange'       ? 1 :
     levelId === '1_red'          ? 0 : -1
 
+  const med = metrics.mediations ?? metrics.mediation
   const qualMetrics = [
-    { label: 'Reclamacoes',        m: metrics.claims,                              warn: 0.01,  crit: 0.03  },
-    { label: 'Mediacoes',          m: metrics.mediations ?? metrics.mediation,     warn: 0.005, crit: 0.02  },
-    { label: 'Cancelamentos',      m: metrics.cancellations,                       warn: 0.02,  crit: 0.05  },
-    { label: 'Atraso no despacho', m: metrics.delayed_handling_time,               warn: 0.05,  crit: 0.10  },
+    { label: 'Reclamacoes',        rate: metrics.claims?.excluded?.real_rate                ?? 0, value: metrics.claims?.excluded?.real_value                ?? 0, warn: 0.01,  crit: 0.03  },
+    { label: 'Mediacoes',          rate: med?.excluded?.real_rate                           ?? 0, value: med?.excluded?.real_value                           ?? 0, warn: 0.005, crit: 0.02  },
+    { label: 'Cancelamentos',      rate: metrics.cancellations?.excluded?.real_rate         ?? 0, value: metrics.cancellations?.excluded?.real_value         ?? 0, warn: 0.02,  crit: 0.05  },
+    { label: 'Atraso no despacho', rate: metrics.delayed_handling_time?.excluded?.real_rate ?? 0, value: metrics.delayed_handling_time?.excluded?.real_value ?? 0, warn: 0.05,  crit: 0.10  },
   ]
 
   return (
@@ -273,17 +274,15 @@ export default function Page() {
         <h3 className="text-white font-semibold mb-1">Metricas de Qualidade</h3>
         <p className="text-zinc-500 text-xs mb-5">Calculadas sobre os ultimos 60 dias</p>
         <div className="space-y-5">
-          {qualMetrics.map(({ label, m, warn, crit }) => {
-            const rate = m?.rate  ?? 0
-            const val  = m?.value ?? 0
+          {qualMetrics.map(({ label, rate, value, warn, crit }) => {
             const sty  = metricStyle(rate, warn, crit)
-            const barW = Math.min(Math.max(rate * 500, val > 0 ? 1 : 0), 100)
+            const barW = Math.min(Math.max(rate * 500, value > 0 ? 1 : 0), 100)
             return (
               <div key={label}>
                 <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
                   <span className="text-zinc-300 text-sm">{label}</span>
                   <div className="flex items-center gap-2">
-                    <span className="text-zinc-500 text-xs">{val} ocorrencias</span>
+                    <span className="text-zinc-500 text-xs">{value} ocorrencias</span>
                     <span className={`text-sm font-semibold ${sty.text}`}>{fmtPct(rate)}</span>
                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${sty.badge}`}>{sty.label}</span>
                   </div>
