@@ -51,10 +51,29 @@ const POWER_LABEL: Record<string, string> = {
 
 function fmtPct(rate: number) { return (rate * 100).toFixed(2) + '%' }
 
-function metricStyle(rate: number, warn: number, crit: number) {
-  if (rate <= warn) return { bar: 'bg-emerald-500', text: 'text-emerald-400', badge: 'bg-emerald-900/30 text-emerald-300', label: 'Otimo' }
-  if (rate <= crit) return { bar: 'bg-yellow-500',  text: 'text-yellow-400',  badge: 'bg-yellow-900/30 text-yellow-300',  label: 'Regular' }
-  return               { bar: 'bg-red-500',     text: 'text-red-400',     badge: 'bg-red-900/30 text-red-300',     label: 'Critico' }
+function getMetricColor(value: number, warn: number, limit: number): '#22c55e' | '#f97316' | '#ef4444' {
+  if (value > limit) return '#ef4444'
+  if (value > warn)  return '#f97316'
+  return '#22c55e'
+}
+
+function metricMeta(value: number, warn: number, limit: number) {
+  const color = getMetricColor(value, warn, limit)
+  if (color === '#ef4444') return {
+    color,
+    badgeBg: '#2d0a0a', badgeText: '#f87171', badge: 'Critico',
+    hint: 'Acima do limite! Impacta sua reputacao',
+  }
+  if (color === '#f97316') return {
+    color,
+    badgeBg: '#2d1400', badgeText: '#fb923c', badge: 'Atencao',
+    hint: `Proximo de ${(limit * 100).toFixed(1)}% permitido. Atencao!`,
+  }
+  return {
+    color,
+    badgeBg: '#0d1f17', badgeText: '#4ade80', badge: 'Otimo',
+    hint: `Muito bem! Abaixo de ${(limit * 100).toFixed(1)}% permitido`,
+  }
 }
 
 export default function Page() {
@@ -188,11 +207,12 @@ export default function Page() {
     levelId === '1_red'          ? 0 : -1
 
   const med = metrics.mediations ?? metrics.mediation
+  // warn = threshold to turn orange | limit = ML Gold limit (turns red above)
   const qualMetrics = [
-    { label: 'Reclamacoes',        rate: metrics.claims?.excluded?.real_rate                ?? 0, value: metrics.claims?.excluded?.real_value                ?? 0, warn: 0.01,  crit: 0.03  },
-    { label: 'Mediacoes',          rate: med?.excluded?.real_rate                           ?? 0, value: med?.excluded?.real_value                           ?? 0, warn: 0.005, crit: 0.02  },
-    { label: 'Cancelamentos',      rate: metrics.cancellations?.excluded?.real_rate         ?? 0, value: metrics.cancellations?.excluded?.real_value         ?? 0, warn: 0.02,  crit: 0.05  },
-    { label: 'Atraso no despacho', rate: metrics.delayed_handling_time?.excluded?.real_rate ?? 0, value: metrics.delayed_handling_time?.excluded?.real_value ?? 0, warn: 0.05,  crit: 0.10  },
+    { label: 'Reclamacoes',        rate: metrics.claims?.excluded?.real_rate                ?? 0, value: metrics.claims?.excluded?.real_value                ?? 0, warn: 0.007,  limit: 0.01  },
+    { label: 'Mediacoes',          rate: med?.excluded?.real_rate                           ?? 0, value: med?.excluded?.real_value                           ?? 0, warn: 0.0035, limit: 0.005 },
+    { label: 'Cancelamentos',      rate: metrics.cancellations?.excluded?.real_rate         ?? 0, value: metrics.cancellations?.excluded?.real_value         ?? 0, warn: 0.01,   limit: 0.015 },
+    { label: 'Atraso no despacho', rate: metrics.delayed_handling_time?.excluded?.real_rate ?? 0, value: metrics.delayed_handling_time?.excluded?.real_value ?? 0, warn: 0.07,   limit: 0.10  },
   ]
 
   return (
@@ -272,22 +292,32 @@ export default function Page() {
       <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
         <h3 className="text-white font-semibold mb-1">Metricas de Qualidade</h3>
         <p className="text-zinc-500 text-xs mb-5">Calculadas sobre os ultimos 60 dias</p>
-        <div className="space-y-5">
-          {qualMetrics.map(({ label, rate, value, warn, crit }) => {
-            const sty  = metricStyle(rate, warn, crit)
-            const barW = Math.min(Math.max(rate * 500, value > 0 ? 1 : 0), 100)
+        <div className="space-y-6">
+          {qualMetrics.map(({ label, rate, value, warn, limit }) => {
+            const meta = metricMeta(rate, warn, limit)
+            const barW = limit > 0 ? Math.min((rate / limit) * 100, 100) : 0
             return (
               <div key={label}>
-                <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
-                  <span className="text-zinc-300 text-sm">{label}</span>
+                <div className="flex items-center justify-between mb-1.5 flex-wrap gap-2">
+                  <span className="text-zinc-300 text-sm font-medium">{label}</span>
                   <div className="flex items-center gap-2">
                     <span className="text-zinc-500 text-xs">{value} ocorrencias</span>
-                    <span className={`text-sm font-semibold ${sty.text}`}>{fmtPct(rate)}</span>
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${sty.badge}`}>{sty.label}</span>
+                    <span className="text-sm font-bold" style={{ color: meta.color }}>{fmtPct(rate)}</span>
+                    <span className="text-xs px-2 py-0.5 rounded-full font-semibold"
+                      style={{ background: meta.badgeBg, color: meta.badgeText }}>
+                      {meta.badge}
+                    </span>
                   </div>
                 </div>
-                <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-                  <div className={`h-full rounded-full ${sty.bar}`} style={{ width: `${barW}%` }} />
+                <div className="h-2 rounded-full overflow-hidden" style={{ background: '#1e1e24' }}>
+                  <div className="h-full rounded-full transition-all duration-500"
+                    style={{ width: `${barW}%`, background: meta.color }} />
+                </div>
+                <div className="flex items-center justify-between mt-1">
+                  <p className="text-xs" style={{ color: meta.color === '#22c55e' ? '#166534' : meta.color === '#f97316' ? '#7c2d12' : '#7f1d1d', opacity: 0.9 }}>
+                    {meta.hint}
+                  </p>
+                  <p className="text-zinc-600 text-xs">limite {(limit * 100).toFixed(1)}%</p>
                 </div>
               </div>
             )
