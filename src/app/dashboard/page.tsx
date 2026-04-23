@@ -690,8 +690,6 @@ export default function DashboardPage() {
 
   // periodOrders is now a state (fetched from backend per period)
   const yestOrders   = useMemo(() => orders.filter(o => brazilDateStr(new Date(o.date_created)) === brazilDateStr(daysAgoDate(1))), [orders])
-  const weekOrders   = useMemo(() => orders.filter(o => new Date(o.date_created) >= daysAgoDate(7)), [orders])
-  const monthOrders  = useMemo(() => orders.filter(o => brazilDateStr(new Date(o.date_created)).slice(0, 7) === thisMonthBR()), [orders])
 
   const cur  = useMemo(() => calcMetrics(periodOrders), [periodOrders])
 
@@ -706,7 +704,6 @@ export default function DashboardPage() {
     return { faturamento: fat, lucroEstimado: lucro, margemPct: fat > 0 ? (lucro / fat) * 100 : 0 }
   }, [financialSummary, periodOrders])
   const yest = useMemo(() => calcMetrics(yestOrders), [yestOrders])
-  const week = useMemo(() => calcMetrics(weekOrders), [weekOrders])
   const todayOrdersBR = useMemo(() => orders.filter(o => isPaid(o) && brazilDateStr(new Date(o.date_created)) === todayBR()), [orders])
   const todayM = useMemo(() => calcMetrics(todayOrdersBR), [todayOrdersBR])
 
@@ -910,9 +907,8 @@ export default function DashboardPage() {
       <section>
         <p className="text-zinc-500 text-[10px] uppercase tracking-widest font-semibold mb-3">KPIs Executivos</p>
         <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-2.5">
-          <KpiCard label="Faturamento mês"   value={shortBrl(calcMetrics(monthOrders).revenue)} sub="mês atual" color="#34d399" loading={loading} />
-          <KpiCard label={`Pedidos — ${PERIOD_LABEL[period]}`} value={String(cur.count)} vsYest={period === 'today' ? pct(cur.count, yest.count) : null} color="#a78bfa" loading={periodLoading || loading} />
-          <KpiCard label="Ticket médio"       value={brl(cur.avgTicket)} vsYest={pct(cur.avgTicket, yest.avgTicket)} color="#fb923c" loading={periodLoading || loading} />
+          <KpiCard label={`Pedidos — ${PERIOD_LABEL[period]}`} value={financialSummary ? String(financialSummary.total_orders) : String(cur.count)} vsYest={period === 'today' ? pct(cur.count, yest.count) : null} color="#a78bfa" loading={summaryLoading || periodLoading || loading} />
+          <KpiCard label="Ticket médio"       value={brl(financialSummary?.average_ticket ?? cur.avgTicket)} color="#fb923c" loading={summaryLoading || periodLoading || loading} />
           <KpiCard label="Reputação ML"         value={sellerInfo?.level_id?.replace(/_/g, ' ') ?? '—'} sub={sellerInfo?.power_seller_status ?? (mlConnected ? '…' : 'ML desconect.')} color="#60a5fa" loading={loading} />
           <KpiCard label="Vendas Aprovadas"   value={finKpis ? shortBrl(finKpis.vendas_aprovadas) : '—'} sub="líquido mês atual" color="#22c55e" loading={loading} />
           <KpiCard label="Margem Contrib."    value={finKpis ? `${finKpis.margem_pct.toFixed(1)}%` : '—'} sub={finKpis ? shortBrl(finKpis.margem_contrib) : 'configure CMV'} color={finKpis ? (finKpis.margem_pct >= 0 ? '#22c55e' : '#f87171') : '#f59e0b'} loading={loading} />
