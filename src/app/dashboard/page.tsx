@@ -367,6 +367,7 @@ export default function DashboardPage() {
   const [sellerInfo, setSellerInfo] = useState<SellerInfo | null>(null)
   const [mlItemsTotal, setMlItemsTotal] = useState<number | null>(null)
   const [aboveConcPrice, setAboveConcPrice] = useState(0)
+  const [finKpis, setFinKpis] = useState<{ vendas_aprovadas: number; margem_pct: number; margem_contrib: number } | null>(null)
 
   const refresh = useCallback(async (isInitial = false) => {
     if (!isInitial) setRefreshing(true)
@@ -417,12 +418,14 @@ export default function DashboardPage() {
       return
     }
 
-    const [ordersRes, questionsRes, claimsRes, sellerRes, myItemsRes] = await Promise.allSettled([
+    const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
+    const [ordersRes, questionsRes, claimsRes, sellerRes, myItemsRes, finRes] = await Promise.allSettled([
       fetch(`${BACKEND}/ml/recent-orders?limit=200`,  { headers: { Authorization: `Bearer ${token}` } }),
       fetch(`${BACKEND}/ml/questions`,                 { headers: { Authorization: `Bearer ${token}` } }),
       fetch(`${BACKEND}/ml/claims`,                    { headers: { Authorization: `Bearer ${token}` } }),
       fetch(`${BACKEND}/ml/seller-info`,               { headers: { Authorization: `Bearer ${token}` } }),
       fetch(`${BACKEND}/ml/my-items?limit=1`,          { headers: { Authorization: `Bearer ${token}` } }),
+      fetch(`${BACKEND}/ml/financial-summary?kpis_only=true&date_from=${encodeURIComponent(monthStart)}`, { headers: { Authorization: `Bearer ${token}` } }),
     ])
 
     console.log('[Dashboard] recent-orders:', ordersRes.status === 'fulfilled' ? ordersRes.value.status : `REJECTED(${(ordersRes as PromiseRejectedResult).reason})`)
@@ -471,6 +474,13 @@ export default function DashboardPage() {
       try {
         const data = await myItemsRes.value.json()
         setMlItemsTotal(data?.total ?? null)
+      } catch { /* non-fatal */ }
+    }
+    if (finRes.status === 'fulfilled' && finRes.value.ok) {
+      try {
+        const data = await finRes.value.json()
+        const k = data?.kpis
+        if (k) setFinKpis({ vendas_aprovadas: k.vendas_aprovadas ?? 0, margem_pct: k.margem_pct ?? 0, margem_contrib: k.margem_contribuicao ?? 0 })
       } catch { /* non-fatal */ }
     }
 
@@ -583,8 +593,9 @@ export default function DashboardPage() {
           <KpiCard label="Faturamento mês"   value={shortBrl(calcMetrics(monthOrders).revenue)} sub="mês atual" color="#34d399" loading={loading} />
           <KpiCard label="Pedidos hoje"       value={String(todayM.count)} vsYest={pct(todayM.count, yest.count)} color="#a78bfa" loading={loading} />
           <KpiCard label="Ticket médio"       value={brl(cur.avgTicket)} vsYest={pct(cur.avgTicket, yest.avgTicket)} color="#fb923c" loading={loading} />
-          <KpiCard label="Reputação ML"       value={sellerInfo?.level_id?.replace(/_/g, ' ') ?? '—'} sub={sellerInfo?.power_seller_status ?? (mlConnected ? '…' : 'ML desconect.')} color="#60a5fa" loading={loading} />
-          <KpiCard label="Margem estimada"    value="—"  sub="requer CMV"    color="#f59e0b" loading={loading} />
+          <KpiCard label="Reputação ML"         value={sellerInfo?.level_id?.replace(/_/g, ' ') ?? '—'} sub={sellerInfo?.power_seller_status ?? (mlConnected ? '…' : 'ML desconect.')} color="#60a5fa" loading={loading} />
+          <KpiCard label="Vendas Aprovadas"   value={finKpis ? shortBrl(finKpis.vendas_aprovadas) : '—'} sub="líquido mês atual" color="#22c55e" loading={loading} />
+          <KpiCard label="Margem Contrib."    value={finKpis ? `${finKpis.margem_pct.toFixed(1)}%` : '—'} sub={finKpis ? shortBrl(finKpis.margem_contrib) : 'configure CMV'} color={finKpis ? (finKpis.margem_pct >= 0 ? '#22c55e' : '#f87171') : '#f59e0b'} loading={loading} />
           <KpiCard label="Investimento mídia" value="—"  sub="via Ads"       color="#f87171" loading={loading} />
           <KpiCard label="ROAS / ROI"         value="—"  sub="via Ads"       color="#e879f9" loading={loading} />
         </div>

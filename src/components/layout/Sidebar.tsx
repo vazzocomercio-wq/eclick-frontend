@@ -56,7 +56,11 @@ const MAIN: Entry[] = [
     { label: 'Mensagens',   href: '/dashboard/atendimento/mensagens' },
   ]},
   { type: 'leaf',  label: 'Logística',  href: '/dashboard/logistica',  icon: <Ico d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z" d2="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0" /> },
-  { type: 'leaf',  label: 'Financeiro', href: '/dashboard/financeiro',  icon: <Ico d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /> },
+  { type: 'group', key: 'financeiro', label: 'Financeiro', icon: <Ico d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />, children: [
+    { label: 'Resumo Financeiro', href: '/dashboard/financeiro/resumo' },
+    { label: 'Fluxo de Caixa',   href: '/dashboard/financeiro/fluxo' },
+    { label: 'DRE',              href: '/dashboard/financeiro/dre' },
+  ]},
   { type: 'sep',   label: 'CRESCIMENTO' },
   { type: 'group', key: 'marketing',  label: 'Marketing',   icon: <Ico d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />, children: [
     { label: 'Ads', href: '/dashboard/ads' },
