@@ -202,20 +202,34 @@ export default function VendasAoVivoPage() {
     const { data: sess } = await createClient().auth.getSession()
     const token = sess.session?.access_token
     if (!token) { setLoading(false); return }
+
+    // Step 1: verify connection via status (backend has fallback to first available record)
+    try {
+      const statusRes = await fetch(`${BACKEND}/ml/status`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (statusRes.ok) {
+        const statusData = await statusRes.json()
+        if (statusData?.seller_id) setConnected(true)
+      }
+    } catch { /* ignore */ }
+
+    // Step 2: fetch orders separately — failure here never blocks the connected view
     try {
       const res = await fetch(`${BACKEND}/ml/recent-orders?limit=100`, {
         headers: { Authorization: `Bearer ${token}` },
       })
-      if (!res.ok) { setLoading(false); return }
-      const { orders: raw } = await res.json()
-      const next: Order[] = raw ?? []
-      const nextIds = new Set(next.map((o: Order) => o.id))
-      newIdsRef.current = new Set([...nextIds].filter(id => !prevIdsRef.current.has(id) && prevIdsRef.current.size > 0))
-      prevIdsRef.current = nextIds
-      setOrders(next)
-      setConnected(true)
-      setLastUpdated(new Date())
-    } catch { /* ML not connected */ }
+      if (res.ok) {
+        const { orders: raw } = await res.json()
+        const next: Order[] = raw ?? []
+        const nextIds = new Set(next.map((o: Order) => o.id))
+        newIdsRef.current = new Set([...nextIds].filter(id => !prevIdsRef.current.has(id) && prevIdsRef.current.size > 0))
+        prevIdsRef.current = nextIds
+        setOrders(next)
+        setLastUpdated(new Date())
+      }
+    } catch { /* orders failed — keep connected state */ }
+
     setLoading(false)
   }, [])
 
