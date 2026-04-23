@@ -174,27 +174,13 @@ export default function Page() {
     ps === 'gold'     ? '#F59E0B' :
     ps === 'normal'   ? '#22C55E' : '#ffffff'
 
-  const STAGES = [
-    { label: 'Sem rep.', color: '#9CA3AF', icon: null },
-    { label: '●',   color: '#FCA5A5', icon: null },
-    { label: '●',   color: '#FDBA74', icon: null },
-    { label: '●',   color: '#FDE68A', icon: null },
-    { label: 'Verde',    color: '#86EFAC', icon: null },
-    { label: 'Lider',    color: '#22C55E', icon: '🏅' },
-    { label: 'Gold',     color: '#F59E0B', icon: '🥇' },
-    { label: 'Platinum', color: '#00E5FF', icon: '💎' },
-  ]
-
-  const estagioAtual =
-    ps === 'platinum'      ? 7 :
-    ps === 'gold'          ? 6 :
-    ps === 'normal'        ? 5 :
-    levelId === '5_green' || levelId === '4_light_green' ? 4 :
-    levelId === '3_yellow' ? 3 :
-    levelId === '2_orange' ? 2 :
-    levelId === '1_red'    ? 1 : 0
-
-  const activeStage = STAGES[estagioAtual]
+  const THERMO = ['#FCA5A5', '#FDBA74', '#FDE68A', '#86EFAC', '#2ECC71']
+  const nivelAtivo =
+    ps === 'platinum' || ps === 'gold' || ps === 'normal' ? 4 :
+    levelId === '5_green' || levelId === '4_light_green'  ? 4 :
+    levelId === '3_yellow' ? 2 :
+    levelId === '2_orange' ? 1 :
+    levelId === '1_red'    ? 0 : -1
 
   const qualMetrics = [
     { label: 'Reclamacoes',        m: metrics.claims,                warn: 0.01,  crit: 0.03  },
@@ -219,41 +205,25 @@ export default function Page() {
           <p className="text-4xl font-bold" style={{ color: nivelCor }}>{nivelTitulo}</p>
         </div>
 
-        {/* Termômetro 7 estágios */}
+        {/* Termômetro 5 segmentos */}
         <div className="mt-5">
-          <div className="flex items-end" style={{ gap: 4 }}>
-            {STAGES.map((s, i) => {
-              const isActive = i === estagioAtual
-              const isAfter  = i > estagioAtual
-              return (
-                <div key={i} className="flex-1 flex flex-col items-center gap-0.5">
-                  <div
-                    style={{
-                      height: isActive ? 12 : 8,
-                      borderRadius: 4,
-                      width: '100%',
-                      backgroundColor: isAfter ? '#E5E7EB' : s.color,
-                      opacity: isAfter ? 0.3 : 1,
-                      outline: isActive ? `2px solid ${s.color}` : 'none',
-                      outlineOffset: 2,
-                    }}
-                  />
-                  <span style={{ fontSize: 9, color: isAfter ? '#6b7280' : s.color, fontWeight: isActive ? 700 : 400, lineHeight: 1.2 }}>
-                    {s.icon ?? s.label}
-                  </span>
-                </div>
-              )
-            })}
+          <div className="flex" style={{ gap: 4 }}>
+            {THERMO.map((cor, i) => (
+              <div
+                key={i}
+                className="flex-1"
+                style={{
+                  height: 8,
+                  borderRadius: 4,
+                  backgroundColor: i > nivelAtivo ? '#E5E7EB' : cor,
+                  opacity: i > nivelAtivo ? 0.3 : 1,
+                }}
+              />
+            ))}
           </div>
-
-          {/* Badge do estágio ativo */}
-          <div className="mt-3 flex items-center gap-1.5">
-            {activeStage.icon && <span className="text-sm">{activeStage.icon}</span>}
-            <span className="text-sm font-semibold" style={{ color: activeStage.color }}>
-              MercadoLider {activeStage.label}
-            </span>
-            <span className="text-zinc-500 text-xs">· Voce aparece assim para os compradores</span>
-          </div>
+          <p className="text-zinc-500 text-xs mt-2">
+            Voce aparece em {nivelTitulo} para os compradores
+          </p>
         </div>
       </div>
 
