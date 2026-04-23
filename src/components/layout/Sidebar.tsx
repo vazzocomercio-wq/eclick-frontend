@@ -18,7 +18,10 @@ function Ico({ d, d2 }: { d: string; d2?: string }) {
 // ── nav types ─────────────────────────────────────────────────────────────────
 
 type Leaf  = { type: 'leaf';  label: string; href: string; icon: React.ReactNode; badge?: number }
-type Group = { type: 'group'; key: string;   label: string; icon: React.ReactNode; children: Array<{ label: string; href: string }> }
+type ChildLeaf  = { label: string; href: string }
+type ChildGroup = { label: string; isGroup: true; children: ChildLeaf[] }
+type GroupChild = ChildLeaf | ChildGroup
+type Group = { type: 'group'; key: string; label: string; icon: React.ReactNode; children: GroupChild[] }
 type Sep   = { type: 'sep';   label?: string }
 type Entry = Leaf | Group | Sep
 
@@ -35,7 +38,13 @@ const MAIN: Entry[] = [
   ]},
   { type: 'sep',   label: 'CATÁLOGO' },
   { type: 'group', key: 'catalogo',   label: 'Catálogo',    icon: <Ico d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />, children: [
-    { label: 'Anúncios',     href: '/dashboard/produtos' },
+    { label: 'Produtos',     href: '/dashboard/produtos' },
+    { label: 'Anúncios', isGroup: true, children: [
+      { label: 'Mercado Livre', href: '/dashboard/catalogo/anuncios/mercadolivre' },
+      { label: 'Shopee',        href: '/dashboard/catalogo/anuncios/shopee' },
+      { label: 'Amazon',        href: '/dashboard/catalogo/anuncios/amazon' },
+      { label: 'Magalu',        href: '/dashboard/catalogo/anuncios/magalu' },
+    ]},
     { label: 'Concorrentes', href: '/dashboard/concorrentes' },
     { label: 'Preços',       href: '/dashboard/precos' },
   ]},
@@ -92,11 +101,51 @@ function LeafLink({ item }: { item: Leaf }) {
 
 // ── group toggle ──────────────────────────────────────────────────────────────
 
+function SubGroupNav({ child, pathname }: { child: ChildGroup; pathname: string }) {
+  const anyActive = child.children.some(c => pathname.startsWith(c.href))
+  const [open, setOpen] = useState(anyActive)
+  return (
+    <div>
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between px-2 py-1.5 rounded-md text-[12px] font-medium transition-colors"
+        style={{ color: anyActive ? '#00E5FF' : '#71717a' }}>
+        <span>{child.label}</span>
+        <svg className="w-2.5 h-2.5 shrink-0 transition-transform duration-200"
+          style={{ transform: open ? 'rotate(180deg)' : undefined, color: '#3f3f46' }}
+          fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {open && (
+        <div className="ml-2 pl-2 mt-0.5 space-y-0.5" style={{ borderLeft: '1px solid #1e1e24' }}>
+          {child.children.map(cc => {
+            const active = pathname.startsWith(cc.href)
+            return (
+              <Link key={cc.href} href={cc.href}
+                className="flex items-center px-2 py-1.5 rounded-md text-[11px] font-medium transition-colors"
+                style={{ color: active ? '#00E5FF' : '#52525b', background: active ? 'rgba(0,229,255,0.08)' : 'transparent' }}
+                onMouseEnter={e => { if (!active) { (e.currentTarget as HTMLElement).style.color = '#a1a1aa' } }}
+                onMouseLeave={e => { if (!active) { (e.currentTarget as HTMLElement).style.color = '#52525b' } }}>
+                {cc.label}
+              </Link>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function GroupNav({ item, defaultOpen }: { item: Group; defaultOpen: boolean }) {
   const [open, setOpen] = useState(defaultOpen)
   const pathname = usePathname()
 
-  const anyActive = item.children.some(c => pathname.startsWith(c.href))
+  const anyActive = item.children.some(c =>
+    'isGroup' in c
+      ? c.children.some(cc => pathname.startsWith(cc.href))
+      : pathname.startsWith(c.href)
+  )
 
   return (
     <div>
@@ -119,7 +168,8 @@ function GroupNav({ item, defaultOpen }: { item: Group; defaultOpen: boolean }) 
 
       {open && (
         <div className="ml-3.5 pl-3 mt-0.5 space-y-0.5" style={{ borderLeft: '1px solid #1e1e24' }}>
-          {item.children.map(child => {
+          {item.children.map((child, idx) => {
+            if ('isGroup' in child) return <SubGroupNav key={idx} child={child} pathname={pathname} />
             const active = pathname.startsWith(child.href)
             return (
               <Link
@@ -146,7 +196,11 @@ export default function Sidebar() {
   const pathname = usePathname()
 
   function isGroupDefaultOpen(g: Group) {
-    return g.children.some(c => pathname.startsWith(c.href))
+    return g.children.some(c =>
+      'isGroup' in c
+        ? c.children.some(cc => pathname.startsWith(cc.href))
+        : pathname.startsWith(c.href)
+    )
   }
 
   return (
