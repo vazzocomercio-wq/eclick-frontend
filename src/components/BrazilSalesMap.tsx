@@ -172,24 +172,27 @@ export default function BrazilSalesMap({
           </div>
         ) : (
           <svg
-            viewBox="0 0 700 800"
+            viewBox="80 120 560 680"
             className="w-full h-full"
             style={{ filter: 'drop-shadow(0 0 20px rgba(0,229,255,0.05))' }}
           >
-            {/* Background shape representing Brazil */}
-            <ellipse cx="370" cy="420" rx="280" ry="340"
-              fill="#1a1a2e" stroke="#2a2a3f" strokeWidth="1" opacity="0.6" />
+            {/* Brazil shape — norte largo, sul afunila */}
+            <ellipse cx="350" cy="360" rx="220" ry="180"
+              fill="#1a1a2e" stroke="#2a2a3f" strokeWidth="1" opacity="0.5" />
+            <ellipse cx="380" cy="550" rx="140" ry="120"
+              fill="#1a1a2e" stroke="#2a2a3f" strokeWidth="1" opacity="0.5" />
 
-            {/* State labels */}
+            {/* State labels — contexto geográfico leve */}
             {Object.entries(STATE_POSITIONS).map(([uf, pos]) => (
               <text
                 key={uf}
                 x={pos.x}
                 y={pos.y}
                 textAnchor="middle"
-                fill={points.some(p => p.state === uf) ? '#4a4a6a' : '#2a2a4a'}
-                fontSize="8"
+                fill={points.some(p => p.state === uf) ? '#ffffff25' : '#ffffff0f'}
+                fontSize="9"
                 fontFamily="monospace"
+                fontWeight={points.some(p => p.state === uf) ? '600' : '400'}
               >
                 {uf}
               </text>
