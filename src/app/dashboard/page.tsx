@@ -370,6 +370,7 @@ export default function DashboardPage() {
 
   const refresh = useCallback(async (isInitial = false) => {
     if (!isInitial) setRefreshing(true)
+    try {
     const token = await getToken()
     const supabase = createClient()
 
@@ -432,40 +433,54 @@ export default function DashboardPage() {
 
     if (ordersRes.status === 'fulfilled') {
       if (ordersRes.value.ok) {
-        const json = await ordersRes.value.json()
-        console.log('[Dashboard] orders data:', JSON.stringify(json).slice(0, 300))
-        setOrders(json.orders ?? [])
-        setMlConnected(true)
+        try {
+          const json = await ordersRes.value.json()
+          console.log('[Dashboard] orders data:', JSON.stringify(json).slice(0, 300))
+          setOrders(json.orders ?? [])
+          setMlConnected(true)
+        } catch { console.error('[Dashboard] orders JSON parse error') }
       } else {
-        const txt = await ordersRes.value.text()
+        const txt = await ordersRes.value.text().catch(() => '')
         console.error('[Dashboard] orders error body:', txt.slice(0, 300))
       }
     }
     if (questionsRes.status === 'fulfilled' && questionsRes.value.ok) {
-      const data = await questionsRes.value.json()
-      setQuestions(data?.total ?? 0)
+      try {
+        const data = await questionsRes.value.json()
+        setQuestions(data?.total ?? 0)
+      } catch { /* non-fatal */ }
     }
     if (claimsRes.status === 'fulfilled' && claimsRes.value.ok) {
-      const data = await claimsRes.value.json()
-      setClaims(Array.isArray(data?.data ?? data) ? (data?.data ?? data).length : (data?.total ?? 0))
+      try {
+        const data = await claimsRes.value.json()
+        setClaims(Array.isArray(data?.data ?? data) ? (data?.data ?? data).length : (data?.total ?? 0))
+      } catch { /* non-fatal */ }
     }
     if (sellerRes.status === 'fulfilled' && sellerRes.value.ok) {
-      const data = await sellerRes.value.json()
-      console.log('[Dashboard] seller-info data:', JSON.stringify(data).slice(0, 200))
-      setSellerInfo({
-        power_seller_status: data?.seller_reputation?.power_seller_status ?? data?.power_seller_status ?? null,
-        level_id: data?.seller_reputation?.level_id ?? data?.level_id ?? null,
-        points: data?.seller_reputation?.transactions?.period?.total ?? null,
-      })
+      try {
+        const data = await sellerRes.value.json()
+        console.log('[Dashboard] seller-info data:', JSON.stringify(data).slice(0, 200))
+        setSellerInfo({
+          power_seller_status: data?.seller_reputation?.power_seller_status ?? data?.power_seller_status ?? null,
+          level_id: data?.seller_reputation?.level_id ?? data?.level_id ?? null,
+          points: data?.seller_reputation?.transactions?.period?.total ?? null,
+        })
+      } catch { /* non-fatal */ }
     }
     if (myItemsRes.status === 'fulfilled' && myItemsRes.value.ok) {
-      const data = await myItemsRes.value.json()
-      setMlItemsTotal(data?.total ?? null)
+      try {
+        const data = await myItemsRes.value.json()
+        setMlItemsTotal(data?.total ?? null)
+      } catch { /* non-fatal */ }
     }
 
-    setLastUpdated(new Date())
-    setLoading(false)
-    setRefreshing(false)
+    } catch (err) {
+      console.error('[Dashboard] refresh error:', err)
+    } finally {
+      setLastUpdated(new Date())
+      setLoading(false)
+      setRefreshing(false)
+    }
   }, [])
 
   useEffect(() => { refresh(true) }, [refresh])
