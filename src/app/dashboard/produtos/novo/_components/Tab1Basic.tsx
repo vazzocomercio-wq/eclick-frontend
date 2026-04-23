@@ -3,6 +3,22 @@
 import { useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import type { TabProps } from '../types'
+import {
+  DndContext,
+  DragEndEvent,
+  DragOverlay,
+  DragStartEvent,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  arrayMove,
+  rectSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 
 const inp = 'w-full bg-[#1c1c1f] border border-[#3f3f46] text-white text-sm rounded-lg px-3 py-2.5 outline-none transition-all placeholder-zinc-600 focus:border-[#00E5FF] focus:ring-1 focus:ring-[#00E5FF20]'
 const lbl = 'block text-[13px] font-medium text-zinc-300 mb-1.5'
@@ -18,10 +34,118 @@ const CATEGORIES = [
 
 type Props = TabProps & { orgId: string | null }
 
+// ── SortablePhotoItem ─────────────────────────────────────────────────────────
+
+function SortablePhotoItem({
+  url,
+  index,
+  onRemove,
+}: {
+  url: string
+  index: number
+  onRemove: () => void
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: url })
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        zIndex: isDragging ? 50 : undefined,
+      }}
+      className="relative group shrink-0"
+    >
+      <img
+        src={url}
+        alt=""
+        {...attributes}
+        {...listeners}
+        draggable={false}
+        className="w-20 h-20 rounded-xl object-cover border-2 select-none"
+        style={{
+          borderColor: index === 0 ? '#00E5FF' : '#3f3f46',
+          opacity: isDragging ? 0.35 : 1,
+          cursor: isDragging ? 'grabbing' : 'grab',
+          transition: 'border-color 0.2s, opacity 0.15s',
+        }}
+      />
+      {index === 0 && (
+        <span
+          className="absolute -top-1.5 -right-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full z-10 pointer-events-none"
+          style={{ background: '#00E5FF', color: '#000' }}
+        >
+          CAPA
+        </span>
+      )}
+      <button
+        type="button"
+        onClick={onRemove}
+        className="absolute top-1 right-1 w-5 h-5 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10"
+        style={{ background: 'rgba(0,0,0,0.75)' }}
+      >
+        <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+  )
+}
+
+// ── DragOverlayPhoto ──────────────────────────────────────────────────────────
+
+function DragOverlayPhoto({ url }: { url: string }) {
+  return (
+    <img
+      src={url}
+      alt=""
+      draggable={false}
+      className="w-20 h-20 rounded-xl object-cover border-2 select-none"
+      style={{
+        borderColor: '#00E5FF',
+        cursor: 'grabbing',
+        boxShadow: '0 12px 40px rgba(0,0,0,0.6), 0 0 0 2px rgba(0,229,255,0.3)',
+        transform: 'scale(1.08) rotate(1.5deg)',
+        opacity: 0.95,
+      }}
+    />
+  )
+}
+
+// ── Tab1Basic ─────────────────────────────────────────────────────────────────
+
 export default function Tab1Basic({ data, set, orgId }: Props) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [uploadingCount, setUploadingCount] = useState(0)
   const [uploadError, setUploadError] = useState<string | null>(null)
+  const [activeId, setActiveId] = useState<string | null>(null)
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+  )
+
+  function handleDragStart(e: DragStartEvent) {
+    setActiveId(e.active.id as string)
+  }
+
+  function handleDragEnd(e: DragEndEvent) {
+    const { active, over } = e
+    setActiveId(null)
+    if (!over || active.id === over.id) return
+    const oldIdx = data.photoUrls.indexOf(active.id as string)
+    const newIdx = data.photoUrls.indexOf(over.id as string)
+    if (oldIdx !== -1 && newIdx !== -1) {
+      set('photoUrls', arrayMove(data.photoUrls, oldIdx, newIdx))
+    }
+  }
 
   async function handleFiles(files: FileList | null) {
     if (!files) return
@@ -46,10 +170,7 @@ export default function Tab1Basic({ data, set, orgId }: Props) {
           .from('produtos')
           .upload(path, file, { cacheControl: '3600', upsert: false })
 
-        if (error) {
-          failed.push(file.name)
-          return
-        }
+        if (error) { failed.push(file.name); return }
 
         const { data: pub } = supabase.storage.from('produtos').getPublicUrl(path)
         uploaded.push(pub.publicUrl)
@@ -58,14 +179,11 @@ export default function Tab1Basic({ data, set, orgId }: Props) {
 
     setUploadingCount(c => c - arr.length)
 
-    if (uploaded.length > 0) {
-      set('photoUrls', [...data.photoUrls, ...uploaded])
-    }
+    if (uploaded.length > 0) set('photoUrls', [...data.photoUrls, ...uploaded])
     if (failed.length > 0) {
       setUploadError(`Erro ao enviar: ${failed.join(', ')}. Verifique se o bucket "produtos" existe no Supabase Storage.`)
     }
 
-    // Reset input so the same file can be re-selected after a failure
     if (fileRef.current) fileRef.current.value = ''
   }
 
@@ -75,6 +193,7 @@ export default function Tab1Basic({ data, set, orgId }: Props) {
 
   const totalSlots = data.photoUrls.length + uploadingCount
   const canAddMore = totalSlots < 10
+  const activeUrl = activeId ? data.photoUrls.find(u => u === activeId) ?? null : null
 
   return (
     <div className="space-y-8">
@@ -90,67 +209,60 @@ export default function Tab1Basic({ data, set, orgId }: Props) {
           </div>
         )}
 
-        <div className="flex flex-wrap gap-3">
-          {/* Uploaded photos */}
-          {data.photoUrls.map((url, i) => (
-            <div key={url} className="relative group shrink-0">
-              <img
-                src={url}
-                alt=""
-                className="w-20 h-20 rounded-xl object-cover border-2 transition-transform duration-200 group-hover:scale-[1.03]"
-                style={{ borderColor: i === 0 ? '#00E5FF' : '#3f3f46' }}
-              />
-              {i === 0 && (
-                <span className="absolute -top-1.5 -right-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full z-10"
-                  style={{ background: '#00E5FF', color: '#000' }}>
-                  CAPA
-                </span>
+        <DndContext
+          sensors={sensors}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext items={data.photoUrls} strategy={rectSortingStrategy}>
+            <div className="flex flex-wrap gap-3">
+              {data.photoUrls.map((url, i) => (
+                <SortablePhotoItem
+                  key={url}
+                  url={url}
+                  index={i}
+                  onRemove={() => removePhoto(i)}
+                />
+              ))}
+
+              {/* Upload loading placeholders */}
+              {[...Array(uploadingCount)].map((_, i) => (
+                <div key={`loading-${i}`}
+                  className="w-20 h-20 rounded-xl shrink-0 flex items-center justify-center border-2 border-dashed"
+                  style={{ background: 'rgba(0,229,255,0.04)', borderColor: 'rgba(0,229,255,0.3)' }}>
+                  <svg className="w-5 h-5 animate-spin" style={{ color: '#00E5FF' }} fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                </div>
+              ))}
+
+              {/* Add button */}
+              {canAddMore && (
+                <button
+                  type="button"
+                  onClick={() => fileRef.current?.click()}
+                  className="w-20 h-20 rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-1 transition-colors shrink-0"
+                  style={{ borderColor: '#3f3f46' }}
+                  onMouseEnter={e => (e.currentTarget.style.borderColor = '#00E5FF')}
+                  onMouseLeave={e => (e.currentTarget.style.borderColor = '#3f3f46')}
+                >
+                  <svg className="w-5 h-5 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.75}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                  </svg>
+                  <span className="text-[10px] text-zinc-600">Adicionar</span>
+                </button>
               )}
-              <button
-                type="button"
-                onClick={() => removePhoto(i)}
-                className="absolute top-1 right-1 w-5 h-5 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10"
-                style={{ background: 'rgba(0,0,0,0.75)' }}
-              >
-                <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
             </div>
-          ))}
+          </SortableContext>
 
-          {/* Upload loading placeholders */}
-          {[...Array(uploadingCount)].map((_, i) => (
-            <div key={`loading-${i}`}
-              className="w-20 h-20 rounded-xl shrink-0 flex items-center justify-center border-2 border-dashed"
-              style={{ background: 'rgba(0,229,255,0.04)', borderColor: 'rgba(0,229,255,0.3)' }}>
-              <svg className="w-5 h-5 animate-spin" style={{ color: '#00E5FF' }} fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
-            </div>
-          ))}
-
-          {/* Add button */}
-          {canAddMore && (
-            <button
-              type="button"
-              onClick={() => fileRef.current?.click()}
-              className="w-20 h-20 rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-1 transition-colors shrink-0"
-              style={{ borderColor: '#3f3f46' }}
-              onMouseEnter={e => (e.currentTarget.style.borderColor = '#00E5FF')}
-              onMouseLeave={e => (e.currentTarget.style.borderColor = '#3f3f46')}
-            >
-              <svg className="w-5 h-5 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.75}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-              </svg>
-              <span className="text-[10px] text-zinc-600">Adicionar</span>
-            </button>
-          )}
-        </div>
+          <DragOverlay dropAnimation={{ duration: 180, easing: 'ease' }}>
+            {activeUrl ? <DragOverlayPhoto url={activeUrl} /> : null}
+          </DragOverlay>
+        </DndContext>
 
         <p className="text-[11px] text-zinc-600 mt-2">
-          {totalSlots}/10 fotos · A primeira imagem será a capa do anúncio
+          {totalSlots}/10 fotos · Arraste para reordenar · A primeira imagem será a capa
         </p>
         <input ref={fileRef} type="file" accept="image/*" multiple className="hidden"
           onChange={e => handleFiles(e.target.files)} />
