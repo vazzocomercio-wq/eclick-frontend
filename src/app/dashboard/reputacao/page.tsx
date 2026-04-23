@@ -118,7 +118,7 @@ export default function Page() {
 
   if (!rep) return null
 
-  const level   = LEVEL_MAP[rep.level_id] ?? { label: rep.level_id, color: 'text-zinc-400', bgCard: 'bg-zinc-800', borderCard: 'border-zinc-700', barColor: '#71717a', rank: 0 }
+  const level   = (rep.level_id ? LEVEL_MAP[rep.level_id] : null) ?? { label: rep.level_id ?? 'Sem dados', color: 'text-zinc-400', bgCard: 'bg-zinc-800', borderCard: 'border-zinc-700', barColor: '#71717a', rank: 0 }
   const txn     = rep.transactions
   const psLabel = rep.power_seller_status ? (POWER_LABEL[rep.power_seller_status] ?? rep.power_seller_status) : null
   const totalRat = txn.ratings.positive + txn.ratings.neutral + txn.ratings.negative
