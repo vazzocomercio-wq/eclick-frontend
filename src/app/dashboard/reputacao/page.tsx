@@ -83,23 +83,22 @@ export default function Page() {
         fetch(`${BACKEND}/ml/seller-info`,  { headers }),
       ])
 
+      // /ml/reputation returns flat seller_reputation; /ml/seller-info returns { seller_reputation: {...} }
       const repData: Reputation = repRes.status === 'fulfilled' && repRes.value.ok
         ? await repRes.value.json().catch(() => ({}))
         : {}
 
-      // seller-info retorna { id, nickname, seller_reputation: { level_id, ... } }
       const infoRaw = infoRes.status === 'fulfilled' && infoRes.value.ok
         ? await infoRes.value.json().catch(() => ({}))
         : {}
       const infoData: Reputation = (infoRaw?.seller_reputation as Reputation) ?? {}
 
-      // seller-info é confiável — tem prioridade; reputation complementa métricas
+      // repData is now the direct source; infoData fallback for any missing fields
       const merged: Reputation = {
-        ...repData,
-        level_id:            infoData.level_id            ?? repData.level_id,
-        power_seller_status: infoData.power_seller_status ?? repData.power_seller_status,
-        transactions:        infoData.transactions        ?? repData.transactions,
-        metrics:             infoData.metrics             ?? repData.metrics,
+        level_id:            repData.level_id            ?? infoData.level_id,
+        power_seller_status: repData.power_seller_status ?? infoData.power_seller_status,
+        transactions:        repData.transactions        ?? infoData.transactions,
+        metrics:             repData.metrics             ?? infoData.metrics,
       }
 
       if (!merged.level_id && !merged.transactions) {
