@@ -156,9 +156,23 @@ export default function Page() {
   const concPct   = total > 0 ? ((compTotal / total) * 100).toFixed(1) : '0'
   const cancPct   = total > 0 ? ((cancTotal / total) * 100).toFixed(1) : '0'
 
-  const levelId  = rep.level_id ?? null
-  const level    = (levelId ? LEVEL_MAP[levelId] : null) ?? { label: levelId ?? 'Sem dados', color: 'text-zinc-400', bgCard: 'bg-zinc-800', borderCard: 'border-zinc-700', barColor: '#71717a', rank: 0 }
-  const psLabel  = rep.power_seller_status ? (POWER_LABEL[rep.power_seller_status] ?? rep.power_seller_status) : null
+  const levelId = rep.level_id ?? null
+  const level   = (levelId ? LEVEL_MAP[levelId] : null) ?? { label: 'Sem reputacao', color: 'text-zinc-400', bgCard: 'bg-zinc-800', borderCard: 'border-zinc-700', barColor: '#71717a', rank: 0 }
+  const ps      = rep.power_seller_status ?? null
+
+  const nivelTitulo =
+    ps === 'platinum'    ? 'MercadoLider Platinum' :
+    ps === 'gold'        ? 'MercadoLider Gold'     :
+    ps === 'normal'      ? 'MercadoLider'          :
+    levelId === '5_green' || levelId === '4_light_green' ? 'Verde' :
+    levelId === '3_yellow' ? 'Amarelo'   :
+    levelId === '2_orange' ? 'Laranja'   :
+    levelId === '1_red'    ? 'Vermelho'  : 'Sem reputacao'
+
+  const nivelCor =
+    ps === 'platinum' ? '#00E5FF' :
+    ps === 'gold'     ? '#F59E0B' :
+    ps === 'normal'   ? '#22C55E' : '#ffffff'
 
   const STAGES = [
     { label: 'Sem rep.', color: '#9CA3AF', icon: null },
@@ -171,7 +185,6 @@ export default function Page() {
     { label: 'Platinum', color: '#00E5FF', icon: '💎' },
   ]
 
-  const ps = rep.power_seller_status ?? null
   const estagioAtual =
     ps === 'platinum'      ? 7 :
     ps === 'gold'          ? 6 :
@@ -201,17 +214,9 @@ export default function Page() {
 
       {/* ── Level hero ─────────────────────────────────────────── */}
       <div className={`rounded-2xl border p-6 ${level.bgCard} ${level.borderCard}`}>
-        <div className="flex items-start justify-between flex-wrap gap-4">
-          <div>
-            <p className="text-zinc-400 text-sm mb-1">Nivel de Reputacao</p>
-            <p className={`text-4xl font-bold ${level.color}`}>{level.label}</p>
-            {psLabel && (
-              <span className="mt-2 inline-block text-xs bg-yellow-500/20 border border-yellow-500/30 text-yellow-300 px-2.5 py-0.5 rounded-full">
-                {psLabel}
-              </span>
-            )}
-          </div>
-          <p className="text-zinc-500 text-xs">seller_id: {rep.seller_id}</p>
+        <div>
+          <p className="text-zinc-400 text-sm mb-1">Nivel de Reputacao</p>
+          <p className="text-4xl font-bold" style={{ color: nivelCor }}>{nivelTitulo}</p>
         </div>
 
         {/* Termômetro 7 estágios */}
