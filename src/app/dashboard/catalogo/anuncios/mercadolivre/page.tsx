@@ -30,7 +30,9 @@ type MListing = {
   tags: string[]
   deal_ids: string[]
   promotions: unknown[]
-  health: number | null
+  health_score: number | null
+  health_status: string | null
+  health_reasons: string[]
   last_updated: string
   date_created: string
 }
@@ -81,22 +83,47 @@ function typeBadge(listing_type_id: string, logistic_type: string | null, catalo
   return badges
 }
 
-// ── Health gauge ───────────────────────────────────────────────────────────
+// ── Semi-circular gauge ────────────────────────────────────────────────────
 
-function HealthGauge({ score }: { score: number }) {
-  const color = score >= 80 ? '#22c55e' : score >= 60 ? '#eab308' : '#ef4444'
-  const r = 10, circ = 2 * Math.PI * r
-  const dash = (score / 100) * circ
+function SemiGauge({ score, label, sub }: { score: number | null; label: string; sub?: string }) {
+  const W = 72, H = 44, cx = W / 2, cy = H - 4, r = 28
+  const color = score == null ? '#3f3f46'
+    : score >= 80 ? '#22c55e'
+    : score >= 60 ? '#f59e0b'
+    : '#ef4444'
+
+  // Arc from 180° to 0° (left to right), semicircle
+  const arcLen = Math.PI * r                     // half circumference
+  const filled = score != null ? (score / 100) * arcLen : 0
+  const gap    = arcLen - filled
+
+  // strokeDasharray on a full circle: we only want the top half visible
+  const fullCirc = 2 * Math.PI * r
+  // Offset: start at leftmost point (180°) = 3/4 of full circle from 12 o'clock
+  const offset = fullCirc * 0.75
+
   return (
-    <span className="inline-flex items-center gap-1" title={`Saúde: ${score}/100`}>
-      <svg width="26" height="26" viewBox="0 0 26 26">
-        <circle cx="13" cy="13" r={r} fill="none" stroke="#1e1e24" strokeWidth="3" />
-        <circle cx="13" cy="13" r={r} fill="none" stroke={color} strokeWidth="3"
-          strokeDasharray={`${dash} ${circ}`} strokeDashoffset={circ / 4}
-          strokeLinecap="round" style={{ transition: 'stroke-dasharray .5s' }} />
-        <text x="13" y="17" textAnchor="middle" fontSize="7" fontWeight="700" fill={color}>{score}</text>
+    <div className="flex flex-col items-center" style={{ width: W }}>
+      <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} overflow="visible">
+        {/* bg arc */}
+        <circle cx={cx} cy={cy} r={r} fill="none" stroke="#1e1e24" strokeWidth="5"
+          strokeDasharray={`${arcLen} ${arcLen}`}
+          strokeDashoffset={-offset} strokeLinecap="round" />
+        {/* filled arc */}
+        {score != null && (
+          <circle cx={cx} cy={cy} r={r} fill="none" stroke={color} strokeWidth="5"
+            strokeDasharray={`${filled} ${fullCirc - filled}`}
+            strokeDashoffset={-offset} strokeLinecap="round"
+            style={{ transition: 'stroke-dasharray .5s' }} />
+        )}
+        {/* score text */}
+        <text x={cx} y={cy - 2} textAnchor="middle" fontSize="13" fontWeight="800" fill={score != null ? color : '#52525b'}>
+          {score != null ? score : '—'}
+        </text>
       </svg>
-    </span>
+      <p className="text-[10px] font-semibold mt-0.5" style={{ color: score != null ? color : '#52525b' }}>{label}</p>
+      {sub && <p className="text-[9px] text-zinc-600 mt-0.5 text-center leading-tight">{sub}</p>}
+    </div>
   )
 }
 
@@ -311,11 +338,26 @@ function ListingCard({ item, selected, onSelect }: {
               Ver variações
             </span>
           )}
-          {item.health != null && <HealthGauge score={Math.round(item.health * 100)} />}
         </div>
 
+        {/* Health gauges */}
+        {(item.health_score != null || item.health_status != null) && (
+          <div className="flex items-start gap-3 mt-2 pt-2" style={{ borderTop: '1px solid #1e1e24' }}>
+            <SemiGauge
+              score={item.health_score}
+              label="Qualidade"
+              sub={item.health_reasons.length > 0 ? `${item.health_reasons.length} ponto${item.health_reasons.length > 1 ? 's' : ''}` : undefined}
+            />
+            <SemiGauge
+              score={null}
+              label="Experiência"
+              sub={item.health_status === 'good' ? 'Ótima' : item.health_status === 'with_issues' ? 'Com problemas' : item.health_status === 'bad' ? 'Crítica' : undefined}
+            />
+          </div>
+        )}
+
         {/* Shipping + extra badges */}
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap gap-1.5 mt-2">
           {item.free_shipping && (
             <span className="text-[10px] px-2 py-0.5 rounded-full font-medium"
               style={{ background: '#0d1f17', border: '1px solid rgba(34,197,94,.2)', color: '#4ade80' }}>
