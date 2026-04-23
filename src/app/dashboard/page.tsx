@@ -29,6 +29,7 @@ type Order = {
   status: string
   date_created: string
   total_amount: number
+  contribution_margin?: number
   items: Array<{ item_id: string; title: string; quantity: number; unit_price: number }>
   shipping_state?: string | null
   shipping_city?: string | null
@@ -113,6 +114,29 @@ function getPeriodDates(period: Period): { from: string; to: string } {
   }
   // month
   return { from: `${today.substring(0, 7)}-01`, to: today }
+}
+
+function getPreviousPeriodDates(period: Period): { from: string; to: string } | null {
+  const now = brazilDate()
+  if (period === 'today') {
+    const y = new Date(now); y.setDate(y.getDate() - 1)
+    const ys = y.toISOString().slice(0, 10)
+    return { from: ys, to: ys }
+  }
+  if (period === '7d') {
+    const to = new Date(now); to.setDate(to.getDate() - 7)
+    const from = new Date(now); from.setDate(from.getDate() - 14)
+    return { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) }
+  }
+  if (period === '30d') {
+    const to = new Date(now); to.setDate(to.getDate() - 30)
+    const from = new Date(now); from.setDate(from.getDate() - 60)
+    return { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) }
+  }
+  // month → previous calendar month
+  const lastDay = new Date(now); lastDay.setDate(0)
+  const lms = lastDay.toISOString().slice(0, 10)
+  return { from: `${lms.substring(0, 7)}-01`, to: lms }
 }
 
 function filterByPeriod(orders: Order[], period: Period) {
@@ -231,9 +255,10 @@ function DashHeader({ period, setPeriod, channel, setChannel, onRefresh, refresh
 
 // ── Row 2: KPI Cards ──────────────────────────────────────────────────────────
 
-function KpiCard({ label, value, vsYest, vsWeek, sub, color = '#00E5FF', loading }: {
+function KpiCard({ label, value, vsYest, vsWeek, sub, color = '#00E5FF', loading, comparison }: {
   label: string; value: string; vsYest?: number | null; vsWeek?: number | null
   sub?: string; color?: string; loading: boolean
+  comparison?: { prevValue: number; prevLabel: string; curRaw: number }
 }) {
   return (
     <div className="rounded-xl p-4 flex flex-col gap-2.5 transition-all"
@@ -261,6 +286,32 @@ function KpiCard({ label, value, vsYest, vsWeek, sub, color = '#00E5FF', loading
             )}
             {sub && <span className="text-zinc-600 text-[10px]">{sub}</span>}
           </div>
+          {comparison && (
+            <div className="mt-0.5 pt-2.5 border-t border-[#ffffff10]">
+              <div className="flex items-center justify-between mb-0.5">
+                <span className="text-[10px] text-gray-500">{comparison.prevLabel}</span>
+                <span className="text-[10px] text-gray-400 font-medium">{brl(comparison.prevValue)}</span>
+              </div>
+              {(() => {
+                const diff = comparison.curRaw - comparison.prevValue
+                if (comparison.prevValue === 0) return (
+                  <span className="text-[10px] text-gray-600">sem dado anterior</span>
+                )
+                const pctChange = (diff / comparison.prevValue) * 100
+                const isUp = diff >= 0
+                return (
+                  <div className="flex items-center gap-1">
+                    <span className={`text-[10px] font-semibold ${isUp ? 'text-green-400' : 'text-red-400'}`}>
+                      {isUp ? '↑' : '↓'} {Math.abs(pctChange).toFixed(1)}%
+                    </span>
+                    <span className="text-[10px] text-gray-600">
+                      ({isUp ? '+' : ''}{shortBrl(diff)})
+                    </span>
+                  </div>
+                )
+              })()}
+            </div>
+          )}
         </>
       )}
     </div>
@@ -394,6 +445,13 @@ const PERIOD_LABEL: Record<Period, string> = {
   month: 'Mês atual',
 }
 
+const PREV_PERIOD_LABEL: Record<Period, string> = {
+  today: 'Ontem',
+  '7d':  '7 dias anteriores',
+  '30d': '30 dias anteriores',
+  month: 'Mês passado',
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
@@ -413,6 +471,7 @@ export default function DashboardPage() {
   const [finKpis, setFinKpis] = useState<{ vendas_aprovadas: number; margem_pct: number; margem_contrib: number } | null>(null)
   const [periodOrders, setPeriodOrders] = useState<Order[]>([])
   const [periodLoading, setPeriodLoading] = useState(false)
+  const [prevData, setPrevData] = useState<{ faturamento: number; lucro: number } | null>(null)
 
   const refresh = useCallback(async (isInitial = false) => {
     if (!isInitial) setRefreshing(true)
@@ -546,6 +605,7 @@ export default function DashboardPage() {
 
     ;(async () => {
       setPeriodLoading(true)
+      setPrevData(null)
       try {
         const token = await getToken()
         if (!token || cancelled) { if (!cancelled) setPeriodLoading(false); return }
@@ -555,7 +615,17 @@ export default function DashboardPage() {
         console.log(`[period-fetch] period=${period} from=${from} to=${to}`)
         console.log('[period-fetch] URL:', url)
 
-        const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+        const prevDates = getPreviousPeriodDates(period)
+        const prevUrl = prevDates
+          ? `${BACKEND}/ml/recent-orders?date_from=${prevDates.from}&date_to=${prevDates.to}&limit=200`
+          : null
+
+        const [res, prevRes] = await Promise.all([
+          fetch(url, { headers: { Authorization: `Bearer ${token}` } }),
+          prevUrl
+            ? fetch(prevUrl, { headers: { Authorization: `Bearer ${token}` } })
+            : Promise.resolve(null),
+        ])
 
         if (!res.ok) {
           console.error('[period-fetch] HTTP error:', res.status, await res.text().catch(() => ''))
@@ -569,6 +639,20 @@ export default function DashboardPage() {
         if (!cancelled) {
           setPeriodOrders(data?.orders ?? [])
           setPeriodLoading(false)
+        }
+
+        if (prevRes && prevRes.ok && !cancelled) {
+          try {
+            const prevJson = await prevRes.json()
+            const prevOrders: Order[] = prevJson?.orders ?? []
+            const prevFaturamento = prevOrders
+              .filter(isPaid)
+              .reduce((s, o) => s + (o.total_amount ?? 0), 0)
+            const prevLucro = prevOrders
+              .filter(isPaid)
+              .reduce((s, o) => s + (o.contribution_margin ?? 0), 0)
+            if (!cancelled) setPrevData({ faturamento: prevFaturamento, lucro: prevLucro })
+          } catch { /* non-fatal */ }
         }
       } catch (e) {
         console.error('[period-fetch] exception:', e)
@@ -587,6 +671,10 @@ export default function DashboardPage() {
   const monthOrders  = useMemo(() => orders.filter(o => brazilDateStr(new Date(o.date_created)).slice(0, 7) === thisMonthBR()), [orders])
 
   const cur  = useMemo(() => calcMetrics(periodOrders), [periodOrders])
+  const curLucro = useMemo(
+    () => periodOrders.filter(isPaid).reduce((s, o) => s + (o.contribution_margin ?? 0), 0),
+    [periodOrders]
+  )
   const yest = useMemo(() => calcMetrics(yestOrders), [yestOrders])
   const week = useMemo(() => calcMetrics(weekOrders), [weekOrders])
   const todayOrdersBR = useMemo(() => orders.filter(o => isPaid(o) && brazilDateStr(new Date(o.date_created)) === todayBR()), [orders])
@@ -701,7 +789,22 @@ export default function DashboardPage() {
       <section>
         <p className="text-zinc-500 text-[10px] uppercase tracking-widest font-semibold mb-3">KPIs Executivos</p>
         <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-2.5">
-          <KpiCard label={`Faturamento — ${PERIOD_LABEL[period]}`} value={shortBrl(cur.revenue)} vsYest={period === 'today' ? pct(cur.revenue, yest.revenue) : null} vsWeek={null} color="#00E5FF" loading={periodLoading || loading} />
+          <KpiCard
+            label={`Faturamento — ${PERIOD_LABEL[period]}`}
+            value={shortBrl(cur.revenue)}
+            vsYest={period === 'today' ? pct(cur.revenue, yest.revenue) : null}
+            vsWeek={null}
+            color="#00E5FF"
+            loading={periodLoading || loading}
+            comparison={prevData ? { prevValue: prevData.faturamento, prevLabel: PREV_PERIOD_LABEL[period], curRaw: cur.revenue } : undefined}
+          />
+          <KpiCard
+            label={`Lucro — ${PERIOD_LABEL[period]}`}
+            value={brl(curLucro)}
+            color="#22c55e"
+            loading={periodLoading || loading}
+            comparison={prevData ? { prevValue: prevData.lucro, prevLabel: PREV_PERIOD_LABEL[period], curRaw: curLucro } : undefined}
+          />
           <KpiCard label="Faturamento mês"   value={shortBrl(calcMetrics(monthOrders).revenue)} sub="mês atual" color="#34d399" loading={loading} />
           <KpiCard label={`Pedidos — ${PERIOD_LABEL[period]}`} value={String(cur.count)} vsYest={period === 'today' ? pct(cur.count, yest.count) : null} color="#a78bfa" loading={periodLoading || loading} />
           <KpiCard label="Ticket médio"       value={brl(cur.avgTicket)} vsYest={pct(cur.avgTicket, yest.avgTicket)} color="#fb923c" loading={periodLoading || loading} />
