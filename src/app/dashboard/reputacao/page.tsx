@@ -163,8 +163,9 @@ export default function Page() {
   const LEVEL_INDEX: Record<string, number> = {
     '1_red': 0, '2_orange': 1, '3_yellow': 2, '4_light_green': 3, '5_green': 4, 'platinum': 4,
   }
-  const THERMO_COLORS = ['#ef4444', '#f97316', '#eab308', '#84cc16', '#22c55e']
-  const THERMO_LABELS = ['Bronze', 'Prata', 'Ouro', 'MercadoLider', 'MercadoLider Gold']
+  // Cores pastéis para segmentos anteriores; cor intensa para o ativo
+  const THERMO_PASTEL  = ['#FFB3B3', '#FFCCA0', '#FFE599', '#B3E5B3', '#2ECC71']
+  const THERMO_INTENSE = ['#e05555', '#e07a30', '#d4a017', '#4caf50', '#2ECC71']
   const nivelAtivo = levelId ? (LEVEL_INDEX[levelId] ?? -1) : -1
 
   const qualMetrics = [
@@ -200,28 +201,27 @@ export default function Page() {
 
         {/* Termômetro horizontal */}
         <div className="mt-5">
-          <div className="flex gap-1.5">
-            {THERMO_COLORS.map((cor, i) => (
-              <div
-                key={i}
-                className="flex-1 h-2 rounded-full transition-opacity"
-                style={{ backgroundColor: cor, opacity: i <= nivelAtivo ? 1 : 0.2 }}
-              />
-            ))}
-          </div>
-          <div className="flex mt-1.5">
-            {THERMO_LABELS.map((lbl, i) => (
-              <span
-                key={i}
-                className="flex-1 text-center text-[10px] leading-tight"
-                style={{ color: i <= nivelAtivo ? THERMO_COLORS[i] : '#52525b', fontWeight: i === nivelAtivo ? 700 : 400 }}
-              >
-                {lbl}
-              </span>
-            ))}
+          <div className="flex gap-1" style={{ gap: 4 }}>
+            {THERMO_PASTEL.map((pastel, i) => {
+              const isActive = i === nivelAtivo
+              const isBefore = i < nivelAtivo
+              const isAfter  = i > nivelAtivo
+              return (
+                <div
+                  key={i}
+                  className="flex-1 rounded"
+                  style={{
+                    height: 8,
+                    borderRadius: 4,
+                    backgroundColor: isAfter ? '#E5E5E5' : isActive ? THERMO_INTENSE[i] : pastel,
+                    opacity: isAfter ? 0.3 : isBefore ? 0.5 : 1,
+                  }}
+                />
+              )
+            })}
           </div>
           <p className="text-zinc-500 text-xs mt-2">
-            {level.label}{psLabel ? ` · ${psLabel}` : ''} · Voce aparece assim para os compradores
+            Voce aparece em {psLabel ?? level.label} para os compradores
           </p>
         </div>
       </div>
