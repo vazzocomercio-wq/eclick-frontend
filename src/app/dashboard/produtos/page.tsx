@@ -620,16 +620,19 @@ export default function ProdutosPage() {
     const supabase = createClient()
     const { data: member } = await supabase
       .from('organization_members').select('organization_id').maybeSingle()
-    if (!member) { setLoading(false); setError('Organização não encontrada.'); return }
-    setOrgId(member.organization_id)
-    const { data, error: err } = await supabase
+    const resolvedOrgId = member?.organization_id ?? null
+    setOrgId(resolvedOrgId)
+    const baseQuery = supabase
       .from('products')
       .select(`id,name,sku,brand,price,stock,status,platforms,photo_urls,
                ml_title,condition,category,created_at,
                wholesale_enabled,wholesale_levels,ml_listing_type,
                ml_free_shipping,ml_flex`)
-      .eq('organization_id', member.organization_id)
-      .order('created_at', { ascending: false })
+    const { data, error: err } = await (
+      resolvedOrgId
+        ? baseQuery.eq('organization_id', resolvedOrgId)
+        : baseQuery.is('organization_id', null)
+    ).order('created_at', { ascending: false })
     if (err) setError(err.message)
     else setProducts(data ?? [])
     setLoading(false)
