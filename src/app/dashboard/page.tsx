@@ -476,6 +476,8 @@ export default function DashboardPage() {
   const [periodOrders, setPeriodOrders] = useState<Order[]>([])
   const [periodLoading, setPeriodLoading] = useState(false)
   const [prevData, setPrevData] = useState<{ faturamento: number; lucro: number } | null>(null)
+  const [financialSummary, setFinancialSummary] = useState<{ total_revenue: number; total_orders: number; average_ticket: number } | null>(null)
+  const [summaryLoading, setSummaryLoading] = useState(false)
 
   const refresh = useCallback(async (isInitial = false) => {
     if (!isInitial) setRefreshing(true)
@@ -661,6 +663,29 @@ export default function DashboardPage() {
     return () => { cancelled = true }
   }, [period])
 
+  // ── Financial summary — exact totals from backend (all pages, no order list) ─
+  useEffect(() => {
+    let cancelled = false
+    setFinancialSummary(null)
+    setSummaryLoading(true)
+    ;(async () => {
+      try {
+        const token = await getToken()
+        if (!token || cancelled) { if (!cancelled) setSummaryLoading(false); return }
+        const { from, to } = getPeriodDates(period)
+        const url = `${BACKEND}/ml/financial-summary?totals_only=true&date_from=${from}&date_to=${to}`
+        const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+        if (!res.ok || cancelled) { if (!cancelled) setSummaryLoading(false); return }
+        const data = await res.json()
+        if (!cancelled) { setFinancialSummary(data); setSummaryLoading(false) }
+      } catch (e) {
+        console.error('[summary-fetch] exception:', e)
+        if (!cancelled) setSummaryLoading(false)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [period])
+
   // ── Derived ──────────────────────────────────────────────────────────────────
 
   // periodOrders is now a state (fetched from backend per period)
@@ -671,13 +696,15 @@ export default function DashboardPage() {
   const cur  = useMemo(() => calcMetrics(periodOrders), [periodOrders])
 
   const { faturamento, lucroEstimado, margemPct } = useMemo(() => {
-    const fat = periodOrders.reduce((s, o) => s + (o.total_amount ?? 0), 0)
+    // Use exact server-side totals when available; fall back to local order list
+    const fat = financialSummary?.total_revenue
+      ?? periodOrders.reduce((s, o) => s + (o.total_amount ?? 0), 0)
     const withMargin = periodOrders.filter(o => (o.contribution_margin ?? 0) > 0)
     const lucro = withMargin.length > 0
       ? withMargin.reduce((s, o) => s + (o.contribution_margin ?? 0), 0)
       : fat * 0.885
     return { faturamento: fat, lucroEstimado: lucro, margemPct: fat > 0 ? (lucro / fat) * 100 : 0 }
-  }, [periodOrders])
+  }, [financialSummary, periodOrders])
   const yest = useMemo(() => calcMetrics(yestOrders), [yestOrders])
   const week = useMemo(() => calcMetrics(weekOrders), [weekOrders])
   const todayOrdersBR = useMemo(() => orders.filter(o => isPaid(o) && brazilDateStr(new Date(o.date_created)) === todayBR()), [orders])
@@ -797,12 +824,14 @@ export default function DashboardPage() {
           <p className="text-[#00E5FF] text-xs uppercase tracking-widest mb-3">
             Faturamento — {PERIOD_LABEL[period]}
           </p>
-          {(periodLoading || loading) ? (
+          {(summaryLoading || loading) ? (
             <div className="space-y-3"><Skel h={40} className="w-2/3" /><Skel h={14} className="w-1/2" /></div>
           ) : (
             <>
               <p className="text-4xl font-bold text-white leading-none">{formatCurrency(faturamento)}</p>
-              <p className="text-xs text-zinc-500 mt-1">{periodOrders.length} pedido{periodOrders.length !== 1 ? 's' : ''} no período</p>
+              <p className="text-xs text-zinc-500 mt-1">
+                {financialSummary?.total_orders ?? periodOrders.length} pedido{(financialSummary?.total_orders ?? periodOrders.length) !== 1 ? 's' : ''} no período
+              </p>
               {prevData && (
                 <div className="mt-4 pt-3 border-t border-[#ffffff10]">
                   <div className="flex justify-between items-center">
@@ -838,7 +867,7 @@ export default function DashboardPage() {
           <p className="text-[#22c55e] text-xs uppercase tracking-widest mb-3">
             Lucro Estimado — {PERIOD_LABEL[period]}
           </p>
-          {(periodLoading || loading) ? (
+          {(summaryLoading || loading) ? (
             <div className="space-y-3"><Skel h={40} className="w-2/3" /><Skel h={14} className="w-1/2" /></div>
           ) : (
             <>
