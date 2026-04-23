@@ -387,6 +387,13 @@ const MAP_PERIOD_LABELS: Record<Period, string> = {
   month: 'Vendas por Região — Mês Atual',
 }
 
+const PERIOD_LABEL: Record<Period, string> = {
+  today: 'Hoje',
+  '7d':  '7 dias',
+  '30d': '30 dias',
+  month: 'Mês atual',
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
@@ -404,8 +411,8 @@ export default function DashboardPage() {
   const [mlItemsTotal, setMlItemsTotal] = useState<number | null>(null)
   const [aboveConcPrice, setAboveConcPrice] = useState(0)
   const [finKpis, setFinKpis] = useState<{ vendas_aprovadas: number; margem_pct: number; margem_contrib: number } | null>(null)
-  const [mapOrders, setMapOrders] = useState<Order[]>([])
-  const [mapLoading, setMapLoading] = useState(false)
+  const [periodOrders, setPeriodOrders] = useState<Order[]>([])
+  const [periodLoading, setPeriodLoading] = useState(false)
 
   const refresh = useCallback(async (isInitial = false) => {
     if (!isInitial) setRefreshing(true)
@@ -533,26 +540,26 @@ export default function DashboardPage() {
 
   useEffect(() => { refresh(true) }, [refresh])
 
-  // ── Map orders: fetch per period ──────────────────────────────────────────────
+  // ── Period data: re-fetches whenever the period filter changes ───────────────
   useEffect(() => {
     let cancelled = false
-    setMapLoading(true)
+    setPeriodLoading(true)
     const { from, to } = getPeriodDates(period)
     getToken().then(token => {
-      if (!token) { setMapLoading(false); return }
-      fetch(`${BACKEND}/ml/recent-orders?date_from=${from}&date_to=${to}&limit=50`, {
+      if (!token) { setPeriodLoading(false); return }
+      fetch(`${BACKEND}/ml/recent-orders?date_from=${from}&date_to=${to}&limit=200`, {
         headers: { Authorization: `Bearer ${token}` },
       })
         .then(r => r.ok ? r.json() : Promise.reject(r.status))
-        .then(data => { if (!cancelled) { setMapOrders(data?.orders ?? []); setMapLoading(false) } })
-        .catch(() => { if (!cancelled) setMapLoading(false) })
+        .then(data => { if (!cancelled) { setPeriodOrders(data?.orders ?? []); setPeriodLoading(false) } })
+        .catch(() => { if (!cancelled) setPeriodLoading(false) })
     })
     return () => { cancelled = true }
   }, [period])
 
   // ── Derived ──────────────────────────────────────────────────────────────────
 
-  const periodOrders = useMemo(() => filterByPeriod(orders, period), [orders, period])
+  // periodOrders is now a state (fetched from backend per period)
   const yestOrders   = useMemo(() => orders.filter(o => brazilDateStr(new Date(o.date_created)) === brazilDateStr(daysAgoDate(1))), [orders])
   const weekOrders   = useMemo(() => orders.filter(o => new Date(o.date_created) >= daysAgoDate(7)), [orders])
   const monthOrders  = useMemo(() => orders.filter(o => brazilDateStr(new Date(o.date_created)).slice(0, 7) === thisMonthBR()), [orders])
@@ -564,7 +571,7 @@ export default function DashboardPage() {
   const todayM = useMemo(() => calcMetrics(todayOrdersBR), [todayOrdersBR])
 
   const chartDays = period === 'today' ? 1 : period === '7d' ? 7 : 30
-  const chartData = useMemo(() => buildDailyChart(orders, chartDays), [orders, chartDays])
+  const chartData = useMemo(() => buildDailyChart(periodOrders, chartDays), [periodOrders, chartDays])
 
   const topProds = useMemo(() => topProductsFromOrders(periodOrders), [periodOrders])
 
@@ -644,10 +651,10 @@ export default function DashboardPage() {
       <section>
         <p className="text-zinc-500 text-[10px] uppercase tracking-widest font-semibold mb-3">KPIs Executivos</p>
         <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-2.5">
-          <KpiCard label="Faturamento hoje"  value={shortBrl(todayM.revenue)} vsYest={pct(todayM.revenue, yest.revenue)} vsWeek={null} color="#00E5FF" loading={loading} />
+          <KpiCard label={`Faturamento — ${PERIOD_LABEL[period]}`} value={shortBrl(cur.revenue)} vsYest={period === 'today' ? pct(cur.revenue, yest.revenue) : null} vsWeek={null} color="#00E5FF" loading={periodLoading || loading} />
           <KpiCard label="Faturamento mês"   value={shortBrl(calcMetrics(monthOrders).revenue)} sub="mês atual" color="#34d399" loading={loading} />
-          <KpiCard label="Pedidos hoje"       value={String(todayM.count)} vsYest={pct(todayM.count, yest.count)} color="#a78bfa" loading={loading} />
-          <KpiCard label="Ticket médio"       value={brl(cur.avgTicket)} vsYest={pct(cur.avgTicket, yest.avgTicket)} color="#fb923c" loading={loading} />
+          <KpiCard label={`Pedidos — ${PERIOD_LABEL[period]}`} value={String(cur.count)} vsYest={period === 'today' ? pct(cur.count, yest.count) : null} color="#a78bfa" loading={periodLoading || loading} />
+          <KpiCard label="Ticket médio"       value={brl(cur.avgTicket)} vsYest={pct(cur.avgTicket, yest.avgTicket)} color="#fb923c" loading={periodLoading || loading} />
           <KpiCard label="Reputação ML"         value={sellerInfo?.level_id?.replace(/_/g, ' ') ?? '—'} sub={sellerInfo?.power_seller_status ?? (mlConnected ? '…' : 'ML desconect.')} color="#60a5fa" loading={loading} />
           <KpiCard label="Vendas Aprovadas"   value={finKpis ? shortBrl(finKpis.vendas_aprovadas) : '—'} sub="líquido mês atual" color="#22c55e" loading={loading} />
           <KpiCard label="Margem Contrib."    value={finKpis ? `${finKpis.margem_pct.toFixed(1)}%` : '—'} sub={finKpis ? shortBrl(finKpis.margem_contrib) : 'configure CMV'} color={finKpis ? (finKpis.margem_pct >= 0 ? '#22c55e' : '#f87171') : '#f59e0b'} loading={loading} />
@@ -758,7 +765,7 @@ export default function DashboardPage() {
       {/* LINHA 5.5 — Brazil Sales Map */}
       <section>
         <BrazilSalesMap
-          orders={mapLoading ? [] : mapOrders}
+          orders={periodLoading ? [] : periodOrders}
           title={MAP_PERIOD_LABELS[period]}
           height={350}
           realtime={false}
