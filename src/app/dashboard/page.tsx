@@ -99,6 +99,22 @@ function calcMetrics(orders: Order[]) {
   return { revenue, count, units, avgTicket }
 }
 
+function getPeriodDates(period: Period): { from: string; to: string } {
+  const now = brazilDate()
+  const today = now.toISOString().slice(0, 10)
+  if (period === 'today') return { from: today, to: today }
+  if (period === '7d') {
+    const from = new Date(now); from.setDate(from.getDate() - 7)
+    return { from: from.toISOString().slice(0, 10), to: today }
+  }
+  if (period === '30d') {
+    const from = new Date(now); from.setDate(from.getDate() - 30)
+    return { from: from.toISOString().slice(0, 10), to: today }
+  }
+  // month
+  return { from: `${today.substring(0, 7)}-01`, to: today }
+}
+
 function filterByPeriod(orders: Order[], period: Period) {
   if (period === 'today') {
     const ds = todayBR()
@@ -388,6 +404,8 @@ export default function DashboardPage() {
   const [mlItemsTotal, setMlItemsTotal] = useState<number | null>(null)
   const [aboveConcPrice, setAboveConcPrice] = useState(0)
   const [finKpis, setFinKpis] = useState<{ vendas_aprovadas: number; margem_pct: number; margem_contrib: number } | null>(null)
+  const [mapOrders, setMapOrders] = useState<Order[]>([])
+  const [mapLoading, setMapLoading] = useState(false)
 
   const refresh = useCallback(async (isInitial = false) => {
     if (!isInitial) setRefreshing(true)
@@ -514,6 +532,23 @@ export default function DashboardPage() {
   }, [])
 
   useEffect(() => { refresh(true) }, [refresh])
+
+  // ── Map orders: fetch per period ──────────────────────────────────────────────
+  useEffect(() => {
+    let cancelled = false
+    setMapLoading(true)
+    const { from, to } = getPeriodDates(period)
+    getToken().then(token => {
+      if (!token) { setMapLoading(false); return }
+      fetch(`${BACKEND}/ml/recent-orders?date_from=${from}&date_to=${to}&limit=50`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then(r => r.ok ? r.json() : Promise.reject(r.status))
+        .then(data => { if (!cancelled) { setMapOrders(data?.orders ?? []); setMapLoading(false) } })
+        .catch(() => { if (!cancelled) setMapLoading(false) })
+    })
+    return () => { cancelled = true }
+  }, [period])
 
   // ── Derived ──────────────────────────────────────────────────────────────────
 
@@ -723,7 +758,7 @@ export default function DashboardPage() {
       {/* LINHA 5.5 — Brazil Sales Map */}
       <section>
         <BrazilSalesMap
-          orders={loading ? [] : periodOrders.filter(isPaid)}
+          orders={mapLoading ? [] : mapOrders}
           title={MAP_PERIOD_LABELS[period]}
           height={350}
           realtime={false}
