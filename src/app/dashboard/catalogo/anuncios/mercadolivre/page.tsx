@@ -35,6 +35,8 @@ type MListing = {
   health_reasons: string[]
   last_updated: string
   date_created: string
+  account_nickname: string | null
+  account_seller_id: number | null
 }
 
 type Counts = Record<string, number>
@@ -81,6 +83,21 @@ function typeBadge(listing_type_id: string, logistic_type: string | null, catalo
     badges.push({ label: 'Clássico', bg: '#1a1a1f', color: '#71717a', border: '#27272a' })
 
   return badges
+}
+
+// ── Account badge color (stable per seller_id) ────────────────────────────
+
+const ACCOUNT_COLORS = [
+  { color: '#00E5FF', bg: '#0a1f2e', border: '#00E5FF2a' },
+  { color: '#a78bfa', bg: '#1a0e33', border: '#7c3aed2a' },
+  { color: '#fb923c', bg: '#2a1500', border: '#f973162a' },
+  { color: '#34d399', bg: '#0d1f17', border: '#22c55e2a' },
+  { color: '#f472b6', bg: '#2a0d1f', border: '#ec48992a' },
+]
+
+function accountPalette(sellerId: number | null) {
+  if (sellerId == null) return ACCOUNT_COLORS[0]
+  return ACCOUNT_COLORS[sellerId % ACCOUNT_COLORS.length]
 }
 
 // ── Semi-circular gauge ────────────────────────────────────────────────────
@@ -278,6 +295,15 @@ function ListingCard({ item, selected, onSelect }: {
       <div className="flex-1 min-w-0">
         {/* Type + status badges */}
         <div className="flex flex-wrap gap-1.5 mb-1.5">
+          {item.account_nickname && (() => {
+            const p = accountPalette(item.account_seller_id)
+            return (
+              <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full"
+                style={{ background: p.bg, color: p.color, border: `1px solid ${p.border}` }}>
+                {item.account_nickname}
+              </span>
+            )
+          })()}
           {badges.map(b => (
             <span key={b.label} className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
               style={{ background: b.bg, color: b.color, border: `1px solid ${b.border}` }}>
