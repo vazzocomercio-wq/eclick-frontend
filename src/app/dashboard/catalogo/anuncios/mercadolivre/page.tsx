@@ -258,9 +258,10 @@ function ItemMenu({ item, onClose, onCreateProduct }: {
 
 // ── Listing card ───────────────────────────────────────────────────────────
 
-function ListingCard({ item, selected, onSelect, onCreateProduct }: {
+function ListingCard({ item, selected, linked, onSelect, onCreateProduct }: {
   item: MListing
   selected: boolean
+  linked: boolean
   onSelect: (id: string) => void
   onCreateProduct: (id: string) => void
 }) {
@@ -340,6 +341,15 @@ function ListingCard({ item, selected, onSelect, onCreateProduct }: {
             <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
               style={{ background: '#2a1500', color: '#fb923c', border: '1px solid rgba(251,146,60,.2)' }}>
               {(item.deal_ids?.length ?? 0) + (item.promotions?.length ?? 0)} Promoção
+            </span>
+          )}
+          {linked && (
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-1"
+              style={{ background: '#0d1f17', color: '#4ade80', border: '1px solid rgba(34,197,94,.25)' }}>
+              <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+              </svg>
+              Produto vinculado
             </span>
           )}
         </div>
@@ -694,11 +704,12 @@ export default function MLAnunciosPage() {
   const [toasts, setToasts]     = useState<Toast[]>([])
 
   // Create-from-listing state
-  const [pendingIds, setPendingIds]     = useState<string[]>([])
-  const [confirmOpen, setConfirmOpen]   = useState(false)
-  const [creating, setCreating]         = useState(false)
-  const [results, setResults]           = useState<CreateResult[] | null>(null)
+  const [pendingIds, setPendingIds]         = useState<string[]>([])
+  const [confirmOpen, setConfirmOpen]       = useState(false)
+  const [creating, setCreating]             = useState(false)
+  const [results, setResults]               = useState<CreateResult[] | null>(null)
   const [loadingCriacao, setLoadingCriacao] = useState(false)
+  const [linkedIds, setLinkedIds]           = useState<Set<string>>(new Set())
 
   const tid = useRef(0)
   const PAGE = 20
@@ -767,6 +778,15 @@ export default function MLAnunciosPage() {
 
   useEffect(() => { loadCounts() }, [loadCounts])
   useEffect(() => { loadItems(tab, page, q) }, [tab, page, loadItems])
+
+  useEffect(() => {
+    getHeaders().then(h =>
+      fetch(`${BACKEND}/products/linked-listings`, { headers: h })
+        .then(r => r.ok ? r.json() : [])
+        .then((ids: string[]) => setLinkedIds(new Set(ids)))
+        .catch(() => {})
+    ).catch(() => {})
+  }, [getHeaders])
 
   function handleTabChange(t: Tab) { setTab(t); setPage(0); setSelected(new Set()) }
   function handleSearch() { setPage(0); loadItems(tab, 0, q) }
@@ -838,7 +858,16 @@ export default function MLAnunciosPage() {
 
       setSelected(new Set())
       const created = r.filter(x => x.status === 'created').length
-      if (created > 0) toast(`${created} produto${created > 1 ? 's' : ''} criado${created > 1 ? 's' : ''}!`, 'success')
+      if (created > 0) {
+        toast(`${created} produto${created > 1 ? 's' : ''} criado${created > 1 ? 's' : ''}!`, 'success')
+        // Refresh linked IDs so badges appear immediately
+        getHeaders().then(h =>
+          fetch(`${BACKEND}/products/linked-listings`, { headers: h })
+            .then(res => res.ok ? res.json() : [])
+            .then((ids: string[]) => setLinkedIds(new Set(ids)))
+            .catch(() => {})
+        ).catch(() => {})
+      }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Erro ao criar produtos'
       setResults([{ listing_id: pendingIds[0] ?? '?', status: 'error', reason: msg }])
@@ -1009,6 +1038,7 @@ export default function MLAnunciosPage() {
             : items.map(item => (
               <ListingCard key={item.id} item={item}
                 selected={selected.has(item.id)}
+                linked={linkedIds.has(item.id)}
                 onSelect={id => setSelected(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n })}
                 onCreateProduct={id => openCreateConfirm([id])}
               />

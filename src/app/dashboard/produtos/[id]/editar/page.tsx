@@ -193,6 +193,8 @@ export default function EditarProdutoPage() {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [loadingProduct, setLoadingProduct] = useState(true)
   const [orgId, setOrgId]       = useState<string | null>(null)
+  const [mlListingId, setMlListingId]   = useState<string | null>(null)
+  const [mlPermalink, setMlPermalink]   = useState<string | null>(null)
   const [toasts, setToasts]     = useState<Toast[]>([])
 
   // Track original photo URLs to detect deletions on save
@@ -213,6 +215,8 @@ export default function EditarProdutoPage() {
 
       const data = await res.json()
       setOrgId(data.organization_id ?? null)
+      setMlListingId(data.ml_listing_id ?? null)
+      setMlPermalink(data.ml_permalink ?? null)
       const f = dbToForm(data)
       setForm(f)
       setProductName(data.name ?? '')
@@ -414,6 +418,27 @@ export default function EditarProdutoPage() {
               </span>
             </div>
           </div>
+
+          {/* ML linked banner */}
+          {mlListingId && (
+            <div className="flex items-center gap-2 mb-3 px-3 py-2 rounded-lg text-[11px] font-medium"
+              style={{ background: '#0d1f17', border: '1px solid rgba(34,197,94,.2)', color: '#4ade80' }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+              </svg>
+              <span>Anúncio ML vinculado:</span>
+              <span className="font-mono">{mlListingId}</span>
+              {mlPermalink && (
+                <a href={mlPermalink} target="_blank" rel="noopener noreferrer"
+                  className="ml-1 flex items-center gap-1 underline underline-offset-2 hover:text-green-300 transition-colors">
+                  Ver no ML
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                </a>
+              )}
+            </div>
+          )}
 
           {/* Tab strip */}
           <div className="flex gap-0 overflow-x-auto no-scrollbar">
