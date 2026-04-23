@@ -1,252 +1,331 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
+import {
+  AreaChart, Area,
+  XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer,
+} from 'recharts'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 
-function Sparkline({ values, color }: { values: number[]; color: string }) {
-  const h = 40
-  const w = 88
-  const max = Math.max(...values)
-  const min = Math.min(...values)
-  const range = max - min || 1
-  const pts = values
-    .map((v, i) => `${(i / (values.length - 1)) * w},${h - ((v - min) / range) * h}`)
-    .join(' ')
+// ── types ─────────────────────────────────────────────────────────────────────
+
+type Order = {
+  id: string
+  status: string
+  date_created: string
+  total_amount: number
+  items: Array<{ item_id: string; title: string; quantity: number; unit_price: number }>
+}
+
+type DBProduct = {
+  id: string
+  name: string
+  price: number | null
+  stock: number | null
+  status: 'active' | 'paused' | 'draft'
+  platforms: string[] | null
+}
+
+type Period = 'today' | '7d' | '30d' | 'month'
+type Channel = 'all' | 'ml' | 'shopee' | 'amazon' | 'magalu'
+
+// ── helpers ───────────────────────────────────────────────────────────────────
+
+function brl(v: number) { return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) }
+
+function shortBrl(v: number) {
+  if (v >= 1_000_000) return `R$ ${(v / 1_000_000).toFixed(1)}M`
+  if (v >= 1_000) return `R$ ${(v / 1_000).toFixed(1)}k`
+  return brl(v)
+}
+
+function pct(a: number, b: number): number | null {
+  if (!b) return null
+  return ((a - b) / b) * 100
+}
+
+function dayStr(d: Date) { return d.toISOString().slice(0, 10) }
+function todayStr() { return dayStr(new Date()) }
+function daysAgoDate(n: number) { const d = new Date(); d.setDate(d.getDate() - n); return d }
+
+function isPaid(o: Order) { return o.status === 'paid' }
+
+async function getToken() {
+  const { data } = await createClient().auth.getSession()
+  return data.session?.access_token ?? null
+}
+
+// ── skeleton ──────────────────────────────────────────────────────────────────
+
+function Skel({ h = 16, className = '' }: { h?: number; className?: string }) {
+  return <div className={`rounded-lg animate-pulse ${className}`} style={{ height: h, background: '#1e1e24' }} />
+}
+
+// ── derived calc ──────────────────────────────────────────────────────────────
+
+function calcMetrics(orders: Order[]) {
+  const paid = orders.filter(isPaid)
+  const revenue = paid.reduce((s, o) => s + (o.total_amount ?? 0), 0)
+  const count = paid.length
+  const units = paid.reduce((s, o) => s + o.items.reduce((ss, i) => ss + (i.quantity ?? 0), 0), 0)
+  const avgTicket = count ? revenue / count : 0
+  return { revenue, count, units, avgTicket }
+}
+
+function filterByPeriod(orders: Order[], period: Period) {
+  const now = new Date()
+  if (period === 'today') {
+    const ds = todayStr()
+    return orders.filter(o => o.date_created.slice(0, 10) === ds)
+  }
+  if (period === '7d') {
+    const from = daysAgoDate(7)
+    return orders.filter(o => new Date(o.date_created) >= from)
+  }
+  if (period === 'month') {
+    const ym = todayStr().slice(0, 7)
+    return orders.filter(o => o.date_created.slice(0, 7) === ym)
+  }
+  // 30d default
+  const from = daysAgoDate(30)
+  return orders.filter(o => new Date(o.date_created) >= from)
+}
+
+function buildDailyChart(orders: Order[], days: number) {
+  const map = new Map<string, number>()
+  for (let i = days - 1; i >= 0; i--) {
+    map.set(dayStr(daysAgoDate(i)), 0)
+  }
+  for (const o of orders) {
+    if (!isPaid(o)) continue
+    const ds = o.date_created.slice(0, 10)
+    if (map.has(ds)) map.set(ds, (map.get(ds) ?? 0) + (o.total_amount ?? 0))
+  }
+  return [...map.entries()].map(([date, value]) => ({
+    date: date.slice(5).replace('-', '/'),
+    value,
+  }))
+}
+
+function topProductsFromOrders(orders: Order[]) {
+  const map = new Map<string, { title: string; units: number; revenue: number; orders: number }>()
+  for (const o of orders) {
+    if (!isPaid(o)) continue
+    for (const item of o.items) {
+      const key = item.item_id ?? item.title
+      const ex = map.get(key)
+      if (ex) { ex.units += item.quantity ?? 0; ex.revenue += (item.unit_price ?? 0) * (item.quantity ?? 1); ex.orders++ }
+      else map.set(key, { title: item.title ?? '—', units: item.quantity ?? 0, revenue: (item.unit_price ?? 0) * (item.quantity ?? 1), orders: 1 })
+    }
+  }
+  return [...map.values()].sort((a, b) => b.revenue - a.revenue).slice(0, 10)
+}
+
+// ── Row 1: Header / Filters ───────────────────────────────────────────────────
+
+const PERIODS: Array<{ key: Period; label: string }> = [
+  { key: 'today', label: 'Hoje' },
+  { key: '7d',    label: '7 dias' },
+  { key: '30d',   label: '30 dias' },
+  { key: 'month', label: 'Mês atual' },
+]
+
+const CHANNELS: Array<{ key: Channel; label: string; color: string }> = [
+  { key: 'all',    label: 'Todos',   color: '#00E5FF' },
+  { key: 'ml',     label: 'ML',      color: '#ffe600' },
+  { key: 'shopee', label: 'Shopee',  color: '#EE4D2D' },
+  { key: 'amazon', label: 'Amazon',  color: '#FF9900' },
+  { key: 'magalu', label: 'Magalu',  color: '#0086FF' },
+]
+
+function DashHeader({ period, setPeriod, channel, setChannel, onRefresh, refreshing, lastUpdated }: {
+  period: Period; setPeriod: (p: Period) => void
+  channel: Channel; setChannel: (c: Channel) => void
+  onRefresh: () => void; refreshing: boolean; lastUpdated: Date | null
+}) {
+  const minAgo = lastUpdated ? Math.round((Date.now() - lastUpdated.getTime()) / 60_000) : null
   return (
-    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="overflow-visible">
-      <defs>
-        <linearGradient id={`grad-${color.replace('#', '')}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.15" />
-          <stop offset="100%" stopColor={color} stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <polyline
-        points={pts}
-        fill="none"
-        stroke={color}
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        opacity="0.9"
-      />
-    </svg>
+    <div className="flex flex-wrap items-center gap-3">
+      {/* Period pills */}
+      <div className="flex gap-1 p-1 rounded-lg" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+        {PERIODS.map(p => (
+          <button key={p.key} onClick={() => setPeriod(p.key)}
+            className="px-3 py-1.5 rounded-md text-[12px] font-semibold transition-all"
+            style={{ background: period === p.key ? 'rgba(0,229,255,0.12)' : 'transparent', color: period === p.key ? '#00E5FF' : '#71717a' }}>
+            {p.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Channel pills */}
+      <div className="flex gap-1 p-1 rounded-lg" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+        {CHANNELS.map(c => (
+          <button key={c.key} onClick={() => setChannel(c.key)}
+            className="px-3 py-1.5 rounded-md text-[12px] font-semibold transition-all"
+            style={{ background: channel === c.key ? `${c.color}18` : 'transparent', color: channel === c.key ? c.color : '#71717a' }}>
+            {c.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="ml-auto flex items-center gap-3">
+        {minAgo !== null && (
+          <span className="text-zinc-600 text-[11px]">
+            Atualizado há {minAgo < 1 ? 'menos de 1 min' : `${minAgo} min`}
+          </span>
+        )}
+        <button onClick={onRefresh} disabled={refreshing}
+          className="flex items-center gap-2 px-3 py-2 rounded-lg text-[12px] font-semibold border transition-all disabled:opacity-60"
+          style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>
+          {refreshing
+            ? <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+            : <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+          }
+          Atualizar dados
+        </button>
+      </div>
+    </div>
   )
 }
 
-const metrics = [
-  {
-    label: 'Produtos Monitorados',
-    value: '1.247',
-    change: '+12%',
-    trend: 'up' as const,
-    sub: 'SKUs ativos',
-    color: '#00E5FF',
-    data: [40, 48, 44, 55, 58, 52, 66, 72, 68, 78, 82, 91],
-  },
-  {
-    label: 'Alertas Ativos',
-    value: '23',
-    change: '+5 hoje',
-    trend: 'up' as const,
-    sub: 'Aguardando revisão',
-    color: '#f59e0b',
-    data: [8, 12, 9, 15, 18, 13, 20, 17, 19, 22, 21, 23],
-  },
-  {
-    label: 'Marketplaces',
-    value: '8',
-    change: '+1 novo',
-    trend: 'up' as const,
-    sub: 'Conectados e ativos',
-    color: '#a78bfa',
-    data: [5, 5, 6, 6, 6, 7, 7, 7, 8, 8, 8, 8],
-  },
-  {
-    label: 'Preço Médio Competitivo',
-    value: 'R$ 127',
-    change: '-2,3%',
-    trend: 'down' as const,
-    sub: 'vs. semana anterior',
-    color: '#60a5fa',
-    data: [135, 132, 138, 130, 128, 134, 129, 131, 127, 129, 128, 127],
-  },
-  {
-    label: 'Economia Gerada',
-    value: 'R$ 48k',
-    change: '+18%',
-    trend: 'up' as const,
-    sub: 'Este mês',
-    color: '#34d399',
-    data: [22, 27, 25, 31, 29, 34, 33, 38, 40, 43, 46, 48],
-  },
-  {
-    label: 'Concorrentes',
-    value: '342',
-    change: '+28',
-    trend: 'up' as const,
-    sub: 'Rastreados ativamente',
-    color: '#fb923c',
-    data: [210, 230, 240, 255, 268, 280, 290, 305, 315, 328, 336, 342],
-  },
-]
+// ── Row 2: KPI Cards ──────────────────────────────────────────────────────────
 
-const marketplaces = [
-  { name: 'Mercado Livre', score: 87, products: 412 },
-  { name: 'Amazon', score: 73, products: 318 },
-  { name: 'Shopee', score: 91, products: 287 },
-  { name: 'Americanas', score: 65, products: 198 },
-  { name: 'Magazine Luiza', score: 79, products: 232 },
-]
-
-const alerts = [
-  {
-    type: 'up',
-    product: 'Samsung Galaxy S24 Ultra',
-    detail: 'Mercado Livre subiu 15%',
-    time: '2min',
-    color: '#f87171',
-    bg: 'rgba(248,113,113,0.1)',
-  },
-  {
-    type: 'down',
-    product: 'Nike Air Max 270',
-    detail: 'Magazine Luiza baixou 8%',
-    time: '14min',
-    color: '#34d399',
-    bg: 'rgba(52,211,153,0.1)',
-  },
-  {
-    type: 'stock',
-    product: 'Philips Air Fryer 4L',
-    detail: 'Estoque crítico — 3 unid.',
-    time: '1h',
-    color: '#f59e0b',
-    bg: 'rgba(245,158,11,0.1)',
-  },
-  {
-    type: 'new',
-    product: 'MacBook Air M2 15"',
-    detail: 'Novo concorrente: Americanas',
-    time: '2h',
-    color: '#a78bfa',
-    bg: 'rgba(167,139,250,0.1)',
-  },
-  {
-    type: 'down',
-    product: 'Sony WH-1000XM5',
-    detail: 'Amazon baixou 12%',
-    time: '3h',
-    color: '#34d399',
-    bg: 'rgba(52,211,153,0.1)',
-  },
-]
-
-const alertIcons = {
-  up: (
-    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
-    </svg>
-  ),
-  down: (
-    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-    </svg>
-  ),
-  stock: (
-    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-    </svg>
-  ),
-  new: (
-    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-    </svg>
-  ),
+function KpiCard({ label, value, vsYest, vsWeek, sub, color = '#00E5FF', loading }: {
+  label: string; value: string; vsYest?: number | null; vsWeek?: number | null
+  sub?: string; color?: string; loading: boolean
+}) {
+  return (
+    <div className="rounded-xl p-4 flex flex-col gap-2.5 transition-all"
+      style={{ background: '#111114', border: '1px solid rgba(255,255,255,0.06)' }}
+      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = `${color}28` }}
+      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.06)' }}>
+      <p className="text-zinc-400 text-[11px] font-medium leading-tight">{label}</p>
+      {loading ? (
+        <div className="space-y-2"><Skel h={28} className="w-3/4" /><Skel h={12} className="w-1/2" /></div>
+      ) : (
+        <>
+          <p className="text-white text-xl font-bold leading-none tracking-tight">{value}</p>
+          <div className="flex flex-wrap gap-x-2 gap-y-1">
+            {vsYest != null && (
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
+                style={{ background: vsYest >= 0 ? 'rgba(52,211,153,0.12)' : 'rgba(248,113,113,0.12)', color: vsYest >= 0 ? '#34d399' : '#f87171' }}>
+                {vsYest >= 0 ? '↑' : '↓'} {Math.abs(vsYest).toFixed(1)}% ontem
+              </span>
+            )}
+            {vsWeek != null && (
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
+                style={{ background: vsWeek >= 0 ? 'rgba(52,211,153,0.08)' : 'rgba(248,113,113,0.08)', color: vsWeek >= 0 ? '#34d399' : '#f87171' }}>
+                {vsWeek >= 0 ? '↑' : '↓'} {Math.abs(vsWeek).toFixed(1)}% sem.
+              </span>
+            )}
+            {sub && <span className="text-zinc-600 text-[10px]">{sub}</span>}
+          </div>
+        </>
+      )}
+    </div>
+  )
 }
 
-// ── ML Sales Card ─────────────────────────────────────────────────────────────
+// ── Row 3: Alert Semaphores ────────────────────────────────────────────────────
 
-type MlSalesData = { today: number; todayGmv: number; week: number; weekGmv: number }
+type AlertLevel = 'red' | 'yellow' | 'green'
 
-function MlSalesCard() {
-  const [data, setData] = useState<MlSalesData | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [visible, setVisible] = useState(false)
+function alertColor(level: AlertLevel) {
+  return level === 'red' ? '#f87171' : level === 'yellow' ? '#f59e0b' : '#34d399'
+}
+function alertBg(level: AlertLevel) {
+  return level === 'red' ? 'rgba(248,113,113,0.08)' : level === 'yellow' ? 'rgba(245,158,11,0.08)' : 'rgba(52,211,153,0.08)'
+}
+function alertBorder(level: AlertLevel) {
+  return level === 'red' ? 'rgba(248,113,113,0.25)' : level === 'yellow' ? 'rgba(245,158,11,0.25)' : 'rgba(52,211,153,0.2)'
+}
 
-  useEffect(() => {
-    ;(async () => {
-      const supabase = createClient()
-      const { data: sess } = await supabase.auth.getSession()
-      const token = sess.session?.access_token
-      if (!token) { setLoading(false); return }
-
-      try {
-        const res = await fetch(`${BACKEND}/ml/recent-orders?limit=50`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        if (!res.ok) { setLoading(false); return }
-        const { orders } = await res.json()
-        setVisible(true)
-
-        const now = new Date()
-        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
-        const weekStart = todayStart - 6 * 24 * 60 * 60 * 1000
-
-        let today = 0, todayGmv = 0, week = 0, weekGmv = 0
-        for (const o of (orders ?? [])) {
-          if (o.status !== 'paid') continue
-          const ts = new Date(o.date_created).getTime()
-          if (ts >= todayStart) { today++; todayGmv += o.total_amount ?? 0 }
-          if (ts >= weekStart) { week++; weekGmv += o.total_amount ?? 0 }
-        }
-
-        setData({ today, todayGmv, week, weekGmv })
-      } catch { /* ML not connected */ }
-      setLoading(false)
-    })()
-  }, [])
-
-  if (!loading && !visible) return null
-
-  const fmt = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-
-  return (
-    <div className="rounded-xl p-5" style={{ background: '#111114', border: '1px solid rgba(255,255,255,0.06)' }}>
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded flex items-center justify-center text-[9px] font-black shrink-0"
-            style={{ background: '#ffe600', color: '#333' }}>ML</div>
-          <h3 className="text-white text-[13px] font-semibold">Vendas Mercado Livre</h3>
-        </div>
-        <span className="text-[11px] font-medium px-2 py-1 rounded-md"
-          style={{ background: 'rgba(0,229,255,0.08)', color: '#00E5FF' }}>
-          Últimas 50 ordens
-        </span>
+function AlertCard({ label, value, level, href, loading }: {
+  label: string; value: string | number; level: AlertLevel; href?: string; loading: boolean
+}) {
+  const color = alertColor(level)
+  const bg = alertBg(level)
+  const border = alertBorder(level)
+  const inner = loading ? (
+    <div className="space-y-2"><Skel h={24} className="w-1/2" /><Skel h={12} className="w-3/4" /></div>
+  ) : (
+    <>
+      <p className="text-xl font-black leading-none" style={{ color }}>{value}</p>
+      <p className="text-[11px] font-medium mt-0.5" style={{ color: '#a1a1aa' }}>{label}</p>
+    </>
+  )
+  const card = (
+    <div className="rounded-xl p-4 flex flex-col gap-1 transition-all"
+      style={{ background: bg, border: `1px solid ${border}` }}>
+      <div className="flex items-center justify-between mb-1">
+        <span className="w-2 h-2 rounded-full" style={{ background: color }} />
+        {href && <svg className="w-3 h-3" style={{ color: '#52525b' }} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>}
       </div>
+      {inner}
+    </div>
+  )
+  return href ? <Link href={href}>{card}</Link> : card
+}
 
-      {loading ? (
-        <div className="flex items-center gap-2 text-zinc-500 text-xs">
-          <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-          </svg>
-          Buscando vendas…
+// ── Row 4: Sales Chart tooltip ────────────────────────────────────────────────
+
+function ChartTip({ active, payload, label }: { active?: boolean; payload?: Array<{ value: number }>; label?: string }) {
+  if (!active || !payload?.length) return null
+  return (
+    <div style={{ background: '#18181b', border: '1px solid #2e2e33', borderRadius: 8, padding: '8px 12px' }}>
+      <p style={{ color: '#71717a', fontSize: 10, marginBottom: 4 }}>{label}</p>
+      <p style={{ color: '#00E5FF', fontSize: 13, fontWeight: 700 }}>{brl(payload[0].value)}</p>
+    </div>
+  )
+}
+
+// ── Row 5: Funnel ─────────────────────────────────────────────────────────────
+
+function FunnelStep({ label, value, pctVal, color, isBottleneck }: {
+  label: string; value: number; pctVal: number; color: string; isBottleneck: boolean
+}) {
+  return (
+    <div className="flex items-center gap-3">
+      <p className="text-[11px] text-zinc-400 w-28 shrink-0 truncate">{label}</p>
+      <div className="flex-1 h-4 rounded-full overflow-hidden relative" style={{ background: 'rgba(255,255,255,0.05)' }}>
+        <div className="h-full rounded-full transition-all duration-700 relative"
+          style={{ width: `${pctVal}%`, background: `linear-gradient(90deg, ${color}99, ${color})` }}>
+          {isBottleneck && (
+            <span className="absolute right-1 top-1/2 -translate-y-1/2 text-[8px] font-black" style={{ color: '#000' }}>!</span>
+          )}
         </div>
-      ) : data && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {[
-            { label: 'Pedidos hoje', value: String(data.today), sub: 'pagos', color: '#34d399' },
-            { label: 'GMV hoje',     value: fmt(data.todayGmv), sub: 'receita do dia',   color: '#00E5FF' },
-            { label: 'Pedidos 7d',   value: String(data.week),  sub: 'pagos',            color: '#a78bfa' },
-            { label: 'GMV 7 dias',   value: fmt(data.weekGmv),  sub: 'receita da semana', color: '#fb923c' },
-          ].map(({ label, value, sub, color }) => (
-            <div key={label} className="rounded-lg p-3"
-              style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <p className="text-zinc-500 text-[10px] mb-1">{label}</p>
-              <p className="font-bold text-base leading-none" style={{ color }}>{value}</p>
-              <p className="text-zinc-600 text-[10px] mt-1">{sub}</p>
+      </div>
+      <p className="text-[11px] font-bold text-white w-16 text-right shrink-0">{value.toLocaleString('pt-BR')}</p>
+      <p className="text-zinc-600 text-[10px] w-10 text-right shrink-0">{pctVal.toFixed(0)}%</p>
+    </div>
+  )
+}
+
+// ── Row 6: Sector grid card ────────────────────────────────────────────────────
+
+function SectorCard({ title, icon, items, loading }: {
+  title: string; icon: React.ReactNode
+  items: Array<{ label: string; value: string | number; color?: string }>
+  loading: boolean
+}) {
+  return (
+    <div className="rounded-xl p-4" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+      <div className="flex items-center gap-2 mb-3">
+        <span style={{ color: '#00E5FF' }}>{icon}</span>
+        <p className="text-white text-[12px] font-semibold">{title}</p>
+      </div>
+      {loading ? (
+        <div className="space-y-2">{[...Array(4)].map((_, i) => <Skel key={i} h={12} />)}</div>
+      ) : (
+        <div className="space-y-1.5">
+          {items.map(item => (
+            <div key={item.label} className="flex items-center justify-between">
+              <span className="text-zinc-500 text-[11px]">{item.label}</span>
+              <span className="text-[12px] font-semibold" style={{ color: item.color ?? '#fff' }}>{item.value}</span>
             </div>
           ))}
         </div>
@@ -255,197 +334,529 @@ function MlSalesCard() {
   )
 }
 
+// ── Row 8: Channel table ──────────────────────────────────────────────────────
+
+const CHANNEL_META: Record<string, { label: string; color: string; bg: string }> = {
+  ml:     { label: 'Mercado Livre', color: '#333', bg: '#ffe600' },
+  shopee: { label: 'Shopee',        color: '#fff', bg: '#EE4D2D' },
+  amazon: { label: 'Amazon',        color: '#111', bg: '#FF9900' },
+  magalu: { label: 'Magalu',        color: '#fff', bg: '#0086FF' },
+}
+
+// ── Main page ─────────────────────────────────────────────────────────────────
+
 export default function DashboardPage() {
-  const today = new Date().toLocaleDateString('pt-BR', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-  })
+  const [period, setPeriod] = useState<Period>('today')
+  const [channel] = useState<Channel>('all')
+  const [orders, setOrders] = useState<Order[]>([])
+  const [products, setProducts] = useState<DBProduct[]>([])
+  const [questions, setQuestions] = useState(0)
+  const [claims, setClaims] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+  const [mlConnected, setMlConnected] = useState(false)
+
+  const refresh = useCallback(async (isInitial = false) => {
+    if (!isInitial) setRefreshing(true)
+    const token = await getToken()
+    const supabase = createClient()
+
+    // Supabase products (always available)
+    const { data: member } = await supabase.from('organization_members').select('organization_id').maybeSingle()
+    if (member?.organization_id) {
+      const { data: prods } = await supabase
+        .from('products')
+        .select('id, name, price, stock, status, platforms')
+        .eq('organization_id', member.organization_id)
+        .limit(200)
+      setProducts(prods ?? [])
+    }
+
+    if (token) {
+      // Parallel ML fetches
+      const [ordersRes, questionsRes, claimsRes] = await Promise.allSettled([
+        fetch(`${BACKEND}/ml/recent-orders?limit=100`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${BACKEND}/ml/questions`,               { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${BACKEND}/ml/claims`,                  { headers: { Authorization: `Bearer ${token}` } }),
+      ])
+
+      if (ordersRes.status === 'fulfilled' && ordersRes.value.ok) {
+        const { orders: raw } = await ordersRes.value.json()
+        setOrders(raw ?? [])
+        setMlConnected(true)
+      }
+      if (questionsRes.status === 'fulfilled' && questionsRes.value.ok) {
+        const data = await questionsRes.value.json()
+        setQuestions(data?.total ?? 0)
+      }
+      if (claimsRes.status === 'fulfilled' && claimsRes.value.ok) {
+        const data = await claimsRes.value.json()
+        setClaims(Array.isArray(data?.data ?? data) ? (data?.data ?? data).length : (data?.total ?? 0))
+      }
+    }
+
+    setLastUpdated(new Date())
+    setLoading(false)
+    setRefreshing(false)
+  }, [])
+
+  useEffect(() => { refresh(true) }, [refresh])
+
+  // ── Derived ──────────────────────────────────────────────────────────────────
+
+  const periodOrders = useMemo(() => filterByPeriod(orders, period), [orders, period])
+  const yestOrders   = useMemo(() => orders.filter(o => o.date_created.slice(0, 10) === dayStr(daysAgoDate(1))), [orders])
+  const weekOrders   = useMemo(() => orders.filter(o => new Date(o.date_created) >= daysAgoDate(7)), [orders])
+  const monthOrders  = useMemo(() => orders.filter(o => o.date_created.slice(0, 7) === todayStr().slice(0, 7)), [orders])
+
+  const cur  = useMemo(() => calcMetrics(periodOrders), [periodOrders])
+  const yest = useMemo(() => calcMetrics(yestOrders), [yestOrders])
+  const week = useMemo(() => calcMetrics(weekOrders), [weekOrders])
+
+  const chartDays = period === 'today' ? 1 : period === '7d' ? 7 : 30
+  const chartData = useMemo(() => buildDailyChart(orders, chartDays), [orders, chartDays])
+
+  const topProds = useMemo(() => topProductsFromOrders(periodOrders), [periodOrders])
+
+  // Product alerts
+  const activeProds  = products.filter(p => p.status === 'active')
+  const pausedProds  = products.filter(p => p.status === 'paused')
+  const noStockProds = products.filter(p => (p.stock ?? 0) <= 0 && p.status === 'active')
+  const lowStockProds = products.filter(p => (p.stock ?? 0) > 0 && (p.stock ?? 0) < 5 && p.status === 'active')
+
+  // Funnel (estimated from order data)
+  const paidCount  = periodOrders.filter(isPaid).length
+  const totalCount = periodOrders.length
+  const funnelSteps = [
+    { label: 'Impressões',  value: Math.max(paidCount * 50, 0), color: '#60a5fa' },
+    { label: 'Cliques',     value: Math.max(paidCount * 20, 0), color: '#a78bfa' },
+    { label: 'Visitas',     value: Math.max(paidCount * 12, 0), color: '#00E5FF' },
+    { label: 'Carrinho',    value: Math.max(paidCount * 4,  0), color: '#f59e0b' },
+    { label: 'Checkout',    value: Math.max(totalCount, 0),      color: '#fb923c' },
+    { label: 'Aprovado',    value: paidCount,                    color: '#34d399' },
+    { label: 'Faturado',    value: paidCount,                    color: '#34d399' },
+  ]
+  const funnelTop = funnelSteps[0].value || 1
+  const bottleneckIdx = funnelSteps.reduce((minIdx, step, i, arr) => {
+    if (i === 0 || arr[i - 1].value === 0) return minIdx
+    const dropPct = (arr[i - 1].value - step.value) / arr[i - 1].value
+    return dropPct > (arr[minIdx === -1 ? 0 : minIdx - 1]?.value ? (arr[minIdx - 1].value - arr[minIdx].value) / arr[minIdx - 1].value : 0) ? i : minIdx
+  }, -1)
+
+  // Priority actions
+  const priorities = useMemo(() => {
+    const list: Array<{ label: string; level: 'red' | 'yellow'; href: string }> = []
+    if (claims > 0) list.push({ label: `Resolver ${claims} reclamação${claims > 1 ? 'ões' : ''} aberta${claims > 1 ? 's' : ''}`, level: 'red', href: '/dashboard/atendimento/reclamacoes' })
+    if (questions > 0) list.push({ label: `Responder ${questions} pergunta${questions > 1 ? 's' : ''} pendente${questions > 1 ? 's' : ''}`, level: 'yellow', href: '/dashboard/atendimento/perguntas' })
+    if (noStockProds.length > 0) list.push({ label: `Repor estoque: ${noStockProds.length} produto${noStockProds.length > 1 ? 's' : ''} zerado${noStockProds.length > 1 ? 's' : ''}`, level: 'red', href: '/dashboard/produtos' })
+    if (lowStockProds.length > 0) list.push({ label: `Atenção: ${lowStockProds.length} produto${lowStockProds.length > 1 ? 's' : ''} com estoque crítico (< 5)`, level: 'yellow', href: '/dashboard/produtos' })
+    if (pausedProds.length > 0) list.push({ label: `${pausedProds.length} anúncio${pausedProds.length > 1 ? 's' : ''} pausado${pausedProds.length > 1 ? 's' : ''} — verificar`, level: 'yellow', href: '/dashboard/produtos' })
+    return list
+  }, [claims, questions, noStockProds, lowStockProds, pausedProds])
+
+  const today = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })
+
+  // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
     <div className="p-6 space-y-6 min-h-full" style={{ background: '#09090b' }}>
 
-      {/* Page header */}
+      {/* Page title */}
       <div className="flex items-center justify-between">
         <div>
           <p className="text-zinc-500 text-[12px] capitalize">{today}</p>
           <h2 className="text-white text-lg font-semibold mt-0.5">Visão Geral</h2>
         </div>
-        <div className="flex items-center gap-2">
-          <span
-            className="text-[11px] font-medium px-2.5 py-1 rounded-full flex items-center gap-1.5"
-            style={{ background: 'rgba(52,211,153,0.1)', color: '#34d399' }}
-          >
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block animate-pulse" />
-            Atualizado há 5 min
+        {mlConnected && (
+          <span className="flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full"
+            style={{ background: 'rgba(52,211,153,0.1)', color: '#34d399' }}>
+            <span className="w-1.5 h-1.5 rounded-full animate-pulse bg-emerald-400" />
+            ML conectado
           </span>
-          <button
-            className="text-[12px] font-medium px-3 py-1.5 rounded-lg transition-colors"
-            style={{ background: 'rgba(0,229,255,0.1)', color: '#00E5FF' }}
-          >
-            Exportar
-          </button>
+        )}
+      </div>
+
+      {/* LINHA 1 — Filters */}
+      <DashHeader
+        period={period} setPeriod={setPeriod}
+        channel={channel} setChannel={() => {}}
+        onRefresh={() => refresh(false)} refreshing={refreshing}
+        lastUpdated={lastUpdated}
+      />
+
+      {/* LINHA 2 — KPIs */}
+      <section>
+        <p className="text-zinc-500 text-[10px] uppercase tracking-widest font-semibold mb-3">KPIs Executivos</p>
+        <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-2.5">
+          <KpiCard label="Faturamento hoje"  value={shortBrl(calcMetrics(orders.filter(o => isPaid(o) && o.date_created.slice(0,10) === todayStr())).revenue)} vsYest={pct(calcMetrics(orders.filter(o => isPaid(o) && o.date_created.slice(0,10) === todayStr())).revenue, yest.revenue)} vsWeek={null} color="#00E5FF" loading={loading} />
+          <KpiCard label="Faturamento mês"   value={shortBrl(calcMetrics(monthOrders).revenue)} sub="mês atual" color="#34d399" loading={loading} />
+          <KpiCard label="Pedidos hoje"       value={String(calcMetrics(orders.filter(o => isPaid(o) && o.date_created.slice(0,10) === todayStr())).count)} vsYest={pct(calcMetrics(orders.filter(o => isPaid(o) && o.date_created.slice(0,10) === todayStr())).count, yest.count)} color="#a78bfa" loading={loading} />
+          <KpiCard label="Ticket médio"       value={brl(cur.avgTicket)} vsYest={pct(cur.avgTicket, yest.avgTicket)} color="#fb923c" loading={loading} />
+          <KpiCard label="Conversão geral"    value="—"  sub="requer visitas" color="#60a5fa" loading={loading} />
+          <KpiCard label="Margem estimada"    value="—"  sub="requer CMV"    color="#f59e0b" loading={loading} />
+          <KpiCard label="Investimento mídia" value="—"  sub="via Ads"       color="#f87171" loading={loading} />
+          <KpiCard label="ROAS / ROI"         value="—"  sub="via Ads"       color="#e879f9" loading={loading} />
         </div>
-      </div>
+      </section>
 
-      {/* Metrics grid */}
-      <div className="grid grid-cols-2 xl:grid-cols-3 gap-3">
-        {metrics.map((m) => (
-          <div
-            key={m.label}
-            className="rounded-xl p-4 flex flex-col gap-3 transition-all group"
-            style={{
-              background: '#111114',
-              border: '1px solid rgba(255,255,255,0.06)',
-            }}
-            onMouseEnter={(e) => {
-              ;(e.currentTarget as HTMLElement).style.border = `1px solid ${m.color}28`
-              ;(e.currentTarget as HTMLElement).style.boxShadow = `0 0 0 1px ${m.color}10`
-            }}
-            onMouseLeave={(e) => {
-              ;(e.currentTarget as HTMLElement).style.border = '1px solid rgba(255,255,255,0.06)'
-              ;(e.currentTarget as HTMLElement).style.boxShadow = 'none'
-            }}
-          >
-            <div className="flex items-start justify-between">
-              <p className="text-zinc-400 text-[12px] font-medium leading-tight">{m.label}</p>
-              <span
-                className={`flex items-center gap-0.5 text-[11px] font-semibold px-1.5 py-0.5 rounded-md shrink-0`}
-                style={{
-                  background: m.trend === 'up' ? 'rgba(52,211,153,0.12)' : 'rgba(248,113,113,0.12)',
-                  color: m.trend === 'up' ? '#34d399' : '#f87171',
-                }}
-              >
-                {m.trend === 'up' ? '↑' : '↓'} {m.change}
-              </span>
-            </div>
+      {/* LINHA 3 — Alerts */}
+      <section>
+        <p className="text-zinc-500 text-[10px] uppercase tracking-widest font-semibold mb-3">Central de Alertas</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-2.5">
+          <AlertCard label="Reclamações abertas"    value={claims}              level={claims > 0 ? 'red' : 'green'}                              href="/dashboard/atendimento/reclamacoes" loading={loading} />
+          <AlertCard label="Mediações abertas"      value="—"                   level="green"                                                     loading={loading} />
+          <AlertCard label="Pedidos atrasados"      value="—"                   level="green"                                                     loading={loading} />
+          <AlertCard label="Perguntas sem resposta" value={questions}           level={questions > 5 ? 'red' : questions > 0 ? 'yellow' : 'green'} href="/dashboard/atendimento/perguntas" loading={loading} />
+          <AlertCard label="Mensagens não lidas"    value="—"                   level="yellow"                                                    loading={loading} />
+          <AlertCard label="Sem estoque"            value={noStockProds.length} level={noStockProds.length > 0 ? 'red' : 'green'}                  href="/dashboard/produtos" loading={loading} />
+          <AlertCard label="Anúncios pausados"      value={pausedProds.length}  level={pausedProds.length > 3 ? 'yellow' : 'green'}                href="/dashboard/produtos" loading={loading} />
+          <AlertCard label="Campanhas ROI neg."     value="—"                   level="green"                                                     loading={loading} />
+        </div>
+      </section>
 
-            <div className="flex items-end justify-between gap-2">
-              <div>
-                <p className="text-white text-2xl font-bold tracking-tight leading-none">{m.value}</p>
-                <p className="text-zinc-600 text-[11px] mt-1">{m.sub}</p>
-              </div>
-              <div className="shrink-0 mb-1">
-                <Sparkline values={m.data} color={m.color} />
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* ML Sales Card */}
-      <MlSalesCard />
-
-      {/* Bottom section */}
-      <div className="grid grid-cols-1 xl:grid-cols-5 gap-3">
-
-        {/* Marketplace competitiveness chart */}
-        <div
-          className="xl:col-span-3 rounded-xl p-5"
-          style={{ background: '#111114', border: '1px solid rgba(255,255,255,0.06)' }}
-        >
+      {/* LINHA 4 — Sales Chart */}
+      <section>
+        <div className="rounded-2xl px-6 py-5" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
           <div className="flex items-center justify-between mb-5">
             <div>
-              <h3 className="text-white text-[13px] font-semibold">Posição Competitiva</h3>
-              <p className="text-zinc-500 text-[11px] mt-0.5">Índice de preço por marketplace</p>
+              <p className="text-white text-sm font-semibold">Resumo de Vendas</p>
+              <p className="text-zinc-500 text-xs mt-0.5">Faturamento diário — pedidos pagos</p>
             </div>
-            <span
-              className="text-[11px] font-medium px-2 py-1 rounded-md"
-              style={{ background: 'rgba(0,229,255,0.08)', color: '#00E5FF' }}
-            >
-              Últimos 30 dias
-            </span>
+            <div className="grid grid-cols-3 gap-4 text-center">
+              {[
+                { label: 'Unidades',  value: cur.units.toLocaleString('pt-BR') },
+                { label: 'Pedidos',   value: cur.count.toLocaleString('pt-BR') },
+                { label: 'Tk. Médio', value: brl(cur.avgTicket) },
+              ].map(m => (
+                <div key={m.label}>
+                  {loading ? <Skel h={20} className="mx-auto w-16 mb-1" /> : <p className="text-white text-[13px] font-bold">{m.value}</p>}
+                  <p className="text-zinc-600 text-[10px]">{m.label}</p>
+                </div>
+              ))}
+            </div>
           </div>
+          {loading ? (
+            <Skel h={180} />
+          ) : (
+            <ResponsiveContainer width="100%" height={200}>
+              <AreaChart data={chartData} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+                <defs>
+                  <linearGradient id="gArea" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#00E5FF" stopOpacity="0.18" />
+                    <stop offset="100%" stopColor="#00E5FF" stopOpacity="0" />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid stroke="#1a1a1e" strokeDasharray="3 3" />
+                <XAxis dataKey="date" tick={{ fill: '#52525b', fontSize: 10 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: '#52525b', fontSize: 10 }} tickFormatter={v => `R$${((v as number)/1000).toFixed(0)}k`} axisLine={false} tickLine={false} width={52} />
+                <Tooltip content={<ChartTip />} />
+                <Area type="monotone" dataKey="value" stroke="#00E5FF" strokeWidth={2} fill="url(#gArea)" dot={false} connectNulls />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+      </section>
 
-          <div className="space-y-3">
-            {marketplaces.map((mp) => (
-              <div key={mp.name} className="flex items-center gap-3">
-                <p className="text-zinc-400 text-[12px] w-32 shrink-0 truncate">{mp.name}</p>
-                <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.05)' }}>
-                  <div
-                    className="h-full rounded-full transition-all"
-                    style={{
-                      width: `${mp.score}%`,
-                      background: `linear-gradient(to right, #00b8d4, #00E5FF)`,
-                      opacity: 0.7 + (mp.score / 100) * 0.3,
-                    }}
+      {/* LINHA 5 — Conversion Funnel */}
+      <section>
+        <div className="rounded-2xl px-6 py-5" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+          <div className="flex items-center justify-between mb-5">
+            <div>
+              <p className="text-white text-sm font-semibold">Funil de Conversão</p>
+              <p className="text-zinc-500 text-xs mt-0.5">Estimativas baseadas nos pedidos disponíveis</p>
+            </div>
+            {bottleneckIdx > 0 && !loading && (
+              <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full"
+                style={{ background: 'rgba(248,113,113,0.1)', color: '#f87171' }}>
+                Gargalo: {funnelSteps[bottleneckIdx]?.label}
+              </span>
+            )}
+          </div>
+          {loading ? (
+            <div className="space-y-3">{[...Array(7)].map((_, i) => <Skel key={i} h={20} />)}</div>
+          ) : (
+            <div className="space-y-2 max-w-2xl">
+              {funnelSteps.map((step, i) => (
+                <div key={step.label}>
+                  <FunnelStep
+                    label={step.label}
+                    value={step.value}
+                    pctVal={funnelTop > 0 ? (step.value / funnelTop) * 100 : 0}
+                    color={step.color}
+                    isBottleneck={i === bottleneckIdx}
                   />
+                  {i < funnelSteps.length - 1 && step.value > 0 && funnelSteps[i + 1].value > 0 && (
+                    <p className="text-zinc-700 text-[10px] ml-32 pl-3 py-0.5">
+                      → {((funnelSteps[i + 1].value / step.value) * 100).toFixed(1)}% avançam
+                    </p>
+                  )}
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className="text-white text-[12px] font-semibold w-8 text-right">{mp.score}%</span>
-                  <span className="text-zinc-600 text-[11px] w-16 text-right">{mp.products} prods.</span>
-                </div>
-              </div>
-            ))}
+              ))}
+              <p className="text-zinc-700 text-[10px] mt-3">* Impressões, cliques e intenções são estimadas. Conecte Analytics para dados reais.</p>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* LINHA 6 — Sector Grid */}
+      <section>
+        <p className="text-zinc-500 text-[10px] uppercase tracking-widest font-semibold mb-3">Visão por Setor</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+
+          <SectorCard title="Comercial" loading={loading} icon={
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.75}><path strokeLinecap="round" strokeLinejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>
+          } items={[
+            { label: 'Faturamento período', value: shortBrl(cur.revenue), color: '#00E5FF' },
+            { label: 'Pedidos', value: cur.count },
+            { label: 'Ticket médio', value: brl(cur.avgTicket) },
+            { label: 'Unidades vendidas', value: cur.units },
+          ]} />
+
+          <SectorCard title="Catálogo" loading={loading} icon={
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.75}><path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
+          } items={[
+            { label: 'Anúncios ativos', value: activeProds.length, color: '#34d399' },
+            { label: 'Pausados', value: pausedProds.length, color: pausedProds.length > 0 ? '#f59e0b' : '#71717a' },
+            { label: 'Sem estoque', value: noStockProds.length, color: noStockProds.length > 0 ? '#f87171' : '#71717a' },
+            { label: 'Estoque crítico', value: lowStockProds.length, color: lowStockProds.length > 0 ? '#f59e0b' : '#71717a' },
+          ]} />
+
+          <SectorCard title="Atendimento" loading={loading} icon={
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.75}><path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+          } items={[
+            { label: 'Perguntas pendentes', value: questions, color: questions > 0 ? '#f59e0b' : '#34d399' },
+            { label: 'Reclamações abertas', value: claims, color: claims > 0 ? '#f87171' : '#34d399' },
+            { label: 'SLA resposta', value: '—' },
+            { label: 'Mensagens não lidas', value: '—' },
+          ]} />
+
+          <SectorCard title="Logística" loading={loading} icon={
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.75}><path strokeLinecap="round" strokeLinejoin="round" d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1" /></svg>
+          } items={[
+            { label: 'A expedir', value: '—' },
+            { label: 'Em trânsito', value: '—' },
+            { label: 'Atrasados', value: '—' },
+            { label: 'Prazo médio', value: '—' },
+          ]} />
+
+          <SectorCard title="Financeiro" loading={loading} icon={
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.75}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          } items={[
+            { label: 'Receita bruta',  value: shortBrl(cur.revenue), color: '#00E5FF' },
+            { label: 'Taxas ML (~15%)', value: shortBrl(cur.revenue * 0.15), color: '#f87171' },
+            { label: 'Receita líquida est.', value: shortBrl(cur.revenue * 0.85), color: '#34d399' },
+            { label: 'Margem', value: '—' },
+          ]} />
+
+          <SectorCard title="Marketing" loading={loading} icon={
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.75}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" /></svg>
+          } items={[
+            { label: 'Investimento', value: '—' },
+            { label: 'Cliques', value: '—' },
+            { label: 'ROAS', value: '—' },
+            { label: 'Receita por campanha', value: '—' },
+          ]} />
+
+        </div>
+      </section>
+
+      {/* LINHA 7 — Top Products + At-Risk */}
+      <section>
+        <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
+
+          {/* Top 10 */}
+          <div className="xl:col-span-3 rounded-2xl overflow-hidden" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+            <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid #1e1e24', background: '#0d0d10' }}>
+              <p className="text-white text-sm font-semibold">Top 10 Produtos</p>
+              <span className="text-zinc-500 text-xs">{period === 'today' ? 'Hoje' : period === '7d' ? '7 dias' : period === 'month' ? 'Mês' : '30 dias'}</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full" style={{ minWidth: 480 }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid #1e1e24', background: '#0a0a0d' }}>
+                    {['#', 'Produto', 'Pedidos', 'Receita', 'Unidades'].map(h => (
+                      <th key={h} className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-widest" style={{ color: '#52525b' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? [...Array(5)].map((_, i) => (
+                    <tr key={i} style={{ borderBottom: '1px solid #1e1e24' }}>
+                      {[...Array(5)].map((_, j) => (
+                        <td key={j} className="px-4 py-3"><Skel h={12} /></td>
+                      ))}
+                    </tr>
+                  )) : topProds.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-8 text-center text-zinc-600 text-sm">Sem vendas no período.</td>
+                    </tr>
+                  ) : topProds.map((p, i) => (
+                    <tr key={p.title} style={{ borderBottom: '1px solid #1e1e24' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.02)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                      <td className="px-4 py-3">
+                        <span className="text-[11px] font-bold w-5 h-5 rounded-full flex items-center justify-center"
+                          style={{ background: i < 3 ? 'rgba(0,229,255,0.15)' : '#1c1c1f', color: i < 3 ? '#00E5FF' : '#52525b' }}>
+                          {i + 1}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 max-w-[200px]">
+                        <p className="text-white text-[12px] font-medium truncate">{p.title}</p>
+                      </td>
+                      <td className="px-4 py-3 text-zinc-400 text-[12px]">{p.orders}</td>
+                      <td className="px-4 py-3">
+                        <p className="text-[12px] font-bold" style={{ color: '#00E5FF' }}>{brl(p.revenue)}</p>
+                      </td>
+                      <td className="px-4 py-3 text-zinc-400 text-[12px]">{p.units}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
 
-          <div
-            className="mt-5 pt-4 flex items-center gap-4 text-[11px] text-zinc-500"
-            style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}
-          >
-            <span className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full inline-block" style={{ background: '#00E5FF' }} />
-              Competitivo
-            </span>
-            <span>Índice baseado em {metrics[0].value} SKUs monitorados</span>
+          {/* At-risk products */}
+          <div className="xl:col-span-2 rounded-2xl overflow-hidden" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+            <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid #1e1e24', background: '#0d0d10' }}>
+              <p className="text-white text-sm font-semibold">Produtos em Risco</p>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'rgba(248,113,113,0.1)', color: '#f87171' }}>
+                {noStockProds.length + lowStockProds.length}
+              </span>
+            </div>
+            <div className="p-4 space-y-2">
+              {loading ? [...Array(4)].map((_, i) => <Skel key={i} h={44} className="rounded-xl" />) :
+                [...noStockProds.slice(0, 4).map(p => ({ ...p, risk: 'Sem estoque' as const, color: '#f87171' })),
+                 ...lowStockProds.slice(0, 4).map(p => ({ ...p, risk: 'Crítico' as const, color: '#f59e0b' }))
+                ].slice(0, 8).length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-8">
+                    <p className="text-zinc-600 text-[12px]">Nenhum produto em risco.</p>
+                  </div>
+                ) : (
+                  [...noStockProds.slice(0, 4).map(p => ({ ...p, risk: 'Sem estoque' as const, color: '#f87171' })),
+                   ...lowStockProds.slice(0, 4).map(p => ({ ...p, risk: 'Crítico' as const, color: '#f59e0b' }))
+                  ].slice(0, 8).map(p => (
+                    <div key={p.id} className="flex items-center gap-3 p-3 rounded-xl transition-colors"
+                      style={{ background: 'rgba(255,255,255,0.02)', border: `1px solid ${p.color}20` }}>
+                      <div className="w-1.5 h-8 rounded-full shrink-0" style={{ background: p.color }} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white text-[12px] font-medium truncate">{p.name}</p>
+                        <p className="text-[10px] mt-0.5" style={{ color: p.color }}>{p.risk} · {p.stock ?? 0} un.</p>
+                      </div>
+                      <Link href="/dashboard/produtos"
+                        className="text-[10px] font-semibold px-2 py-1 rounded-lg transition-all"
+                        style={{ background: `${p.color}15`, color: p.color }}>
+                        Ver
+                      </Link>
+                    </div>
+                  ))
+                )
+              }
+            </div>
           </div>
         </div>
+      </section>
 
-        {/* Recent alerts */}
-        <div
-          className="xl:col-span-2 rounded-xl p-5"
-          style={{ background: '#111114', border: '1px solid rgba(255,255,255,0.06)' }}
-        >
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-white text-[13px] font-semibold">Alertas Recentes</h3>
-            <span
-              className="text-[11px] font-semibold px-1.5 py-0.5 rounded-full"
-              style={{ background: 'rgba(245,158,11,0.12)', color: '#f59e0b' }}
-            >
-              23
-            </span>
+      {/* LINHA 8 — Channel Table */}
+      <section>
+        <div className="rounded-2xl overflow-hidden" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+          <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid #1e1e24', background: '#0d0d10' }}>
+            <p className="text-white text-sm font-semibold">Desempenho por Canal</p>
+            <span className="text-zinc-500 text-xs">Comparativo de marketplaces</span>
           </div>
-
-          <div className="space-y-2">
-            {alerts.map((alert, i) => (
-              <div
-                key={i}
-                className="flex items-start gap-2.5 p-2.5 rounded-lg transition-colors cursor-pointer"
-                style={{ background: 'transparent' }}
-                onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.03)')}
-                onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.background = 'transparent')}
-              >
-                <span
-                  className="w-5 h-5 rounded-md flex items-center justify-center shrink-0 mt-0.5"
-                  style={{ background: alert.bg, color: alert.color }}
-                >
-                  {alertIcons[alert.type as keyof typeof alertIcons]}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-white text-[12px] font-medium leading-tight truncate">{alert.product}</p>
-                  <p className="text-zinc-500 text-[11px] mt-0.5 truncate">{alert.detail}</p>
-                </div>
-                <span className="text-zinc-600 text-[10px] shrink-0 mt-0.5">{alert.time}</span>
-              </div>
-            ))}
+          <div className="overflow-x-auto">
+            <table className="w-full" style={{ minWidth: 700 }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid #1e1e24', background: '#0a0a0d' }}>
+                  {['Canal', 'Faturamento', 'Pedidos', 'Ticket Médio', 'Unidades', 'Cancelamentos', 'Devoluções'].map(h => (
+                    <th key={h} className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-widest" style={{ color: '#52525b' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? [...Array(3)].map((_, i) => (
+                  <tr key={i} style={{ borderBottom: '1px solid #1e1e24' }}>
+                    {[...Array(7)].map((_, j) => <td key={j} className="px-4 py-3"><Skel h={12} /></td>)}
+                  </tr>
+                )) : (() => {
+                  const mlOrders = periodOrders.filter(o => true) // all from ML for now
+                  const mlM = calcMetrics(mlOrders)
+                  const rows = [
+                    { key: 'ml', m: mlM },
+                    { key: 'shopee', m: { revenue: 0, count: 0, units: 0, avgTicket: 0 } },
+                    { key: 'amazon', m: { revenue: 0, count: 0, units: 0, avgTicket: 0 } },
+                    { key: 'magalu', m: { revenue: 0, count: 0, units: 0, avgTicket: 0 } },
+                  ]
+                  const totalRevenue = rows.reduce((s, r) => s + r.m.revenue, 0)
+                  return rows.map(row => {
+                    const meta = CHANNEL_META[row.key]
+                    return (
+                      <tr key={row.key} style={{ borderBottom: '1px solid #1e1e24' }}
+                        onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.02)')}
+                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[9px] font-black px-1.5 py-0.5 rounded" style={{ background: meta.bg, color: meta.color }}>{row.key.toUpperCase().slice(0, 2)}</span>
+                            <span className="text-[12px] text-white font-medium">{meta.label}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <p className="text-[12px] font-bold" style={{ color: row.m.revenue > 0 ? '#00E5FF' : '#3f3f46' }}>{row.m.revenue > 0 ? brl(row.m.revenue) : '—'}</p>
+                          {totalRevenue > 0 && row.m.revenue > 0 && <p className="text-zinc-600 text-[10px]">{((row.m.revenue / totalRevenue) * 100).toFixed(0)}% do total</p>}
+                        </td>
+                        <td className="px-4 py-3 text-[12px]" style={{ color: row.m.count > 0 ? '#fff' : '#3f3f46' }}>{row.m.count || '—'}</td>
+                        <td className="px-4 py-3 text-[12px]" style={{ color: row.m.avgTicket > 0 ? '#a1a1aa' : '#3f3f46' }}>{row.m.avgTicket > 0 ? brl(row.m.avgTicket) : '—'}</td>
+                        <td className="px-4 py-3 text-[12px]" style={{ color: row.m.units > 0 ? '#a1a1aa' : '#3f3f46' }}>{row.m.units || '—'}</td>
+                        <td className="px-4 py-3 text-zinc-600 text-[12px]">—</td>
+                        <td className="px-4 py-3 text-zinc-600 text-[12px]">—</td>
+                      </tr>
+                    )
+                  })
+                })()}
+                {/* Total row */}
+                {!loading && (
+                  <tr style={{ background: 'rgba(0,229,255,0.04)', borderTop: '1px solid rgba(0,229,255,0.1)' }}>
+                    <td className="px-4 py-3 text-[12px] font-bold text-white">Total</td>
+                    <td className="px-4 py-3"><p className="text-[13px] font-black" style={{ color: '#00E5FF' }}>{brl(cur.revenue)}</p></td>
+                    <td className="px-4 py-3 text-[12px] font-bold text-white">{cur.count}</td>
+                    <td className="px-4 py-3 text-[12px] font-semibold text-zinc-300">{brl(cur.avgTicket)}</td>
+                    <td className="px-4 py-3 text-[12px] font-semibold text-zinc-300">{cur.units}</td>
+                    <td className="px-4 py-3 text-zinc-500 text-[12px]">—</td>
+                    <td className="px-4 py-3 text-zinc-500 text-[12px]">—</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
-
-          <button
-            className="mt-3 w-full text-[12px] font-medium py-2 rounded-lg transition-colors"
-            style={{ background: 'rgba(255,255,255,0.04)', color: '#71717a' }}
-            onMouseEnter={(e) => {
-              ;(e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.07)'
-              ;(e.currentTarget as HTMLElement).style.color = '#a1a1aa'
-            }}
-            onMouseLeave={(e) => {
-              ;(e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.04)'
-              ;(e.currentTarget as HTMLElement).style.color = '#71717a'
-            }}
-          >
-            Ver todos os alertas →
-          </button>
         </div>
-      </div>
+      </section>
+
+      {/* LINHA 9 — Priorities */}
+      {(loading || priorities.length > 0) && (
+        <section>
+          <p className="text-zinc-500 text-[10px] uppercase tracking-widest font-semibold mb-3">Prioridades do Dia</p>
+          <div className="rounded-2xl overflow-hidden" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+            {loading ? (
+              <div className="p-4 space-y-2">{[...Array(3)].map((_, i) => <Skel key={i} h={44} className="rounded-xl" />)}</div>
+            ) : (
+              <div className="divide-y" style={{ borderColor: '#1e1e24' }}>
+                {priorities.map((p, i) => (
+                  <div key={i} className="flex items-center gap-4 px-5 py-3.5">
+                    <span className="w-2 h-2 rounded-full shrink-0" style={{ background: p.level === 'red' ? '#f87171' : '#f59e0b' }} />
+                    <p className="flex-1 text-white text-[13px]">{p.label}</p>
+                    <Link href={p.href}
+                      className="shrink-0 text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-all"
+                      style={{ background: p.level === 'red' ? 'rgba(248,113,113,0.12)' : 'rgba(245,158,11,0.12)', color: p.level === 'red' ? '#f87171' : '#f59e0b' }}>
+                      Resolver →
+                    </Link>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+
     </div>
   )
 }
