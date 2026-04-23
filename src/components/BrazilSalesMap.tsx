@@ -2,9 +2,8 @@
 
 import { useState, useRef, useMemo } from 'react'
 import { ComposableMap, Geographies, Geography, Marker } from 'react-simple-maps'
-
-const GEO_URL =
-  'https://raw.githubusercontent.com/giuliano-macedo/geodata-br-states/main/geojson/br_states.json'
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const brazilGeo = require('@/data/brazil-states.json')
 
 const STATE_COORDS: Record<string, [number, number]> = {
   AC: [-70.55, -8.77],  AL: [-36.95, -9.71],
@@ -58,12 +57,11 @@ interface Tip {
   dot: Dot
 }
 
-// Deterministic spread so same-state orders don't pile up on one pixel
 function spread(id: string, range = 0.5): [number, number] {
   let h = 0
   for (let i = 0; i < id.length; i++) h = ((h * 31) + id.charCodeAt(i)) | 0
   const u = ((h >>> 0) % 10000) / 10000
-  const v = ((h >>> 14) % 10000) / 10000
+  const v = (((h >>> 14) >>> 0) % 10000) / 10000
   return [(u - 0.5) * range * 2, (v - 0.5) * range * 2]
 }
 
@@ -128,19 +126,20 @@ export default function BrazilSalesMap({
   function handleEnter(e: React.MouseEvent, dot: Dot) {
     const rect = containerRef.current?.getBoundingClientRect()
     if (!rect) return
-    setTip({ x: e.clientX - rect.left, y: e.clientY - rect.top, dot })
+    const x = e.clientX - rect.left
+    const y = e.clientY - rect.top
+    setTip({ x, y, dot })
   }
 
   return (
     <div ref={containerRef} className="relative w-full select-none" style={{ height }}>
-      {/* Pulse keyframe injected once */}
       <style>{`
         @keyframes bsm-pulse {
           0%   { r: 0;  opacity: 0.9; }
-          60%  { opacity: 0.5; }
-          100% { r: 14; opacity: 0; }
+          60%  { opacity: 0.4; }
+          100% { r: 16; opacity: 0; }
         }
-        .bsm-pulse { animation: bsm-pulse 1.2s ease-out forwards; }
+        .bsm-pulse { animation: bsm-pulse 1.4s ease-out forwards; }
       `}</style>
 
       {/* Title + live badge */}
@@ -157,7 +156,7 @@ export default function BrazilSalesMap({
         </div>
       )}
 
-      {/* Counter */}
+      {/* Counter top-right */}
       <div className="absolute top-3 right-3 z-10 text-right">
         <p className="text-white text-[11px] font-bold">{dots.length} vendas</p>
         <p className="text-zinc-500 text-[10px]">{stateCount} estado{stateCount !== 1 ? 's' : ''}</p>
@@ -171,7 +170,7 @@ export default function BrazilSalesMap({
         height={500}
         style={{ width: '100%', height: '100%' }}
       >
-        <Geographies geography={GEO_URL}>
+        <Geographies geography={brazilGeo}>
           {({ geographies }) =>
             geographies.map(geo => (
               <Geography
@@ -193,6 +192,7 @@ export default function BrazilSalesMap({
                 className="bsm-pulse"
                 cx={0}
                 cy={0}
+                r={0}
                 fill="none"
                 stroke="#00E5FF"
                 strokeWidth={1.5}
@@ -212,7 +212,7 @@ export default function BrazilSalesMap({
         ))}
       </ComposableMap>
 
-      {/* Legend */}
+      {/* Legend bottom-right */}
       <div className="absolute bottom-3 right-3 z-10 flex flex-col gap-1 p-2 rounded-lg"
         style={{ background: 'rgba(0,0,0,0.6)', border: '1px solid rgba(255,255,255,0.06)' }}>
         {LEGEND.map(l => (
@@ -226,27 +226,35 @@ export default function BrazilSalesMap({
       {/* Tooltip */}
       {tip && (
         <div
-          className="absolute z-20 pointer-events-none rounded-lg px-3 py-2 text-[11px]"
+          className="absolute z-20 pointer-events-none rounded-lg px-3 py-2"
           style={{
-            left: Math.min(tip.x + 14, (containerRef.current?.offsetWidth ?? 9999) - 160),
-            top: tip.y - 60,
+            left: Math.min(tip.x + 14, (containerRef.current?.offsetWidth ?? 9999) - 165),
+            top: Math.max(tip.y - 72, 4),
             background: '#18181b',
             border: '1px solid #2e2e36',
-            minWidth: 150,
+            minWidth: 155,
             boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
           }}
         >
-          <p className="text-white font-semibold mb-0.5">{tip.dot.city} · {tip.dot.state}</p>
-          <p className="text-zinc-400 mb-0.5 leading-tight">{tip.dot.label}{tip.dot.label.length === 30 ? '…' : ''}</p>
-          <p style={{ color: dotColor(tip.dot.value) }} className="font-bold">{brl(tip.dot.value)}</p>
+          <p className="text-white text-[11px] font-semibold mb-0.5">{tip.dot.city} · {tip.dot.state}</p>
+          <p className="text-zinc-400 text-[10px] mb-0.5 leading-tight">
+            {tip.dot.label}{tip.dot.label.length === 30 ? '…' : ''}
+          </p>
+          <p className="text-[11px] font-bold" style={{ color: dotColor(tip.dot.value) }}>
+            {brl(tip.dot.value)}
+          </p>
           <p className="text-zinc-600 text-[10px] mt-0.5">{tip.dot.time}</p>
         </div>
       )}
 
       {/* Empty state */}
       {dots.length === 0 && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <p className="text-zinc-700 text-sm">Sem pedidos com endereço disponível</p>
+        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none gap-2">
+          <svg className="w-8 h-8 text-zinc-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 6.75V15m6-6v8.25m.503 3.498l4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 00-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0z" />
+          </svg>
+          <p className="text-zinc-600 text-sm">Nenhuma venda com endereço disponível</p>
+          <p className="text-zinc-700 text-[10px]">Os endereços são carregados via API de envios</p>
         </div>
       )}
     </div>

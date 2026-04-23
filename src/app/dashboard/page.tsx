@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import {
@@ -8,7 +9,11 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer,
 } from 'recharts'
-import BrazilSalesMap from '@/components/BrazilSalesMap'
+
+const BrazilSalesMap = dynamic(() => import('@/components/BrazilSalesMap'), {
+  ssr: false,
+  loading: () => <div className="animate-pulse rounded-xl" style={{ height: 350, background: '#111114' }} />,
+})
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 
