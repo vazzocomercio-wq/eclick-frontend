@@ -10,8 +10,8 @@ type Reputation = {
   level_id?: string | null
   power_seller_status?: string | null
   transactions?: {
-    canceled?:  { total?: number; paid?: number }
-    completed?: { total?: number; paid?: number }
+    canceled?:  number | { total?: number; paid?: number }
+    completed?: number | { total?: number; paid?: number }
     total?: number
     ratings?: { negative?: number; neutral?: number; positive?: number }
     period?: { total?: number; paid?: number }
@@ -23,6 +23,13 @@ type Reputation = {
     cancellations?: { period?: string; rate?: number; value?: number }
     mediation?: { period?: string; rate?: number; value?: number }
   }
+}
+
+// ML API returns completed/canceled as a plain number OR as { total, paid }
+function txnCount(val: number | { total?: number; paid?: number } | undefined | null): number {
+  if (typeof val === 'number') return val
+  if (val && typeof val === 'object') return val.total ?? 0
+  return 0
 }
 
 type LevelInfo = { label: string; color: string; bgCard: string; borderCard: string; barColor: string; rank: number }
@@ -110,13 +117,11 @@ export default function Page() {
   const txn      = rep.transactions ?? {}
   const metrics  = rep.metrics ?? {}
   const ratings  = txn.ratings ?? {}
-  const completed = txn.completed ?? {}
-  const canceled  = txn.canceled  ?? {}
-  const period    = txn.period    ?? {}
+  const period   = txn.period  ?? {}
 
   const total    = txn.total ?? 0
-  const compTotal = completed.total ?? 0
-  const cancTotal = canceled.total  ?? 0
+  const compTotal = txnCount(txn.completed)
+  const cancTotal = txnCount(txn.canceled)
   const posCount  = ratings.positive ?? 0
   const neutCount = ratings.neutral  ?? 0
   const negCount  = ratings.negative ?? 0
