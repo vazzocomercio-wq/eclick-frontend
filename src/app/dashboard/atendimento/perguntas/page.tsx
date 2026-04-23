@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
+import { useSugestaoResposta } from '@/lib/ai/hooks'
+import { isAIEnabled } from '@/lib/ai/config'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 
@@ -100,9 +102,9 @@ export default function PerguntasPage() {
   const [sending, setSending] = useState(false)
   const [search, setSearch] = useState('')
   const [toasts, setToasts] = useState<{ id: number; msg: string; type: 'ok' | 'err' }[]>([])
-  const [aiSuggestion, setAiSuggestion] = useState('')
-  const [aiLoading, setAiLoading] = useState(false)
   const prevIds = useRef<Set<number>>(new Set())
+  const { sugestao: aiSuggestion, loading: aiLoading, gerar: gerarSugestao, limpar: limparSugestao } = useSugestaoResposta()
+  const aiAvailable = isAIEnabled('sugestao_resposta')
 
   const addToast = useCallback((msg: string, type: 'ok' | 'err' = 'ok') => {
     const id = Date.now()
@@ -165,7 +167,7 @@ export default function PerguntasPage() {
   const handleSelect = (q: Question) => {
     setSelected(q)
     setAnswerText('')
-    setAiSuggestion('')
+    limparSugestao()
   }
 
   const handleAnswer = async () => {
@@ -202,27 +204,11 @@ export default function PerguntasPage() {
 
   const handleAiSuggest = async () => {
     if (!selected) return
-    setAiLoading(true)
-    setAiSuggestion('')
-    try {
-      const res = await fetch('/api/ia/sugestao-resposta', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          question: selected.text,
-          item_title: selected.item?.title,
-          item_price: selected.item?.price,
-          item_stock: selected.item?.available_quantity,
-        }),
-      })
-      const data = await res.json()
-      if (data.suggestion) setAiSuggestion(data.suggestion)
-      else addToast(data.error ?? 'IA indisponível no momento', 'err')
-    } catch {
-      addToast('Erro ao obter sugestão da IA', 'err')
-    } finally {
-      setAiLoading(false)
-    }
+    await gerarSugestao(selected.text, {
+      nome: selected.item?.title,
+      preco: selected.item?.price,
+      estoque: selected.item?.available_quantity,
+    })
   }
 
   // Derived data
@@ -438,13 +424,14 @@ export default function PerguntasPage() {
                 <div className="flex gap-2 mt-3 flex-shrink-0">
                   <button
                     onClick={handleAiSuggest}
-                    disabled={aiLoading || selected.status !== 'unanswered'}
+                    disabled={aiLoading || !aiAvailable || selected.status !== 'unanswered'}
+                    title={!aiAvailable ? 'IA desativada — acesse Configurações → IA para ativar' : undefined}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#060d14] border border-[#00E5FF33] text-xs text-[#00E5FF] hover:bg-[#0a1520] transition-colors disabled:opacity-40"
                   >
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                     </svg>
-                    {aiLoading ? 'Gerando...' : 'Sugerir com IA'}
+                    {aiLoading ? 'Gerando...' : aiAvailable ? 'Sugerir com IA' : 'IA (em breve)'}
                   </button>
                   <button
                     onClick={handleAnswer}
