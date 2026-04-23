@@ -543,17 +543,40 @@ export default function DashboardPage() {
   // ── Period data: re-fetches whenever the period filter changes ───────────────
   useEffect(() => {
     let cancelled = false
-    setPeriodLoading(true)
-    const { from, to } = getPeriodDates(period)
-    getToken().then(token => {
-      if (!token) { setPeriodLoading(false); return }
-      fetch(`${BACKEND}/ml/recent-orders?date_from=${from}&date_to=${to}&limit=200`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-        .then(r => r.ok ? r.json() : Promise.reject(r.status))
-        .then(data => { if (!cancelled) { setPeriodOrders(data?.orders ?? []); setPeriodLoading(false) } })
-        .catch(() => { if (!cancelled) setPeriodLoading(false) })
-    })
+
+    ;(async () => {
+      setPeriodLoading(true)
+      try {
+        const token = await getToken()
+        if (!token || cancelled) { if (!cancelled) setPeriodLoading(false); return }
+
+        const { from, to } = getPeriodDates(period)
+        console.log(`[period-fetch] period=${period} from=${from} to=${to}`)
+
+        const res = await fetch(
+          `${BACKEND}/ml/recent-orders?date_from=${from}&date_to=${to}&limit=200`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        )
+
+        if (!res.ok) {
+          console.error('[period-fetch] HTTP error:', res.status, await res.text().catch(() => ''))
+          if (!cancelled) setPeriodLoading(false)
+          return
+        }
+
+        const data = await res.json()
+        console.log('[period-fetch] orders received:', data?.orders?.length ?? 0, '| period:', period)
+
+        if (!cancelled) {
+          setPeriodOrders(data?.orders ?? [])
+          setPeriodLoading(false)
+        }
+      } catch (e) {
+        console.error('[period-fetch] exception:', e)
+        if (!cancelled) setPeriodLoading(false)
+      }
+    })()
+
     return () => { cancelled = true }
   }, [period])
 
