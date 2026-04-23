@@ -160,13 +160,28 @@ export default function Page() {
   const level    = (levelId ? LEVEL_MAP[levelId] : null) ?? { label: levelId ?? 'Sem dados', color: 'text-zinc-400', bgCard: 'bg-zinc-800', borderCard: 'border-zinc-700', barColor: '#71717a', rank: 0 }
   const psLabel  = rep.power_seller_status ? (POWER_LABEL[rep.power_seller_status] ?? rep.power_seller_status) : null
 
-  const LEVEL_INDEX: Record<string, number> = {
-    '1_red': 0, '2_orange': 1, '3_yellow': 2, '4_light_green': 3, '5_green': 4, 'platinum': 4,
-  }
-  // Cores pastéis para segmentos anteriores; cor intensa para o ativo
-  const THERMO_PASTEL  = ['#FFB3B3', '#FFCCA0', '#FFE599', '#B3E5B3', '#2ECC71']
-  const THERMO_INTENSE = ['#e05555', '#e07a30', '#d4a017', '#4caf50', '#2ECC71']
-  const nivelAtivo = levelId ? (LEVEL_INDEX[levelId] ?? -1) : -1
+  const STAGES = [
+    { label: 'Sem rep.', color: '#9CA3AF', icon: null },
+    { label: '●',   color: '#FCA5A5', icon: null },
+    { label: '●',   color: '#FDBA74', icon: null },
+    { label: '●',   color: '#FDE68A', icon: null },
+    { label: 'Verde',    color: '#86EFAC', icon: null },
+    { label: 'Lider',    color: '#22C55E', icon: '🏅' },
+    { label: 'Gold',     color: '#F59E0B', icon: '🥇' },
+    { label: 'Platinum', color: '#00E5FF', icon: '💎' },
+  ]
+
+  const ps = rep.power_seller_status ?? null
+  const estagioAtual =
+    ps === 'platinum'      ? 7 :
+    ps === 'gold'          ? 6 :
+    ps === 'normal'        ? 5 :
+    levelId === '5_green' || levelId === '4_light_green' ? 4 :
+    levelId === '3_yellow' ? 3 :
+    levelId === '2_orange' ? 2 :
+    levelId === '1_red'    ? 1 : 0
+
+  const activeStage = STAGES[estagioAtual]
 
   const qualMetrics = [
     { label: 'Reclamacoes',        m: metrics.claims,                warn: 0.01,  crit: 0.03  },
@@ -199,30 +214,41 @@ export default function Page() {
           <p className="text-zinc-500 text-xs">seller_id: {rep.seller_id}</p>
         </div>
 
-        {/* Termômetro horizontal */}
+        {/* Termômetro 7 estágios */}
         <div className="mt-5">
-          <div className="flex gap-1" style={{ gap: 4 }}>
-            {THERMO_PASTEL.map((pastel, i) => {
-              const isActive = i === nivelAtivo
-              const isBefore = i < nivelAtivo
-              const isAfter  = i > nivelAtivo
+          <div className="flex items-end" style={{ gap: 4 }}>
+            {STAGES.map((s, i) => {
+              const isActive = i === estagioAtual
+              const isAfter  = i > estagioAtual
               return (
-                <div
-                  key={i}
-                  className="flex-1 rounded"
-                  style={{
-                    height: 8,
-                    borderRadius: 4,
-                    backgroundColor: isAfter ? '#E5E5E5' : isActive ? THERMO_INTENSE[i] : pastel,
-                    opacity: isAfter ? 0.3 : isBefore ? 0.5 : 1,
-                  }}
-                />
+                <div key={i} className="flex-1 flex flex-col items-center gap-0.5">
+                  <div
+                    style={{
+                      height: isActive ? 12 : 8,
+                      borderRadius: 4,
+                      width: '100%',
+                      backgroundColor: isAfter ? '#E5E7EB' : s.color,
+                      opacity: isAfter ? 0.3 : 1,
+                      outline: isActive ? `2px solid ${s.color}` : 'none',
+                      outlineOffset: 2,
+                    }}
+                  />
+                  <span style={{ fontSize: 9, color: isAfter ? '#6b7280' : s.color, fontWeight: isActive ? 700 : 400, lineHeight: 1.2 }}>
+                    {s.icon ?? s.label}
+                  </span>
+                </div>
               )
             })}
           </div>
-          <p className="text-zinc-500 text-xs mt-2">
-            Voce aparece em {psLabel ?? level.label} para os compradores
-          </p>
+
+          {/* Badge do estágio ativo */}
+          <div className="mt-3 flex items-center gap-1.5">
+            {activeStage.icon && <span className="text-sm">{activeStage.icon}</span>}
+            <span className="text-sm font-semibold" style={{ color: activeStage.color }}>
+              MercadoLider {activeStage.label}
+            </span>
+            <span className="text-zinc-500 text-xs">· Voce aparece assim para os compradores</span>
+          </div>
         </div>
       </div>
 
