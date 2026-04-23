@@ -159,6 +159,13 @@ export default function Page() {
   const level    = (levelId ? LEVEL_MAP[levelId] : null) ?? { label: levelId ?? 'Sem dados', color: 'text-zinc-400', bgCard: 'bg-zinc-800', borderCard: 'border-zinc-700', barColor: '#71717a', rank: 0 }
   const psLabel  = rep.power_seller_status ? (POWER_LABEL[rep.power_seller_status] ?? rep.power_seller_status) : null
 
+  const LEVEL_INDEX: Record<string, number> = {
+    '1_red': 0, '2_orange': 1, '3_yellow': 2, '4_light_green': 3, '5_green': 4, 'platinum': 4,
+  }
+  const THERMO_COLORS = ['#ef4444', '#f97316', '#eab308', '#84cc16', '#22c55e']
+  const THERMO_LABELS = ['Bronze', 'Prata', 'Ouro', 'MercadoLider', 'MercadoLider Gold']
+  const nivelAtivo = levelId ? (LEVEL_INDEX[levelId] ?? -1) : -1
+
   const qualMetrics = [
     { label: 'Reclamacoes',        m: metrics.claims,                warn: 0.01,  crit: 0.03  },
     { label: 'Mediacoes',          m: metrics.mediation,             warn: 0.005, crit: 0.02  },
@@ -177,7 +184,7 @@ export default function Page() {
 
       {/* ── Level hero ─────────────────────────────────────────── */}
       <div className={`rounded-2xl border p-6 ${level.bgCard} ${level.borderCard}`}>
-        <div className="flex items-center justify-between flex-wrap gap-6">
+        <div className="flex items-start justify-between flex-wrap gap-4">
           <div>
             <p className="text-zinc-400 text-sm mb-1">Nivel de Reputacao</p>
             <p className={`text-4xl font-bold ${level.color}`}>{level.label}</p>
@@ -187,15 +194,36 @@ export default function Page() {
               </span>
             )}
           </div>
-          <div className="flex gap-2 items-end">
-            {[1, 2, 3, 4, 5].map(i => (
-              <div key={i} className="rounded-sm" style={{
-                width: 18, height: 8 + i * 7,
-                backgroundColor: i <= level.rank ? level.barColor : '#3f3f46',
-                opacity: i <= level.rank ? 1 : 0.35,
-              }} />
+          <p className="text-zinc-500 text-xs">seller_id: {rep.seller_id}</p>
+        </div>
+
+        {/* Termômetro horizontal */}
+        <div className="mt-5">
+          <div className="flex gap-1.5">
+            {THERMO_COLORS.map((cor, i) => (
+              <div
+                key={i}
+                className="flex-1 h-2 rounded-full transition-opacity"
+                style={{ backgroundColor: cor, opacity: i <= nivelAtivo ? 1 : 0.2 }}
+              />
             ))}
           </div>
+          <div className="flex mt-1.5">
+            {THERMO_LABELS.map((lbl, i) => (
+              <span
+                key={i}
+                className="flex-1 text-center text-[10px] leading-tight"
+                style={{ color: i <= nivelAtivo ? THERMO_COLORS[i] : '#52525b', fontWeight: i === nivelAtivo ? 700 : 400 }}
+              >
+                {lbl}
+              </span>
+            ))}
+          </div>
+          {psLabel && (
+            <p className="text-zinc-500 text-xs mt-2">
+              Voce aparece como {psLabel} para os compradores
+            </p>
+          )}
         </div>
       </div>
 
