@@ -1,5 +1,10 @@
 'use client'
 
+import { useState, useEffect } from 'react'
+import { createClient } from '@/lib/supabase'
+
+const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
+
 function Sparkline({ values, color }: { values: number[]; color: string }) {
   const h = 40
   const w = 88
@@ -161,6 +166,95 @@ const alertIcons = {
   ),
 }
 
+// ── ML Sales Card ─────────────────────────────────────────────────────────────
+
+type MlSalesData = { today: number; todayGmv: number; week: number; weekGmv: number }
+
+function MlSalesCard() {
+  const [data, setData] = useState<MlSalesData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [visible, setVisible] = useState(false)
+
+  useEffect(() => {
+    ;(async () => {
+      const supabase = createClient()
+      const { data: sess } = await supabase.auth.getSession()
+      const token = sess.session?.access_token
+      if (!token) { setLoading(false); return }
+
+      try {
+        const res = await fetch(`${BACKEND}/ml/recent-orders?limit=50`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (!res.ok) { setLoading(false); return }
+        const { orders } = await res.json()
+        setVisible(true)
+
+        const now = new Date()
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+        const weekStart = todayStart - 6 * 24 * 60 * 60 * 1000
+
+        let today = 0, todayGmv = 0, week = 0, weekGmv = 0
+        for (const o of (orders ?? [])) {
+          if (o.status !== 'paid') continue
+          const ts = new Date(o.date_created).getTime()
+          if (ts >= todayStart) { today++; todayGmv += o.total_amount ?? 0 }
+          if (ts >= weekStart) { week++; weekGmv += o.total_amount ?? 0 }
+        }
+
+        setData({ today, todayGmv, week, weekGmv })
+      } catch { /* ML not connected */ }
+      setLoading(false)
+    })()
+  }, [])
+
+  if (!loading && !visible) return null
+
+  const fmt = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+
+  return (
+    <div className="rounded-xl p-5" style={{ background: '#111114', border: '1px solid rgba(255,255,255,0.06)' }}>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 rounded flex items-center justify-center text-[9px] font-black shrink-0"
+            style={{ background: '#ffe600', color: '#333' }}>ML</div>
+          <h3 className="text-white text-[13px] font-semibold">Vendas Mercado Livre</h3>
+        </div>
+        <span className="text-[11px] font-medium px-2 py-1 rounded-md"
+          style={{ background: 'rgba(0,229,255,0.08)', color: '#00E5FF' }}>
+          Últimas 50 ordens
+        </span>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center gap-2 text-zinc-500 text-xs">
+          <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+          </svg>
+          Buscando vendas…
+        </div>
+      ) : data && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[
+            { label: 'Pedidos hoje', value: String(data.today), sub: 'pagos', color: '#34d399' },
+            { label: 'GMV hoje',     value: fmt(data.todayGmv), sub: 'receita do dia',   color: '#00E5FF' },
+            { label: 'Pedidos 7d',   value: String(data.week),  sub: 'pagos',            color: '#a78bfa' },
+            { label: 'GMV 7 dias',   value: fmt(data.weekGmv),  sub: 'receita da semana', color: '#fb923c' },
+          ].map(({ label, value, sub, color }) => (
+            <div key={label} className="rounded-lg p-3"
+              style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <p className="text-zinc-500 text-[10px] mb-1">{label}</p>
+              <p className="font-bold text-base leading-none" style={{ color }}>{value}</p>
+              <p className="text-zinc-600 text-[10px] mt-1">{sub}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function DashboardPage() {
   const today = new Date().toLocaleDateString('pt-BR', {
     weekday: 'long',
@@ -238,6 +332,9 @@ export default function DashboardPage() {
           </div>
         ))}
       </div>
+
+      {/* ML Sales Card */}
+      <MlSalesCard />
 
       {/* Bottom section */}
       <div className="grid grid-cols-1 xl:grid-cols-5 gap-3">

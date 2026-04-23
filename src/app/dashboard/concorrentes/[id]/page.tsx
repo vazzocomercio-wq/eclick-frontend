@@ -38,6 +38,7 @@ type Product = {
   ml_listing_type: string | null
   ml_free_shipping: boolean | null
   stock: number | null
+  ml_item_id: string | null
 }
 
 type ChartPoint = { date: string; ourPrice: number; [key: string]: number | string }
@@ -480,6 +481,8 @@ export default function ProductDetailPage() {
   const [alertTarget, setAlertTarget] = useState<Competitor | null>(null)
   const [updating, setUpdating] = useState(false)
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
+  const [mlVisits, setMlVisits] = useState<number | null>(null)
+  const [visitsLoading, setVisitsLoading] = useState(false)
 
   function showToast(msg: string, type: 'success' | 'error' = 'success') {
     setToast({ msg, type })
@@ -494,7 +497,7 @@ export default function ProductDetailPage() {
     setOrgId(member?.organization_id ?? null)
 
     const [{ data: prodData }, { data: compData }] = await Promise.all([
-      supabase.from('products').select('id, name, price, photo_urls, platforms, ml_listing_type, ml_free_shipping, stock').eq('id', productId).maybeSingle(),
+      supabase.from('products').select('id, name, price, photo_urls, platforms, ml_listing_type, ml_free_shipping, stock, ml_item_id').eq('id', productId).maybeSingle(),
       supabase.from('competitors').select('id, product_id, organization_id, platform, url, title, seller, current_price, my_price, photo_url, status, last_checked, created_at').eq('product_id', productId).order('created_at', { ascending: false }),
     ])
 
@@ -527,6 +530,26 @@ export default function ProductDetailPage() {
   }, [productId])
 
   useEffect(() => { load() }, [load])
+
+  useEffect(() => {
+    if (!product?.ml_item_id) { setMlVisits(null); return }
+    setVisitsLoading(true)
+    ;(async () => {
+      const { data: sess } = await createClient().auth.getSession()
+      const token = sess.session?.access_token
+      if (!token) { setVisitsLoading(false); return }
+      try {
+        const res = await fetch(`${BACKEND}/ml/items/${encodeURIComponent(product.ml_item_id!)}/visits`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (res.ok) {
+          const body = await res.json()
+          setMlVisits(body.total_visits ?? 0)
+        }
+      } catch { /* ignore */ }
+      setVisitsLoading(false)
+    })()
+  }, [product?.ml_item_id])
 
   const myPrice = competitors[0]?.my_price ?? null
 
@@ -951,7 +974,7 @@ export default function ProductDetailPage() {
             {product && product.platforms?.includes('mercadolivre') && (
               <div>
                 <p className="text-zinc-500 text-[11px] uppercase tracking-widest font-semibold mb-3">Métricas Mercado Livre</p>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                   {[
                     { label: 'Preço cadastrado', value: brl(product.price) },
                     { label: 'Estoque', value: product.stock != null ? String(product.stock) : '—' },
@@ -963,6 +986,22 @@ export default function ProductDetailPage() {
                       <p className="text-white text-sm font-semibold">{value}</p>
                     </div>
                   ))}
+                  {/* Visits card — shown when ml_item_id is present */}
+                  {product.ml_item_id && (
+                    <div className="rounded-xl px-4 py-3" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+                      <p className="text-zinc-500 text-[10px] mb-1">Visitas 7 dias</p>
+                      {visitsLoading ? (
+                        <svg className="w-4 h-4 animate-spin mt-1" style={{ color: '#00E5FF' }} fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        </svg>
+                      ) : (
+                        <p className="text-white text-sm font-semibold" style={{ color: mlVisits != null ? '#00E5FF' : undefined }}>
+                          {mlVisits != null ? mlVisits.toLocaleString('pt-BR') : '—'}
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             )}

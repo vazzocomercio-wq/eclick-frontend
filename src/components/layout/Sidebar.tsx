@@ -21,6 +21,15 @@ const mainNav: NavItem[] = [
     ),
   },
   {
+    label: 'Vendas ao Vivo',
+    href: '/dashboard/vendas-ao-vivo',
+    icon: (
+      <svg className="w-[15px] h-[15px]" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.75}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+      </svg>
+    ),
+  },
+  {
     label: 'Produtos',
     href: '/dashboard/produtos',
     icon: (
