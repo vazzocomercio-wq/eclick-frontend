@@ -8,6 +8,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer,
 } from 'recharts'
+import BrazilSalesMap from '@/components/BrazilSalesMap'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 
@@ -19,6 +20,8 @@ type Order = {
   date_created: string
   total_amount: number
   items: Array<{ item_id: string; title: string; quantity: number; unit_price: number }>
+  shipping_state?: string | null
+  shipping_city?: string | null
 }
 
 type DBProduct = {
@@ -696,6 +699,27 @@ export default function DashboardPage() {
               ))}
               <p className="text-zinc-700 text-[10px] mt-3">* Impressões, cliques e intenções são estimadas. Conecte Analytics para dados reais.</p>
             </div>
+          )}
+        </div>
+      </section>
+
+      {/* LINHA 5.5 — Brazil Sales Map */}
+      <section>
+        <div className="rounded-2xl overflow-hidden" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+          <div className="px-6 pt-5 pb-2 flex items-center justify-between" style={{ borderBottom: '1px solid #1e1e24' }}>
+            <div>
+              <p className="text-white text-sm font-semibold">Vendas por Região Hoje</p>
+              <p className="text-zinc-500 text-xs mt-0.5">Pedidos pagos — período selecionado</p>
+            </div>
+          </div>
+          {loading ? (
+            <div className="animate-pulse" style={{ height: 350, background: '#111114' }} />
+          ) : (
+            <BrazilSalesMap
+              orders={todayOrdersBR}
+              height={350}
+              realtime={false}
+            />
           )}
         </div>
       </section>
