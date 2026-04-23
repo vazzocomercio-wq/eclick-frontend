@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
@@ -37,6 +38,13 @@ type MListing = {
   date_created: string
   account_nickname: string | null
   account_seller_id: number | null
+}
+
+type CreateResult = {
+  listing_id: string
+  status: 'created' | 'skipped' | 'error'
+  product_id?: string
+  reason?: string
 }
 
 type Counts = Record<string, number>
@@ -85,7 +93,7 @@ function typeBadge(listing_type_id: string, logistic_type: string | null, catalo
   return badges
 }
 
-// ── Account badge color (stable per seller_id) ────────────────────────────
+// ── Account badge color ────────────────────────────────────────────────────
 
 const ACCOUNT_COLORS = [
   { color: '#00E5FF', bg: '#0a1f2e', border: '#00E5FF2a' },
@@ -109,31 +117,23 @@ function SemiGauge({ score, label, sub }: { score: number | null; label: string;
     : score >= 60 ? '#f59e0b'
     : '#ef4444'
 
-  // Arc from 180° to 0° (left to right), semicircle
-  const arcLen = Math.PI * r                     // half circumference
-  const filled = score != null ? (score / 100) * arcLen : 0
-  const gap    = arcLen - filled
-
-  // strokeDasharray on a full circle: we only want the top half visible
+  const arcLen  = Math.PI * r
+  const filled  = score != null ? (score / 100) * arcLen : 0
   const fullCirc = 2 * Math.PI * r
-  // Offset: start at leftmost point (180°) = 3/4 of full circle from 12 o'clock
-  const offset = fullCirc * 0.75
+  const offset   = fullCirc * 0.75
 
   return (
     <div className="flex flex-col items-center" style={{ width: W }}>
       <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} overflow="visible">
-        {/* bg arc */}
         <circle cx={cx} cy={cy} r={r} fill="none" stroke="#1e1e24" strokeWidth="5"
           strokeDasharray={`${arcLen} ${arcLen}`}
           strokeDashoffset={-offset} strokeLinecap="round" />
-        {/* filled arc */}
         {score != null && (
           <circle cx={cx} cy={cy} r={r} fill="none" stroke={color} strokeWidth="5"
             strokeDasharray={`${filled} ${fullCirc - filled}`}
             strokeDashoffset={-offset} strokeLinecap="round"
             style={{ transition: 'stroke-dasharray .5s' }} />
         )}
-        {/* score text */}
         <text x={cx} y={cy - 2} textAnchor="middle" fontSize="13" fontWeight="800" fill={score != null ? color : '#52525b'}>
           {score != null ? score : '—'}
         </text>
@@ -163,7 +163,7 @@ function Copy({ text }: { text: string }) {
 
 function Toasts({ list }: { list: Toast[] }) {
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2 pointer-events-none">
+    <div className="fixed bottom-20 right-6 z-50 flex flex-col gap-2 pointer-events-none">
       {list.map(t => (
         <div key={t.id} className="px-4 py-3 rounded-xl text-sm font-medium shadow-2xl pointer-events-auto"
           style={{
@@ -208,7 +208,11 @@ function SkeletonRow() {
 
 // ── Item action menu ───────────────────────────────────────────────────────
 
-function ItemMenu({ item, onClose }: { item: MListing; onClose: () => void }) {
+function ItemMenu({ item, onClose, onCreateProduct }: {
+  item: MListing
+  onClose: () => void
+  onCreateProduct: (id: string) => void
+}) {
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const h = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) onClose() }
@@ -217,13 +221,24 @@ function ItemMenu({ item, onClose }: { item: MListing; onClose: () => void }) {
   }, [onClose])
 
   return (
-    <div ref={ref} className="absolute right-0 top-9 z-50 w-48 rounded-xl overflow-hidden shadow-2xl"
+    <div ref={ref} className="absolute right-0 top-9 z-50 w-52 rounded-xl overflow-hidden shadow-2xl"
       style={{ background: '#111114', border: '1px solid #1e1e24' }}>
       <a href={item.permalink} target="_blank" rel="noopener noreferrer"
         className="flex items-center gap-2 px-4 py-2.5 text-sm text-zinc-300 hover:bg-zinc-800 transition-colors">
         <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
         Abrir no ML
       </a>
+      <button
+        onClick={() => { onCreateProduct(item.id); onClose() }}
+        className="w-full text-left flex items-center gap-2 px-4 py-2.5 text-sm transition-colors"
+        style={{ color: '#00E5FF' }}
+        onMouseEnter={e => (e.currentTarget.style.background = 'rgba(0,229,255,0.07)')}
+        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+        <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+        </svg>
+        Criar Produto
+      </button>
       {[
         { label: 'Ver visitas', key: 'visits' },
         { label: item.status === 'active' ? 'Pausar anúncio' : 'Ativar anúncio', key: 'toggle' },
@@ -243,8 +258,11 @@ function ItemMenu({ item, onClose }: { item: MListing; onClose: () => void }) {
 
 // ── Listing card ───────────────────────────────────────────────────────────
 
-function ListingCard({ item, selected, onSelect }: {
-  item: MListing; selected: boolean; onSelect: (id: string) => void
+function ListingCard({ item, selected, onSelect, onCreateProduct }: {
+  item: MListing
+  selected: boolean
+  onSelect: (id: string) => void
+  onCreateProduct: (id: string) => void
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const fee      = item.price * feeRate(item.listing_type_id)
@@ -254,7 +272,6 @@ function ListingCard({ item, selected, onSelect }: {
   const disc     = discountPct(item.original_price, item.price)
   const hasPromo = (item.deal_ids?.length ?? 0) > 0 || (item.promotions?.length ?? 0) > 0
 
-  // Competitive status from catalog_listing_type_id
   const compStatus = (() => {
     const t = item.catalog_listing_type_id?.toLowerCase() ?? ''
     if (t.includes('winning')) return { label: '🏆 Ganhando', bg: '#0d1f17', color: '#4ade80', border: 'rgba(34,197,94,.2)' }
@@ -262,11 +279,10 @@ function ListingCard({ item, selected, onSelect }: {
     return null
   })()
 
-  // Shipping label
   const shippingLabel = (() => {
     if (item.logistic_type === 'fulfillment') return { text: 'Flex', bg: '#0e2a33', color: '#00E5FF', border: '#00E5FF22' }
     if (item.logistic_type === 'drop_off' || item.logistic_type === 'xd_drop_off') return { text: 'Coleta', bg: '#1a1a1f', color: '#71717a', border: '#27272a' }
-    if (item.free_shipping) return null // handled separately as "Frete grátis"
+    if (item.free_shipping) return null
     return { text: 'Comprador paga frete', bg: '#1a1a1f', color: '#52525b', border: '#1e1e24' }
   })()
 
@@ -293,7 +309,6 @@ function ListingCard({ item, selected, onSelect }: {
 
       {/* Info */}
       <div className="flex-1 min-w-0">
-        {/* Type + status badges */}
         <div className="flex flex-wrap gap-1.5 mb-1.5">
           {item.account_nickname && (() => {
             const p = accountPalette(item.account_seller_id)
@@ -329,13 +344,11 @@ function ListingCard({ item, selected, onSelect }: {
           )}
         </div>
 
-        {/* Title */}
         <a href={item.permalink} target="_blank" rel="noopener noreferrer"
           className="text-zinc-100 text-sm font-medium hover:text-cyan-300 transition-colors line-clamp-2 block mb-1.5">
           {item.title}
         </a>
 
-        {/* MLB + SKU */}
         <div className="flex flex-wrap items-center gap-3 text-xs text-zinc-500 mb-2">
           <span className="flex items-center font-mono text-zinc-400">
             {item.id}<Copy text={item.id} />
@@ -349,40 +362,25 @@ function ListingCard({ item, selected, onSelect }: {
           )}
         </div>
 
-        {/* Stats row */}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs mb-2">
-          <span className="text-zinc-500">
-            Disp: <span className="text-zinc-200 font-semibold">{num(item.available_quantity)}</span>
-          </span>
-          <span className="text-zinc-500">
-            Vendidos: <span className="text-zinc-200 font-semibold">{num(item.sold_quantity)}</span>
-          </span>
+          <span className="text-zinc-500">Disp: <span className="text-zinc-200 font-semibold">{num(item.available_quantity)}</span></span>
+          <span className="text-zinc-500">Vendidos: <span className="text-zinc-200 font-semibold">{num(item.sold_quantity)}</span></span>
           <span className="text-zinc-600">📷 {item.pictures_count}</span>
           <span className="text-zinc-600">Atualizado {ago(item.last_updated)}</span>
           {item.has_variations && (
-            <span className="text-cyan-500 font-medium cursor-pointer hover:text-cyan-300 text-xs">
-              Ver variações
-            </span>
+            <span className="text-cyan-500 font-medium cursor-pointer hover:text-cyan-300 text-xs">Ver variações</span>
           )}
         </div>
 
-        {/* Health gauges */}
         {(item.health_score != null || item.health_status != null) && (
           <div className="flex items-start gap-3 mt-2 pt-2" style={{ borderTop: '1px solid #1e1e24' }}>
-            <SemiGauge
-              score={item.health_score}
-              label="Qualidade"
-              sub={item.health_reasons.length > 0 ? `${item.health_reasons.length} ponto${item.health_reasons.length > 1 ? 's' : ''}` : undefined}
-            />
-            <SemiGauge
-              score={null}
-              label="Experiência"
-              sub={item.health_status === 'good' ? 'Ótima' : item.health_status === 'with_issues' ? 'Com problemas' : item.health_status === 'bad' ? 'Crítica' : undefined}
-            />
+            <SemiGauge score={item.health_score} label="Qualidade"
+              sub={item.health_reasons.length > 0 ? `${item.health_reasons.length} ponto${item.health_reasons.length > 1 ? 's' : ''}` : undefined} />
+            <SemiGauge score={null} label="Experiência"
+              sub={item.health_status === 'good' ? 'Ótima' : item.health_status === 'with_issues' ? 'Com problemas' : item.health_status === 'bad' ? 'Crítica' : undefined} />
           </div>
         )}
 
-        {/* Shipping + extra badges */}
         <div className="flex flex-wrap gap-1.5 mt-2">
           {item.free_shipping && (
             <span className="text-[10px] px-2 py-0.5 rounded-full font-medium"
@@ -417,10 +415,7 @@ function ListingCard({ item, selected, onSelect }: {
           {disc && item.original_price && (
             <div className="flex items-center gap-1.5 justify-end">
               <p className="text-zinc-600 text-[11px] line-through">{brl(item.original_price)}</p>
-              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
-                style={{ background: '#0d1f17', color: '#4ade80' }}>
-                -{disc}%
-              </span>
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ background: '#0d1f17', color: '#4ade80' }}>-{disc}%</span>
             </div>
           )}
           <p className="text-white text-xl font-bold leading-tight">{brl(item.price)}</p>
@@ -438,7 +433,6 @@ function ListingCard({ item, selected, onSelect }: {
           </div>
         </div>
 
-        {/* Menu */}
         <div className="relative mt-1">
           <button onClick={() => setMenuOpen(v => !v)}
             className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-colors hover:text-white"
@@ -448,7 +442,164 @@ function ListingCard({ item, selected, onSelect }: {
               <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
             </svg>
           </button>
-          {menuOpen && <ItemMenu item={item} onClose={() => setMenuOpen(false)} />}
+          {menuOpen && (
+            <ItemMenu
+              item={item}
+              onClose={() => setMenuOpen(false)}
+              onCreateProduct={onCreateProduct}
+            />
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Confirm create modal ───────────────────────────────────────────────────
+
+function ConfirmCreateModal({
+  items, creating, onConfirm, onClose,
+}: {
+  items: MListing[]
+  creating: boolean
+  onConfirm: () => void
+  onClose: () => void
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }}>
+      <div className="w-full max-w-lg rounded-2xl flex flex-col overflow-hidden"
+        style={{ background: '#111114', border: '1px solid #1e1e24', maxHeight: '80vh' }}>
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 shrink-0"
+          style={{ borderBottom: '1px solid #1e1e24' }}>
+          <div>
+            <p className="text-white text-sm font-semibold">Criar Produtos a partir de Anúncios</p>
+            <p className="text-zinc-500 text-xs mt-0.5">{items.length} anúncio{items.length > 1 ? 's' : ''} selecionado{items.length > 1 ? 's' : ''}</p>
+          </div>
+          <button onClick={onClose} className="text-zinc-500 hover:text-white transition-colors">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* List */}
+        <div className="flex-1 overflow-y-auto divide-y" style={{ borderColor: '#1e1e24' }}>
+          {items.map(item => (
+            <div key={item.id} className="flex items-center gap-3 px-5 py-3">
+              <img src={item.thumbnail} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0"
+                style={{ background: '#1c1c1f' }} />
+              <div className="flex-1 min-w-0">
+                <p className="text-zinc-100 text-xs font-medium truncate">{item.title}</p>
+                <p className="text-zinc-500 text-[10px] mt-0.5">
+                  {item.id}
+                  {item.sku ? ` · SKU: ${item.sku}` : ''}
+                </p>
+              </div>
+              <p className="text-white text-sm font-bold shrink-0">{brl(item.price)}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Notice */}
+        <div className="px-5 py-3 shrink-0" style={{ borderTop: '1px solid #1e1e24', background: 'rgba(0,229,255,0.04)' }}>
+          <p className="text-[11px]" style={{ color: '#71717a' }}>
+            ℹ️ Os produtos serão criados com os dados disponíveis do Mercado Livre. Você poderá editar custo e imposto depois.
+          </p>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-3 px-5 py-4 shrink-0"
+          style={{ borderTop: '1px solid #1e1e24' }}>
+          <button onClick={onClose} disabled={creating}
+            className="px-4 py-2 rounded-lg text-sm font-medium border transition-all disabled:opacity-50"
+            style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>
+            Cancelar
+          </button>
+          <button onClick={onConfirm} disabled={creating}
+            className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold transition-all active:scale-[0.98] disabled:opacity-60"
+            style={{ background: '#00E5FF', color: '#000' }}>
+            {creating && (
+              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+            )}
+            {creating ? 'Criando…' : `Criar ${items.length} Produto${items.length > 1 ? 's' : ''} →`}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Result modal ───────────────────────────────────────────────────────────
+
+function ResultModal({
+  results, onClose,
+}: {
+  results: CreateResult[]
+  onClose: () => void
+}) {
+  const router = useRouter()
+  const created  = results.filter(r => r.status === 'created').length
+  const skipped  = results.filter(r => r.status === 'skipped').length
+  const errors   = results.filter(r => r.status === 'error').length
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }}>
+      <div className="w-full max-w-md rounded-2xl flex flex-col overflow-hidden"
+        style={{ background: '#111114', border: '1px solid #1e1e24', maxHeight: '80vh' }}>
+
+        {/* Header */}
+        <div className="px-5 py-4 shrink-0" style={{ borderBottom: '1px solid #1e1e24' }}>
+          <p className="text-white text-sm font-semibold">Resultado da criação</p>
+          <div className="flex gap-4 mt-2">
+            {created > 0  && <span className="text-[11px] font-semibold" style={{ color: '#4ade80' }}>✅ {created} criado{created > 1 ? 's' : ''}</span>}
+            {skipped > 0  && <span className="text-[11px] font-semibold" style={{ color: '#f59e0b' }}>⚠️ {skipped} ignorado{skipped > 1 ? 's' : ''}</span>}
+            {errors > 0   && <span className="text-[11px] font-semibold" style={{ color: '#f87171' }}>❌ {errors} erro{errors > 1 ? 's' : ''}</span>}
+          </div>
+        </div>
+
+        {/* List */}
+        <div className="flex-1 overflow-y-auto divide-y" style={{ borderColor: '#1e1e24' }}>
+          {results.map(r => {
+            const icon  = r.status === 'created' ? '✅' : r.status === 'skipped' ? '⚠️' : '❌'
+            const color = r.status === 'created' ? '#4ade80' : r.status === 'skipped' ? '#f59e0b' : '#f87171'
+            return (
+              <div key={r.listing_id} className="flex items-start gap-3 px-5 py-3">
+                <span className="text-base shrink-0 mt-0.5">{icon}</span>
+                <div className="min-w-0">
+                  <p className="text-[12px] font-mono font-semibold" style={{ color }}>{r.listing_id}</p>
+                  <p className="text-zinc-500 text-[11px] mt-0.5">
+                    {r.status === 'created' ? 'Produto criado com sucesso'
+                      : r.status === 'skipped' ? (r.reason ?? 'Ignorado')
+                      : (r.reason ?? 'Erro ao criar')}
+                  </p>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-3 px-5 py-4 shrink-0"
+          style={{ borderTop: '1px solid #1e1e24' }}>
+          <button onClick={onClose}
+            className="px-4 py-2 rounded-lg text-sm font-medium border transition-all"
+            style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>
+            Fechar
+          </button>
+          {created > 0 && (
+            <button onClick={() => router.push('/dashboard/produtos')}
+              className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold transition-all"
+              style={{ background: '#00E5FF', color: '#000' }}>
+              Ver Produtos Criados →
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -518,6 +669,13 @@ export default function MLAnunciosPage() {
   const [syncing, setSyncing]   = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [toasts, setToasts]     = useState<Toast[]>([])
+
+  // Create-from-listing state
+  const [pendingIds, setPendingIds]     = useState<string[]>([])
+  const [confirmOpen, setConfirmOpen]   = useState(false)
+  const [creating, setCreating]         = useState(false)
+  const [results, setResults]           = useState<CreateResult[] | null>(null)
+
   const tid = useRef(0)
   const PAGE = 20
 
@@ -562,7 +720,6 @@ export default function MLAnunciosPage() {
       const body = await res.json()
       let list: MListing[] = body.items ?? []
 
-      // Client-side filter for SKU / MLB
       if (query.trim() && stype !== 'title') {
         const lq = query.trim().toLowerCase()
         list = list.filter(i =>
@@ -615,7 +772,39 @@ export default function MLAnunciosPage() {
 
   function toggleAll() {
     if (allSelected) setSelected(s => { const n = new Set(s); items.forEach(i => n.delete(i.id)); return n })
-    else              setSelected(s => { const n = new Set(s); items.forEach(i => n.add(i.id));    return n })
+    else             setSelected(s => { const n = new Set(s); items.forEach(i => n.add(i.id));    return n })
+  }
+
+  // ── Create from listing ────────────────────────────────────────────────
+
+  function openCreateConfirm(ids: string[]) {
+    if (ids.length === 0) return
+    setPendingIds(ids)
+    setConfirmOpen(true)
+  }
+
+  async function handleCreateConfirm() {
+    if (pendingIds.length === 0) return
+    setCreating(true)
+    try {
+      const headers = await getHeaders()
+      const res = await fetch(`${BACKEND}/ml/products/from-listing`, {
+        method:  'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ listing_ids: pendingIds }),
+      })
+      const data = await res.json()
+      const r: CreateResult[] = data.results ?? []
+      setResults(r)
+      setConfirmOpen(false)
+      setSelected(new Set())
+      const created = r.filter(x => x.status === 'created').length
+      if (created > 0) toast(`${created} produto${created > 1 ? 's' : ''} criado${created > 1 ? 's' : ''}!`, 'success')
+    } catch (e: unknown) {
+      toast(e instanceof Error ? e.message : 'Erro ao criar produtos', 'error')
+    } finally {
+      setCreating(false)
+    }
   }
 
   // ── KPIs derived ──────────────────────────────────────────────────────
@@ -631,8 +820,12 @@ export default function MLAnunciosPage() {
     { key: 'under_review', label: 'Em revisão' },
   ]
 
+  // Pending items objects for confirm modal
+  const pendingItems = items.filter(i => pendingIds.includes(i.id))
+
   return (
-    <div style={{ background: '#09090b', minHeight: '100vh' }} className="p-6 max-w-6xl space-y-5">
+    <div style={{ background: '#09090b', minHeight: '100vh' }}
+      className={`p-6 max-w-6xl space-y-5 ${selected.size > 0 ? 'pb-24' : ''}`}>
       <Toasts list={toasts} />
 
       {/* ── Header ────────────────────────────────────────────────── */}
@@ -656,9 +849,9 @@ export default function MLAnunciosPage() {
       {/* ── KPIs ──────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Anúncios ativos',   value: num(counts.active  ?? 0), sub: 'publicados',     color: '#22c55e' },
-          { label: 'Anúncios pausados', value: num(counts.paused  ?? 0), sub: 'fora do ar',     color: '#f87171' },
-          { label: 'Em revisão',        value: num(counts.under_review ?? 0), sub: 'aguardando', color: '#fbbf24' },
+          { label: 'Anúncios ativos',   value: num(counts.active  ?? 0), sub: 'publicados',       color: '#22c55e' },
+          { label: 'Anúncios pausados', value: num(counts.paused  ?? 0), sub: 'fora do ar',       color: '#f87171' },
+          { label: 'Em revisão',        value: num(counts.under_review ?? 0), sub: 'aguardando',  color: '#fbbf24' },
           { label: 'Estoque (pág.)',    value: num(stockTotal),            sub: 'itens disponíveis', color: '#00E5FF' },
         ].map(kpi => (
           <div key={kpi.label} className="rounded-2xl p-5" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
@@ -734,6 +927,17 @@ export default function MLAnunciosPage() {
               ? `${selected.size} selecionado${selected.size > 1 ? 's' : ''}`
               : `${num(items.length)} anúncio${items.length !== 1 ? 's' : ''} nesta página`}
           </span>
+          {selected.size > 0 && (
+            <button
+              onClick={() => openCreateConfirm([...selected])}
+              className="ml-2 flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-semibold transition-all"
+              style={{ background: 'rgba(0,229,255,0.1)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.2)' }}>
+              <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+              </svg>
+              Criar Produtos
+            </button>
+          )}
         </div>
       )}
 
@@ -746,7 +950,7 @@ export default function MLAnunciosPage() {
               <div className="flex flex-col items-center justify-center py-20 text-zinc-600">
                 <svg width="52" height="52" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={0.8}
                   className="mb-4 opacity-25">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                 </svg>
                 <p className="text-sm font-medium text-zinc-500 mb-1">Nenhum anúncio encontrado</p>
                 <p className="text-xs mb-5">Sincronize com o Mercado Livre para importar seus anúncios</p>
@@ -764,6 +968,7 @@ export default function MLAnunciosPage() {
               <ListingCard key={item.id} item={item}
                 selected={selected.has(item.id)}
                 onSelect={id => setSelected(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n })}
+                onCreateProduct={id => openCreateConfirm([id])}
               />
             ))
         }
@@ -776,6 +981,59 @@ export default function MLAnunciosPage() {
 
       {/* spin keyframe */}
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+
+      {/* ── Floating action bar ───────────────────────────────────── */}
+      {selected.size > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 z-40 flex items-center justify-between px-6 py-4"
+          style={{
+            background: '#111114',
+            borderTop: '1px solid #00E5FF33',
+            boxShadow: '0 -4px 24px rgba(0,229,255,0.08)',
+          }}>
+          <span className="flex items-center gap-2 text-sm font-semibold text-white">
+            <span className="flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold"
+              style={{ background: '#00E5FF', color: '#000' }}>
+              {selected.size}
+            </span>
+            anúncio{selected.size > 1 ? 's' : ''} selecionado{selected.size > 1 ? 's' : ''}
+          </span>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => openCreateConfirm([...selected])}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all active:scale-[0.98]"
+              style={{ background: '#00E5FF', color: '#000' }}>
+              <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+              </svg>
+              Criar Produtos
+            </button>
+            <button
+              onClick={() => setSelected(new Set())}
+              className="px-4 py-2.5 rounded-xl text-sm font-medium border transition-all"
+              style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Confirm modal ─────────────────────────────────────────── */}
+      {confirmOpen && pendingItems.length > 0 && (
+        <ConfirmCreateModal
+          items={pendingItems}
+          creating={creating}
+          onConfirm={handleCreateConfirm}
+          onClose={() => { if (!creating) setConfirmOpen(false) }}
+        />
+      )}
+
+      {/* ── Result modal ──────────────────────────────────────────── */}
+      {results && (
+        <ResultModal
+          results={results}
+          onClose={() => setResults(null)}
+        />
+      )}
     </div>
   )
 }

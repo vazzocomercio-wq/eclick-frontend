@@ -409,8 +409,10 @@ export default function FinancialSummaryPage() {
   const sortedOrders = useMemo(() => {
     const arr = [...filteredOrders]
     arr.sort((a, b) => {
-      let av: any = (a as any)[sortCol]
-      let bv: any = (b as any)[sortCol]
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let av = (a as Record<string, unknown>)[sortCol] as any
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let bv = (b as Record<string, unknown>)[sortCol] as any
       if (av == null) av = sortDir === 'asc' ? Infinity : -Infinity
       if (bv == null) bv = sortDir === 'asc' ? Infinity : -Infinity
       if (typeof av === 'string') return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av)
