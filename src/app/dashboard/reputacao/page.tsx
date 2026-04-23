@@ -1,38 +1,31 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 
 type Reputation = {
-  seller_id: number
-  level_id: string
-  power_seller_status: string | null
-  transactions: {
-    canceled: { total: number; paid: number }
-    completed: { total: number; paid: number }
-    total: number
-    ratings: { negative: number; neutral: number; positive: number }
-    period: { total: number; paid: number }
+  seller_id?: number
+  level_id?: string | null
+  power_seller_status?: string | null
+  transactions?: {
+    canceled?:  { total?: number; paid?: number }
+    completed?: { total?: number; paid?: number }
+    total?: number
+    ratings?: { negative?: number; neutral?: number; positive?: number }
+    period?: { total?: number; paid?: number }
   }
-  metrics: {
-    sales?: { period: string; completed: number }
-    claims?: { period: string; rate: number; value: number }
-    delayed_handling_time?: { period: string; rate: number; value: number }
-    cancellations?: { period: string; rate: number; value: number }
-    mediation?: { period: string; rate: number; value: number }
+  metrics?: {
+    sales?: { period?: string; completed?: number }
+    claims?: { period?: string; rate?: number; value?: number }
+    delayed_handling_time?: { period?: string; rate?: number; value?: number }
+    cancellations?: { period?: string; rate?: number; value?: number }
+    mediation?: { period?: string; rate?: number; value?: number }
   }
 }
 
-type LevelInfo = {
-  label: string
-  color: string
-  bgCard: string
-  borderCard: string
-  barColor: string
-  rank: number
-}
+type LevelInfo = { label: string; color: string; bgCard: string; borderCard: string; barColor: string; rank: number }
 
 const LEVEL_MAP: Record<string, LevelInfo> = {
   '5_green':       { label: 'Platinum', color: 'text-cyan-300',   bgCard: 'bg-cyan-900/20',   borderCard: 'border-cyan-500/30',   barColor: '#22d3ee', rank: 5 },
@@ -48,9 +41,7 @@ const POWER_LABEL: Record<string, string> = {
   silver:   'MercadoLider Silver',
 }
 
-function fmtPct(rate: number) {
-  return (rate * 100).toFixed(2) + '%'
-}
+function fmtPct(rate: number) { return (rate * 100).toFixed(2) + '%' }
 
 function metricStyle(rate: number, warn: number, crit: number) {
   if (rate <= warn) return { bar: 'bg-emerald-500', text: 'text-emerald-400', badge: 'bg-emerald-900/30 text-emerald-300', label: 'Otimo' }
@@ -63,10 +54,10 @@ export default function Page() {
   const [loading, setLoading] = useState(true)
   const [error,   setError]   = useState<string | null>(null)
 
-  const supabase = createBrowserClient(
+  const supabase = useMemo(() => createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  )
+  ), [])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -90,7 +81,7 @@ export default function Page() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [supabase])
 
   useEffect(() => { load() }, [load])
 
@@ -106,10 +97,7 @@ export default function Page() {
       <div className="bg-red-900/20 border border-red-500/30 rounded-xl p-6">
         <p className="text-red-400 font-semibold">Erro ao carregar reputacao</p>
         <p className="text-red-400/70 text-sm mt-1">{error}</p>
-        <button
-          onClick={load}
-          className="mt-3 text-sm bg-red-900/40 hover:bg-red-900/60 text-red-300 px-4 py-2 rounded-lg transition-colors"
-        >
+        <button onClick={load} className="mt-3 text-sm bg-red-900/40 hover:bg-red-900/60 text-red-300 px-4 py-2 rounded-lg transition-colors">
           Tentar novamente
         </button>
       </div>
@@ -118,29 +106,41 @@ export default function Page() {
 
   if (!rep) return null
 
-  const level   = (rep.level_id ? LEVEL_MAP[rep.level_id] : null) ?? { label: rep.level_id ?? 'Sem dados', color: 'text-zinc-400', bgCard: 'bg-zinc-800', borderCard: 'border-zinc-700', barColor: '#71717a', rank: 0 }
-  const txn     = rep.transactions
-  const psLabel = rep.power_seller_status ? (POWER_LABEL[rep.power_seller_status] ?? rep.power_seller_status) : null
-  const totalRat = txn.ratings.positive + txn.ratings.neutral + txn.ratings.negative
-  const posPct   = totalRat > 0 ? ((txn.ratings.positive / totalRat) * 100).toFixed(1) : '0'
-  const concPct  = txn.total > 0 ? ((txn.completed.total / txn.total) * 100).toFixed(1) : '0'
-  const cancPct  = txn.total > 0 ? ((txn.canceled.total / txn.total) * 100).toFixed(1) : '0'
+  // ── null-safe derivations ──────────────────────────────────────────────────
+  const txn      = rep.transactions ?? {}
+  const metrics  = rep.metrics ?? {}
+  const ratings  = txn.ratings ?? {}
+  const completed = txn.completed ?? {}
+  const canceled  = txn.canceled  ?? {}
+  const period    = txn.period    ?? {}
+
+  const total    = txn.total ?? 0
+  const compTotal = completed.total ?? 0
+  const cancTotal = canceled.total  ?? 0
+  const posCount  = ratings.positive ?? 0
+  const neutCount = ratings.neutral  ?? 0
+  const negCount  = ratings.negative ?? 0
+  const totalRat  = posCount + neutCount + negCount
+  const posPct    = totalRat > 0 ? ((posCount / totalRat) * 100).toFixed(1) : '0'
+  const concPct   = total > 0 ? ((compTotal / total) * 100).toFixed(1) : '0'
+  const cancPct   = total > 0 ? ((cancTotal / total) * 100).toFixed(1) : '0'
+
+  const levelId  = rep.level_id ?? null
+  const level    = (levelId ? LEVEL_MAP[levelId] : null) ?? { label: levelId ?? 'Sem dados', color: 'text-zinc-400', bgCard: 'bg-zinc-800', borderCard: 'border-zinc-700', barColor: '#71717a', rank: 0 }
+  const psLabel  = rep.power_seller_status ? (POWER_LABEL[rep.power_seller_status] ?? rep.power_seller_status) : null
 
   const qualMetrics = [
-    { label: 'Reclamacoes',        m: rep.metrics.claims,                warn: 0.01,  crit: 0.03  },
-    { label: 'Mediacoes',          m: rep.metrics.mediation,             warn: 0.005, crit: 0.02  },
-    { label: 'Cancelamentos',      m: rep.metrics.cancellations,         warn: 0.02,  crit: 0.05  },
-    { label: 'Atraso no despacho', m: rep.metrics.delayed_handling_time, warn: 0.05,  crit: 0.10  },
+    { label: 'Reclamacoes',        m: metrics.claims,                warn: 0.01,  crit: 0.03  },
+    { label: 'Mediacoes',          m: metrics.mediation,             warn: 0.005, crit: 0.02  },
+    { label: 'Cancelamentos',      m: metrics.cancellations,         warn: 0.02,  crit: 0.05  },
+    { label: 'Atraso no despacho', m: metrics.delayed_handling_time, warn: 0.05,  crit: 0.10  },
   ]
 
   return (
     <div className="p-8 space-y-6 max-w-5xl">
       <div className="flex items-center justify-between">
         <h1 className="text-white text-2xl font-semibold">Reputacao</h1>
-        <button
-          onClick={load}
-          className="text-xs text-zinc-400 hover:text-white bg-zinc-800 hover:bg-zinc-700 px-3 py-1.5 rounded-lg transition-colors"
-        >
+        <button onClick={load} className="text-xs text-zinc-400 hover:text-white bg-zinc-800 hover:bg-zinc-700 px-3 py-1.5 rounded-lg transition-colors">
           Atualizar
         </button>
       </div>
@@ -159,16 +159,11 @@ export default function Page() {
           </div>
           <div className="flex gap-2 items-end">
             {[1, 2, 3, 4, 5].map(i => (
-              <div
-                key={i}
-                className="rounded-sm"
-                style={{
-                  width: 18,
-                  height: 8 + i * 7,
-                  backgroundColor: i <= level.rank ? level.barColor : '#3f3f46',
-                  opacity: i <= level.rank ? 1 : 0.35,
-                }}
-              />
+              <div key={i} className="rounded-sm" style={{
+                width: 18, height: 8 + i * 7,
+                backgroundColor: i <= level.rank ? level.barColor : '#3f3f46',
+                opacity: i <= level.rank ? 1 : 0.35,
+              }} />
             ))}
           </div>
         </div>
@@ -177,10 +172,10 @@ export default function Page() {
       {/* ── All-time stats ─────────────────────────────────────── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: 'Total de vendas',    value: txn.total.toLocaleString('pt-BR'),           sub: 'historico completo' },
-          { label: 'Concluidas',         value: txn.completed.total.toLocaleString('pt-BR'), sub: `${concPct}% de conclusao` },
-          { label: 'Canceladas',         value: txn.canceled.total.toLocaleString('pt-BR'),  sub: `${cancPct}% do total` },
-          { label: 'Avaliacao positiva', value: `${posPct}%`,                                sub: `${txn.ratings.positive.toLocaleString('pt-BR')} positivas` },
+          { label: 'Total de vendas',    value: total.toLocaleString('pt-BR'),    sub: 'historico completo' },
+          { label: 'Concluidas',         value: compTotal.toLocaleString('pt-BR'), sub: `${concPct}% de conclusao` },
+          { label: 'Canceladas',         value: cancTotal.toLocaleString('pt-BR'), sub: `${cancPct}% do total` },
+          { label: 'Avaliacao positiva', value: `${posPct}%`,                     sub: `${posCount.toLocaleString('pt-BR')} positivas` },
         ].map(s => (
           <div key={s.label} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
             <p className="text-zinc-500 text-xs mb-1">{s.label}</p>
@@ -195,9 +190,9 @@ export default function Page() {
         <h3 className="text-white font-semibold mb-5">Ultimos 60 Dias</h3>
         <div className="grid grid-cols-3 divide-x divide-zinc-800 text-center">
           {[
-            { label: 'Vendas no periodo',     value: txn.period?.total ?? 0 },
-            { label: 'Com frete pago',        value: txn.period?.paid  ?? 0 },
-            { label: 'Concluidas (metricas)', value: rep.metrics.sales?.completed ?? 0 },
+            { label: 'Vendas no periodo',     value: period.total ?? 0 },
+            { label: 'Com frete pago',        value: period.paid  ?? 0 },
+            { label: 'Concluidas (metricas)', value: metrics.sales?.completed ?? 0 },
           ].map(s => (
             <div key={s.label} className="px-4 py-2">
               <p className="text-white text-3xl font-bold">{s.value.toLocaleString('pt-BR')}</p>
@@ -213,7 +208,7 @@ export default function Page() {
         <p className="text-zinc-500 text-xs mb-5">Calculadas sobre os ultimos 60 dias</p>
         <div className="space-y-5">
           {qualMetrics.map(({ label, m, warn, crit }) => {
-            const rate = m?.rate ?? 0
+            const rate = m?.rate  ?? 0
             const val  = m?.value ?? 0
             const sty  = metricStyle(rate, warn, crit)
             const barW = Math.min(Math.max(rate * 500, val > 0 ? 1 : 0), 100)
@@ -241,9 +236,9 @@ export default function Page() {
         <h3 className="text-white font-semibold mb-5">Avaliacoes dos Compradores</h3>
         <div className="space-y-3">
           {[
-            { label: 'Positivas', value: txn.ratings.positive, barCls: 'bg-emerald-500', txtCls: 'text-emerald-400' },
-            { label: 'Neutras',   value: txn.ratings.neutral,  barCls: 'bg-yellow-500',  txtCls: 'text-yellow-400'  },
-            { label: 'Negativas', value: txn.ratings.negative, barCls: 'bg-red-500',     txtCls: 'text-red-400'    },
+            { label: 'Positivas', value: posCount,  barCls: 'bg-emerald-500', txtCls: 'text-emerald-400' },
+            { label: 'Neutras',   value: neutCount,  barCls: 'bg-yellow-500',  txtCls: 'text-yellow-400'  },
+            { label: 'Negativas', value: negCount, barCls: 'bg-red-500',     txtCls: 'text-red-400'    },
           ].map(r => {
             const w = totalRat > 0 ? (r.value / totalRat) * 100 : 0
             return (
