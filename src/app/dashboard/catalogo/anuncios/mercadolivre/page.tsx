@@ -458,8 +458,9 @@ function ListingCard({ item, selected, onSelect, onCreateProduct }: {
 // ── Confirm create modal ───────────────────────────────────────────────────
 
 function ConfirmCreateModal({
-  items, creating, onConfirm, onClose,
+  count, items, creating, onConfirm, onClose,
 }: {
+  count: number
   items: MListing[]
   creating: boolean
   onConfirm: () => void
@@ -476,7 +477,7 @@ function ConfirmCreateModal({
           style={{ borderBottom: '1px solid #1e1e24' }}>
           <div>
             <p className="text-white text-sm font-semibold">Criar Produtos a partir de Anúncios</p>
-            <p className="text-zinc-500 text-xs mt-0.5">{items.length} anúncio{items.length > 1 ? 's' : ''} selecionado{items.length > 1 ? 's' : ''}</p>
+            <p className="text-zinc-500 text-xs mt-0.5">{count} anúncio{count > 1 ? 's' : ''} selecionado{count > 1 ? 's' : ''}</p>
           </div>
           <button onClick={onClose} className="text-zinc-500 hover:text-white transition-colors">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
@@ -487,20 +488,25 @@ function ConfirmCreateModal({
 
         {/* List */}
         <div className="flex-1 overflow-y-auto divide-y" style={{ borderColor: '#1e1e24' }}>
-          {items.map(item => (
+          {items.length > 0 ? items.map(item => (
             <div key={item.id} className="flex items-center gap-3 px-5 py-3">
-              <img src={item.thumbnail} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0"
-                style={{ background: '#1c1c1f' }} />
+              {item.thumbnail
+                ? <img src={item.thumbnail} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0" style={{ background: '#1c1c1f' }} />
+                : <div className="w-10 h-10 rounded-lg shrink-0" style={{ background: '#1c1c1f' }} />
+              }
               <div className="flex-1 min-w-0">
-                <p className="text-zinc-100 text-xs font-medium truncate">{item.title}</p>
+                <p className="text-zinc-100 text-xs font-medium truncate">{item.title || item.id}</p>
                 <p className="text-zinc-500 text-[10px] mt-0.5">
-                  {item.id}
-                  {item.sku ? ` · SKU: ${item.sku}` : ''}
+                  {item.id}{item.sku ? ` · SKU: ${item.sku}` : ''}
                 </p>
               </div>
-              <p className="text-white text-sm font-bold shrink-0">{brl(item.price)}</p>
+              {item.price > 0 && <p className="text-white text-sm font-bold shrink-0">{brl(item.price)}</p>}
             </div>
-          ))}
+          )) : (
+            <div className="px-5 py-4 text-zinc-500 text-sm">
+              {count} anúncio{count > 1 ? 's' : ''} selecionado{count > 1 ? 's' : ''}
+            </div>
+          )}
         </div>
 
         {/* Notice */}
@@ -527,7 +533,7 @@ function ConfirmCreateModal({
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
               </svg>
             )}
-            {creating ? 'Criando…' : `Criar ${items.length} Produto${items.length > 1 ? 's' : ''} →`}
+            {creating ? 'Criando…' : `Confirmar e Criar ${count} Produto${count > 1 ? 's' : ''} →`}
           </button>
         </div>
       </div>
@@ -611,7 +617,7 @@ function ResultModal({
             Fechar
           </button>
           {!loading && created > 0 && (
-            <button onClick={() => router.push('/dashboard/catalogo/produtos')}
+            <button onClick={() => router.push('/dashboard/produtos')}
               className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold transition-all"
               style={{ background: '#00E5FF', color: '#000' }}>
               Ver Produtos Criados →
@@ -797,6 +803,7 @@ export default function MLAnunciosPage() {
 
   function openCreateConfirm(ids: string[]) {
     if (ids.length === 0) return
+    console.log('[criar-produto] openCreateConfirm ids:', ids)
     setPendingIds(ids)
     setConfirmOpen(true)
   }
@@ -1034,7 +1041,11 @@ export default function MLAnunciosPage() {
           </span>
           <div className="flex items-center gap-3">
             <button
-              onClick={() => openCreateConfirm([...selected])}
+              onClick={() => {
+                const ids = [...selected]
+                console.log('IDs selecionados:', ids)
+                openCreateConfirm(ids)
+              }}
               className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all active:scale-[0.98]"
               style={{ background: '#00E5FF', color: '#000' }}>
               <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -1053,8 +1064,9 @@ export default function MLAnunciosPage() {
       )}
 
       {/* ── Confirm modal ─────────────────────────────────────────── */}
-      {confirmOpen && pendingItems.length > 0 && (
+      {confirmOpen && pendingIds.length > 0 && (
         <ConfirmCreateModal
+          count={pendingIds.length}
           items={pendingItems}
           creating={creating}
           onConfirm={handleCreateConfirm}
