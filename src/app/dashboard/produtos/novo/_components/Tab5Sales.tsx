@@ -150,6 +150,78 @@ export default function Tab5Sales({ data, set }: TabProps) {
         )}
       </section>
 
+      {/* Cost & Margin */}
+      <section>
+        <p className={sec}>Custo &amp; Impostos</p>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className={lbl}>Custo do produto (CMV)</label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 text-sm">R$</span>
+              <input type="text" className={inp} placeholder="0,00"
+                value={data.costPrice} onChange={e => set('costPrice', e.target.value)}
+                style={{ paddingLeft: '36px' }} />
+            </div>
+          </div>
+          <div>
+            <label className={lbl}>Imposto (%)</label>
+            <div className="relative">
+              <input type="text" className={inp} placeholder="0,00"
+                value={data.taxPercentage} onChange={e => set('taxPercentage', e.target.value)}
+                style={{ paddingRight: '32px' }} />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 text-sm">%</span>
+            </div>
+          </div>
+          <div className="col-span-2">
+            <Toggle checked={data.taxOnFreight} onChange={v => set('taxOnFreight', v)}
+              label="Imposto incide sobre frete?"
+              sub="Quando ativo, o imposto é calculado sobre (venda + frete)" />
+          </div>
+        </div>
+
+        {/* Live margin preview */}
+        {(() => {
+          const salePrice  = parseFloat(String(data.price).replace(',', '.'))  || 0
+          const cost       = parseFloat(String(data.costPrice).replace(',', '.')) || 0
+          const taxPct     = parseFloat(String(data.taxPercentage).replace(',', '.')) || 0
+          const feeRate    = data.mlListingType === 'premium' ? 0.16 : 0.115
+          const tarifa     = Math.round(salePrice * feeRate * 100) / 100
+          const taxBase    = data.taxOnFreight ? salePrice : salePrice
+          const taxAmount  = Math.round(taxBase * (taxPct / 100) * 100) / 100
+          const margin     = Math.round((salePrice - cost - tarifa - taxAmount) * 100) / 100
+          const marginPct  = salePrice > 0 ? Math.round((margin / salePrice) * 10000) / 100 : 0
+          const hasData    = salePrice > 0 || cost > 0
+          if (!hasData) return null
+          const green = '#4ade80', red = '#f87171', dim = '#52525b'
+          const row = (icon: string, label: string, val: number, color: string) => (
+            <div key={label} className="flex items-center justify-between">
+              <span className="text-[11px]" style={{ color: dim }}>{icon} {label}</span>
+              <span className="text-[11px] font-semibold tabular-nums" style={{ color }}>
+                {val < 0 ? '-' : ''}{Math.abs(val).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+              </span>
+            </div>
+          )
+          return (
+            <div className="mt-4 p-4 rounded-xl border space-y-1.5" style={{ background: '#0f0f12', borderColor: '#1e1e24' }}>
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-2">Preview de margem</p>
+              {row('💰', 'Venda', salePrice, '#e4e4e7')}
+              {cost > 0 && row('📦', 'Custo (CMV)', -cost, red)}
+              {tarifa > 0 && row('🏪', `Tarifa ML (${Math.round(feeRate * 100)}%)`, -tarifa, red)}
+              {taxAmount > 0 && row('⚖️', `Imposto (${taxPct}%)`, -taxAmount, red)}
+              <div className="border-t pt-1.5" style={{ borderColor: '#1e1e24' }}>
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-semibold" style={{ color: '#e4e4e7' }}>🟢 Margem contrib.</span>
+                  <span className="text-[13px] font-bold tabular-nums" style={{ color: margin >= 0 ? green : red }}>
+                    {margin.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                    <span className="ml-1.5 text-[11px] font-semibold opacity-70">({marginPct}%)</span>
+                  </span>
+                </div>
+              </div>
+            </div>
+          )
+        })()}
+      </section>
+
       {/* ML listing type */}
       <section>
         <p className={sec}>Tipo de anúncio — Mercado Livre</p>

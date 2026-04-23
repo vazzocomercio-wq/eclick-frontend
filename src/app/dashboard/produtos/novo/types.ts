@@ -51,6 +51,9 @@ export type ProductForm = {
   wholesaleEnabled: boolean
   wholesaleLevels: WholesaleLevel[]
   mlListingType: 'classic' | 'premium'
+  costPrice: string
+  taxPercentage: string
+  taxOnFreight: boolean
   // Tab 6 - Shipping
   weightKg: string
   widthCm: string
@@ -96,6 +99,7 @@ export const emptyForm: ProductForm = {
   price: '', stock: '', saleFormat: 'unit',
   wholesaleEnabled: false, wholesaleLevels: [],
   mlListingType: 'classic',
+  costPrice: '', taxPercentage: '', taxOnFreight: false,
   weightKg: '', widthCm: '', lengthCm: '', heightCm: '',
   mlFreeShipping: false, mlFlex: false,
   shopeeXpress: false, shopeeQuickDelivery: false, shopeePickup: false,

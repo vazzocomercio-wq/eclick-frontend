@@ -59,9 +59,13 @@ type MOrder = {
   payments: { id: number; total_paid_amount: number; installments: number; payment_type: string; status: string }[]
   tags:       string[]
   mediations: unknown[]
-  tarifa_ml:      number
-  frete_vendedor: number
-  lucro_bruto:    number
+  tarifa_ml:           number
+  frete_vendedor:      number
+  lucro_bruto:         number
+  cost_price:          number | null
+  tax_amount:          number | null
+  contribution_margin: number | null
+  contribution_margin_pct: number | null
 }
 
 type TabKey = 'abertas' | 'em_preparacao' | 'despachadas' | 'pgto_pendente' | 'flex' | 'encerradas' | 'mediacao'
@@ -390,12 +394,24 @@ function OrderCard({ order }: { order: MOrder }) {
           <div className="border-t my-1.5" style={{ borderColor: '#1e1e24' }} />
           <FinRow icon="💰" label="Lucro bruto"         value={brl(order.lucro_bruto)}
             color={order.lucro_bruto >= 0 ? '#4ade80' : '#f87171'}
-            tooltip={`Lucro bruto: valor − tarifa − frete`} />
-          <FinRow icon="📦" label="Custo produto"       value={null} tooltip="Vincule um produto para calcular" />
-          <FinRow icon="⚖️" label="Imposto"             value={null} tooltip="Configure tributos no produto" />
+            tooltip="Lucro bruto: valor − tarifa − frete" />
+          <FinRow icon="📦" label="Custo produto"
+            value={order.cost_price != null ? `-${brl(order.cost_price)}` : null}
+            color="#f87171"
+            tooltip={order.cost_price != null ? `CMV: ${brl(order.cost_price)}` : 'Configure o custo no cadastro do produto'} />
+          <FinRow icon="⚖️" label="Imposto"
+            value={order.tax_amount != null ? `-${brl(order.tax_amount)}` : null}
+            color="#f87171"
+            tooltip={order.tax_amount != null ? `Imposto calculado` : 'Configure o % de imposto no produto'} />
           <div className="border-t my-1.5" style={{ borderColor: '#1e1e24' }} />
-          <FinRow icon="🟢" label="Margem contrib."     value={null} color="#4ade80"
-            tooltip="Vincule produto para ver a margem de contribuição" />
+          <FinRow icon="🟢" label="Margem contrib."
+            value={order.contribution_margin != null
+              ? `${brl(order.contribution_margin)}${order.contribution_margin_pct != null ? ` (${order.contribution_margin_pct}%)` : ''}`
+              : null}
+            color={order.contribution_margin != null ? (order.contribution_margin >= 0 ? '#4ade80' : '#f87171') : '#4ade80'}
+            tooltip={order.contribution_margin != null
+              ? `Margem de contribuição: ${order.contribution_margin_pct}%`
+              : 'Configure custo no produto para ver a margem'} />
           {payment?.installments > 1 && (
             <p className="text-[9px] text-zinc-600 mt-1 text-right">{payment.installments}x no cartão</p>
           )}
