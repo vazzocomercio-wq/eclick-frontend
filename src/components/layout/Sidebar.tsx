@@ -2,7 +2,10 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { createClient } from '@/lib/supabase'
+
+const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 
 // ── icon helper ───────────────────────────────────────────────────────────────
 
@@ -18,7 +21,7 @@ function Ico({ d, d2 }: { d: string; d2?: string }) {
 // ── nav types ─────────────────────────────────────────────────────────────────
 
 type Leaf  = { type: 'leaf';  label: string; href: string; icon: React.ReactNode; badge?: number }
-type ChildLeaf  = { label: string; href: string }
+type ChildLeaf  = { label: string; href: string; badge?: number }
 type ChildGroup = { label: string; isGroup: true; children: ChildLeaf[] }
 type GroupChild = ChildLeaf | ChildGroup
 type Group = { type: 'group'; key: string; label: string; icon: React.ReactNode; children: GroupChild[] }
@@ -141,7 +144,7 @@ function SubGroupNav({ child, pathname }: { child: ChildGroup; pathname: string 
   )
 }
 
-function GroupNav({ item, defaultOpen }: { item: Group; defaultOpen: boolean }) {
+function GroupNav({ item, defaultOpen, childBadges }: { item: Group; defaultOpen: boolean; childBadges?: Record<string, number> }) {
   const [open, setOpen] = useState(defaultOpen)
   const pathname = usePathname()
 
@@ -175,16 +178,23 @@ function GroupNav({ item, defaultOpen }: { item: Group; defaultOpen: boolean }) 
           {item.children.map((child, idx) => {
             if ('isGroup' in child) return <SubGroupNav key={idx} child={child} pathname={pathname} />
             const active = pathname.startsWith(child.href)
+            const badge = child.badge ?? childBadges?.[child.href]
             return (
               <Link
                 key={child.href}
                 href={child.href}
-                className="flex items-center px-2 py-1.5 rounded-md text-[12px] font-medium transition-colors"
+                className="flex items-center gap-1 px-2 py-1.5 rounded-md text-[12px] font-medium transition-colors"
                 style={{ color: active ? '#00E5FF' : '#71717a', background: active ? 'rgba(0,229,255,0.08)' : 'transparent' }}
                 onMouseEnter={e => { if (!active) { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.04)'; (e.currentTarget as HTMLElement).style.color = '#a1a1aa' } }}
                 onMouseLeave={e => { if (!active) { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = '#71717a' } }}
               >
-                {child.label}
+                <span className="flex-1">{child.label}</span>
+                {badge != null && (
+                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full min-w-[18px] text-center"
+                    style={{ background: '#f87171' + '22', color: '#f87171' }}>
+                    {badge}
+                  </span>
+                )}
               </Link>
             )
           })}
@@ -198,6 +208,29 @@ function GroupNav({ item, defaultOpen }: { item: Group; defaultOpen: boolean }) 
 
 export default function Sidebar() {
   const pathname = usePathname()
+  const [questionBadge, setQuestionBadge] = useState<number | undefined>(undefined)
+  const mounted = useRef(true)
+
+  useEffect(() => {
+    mounted.current = true
+    const fetchBadge = async () => {
+      try {
+        const sb = createClient()
+        const { data: { session } } = await sb.auth.getSession()
+        if (!session || !mounted.current) return
+        const res = await fetch(`${BACKEND}/ml/questions`, {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        })
+        if (!res.ok || !mounted.current) return
+        const data = await res.json()
+        const count = (data.questions ?? []).filter((q: any) => q.status === 'unanswered').length
+        setQuestionBadge(count > 0 ? count : undefined)
+      } catch { /* silent */ }
+    }
+    fetchBadge()
+    const id = setInterval(fetchBadge, 5 * 60 * 1000)
+    return () => { mounted.current = false; clearInterval(id) }
+  }, [])
 
   function isGroupDefaultOpen(g: Group) {
     return g.children.some(c =>
@@ -231,7 +264,10 @@ export default function Sidebar() {
             </div>
           )
           if (entry.type === 'leaf') return <LeafLink key={entry.href} item={entry} />
-          return <GroupNav key={entry.key} item={entry} defaultOpen={isGroupDefaultOpen(entry)} />
+          const childBadges = entry.key === 'atendimento' && questionBadge != null
+            ? { '/dashboard/atendimento/perguntas': questionBadge }
+            : undefined
+          return <GroupNav key={entry.key} item={entry} defaultOpen={isGroupDefaultOpen(entry)} childBadges={childBadges} />
         })}
       </nav>
 
