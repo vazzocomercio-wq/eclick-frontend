@@ -172,13 +172,14 @@ export default function Page() {
     ps === 'gold'     ? '#F59E0B' :
     ps === 'normal'   ? '#22C55E' : '#ffffff'
 
-  const THERMO = ['#FCA5A5', '#FDBA74', '#FDE68A', '#86EFAC', '#2ECC71']
+  const THERMO = ['#FFB3B3', '#FFCCA0', '#FFE599', '#B3E5B3', '#2ECC71']
+  // Termômetro baseado em level_id (reputação base), independente de power_seller_status
   const nivelAtivo =
-    ps === 'platinum' || ps === 'gold' || ps === 'normal' ? 4 :
-    levelId === '5_green' || levelId === '4_light_green'  ? 4 :
-    levelId === '3_yellow' ? 2 :
-    levelId === '2_orange' ? 1 :
-    levelId === '1_red'    ? 0 : -1
+    levelId === '5_green'        ? 4 :
+    levelId === '4_light_green'  ? 3 :
+    levelId === '3_yellow'       ? 2 :
+    levelId === '2_orange'       ? 1 :
+    levelId === '1_red'          ? 0 : -1
 
   const qualMetrics = [
     { label: 'Reclamacoes',        m: metrics.claims,                warn: 0.01,  crit: 0.03  },
@@ -205,23 +206,25 @@ export default function Page() {
 
         {/* Termômetro 5 segmentos */}
         <div className="mt-5">
-          <div className="flex" style={{ gap: 4 }}>
+          <div className="flex items-center" style={{ gap: 4 }}>
             {THERMO.map((cor, i) => (
               <div
                 key={i}
                 className="flex-1"
                 style={{
-                  height: 8,
+                  height: i === nivelAtivo ? 10 : 6,
                   borderRadius: 4,
-                  backgroundColor: i > nivelAtivo ? '#E5E7EB' : cor,
-                  opacity: i > nivelAtivo ? 0.3 : 1,
+                  backgroundColor: cor,
+                  opacity: i > nivelAtivo ? 0.15 : 1,
                 }}
               />
             ))}
           </div>
-          <p className="text-zinc-500 text-xs mt-2">
-            Voce aparece em {nivelTitulo} para os compradores
-          </p>
+          {ps && (
+            <p className="text-zinc-500 text-xs mt-2">
+              Voce aparece em {nivelTitulo} para os compradores
+            </p>
+          )}
         </div>
       </div>
 
