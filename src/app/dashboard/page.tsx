@@ -575,6 +575,32 @@ export default function DashboardPage() {
 
   const topProds = useMemo(() => topProductsFromOrders(periodOrders), [periodOrders])
 
+  const { topEstados, topCidades } = useMemo(() => {
+    const totalRevenue = periodOrders.reduce((sum, o) => sum + (o.total_amount ?? 0), 0)
+    const stateMap: Record<string, { count: number; revenue: number }> = {}
+    const cityMap:  Record<string, { count: number; revenue: number }> = {}
+    for (const o of periodOrders) {
+      if (o.shipping_state) {
+        const uf = o.shipping_state.includes('-') ? o.shipping_state.split('-').pop()! : o.shipping_state
+        if (!stateMap[uf]) stateMap[uf] = { count: 0, revenue: 0 }
+        stateMap[uf].count += 1
+        stateMap[uf].revenue += o.total_amount ?? 0
+      }
+      if (o.shipping_city) {
+        if (!cityMap[o.shipping_city]) cityMap[o.shipping_city] = { count: 0, revenue: 0 }
+        cityMap[o.shipping_city].count += 1
+        cityMap[o.shipping_city].revenue += o.total_amount ?? 0
+      }
+    }
+    const topEstados = Object.entries(stateMap)
+      .map(([state, d]) => ({ state, ...d, pct: totalRevenue > 0 ? (d.revenue / totalRevenue) * 100 : 0 }))
+      .sort((a, b) => b.revenue - a.revenue).slice(0, 5)
+    const topCidades = Object.entries(cityMap)
+      .map(([city, d]) => ({ city, ...d, pct: totalRevenue > 0 ? (d.revenue / totalRevenue) * 100 : 0 }))
+      .sort((a, b) => b.revenue - a.revenue).slice(0, 5)
+    return { topEstados, topCidades }
+  }, [periodOrders])
+
   // Product alerts
   const activeProds  = products.filter(p => p.status === 'active')
   const pausedProds  = products.filter(p => p.status === 'paused')
@@ -762,14 +788,97 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      {/* LINHA 5.5 — Brazil Sales Map */}
-      <section>
+      {/* LINHA 5.5 — Brazil Sales Map + Rankings */}
+      <section className="space-y-3">
         <BrazilSalesMap
           orders={periodLoading ? [] : periodOrders}
           title={MAP_PERIOD_LABELS[period]}
           height={350}
           realtime={false}
         />
+
+        {/* Rankings: Top Estados e Top Cidades */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+
+          {/* Top Estados */}
+          <div className="bg-[#111114] rounded-xl border border-[#1a1a1f] p-4">
+            <p className="text-white font-semibold text-sm mb-3">Top Estados</p>
+            {periodLoading ? (
+              <div className="space-y-2">{[...Array(5)].map((_, i) => <Skel key={i} h={16} />)}</div>
+            ) : topEstados.length === 0 ? (
+              <p className="text-gray-600 text-xs">Sem dados de estado no período</p>
+            ) : (
+              <>
+                <div className="flex text-[10px] text-gray-600 mb-2 gap-2">
+                  <span className="w-4">#</span>
+                  <span className="w-8">UF</span>
+                  <span className="flex-1">Participação</span>
+                  <span className="w-5 text-right">Qtd</span>
+                  <span className="w-20 text-right">Faturamento</span>
+                  <span className="w-10 text-right">%</span>
+                </div>
+                {topEstados.map((e, i) => (
+                  <div key={e.state} className="flex items-center gap-2 mb-2">
+                    <span className="text-xs text-gray-500 w-4">{i + 1}</span>
+                    <span className="text-xs text-white w-8 font-medium">{e.state}</span>
+                    <div className="flex-1 bg-[#1a1a1f] rounded-full h-1.5">
+                      <div className="h-1.5 rounded-full bg-[#00E5FF] transition-all"
+                        style={{ width: `${topEstados[0].revenue > 0 ? (e.revenue / topEstados[0].revenue) * 100 : 0}%` }} />
+                    </div>
+                    <span className="text-xs text-gray-400 w-5 text-right">{e.count}</span>
+                    <span className="text-xs text-white w-20 text-right font-medium">
+                      R${e.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                    </span>
+                    <span className="text-xs font-semibold w-10 text-right"
+                      style={{ color: e.pct > 40 ? '#00E5FF' : e.pct > 20 ? '#22c55e' : '#6b7280' }}>
+                      {e.pct.toFixed(1)}%
+                    </span>
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
+
+          {/* Top Cidades */}
+          <div className="bg-[#111114] rounded-xl border border-[#1a1a1f] p-4">
+            <p className="text-white font-semibold text-sm mb-3">Top Cidades</p>
+            {periodLoading ? (
+              <div className="space-y-2">{[...Array(5)].map((_, i) => <Skel key={i} h={16} />)}</div>
+            ) : topCidades.length === 0 ? (
+              <p className="text-gray-600 text-xs">Sem dados de cidade no período</p>
+            ) : (
+              <>
+                <div className="flex text-[10px] text-gray-600 mb-2 gap-2">
+                  <span className="w-4">#</span>
+                  <span className="w-20">Cidade</span>
+                  <span className="flex-1">Participação</span>
+                  <span className="w-5 text-right">Qtd</span>
+                  <span className="w-20 text-right">Faturamento</span>
+                  <span className="w-10 text-right">%</span>
+                </div>
+                {topCidades.map((c, i) => (
+                  <div key={c.city} className="flex items-center gap-2 mb-2">
+                    <span className="text-xs text-gray-500 w-4">{i + 1}</span>
+                    <span className="text-xs text-white w-20 font-medium truncate" title={c.city}>{c.city}</span>
+                    <div className="flex-1 bg-[#1a1a1f] rounded-full h-1.5">
+                      <div className="h-1.5 rounded-full bg-[#22c55e] transition-all"
+                        style={{ width: `${topCidades[0].revenue > 0 ? (c.revenue / topCidades[0].revenue) * 100 : 0}%` }} />
+                    </div>
+                    <span className="text-xs text-gray-400 w-5 text-right">{c.count}</span>
+                    <span className="text-xs text-white w-20 text-right font-medium">
+                      R${c.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                    </span>
+                    <span className="text-xs font-semibold w-10 text-right"
+                      style={{ color: c.pct > 40 ? '#00E5FF' : c.pct > 20 ? '#22c55e' : '#6b7280' }}>
+                      {c.pct.toFixed(1)}%
+                    </span>
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
+
+        </div>
       </section>
 
       {/* LINHA 6 — Sector Grid */}
