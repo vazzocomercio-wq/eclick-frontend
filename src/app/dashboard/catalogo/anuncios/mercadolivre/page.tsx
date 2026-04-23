@@ -538,15 +538,16 @@ function ConfirmCreateModal({
 // ── Result modal ───────────────────────────────────────────────────────────
 
 function ResultModal({
-  results, onClose,
+  results, loading, onClose,
 }: {
   results: CreateResult[]
+  loading: boolean
   onClose: () => void
 }) {
-  const router = useRouter()
-  const created  = results.filter(r => r.status === 'created').length
-  const skipped  = results.filter(r => r.status === 'skipped').length
-  const errors   = results.filter(r => r.status === 'error').length
+  const router  = useRouter()
+  const created = results.filter(r => r.status === 'created').length
+  const skipped = results.filter(r => r.status === 'skipped').length
+  const errors  = results.filter(r => r.status === 'error').length
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
@@ -557,44 +558,60 @@ function ResultModal({
         {/* Header */}
         <div className="px-5 py-4 shrink-0" style={{ borderBottom: '1px solid #1e1e24' }}>
           <p className="text-white text-sm font-semibold">Resultado da criação</p>
-          <div className="flex gap-4 mt-2">
-            {created > 0  && <span className="text-[11px] font-semibold" style={{ color: '#4ade80' }}>✅ {created} criado{created > 1 ? 's' : ''}</span>}
-            {skipped > 0  && <span className="text-[11px] font-semibold" style={{ color: '#f59e0b' }}>⚠️ {skipped} ignorado{skipped > 1 ? 's' : ''}</span>}
-            {errors > 0   && <span className="text-[11px] font-semibold" style={{ color: '#f87171' }}>❌ {errors} erro{errors > 1 ? 's' : ''}</span>}
-          </div>
+          {!loading && results.length > 0 && (
+            <div className="flex gap-4 mt-2">
+              {created > 0 && <span className="text-[11px] font-semibold" style={{ color: '#4ade80' }}>✅ {created} criado{created > 1 ? 's' : ''}</span>}
+              {skipped > 0 && <span className="text-[11px] font-semibold" style={{ color: '#f59e0b' }}>⚠️ {skipped} ignorado{skipped > 1 ? 's' : ''}</span>}
+              {errors  > 0 && <span className="text-[11px] font-semibold" style={{ color: '#f87171' }}>❌ {errors} erro{errors > 1 ? 's' : ''}</span>}
+            </div>
+          )}
         </div>
 
-        {/* List */}
-        <div className="flex-1 overflow-y-auto divide-y" style={{ borderColor: '#1e1e24' }}>
-          {results.map(r => {
-            const icon  = r.status === 'created' ? '✅' : r.status === 'skipped' ? '⚠️' : '❌'
-            const color = r.status === 'created' ? '#4ade80' : r.status === 'skipped' ? '#f59e0b' : '#f87171'
-            return (
-              <div key={r.listing_id} className="flex items-start gap-3 px-5 py-3">
-                <span className="text-base shrink-0 mt-0.5">{icon}</span>
-                <div className="min-w-0">
-                  <p className="text-[12px] font-mono font-semibold" style={{ color }}>{r.listing_id}</p>
-                  <p className="text-zinc-500 text-[11px] mt-0.5">
-                    {r.status === 'created' ? 'Produto criado com sucesso'
-                      : r.status === 'skipped' ? (r.reason ?? 'Ignorado')
-                      : (r.reason ?? 'Erro ao criar')}
-                  </p>
-                </div>
-              </div>
-            )
-          })}
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto" style={{ minHeight: 80 }}>
+          {loading ? (
+            <div className="flex items-center gap-3 px-5 py-8 text-zinc-400">
+              <svg className="w-4 h-4 animate-spin shrink-0" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              <span className="text-sm">Criando produtos...</span>
+            </div>
+          ) : results.length === 0 ? (
+            <p className="text-zinc-500 text-sm px-5 py-8">Nenhum resultado.</p>
+          ) : (
+            <div className="divide-y" style={{ borderColor: '#1e1e24' }}>
+              {results.map(r => {
+                const icon  = r.status === 'created' ? '✅' : r.status === 'skipped' ? '⚠️' : '❌'
+                const color = r.status === 'created' ? '#4ade80' : r.status === 'skipped' ? '#f59e0b' : '#f87171'
+                return (
+                  <div key={r.listing_id} className="flex items-start gap-3 px-5 py-3">
+                    <span className="text-base shrink-0 mt-0.5">{icon}</span>
+                    <div className="min-w-0">
+                      <p className="text-[12px] font-mono font-semibold" style={{ color }}>{r.listing_id}</p>
+                      <p className="text-zinc-500 text-[11px] mt-0.5">
+                        {r.status === 'created' ? 'Produto criado com sucesso'
+                          : r.status === 'skipped' ? (r.reason ?? 'Ignorado')
+                          : (r.reason ?? 'Erro ao criar')}
+                      </p>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
 
         {/* Footer */}
         <div className="flex items-center justify-end gap-3 px-5 py-4 shrink-0"
           style={{ borderTop: '1px solid #1e1e24' }}>
-          <button onClick={onClose}
-            className="px-4 py-2 rounded-lg text-sm font-medium border transition-all"
+          <button onClick={onClose} disabled={loading}
+            className="px-4 py-2 rounded-lg text-sm font-medium border transition-all disabled:opacity-40"
             style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>
             Fechar
           </button>
-          {created > 0 && (
-            <button onClick={() => router.push('/dashboard/produtos')}
+          {!loading && created > 0 && (
+            <button onClick={() => router.push('/dashboard/catalogo/produtos')}
               className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold transition-all"
               style={{ background: '#00E5FF', color: '#000' }}>
               Ver Produtos Criados →
@@ -675,6 +692,7 @@ export default function MLAnunciosPage() {
   const [confirmOpen, setConfirmOpen]   = useState(false)
   const [creating, setCreating]         = useState(false)
   const [results, setResults]           = useState<CreateResult[] | null>(null)
+  const [loadingCriacao, setLoadingCriacao] = useState(false)
 
   const tid = useRef(0)
   const PAGE = 20
@@ -785,27 +803,42 @@ export default function MLAnunciosPage() {
 
   async function handleCreateConfirm() {
     if (pendingIds.length === 0) return
+    // Close confirm, open result modal immediately with loading state
+    setConfirmOpen(false)
     setCreating(true)
+    setResults([])
+    setLoadingCriacao(true)
+
+    console.log('[criar-produto] selecionados:', pendingIds)
+
     try {
       const headers = await getHeaders()
-      console.log('[from-listing] enviando listing_ids:', pendingIds)
       const res = await fetch(`${BACKEND}/ml/products/from-listing`, {
         method:  'POST',
         headers: { ...headers, 'Content-Type': 'application/json' },
         body:    JSON.stringify({ listing_ids: pendingIds }),
       })
       const data = await res.json()
-      console.log('[from-listing] frontend recebeu status:', res.status, 'body:', data)
-      const r: CreateResult[] = data.results ?? []
-      setResults(r)
-      setConfirmOpen(false)
+      console.log('[criar-produto] resposta status:', res.status, '| body:', data)
+
+      const r: CreateResult[] = data.results || []
+      if (!res.ok && r.length === 0) {
+        // Backend returned an error without results array
+        setResults([{ listing_id: pendingIds[0] ?? '?', status: 'error', reason: data.message ?? `HTTP ${res.status}` }])
+      } else {
+        setResults(r)
+      }
+
       setSelected(new Set())
       const created = r.filter(x => x.status === 'created').length
       if (created > 0) toast(`${created} produto${created > 1 ? 's' : ''} criado${created > 1 ? 's' : ''}!`, 'success')
     } catch (e: unknown) {
-      toast(e instanceof Error ? e.message : 'Erro ao criar produtos', 'error')
+      const msg = e instanceof Error ? e.message : 'Erro ao criar produtos'
+      setResults([{ listing_id: pendingIds[0] ?? '?', status: 'error', reason: msg }])
+      toast(msg, 'error')
     } finally {
       setCreating(false)
+      setLoadingCriacao(false)
     }
   }
 
@@ -1030,10 +1063,11 @@ export default function MLAnunciosPage() {
       )}
 
       {/* ── Result modal ──────────────────────────────────────────── */}
-      {results && (
+      {results !== null && (
         <ResultModal
           results={results}
-          onClose={() => setResults(null)}
+          loading={loadingCriacao}
+          onClose={() => { if (!loadingCriacao) setResults(null) }}
         />
       )}
     </div>
