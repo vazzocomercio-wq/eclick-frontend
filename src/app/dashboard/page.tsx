@@ -364,6 +364,13 @@ const CHANNEL_META: Record<string, { label: string; color: string; bg: string }>
   magalu: { label: 'Magalu',        color: '#fff', bg: '#0086FF' },
 }
 
+const MAP_PERIOD_LABELS: Record<Period, string> = {
+  today: 'Vendas por Região — Hoje',
+  '7d':  'Vendas por Região — Últimos 7 dias',
+  '30d': 'Vendas por Região — Últimos 30 dias',
+  month: 'Vendas por Região — Mês Atual',
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
@@ -715,10 +722,9 @@ export default function DashboardPage() {
 
       {/* LINHA 5.5 — Brazil Sales Map */}
       <section>
-        {console.log('[MAP DEBUG] dashboard todayOrdersBR:', todayOrdersBR?.length, 'shipping_state[0]:', todayOrdersBR?.[0]?.shipping_state) as unknown as null}
         <BrazilSalesMap
-          orders={loading ? [] : todayOrdersBR}
-          title="Vendas por Região Hoje"
+          orders={loading ? [] : periodOrders.filter(isPaid)}
+          title={MAP_PERIOD_LABELS[period]}
           height={350}
           realtime={false}
         />
