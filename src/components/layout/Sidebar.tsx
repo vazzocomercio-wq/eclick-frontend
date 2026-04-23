@@ -226,7 +226,7 @@ export default function Sidebar() {
         })
         if (!res.ok || !mounted.current) return
         const data = await res.json()
-        const count = (data.questions ?? []).filter((q: any) => q.status === 'unanswered').length
+        const count = (data.questions ?? []).filter((q: { status: string }) => q.status === 'unanswered').length
         setQuestionBadge(count > 0 ? count : undefined)
       } catch { /* silent */ }
     }

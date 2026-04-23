@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { AI_CONFIG, setAIEnabled, setAIFeature, getAIState } from '@/lib/ai/config'
+import { setAIEnabled, setAIFeature, getAIState } from '@/lib/ai/config'
 import type { AIFeature } from '@/lib/ai/config'
 
 const FEATURE_META: Record<AIFeature, { label: string; desc: string; page: string }> = {
@@ -91,8 +91,8 @@ export default function IAConfigPage() {
       } else {
         setTestResult({ ok: false, msg: data.error ?? 'Resposta inesperada da API' })
       }
-    } catch (e: any) {
-      setTestResult({ ok: false, msg: e.message ?? 'Erro de rede' })
+    } catch (e) {
+      setTestResult({ ok: false, msg: e instanceof Error ? e.message : 'Erro de rede' })
     } finally {
       setTesting(false)
     }

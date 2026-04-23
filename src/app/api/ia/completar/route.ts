@@ -2,14 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { AI_CONFIG } from '@/lib/ai/config'
 import type { AIFeature } from '@/lib/ai/config'
 
-// Feature flags are compiled values — SSR cannot read localStorage overrides.
-// The client-side guard in callAI() already prevents requests for disabled features,
-// but we double-check here against the compiled config as a server-side safety net.
-function isFeatureAllowedServerSide(feature: AIFeature): boolean {
-  if (!AI_CONFIG.enabled) return false
-  return AI_CONFIG.features[feature] ?? false
-}
-
 export async function POST(req: NextRequest) {
   const { feature, prompt, systemPrompt } = await req.json() as {
     feature: AIFeature
@@ -63,7 +55,8 @@ export async function POST(req: NextRequest) {
       tokens_used: data.usage?.output_tokens ?? 0,
       feature,
     })
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message ?? 'Erro interno' }, { status: 500 })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Erro interno'
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }

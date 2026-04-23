@@ -1,4 +1,4 @@
-import { AI_CONFIG, isAIEnabled } from './config'
+import { isAIEnabled } from './config'
 import type { AIFeature } from './config'
 
 export interface AIResponse {
