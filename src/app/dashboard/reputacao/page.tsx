@@ -92,15 +92,13 @@ export default function Page() {
         : {}
       const infoData: Reputation = (infoRaw?.seller_reputation as Reputation) ?? {}
 
-      console.log('sellerInfo recebido:', JSON.stringify(infoRaw).substring(0, 300))
-
-      // Mesclar: reputation primeiro, seller-info como fallback por campo
+      // seller-info é confiável — tem prioridade; reputation complementa métricas
       const merged: Reputation = {
         ...repData,
-        level_id:            repData.level_id            ?? infoData.level_id,
-        power_seller_status: repData.power_seller_status ?? infoData.power_seller_status,
-        transactions:        repData.transactions        ?? infoData.transactions,
-        metrics:             repData.metrics             ?? infoData.metrics,
+        level_id:            infoData.level_id            ?? repData.level_id,
+        power_seller_status: infoData.power_seller_status ?? repData.power_seller_status,
+        transactions:        infoData.transactions        ?? repData.transactions,
+        metrics:             infoData.metrics             ?? repData.metrics,
       }
 
       if (!merged.level_id && !merged.transactions) {
@@ -152,7 +150,7 @@ export default function Page() {
   const neutCount = ratings.neutral  ?? 0
   const negCount  = ratings.negative ?? 0
   const totalRat  = posCount + neutCount + negCount
-  const posPct    = totalRat > 0 ? ((posCount / totalRat) * 100).toFixed(1) : '0'
+  const posPct    = total > 0 ? ((posCount / total) * 100).toFixed(1) : '0'
   const concPct   = total > 0 ? ((compTotal / total) * 100).toFixed(1) : '0'
   const cancPct   = total > 0 ? ((cancTotal / total) * 100).toFixed(1) : '0'
 
