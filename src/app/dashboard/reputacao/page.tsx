@@ -82,25 +82,24 @@ export default function Page() {
         fetch(`${BACKEND}/ml/seller-info`,  { headers }),
       ])
 
-      const repData:  Reputation = repRes.status  === 'fulfilled' && repRes.value.ok
+      const repData: Reputation = repRes.status === 'fulfilled' && repRes.value.ok
         ? await repRes.value.json().catch(() => ({}))
         : {}
 
-      const infoData: { seller_reputation?: Reputation } =
-        infoRes.status === 'fulfilled' && infoRes.value.ok
-          ? await infoRes.value.json().catch(() => ({}))
-          : {}
+      // seller-info retorna level_id, power_seller_status, transactions no nível raiz
+      const infoData: Reputation = infoRes.status === 'fulfilled' && infoRes.value.ok
+        ? await infoRes.value.json().catch(() => ({}))
+        : {}
 
-      const si = infoData?.seller_reputation ?? {}
+      console.log('sellerInfo recebido:', JSON.stringify(infoData))
 
       // Mesclar: reputation primeiro, seller-info como fallback por campo
       const merged: Reputation = {
-        ...si,
         ...repData,
-        level_id:            repData.level_id            ?? si.level_id,
-        power_seller_status: repData.power_seller_status ?? si.power_seller_status,
-        transactions:        repData.transactions        ?? si.transactions,
-        metrics:             repData.metrics             ?? si.metrics,
+        level_id:            repData.level_id            ?? infoData.level_id,
+        power_seller_status: repData.power_seller_status ?? infoData.power_seller_status,
+        transactions:        repData.transactions        ?? infoData.transactions,
+        metrics:             repData.metrics             ?? infoData.metrics,
       }
 
       if (!merged.level_id && !merged.transactions) {
