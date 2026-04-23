@@ -647,8 +647,11 @@ export default function DashboardPage() {
         if (!res.ok || cancelled) return
         const data = await res.json()
         const prevOrders: Order[] = data?.orders ?? data?.results ?? []
-        const prevFaturamento = prevOrders.filter(isPaid).reduce((s, o) => s + (o.total_amount ?? 0), 0)
-        const prevLucro      = prevOrders.filter(isPaid).reduce((s, o) => s + (o.contribution_margin ?? 0), 0)
+        const prevFaturamento = prevOrders.reduce((s, o) => s + (o.total_amount ?? 0), 0)
+        const prevWithMargin  = prevOrders.filter(o => (o.contribution_margin ?? 0) > 0)
+        const prevLucro = prevWithMargin.length > 0
+          ? prevWithMargin.reduce((s, o) => s + (o.contribution_margin ?? 0), 0)
+          : prevFaturamento * 0.885
         if (!cancelled) setPrevData({ faturamento: prevFaturamento, lucro: prevLucro })
       } catch (e) {
         console.error('[prev-fetch] exception:', e)
@@ -666,10 +669,15 @@ export default function DashboardPage() {
   const monthOrders  = useMemo(() => orders.filter(o => brazilDateStr(new Date(o.date_created)).slice(0, 7) === thisMonthBR()), [orders])
 
   const cur  = useMemo(() => calcMetrics(periodOrders), [periodOrders])
-  const curLucro = useMemo(() => {
-    const fromField = periodOrders.filter(isPaid).reduce((s, o) => s + (o.contribution_margin ?? 0), 0)
-    return fromField > 0 ? fromField : cur.revenue * 0.885
-  }, [periodOrders, cur.revenue])
+
+  const { faturamento, lucroEstimado, margemPct } = useMemo(() => {
+    const fat = periodOrders.reduce((s, o) => s + (o.total_amount ?? 0), 0)
+    const withMargin = periodOrders.filter(o => (o.contribution_margin ?? 0) > 0)
+    const lucro = withMargin.length > 0
+      ? withMargin.reduce((s, o) => s + (o.contribution_margin ?? 0), 0)
+      : fat * 0.885
+    return { faturamento: fat, lucroEstimado: lucro, margemPct: fat > 0 ? (lucro / fat) * 100 : 0 }
+  }, [periodOrders])
   const yest = useMemo(() => calcMetrics(yestOrders), [yestOrders])
   const week = useMemo(() => calcMetrics(weekOrders), [weekOrders])
   const todayOrdersBR = useMemo(() => orders.filter(o => isPaid(o) && brazilDateStr(new Date(o.date_created)) === todayBR()), [orders])
@@ -793,8 +801,8 @@ export default function DashboardPage() {
             <div className="space-y-3"><Skel h={40} className="w-2/3" /><Skel h={14} className="w-1/2" /></div>
           ) : (
             <>
-              <p className="text-4xl font-bold text-white leading-none">{formatCurrency(cur.revenue)}</p>
-              <p className="text-xs text-zinc-500 mt-1">{cur.count} pedido{cur.count !== 1 ? 's' : ''} pagos</p>
+              <p className="text-4xl font-bold text-white leading-none">{formatCurrency(faturamento)}</p>
+              <p className="text-xs text-zinc-500 mt-1">{periodOrders.length} pedido{periodOrders.length !== 1 ? 's' : ''} no período</p>
               {prevData && (
                 <div className="mt-4 pt-3 border-t border-[#ffffff10]">
                   <div className="flex justify-between items-center">
@@ -803,7 +811,7 @@ export default function DashboardPage() {
                   </div>
                   <div className="flex items-center gap-2 mt-1">
                     {prevData.faturamento > 0 ? (() => {
-                      const diff = cur.revenue - prevData.faturamento
+                      const diff = faturamento - prevData.faturamento
                       const p = (diff / prevData.faturamento) * 100
                       const up = diff >= 0
                       return (
@@ -834,9 +842,9 @@ export default function DashboardPage() {
             <div className="space-y-3"><Skel h={40} className="w-2/3" /><Skel h={14} className="w-1/2" /></div>
           ) : (
             <>
-              <p className="text-4xl font-bold text-white leading-none">{formatCurrency(curLucro)}</p>
+              <p className="text-4xl font-bold text-white leading-none">{formatCurrency(lucroEstimado)}</p>
               <p className="text-xs text-[#22c55e] mt-1">
-                {cur.revenue > 0 ? ((curLucro / cur.revenue) * 100).toFixed(1) : '0.0'}% do faturamento
+                {margemPct.toFixed(1)}% do faturamento
               </p>
               {prevData && (
                 <div className="mt-4 pt-3 border-t border-[#ffffff10]">
@@ -846,7 +854,7 @@ export default function DashboardPage() {
                   </div>
                   <div className="flex items-center gap-2 mt-1">
                     {prevData.lucro > 0 ? (() => {
-                      const diff = curLucro - prevData.lucro
+                      const diff = lucroEstimado - prevData.lucro
                       const p = (diff / prevData.lucro) * 100
                       const up = diff >= 0
                       return (
