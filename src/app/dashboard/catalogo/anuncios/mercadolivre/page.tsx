@@ -788,12 +788,14 @@ export default function MLAnunciosPage() {
     setCreating(true)
     try {
       const headers = await getHeaders()
+      console.log('[from-listing] enviando listing_ids:', pendingIds)
       const res = await fetch(`${BACKEND}/ml/products/from-listing`, {
         method:  'POST',
         headers: { ...headers, 'Content-Type': 'application/json' },
         body:    JSON.stringify({ listing_ids: pendingIds }),
       })
       const data = await res.json()
+      console.log('[from-listing] frontend recebeu status:', res.status, 'body:', data)
       const r: CreateResult[] = data.results ?? []
       setResults(r)
       setConfirmOpen(false)
