@@ -81,7 +81,7 @@ function calcMetrics(orders: Order[]) {
   const paid = orders.filter(isPaid)
   const revenue = paid.reduce((s, o) => s + (o.total_amount ?? 0), 0)
   const count = paid.length
-  const units = paid.reduce((s, o) => s + o.items.reduce((ss, i) => ss + (i.quantity ?? 0), 0), 0)
+  const units = paid.reduce((s, o) => s + (o.items ?? []).reduce((ss, i) => ss + (i.quantity ?? 0), 0), 0)
   const avgTicket = count ? revenue / count : 0
   return { revenue, count, units, avgTicket }
 }
@@ -123,7 +123,7 @@ function topProductsFromOrders(orders: Order[]) {
   const map = new Map<string, { title: string; units: number; revenue: number; orders: number }>()
   for (const o of orders) {
     if (!isPaid(o)) continue
-    for (const item of o.items) {
+    for (const item of (o.items ?? [])) {
       const key = item.item_id ?? item.title
       const ex = map.get(key)
       if (ex) { ex.units += item.quantity ?? 0; ex.revenue += (item.unit_price ?? 0) * (item.quantity ?? 1); ex.orders++ }
@@ -507,11 +507,17 @@ export default function DashboardPage() {
     { label: 'Faturado',    value: paidCount,                    color: '#34d399' },
   ]
   const funnelTop = funnelSteps[0].value || 1
-  const bottleneckIdx = funnelSteps.reduce((minIdx, step, i, arr) => {
-    if (i === 0 || arr[i - 1].value === 0) return minIdx
-    const dropPct = (arr[i - 1].value - step.value) / arr[i - 1].value
-    return dropPct > (arr[minIdx === -1 ? 0 : minIdx - 1]?.value ? (arr[minIdx - 1].value - arr[minIdx].value) / arr[minIdx - 1].value : 0) ? i : minIdx
-  }, -1)
+  const bottleneckIdx = (() => {
+    let maxDrop = 0
+    let idx = -1
+    for (let i = 1; i < funnelSteps.length; i++) {
+      const prev = funnelSteps[i - 1].value
+      if (prev === 0) continue
+      const drop = (prev - funnelSteps[i].value) / prev
+      if (drop > maxDrop) { maxDrop = drop; idx = i }
+    }
+    return idx
+  })()
 
   // Priority actions
   const priorities = useMemo(() => {
