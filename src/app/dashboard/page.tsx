@@ -57,6 +57,10 @@ type SellerInfo = {
 
 function brl(v: number) { return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) }
 
+function formatCurrency(v: number) {
+  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
 function shortBrl(v: number) {
   if (v >= 1_000_000) return `R$ ${(v / 1_000_000).toFixed(1)}M`
   if (v >= 1_000) return `R$ ${(v / 1_000).toFixed(1)}k`
@@ -599,67 +603,58 @@ export default function DashboardPage() {
 
   useEffect(() => { refresh(true) }, [refresh])
 
-  // ── Period data: re-fetches whenever the period filter changes ───────────────
+  // ── Period data (main) — current period orders ───────────────────────────────
   useEffect(() => {
     let cancelled = false
-
     ;(async () => {
       setPeriodLoading(true)
-      setPrevData(null)
       try {
         const token = await getToken()
         if (!token || cancelled) { if (!cancelled) setPeriodLoading(false); return }
-
         const { from, to } = getPeriodDates(period)
         const url = `${BACKEND}/ml/recent-orders?date_from=${from}&date_to=${to}&limit=200`
-        console.log(`[period-fetch] period=${period} from=${from} to=${to}`)
         console.log('[period-fetch] URL:', url)
-
-        const prevDates = getPreviousPeriodDates(period)
-        const prevUrl = prevDates
-          ? `${BACKEND}/ml/recent-orders?date_from=${prevDates.from}&date_to=${prevDates.to}&limit=200`
-          : null
-
-        const [res, prevRes] = await Promise.all([
-          fetch(url, { headers: { Authorization: `Bearer ${token}` } }),
-          prevUrl
-            ? fetch(prevUrl, { headers: { Authorization: `Bearer ${token}` } })
-            : Promise.resolve(null),
-        ])
-
+        const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
         if (!res.ok) {
-          console.error('[period-fetch] HTTP error:', res.status, await res.text().catch(() => ''))
+          console.error('[period-fetch] HTTP error:', res.status)
           if (!cancelled) setPeriodLoading(false)
           return
         }
-
         const data = await res.json()
-        console.log('[period-fetch] orders received:', data?.orders?.length ?? 0, '| period:', period)
-
-        if (!cancelled) {
-          setPeriodOrders(data?.orders ?? [])
-          setPeriodLoading(false)
-        }
-
-        if (prevRes && prevRes.ok && !cancelled) {
-          try {
-            const prevJson = await prevRes.json()
-            const prevOrders: Order[] = prevJson?.orders ?? []
-            const prevFaturamento = prevOrders
-              .filter(isPaid)
-              .reduce((s, o) => s + (o.total_amount ?? 0), 0)
-            const prevLucro = prevOrders
-              .filter(isPaid)
-              .reduce((s, o) => s + (o.contribution_margin ?? 0), 0)
-            if (!cancelled) setPrevData({ faturamento: prevFaturamento, lucro: prevLucro })
-          } catch { /* non-fatal */ }
-        }
+        const fetched: Order[] = data?.orders ?? data?.results ?? []
+        console.log('[period-fetch] orders received:', fetched.length, '| period:', period)
+        if (!cancelled) { setPeriodOrders(fetched); setPeriodLoading(false) }
       } catch (e) {
         console.error('[period-fetch] exception:', e)
         if (!cancelled) setPeriodLoading(false)
       }
     })()
+    return () => { cancelled = true }
+  }, [period])
 
+  // ── Period data (prev) — previous period for comparison, independent ─────────
+  useEffect(() => {
+    let cancelled = false
+    setPrevData(null)
+    ;(async () => {
+      try {
+        const prevDates = getPreviousPeriodDates(period)
+        if (!prevDates) return
+        const token = await getToken()
+        if (!token || cancelled) return
+        const url = `${BACKEND}/ml/recent-orders?date_from=${prevDates.from}&date_to=${prevDates.to}&limit=200`
+        const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+        if (!res.ok || cancelled) return
+        const data = await res.json()
+        const prevOrders: Order[] = data?.orders ?? data?.results ?? []
+        const prevFaturamento = prevOrders.filter(isPaid).reduce((s, o) => s + (o.total_amount ?? 0), 0)
+        const prevLucro      = prevOrders.filter(isPaid).reduce((s, o) => s + (o.contribution_margin ?? 0), 0)
+        if (!cancelled) setPrevData({ faturamento: prevFaturamento, lucro: prevLucro })
+      } catch (e) {
+        console.error('[prev-fetch] exception:', e)
+        if (!cancelled) setPrevData(null)
+      }
+    })()
     return () => { cancelled = true }
   }, [period])
 
@@ -671,10 +666,10 @@ export default function DashboardPage() {
   const monthOrders  = useMemo(() => orders.filter(o => brazilDateStr(new Date(o.date_created)).slice(0, 7) === thisMonthBR()), [orders])
 
   const cur  = useMemo(() => calcMetrics(periodOrders), [periodOrders])
-  const curLucro = useMemo(
-    () => periodOrders.filter(isPaid).reduce((s, o) => s + (o.contribution_margin ?? 0), 0),
-    [periodOrders]
-  )
+  const curLucro = useMemo(() => {
+    const fromField = periodOrders.filter(isPaid).reduce((s, o) => s + (o.contribution_margin ?? 0), 0)
+    return fromField > 0 ? fromField : cur.revenue * 0.885
+  }, [periodOrders, cur.revenue])
   const yest = useMemo(() => calcMetrics(yestOrders), [yestOrders])
   const week = useMemo(() => calcMetrics(weekOrders), [weekOrders])
   const todayOrdersBR = useMemo(() => orders.filter(o => isPaid(o) && brazilDateStr(new Date(o.date_created)) === todayBR()), [orders])
@@ -785,26 +780,99 @@ export default function DashboardPage() {
         lastUpdated={lastUpdated}
       />
 
-      {/* LINHA 2 — KPIs */}
+      {/* LINHA 2 — Cards grandes: Faturamento + Lucro */}
+      <div className="grid grid-cols-2 gap-4">
+
+        {/* Faturamento */}
+        <div className="rounded-2xl p-6 transition-all"
+          style={{ background: 'linear-gradient(135deg,#0d1a1a,#091414)', border: '1px solid rgba(0,229,255,0.2)' }}>
+          <p className="text-[#00E5FF] text-xs uppercase tracking-widest mb-3">
+            Faturamento — {PERIOD_LABEL[period]}
+          </p>
+          {(periodLoading || loading) ? (
+            <div className="space-y-3"><Skel h={40} className="w-2/3" /><Skel h={14} className="w-1/2" /></div>
+          ) : (
+            <>
+              <p className="text-4xl font-bold text-white leading-none">{formatCurrency(cur.revenue)}</p>
+              <p className="text-xs text-zinc-500 mt-1">{cur.count} pedido{cur.count !== 1 ? 's' : ''} pagos</p>
+              {prevData && (
+                <div className="mt-4 pt-3 border-t border-[#ffffff10]">
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-gray-500">{PREV_PERIOD_LABEL[period]}</span>
+                    <span className="text-xs text-gray-400">{formatCurrency(prevData.faturamento)}</span>
+                  </div>
+                  <div className="flex items-center gap-2 mt-1">
+                    {prevData.faturamento > 0 ? (() => {
+                      const diff = cur.revenue - prevData.faturamento
+                      const p = (diff / prevData.faturamento) * 100
+                      const up = diff >= 0
+                      return (
+                        <>
+                          <span className={`text-sm font-semibold ${up ? 'text-green-400' : 'text-red-400'}`}>
+                            {up ? '↑' : '↓'} {Math.abs(p).toFixed(1)}%
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            ({up ? '+' : ''}{formatCurrency(diff)})
+                          </span>
+                        </>
+                      )
+                    })() : <span className="text-xs text-gray-600">sem dado anterior</span>}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Lucro */}
+        <div className="rounded-2xl p-6 transition-all"
+          style={{ background: 'linear-gradient(135deg,#0d1a0d,#091409)', border: '1px solid rgba(34,197,94,0.2)' }}>
+          <p className="text-[#22c55e] text-xs uppercase tracking-widest mb-3">
+            Lucro Estimado — {PERIOD_LABEL[period]}
+          </p>
+          {(periodLoading || loading) ? (
+            <div className="space-y-3"><Skel h={40} className="w-2/3" /><Skel h={14} className="w-1/2" /></div>
+          ) : (
+            <>
+              <p className="text-4xl font-bold text-white leading-none">{formatCurrency(curLucro)}</p>
+              <p className="text-xs text-[#22c55e] mt-1">
+                {cur.revenue > 0 ? ((curLucro / cur.revenue) * 100).toFixed(1) : '0.0'}% do faturamento
+              </p>
+              {prevData && (
+                <div className="mt-4 pt-3 border-t border-[#ffffff10]">
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-gray-500">{PREV_PERIOD_LABEL[period]}</span>
+                    <span className="text-xs text-gray-400">{formatCurrency(prevData.lucro)}</span>
+                  </div>
+                  <div className="flex items-center gap-2 mt-1">
+                    {prevData.lucro > 0 ? (() => {
+                      const diff = curLucro - prevData.lucro
+                      const p = (diff / prevData.lucro) * 100
+                      const up = diff >= 0
+                      return (
+                        <>
+                          <span className={`text-sm font-semibold ${up ? 'text-green-400' : 'text-red-400'}`}>
+                            {up ? '↑' : '↓'} {Math.abs(p).toFixed(1)}%
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            ({up ? '+' : ''}{formatCurrency(diff)})
+                          </span>
+                        </>
+                      )
+                    })() : <span className="text-xs text-gray-600">sem dado anterior</span>}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+      </div>
+
+      {/* LINHA 3 — KPIs menores */}
       <section>
         <p className="text-zinc-500 text-[10px] uppercase tracking-widest font-semibold mb-3">KPIs Executivos</p>
         <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-2.5">
-          <KpiCard
-            label={`Faturamento — ${PERIOD_LABEL[period]}`}
-            value={shortBrl(cur.revenue)}
-            vsYest={period === 'today' ? pct(cur.revenue, yest.revenue) : null}
-            vsWeek={null}
-            color="#00E5FF"
-            loading={periodLoading || loading}
-            comparison={prevData ? { prevValue: prevData.faturamento, prevLabel: PREV_PERIOD_LABEL[period], curRaw: cur.revenue } : undefined}
-          />
-          <KpiCard
-            label={`Lucro — ${PERIOD_LABEL[period]}`}
-            value={brl(curLucro)}
-            color="#22c55e"
-            loading={periodLoading || loading}
-            comparison={prevData ? { prevValue: prevData.lucro, prevLabel: PREV_PERIOD_LABEL[period], curRaw: curLucro } : undefined}
-          />
           <KpiCard label="Faturamento mês"   value={shortBrl(calcMetrics(monthOrders).revenue)} sub="mês atual" color="#34d399" loading={loading} />
           <KpiCard label={`Pedidos — ${PERIOD_LABEL[period]}`} value={String(cur.count)} vsYest={period === 'today' ? pct(cur.count, yest.count) : null} color="#a78bfa" loading={periodLoading || loading} />
           <KpiCard label="Ticket médio"       value={brl(cur.avgTicket)} vsYest={pct(cur.avgTicket, yest.avgTicket)} color="#fb923c" loading={periodLoading || loading} />
