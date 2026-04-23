@@ -74,15 +74,41 @@ export default function Page() {
       const token = session?.access_token
       if (!token) { setError('Nao autenticado'); setLoading(false); return }
 
-      const res = await fetch(`${BACKEND}/ml/reputation`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        setError(body.message ?? `Erro ${res.status}`)
+      const headers = { Authorization: `Bearer ${token}` }
+
+      // Buscar os dois endpoints em paralelo
+      const [repRes, infoRes] = await Promise.allSettled([
+        fetch(`${BACKEND}/ml/reputation`,   { headers }),
+        fetch(`${BACKEND}/ml/seller-info`,  { headers }),
+      ])
+
+      const repData:  Reputation = repRes.status  === 'fulfilled' && repRes.value.ok
+        ? await repRes.value.json().catch(() => ({}))
+        : {}
+
+      const infoData: { seller_reputation?: Reputation } =
+        infoRes.status === 'fulfilled' && infoRes.value.ok
+          ? await infoRes.value.json().catch(() => ({}))
+          : {}
+
+      const si = infoData?.seller_reputation ?? {}
+
+      // Mesclar: reputation primeiro, seller-info como fallback por campo
+      const merged: Reputation = {
+        ...si,
+        ...repData,
+        level_id:            repData.level_id            ?? si.level_id,
+        power_seller_status: repData.power_seller_status ?? si.power_seller_status,
+        transactions:        repData.transactions        ?? si.transactions,
+        metrics:             repData.metrics             ?? si.metrics,
+      }
+
+      if (!merged.level_id && !merged.transactions) {
+        setError('Nao foi possivel carregar dados de reputacao')
         return
       }
-      setRep(await res.json())
+
+      setRep(merged)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Erro desconhecido')
     } finally {
