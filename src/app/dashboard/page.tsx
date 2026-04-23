@@ -476,7 +476,7 @@ export default function DashboardPage() {
   const [periodOrders, setPeriodOrders] = useState<Order[]>([])
   const [periodLoading, setPeriodLoading] = useState(false)
   const [prevData, setPrevData] = useState<{ faturamento: number; lucro: number } | null>(null)
-  const [financialSummary, setFinancialSummary] = useState<{ total_revenue: number; total_orders: number; average_ticket: number } | null>(null)
+  const [financialSummary, setFinancialSummary] = useState<{ total_revenue: number; total_orders: number; ml_total: number; average_ticket: number } | null>(null)
   const [summaryLoading, setSummaryLoading] = useState(false)
 
   const refresh = useCallback(async (isInitial = false) => {
