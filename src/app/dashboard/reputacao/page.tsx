@@ -93,6 +93,11 @@ export default function Page() {
         : {}
       const infoData: Reputation = (infoRaw?.seller_reputation as Reputation) ?? {}
 
+      console.log('=== REPUTATION DATA ===', JSON.stringify(repData))
+      console.log('=== SELLER INFO rep ===', JSON.stringify(infoData))
+      console.log('=== metrics claims ===', repData?.metrics?.claims)
+      console.log('=== metrics claims rate ===', repData?.metrics?.claims?.rate)
+
       // repData is now the direct source; infoData fallback for any missing fields
       const merged: Reputation = {
         level_id:            repData.level_id            ?? infoData.level_id,
@@ -100,6 +105,8 @@ export default function Page() {
         transactions:        repData.transactions        ?? infoData.transactions,
         metrics:             repData.metrics             ?? infoData.metrics,
       }
+
+      console.log('=== MERGED metrics ===', JSON.stringify(merged.metrics))
 
       if (!merged.level_id && !merged.transactions) {
         setError('Nao foi possivel carregar dados de reputacao')
