@@ -191,6 +191,8 @@ export default function PerguntasPage() {
   const [selected, setSelected]           = useState<Question | null>(null)
   const [answerText, setAnswerText]       = useState('')
   const [sending, setSending]             = useState(false)
+  const [sent, setSent]                   = useState(false)
+  const [answerError, setAnswerError]     = useState('')
   const [search, setSearch]               = useState('')
   const [toasts, setToasts]               = useState<{ id: number; msg: string; type: 'ok' | 'err' }[]>([])
   const prevIds = useRef<Set<number>>(new Set())
@@ -283,12 +285,19 @@ export default function PerguntasPage() {
   const handleSelect = (q: Question) => {
     setSelected(q)
     setAnswerText('')
+    setAnswerError('')
+    setSent(false)
     limparSugestao()
   }
 
   const handleAnswer = async () => {
     if (!selected || !answerText.trim()) return
+    if (answerText.trim().length < 10) {
+      setAnswerError('Resposta muito curta. Mínimo 10 caracteres.')
+      return
+    }
     setSending(true)
+    setAnswerError('')
     try {
       const session = await getSession()
       const res = await fetch(`${BACKEND}/ml/questions/${selected.id}/answer`, {
@@ -297,19 +306,28 @@ export default function PerguntasPage() {
           Authorization: `Bearer ${session!.access_token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ text: answerText }),
+        body: JSON.stringify({ text: answerText.trim() }),
       })
       if (!res.ok) {
-        const err = await res.json()
-        addToast(err.message ?? 'Falha ao enviar resposta', 'err')
+        const errData = await res.json()
+        setAnswerError(errData.message ?? 'Erro ao enviar resposta')
         return
       }
-      addToast('Resposta enviada!', 'ok')
+      // Mark as answered locally
+      setQuestions(prev => prev.map(p =>
+        p.id === selected.id ? { ...p, status: 'ANSWERED' } : p,
+      ))
+      setSent(true)
       setAnswerText('')
-      setSelected(null)
+      setTimeout(() => setSent(false), 3000)
+      // Auto-select next unanswered
+      const next = questions.find(p =>
+        p.id !== selected.id && (p.status === 'unanswered' || p.status === 'UNANSWERED'),
+      )
+      setSelected(next ?? null)
       fetchQuestions(true)
     } catch {
-      addToast('Erro ao enviar resposta', 'err')
+      setAnswerError('Erro ao enviar. Tente novamente.')
     } finally {
       setSending(false)
     }
@@ -469,7 +487,7 @@ export default function PerguntasPage() {
               className="w-full bg-[#09090b] border border-[#1a1a1f] rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-[#00E5FF44]"
             />
           </div>
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto scrollbar-thin">
             {loading ? (
               <div className="p-6 text-center text-xs text-gray-600">Carregando...</div>
             ) : filtered.length === 0 ? (
@@ -562,11 +580,29 @@ export default function PerguntasPage() {
 
                 <textarea
                   value={answerText}
-                  onChange={e => setAnswerText(e.target.value)}
+                  onChange={e => { setAnswerText(e.target.value); setAnswerError('') }}
                   placeholder="Digite sua resposta..."
-                  disabled={selected.status !== 'unanswered' && selected.status !== 'UNANSWERED'}
-                  className="flex-1 bg-[#09090b] border border-[#1a1a1f] rounded-lg p-3 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[#00E5FF44] resize-none disabled:opacity-50"
+                  disabled={sending || (selected.status !== 'unanswered' && selected.status !== 'UNANSWERED')}
+                  maxLength={2000}
+                  className="flex-1 bg-[#09090b] border border-[#1a1a1f] rounded-lg p-3 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[#00E5FF44] resize-none disabled:opacity-50 min-h-[120px]"
                 />
+
+                {/* Char counter + error row */}
+                <div className="flex items-center justify-between mt-1 flex-shrink-0">
+                  {answerError ? (
+                    <p className="flex items-center gap-1 text-xs text-red-400">
+                      <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="10" strokeWidth={2} />
+                        <line x1="12" y1="8" x2="12" y2="12" strokeWidth={2} strokeLinecap="round" />
+                        <line x1="12" y1="16" x2="12.01" y2="16" strokeWidth={2} strokeLinecap="round" />
+                      </svg>
+                      {answerError}
+                    </p>
+                  ) : <span />}
+                  <span className={`text-[11px] tabular-nums flex-shrink-0 ${answerText.length > 1900 ? 'text-red-400' : 'text-gray-600'}`}>
+                    {answerText.length}/2000
+                  </span>
+                </div>
 
                 {/* AI suggestion inline */}
                 {aiSuggestion && (
@@ -589,10 +625,40 @@ export default function PerguntasPage() {
                 <div className="flex gap-2 mt-3 flex-shrink-0">
                   <button
                     onClick={handleAnswer}
-                    disabled={sending || !answerText.trim() || (selected.status !== 'unanswered' && selected.status !== 'UNANSWERED')}
-                    className="ml-auto flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-[#00E5FF] text-black text-sm font-semibold hover:bg-[#00cfea] transition-colors disabled:opacity-40"
+                    disabled={sending || sent || !answerText.trim() || answerText.trim().length < 10 || (selected.status !== 'unanswered' && selected.status !== 'UNANSWERED')}
+                    className={`ml-auto flex items-center gap-1.5 px-5 py-2 rounded-xl text-sm font-semibold transition-all ${
+                      sent
+                        ? 'bg-green-900/40 text-green-400 border border-green-900/60'
+                        : sending
+                          ? 'bg-[#1a1a1f] text-gray-500 cursor-wait'
+                          : !answerText.trim() || answerText.trim().length < 10
+                            ? 'bg-[#1a1a1f] text-gray-600 cursor-not-allowed'
+                            : 'bg-[#00E5FF] text-black hover:bg-[#00cfea] shadow-lg shadow-[#00E5FF15]'
+                    }`}
                   >
-                    {sending ? 'Enviando...' : 'Responder →'}
+                    {sending ? (
+                      <>
+                        <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                        </svg>
+                        Enviando...
+                      </>
+                    ) : sent ? (
+                      <>
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                        </svg>
+                        Enviado!
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z" />
+                        </svg>
+                        Responder →
+                      </>
+                    )}
                   </button>
                 </div>
               </div>
@@ -671,6 +737,16 @@ export default function PerguntasPage() {
           </div>
         </div>
       </div>
+
+      {/* Fixed bottom success toast */}
+      {sent && (
+        <div className="fixed bottom-6 right-6 bg-[#111114] border border-[#00E5FF33] text-white text-sm font-semibold px-5 py-3 rounded-2xl shadow-xl flex items-center gap-2 z-50">
+          <svg className="w-4 h-4 text-[#00E5FF]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+          </svg>
+          Resposta enviada com sucesso para o ML!
+        </div>
+      )}
     </div>
   )
 }
