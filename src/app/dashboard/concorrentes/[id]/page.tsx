@@ -13,8 +13,9 @@ import {
 import { Competitor, PM, priceDiff, brl, relativeTime } from '../types'
 import AddCompetitorModal from '../_components/AddCompetitorModal'
 
-const SCRAPER = process.env.NEXT_PUBLIC_SCRAPER_URL ?? 'https://price-scraper-production-2e7c.up.railway.app'
-const COLORS = ['#f87171', '#fb923c', '#a78bfa', '#34d399', '#60a5fa']
+const SCRAPER  = process.env.NEXT_PUBLIC_SCRAPER_URL ?? 'https://price-scraper-production-2e7c.up.railway.app'
+const BACKEND  = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
+const COLORS   = ['#f87171', '#fb923c', '#a78bfa', '#34d399', '#60a5fa']
 
 // ── local types ───────────────────────────────────────────────────────────────
 
@@ -46,6 +47,16 @@ type ChartPoint = { date: string; ourPrice: number; [key: string]: number | stri
 function fmtDate(iso: string): string {
   const d = new Date(iso)
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
+function sellerDisplay(c: Competitor): string {
+  if (c.seller) return c.seller
+  try {
+    const tail = new URL(c.url).pathname.replace(/\/$/, '').slice(-4).toUpperCase()
+    return `Vendedor …${tail}`
+  } catch {
+    return 'Vendedor'
+  }
 }
 
 function buildLineData(
@@ -348,7 +359,7 @@ function CompetitorRow({
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
-              <p className="text-white text-sm font-bold truncate">{competitor.seller ?? '—'}</p>
+              <p className="text-white text-sm font-bold truncate">{sellerDisplay(competitor)}</p>
               <p className="text-zinc-500 text-[11px] truncate mt-0.5">{competitor.title ?? competitor.url}</p>
             </div>
             <div className="text-right shrink-0">
@@ -495,18 +506,14 @@ export default function ProductDetailPage() {
     }))
     setCompetitors(comps)
 
-    // Load price history for top 5 by current_price
-    const top5ids = [...comps]
-      .filter(c => c.current_price != null)
-      .sort((a, b) => a.current_price! - b.current_price!)
-      .slice(0, 5)
-      .map(c => c.id)
+    // Load price history for ALL competitors (needed for insights + charts)
+    const allIds = comps.map(c => c.id)
 
-    if (top5ids.length) {
+    if (allIds.length) {
       const { data: histData } = await supabase
         .from('price_history')
         .select('id, competitor_id, price, checked_at')
-        .in('competitor_id', top5ids)
+        .in('competitor_id', allIds)
         .order('checked_at', { ascending: true })
 
       const map = new Map<string, CompHistory[]>()
@@ -560,15 +567,14 @@ export default function ProductDetailPage() {
     let topSwing = { comp: null as Competitor | null, pct: 0 }
     for (const c of competitors) {
       const h = histMap.get(c.id) ?? []
+      if (!h.length) continue
+      // Most updates = total history entries
+      if (h.length > topCount.n) topCount = { comp: c, n: h.length }
       if (h.length < 2) continue
-      let changes = 0, maxPct = 0
-      for (let i = 1; i < h.length; i++) {
-        if (h[i].price !== h[i - 1].price) changes++
-        const p = Math.abs((h[i].price - h[i - 1].price) / h[i - 1].price) * 100
-        if (p > maxPct) maxPct = p
-      }
-      if (changes > topCount.n) topCount = { comp: c, n: changes }
-      if (maxPct > topSwing.pct) topSwing = { comp: c, pct: maxPct }
+      const prices = h.map(x => x.price)
+      const minP = Math.min(...prices), maxP = Math.max(...prices)
+      const pctSwing = minP > 0 ? ((maxP - minP) / minP) * 100 : 0
+      if (pctSwing > topSwing.pct) topSwing = { comp: c, pct: pctSwing }
     }
 
     const vsAvg = avgPrice != null && myPrice != null && myPrice > 0
@@ -578,22 +584,46 @@ export default function ProductDetailPage() {
   }, [competitors, histMap, myPrice])
 
   async function verifySingle(c: Competitor) {
+    const isMl = c.url.includes('mercadolivre') || c.url.includes('mercadolibre')
     try {
-      const res = await fetch(`${SCRAPER}/scrape`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: c.url }),
-      })
-      if (!res.ok) throw new Error()
-      const { price } = await res.json()
-      if (!price) throw new Error()
-      const now = new Date().toISOString()
       const supabase = createClient()
+      let price: number | null = null
+      let seller: string | null = c.seller
+
+      if (isMl) {
+        const { data: sess } = await supabase.auth.getSession()
+        const token = sess.session?.access_token
+        if (!token) throw new Error('Sessão expirada.')
+        const res = await fetch(`${BACKEND}/ml/item-info?url=${encodeURIComponent(c.url)}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (!res.ok) throw new Error()
+        const data = await res.json()
+        price = data.price ?? null
+        if (data.seller) seller = data.seller
+      } else {
+        const res = await fetch(`${SCRAPER}/scrape`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: c.url }),
+        })
+        if (!res.ok) throw new Error()
+        const data = await res.json()
+        price = data.price ?? null
+      }
+
+      if (!price) throw new Error('Preço não encontrado.')
+      const now = new Date().toISOString()
+      const updates: Record<string, unknown> = { current_price: price, last_checked: now }
+      if (seller && seller !== c.seller) updates.seller = seller
+
       await Promise.all([
-        supabase.from('competitors').update({ current_price: price, last_checked: now }).eq('id', c.id),
+        supabase.from('competitors').update(updates).eq('id', c.id),
         supabase.from('price_history').insert({ competitor_id: c.id, price }),
       ])
-      setCompetitors(prev => prev.map(x => x.id === c.id ? { ...x, current_price: price, last_checked: now } : x))
-      showToast(`${c.seller ?? 'Concorrente'} — ${brl(price)}`)
+      setCompetitors(prev => prev.map(x =>
+        x.id === c.id ? { ...x, current_price: price!, last_checked: now, ...(seller ? { seller } : {}) } : x
+      ))
+      showToast(`${seller ?? c.seller ?? 'Concorrente'} — ${brl(price)}`)
     } catch {
       showToast('Falha ao verificar preço.', 'error')
     }
@@ -753,7 +783,36 @@ export default function ProductDetailPage() {
               </div>
             )}
 
-            {/* ── Section 1: Top 5 Bar Chart ────────────────────────────── */}
+            {/* ── Section 1: Price Evolution Line Chart ─────────────────── */}
+            {lineData.length >= 2 && (
+              <div className="rounded-2xl px-6 py-5" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+                <p className="text-white text-sm font-semibold mb-1">Evolução de preços</p>
+                <p className="text-zinc-500 text-xs mb-5">Histórico dos 5 concorrentes mais baratos</p>
+                <ResponsiveContainer width="100%" height={220}>
+                  <LineChart data={lineData} margin={{ top: 4, right: 12, bottom: 0, left: 0 }}>
+                    <CartesianGrid stroke="#1a1a1e" strokeDasharray="3 3" />
+                    <XAxis dataKey="date" tick={{ fill: '#52525b', fontSize: 10 }} axisLine={false} tickLine={false} />
+                    <YAxis
+                      tick={{ fill: '#52525b', fontSize: 10 }}
+                      tickFormatter={v => brl(v as number)}
+                      axisLine={false} tickLine={false} width={90}
+                    />
+                    <Tooltip content={<LineTip />} />
+                    <Legend wrapperStyle={{ fontSize: 11, color: '#71717a', paddingTop: 10 }} />
+                    {lineSeries.map(s => (
+                      <Line key={s.id} dataKey={`c_${s.id}`} stroke={s.color} name={s.label}
+                        dot={false} strokeWidth={2} connectNulls />
+                    ))}
+                    {myPrice != null && (
+                      <Line dataKey="ourPrice" stroke="#00E5FF" strokeDasharray="6 3"
+                        name="Nosso preço" dot={false} strokeWidth={2} />
+                    )}
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+
+            {/* ── Section 2: Top 5 Bar Chart ────────────────────────────── */}
             {barData.length > 0 && (
               <div className="rounded-2xl px-6 py-5" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
                 <p className="text-white text-sm font-semibold mb-1">Top 5 menores preços</p>
@@ -794,35 +853,6 @@ export default function ProductDetailPage() {
                       ))}
                     </Bar>
                   </BarChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-
-            {/* ── Section 2: Price Evolution Line Chart ─────────────────── */}
-            {lineData.length >= 2 && (
-              <div className="rounded-2xl px-6 py-5" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
-                <p className="text-white text-sm font-semibold mb-1">Evolução de preços</p>
-                <p className="text-zinc-500 text-xs mb-5">Histórico dos 5 concorrentes mais baratos</p>
-                <ResponsiveContainer width="100%" height={220}>
-                  <LineChart data={lineData} margin={{ top: 4, right: 12, bottom: 0, left: 0 }}>
-                    <CartesianGrid stroke="#1a1a1e" strokeDasharray="3 3" />
-                    <XAxis dataKey="date" tick={{ fill: '#52525b', fontSize: 10 }} axisLine={false} tickLine={false} />
-                    <YAxis
-                      tick={{ fill: '#52525b', fontSize: 10 }}
-                      tickFormatter={v => brl(v as number)}
-                      axisLine={false} tickLine={false} width={90}
-                    />
-                    <Tooltip content={<LineTip />} />
-                    <Legend wrapperStyle={{ fontSize: 11, color: '#71717a', paddingTop: 10 }} />
-                    {lineSeries.map(s => (
-                      <Line key={s.id} dataKey={`c_${s.id}`} stroke={s.color} name={s.label}
-                        dot={false} strokeWidth={2} connectNulls />
-                    ))}
-                    {myPrice != null && (
-                      <Line dataKey="ourPrice" stroke="#00E5FF" strokeDasharray="6 3"
-                        name="Nosso preço" dot={false} strokeWidth={2} />
-                    )}
-                  </LineChart>
                 </ResponsiveContainer>
               </div>
             )}
