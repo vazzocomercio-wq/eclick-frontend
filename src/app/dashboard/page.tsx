@@ -551,12 +551,11 @@ export default function DashboardPage() {
         if (!token || cancelled) { if (!cancelled) setPeriodLoading(false); return }
 
         const { from, to } = getPeriodDates(period)
+        const url = `${BACKEND}/ml/recent-orders?date_from=${from}&date_to=${to}&limit=200`
         console.log(`[period-fetch] period=${period} from=${from} to=${to}`)
+        console.log('[period-fetch] URL:', url)
 
-        const res = await fetch(
-          `${BACKEND}/ml/recent-orders?date_from=${from}&date_to=${to}&limit=200`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        )
+        const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
 
         if (!res.ok) {
           console.error('[period-fetch] HTTP error:', res.status, await res.text().catch(() => ''))
@@ -599,7 +598,9 @@ export default function DashboardPage() {
   const topProds = useMemo(() => topProductsFromOrders(periodOrders), [periodOrders])
 
   const { topEstados, topCidades } = useMemo(() => {
-    const totalRevenue = periodOrders.reduce((sum, o) => sum + (o.total_amount ?? 0), 0)
+    const totalRevenue = periodOrders
+      .filter(o => o.shipping_state)
+      .reduce((sum, o) => sum + (o.total_amount ?? 0), 0)
     const stateMap: Record<string, { count: number; revenue: number }> = {}
     const cityMap:  Record<string, { count: number; revenue: number }> = {}
     for (const o of periodOrders) {
@@ -819,6 +820,9 @@ export default function DashboardPage() {
           height={350}
           realtime={false}
         />
+        <p className="text-[10px] text-gray-600 -mt-1 px-1">
+          * Mapa baseado nos pedidos com endereço de entrega disponível no período selecionado
+        </p>
 
         {/* Rankings: Top Estados e Top Cidades */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
