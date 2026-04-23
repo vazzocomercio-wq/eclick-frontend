@@ -1,3 +1,4 @@
+// v2 - pedidos completo
 'use client'
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
