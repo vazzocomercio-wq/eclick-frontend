@@ -617,25 +617,20 @@ export default function ProdutosPage() {
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
-    const supabase = createClient()
-    const { data: member } = await supabase
-      .from('organization_members').select('organization_id').maybeSingle()
-    const resolvedOrgId = member?.organization_id ?? null
-    setOrgId(resolvedOrgId)
-    const baseQuery = supabase
-      .from('products')
-      .select(`id,name,sku,brand,price,stock,status,platforms,photo_urls,
-               ml_title,condition,category,created_at,
-               wholesale_enabled,wholesale_levels,ml_listing_type,
-               ml_free_shipping,ml_flex`)
-    const { data, error: err } = await (
-      resolvedOrgId
-        ? baseQuery.eq('organization_id', resolvedOrgId)
-        : baseQuery.is('organization_id', null)
-    ).order('created_at', { ascending: false })
-    if (err) setError(err.message)
-    else setProducts(data ?? [])
-    setLoading(false)
+    try {
+      const token = await getAuthToken()
+      if (!token) { setError('Não autenticado'); setLoading(false); return }
+      const res = await fetch(`${BACKEND}/products`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json()
+      setProducts(Array.isArray(data) ? data : [])
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Erro ao carregar produtos')
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
   useEffect(() => { load() }, [load])
