@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase'
 import { PM, brl } from '../types'
 
 const SCRAPER = process.env.NEXT_PUBLIC_SCRAPER_URL ?? 'https://price-scraper-production-2e7c.up.railway.app'
+const ML_API = 'https://api.mercadolibre.com'
 
 type Product = {
   id: string
@@ -30,6 +31,7 @@ type UrlEntry = {
   scraped: ScraperData | null
   fetchError: string
   manualPrice: string
+  fetchSource: 'ml' | 'scraper' | null
 }
 
 type Props = {
@@ -37,6 +39,17 @@ type Props = {
   competitorCounts: Record<string, number>
   onClose: () => void
   onSaved: () => Promise<void>
+}
+
+// ── helpers ───────────────────────────────────────────────────────────────────
+
+function isMlUrl(url: string) {
+  return url.includes('mercadolivre') || url.includes('mercadolibre')
+}
+
+function extractMlbId(url: string): string | null {
+  const match = url.match(/MLB-?(\d+)/i)
+  return match ? `MLB${match[1]}` : null
 }
 
 // ── ProductSearch ─────────────────────────────────────────────────────────────
@@ -197,7 +210,7 @@ export default function AddCompetitorModal({ orgId, competitorCounts, onClose, o
   const [products, setProducts] = useState<Product[]>([])
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [entries, setEntries] = useState<UrlEntry[]>([
-    { id: 1, url: '', scraping: false, scraped: null, fetchError: '', manualPrice: '' },
+    { id: 1, url: '', scraping: false, scraped: null, fetchError: '', manualPrice: '', fetchSource: null },
   ])
   const [saveError, setSaveError] = useState('')
   const [saving, setSaving] = useState(false)
@@ -213,9 +226,70 @@ export default function AddCompetitorModal({ orgId, competitorCounts, onClose, o
       .then(({ data }) => setProducts(data ?? []))
   }, [orgId])
 
+  // ── ML API fetch (no auth required) ────────────────────────────────────────
+
+  const fetchMlData = useCallback(async (entryId: number, url: string) => {
+    const mlbId = extractMlbId(url)
+    if (!mlbId) {
+      // URL is ML domain but no MLB ID found — fall back to scraper
+      scrapeEntry(entryId, url)
+      return
+    }
+
+    setEntries(prev => prev.map(e => e.id === entryId
+      ? { ...e, scraping: true, fetchError: '', scraped: null, fetchSource: 'ml' }
+      : e
+    ))
+
+    try {
+      const itemRes = await fetch(`${ML_API}/items/${mlbId}`)
+      if (!itemRes.ok) throw new Error(`ML API retornou HTTP ${itemRes.status}`)
+      const item = await itemRes.json()
+
+      // Fetch seller nickname (non-fatal)
+      let seller = `Vendedor #${item.seller_id}`
+      try {
+        const userRes = await fetch(`${ML_API}/users/${item.seller_id}`)
+        if (userRes.ok) {
+          const user = await userRes.json()
+          if (user.nickname) seller = user.nickname
+        }
+      } catch {
+        // non-fatal — keep default
+      }
+
+      setEntries(prev => prev.map(e => e.id === entryId
+        ? {
+            ...e,
+            scraping: false,
+            scraped: {
+              title: item.title ?? null,
+              price: typeof item.price === 'number' ? item.price : null,
+              seller,
+              platform: 'ml',
+              photo_url: item.thumbnail ?? null,
+            },
+          }
+        : e
+      ))
+    } catch (err: unknown) {
+      setEntries(prev => prev.map(e => e.id === entryId
+        ? {
+            ...e,
+            scraping: false,
+            fetchError: err instanceof Error ? err.message : 'Erro ao buscar dados no Mercado Livre.',
+          }
+        : e
+      ))
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // ── Scraper fallback ────────────────────────────────────────────────────────
+
   const scrapeEntry = useCallback(async (entryId: number, url: string) => {
     setEntries(prev => prev.map(e => e.id === entryId
-      ? { ...e, scraping: true, fetchError: '', scraped: null }
+      ? { ...e, scraping: true, fetchError: '', scraped: null, fetchSource: 'scraper' }
       : e
     ))
     try {
@@ -238,22 +312,28 @@ export default function AddCompetitorModal({ orgId, competitorCounts, onClose, o
     }
   }, [])
 
+  // ── URL change handler ──────────────────────────────────────────────────────
+
   function handleUrlChange(entryId: number, url: string) {
     setEntries(prev => prev.map(e => e.id === entryId
-      ? { ...e, url, scraped: null, manualPrice: '', fetchError: '' }
+      ? { ...e, url, scraped: null, manualPrice: '', fetchError: '', fetchSource: null }
       : e
     ))
     const existing = debounceTimers.current.get(entryId)
     if (existing) clearTimeout(existing)
     if (!url.startsWith('http')) return
-    const timer = setTimeout(() => scrapeEntry(entryId, url), 800)
+
+    const timer = setTimeout(() => {
+      if (isMlUrl(url)) fetchMlData(entryId, url)
+      else scrapeEntry(entryId, url)
+    }, 800)
     debounceTimers.current.set(entryId, timer)
   }
 
   function addEntry() {
     setEntries(prev => [...prev, {
       id: Date.now(),
-      url: '', scraping: false, scraped: null, fetchError: '', manualPrice: '',
+      url: '', scraping: false, scraped: null, fetchError: '', manualPrice: '', fetchSource: null,
     }])
   }
 
@@ -359,6 +439,9 @@ export default function AddCompetitorModal({ orgId, competitorCounts, onClose, o
           {entries.map((entry, idx) => {
             const needsManualPrice = entry.scraped !== null && !entry.scraped.price
             const pm = entry.scraped?.platform ? PM[entry.scraped.platform] : null
+            const loadingMsg = entry.fetchSource === 'ml'
+              ? 'Buscando dados no Mercado Livre…'
+              : 'Buscando dados do produto…'
 
             return (
               <div key={entry.id} className="space-y-3">
@@ -395,7 +478,7 @@ export default function AddCompetitorModal({ orgId, competitorCounts, onClose, o
                     )}
                   </div>
                   {entry.scraping && (
-                    <p className="text-[11px] text-zinc-500 mt-1">Buscando dados do produto…</p>
+                    <p className="text-[11px] text-zinc-500 mt-1">{loadingMsg}</p>
                   )}
                 </div>
 
@@ -407,7 +490,7 @@ export default function AddCompetitorModal({ orgId, competitorCounts, onClose, o
                   </div>
                 )}
 
-                {/* Scraped preview */}
+                {/* Preview */}
                 {entry.scraped && (
                   <div className="rounded-xl p-4 space-y-2"
                     style={{ background: 'rgba(0,229,255,0.04)', border: '1px solid rgba(0,229,255,0.15)' }}>
@@ -425,7 +508,7 @@ export default function AddCompetitorModal({ orgId, competitorCounts, onClose, o
                     <div className="flex items-start gap-3">
                       {entry.scraped.photo_url && (
                         <img src={entry.scraped.photo_url} alt=""
-                          className="w-12 h-12 rounded-lg object-cover shrink-0"
+                          className="w-14 h-14 rounded-lg object-cover shrink-0"
                           style={{ border: '1px solid #2e2e33' }} />
                       )}
                       <div className="flex-1 min-w-0 space-y-1">
@@ -435,13 +518,15 @@ export default function AddCompetitorModal({ orgId, competitorCounts, onClose, o
                           </p>
                         )}
                         {entry.scraped.seller && (
-                          <p className="text-zinc-400 text-[12px]">Vendedor: {entry.scraped.seller}</p>
+                          <p className="text-zinc-400 text-[12px] flex items-center gap-1">
+                            <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                            </svg>
+                            {entry.scraped.seller}
+                          </p>
                         )}
-                        {entry.scraped.price && (
-                          <div>
-                            <p className="text-zinc-500 text-[10px]">Preço</p>
-                            <p className="text-white font-bold text-base">{brl(entry.scraped.price)}</p>
-                          </div>
+                        {entry.scraped.price != null && (
+                          <p className="text-white font-bold text-base">{brl(entry.scraped.price)}</p>
                         )}
                       </div>
                     </div>
