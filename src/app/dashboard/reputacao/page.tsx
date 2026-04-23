@@ -85,8 +85,8 @@ export default function Page() {
         return
       }
       setRep(await res.json())
-    } catch (e: any) {
-      setError(e?.message ?? 'Erro desconhecido')
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Erro desconhecido')
     } finally {
       setLoading(false)
     }
