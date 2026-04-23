@@ -1,8 +1,266 @@
+'use client'
+
+import { useState, useEffect, useCallback } from 'react'
+import { createBrowserClient } from '@supabase/ssr'
+
+const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
+
+type Reputation = {
+  seller_id: number
+  level_id: string
+  power_seller_status: string | null
+  transactions: {
+    canceled: { total: number; paid: number }
+    completed: { total: number; paid: number }
+    total: number
+    ratings: { negative: number; neutral: number; positive: number }
+    period: { total: number; paid: number }
+  }
+  metrics: {
+    sales?: { period: string; completed: number }
+    claims?: { period: string; rate: number; value: number }
+    delayed_handling_time?: { period: string; rate: number; value: number }
+    cancellations?: { period: string; rate: number; value: number }
+    mediation?: { period: string; rate: number; value: number }
+  }
+}
+
+type LevelInfo = {
+  label: string
+  color: string
+  bgCard: string
+  borderCard: string
+  barColor: string
+  rank: number
+}
+
+const LEVEL_MAP: Record<string, LevelInfo> = {
+  '5_green':       { label: 'Platinum', color: 'text-cyan-300',   bgCard: 'bg-cyan-900/20',   borderCard: 'border-cyan-500/30',   barColor: '#22d3ee', rank: 5 },
+  '4_light_green': { label: 'Ouro',     color: 'text-yellow-300', bgCard: 'bg-yellow-900/20', borderCard: 'border-yellow-500/30', barColor: '#facc15', rank: 4 },
+  '3_yellow':      { label: 'Prata',    color: 'text-zinc-300',   bgCard: 'bg-zinc-700/20',   borderCard: 'border-zinc-500/30',   barColor: '#a1a1aa', rank: 3 },
+  '2_orange':      { label: 'Bronze',   color: 'text-orange-300', bgCard: 'bg-orange-900/20', borderCard: 'border-orange-500/30', barColor: '#fb923c', rank: 2 },
+  '1_red':         { label: 'Basico',   color: 'text-red-300',    bgCard: 'bg-red-900/20',    borderCard: 'border-red-500/30',    barColor: '#f87171', rank: 1 },
+}
+
+const POWER_LABEL: Record<string, string> = {
+  platinum: 'MercadoLider Platinum',
+  gold:     'MercadoLider Gold',
+  silver:   'MercadoLider Silver',
+}
+
+function fmtPct(rate: number) {
+  return (rate * 100).toFixed(2) + '%'
+}
+
+function metricStyle(rate: number, warn: number, crit: number) {
+  if (rate <= warn) return { bar: 'bg-emerald-500', text: 'text-emerald-400', badge: 'bg-emerald-900/30 text-emerald-300', label: 'Otimo' }
+  if (rate <= crit) return { bar: 'bg-yellow-500',  text: 'text-yellow-400',  badge: 'bg-yellow-900/30 text-yellow-300',  label: 'Regular' }
+  return               { bar: 'bg-red-500',     text: 'text-red-400',     badge: 'bg-red-900/30 text-red-300',     label: 'Critico' }
+}
+
 export default function Page() {
-  return (
+  const [rep,     setRep]     = useState<Reputation | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error,   setError]   = useState<string | null>(null)
+
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  )
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+      if (!token) { setError('Nao autenticado'); setLoading(false); return }
+
+      const res = await fetch(`${BACKEND}/ml/reputation`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        setError(body.message ?? `Erro ${res.status}`)
+        return
+      }
+      setRep(await res.json())
+    } catch (e: any) {
+      setError(e?.message ?? 'Erro desconhecido')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  if (loading) return (
+    <div className="p-8 flex items-center gap-3 text-zinc-400">
+      <div className="w-5 h-5 border-2 border-zinc-600 border-t-blue-400 rounded-full animate-spin" />
+      Carregando reputacao...
+    </div>
+  )
+
+  if (error) return (
     <div className="p-8">
-      <h1 className="text-white text-2xl font-semibold">Reputação</h1>
-      <p className="text-zinc-500 mt-2 text-sm">Esta seção está em desenvolvimento.</p>
+      <div className="bg-red-900/20 border border-red-500/30 rounded-xl p-6">
+        <p className="text-red-400 font-semibold">Erro ao carregar reputacao</p>
+        <p className="text-red-400/70 text-sm mt-1">{error}</p>
+        <button
+          onClick={load}
+          className="mt-3 text-sm bg-red-900/40 hover:bg-red-900/60 text-red-300 px-4 py-2 rounded-lg transition-colors"
+        >
+          Tentar novamente
+        </button>
+      </div>
+    </div>
+  )
+
+  if (!rep) return null
+
+  const level   = LEVEL_MAP[rep.level_id] ?? { label: rep.level_id, color: 'text-zinc-400', bgCard: 'bg-zinc-800', borderCard: 'border-zinc-700', barColor: '#71717a', rank: 0 }
+  const txn     = rep.transactions
+  const psLabel = rep.power_seller_status ? (POWER_LABEL[rep.power_seller_status] ?? rep.power_seller_status) : null
+  const totalRat = txn.ratings.positive + txn.ratings.neutral + txn.ratings.negative
+  const posPct   = totalRat > 0 ? ((txn.ratings.positive / totalRat) * 100).toFixed(1) : '0'
+  const concPct  = txn.total > 0 ? ((txn.completed.total / txn.total) * 100).toFixed(1) : '0'
+  const cancPct  = txn.total > 0 ? ((txn.canceled.total / txn.total) * 100).toFixed(1) : '0'
+
+  const qualMetrics = [
+    { label: 'Reclamacoes',        m: rep.metrics.claims,                warn: 0.01,  crit: 0.03  },
+    { label: 'Mediacoes',          m: rep.metrics.mediation,             warn: 0.005, crit: 0.02  },
+    { label: 'Cancelamentos',      m: rep.metrics.cancellations,         warn: 0.02,  crit: 0.05  },
+    { label: 'Atraso no despacho', m: rep.metrics.delayed_handling_time, warn: 0.05,  crit: 0.10  },
+  ]
+
+  return (
+    <div className="p-8 space-y-6 max-w-5xl">
+      <div className="flex items-center justify-between">
+        <h1 className="text-white text-2xl font-semibold">Reputacao</h1>
+        <button
+          onClick={load}
+          className="text-xs text-zinc-400 hover:text-white bg-zinc-800 hover:bg-zinc-700 px-3 py-1.5 rounded-lg transition-colors"
+        >
+          Atualizar
+        </button>
+      </div>
+
+      {/* ── Level hero ─────────────────────────────────────────── */}
+      <div className={`rounded-2xl border p-6 ${level.bgCard} ${level.borderCard}`}>
+        <div className="flex items-center justify-between flex-wrap gap-6">
+          <div>
+            <p className="text-zinc-400 text-sm mb-1">Nivel de Reputacao</p>
+            <p className={`text-4xl font-bold ${level.color}`}>{level.label}</p>
+            {psLabel && (
+              <span className="mt-2 inline-block text-xs bg-yellow-500/20 border border-yellow-500/30 text-yellow-300 px-2.5 py-0.5 rounded-full">
+                {psLabel}
+              </span>
+            )}
+          </div>
+          <div className="flex gap-2 items-end">
+            {[1, 2, 3, 4, 5].map(i => (
+              <div
+                key={i}
+                className="rounded-sm"
+                style={{
+                  width: 18,
+                  height: 8 + i * 7,
+                  backgroundColor: i <= level.rank ? level.barColor : '#3f3f46',
+                  opacity: i <= level.rank ? 1 : 0.35,
+                }}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ── All-time stats ─────────────────────────────────────── */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {[
+          { label: 'Total de vendas',    value: txn.total.toLocaleString('pt-BR'),           sub: 'historico completo' },
+          { label: 'Concluidas',         value: txn.completed.total.toLocaleString('pt-BR'), sub: `${concPct}% de conclusao` },
+          { label: 'Canceladas',         value: txn.canceled.total.toLocaleString('pt-BR'),  sub: `${cancPct}% do total` },
+          { label: 'Avaliacao positiva', value: `${posPct}%`,                                sub: `${txn.ratings.positive.toLocaleString('pt-BR')} positivas` },
+        ].map(s => (
+          <div key={s.label} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+            <p className="text-zinc-500 text-xs mb-1">{s.label}</p>
+            <p className="text-white text-2xl font-bold">{s.value}</p>
+            <p className="text-zinc-500 text-xs mt-1">{s.sub}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Last 60 days ───────────────────────────────────────── */}
+      <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
+        <h3 className="text-white font-semibold mb-5">Ultimos 60 Dias</h3>
+        <div className="grid grid-cols-3 divide-x divide-zinc-800 text-center">
+          {[
+            { label: 'Vendas no periodo',     value: txn.period?.total ?? 0 },
+            { label: 'Com frete pago',        value: txn.period?.paid  ?? 0 },
+            { label: 'Concluidas (metricas)', value: rep.metrics.sales?.completed ?? 0 },
+          ].map(s => (
+            <div key={s.label} className="px-4 py-2">
+              <p className="text-white text-3xl font-bold">{s.value.toLocaleString('pt-BR')}</p>
+              <p className="text-zinc-500 text-xs mt-1">{s.label}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Quality metrics ────────────────────────────────────── */}
+      <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
+        <h3 className="text-white font-semibold mb-1">Metricas de Qualidade</h3>
+        <p className="text-zinc-500 text-xs mb-5">Calculadas sobre os ultimos 60 dias</p>
+        <div className="space-y-5">
+          {qualMetrics.map(({ label, m, warn, crit }) => {
+            const rate = m?.rate ?? 0
+            const val  = m?.value ?? 0
+            const sty  = metricStyle(rate, warn, crit)
+            const barW = Math.min(Math.max(rate * 500, val > 0 ? 1 : 0), 100)
+            return (
+              <div key={label}>
+                <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+                  <span className="text-zinc-300 text-sm">{label}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-zinc-500 text-xs">{val} ocorrencias</span>
+                    <span className={`text-sm font-semibold ${sty.text}`}>{fmtPct(rate)}</span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${sty.badge}`}>{sty.label}</span>
+                  </div>
+                </div>
+                <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                  <div className={`h-full rounded-full ${sty.bar}`} style={{ width: `${barW}%` }} />
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* ── Buyer ratings ──────────────────────────────────────── */}
+      <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
+        <h3 className="text-white font-semibold mb-5">Avaliacoes dos Compradores</h3>
+        <div className="space-y-3">
+          {[
+            { label: 'Positivas', value: txn.ratings.positive, barCls: 'bg-emerald-500', txtCls: 'text-emerald-400' },
+            { label: 'Neutras',   value: txn.ratings.neutral,  barCls: 'bg-yellow-500',  txtCls: 'text-yellow-400'  },
+            { label: 'Negativas', value: txn.ratings.negative, barCls: 'bg-red-500',     txtCls: 'text-red-400'    },
+          ].map(r => {
+            const w = totalRat > 0 ? (r.value / totalRat) * 100 : 0
+            return (
+              <div key={r.label} className="flex items-center gap-3">
+                <span className="text-zinc-400 text-sm w-20 shrink-0">{r.label}</span>
+                <div className="flex-1 h-2 bg-zinc-800 rounded-full overflow-hidden">
+                  <div className={`h-full rounded-full ${r.barCls}`} style={{ width: `${w}%` }} />
+                </div>
+                <span className={`text-sm font-semibold w-20 text-right shrink-0 ${r.txtCls}`}>
+                  {r.value.toLocaleString('pt-BR')}
+                </span>
+              </div>
+            )
+          })}
+          <p className="text-zinc-600 text-xs mt-1">{totalRat.toLocaleString('pt-BR')} avaliacoes no total</p>
+        </div>
+      </div>
     </div>
   )
 }
