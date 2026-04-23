@@ -21,12 +21,16 @@ type MListing = {
   listing_type_id: string
   catalog_product_id: string | null
   catalog_listing: boolean
+  catalog_listing_type_id: string | null
   free_shipping: boolean
   logistic_type: string | null
   sku: string | null
   has_variations: boolean
   pictures_count: number
   tags: string[]
+  deal_ids: string[]
+  promotions: unknown[]
+  health: number | null
   last_updated: string
   date_created: string
 }
@@ -42,8 +46,17 @@ const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', curren
 const num = (v: number) => v.toLocaleString('pt-BR')
 
 function ago(iso: string) {
-  const d = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000)
-  return d === 0 ? 'hoje' : d === 1 ? 'ontem' : `${d}d atrás`
+  const ms = Date.now() - new Date(iso).getTime()
+  const h  = Math.floor(ms / 3600000)
+  if (h < 1)  return 'agora'
+  if (h < 24) return `${h}h atrás`
+  const d = Math.floor(h / 24)
+  return d === 1 ? 'ontem' : `${d}d atrás`
+}
+
+function discountPct(original: number | null, current: number): number | null {
+  if (!original || original <= current) return null
+  return Math.round(((original - current) / original) * 100)
 }
 
 function feeRate(type: string) {
@@ -66,6 +79,25 @@ function typeBadge(listing_type_id: string, logistic_type: string | null, catalo
     badges.push({ label: 'Clássico', bg: '#1a1a1f', color: '#71717a', border: '#27272a' })
 
   return badges
+}
+
+// ── Health gauge ───────────────────────────────────────────────────────────
+
+function HealthGauge({ score }: { score: number }) {
+  const color = score >= 80 ? '#22c55e' : score >= 60 ? '#eab308' : '#ef4444'
+  const r = 10, circ = 2 * Math.PI * r
+  const dash = (score / 100) * circ
+  return (
+    <span className="inline-flex items-center gap-1" title={`Saúde: ${score}/100`}>
+      <svg width="26" height="26" viewBox="0 0 26 26">
+        <circle cx="13" cy="13" r={r} fill="none" stroke="#1e1e24" strokeWidth="3" />
+        <circle cx="13" cy="13" r={r} fill="none" stroke={color} strokeWidth="3"
+          strokeDasharray={`${dash} ${circ}`} strokeDashoffset={circ / 4}
+          strokeLinecap="round" style={{ transition: 'stroke-dasharray .5s' }} />
+        <text x="13" y="17" textAnchor="middle" fontSize="7" fontWeight="700" fill={color}>{score}</text>
+      </svg>
+    </span>
+  )
 }
 
 // ── Copy button ────────────────────────────────────────────────────────────
@@ -171,10 +203,28 @@ function ListingCard({ item, selected, onSelect }: {
   item: MListing; selected: boolean; onSelect: (id: string) => void
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
-  const fee    = item.price * feeRate(item.listing_type_id)
-  const net    = item.price - fee
-  const badges = typeBadge(item.listing_type_id, item.logistic_type, item.catalog_listing)
+  const fee      = item.price * feeRate(item.listing_type_id)
+  const net      = item.price - fee
+  const badges   = typeBadge(item.listing_type_id, item.logistic_type, item.catalog_listing)
   const isActive = item.status === 'active'
+  const disc     = discountPct(item.original_price, item.price)
+  const hasPromo = (item.deal_ids?.length ?? 0) > 0 || (item.promotions?.length ?? 0) > 0
+
+  // Competitive status from catalog_listing_type_id
+  const compStatus = (() => {
+    const t = item.catalog_listing_type_id?.toLowerCase() ?? ''
+    if (t.includes('winning')) return { label: '🏆 Ganhando', bg: '#0d1f17', color: '#4ade80', border: 'rgba(34,197,94,.2)' }
+    if (t.includes('losing'))  return { label: '📉 Perdendo', bg: '#1f0d0d', color: '#f87171', border: 'rgba(248,113,113,.2)' }
+    return null
+  })()
+
+  // Shipping label
+  const shippingLabel = (() => {
+    if (item.logistic_type === 'fulfillment') return { text: 'Flex', bg: '#0e2a33', color: '#00E5FF', border: '#00E5FF22' }
+    if (item.logistic_type === 'drop_off' || item.logistic_type === 'xd_drop_off') return { text: 'Coleta', bg: '#1a1a1f', color: '#71717a', border: '#27272a' }
+    if (item.free_shipping) return null // handled separately as "Frete grátis"
+    return { text: 'Comprador paga frete', bg: '#1a1a1f', color: '#52525b', border: '#1e1e24' }
+  })()
 
   return (
     <div className="flex gap-3 p-4 rounded-xl transition-colors"
@@ -187,13 +237,19 @@ function ListingCard({ item, selected, onSelect }: {
       </div>
 
       {/* Thumbnail */}
-      <div className="shrink-0 w-16 h-16 rounded-lg overflow-hidden bg-zinc-800">
+      <div className="shrink-0 w-16 h-16 rounded-lg overflow-hidden bg-zinc-800 relative">
         <img src={item.thumbnail} alt="" className="w-full h-full object-cover" />
+        {disc && (
+          <span className="absolute bottom-0 right-0 text-[9px] font-bold px-1 py-0.5 rounded-tl-md"
+            style={{ background: '#22c55e', color: '#000' }}>
+            -{disc}%
+          </span>
+        )}
       </div>
 
       {/* Info */}
       <div className="flex-1 min-w-0">
-        {/* Type badges */}
+        {/* Type + status badges */}
         <div className="flex flex-wrap gap-1.5 mb-1.5">
           {badges.map(b => (
             <span key={b.label} className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
@@ -206,6 +262,18 @@ function ListingCard({ item, selected, onSelect }: {
             <span className="w-1.5 h-1.5 rounded-full" style={{ background: isActive ? '#22c55e' : '#ef4444' }} />
             {isActive ? 'Ativo' : item.status === 'paused' ? 'Pausado' : item.status === 'closed' ? 'Finalizado' : 'Em revisão'}
           </span>
+          {compStatus && (
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+              style={{ background: compStatus.bg, color: compStatus.color, border: `1px solid ${compStatus.border}` }}>
+              {compStatus.label}
+            </span>
+          )}
+          {hasPromo && (
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+              style={{ background: '#2a1500', color: '#fb923c', border: '1px solid rgba(251,146,60,.2)' }}>
+              {(item.deal_ids?.length ?? 0) + (item.promotions?.length ?? 0)} Promoção
+            </span>
+          )}
         </div>
 
         {/* Title */}
@@ -219,18 +287,16 @@ function ListingCard({ item, selected, onSelect }: {
           <span className="flex items-center font-mono text-zinc-400">
             {item.id}<Copy text={item.id} />
           </span>
-          {item.sku && (
-            <span>SKU: <span className="text-zinc-400">{item.sku}</span></span>
-          )}
+          {item.sku && <span>SKU: <span className="text-zinc-400">{item.sku}</span></span>}
           {item.catalog_product_id && (
-            <span className="flex items-center text-zinc-500">
-              Cat: <span className="font-mono ml-1">{item.catalog_product_id}</span>
+            <span className="flex items-center">
+              Cat: <span className="font-mono ml-1 text-zinc-400">{item.catalog_product_id}</span>
               <Copy text={item.catalog_product_id} />
             </span>
           )}
         </div>
 
-        {/* Stats */}
+        {/* Stats row */}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs mb-2">
           <span className="text-zinc-500">
             Disp: <span className="text-zinc-200 font-semibold">{num(item.available_quantity)}</span>
@@ -238,19 +304,28 @@ function ListingCard({ item, selected, onSelect }: {
           <span className="text-zinc-500">
             Vendidos: <span className="text-zinc-200 font-semibold">{num(item.sold_quantity)}</span>
           </span>
-          <span className="text-zinc-600">{item.pictures_count} foto{item.pictures_count !== 1 ? 's' : ''}</span>
-          <span className="text-zinc-600">{ago(item.last_updated)}</span>
+          <span className="text-zinc-600">📷 {item.pictures_count}</span>
+          <span className="text-zinc-600">Atualizado {ago(item.last_updated)}</span>
           {item.has_variations && (
-            <span className="text-cyan-500 font-medium cursor-pointer hover:text-cyan-300">Ver variações</span>
+            <span className="text-cyan-500 font-medium cursor-pointer hover:text-cyan-300 text-xs">
+              Ver variações
+            </span>
           )}
+          {item.health != null && <HealthGauge score={Math.round(item.health * 100)} />}
         </div>
 
-        {/* Extra badges */}
+        {/* Shipping + extra badges */}
         <div className="flex flex-wrap gap-1.5">
           {item.free_shipping && (
             <span className="text-[10px] px-2 py-0.5 rounded-full font-medium"
               style={{ background: '#0d1f17', border: '1px solid rgba(34,197,94,.2)', color: '#4ade80' }}>
               Frete grátis
+            </span>
+          )}
+          {shippingLabel && (
+            <span className="text-[10px] px-2 py-0.5 rounded-full"
+              style={{ background: shippingLabel.bg, color: shippingLabel.color, border: `1px solid ${shippingLabel.border}` }}>
+              {shippingLabel.text}
             </span>
           )}
           {item.tags.includes('good_seller') && (
@@ -271,13 +346,17 @@ function ListingCard({ item, selected, onSelect }: {
       {/* Price card */}
       <div className="shrink-0 w-44 flex flex-col items-end gap-1.5">
         <div className="text-right">
-          {item.original_price && item.original_price > item.price && (
-            <p className="text-zinc-600 text-[11px] line-through">{brl(item.original_price)}</p>
+          {disc && item.original_price && (
+            <div className="flex items-center gap-1.5 justify-end">
+              <p className="text-zinc-600 text-[11px] line-through">{brl(item.original_price)}</p>
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
+                style={{ background: '#0d1f17', color: '#4ade80' }}>
+                -{disc}%
+              </span>
+            </div>
           )}
           <p className="text-white text-xl font-bold leading-tight">{brl(item.price)}</p>
-          <p className="text-emerald-400 text-xs font-semibold mt-0.5">
-            Líquido: {brl(net)}
-          </p>
+          <p className="text-emerald-400 text-xs font-semibold mt-0.5">Líquido: {brl(net)}</p>
         </div>
 
         <div className="w-full text-[11px] pt-2 space-y-1" style={{ borderTop: '1px solid #1e1e24' }}>
@@ -287,7 +366,7 @@ function ListingCard({ item, selected, onSelect }: {
           </div>
           <div className="flex justify-between text-zinc-600">
             <span>Frete vendedor</span>
-            <span>{item.free_shipping ? 'Incluso' : '—'}</span>
+            <span>{item.free_shipping ? 'Incluso' : 'Comprador'}</span>
           </div>
         </div>
 
