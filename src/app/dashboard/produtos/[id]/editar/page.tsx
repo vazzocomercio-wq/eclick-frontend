@@ -4,6 +4,14 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
+
+const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
+
+async function getAuthToken(): Promise<string | null> {
+  const supabase = createClient()
+  const { data } = await supabase.auth.getSession()
+  return data.session?.access_token ?? null
+}
 import { emptyForm, ProductForm } from '../../novo/types'
 import Tab1Basic from '../../novo/_components/Tab1Basic'
 import Tab2Description from '../../novo/_components/Tab2Description'
@@ -194,28 +202,17 @@ export default function EditarProdutoPage() {
   useEffect(() => {
     if (!id) return
     async function load() {
-      const supabase = createClient()
+      const token = await getAuthToken()
+      if (!token) { setLoadError('Não autenticado'); setLoadingProduct(false); return }
 
-      // Get org
-      const { data: member } = await supabase
-        .from('organization_members')
-        .select('organization_id')
-        .maybeSingle()
-      if (member) setOrgId(member.organization_id)
-
-      // Get product
-      const { data, error } = await supabase
-        .from('products')
-        .select('*')
-        .eq('id', id)
-        .single()
-
+      const res = await fetch(`${BACKEND}/products/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
       setLoadingProduct(false)
-      if (error || !data) {
-        setLoadError('Produto não encontrado.')
-        return
-      }
+      if (!res.ok) { setLoadError('Produto não encontrado.'); return }
 
+      const data = await res.json()
+      setOrgId(data.organization_id ?? null)
       const f = dbToForm(data)
       setForm(f)
       setProductName(data.name ?? '')
@@ -328,16 +325,19 @@ export default function EditarProdutoPage() {
     }
 
     setSaving(true)
-    const supabase = createClient()
+    const token = await getAuthToken()
+    if (!token) { toast('Não autenticado', 'error'); setSaving(false); return }
 
-    const { error } = await supabase
-      .from('products')
-      .update(buildPayload(status))
-      .eq('id', id)
+    const res = await fetch(`${BACKEND}/products/${id}`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(buildPayload(status)),
+    })
 
-    if (error) {
-      console.error('[produto/editar] update error:', error)
-      toast(`Erro ao salvar: ${error.message}`, 'error')
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      console.error('[produto/editar] update error:', err)
+      toast(`Erro ao salvar: ${err.message ?? res.status}`, 'error')
       setSaving(false)
       return
     }
