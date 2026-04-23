@@ -4,8 +4,8 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { PM, brl } from '../types'
 
-const SCRAPER = process.env.NEXT_PUBLIC_SCRAPER_URL ?? 'https://price-scraper-production-2e7c.up.railway.app'
-const ML_API = 'https://api.mercadolibre.com'
+const SCRAPER  = process.env.NEXT_PUBLIC_SCRAPER_URL  ?? 'https://price-scraper-production-2e7c.up.railway.app'
+const BACKEND  = process.env.NEXT_PUBLIC_BACKEND_URL  ?? 'http://localhost:3001'
 
 type Product = {
   id: string
@@ -47,21 +47,7 @@ function isMlUrl(url: string) {
   return url.includes('mercadolivre') || url.includes('mercadolibre')
 }
 
-function extractMlbId(url: string): string | null {
-  const match = url.match(/MLB-?(\d+)/i)
-  return match ? `MLB${match[1]}` : null
-}
 
-function extractSlug(url: string): string | null {
-  try {
-    const { pathname } = new URL(url)
-    // Take first path segment, skipping catalog prefixes like /p/ and suffixes like /_JM
-    const seg = pathname.split('/').find(s => s.length > 3 && !s.startsWith('_') && s !== 'p')
-    return seg ?? null
-  } catch {
-    return null
-  }
-}
 
 // ── ProductSearch ─────────────────────────────────────────────────────────────
 
@@ -237,7 +223,7 @@ export default function AddCompetitorModal({ orgId, competitorCounts, onClose, o
       .then(({ data }) => setProducts(data ?? []))
   }, [orgId])
 
-  // ── ML API fetch (no auth required) ────────────────────────────────────────
+  // ── ML fetch via backend (uses stored access_token) ─────────────────────────
 
   const fetchMlData = useCallback(async (entryId: number, url: string) => {
     setEntries(prev => prev.map(e => e.id === entryId
@@ -246,58 +232,33 @@ export default function AddCompetitorModal({ orgId, competitorCounts, onClose, o
     ))
 
     try {
-      const mlbId = extractMlbId(url)
-      let scraped: ScraperData
+      const supabase = createClient()
+      const { data: session } = await supabase.auth.getSession()
+      const token = session.session?.access_token
+      if (!token) throw new Error('Sessão expirada. Faça login novamente.')
 
-      if (mlbId) {
-        // ── Direct item fetch by MLB ID ──────────────────────────────────────
-        const itemRes = await fetch(`${ML_API}/items/${mlbId}`)
-        if (!itemRes.ok) throw new Error(`ML API retornou HTTP ${itemRes.status}`)
-        const item = await itemRes.json()
-
-        // Fetch seller nickname (non-fatal)
-        let seller = `Vendedor #${item.seller_id}`
-        try {
-          const userRes = await fetch(`${ML_API}/users/${item.seller_id}`)
-          if (userRes.ok) {
-            const user = await userRes.json()
-            if (user.nickname) seller = user.nickname
-          }
-        } catch { /* non-fatal */ }
-
-        scraped = {
-          title: item.title ?? null,
-          price: typeof item.price === 'number' ? item.price : null,
-          seller,
-          platform: 'ml',
-          photo_url: item.thumbnail ?? null,
-        }
-      } else {
-        // ── Friendly URL: extract slug and search ────────────────────────────
-        const slug = extractSlug(url)
-        if (!slug) throw new Error('Não foi possível extrair dados desta URL do Mercado Livre.')
-
-        const query = slug.replace(/-/g, ' ')
-        const searchRes = await fetch(
-          `${ML_API}/sites/MLB/search?q=${encodeURIComponent(query)}&limit=1`,
-        )
-        if (!searchRes.ok) throw new Error(`ML Search retornou HTTP ${searchRes.status}`)
-        const search = await searchRes.json()
-
-        const result = search.results?.[0]
-        if (!result) throw new Error('Nenhum produto encontrado para esta URL.')
-
-        scraped = {
-          title: result.title ?? null,
-          price: typeof result.price === 'number' ? result.price : null,
-          seller: result.seller?.nickname ?? null,
-          platform: 'ml',
-          photo_url: result.thumbnail ?? null,
-        }
+      const res = await fetch(
+        `${BACKEND}/ml/item-info?url=${encodeURIComponent(url)}`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      )
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body?.message ?? `Backend retornou HTTP ${res.status}`)
       }
+      const data = await res.json()
 
       setEntries(prev => prev.map(e => e.id === entryId
-        ? { ...e, scraping: false, scraped }
+        ? {
+            ...e,
+            scraping: false,
+            scraped: {
+              title: data.title ?? null,
+              price: typeof data.price === 'number' ? data.price : null,
+              seller: data.seller ?? null,
+              platform: 'ml',
+              photo_url: data.thumbnail ?? null,
+            },
+          }
         : e
       ))
     } catch (err: unknown) {
@@ -310,7 +271,6 @@ export default function AddCompetitorModal({ orgId, competitorCounts, onClose, o
         : e
       ))
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // ── Scraper fallback ────────────────────────────────────────────────────────
