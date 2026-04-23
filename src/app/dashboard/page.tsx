@@ -713,9 +713,9 @@ export default function DashboardPage() {
   const topProds = useMemo(() => topProductsFromOrders(periodOrders), [periodOrders])
 
   const { topEstados, topCidades } = useMemo(() => {
-    const totalRevenue = periodOrders
-      .filter(o => o.shipping_state)
-      .reduce((sum, o) => sum + (o.total_amount ?? 0), 0)
+    // Use exact financialSummary total as denominator so % reflects full period revenue
+    const denominator = financialSummary?.total_revenue
+      ?? periodOrders.filter(o => o.shipping_state).reduce((sum, o) => sum + (o.total_amount ?? 0), 0)
     const stateMap: Record<string, { count: number; revenue: number }> = {}
     const cityMap:  Record<string, { count: number; revenue: number }> = {}
     for (const o of periodOrders) {
@@ -732,13 +732,13 @@ export default function DashboardPage() {
       }
     }
     const topEstados = Object.entries(stateMap)
-      .map(([state, d]) => ({ state, ...d, pct: totalRevenue > 0 ? (d.revenue / totalRevenue) * 100 : 0 }))
+      .map(([state, d]) => ({ state, ...d, pct: denominator > 0 ? (d.revenue / denominator) * 100 : 0 }))
       .sort((a, b) => b.revenue - a.revenue).slice(0, 5)
     const topCidades = Object.entries(cityMap)
-      .map(([city, d]) => ({ city, ...d, pct: totalRevenue > 0 ? (d.revenue / totalRevenue) * 100 : 0 }))
+      .map(([city, d]) => ({ city, ...d, pct: denominator > 0 ? (d.revenue / denominator) * 100 : 0 }))
       .sort((a, b) => b.revenue - a.revenue).slice(0, 5)
     return { topEstados, topCidades }
-  }, [periodOrders])
+  }, [periodOrders, financialSummary])
 
   // Product alerts
   const activeProds  = products.filter(p => p.status === 'active')
@@ -1117,12 +1117,12 @@ export default function DashboardPage() {
         <p className="text-zinc-500 text-[10px] uppercase tracking-widest font-semibold mb-3">Visão por Setor</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
 
-          <SectorCard title="Comercial" loading={loading} icon={
+          <SectorCard title="Comercial" loading={summaryLoading || loading} icon={
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.75}><path strokeLinecap="round" strokeLinejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>
           } items={[
-            { label: 'Faturamento período', value: shortBrl(cur.revenue), color: '#00E5FF' },
-            { label: 'Pedidos', value: cur.count },
-            { label: 'Ticket médio', value: brl(cur.avgTicket) },
+            { label: 'Faturamento período', value: shortBrl(financialSummary?.total_revenue ?? cur.revenue), color: '#00E5FF' },
+            { label: 'Pedidos', value: financialSummary?.total_orders ?? cur.count },
+            { label: 'Ticket médio', value: brl(financialSummary?.average_ticket ?? cur.avgTicket) },
             { label: 'Unidades vendidas', value: cur.units },
           ]} />
 
@@ -1153,13 +1153,13 @@ export default function DashboardPage() {
             { label: 'Prazo médio', value: '—' },
           ]} />
 
-          <SectorCard title="Financeiro" loading={loading} icon={
+          <SectorCard title="Financeiro" loading={summaryLoading || loading} icon={
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.75}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
           } items={[
-            { label: 'Receita bruta',  value: shortBrl(cur.revenue), color: '#00E5FF' },
-            { label: 'Taxas ML (~15%)', value: shortBrl(cur.revenue * 0.15), color: '#f87171' },
-            { label: 'Receita líquida est.', value: shortBrl(cur.revenue * 0.85), color: '#34d399' },
-            { label: 'Margem', value: '—' },
+            { label: 'Receita bruta',  value: shortBrl(financialSummary?.total_revenue ?? cur.revenue), color: '#00E5FF' },
+            { label: 'Taxas ML (~11.5%)', value: shortBrl((financialSummary?.total_revenue ?? cur.revenue) * 0.115), color: '#f87171' },
+            { label: 'Receita líquida est.', value: shortBrl((financialSummary?.total_revenue ?? cur.revenue) * 0.885), color: '#34d399' },
+            { label: 'Margem est.', value: `${margemPct.toFixed(1)}%`, color: margemPct >= 0 ? '#22c55e' : '#f87171' },
           ]} />
 
           <SectorCard title="Marketing" loading={loading} icon={
