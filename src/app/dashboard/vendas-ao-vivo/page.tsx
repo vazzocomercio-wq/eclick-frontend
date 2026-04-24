@@ -47,14 +47,17 @@ function pct(a: number, b: number): number | null {
   return ((a - b) / b) * 100
 }
 
-function dateStr(d: Date) {
+// ML returns date_created with -03:00 offset, so .slice(0,10) gives the
+// Brazil local date. We must use the same UTC-3 offset here for comparisons.
+function brazilDateStr(daysOffset = 0): string {
+  const d = new Date(Date.now() - 3 * 60 * 60 * 1000)
+  if (daysOffset) d.setUTCDate(d.getUTCDate() + daysOffset)
   return d.toISOString().slice(0, 10)
 }
 
-function todayDate() { return new Date() }
-function todayStr() { return dateStr(todayDate()) }
-function yestStr() { const d = new Date(); d.setDate(d.getDate() - 1); return dateStr(d) }
-function lwStr() { const d = new Date(); d.setDate(d.getDate() - 7); return dateStr(d) }
+function todayStr() { return brazilDateStr(0) }
+function yestStr()  { return brazilDateStr(-1) }
+function lwStr()    { return brazilDateStr(-7) }
 
 function isPaid(o: Order) { return o.status === 'paid' }
 
@@ -236,11 +239,15 @@ export default function VendasAoVivoPage() {
       }
     } catch { /* silent */ }
 
-    // Step 2: fetch orders with a 7-day window so ML filters server-side
+    // Step 2: fetch orders — 7-day window using Brazil time (UTC-3)
     try {
-      const from = new Date()
-      from.setDate(from.getDate() - 7)
-      const dateFrom = from.toISOString().slice(0, 10)
+      const brazilNow = new Date(Date.now() - 3 * 60 * 60 * 1000)
+      const brazilToday = brazilNow.toISOString().slice(0, 10)
+      brazilNow.setUTCDate(brazilNow.getUTCDate() - 7)
+      const dateFrom = brazilNow.toISOString().slice(0, 10)
+
+      console.log('[vendas-ao-vivo] data hoje GMT-3:', brazilToday)
+      console.log('[vendas-ao-vivo] date_from enviado:', dateFrom)
 
       const res = await fetch(
         `${BACKEND}/ml/recent-orders?date_from=${dateFrom}`,
@@ -249,6 +256,8 @@ export default function VendasAoVivoPage() {
       if (res.ok) {
         const json = await res.json()
         const next: Order[] = json.orders ?? []
+        console.log('[vendas-ao-vivo] pedidos retornados:', next.length)
+        console.log('[vendas-ao-vivo] pedidos hoje:', next.filter(o => o.date_created.slice(0, 10) === brazilToday).length)
         const nextIds = new Set(next.map((o: Order) => o.id))
         newIdsRef.current = new Set([...nextIds].filter(id => !prevIdsRef.current.has(id) && prevIdsRef.current.size > 0))
         prevIdsRef.current = nextIds
