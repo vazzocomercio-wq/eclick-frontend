@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import dynamic from 'next/dynamic'
 import { createClient } from '@/lib/supabase'
+import { useTodayOrders } from '@/hooks/useTodayOrders'
 import {
   AreaChart, Area, LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip,
@@ -214,6 +215,9 @@ function HeatCell({ value, max }: { value: number; max: number }) {
 // ── main page ─────────────────────────────────────────────────────────────────
 
 export default function VendasAoVivoPage() {
+  // Hook compartilhado: busca pedidos de HOJE sem filtro de status (mesma lógica do Dashboard)
+  const { faturamento: todayRevenue, pedidos: todayCount, loading: todayMetricsLoading, refresh: refreshTodayMetrics } = useTodayOrders()
+
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [connected, setConnected] = useState(false)
@@ -276,7 +280,8 @@ export default function VendasAoVivoPage() {
     } catch { /* silent */ }
 
     setLoading(false)
-  }, [])
+    refreshTodayMetrics()
+  }, [refreshTodayMetrics])
 
   useEffect(() => {
     fetchOrders()
@@ -373,17 +378,17 @@ export default function VendasAoVivoPage() {
           {/* center — revenue hero */}
           <div className="text-center">
             <p className="text-zinc-500 text-[11px] uppercase tracking-widest mb-1">Faturamento de hoje</p>
-            {loading ? (
+            {todayMetricsLoading ? (
               <div className="h-10 w-48 rounded-lg animate-pulse mx-auto" style={{ background: '#1e1e24' }} />
             ) : (
               <p className="text-4xl font-black tracking-tight leading-none" style={{ color: '#00E5FF' }}>
-                {brl(todayM.revenue)}
+                {brl(todayRevenue)}
               </p>
             )}
-            {!loading && (
+            {!todayMetricsLoading && (
               <div className="flex items-center justify-center gap-2 mt-2">
                 {(() => {
-                  const delta = pct(todayM.revenue, yestM.revenue)
+                  const delta = pct(todayRevenue, yestM.revenue)
                   if (delta === null) return <p className="text-zinc-600 text-[11px]">Sem dados de ontem</p>
                   const up = delta >= 0
                   return (
@@ -416,21 +421,21 @@ export default function VendasAoVivoPage() {
 
         {/* LINHA 1 — 6 metric cards */}
         <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
-          {loading ? [...Array(6)].map((_, i) => (
+          {(todayMetricsLoading || loading) ? [...Array(6)].map((_, i) => (
             <div key={i} className="rounded-xl p-4 animate-pulse h-24" style={{ background: '#111114' }} />
           )) : [
             {
               label: 'Faturamento hoje',
-              value: brl(todayM.revenue),
-              change: pct(todayM.revenue, yestM.revenue),
+              value: brl(todayRevenue),
+              change: pct(todayRevenue, yestM.revenue),
               color: '#00E5FF',
               sparkData: sparkRevenue,
             },
             {
               label: 'Pedidos hoje',
-              value: String(todayM.count),
-              sub: 'pagos',
-              change: pct(todayM.count, yestM.count),
+              value: String(todayCount),
+              sub: 'todos os status',
+              change: pct(todayCount, yestM.count),
               color: '#34d399',
               sparkData: sparkRevenue.map((_, i) => orders.filter(o => isPaid(o) && orderBrazilDate(o.date_created) === today && brazilHour(o.date_created) === i).length),
             },

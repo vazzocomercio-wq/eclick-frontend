@@ -5,6 +5,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
+import { useTodayOrders } from '@/hooks/useTodayOrders'
 import {
   AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip,
@@ -479,6 +480,9 @@ export default function DashboardPage() {
   const [financialSummary, setFinancialSummary] = useState<{ total_revenue: number; total_orders: number; ml_total: number; average_ticket: number } | null>(null)
   const [summaryLoading, setSummaryLoading] = useState(false)
 
+  // Shared hook: today's revenue/count without any status filter (same as Vendas ao Vivo)
+  const { faturamento: hookTodayRevenue, pedidos: hookTodayCount, loading: hookTodayLoading } = useTodayOrders()
+
   const refresh = useCallback(async (isInitial = false) => {
     if (!isInitial) setRefreshing(true)
     try {
@@ -688,21 +692,26 @@ export default function DashboardPage() {
 
   // ── Derived ──────────────────────────────────────────────────────────────────
 
+  // For "Hoje" period use hook values (no status filter, identical to Vendas ao Vivo)
+  const displayPedidos = period === 'today' ? hookTodayCount : (financialSummary?.total_orders ?? periodOrders.length)
+  const displaySummaryLoading = period === 'today' ? hookTodayLoading : (summaryLoading || loading)
+
   // periodOrders is now a state (fetched from backend per period)
   const yestOrders   = useMemo(() => orders.filter(o => brazilDateStr(new Date(o.date_created)) === brazilDateStr(daysAgoDate(1))), [orders])
 
   const cur  = useMemo(() => calcMetrics(periodOrders), [periodOrders])
 
   const { faturamento, lucroEstimado, margemPct } = useMemo(() => {
-    // Use exact server-side totals when available; fall back to local order list
-    const fat = financialSummary?.total_revenue
-      ?? periodOrders.reduce((s, o) => s + (o.total_amount ?? 0), 0)
+    // For today use hook value (no status filter); otherwise use server totals
+    const fat = period === 'today'
+      ? hookTodayRevenue
+      : (financialSummary?.total_revenue ?? periodOrders.reduce((s, o) => s + (o.total_amount ?? 0), 0))
     const withMargin = periodOrders.filter(o => (o.contribution_margin ?? 0) > 0)
     const lucro = withMargin.length > 0
       ? withMargin.reduce((s, o) => s + (o.contribution_margin ?? 0), 0)
       : fat * 0.885
     return { faturamento: fat, lucroEstimado: lucro, margemPct: fat > 0 ? (lucro / fat) * 100 : 0 }
-  }, [financialSummary, periodOrders])
+  }, [financialSummary, periodOrders, period, hookTodayRevenue])
   const yest = useMemo(() => calcMetrics(yestOrders), [yestOrders])
   const todayOrdersBR = useMemo(() => orders.filter(o => isPaid(o) && brazilDateStr(new Date(o.date_created)) === todayBR()), [orders])
   const todayM = useMemo(() => calcMetrics(todayOrdersBR), [todayOrdersBR])
@@ -821,13 +830,13 @@ export default function DashboardPage() {
           <p className="text-[#00E5FF] text-xs uppercase tracking-widest mb-3">
             Faturamento — {PERIOD_LABEL[period]}
           </p>
-          {(summaryLoading || loading) ? (
+          {displaySummaryLoading ? (
             <div className="space-y-3"><Skel h={40} className="w-2/3" /><Skel h={14} className="w-1/2" /></div>
           ) : (
             <>
               <p className="text-4xl font-bold text-white leading-none">{formatCurrency(faturamento)}</p>
               <p className="text-xs text-zinc-500 mt-1">
-                {financialSummary?.total_orders ?? periodOrders.length} pedido{(financialSummary?.total_orders ?? periodOrders.length) !== 1 ? 's' : ''} no período
+                {displayPedidos} pedido{displayPedidos !== 1 ? 's' : ''} no período
               </p>
               {prevData && (
                 <div className="mt-4 pt-3 border-t border-[#ffffff10]">
@@ -907,7 +916,7 @@ export default function DashboardPage() {
       <section>
         <p className="text-zinc-500 text-[10px] uppercase tracking-widest font-semibold mb-3">KPIs Executivos</p>
         <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-2.5">
-          <KpiCard label={`Pedidos — ${PERIOD_LABEL[period]}`} value={financialSummary ? String(financialSummary.total_orders) : String(cur.count)} vsYest={period === 'today' ? pct(cur.count, yest.count) : null} color="#a78bfa" loading={summaryLoading || periodLoading || loading} />
+          <KpiCard label={`Pedidos — ${PERIOD_LABEL[period]}`} value={String(displayPedidos)} vsYest={period === 'today' ? pct(cur.count, yest.count) : null} color="#a78bfa" loading={displaySummaryLoading || periodLoading} />
           <KpiCard label="Ticket médio"       value={brl(financialSummary?.average_ticket ?? cur.avgTicket)} color="#fb923c" loading={summaryLoading || periodLoading || loading} />
           <KpiCard label="Reputação ML"         value={sellerInfo?.level_id?.replace(/_/g, ' ') ?? '—'} sub={sellerInfo?.power_seller_status ?? (mlConnected ? '…' : 'ML desconect.')} color="#60a5fa" loading={loading} />
           <KpiCard label="Vendas Aprovadas"   value={finKpis ? shortBrl(finKpis.vendas_aprovadas) : '—'} sub="líquido mês atual" color="#22c55e" loading={loading} />
