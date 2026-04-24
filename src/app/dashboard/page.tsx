@@ -51,6 +51,7 @@ type ProdutoCusto = {
   ml_listing_id: string | null
   cost_price: number | null
   tax_percentage: number | null
+  quantity_per_unit: number
 }
 
 type Period = 'today' | '7d' | '30d' | 'month'
@@ -629,21 +630,45 @@ export default function DashboardPage() {
 
   useEffect(() => {
     supabase
-      .from('products')
-      .select('id, sku, ml_listing_id, cost_price, tax_percentage')
-      .limit(1000)
+      .from('product_listings')
+      .select('listing_id, quantity_per_unit, product:products(id, sku, cost_price, tax_percentage)')
+      .eq('is_active', true)
+      .eq('platform', 'mercadolivre')
+      .limit(5000)
       .then(({ data }) => {
-        setProdutos((data ?? []) as ProdutoCusto[])
-        console.log('[dashboard] produtos carregados:', data?.length)
+        const mapped: ProdutoCusto[] = (data ?? []).map((v: any) => ({
+          id:               v.product?.id ?? '',
+          sku:              v.product?.sku ?? null,
+          ml_listing_id:    v.listing_id,
+          cost_price:       v.product?.cost_price ?? null,
+          tax_percentage:   v.product?.tax_percentage ?? null,
+          quantity_per_unit: Number(v.quantity_per_unit) || 1,
+        })).filter(v => v.id)
+        setProdutos(mapped)
+        console.log('[dashboard] vínculos carregados:', mapped.length)
       })
   }, [supabase])
 
   useEffect(() => {
     const handleFocus = () => {
-      supabase.from('products')
-        .select('id, sku, ml_listing_id, cost_price, tax_percentage')
-        .limit(1000)
-        .then(({ data }) => { if (data) setProdutos(data as ProdutoCusto[]) })
+      supabase
+        .from('product_listings')
+        .select('listing_id, quantity_per_unit, product:products(id, sku, cost_price, tax_percentage)')
+        .eq('is_active', true)
+        .eq('platform', 'mercadolivre')
+        .limit(5000)
+        .then(({ data }) => {
+          if (!data) return
+          const mapped: ProdutoCusto[] = (data ?? []).map((v: any) => ({
+            id:               v.product?.id ?? '',
+            sku:              v.product?.sku ?? null,
+            ml_listing_id:    v.listing_id,
+            cost_price:       v.product?.cost_price ?? null,
+            tax_percentage:   v.product?.tax_percentage ?? null,
+            quantity_per_unit: Number(v.quantity_per_unit) || 1,
+          })).filter(v => v.id)
+          setProdutos(mapped)
+        })
     }
     window.addEventListener('focus', handleFocus)
     return () => window.removeEventListener('focus', handleFocus)
@@ -761,12 +786,13 @@ export default function DashboardPage() {
       const itemId = item?.item_id ?? null
       const quantidade = item?.quantity ?? 1
       const produto = itemId ? produtos.find(p => p.ml_listing_id === itemId) : undefined
-      const costPrice = Number(produto?.cost_price || 0)
-      const taxPct = Number(produto?.tax_percentage || 0) / 100
+      const costPrice  = Number(produto?.cost_price || 0)
+      const taxPct     = Number(produto?.tax_percentage || 0) / 100
+      const qtyPerUnit = Number(produto?.quantity_per_unit || 1)
 
       if (costPrice > 0 || taxPct > 0) {
         comCusto++
-        custoTotal += costPrice * quantidade
+        custoTotal += costPrice * qtyPerUnit * quantidade
         impostoTotal += valorPago * taxPct
       } else {
         semCusto++

@@ -318,6 +318,7 @@ function FinRow({ icon, label, value, color, tooltip }: {
 type LinkedProduct = {
   id: string; sku: string | null; ml_listing_id: string | null
   cost_price: number | null; tax_percentage: number | null; name: string
+  quantity_per_unit: number
 }
 
 type CreateResult = {
@@ -352,11 +353,12 @@ function OrderCard({
       setImpostoEdit(tp != null && tp !== 0 ? String(tp).replace('.', ',') : '')
       if (cp != null && cp > 0 && tp != null && tp > 0) setEditando(false)
       if (cp != null && cp > 0) {
-        const qty       = order.order_items[0]?.quantity ?? 1
-        const valorPago = order.total_amount || 0
-        const imposto   = valorPago * ((tp ?? 0) / 100)
-        const margem    = (order.lucro_bruto || 0) - (cp * qty) - imposto
-        const margemPct = valorPago > 0 ? Math.round((margem / valorPago) * 1000) / 10 : 0
+        const qty        = order.order_items[0]?.quantity ?? 1
+        const qtyPerUnit = produtoVinculado.quantity_per_unit ?? 1
+        const valorPago  = order.total_amount || 0
+        const imposto    = valorPago * ((tp ?? 0) / 100)
+        const margem     = (order.lucro_bruto || 0) - (cp * qty * qtyPerUnit) - imposto
+        const margemPct  = valorPago > 0 ? Math.round((margem / valorPago) * 1000) / 10 : 0
         setMargemOverride({ margem, margemPct })
       }
     }
@@ -365,10 +367,11 @@ function OrderCard({
   function recalcularMargem(custoVal: string, impostoVal: string) {
     const valorPago   = order.total_amount || 0
     const qty         = order.order_items[0]?.quantity ?? 1
+    const qtyPerUnit  = produtoVinculado?.quantity_per_unit ?? 1
     const custoUnit   = parseFloat(custoVal.replace(',', '.')) || 0
     const impostoRate = parseFloat(impostoVal.replace(',', '.')) || 0
     const imposto     = valorPago * (impostoRate / 100)
-    const margem      = (order.lucro_bruto || 0) - (custoUnit * qty) - imposto
+    const margem      = (order.lucro_bruto || 0) - (custoUnit * qty * qtyPerUnit) - imposto
     const margemPct   = valorPago > 0 ? Math.round((margem / valorPago) * 1000) / 10 : 0
     setMargemOverride({ margem, margemPct })
   }
@@ -391,8 +394,9 @@ function OrderCard({
 
   const item       = order.order_items[0]
   const quantidade = item?.quantity ?? 1
+  const qtyPerUnit = produtoVinculado?.quantity_per_unit ?? 1
   const custoUnit  = produtoVinculado?.cost_price ?? 0
-  const custoTotal = custoUnit * quantidade
+  const custoTotal = custoUnit * qtyPerUnit * quantidade
   const moreItems  = order.order_items.length - 1
   const color     = avatarColor(order.buyer.nickname ?? String(order.order_id))
   const ini       = initials(order)
@@ -1228,14 +1232,25 @@ export default function PedidosPage() {
   // Busca todos os produtos uma vez — matching feito localmente em memória
   useEffect(() => {
     supabase
-      .from('products')
-      .select('id, sku, ml_listing_id, cost_price, tax_percentage, name')
-      .limit(1000)
+      .from('product_listings')
+      .select('listing_id, quantity_per_unit, product:products(id, sku, name, cost_price, tax_percentage)')
+      .eq('is_active', true)
+      .eq('platform', 'mercadolivre')
+      .limit(5000)
       .then(({ data, error }) => {
-        if (error) console.error('[pedidos] erro query produtos:', error)
-        console.log('[pedidos] produtos no banco:', data?.length ?? 0)
-        console.log('[pedidos] primeiros ml_listing_ids:', data?.slice(0, 10).map(p => p.ml_listing_id))
-        setProdutosLinked((data ?? []) as LinkedProduct[])
+        if (error) console.error('[pedidos] erro query product_listings:', error)
+        const mapped: LinkedProduct[] = (data ?? []).map((v: any) => ({
+          id:               v.product?.id ?? '',
+          sku:              v.product?.sku ?? null,
+          ml_listing_id:    v.listing_id,
+          cost_price:       v.product?.cost_price ?? null,
+          tax_percentage:   v.product?.tax_percentage ?? null,
+          name:             v.product?.name ?? '',
+          quantity_per_unit: Number(v.quantity_per_unit) || 1,
+        })).filter((v: LinkedProduct) => v.id)
+        console.log('[pedidos] vínculos carregados:', mapped.length)
+        console.log('[pedidos] primeiros listing_ids:', mapped.slice(0, 10).map(p => p.ml_listing_id))
+        setProdutosLinked(mapped)
       })
   }, [supabase])
 
@@ -1298,13 +1313,24 @@ export default function PedidosPage() {
     }
     toast(created ? 'Produto criado com sucesso!' : 'Produto já existe no catálogo', created ? 'success' : 'info')
 
-    // Refetch completo — evita falha silenciosa do .single() por RLS ou organization_id
-    const { data: allProdutos, error: fetchError } = await supabase
-      .from('products')
-      .select('id, sku, ml_listing_id, cost_price, tax_percentage, name')
-    console.log('[criar-produto] refetch produtos:', allProdutos?.length ?? 0, 'itens | erro:', fetchError?.message ?? 'nenhum')
-    console.log('[criar-produto] ml_listing_ids no banco:', allProdutos?.map(p => p.ml_listing_id).filter(Boolean))
-    if (allProdutos) setProdutosLinked(allProdutos as LinkedProduct[])
+    // Refetch via product_listings (novo schema)
+    const { data: allVinculos, error: fetchError } = await supabase
+      .from('product_listings')
+      .select('listing_id, quantity_per_unit, product:products(id, sku, name, cost_price, tax_percentage)')
+      .eq('is_active', true)
+      .eq('platform', 'mercadolivre')
+    console.log('[criar-produto] refetch product_listings:', allVinculos?.length ?? 0, 'itens | erro:', fetchError?.message ?? 'nenhum')
+    const mappedVinculos: LinkedProduct[] = (allVinculos ?? []).map((v: any) => ({
+      id:               v.product?.id ?? '',
+      sku:              v.product?.sku ?? null,
+      ml_listing_id:    v.listing_id,
+      cost_price:       v.product?.cost_price ?? null,
+      tax_percentage:   v.product?.tax_percentage ?? null,
+      name:             v.product?.name ?? '',
+      quantity_per_unit: Number(v.quantity_per_unit) || 1,
+    })).filter((v: LinkedProduct) => v.id)
+    console.log('[criar-produto] listing_ids no banco:', mappedVinculos.map(p => p.ml_listing_id).filter(Boolean))
+    if (mappedVinculos.length > 0) setProdutosLinked(mappedVinculos)
   }, [getHeaders, supabase])
 
   // Log sempre que produtosLinked mudar — útil para depurar matching
