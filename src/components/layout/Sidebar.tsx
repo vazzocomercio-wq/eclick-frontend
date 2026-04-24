@@ -149,7 +149,7 @@ function SubGroupNav({ child, pathname }: { child: ChildGroup; pathname: string 
   )
 }
 
-function GroupNav({ item, defaultOpen, childBadges }: { item: Group; defaultOpen: boolean; childBadges?: Record<string, number> }) {
+function GroupNav({ item, defaultOpen, childBadges, parentBadge }: { item: Group; defaultOpen: boolean; childBadges?: Record<string, number>; parentBadge?: number }) {
   const [open, setOpen] = useState(defaultOpen)
   const pathname = usePathname()
 
@@ -170,6 +170,12 @@ function GroupNav({ item, defaultOpen, childBadges }: { item: Group; defaultOpen
       >
         <span style={{ color: anyActive ? '#00E5FF' : 'inherit' }}>{item.icon}</span>
         <span className="flex-1 text-left">{item.label}</span>
+        {parentBadge != null && parentBadge > 0 && (
+          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center animate-pulse"
+            style={{ background: 'rgba(248,113,113,0.15)', color: '#f87171', border: '1px solid rgba(248,113,113,0.25)' }}>
+            {parentBadge > 99 ? '99+' : parentBadge}
+          </span>
+        )}
         <svg
           className="w-3 h-3 transition-transform duration-200 shrink-0"
           style={{ transform: open ? 'rotate(180deg)' : 'rotate(0deg)', color: '#52525b' }}
@@ -213,26 +219,41 @@ function GroupNav({ item, defaultOpen, childBadges }: { item: Group; defaultOpen
 
 export default function Sidebar() {
   const pathname = usePathname()
-  const [questionBadge, setQuestionBadge] = useState<number | undefined>(undefined)
-  const [semVinculoBadge, setSemVinculoBadge] = useState<number | undefined>(undefined)
+  const [questionBadge,     setQuestionBadge]     = useState<number | undefined>(undefined)
+  const [reclamacoesBadge,  setReclamacoesBadge]  = useState<number | undefined>(undefined)
+  const [semVinculoBadge,   setSemVinculoBadge]   = useState<number | undefined>(undefined)
   const mounted = useRef(true)
 
   useEffect(() => {
     mounted.current = true
-    const fetchBadge = async () => {
+
+    const fetchAtendimentoCounts = async () => {
       try {
         const sb = createClient()
         const { data: { session } } = await sb.auth.getSession()
         if (!session || !mounted.current) return
-        const res = await fetch(`${BACKEND}/ml/questions`, {
-          headers: { Authorization: `Bearer ${session.access_token}` },
-        })
-        if (!res.ok || !mounted.current) return
-        const data = await res.json()
-        const count = (data.questions ?? []).filter((q: { status: string }) => q.status === 'unanswered').length
-        setQuestionBadge(count > 0 ? count : undefined)
+        const headers = { Authorization: `Bearer ${session.access_token}` }
+
+        const [qRes, cRes] = await Promise.allSettled([
+          fetch(`${BACKEND}/ml/questions`, { headers }),
+          fetch(`${BACKEND}/ml/claims`,    { headers }),
+        ])
+
+        if (!mounted.current) return
+
+        if (qRes.status === 'fulfilled' && qRes.value.ok) {
+          const d = await qRes.value.json()
+          const n = d?.total ?? (d?.questions ?? []).filter((q: { status: string }) => q.status === 'unanswered').length
+          setQuestionBadge(n > 0 ? n : undefined)
+        }
+        if (cRes.status === 'fulfilled' && cRes.value.ok) {
+          const d = await cRes.value.json()
+          const n = d?.paging?.total ?? d?.data?.length ?? 0
+          setReclamacoesBadge(n > 0 ? n : undefined)
+        }
       } catch { /* silent */ }
     }
+
     const fetchVinculosBadge = async () => {
       try {
         const sb = createClient()
@@ -248,9 +269,10 @@ export default function Sidebar() {
         setSemVinculoBadge(sem > 0 ? sem : undefined)
       } catch { /* silent */ }
     }
-    fetchBadge()
+
+    fetchAtendimentoCounts()
     fetchVinculosBadge()
-    const id = setInterval(fetchBadge, 5 * 60 * 1000)
+    const id = setInterval(fetchAtendimentoCounts, 2 * 60 * 1000)
     return () => { mounted.current = false; clearInterval(id) }
   }, [])
 
@@ -286,11 +308,20 @@ export default function Sidebar() {
             </div>
           )
           if (entry.type === 'leaf') return <LeafLink key={entry.href} item={entry} />
-          const childBadges: Record<string, number> | undefined =
-            entry.key === 'atendimento' && questionBadge != null ? { '/dashboard/atendimento/perguntas': questionBadge } :
-            entry.key === 'catalogo'    && semVinculoBadge != null ? { '/dashboard/catalogo/vinculos': semVinculoBadge } :
-            undefined
-          return <GroupNav key={entry.key} item={entry} defaultOpen={isGroupDefaultOpen(entry)} childBadges={childBadges} />
+          const childBadges: Record<string, number> | undefined = (() => {
+            if (entry.key === 'atendimento') {
+              const b: Record<string, number> = {}
+              if (questionBadge)    b['/dashboard/atendimento/perguntas']   = questionBadge
+              if (reclamacoesBadge) b['/dashboard/atendimento/reclamacoes'] = reclamacoesBadge
+              return Object.keys(b).length ? b : undefined
+            }
+            if (entry.key === 'catalogo' && semVinculoBadge) return { '/dashboard/catalogo/vinculos': semVinculoBadge }
+            return undefined
+          })()
+          const parentBadge = entry.key === 'atendimento'
+            ? (((questionBadge ?? 0) + (reclamacoesBadge ?? 0)) || undefined)
+            : undefined
+          return <GroupNav key={entry.key} item={entry} defaultOpen={isGroupDefaultOpen(entry)} childBadges={childBadges} parentBadge={parentBadge} />
         })}
       </nav>
 
