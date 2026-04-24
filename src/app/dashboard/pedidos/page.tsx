@@ -910,25 +910,33 @@ export default function PedidosPage() {
   }, [supabase])
 
   const saveCusto = useCallback(async (productId: string, value: number) => {
+    const url = `${BACKEND}/products/${productId}`
+    console.log('[salvar-custo] PATCH', url, { cost_price: value })
     const headers = await getHeaders()
-    const res = await fetch(`${BACKEND}/products/${productId}`, {
+    const res = await fetch(url, {
       method: 'PATCH',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ cost_price: value }),
     })
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const body = await res.json().catch(() => ({}))
+    console.log('[salvar-custo] response', res.status, body)
+    if (!res.ok) throw new Error(body?.message ?? `HTTP ${res.status}`)
     setProdutosLinked(prev => prev.map(p => p.id === productId ? { ...p, cost_price: value } : p))
     toast('Custo atualizado!', 'success')
   }, [getHeaders])
 
   const saveImposto = useCallback(async (productId: string, value: number) => {
+    const url = `${BACKEND}/products/${productId}`
+    console.log('[salvar-imposto] PATCH', url, { tax_percentage: value })
     const headers = await getHeaders()
-    const res = await fetch(`${BACKEND}/products/${productId}`, {
+    const res = await fetch(url, {
       method: 'PATCH',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ tax_percentage: value }),
     })
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const body = await res.json().catch(() => ({}))
+    console.log('[salvar-imposto] response', res.status, body)
+    if (!res.ok) throw new Error(body?.message ?? `HTTP ${res.status}`)
     setProdutosLinked(prev => prev.map(p => p.id === productId ? { ...p, tax_percentage: value } : p))
     toast('Imposto atualizado!', 'success')
   }, [getHeaders])
