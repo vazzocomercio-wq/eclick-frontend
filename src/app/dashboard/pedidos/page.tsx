@@ -274,16 +274,23 @@ type LinkedProduct = {
   cost_price: number | null; tax_percentage: number | null; name: string
 }
 
+type CreateResult = {
+  listing_id: string; status: 'created' | 'skipped' | 'error'; product_id?: string; reason?: string
+}
+
 function OrderCard({
-  order, produtoVinculado, onSaveCusto, onSaveImposto, onToast,
+  order, itemId, produtoVinculado, onSaveCusto, onSaveImposto, onCriarProduto, onToast,
 }: {
   order: MOrder
+  itemId: string | null
   produtoVinculado: LinkedProduct | null
   onSaveCusto: (productId: string, value: number) => Promise<void>
   onSaveImposto: (productId: string, value: number) => Promise<void>
+  onCriarProduto: (itemId: string) => Promise<void>
   onToast: (msg: string, type: Toast['type']) => void
 }) {
   const [expanded, setExpanded] = useState(false)
+  const [criando,  setCriando]  = useState(false)
   const [custoEdit, setCustoEdit]   = useState('')
   const [impostoEdit, setImpostoEdit] = useState('')
   const [saving,  setSaving]  = useState({ custo: false, imposto: false })
@@ -470,57 +477,100 @@ function OrderCard({
           <FinRow icon="💰" label="Lucro bruto"         value={brl(order.lucro_bruto)}
             color={order.lucro_bruto >= 0 ? '#4ade80' : '#f87171'}
             tooltip="Lucro bruto: valor − tarifa − frete" />
-          {/* Custo e Imposto — sempre visíveis, desabilitados sem produto vinculado */}
-          <div className="flex items-center justify-between gap-1 py-0.5">
-            <span className="text-xs shrink-0">📦</span>
-            <span className="flex-1 text-[11px] text-zinc-500 leading-tight">Custo produto</span>
-            <div className="flex items-center gap-1 shrink-0">
-              {savedOk.custo  && <span className="text-[10px] text-green-400">✓</span>}
-              {saving.custo   && <span className="text-[10px] text-zinc-500 animate-pulse">…</span>}
-              <span className="text-[10px] text-zinc-600">R$</span>
-              <input
-                type="number" step="0.01" placeholder="0.00"
-                value={custoEdit}
-                disabled={!produtoVinculado}
-                onChange={e => produtoVinculado && setCustoEdit(e.target.value)}
-                onFocus={e => { if (produtoVinculado) e.currentTarget.style.borderColor = '#00E5FF' }}
-                onBlur={e => {
-                  e.currentTarget.style.borderColor = saveErr.custo ? '#ef4444' : '#2a2a3f'
-                  if (produtoVinculado) void handleSaveCusto()
-                }}
-                className={`w-16 rounded px-1.5 py-0.5 text-[11px] text-right outline-none transition-colors ${
-                  produtoVinculado ? 'bg-[#0d0d10] text-white cursor-text' : 'bg-transparent text-zinc-700 cursor-not-allowed'
-                }`}
-                style={{ border: `1px solid ${saveErr.custo ? '#ef4444' : produtoVinculado ? '#2a2a3f' : '#1a1a1f'}` }}
-              />
-            </div>
-          </div>
-          <div className="flex items-center justify-between gap-1 py-0.5">
-            <span className="text-xs shrink-0">⚖️</span>
-            <span className="flex-1 text-[11px] text-zinc-500 leading-tight">Imposto</span>
-            <div className="flex items-center gap-1 shrink-0">
-              {savedOk.imposto && <span className="text-[10px] text-green-400">✓</span>}
-              {saving.imposto  && <span className="text-[10px] text-zinc-500 animate-pulse">…</span>}
-              <input
-                type="number" step="0.1" min="0" max="100" placeholder="0"
-                value={impostoEdit}
-                disabled={!produtoVinculado}
-                onChange={e => produtoVinculado && setImpostoEdit(e.target.value)}
-                onFocus={e => { if (produtoVinculado) e.currentTarget.style.borderColor = '#00E5FF' }}
-                onBlur={e => {
-                  e.currentTarget.style.borderColor = saveErr.imposto ? '#ef4444' : '#2a2a3f'
-                  if (produtoVinculado) void handleSaveImposto()
-                }}
-                className={`w-12 rounded px-1.5 py-0.5 text-[11px] text-right outline-none transition-colors ${
-                  produtoVinculado ? 'bg-[#0d0d10] text-white cursor-text' : 'bg-transparent text-zinc-700 cursor-not-allowed'
-                }`}
-                style={{ border: `1px solid ${saveErr.imposto ? '#ef4444' : produtoVinculado ? '#2a2a3f' : '#1a1a1f'}` }}
-              />
-              <span className="text-[10px] text-zinc-600">%</span>
-            </div>
-          </div>
-          {!produtoVinculado && (
-            <p className="text-[10px] text-zinc-700 text-right mt-0.5">Vincule um produto para editar</p>
+          {/* Custo / Imposto — 3 estados: vinculado | sem produto (criar) | sem item_id */}
+          {produtoVinculado ? (
+            <>
+              <div className="flex items-center justify-between gap-1 py-0.5">
+                <span className="text-xs shrink-0">📦</span>
+                <span className="flex-1 text-[11px] text-zinc-500 leading-tight">Custo (CMV)</span>
+                <div className="flex items-center gap-1 shrink-0">
+                  {savedOk.custo  && <span className="text-[10px] text-green-400">✓</span>}
+                  {saving.custo   && <span className="text-[10px] text-zinc-500 animate-pulse">…</span>}
+                  <span className="text-[10px] text-zinc-600">R$</span>
+                  <input
+                    type="number" step="0.01" placeholder="0.00"
+                    value={custoEdit}
+                    onChange={e => setCustoEdit(e.target.value)}
+                    onFocus={e => { e.currentTarget.style.borderColor = '#00E5FF' }}
+                    onBlur={e => {
+                      e.currentTarget.style.borderColor = saveErr.custo ? '#ef4444' : '#2a2a3f'
+                      void handleSaveCusto()
+                    }}
+                    className="w-16 bg-[#0d0d10] rounded px-1.5 py-0.5 text-[11px] text-white text-right outline-none transition-colors"
+                    style={{ border: `1px solid ${saveErr.custo ? '#ef4444' : '#2a2a3f'}` }}
+                  />
+                </div>
+              </div>
+              <div className="flex items-center justify-between gap-1 py-0.5">
+                <span className="text-xs shrink-0">⚖️</span>
+                <span className="flex-1 text-[11px] text-zinc-500 leading-tight">Imposto</span>
+                <div className="flex items-center gap-1 shrink-0">
+                  {savedOk.imposto && <span className="text-[10px] text-green-400">✓</span>}
+                  {saving.imposto  && <span className="text-[10px] text-zinc-500 animate-pulse">…</span>}
+                  <input
+                    type="number" step="0.1" min="0" max="100" placeholder="0"
+                    value={impostoEdit}
+                    onChange={e => setImpostoEdit(e.target.value)}
+                    onFocus={e => { e.currentTarget.style.borderColor = '#00E5FF' }}
+                    onBlur={e => {
+                      e.currentTarget.style.borderColor = saveErr.imposto ? '#ef4444' : '#2a2a3f'
+                      void handleSaveImposto()
+                    }}
+                    className="w-12 bg-[#0d0d10] rounded px-1.5 py-0.5 text-[11px] text-white text-right outline-none transition-colors"
+                    style={{ border: `1px solid ${saveErr.imposto ? '#ef4444' : '#2a2a3f'}` }}
+                  />
+                  <span className="text-[10px] text-zinc-600">%</span>
+                </div>
+              </div>
+            </>
+          ) : itemId ? (
+            <>
+              <div className="flex items-center justify-between gap-2 py-0.5">
+                <span className="text-xs shrink-0">📦</span>
+                <span className="flex-1 text-[11px] text-zinc-500 leading-tight">Custo (CMV)</span>
+                <button
+                  type="button"
+                  disabled={criando}
+                  onClick={() => {
+                    setCriando(true)
+                    onCriarProduto(itemId).finally(() => setCriando(false))
+                  }}
+                  className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded font-semibold transition-all disabled:opacity-60 shrink-0"
+                  style={{ background: 'rgba(0,229,255,0.1)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.2)' }}
+                >
+                  {criando ? (
+                    <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                  ) : (
+                    <svg width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                    </svg>
+                  )}
+                  {criando ? 'Criando…' : 'Criar Produto'}
+                </button>
+              </div>
+              <div className="flex items-center justify-between gap-2 py-0.5">
+                <span className="text-xs shrink-0">⚖️</span>
+                <span className="flex-1 text-[11px] text-zinc-500 leading-tight">Imposto</span>
+                <span className="text-[11px] text-zinc-700">—</span>
+              </div>
+              <p className="text-[10px] text-zinc-700 text-right mt-0.5">Anúncio não vinculado a produto</p>
+            </>
+          ) : (
+            <>
+              <div className="flex items-center justify-between gap-2 py-0.5">
+                <span className="text-xs shrink-0">📦</span>
+                <span className="flex-1 text-[11px] text-zinc-500 leading-tight">Custo (CMV)</span>
+                <span className="text-[11px] text-zinc-700">—</span>
+              </div>
+              <div className="flex items-center justify-between gap-2 py-0.5">
+                <span className="text-xs shrink-0">⚖️</span>
+                <span className="flex-1 text-[11px] text-zinc-500 leading-tight">Imposto</span>
+                <span className="text-[11px] text-zinc-700">—</span>
+              </div>
+            </>
           )}
           <div className="border-t my-1.5" style={{ borderColor: '#1e1e24' }} />
           {(() => {
@@ -903,6 +953,35 @@ export default function PedidosPage() {
     toast('Imposto atualizado!', 'success')
   }, [getHeaders])
 
+  const criarProduto = useCallback(async (itemId: string) => {
+    const headers = await getHeaders()
+    const res = await fetch(`${BACKEND}/ml/products/from-listing`, {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ listing_ids: [itemId] }),
+    })
+    const data = await res.json()
+    const results: CreateResult[] = data.results ?? []
+    const created = results.find(r => r.status === 'created')
+    const skipped = results.find(r => r.status === 'skipped')
+    if (!created && !skipped) {
+      throw new Error(results[0]?.reason ?? data.message ?? `HTTP ${res.status}`)
+    }
+    toast(created ? 'Produto criado com sucesso!' : 'Produto já existe no catálogo', created ? 'success' : 'info')
+    // Busca o produto recém-criado/existente e adiciona ao estado
+    const { data: newProduct } = await supabase
+      .from('products')
+      .select('id, sku, ml_listing_id, cost_price, tax_percentage, name')
+      .eq('ml_listing_id', itemId)
+      .single()
+    if (newProduct) {
+      setProdutosLinked(prev => [
+        ...prev.filter(p => p.ml_listing_id !== itemId),
+        newProduct as LinkedProduct,
+      ])
+    }
+  }, [getHeaders, supabase])
+
   useEffect(() => { loadKpis()              }, [loadKpis])
   useEffect(() => { loadOrders(page, q)     }, [page, loadOrders])
 
@@ -1022,9 +1101,11 @@ export default function PedidosPage() {
                   <OrderCard
                     key={order.order_id}
                     order={order}
+                    itemId={itemId}
                     produtoVinculado={produtoVinculado}
                     onSaveCusto={saveCusto}
                     onSaveImposto={saveImposto}
+                    onCriarProduto={criarProduto}
                     onToast={toast}
                   />
                 )
