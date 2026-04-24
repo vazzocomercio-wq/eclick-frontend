@@ -220,51 +220,42 @@ export default function VendasAoVivoPage() {
     const { data: sess } = await createClient().auth.getSession()
     const token = sess.session?.access_token
 
-    console.log('[Vendas] BACKEND_URL:', BACKEND)
-    console.log('[Vendas] token:', token ? `${token.slice(0, 20)}…` : 'NULL')
-
     if (!token) {
-      console.warn('[Vendas] Sem token — usuário não logado ou sessão expirada')
       setLoading(false)
       return
     }
 
-    // Step 1: verify connection via status (backend has fallback to first available record)
+    // Step 1: verify connection (backend falls back to first available record)
     try {
       const statusRes = await fetch(`${BACKEND}/ml/status`, {
         headers: { Authorization: `Bearer ${token}` },
       })
-      console.log('[Vendas] status HTTP:', statusRes.status)
       if (statusRes.ok) {
         const statusData = await statusRes.json()
-        console.log('[Vendas] status data:', JSON.stringify(statusData).slice(0, 150))
         if (statusData?.seller_id) setConnected(true)
-      } else {
-        const txt = await statusRes.text()
-        console.error('[Vendas] status error:', txt.slice(0, 200))
       }
-    } catch (e) { console.error('[Vendas] status exception:', e) }
+    } catch { /* silent */ }
 
-    // Step 2: fetch orders separately — failure here never blocks the connected view
+    // Step 2: fetch orders with a 7-day window so ML filters server-side
     try {
-      const res = await fetch(`${BACKEND}/ml/recent-orders?limit=100`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      console.log('[Vendas] recent-orders HTTP:', res.status)
+      const from = new Date()
+      from.setDate(from.getDate() - 7)
+      const dateFrom = from.toISOString().slice(0, 10)
+
+      const res = await fetch(
+        `${BACKEND}/ml/recent-orders?date_from=${dateFrom}`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      )
       if (res.ok) {
         const json = await res.json()
-        console.log('[Vendas] orders count:', json.orders?.length ?? 0)
         const next: Order[] = json.orders ?? []
         const nextIds = new Set(next.map((o: Order) => o.id))
         newIdsRef.current = new Set([...nextIds].filter(id => !prevIdsRef.current.has(id) && prevIdsRef.current.size > 0))
         prevIdsRef.current = nextIds
         setOrders(next)
         setLastUpdated(new Date())
-      } else {
-        const txt = await res.text()
-        console.error('[Vendas] orders error:', txt.slice(0, 200))
       }
-    } catch (e) { console.error('[Vendas] orders exception:', e) }
+    } catch { /* silent */ }
 
     setLoading(false)
   }, [])
