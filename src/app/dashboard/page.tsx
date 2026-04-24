@@ -105,6 +105,14 @@ function calcMetrics(orders: Order[]) {
   return { revenue, count, units, avgTicket }
 }
 
+function calcMetricsAll(orders: Order[]) {
+  const revenue = orders.reduce((s, o) => s + (o.total_amount ?? 0), 0)
+  const count = orders.length
+  const units = orders.reduce((s, o) => s + (o.items ?? []).reduce((ss, i) => ss + (i.quantity ?? 0), 0), 0)
+  const avgTicket = count ? revenue / count : 0
+  return { revenue, count, units, avgTicket }
+}
+
 function getPeriodDates(period: Period): { from: string; to: string } {
   const now = brazilDate()
   const today = now.toISOString().slice(0, 10)
@@ -718,6 +726,11 @@ export default function DashboardPage() {
   const chartDays = period === 'today' ? 1 : period === '7d' ? 7 : 30
   const chartData = useMemo(() => buildDailyChart(periodOrders, chartDays), [periodOrders, chartDays])
 
+  // Chart-header KPIs — no status filter, consistent with faturamento source
+  const curAll = useMemo(() => calcMetricsAll(periodOrders), [periodOrders])
+  const chartPedidos = period === 'today' ? hookTodayCount : displayPedidos
+  const chartAvgTicket = chartPedidos > 0 ? faturamento / chartPedidos : 0
+
   const topProds = useMemo(() => topProductsFromOrders(periodOrders), [periodOrders])
 
   const { topEstados, topCidades } = useMemo(() => {
@@ -946,13 +959,13 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between mb-5">
             <div>
               <p className="text-white text-sm font-semibold">Resumo de Vendas</p>
-              <p className="text-zinc-500 text-xs mt-0.5">Faturamento diário — pedidos pagos</p>
+              <p className="text-zinc-500 text-xs mt-0.5">Faturamento diário — todos os pedidos</p>
             </div>
             <div className="grid grid-cols-3 gap-4 text-center">
               {[
-                { label: 'Unidades',  value: cur.units.toLocaleString('pt-BR') },
-                { label: 'Pedidos',   value: cur.count.toLocaleString('pt-BR') },
-                { label: 'Tk. Médio', value: brl(cur.avgTicket) },
+                { label: 'Unidades',  value: curAll.units.toLocaleString('pt-BR') },
+                { label: 'Pedidos',   value: chartPedidos.toLocaleString('pt-BR') },
+                { label: 'Tk. Médio', value: brl(chartAvgTicket) },
               ].map(m => (
                 <div key={m.label}>
                   {loading ? <Skel h={20} className="mx-auto w-16 mb-1" /> : <p className="text-white text-[13px] font-bold">{m.value}</p>}
