@@ -26,10 +26,15 @@ body {
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-.scrollbar-thin::-webkit-scrollbar { width: 4px; }
-.scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
-.scrollbar-thin::-webkit-scrollbar-thumb { background: #2a2a3f; border-radius: 4px; }
-.scrollbar-thin::-webkit-scrollbar-thumb:hover { background: #00E5FF44; }
-.scrollbar-thin { scrollbar-width: thin; scrollbar-color: #2a2a3f transparent; }
+.scrollbar-thin::-webkit-scrollbar,
+.pedidos-scroll::-webkit-scrollbar { width: 4px; }
+.scrollbar-thin::-webkit-scrollbar-track,
+.pedidos-scroll::-webkit-scrollbar-track { background: transparent; }
+.scrollbar-thin::-webkit-scrollbar-thumb,
+.pedidos-scroll::-webkit-scrollbar-thumb { background: #2a2a3f; border-radius: 4px; }
+.scrollbar-thin::-webkit-scrollbar-thumb:hover,
+.pedidos-scroll::-webkit-scrollbar-thumb:hover { background: #00E5FF44; }
+.scrollbar-thin,
+.pedidos-scroll { scrollbar-width: thin; scrollbar-color: #2a2a3f transparent; }
 
 select option { background: #1c1c1f; }

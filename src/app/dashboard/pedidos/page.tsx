@@ -458,7 +458,7 @@ function OrderCard({
         </div>
 
         {/* ── Financial ── */}
-        <div className="p-4 flex flex-col gap-0.5">
+        <div className="p-4 pr-5 flex flex-col gap-0.5">
           <FinRow icon={payIcon} label="Valor pago"     value={brl(order.total_amount)}
             tooltip="Valor pago pelo comprador" />
           <FinRow icon="🚚" label="Frete vendedor"
@@ -991,7 +991,7 @@ export default function PedidosPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 overflow-x-auto" style={{ borderBottom: '1px solid #1a1a1f' }}>
+      <div className="flex gap-1 overflow-x-auto no-scrollbar" style={{ borderBottom: '1px solid #1a1a1f' }}>
         {TABS.map(t => {
           const count  = tabCounts[t.key] ?? 0
           const active = tab === t.key
@@ -1012,7 +1012,7 @@ export default function PedidosPage() {
       </div>
 
       {/* Order list */}
-      <div className="space-y-2">
+      <div className="space-y-2 pedidos-scroll overflow-y-auto">
         {loading
           ? Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} />)
           : filtered.length === 0
