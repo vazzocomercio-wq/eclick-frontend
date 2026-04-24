@@ -636,6 +636,7 @@ export default function DashboardPage() {
       .eq('platform', 'mercadolivre')
       .limit(5000)
       .then(({ data }) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const mapped: ProdutoCusto[] = (data ?? []).map((v: any) => ({
           id:               v.product?.id ?? '',
           sku:              v.product?.sku ?? null,
@@ -659,6 +660,7 @@ export default function DashboardPage() {
         .limit(5000)
         .then(({ data }) => {
           if (!data) return
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const mapped: ProdutoCusto[] = (data ?? []).map((v: any) => ({
             id:               v.product?.id ?? '',
             sku:              v.product?.sku ?? null,

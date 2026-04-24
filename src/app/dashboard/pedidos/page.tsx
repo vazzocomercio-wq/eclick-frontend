@@ -315,6 +315,20 @@ function FinRow({ icon, label, value, color, tooltip }: {
 
 // ── Order Card ────────────────────────────────────────────────────────────────
 
+type VinculoProd = {
+  id: string
+  sku: string | null
+  name: string | null
+  cost_price: number | null
+  tax_percentage: number | null
+}
+
+type VinculoItem = {
+  listing_id: string
+  quantity_per_unit: number
+  product: VinculoProd | null
+}
+
 type CreateResult = {
   listing_id: string; status: 'created' | 'skipped' | 'error'; product_id?: string; reason?: string
 }
@@ -324,7 +338,7 @@ function OrderCard({
 }: {
   order: MOrder
   itemId: string | null
-  vinculos: any[]
+  vinculos: VinculoItem[]
   onSalvar: (productId: string, custo: number, imposto: number) => Promise<void>
   onCriarProduto: (itemId: string) => Promise<void>
   onToast: (msg: string, type: Toast['type']) => void
@@ -342,7 +356,7 @@ function OrderCard({
   const firstVincProd = vinculos[0]?.product ?? null
   const item         = order.order_items[0]
   const quantidade   = item?.quantity ?? 1
-  const custoTotalKit = vinculos.reduce((sum: number, v: any) => {
+  const custoTotalKit = vinculos.reduce((sum: number, v: VinculoItem) => {
     const cp  = v.product?.cost_price ?? 0
     const qpu = Number(v.quantity_per_unit) || 1
     return sum + cp * qpu * quantidade
@@ -370,7 +384,7 @@ function OrderCard({
     const valorPago   = order.total_amount || 0
     const qty         = order.order_items[0]?.quantity ?? 1
     const custoUnit0  = parseFloat(custoVal.replace(',', '.')) || 0
-    const custoKit    = vinculos.reduce((sum: number, v: any, i: number) => {
+    const custoKit    = vinculos.reduce((sum: number, v: VinculoItem, i: number) => {
       const cp  = i === 0 ? custoUnit0 : (v.product?.cost_price ?? 0)
       const qpu = Number(v.quantity_per_unit) || 1
       return sum + cp * qpu * qty
@@ -1196,7 +1210,7 @@ export default function PedidosPage() {
   const [q,          setQ]          = useState('')
   const [modal,      setModal]      = useState(false)
   const [toasts,     setToasts]     = useState<Toast[]>([])
-  const [vinculosPorListing, setVinculosPorListing] = useState<Record<string, any[]>>({})
+  const [vinculosPorListing, setVinculosPorListing] = useState<Record<string, VinculoItem[]>>({})
   const [lastUpdate,  setLastUpdate]  = useState<Date>(new Date())
   const [minsSince,   setMinsSince]   = useState(0)
   const tid = useRef(0)
@@ -1254,11 +1268,11 @@ export default function PedidosPage() {
       .limit(5000)
       .then(({ data, error }) => {
         if (error) console.error('[pedidos] erro query product_listings:', error)
-        const rows = (data ?? []) as any[]
-        const map: Record<string, any[]> = {}
+        const rows = (data ?? []) as unknown as VinculoItem[]
+        const map: Record<string, VinculoItem[]> = {}
         for (const v of rows) {
           if (!v.product?.id) continue
-          const lid = v.listing_id as string
+          const lid = v.listing_id
           if (!map[lid]) map[lid] = []
           map[lid].push(v)
         }
@@ -1278,7 +1292,7 @@ export default function PedidosPage() {
     try { data = JSON.parse(rawText) } catch { data = { raw: rawText } }
     if (!res.ok) throw new Error((data?.message as string) ?? (data?.error as string) ?? `HTTP ${res.status}`)
     setVinculosPorListing(prev => {
-      const next: Record<string, any[]> = {}
+      const next: Record<string, VinculoItem[]> = {}
       for (const lid of Object.keys(prev)) {
         next[lid] = prev[lid].map(v =>
           v.product?.id === productId
@@ -1313,11 +1327,11 @@ export default function PedidosPage() {
       .eq('is_active', true)
       .eq('platform', 'mercadolivre')
     if (allVinculos && allVinculos.length > 0) {
-      const rows = allVinculos as any[]
-      const map: Record<string, any[]> = {}
+      const rows = allVinculos as unknown as VinculoItem[]
+      const map: Record<string, VinculoItem[]> = {}
       for (const v of rows) {
         if (!v.product?.id) continue
-        const lid = v.listing_id as string
+        const lid = v.listing_id
         if (!map[lid]) map[lid] = []
         map[lid].push(v)
       }
