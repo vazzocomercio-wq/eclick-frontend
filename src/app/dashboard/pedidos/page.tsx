@@ -269,7 +269,7 @@ function FinRow({ icon, label, value, color, tooltip }: {
 // ── Order Card ────────────────────────────────────────────────────────────────
 
 type LinkedProduct = {
-  id: string; sku: string | null
+  id: string; sku: string | null; ml_listing_id: string | null
   cost_price: number | null; tax_percentage: number | null; name: string
 }
 
@@ -283,6 +283,7 @@ function OrderCard({
   onToast: (msg: string, type: Toast['type']) => void
 }) {
   const [expanded, setExpanded] = useState(false)
+  const [vinculando, setVinculando] = useState(false)
   const [custoEdit, setCustoEdit]   = useState('')
   const [impostoEdit, setImpostoEdit] = useState('')
   const [saving,  setSaving]  = useState({ custo: false, imposto: false })
@@ -469,8 +470,8 @@ function OrderCard({
           <FinRow icon="💰" label="Lucro bruto"         value={brl(order.lucro_bruto)}
             color={order.lucro_bruto >= 0 ? '#4ade80' : '#f87171'}
             tooltip="Lucro bruto: valor − tarifa − frete" />
-          {/* Custo e Imposto — editáveis se produto vinculado */}
-          {produtoVinculado ? (
+          {/* Custo e Imposto */}
+          {produtoVinculado && (vinculando || produtoVinculado.cost_price != null || produtoVinculado.tax_percentage != null) ? (
             <>
               <div className="flex items-center justify-between gap-1 py-0.5">
                 <span className="text-xs shrink-0">📦</span>
@@ -515,12 +516,28 @@ function OrderCard({
                 </div>
               </div>
             </>
+          ) : produtoVinculado ? (
+            <>
+              <div className="flex items-center justify-between gap-2 py-0.5">
+                <span className="text-xs shrink-0">📦</span>
+                <span className="flex-1 text-[11px] text-zinc-500 leading-tight">Custo produto</span>
+                <button type="button" onClick={() => setVinculando(true)}
+                  className="text-[10px] text-cyan-500 hover:text-cyan-300 transition-colors shrink-0">
+                  Vincular custos →
+                </button>
+              </div>
+              <div className="flex items-center justify-between gap-2 py-0.5">
+                <span className="text-xs shrink-0">⚖️</span>
+                <span className="flex-1 text-[11px] text-zinc-500 leading-tight">Imposto</span>
+                <span className="text-[11px] text-zinc-700">—</span>
+              </div>
+            </>
           ) : (
             <>
               <div className="flex items-center justify-between gap-2 py-0.5">
                 <span className="text-xs shrink-0">📦</span>
                 <span className="flex-1 text-[11px] text-zinc-500 leading-tight">Custo produto</span>
-                <a href="/dashboard/produtos" className="text-[10px] text-cyan-500 hover:underline shrink-0">Vincular →</a>
+                <span className="text-[11px] text-zinc-700">—</span>
               </div>
               <div className="flex items-center justify-between gap-2 py-0.5">
                 <span className="text-xs shrink-0">⚖️</span>
@@ -810,7 +827,7 @@ export default function PedidosPage() {
   const [q,          setQ]          = useState('')
   const [modal,      setModal]      = useState(false)
   const [toasts,     setToasts]     = useState<Toast[]>([])
-  const [produtosBySku, setProdutosBySku] = useState<Record<string, LinkedProduct>>({})
+  const [produtosByItemId, setProdutosByItemId] = useState<Record<string, LinkedProduct>>({})
   const tid = useRef(0)
 
   function toast(msg: string, type: Toast['type'] = 'info') {
@@ -852,22 +869,22 @@ export default function PedidosPage() {
     } finally { setLoading(false) }
   }, [getHeaders])
 
-  // Fetch linked products from Supabase whenever orders change
+  // Fetch linked products from Supabase by ml_listing_id whenever orders change
   useEffect(() => {
-    if (orders.length === 0) { setProdutosBySku({}); return }
-    const skus = [...new Set(
-      orders.map(o => o.order_items[0]?.seller_sku).filter((s): s is string => Boolean(s))
+    if (orders.length === 0) { setProdutosByItemId({}); return }
+    const itemIds = [...new Set(
+      orders.map(o => o.order_items[0]?.item_id).filter((s): s is string => Boolean(s))
     )]
-    if (skus.length === 0) return
+    if (itemIds.length === 0) return
     supabase
       .from('products')
-      .select('id, sku, cost_price, tax_percentage, name')
-      .in('sku', skus)
+      .select('id, sku, ml_listing_id, cost_price, tax_percentage, name')
+      .in('ml_listing_id', itemIds)
       .then(({ data }) => {
         if (!data) return
         const map: Record<string, LinkedProduct> = {}
-        for (const p of data) if (p.sku) map[p.sku] = p as LinkedProduct
-        setProdutosBySku(map)
+        for (const p of data) if (p.ml_listing_id) map[p.ml_listing_id] = p as LinkedProduct
+        setProdutosByItemId(map)
       })
   }, [orders, supabase])
 
@@ -879,7 +896,7 @@ export default function PedidosPage() {
       body: JSON.stringify({ cost_price: value }),
     })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    setProdutosBySku(prev => {
+    setProdutosByItemId(prev => {
       const entry = Object.entries(prev).find(([, p]) => p.id === productId)
       if (!entry) return prev
       return { ...prev, [entry[0]]: { ...entry[1], cost_price: value } }
@@ -895,7 +912,7 @@ export default function PedidosPage() {
       body: JSON.stringify({ tax_percentage: value }),
     })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    setProdutosBySku(prev => {
+    setProdutosByItemId(prev => {
       const entry = Object.entries(prev).find(([, p]) => p.id === productId)
       if (!entry) return prev
       return { ...prev, [entry[0]]: { ...entry[1], tax_percentage: value } }
@@ -1012,8 +1029,8 @@ export default function PedidosPage() {
               </div>
             )
             : filtered.map(order => {
-                const sku = order.order_items[0]?.seller_sku ?? null
-                const produtoVinculado = sku ? (produtosBySku[sku] ?? null) : null
+                const itemId = order.order_items[0]?.item_id ?? null
+                const produtoVinculado = itemId ? (produtosByItemId[itemId] ?? null) : null
                 return (
                   <OrderCard
                     key={order.order_id}
