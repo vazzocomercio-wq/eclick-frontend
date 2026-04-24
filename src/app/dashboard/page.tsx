@@ -45,6 +45,14 @@ type DBProduct = {
   platforms: string[] | null
 }
 
+type ProdutoCusto = {
+  id: string
+  sku: string | null
+  ml_listing_id: string | null
+  cost_price: number | null
+  tax_percentage: number | null
+}
+
 type Period = 'today' | '7d' | '30d' | 'month'
 type Channel = 'all' | 'ml' | 'shopee' | 'amazon' | 'magalu'
 
@@ -486,6 +494,9 @@ export default function DashboardPage() {
   const [prevData, setPrevData] = useState<{ faturamento: number; lucro: number } | null>(null)
   const [financialSummary, setFinancialSummary] = useState<{ total_revenue: number; total_orders: number; ml_total: number; average_ticket: number } | null>(null)
   const [summaryLoading, setSummaryLoading] = useState(false)
+  const [produtos, setProdutos] = useState<ProdutoCusto[]>([])
+
+  const supabase = useMemo(() => createClient(), [])
 
   // Shared hook: today's revenue/count without any status filter (same as Vendas ao Vivo)
   const { faturamento: hookTodayRevenue, pedidos: hookTodayCount, loading: hookTodayLoading } = useTodayOrders()
@@ -616,6 +627,28 @@ export default function DashboardPage() {
 
   useEffect(() => { refresh(true) }, [refresh])
 
+  useEffect(() => {
+    supabase
+      .from('products')
+      .select('id, sku, ml_listing_id, cost_price, tax_percentage')
+      .limit(1000)
+      .then(({ data }) => {
+        setProdutos((data ?? []) as ProdutoCusto[])
+        console.log('[dashboard] produtos carregados:', data?.length)
+      })
+  }, [supabase])
+
+  useEffect(() => {
+    const handleFocus = () => {
+      supabase.from('products')
+        .select('id, sku, ml_listing_id, cost_price, tax_percentage')
+        .limit(1000)
+        .then(({ data }) => { if (data) setProdutos(data as ProdutoCusto[]) })
+    }
+    window.addEventListener('focus', handleFocus)
+    return () => window.removeEventListener('focus', handleFocus)
+  }, [supabase])
+
   // ── Period data (main) — current period orders ───────────────────────────────
   useEffect(() => {
     let cancelled = false
@@ -708,17 +741,50 @@ export default function DashboardPage() {
 
   const cur  = useMemo(() => calcMetrics(periodOrders), [periodOrders])
 
-  const { faturamento, lucroEstimado, margemPct } = useMemo(() => {
-    // For today use hook value (no status filter); otherwise use server totals
+  const { faturamento, lucroEstimado, margemPct, pedidosComCusto, pedidosSemCusto } = useMemo(() => {
     const fat = period === 'today'
       ? hookTodayRevenue
       : (financialSummary?.total_revenue ?? periodOrders.reduce((s, o) => s + (o.total_amount ?? 0), 0))
-    const withMargin = periodOrders.filter(o => (o.contribution_margin ?? 0) > 0)
-    const lucro = withMargin.length > 0
-      ? withMargin.reduce((s, o) => s + (o.contribution_margin ?? 0), 0)
-      : fat * 0.885
-    return { faturamento: fat, lucroEstimado: lucro, margemPct: fat > 0 ? (lucro / fat) * 100 : 0 }
-  }, [financialSummary, periodOrders, period, hookTodayRevenue])
+
+    if (periodOrders.length === 0) {
+      return { faturamento: fat, lucroEstimado: fat * 0.885, margemPct: fat > 0 ? 88.5 : 0, pedidosComCusto: 0, pedidosSemCusto: 0 }
+    }
+
+    let custoTotal = 0
+    let impostoTotal = 0
+    let comCusto = 0
+    let semCusto = 0
+
+    for (const order of periodOrders) {
+      const valorPago = order.total_amount || 0
+      const item = order.items?.[0]
+      const itemId = item?.item_id ?? null
+      const quantidade = item?.quantity ?? 1
+      const produto = itemId ? produtos.find(p => p.ml_listing_id === itemId) : undefined
+      const costPrice = Number(produto?.cost_price || 0)
+      const taxPct = Number(produto?.tax_percentage || 0) / 100
+
+      if (costPrice > 0 || taxPct > 0) {
+        comCusto++
+        custoTotal += costPrice * quantidade
+        impostoTotal += valorPago * taxPct
+      } else {
+        semCusto++
+        custoTotal += valorPago * 0.75
+      }
+    }
+
+    const lucro = fat - custoTotal - impostoTotal
+    const margemP = fat > 0 ? (lucro / fat) * 100 : 0
+
+    return {
+      faturamento: fat,
+      lucroEstimado: lucro,
+      margemPct: margemP,
+      pedidosComCusto: comCusto,
+      pedidosSemCusto: semCusto,
+    }
+  }, [financialSummary, periodOrders, period, hookTodayRevenue, produtos])
   const yest = useMemo(() => calcMetrics(yestOrders), [yestOrders])
   const todayOrdersBR = useMemo(() => orders.filter(o => isPaid(o) && brazilDateStr(new Date(o.date_created)) === todayBR()), [orders])
   const todayM = useMemo(() => calcMetrics(todayOrdersBR), [todayOrdersBR])
@@ -893,6 +959,23 @@ export default function DashboardPage() {
               <p className="text-xs text-[#22c55e] mt-1">
                 {margemPct.toFixed(1)}% do faturamento
               </p>
+              {pedidosSemCusto > 0 && (
+                <div className="mt-2 px-2.5 py-1.5 rounded-lg flex items-center gap-1.5"
+                  style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)' }}>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth={2.5} className="shrink-0">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                  </svg>
+                  <span className="text-[10px] text-yellow-300">
+                    {pedidosSemCusto} pedido{pedidosSemCusto > 1 ? 's' : ''} sem custo ·{' '}
+                    <Link href="/dashboard/pedidos" className="underline hover:text-yellow-200 transition-colors">
+                      Atualizar →
+                    </Link>
+                  </span>
+                </div>
+              )}
+              {pedidosComCusto > 0 && pedidosSemCusto === 0 && (
+                <p className="text-[10px] text-zinc-500 mt-1.5">✓ Calculado com custos reais ({pedidosComCusto} pedidos)</p>
+              )}
               {prevData && (
                 <div className="mt-4 pt-3 border-t border-[#ffffff10]">
                   <div className="flex justify-between items-center">
@@ -932,7 +1015,7 @@ export default function DashboardPage() {
           <KpiCard label="Ticket médio"       value={brl(financialSummary?.average_ticket ?? cur.avgTicket)} color="#fb923c" loading={summaryLoading || periodLoading || loading} />
           <KpiCard label="Reputação ML"         value={sellerInfo?.level_id?.replace(/_/g, ' ') ?? '—'} sub={sellerInfo?.power_seller_status ?? (mlConnected ? '…' : 'ML desconect.')} color="#60a5fa" loading={loading} />
           <KpiCard label="Vendas Aprovadas"   value={finKpis ? shortBrl(finKpis.vendas_aprovadas) : '—'} sub="líquido mês atual" color="#22c55e" loading={loading} />
-          <KpiCard label="Margem Contrib."    value={finKpis ? `${finKpis.margem_pct.toFixed(1)}%` : '—'} sub={finKpis ? shortBrl(finKpis.margem_contrib) : 'configure CMV'} color={finKpis ? (finKpis.margem_pct >= 0 ? '#22c55e' : '#f87171') : '#f59e0b'} loading={loading} />
+          <KpiCard label={`Margem — ${PERIOD_LABEL[period]}`} value={`${margemPct.toFixed(1)}%`} sub={shortBrl(lucroEstimado)} color={margemPct >= 0 ? '#22c55e' : '#f87171'} loading={periodLoading || summaryLoading} />
           <KpiCard label="Investimento mídia" value="—"  sub="via Ads"       color="#f87171" loading={loading} />
           <KpiCard label="ROAS / ROI"         value="—"  sub="via Ads"       color="#e879f9" loading={loading} />
         </div>

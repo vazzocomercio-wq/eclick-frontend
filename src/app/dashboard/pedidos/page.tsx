@@ -53,6 +53,9 @@ type MOrder = {
       state:         string | null
       street_name:   string | null
       street_number: string | null
+      neighborhood:  string | null
+      complement:    string | null
+      address_line:  string | null
     }
     base_cost:     number
     receiver_cost: number | null
@@ -75,6 +78,11 @@ type Toast  = { id: number; msg: string; type: 'success' | 'error' | 'info' }
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+
+function fmtDate(iso: string | null) {
+  if (!iso) return null
+  return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
 
 function ago(iso: string) {
   const d    = new Date(iso)
@@ -146,6 +154,20 @@ const LOGISTIC: Record<string, { text: string; color: string; bg: string }> = {
 
 const PAY_ICON: Record<string, string> = {
   credit_card: '💳', debit_card: '💳', account_money: '🏦', ticket: '🎟️', pix: '⚡',
+}
+
+const PAY_LABEL: Record<string, string> = {
+  credit_card: 'Cartão crédito', debit_card: 'Cartão débito',
+  account_money: 'Saldo ML', ticket: 'Boleto', pix: 'PIX',
+}
+
+const PAY_STATUS: Record<string, { label: string; color: string }> = {
+  approved:   { label: 'Aprovado',     color: '#22c55e' },
+  pending:    { label: 'Pendente',     color: '#f59e0b' },
+  rejected:   { label: 'Rejeitado',   color: '#ef4444' },
+  cancelled:  { label: 'Cancelado',   color: '#ef4444' },
+  in_process: { label: 'Processando', color: '#f59e0b' },
+  refunded:   { label: 'Reembolsado', color: '#a78bfa' },
 }
 
 const SHIPPING_STATUS_MAP: Record<string, { label: string; color: string }> = {
@@ -732,29 +754,201 @@ function OrderCard({
       </button>
 
       {expanded && (
-        <div className="px-4 pb-4 space-y-3" style={{ borderTop: '1px solid #1a1a1f' }}>
+        <div className="px-4 pb-5 pt-4 space-y-3" style={{ borderTop: '1px solid #1a1a1f' }}>
+          <div className="grid gap-3" style={{ gridTemplateColumns: '1fr 1fr' }}>
+
+            {/* Comprador */}
+            <div className="p-3 rounded-xl space-y-1.5" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-2">Comprador</p>
+              {(order.buyer.first_name || order.buyer.last_name) && (
+                <div className="flex items-start gap-1.5">
+                  <span className="text-[11px] text-zinc-600 w-14 shrink-0">Nome</span>
+                  <span className="text-[11px] text-zinc-200 font-medium leading-tight">
+                    {[order.buyer.first_name, order.buyer.last_name].filter(Boolean).join(' ')}
+                  </span>
+                </div>
+              )}
+              {order.buyer.nickname && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-zinc-600 w-14 shrink-0">@usuário</span>
+                  <span className="text-[11px] text-zinc-300 font-mono">@{order.buyer.nickname}</span>
+                </div>
+              )}
+              {order.buyer.id && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-zinc-600 w-14 shrink-0">ID</span>
+                  <span className="text-[11px] text-zinc-600 font-mono">{order.buyer.id}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Pagamento */}
+            <div className="p-3 rounded-xl space-y-1.5" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-2">Pagamento</p>
+              {order.payments.length === 0
+                ? <span className="text-[11px] text-zinc-700">Nenhum pagamento</span>
+                : order.payments.map((pay, i) => {
+                    const ps = PAY_STATUS[pay.status]
+                    return (
+                      <div key={pay.id}>
+                        {order.payments.length > 1 && (
+                          <p className="text-[10px] text-zinc-600 mb-1">Pgto. {i + 1}</p>
+                        )}
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[11px] text-zinc-600 w-14 shrink-0">Tipo</span>
+                            <span className="text-[11px] text-zinc-300">
+                              {PAY_ICON[pay.payment_type] ?? '💳'} {PAY_LABEL[pay.payment_type] ?? pay.payment_type}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[11px] text-zinc-600 w-14 shrink-0">Status</span>
+                            <span className="text-[11px] font-semibold" style={{ color: ps?.color ?? '#71717a' }}>
+                              {ps?.label ?? pay.status}
+                            </span>
+                          </div>
+                          {pay.installments > 1 && (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[11px] text-zinc-600 w-14 shrink-0">Parcelas</span>
+                              <span className="text-[11px] text-zinc-300">{pay.installments}x</span>
+                            </div>
+                          )}
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[11px] text-zinc-600 w-14 shrink-0">Valor</span>
+                            <span className="text-[11px] font-semibold text-zinc-200 tabular-nums">{brl(pay.total_paid_amount)}</span>
+                          </div>
+                        </div>
+                        {i < order.payments.length - 1 && (
+                          <div className="border-t mt-2 mb-1" style={{ borderColor: '#1e1e24' }} />
+                        )}
+                      </div>
+                    )
+                  })
+              }
+            </div>
+
+            {/* Endereço */}
+            <div className="p-3 rounded-xl space-y-1.5" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-2">Endereço de entrega</p>
+              {order.shipping.receiver_address.street_name ? (
+                <>
+                  <div className="flex items-start gap-1.5">
+                    <span className="text-[11px] text-zinc-600 w-14 shrink-0">Rua</span>
+                    <span className="text-[11px] text-zinc-200 leading-tight">
+                      {order.shipping.receiver_address.street_name}
+                      {order.shipping.receiver_address.street_number ? `, ${order.shipping.receiver_address.street_number}` : ''}
+                    </span>
+                  </div>
+                  {order.shipping.receiver_address.complement && (
+                    <div className="flex items-start gap-1.5">
+                      <span className="text-[11px] text-zinc-600 w-14 shrink-0">Compl.</span>
+                      <span className="text-[11px] text-zinc-300">{order.shipping.receiver_address.complement}</span>
+                    </div>
+                  )}
+                  {order.shipping.receiver_address.neighborhood && (
+                    <div className="flex items-start gap-1.5">
+                      <span className="text-[11px] text-zinc-600 w-14 shrink-0">Bairro</span>
+                      <span className="text-[11px] text-zinc-300">{order.shipping.receiver_address.neighborhood}</span>
+                    </div>
+                  )}
+                  {order.shipping.receiver_address.city && (
+                    <div className="flex items-start gap-1.5">
+                      <span className="text-[11px] text-zinc-600 w-14 shrink-0">Cidade</span>
+                      <span className="text-[11px] text-zinc-300">
+                        {order.shipping.receiver_address.city}
+                        {order.shipping.receiver_address.state ? ` / ${order.shipping.receiver_address.state}` : ''}
+                      </span>
+                    </div>
+                  )}
+                  {order.shipping.receiver_address.zip_code && (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[11px] text-zinc-600 w-14 shrink-0">CEP</span>
+                      <span className="text-[11px] text-zinc-300 font-mono">{order.shipping.receiver_address.zip_code}</span>
+                    </div>
+                  )}
+                  {order.shipping.receiver_address.address_line && (
+                    <div className="flex items-start gap-1.5">
+                      <span className="text-[11px] text-zinc-600 w-14 shrink-0">Linha</span>
+                      <span className="text-[11px] text-zinc-500 italic">{order.shipping.receiver_address.address_line}</span>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <span className="text-[11px] text-zinc-700">Endereço não disponível</span>
+              )}
+            </div>
+
+            {/* Envio */}
+            <div className="p-3 rounded-xl space-y-1.5" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-2">Envio</p>
+              {order.shipping.id && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-zinc-600 w-20 shrink-0">ID Envio</span>
+                  <a href={`https://www.mercadolivre.com.br/envios/${order.shipping.id}`}
+                    target="_blank" rel="noopener noreferrer"
+                    className="text-[11px] font-mono text-cyan-500 hover:text-cyan-300 transition-colors">
+                    {order.shipping.id}
+                  </a>
+                </div>
+              )}
+              {order.shipping.logistic_type && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-zinc-600 w-20 shrink-0">Logística</span>
+                  <span className="text-[11px] font-semibold"
+                    style={{ color: (LOGISTIC[order.shipping.logistic_type] ?? { color: '#71717a' }).color }}>
+                    {(LOGISTIC[order.shipping.logistic_type] ?? { text: order.shipping.logistic_type }).text}
+                  </span>
+                </div>
+              )}
+              {order.shipping.status && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-zinc-600 w-20 shrink-0">Status</span>
+                  <span className="text-[11px] font-semibold"
+                    style={{ color: (SHIPPING_STATUS_MAP[order.shipping.status] ?? { color: '#71717a' }).color }}>
+                    {(SHIPPING_STATUS_MAP[order.shipping.status] ?? { label: order.shipping.status }).label}
+                  </span>
+                </div>
+              )}
+              {order.shipping.substatus && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-zinc-600 w-20 shrink-0">Substatus</span>
+                  <span className="text-[11px] text-zinc-400">{order.shipping.substatus}</span>
+                </div>
+              )}
+              {order.shipping.date_created && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-zinc-600 w-20 shrink-0">Criado em</span>
+                  <span className="text-[11px] text-zinc-400">{fmtDate(order.shipping.date_created)}</span>
+                </div>
+              )}
+              {order.shipping.posting_deadline && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-zinc-600 w-20 shrink-0">Pr. postagem</span>
+                  <span className="text-[11px] text-zinc-400">{fmtDate(order.shipping.posting_deadline)}</span>
+                </div>
+              )}
+              {order.shipping.estimated_delivery_date && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-zinc-600 w-20 shrink-0">Prev. entrega</span>
+                  <span className="text-[11px] text-zinc-400">{fmtDate(order.shipping.estimated_delivery_date)}</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Itens do pedido (apenas se múltiplos) */}
           {order.order_items.length > 1 && (
-            <div className="pt-3">
-              <p className="text-[10px] text-zinc-500 uppercase tracking-widest mb-2">Itens do pedido</p>
-              <div className="space-y-1">
+            <div className="p-3 rounded-xl" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-2">Itens do pedido</p>
+              <div className="space-y-1.5">
                 {order.order_items.map((it, i) => (
-                  <div key={i} className="flex items-center gap-2 text-xs text-zinc-400">
-                    <span className="font-bold text-zinc-300">{it.quantity}x</span>
-                    <span className="truncate flex-1">{it.title}</span>
-                    <span className="font-semibold text-zinc-200 shrink-0">{brl(it.unit_price * it.quantity)}</span>
+                  <div key={i} className="flex items-center gap-2">
+                    <span className="text-[11px] font-bold text-zinc-300 w-6 shrink-0">{it.quantity}x</span>
+                    <span className="text-[11px] text-zinc-400 flex-1 truncate">{it.title}</span>
+                    <span className="text-[11px] font-semibold text-zinc-200 shrink-0 tabular-nums">{brl(it.unit_price * it.quantity)}</span>
                   </div>
                 ))}
               </div>
-            </div>
-          )}
-          {order.shipping.receiver_address.street_name && (
-            <div className="pt-1">
-              <p className="text-[10px] text-zinc-500 uppercase tracking-widest mb-1">Endereço de entrega</p>
-              <p className="text-xs text-zinc-300">
-                {order.shipping.receiver_address.street_name}, {order.shipping.receiver_address.street_number}
-                {order.shipping.receiver_address.city ? ` — ${order.shipping.receiver_address.city}, ${order.shipping.receiver_address.state}` : ''}
-                {order.shipping.receiver_address.zip_code ? ` — CEP ${order.shipping.receiver_address.zip_code}` : ''}
-              </p>
             </div>
           )}
         </div>
