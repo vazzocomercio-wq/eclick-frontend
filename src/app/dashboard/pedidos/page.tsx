@@ -300,21 +300,30 @@ function OrderCard({
   useEffect(() => {
     if (!initialized.current && produtoVinculado) {
       initialized.current = true
-      const cp = produtoVinculado.cost_price
-      const tp = produtoVinculado.tax_percentage
+      const cp  = produtoVinculado.cost_price
+      const tp  = produtoVinculado.tax_percentage
       setCustoEdit(cp != null && cp !== 0 ? String(cp).replace('.', ',') : '')
       setImpostoEdit(tp != null && tp !== 0 ? String(tp).replace('.', ',') : '')
       if (cp != null && cp > 0 && tp != null && tp > 0) setEditando(false)
+      if (cp != null && cp > 0) {
+        const qty       = order.order_items[0]?.quantity ?? 1
+        const valorPago = order.total_amount || 0
+        const imposto   = valorPago * ((tp ?? 0) / 100)
+        const margem    = (order.lucro_bruto || 0) - (cp * qty) - imposto
+        const margemPct = valorPago > 0 ? Math.round((margem / valorPago) * 1000) / 10 : 0
+        setMargemOverride({ margem, margemPct })
+      }
     }
-  }, [produtoVinculado])
+  }, [produtoVinculado, order])
 
   function recalcularMargem(custoVal: string, impostoVal: string) {
-    const valorPago = order.total_amount || 0
-    const custo = parseFloat(custoVal.replace(',', '.')) || 0
+    const valorPago   = order.total_amount || 0
+    const qty         = order.order_items[0]?.quantity ?? 1
+    const custoUnit   = parseFloat(custoVal.replace(',', '.')) || 0
     const impostoRate = parseFloat(impostoVal.replace(',', '.')) || 0
-    const imposto = valorPago * (impostoRate / 100)
-    const margem = (order.lucro_bruto || 0) - custo - imposto
-    const margemPct = valorPago > 0 ? Math.round((margem / valorPago) * 1000) / 10 : 0
+    const imposto     = valorPago * (impostoRate / 100)
+    const margem      = (order.lucro_bruto || 0) - (custoUnit * qty) - imposto
+    const margemPct   = valorPago > 0 ? Math.round((margem / valorPago) * 1000) / 10 : 0
     setMargemOverride({ margem, margemPct })
   }
 
@@ -334,8 +343,11 @@ function OrderCard({
     }
   }
 
-  const item      = order.order_items[0]
-  const moreItems = order.order_items.length - 1
+  const item       = order.order_items[0]
+  const quantidade = item?.quantity ?? 1
+  const custoUnit  = produtoVinculado?.cost_price ?? 0
+  const custoTotal = custoUnit * quantidade
+  const moreItems  = order.order_items.length - 1
   const color     = avatarColor(order.buyer.nickname ?? String(order.order_id))
   const ini       = initials(order)
   const buyer     = buyerDisplay(order)
@@ -467,25 +479,39 @@ function OrderCard({
                 <span className="text-xs shrink-0">📦</span>
                 <span className="flex-1 text-[11px] text-zinc-500 leading-tight">Custo (CMV)</span>
                 {editando ? (
-                  <div className="flex items-center gap-1 shrink-0">
-                    <span className="text-[10px] text-zinc-600">R$</span>
-                    <input
-                      type="text" inputMode="decimal" placeholder="0,00"
-                      value={custoEdit}
-                      onChange={e => setCustoEdit(e.target.value.replace(/[^\d,\.]/g, ''))}
-                      onFocus={e => { e.currentTarget.style.borderColor = '#00E5FF'; e.currentTarget.select() }}
-                      onBlur={e => { e.currentTarget.style.borderColor = '#2a2a3f' }}
-                      onWheel={e => e.currentTarget.blur()}
-                      className="pedidos-number-input w-16 bg-[#0d0d10] rounded px-1.5 py-0.5 text-[11px] text-white text-right outline-none transition-colors placeholder:text-zinc-700"
-                      style={{ border: '1px solid #2a2a3f' }}
-                    />
+                  <div className="shrink-0">
+                    <div className="flex items-center gap-1">
+                      <span className="text-[10px] text-zinc-600">R$</span>
+                      <input
+                        type="text" inputMode="decimal" placeholder="0,00"
+                        value={custoEdit}
+                        onChange={e => setCustoEdit(e.target.value.replace(/[^\d,\.]/g, ''))}
+                        onFocus={e => { e.currentTarget.style.borderColor = '#00E5FF'; e.currentTarget.select() }}
+                        onBlur={e => { e.currentTarget.style.borderColor = '#2a2a3f' }}
+                        onWheel={e => e.currentTarget.blur()}
+                        className="pedidos-number-input w-16 bg-[#0d0d10] rounded px-1.5 py-0.5 text-[11px] text-white text-right outline-none transition-colors placeholder:text-zinc-700"
+                        style={{ border: '1px solid #2a2a3f' }}
+                      />
+                    </div>
+                    {quantidade > 1 && custoEdit && (
+                      <p className="text-[10px] text-zinc-600 text-right mt-0.5">
+                        Total: {brl((parseFloat(custoEdit.replace(',', '.')) || 0) * quantidade)}
+                      </p>
+                    )}
                   </div>
                 ) : (
-                  <span className="text-[11px] font-semibold tabular-nums text-zinc-200">
-                    {produtoVinculado.cost_price != null && produtoVinculado.cost_price > 0
-                      ? brl(produtoVinculado.cost_price)
-                      : <span className="text-zinc-700">—</span>}
-                  </span>
+                  <div className="text-right shrink-0">
+                    {custoUnit > 0 ? (
+                      <>
+                        <div className="text-[11px] font-semibold tabular-nums text-zinc-200">{brl(custoTotal)}</div>
+                        {quantidade > 1 && (
+                          <div className="text-[10px] text-zinc-600">{quantidade} × {brl(custoUnit)}</div>
+                        )}
+                      </>
+                    ) : (
+                      <span className="text-[11px] text-zinc-700">—</span>
+                    )}
+                  </div>
                 )}
               </div>
               {/* Imposto row */}
