@@ -279,27 +279,24 @@ type CreateResult = {
 }
 
 function OrderCard({
-  order, itemId, produtoVinculado, onSaveCusto, onSaveImposto, onCriarProduto, onToast,
+  order, itemId, produtoVinculado, onSalvar, onCriarProduto, onToast,
 }: {
   order: MOrder
   itemId: string | null
   produtoVinculado: LinkedProduct | null
-  onSaveCusto: (productId: string, value: number) => Promise<void>
-  onSaveImposto: (productId: string, value: number) => Promise<void>
+  onSalvar: (productId: string, custo: number, imposto: number) => Promise<void>
   onCriarProduto: (itemId: string) => Promise<void>
   onToast: (msg: string, type: Toast['type']) => void
 }) {
-  const [expanded, setExpanded] = useState(false)
-  const [criando,  setCriando]  = useState(false)
-  const [custoEdit, setCustoEdit]   = useState('')
+  const [expanded,    setExpanded]    = useState(false)
+  const [criando,     setCriando]     = useState(false)
+  const [editando,    setEditando]    = useState(true)
+  const [salvando,    setSalvando]    = useState(false)
+  const [custoEdit,   setCustoEdit]   = useState('')
   const [impostoEdit, setImpostoEdit] = useState('')
-  const [saving,  setSaving]  = useState({ custo: false, imposto: false })
-  const [savedOk, setSavedOk] = useState({ custo: false, imposto: false })
-  const [saveErr, setSaveErr] = useState({ custo: false, imposto: false })
   const [margemOverride, setMargemOverride] = useState<{ margem: number; margemPct: number } | null>(null)
   const initialized = useRef(false)
 
-  // Sync initial values when linked product loads asynchronously
   useEffect(() => {
     if (!initialized.current && produtoVinculado) {
       initialized.current = true
@@ -307,6 +304,7 @@ function OrderCard({
       const tp = produtoVinculado.tax_percentage
       setCustoEdit(cp != null && cp !== 0 ? String(cp).replace('.', ',') : '')
       setImpostoEdit(tp != null && tp !== 0 ? String(tp).replace('.', ',') : '')
+      if (cp != null && cp > 0 && tp != null && tp > 0) setEditando(false)
     }
   }, [produtoVinculado])
 
@@ -320,38 +318,20 @@ function OrderCard({
     setMargemOverride({ margem, margemPct })
   }
 
-  async function handleSaveCusto() {
+  async function handleSalvar() {
     if (!produtoVinculado) return
-    const valor = parseFloat(custoEdit.replace(',', '.'))
-    if (isNaN(valor)) return
-    setSaving(s => ({ ...s, custo: true })); setSaveErr(s => ({ ...s, custo: false }))
+    const custo   = parseFloat(custoEdit.replace(',', '.'))
+    const imposto = parseFloat(impostoEdit.replace(',', '.'))
+    setSalvando(true)
     try {
-      await onSaveCusto(produtoVinculado.id, valor)
-      setSavedOk(s => ({ ...s, custo: true }))
-      setTimeout(() => setSavedOk(s => ({ ...s, custo: false })), 2000)
+      await onSalvar(produtoVinculado.id, isNaN(custo) ? 0 : custo, isNaN(imposto) ? 0 : imposto)
+      setEditando(false)
       recalcularMargem(custoEdit, impostoEdit)
     } catch {
-      setSaveErr(s => ({ ...s, custo: true }))
-      setTimeout(() => setSaveErr(s => ({ ...s, custo: false })), 3000)
-      onToast('Erro ao salvar custo', 'error')
-    } finally { setSaving(s => ({ ...s, custo: false })) }
-  }
-
-  async function handleSaveImposto() {
-    if (!produtoVinculado) return
-    const valor = parseFloat(impostoEdit.replace(',', '.'))
-    if (isNaN(valor)) return
-    setSaving(s => ({ ...s, imposto: true })); setSaveErr(s => ({ ...s, imposto: false }))
-    try {
-      await onSaveImposto(produtoVinculado.id, valor)
-      setSavedOk(s => ({ ...s, imposto: true }))
-      setTimeout(() => setSavedOk(s => ({ ...s, imposto: false })), 2000)
-      recalcularMargem(custoEdit, impostoEdit)
-    } catch {
-      setSaveErr(s => ({ ...s, imposto: true }))
-      setTimeout(() => setSaveErr(s => ({ ...s, imposto: false })), 3000)
-      onToast('Erro ao salvar imposto', 'error')
-    } finally { setSaving(s => ({ ...s, imposto: false })) }
+      onToast('Erro ao salvar', 'error')
+    } finally {
+      setSalvando(false)
+    }
   }
 
   const item      = order.order_items[0]
@@ -482,50 +462,114 @@ function OrderCard({
           {/* Custo / Imposto — 3 estados: vinculado | sem produto (criar) | sem item_id */}
           {produtoVinculado ? (
             <>
+              {/* Custo row */}
               <div className="flex items-center justify-between gap-1 py-0.5">
                 <span className="text-xs shrink-0">📦</span>
                 <span className="flex-1 text-[11px] text-zinc-500 leading-tight">Custo (CMV)</span>
-                <div className="flex items-center gap-1 shrink-0">
-                  {savedOk.custo  && <span className="text-[10px] text-green-400">✓</span>}
-                  {saving.custo   && <span className="text-[10px] text-zinc-500 animate-pulse">…</span>}
-                  <span className="text-[10px] text-zinc-600">R$</span>
-                  <input
-                    type="text" inputMode="decimal" placeholder="0,00"
-                    value={custoEdit}
-                    onChange={e => setCustoEdit(e.target.value.replace(/[^\d,\.]/g, ''))}
-                    onFocus={e => { e.currentTarget.style.borderColor = '#00E5FF'; e.currentTarget.select() }}
-                    onBlur={e => {
-                      e.currentTarget.style.borderColor = saveErr.custo ? '#ef4444' : '#2a2a3f'
-                      void handleSaveCusto()
-                    }}
-                    onWheel={e => e.currentTarget.blur()}
-                    className="pedidos-number-input w-16 bg-[#0d0d10] rounded px-1.5 py-0.5 text-[11px] text-white text-right outline-none transition-colors"
-                    style={{ border: `1px solid ${saveErr.custo ? '#ef4444' : '#2a2a3f'}` }}
-                  />
-                </div>
+                {editando ? (
+                  <div className="flex items-center gap-1 shrink-0">
+                    <span className="text-[10px] text-zinc-600">R$</span>
+                    <input
+                      type="text" inputMode="decimal" placeholder="0,00"
+                      value={custoEdit}
+                      onChange={e => setCustoEdit(e.target.value.replace(/[^\d,\.]/g, ''))}
+                      onFocus={e => { e.currentTarget.style.borderColor = '#00E5FF'; e.currentTarget.select() }}
+                      onBlur={e => { e.currentTarget.style.borderColor = '#2a2a3f' }}
+                      onWheel={e => e.currentTarget.blur()}
+                      className="pedidos-number-input w-16 bg-[#0d0d10] rounded px-1.5 py-0.5 text-[11px] text-white text-right outline-none transition-colors placeholder:text-zinc-700"
+                      style={{ border: '1px solid #2a2a3f' }}
+                    />
+                  </div>
+                ) : (
+                  <span className="text-[11px] font-semibold tabular-nums text-zinc-200">
+                    {produtoVinculado.cost_price != null && produtoVinculado.cost_price > 0
+                      ? brl(produtoVinculado.cost_price)
+                      : <span className="text-zinc-700">—</span>}
+                  </span>
+                )}
               </div>
+              {/* Imposto row */}
               <div className="flex items-center justify-between gap-1 py-0.5">
                 <span className="text-xs shrink-0">⚖️</span>
                 <span className="flex-1 text-[11px] text-zinc-500 leading-tight">Imposto</span>
-                <div className="flex items-center gap-1 shrink-0">
-                  {savedOk.imposto && <span className="text-[10px] text-green-400">✓</span>}
-                  {saving.imposto  && <span className="text-[10px] text-zinc-500 animate-pulse">…</span>}
-                  <input
-                    type="text" inputMode="decimal" placeholder="0"
-                    value={impostoEdit}
-                    onChange={e => setImpostoEdit(e.target.value.replace(/[^\d,\.]/g, ''))}
-                    onFocus={e => { e.currentTarget.style.borderColor = '#00E5FF'; e.currentTarget.select() }}
-                    onBlur={e => {
-                      e.currentTarget.style.borderColor = saveErr.imposto ? '#ef4444' : '#2a2a3f'
-                      void handleSaveImposto()
-                    }}
-                    onWheel={e => e.currentTarget.blur()}
-                    className="pedidos-number-input w-12 bg-[#0d0d10] rounded px-1.5 py-0.5 text-[11px] text-white text-right outline-none transition-colors"
-                    style={{ border: `1px solid ${saveErr.imposto ? '#ef4444' : '#2a2a3f'}` }}
-                  />
-                  <span className="text-[10px] text-zinc-600">%</span>
-                </div>
+                {editando ? (
+                  <div className="flex items-center gap-1 shrink-0">
+                    <input
+                      type="text" inputMode="decimal" placeholder="0"
+                      value={impostoEdit}
+                      onChange={e => setImpostoEdit(e.target.value.replace(/[^\d,\.]/g, ''))}
+                      onFocus={e => { e.currentTarget.style.borderColor = '#00E5FF'; e.currentTarget.select() }}
+                      onBlur={e => { e.currentTarget.style.borderColor = '#2a2a3f' }}
+                      onWheel={e => e.currentTarget.blur()}
+                      className="pedidos-number-input w-12 bg-[#0d0d10] rounded px-1.5 py-0.5 text-[11px] text-white text-right outline-none transition-colors placeholder:text-zinc-700"
+                      style={{ border: '1px solid #2a2a3f' }}
+                    />
+                    <span className="text-[10px] text-zinc-600">%</span>
+                  </div>
+                ) : (
+                  <span className="text-[11px] font-semibold tabular-nums text-zinc-200">
+                    {produtoVinculado.tax_percentage != null && produtoVinculado.tax_percentage > 0
+                      ? `${produtoVinculado.tax_percentage}%`
+                      : <span className="text-zinc-700">—</span>}
+                  </span>
+                )}
               </div>
+              {/* Action buttons */}
+              {editando ? (
+                <div className="flex items-center justify-end gap-1.5 mt-1">
+                  {(produtoVinculado.cost_price != null || produtoVinculado.tax_percentage != null) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const cp = produtoVinculado.cost_price
+                        const tp = produtoVinculado.tax_percentage
+                        setCustoEdit(cp != null && cp !== 0 ? String(cp).replace('.', ',') : '')
+                        setImpostoEdit(tp != null && tp !== 0 ? String(tp).replace('.', ',') : '')
+                        setEditando(false)
+                      }}
+                      className="text-[10px] px-2 py-0.5 rounded transition-colors hover:text-zinc-300"
+                      style={{ color: '#71717a' }}>
+                      Cancelar
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    disabled={salvando}
+                    onClick={handleSalvar}
+                    className="flex items-center gap-1 text-[10px] px-2.5 py-1 rounded font-semibold transition-all disabled:opacity-60"
+                    style={{ background: 'rgba(0,229,255,0.1)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.2)' }}>
+                    {salvando ? (
+                      <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                    ) : (
+                      <svg width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
+                    {salvando ? 'Salvando…' : 'Salvar'}
+                  </button>
+                </div>
+              ) : (
+                <div className="flex justify-end mt-0.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const cp = produtoVinculado.cost_price
+                      const tp = produtoVinculado.tax_percentage
+                      setCustoEdit(cp != null && cp !== 0 ? String(cp).replace('.', ',') : '')
+                      setImpostoEdit(tp != null && tp !== 0 ? String(tp).replace('.', ',') : '')
+                      setEditando(true)
+                    }}
+                    className="flex items-center gap-1 text-[10px] text-zinc-600 hover:text-zinc-300 transition-colors">
+                    <svg width="9" height="9" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                    </svg>
+                    Alterar
+                  </button>
+                </div>
+              )}
             </>
           ) : itemId ? (
             <>
@@ -913,36 +957,45 @@ export default function PedidosPage() {
       })
   }, [supabase])
 
-  const saveCusto = useCallback(async (productId: string, value: number) => {
+  const salvar = useCallback(async (productId: string, custo: number, imposto: number) => {
     const url = `${BACKEND}/products/${productId}`
-    console.log('[salvar-custo] PATCH', url, { cost_price: value })
-    const headers = await getHeaders()
-    const res = await fetch(url, {
-      method: 'PATCH',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cost_price: value }),
-    })
-    const body = await res.json().catch(() => ({}))
-    console.log('[salvar-custo] response', res.status, body)
-    if (!res.ok) throw new Error(body?.message ?? `HTTP ${res.status}`)
-    setProdutosLinked(prev => prev.map(p => p.id === productId ? { ...p, cost_price: value } : p))
-    toast('Custo atualizado!', 'success')
-  }, [getHeaders])
+    console.log('========== SALVAR ==========')
+    console.log('[salvar] productId:', productId)
+    console.log('[salvar] custo:', custo, '| imposto:', imposto)
+    console.log('[salvar] URL PATCH:', url)
+    console.log('[salvar] body:', JSON.stringify({ cost_price: custo, tax_percentage: imposto }))
 
-  const saveImposto = useCallback(async (productId: string, value: number) => {
-    const url = `${BACKEND}/products/${productId}`
-    console.log('[salvar-imposto] PATCH', url, { tax_percentage: value })
-    const headers = await getHeaders()
+    let headers: Record<string, string>
+    try {
+      headers = await getHeaders()
+      console.log('[salvar] token obtido:', !!headers.Authorization)
+    } catch (e) {
+      console.error('[salvar] falha ao obter token:', e)
+      throw e
+    }
+
     const res = await fetch(url, {
       method: 'PATCH',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tax_percentage: value }),
+      body: JSON.stringify({ cost_price: custo, tax_percentage: imposto }),
     })
-    const body = await res.json().catch(() => ({}))
-    console.log('[salvar-imposto] response', res.status, body)
-    if (!res.ok) throw new Error(body?.message ?? `HTTP ${res.status}`)
-    setProdutosLinked(prev => prev.map(p => p.id === productId ? { ...p, tax_percentage: value } : p))
-    toast('Imposto atualizado!', 'success')
+
+    console.log('[salvar] response status:', res.status, '| ok:', res.ok)
+
+    const rawText = await res.text()
+    console.log('[salvar] response raw:', rawText)
+
+    let data: Record<string, unknown> = {}
+    try { data = JSON.parse(rawText) } catch { data = { raw: rawText } }
+    console.log('[salvar] response parsed:', data)
+
+    if (!res.ok) throw new Error((data?.message as string) ?? (data?.error as string) ?? `HTTP ${res.status}`)
+
+    console.log('[salvar] SUCESSO — atualizando estado local')
+    setProdutosLinked(prev => prev.map(p =>
+      p.id === productId ? { ...p, cost_price: custo, tax_percentage: imposto } : p
+    ))
+    toast('Valores salvos!', 'success')
   }, [getHeaders])
 
   const criarProduto = useCallback(async (itemId: string) => {
@@ -1104,8 +1157,7 @@ export default function PedidosPage() {
                     order={order}
                     itemId={itemId}
                     produtoVinculado={produtoVinculado}
-                    onSaveCusto={saveCusto}
-                    onSaveImposto={saveImposto}
+                    onSalvar={salvar}
                     onCriarProduto={criarProduto}
                     onToast={toast}
                   />
