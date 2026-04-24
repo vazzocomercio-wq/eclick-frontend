@@ -164,10 +164,9 @@ function filterByPeriod(orders: Order[], period: Period) {
 function buildDailyChart(orders: Order[], days: number) {
   const map = new Map<string, number>()
   for (let i = days - 1; i >= 0; i--) {
-    map.set(dayStr(daysAgoDate(i)), 0)
+    map.set(brazilDateStr(daysAgoDate(i)), 0)
   }
   for (const o of orders) {
-    if (!isPaid(o)) continue
     const ds = brazilDateStr(new Date(o.date_created))
     if (map.has(ds)) map.set(ds, (map.get(ds) ?? 0) + (o.total_amount ?? 0))
   }
