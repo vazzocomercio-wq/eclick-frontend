@@ -4,6 +4,7 @@
 
 [build.environment]
   NODE_VERSION = "20"
+  NEXT_PUBLIC_BACKEND_URL = "https://eclick-backend-production-2a87.up.railway.app"
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
