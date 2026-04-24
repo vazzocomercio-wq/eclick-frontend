@@ -961,6 +961,8 @@ export default function PedidosPage() {
       body: JSON.stringify({ listing_ids: [itemId] }),
     })
     const data = await res.json()
+    console.log('[criar-produto] retorno backend:', JSON.stringify(data))
+
     const results: CreateResult[] = data.results ?? []
     const created = results.find(r => r.status === 'created')
     const skipped = results.find(r => r.status === 'skipped')
@@ -968,19 +970,20 @@ export default function PedidosPage() {
       throw new Error(results[0]?.reason ?? data.message ?? `HTTP ${res.status}`)
     }
     toast(created ? 'Produto criado com sucesso!' : 'Produto já existe no catálogo', created ? 'success' : 'info')
-    // Busca o produto recém-criado/existente e adiciona ao estado
-    const { data: newProduct } = await supabase
+
+    // Refetch completo — evita falha silenciosa do .single() por RLS ou organization_id
+    const { data: allProdutos, error: fetchError } = await supabase
       .from('products')
       .select('id, sku, ml_listing_id, cost_price, tax_percentage, name')
-      .eq('ml_listing_id', itemId)
-      .single()
-    if (newProduct) {
-      setProdutosLinked(prev => [
-        ...prev.filter(p => p.ml_listing_id !== itemId),
-        newProduct as LinkedProduct,
-      ])
-    }
+    console.log('[criar-produto] refetch produtos:', allProdutos?.length ?? 0, 'itens | erro:', fetchError?.message ?? 'nenhum')
+    console.log('[criar-produto] ml_listing_ids no banco:', allProdutos?.map(p => p.ml_listing_id).filter(Boolean))
+    if (allProdutos) setProdutosLinked(allProdutos as LinkedProduct[])
   }, [getHeaders, supabase])
+
+  // Log sempre que produtosLinked mudar — útil para depurar matching
+  useEffect(() => {
+    console.log('[produtosLinked] atualizado:', produtosLinked.map(p => ({ id: p.id, ml_listing_id: p.ml_listing_id, sku: p.sku })))
+  }, [produtosLinked])
 
   useEffect(() => { loadKpis()              }, [loadKpis])
   useEffect(() => { loadOrders(page, q)     }, [page, loadOrders])
@@ -1093,10 +1096,16 @@ export default function PedidosPage() {
             : filtered.map(order => {
                 const oi = order.order_items[0]
                 const itemId = oi?.item_id ?? oi?.item?.id ?? null
-                const produtoVinculado = produtosLinked.find(p =>
-                  (itemId && p.ml_listing_id === itemId) ||
-                  (oi?.seller_sku && p.sku === oi.seller_sku)
-                ) ?? null
+                const sku    = oi?.seller_sku ?? null
+                const byMlId = itemId ? produtosLinked.find(p => p.ml_listing_id === itemId) : undefined
+                const bySku  = sku    ? produtosLinked.find(p => p.sku === sku)              : undefined
+                const produtoVinculado = byMlId ?? bySku ?? null
+                if (!produtoVinculado && itemId) {
+                  console.log(`[pedido ${order.order_id}] sem vínculo | itemId:${itemId} sku:${sku}`, {
+                    totalProdutos: produtosLinked.length,
+                    ml_ids_banco: produtosLinked.map(p => p.ml_listing_id).filter(Boolean),
+                  })
+                }
                 return (
                   <OrderCard
                     key={order.order_id}
