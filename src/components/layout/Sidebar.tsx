@@ -54,6 +54,12 @@ const MAIN: Entry[] = [
     { label: 'Preços',       href: '/dashboard/precos' },
   ]},
   { type: 'leaf',  label: 'Pedidos',        href: '/dashboard/pedidos',       icon: <Ico d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /> },
+  { type: 'sep',   label: 'COMPRAS' },
+  { type: 'group', key: 'compras', label: 'Compras', icon: <Ico d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />, children: [
+    { label: 'Inteligência',  href: '/dashboard/compras/inteligencia' },
+    { label: 'Fornecedores',  href: '/dashboard/compras/fornecedores' },
+    { label: 'Importações',   href: '/dashboard/compras/importacoes' },
+  ]},
   { type: 'sep',   label: 'RELACIONAMENTO' },
   { type: 'group', key: 'atendimento', label: 'Atendimento', icon: <Ico d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />, children: [
     { label: 'Perguntas',   href: '/dashboard/atendimento/perguntas' },
