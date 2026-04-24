@@ -185,8 +185,14 @@ function TableRow({
     if (product.status === 'draft') return
     const next = product.status === 'active' ? 'paused' : 'active'
     setToggling(true)
-    const supabase = createClient()
-    await supabase.from('products').update({ status: next }).eq('id', product.id)
+    const token = await getAuthToken()
+    if (token) {
+      await fetch(`${BACKEND}/products/${product.id}`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: next }),
+      })
+    }
     onStatusChange(product.id, next)
     setToggling(false)
   }
@@ -395,8 +401,14 @@ function ProductCard({ product, onDelete, onStatusChange, onDuplicate }: {
     if (product.status === 'draft') return
     const next = product.status === 'active' ? 'paused' : 'active'
     setToggling(true)
-    const supabase = createClient()
-    await supabase.from('products').update({ status: next }).eq('id', product.id)
+    const token = await getAuthToken()
+    if (token) {
+      await fetch(`${BACKEND}/products/${product.id}`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: next }),
+      })
+    }
     onStatusChange(product.id, next)
     setToggling(false)
   }
@@ -667,8 +679,12 @@ export default function ProdutosPage() {
   }
 
   async function handleDelete(id: string) {
-    const supabase = createClient()
-    await supabase.from('products').delete().eq('id', id)
+    const token = await getAuthToken()
+    if (!token) return
+    await fetch(`${BACKEND}/products/${id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    })
     setProducts(prev => prev.filter(p => p.id !== id))
     setSelected(prev => { const n = new Set(prev); n.delete(id); return n })
   }
@@ -697,8 +713,13 @@ export default function ProdutosPage() {
 
   async function bulkDelete() {
     const ids = [...selected]
-    const supabase = createClient()
-    await supabase.from('products').delete().in('id', ids)
+    const token = await getAuthToken()
+    if (!token) return
+    await fetch(`${BACKEND}/products/bulk-delete`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids }),
+    })
     setProducts(prev => prev.filter(p => !ids.includes(p.id)))
     setSelected(new Set())
   }
