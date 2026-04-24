@@ -1,6 +1,6 @@
 'use client'
 
-import { useId } from 'react'
+import { useId, useMemo } from 'react'
 import type { TabProps, WholesaleLevel } from '../types'
 
 const inp = 'w-full bg-[#1c1c1f] border border-[#3f3f46] text-white text-sm rounded-lg px-3 py-2.5 outline-none transition-all placeholder-zinc-600 focus:border-[#00E5FF] focus:ring-1 focus:ring-[#00E5FF20]'
@@ -38,6 +38,18 @@ const SALE_FORMATS = [
 
 export default function Tab5Sales({ data, set }: TabProps) {
   const uid = useId()
+
+  const previewMargem = useMemo(() => {
+    const venda     = parseFloat(String(data.price        || '').replace(',', '.')) || 0
+    const custo     = parseFloat(String(data.costPrice    || '').replace(',', '.')) || 0
+    const taxPct    = parseFloat(String(data.taxPercentage || '').replace(',', '.')) || 0
+    const tarifaPct = data.mlListingType === 'premium' ? 0.16 : 0.115
+    const tarifa    = Math.round(venda * tarifaPct * 100) / 100
+    const imposto   = Math.round(venda * (taxPct / 100) * 100) / 100
+    const margem    = Math.round((venda - custo - tarifa - imposto) * 100) / 100
+    const margemPct = venda > 0 ? Math.round((margem / venda) * 10000) / 100 : 0
+    return { venda, custo, tarifa, tarifaPct: tarifaPct * 100, imposto, taxPct, margem, margemPct }
+  }, [data.price, data.costPrice, data.taxPercentage, data.mlListingType])
 
   function addWholesaleLevel() {
     const level: WholesaleLevel = { id: `${uid}-${Date.now()}`, minQty: '', price: '' }
@@ -180,46 +192,53 @@ export default function Tab5Sales({ data, set }: TabProps) {
         </div>
 
         {/* Live margin preview */}
-        {(() => {
-          const salePrice  = parseFloat(String(data.price).replace(',', '.'))  || 0
-          const cost       = parseFloat(String(data.costPrice).replace(',', '.')) || 0
-          const taxPct     = parseFloat(String(data.taxPercentage).replace(',', '.')) || 0
-          const feeRate    = data.mlListingType === 'premium' ? 0.16 : 0.115
-          const tarifa     = Math.round(salePrice * feeRate * 100) / 100
-          const taxBase    = data.taxOnFreight ? salePrice : salePrice
-          const taxAmount  = Math.round(taxBase * (taxPct / 100) * 100) / 100
-          const margin     = Math.round((salePrice - cost - tarifa - taxAmount) * 100) / 100
-          const marginPct  = salePrice > 0 ? Math.round((margin / salePrice) * 10000) / 100 : 0
-          const hasData    = salePrice > 0 || cost > 0
-          if (!hasData) return null
-          const green = '#4ade80', red = '#f87171', dim = '#52525b'
-          const row = (icon: string, label: string, val: number, color: string) => (
-            <div key={label} className="flex items-center justify-between">
-              <span className="text-[11px]" style={{ color: dim }}>{icon} {label}</span>
-              <span className="text-[11px] font-semibold tabular-nums" style={{ color }}>
-                {val < 0 ? '-' : ''}{Math.abs(val).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+        {(previewMargem.venda > 0 || previewMargem.custo > 0) && (
+          <div className="mt-4 p-4 rounded-xl border space-y-1.5" style={{ background: '#0f0f12', borderColor: '#1e1e24' }}>
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-2">Preview de margem</p>
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] text-zinc-500">💰 Venda</span>
+              <span className="text-[11px] font-semibold tabular-nums text-zinc-200">
+                {previewMargem.venda.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
               </span>
             </div>
-          )
-          return (
-            <div className="mt-4 p-4 rounded-xl border space-y-1.5" style={{ background: '#0f0f12', borderColor: '#1e1e24' }}>
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-2">Preview de margem</p>
-              {row('💰', 'Venda', salePrice, '#e4e4e7')}
-              {cost > 0 && row('📦', 'Custo (CMV)', -cost, red)}
-              {tarifa > 0 && row('🏪', `Tarifa ML (${Math.round(feeRate * 100)}%)`, -tarifa, red)}
-              {taxAmount > 0 && row('⚖️', `Imposto (${taxPct}%)`, -taxAmount, red)}
-              <div className="border-t pt-1.5" style={{ borderColor: '#1e1e24' }}>
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-semibold" style={{ color: '#e4e4e7' }}>🟢 Margem contrib.</span>
-                  <span className="text-[13px] font-bold tabular-nums" style={{ color: margin >= 0 ? green : red }}>
-                    {margin.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                    <span className="ml-1.5 text-[11px] font-semibold opacity-70">({marginPct}%)</span>
+            {previewMargem.custo > 0 && (
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] text-zinc-500">📦 Custo (CMV)</span>
+                <span className="text-[11px] font-semibold tabular-nums text-red-400">
+                  -{previewMargem.custo.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </span>
+              </div>
+            )}
+            {previewMargem.tarifa > 0 && (
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] text-zinc-500">🏪 Tarifa ML ({previewMargem.tarifaPct.toFixed(0)}%)</span>
+                <span className="text-[11px] font-semibold tabular-nums text-red-400">
+                  -{previewMargem.tarifa.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </span>
+              </div>
+            )}
+            {previewMargem.imposto > 0 && (
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] text-zinc-500">⚖️ Imposto ({previewMargem.taxPct.toFixed(0)}%)</span>
+                <span className="text-[11px] font-semibold tabular-nums text-red-400">
+                  -{previewMargem.imposto.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </span>
+              </div>
+            )}
+            <div className="border-t pt-1.5" style={{ borderColor: '#1e1e24' }}>
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-semibold text-zinc-200">🟢 Margem contrib.</span>
+                <span className="text-[13px] font-bold tabular-nums"
+                  style={{ color: previewMargem.margem >= 0 ? '#4ade80' : '#f87171' }}>
+                  {previewMargem.margem.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  <span className="ml-1.5 text-[11px] font-semibold opacity-70">
+                    ({previewMargem.margemPct.toFixed(2)}%)
                   </span>
-                </div>
+                </span>
               </div>
             </div>
-          )
-        })()}
+          </div>
+        )}
       </section>
 
       {/* ML listing type */}
