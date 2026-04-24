@@ -180,7 +180,7 @@ function RowMenu({ onEdit, onDuplicate, onDelete }: {
 // ── table row ─────────────────────────────────────────────────────────────────
 
 function TableRow({
-  product, selected, onSelect, onStatusChange, onDelete, onDuplicate,
+  product, selected, onSelect, onStatusChange, onDelete, onDuplicate, stockInfo,
 }: {
   product: Product
   selected: boolean
@@ -188,6 +188,7 @@ function TableRow({
   onStatusChange: (id: string, status: Product['status']) => void
   onDelete: (id: string) => void
   onDuplicate: (id: string) => void
+  stockInfo?: StockSummary
 }) {
   const router = useRouter()
   const [hover, setHover] = useState(false)
@@ -267,11 +268,28 @@ function TableRow({
                 🔗 ML Vinculado
               </span>
             )}
-            <p className="text-zinc-500 text-[11px] mt-0.5">
-              Estoque: <span className={product.stock === 0 ? 'text-red-400' : 'text-zinc-400'}>
-                {product.stock ?? 0} u.
-              </span>
-            </p>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
+              <p className="text-zinc-500 text-[11px]">
+                Estoque: <span className={product.stock === 0 ? 'text-red-400' : 'text-zinc-400'}>
+                  {stockInfo && stockInfo.virtual_quantity > 0
+                    ? `${(product.stock ?? 0).toLocaleString('pt-BR')} + ${stockInfo.virtual_quantity.toLocaleString('pt-BR')} = ${((product.stock ?? 0) + stockInfo.virtual_quantity).toLocaleString('pt-BR')}`
+                    : `${product.stock ?? 0}`} u.
+                </span>
+              </p>
+              {stockInfo?.auto_pause_enabled && (
+                <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full"
+                  style={{ background: 'rgba(251,191,36,0.1)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.2)' }}>
+                  ⏸ Auto-pausa
+                </span>
+              )}
+              {stockInfo?.auto_pause_enabled &&
+               (product.stock ?? 0) + (stockInfo.virtual_quantity ?? 0) <= (stockInfo.min_stock_to_pause ?? 0) && (
+                <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full"
+                  style={{ background: 'rgba(248,113,113,0.1)', color: '#f87171', border: '1px solid rgba(248,113,113,0.2)' }}>
+                  ⚠ Pausar agora
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </td>
@@ -642,6 +660,13 @@ function MlImportModal({ onClose, onImported }: { onClose: () => void; onImporte
 
 // ── main page ─────────────────────────────────────────────────────────────────
 
+type StockSummary = {
+  quantity:          number
+  virtual_quantity:  number
+  min_stock_to_pause: number
+  auto_pause_enabled: boolean
+}
+
 export default function ProdutosPage() {
   const [products, setProducts]     = useState<Product[]>([])
   const [loading, setLoading]       = useState(true)
@@ -653,6 +678,7 @@ export default function ProdutosPage() {
   const [orgId, setOrgId]           = useState<string | null>(null)
   const [showMlImport, setShowMlImport] = useState(false)
   const [mlConnected, setMlConnected]   = useState(false)
+  const [stockMap, setStockMap]         = useState<Record<string, StockSummary>>({})
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
@@ -671,6 +697,27 @@ export default function ProdutosPage() {
       setLoading(false)
     }
   }, [])
+
+  // Fetch product_stock for virtual qty badges
+  useEffect(() => {
+    if (products.length === 0) return
+    const sb = createClient()
+    sb.from('product_stock')
+      .select('product_id, quantity, virtual_quantity, min_stock_to_pause, auto_pause_enabled')
+      .is('platform', null)
+      .then(({ data }) => {
+        const map: Record<string, StockSummary> = {}
+        for (const row of (data ?? [])) {
+          map[row.product_id] = {
+            quantity:          row.quantity           ?? 0,
+            virtual_quantity:  row.virtual_quantity   ?? 0,
+            min_stock_to_pause: row.min_stock_to_pause ?? 0,
+            auto_pause_enabled: row.auto_pause_enabled ?? false,
+          }
+        }
+        setStockMap(map)
+      })
+  }, [products])
 
   useEffect(() => { load() }, [load])
 
@@ -935,6 +982,7 @@ export default function ProdutosPage() {
                         onStatusChange={handleStatusChange}
                         onDelete={handleDelete}
                         onDuplicate={handleDuplicate}
+                        stockInfo={stockMap[p.id]}
                       />
                     ))
                 }

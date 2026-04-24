@@ -25,6 +25,9 @@ type StockRow = {
   quantity: number
   platform: string | null
   account_id: string | null
+  virtual_quantity: number
+  min_stock_to_pause: number
+  auto_pause_enabled: boolean
 }
 
 type ProductRow = {
@@ -120,6 +123,27 @@ function KpiCard({ label, value, sub, color }: { label: string; value: string; s
       <p className="text-2xl font-bold leading-none" style={{ color }}>{value}</p>
       {sub && <p className="text-zinc-600 text-xs mt-0.5">{sub}</p>}
     </div>
+  )
+}
+
+// ── Tooltip ───────────────────────────────────────────────────────────────────
+
+function TooltipInfo({ text }: { text: string }) {
+  const [show, setShow] = useState(false)
+  return (
+    <span className="relative inline-flex items-center">
+      <button
+        onMouseEnter={() => setShow(true)}
+        onMouseLeave={() => setShow(false)}
+        className="w-4 h-4 rounded-full text-[9px] font-bold flex items-center justify-center shrink-0"
+        style={{ background: '#27272a', color: '#71717a' }}>?</button>
+      {show && (
+        <div className="absolute left-5 bottom-0 z-50 w-64 p-3 rounded-xl text-[11px] leading-relaxed shadow-2xl"
+          style={{ background: '#18181b', border: '1px solid #27272a', color: '#a1a1aa' }}>
+          {text}
+        </div>
+      )}
+    </span>
   )
 }
 
@@ -287,25 +311,43 @@ function AddVinculoModal({
 
 // ── Stock Panel ───────────────────────────────────────────────────────────────
 
+const TOOLTIP_VIRTUAL = 'Quantidade adicional exibida nas plataformas além do estoque físico real. Útil para Shopee Flash Sale e campanhas que exigem estoque mínimo alto para elegibilidade.'
+const TOOLTIP_MINPAUSE = 'Quando (físico + virtual) atingir este valor, o anúncio é pausado automaticamente. Exemplo: físico=5, virtual=1.000, mínimo=1.000 → pausa quando o físico zerar (total cai de 1.005 para 1.000).'
+
 function StockPanel({
-  product, onClose, getHeaders, onUpdated,
+  product, onClose, getHeaders, onUpdated, onSettingsSaved,
 }: {
   product: ProductRow; onClose: () => void
   getHeaders: () => Promise<Record<string, string>>
   onUpdated: (productId: string, newQty: number) => void
+  onSettingsSaved: (productId: string, updates: Partial<StockRow>) => void
 }) {
   const supabase = useMemo(() => createClient(), [])
-  const [movements,  setMovements]  = useState<Movement[]>([])
-  const [movLoading, setMovLoading] = useState(true)
-  const [adjForm,    setAdjForm]    = useState(false)
-  const [adjType,    setAdjType]    = useState<'in' | 'out' | 'adjustment'>('adjustment')
-  const [adjQty,     setAdjQty]     = useState('')
-  const [adjReason,  setAdjReason]  = useState('')
-  const [adjSaving,  setAdjSaving]  = useState(false)
-  const [adjError,   setAdjError]   = useState<string | null>(null)
+  const [movements,      setMovements]      = useState<Movement[]>([])
+  const [movLoading,     setMovLoading]     = useState(true)
+  const [adjForm,        setAdjForm]        = useState(false)
+  const [adjType,        setAdjType]        = useState<'in' | 'out' | 'adjustment'>('adjustment')
+  const [adjQty,         setAdjQty]         = useState('')
+  const [adjReason,      setAdjReason]      = useState('')
+  const [adjSaving,      setAdjSaving]      = useState(false)
+  const [adjError,       setAdjError]       = useState<string | null>(null)
+  const [virtualQty,     setVirtualQty]     = useState('0')
+  const [minPause,       setMinPause]       = useState('0')
+  const [autoPause,      setAutoPause]      = useState(false)
+  const [savingSettings, setSavingSettings] = useState(false)
+  const [settingsErr,    setSettingsErr]    = useState<string | null>(null)
+  const [settingsSaved,  setSettingsSaved]  = useState(false)
 
   const sharedStock = product.product_stock.find(s => s.platform === null) ?? null
-  const currentQty  = sharedStock?.quantity ?? 0
+  const physicalQty = sharedStock?.quantity ?? 0
+
+  useEffect(() => {
+    if (!sharedStock) return
+    setVirtualQty(String(sharedStock.virtual_quantity ?? 0))
+    setMinPause(String(sharedStock.min_stock_to_pause ?? 0))
+    setAutoPause(sharedStock.auto_pause_enabled ?? false)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sharedStock?.id])
 
   useEffect(() => {
     setMovLoading(true)
@@ -317,6 +359,32 @@ function StockPanel({
       .limit(10)
       .then(({ data }) => { setMovements((data ?? []) as Movement[]); setMovLoading(false) })
   }, [product.id, supabase])
+
+  const vQty        = Number(virtualQty) || 0
+  const mPause      = Number(minPause) || 0
+  const platformQty = physicalQty + vQty
+  // Effective physical threshold: when physical reaches this, platform_qty hits min
+  const physicalThreshold = mPause - vQty
+
+  async function handleSaveSettings() {
+    if (!sharedStock) return
+    setSavingSettings(true); setSettingsErr(null); setSettingsSaved(false)
+    try {
+      const headers = await getHeaders()
+      const res = await fetch(`${BACKEND}/products/stock/${sharedStock.id}`, {
+        method: 'PATCH',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ virtual_quantity: vQty, min_stock_to_pause: mPause, auto_pause_enabled: autoPause }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.message ?? `HTTP ${res.status}`)
+      onSettingsSaved(product.id, { virtual_quantity: vQty, min_stock_to_pause: mPause, auto_pause_enabled: autoPause })
+      setSettingsSaved(true)
+      setTimeout(() => setSettingsSaved(false), 2500)
+    } catch (e: unknown) {
+      setSettingsErr(e instanceof Error ? e.message : 'Erro ao salvar')
+    } finally { setSavingSettings(false) }
+  }
 
   async function handleAdjust() {
     const qty = parseInt(adjQty, 10)
@@ -331,9 +399,8 @@ function StockPanel({
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.message ?? `HTTP ${res.status}`)
-      const newQty = adjType === 'adjustment' ? qty : adjType === 'in' ? currentQty + qty : Math.max(0, currentQty - qty)
+      const newQty = adjType === 'adjustment' ? qty : adjType === 'in' ? physicalQty + qty : Math.max(0, physicalQty - qty)
       onUpdated(product.id, newQty)
-      // Refresh movements
       const { data: mvs } = await supabase.from('stock_movements').select('id, type, quantity, reason, created_at')
         .eq('product_id', product.id).order('created_at', { ascending: false }).limit(10)
       setMovements((mvs ?? []) as Movement[])
@@ -342,6 +409,8 @@ function StockPanel({
       setAdjError(e instanceof Error ? e.message : 'Erro ao ajustar')
     } finally { setAdjSaving(false) }
   }
+
+  const inp = 'w-full bg-[#0f0f12] border border-[#27272a] text-white text-sm rounded-lg px-3 py-2 outline-none focus:border-[#00E5FF] tabular-nums'
 
   return (
     <>
@@ -362,78 +431,159 @@ function StockPanel({
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
-          {/* Current stock */}
-          <div className="rounded-xl p-4" style={{ background: '#0c0c10', border: '1px solid #1e1e24' }}>
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-3">Estoque Atual</p>
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+
+          {/* Estoque físico */}
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-2">Estoque Físico</p>
             {product.product_stock.length === 0 ? (
               <p className="text-zinc-600 text-xs">Nenhum registro de estoque</p>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 {product.product_stock.map(s => (
-                  <div key={s.id} className="flex items-center justify-between">
+                  <div key={s.id} className="flex items-center justify-between px-3 py-2 rounded-lg"
+                    style={{ background: '#0c0c10', border: '1px solid #1e1e24' }}>
                     <span className="text-xs text-zinc-400">
                       {s.platform ? `${s.platform}${s.account_id ? ` · ${s.account_id}` : ''}` : 'Compartilhado'}
                     </span>
-                    <span className="text-sm font-bold text-white tabular-nums">{num(s.quantity)}</span>
+                    <span className="text-sm font-bold text-white tabular-nums">{num(s.quantity)} unid.</span>
                   </div>
                 ))}
               </div>
             )}
           </div>
 
-          {/* Adjust button */}
-          {!adjForm ? (
-            <button onClick={() => setAdjForm(true)}
-              className="w-full py-2.5 rounded-xl text-sm font-semibold transition-all"
-              style={{ background: 'rgba(0,229,255,0.08)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.2)' }}>
-              Ajustar estoque manualmente
-            </button>
-          ) : (
-            <div className="rounded-xl p-4 space-y-3" style={{ background: '#0c0c10', border: '1px solid #1e1e24' }}>
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Ajuste Manual</p>
-              <div className="grid grid-cols-3 gap-1.5">
-                {(['adjustment', 'in', 'out'] as const).map(t => (
-                  <button key={t} onClick={() => setAdjType(t)}
-                    className="py-1.5 rounded-lg text-[11px] font-semibold transition-all"
-                    style={{
-                      background: adjType === t ? (t === 'in' ? 'rgba(74,222,128,0.1)' : t === 'out' ? 'rgba(248,113,113,0.1)' : 'rgba(251,191,36,0.1)') : '#111114',
-                      color:      adjType === t ? (t === 'in' ? '#4ade80'              : t === 'out' ? '#f87171'             : '#fbbf24')             : '#71717a',
-                      border:     `1px solid ${adjType === t ? (t === 'in' ? 'rgba(74,222,128,0.3)' : t === 'out' ? 'rgba(248,113,113,0.3)' : 'rgba(251,191,36,0.3)') : '#27272a'}`,
-                    }}>
-                    {t === 'adjustment' ? 'Ajuste' : t === 'in' ? 'Entrada' : 'Saída'}
-                  </button>
-                ))}
+          {/* Estoque virtual */}
+          <div>
+            <div className="flex items-center gap-1.5 mb-2">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Estoque Virtual</p>
+              <TooltipInfo text={TOOLTIP_VIRTUAL} />
+            </div>
+            <div className="relative">
+              <input type="number" min={0} value={virtualQty} onChange={e => setVirtualQty(e.target.value)} className={inp} />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-zinc-500">unid.</span>
+            </div>
+          </div>
+
+          {/* Total plataformas */}
+          <div className="rounded-xl p-3" style={{ background: '#0c0c10', border: '1px solid #1e1e24' }}>
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-2">Total nas Plataformas</p>
+            <div className="space-y-1 text-[12px]">
+              <div className="flex justify-between text-zinc-400">
+                <span>Físico</span>
+                <span className="tabular-nums">{num(physicalQty)}</span>
               </div>
-              <div>
-                <label className="block text-[11px] text-zinc-500 mb-1">
-                  {adjType === 'adjustment' ? 'Nova quantidade total' : 'Quantidade'}
-                </label>
-                <input type="number" min={1} value={adjQty} onChange={e => setAdjQty(e.target.value)}
-                  placeholder="0"
-                  className="w-full bg-[#0f0f12] border border-[#27272a] text-white text-sm rounded-lg px-3 py-2 outline-none focus:border-[#00E5FF]" />
+              <div className="flex justify-between text-zinc-400">
+                <span>+ Virtual</span>
+                <span className="tabular-nums">{num(vQty)}</span>
               </div>
-              <div>
-                <label className="block text-[11px] text-zinc-500 mb-1">Motivo (opcional)</label>
-                <input value={adjReason} onChange={e => setAdjReason(e.target.value)}
-                  placeholder="Contagem física, quebra, etc."
-                  className="w-full bg-[#0f0f12] border border-[#27272a] text-white text-sm rounded-lg px-3 py-2 outline-none focus:border-[#00E5FF]" />
-              </div>
-              {adjError && <p className="text-[11px] text-red-400">{adjError}</p>}
-              <div className="flex gap-2">
-                <button onClick={() => { setAdjForm(false); setAdjError(null) }}
-                  className="flex-1 py-2 rounded-lg text-xs text-zinc-400 transition-colors hover:text-white"
-                  style={{ background: '#1a1a1f', border: '1px solid #27272a' }}>
-                  Cancelar
-                </button>
-                <button onClick={handleAdjust} disabled={adjSaving || !adjQty}
-                  className="flex-1 py-2 rounded-lg text-xs font-semibold transition-opacity disabled:opacity-50"
-                  style={{ background: '#00E5FF', color: '#000' }}>
-                  {adjSaving ? 'Salvando…' : 'Confirmar'}
-                </button>
+              <div className="border-t pt-1 flex justify-between font-bold text-white" style={{ borderColor: '#1e1e24' }}>
+                <span>= Total</span>
+                <span className="tabular-nums" style={{ color: '#00E5FF' }}>{num(platformQty)} unid.</span>
               </div>
             </div>
-          )}
+            {/* Dynamic pause preview */}
+            {(mPause > 0 || autoPause) && (
+              <div className="mt-2 pt-2 text-[11px] text-zinc-500" style={{ borderTop: '1px solid #1e1e24' }}>
+                <span>Pausa quando total ≤ </span>
+                <span className="font-semibold text-yellow-400">{num(mPause)}</span>
+                {physicalThreshold !== mPause && (
+                  <span> (físico ≤ {physicalThreshold >= 0 ? num(physicalThreshold) : '0 — nunca'})</span>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Estoque mínimo para pausar */}
+          <div>
+            <div className="flex items-center gap-1.5 mb-2">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Estoque Mínimo para Pausar</p>
+              <TooltipInfo text={TOOLTIP_MINPAUSE} />
+            </div>
+            <div className="relative">
+              <input type="number" min={0} value={minPause} onChange={e => setMinPause(e.target.value)} className={inp} />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-zinc-500">unid.</span>
+            </div>
+          </div>
+
+          {/* Toggle pausar automaticamente */}
+          <div className="flex items-center justify-between py-1">
+            <p className="text-sm text-zinc-300">Pausar automaticamente</p>
+            <button onClick={() => setAutoPause(p => !p)}
+              className="relative w-10 h-5 rounded-full transition-colors shrink-0"
+              style={{ background: autoPause ? '#00E5FF' : '#27272a' }}>
+              <span className="absolute top-0.5 transition-all w-4 h-4 rounded-full shadow"
+                style={{ left: autoPause ? '1.25rem' : '0.125rem', background: autoPause ? '#000' : '#71717a' }} />
+            </button>
+          </div>
+
+          {/* Save settings */}
+          {settingsErr && <p className="text-[11px] text-red-400">{settingsErr}</p>}
+          <button onClick={handleSaveSettings} disabled={savingSettings || !sharedStock}
+            className="w-full py-2.5 rounded-xl text-sm font-semibold transition-all disabled:opacity-50"
+            style={{
+              background: settingsSaved ? 'rgba(74,222,128,0.1)' : 'rgba(0,229,255,0.08)',
+              color: settingsSaved ? '#4ade80' : '#00E5FF',
+              border: `1px solid ${settingsSaved ? 'rgba(74,222,128,0.2)' : 'rgba(0,229,255,0.2)'}`,
+            }}>
+            {savingSettings ? 'Salvando…' : settingsSaved ? '✓ Configurações salvas' : 'Salvar configurações'}
+          </button>
+
+          <div style={{ borderTop: '1px solid #1e1e24' }} className="pt-4">
+
+            {/* Adjust button / form */}
+            {!adjForm ? (
+              <button onClick={() => setAdjForm(true)}
+                className="w-full py-2.5 rounded-xl text-sm font-semibold transition-all"
+                style={{ background: '#1a1a1f', color: '#a1a1aa', border: '1px solid #27272a' }}>
+                Ajuste Manual
+              </button>
+            ) : (
+              <div className="rounded-xl p-4 space-y-3" style={{ background: '#0c0c10', border: '1px solid #1e1e24' }}>
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Ajuste Manual</p>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {(['adjustment', 'in', 'out'] as const).map(t => (
+                    <button key={t} onClick={() => setAdjType(t)}
+                      className="py-1.5 rounded-lg text-[11px] font-semibold transition-all"
+                      style={{
+                        background: adjType === t ? (t === 'in' ? 'rgba(74,222,128,0.1)' : t === 'out' ? 'rgba(248,113,113,0.1)' : 'rgba(251,191,36,0.1)') : '#111114',
+                        color:      adjType === t ? (t === 'in' ? '#4ade80'              : t === 'out' ? '#f87171'             : '#fbbf24')             : '#71717a',
+                        border:     `1px solid ${adjType === t ? (t === 'in' ? 'rgba(74,222,128,0.3)' : t === 'out' ? 'rgba(248,113,113,0.3)' : 'rgba(251,191,36,0.3)') : '#27272a'}`,
+                      }}>
+                      {t === 'adjustment' ? '= Ajuste' : t === 'in' ? '+ Entrada' : '- Saída'}
+                    </button>
+                  ))}
+                </div>
+                <div>
+                  <label className="block text-[11px] text-zinc-500 mb-1">
+                    {adjType === 'adjustment' ? 'Nova quantidade total' : 'Quantidade'}
+                  </label>
+                  <input type="number" min={1} value={adjQty} onChange={e => setAdjQty(e.target.value)}
+                    placeholder="0" className={inp} />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-zinc-500 mb-1">Motivo (opcional)</label>
+                  <input value={adjReason} onChange={e => setAdjReason(e.target.value)}
+                    placeholder="Contagem física, quebra, etc."
+                    className="w-full bg-[#0f0f12] border border-[#27272a] text-white text-sm rounded-lg px-3 py-2 outline-none focus:border-[#00E5FF]" />
+                </div>
+                {adjError && <p className="text-[11px] text-red-400">{adjError}</p>}
+                <div className="flex gap-2">
+                  <button onClick={() => { setAdjForm(false); setAdjError(null) }}
+                    className="flex-1 py-2 rounded-lg text-xs text-zinc-400 transition-colors hover:text-white"
+                    style={{ background: '#1a1a1f', border: '1px solid #27272a' }}>
+                    Cancelar
+                  </button>
+                  <button onClick={handleAdjust} disabled={adjSaving || !adjQty}
+                    className="flex-1 py-2 rounded-lg text-xs font-semibold transition-opacity disabled:opacity-50"
+                    style={{ background: '#00E5FF', color: '#000' }}>
+                    {adjSaving ? 'Salvando…' : 'Confirmar'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+          </div>
 
           {/* Movement history */}
           <div>
@@ -447,7 +597,7 @@ function StockPanel({
             ) : (
               <div className="space-y-1.5">
                 {movements.map(mv => {
-                  const t = MOV_TYPE_LABEL[mv.type] ?? { label: mv.type, color: '#71717a' }
+                  const t    = MOV_TYPE_LABEL[mv.type] ?? { label: mv.type, color: '#71717a' }
                   const sign = mv.type === 'in' || mv.type === 'return' ? '+' : mv.type === 'adjustment' ? '→' : '-'
                   return (
                     <div key={mv.id} className="flex items-center gap-2 px-3 py-2 rounded-lg"
@@ -645,7 +795,7 @@ export default function VinculosPage() {
         id, name, sku, cost_price, photo_urls,
         product_listings(id, listing_id, platform, account_id, quantity_per_unit,
           variation_id, listing_title, listing_price, listing_thumbnail, is_active),
-        product_stock(id, quantity, platform, account_id)
+        product_stock(id, quantity, platform, account_id, virtual_quantity, min_stock_to_pause, auto_pause_enabled)
       `)
       .order('name')
       .limit(200)
@@ -710,17 +860,23 @@ export default function VinculosPage() {
   }
 
   function handleStockUpdated(productId: string, newQty: number) {
-    setProducts(prev => prev.map(p =>
-      p.id === productId
-        ? {
-            ...p,
-            product_stock: p.product_stock.map(s =>
-              s.platform === null ? { ...s, quantity: newQty } : s
-            ),
-          }
-        : p
-    ))
+    const updater = (p: ProductRow) => p.id !== productId ? p : {
+      ...p,
+      product_stock: p.product_stock.map(s => s.platform === null ? { ...s, quantity: newQty } : s),
+    }
+    setProducts(prev => prev.map(updater))
+    setStockProduct(prev => prev ? updater(prev) : prev)
     toast('Estoque atualizado!', 'success')
+  }
+
+  function handleStockSettingsSaved(productId: string, updates: Partial<StockRow>) {
+    const updater = (p: ProductRow) => p.id !== productId ? p : {
+      ...p,
+      product_stock: p.product_stock.map(s => s.platform === null ? { ...s, ...updates } : s),
+    }
+    setProducts(prev => prev.map(updater))
+    setStockProduct(prev => prev ? updater(prev) : prev)
+    toast('Configurações de estoque salvas!', 'success')
   }
 
   const FILTER_BTNS: { key: Filter; label: string }[] = [
@@ -856,6 +1012,7 @@ export default function VinculosPage() {
           onClose={() => setStockProduct(null)}
           getHeaders={getHeaders}
           onUpdated={(pid, qty) => { handleStockUpdated(pid, qty); setStockProduct(null) }}
+          onSettingsSaved={handleStockSettingsSaved}
         />
       )}
     </div>
