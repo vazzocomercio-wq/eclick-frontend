@@ -781,22 +781,21 @@ export default function DashboardPage() {
     let semCusto = 0
 
     for (const order of periodOrders) {
-      const valorPago = order.total_amount || 0
-      const item = order.items?.[0]
-      const itemId = item?.item_id ?? null
-      const quantidade = item?.quantity ?? 1
-      const produto = itemId ? produtos.find(p => p.ml_listing_id === itemId) : undefined
-      const costPrice  = Number(produto?.cost_price || 0)
-      const taxPct     = Number(produto?.tax_percentage || 0) / 100
-      const qtyPerUnit = Number(produto?.quantity_per_unit || 1)
+      const valorPago    = order.total_amount || 0
+      const item         = order.items?.[0]
+      const itemId       = item?.item_id ?? null
+      const quantidade   = item?.quantity ?? 1
+      const kitProdutos  = itemId ? produtos.filter(p => p.ml_listing_id === itemId) : []
+      const taxPct       = Number(kitProdutos[0]?.tax_percentage || 0) / 100
+      const kitCustoSum  = kitProdutos.reduce((s, p) => s + Number(p.cost_price || 0) * Number(p.quantity_per_unit || 1) * quantidade, 0)
 
-      if (costPrice > 0 || taxPct > 0) {
+      if (kitCustoSum > 0 || taxPct > 0) {
         comCusto++
-        custoTotal += costPrice * qtyPerUnit * quantidade
+        custoTotal   += kitCustoSum
         impostoTotal += valorPago * taxPct
       } else {
         semCusto++
-        custoTotal += valorPago * 0.75
+        custoTotal   += valorPago * 0.75
       }
     }
 

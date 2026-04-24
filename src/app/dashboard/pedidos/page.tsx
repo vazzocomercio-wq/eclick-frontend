@@ -315,22 +315,16 @@ function FinRow({ icon, label, value, color, tooltip }: {
 
 // ── Order Card ────────────────────────────────────────────────────────────────
 
-type LinkedProduct = {
-  id: string; sku: string | null; ml_listing_id: string | null
-  cost_price: number | null; tax_percentage: number | null; name: string
-  quantity_per_unit: number
-}
-
 type CreateResult = {
   listing_id: string; status: 'created' | 'skipped' | 'error'; product_id?: string; reason?: string
 }
 
 function OrderCard({
-  order, itemId, produtoVinculado, onSalvar, onCriarProduto, onToast,
+  order, itemId, vinculos, onSalvar, onCriarProduto, onToast,
 }: {
   order: MOrder
   itemId: string | null
-  produtoVinculado: LinkedProduct | null
+  vinculos: any[]
   onSalvar: (productId: string, custo: number, imposto: number) => Promise<void>
   onCriarProduto: (itemId: string) => Promise<void>
   onToast: (msg: string, type: Toast['type']) => void
@@ -344,45 +338,57 @@ function OrderCard({
   const [margemOverride, setMargemOverride] = useState<{ margem: number; margemPct: number } | null>(null)
   const initialized = useRef(false)
 
+  const isKit        = vinculos.length > 1
+  const firstVincProd = vinculos[0]?.product ?? null
+  const item         = order.order_items[0]
+  const quantidade   = item?.quantity ?? 1
+  const custoTotalKit = vinculos.reduce((sum: number, v: any) => {
+    const cp  = v.product?.cost_price ?? 0
+    const qpu = Number(v.quantity_per_unit) || 1
+    return sum + cp * qpu * quantidade
+  }, 0)
+
   useEffect(() => {
-    if (!initialized.current && produtoVinculado) {
+    if (!initialized.current && vinculos.length > 0) {
       initialized.current = true
-      const cp  = produtoVinculado.cost_price
-      const tp  = produtoVinculado.tax_percentage
+      const cp = firstVincProd?.cost_price
+      const tp = firstVincProd?.tax_percentage
       setCustoEdit(cp != null && cp !== 0 ? String(cp).replace('.', ',') : '')
       setImpostoEdit(tp != null && tp !== 0 ? String(tp).replace('.', ',') : '')
       if (cp != null && cp > 0 && tp != null && tp > 0) setEditando(false)
       if (cp != null && cp > 0) {
-        const qty        = order.order_items[0]?.quantity ?? 1
-        const qtyPerUnit = produtoVinculado.quantity_per_unit ?? 1
-        const valorPago  = order.total_amount || 0
-        const imposto    = valorPago * ((tp ?? 0) / 100)
-        const margem     = (order.lucro_bruto || 0) - (cp * qty * qtyPerUnit) - imposto
-        const margemPct  = valorPago > 0 ? Math.round((margem / valorPago) * 1000) / 10 : 0
+        const valorPago = order.total_amount || 0
+        const imposto   = valorPago * ((tp ?? 0) / 100)
+        const margem    = (order.lucro_bruto || 0) - custoTotalKit - imposto
+        const margemPct = valorPago > 0 ? Math.round((margem / valorPago) * 1000) / 10 : 0
         setMargemOverride({ margem, margemPct })
       }
     }
-  }, [produtoVinculado, order])
+  }, [vinculos]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function recalcularMargem(custoVal: string, impostoVal: string) {
     const valorPago   = order.total_amount || 0
     const qty         = order.order_items[0]?.quantity ?? 1
-    const qtyPerUnit  = produtoVinculado?.quantity_per_unit ?? 1
-    const custoUnit   = parseFloat(custoVal.replace(',', '.')) || 0
+    const custoUnit0  = parseFloat(custoVal.replace(',', '.')) || 0
+    const custoKit    = vinculos.reduce((sum: number, v: any, i: number) => {
+      const cp  = i === 0 ? custoUnit0 : (v.product?.cost_price ?? 0)
+      const qpu = Number(v.quantity_per_unit) || 1
+      return sum + cp * qpu * qty
+    }, 0)
     const impostoRate = parseFloat(impostoVal.replace(',', '.')) || 0
     const imposto     = valorPago * (impostoRate / 100)
-    const margem      = (order.lucro_bruto || 0) - (custoUnit * qty * qtyPerUnit) - imposto
+    const margem      = (order.lucro_bruto || 0) - custoKit - imposto
     const margemPct   = valorPago > 0 ? Math.round((margem / valorPago) * 1000) / 10 : 0
     setMargemOverride({ margem, margemPct })
   }
 
   async function handleSalvar() {
-    if (!produtoVinculado) return
+    if (!firstVincProd) return
     const custo   = parseFloat(custoEdit.replace(',', '.'))
     const imposto = parseFloat(impostoEdit.replace(',', '.'))
     setSalvando(true)
     try {
-      await onSalvar(produtoVinculado.id, isNaN(custo) ? 0 : custo, isNaN(imposto) ? 0 : imposto)
+      await onSalvar(firstVincProd.id, isNaN(custo) ? 0 : custo, isNaN(imposto) ? 0 : imposto)
       setEditando(false)
       recalcularMargem(custoEdit, impostoEdit)
     } catch {
@@ -392,11 +398,6 @@ function OrderCard({
     }
   }
 
-  const item       = order.order_items[0]
-  const quantidade = item?.quantity ?? 1
-  const qtyPerUnit = produtoVinculado?.quantity_per_unit ?? 1
-  const custoUnit  = produtoVinculado?.cost_price ?? 0
-  const custoTotal = custoUnit * qtyPerUnit * quantidade
   const moreItems  = order.order_items.length - 1
   const color     = avatarColor(order.buyer.nickname ?? String(order.order_id))
   const ini       = initials(order)
@@ -495,6 +496,12 @@ function OrderCard({
                 <span className="text-xs font-bold text-zinc-100">{brl(item.unit_price)}</span>
                 <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
                   style={{ background: lbadge.bg, color: lbadge.color }}>{lbadge.text}</span>
+                {isKit && (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
+                    style={{ background: 'rgba(167,139,250,0.12)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.25)' }}>
+                    Kit {vinculos.length} itens
+                  </span>
+                )}
                 {deadline && (
                   <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
                     style={{ background: deadline.bg, color: deadline.color }}>
@@ -535,12 +542,12 @@ function OrderCard({
             color={order.lucro_bruto >= 0 ? '#4ade80' : '#f87171'}
             tooltip="Lucro bruto: valor − tarifa − frete" />
           {/* Custo / Imposto — 3 estados: vinculado | sem produto (criar) | sem item_id */}
-          {produtoVinculado ? (
+          {vinculos.length > 0 ? (
             <>
               {/* Custo row */}
               <div className="flex items-center justify-between gap-1 py-0.5">
                 <span className="text-xs shrink-0">📦</span>
-                <span className="flex-1 text-xs text-zinc-500 leading-tight">Custo (CMV)</span>
+                <span className="flex-1 text-xs text-zinc-500 leading-tight">{isKit ? 'Custo kit' : 'Custo (CMV)'}</span>
                 {editando ? (
                   <div className="shrink-0">
                     <div className="flex items-center gap-1">
@@ -548,7 +555,7 @@ function OrderCard({
                       <input
                         type="text" inputMode="decimal" placeholder="0,00"
                         value={custoEdit}
-                        onChange={e => setCustoEdit(e.target.value.replace(/[^\d,\.]/g, ''))}
+                        onChange={e => { setCustoEdit(e.target.value.replace(/[^\d,\.]/g, '')); recalcularMargem(e.target.value, impostoEdit) }}
                         onFocus={e => { e.currentTarget.style.borderColor = '#00E5FF'; e.currentTarget.select() }}
                         onBlur={e => { e.currentTarget.style.borderColor = '#2a2a3f' }}
                         onWheel={e => e.currentTarget.blur()}
@@ -556,7 +563,12 @@ function OrderCard({
                         style={{ border: '1px solid #2a2a3f' }}
                       />
                     </div>
-                    {quantidade > 1 && custoEdit && (
+                    {isKit && (
+                      <p className="text-[10px] text-violet-500 text-right mt-0.5">
+                        {isKit ? `1º produto do kit` : ''}
+                      </p>
+                    )}
+                    {!isKit && quantidade > 1 && custoEdit && (
                       <p className="text-xs text-zinc-600 text-right mt-0.5">
                         Total: {brl((parseFloat(custoEdit.replace(',', '.')) || 0) * quantidade)}
                       </p>
@@ -564,11 +576,14 @@ function OrderCard({
                   </div>
                 ) : (
                   <div className="text-right shrink-0">
-                    {custoUnit > 0 ? (
+                    {custoTotalKit > 0 ? (
                       <>
-                        <div className="text-xs font-semibold tabular-nums text-zinc-200">{brl(custoTotal)}</div>
-                        {quantidade > 1 && (
-                          <div className="text-xs text-zinc-600">{quantidade} × {brl(custoUnit)}</div>
+                        <div className="text-xs font-semibold tabular-nums text-zinc-200">{brl(custoTotalKit)}</div>
+                        {isKit && (
+                          <div className="text-[10px] text-violet-500">{vinculos.length} produtos</div>
+                        )}
+                        {!isKit && quantidade > 1 && (
+                          <div className="text-xs text-zinc-600">{quantidade} × {brl(firstVincProd?.cost_price ?? 0)}</div>
                         )}
                       </>
                     ) : (
@@ -586,7 +601,7 @@ function OrderCard({
                     <input
                       type="text" inputMode="decimal" placeholder="0"
                       value={impostoEdit}
-                      onChange={e => setImpostoEdit(e.target.value.replace(/[^\d,\.]/g, ''))}
+                      onChange={e => { setImpostoEdit(e.target.value.replace(/[^\d,\.]/g, '')); recalcularMargem(custoEdit, e.target.value) }}
                       onFocus={e => { e.currentTarget.style.borderColor = '#00E5FF'; e.currentTarget.select() }}
                       onBlur={e => { e.currentTarget.style.borderColor = '#2a2a3f' }}
                       onWheel={e => e.currentTarget.blur()}
@@ -597,13 +612,13 @@ function OrderCard({
                   </div>
                 ) : (
                   <div className="text-right shrink-0">
-                    {produtoVinculado.tax_percentage != null && produtoVinculado.tax_percentage > 0 ? (
+                    {firstVincProd?.tax_percentage != null && firstVincProd.tax_percentage > 0 ? (
                       <>
                         <div className="text-xs font-semibold tabular-nums text-zinc-200">
-                          {brl(order.total_amount * (produtoVinculado.tax_percentage / 100))}
+                          {brl(order.total_amount * (firstVincProd.tax_percentage / 100))}
                         </div>
                         <div className="text-xs text-zinc-600">
-                          {produtoVinculado.tax_percentage}% de {brl(order.total_amount)}
+                          {firstVincProd.tax_percentage}% de {brl(order.total_amount)}
                         </div>
                       </>
                     ) : (
@@ -615,12 +630,12 @@ function OrderCard({
               {/* Action buttons */}
               {editando ? (
                 <div className="flex items-center justify-end gap-1.5 mt-1">
-                  {(produtoVinculado.cost_price != null || produtoVinculado.tax_percentage != null) && (
+                  {(firstVincProd?.cost_price != null || firstVincProd?.tax_percentage != null) && (
                     <button
                       type="button"
                       onClick={() => {
-                        const cp = produtoVinculado.cost_price
-                        const tp = produtoVinculado.tax_percentage
+                        const cp = firstVincProd?.cost_price
+                        const tp = firstVincProd?.tax_percentage
                         setCustoEdit(cp != null && cp !== 0 ? String(cp).replace('.', ',') : '')
                         setImpostoEdit(tp != null && tp !== 0 ? String(tp).replace('.', ',') : '')
                         setEditando(false)
@@ -654,8 +669,8 @@ function OrderCard({
                   <button
                     type="button"
                     onClick={() => {
-                      const cp = produtoVinculado.cost_price
-                      const tp = produtoVinculado.tax_percentage
+                      const cp = firstVincProd?.cost_price
+                      const tp = firstVincProd?.tax_percentage
                       setCustoEdit(cp != null && cp !== 0 ? String(cp).replace('.', ',') : '')
                       setImpostoEdit(tp != null && tp !== 0 ? String(tp).replace('.', ',') : '')
                       setEditando(true)
@@ -1181,7 +1196,7 @@ export default function PedidosPage() {
   const [q,          setQ]          = useState('')
   const [modal,      setModal]      = useState(false)
   const [toasts,     setToasts]     = useState<Toast[]>([])
-  const [produtosLinked, setProdutosLinked] = useState<LinkedProduct[]>([])
+  const [vinculosPorListing, setVinculosPorListing] = useState<Record<string, any[]>>({})
   const [lastUpdate,  setLastUpdate]  = useState<Date>(new Date())
   const [minsSince,   setMinsSince]   = useState(0)
   const tid = useRef(0)
@@ -1229,7 +1244,7 @@ export default function PedidosPage() {
     } finally { setLoading(false) }
   }, [getHeaders])
 
-  // Busca todos os produtos uma vez — matching feito localmente em memória
+  // Busca todos os vínculos uma vez — matching feito localmente em memória
   useEffect(() => {
     supabase
       .from('product_listings')
@@ -1239,59 +1254,40 @@ export default function PedidosPage() {
       .limit(5000)
       .then(({ data, error }) => {
         if (error) console.error('[pedidos] erro query product_listings:', error)
-        const mapped: LinkedProduct[] = (data ?? []).map((v: any) => ({
-          id:               v.product?.id ?? '',
-          sku:              v.product?.sku ?? null,
-          ml_listing_id:    v.listing_id,
-          cost_price:       v.product?.cost_price ?? null,
-          tax_percentage:   v.product?.tax_percentage ?? null,
-          name:             v.product?.name ?? '',
-          quantity_per_unit: Number(v.quantity_per_unit) || 1,
-        })).filter((v: LinkedProduct) => v.id)
-        console.log('[pedidos] vínculos carregados:', mapped.length)
-        console.log('[pedidos] primeiros listing_ids:', mapped.slice(0, 10).map(p => p.ml_listing_id))
-        setProdutosLinked(mapped)
+        const rows = (data ?? []) as any[]
+        const map: Record<string, any[]> = {}
+        for (const v of rows) {
+          if (!v.product?.id) continue
+          const lid = v.listing_id as string
+          if (!map[lid]) map[lid] = []
+          map[lid].push(v)
+        }
+        setVinculosPorListing(map)
       })
   }, [supabase])
 
   const salvar = useCallback(async (productId: string, custo: number, imposto: number) => {
-    const url = `${BACKEND}/products/${productId}`
-    console.log('========== SALVAR ==========')
-    console.log('[salvar] productId:', productId)
-    console.log('[salvar] custo:', custo, '| imposto:', imposto)
-    console.log('[salvar] URL PATCH:', url)
-    console.log('[salvar] body:', JSON.stringify({ cost_price: custo, tax_percentage: imposto }))
-
-    let headers: Record<string, string>
-    try {
-      headers = await getHeaders()
-      console.log('[salvar] token obtido:', !!headers.Authorization)
-    } catch (e) {
-      console.error('[salvar] falha ao obter token:', e)
-      throw e
-    }
-
-    const res = await fetch(url, {
+    const headers = await getHeaders()
+    const res = await fetch(`${BACKEND}/products/${productId}`, {
       method: 'PATCH',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ cost_price: custo, tax_percentage: imposto }),
     })
-
-    console.log('[salvar] response status:', res.status, '| ok:', res.ok)
-
     const rawText = await res.text()
-    console.log('[salvar] response raw:', rawText)
-
     let data: Record<string, unknown> = {}
     try { data = JSON.parse(rawText) } catch { data = { raw: rawText } }
-    console.log('[salvar] response parsed:', data)
-
     if (!res.ok) throw new Error((data?.message as string) ?? (data?.error as string) ?? `HTTP ${res.status}`)
-
-    console.log('[salvar] SUCESSO — atualizando estado local')
-    setProdutosLinked(prev => prev.map(p =>
-      p.id === productId ? { ...p, cost_price: custo, tax_percentage: imposto } : p
-    ))
+    setVinculosPorListing(prev => {
+      const next: Record<string, any[]> = {}
+      for (const lid of Object.keys(prev)) {
+        next[lid] = prev[lid].map(v =>
+          v.product?.id === productId
+            ? { ...v, product: { ...v.product, cost_price: custo, tax_percentage: imposto } }
+            : v
+        )
+      }
+      return next
+    })
     toast('Valores salvos!', 'success')
   }, [getHeaders])
 
@@ -1303,8 +1299,6 @@ export default function PedidosPage() {
       body: JSON.stringify({ listing_ids: [itemId] }),
     })
     const data = await res.json()
-    console.log('[criar-produto] retorno backend:', JSON.stringify(data))
-
     const results: CreateResult[] = data.results ?? []
     const created = results.find(r => r.status === 'created')
     const skipped = results.find(r => r.status === 'skipped')
@@ -1313,30 +1307,23 @@ export default function PedidosPage() {
     }
     toast(created ? 'Produto criado com sucesso!' : 'Produto já existe no catálogo', created ? 'success' : 'info')
 
-    // Refetch via product_listings (novo schema)
-    const { data: allVinculos, error: fetchError } = await supabase
+    const { data: allVinculos } = await supabase
       .from('product_listings')
       .select('listing_id, quantity_per_unit, product:products(id, sku, name, cost_price, tax_percentage)')
       .eq('is_active', true)
       .eq('platform', 'mercadolivre')
-    console.log('[criar-produto] refetch product_listings:', allVinculos?.length ?? 0, 'itens | erro:', fetchError?.message ?? 'nenhum')
-    const mappedVinculos: LinkedProduct[] = (allVinculos ?? []).map((v: any) => ({
-      id:               v.product?.id ?? '',
-      sku:              v.product?.sku ?? null,
-      ml_listing_id:    v.listing_id,
-      cost_price:       v.product?.cost_price ?? null,
-      tax_percentage:   v.product?.tax_percentage ?? null,
-      name:             v.product?.name ?? '',
-      quantity_per_unit: Number(v.quantity_per_unit) || 1,
-    })).filter((v: LinkedProduct) => v.id)
-    console.log('[criar-produto] listing_ids no banco:', mappedVinculos.map(p => p.ml_listing_id).filter(Boolean))
-    if (mappedVinculos.length > 0) setProdutosLinked(mappedVinculos)
+    if (allVinculos && allVinculos.length > 0) {
+      const rows = allVinculos as any[]
+      const map: Record<string, any[]> = {}
+      for (const v of rows) {
+        if (!v.product?.id) continue
+        const lid = v.listing_id as string
+        if (!map[lid]) map[lid] = []
+        map[lid].push(v)
+      }
+      setVinculosPorListing(map)
+    }
   }, [getHeaders, supabase])
-
-  // Log sempre que produtosLinked mudar — útil para depurar matching
-  useEffect(() => {
-    console.log('[produtosLinked] atualizado:', produtosLinked.map(p => ({ id: p.id, ml_listing_id: p.ml_listing_id, sku: p.sku })))
-  }, [produtosLinked])
 
   useEffect(() => { pageRef.current = page }, [page])
   useEffect(() => { qRef.current = q      }, [q])
@@ -1473,24 +1460,15 @@ export default function PedidosPage() {
               </div>
             )
             : filtered.map(order => {
-                const oi = order.order_items[0]
+                const oi     = order.order_items[0]
                 const itemId = oi?.item_id ?? oi?.item?.id ?? null
-                const sku    = oi?.seller_sku ?? null
-                const byMlId = itemId ? produtosLinked.find(p => p.ml_listing_id === itemId) : undefined
-                const bySku  = sku    ? produtosLinked.find(p => p.sku === sku)              : undefined
-                const produtoVinculado = byMlId ?? bySku ?? null
-                if (!produtoVinculado && itemId) {
-                  console.log(`[pedido ${order.order_id}] sem vínculo | itemId:${itemId} sku:${sku}`, {
-                    totalProdutos: produtosLinked.length,
-                    ml_ids_banco: produtosLinked.map(p => p.ml_listing_id).filter(Boolean),
-                  })
-                }
+                const vinculos = itemId ? (vinculosPorListing[itemId] ?? []) : []
                 return (
                   <OrderCard
                     key={order.order_id}
                     order={order}
                     itemId={itemId}
-                    produtoVinculado={produtoVinculado}
+                    vinculos={vinculos}
                     onSalvar={salvar}
                     onCriarProduto={criarProduto}
                     onToast={toast}
