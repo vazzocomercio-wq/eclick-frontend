@@ -48,6 +48,8 @@ const MAIN: Entry[] = [
       { label: 'Amazon',        href: '/dashboard/catalogo/anuncios/amazon' },
       { label: 'Magalu',        href: '/dashboard/catalogo/anuncios/magalu' },
     ]},
+    { label: 'Vínculos',     href: '/dashboard/catalogo/vinculos' },
+    { label: 'Estoque',      href: '/dashboard/catalogo/estoque' },
     { label: 'Concorrentes', href: '/dashboard/concorrentes' },
     { label: 'Preços',       href: '/dashboard/precos' },
   ]},
@@ -212,6 +214,7 @@ function GroupNav({ item, defaultOpen, childBadges }: { item: Group; defaultOpen
 export default function Sidebar() {
   const pathname = usePathname()
   const [questionBadge, setQuestionBadge] = useState<number | undefined>(undefined)
+  const [semVinculoBadge, setSemVinculoBadge] = useState<number | undefined>(undefined)
   const mounted = useRef(true)
 
   useEffect(() => {
@@ -230,7 +233,23 @@ export default function Sidebar() {
         setQuestionBadge(count > 0 ? count : undefined)
       } catch { /* silent */ }
     }
+    const fetchVinculosBadge = async () => {
+      try {
+        const sb = createClient()
+        const { data: { session } } = await sb.auth.getSession()
+        if (!session || !mounted.current) return
+        const [{ data: allProds }, { data: linked }] = await Promise.all([
+          sb.from('products').select('id'),
+          sb.from('product_listings').select('product_id'),
+        ])
+        if (!mounted.current) return
+        const linkedIds = new Set((linked ?? []).map((r: { product_id: string }) => r.product_id))
+        const sem = (allProds ?? []).filter((p: { id: string }) => !linkedIds.has(p.id)).length
+        setSemVinculoBadge(sem > 0 ? sem : undefined)
+      } catch { /* silent */ }
+    }
     fetchBadge()
+    fetchVinculosBadge()
     const id = setInterval(fetchBadge, 5 * 60 * 1000)
     return () => { mounted.current = false; clearInterval(id) }
   }, [])
@@ -267,9 +286,10 @@ export default function Sidebar() {
             </div>
           )
           if (entry.type === 'leaf') return <LeafLink key={entry.href} item={entry} />
-          const childBadges = entry.key === 'atendimento' && questionBadge != null
-            ? { '/dashboard/atendimento/perguntas': questionBadge }
-            : undefined
+          const childBadges: Record<string, number> | undefined =
+            entry.key === 'atendimento' && questionBadge != null ? { '/dashboard/atendimento/perguntas': questionBadge } :
+            entry.key === 'catalogo'    && semVinculoBadge != null ? { '/dashboard/catalogo/vinculos': semVinculoBadge } :
+            undefined
           return <GroupNav key={entry.key} item={entry} defaultOpen={isGroupDefaultOpen(entry)} childBadges={childBadges} />
         })}
       </nav>
