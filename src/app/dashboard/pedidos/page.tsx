@@ -895,39 +895,19 @@ export default function PedidosPage() {
     } finally { setLoading(false) }
   }, [getHeaders])
 
-  // Fetch linked products from Supabase — match by ml_listing_id OR sku (fallback)
+  // Busca todos os produtos uma vez — matching feito localmente em memória
   useEffect(() => {
-    if (orders.length === 0) { setProdutosLinked([]); return }
-
-    const mlIds = [...new Set(
-      orders.flatMap(o => {
-        const oi = o.order_items[0]
-        return [oi?.item_id, oi?.item?.id].filter((s): s is string => Boolean(s))
-      })
-    )]
-    const skus = [...new Set(
-      orders.map(o => o.order_items[0]?.seller_sku).filter((s): s is string => Boolean(s))
-    )]
-
-    console.log('[pedidos] mlIds para match:', mlIds)
-    console.log('[pedidos] skus para fallback:', skus)
-
-    if (mlIds.length === 0 && skus.length === 0) return
-
-    const filters: string[] = []
-    if (mlIds.length > 0) filters.push(`ml_listing_id.in.(${mlIds.join(',')})`)
-    if (skus.length > 0) filters.push(`sku.in.(${skus.join(',')})`)
-
     supabase
       .from('products')
       .select('id, sku, ml_listing_id, cost_price, tax_percentage, name')
-      .or(filters.join(','))
+      .limit(1000)
       .then(({ data, error }) => {
-        if (error) console.error('[pedidos] erro fetch produtos:', error)
-        console.log('[pedidos] produtos encontrados:', data?.map(p => ({ ml_listing_id: p.ml_listing_id, sku: p.sku })))
+        if (error) console.error('[pedidos] erro query produtos:', error)
+        console.log('[pedidos] produtos no banco:', data?.length ?? 0)
+        console.log('[pedidos] primeiros ml_listing_ids:', data?.slice(0, 10).map(p => p.ml_listing_id))
         setProdutosLinked((data ?? []) as LinkedProduct[])
       })
-  }, [orders, supabase])
+  }, [supabase])
 
   const saveCusto = useCallback(async (productId: string, value: number) => {
     const headers = await getHeaders()
