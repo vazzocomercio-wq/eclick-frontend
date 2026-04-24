@@ -533,11 +533,20 @@ function OrderCard({
                     <span className="text-[10px] text-zinc-600">%</span>
                   </div>
                 ) : (
-                  <span className="text-[11px] font-semibold tabular-nums text-zinc-200">
-                    {produtoVinculado.tax_percentage != null && produtoVinculado.tax_percentage > 0
-                      ? `${produtoVinculado.tax_percentage}%`
-                      : <span className="text-zinc-700">—</span>}
-                  </span>
+                  <div className="text-right shrink-0">
+                    {produtoVinculado.tax_percentage != null && produtoVinculado.tax_percentage > 0 ? (
+                      <>
+                        <div className="text-[11px] font-semibold tabular-nums text-zinc-200">
+                          {brl(order.total_amount * (produtoVinculado.tax_percentage / 100))}
+                        </div>
+                        <div className="text-[10px] text-zinc-600">
+                          {produtoVinculado.tax_percentage}% de {brl(order.total_amount)}
+                        </div>
+                      </>
+                    ) : (
+                      <span className="text-[11px] text-zinc-700">—</span>
+                    )}
+                  </div>
                 )}
               </div>
               {/* Action buttons */}
