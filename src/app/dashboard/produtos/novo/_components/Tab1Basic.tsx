@@ -26,7 +26,7 @@ const lbl = 'block text-[13px] font-medium text-zinc-300 mb-1.5'
 const sec = 'text-[11px] font-semibold uppercase tracking-widest text-zinc-500 mb-4 pb-2 border-b border-[#1e1e24]'
 
 
-type Props = TabProps & { orgId: string | null }
+type Props = TabProps & { orgId: string | null; categoryName?: string; categoryPath?: string }
 
 // ── SortablePhotoItem ─────────────────────────────────────────────────────────
 
@@ -116,7 +116,7 @@ function DragOverlayPhoto({ url }: { url: string }) {
 
 // ── Tab1Basic ─────────────────────────────────────────────────────────────────
 
-export default function Tab1Basic({ data, set, orgId }: Props) {
+export default function Tab1Basic({ data, set, orgId, categoryName, categoryPath }: Props) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [uploadingCount, setUploadingCount] = useState(0)
   const [uploadError, setUploadError] = useState<string | null>(null)
@@ -326,10 +326,24 @@ export default function Tab1Basic({ data, set, orgId }: Props) {
       {/* Category */}
       <section>
         <p className={sec}>Categoria ML</p>
-        <CategoryPicker
-          value={data.category}
-          onChange={id => set('category', id)}
-        />
+        {categoryName !== undefined ? (
+          <div className="rounded-xl p-3 border border-[#1a1a1f]" style={{ background: '#0d0d10' }}>
+            {categoryName ? (
+              <div>
+                <p className="text-white text-sm font-medium">{categoryName}</p>
+                {categoryPath && <p className="text-gray-500 text-xs mt-1">{categoryPath}</p>}
+                <p className="text-gray-600 text-xs mt-1">ID: {data.category}</p>
+              </div>
+            ) : (
+              <p className="text-gray-500 text-sm">ID: {data.category || 'Não definida'}</p>
+            )}
+          </div>
+        ) : (
+          <CategoryPicker
+            value={data.category}
+            onChange={id => set('category', id)}
+          />
+        )}
       </section>
     </div>
   )

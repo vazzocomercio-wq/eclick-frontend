@@ -71,7 +71,7 @@ function dbToForm(p: Record<string, any>): ProductForm {
     brand:        p.brand        ?? '',
     model:        p.model        ?? '',
     condition:    p.condition    ?? 'new',
-    category:     p.category     ?? '',
+    category:     p.category_ml_id ?? p.category ?? '',
     // Description
     mlTitle:      p.ml_title     ?? '',
     description:  p.description  ?? '',
@@ -196,9 +196,31 @@ export default function EditarProdutoPage() {
   const [mlListingId, setMlListingId]   = useState<string | null>(null)
   const [mlPermalink, setMlPermalink]   = useState<string | null>(null)
   const [toasts, setToasts]     = useState<Toast[]>([])
+  const [categoryName, setCategoryName] = useState<string | undefined>(undefined)
+  const [categoryPath, setCategoryPath] = useState('')
 
   // Track original photo URLs to detect deletions on save
   const originalPhotos = useRef<string[]>([])
+
+  // ── category name fetch ────────────────────────────────────────────────────
+  async function fetchCategoryName(categoryId: string) {
+    try {
+      const token = await getAuthToken()
+      if (!token) { setCategoryName(categoryId); return }
+      const res = await fetch(`${BACKEND}/ml/categories/${categoryId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setCategoryName(data.name || categoryId)
+        setCategoryPath(data.path_from_root?.map((p: { name: string }) => p.name).join(' > ') || '')
+      } else {
+        setCategoryName(categoryId)
+      }
+    } catch {
+      setCategoryName(categoryId)
+    }
+  }
 
   // ── load product ───────────────────────────────────────────────────────────
   useEffect(() => {
@@ -221,6 +243,12 @@ export default function EditarProdutoPage() {
       setForm(f)
       setProductName(data.name ?? '')
       originalPhotos.current = f.photoUrls
+
+      if (f.category && /^MLB\d+$/.test(f.category)) {
+        void fetchCategoryName(f.category)
+      } else {
+        setCategoryName(f.category || '')
+      }
     }
     load()
   }, [id])
@@ -465,7 +493,7 @@ export default function EditarProdutoPage() {
         {/* ── Tab content ── */}
         <div className="flex-1 overflow-y-auto">
           <div className="max-w-3xl mx-auto px-6 py-7">
-            {tab === 1 && <Tab1Basic data={form} set={set} orgId={orgId} />}
+            {tab === 1 && <Tab1Basic data={form} set={set} orgId={orgId} categoryName={categoryName} categoryPath={categoryPath} />}
             {tab === 2 && <Tab2Description data={form} set={set} />}
             {tab === 3 && <Tab3Attributes data={form} set={set} />}
             {tab === 4 && <Tab4Variations data={form} set={set} />}
