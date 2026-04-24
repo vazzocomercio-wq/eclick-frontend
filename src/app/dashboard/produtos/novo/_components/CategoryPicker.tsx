@@ -29,7 +29,13 @@ export default function CategoryPicker({
     setLoading(true)
     fetch(`${ML_API}/sites/MLB/categories`)
       .then(r => r.json())
-      .then((cats: MlCat[]) => setLevels([{ options: cats, selected: '' }]))
+      .then((cats: unknown) => {
+        if (Array.isArray(cats)) {
+          setLevels([{ options: cats as MlCat[], selected: '' }])
+        } else {
+          setError('Não foi possível carregar as categorias. Tente novamente mais tarde.')
+        }
+      })
       .catch(() => setError('Não foi possível carregar as categorias. Verifique a conexão.'))
       .finally(() => setLoading(false))
   }, [])
@@ -49,8 +55,8 @@ export default function CategoryPicker({
       // One call gets both path_from_root and leaf's children
       const leafRes  = await fetch(`${ML_API}/categories/${catId}`)
       const leafData = await leafRes.json()
-      const pathFromRoot: MlCat[] = leafData.path_from_root ?? []
-      const leafChildren: MlCat[] = leafData.children_categories ?? []
+      const pathFromRoot: MlCat[] = Array.isArray(leafData.path_from_root) ? leafData.path_from_root : []
+      const leafChildren: MlCat[] = Array.isArray(leafData.children_categories) ? leafData.children_categories : []
       if (pathFromRoot.length === 0) return
 
       const topOptions = levels[0].options
@@ -61,7 +67,7 @@ export default function CategoryPicker({
       for (let i = 1; i < pathFromRoot.length; i++) {
         const parentRes  = await fetch(`${ML_API}/categories/${pathFromRoot[i - 1].id}`)
         const parentData = await parentRes.json()
-        const children: MlCat[] = parentData.children_categories ?? []
+        const children: MlCat[] = Array.isArray(parentData.children_categories) ? parentData.children_categories : []
         if (children.length > 0) {
           newLevels.push({ options: children, selected: pathFromRoot[i].id })
           newPath.push(pathFromRoot[i])
@@ -104,7 +110,8 @@ export default function CategoryPicker({
     try {
       const res  = await fetch(`${ML_API}/categories/${catId}`)
       const data = await res.json()
-      const children: MlCat[] = data.children_categories ?? []
+      const rawChildren = data.children_categories
+      const children: MlCat[] = Array.isArray(rawChildren) ? rawChildren : []
 
       const updated = levels
         .slice(0, levelIdx + 1)

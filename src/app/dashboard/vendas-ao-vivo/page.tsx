@@ -59,10 +59,19 @@ function todayStr() { return brazilDateStr(0) }
 function yestStr()  { return brazilDateStr(-1) }
 function lwStr()    { return brazilDateStr(-7) }
 
-function isPaid(o: Order) { return o.status === 'paid' }
+function orderBrazilDate(dateStr: string): string {
+  return new Date(new Date(dateStr).getTime() - 3 * 60 * 60 * 1000)
+    .toISOString().slice(0, 10)
+}
+
+function brazilHour(dateStr: string): number {
+  return new Date(new Date(dateStr).getTime() - 3 * 60 * 60 * 1000).getUTCHours()
+}
+
+function isPaid(o: Order) { return o.status === 'paid' || o.status === 'payment_in_process' }
 
 function metricsFor(orders: Order[], ds: string): DayMetrics {
-  const day = orders.filter(o => o.date_created.slice(0, 10) === ds && isPaid(o))
+  const day = orders.filter(o => orderBrazilDate(o.date_created) === ds && isPaid(o))
   const revenue = day.reduce((s, o) => s + (o.total_amount ?? 0), 0)
   const count = day.length
   const units = day.reduce((s, o) => s + o.items.reduce((ss, i) => ss + (i.quantity ?? 0), 0), 0)
@@ -72,8 +81,8 @@ function metricsFor(orders: Order[], ds: string): DayMetrics {
 function hourlyRevenue(orders: Order[], ds: string): number[] {
   const arr = Array(24).fill(0)
   for (const o of orders) {
-    if (!isPaid(o) || o.date_created.slice(0, 10) !== ds) continue
-    arr[new Date(o.date_created).getHours()] += o.total_amount ?? 0
+    if (!isPaid(o) || orderBrazilDate(o.date_created) !== ds) continue
+    arr[brazilHour(o.date_created)] += o.total_amount ?? 0
   }
   return arr
 }
@@ -81,7 +90,7 @@ function hourlyRevenue(orders: Order[], ds: string): number[] {
 function topProducts(orders: Order[], ds: string) {
   const map = new Map<string, { title: string; units: number; revenue: number; lastSold: number }>()
   for (const o of orders) {
-    if (!isPaid(o) || o.date_created.slice(0, 10) !== ds) continue
+    if (!isPaid(o) || orderBrazilDate(o.date_created) !== ds) continue
     for (const item of o.items) {
       const key = item.item_id ?? item.title
       const ts = new Date(o.date_created).getTime()
@@ -95,12 +104,12 @@ function topProducts(orders: Order[], ds: string) {
 
 function buildHeatMap(orders: Order[]): number[][] {
   const grid = Array.from({ length: 7 }, () => Array(24).fill(0))
-  const now = Date.now()
+  const todayMs = new Date(brazilDateStr(0) + 'T00:00:00Z').getTime()
   for (const o of orders) {
     if (!isPaid(o)) continue
-    const d = new Date(o.date_created)
-    const daysAgo = Math.floor((now - d.getTime()) / 86_400_000)
-    if (daysAgo >= 0 && daysAgo < 7) grid[6 - daysAgo][d.getHours()] += o.total_amount ?? 0
+    const oDateMs = new Date(orderBrazilDate(o.date_created) + 'T00:00:00Z').getTime()
+    const daysAgo = Math.floor((todayMs - oDateMs) / 86_400_000)
+    if (daysAgo >= 0 && daysAgo < 7) grid[6 - daysAgo][brazilHour(o.date_created)] += o.total_amount ?? 0
   }
   return grid
 }
@@ -288,7 +297,7 @@ export default function VendasAoVivoPage() {
   const lwHourly = useMemo(() => hourlyRevenue(orders, lw), [orders, lw])
 
   const hourlyData = useMemo(() => {
-    const curH = now.getHours()
+    const curH = new Date(now.getTime() - 3 * 60 * 60 * 1000).getUTCHours()
     return Array.from({ length: 24 }, (_, h) => ({
       hour: `${String(h).padStart(2, '0')}h`,
       hoje: h <= curH ? todayHourly[h] : null,
@@ -304,7 +313,10 @@ export default function VendasAoVivoPage() {
 
   const recentFeed = useMemo(() => recentOrders(orders, 20), [orders])
 
-  const sparkRevenue = useMemo(() => todayHourly.slice(0, now.getHours() + 1), [todayHourly, now])
+  const sparkRevenue = useMemo(() => {
+    const brazilH = new Date(now.getTime() - 3 * 60 * 60 * 1000).getUTCHours()
+    return todayHourly.slice(0, brazilH + 1)
+  }, [todayHourly, now])
 
   const timeStr = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
   const dateLabel = now.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })
@@ -420,7 +432,7 @@ export default function VendasAoVivoPage() {
               sub: 'pagos',
               change: pct(todayM.count, yestM.count),
               color: '#34d399',
-              sparkData: sparkRevenue.map((v, i) => orders.filter(o => isPaid(o) && o.date_created.slice(0, 10) === today && new Date(o.date_created).getHours() === i).length),
+              sparkData: sparkRevenue.map((_, i) => orders.filter(o => isPaid(o) && orderBrazilDate(o.date_created) === today && brazilHour(o.date_created) === i).length),
             },
             {
               label: 'Unidades vendidas',
@@ -447,7 +459,7 @@ export default function VendasAoVivoPage() {
             },
             {
               label: 'Compradores únicos',
-              value: String(new Set(recentFeed.filter(o => isPaid(o) && o.date_created.slice(0, 10) === today).map(o => o.id)).size),
+              value: String(new Set(recentFeed.filter(o => isPaid(o) && orderBrazilDate(o.date_created) === today).map(o => o.id)).size),
               sub: 'estimativa',
               change: null,
               color: '#f87171',
@@ -487,7 +499,7 @@ export default function VendasAoVivoPage() {
               <XAxis dataKey="hour" tick={{ fill: '#52525b', fontSize: 10 }} axisLine={false} tickLine={false} interval={2} />
               <YAxis tick={{ fill: '#52525b', fontSize: 10 }} tickFormatter={v => `R$${(v as number / 1000).toFixed(0)}k`} axisLine={false} tickLine={false} width={50} />
               <Tooltip content={<HourTip />} />
-              <ReferenceLine x={`${String(now.getHours()).padStart(2, '0')}h`} stroke="#00E5FF" strokeOpacity={0.3} strokeDasharray="4 3" />
+              <ReferenceLine x={`${String(new Date(now.getTime() - 3 * 60 * 60 * 1000).getUTCHours()).padStart(2, '0')}h`} stroke="#00E5FF" strokeOpacity={0.3} strokeDasharray="4 3" />
               <Area type="monotone" dataKey="hoje" stroke="#00E5FF" strokeWidth={2} fill="url(#gradHoje)" name="Hoje" connectNulls dot={false} />
               <Line type="monotone" dataKey="ontem" stroke="#3f3f46" strokeWidth={1.5} name="Ontem" dot={false} strokeDasharray="5 3" />
               <Line type="monotone" dataKey="semPassada" stroke="#fb923c" strokeWidth={1.5} name="Sem. passada" dot={false} strokeDasharray="3 3" strokeOpacity={0.6} />
@@ -505,7 +517,7 @@ export default function VendasAoVivoPage() {
           </div>
           <div className="space-y-2.5 max-w-2xl">
             {(() => {
-              const totalOrders = orders.filter(o => o.date_created.slice(0, 10) === today).length
+              const totalOrders = orders.filter(o => orderBrazilDate(o.date_created) === today).length
               const paidCount = todayM.count
               const funnel = [
                 { label: 'Visitas estimadas', value: Math.max(paidCount * 12, 0), color: '#60a5fa' },
@@ -536,7 +548,7 @@ export default function VendasAoVivoPage() {
         {/* LINHA 3.5 — Brazil Sales Map */}
         {console.log('[MAP DEBUG] vendas-ao-vivo orders total:', orders?.length, 'hoje:', orders?.filter(o => o.date_created?.slice(0, 10) === today)?.length, 'shipping_state[0]:', orders?.[0]?.shipping_state) as unknown as null}
         <BrazilSalesMap
-          orders={orders.filter(o => o.date_created.slice(0, 10) === today)}
+          orders={orders.filter(o => orderBrazilDate(o.date_created) === today)}
           title="Mapa de Vendas do Dia"
           height={400}
           realtime={true}
