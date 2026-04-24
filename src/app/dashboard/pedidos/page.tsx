@@ -303,15 +303,17 @@ function OrderCard({
   useEffect(() => {
     if (!initialized.current && produtoVinculado) {
       initialized.current = true
-      setCustoEdit(produtoVinculado.cost_price != null ? String(produtoVinculado.cost_price) : '')
-      setImpostoEdit(produtoVinculado.tax_percentage != null ? String(produtoVinculado.tax_percentage) : '')
+      const cp = produtoVinculado.cost_price
+      const tp = produtoVinculado.tax_percentage
+      setCustoEdit(cp != null && cp !== 0 ? String(cp).replace('.', ',') : '')
+      setImpostoEdit(tp != null && tp !== 0 ? String(tp).replace('.', ',') : '')
     }
   }, [produtoVinculado])
 
   function recalcularMargem(custoVal: string, impostoVal: string) {
     const valorPago = order.total_amount || 0
-    const custo = parseFloat(custoVal) || 0
-    const impostoRate = parseFloat(impostoVal) || 0
+    const custo = parseFloat(custoVal.replace(',', '.')) || 0
+    const impostoRate = parseFloat(impostoVal.replace(',', '.')) || 0
     const imposto = valorPago * (impostoRate / 100)
     const margem = (order.lucro_bruto || 0) - custo - imposto
     const margemPct = valorPago > 0 ? Math.round((margem / valorPago) * 1000) / 10 : 0
@@ -320,7 +322,7 @@ function OrderCard({
 
   async function handleSaveCusto() {
     if (!produtoVinculado) return
-    const valor = parseFloat(custoEdit)
+    const valor = parseFloat(custoEdit.replace(',', '.'))
     if (isNaN(valor)) return
     setSaving(s => ({ ...s, custo: true })); setSaveErr(s => ({ ...s, custo: false }))
     try {
@@ -337,7 +339,7 @@ function OrderCard({
 
   async function handleSaveImposto() {
     if (!produtoVinculado) return
-    const valor = parseFloat(impostoEdit)
+    const valor = parseFloat(impostoEdit.replace(',', '.'))
     if (isNaN(valor)) return
     setSaving(s => ({ ...s, imposto: true })); setSaveErr(s => ({ ...s, imposto: false }))
     try {
@@ -488,15 +490,16 @@ function OrderCard({
                   {saving.custo   && <span className="text-[10px] text-zinc-500 animate-pulse">…</span>}
                   <span className="text-[10px] text-zinc-600">R$</span>
                   <input
-                    type="number" step="0.01" placeholder="0.00"
+                    type="text" inputMode="decimal" placeholder="0,00"
                     value={custoEdit}
-                    onChange={e => setCustoEdit(e.target.value)}
-                    onFocus={e => { e.currentTarget.style.borderColor = '#00E5FF' }}
+                    onChange={e => setCustoEdit(e.target.value.replace(/[^\d,\.]/g, ''))}
+                    onFocus={e => { e.currentTarget.style.borderColor = '#00E5FF'; e.currentTarget.select() }}
                     onBlur={e => {
                       e.currentTarget.style.borderColor = saveErr.custo ? '#ef4444' : '#2a2a3f'
                       void handleSaveCusto()
                     }}
-                    className="w-16 bg-[#0d0d10] rounded px-1.5 py-0.5 text-[11px] text-white text-right outline-none transition-colors"
+                    onWheel={e => e.currentTarget.blur()}
+                    className="pedidos-number-input w-16 bg-[#0d0d10] rounded px-1.5 py-0.5 text-[11px] text-white text-right outline-none transition-colors"
                     style={{ border: `1px solid ${saveErr.custo ? '#ef4444' : '#2a2a3f'}` }}
                   />
                 </div>
@@ -508,15 +511,16 @@ function OrderCard({
                   {savedOk.imposto && <span className="text-[10px] text-green-400">✓</span>}
                   {saving.imposto  && <span className="text-[10px] text-zinc-500 animate-pulse">…</span>}
                   <input
-                    type="number" step="0.1" min="0" max="100" placeholder="0"
+                    type="text" inputMode="decimal" placeholder="0"
                     value={impostoEdit}
-                    onChange={e => setImpostoEdit(e.target.value)}
-                    onFocus={e => { e.currentTarget.style.borderColor = '#00E5FF' }}
+                    onChange={e => setImpostoEdit(e.target.value.replace(/[^\d,\.]/g, ''))}
+                    onFocus={e => { e.currentTarget.style.borderColor = '#00E5FF'; e.currentTarget.select() }}
                     onBlur={e => {
                       e.currentTarget.style.borderColor = saveErr.imposto ? '#ef4444' : '#2a2a3f'
                       void handleSaveImposto()
                     }}
-                    className="w-12 bg-[#0d0d10] rounded px-1.5 py-0.5 text-[11px] text-white text-right outline-none transition-colors"
+                    onWheel={e => e.currentTarget.blur()}
+                    className="pedidos-number-input w-12 bg-[#0d0d10] rounded px-1.5 py-0.5 text-[11px] text-white text-right outline-none transition-colors"
                     style={{ border: `1px solid ${saveErr.imposto ? '#ef4444' : '#2a2a3f'}` }}
                   />
                   <span className="text-[10px] text-zinc-600">%</span>

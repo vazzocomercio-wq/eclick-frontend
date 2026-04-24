@@ -38,3 +38,8 @@ body {
 .pedidos-scroll { scrollbar-width: thin; scrollbar-color: #2a2a3f transparent; }
 
 select option { background: #1c1c1f; }
+
+/* Remove spin buttons dos inputs numéricos dos pedidos */
+.pedidos-number-input::-webkit-outer-spin-button,
+.pedidos-number-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.pedidos-number-input { -moz-appearance: textfield; appearance: textfield; }
