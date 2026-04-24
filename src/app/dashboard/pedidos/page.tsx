@@ -148,6 +148,30 @@ const PAY_ICON: Record<string, string> = {
   credit_card: '💳', debit_card: '💳', account_money: '🏦', ticket: '🎟️', pix: '⚡',
 }
 
+const SHIPPING_STATUS_MAP: Record<string, { label: string; color: string }> = {
+  pending:       { label: 'Aguardando envio', color: '#f59e0b' },
+  handling:      { label: 'Em preparação',    color: '#f59e0b' },
+  ready_to_ship: { label: 'Pronto p/ envio',  color: '#00E5FF' },
+  shipped:       { label: 'Despachado',       color: '#3b82f6' },
+  in_transit:    { label: 'Em trânsito',      color: '#3b82f6' },
+  delivered:     { label: 'Entregue',         color: '#22c55e' },
+  not_delivered: { label: 'Não entregue',     color: '#ef4444' },
+  cancelled:     { label: 'Cancelado',        color: '#ef4444' },
+  returned:      { label: 'Devolvido',        color: '#f59e0b' },
+}
+
+const ORDER_STATUS_MAP: Record<string, { label: string; color: string }> = {
+  confirmed:           { label: 'Confirmado',         color: '#00E5FF' },
+  payment_required:    { label: 'Aguarda pgto.',       color: '#f59e0b' },
+  payment_in_process:  { label: 'Pgto. processando',  color: '#f59e0b' },
+  paid:                { label: 'Pago',                color: '#22c55e' },
+  shipped:             { label: 'Enviado',             color: '#3b82f6' },
+  delivered:           { label: 'Entregue',            color: '#22c55e' },
+  cancelled:           { label: 'Cancelado',           color: '#ef4444' },
+  invalid:             { label: 'Inválido',            color: '#ef4444' },
+  pending:             { label: 'Pendente',            color: '#6b7280' },
+}
+
 // ── Mini bar chart ────────────────────────────────────────────────────────────
 
 function MiniBar({ data, color, valueKey = 'count' }: {
@@ -257,10 +281,10 @@ function FinRow({ icon, label, value, color, tooltip }: {
     <Tip text={tooltip}>
       <div className="flex items-center justify-between gap-2 py-0.5 cursor-default group">
         <span className="text-xs">{icon}</span>
-        <span className="flex-1 text-[11px] text-zinc-500 leading-tight">{label}</span>
+        <span className="flex-1 text-xs text-zinc-500 leading-tight">{label}</span>
         {value != null
-          ? <span className="text-[11px] font-semibold tabular-nums" style={{ color: color ?? '#e4e4e7' }}>{value}</span>
-          : <span className="text-[11px] text-zinc-700">—</span>
+          ? <span className="text-xs font-semibold tabular-nums" style={{ color: color ?? '#e4e4e7' }}>{value}</span>
+          : <span className="text-xs text-zinc-700">—</span>
         }
       </div>
     </Tip>
@@ -367,7 +391,7 @@ function OrderCard({
 
   return (
     <div className="rounded-xl transition-colors" style={{ background: '#0f0f12', border: '1px solid #1a1a1f' }}>
-      <div className="grid gap-0" style={{ gridTemplateColumns: '200px 1fr 188px' }}>
+      <div className="grid gap-0" style={{ gridTemplateColumns: '200px 1fr 210px' }}>
 
         {/* ── Buyer ── */}
         <div className="p-4 flex flex-col gap-2 justify-between" style={{ borderRight: '1px solid #1a1a1f' }}>
@@ -381,6 +405,18 @@ function OrderCard({
               {order.buyer.nickname && buyer !== order.buyer.nickname && (
                 <p className="text-zinc-500 text-[10px]">@{order.buyer.nickname}</p>
               )}
+              {(() => {
+                const ss = order.shipping?.status
+                const si = ss ? SHIPPING_STATUS_MAP[ss] : ORDER_STATUS_MAP[order.status]
+                if (!si) return null
+                return (
+                  <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
+                    style={{ color: si.color, background: `${si.color}18`, border: `1px solid ${si.color}33` }}>
+                    <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: si.color }} />
+                    {si.label}
+                  </span>
+                )
+              })()}
             </div>
           </div>
           <div className="space-y-0.5">
@@ -404,10 +440,11 @@ function OrderCard({
           {item && (
             <>
               <div className="flex items-start gap-3">
-                <div className="w-12 h-12 rounded-lg overflow-hidden bg-zinc-800 shrink-0 flex items-center justify-center">
+                <div className="w-24 h-24 rounded-xl overflow-hidden bg-zinc-800 shrink-0 flex items-center justify-center shadow-lg shadow-black/40"
+                  style={{ border: '1px solid #1a1a1f' }}>
                   {item.thumbnail
                     ? <img src={item.thumbnail} alt="" className="w-full h-full object-cover" />
-                    : <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#3f3f46" strokeWidth={1.5}>
+                    : <svg width="28" height="28" fill="none" viewBox="0 0 24 24" stroke="#3f3f46" strokeWidth={1.5}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10" />
                       </svg>
                   }
@@ -477,7 +514,7 @@ function OrderCard({
               {/* Custo row */}
               <div className="flex items-center justify-between gap-1 py-0.5">
                 <span className="text-xs shrink-0">📦</span>
-                <span className="flex-1 text-[11px] text-zinc-500 leading-tight">Custo (CMV)</span>
+                <span className="flex-1 text-xs text-zinc-500 leading-tight">Custo (CMV)</span>
                 {editando ? (
                   <div className="shrink-0">
                     <div className="flex items-center gap-1">
@@ -489,12 +526,12 @@ function OrderCard({
                         onFocus={e => { e.currentTarget.style.borderColor = '#00E5FF'; e.currentTarget.select() }}
                         onBlur={e => { e.currentTarget.style.borderColor = '#2a2a3f' }}
                         onWheel={e => e.currentTarget.blur()}
-                        className="pedidos-number-input w-16 bg-[#0d0d10] rounded px-1.5 py-0.5 text-[11px] text-white text-right outline-none transition-colors placeholder:text-zinc-700"
+                        className="pedidos-number-input w-16 bg-[#0d0d10] rounded px-1.5 py-0.5 text-xs text-white text-right outline-none transition-colors placeholder:text-zinc-700"
                         style={{ border: '1px solid #2a2a3f' }}
                       />
                     </div>
                     {quantidade > 1 && custoEdit && (
-                      <p className="text-[10px] text-zinc-600 text-right mt-0.5">
+                      <p className="text-xs text-zinc-600 text-right mt-0.5">
                         Total: {brl((parseFloat(custoEdit.replace(',', '.')) || 0) * quantidade)}
                       </p>
                     )}
@@ -503,13 +540,13 @@ function OrderCard({
                   <div className="text-right shrink-0">
                     {custoUnit > 0 ? (
                       <>
-                        <div className="text-[11px] font-semibold tabular-nums text-zinc-200">{brl(custoTotal)}</div>
+                        <div className="text-xs font-semibold tabular-nums text-zinc-200">{brl(custoTotal)}</div>
                         {quantidade > 1 && (
-                          <div className="text-[10px] text-zinc-600">{quantidade} × {brl(custoUnit)}</div>
+                          <div className="text-xs text-zinc-600">{quantidade} × {brl(custoUnit)}</div>
                         )}
                       </>
                     ) : (
-                      <span className="text-[11px] text-zinc-700">—</span>
+                      <span className="text-xs text-zinc-700">—</span>
                     )}
                   </div>
                 )}
@@ -517,7 +554,7 @@ function OrderCard({
               {/* Imposto row */}
               <div className="flex items-center justify-between gap-1 py-0.5">
                 <span className="text-xs shrink-0">⚖️</span>
-                <span className="flex-1 text-[11px] text-zinc-500 leading-tight">Imposto</span>
+                <span className="flex-1 text-xs text-zinc-500 leading-tight">Imposto</span>
                 {editando ? (
                   <div className="flex items-center gap-1 shrink-0">
                     <input
@@ -527,24 +564,24 @@ function OrderCard({
                       onFocus={e => { e.currentTarget.style.borderColor = '#00E5FF'; e.currentTarget.select() }}
                       onBlur={e => { e.currentTarget.style.borderColor = '#2a2a3f' }}
                       onWheel={e => e.currentTarget.blur()}
-                      className="pedidos-number-input w-12 bg-[#0d0d10] rounded px-1.5 py-0.5 text-[11px] text-white text-right outline-none transition-colors placeholder:text-zinc-700"
+                      className="pedidos-number-input w-12 bg-[#0d0d10] rounded px-1.5 py-0.5 text-xs text-white text-right outline-none transition-colors placeholder:text-zinc-700"
                       style={{ border: '1px solid #2a2a3f' }}
                     />
-                    <span className="text-[10px] text-zinc-600">%</span>
+                    <span className="text-xs text-zinc-600">%</span>
                   </div>
                 ) : (
                   <div className="text-right shrink-0">
                     {produtoVinculado.tax_percentage != null && produtoVinculado.tax_percentage > 0 ? (
                       <>
-                        <div className="text-[11px] font-semibold tabular-nums text-zinc-200">
+                        <div className="text-xs font-semibold tabular-nums text-zinc-200">
                           {brl(order.total_amount * (produtoVinculado.tax_percentage / 100))}
                         </div>
-                        <div className="text-[10px] text-zinc-600">
+                        <div className="text-xs text-zinc-600">
                           {produtoVinculado.tax_percentage}% de {brl(order.total_amount)}
                         </div>
                       </>
                     ) : (
-                      <span className="text-[11px] text-zinc-700">—</span>
+                      <span className="text-xs text-zinc-700">—</span>
                     )}
                   </div>
                 )}
@@ -610,7 +647,7 @@ function OrderCard({
             <>
               <div className="flex items-center justify-between gap-2 py-0.5">
                 <span className="text-xs shrink-0">📦</span>
-                <span className="flex-1 text-[11px] text-zinc-500 leading-tight">Custo (CMV)</span>
+                <span className="flex-1 text-xs text-zinc-500 leading-tight">Custo (CMV)</span>
                 <button
                   type="button"
                   disabled={criando}
@@ -636,7 +673,7 @@ function OrderCard({
               </div>
               <div className="flex items-center justify-between gap-2 py-0.5">
                 <span className="text-xs shrink-0">⚖️</span>
-                <span className="flex-1 text-[11px] text-zinc-500 leading-tight">Imposto</span>
+                <span className="flex-1 text-xs text-zinc-500 leading-tight">Imposto</span>
                 <span className="text-[11px] text-zinc-700">—</span>
               </div>
               <p className="text-[10px] text-zinc-700 text-right mt-0.5">Anúncio não vinculado a produto</p>
@@ -645,12 +682,12 @@ function OrderCard({
             <>
               <div className="flex items-center justify-between gap-2 py-0.5">
                 <span className="text-xs shrink-0">📦</span>
-                <span className="flex-1 text-[11px] text-zinc-500 leading-tight">Custo (CMV)</span>
+                <span className="flex-1 text-xs text-zinc-500 leading-tight">Custo (CMV)</span>
                 <span className="text-[11px] text-zinc-700">—</span>
               </div>
               <div className="flex items-center justify-between gap-2 py-0.5">
                 <span className="text-xs shrink-0">⚖️</span>
-                <span className="flex-1 text-[11px] text-zinc-500 leading-tight">Imposto</span>
+                <span className="flex-1 text-xs text-zinc-500 leading-tight">Imposto</span>
                 <span className="text-[11px] text-zinc-700">—</span>
               </div>
             </>
@@ -660,11 +697,21 @@ function OrderCard({
             const cm = margemOverride ?? (order.contribution_margin != null
               ? { margem: order.contribution_margin, margemPct: order.contribution_margin_pct ?? 0 }
               : null)
+            const mc = cm != null ? (cm.margem >= 0 ? '#4ade80' : '#f87171') : '#4ade80'
             return (
-              <FinRow icon="🟢" label="Margem contrib."
-                value={cm != null ? `${brl(cm.margem)} (${cm.margemPct}%)` : null}
-                color={cm != null ? (cm.margem >= 0 ? '#4ade80' : '#f87171') : '#4ade80'}
-                tooltip={cm != null ? `Margem de contribuição: ${cm.margemPct}%` : 'Configure custo no produto para ver a margem'} />
+              <Tip text={cm != null ? `Margem de contribuição: ${cm.margemPct}%` : 'Configure custo no produto para ver a margem'}>
+                <div className="flex items-center justify-between gap-2 py-0.5 cursor-default">
+                  <span className="text-sm">🟢</span>
+                  <span className="flex-1 text-xs font-semibold text-zinc-300 leading-tight">Margem contrib.</span>
+                  {cm != null
+                    ? <span className="text-sm font-bold tabular-nums" style={{ color: mc }}>
+                        {brl(cm.margem)}
+                        <span className="text-xs font-semibold opacity-80 ml-1">({cm.margemPct}%)</span>
+                      </span>
+                    : <span className="text-xs text-zinc-700">—</span>
+                  }
+                </div>
+              </Tip>
             )
           })()}
           {payment?.installments > 1 && (
@@ -937,7 +984,11 @@ export default function PedidosPage() {
   const [modal,      setModal]      = useState(false)
   const [toasts,     setToasts]     = useState<Toast[]>([])
   const [produtosLinked, setProdutosLinked] = useState<LinkedProduct[]>([])
+  const [lastUpdate,  setLastUpdate]  = useState<Date>(new Date())
+  const [minsSince,   setMinsSince]   = useState(0)
   const tid = useRef(0)
+  const pageRef = useRef(0)
+  const qRef    = useRef('')
 
   function toast(msg: string, type: Toast['type'] = 'info') {
     const id = ++tid.current
@@ -972,6 +1023,8 @@ export default function PedidosPage() {
       const body = await res.json()
       setOrders(body.orders ?? [])
       setTotal(body.total   ?? 0)
+      setLastUpdate(new Date())
+      setMinsSince(0)
     } catch (e: unknown) {
       toast(e instanceof Error ? e.message : 'Erro ao carregar pedidos', 'error')
       setOrders([])
@@ -1065,8 +1118,28 @@ export default function PedidosPage() {
     console.log('[produtosLinked] atualizado:', produtosLinked.map(p => ({ id: p.id, ml_listing_id: p.ml_listing_id, sku: p.sku })))
   }, [produtosLinked])
 
-  useEffect(() => { loadKpis()              }, [loadKpis])
-  useEffect(() => { loadOrders(page, q)     }, [page, loadOrders])
+  useEffect(() => { pageRef.current = page }, [page])
+  useEffect(() => { qRef.current = q      }, [q])
+
+  useEffect(() => { loadKpis()          }, [loadKpis])
+  useEffect(() => { loadOrders(page, q) }, [page, loadOrders])
+
+  // Polling: refetch de 2 em 2 min
+  useEffect(() => {
+    const interval = setInterval(() => {
+      console.log('[pedidos] refetch automático de status')
+      loadOrders(pageRef.current, qRef.current)
+    }, 120_000)
+    return () => clearInterval(interval)
+  }, [loadOrders])
+
+  // Contador de minutos desde última atualização
+  useEffect(() => {
+    const tick = setInterval(() => {
+      setMinsSince(Math.floor((Date.now() - lastUpdate.getTime()) / 60_000))
+    }, 30_000)
+    return () => clearInterval(tick)
+  }, [lastUpdate])
 
   const tabCounts = useMemo<Record<TabKey, number>>(() => {
     const c: Record<string, number> = {}
@@ -1085,9 +1158,15 @@ export default function PedidosPage() {
       <Toasts list={toasts} />
 
       {/* Header */}
-      <div>
-        <p className="text-zinc-500 text-xs font-medium tracking-widest uppercase mb-1">Dashboard · Vendas</p>
-        <h1 className="text-white text-2xl font-semibold">Pedidos</h1>
+      <div className="flex items-end justify-between">
+        <div>
+          <p className="text-zinc-500 text-xs font-medium tracking-widest uppercase mb-1">Dashboard · Vendas</p>
+          <h1 className="text-white text-2xl font-semibold">Pedidos</h1>
+        </div>
+        <p className="text-xs text-zinc-600 pb-1">
+          {minsSince === 0 ? 'Atualizado agora' : `Atualizado há ${minsSince}min`}
+          {' · '}atualiza a cada 2min
+        </p>
       </div>
 
       {/* KPIs */}
