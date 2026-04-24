@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import type { TabProps } from '../types'
+import CategoryPicker from './CategoryPicker'
 import {
   DndContext,
   DragEndEvent,
@@ -24,13 +25,6 @@ const inp = 'w-full bg-[#1c1c1f] border border-[#3f3f46] text-white text-sm roun
 const lbl = 'block text-[13px] font-medium text-zinc-300 mb-1.5'
 const sec = 'text-[11px] font-semibold uppercase tracking-widest text-zinc-500 mb-4 pb-2 border-b border-[#1e1e24]'
 
-const CATEGORIES = [
-  'Eletrônicos', 'Celulares e Smartphones', 'Informática', 'Televisores',
-  'Áudio', 'Câmeras e Fotografia', 'Games', 'Eletrodomésticos',
-  'Casa e Jardim', 'Ferramentas', 'Esporte e Lazer', 'Moda',
-  'Beleza e Saúde', 'Bebês', 'Brinquedos', 'Alimentos',
-  'Automotivo', 'Indústria e Comércio', 'Outros',
-]
 
 type Props = TabProps & { orgId: string | null }
 
@@ -331,15 +325,11 @@ export default function Tab1Basic({ data, set, orgId }: Props) {
 
       {/* Category */}
       <section>
-        <p className={sec}>Categoria</p>
-        <div>
-          <label className={lbl}>Categoria principal</label>
-          <select className={inp} value={data.category} onChange={e => set('category', e.target.value)}
-            style={{ background: '#1c1c1f' }}>
-            <option value="">Selecione uma categoria</option>
-            {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-        </div>
+        <p className={sec}>Categoria ML</p>
+        <CategoryPicker
+          value={data.category}
+          onChange={id => set('category', id)}
+        />
       </section>
     </div>
   )
