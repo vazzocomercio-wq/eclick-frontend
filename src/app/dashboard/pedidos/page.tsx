@@ -29,6 +29,7 @@ type MOrder = {
   buyer: { id: number | null; nickname: string | null; first_name: string | null; last_name: string | null }
   order_items: {
     item_id:              string | null
+    item?:                { id: string | null }
     title:                string | null
     seller_sku:           string | null
     quantity:             number
@@ -283,7 +284,6 @@ function OrderCard({
   onToast: (msg: string, type: Toast['type']) => void
 }) {
   const [expanded, setExpanded] = useState(false)
-  const [vinculando, setVinculando] = useState(false)
   const [custoEdit, setCustoEdit]   = useState('')
   const [impostoEdit, setImpostoEdit] = useState('')
   const [saving,  setSaving]  = useState({ custo: false, imposto: false })
@@ -470,81 +470,57 @@ function OrderCard({
           <FinRow icon="💰" label="Lucro bruto"         value={brl(order.lucro_bruto)}
             color={order.lucro_bruto >= 0 ? '#4ade80' : '#f87171'}
             tooltip="Lucro bruto: valor − tarifa − frete" />
-          {/* Custo e Imposto */}
-          {produtoVinculado && (vinculando || produtoVinculado.cost_price != null || produtoVinculado.tax_percentage != null) ? (
-            <>
-              <div className="flex items-center justify-between gap-1 py-0.5">
-                <span className="text-xs shrink-0">📦</span>
-                <span className="flex-1 text-[11px] text-zinc-500 leading-tight">Custo produto</span>
-                <div className="flex items-center gap-1 shrink-0">
-                  {savedOk.custo  && <span className="text-[10px] text-green-400">✓</span>}
-                  {saving.custo   && <span className="text-[10px] text-zinc-500 animate-pulse">…</span>}
-                  <span className="text-[10px] text-zinc-600">R$</span>
-                  <input
-                    type="number" step="0.01" placeholder="0.00"
-                    value={custoEdit}
-                    onChange={e => setCustoEdit(e.target.value)}
-                    onFocus={e => { e.currentTarget.style.borderColor = '#00E5FF' }}
-                    onBlur={e => {
-                      e.currentTarget.style.borderColor = saveErr.custo ? '#ef4444' : '#2a2a3f'
-                      void handleSaveCusto()
-                    }}
-                    className="w-16 bg-[#0d0d10] rounded px-1.5 py-0.5 text-[11px] text-white text-right outline-none transition-colors"
-                    style={{ border: `1px solid ${saveErr.custo ? '#ef4444' : '#2a2a3f'}` }}
-                  />
-                </div>
-              </div>
-              <div className="flex items-center justify-between gap-1 py-0.5">
-                <span className="text-xs shrink-0">⚖️</span>
-                <span className="flex-1 text-[11px] text-zinc-500 leading-tight">Imposto</span>
-                <div className="flex items-center gap-1 shrink-0">
-                  {savedOk.imposto && <span className="text-[10px] text-green-400">✓</span>}
-                  {saving.imposto  && <span className="text-[10px] text-zinc-500 animate-pulse">…</span>}
-                  <input
-                    type="number" step="0.1" min="0" max="100" placeholder="0"
-                    value={impostoEdit}
-                    onChange={e => setImpostoEdit(e.target.value)}
-                    onFocus={e => { e.currentTarget.style.borderColor = '#00E5FF' }}
-                    onBlur={e => {
-                      e.currentTarget.style.borderColor = saveErr.imposto ? '#ef4444' : '#2a2a3f'
-                      void handleSaveImposto()
-                    }}
-                    className="w-12 bg-[#0d0d10] rounded px-1.5 py-0.5 text-[11px] text-white text-right outline-none transition-colors"
-                    style={{ border: `1px solid ${saveErr.imposto ? '#ef4444' : '#2a2a3f'}` }}
-                  />
-                  <span className="text-[10px] text-zinc-600">%</span>
-                </div>
-              </div>
-            </>
-          ) : produtoVinculado ? (
-            <>
-              <div className="flex items-center justify-between gap-2 py-0.5">
-                <span className="text-xs shrink-0">📦</span>
-                <span className="flex-1 text-[11px] text-zinc-500 leading-tight">Custo produto</span>
-                <button type="button" onClick={() => setVinculando(true)}
-                  className="text-[10px] text-cyan-500 hover:text-cyan-300 transition-colors shrink-0">
-                  Vincular custos →
-                </button>
-              </div>
-              <div className="flex items-center justify-between gap-2 py-0.5">
-                <span className="text-xs shrink-0">⚖️</span>
-                <span className="flex-1 text-[11px] text-zinc-500 leading-tight">Imposto</span>
-                <span className="text-[11px] text-zinc-700">—</span>
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="flex items-center justify-between gap-2 py-0.5">
-                <span className="text-xs shrink-0">📦</span>
-                <span className="flex-1 text-[11px] text-zinc-500 leading-tight">Custo produto</span>
-                <span className="text-[11px] text-zinc-700">—</span>
-              </div>
-              <div className="flex items-center justify-between gap-2 py-0.5">
-                <span className="text-xs shrink-0">⚖️</span>
-                <span className="flex-1 text-[11px] text-zinc-500 leading-tight">Imposto</span>
-                <span className="text-[11px] text-zinc-700">—</span>
-              </div>
-            </>
+          {/* Custo e Imposto — sempre visíveis, desabilitados sem produto vinculado */}
+          <div className="flex items-center justify-between gap-1 py-0.5">
+            <span className="text-xs shrink-0">📦</span>
+            <span className="flex-1 text-[11px] text-zinc-500 leading-tight">Custo produto</span>
+            <div className="flex items-center gap-1 shrink-0">
+              {savedOk.custo  && <span className="text-[10px] text-green-400">✓</span>}
+              {saving.custo   && <span className="text-[10px] text-zinc-500 animate-pulse">…</span>}
+              <span className="text-[10px] text-zinc-600">R$</span>
+              <input
+                type="number" step="0.01" placeholder="0.00"
+                value={custoEdit}
+                disabled={!produtoVinculado}
+                onChange={e => produtoVinculado && setCustoEdit(e.target.value)}
+                onFocus={e => { if (produtoVinculado) e.currentTarget.style.borderColor = '#00E5FF' }}
+                onBlur={e => {
+                  e.currentTarget.style.borderColor = saveErr.custo ? '#ef4444' : '#2a2a3f'
+                  if (produtoVinculado) void handleSaveCusto()
+                }}
+                className={`w-16 rounded px-1.5 py-0.5 text-[11px] text-right outline-none transition-colors ${
+                  produtoVinculado ? 'bg-[#0d0d10] text-white cursor-text' : 'bg-transparent text-zinc-700 cursor-not-allowed'
+                }`}
+                style={{ border: `1px solid ${saveErr.custo ? '#ef4444' : produtoVinculado ? '#2a2a3f' : '#1a1a1f'}` }}
+              />
+            </div>
+          </div>
+          <div className="flex items-center justify-between gap-1 py-0.5">
+            <span className="text-xs shrink-0">⚖️</span>
+            <span className="flex-1 text-[11px] text-zinc-500 leading-tight">Imposto</span>
+            <div className="flex items-center gap-1 shrink-0">
+              {savedOk.imposto && <span className="text-[10px] text-green-400">✓</span>}
+              {saving.imposto  && <span className="text-[10px] text-zinc-500 animate-pulse">…</span>}
+              <input
+                type="number" step="0.1" min="0" max="100" placeholder="0"
+                value={impostoEdit}
+                disabled={!produtoVinculado}
+                onChange={e => produtoVinculado && setImpostoEdit(e.target.value)}
+                onFocus={e => { if (produtoVinculado) e.currentTarget.style.borderColor = '#00E5FF' }}
+                onBlur={e => {
+                  e.currentTarget.style.borderColor = saveErr.imposto ? '#ef4444' : '#2a2a3f'
+                  if (produtoVinculado) void handleSaveImposto()
+                }}
+                className={`w-12 rounded px-1.5 py-0.5 text-[11px] text-right outline-none transition-colors ${
+                  produtoVinculado ? 'bg-[#0d0d10] text-white cursor-text' : 'bg-transparent text-zinc-700 cursor-not-allowed'
+                }`}
+                style={{ border: `1px solid ${saveErr.imposto ? '#ef4444' : produtoVinculado ? '#2a2a3f' : '#1a1a1f'}` }}
+              />
+              <span className="text-[10px] text-zinc-600">%</span>
+            </div>
+          </div>
+          {!produtoVinculado && (
+            <p className="text-[10px] text-zinc-700 text-right mt-0.5">Vincule um produto para editar</p>
           )}
           <div className="border-t my-1.5" style={{ borderColor: '#1e1e24' }} />
           {(() => {
@@ -827,7 +803,7 @@ export default function PedidosPage() {
   const [q,          setQ]          = useState('')
   const [modal,      setModal]      = useState(false)
   const [toasts,     setToasts]     = useState<Toast[]>([])
-  const [produtosByItemId, setProdutosByItemId] = useState<Record<string, LinkedProduct>>({})
+  const [produtosLinked, setProdutosLinked] = useState<LinkedProduct[]>([])
   const tid = useRef(0)
 
   function toast(msg: string, type: Toast['type'] = 'info') {
@@ -869,22 +845,37 @@ export default function PedidosPage() {
     } finally { setLoading(false) }
   }, [getHeaders])
 
-  // Fetch linked products from Supabase by ml_listing_id whenever orders change
+  // Fetch linked products from Supabase — match by ml_listing_id OR sku (fallback)
   useEffect(() => {
-    if (orders.length === 0) { setProdutosByItemId({}); return }
-    const itemIds = [...new Set(
-      orders.map(o => o.order_items[0]?.item_id).filter((s): s is string => Boolean(s))
+    if (orders.length === 0) { setProdutosLinked([]); return }
+
+    const mlIds = [...new Set(
+      orders.flatMap(o => {
+        const oi = o.order_items[0]
+        return [oi?.item_id, oi?.item?.id].filter((s): s is string => Boolean(s))
+      })
     )]
-    if (itemIds.length === 0) return
+    const skus = [...new Set(
+      orders.map(o => o.order_items[0]?.seller_sku).filter((s): s is string => Boolean(s))
+    )]
+
+    console.log('[pedidos] mlIds para match:', mlIds)
+    console.log('[pedidos] skus para fallback:', skus)
+
+    if (mlIds.length === 0 && skus.length === 0) return
+
+    const filters: string[] = []
+    if (mlIds.length > 0) filters.push(`ml_listing_id.in.(${mlIds.join(',')})`)
+    if (skus.length > 0) filters.push(`sku.in.(${skus.join(',')})`)
+
     supabase
       .from('products')
       .select('id, sku, ml_listing_id, cost_price, tax_percentage, name')
-      .in('ml_listing_id', itemIds)
-      .then(({ data }) => {
-        if (!data) return
-        const map: Record<string, LinkedProduct> = {}
-        for (const p of data) if (p.ml_listing_id) map[p.ml_listing_id] = p as LinkedProduct
-        setProdutosByItemId(map)
+      .or(filters.join(','))
+      .then(({ data, error }) => {
+        if (error) console.error('[pedidos] erro fetch produtos:', error)
+        console.log('[pedidos] produtos encontrados:', data?.map(p => ({ ml_listing_id: p.ml_listing_id, sku: p.sku })))
+        setProdutosLinked((data ?? []) as LinkedProduct[])
       })
   }, [orders, supabase])
 
@@ -896,11 +887,7 @@ export default function PedidosPage() {
       body: JSON.stringify({ cost_price: value }),
     })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    setProdutosByItemId(prev => {
-      const entry = Object.entries(prev).find(([, p]) => p.id === productId)
-      if (!entry) return prev
-      return { ...prev, [entry[0]]: { ...entry[1], cost_price: value } }
-    })
+    setProdutosLinked(prev => prev.map(p => p.id === productId ? { ...p, cost_price: value } : p))
     toast('Custo atualizado!', 'success')
   }, [getHeaders])
 
@@ -912,11 +899,7 @@ export default function PedidosPage() {
       body: JSON.stringify({ tax_percentage: value }),
     })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    setProdutosByItemId(prev => {
-      const entry = Object.entries(prev).find(([, p]) => p.id === productId)
-      if (!entry) return prev
-      return { ...prev, [entry[0]]: { ...entry[1], tax_percentage: value } }
-    })
+    setProdutosLinked(prev => prev.map(p => p.id === productId ? { ...p, tax_percentage: value } : p))
     toast('Imposto atualizado!', 'success')
   }, [getHeaders])
 
@@ -1029,8 +1012,12 @@ export default function PedidosPage() {
               </div>
             )
             : filtered.map(order => {
-                const itemId = order.order_items[0]?.item_id ?? null
-                const produtoVinculado = itemId ? (produtosByItemId[itemId] ?? null) : null
+                const oi = order.order_items[0]
+                const itemId = oi?.item_id ?? oi?.item?.id ?? null
+                const produtoVinculado = produtosLinked.find(p =>
+                  (itemId && p.ml_listing_id === itemId) ||
+                  (oi?.seller_sku && p.sku === oi.seller_sku)
+                ) ?? null
                 return (
                   <OrderCard
                     key={order.order_id}
