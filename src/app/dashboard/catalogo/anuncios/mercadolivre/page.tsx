@@ -345,11 +345,8 @@ function ListingCard({ item, selected, linked, onSelect, onCreateProduct }: {
           )}
           {linked && (
             <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-1"
-              style={{ background: '#0d1f17', color: '#4ade80', border: '1px solid rgba(34,197,94,.25)' }}>
-              <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-              </svg>
-              Produto vinculado
+              style={{ background: 'rgba(0,229,255,0.08)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.2)' }}>
+              📦 Produto vinculado
             </span>
           )}
         </div>

@@ -36,6 +36,7 @@ type Product = {
   ml_listing_type: string | null
   ml_free_shipping: boolean | null
   ml_flex: boolean | null
+  ml_listing_id: string | null
 }
 
 // ── constants ─────────────────────────────────────────────────────────────────
@@ -105,20 +106,33 @@ function RowMenu({ onEdit, onDuplicate, onDelete }: {
   onEdit: () => void; onDuplicate: () => void; onDelete: () => void
 }) {
   const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
+  const [pos, setPos]   = useState({ top: 0, right: 0 })
+  const btnRef  = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!open) return
     function handle(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+      if (
+        !btnRef.current?.contains(e.target as Node) &&
+        !menuRef.current?.contains(e.target as Node)
+      ) setOpen(false)
     }
     document.addEventListener('mousedown', handle)
     return () => document.removeEventListener('mousedown', handle)
   }, [open])
 
+  function handleToggle() {
+    if (!open && btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect()
+      setPos({ top: r.bottom + 4, right: window.innerWidth - r.right })
+    }
+    setOpen(o => !o)
+  }
+
   return (
-    <div ref={ref} className="relative">
-      <button onClick={() => setOpen(o => !o)}
+    <>
+      <button ref={btnRef} onClick={handleToggle}
         className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors"
         style={{ color: '#52525b' }}
         onMouseEnter={e => (e.currentTarget.style.color = '#a1a1aa')}
@@ -128,10 +142,11 @@ function RowMenu({ onEdit, onDuplicate, onDelete }: {
         </svg>
       </button>
       {open && (
-        <div className="absolute right-0 top-8 z-30 w-40 rounded-xl border py-1 shadow-2xl"
-          style={{ background: '#18181b', borderColor: '#2e2e33' }}>
+        <div ref={menuRef}
+          className="fixed z-[9999] w-40 rounded-xl border py-1 shadow-2xl"
+          style={{ background: '#18181b', borderColor: '#2e2e33', top: pos.top, right: pos.right }}>
           {[
-            { label: 'Editar', icon: 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z', action: onEdit },
+            { label: 'Editar',   icon: 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z', action: onEdit },
             { label: 'Duplicar', icon: 'M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z', action: onDuplicate },
           ].map(item => (
             <button key={item.label} onClick={() => { item.action(); setOpen(false) }}
@@ -158,7 +173,7 @@ function RowMenu({ onEdit, onDuplicate, onDelete }: {
           </button>
         </div>
       )}
-    </div>
+    </>
   )
 }
 
@@ -245,6 +260,12 @@ function TableRow({
             </p>
             {product.sku && (
               <p className="text-zinc-600 text-[11px]">SKU: {product.sku}</p>
+            )}
+            {product.ml_listing_id && (
+              <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full mt-1"
+                style={{ background: 'rgba(0,229,255,0.08)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.2)' }}>
+                🔗 ML Vinculado
+              </span>
             )}
             <p className="text-zinc-500 text-[11px] mt-0.5">
               Estoque: <span className={product.stock === 0 ? 'text-red-400' : 'text-zinc-400'}>
@@ -439,6 +460,12 @@ function ProductCard({ product, onDelete, onStatusChange, onDuplicate }: {
       <div className="flex-1 p-4 flex flex-col gap-2">
         <p className="text-white text-sm font-semibold leading-tight line-clamp-2">{product.name}</p>
         {product.sku && <p className="text-zinc-600 text-[11px] font-mono">SKU: {product.sku}</p>}
+        {product.ml_listing_id && (
+          <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full"
+            style={{ background: 'rgba(0,229,255,0.08)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.2)' }}>
+            🔗 ML Vinculado
+          </span>
+        )}
         <div className="flex items-end justify-between mt-auto">
           <div>
             <p className="font-bold text-base leading-tight" style={{ color: '#00E5FF' }}>{brl(product.price)}</p>
