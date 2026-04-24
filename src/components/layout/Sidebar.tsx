@@ -222,7 +222,20 @@ export default function Sidebar() {
   const [questionBadge,     setQuestionBadge]     = useState<number | undefined>(undefined)
   const [reclamacoesBadge,  setReclamacoesBadge]  = useState<number | undefined>(undefined)
   const [semVinculoBadge,   setSemVinculoBadge]   = useState<number | undefined>(undefined)
+  const [collapsed,         setCollapsed]         = useState(false)
   const mounted = useRef(true)
+
+  useEffect(() => {
+    if (localStorage.getItem('sidebar-collapsed') === 'true') setCollapsed(true)
+  }, [])
+
+  const toggleCollapsed = () => {
+    setCollapsed(c => {
+      const next = !c
+      localStorage.setItem('sidebar-collapsed', String(next))
+      return next
+    })
+  }
 
   useEffect(() => {
     mounted.current = true
@@ -287,15 +300,33 @@ export default function Sidebar() {
   return (
     <aside
       className="hidden md:flex flex-col h-screen shrink-0 overflow-hidden"
-      style={{ width: 236, background: '#0c0c0f', borderRight: '1px solid rgba(0,229,255,0.07)' }}
+      style={{ width: collapsed ? 44 : 236, background: '#0c0c0f', borderRight: '1px solid rgba(0,229,255,0.07)', transition: 'width 200ms ease' }}
     >
-      {/* Logo */}
-      <div className="flex items-center px-4 py-4 shrink-0" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-        <img src="/logo.png" alt="e-Click" style={{ width: 130, mixBlendMode: 'screen' as const }} />
+      {/* Logo + toggle */}
+      <div
+        className="flex items-center shrink-0 py-4"
+        style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', padding: collapsed ? '16px 0' : '16px 12px', justifyContent: collapsed ? 'center' : 'space-between' }}
+      >
+        {!collapsed && <img src="/logo.png" alt="e-Click" style={{ width: 130, mixBlendMode: 'screen' as const }} />}
+        <button
+          onClick={toggleCollapsed}
+          className="flex items-center justify-center w-7 h-7 rounded-md transition-colors"
+          style={{ color: '#52525b', flexShrink: 0 }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#a1a1aa'; (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.06)' }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = '#52525b'; (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+          title={collapsed ? 'Expandir menu' : 'Recolher menu'}
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+            {collapsed
+              ? <path strokeLinecap="round" strokeLinejoin="round" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+              : <path strokeLinecap="round" strokeLinejoin="round" d="M11 19l-7-7 7-7M19 19l-7-7 7-7" />
+            }
+          </svg>
+        </button>
       </div>
 
       {/* Main nav */}
-      <nav className="flex-1 px-2 py-3 overflow-y-auto no-scrollbar">
+      {!collapsed && <nav className="flex-1 px-2 py-3 overflow-y-auto no-scrollbar">
         {MAIN.map((entry, i) => {
           if (entry.type === 'sep') return (
             <div key={i} className="px-3 pt-4 pb-1.5">
@@ -323,16 +354,17 @@ export default function Sidebar() {
             : undefined
           return <GroupNav key={entry.key} item={entry} defaultOpen={isGroupDefaultOpen(entry)} childBadges={childBadges} parentBadge={parentBadge} />
         })}
-      </nav>
+      </nav>}
 
-      {/* Bottom nav */}
-      <div className="px-2 py-3 shrink-0 space-y-0.5" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-        {BOTTOM.map(item =>
-          item.type === 'leaf'
-            ? <LeafLink key={item.href} item={item} />
-            : <GroupNav key={item.key} item={item} defaultOpen={isGroupDefaultOpen(item)} />
-        )}
-      </div>
+      {!collapsed && (
+        <div className="px-2 py-3 shrink-0 space-y-0.5" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+          {BOTTOM.map(item =>
+            item.type === 'leaf'
+              ? <LeafLink key={item.href} item={item} />
+              : <GroupNav key={item.key} item={item} defaultOpen={isGroupDefaultOpen(item)} />
+          )}
+        </div>
+      )}
     </aside>
   )
 }
