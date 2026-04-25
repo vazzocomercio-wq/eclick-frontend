@@ -58,14 +58,26 @@ interface Competitor {
   product_id: string
   platform: string
   url: string
+  listing_id: string | null
   title: string | null
   seller: string | null
+  seller_nickname: string | null
+  seller_reputation: string | null
   current_price: number | null
   my_price: number | null
   photo_url: string | null
   status: 'active' | 'paused'
   last_checked: string | null
+  enriched_at: string | null
   created_at: string
+  // fields saved on every refresh
+  available_quantity: number | null
+  sold_quantity: number | null
+  rating: number | null
+  reviews_total: number | null
+  visits_30d: number | null
+  listing_type: string | null
+  free_shipping: boolean | null
   price_history: PricePoint[]
   ml_data?: MlData
 }
@@ -177,7 +189,7 @@ export default function CompetitorDetailPage({ params }: { params: Promise<{ id:
   const [loadingIA, setLoadingIA]   = useState(false)
   const [aiEnabled]                 = useState(() => isAIEnabled('analise_concorrencia'))
 
-  const load = useCallback(async (withRefresh = false) => {
+  const load = useCallback(async (withRefresh = false): Promise<Competitor | null> => {
     if (withRefresh) setRefreshing(true)
     else setLoading(true)
     try {
@@ -189,17 +201,37 @@ export default function CompetitorDetailPage({ params }: { params: Promise<{ id:
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data: Competitor = await res.json()
       setCompetitor(data)
-    } catch (e) { console.error('[competitor-detail]', e) }
+      return data
+    } catch (e) { console.error('[competitor-detail]', e); return null }
     finally { setLoading(false); setRefreshing(false) }
   }, [id])
 
   useEffect(() => {
-    load(false).then(() => load(true))
+    const init = async () => {
+      const data = await load(false)
+      if (!data) return
+      const stale = !data.enriched_at ||
+        (Date.now() - new Date(data.enriched_at).getTime()) > 6 * 60 * 60 * 1000
+      if (stale) load(true)
+    }
+    init()
   }, [load])
 
   // ── Derived ───────────────────────────────────────────────────────────────
 
-  const ml      = competitor?.ml_data ?? {}
+  // Merge stored-enriched fields with live ml_data (ml_data takes precedence)
+  const ml: MlData = {
+    available_quantity: competitor?.available_quantity ?? undefined,
+    sold_quantity:      competitor?.sold_quantity ?? undefined,
+    rating:             competitor?.rating ?? undefined,
+    reviews_total:      competitor?.reviews_total ?? undefined,
+    visits_30d:         competitor?.visits_30d ?? undefined,
+    listing_type_id:    competitor?.listing_type ?? undefined,
+    shipping:           competitor?.free_shipping != null
+      ? { free_shipping: competitor.free_shipping }
+      : undefined,
+    ...competitor?.ml_data,
+  }
   const history = competitor?.price_history ?? []
 
   const filteredHistory = (() => {
@@ -328,7 +360,7 @@ Máximo 350 palavras, use emojis para facilitar a leitura.`
   }
 
   const pm  = PM[competitor.platform] ?? { label: competitor.platform, bg: '#27272a', fg: '#a1a1aa' }
-  const rep = reputationLabel(ml.seller?.seller_reputation?.level_id)
+  const rep = reputationLabel(ml.seller?.seller_reputation?.level_id ?? competitor.seller_reputation)
 
   return (
     <div style={{ background: '#09090b', minHeight: '100%', padding: '20px 24px 40px' }}>

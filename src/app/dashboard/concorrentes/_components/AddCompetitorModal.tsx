@@ -20,6 +20,7 @@ type ScraperData = {
   seller?: string
   platform?: string
   photo_url?: string
+  listing_id?: string | null
   partial?: boolean
 }
 
@@ -246,11 +247,12 @@ export default function AddCompetitorModal({ orgId, competitorCounts, onClose, o
             ...e,
             scraping: false,
             scraped: {
-              title:     data.title    ?? null,
-              price:     typeof data.price === 'number' ? data.price : null,
-              seller:    data.seller   ?? null,
-              platform:  data.platform ?? null,
-              photo_url: data.thumbnail ?? null,
+              title:      data.title      ?? null,
+              price:      typeof data.price === 'number' ? data.price : null,
+              seller:     data.seller     ?? null,
+              platform:   data.platform   ?? null,
+              photo_url:  data.thumbnail  ?? null,
+              listing_id: data.listing_id ?? null,
             },
           }
         : e
@@ -328,14 +330,15 @@ export default function AddCompetitorModal({ orgId, competitorCounts, onClose, o
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          product_id: selectedProduct.id,
+          product_id:  selectedProduct.id,
           platform,
-          url: entry.url,
-          title: entry.scraped.title ?? null,
-          seller: entry.scraped.seller ?? null,
+          url:         entry.url,
+          listing_id:  entry.scraped.listing_id ?? null,
+          title:       entry.scraped.title  ?? null,
+          seller:      entry.scraped.seller ?? null,
           current_price: resolvedPrice,
-          my_price: selectedProduct.price ?? null,
-          photo_url: entry.scraped.photo_url ?? null,
+          my_price:    selectedProduct.price ?? null,
+          photo_url:   entry.scraped.photo_url ?? null,
         }),
       })
 
