@@ -15,6 +15,8 @@ const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? process.env.NEXT_PUBLIC_A
 type MlConn     = { seller_id: number; nickname: string | null; expires_at: string }
 type IntegStatus = 'connected' | 'expired' | 'disconnected' | 'soon'
 
+interface Toast { id: number; message: string; type: 'success' | 'error' }
+
 interface Credential {
   id: string
   provider: string
@@ -238,10 +240,16 @@ function AIProviderCard({ def, cred, onAdd, onTest, onRemove, testing }: {
             <Key size={10} style={{ color: '#52525b' }} />
             <span className="text-[11px] font-mono text-zinc-400">{cred.key_preview}</span>
           </div>
-          {cred.last_tested_at && (
-            <p className="text-[10px] text-zinc-600">
-              Testada {timeAgo(cred.last_tested_at)}
-              {cred.last_test_message && ` · ${cred.last_test_message}`}
+          {cred.last_test_status && (
+            <p className="flex items-center gap-1 text-[10px] flex-wrap"
+              style={{ color: cred.last_test_status === 'ok' ? '#4ade80' : '#f87171' }}>
+              {cred.last_test_status === 'ok' ? '✅' : '❌'}
+              <span>{cred.last_test_message}</span>
+              {cred.last_tested_at && (
+                <span className="text-zinc-600">
+                  · {new Date(cred.last_tested_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                </span>
+              )}
             </p>
           )}
         </div>
@@ -370,6 +378,13 @@ export default function IntegracoesPage() {
   const [connecting, setConnecting]   = useState(false)
   const [addingFor, setAddingFor]     = useState<AIProviderDef | null>(null)
   const [testingId, setTestingId]     = useState<string | null>(null)
+  const [toasts, setToasts]           = useState<Toast[]>([])
+
+  function showToast(message: string, type: 'success' | 'error' = 'success') {
+    const id = Date.now()
+    setToasts(prev => [...prev, { id, message, type }])
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3500)
+  }
 
   const getHeaders = useCallback(async () => {
     const sb = createClient()
@@ -421,15 +436,19 @@ export default function IntegracoesPage() {
           ? { ...c, last_test_status: result.ok ? 'ok' : 'error', last_test_message: result.message, last_tested_at: new Date().toISOString() }
           : c
         ))
+        showToast(result.ok ? `✅ ${result.message}` : `❌ ${result.message}`, result.ok ? 'success' : 'error')
       }
+    } catch (e) {
+      showToast(`❌ Erro: ${(e as Error).message}`, 'error')
     } finally { setTestingId(null) }
   }
 
-  async function removeCredential(id: string) {
-    if (!confirm('Remover esta chave de API?')) return
+  async function removeCredential(id: string, providerName: string) {
+    if (!confirm(`Tem certeza que deseja remover a chave ${providerName}? Esta ação não pode ser desfeita.`)) return
     const headers = await getHeaders()
     await fetch(`${BACKEND}/credentials/${id}`, { method: 'DELETE', headers })
     setCredentials(prev => prev.filter(c => c.id !== id))
+    showToast('Chave removida com sucesso', 'success')
   }
 
   const overallMlStatus: IntegStatus = loading ? 'disconnected'
@@ -466,7 +485,7 @@ export default function IntegracoesPage() {
             cred={credByProvider(def.id)}
             onAdd={() => setAddingFor(def)}
             onTest={() => { const c = credByProvider(def.id); if (c) testCredential(c.id) }}
-            onRemove={() => { const c = credByProvider(def.id); if (c) removeCredential(c.id) }}
+            onRemove={() => { const c = credByProvider(def.id); if (c) removeCredential(c.id, def.name) }}
             testing={testingId === credByProvider(def.id)?.id}
           />
         ))}
@@ -544,6 +563,21 @@ export default function IntegracoesPage() {
       <p className="text-[10px] text-zinc-700">
         Novas integrações são adicionadas continuamente. Entre em contato para priorizar uma integração específica.
       </p>
+
+      {/* Toast stack */}
+      <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 pointer-events-none">
+        {toasts.map(t => (
+          <div key={t.id} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium shadow-xl"
+            style={{
+              background: t.type === 'success' ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
+              color:      t.type === 'success' ? '#4ade80' : '#f87171',
+              border:     `1px solid ${t.type === 'success' ? 'rgba(34,197,94,0.25)' : 'rgba(239,68,68,0.25)'}`,
+              backdropFilter: 'blur(8px)',
+            }}>
+            {t.message}
+          </div>
+        ))}
+      </div>
 
       {/* Add key modal */}
       {addingFor && (
