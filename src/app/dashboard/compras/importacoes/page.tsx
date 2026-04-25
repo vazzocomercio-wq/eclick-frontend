@@ -1,11 +1,17 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import {
   Ship, Package, Clock, AlertTriangle, CheckCircle, Plus, ChevronRight,
-  Anchor, Factory, Truck, X, Check, AlignLeft,
+  Anchor, Factory, Truck, X, Check, AlignLeft, Ban, GripVertical,
 } from 'lucide-react'
+import {
+  DndContext, DragEndEvent, DragOverlay, DragStartEvent,
+  useDroppable, useDraggable,
+  PointerSensor, useSensor, useSensors,
+} from '@dnd-kit/core'
+import { CSS } from '@dnd-kit/utilities'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 
@@ -35,6 +41,7 @@ interface PO {
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const STATUSES = ['draft','pending','ordered','in_production','in_transit','customs','received'] as const
+const KANBAN_STATUSES = ['draft','pending','ordered','in_production','in_transit','customs','cancelled'] as const
 
 const STATUS_LABELS: Record<string, string> = {
   draft:'Rascunho', pending:'Pendente', ordered:'Pedido',
@@ -49,12 +56,14 @@ const STATUS_COLORS: Record<string, string> = {
 const STATUS_ICONS: Record<string, React.ReactNode> = {
   draft: <AlignLeft size={13}/>, pending: <Clock size={13}/>, ordered: <Package size={13}/>,
   in_production: <Factory size={13}/>, in_transit: <Truck size={13}/>,
-  customs: <Anchor size={13}/>, received: <CheckCircle size={13}/>, cancelled: <X size={13}/>,
+  customs: <Anchor size={13}/>, received: <CheckCircle size={13}/>, cancelled: <Ban size={13}/>,
 }
 const STATUS_NEXT: Record<string, string> = {
   draft:'pending', pending:'ordered', ordered:'in_production',
   in_production:'in_transit', in_transit:'customs', customs:'received',
 }
+
+const FLOW_STATUSES = ['draft','pending','ordered','in_production','in_transit','customs','received']
 
 const INCOTERMS = ['FOB','CIF','EXW','DDP','CFR','FCA','DAP']
 const CURRENCIES = ['BRL','USD','EUR','CNY','JPY']
@@ -97,19 +106,34 @@ async function authHeaders(): Promise<Record<string, string>> {
   return { Authorization: `Bearer ${session.access_token}` }
 }
 
-// ── KPI Card ──────────────────────────────────────────────────────────────────
+// ── Toast ─────────────────────────────────────────────────────────────────────
+
+function Toast({ message, type = 'success', onDone }: { message: string; type?: 'success'|'error'; onDone: () => void }) {
+  useEffect(() => { const t = setTimeout(onDone, 3000); return () => clearTimeout(t) }, [onDone])
+  const color = type === 'success' ? '#22c55e' : '#ef4444'
+  return (
+    <div className="fixed bottom-6 right-6 z-[200] flex items-center gap-2 px-4 py-3 rounded-xl"
+      style={{ background: color + '18', border: `1px solid ${color}44`, color, boxShadow:'0 4px 24px rgba(0,0,0,0.4)' }}>
+      {type === 'success' ? <Check size={15}/> : <AlertTriangle size={15}/>}
+      <span className="text-sm font-medium">{message}</span>
+    </div>
+  )
+}
+
+// ── KPI Card (compact) ────────────────────────────────────────────────────────
 
 function KpiCard({ icon, label, value, sub, color = '#00E5FF' }: {
   icon: React.ReactNode; label: string; value: string; sub?: string; color?: string
 }) {
   return (
-    <div className="rounded-xl p-4 flex flex-col gap-1" style={{ background:'#111114', border:'1px solid #1a1a1f' }}>
-      <div className="flex items-center gap-2 mb-1">
-        <span style={{ color }}>{icon}</span>
-        <span className="text-[11px] uppercase tracking-wider font-semibold" style={{ color:'#a1a1aa' }}>{label}</span>
+    <div className="rounded-lg px-3 py-2.5 flex items-center gap-3 min-w-0"
+      style={{ background:'#111114', border:'1px solid #1a1a1f' }}>
+      <span className="shrink-0" style={{ color }}>{icon}</span>
+      <div className="min-w-0">
+        <p className="text-[10px] uppercase tracking-wider font-medium truncate" style={{ color:'#71717a' }}>{label}</p>
+        <p className="text-[15px] font-bold leading-tight" style={{ color:'#e4e4e7' }}>{value}</p>
+        {sub && <p className="text-[10px] truncate" style={{ color:'#52525b' }}>{sub}</p>}
       </div>
-      <p className="text-xl font-bold" style={{ color:'#e4e4e7' }}>{value}</p>
-      {sub && <p className="text-[11px]" style={{ color:'#a1a1aa' }}>{sub}</p>}
     </div>
   )
 }
@@ -128,46 +152,183 @@ function StatusBadge({ status }: { status: string }) {
 
 // ── PO Card ───────────────────────────────────────────────────────────────────
 
-function PoCard({ po, onAdvance, onDetails }: {
-  po: PO; onAdvance: (po: PO) => void; onDetails: (po: PO) => void
+function PoCard({ po, onAdvance, onDetails, onCancel, dragHandleProps, isDragOverlay }: {
+  po: PO
+  onAdvance: (po: PO) => void
+  onDetails: (po: PO) => void
+  onCancel?: (po: PO) => void
+  dragHandleProps?: Record<string, unknown>
+  isDragOverlay?: boolean
 }) {
+  const [confirming, setConfirming] = useState(false)
+  const confirmTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const days = daysUntil(po.expected_arrival_date)
   const urg  = urgencyStyle(days)
   const next = STATUS_NEXT[po.status]
 
+  const stepIdx  = FLOW_STATUSES.indexOf(po.status)
+  const stepPct  = stepIdx >= 0 ? (stepIdx / (FLOW_STATUSES.length - 1)) * 100 : 0
+  const stepColor = STATUS_COLORS[po.status] ?? '#6b7280'
+
+  function handleAdvanceClick() {
+    if (confirming) {
+      clearTimeout(confirmTimer.current)
+      setConfirming(false)
+      onAdvance(po)
+    } else {
+      setConfirming(true)
+      confirmTimer.current = setTimeout(() => setConfirming(false), 2500)
+    }
+  }
+
+  useEffect(() => () => clearTimeout(confirmTimer.current), [])
+
   return (
-    <div className="rounded-lg p-3 mb-2" style={{ background:'#0e0e11', border:'1px solid #1e1e24' }}>
-      <div className="flex items-start justify-between mb-1.5">
-        <span className="text-[11px] font-bold" style={{ color:'#00E5FF' }}>{po.po_number}</span>
-        <span style={{ fontSize:16 }}>{countryFlag(po.suppliers?.country)}</span>
+    <div className="rounded-lg mb-2 overflow-hidden"
+      style={{
+        background: isDragOverlay ? '#18181b' : '#0e0e11',
+        border: `1px solid ${isDragOverlay ? '#27272a' : '#1e1e24'}`,
+        boxShadow: isDragOverlay ? '0 8px 32px rgba(0,0,0,0.6)' : undefined,
+        cursor: isDragOverlay ? 'grabbing' : 'default',
+      }}>
+
+      {/* Progress bar */}
+      <div style={{ height: 2, background: '#1e1e24' }}>
+        <div style={{ height: '100%', width: `${stepPct}%`, background: stepColor, transition: 'width 0.3s ease' }} />
       </div>
-      <p className="text-[12px] font-medium mb-1 truncate" style={{ color:'#e4e4e7' }}>
-        {po.suppliers?.name ?? '—'}
-      </p>
-      <p className="text-[11px] mb-2" style={{ color:'#a1a1aa' }}>
-        {po.purchase_order_items.length} produto{po.purchase_order_items.length !== 1 ? 's' : ''} · {fmtBRL(po.total_cost)}
-      </p>
-      {po.expected_arrival_date && (
-        <div className="mb-2">
-          <p className="text-[10px]" style={{ color:'#a1a1aa' }}>📅 {fmtDate(po.expected_arrival_date)}</p>
-          <p className={`text-[11px] font-semibold ${urg.pulse ? 'animate-pulse' : ''}`} style={{ color: urg.color }}>
-            ⏱ {days === null ? '—' : days < 0 ? `${Math.abs(days)}d atrasado` : `${days}d restantes`}
-          </p>
+
+      <div className="p-3">
+        {/* Header row */}
+        <div className="flex items-start justify-between mb-1.5">
+          <span className="text-[11px] font-bold" style={{ color:'#00E5FF' }}>{po.po_number}</span>
+          <div className="flex items-center gap-1.5">
+            <span style={{ fontSize:14 }}>{countryFlag(po.suppliers?.country)}</span>
+            {/* Drag handle */}
+            <span {...dragHandleProps}
+              className="text-zinc-600 hover:text-zinc-400 cursor-grab active:cursor-grabbing transition-colors"
+              style={{ touchAction:'none' }}>
+              <GripVertical size={13}/>
+            </span>
+          </div>
         </div>
-      )}
-      <div className="flex gap-1.5 mt-2">
-        {next && po.status !== 'cancelled' && (
-          <button onClick={() => onAdvance(po)}
-            className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-md text-[11px] font-semibold"
-            style={{ background:'rgba(0,229,255,0.1)', border:'1px solid rgba(0,229,255,0.2)', color:'#00E5FF' }}>
-            Avançar <ChevronRight size={11} />
-          </button>
+
+        <p className="text-[12px] font-medium mb-1 truncate" style={{ color:'#e4e4e7' }}>
+          {po.suppliers?.name ?? '—'}
+        </p>
+        <p className="text-[11px] mb-2" style={{ color:'#a1a1aa' }}>
+          {po.purchase_order_items.length} produto{po.purchase_order_items.length !== 1 ? 's' : ''} · {fmtBRL(po.total_cost)}
+        </p>
+
+        {po.expected_arrival_date && (
+          <div className="mb-2">
+            <p className="text-[10px]" style={{ color:'#a1a1aa' }}>📅 {fmtDate(po.expected_arrival_date)}</p>
+            <p className={`text-[11px] font-semibold ${urg.pulse ? 'animate-pulse' : ''}`} style={{ color: urg.color }}>
+              ⏱ {days === null ? '—' : days < 0 ? `${Math.abs(days)}d atrasado` : `${days}d restantes`}
+            </p>
+          </div>
         )}
-        <button onClick={() => onDetails(po)}
-          className="flex-1 py-1.5 rounded-md text-[11px] font-medium"
-          style={{ background:'#1e1e24', border:'1px solid #27272a', color:'#71717a' }}>
-          Detalhes
-        </button>
+
+        {po.status !== 'cancelled' && (
+          <div className="flex gap-1.5 mt-2">
+            {next && (
+              <button onClick={handleAdvanceClick}
+                className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-md text-[11px] font-semibold transition-all"
+                style={confirming
+                  ? { background:'rgba(34,197,94,0.15)', border:'1px solid rgba(34,197,94,0.3)', color:'#22c55e' }
+                  : { background:'rgba(0,229,255,0.08)', border:'1px solid rgba(0,229,255,0.18)', color:'#00E5FF' }
+                }>
+                {confirming ? <><Check size={11}/> Confirmar?</> : <>Avançar <ChevronRight size={11}/></>}
+              </button>
+            )}
+            <button onClick={() => onDetails(po)}
+              className="flex-1 py-1.5 rounded-md text-[11px] font-medium"
+              style={{ background:'#1e1e24', border:'1px solid #27272a', color:'#71717a' }}>
+              Detalhes
+            </button>
+            {onCancel && po.status !== 'received' && (
+              <button onClick={() => onCancel(po)}
+                className="py-1.5 px-2 rounded-md text-[11px]"
+                style={{ background:'rgba(239,68,68,0.08)', border:'1px solid rgba(239,68,68,0.15)', color:'#ef4444' }}
+                title="Cancelar PO">
+                <X size={11}/>
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Draggable Card wrapper ────────────────────────────────────────────────────
+
+function DraggablePoCard({ po, onAdvance, onDetails, onCancel }: {
+  po: PO; onAdvance: (po: PO) => void; onDetails: (po: PO) => void; onCancel: (po: PO) => void
+}) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: po.id,
+    data: { po },
+  })
+
+  return (
+    <div ref={setNodeRef} style={{ opacity: isDragging ? 0.3 : 1, transform: CSS.Translate.toString(transform) }}>
+      <PoCard
+        po={po}
+        onAdvance={onAdvance}
+        onDetails={onDetails}
+        onCancel={onCancel}
+        dragHandleProps={{ ...attributes, ...listeners }}
+      />
+    </div>
+  )
+}
+
+// ── Droppable Column ──────────────────────────────────────────────────────────
+
+function DroppableColumn({ status, children, count, total, isCancel }: {
+  status: string
+  children: React.ReactNode
+  count: number
+  total: number
+  isCancel?: boolean
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: status })
+  const c = STATUS_COLORS[status]
+
+  return (
+    <div ref={setNodeRef} className="shrink-0 flex flex-col h-full rounded-xl overflow-hidden"
+      style={{
+        width: 290,
+        background: isOver ? (isCancel ? 'rgba(239,68,68,0.06)' : 'rgba(255,255,255,0.03)') : '#111114',
+        border: `1px solid ${isOver ? (isCancel ? 'rgba(239,68,68,0.3)' : 'rgba(255,255,255,0.08)') : '#1a1a1f'}`,
+        transition: 'background 120ms, border-color 120ms',
+      }}>
+
+      {/* Column header */}
+      <div className="px-3 py-2.5 flex items-center gap-2 shrink-0" style={{ borderBottom:'1px solid #1a1a1f' }}>
+        <span style={{ color: c }}>{STATUS_ICONS[status]}</span>
+        <span className="text-[12px] font-semibold flex-1 truncate" style={{ color:'#e4e4e7' }}>{STATUS_LABELS[status]}</span>
+        {count > 0 && (
+          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0"
+            style={{ background: c + '22', color: c }}>
+            {count}
+          </span>
+        )}
+      </div>
+
+      {total > 0 && (
+        <p className="px-3 pt-1.5 pb-0 text-[10px] shrink-0" style={{ color:'#52525b' }}>{fmtBRL(total)}</p>
+      )}
+
+      {/* Scrollable card area */}
+      <div className="flex-1 overflow-y-auto px-2 py-2 kanban-scroll" style={{ minHeight: 0 }}>
+        {children}
+        {count === 0 && (
+          <div className="flex items-center justify-center h-16 rounded-lg mt-1"
+            style={{ border: `1px dashed ${c}22`, color: '#27272a' }}>
+            <span className="text-[11px]">—</span>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -175,36 +336,58 @@ function PoCard({ po, onAdvance, onDetails }: {
 
 // ── Kanban View ───────────────────────────────────────────────────────────────
 
-function KanbanView({ pos, onAdvance, onDetails }: {
-  pos: PO[]; onAdvance: (po: PO) => void; onDetails: (po: PO) => void
+function KanbanView({ pos, onAdvance, onDetails, onCancel, onDrop }: {
+  pos: PO[]
+  onAdvance: (po: PO) => void
+  onDetails: (po: PO) => void
+  onCancel: (po: PO) => void
+  onDrop: (poId: string, newStatus: string) => void
 }) {
-  const cols = STATUSES.filter(s => s !== 'received')
+  const [draggingPo, setDraggingPo] = useState<PO | null>(null)
+
+  const sensors = useSensors(useSensor(PointerSensor, {
+    activationConstraint: { distance: 6 },
+  }))
+
+  function handleDragStart(e: DragStartEvent) {
+    const po = e.active.data.current?.po as PO | undefined
+    if (po) setDraggingPo(po)
+  }
+
+  function handleDragEnd(e: DragEndEvent) {
+    setDraggingPo(null)
+    const { active, over } = e
+    if (!over) return
+    const newStatus = over.id as string
+    const po = active.data.current?.po as PO
+    if (!po || po.status === newStatus) return
+    onDrop(po.id, newStatus)
+  }
+
   return (
-    <div className="flex gap-3 overflow-x-auto pb-4" style={{ minHeight: 380 }}>
-      {cols.map(status => {
-        const col = pos.filter(p => p.status === status)
-        const total = col.reduce((s, p) => s + p.total_cost, 0)
-        const c = STATUS_COLORS[status]
-        return (
-          <div key={status} className="shrink-0 rounded-xl flex flex-col" style={{ width: 220, background:'#111114', border:'1px solid #1a1a1f' }}>
-            <div className="px-3 py-2.5 flex items-center gap-2" style={{ borderBottom:'1px solid #1a1a1f' }}>
-              <span style={{ color: c }}>{STATUS_ICONS[status]}</span>
-              <span className="text-[12px] font-semibold flex-1" style={{ color:'#e4e4e7' }}>{STATUS_LABELS[status]}</span>
-              {col.length > 0 && (
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: c + '22', color: c }}>{col.length}</span>
-              )}
-            </div>
-            {total > 0 && <p className="px-3 pt-1 text-[10px]" style={{ color:'#a1a1aa' }}>{fmtBRL(total)}</p>}
-            <div className="flex-1 px-2 py-2 overflow-y-auto" style={{ maxHeight: 560 }}>
-              {col.length === 0
-                ? <p className="text-[11px] text-center py-6" style={{ color:'#27272a' }}>—</p>
-                : col.map(p => <PoCard key={p.id} po={p} onAdvance={onAdvance} onDetails={onDetails} />)
-              }
-            </div>
+    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+      <div className="flex gap-3 h-full overflow-x-auto pb-2 kanban-scroll-x">
+        {KANBAN_STATUSES.map(status => {
+          const col   = pos.filter(p => p.status === status)
+          const total = col.reduce((s, p) => s + p.total_cost, 0)
+          return (
+            <DroppableColumn key={status} status={status} count={col.length} total={total} isCancel={status === 'cancelled'}>
+              {col.map(p => (
+                <DraggablePoCard key={p.id} po={p} onAdvance={onAdvance} onDetails={onDetails} onCancel={onCancel} />
+              ))}
+            </DroppableColumn>
+          )
+        })}
+      </div>
+
+      <DragOverlay dropAnimation={null}>
+        {draggingPo && (
+          <div style={{ width: 290, rotate: '2deg' }}>
+            <PoCard po={draggingPo} onAdvance={() => {}} onDetails={() => {}} isDragOverlay />
           </div>
-        )
-      })}
-    </div>
+        )}
+      </DragOverlay>
+    </DndContext>
   )
 }
 
@@ -254,11 +437,8 @@ function TimelineView({ pos }: { pos: PO[] }) {
               <text x={m.x + 4} y={PAD_T - 2} fontSize={10} fill="#3f3f46">{m.label}</text>
             </g>
           ))}
-
-          {/* Today line */}
           <line x1={todayX} y1={PAD_T - 10} x2={todayX} y2={H - PAD_B} stroke="#00E5FF" strokeWidth={1.5} strokeDasharray="4 3" />
           <text x={todayX + 3} y={PAD_T - 2} fontSize={9} fill="#00E5FF">Hoje</text>
-
           {active.map((po, i) => {
             const y = PAD_T + i * ROW_H
             const s = new Date(po.ordered_at!)
@@ -269,7 +449,6 @@ function TimelineView({ pos }: { pos: PO[] }) {
             const c  = STATUS_COLORS[po.status] ?? '#6b7280'
             const days = daysUntil(po.expected_arrival_date)
             const urg  = urgencyStyle(days)
-
             return (
               <g key={po.id}>
                 <rect x={0} y={y} width={W} height={ROW_H} fill={i % 2 === 0 ? '#0e0e11' : 'transparent'} />
@@ -286,7 +465,6 @@ function TimelineView({ pos }: { pos: PO[] }) {
               </g>
             )
           })}
-
           <line x1={PAD_L} y1={H - PAD_B} x2={W - PAD_R} y2={H - PAD_B} stroke="#1e1e24" strokeWidth={1} />
         </svg>
       </div>
@@ -404,7 +582,7 @@ function ReceiveModal({ po, onConfirm, onClose }: {
           {po.purchase_order_items.map(it => (
             <div key={it.id} className="flex items-center gap-3">
               {it.products?.photo_urls?.[0]
-                ? <img src={it.products.photo_urls[0]} className="w-9 h-9 rounded object-cover shrink-0" />
+                ? <img src={it.products.photo_urls[0]} className="w-9 h-9 rounded object-cover shrink-0" alt="" />
                 : <div className="w-9 h-9 rounded shrink-0" style={{ background:'#1e1e24' }} />}
               <div className="flex-1 min-w-0">
                 <p className="text-[12px] font-medium truncate" style={{ color:'#e4e4e7' }}>{it.products?.name ?? it.product_id}</p>
@@ -430,6 +608,39 @@ function ReceiveModal({ po, onConfirm, onClose }: {
             className="flex-1 py-2 rounded-lg text-sm font-semibold"
             style={{ background:'rgba(34,197,94,0.15)', border:'1px solid rgba(34,197,94,0.3)', color:'#22c55e' }}>
             {saving ? 'Salvando…' : '✓ Confirmar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Cancel Confirm Modal ──────────────────────────────────────────────────────
+
+function CancelModal({ po, onConfirm, onClose }: {
+  po: PO; onConfirm: () => Promise<void>; onClose: () => void
+}) {
+  const [saving, setSaving] = useState(false)
+  return (
+    <div className="fixed inset-0 flex items-center justify-center z-50" style={{ background:'rgba(0,0,0,0.7)' }}>
+      <div className="rounded-xl w-full max-w-sm mx-4" style={{ background:'#111114', border:'1px solid #1a1a1f' }}>
+        <div className="px-5 py-5 text-center">
+          <div className="w-10 h-10 rounded-full flex items-center justify-center mx-auto mb-3" style={{ background:'rgba(239,68,68,0.12)' }}>
+            <Ban size={18} color="#ef4444" />
+          </div>
+          <p className="text-[14px] font-semibold mb-1" style={{ color:'#e4e4e7' }}>Cancelar {po.po_number}?</p>
+          <p className="text-[12px]" style={{ color:'#71717a' }}>Esta ação não pode ser desfeita facilmente.</p>
+        </div>
+        <div className="flex gap-2 px-5 pb-5">
+          <button onClick={onClose} className="flex-1 py-2 rounded-lg text-sm"
+            style={{ background:'#18181b', border:'1px solid #27272a', color:'#71717a' }}>
+            Manter
+          </button>
+          <button disabled={saving}
+            onClick={async () => { setSaving(true); await onConfirm(); setSaving(false) }}
+            className="flex-1 py-2 rounded-lg text-sm font-semibold"
+            style={{ background:'rgba(239,68,68,0.12)', border:'1px solid rgba(239,68,68,0.25)', color:'#ef4444' }}>
+            {saving ? 'Cancelando…' : 'Sim, cancelar'}
           </button>
         </div>
       </div>
@@ -486,7 +697,6 @@ function PoDrawer({ po, onClose, onRefresh }: { po: PO; onClose: () => void; onR
       <div onClick={onClose} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.55)', zIndex:40, opacity:visible?1:0, transition:'opacity 200ms ease' }} />
       <div style={{ position:'fixed', top:0, right:0, height:'100dvh', width:480, background:'#111114', borderLeft:'1px solid #1a1a1f', zIndex:50, overflowY:'auto', transform:visible?'translateX(0)':'translateX(100%)', transition:'transform 200ms ease' }}>
 
-        {/* Header */}
         <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom:'1px solid #1a1a1f', position:'sticky', top:0, background:'#111114', zIndex:1 }}>
           <div>
             <p className="text-[13px] font-bold" style={{ color:'#00E5FF' }}>{po.po_number}</p>
@@ -498,7 +708,6 @@ function PoDrawer({ po, onClose, onRefresh }: { po: PO; onClose: () => void; onR
           </div>
         </div>
 
-        {/* Tabs */}
         <div className="flex px-5 gap-0" style={{ borderBottom:'1px solid #1a1a1f' }}>
           {tabs.map(t => (
             <button key={t.key} onClick={() => setTab(t.key)}
@@ -510,10 +719,8 @@ function PoDrawer({ po, onClose, onRefresh }: { po: PO; onClose: () => void; onR
         </div>
 
         <div className="px-5 py-4">
-
           {tab === 'resumo' && (
             <div className="space-y-4">
-              {/* Status progress */}
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-wider mb-3" style={{ color:'#a1a1aa' }}>Progresso</p>
                 <div className="flex items-center">
@@ -570,7 +777,7 @@ function PoDrawer({ po, onClose, onRefresh }: { po: PO; onClose: () => void; onR
               {po.purchase_order_items.map(it => (
                 <div key={it.id} className="flex items-center gap-3 rounded-lg p-3" style={{ background:'#0e0e11', border:'1px solid #1a1a1f' }}>
                   {it.products?.photo_urls?.[0]
-                    ? <img src={it.products.photo_urls[0]} className="w-10 h-10 rounded object-cover shrink-0" />
+                    ? <img src={it.products.photo_urls[0]} className="w-10 h-10 rounded object-cover shrink-0" alt="" />
                     : <div className="w-10 h-10 rounded shrink-0" style={{ background:'#1e1e24' }} />}
                   <div className="flex-1 min-w-0">
                     <p className="text-[12px] font-medium truncate" style={{ color:'#e4e4e7' }}>{it.products?.name ?? it.product_id}</p>
@@ -647,10 +854,10 @@ interface NewPOState {
 function NewPoModal({ suppliers, onClose, onCreated }: {
   suppliers: Supplier[]; onClose: () => void; onCreated: () => void
 }) {
-  const [step, setStep]                   = useState(1)
-  const [saving, setSaving]               = useState(false)
+  const [step, setStep]                     = useState(1)
+  const [saving, setSaving]                 = useState(false)
   const [supplierSearch, setSupplierSearch] = useState('')
-  const [productSearch, setProductSearch] = useState('')
+  const [productSearch, setProductSearch]   = useState('')
   const [productResults, setProductResults] = useState<Array<{ id:string; name:string; sku:string; photo_urls?:string[]; cost_price?:number }>>([])
   const [form, setForm] = useState<NewPOState>({
     supplier_id:'', expected_arrival_date:'', incoterm:'FOB',
@@ -735,7 +942,6 @@ function NewPoModal({ suppliers, onClose, onCreated }: {
   return (
     <div className="fixed inset-0 flex items-center justify-center z-50 px-4" style={{ background:'rgba(0,0,0,0.7)' }}>
       <div className="rounded-xl w-full" style={{ maxWidth:540, background:'#111114', border:'1px solid #1a1a1f', maxHeight:'90vh', overflowY:'auto' }}>
-        {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 sticky top-0" style={{ borderBottom:'1px solid #1a1a1f', background:'#111114' }}>
           <div>
             <p className="text-[14px] font-bold" style={{ color:'#e4e4e7' }}>Nova Ordem de Compra</p>
@@ -744,7 +950,6 @@ function NewPoModal({ suppliers, onClose, onCreated }: {
           <button onClick={onClose} style={{ color:'#a1a1aa' }}><X size={18} /></button>
         </div>
 
-        {/* Steps */}
         <div className="flex items-center px-5 py-3 gap-2">
           {[1,2,3].map(s => (
             <div key={s} className="flex items-center gap-2 flex-1">
@@ -758,8 +963,6 @@ function NewPoModal({ suppliers, onClose, onCreated }: {
         </div>
 
         <div className="px-5 pb-5 space-y-4">
-
-          {/* Step 1 */}
           {step === 1 && <>
             <div>
               <label className="block text-[11px] mb-1.5" style={{ color:'#a1a1aa' }}>Fornecedor</label>
@@ -806,7 +1009,6 @@ function NewPoModal({ suppliers, onClose, onCreated }: {
             </div>
           </>}
 
-          {/* Step 2 */}
           {step === 2 && <>
             <div className="relative">
               <label className="block text-[11px] mb-1.5" style={{ color:'#a1a1aa' }}>Adicionar produto</label>
@@ -821,7 +1023,7 @@ function NewPoModal({ suppliers, onClose, onCreated }: {
                       onMouseEnter={e => (e.currentTarget.style.background='rgba(255,255,255,0.04)')}
                       onMouseLeave={e => (e.currentTarget.style.background='transparent')}>
                       {p.photo_urls?.[0]
-                        ? <img src={p.photo_urls[0]} className="w-7 h-7 rounded object-cover shrink-0" />
+                        ? <img src={p.photo_urls[0]} className="w-7 h-7 rounded object-cover shrink-0" alt="" />
                         : <div className="w-7 h-7 rounded shrink-0" style={{ background:'#27272a' }} />}
                       <div className="min-w-0">
                         <p className="truncate max-w-xs">{p.name}</p>
@@ -838,7 +1040,7 @@ function NewPoModal({ suppliers, onClose, onCreated }: {
                 {form.items.map((it, i) => (
                   <div key={it.product_id} className="flex items-center gap-2 rounded-lg p-2.5" style={{ background:'#0e0e11', border:'1px solid #1a1a1f' }}>
                     {it.photo
-                      ? <img src={it.photo} className="w-8 h-8 rounded object-cover shrink-0" />
+                      ? <img src={it.photo} className="w-8 h-8 rounded object-cover shrink-0" alt="" />
                       : <div className="w-8 h-8 rounded shrink-0" style={{ background:'#1e1e24' }} />}
                     <div className="flex-1 min-w-0">
                       <p className="text-[11px] font-medium truncate" style={{ color:'#e4e4e7' }}>{it.name}</p>
@@ -890,7 +1092,6 @@ function NewPoModal({ suppliers, onClose, onCreated }: {
             </div>
           </>}
 
-          {/* Step 3 */}
           {step === 3 && <>
             <div className="rounded-lg p-3 space-y-2" style={{ background:'#0e0e11', border:'1px solid #1a1a1f' }}>
               {[
@@ -919,7 +1120,6 @@ function NewPoModal({ suppliers, onClose, onCreated }: {
             </div>
           </>}
 
-          {/* Navigation buttons */}
           <div className="flex gap-2 pt-1">
             {step > 1 && (
               <button onClick={() => setStep(s => s - 1)}
@@ -966,6 +1166,12 @@ export default function ImportacoesPage() {
   const [drawerPo, setDrawerPo]   = useState<PO | null>(null)
   const [showNew, setShowNew]     = useState(false)
   const [receivePo, setReceivePo] = useState<PO | null>(null)
+  const [cancelPo, setCancelPo]   = useState<PO | null>(null)
+  const [toast, setToast]         = useState<{ message: string; type?: 'success'|'error' } | null>(null)
+
+  const showToast = useCallback((message: string, type: 'success'|'error' = 'success') => {
+    setToast({ message, type })
+  }, [])
 
   const fetchPos = useCallback(async () => {
     setLoading(true)
@@ -995,6 +1201,35 @@ export default function ImportacoesPage() {
     await fetch(`${BACKEND}/purchase-orders/${po.id}/status`, {
       method:'PATCH', headers:{...h,'Content-Type':'application/json'}, body: JSON.stringify({ status: next }),
     })
+    showToast(`${po.po_number} → ${STATUS_LABELS[next]}`)
+    await fetchPos()
+  }
+
+  const handleDrop = async (poId: string, newStatus: string) => {
+    const po = pos.find(p => p.id === poId)
+    if (!po) return
+    if (newStatus === 'received') { setReceivePo(po); return }
+    if (newStatus === 'cancelled') { setCancelPo(po); return }
+    const h = await authHeaders()
+    await fetch(`${BACKEND}/purchase-orders/${poId}/status`, {
+      method:'PATCH', headers:{...h,'Content-Type':'application/json'}, body: JSON.stringify({ status: newStatus }),
+    })
+    showToast(`${po.po_number} → ${STATUS_LABELS[newStatus]}`)
+    await fetchPos()
+  }
+
+  const handleCancel = async (po: PO) => {
+    setCancelPo(po)
+  }
+
+  const confirmCancel = async () => {
+    if (!cancelPo) return
+    const h = await authHeaders()
+    await fetch(`${BACKEND}/purchase-orders/${cancelPo.id}/status`, {
+      method:'PATCH', headers:{...h,'Content-Type':'application/json'}, body: JSON.stringify({ status: 'cancelled' }),
+    })
+    showToast(`${cancelPo.po_number} cancelada`, 'error')
+    setCancelPo(null)
     await fetchPos()
   }
 
@@ -1009,6 +1244,7 @@ export default function ImportacoesPage() {
     await fetch(`${BACKEND}/purchase-orders/${po.id}/status`, {
       method:'PATCH', headers:{...h,'Content-Type':'application/json'}, body: JSON.stringify({ status:'received' }),
     })
+    showToast(`${po.po_number} recebida com sucesso! 🎉`)
     setReceivePo(null)
     await fetchPos()
   }
@@ -1020,78 +1256,93 @@ export default function ImportacoesPage() {
   const capitalTransit = inTransit.reduce((s, p) => s + p.total_cost, 0)
 
   return (
-    <div style={{ background:'#09090b', minHeight:'100vh', padding:24 }}>
+    <>
+      <style>{`
+        .kanban-scroll::-webkit-scrollbar { width: 4px }
+        .kanban-scroll::-webkit-scrollbar-track { background: transparent }
+        .kanban-scroll::-webkit-scrollbar-thumb { background: #27272a; border-radius: 2px }
+        .kanban-scroll::-webkit-scrollbar-thumb:hover { background: #3f3f46 }
+        .kanban-scroll-x::-webkit-scrollbar { height: 4px }
+        .kanban-scroll-x::-webkit-scrollbar-track { background: transparent }
+        .kanban-scroll-x::-webkit-scrollbar-thumb { background: #27272a; border-radius: 2px }
+        .kanban-scroll-x::-webkit-scrollbar-thumb:hover { background: #3f3f46 }
+      `}</style>
 
       {/* Overlays */}
-      {showNew && (
-        <NewPoModal suppliers={suppliers} onClose={() => setShowNew(false)} onCreated={() => { setShowNew(false); fetchPos() }} />
-      )}
-      {receivePo && (
-        <ReceiveModal po={receivePo} onClose={() => setReceivePo(null)} onConfirm={qtys => handleReceive(receivePo, qtys)} />
-      )}
-      {drawerPo && (
-        <PoDrawer po={drawerPo} onClose={() => setDrawerPo(null)} onRefresh={fetchPos} />
-      )}
+      {showNew    && <NewPoModal suppliers={suppliers} onClose={() => setShowNew(false)} onCreated={() => { setShowNew(false); fetchPos() }} />}
+      {receivePo  && <ReceiveModal po={receivePo} onClose={() => setReceivePo(null)} onConfirm={qtys => handleReceive(receivePo, qtys)} />}
+      {cancelPo   && <CancelModal po={cancelPo} onClose={() => setCancelPo(null)} onConfirm={confirmCancel} />}
+      {drawerPo   && <PoDrawer po={drawerPo} onClose={() => setDrawerPo(null)} onRefresh={fetchPos} />}
+      {toast      && <Toast message={toast.message} type={toast.type} onDone={() => setToast(null)} />}
 
-      {/* Header */}
-      <div className="flex items-center justify-between mb-5">
-        <div>
-          <div className="flex items-center gap-2.5 mb-1">
-            <Ship size={20} color="#00E5FF" />
-            <h1 className="text-lg font-bold" style={{ color:'#e4e4e7' }}>Importações</h1>
+      <div className="flex flex-col h-full overflow-hidden" style={{ background:'#09090b', padding:'16px 20px 0' }}>
+
+        {/* Header */}
+        <div className="flex items-center justify-between mb-3 shrink-0">
+          <div>
+            <div className="flex items-center gap-2.5 mb-0.5">
+              <Ship size={18} color="#00E5FF" />
+              <h1 className="text-[15px] font-bold" style={{ color:'#e4e4e7' }}>Importações</h1>
+            </div>
+            <p className="text-[11px]" style={{ color:'#71717a' }}>
+              {active.length} POs ativas{loading ? ' · carregando…' : ''}
+            </p>
           </div>
-          <p className="text-xs" style={{ color:'#a1a1aa' }}>
-            Kanban de planejamento · {active.length} POs ativas{loading ? ' · carregando…' : ''}
-          </p>
+          <button onClick={() => setShowNew(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold"
+            style={{ background:'rgba(0,229,255,0.12)', border:'1px solid rgba(0,229,255,0.25)', color:'#00E5FF' }}>
+            <Plus size={13}/> Nova PO
+          </button>
         </div>
-        <button onClick={() => setShowNew(true)}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold"
-          style={{ background:'rgba(0,229,255,0.12)', border:'1px solid rgba(0,229,255,0.25)', color:'#00E5FF' }}>
-          <Plus size={15} /> Nova PO
-        </button>
+
+        {/* Alert banners */}
+        {overdue.length > 0 && (
+          <div className="flex items-center gap-2 rounded-lg px-3 py-2 mb-2 text-[12px] shrink-0"
+            style={{ background:'rgba(239,68,68,0.08)', border:'1px solid rgba(239,68,68,0.18)', color:'#ef4444' }}>
+            <AlertTriangle size={13}/>
+            {overdue.length} PO{overdue.length > 1 ? 's' : ''} atrasada{overdue.length > 1 ? 's' : ''} — verifique imediatamente
+          </div>
+        )}
+        {upcoming.length > 0 && (
+          <div className="flex items-center gap-2 rounded-lg px-3 py-2 mb-2 text-[12px] shrink-0"
+            style={{ background:'rgba(245,158,11,0.06)', border:'1px solid rgba(245,158,11,0.18)', color:'#f59e0b' }}>
+            <Clock size={13}/>
+            {upcoming.length} PO{upcoming.length > 1 ? 's' : ''} chegam nos próximos 15 dias
+          </div>
+        )}
+
+        {/* KPIs — compact single row */}
+        <div className="grid grid-cols-4 gap-2 mb-3 shrink-0">
+          <KpiCard icon={<Ship size={14}/>}         label="POs ativas"          value={String(active.length)}   sub="não recebidas"            color="#00E5FF" />
+          <KpiCard icon={<Truck size={14}/>}         label="Capital em trânsito" value={fmtBRL(capitalTransit)} sub={`${inTransit.length} POs`} color="#06b6d4" />
+          <KpiCard icon={<Clock size={14}/>}         label="Chegam em 15 dias"   value={String(upcoming.length)} sub="próximos 15 dias"          color="#f59e0b" />
+          <KpiCard icon={<AlertTriangle size={14}/>} label="Atrasadas"           value={String(overdue.length)}  sub="passou da data"           color={overdue.length > 0 ? '#ef4444' : '#6b7280'} />
+        </div>
+
+        {/* View toggle — pill style */}
+        <div className="flex items-center mb-3 shrink-0">
+          <div className="flex rounded-full p-0.5" style={{ background:'#111114', border:'1px solid #1a1a1f' }}>
+            {([['kanban','Kanban'],['timeline','Timeline'],['lista','Lista']] as const).map(([v,label]) => (
+              <button key={v} onClick={() => setView(v)}
+                className="px-3 py-1 text-[11px] font-medium rounded-full transition-all"
+                style={{
+                  background: view === v ? 'rgba(0,229,255,0.15)' : 'transparent',
+                  color: view === v ? '#00E5FF' : '#71717a',
+                  border: view === v ? '1px solid rgba(0,229,255,0.25)' : '1px solid transparent',
+                }}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Content — flex-1 fills remaining height */}
+        <div className="flex-1 min-h-0 pb-4">
+          {view === 'kanban'   && <KanbanView   pos={pos} onAdvance={handleAdvance} onDetails={setDrawerPo} onCancel={handleCancel} onDrop={handleDrop} />}
+          {view === 'timeline' && <div className="overflow-y-auto h-full kanban-scroll"><TimelineView pos={pos} /></div>}
+          {view === 'lista'    && <div className="overflow-y-auto h-full kanban-scroll"><ListaView    pos={pos} onDetails={setDrawerPo} /></div>}
+        </div>
       </div>
-
-      {/* Alert banners */}
-      {overdue.length > 0 && (
-        <div className="flex items-center gap-2 rounded-lg px-4 py-2.5 mb-3 text-sm"
-          style={{ background:'rgba(239,68,68,0.1)', border:'1px solid rgba(239,68,68,0.2)', color:'#ef4444' }}>
-          <AlertTriangle size={15} />
-          {overdue.length} PO{overdue.length > 1 ? 's' : ''} atrasada{overdue.length > 1 ? 's' : ''} — verifique o status imediatamente
-        </div>
-      )}
-      {upcoming.length > 0 && (
-        <div className="flex items-center gap-2 rounded-lg px-4 py-2.5 mb-3 text-sm"
-          style={{ background:'rgba(245,158,11,0.08)', border:'1px solid rgba(245,158,11,0.2)', color:'#f59e0b' }}>
-          <Clock size={15} />
-          {upcoming.length} PO{upcoming.length > 1 ? 's' : ''} chegam nos próximos 15 dias — prepare o recebimento
-        </div>
-      )}
-
-      {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-        <KpiCard icon={<Ship size={16}/>}         label="POs ativas"          value={String(active.length)}   sub="não recebidas"            color="#00E5FF" />
-        <KpiCard icon={<Truck size={16}/>}         label="Capital em trânsito" value={fmtBRL(capitalTransit)} sub={`${inTransit.length} POs`} color="#06b6d4" />
-        <KpiCard icon={<Clock size={16}/>}         label="Chegam em 15 dias"   value={String(upcoming.length)} sub="próximos 15 dias"          color="#f59e0b" />
-        <KpiCard icon={<AlertTriangle size={16}/>} label="Atrasadas"           value={String(overdue.length)}  sub="passou da data prevista"  color={overdue.length > 0 ? '#ef4444' : '#6b7280'} />
-      </div>
-
-      {/* View toggle */}
-      <div className="flex items-center mb-4">
-        <div className="flex rounded-lg overflow-hidden" style={{ border:'1px solid #27272a' }}>
-          {([['kanban','📋 Kanban'],['timeline','📅 Timeline'],['lista','📊 Lista']] as const).map(([v,label]) => (
-            <button key={v} onClick={() => setView(v)}
-              className="px-3 py-1.5 text-xs font-medium transition-colors"
-              style={{ background: view === v ? 'rgba(0,229,255,0.12)' : '#18181b', color: view === v ? '#00E5FF' : '#71717a' }}>
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Views */}
-      {view === 'kanban'   && <KanbanView   pos={pos} onAdvance={handleAdvance} onDetails={setDrawerPo} />}
-      {view === 'timeline' && <TimelineView pos={pos} />}
-      {view === 'lista'    && <ListaView    pos={pos} onDetails={setDrawerPo} />}
-    </div>
+    </>
   )
 }
