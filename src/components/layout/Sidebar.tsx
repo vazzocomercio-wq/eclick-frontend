@@ -1,5 +1,6 @@
 'use client'
 
+import React from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState, useEffect, useRef } from 'react'
@@ -378,6 +379,7 @@ function SidebarSection({ section, open, onToggle, badges, first }: {
 // ── Sidebar ───────────────────────────────────────────────────────────────────
 
 export default function Sidebar() {
+  const pathname                        = usePathname()
   const [badges, setBadges]             = useState<Badges>({})
   const [collapsed, setCollapsed]       = useState(false)
   const [openSections, setOpenSections] = useState<Record<string, boolean>>(SECTION_DEFAULT_OPEN)
@@ -468,36 +470,47 @@ export default function Sidebar() {
   return (
     <aside
       className="hidden md:flex flex-col h-screen shrink-0 overflow-hidden"
-      style={{ width: collapsed ? 44 : 236, background: '#0c0c0f', borderRight: '1px solid rgba(0,229,255,0.07)', transition: 'width 200ms ease' }}
+      style={{ width: collapsed ? 56 : 236, background: '#0c0c0f', borderRight: '1px solid rgba(0,229,255,0.07)', transition: 'width 200ms ease' }}
     >
       {/* Logo + collapse toggle */}
       <div
         className="flex items-center shrink-0"
         style={{
           borderBottom: '1px solid rgba(255,255,255,0.05)',
-          padding: collapsed ? '16px 0' : '16px 12px',
+          padding: collapsed ? '14px 0' : '14px 12px',
           justifyContent: collapsed ? 'center' : 'space-between',
+          minHeight: 60,
         }}
       >
-        {!collapsed && <img src="/logo.png" alt="e-Click" style={{ width: 130, mixBlendMode: 'screen' as const }} />}
-        <button
-          onClick={toggleCollapsed}
-          className="flex items-center justify-center w-7 h-7 rounded-md transition-colors"
-          style={{ color: '#71717a', flexShrink: 0 }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#a1a1aa'; (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.06)' }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = '#71717a'; (e.currentTarget as HTMLElement).style.background = 'transparent' }}
-          title={collapsed ? 'Expandir menu' : 'Recolher menu'}
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-            {collapsed
-              ? <path strokeLinecap="round" strokeLinejoin="round" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
-              : <path strokeLinecap="round" strokeLinejoin="round" d="M11 19l-7-7 7-7M19 19l-7-7 7-7" />
-            }
-          </svg>
-        </button>
+        {collapsed ? (
+          <button onClick={toggleCollapsed} title="Expandir menu"
+            className="flex items-center justify-center w-10 h-10 rounded-xl transition-colors"
+            style={{ background: 'transparent' }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.06)' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+          >
+            <span style={{ color: '#00E5FF', fontSize: 26, fontWeight: 900, lineHeight: 1, letterSpacing: '-0.04em' }}>e</span>
+          </button>
+        ) : (
+          <>
+            <img src="/logo.png" alt="e-Click" style={{ width: 160, mixBlendMode: 'screen' as const }} />
+            <button
+              onClick={toggleCollapsed}
+              className="flex items-center justify-center w-7 h-7 rounded-md transition-colors"
+              style={{ color: '#71717a', flexShrink: 0 }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#a1a1aa'; (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.06)' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = '#71717a'; (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+              title="Recolher menu"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M11 19l-7-7 7-7M19 19l-7-7 7-7" />
+              </svg>
+            </button>
+          </>
+        )}
       </div>
 
-      {/* Navigation */}
+      {/* Navigation — expanded */}
       {!collapsed && (
         <nav className="flex-1 px-2 py-2 overflow-y-auto no-scrollbar">
           {SECTIONS.map((section, i) => (
@@ -509,6 +522,37 @@ export default function Sidebar() {
               badges={badges}
               first={i === 0}
             />
+          ))}
+        </nav>
+      )}
+
+      {/* Navigation — collapsed (icons only) */}
+      {collapsed && (
+        <nav className="flex-1 py-2 overflow-y-auto no-scrollbar flex flex-col items-center gap-0.5">
+          {SECTIONS.map((section, si) => (
+            <div key={section.key} className="w-full flex flex-col items-center">
+              {si > 0 && <div style={{ borderTop: '1px solid #1a1a1f', width: '70%', margin: '4px 0' }} />}
+              {section.items.map(item => {
+                const isActive = item.exact
+                  ? pathname === item.href
+                  : item.href === '/dashboard'
+                    ? pathname === '/dashboard'
+                    : pathname.startsWith(item.href)
+                const bigIcon = React.isValidElement(item.icon)
+                  ? React.cloneElement(item.icon as React.ReactElement<{ size?: number }>, { size: 22 })
+                  : item.icon
+                return (
+                  <Link key={item.href} href={item.href} title={item.label}
+                    className="flex items-center justify-center w-10 h-10 rounded-xl transition-colors"
+                    style={{ color: isActive ? '#00E5FF' : '#52525b', background: isActive ? 'rgba(0,229,255,0.09)' : 'transparent' }}
+                    onMouseEnter={e => { if (!isActive) { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.06)'; (e.currentTarget as HTMLElement).style.color = '#a1a1aa' } }}
+                    onMouseLeave={e => { if (!isActive) { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = '#52525b' } }}
+                  >
+                    {bigIcon}
+                  </Link>
+                )
+              })}
+            </div>
           ))}
         </nav>
       )}
