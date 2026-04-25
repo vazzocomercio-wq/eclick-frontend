@@ -229,6 +229,7 @@ export default function Sidebar() {
   const [questionBadge,     setQuestionBadge]     = useState<number | undefined>(undefined)
   const [reclamacoesBadge,  setReclamacoesBadge]  = useState<number | undefined>(undefined)
   const [semVinculoBadge,   setSemVinculoBadge]   = useState<number | undefined>(undefined)
+  const [comprasCriticos,   setComprasCriticos]   = useState<number | undefined>(undefined)
   const [collapsed,         setCollapsed]         = useState(false)
   const mounted = useRef(true)
 
@@ -290,8 +291,23 @@ export default function Sidebar() {
       } catch { /* silent */ }
     }
 
+    const fetchComprasCriticos = async () => {
+      try {
+        const sb = createClient()
+        const { data: { session } } = await sb.auth.getSession()
+        if (!session || !mounted.current) return
+        const res = await fetch(`${BACKEND}/compras/inteligencia/summary`, {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        })
+        if (!mounted.current || !res.ok) return
+        const d = await res.json()
+        setComprasCriticos(d?.produtos_criticos > 0 ? d.produtos_criticos : undefined)
+      } catch { /* silent */ }
+    }
+
     fetchAtendimentoCounts()
     fetchVinculosBadge()
+    fetchComprasCriticos()
     const id = setInterval(fetchAtendimentoCounts, 2 * 60 * 1000)
     return () => { mounted.current = false; clearInterval(id) }
   }, [])
@@ -354,6 +370,7 @@ export default function Sidebar() {
               return Object.keys(b).length ? b : undefined
             }
             if (entry.key === 'catalogo' && semVinculoBadge) return { '/dashboard/catalogo/vinculos': semVinculoBadge }
+            if (entry.key === 'compras' && comprasCriticos) return { '/dashboard/compras/inteligencia': comprasCriticos }
             return undefined
           })()
           const parentBadge = entry.key === 'atendimento'
