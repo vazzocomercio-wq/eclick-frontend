@@ -434,16 +434,19 @@ function BlockRow({ left, right }: { left: React.ReactNode; right: React.ReactNo
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function InteligenciaPage() {
-  const [allItems, setAllItems]         = useState<Product[]>([])
-  const [summary, setSummary]           = useState<Summary | null>(null)
-  const [loading, setLoading]           = useState(true)
-  const [period, setPeriod]             = useState(30)
-  const [typeF, setTypeF]               = useState('')
-  const [abcF, setAbcF]                 = useState('')
-  const [scoreF, setScoreF]             = useState(0)
-  const [q, setQ]                       = useState('')
-  const [page, setPage]                 = useState(0)
-  const [selectedProduct, setSelected]  = useState<Product | null>(null)
+  const [allItems, setAllItems]        = useState<Product[]>([])
+  const [summary, setSummary]          = useState<Summary | null>(null)
+  const [loading, setLoading]          = useState(true)
+  const [filtros, setFiltros]          = useState({ periodo: 30, tipo: '', abc: '', minScore: 0 })
+  const [q, setQ]                      = useState('')
+  const [page, setPage]                = useState(0)
+  const [selectedProduct, setSelected] = useState<Product | null>(null)
+  const [customPickerOpen, setCustomPickerOpen] = useState(false)
+  const [customFrom, setCustomFrom]    = useState('')
+  const [customTo, setCustomTo]        = useState('')
+  const [customLabel, setCustomLabel]  = useState('')
+  const [isCustom, setIsCustom]        = useState(false)
+  const [customError, setCustomError]  = useState('')
 
   const fetchData = useCallback(async () => {
     setLoading(true); setPage(0)
@@ -452,24 +455,28 @@ export default function InteligenciaPage() {
       const { data: { session } } = await sb.auth.getSession()
       if (!session) return
       const headers = { Authorization: `Bearer ${session.access_token}` }
+      const params = new URLSearchParams({ periodo: String(filtros.periodo) })
+      if (filtros.tipo)     params.set('supply_type', filtros.tipo)
+      if (filtros.abc)      params.set('abc_class', filtros.abc)
+      if (filtros.minScore) params.set('min_score', String(filtros.minScore))
       const [sumRes, listRes] = await Promise.all([
         fetch(`${BACKEND}/compras/inteligencia/summary`, { headers }),
-        fetch(`${BACKEND}/compras/inteligencia?periodo=${period}`, { headers }),
+        fetch(`${BACKEND}/compras/inteligencia?${params}`, { headers }),
       ])
       if (sumRes.ok)  setSummary(await sumRes.json())
       if (listRes.ok) setAllItems(await listRes.json())
     } catch (e) { console.error(e) }
     finally { setLoading(false) }
-  }, [period])
+  }, [filtros])
 
   useEffect(() => { fetchData() }, [fetchData])
 
-  const filtered = useMemo(() => allItems
-    .filter(p => !typeF  || p.supply_type === typeF)
-    .filter(p => !abcF   || p.abc_class   === abcF)
-    .filter(p => !scoreF || p.score       >= scoreF)
-    .filter(p => !q      || p.name.toLowerCase().includes(q.toLowerCase()) || p.sku.toLowerCase().includes(q.toLowerCase())),
-    [allItems, typeF, abcF, scoreF, q],
+  const filtered = useMemo(() =>
+    q ? allItems.filter(p =>
+      p.name.toLowerCase().includes(q.toLowerCase()) ||
+      p.sku.toLowerCase().includes(q.toLowerCase())
+    ) : allItems,
+    [allItems, q],
   )
 
   const paginated  = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
@@ -505,25 +512,68 @@ export default function InteligenciaPage() {
           Score preditivo por produto · {allItems.length} produtos analisados · clique em uma linha para detalhes
         </p>
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex rounded-lg overflow-hidden" style={{ border: '1px solid #27272a' }}>
-            {[7, 30, 90, 180].map(d => (
-              <button key={d} onClick={() => setPeriod(d)}
-                className="px-3 py-1.5 text-xs font-medium transition-colors"
-                style={{ background: period === d ? 'rgba(0,229,255,0.12)' : '#18181b', color: period === d ? '#00E5FF' : '#71717a' }}>
-                {d}d
-              </button>
-            ))}
+          <div className="flex items-center gap-2 relative">
+            <div className="flex rounded-lg overflow-hidden" style={{ border: '1px solid #27272a' }}>
+              {[7, 30, 90, 180].map(d => (
+                <button key={d}
+                  onClick={() => { setFiltros(f => ({ ...f, periodo: d })); setIsCustom(false); setCustomPickerOpen(false) }}
+                  className="px-3 py-1.5 text-xs font-medium transition-colors"
+                  style={{ background: !isCustom && filtros.periodo === d ? 'rgba(0,229,255,0.12)' : '#18181b', color: !isCustom && filtros.periodo === d ? '#00E5FF' : '#71717a' }}>
+                  {d}d
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => setCustomPickerOpen(o => !o)}
+              className="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors"
+              style={{ background: isCustom ? 'rgba(0,229,255,0.12)' : '#18181b', color: isCustom ? '#00E5FF' : '#71717a', border: '1px solid #27272a' }}>
+              {isCustom ? customLabel : '📅 Personalizado'}
+            </button>
+            {customPickerOpen && (
+              <div style={{
+                position: 'absolute', top: '100%', left: 0, marginTop: 6, zIndex: 30,
+                background: '#18181b', border: '1px solid #27272a', borderRadius: 10,
+                padding: '14px 16px', minWidth: 240, boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+              }}>
+                <div className="flex flex-col gap-3">
+                  {([['De', customFrom, setCustomFrom], ['Até', customTo, setCustomTo]] as const).map(([label, value, set]) => (
+                    <div key={label} className="flex flex-col gap-1">
+                      <label style={{ fontSize: 11, color: '#71717a' }}>{label}</label>
+                      <input type="date" value={value} onChange={e => (set as (v: string) => void)(e.target.value)}
+                        style={{ background: '#111114', border: '1px solid #27272a', borderRadius: 7, color: '#e4e4e7', fontSize: 12, padding: '6px 10px', outline: 'none' }} />
+                    </div>
+                  ))}
+                  {customError && <p style={{ color: '#ef4444', fontSize: 11 }}>{customError}</p>}
+                  <button
+                    onClick={() => {
+                      setCustomError('')
+                      if (!customFrom || !customTo) { setCustomError('Selecione as duas datas'); return }
+                      const days = Math.round((new Date(customTo).getTime() - new Date(customFrom).getTime()) / 86400000)
+                      if (days <= 0) { setCustomError('Data final deve ser após a inicial'); return }
+                      if (days > 180) { setCustomError('Máximo 180 dias'); return }
+                      const fmt = (s: string) => new Date(s + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+                      setCustomLabel(`${fmt(customFrom)} → ${fmt(customTo)}`)
+                      setIsCustom(true)
+                      setCustomPickerOpen(false)
+                      setFiltros(f => ({ ...f, periodo: days }))
+                    }}
+                    style={{ background: 'rgba(0,229,255,0.1)', border: '1px solid rgba(0,229,255,0.2)', borderRadius: 7, color: '#00E5FF', fontSize: 12, fontWeight: 600, padding: '7px 0', cursor: 'pointer' }}>
+                    Aplicar
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
-          <select value={typeF} onChange={e => setTypeF(e.target.value)} style={selStyle}>
+          <select value={filtros.tipo} onChange={e => setFiltros(f => ({ ...f, tipo: e.target.value }))} style={selStyle}>
             <option value="">Todos os tipos</option>
             <option value="nacional">🇧🇷 Nacional</option>
             <option value="importado">🌍 Importado</option>
           </select>
-          <select value={abcF} onChange={e => setAbcF(e.target.value)} style={selStyle}>
+          <select value={filtros.abc} onChange={e => setFiltros(f => ({ ...f, abc: e.target.value }))} style={selStyle}>
             <option value="">Curva ABC</option>
             <option value="A">A</option><option value="B">B</option><option value="C">C</option>
           </select>
-          <select value={scoreF} onChange={e => setScoreF(Number(e.target.value))} style={selStyle}>
+          <select value={filtros.minScore} onChange={e => setFiltros(f => ({ ...f, minScore: Number(e.target.value) }))} style={selStyle}>
             <option value={0}>Score mínimo</option>
             <option value={50}>≥ 50 (Monitorar+)</option>
             <option value={70}>≥ 70 (Comprar+)</option>
