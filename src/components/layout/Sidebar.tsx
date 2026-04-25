@@ -120,7 +120,7 @@ const SECTIONS: NavSection[] = [
     key: 'crm',
     label: 'CRM',
     items: [
-      { label: 'Clientes',  href: '/dashboard/crm/clientes',  icon: <Users size={15} />,         soon: true },
+      { label: 'Clientes',  href: '/dashboard/crm/clientes',  icon: <Users size={15} /> },
       { label: 'Pipeline',  href: '/dashboard/crm/pipeline',  icon: <Target size={15} />,        soon: true },
       { label: 'Pós-venda', href: '/dashboard/crm/pos-venda', icon: <Heart size={15} />,         soon: true },
       { label: 'WhatsApp',  href: '/dashboard/crm/whatsapp',  icon: <MessageSquare size={15} />, soon: true },
