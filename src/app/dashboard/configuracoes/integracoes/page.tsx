@@ -5,8 +5,12 @@ import { createClient } from '@/lib/supabase'
 import {
   CheckCircle2, XCircle, Clock, RefreshCw, Plug, Zap,
   Key, Eye, EyeOff, Plus, Trash2, TestTube2, Loader2,
-  X, ExternalLink, AlertCircle, Bot, MessageCircle,
+  X, ExternalLink, AlertCircle, Bot, MessageCircle, BarChart2,
 } from 'lucide-react'
+import {
+  LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid,
+  ResponsiveContainer, Legend,
+} from 'recharts'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
@@ -16,6 +20,16 @@ type MlConn     = { seller_id: number; nickname: string | null; expires_at: stri
 type IntegStatus = 'connected' | 'expired' | 'disconnected' | 'soon'
 
 interface Toast { id: number; message: string; type: 'success' | 'error' }
+
+interface ModelUsage   { model: string;   tokens: number; cost: number }
+interface FeatureUsage { feature: string; tokens: number; cost: number }
+interface ProviderUsage {
+  total_tokens: number; total_cost_usd: number
+  today_tokens: number; today_cost_usd: number
+  by_model:   ModelUsage[]
+  by_feature: FeatureUsage[]
+}
+interface DayUsage { date: string; anthropic_cost: number; openai_cost: number }
 
 interface Credential {
   id: string
@@ -200,9 +214,16 @@ function AddKeyModal({ provider, onClose, onSaved }: {
 
 // ── AI provider card ──────────────────────────────────────────────────────────
 
-function AIProviderCard({ def, cred, onAdd, onTest, onRemove, testing }: {
+function fmtTokens(n: number) {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
+  if (n >= 1000)      return `${(n / 1000).toFixed(1)}k`
+  return String(n)
+}
+
+function AIProviderCard({ def, cred, usage, onAdd, onTest, onRemove, testing }: {
   def: AIProviderDef
   cred?: Credential
+  usage?: ProviderUsage
   onAdd: () => void
   onTest: () => void
   onRemove: () => void
@@ -210,10 +231,13 @@ function AIProviderCard({ def, cred, onAdd, onTest, onRemove, testing }: {
 }) {
   const hasKey = !!cred
   const testOk = cred?.last_test_status === 'ok'
+  const maxModelTokens = usage?.by_model?.[0]?.tokens ?? 1
 
   return (
     <div className="rounded-2xl p-4 space-y-3 transition-colors"
       style={{ background: '#111114', border: `1px solid ${hasKey && testOk ? 'rgba(74,222,128,0.15)' : '#1e1e24'}` }}>
+
+      {/* Provider header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
@@ -234,6 +258,7 @@ function AIProviderCard({ def, cred, onAdd, onTest, onRemove, testing }: {
           : <span className="text-[10px] text-zinc-600">Não configurada</span>}
       </div>
 
+      {/* Key preview + test status */}
       {hasKey && (
         <div className="px-3 py-2 rounded-xl space-y-1" style={{ background: '#0d0d10' }}>
           <div className="flex items-center gap-2">
@@ -255,6 +280,60 @@ function AIProviderCard({ def, cred, onAdd, onTest, onRemove, testing }: {
         </div>
       )}
 
+      {/* Usage block */}
+      {usage && usage.total_tokens > 0 && (
+        <div className="space-y-2.5 pt-1" style={{ borderTop: '1px solid #1e1e24' }}>
+          {/* Month totals */}
+          <div>
+            <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-600 mb-1.5">Uso do mês</p>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-zinc-300">{fmtTokens(usage.total_tokens)} tokens</span>
+              <span className="font-semibold" style={{ color: '#00E5FF' }}>US$ {usage.total_cost_usd.toFixed(4)}</span>
+            </div>
+          </div>
+
+          {/* Per-model bars */}
+          {usage.by_model.length > 0 && (
+            <div className="space-y-1.5">
+              {usage.by_model.slice(0, 3).map(m => (
+                <div key={m.model}>
+                  <div className="flex items-center justify-between text-[10px] mb-0.5">
+                    <span className="text-zinc-500 truncate max-w-[140px]">
+                      {m.model.replace('claude-', '').replace('-20251001', '')}
+                    </span>
+                    <span className="text-zinc-600 shrink-0">{fmtTokens(m.tokens)}</span>
+                  </div>
+                  <div className="h-1 rounded-full overflow-hidden" style={{ background: '#1e1e24' }}>
+                    <div className="h-full rounded-full"
+                      style={{ width: `${Math.round((m.tokens / maxModelTokens) * 100)}%`, background: '#00E5FF', opacity: 0.6 }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Today + feature breakdown */}
+          <div className="grid grid-cols-2 gap-2">
+            <div className="rounded-lg px-2 py-1.5" style={{ background: '#0d0d10' }}>
+              <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-600 mb-0.5">Hoje</p>
+              <p className="text-xs font-semibold text-white">{fmtTokens(usage.today_tokens)}</p>
+              <p className="text-[10px] text-zinc-600">US$ {usage.today_cost_usd.toFixed(4)}</p>
+            </div>
+            {usage.by_feature.length > 0 && (
+              <div className="rounded-lg px-2 py-1.5 overflow-hidden" style={{ background: '#0d0d10' }}>
+                <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-600 mb-0.5">Por feature</p>
+                {usage.by_feature.slice(0, 2).map(f => (
+                  <p key={f.feature} className="text-[10px] text-zinc-500 truncate">
+                    {f.feature.replace(/_/g, ' ')}: {fmtTokens(f.tokens)}
+                  </p>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Action buttons */}
       <div className="flex gap-2">
         {!hasKey ? (
           <button onClick={onAdd}
@@ -379,6 +458,8 @@ export default function IntegracoesPage() {
   const [addingFor, setAddingFor]     = useState<AIProviderDef | null>(null)
   const [testingId, setTestingId]     = useState<string | null>(null)
   const [toasts, setToasts]           = useState<Toast[]>([])
+  const [usageSummary, setUsageSummary] = useState<Record<string, ProviderUsage>>({})
+  const [chartData, setChartData]       = useState<DayUsage[]>([])
 
   function showToast(message: string, type: 'success' | 'error' = 'success') {
     const id = Date.now()
@@ -400,8 +481,14 @@ export default function IntegracoesPage() {
         fetch(`${BACKEND}/ml/connections`,  { headers }),
         fetch(`${BACKEND}/credentials`,     { headers }),
       ])
-      if (mlRes.status === 'fulfilled'   && mlRes.value.ok)   setMlConns(await mlRes.value.json())
-      if (credRes.status === 'fulfilled' && credRes.value.ok) setCredentials(await credRes.value.json())
+      const [sumRes, chartRes] = await Promise.allSettled([
+        fetch(`${BACKEND}/ai-usage/summary`,    { headers }),
+        fetch(`${BACKEND}/ai-usage/last30days`, { headers }),
+      ])
+      if (mlRes.status === 'fulfilled'    && mlRes.value.ok)    setMlConns(await mlRes.value.json())
+      if (credRes.status === 'fulfilled'  && credRes.value.ok)  setCredentials(await credRes.value.json())
+      if (sumRes.status === 'fulfilled'   && sumRes.value.ok)   setUsageSummary(await sumRes.value.json())
+      if (chartRes.status === 'fulfilled' && chartRes.value.ok) setChartData(await chartRes.value.json())
     } catch { /* silent */ }
     setLoading(false)
   }, [getHeaders])
@@ -483,6 +570,7 @@ export default function IntegracoesPage() {
             key={def.id}
             def={def}
             cred={credByProvider(def.id)}
+            usage={usageSummary[def.id]}
             onAdd={() => setAddingFor(def)}
             onTest={() => { const c = credByProvider(def.id); if (c) testCredential(c.id) }}
             onRemove={() => { const c = credByProvider(def.id); if (c) removeCredential(c.id, def.name) }}
@@ -490,6 +578,34 @@ export default function IntegracoesPage() {
           />
         ))}
       </Section>
+
+      {/* ── Custo IA — últimos 30 dias ──────────────────────────────────── */}
+      {chartData.length > 0 && (
+        <div className="rounded-2xl p-5 space-y-3" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+          <div className="flex items-center gap-2">
+            <BarChart2 size={13} style={{ color: '#00E5FF' }} />
+            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">Custo IA — últimos 30 dias (USD)</p>
+          </div>
+          <ResponsiveContainer width="100%" height={160}>
+            <LineChart data={chartData} margin={{ top: 4, right: 4, bottom: 4, left: -24 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1e1e24" />
+              <XAxis dataKey="date" tick={{ fill: '#52525b', fontSize: 9 }}
+                tickFormatter={d => d.slice(5)} interval="preserveStartEnd" />
+              <YAxis tick={{ fill: '#52525b', fontSize: 9 }}
+                tickFormatter={v => `$${(v as number).toFixed(3)}`} />
+              <Tooltip
+                contentStyle={{ background: '#111114', border: '1px solid #1e1e24', borderRadius: 10 }}
+                labelStyle={{ color: '#a1a1aa', fontSize: 10 }}
+                itemStyle={{ fontSize: 10 }}
+                formatter={(v) => [`$${(v as number).toFixed(5)}`, undefined]}
+              />
+              <Legend wrapperStyle={{ fontSize: 10, color: '#71717a' }} />
+              <Line type="monotone" dataKey="anthropic_cost" stroke="#00E5FF" strokeWidth={1.5} dot={false} name="Claude" />
+              <Line type="monotone" dataKey="openai_cost"    stroke="#22c55e" strokeWidth={1.5} dot={false} name="ChatGPT" />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
 
       {/* ── Marketplaces ─────────────────────────────────────────────────── */}
       <Section title="Marketplaces" icon={<Zap size={13} />}>
