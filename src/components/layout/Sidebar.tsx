@@ -9,7 +9,7 @@ import {
   Truck, DollarSign, Brain, Building2, Ship, Users, Target,
   Heart, MessageSquare, CheckSquare, Sparkles, Image as ImageIcon,
   Megaphone, ShoppingCart, TrendingUp, Settings, UserCog,
-  Plug, Database, Wand2, ChevronDown, Bot, Inbox, BookOpen,
+  Plug, Database, ChevronDown, Bot, Inbox, BookOpen,
   GraduationCap, LineChart,
 } from 'lucide-react'
 
@@ -164,7 +164,6 @@ const SECTIONS: NavSection[] = [
       { label: 'Equipe',      href: '/dashboard/configuracoes/equipe',     icon: <UserCog size={15} /> },
       { label: 'Integrações', href: '/dashboard/configuracoes/integracoes', icon: <Plug size={15} /> },
       { label: 'Agregador',   href: '/dashboard/configuracoes/aggregator', icon: <Database size={15} /> },
-      { label: 'IA',          href: '/dashboard/configuracoes/ia',         icon: <Wand2 size={15} /> },
     ],
   },
 ]

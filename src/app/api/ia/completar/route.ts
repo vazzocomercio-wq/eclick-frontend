@@ -36,11 +36,11 @@ function logUsage(token: string, payload: {
   }).catch(() => { /* silent */ })
 }
 
-// Fetch the decrypted API key from the backend (server-side only — key never reaches the browser)
-async function getApiKeyFromDB(provider: string, token: string): Promise<string | null> {
+// Fetch the decrypted API key from the backend (server-to-server — key never reaches the browser)
+async function getApiKeyFromDB(provider: string): Promise<string | null> {
   try {
     const res = await fetch(`${BACKEND}/credentials/key?provider=${provider}`, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { 'x-internal': 'true' },
     })
     if (!res.ok) return null
     const data = await res.json() as { key: string | null }
@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
 
   try {
     if (selectedProvider === 'anthropic') {
-      const apiKey = (token ? await getApiKeyFromDB('anthropic', token) : null)
+      const apiKey = await getApiKeyFromDB('anthropic')
         ?? process.env.ANTHROPIC_API_KEY
       if (!apiKey) return NextResponse.json({ error: 'ANTHROPIC_API_KEY não configurada' }, { status: 500 })
 
@@ -109,7 +109,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (selectedProvider === 'openai') {
-      const apiKey = (token ? await getApiKeyFromDB('openai', token) : null)
+      const apiKey = await getApiKeyFromDB('openai')
         ?? process.env.OPENAI_API_KEY
       if (!apiKey) return NextResponse.json({ error: 'OPENAI_API_KEY não configurada' }, { status: 500 })
 
