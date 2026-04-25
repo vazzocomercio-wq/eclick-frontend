@@ -149,8 +149,8 @@ const SECTIONS: NavSection[] = [
     label: 'CONFIGURAÇÕES',
     items: [
       { label: 'Geral',       href: '/dashboard/configuracoes',            icon: <Settings size={15} />, exact: true },
-      { label: 'Equipe',      href: '/dashboard/configuracoes/equipe',     icon: <UserCog size={15} />,  soon: true },
-      { label: 'Integrações', href: '/dashboard/configuracoes/integracoes', icon: <Plug size={15} />,    soon: true },
+      { label: 'Equipe',      href: '/dashboard/configuracoes/equipe',     icon: <UserCog size={15} /> },
+      { label: 'Integrações', href: '/dashboard/configuracoes/integracoes', icon: <Plug size={15} /> },
       { label: 'Agregador',   href: '/dashboard/configuracoes/aggregator', icon: <Database size={15} /> },
       { label: 'IA',          href: '/dashboard/configuracoes/ia',         icon: <Wand2 size={15} /> },
     ],
