@@ -131,7 +131,7 @@ const SECTIONS: NavSection[] = [
     label: 'PRODUÇÃO',
     items: [
       { label: 'Tarefas',         href: '/dashboard/producao/tarefas',    icon: <CheckSquare size={15} /> },
-      { label: 'Conteúdo com IA', href: '/dashboard/producao/conteudo',   icon: <Sparkles size={15} />,    soon: true },
+      { label: 'Conteúdo com IA', href: '/dashboard/producao/conteudo',   icon: <Sparkles size={15} /> },
       { label: 'Biblioteca',      href: '/dashboard/producao/biblioteca',  icon: <ImageIcon size={15} />,   soon: true },
     ],
   },
