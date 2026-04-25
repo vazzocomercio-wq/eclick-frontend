@@ -343,7 +343,9 @@ export default function AddCompetitorModal({ orgId, competitorCounts, onClose, o
     if (!canSave || !selectedProduct) return
     setSaving(true)
     setSaveError('')
-    const supabase = createClient()
+
+    const { data: { session } } = await createClient().auth.getSession()
+    const token = session?.access_token ?? ''
 
     for (const entry of entriesWithUrl) {
       if (!entry.scraped) continue
@@ -352,11 +354,15 @@ export default function AddCompetitorModal({ orgId, competitorCounts, onClose, o
       if (!resolvedPrice || isNaN(resolvedPrice)) continue
 
       const platform = entry.scraped.platform ?? detectPlatform(entry.url)
-      const { data: inserted, error } = await supabase
-        .from('competitors')
-        .insert({
+
+      const res = await fetch(`${BACKEND}/competitors`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
           product_id: selectedProduct.id,
-          organization_id: orgId,
           platform,
           url: entry.url,
           title: entry.scraped.title ?? null,
@@ -364,22 +370,15 @@ export default function AddCompetitorModal({ orgId, competitorCounts, onClose, o
           current_price: resolvedPrice,
           my_price: selectedProduct.price ?? null,
           photo_url: entry.scraped.photo_url ?? null,
-          status: 'active',
-          last_checked: new Date().toISOString(),
-        })
-        .select('id')
-        .single()
+        }),
+      })
 
-      if (error || !inserted) {
-        setSaveError(error?.message ?? 'Erro ao salvar. Tente novamente.')
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        setSaveError((body as any)?.message ?? 'Erro ao salvar. Tente novamente.')
         setSaving(false)
         return
       }
-
-      await supabase.from('price_history').insert({
-        competitor_id: inserted.id,
-        price: resolvedPrice,
-      })
     }
 
     await onSaved()
