@@ -9,7 +9,8 @@ import {
   Truck, DollarSign, Brain, Building2, Ship, Users, Target,
   Heart, MessageSquare, CheckSquare, Sparkles, Image as ImageIcon,
   Megaphone, ShoppingCart, TrendingUp, Settings, UserCog,
-  Plug, Database, Wand2, ChevronDown,
+  Plug, Database, Wand2, ChevronDown, Bot, Inbox, BookOpen,
+  GraduationCap, LineChart,
 } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
@@ -136,6 +137,17 @@ const SECTIONS: NavSection[] = [
     ],
   },
   {
+    key: 'atendente-ia',
+    label: 'ATENDENTE IA',
+    items: [
+      { label: 'Agentes',          href: '/dashboard/atendente-ia/agentes',     icon: <Bot size={15} /> },
+      { label: 'Conversas',        href: '/dashboard/atendente-ia/conversas',   icon: <Inbox size={15} /> },
+      { label: 'Conhecimento',     href: '/dashboard/atendente-ia/conhecimento', icon: <BookOpen size={15} /> },
+      { label: 'Treinamento',      href: '/dashboard/atendente-ia/treinamento', icon: <GraduationCap size={15} /> },
+      { label: 'Analytics',        href: '/dashboard/atendente-ia/analytics',   icon: <LineChart size={15} /> },
+    ],
+  },
+  {
     key: 'ads',
     label: 'ADS',
     items: [
@@ -158,13 +170,14 @@ const SECTIONS: NavSection[] = [
 ]
 
 const SECTION_DEFAULT_OPEN: Record<string, boolean> = {
-  visaogeral:     true,
-  marketplace:    true,
-  compras:        false,
-  crm:            false,
-  producao:       false,
-  ads:            false,
-  configuracoes:  false,
+  visaogeral:      true,
+  marketplace:     true,
+  compras:         false,
+  crm:             false,
+  producao:        false,
+  'atendente-ia':  false,
+  ads:             false,
+  configuracoes:   false,
 }
 
 // ── Small badge ───────────────────────────────────────────────────────────────
