@@ -4,7 +4,6 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { PM, brl } from '../types'
 
-const SCRAPER  = process.env.NEXT_PUBLIC_SCRAPER_URL  ?? 'https://price-scraper-production-2e7c.up.railway.app'
 const BACKEND  = process.env.NEXT_PUBLIC_BACKEND_URL  ?? 'http://localhost:3001'
 
 type Product = {
@@ -42,10 +41,6 @@ type Props = {
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
-
-function isMlUrl(url: string) {
-  return url.includes('mercadolivre') || url.includes('mercadolibre')
-}
 
 
 
@@ -223,27 +218,26 @@ export default function AddCompetitorModal({ orgId, competitorCounts, onClose, o
       .then(({ data }) => setProducts(data ?? []))
   }, [orgId])
 
-  // ── ML fetch via backend (uses stored access_token) ─────────────────────────
+  // ── Preview via backend ScraperService (público, sem token ML) ──────────────
 
-  const fetchMlData = useCallback(async (entryId: number, url: string) => {
+  const fetchPreview = useCallback(async (entryId: number, url: string) => {
+    console.log('[competitor] preview URL:', `${BACKEND}/competitors/preview?url=${encodeURIComponent(url)}`)
     setEntries(prev => prev.map(e => e.id === entryId
-      ? { ...e, scraping: true, fetchError: '', scraped: null, fetchSource: 'ml' }
+      ? { ...e, scraping: true, fetchError: '', scraped: null, fetchSource: 'scraper' }
       : e
     ))
-
     try {
-      const supabase = createClient()
-      const { data: session } = await supabase.auth.getSession()
-      const token = session.session?.access_token
+      const { data: { session } } = await createClient().auth.getSession()
+      const token = session?.access_token
       if (!token) throw new Error('Sessão expirada. Faça login novamente.')
 
       const res = await fetch(
-        `${BACKEND}/ml/item-info?url=${encodeURIComponent(url)}`,
+        `${BACKEND}/competitors/preview?url=${encodeURIComponent(url)}`,
         { headers: { Authorization: `Bearer ${token}` } },
       )
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
-        throw new Error(body?.message ?? `Backend retornou HTTP ${res.status}`)
+        throw new Error(body?.message ?? `Erro ao buscar dados (HTTP ${res.status})`)
       }
       const data = await res.json()
 
@@ -252,10 +246,10 @@ export default function AddCompetitorModal({ orgId, competitorCounts, onClose, o
             ...e,
             scraping: false,
             scraped: {
-              title: data.title ?? null,
-              price: typeof data.price === 'number' ? data.price : null,
-              seller: data.seller ?? null,
-              platform: 'ml',
+              title:     data.title    ?? null,
+              price:     typeof data.price === 'number' ? data.price : null,
+              seller:    data.seller   ?? null,
+              platform:  data.platform ?? null,
               photo_url: data.thumbnail ?? null,
             },
           }
@@ -266,35 +260,8 @@ export default function AddCompetitorModal({ orgId, competitorCounts, onClose, o
         ? {
             ...e,
             scraping: false,
-            fetchError: err instanceof Error ? err.message : 'Erro ao buscar dados no Mercado Livre.',
+            fetchError: err instanceof Error ? err.message : 'Erro ao buscar dados do produto.',
           }
-        : e
-      ))
-    }
-  }, [])
-
-  // ── Scraper fallback ────────────────────────────────────────────────────────
-
-  const scrapeEntry = useCallback(async (entryId: number, url: string) => {
-    setEntries(prev => prev.map(e => e.id === entryId
-      ? { ...e, scraping: true, fetchError: '', scraped: null, fetchSource: 'scraper' }
-      : e
-    ))
-    try {
-      const res = await fetch(`${SCRAPER}/scrape`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url }),
-      })
-      if (!res.ok) throw new Error(`Scraper retornou HTTP ${res.status}.`)
-      const data: ScraperData = await res.json()
-      setEntries(prev => prev.map(e => e.id === entryId
-        ? { ...e, scraping: false, scraped: data }
-        : e
-      ))
-    } catch (err: unknown) {
-      setEntries(prev => prev.map(e => e.id === entryId
-        ? { ...e, scraping: false, fetchError: err instanceof Error ? err.message : 'Falha ao conectar com o scraper.' }
         : e
       ))
     }
@@ -312,8 +279,7 @@ export default function AddCompetitorModal({ orgId, competitorCounts, onClose, o
     if (!url.startsWith('http')) return
 
     const timer = setTimeout(() => {
-      if (isMlUrl(url)) fetchMlData(entryId, url)
-      else scrapeEntry(entryId, url)
+      fetchPreview(entryId, url)
     }, 800)
     debounceTimers.current.set(entryId, timer)
   }
