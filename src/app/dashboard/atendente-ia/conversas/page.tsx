@@ -19,7 +19,8 @@ const STATUS_TABS = [
 ]
 
 const CHANNEL_LABELS: Record<string, string> = {
-  ml: 'ML', shopee: 'Shopee', amazon: 'Amazon', magalu: 'Magalu',
+  mercadolivre: 'ML', ml: 'ML',
+  shopee: 'Shopee', amazon: 'Amazon', magalu: 'Magalu',
   whatsapp: 'WhatsApp', instagram: 'Instagram', website: 'Site',
 }
 
@@ -104,7 +105,7 @@ function ConvItem({ conv, active, onClick }: { conv: Conversation; active: boole
 
 // ── Message bubble ────────────────────────────────────────────────────────────
 
-function MsgBubble({ msg, onApprove }: { msg: Message; onApprove?: (edited?: string) => void }) {
+function MsgBubble({ msg, onApprove, onReject }: { msg: Message; onApprove?: (edited?: string) => void; onReject?: () => void }) {
   const [editing, setEditing]   = useState(false)
   const [edited, setEdited]     = useState(msg.content)
   const isCustomer = msg.role === 'customer'
@@ -173,9 +174,10 @@ function MsgBubble({ msg, onApprove }: { msg: Message; onApprove?: (edited?: str
               style={{ background: 'rgba(245,158,11,0.1)', color: '#fbbf24' }}>
               <Edit3 size={11} />{editing ? 'Cancelar' : 'Editar'}
             </button>
-            <button onClick={() => onApprove && onApprove(undefined)}
+            <button onClick={() => onReject?.()}
               className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors"
-              style={{ background: 'rgba(239,68,68,0.1)', color: '#f87171' }}>
+              style={{ background: 'rgba(239,68,68,0.1)', color: '#f87171' }}
+              title="Recusar — escrever do zero">
               <X size={11} />
             </button>
           </div>
@@ -264,6 +266,18 @@ export default function ConversasPage() {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ message_id: messageId, content: edited }),
+    })
+    loadConversations()
+    loadMessages(selectedId)
+  }
+
+  async function rejectSuggestion(messageId: string) {
+    if (!selectedId) return
+    const headers = await getHeaders()
+    await fetch(`${BACKEND}/atendente-ia/conversations/${selectedId}/discard-suggestion`, {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message_id: messageId }),
     })
     loadMessages(selectedId)
   }
@@ -392,6 +406,11 @@ export default function ConversasPage() {
                       onApprove={
                         msg.role === 'agent' && !msg.was_auto_sent
                           ? (edited) => approveSuggestion(msg.id, edited)
+                          : undefined
+                      }
+                      onReject={
+                        msg.role === 'agent' && !msg.was_auto_sent
+                          ? () => rejectSuggestion(msg.id)
                           : undefined
                       }
                     />
