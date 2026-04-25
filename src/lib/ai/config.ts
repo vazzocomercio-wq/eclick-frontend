@@ -6,7 +6,7 @@ export const AI_CONFIG = {
     precificacao:         false, // Anúncios: sugerir preço ideal
     titulo_anuncio:       false, // Catálogo: otimizar título do anúncio
     descricao_produto:    false, // Catálogo: gerar descrição do produto
-    analise_concorrencia: false, // Dashboard: análise de concorrentes
+    analise_concorrencia: true,  // Dashboard: análise de concorrentes
     previsao_demanda:     false, // Estoque: prever necessidade de reposição
     classificacao_ticket: false, // Atendimento: classificar urgência
     resumo_financeiro:    false, // Financeiro: insights automáticos
