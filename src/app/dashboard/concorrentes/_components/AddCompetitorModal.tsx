@@ -341,7 +341,7 @@ export default function AddCompetitorModal({ orgId, competitorCounts, onClose, o
 
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
-        setSaveError((body as any)?.message ?? 'Erro ao salvar. Tente novamente.')
+        setSaveError((body as { message?: string })?.message ?? 'Erro ao salvar. Tente novamente.')
         setSaving(false)
         return
       }
