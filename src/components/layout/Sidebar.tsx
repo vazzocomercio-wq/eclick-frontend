@@ -121,7 +121,7 @@ const SECTIONS: NavSection[] = [
     label: 'CRM',
     items: [
       { label: 'Clientes',  href: '/dashboard/crm/clientes',  icon: <Users size={15} /> },
-      { label: 'Pipeline',  href: '/dashboard/crm/pipeline',  icon: <Target size={15} />,        soon: true },
+      { label: 'Pipeline',  href: '/dashboard/crm/pipeline',  icon: <Target size={15} /> },
       { label: 'Pós-venda', href: '/dashboard/crm/pos-venda', icon: <Heart size={15} />,         soon: true },
       { label: 'WhatsApp',  href: '/dashboard/crm/whatsapp',  icon: <MessageSquare size={15} />, soon: true },
     ],
@@ -152,7 +152,7 @@ const SECTIONS: NavSection[] = [
       { label: 'Equipe',      href: '/dashboard/configuracoes/equipe',     icon: <UserCog size={15} />,  soon: true },
       { label: 'Integrações', href: '/dashboard/configuracoes/integracoes', icon: <Plug size={15} />,    soon: true },
       { label: 'Agregador',   href: '/dashboard/configuracoes/aggregator', icon: <Database size={15} /> },
-      { label: 'IA',          href: '/dashboard/configuracoes/ia',         icon: <Wand2 size={15} />,    soon: true },
+      { label: 'IA',          href: '/dashboard/configuracoes/ia',         icon: <Wand2 size={15} /> },
     ],
   },
 ]
