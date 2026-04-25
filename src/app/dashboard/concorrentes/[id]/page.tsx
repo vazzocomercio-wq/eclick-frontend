@@ -197,9 +197,16 @@ export default function CompetitorDetailPage({ params }: { params: Promise<{ id:
       const endpoint = withRefresh
         ? `${BACKEND}/competitors/${id}/refresh`
         : `${BACKEND}/competitors/${id}`
+      console.log('[competitor-detail] fetching', endpoint)
       const res = await fetch(endpoint, { headers: h })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      console.log('[competitor-detail] status', res.status)
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        console.error('[competitor-detail] error body', body)
+        throw new Error(`HTTP ${res.status}`)
+      }
       const data: Competitor = await res.json()
+      console.log('[competitor-detail] loaded id', data.id)
       setCompetitor(data)
       return data
     } catch (e) { console.error('[competitor-detail]', e); return null }

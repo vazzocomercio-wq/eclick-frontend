@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
-import { Competitor, priceDiff, brl, relativeTime } from './types'
+import { Competitor, PM, priceDiff, brl, relativeTime } from './types'
 import AddCompetitorModal from './_components/AddCompetitorModal'
 
 const SCRAPER = process.env.NEXT_PUBLIC_SCRAPER_URL ?? 'https://price-scraper-production-2e7c.up.railway.app'
@@ -62,82 +62,104 @@ function ProductSummaryCard({ group }: { group: ProductGroup }) {
   const photo = group.competitors[0]?.product_photo_urls?.[0] ?? null
 
   return (
-    <Link href={`/dashboard/concorrentes/${group.productId}`} style={{ textDecoration: 'none', display: 'block' }}>
-      <div
-        className="rounded-2xl overflow-hidden cursor-pointer transition-all hover:border-zinc-600 active:scale-[0.99]"
-        style={{ background: '#111114', border: '1px solid #1e1e24' }}
-      >
-        {/* Header */}
-        <div className="flex items-center gap-3 px-5 py-4" style={{ background: '#0d0d10', borderBottom: '1px solid #1e1e24' }}>
-          <div style={{
-            width: 56, height: 56, borderRadius: 12, overflow: 'hidden',
-            border: '1px solid #2e2e33', background: '#1c1c1f',
-            flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            {photo
-              ? <img src={photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              : <svg width="22" height="22" fill="none" stroke="#52525b" viewBox="0 0 24 24" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                </svg>
-            }
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-white font-semibold text-sm truncate">{group.productName}</p>
-            <p className="text-white text-lg font-bold leading-tight">{brl(myPrice)}</p>
-          </div>
-          <div className="flex flex-col items-end gap-1.5 shrink-0">
-            <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full"
-              style={{ background: 'rgba(0,229,255,0.08)', color: '#00E5FF' }}>
-              {group.competitors.length} conc.
-            </span>
-            <svg className="w-4 h-4 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-            </svg>
-          </div>
+    <div className="rounded-2xl overflow-hidden" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+      {/* Header — not clickable, just displays product info */}
+      <div className="flex items-center gap-3 px-5 py-4" style={{ background: '#0d0d10', borderBottom: '1px solid #1e1e24' }}>
+        <div style={{
+          width: 56, height: 56, borderRadius: 12, overflow: 'hidden',
+          border: '1px solid #2e2e33', background: '#1c1c1f',
+          flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          {photo
+            ? <img src={photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            : <svg width="22" height="22" fill="none" stroke="#52525b" viewBox="0 0 24 24" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+              </svg>
+          }
         </div>
-
-        {/* Position banner */}
-        <div
-          className="px-5 py-2.5 flex items-center gap-2"
-          style={{
-            background: isLeading ? 'rgba(34,197,94,0.06)' : 'rgba(234,88,12,0.07)',
-            borderBottom: '1px solid #1e1e24',
-          }}
-        >
-          <span style={{ fontSize: 14 }}>{isLeading ? '🏆' : '⚠️'}</span>
-          <p className="text-[12px] font-semibold" style={{ color: isLeading ? '#4ade80' : '#fb923c' }}>
-            {isLeading
-              ? 'Liderando o preço'
-              : `${cheaperN} concorrente${cheaperN !== 1 ? 's' : ''} mais barato${cheaperN !== 1 ? 's' : ''}`
-            }
-          </p>
-          {!isLeading && lowestPrice != null && (
-            <span className="ml-auto text-[11px] font-bold" style={{ color: '#fb923c' }}>
-              Menor: {brl(lowestPrice)}
-            </span>
-          )}
+        <div className="flex-1 min-w-0">
+          <p className="text-white font-semibold text-sm truncate">{group.productName}</p>
+          <p className="text-white text-lg font-bold leading-tight">{brl(myPrice)}</p>
         </div>
-
-        {/* Stats */}
-        <div className="grid grid-cols-3 gap-px" style={{ background: '#1e1e24' }}>
-          <div className="px-4 py-3" style={{ background: '#111114' }}>
-            <p className="text-zinc-600 text-[10px] mb-0.5">Menor preço</p>
-            <p className="text-white text-sm font-bold">{brl(lowestPrice)}</p>
-          </div>
-          <div className="px-4 py-3" style={{ background: '#111114' }}>
-            <p className="text-zinc-600 text-[10px] mb-0.5">Diferença</p>
-            <p className="text-sm font-bold"
-              style={{ color: diff == null ? '#52525b' : diff < 0 ? '#f87171' : '#34d399' }}>
-              {diff == null ? '—' : `${diff > 0 ? '+' : ''}${diff.toFixed(1)}%`}
-            </p>
-          </div>
-          <div className="px-4 py-3" style={{ background: '#111114' }}>
-            <p className="text-zinc-600 text-[10px] mb-0.5">Atualizado</p>
-            <p className="text-zinc-400 text-[11px] font-medium">{relativeTime(lastUpdated)}</p>
-          </div>
-        </div>
+        <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full shrink-0"
+          style={{ background: 'rgba(0,229,255,0.08)', color: '#00E5FF' }}>
+          {group.competitors.length} conc.
+        </span>
       </div>
-    </Link>
+
+      {/* Position banner */}
+      <div className="px-5 py-2.5 flex items-center gap-2"
+        style={{ background: isLeading ? 'rgba(34,197,94,0.06)' : 'rgba(234,88,12,0.07)', borderBottom: '1px solid #1e1e24' }}>
+        <span style={{ fontSize: 14 }}>{isLeading ? '🏆' : '⚠️'}</span>
+        <p className="text-[12px] font-semibold" style={{ color: isLeading ? '#4ade80' : '#fb923c' }}>
+          {isLeading
+            ? 'Liderando o preço'
+            : `${cheaperN} concorrente${cheaperN !== 1 ? 's' : ''} mais barato${cheaperN !== 1 ? 's' : ''}`
+          }
+        </p>
+        {!isLeading && lowestPrice != null && (
+          <span className="ml-auto text-[11px] font-bold" style={{ color: '#fb923c' }}>
+            Menor: {brl(lowestPrice)}
+          </span>
+        )}
+      </div>
+
+      {/* Per-competitor rows — each links to competitor.id */}
+      <div className="divide-y" style={{ borderColor: '#1e1e24' }}>
+        {sorted.map(c => {
+          const cDiff = priceDiff(c.current_price, myPrice)
+          const pm = PM[c.platform] ?? { label: c.platform, bg: '#27272a', fg: '#a1a1aa' }
+          return (
+            <Link
+              key={c.id}
+              href={`/dashboard/concorrentes/${c.id}`}
+              className="flex items-center gap-3 px-4 py-3 hover:bg-zinc-900/50 transition-colors"
+              style={{ textDecoration: 'none' }}
+            >
+              {c.photo_url
+                ? <img src={c.photo_url} alt="" className="w-9 h-9 rounded-lg object-cover shrink-0"
+                    style={{ border: '1px solid #2e2e33' }} />
+                : <div className="w-9 h-9 rounded-lg shrink-0 flex items-center justify-center"
+                    style={{ background: '#1c1c1f', border: '1px solid #2e2e33' }}>
+                    <span className="text-[9px] font-bold" style={{ color: pm.fg, background: pm.bg, padding: '1px 4px', borderRadius: 3 }}>
+                      {pm.label.slice(0, 2).toUpperCase()}
+                    </span>
+                  </div>
+              }
+              <div className="flex-1 min-w-0">
+                <p className="text-zinc-300 text-xs truncate leading-snug">{c.title ?? c.seller ?? c.platform}</p>
+                <p className="text-[10px] text-zinc-600">{relativeTime(c.last_checked)}</p>
+              </div>
+              <div className="text-right shrink-0">
+                <p className="text-sm font-bold text-white">{brl(c.current_price)}</p>
+                {cDiff != null && (
+                  <p className="text-[10px] font-semibold"
+                    style={{ color: cDiff < 0 ? '#f87171' : '#34d399' }}>
+                    {cDiff > 0 ? '+' : ''}{cDiff.toFixed(1)}%
+                  </p>
+                )}
+              </div>
+              <svg className="w-4 h-4 text-zinc-700 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+              </svg>
+            </Link>
+          )
+        })}
+        {/* competitors without price (no price yet) */}
+        {group.competitors.filter(c => c.current_price == null).map(c => (
+          <Link
+            key={c.id}
+            href={`/dashboard/concorrentes/${c.id}`}
+            className="flex items-center gap-3 px-4 py-3 hover:bg-zinc-900/50 transition-colors opacity-50"
+            style={{ textDecoration: 'none' }}
+          >
+            <div className="w-9 h-9 rounded-lg shrink-0" style={{ background: '#1c1c1f', border: '1px solid #2e2e33' }} />
+            <p className="flex-1 text-xs text-zinc-500 truncate">{c.title ?? c.url}</p>
+            <p className="text-xs text-zinc-600">Sem preço</p>
+          </Link>
+        ))}
+      </div>
+    </div>
   )
 }
 
