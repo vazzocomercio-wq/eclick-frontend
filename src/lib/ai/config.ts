@@ -1,3 +1,42 @@
+// ── Multi-provider registry ───────────────────────────────────────────────────
+
+export const AI_PROVIDERS = {
+  anthropic: {
+    name: 'Claude (Anthropic)',
+    models: [
+      { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku',  description: 'Rápido e econômico' },
+      { id: 'claude-sonnet-4-6',         name: 'Claude Sonnet', description: 'Equilibrado' },
+      { id: 'claude-opus-4-6',           name: 'Claude Opus',   description: 'Mais inteligente' },
+    ],
+  },
+  openai: {
+    name: 'ChatGPT (OpenAI)',
+    models: [
+      { id: 'gpt-4o-mini', name: 'GPT-4o Mini', description: 'Rápido e econômico' },
+      { id: 'gpt-4o',      name: 'GPT-4o',      description: 'Equilibrado' },
+      { id: 'o1',          name: 'GPT o1',       description: 'Raciocínio avançado' },
+    ],
+  },
+} as const
+
+export type AIProvider = keyof typeof AI_PROVIDERS
+
+export const getAIPreference = (): { provider: string; model: string } => {
+  if (typeof window === 'undefined') return { provider: 'anthropic', model: 'claude-haiku-4-5-20251001' }
+  return {
+    provider: localStorage.getItem('ai_provider') ?? 'anthropic',
+    model:    localStorage.getItem('ai_model')    ?? 'claude-haiku-4-5-20251001',
+  }
+}
+
+export const setAIPreference = (provider: string, model: string) => {
+  if (typeof window === 'undefined') return
+  localStorage.setItem('ai_provider', provider)
+  localStorage.setItem('ai_model', model)
+}
+
+// ── Legacy single-model config (kept for back-compat) ─────────────────────────
+
 export const AI_CONFIG = {
   // Master switch — all features respect this
   enabled: false,

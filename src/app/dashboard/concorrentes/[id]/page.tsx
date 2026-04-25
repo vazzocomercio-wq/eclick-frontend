@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback, use } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import { brl, PM } from '../types'
-import { isAIEnabled } from '@/lib/ai/config'
+import { isAIEnabled, getAIPreference } from '@/lib/ai/config'
+import { AISelector, AIBadge } from '@/components/ai/AISelector'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ReferenceLine,
@@ -186,6 +187,9 @@ export default function CompetitorDetailPage({ params }: { params: Promise<{ id:
   const [lightbox, setLightbox]     = useState<string | null>(null)
   const [period, setPeriod]         = useState<'7d' | '30d' | '90d' | 'all'>('30d')
   const [iaText, setIaText]         = useState<string | null>(null)
+  const [iaProvider, setIaProvider] = useState(() => getAIPreference().provider)
+  const [iaModel,    setIaModel]    = useState(() => getAIPreference().model)
+  const [iaBadge,    setIaBadge]    = useState<{ provider: string; model: string } | null>(null)
   const [loadingIA, setLoadingIA]   = useState(false)
   const [aiEnabled]                 = useState(() => isAIEnabled('analise_concorrencia'))
 
@@ -332,10 +336,13 @@ Máximo 350 palavras, use emojis para facilitar a leitura.`
           feature:      'analise_concorrencia',
           prompt,
           systemPrompt: 'Você é um especialista em estratégia competitiva para e-commerce no Brasil, especialmente Mercado Livre e Shopee.',
+          provider:     iaProvider,
+          model:        iaModel,
         }),
       })
-      const data = await res.json() as { content?: string; error?: string }
+      const data = await res.json() as { content?: string; error?: string; provider?: string; model?: string }
       setIaText(data.content ?? `Erro: ${data.error ?? 'Resposta vazia'}`)
+      if (data.provider && data.model) setIaBadge({ provider: data.provider, model: data.model })
     } finally { setLoadingIA(false) }
   }
 
@@ -387,6 +394,9 @@ Máximo 350 palavras, use emojis para facilitar a leitura.`
             <RefreshCw size={12} className={refreshing ? 'animate-spin' : ''} />
             {refreshing ? 'Atualizando…' : 'Atualizar dados'}
           </button>
+          {aiEnabled && (
+            <AISelector compact onSelect={(p, m) => { setIaProvider(p); setIaModel(m) }} />
+          )}
           <button onClick={generateIA} disabled={loadingIA}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold"
             style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.25)', color: '#00E5FF' }}>
@@ -684,6 +694,7 @@ Máximo 350 palavras, use emojis para facilitar a leitura.`
                 </button>
               </div>
               <p className="text-[13px] leading-relaxed whitespace-pre-line" style={{ color: '#a1a1aa' }}>{iaText}</p>
+              {iaBadge && <div className="mt-3"><AIBadge provider={iaBadge.provider} model={iaBadge.model} /></div>}
             </>
           ) : (
             <div className="flex flex-col items-center gap-4 py-6">

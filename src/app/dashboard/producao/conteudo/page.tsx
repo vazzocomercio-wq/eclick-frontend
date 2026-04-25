@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { callAI } from '@/lib/ai/client'
 import { PROMPTS } from '@/lib/ai/prompts'
-import { isAIEnabled, setAIFeature } from '@/lib/ai/config'
+import { isAIEnabled, setAIFeature, getAIPreference } from '@/lib/ai/config'
+import { AISelector, AIBadge } from '@/components/ai/AISelector'
 import { Sparkles, Copy, Check, Wand2, FileText, Tag, ChevronDown, ExternalLink, AlertTriangle, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -169,9 +170,12 @@ export default function ConteudoPage() {
   const [result,   setResult]   = useState<string | null>(null)
   const [loading,  setLoading]  = useState(false)
   const [error,    setError]    = useState<string | null>(null)
-  const [aiReady,  setAiReady]  = useState(false)
-  const [applying, setApplying] = useState(false)
-  const [applied,  setApplied]  = useState(false)
+  const [aiReady,    setAiReady]    = useState(false)
+  const [aiProvider, setAiProvider] = useState(() => getAIPreference().provider)
+  const [aiModel,    setAiModel]    = useState(() => getAIPreference().model)
+  const [aiBadge,    setAiBadge]    = useState<{ provider: string; model: string } | null>(null)
+  const [applying,   setApplying]   = useState(false)
+  const [applied,    setApplied]    = useState(false)
 
   const toolDef = TOOLS.find(t => t.key === tool)!
 
@@ -221,9 +225,10 @@ Preço: ${selected?.price?.toLocaleString('pt-BR', { style: 'currency', currency
 Cada bullet com 1 linha. Use ícone ✓ no início. Em português.`
       }
 
-      const res = await callAI(toolDef.feature, prompt)
-      if (!res) throw new Error('A IA não retornou resultado. Verifique se a ANTHROPIC_API_KEY está configurada.')
+      const res = await callAI(toolDef.feature, prompt, undefined, aiProvider, aiModel)
+      if (!res) throw new Error('A IA não retornou resultado. Verifique se a API key está configurada.')
       setResult(res.content)
+      if (res.provider && res.model) setAiBadge({ provider: res.provider, model: res.model })
     } catch (e: any) {
       setError(e.message ?? 'Erro ao gerar conteúdo')
     } finally {
@@ -317,21 +322,25 @@ Cada bullet com 1 linha. Use ícone ✓ no início. Em português.`
 
             {error && <p className="text-xs text-red-400">{error}</p>}
 
-            <button onClick={generate} disabled={loading || !aiReady}
-              className="flex items-center justify-center gap-2 w-full py-3 rounded-xl text-sm font-semibold transition-all disabled:opacity-50"
-              style={{ background: 'linear-gradient(135deg, #00E5FF, #7C3AED)', color: '#fff' }}>
-              {loading
-                ? <><Loader2 size={15} className="animate-spin" /> Gerando…</>
-                : <><Sparkles size={15} /> Gerar com IA</>
-              }
-            </button>
+            <div className="flex items-center gap-2">
+              <button onClick={generate} disabled={loading || !aiReady}
+                className="flex items-center justify-center gap-2 flex-1 py-3 rounded-xl text-sm font-semibold transition-all disabled:opacity-50"
+                style={{ background: 'linear-gradient(135deg, #00E5FF, #7C3AED)', color: '#fff' }}>
+                {loading
+                  ? <><Loader2 size={15} className="animate-spin" /> Gerando…</>
+                  : <><Sparkles size={15} /> Gerar com IA</>
+                }
+              </button>
+              {aiReady && <AISelector compact onSelect={(p, m) => { setAiProvider(p); setAiModel(m) }} />}
+            </div>
           </div>
 
           {/* Result */}
           {result && (
             <div className="space-y-2">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <p className="text-xs font-semibold text-zinc-400">Resultado</p>
+                {aiBadge && <AIBadge provider={aiBadge.provider} model={aiBadge.model} />}
                 {applied && (
                   <span className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full"
                     style={{ background: 'rgba(34,197,94,0.1)', color: '#22c55e' }}>

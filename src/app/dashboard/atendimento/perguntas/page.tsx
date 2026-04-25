@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useSugestaoResposta } from '@/lib/ai/hooks'
-import { isAIEnabled } from '@/lib/ai/config'
+import { isAIEnabled, getAIPreference } from '@/lib/ai/config'
+import { AISelector, AIBadge } from '@/components/ai/AISelector'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 
@@ -107,13 +108,14 @@ function KpiCard({
 
 // ── AI Assistant Panel ─────────────────────────────────────────────────────
 
-function AIAssistantPanel({ selected, aiSuggestion, aiLoading, aiAvailable, onSuggest, onUse }: {
+function AIAssistantPanel({ selected, aiSuggestion, aiLoading, aiAvailable, onSuggest, onUse, onProviderSelect }: {
   selected: Question | null
   aiSuggestion: string | null
   aiLoading: boolean
   aiAvailable: boolean
   onSuggest: () => void
   onUse: (text: string) => void
+  onProviderSelect?: (provider: string, model: string) => void
 }) {
   return (
     <div className="bg-[#111114] border border-[#1a1a1f] rounded-xl p-4 flex-shrink-0">
@@ -125,7 +127,12 @@ function AIAssistantPanel({ selected, aiSuggestion, aiLoading, aiAvailable, onSu
             Em breve
           </span>
         )}
-        {aiAvailable && (
+        {aiAvailable && onProviderSelect && (
+          <div className="ml-auto">
+            <AISelector compact onSelect={onProviderSelect} />
+          </div>
+        )}
+        {aiAvailable && !onProviderSelect && (
           <span className="text-[10px] text-[#00E5FF] border border-[#00E5FF33] px-2 py-0.5 rounded-full ml-auto animate-pulse">
             IA ativa
           </span>
@@ -136,10 +143,12 @@ function AIAssistantPanel({ selected, aiSuggestion, aiLoading, aiAvailable, onSu
       {aiSuggestion ? (
         <div className="bg-[#060d14] border border-[#00E5FF22] rounded-lg p-3 mb-3">
           <p className="text-xs text-gray-300 leading-relaxed">{aiSuggestion}</p>
-          <button onClick={() => onUse(aiSuggestion)}
-            className="mt-2 text-[11px] text-[#00E5FF] hover:underline">
-            Usar essa resposta →
-          </button>
+          <div className="flex items-center justify-between mt-2">
+            <button onClick={() => onUse(aiSuggestion)}
+              className="text-[11px] text-[#00E5FF] hover:underline">
+              Usar essa resposta →
+            </button>
+          </div>
         </div>
       ) : (
         <div className={`bg-[#0d0d10] rounded-lg p-3 mb-3 ${!aiAvailable ? 'opacity-50' : ''}`}>
@@ -198,6 +207,8 @@ export default function PerguntasPage() {
   const prevIds = useRef<Set<number>>(new Set())
   const { sugestao: aiSuggestion, loading: aiLoading, gerar: gerarSugestao, limpar: limparSugestao } = useSugestaoResposta()
   const aiAvailable = isAIEnabled('sugestao_resposta')
+  const [aiProvider, setAiProvider] = useState(() => getAIPreference().provider)
+  const [aiModel,    setAiModel]    = useState(() => getAIPreference().model)
 
   const addToast = useCallback((msg: string, type: 'ok' | 'err' = 'ok') => {
     const id = Date.now()
@@ -335,11 +346,11 @@ export default function PerguntasPage() {
 
   const handleAiSuggest = async () => {
     if (!selected) return
-    await gerarSugestao(selected.text, {
-      nome: selected.item?.title,
-      preco: selected.item?.price,
-      estoque: selected.item?.available_quantity,
-    })
+    await gerarSugestao(
+      selected.text,
+      { nome: selected.item?.title, preco: selected.item?.price, estoque: selected.item?.available_quantity },
+      { provider: aiProvider, model: aiModel },
+    )
   }
 
   // ── KPI calculations ───────────────────────────────────────────────────────
@@ -676,6 +687,7 @@ export default function PerguntasPage() {
             aiAvailable={aiAvailable}
             onSuggest={handleAiSuggest}
             onUse={(text) => setAnswerText(text)}
+            onProviderSelect={(p, m) => { setAiProvider(p); setAiModel(m) }}
           />
 
           {/* Product card */}

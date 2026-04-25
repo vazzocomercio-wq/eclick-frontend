@@ -14,10 +14,11 @@ export function useSugestaoResposta() {
   const gerar = useCallback(async (
     pergunta: string,
     produto: { nome?: string; preco?: string | number; estoque?: number },
+    opts?: { provider?: string; model?: string },
   ) => {
     if (!isAIEnabled('sugestao_resposta')) return
     setLoading(true)
-    const result = await callAI('sugestao_resposta', PROMPTS.sugestao_resposta(pergunta, produto))
+    const result = await callAI('sugestao_resposta', PROMPTS.sugestao_resposta(pergunta, produto), undefined, opts?.provider, opts?.model)
     setSugestao(result?.content ?? null)
     setLoading(false)
   }, [])
