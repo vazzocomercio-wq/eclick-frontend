@@ -16,7 +16,7 @@ const BrazilSalesMap = dynamic(() => import('@/components/BrazilSalesMap'), {
   ssr: false,
   loading: () => (
     <div className="h-[350px] bg-[#111114] rounded-xl animate-pulse flex items-center justify-center">
-      <span className="text-gray-500 text-sm">Carregando mapa...</span>
+      <span className="text-gray-400 text-sm">Carregando mapa...</span>
     </div>
   ),
 })
@@ -237,7 +237,7 @@ function DashHeader({ period, setPeriod, channel, setChannel, onRefresh, refresh
         {PERIODS.map(p => (
           <button key={p.key} onClick={() => setPeriod(p.key)}
             className="px-3 py-1.5 rounded-md text-[12px] font-semibold transition-all"
-            style={{ background: period === p.key ? 'rgba(0,229,255,0.12)' : 'transparent', color: period === p.key ? '#00E5FF' : '#71717a' }}>
+            style={{ background: period === p.key ? 'rgba(0,229,255,0.12)' : 'transparent', color: period === p.key ? '#00E5FF' : '#a1a1aa' }}>
             {p.label}
           </button>
         ))}
@@ -248,7 +248,7 @@ function DashHeader({ period, setPeriod, channel, setChannel, onRefresh, refresh
         {CHANNELS.map(c => (
           <button key={c.key} onClick={() => setChannel(c.key)}
             className="px-3 py-1.5 rounded-md text-[12px] font-semibold transition-all"
-            style={{ background: channel === c.key ? `${c.color}18` : 'transparent', color: channel === c.key ? c.color : '#71717a' }}>
+            style={{ background: channel === c.key ? `${c.color}18` : 'transparent', color: channel === c.key ? c.color : '#a1a1aa' }}>
             {c.label}
           </button>
         ))}
@@ -310,13 +310,13 @@ function KpiCard({ label, value, vsYest, vsWeek, sub, color = '#00E5FF', loading
           {comparison && (
             <div className="mt-0.5 pt-2.5 border-t border-[#ffffff10]">
               <div className="flex items-center justify-between mb-0.5">
-                <span className="text-[10px] text-gray-500">{comparison.prevLabel}</span>
+                <span className="text-[10px] text-gray-400">{comparison.prevLabel}</span>
                 <span className="text-[10px] text-gray-400 font-medium">{brl(comparison.prevValue)}</span>
               </div>
               {(() => {
                 const diff = comparison.curRaw - comparison.prevValue
                 if (comparison.prevValue === 0) return (
-                  <span className="text-[10px] text-gray-600">sem dado anterior</span>
+                  <span className="text-[10px] text-gray-400">sem dado anterior</span>
                 )
                 const pctChange = (diff / comparison.prevValue) * 100
                 const isUp = diff >= 0
@@ -325,7 +325,7 @@ function KpiCard({ label, value, vsYest, vsWeek, sub, color = '#00E5FF', loading
                     <span className={`text-[10px] font-semibold ${isUp ? 'text-green-400' : 'text-red-400'}`}>
                       {isUp ? '↑' : '↓'} {Math.abs(pctChange).toFixed(1)}%
                     </span>
-                    <span className="text-[10px] text-gray-600">
+                    <span className="text-[10px] text-gray-400">
                       ({isUp ? '+' : ''}{shortBrl(diff)})
                     </span>
                   </div>
@@ -386,7 +386,7 @@ function ChartTip({ active, payload, label }: { active?: boolean; payload?: Arra
   if (!active || !payload?.length) return null
   return (
     <div style={{ background: '#18181b', border: '1px solid #2e2e33', borderRadius: 8, padding: '8px 12px' }}>
-      <p style={{ color: '#71717a', fontSize: 10, marginBottom: 4 }}>{label}</p>
+      <p style={{ color: '#a1a1aa', fontSize: 10, marginBottom: 4 }}>{label}</p>
       <p style={{ color: '#00E5FF', fontSize: 13, fontWeight: 700 }}>{brl(payload[0].value)}</p>
     </div>
   )
@@ -946,7 +946,7 @@ export default function DashboardPage() {
               {prevData && (
                 <div className="mt-4 pt-3 border-t border-[#ffffff10]">
                   <div className="flex justify-between items-center">
-                    <span className="text-xs text-gray-500">{PREV_PERIOD_LABEL[period]}</span>
+                    <span className="text-xs text-gray-400">{PREV_PERIOD_LABEL[period]}</span>
                     <span className="text-xs text-gray-400">{formatCurrency(prevData.faturamento)}</span>
                   </div>
                   <div className="flex items-center gap-2 mt-1">
@@ -959,12 +959,12 @@ export default function DashboardPage() {
                           <span className={`text-sm font-semibold ${up ? 'text-green-400' : 'text-red-400'}`}>
                             {up ? '↑' : '↓'} {Math.abs(p).toFixed(1)}%
                           </span>
-                          <span className="text-xs text-gray-500">
+                          <span className="text-xs text-gray-400">
                             ({up ? '+' : ''}{formatCurrency(diff)})
                           </span>
                         </>
                       )
-                    })() : <span className="text-xs text-gray-600">sem dado anterior</span>}
+                    })() : <span className="text-xs text-gray-400">sem dado anterior</span>}
                   </div>
                 </div>
               )}
@@ -1006,7 +1006,7 @@ export default function DashboardPage() {
               {prevData && (
                 <div className="mt-4 pt-3 border-t border-[#ffffff10]">
                   <div className="flex justify-between items-center">
-                    <span className="text-xs text-gray-500">{PREV_PERIOD_LABEL[period]}</span>
+                    <span className="text-xs text-gray-400">{PREV_PERIOD_LABEL[period]}</span>
                     <span className="text-xs text-gray-400">{formatCurrency(prevData.lucro)}</span>
                   </div>
                   <div className="flex items-center gap-2 mt-1">
@@ -1019,12 +1019,12 @@ export default function DashboardPage() {
                           <span className={`text-sm font-semibold ${up ? 'text-green-400' : 'text-red-400'}`}>
                             {up ? '↑' : '↓'} {Math.abs(p).toFixed(1)}%
                           </span>
-                          <span className="text-xs text-gray-500">
+                          <span className="text-xs text-gray-400">
                             ({up ? '+' : ''}{formatCurrency(diff)})
                           </span>
                         </>
                       )
-                    })() : <span className="text-xs text-gray-600">sem dado anterior</span>}
+                    })() : <span className="text-xs text-gray-400">sem dado anterior</span>}
                   </div>
                 </div>
               )}
@@ -1096,8 +1096,8 @@ export default function DashboardPage() {
                   </linearGradient>
                 </defs>
                 <CartesianGrid stroke="#1a1a1e" strokeDasharray="3 3" />
-                <XAxis dataKey="date" tick={{ fill: '#52525b', fontSize: 10 }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fill: '#52525b', fontSize: 10 }} tickFormatter={v => `R$${((v as number)/1000).toFixed(0)}k`} axisLine={false} tickLine={false} width={52} />
+                <XAxis dataKey="date" tick={{ fill: '#71717a', fontSize: 10 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: '#71717a', fontSize: 10 }} tickFormatter={v => `R$${((v as number)/1000).toFixed(0)}k`} axisLine={false} tickLine={false} width={52} />
                 <Tooltip content={<ChartTip />} />
                 <Area type="monotone" dataKey="value" stroke="#00E5FF" strokeWidth={2} fill="url(#gArea)" dot={false} connectNulls />
               </AreaChart>
@@ -1155,7 +1155,7 @@ export default function DashboardPage() {
           height={350}
           realtime={false}
         />
-        <p className="text-[10px] text-gray-600 -mt-1 px-1">
+        <p className="text-[10px] text-gray-400 -mt-1 px-1">
           * Mapa baseado nos pedidos com endereço de entrega disponível no período selecionado
         </p>
 
@@ -1168,10 +1168,10 @@ export default function DashboardPage() {
             {periodLoading ? (
               <div className="space-y-2">{[...Array(5)].map((_, i) => <Skel key={i} h={16} />)}</div>
             ) : topEstados.length === 0 ? (
-              <p className="text-gray-600 text-xs">Sem dados de estado no período</p>
+              <p className="text-gray-400 text-xs">Sem dados de estado no período</p>
             ) : (
               <>
-                <div className="flex text-[10px] text-gray-600 mb-2 gap-2">
+                <div className="flex text-[10px] text-gray-400 mb-2 gap-2">
                   <span className="w-4">#</span>
                   <span className="w-8">UF</span>
                   <span className="flex-1">Participação</span>
@@ -1181,7 +1181,7 @@ export default function DashboardPage() {
                 </div>
                 {topEstados.map((e, i) => (
                   <div key={e.state} className="flex items-center gap-2 mb-2">
-                    <span className="text-xs text-gray-500 w-4">{i + 1}</span>
+                    <span className="text-xs text-gray-400 w-4">{i + 1}</span>
                     <span className="text-xs text-white w-8 font-medium">{e.state}</span>
                     <div className="flex-1 bg-[#1a1a1f] rounded-full h-1.5">
                       <div className="h-1.5 rounded-full bg-[#00E5FF] transition-all"
@@ -1207,10 +1207,10 @@ export default function DashboardPage() {
             {periodLoading ? (
               <div className="space-y-2">{[...Array(5)].map((_, i) => <Skel key={i} h={16} />)}</div>
             ) : topCidades.length === 0 ? (
-              <p className="text-gray-600 text-xs">Sem dados de cidade no período</p>
+              <p className="text-gray-400 text-xs">Sem dados de cidade no período</p>
             ) : (
               <>
-                <div className="flex text-[10px] text-gray-600 mb-2 gap-2">
+                <div className="flex text-[10px] text-gray-400 mb-2 gap-2">
                   <span className="w-4">#</span>
                   <span className="w-20">Cidade</span>
                   <span className="flex-1">Participação</span>
@@ -1220,7 +1220,7 @@ export default function DashboardPage() {
                 </div>
                 {topCidades.map((c, i) => (
                   <div key={c.city} className="flex items-center gap-2 mb-2">
-                    <span className="text-xs text-gray-500 w-4">{i + 1}</span>
+                    <span className="text-xs text-gray-400 w-4">{i + 1}</span>
                     <span className="text-xs text-white w-20 font-medium truncate" title={c.city}>{c.city}</span>
                     <div className="flex-1 bg-[#1a1a1f] rounded-full h-1.5">
                       <div className="h-1.5 rounded-full bg-[#22c55e] transition-all"
@@ -1320,7 +1320,7 @@ export default function DashboardPage() {
                 <thead>
                   <tr style={{ borderBottom: '1px solid #1e1e24', background: '#0a0a0d' }}>
                     {['#', 'Produto', 'Pedidos', 'Receita', 'Unidades'].map(h => (
-                      <th key={h} className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-widest" style={{ color: '#52525b' }}>{h}</th>
+                      <th key={h} className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-widest" style={{ color: '#a1a1aa' }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -1413,7 +1413,7 @@ export default function DashboardPage() {
               <thead>
                 <tr style={{ borderBottom: '1px solid #1e1e24', background: '#0a0a0d' }}>
                   {['Canal', 'Faturamento', 'Pedidos', 'Ticket Médio', 'Unidades', 'Cancelamentos', 'Devoluções'].map(h => (
-                    <th key={h} className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-widest" style={{ color: '#52525b' }}>{h}</th>
+                    <th key={h} className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-widest" style={{ color: '#a1a1aa' }}>{h}</th>
                   ))}
                 </tr>
               </thead>

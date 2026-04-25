@@ -50,7 +50,7 @@ function StockBar({ days, lead }: { days: number; lead: number }) {
   if (days === 0) return (
     <div>
       <span style={{ color: '#ef4444', fontSize: 11, fontWeight: 700 }}>SEM ESTOQUE</span>
-      <p style={{ fontSize: 10, color: '#52525b', marginTop: 1 }}>Lead: {lead}d</p>
+      <p style={{ fontSize: 10, color: '#a1a1aa', marginTop: 1 }}>Lead: {lead}d</p>
     </div>
   )
   if (days === 999) return (
@@ -217,7 +217,7 @@ function ScoreBadge({ score }: { score: number }) {
 }
 
 function ABCBadge({ abc }: { abc: string | null }) {
-  if (!abc) return <span style={{ color: '#52525b', fontSize: 12 }}>–</span>
+  if (!abc) return <span style={{ color: '#a1a1aa', fontSize: 12 }}>–</span>
   return (
     <span className="inline-flex items-center justify-center rounded text-[11px] font-bold"
       style={{ background: abcColor(abc) + '22', color: abcColor(abc), width: 20, height: 20 }}>
@@ -282,7 +282,7 @@ function ProductDrawer({ product: p, onClose }: { product: Product; onClose: () 
             }
             <div style={{ flex: 1, minWidth: 0 }}>
               <p style={{ color: '#e4e4e7', fontWeight: 600, fontSize: 14, marginBottom: 3, lineHeight: 1.3 }}>{p.name}</p>
-              <p style={{ color: '#52525b', fontSize: 11, marginBottom: 6 }}>{p.sku || '–'}</p>
+              <p style={{ color: '#a1a1aa', fontSize: 11, marginBottom: 6 }}>{p.sku || '–'}</p>
               <div className="flex items-center gap-2 flex-wrap">
                 <ABCBadge abc={p.abc_class} />
                 <span style={{ fontSize: 11, color: '#71717a' }}>
@@ -295,13 +295,13 @@ function ProductDrawer({ product: p, onClose }: { product: Product; onClose: () 
             </div>
             <div className="flex flex-col items-center shrink-0">
               <ScoreBadge score={p.score} />
-              <span style={{ fontSize: 9, color: '#52525b', marginTop: 3 }}>score</span>
+              <span style={{ fontSize: 9, color: '#a1a1aa', marginTop: 3 }}>score</span>
             </div>
           </div>
 
           {/* ── Section B: Stock Projection Chart ── */}
           <div style={{ background: '#0e0e11', borderRadius: 10, padding: '12px 10px 6px', marginBottom: 16, border: '1px solid #1a1a1f' }}>
-            <p style={{ color: '#71717a', fontSize: 11, fontWeight: 600, marginBottom: 6, paddingLeft: 4 }}>
+            <p style={{ color: '#a1a1aa', fontSize: 11, fontWeight: 600, marginBottom: 6, paddingLeft: 4 }}>
               Projeção de estoque — 90 dias
             </p>
             <StockChart p={p} />
@@ -332,7 +332,7 @@ function ProductDrawer({ product: p, onClose }: { product: Product; onClose: () 
               { label: 'Lead time',      value: `${p.lead_time_days} dias`,      color: '#e4e4e7' },
             ].map(({ label, value, color }) => (
               <div key={label} style={{ background: '#0e0e11', borderRadius: 8, padding: '10px 12px', border: '1px solid #1a1a1f' }}>
-                <p style={{ color: '#52525b', fontSize: 10, marginBottom: 3 }}>{label}</p>
+                <p style={{ color: '#a1a1aa', fontSize: 10, marginBottom: 3 }}>{label}</p>
                 <p style={{ color, fontSize: 13, fontWeight: 600 }}>{value}</p>
               </div>
             ))}
@@ -344,7 +344,7 @@ function ProductDrawer({ product: p, onClose }: { product: Product; onClose: () 
               <p style={{ color: '#00E5FF', fontSize: 13, fontWeight: 700, marginBottom: 2 }}>
                 Sugestão: {fmtN(p.sugestao_compra)} unidades
               </p>
-              <p style={{ color: '#71717a', fontSize: 12 }}>
+              <p style={{ color: '#a1a1aa', fontSize: 12 }}>
                 Capital necessário: {fmtBRL(p.sugestao_compra * p.cost_price)}
               </p>
               {p.days_of_stock < p.lead_time_days && (
@@ -369,7 +369,7 @@ function ProductDrawer({ product: p, onClose }: { product: Product; onClose: () 
             <button style={{
               width: '100%', padding: '9px 0', borderRadius: 8, cursor: 'not-allowed',
               background: '#18181b', border: '1px solid #27272a',
-              color: '#52525b', fontSize: 12,
+              color: '#a1a1aa', fontSize: 12,
             }}>
               Criar ordem de compra (em breve)
             </button>
@@ -389,10 +389,10 @@ function KpiCard({ icon, label, value, sub, color = '#00E5FF' }: {
     <div className="rounded-xl p-4 flex flex-col gap-1" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
       <div className="flex items-center gap-2 mb-1">
         <span style={{ color }}>{icon}</span>
-        <span className="text-[11px] uppercase tracking-wider font-semibold" style={{ color: '#52525b' }}>{label}</span>
+        <span className="text-[11px] uppercase tracking-wider font-semibold" style={{ color: '#a1a1aa' }}>{label}</span>
       </div>
       <p className="text-xl font-bold" style={{ color: '#e4e4e7' }}>{value}</p>
-      {sub && <p className="text-[11px]" style={{ color: '#52525b' }}>{sub}</p>}
+      {sub && <p className="text-[11px]" style={{ color: '#a1a1aa' }}>{sub}</p>}
     </div>
   )
 }
@@ -508,7 +508,7 @@ export default function InteligenciaPage() {
           <Brain size={20} color="#00E5FF" />
           <h1 className="text-lg font-bold" style={{ color: '#e4e4e7' }}>Inteligência de Compras</h1>
         </div>
-        <p className="text-xs mb-4" style={{ color: '#52525b' }}>
+        <p className="text-xs mb-4" style={{ color: '#a1a1aa' }}>
           Score preditivo por produto · {allItems.length} produtos analisados · clique em uma linha para detalhes
         </p>
         <div className="flex flex-wrap items-center gap-3">
@@ -581,7 +581,7 @@ export default function InteligenciaPage() {
           </select>
           <input value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar produto / SKU…"
             style={{ ...selStyle, width: 200 }} />
-          {loading && <span className="text-xs animate-pulse" style={{ color: '#52525b' }}>Carregando…</span>}
+          {loading && <span className="text-xs animate-pulse" style={{ color: '#a1a1aa' }}>Carregando…</span>}
         </div>
       </div>
 
@@ -604,7 +604,7 @@ export default function InteligenciaPage() {
             {filtered.length} produtos · ordenados por score
           </p>
           {totalPages > 1 && (
-            <div className="flex items-center gap-2 text-xs" style={{ color: '#71717a' }}>
+            <div className="flex items-center gap-2 text-xs" style={{ color: '#a1a1aa' }}>
               <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}
                 className="px-2 py-1 rounded" style={{ background: '#18181b', opacity: page === 0 ? 0.4 : 1 }}>←</button>
               <span>{page + 1} / {totalPages}</span>
@@ -625,7 +625,7 @@ export default function InteligenciaPage() {
             </thead>
             <tbody>
               {paginated.length === 0 && !loading && (
-                <tr><td colSpan={11} className="px-4 py-10 text-center text-sm" style={{ color: '#52525b' }}>
+                <tr><td colSpan={11} className="px-4 py-10 text-center text-sm" style={{ color: '#a1a1aa' }}>
                   Nenhum produto encontrado
                 </td></tr>
               )}
@@ -643,7 +643,7 @@ export default function InteligenciaPage() {
                         : <div className="w-8 h-8 rounded shrink-0" style={{ background: '#1e1e24' }} />}
                       <div>
                         <p className="text-xs font-medium" style={{ color: '#e4e4e7', maxWidth: 155, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</p>
-                        <p className="text-[10px]" style={{ color: '#52525b' }}>{p.sku || '–'}</p>
+                        <p className="text-[10px]" style={{ color: '#a1a1aa' }}>{p.sku || '–'}</p>
                       </div>
                     </div>
                   </td>
@@ -673,7 +673,7 @@ export default function InteligenciaPage() {
                   <td className="px-3 py-2.5">
                     <StockBar days={p.days_of_stock} lead={p.lead_time_days} />
                   </td>
-                  <td className="px-3 py-2.5 text-xs" style={{ color: '#71717a' }}>{p.lead_time_days}d</td>
+                  <td className="px-3 py-2.5 text-xs" style={{ color: '#a1a1aa' }}>{p.lead_time_days}d</td>
                   <td className="px-3 py-2.5"><ScoreBadge score={p.score} /></td>
                   <td className="px-3 py-2.5">
                     <span className="text-[11px] font-medium px-2 py-1 rounded-md whitespace-nowrap"
@@ -692,11 +692,11 @@ export default function InteligenciaPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Block title="Comprar Agora" icon={<ShoppingCart size={15} />} count={criticals.length} color="#ef4444">
           {criticals.length === 0
-            ? <p className="text-xs py-2" style={{ color: '#52525b' }}>Nenhum produto crítico</p>
+            ? <p className="text-xs py-2" style={{ color: '#a1a1aa' }}>Nenhum produto crítico</p>
             : criticals.slice(0, 6).map(p => (
               <BlockRow key={p.id}
-                left={<><p className="text-xs font-medium truncate" style={{ color: '#e4e4e7' }}>{p.name}</p><p className="text-[10px]" style={{ color: '#71717a' }}>{p.days_of_stock === 999 ? 'Sem giro' : `${p.days_of_stock}d restantes`} · Lead {p.lead_time_days}d</p></>}
-                right={<><p className="text-xs font-bold" style={{ color: '#00E5FF' }}>{fmtN(p.sugestao_compra)} un</p><p className="text-[10px]" style={{ color: '#52525b' }}>{fmtBRL(p.sugestao_compra * p.cost_price)}</p></>}
+                left={<><p className="text-xs font-medium truncate" style={{ color: '#e4e4e7' }}>{p.name}</p><p className="text-[10px]" style={{ color: '#a1a1aa' }}>{p.days_of_stock === 999 ? 'Sem giro' : `${p.days_of_stock}d restantes`} · Lead {p.lead_time_days}d</p></>}
+                right={<><p className="text-xs font-bold" style={{ color: '#00E5FF' }}>{fmtN(p.sugestao_compra)} un</p><p className="text-[10px]" style={{ color: '#a1a1aa' }}>{fmtBRL(p.sugestao_compra * p.cost_price)}</p></>}
               />
             ))
           }
@@ -704,13 +704,13 @@ export default function InteligenciaPage() {
 
         <Block title="Planejamento de Importação" icon={<Ship size={15} />} count={imports.length} color="#f97316">
           {imports.length === 0
-            ? <p className="text-xs py-2" style={{ color: '#52525b' }}>Nenhuma importação urgente</p>
+            ? <p className="text-xs py-2" style={{ color: '#a1a1aa' }}>Nenhuma importação urgente</p>
             : imports.slice(0, 6).map(p => {
               const dto = Math.max(0, p.days_of_stock === 999 ? 90 : p.days_of_stock - p.lead_time_days)
               return (
                 <BlockRow key={p.id}
-                  left={<><p className="text-xs font-medium truncate" style={{ color: '#e4e4e7' }}>{p.name}</p><p className="text-[10px]" style={{ color: '#71717a' }}>Pedir até {new Date(Date.now() + dto * 86400000).toLocaleDateString('pt-BR')} · Chega {new Date(Date.now() + (dto + p.lead_time_days) * 86400000).toLocaleDateString('pt-BR')}</p></>}
-                  right={<><p className="text-xs font-bold" style={{ color: '#f97316' }}>{fmtN(p.sugestao_compra)} un</p><p className="text-[10px]" style={{ color: '#52525b' }}>{fmtBRL(p.sugestao_compra * p.cost_price)}</p></>}
+                  left={<><p className="text-xs font-medium truncate" style={{ color: '#e4e4e7' }}>{p.name}</p><p className="text-[10px]" style={{ color: '#a1a1aa' }}>Pedir até {new Date(Date.now() + dto * 86400000).toLocaleDateString('pt-BR')} · Chega {new Date(Date.now() + (dto + p.lead_time_days) * 86400000).toLocaleDateString('pt-BR')}</p></>}
+                  right={<><p className="text-xs font-bold" style={{ color: '#f97316' }}>{fmtN(p.sugestao_compra)} un</p><p className="text-[10px]" style={{ color: '#a1a1aa' }}>{fmtBRL(p.sugestao_compra * p.cost_price)}</p></>}
                 />
               )
             })
@@ -719,11 +719,11 @@ export default function InteligenciaPage() {
 
         <Block title="Estoque Parado" icon={<Package size={15} />} count={stopped.length} color="#6b7280">
           {stopped.length === 0
-            ? <p className="text-xs py-2" style={{ color: '#52525b' }}>Nenhum produto parado</p>
+            ? <p className="text-xs py-2" style={{ color: '#a1a1aa' }}>Nenhum produto parado</p>
             : stopped.slice(0, 6).map(p => (
               <BlockRow key={p.id}
-                left={<><p className="text-xs font-medium truncate" style={{ color: '#e4e4e7' }}>{p.name}</p><p className="text-[10px]" style={{ color: '#71717a' }}>{fmtN(p.current_stock)} un · Considere promoção</p></>}
-                right={<><p className="text-xs font-bold" style={{ color: '#ef4444' }}>{fmtBRL(p.current_stock * p.cost_price)}</p><p className="text-[10px]" style={{ color: '#52525b' }}>capital imobilizado</p></>}
+                left={<><p className="text-xs font-medium truncate" style={{ color: '#e4e4e7' }}>{p.name}</p><p className="text-[10px]" style={{ color: '#a1a1aa' }}>{fmtN(p.current_stock)} un · Considere promoção</p></>}
+                right={<><p className="text-xs font-bold" style={{ color: '#ef4444' }}>{fmtBRL(p.current_stock * p.cost_price)}</p><p className="text-[10px]" style={{ color: '#a1a1aa' }}>capital imobilizado</p></>}
               />
             ))
           }
@@ -731,13 +731,13 @@ export default function InteligenciaPage() {
 
         <Block title="Oportunidades" icon={<Rocket size={15} />} count={opps.length} color="#22c55e">
           {opps.length === 0
-            ? <p className="text-xs py-2" style={{ color: '#52525b' }}>Nenhuma oportunidade</p>
+            ? <p className="text-xs py-2" style={{ color: '#a1a1aa' }}>Nenhuma oportunidade</p>
             : opps.slice(0, 6).map(p => {
               const growth = p.avg_daily_sales_30d > 0 ? ((p.sales_7d / 7 / p.avg_daily_sales_30d) - 1) * 100 : 0
               return (
                 <BlockRow key={p.id}
-                  left={<><p className="text-xs font-medium truncate" style={{ color: '#e4e4e7' }}>{p.name}</p><p className="text-[10px]" style={{ color: '#71717a' }}>Estoque: {fmtN(p.current_stock)} un · Em ascensão</p></>}
-                  right={<><p className="text-xs font-bold" style={{ color: '#22c55e' }}>+{fmtN(growth, 0)}%</p><p className="text-[10px]" style={{ color: '#52525b' }}>vs 30d</p></>}
+                  left={<><p className="text-xs font-medium truncate" style={{ color: '#e4e4e7' }}>{p.name}</p><p className="text-[10px]" style={{ color: '#a1a1aa' }}>Estoque: {fmtN(p.current_stock)} un · Em ascensão</p></>}
+                  right={<><p className="text-xs font-bold" style={{ color: '#22c55e' }}>+{fmtN(growth, 0)}%</p><p className="text-[10px]" style={{ color: '#a1a1aa' }}>vs 30d</p></>}
                 />
               )
             })
@@ -747,14 +747,14 @@ export default function InteligenciaPage() {
         <div className="md:col-span-2">
           <Block title="Risco de Ruptura" icon={<AlertTriangle size={15} />} count={rupture.length} color="#f59e0b">
             {rupture.length === 0
-              ? <p className="text-xs py-2" style={{ color: '#52525b' }}>Nenhum produto em risco de ruptura</p>
+              ? <p className="text-xs py-2" style={{ color: '#a1a1aa' }}>Nenhum produto em risco de ruptura</p>
               : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8">
                   {rupture.slice(0, 8).map(p => {
                     const deficit = Math.max(0, p.lead_time_days * p.avg_daily_sales_30d - p.current_stock)
                     return (
                       <BlockRow key={p.id}
-                        left={<><p className="text-xs font-medium truncate" style={{ color: '#e4e4e7' }}>{p.name}</p><p className="text-[10px]" style={{ color: '#71717a' }}>{p.days_of_stock}d restantes · Lead {p.lead_time_days}d · Déficit: {fmtN(deficit)} un</p></>}
+                        left={<><p className="text-xs font-medium truncate" style={{ color: '#e4e4e7' }}>{p.name}</p><p className="text-[10px]" style={{ color: '#a1a1aa' }}>{p.days_of_stock}d restantes · Lead {p.lead_time_days}d · Déficit: {fmtN(deficit)} un</p></>}
                         right={<span className="text-xs font-bold" style={{ color: daysColor(p.days_of_stock, p.lead_time_days) }}>{p.days_of_stock < 1 ? 'ZEROU' : `${p.days_of_stock}d`}</span>}
                       />
                     )

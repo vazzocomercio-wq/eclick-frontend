@@ -190,12 +190,12 @@ function NavSubGroup({ child }: { child: NavChild }) {
       <button
         onClick={() => setOpen(o => !o)}
         className="w-full flex items-center justify-between px-2 py-1.5 rounded-md text-[12px] font-medium transition-colors"
-        style={{ color: anyActive ? '#00E5FF' : '#71717a' }}
-        onMouseEnter={e => { if (!anyActive) (e.currentTarget as HTMLElement).style.color = '#a1a1aa' }}
-        onMouseLeave={e => { if (!anyActive) (e.currentTarget as HTMLElement).style.color = '#71717a' }}
+        style={{ color: anyActive ? '#00E5FF' : '#a1a1aa' }}
+        onMouseEnter={e => { if (!anyActive) (e.currentTarget as HTMLElement).style.color = '#e4e4e7' }}
+        onMouseLeave={e => { if (!anyActive) (e.currentTarget as HTMLElement).style.color = '#a1a1aa' }}
       >
         <span>{child.label}</span>
-        <ChevronDown size={10} style={{ color: '#3f3f46', transform: open ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 150ms' }} />
+        <ChevronDown size={10} style={{ color: '#71717a', transform: open ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 150ms' }} />
       </button>
       {open && (
         <div className="ml-2 pl-2 mt-0.5 space-y-0.5" style={{ borderLeft: '1px solid #1e1e24' }}>
@@ -204,9 +204,9 @@ function NavSubGroup({ child }: { child: NavChild }) {
             return (
               <Link key={s.href} href={s.href}
                 className="flex items-center px-2 py-1.5 rounded-md text-[11px] font-medium transition-colors"
-                style={{ color: active ? '#00E5FF' : '#52525b', background: active ? 'rgba(0,229,255,0.08)' : 'transparent' }}
-                onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.color = '#a1a1aa' }}
-                onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.color = '#52525b' }}
+                style={{ color: active ? '#00E5FF' : '#a1a1aa', background: active ? 'rgba(0,229,255,0.08)' : 'transparent' }}
+                onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.color = '#e4e4e7' }}
+                onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.color = '#a1a1aa' }}
               >
                 {s.label}
               </Link>
@@ -240,14 +240,14 @@ function NavGroupItem({ item, badges }: { item: NavItem; badges: Badges }) {
       <button
         onClick={() => setOpen(o => !o)}
         className="w-full flex items-center gap-2.5 px-3 py-[7px] rounded-md text-[13px] font-medium transition-colors"
-        style={{ color: anyActive ? '#fff' : '#71717a', background: anyActive && !open ? 'rgba(0,229,255,0.05)' : 'transparent' }}
-        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.04)'; (e.currentTarget as HTMLElement).style.color = '#a1a1aa' }}
-        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = anyActive && !open ? 'rgba(0,229,255,0.05)' : 'transparent'; (e.currentTarget as HTMLElement).style.color = anyActive ? '#fff' : '#71717a' }}
+        style={{ color: anyActive ? '#fff' : '#a1a1aa', background: anyActive && !open ? 'rgba(0,229,255,0.05)' : 'transparent' }}
+        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.04)'; (e.currentTarget as HTMLElement).style.color = '#e4e4e7' }}
+        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = anyActive && !open ? 'rgba(0,229,255,0.05)' : 'transparent'; (e.currentTarget as HTMLElement).style.color = anyActive ? '#fff' : '#a1a1aa' }}
       >
         <span style={{ color: anyActive ? '#00E5FF' : 'inherit' }}>{item.icon}</span>
         <span className="flex-1 text-left">{item.label}</span>
         {parentBadgeTotal > 0 && <BadgePill count={parentBadgeTotal} />}
-        <ChevronDown size={12} style={{ color: '#52525b', transform: open ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 150ms', flexShrink: 0 }} />
+        <ChevronDown size={12} style={{ color: '#71717a', transform: open ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 150ms', flexShrink: 0 }} />
       </button>
 
       {open && (
@@ -269,9 +269,9 @@ function NavGroupItem({ item, badges }: { item: NavItem; badges: Badges }) {
             return (
               <Link key={child.href} href={child.href}
                 className="flex items-center gap-1 px-2 py-1.5 rounded-md text-[12px] font-medium transition-colors"
-                style={{ color: active ? '#00E5FF' : '#71717a', background: active ? 'rgba(0,229,255,0.08)' : 'transparent' }}
-                onMouseEnter={e => { if (!active) { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.04)'; (e.currentTarget as HTMLElement).style.color = '#a1a1aa' } }}
-                onMouseLeave={e => { if (!active) { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = '#71717a' } }}
+                style={{ color: active ? '#00E5FF' : '#a1a1aa', background: active ? 'rgba(0,229,255,0.08)' : 'transparent' }}
+                onMouseEnter={e => { if (!active) { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.04)'; (e.currentTarget as HTMLElement).style.color = '#e4e4e7' } }}
+                onMouseLeave={e => { if (!active) { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = '#a1a1aa' } }}
               >
                 <span className="flex-1">{child.label}</span>
                 {badge != null && <BadgePill count={badge} />}
@@ -313,9 +313,9 @@ function NavLeafItem({ item, badges }: { item: NavItem; badges: Badges }) {
     <Link
       href={item.href}
       className="flex items-center gap-2.5 px-3 py-[7px] rounded-md text-[13px] font-medium transition-colors relative"
-      style={{ color: isActive ? '#fff' : '#71717a', background: isActive ? 'rgba(0,229,255,0.09)' : 'transparent' }}
-      onMouseEnter={e => { if (!isActive) { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.04)'; (e.currentTarget as HTMLElement).style.color = '#a1a1aa' } }}
-      onMouseLeave={e => { if (!isActive) { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = '#71717a' } }}
+      style={{ color: isActive ? '#fff' : '#a1a1aa', background: isActive ? 'rgba(0,229,255,0.09)' : 'transparent' }}
+      onMouseEnter={e => { if (!isActive) { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.04)'; (e.currentTarget as HTMLElement).style.color = '#e4e4e7' } }}
+      onMouseLeave={e => { if (!isActive) { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = '#a1a1aa' } }}
     >
       {isActive && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 rounded-full" style={{ background: '#00E5FF' }} />}
       <span style={{ color: isActive ? '#00E5FF' : 'inherit' }}>{item.icon}</span>
@@ -344,12 +344,12 @@ function SidebarSection({ section, open, onToggle, badges, first }: {
         onClick={onToggle}
         className="w-full flex items-center justify-between px-3 py-1"
       >
-        <span className="text-[9px] font-bold uppercase tracking-[0.12em]" style={{ color: '#3f3f46' }}>
+        <span className="text-[9px] font-bold uppercase tracking-[0.12em]" style={{ color: '#71717a' }}>
           {section.label}
         </span>
         <ChevronDown
           size={10}
-          style={{ color: '#3f3f46', transform: open ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 150ms' }}
+          style={{ color: '#52525b', transform: open ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 150ms' }}
         />
       </button>
       {open && (
@@ -471,9 +471,9 @@ export default function Sidebar() {
         <button
           onClick={toggleCollapsed}
           className="flex items-center justify-center w-7 h-7 rounded-md transition-colors"
-          style={{ color: '#52525b', flexShrink: 0 }}
+          style={{ color: '#71717a', flexShrink: 0 }}
           onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#a1a1aa'; (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.06)' }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = '#52525b'; (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = '#71717a'; (e.currentTarget as HTMLElement).style.background = 'transparent' }}
           title={collapsed ? 'Expandir menu' : 'Recolher menu'}
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>

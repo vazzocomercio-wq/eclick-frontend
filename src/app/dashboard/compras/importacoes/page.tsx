@@ -106,10 +106,10 @@ function KpiCard({ icon, label, value, sub, color = '#00E5FF' }: {
     <div className="rounded-xl p-4 flex flex-col gap-1" style={{ background:'#111114', border:'1px solid #1a1a1f' }}>
       <div className="flex items-center gap-2 mb-1">
         <span style={{ color }}>{icon}</span>
-        <span className="text-[11px] uppercase tracking-wider font-semibold" style={{ color:'#52525b' }}>{label}</span>
+        <span className="text-[11px] uppercase tracking-wider font-semibold" style={{ color:'#a1a1aa' }}>{label}</span>
       </div>
       <p className="text-xl font-bold" style={{ color:'#e4e4e7' }}>{value}</p>
-      {sub && <p className="text-[11px]" style={{ color:'#52525b' }}>{sub}</p>}
+      {sub && <p className="text-[11px]" style={{ color:'#a1a1aa' }}>{sub}</p>}
     </div>
   )
 }
@@ -144,12 +144,12 @@ function PoCard({ po, onAdvance, onDetails }: {
       <p className="text-[12px] font-medium mb-1 truncate" style={{ color:'#e4e4e7' }}>
         {po.suppliers?.name ?? '—'}
       </p>
-      <p className="text-[11px] mb-2" style={{ color:'#52525b' }}>
+      <p className="text-[11px] mb-2" style={{ color:'#a1a1aa' }}>
         {po.purchase_order_items.length} produto{po.purchase_order_items.length !== 1 ? 's' : ''} · {fmtBRL(po.total_cost)}
       </p>
       {po.expected_arrival_date && (
         <div className="mb-2">
-          <p className="text-[10px]" style={{ color:'#52525b' }}>📅 {fmtDate(po.expected_arrival_date)}</p>
+          <p className="text-[10px]" style={{ color:'#a1a1aa' }}>📅 {fmtDate(po.expected_arrival_date)}</p>
           <p className={`text-[11px] font-semibold ${urg.pulse ? 'animate-pulse' : ''}`} style={{ color: urg.color }}>
             ⏱ {days === null ? '—' : days < 0 ? `${Math.abs(days)}d atrasado` : `${days}d restantes`}
           </p>
@@ -194,7 +194,7 @@ function KanbanView({ pos, onAdvance, onDetails }: {
                 <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: c + '22', color: c }}>{col.length}</span>
               )}
             </div>
-            {total > 0 && <p className="px-3 pt-1 text-[10px]" style={{ color:'#52525b' }}>{fmtBRL(total)}</p>}
+            {total > 0 && <p className="px-3 pt-1 text-[10px]" style={{ color:'#a1a1aa' }}>{fmtBRL(total)}</p>}
             <div className="flex-1 px-2 py-2 overflow-y-auto" style={{ maxHeight: 560 }}>
               {col.length === 0
                 ? <p className="text-[11px] text-center py-6" style={{ color:'#27272a' }}>—</p>
@@ -356,8 +356,8 @@ function ListaView({ pos, onDetails }: { pos: PO[]; onDetails: (po: PO) => void 
                   <td className="px-3 py-2.5"><StatusBadge status={po.status} /></td>
                   <td className="px-3 py-2.5 text-[12px]" style={{ color:'#a1a1aa' }}>{po.purchase_order_items.length} itens</td>
                   <td className="px-3 py-2.5 text-[12px] font-medium" style={{ color:'#e4e4e7' }}>{fmtBRL(po.total_cost)}</td>
-                  <td className="px-3 py-2.5 text-[12px]" style={{ color:'#71717a' }}>{fmtDate(po.created_at)}</td>
-                  <td className="px-3 py-2.5 text-[12px]" style={{ color:'#71717a' }}>{fmtDate(po.expected_arrival_date)}</td>
+                  <td className="px-3 py-2.5 text-[12px]" style={{ color:'#a1a1aa' }}>{fmtDate(po.created_at)}</td>
+                  <td className="px-3 py-2.5 text-[12px]" style={{ color:'#a1a1aa' }}>{fmtDate(po.expected_arrival_date)}</td>
                   <td className="px-3 py-2.5 text-[12px] font-semibold" style={{ color: urg.color }}>
                     {days === null ? '—' : days < 0 ? `${Math.abs(days)}d atrasado` : `${days}d`}
                   </td>
@@ -372,7 +372,7 @@ function ListaView({ pos, onDetails }: { pos: PO[]; onDetails: (po: PO) => void 
               )
             })}
             {sorted.length === 0 && (
-              <tr><td colSpan={9} className="px-4 py-10 text-center text-sm" style={{ color:'#52525b' }}>
+              <tr><td colSpan={9} className="px-4 py-10 text-center text-sm" style={{ color:'#a1a1aa' }}>
                 Nenhuma ordem de compra encontrada
               </td></tr>
             )}
@@ -398,7 +398,7 @@ function ReceiveModal({ po, onConfirm, onClose }: {
       <div className="rounded-xl w-full max-w-lg mx-4" style={{ background:'#111114', border:'1px solid #1a1a1f' }}>
         <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom:'1px solid #1a1a1f' }}>
           <p className="text-[13px] font-semibold" style={{ color:'#e4e4e7' }}>Confirmar recebimento — {po.po_number}</p>
-          <button onClick={onClose} style={{ color:'#52525b' }}><X size={18} /></button>
+          <button onClick={onClose} style={{ color:'#a1a1aa' }}><X size={18} /></button>
         </div>
         <div className="px-5 py-4 space-y-3 max-h-80 overflow-y-auto">
           {po.purchase_order_items.map(it => (
@@ -408,10 +408,10 @@ function ReceiveModal({ po, onConfirm, onClose }: {
                 : <div className="w-9 h-9 rounded shrink-0" style={{ background:'#1e1e24' }} />}
               <div className="flex-1 min-w-0">
                 <p className="text-[12px] font-medium truncate" style={{ color:'#e4e4e7' }}>{it.products?.name ?? it.product_id}</p>
-                <p className="text-[10px]" style={{ color:'#52525b' }}>Pedido: {it.quantity} un</p>
+                <p className="text-[10px]" style={{ color:'#a1a1aa' }}>Pedido: {it.quantity} un</p>
               </div>
               <div className="flex flex-col items-end gap-0.5 shrink-0">
-                <label className="text-[10px]" style={{ color:'#52525b' }}>Recebido</label>
+                <label className="text-[10px]" style={{ color:'#a1a1aa' }}>Recebido</label>
                 <input type="number" min={0} max={it.quantity} value={qtys[it.id] ?? it.quantity}
                   onChange={e => setQtys(q => ({ ...q, [it.id]: Number(e.target.value) }))}
                   className="w-20 text-center text-[12px] rounded-md"
@@ -490,11 +490,11 @@ function PoDrawer({ po, onClose, onRefresh }: { po: PO; onClose: () => void; onR
         <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom:'1px solid #1a1a1f', position:'sticky', top:0, background:'#111114', zIndex:1 }}>
           <div>
             <p className="text-[13px] font-bold" style={{ color:'#00E5FF' }}>{po.po_number}</p>
-            <p className="text-[11px]" style={{ color:'#52525b' }}>{countryFlag(po.suppliers?.country)} {po.suppliers?.name}</p>
+            <p className="text-[11px]" style={{ color:'#a1a1aa' }}>{countryFlag(po.suppliers?.country)} {po.suppliers?.name}</p>
           </div>
           <div className="flex items-center gap-2">
             <StatusBadge status={po.status} />
-            <button onClick={onClose} style={{ color:'#52525b' }}><X size={18} /></button>
+            <button onClick={onClose} style={{ color:'#a1a1aa' }}><X size={18} /></button>
           </div>
         </div>
 
@@ -515,7 +515,7 @@ function PoDrawer({ po, onClose, onRefresh }: { po: PO; onClose: () => void; onR
             <div className="space-y-4">
               {/* Status progress */}
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider mb-3" style={{ color:'#52525b' }}>Progresso</p>
+                <p className="text-[11px] font-semibold uppercase tracking-wider mb-3" style={{ color:'#a1a1aa' }}>Progresso</p>
                 <div className="flex items-center">
                   {kanbanStatuses.map((s, i) => {
                     const done = i <= currentIdx
@@ -550,7 +550,7 @@ function PoDrawer({ po, onClose, onRefresh }: { po: PO; onClose: () => void; onR
                   { label:'Pedido em',     value: fmtDate(po.ordered_at) },
                 ].map(({ label, value }) => (
                   <div key={label} className="rounded-lg p-3" style={{ background:'#0e0e11', border:'1px solid #1a1a1f' }}>
-                    <p className="text-[10px] mb-1" style={{ color:'#52525b' }}>{label}</p>
+                    <p className="text-[10px] mb-1" style={{ color:'#a1a1aa' }}>{label}</p>
                     <p className="text-[12px] font-medium" style={{ color:'#e4e4e7' }}>{value}</p>
                   </div>
                 ))}
@@ -558,7 +558,7 @@ function PoDrawer({ po, onClose, onRefresh }: { po: PO; onClose: () => void; onR
 
               {po.notes && (
                 <div className="rounded-lg p-3" style={{ background:'#0e0e11', border:'1px solid #1a1a1f' }}>
-                  <p className="text-[10px] mb-1" style={{ color:'#52525b' }}>Notas</p>
+                  <p className="text-[10px] mb-1" style={{ color:'#a1a1aa' }}>Notas</p>
                   <p className="text-[12px]" style={{ color:'#a1a1aa' }}>{po.notes}</p>
                 </div>
               )}
@@ -574,13 +574,13 @@ function PoDrawer({ po, onClose, onRefresh }: { po: PO; onClose: () => void; onR
                     : <div className="w-10 h-10 rounded shrink-0" style={{ background:'#1e1e24' }} />}
                   <div className="flex-1 min-w-0">
                     <p className="text-[12px] font-medium truncate" style={{ color:'#e4e4e7' }}>{it.products?.name ?? it.product_id}</p>
-                    <p className="text-[10px]" style={{ color:'#52525b' }}>{it.products?.sku ?? '—'}</p>
-                    <p className="text-[11px]" style={{ color:'#71717a' }}>
+                    <p className="text-[10px]" style={{ color:'#a1a1aa' }}>{it.products?.sku ?? '—'}</p>
+                    <p className="text-[11px]" style={{ color:'#a1a1aa' }}>
                       {it.quantity} un · {fmtBRL(it.unit_cost)}/un · {fmtBRL(it.subtotal)}
                     </p>
                   </div>
                   <div className="text-right shrink-0">
-                    <p className="text-[10px]" style={{ color:'#52525b' }}>Recebido</p>
+                    <p className="text-[10px]" style={{ color:'#a1a1aa' }}>Recebido</p>
                     <p className="text-[13px] font-bold" style={{ color: it.quantity_received >= it.quantity ? '#22c55e' : '#f59e0b' }}>
                       {it.quantity_received}/{it.quantity}
                     </p>
@@ -599,7 +599,7 @@ function PoDrawer({ po, onClose, onRefresh }: { po: PO; onClose: () => void; onR
                 ['bl_number',       'BL Number',        'Ex: MAEU1234567'],
               ] as const).map(([key, label, ph]) => (
                 <div key={key}>
-                  <label className="block text-[11px] mb-1.5" style={{ color:'#71717a' }}>{label}</label>
+                  <label className="block text-[11px] mb-1.5" style={{ color:'#a1a1aa' }}>{label}</label>
                   <input value={tracking[key]} onChange={e => setTracking(t => ({ ...t, [key]: e.target.value }))}
                     placeholder={ph} style={inputStyle} />
                 </div>
@@ -739,9 +739,9 @@ function NewPoModal({ suppliers, onClose, onCreated }: {
         <div className="flex items-center justify-between px-5 py-4 sticky top-0" style={{ borderBottom:'1px solid #1a1a1f', background:'#111114' }}>
           <div>
             <p className="text-[14px] font-bold" style={{ color:'#e4e4e7' }}>Nova Ordem de Compra</p>
-            <p className="text-[11px]" style={{ color:'#52525b' }}>Etapa {step} de 3 — {['Fornecedor','Produtos','Revisão'][step-1]}</p>
+            <p className="text-[11px]" style={{ color:'#a1a1aa' }}>Etapa {step} de 3 — {['Fornecedor','Produtos','Revisão'][step-1]}</p>
           </div>
-          <button onClick={onClose} style={{ color:'#52525b' }}><X size={18} /></button>
+          <button onClick={onClose} style={{ color:'#a1a1aa' }}><X size={18} /></button>
         </div>
 
         {/* Steps */}
@@ -762,7 +762,7 @@ function NewPoModal({ suppliers, onClose, onCreated }: {
           {/* Step 1 */}
           {step === 1 && <>
             <div>
-              <label className="block text-[11px] mb-1.5" style={{ color:'#71717a' }}>Fornecedor</label>
+              <label className="block text-[11px] mb-1.5" style={{ color:'#a1a1aa' }}>Fornecedor</label>
               <input value={supplierSearch} onChange={e => setSupplierSearch(e.target.value)}
                 placeholder="Buscar fornecedor por nome…" style={iStyle} />
               {filteredSuppliers.length > 0 && supplierSearch && (
@@ -775,7 +775,7 @@ function NewPoModal({ suppliers, onClose, onCreated }: {
                       onMouseEnter={e => (e.currentTarget.style.background='rgba(255,255,255,0.04)')}
                       onMouseLeave={e => (e.currentTarget.style.background='transparent')}>
                       {countryFlag(s.country)} {s.name}
-                      {s.lead_time_days && <span style={{ color:'#52525b', fontSize:10, marginLeft:6 }}>{s.lead_time_days}d lead</span>}
+                      {s.lead_time_days && <span style={{ color:'#a1a1aa', fontSize:10, marginLeft:6 }}>{s.lead_time_days}d lead</span>}
                     </button>
                   ))}
                 </div>
@@ -784,23 +784,23 @@ function NewPoModal({ suppliers, onClose, onCreated }: {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-[11px] mb-1.5" style={{ color:'#71717a' }}>Data estimada de chegada</label>
+                <label className="block text-[11px] mb-1.5" style={{ color:'#a1a1aa' }}>Data estimada de chegada</label>
                 <input type="date" value={form.expected_arrival_date} onChange={e => setForm(f => ({ ...f, expected_arrival_date: e.target.value }))} style={iStyle} />
               </div>
               <div>
-                <label className="block text-[11px] mb-1.5" style={{ color:'#71717a' }}>Incoterm</label>
+                <label className="block text-[11px] mb-1.5" style={{ color:'#a1a1aa' }}>Incoterm</label>
                 <select value={form.incoterm} onChange={e => setForm(f => ({ ...f, incoterm: e.target.value }))} style={sStyle}>
                   {INCOTERMS.map(i => <option key={i}>{i}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-[11px] mb-1.5" style={{ color:'#71717a' }}>Moeda</label>
+                <label className="block text-[11px] mb-1.5" style={{ color:'#a1a1aa' }}>Moeda</label>
                 <select value={form.currency} onChange={e => setForm(f => ({ ...f, currency: e.target.value }))} style={sStyle}>
                   {CURRENCIES.map(c => <option key={c}>{c}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-[11px] mb-1.5" style={{ color:'#71717a' }}>Taxa de câmbio</label>
+                <label className="block text-[11px] mb-1.5" style={{ color:'#a1a1aa' }}>Taxa de câmbio</label>
                 <input type="number" step="0.01" value={form.exchange_rate} onChange={e => setForm(f => ({ ...f, exchange_rate: Number(e.target.value) }))} style={iStyle} />
               </div>
             </div>
@@ -809,7 +809,7 @@ function NewPoModal({ suppliers, onClose, onCreated }: {
           {/* Step 2 */}
           {step === 2 && <>
             <div className="relative">
-              <label className="block text-[11px] mb-1.5" style={{ color:'#71717a' }}>Adicionar produto</label>
+              <label className="block text-[11px] mb-1.5" style={{ color:'#a1a1aa' }}>Adicionar produto</label>
               <input value={productSearch} onChange={e => setProductSearch(e.target.value)}
                 placeholder="Buscar por nome ou SKU…" style={iStyle} />
               {productResults.length > 0 && (
@@ -842,13 +842,13 @@ function NewPoModal({ suppliers, onClose, onCreated }: {
                       : <div className="w-8 h-8 rounded shrink-0" style={{ background:'#1e1e24' }} />}
                     <div className="flex-1 min-w-0">
                       <p className="text-[11px] font-medium truncate" style={{ color:'#e4e4e7' }}>{it.name}</p>
-                      <p className="text-[10px]" style={{ color:'#52525b' }}>{it.sku}</p>
+                      <p className="text-[10px]" style={{ color:'#a1a1aa' }}>{it.sku}</p>
                     </div>
                     <input type="number" min={1} value={it.quantity}
                       onChange={e => updateItem(i, 'quantity', Number(e.target.value))}
                       className="w-16 text-center text-[12px] rounded"
                       style={{ background:'#18181b', border:'1px solid #27272a', color:'#e4e4e7', padding:'3px 4px' }} />
-                    <span style={{ color:'#52525b', fontSize:11 }}>×</span>
+                    <span style={{ color:'#a1a1aa', fontSize:11 }}>×</span>
                     <input type="number" min={0} step="0.01" value={it.unit_cost}
                       onChange={e => updateItem(i, 'unit_cost', Number(e.target.value))}
                       className="w-20 text-center text-[12px] rounded"
@@ -856,7 +856,7 @@ function NewPoModal({ suppliers, onClose, onCreated }: {
                     <span className="text-[11px] font-medium w-20 text-right shrink-0" style={{ color:'#a1a1aa' }}>
                       {fmtBRL(it.quantity * it.unit_cost)}
                     </span>
-                    <button onClick={() => removeItem(i)} style={{ color:'#52525b' }}><X size={14}/></button>
+                    <button onClick={() => removeItem(i)} style={{ color:'#a1a1aa' }}><X size={14}/></button>
                   </div>
                 ))}
               </div>
@@ -864,18 +864,18 @@ function NewPoModal({ suppliers, onClose, onCreated }: {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-[11px] mb-1.5" style={{ color:'#71717a' }}>Frete estimado</label>
+                <label className="block text-[11px] mb-1.5" style={{ color:'#a1a1aa' }}>Frete estimado</label>
                 <input type="number" min={0} value={form.freight_cost} onChange={e => setForm(f => ({ ...f, freight_cost: e.target.value }))} style={iStyle} />
               </div>
               <div>
-                <label className="block text-[11px] mb-1.5" style={{ color:'#71717a' }}>Outros custos</label>
+                <label className="block text-[11px] mb-1.5" style={{ color:'#a1a1aa' }}>Outros custos</label>
                 <input type="number" min={0} value={form.other_costs} onChange={e => setForm(f => ({ ...f, other_costs: e.target.value }))} style={iStyle} />
               </div>
             </div>
 
             <div className="rounded-lg p-3" style={{ background:'rgba(0,229,255,0.05)', border:'1px solid rgba(0,229,255,0.12)' }}>
               <div className="flex justify-between text-[12px] mb-1">
-                <span style={{ color:'#71717a' }}>Subtotal</span>
+                <span style={{ color:'#a1a1aa' }}>Subtotal</span>
                 <span style={{ color:'#a1a1aa' }}>{fmtBRL(subtotal)}</span>
               </div>
               <div className="flex justify-between text-[13px] font-bold">
@@ -883,7 +883,7 @@ function NewPoModal({ suppliers, onClose, onCreated }: {
                 <span style={{ color:'#00E5FF' }}>{fmtBRL(total)}</span>
               </div>
               {form.currency !== 'BRL' && form.exchange_rate > 0 && (
-                <p className="text-[11px] mt-1" style={{ color:'#52525b' }}>
+                <p className="text-[11px] mt-1" style={{ color:'#a1a1aa' }}>
                   ≈ {(total / form.exchange_rate).toLocaleString('pt-BR', { maximumFractionDigits:2 })} {form.currency}
                 </p>
               )}
@@ -902,18 +902,18 @@ function NewPoModal({ suppliers, onClose, onCreated }: {
                 { label:'Total',          value: fmtBRL(total) },
               ].map(({ label, value }) => (
                 <div key={label} className="flex justify-between text-[12px]">
-                  <span style={{ color:'#71717a' }}>{label}</span>
+                  <span style={{ color:'#a1a1aa' }}>{label}</span>
                   <span style={{ color:'#e4e4e7' }}>{value}</span>
                 </div>
               ))}
             </div>
             <div>
-              <label className="block text-[11px] mb-1.5" style={{ color:'#71717a' }}>Notas para fornecedor</label>
+              <label className="block text-[11px] mb-1.5" style={{ color:'#a1a1aa' }}>Notas para fornecedor</label>
               <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
                 rows={2} style={{ ...iStyle, resize:'none' }} placeholder="Instruções de embalagem, prazo…" />
             </div>
             <div>
-              <label className="block text-[11px] mb-1.5" style={{ color:'#71717a' }}>Notas internas</label>
+              <label className="block text-[11px] mb-1.5" style={{ color:'#a1a1aa' }}>Notas internas</label>
               <textarea value={form.internal_notes} onChange={e => setForm(f => ({ ...f, internal_notes: e.target.value }))}
                 rows={2} style={{ ...iStyle, resize:'none' }} placeholder="Observações da equipe" />
             </div>
@@ -1040,7 +1040,7 @@ export default function ImportacoesPage() {
             <Ship size={20} color="#00E5FF" />
             <h1 className="text-lg font-bold" style={{ color:'#e4e4e7' }}>Importações</h1>
           </div>
-          <p className="text-xs" style={{ color:'#52525b' }}>
+          <p className="text-xs" style={{ color:'#a1a1aa' }}>
             Kanban de planejamento · {active.length} POs ativas{loading ? ' · carregando…' : ''}
           </p>
         </div>

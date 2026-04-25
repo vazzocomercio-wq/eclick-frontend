@@ -1,0 +1,106 @@
+
+> eclick-frontend@0.1.1 build
+> next build
+
+   ▲ Next.js 15.5.15
+   - Environments: .env.local
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully in 11.2s
+   Linting and checking validity of types ...
+
+Failed to compile.
+
+./src/app/api/onboarding/route.ts
+6:10  Warning: 'generateSlug' is defined but never used.  @typescript-eslint/no-unused-vars
+
+./src/app/dashboard/atendimento/perguntas/page.tsx
+187:10  Warning: 'total' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+383:9  Warning: 'uniqueItems' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+
+./src/app/dashboard/catalogo/anuncios/mercadolivre/page.tsx
+302:9  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+501:19  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+777:48  Warning: React Hook useEffect has a missing dependency: 'q'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+1039:74  Warning: Expected an assignment or function call and instead saw an expression.  @typescript-eslint/no-unused-expressions
+
+./src/app/dashboard/catalogo/anuncios/page.tsx
+202:9  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+505:49  Warning: Expected an assignment or function call and instead saw an expression.  @typescript-eslint/no-unused-expressions
+
+./src/app/dashboard/concorrentes/page.tsx
+78:17  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./src/app/dashboard/concorrentes/[id]/page.tsx
+351:15  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+748:21  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./src/app/dashboard/concorrentes/_components/AddCompetitorModal.tsx
+115:11  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+180:27  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+498:25  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./src/app/dashboard/financeiro/resumo/page.tsx
+643:37  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./src/app/dashboard/page.tsx
+91:10  Warning: 'dayStr' is defined but never used.  @typescript-eslint/no-unused-vars
+164:10  Warning: 'filterByPeriod' is defined but never used.  @typescript-eslint/no-unused-vars
+639:61  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+662:63  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+815:9  Warning: 'todayM' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+1424:56  Warning: 'o' is defined but never used.  @typescript-eslint/no-unused-vars
+
+./src/app/dashboard/pedidos/page.tsx
+327:13  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+345:58  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+373:58  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+473:23  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+1199:79  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+1257:38  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+1258:35  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+1281:34  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+1316:35  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+1317:33  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+1332:44  Warning: React Hook useEffect has a missing dependency: 'q'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./src/app/dashboard/produtos/novo/page.tsx
+3:31  Warning: 'useCallback' is defined but never used.  @typescript-eslint/no-unused-vars
+
+./src/app/dashboard/produtos/novo/_components/Tab1Basic.tsx
+61:7  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+101:5  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./src/app/dashboard/produtos/novo/_components/Tab3Attributes.tsx
+16:7  Warning: 'ORIGINS' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+
+./src/app/dashboard/produtos/novo/_components/Tab5Sales.tsx
+7:7  Warning: 'sel' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+
+./src/app/dashboard/produtos/page.tsx
+238:17  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+444:13  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+608:21  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+653:17  Warning: 'setOrgId' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+695:7  Warning: Expected an assignment or function call and instead saw an expression.  @typescript-eslint/no-unused-expressions
+
+./src/app/dashboard/reputacao/page.tsx
+46:7  Warning: 'POWER_LABEL' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+
+./src/app/dashboard/vendas-ao-vivo/page.tsx
+8:20  Warning: 'LineChart' is defined but never used.  @typescript-eslint/no-unused-vars
+
+./src/app/login/page.tsx
+85:11  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./src/app/onboarding/page.tsx
+223:11  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./src/app/register/page.tsx
+98:13  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+133:11  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./src/components/layout/Sidebar.tsx
+253:9  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+info  - Need to disable some ESLint rules? Learn more here: https://nextjs.org/docs/app/api-reference/config/eslint#disabling-rules

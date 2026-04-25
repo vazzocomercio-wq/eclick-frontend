@@ -655,7 +655,7 @@ function OrderCard({
                         setEditando(false)
                       }}
                       className="text-[10px] px-2 py-0.5 rounded transition-colors hover:text-zinc-300"
-                      style={{ color: '#71717a' }}>
+                      style={{ color: '#a1a1aa' }}>
                       Cancelar
                     </button>
                   )}
@@ -1022,7 +1022,7 @@ function Pagination({ page, total, size, onChange }: {
             ? <span key={`e${i}`} className="text-zinc-700 text-xs px-1">…</span>
             : <button key={p} onClick={() => onChange(p as number)}
                 className="w-7 h-7 rounded-lg text-xs font-medium transition-colors"
-                style={p === page ? { background: '#00E5FF', color: '#000' } : { color: '#71717a' }}>
+                style={p === page ? { background: '#00E5FF', color: '#000' } : { color: '#a1a1aa' }}>
                 {(p as number) + 1}
               </button>
         )}
@@ -1443,7 +1443,7 @@ export default function PedidosPage() {
           return (
             <button key={t.key} onClick={() => setTab(t.key)}
               className="px-4 py-2.5 text-sm font-medium transition-colors relative shrink-0"
-              style={active ? { color: '#00E5FF', borderBottom: '2px solid #00E5FF', marginBottom: -1 } : { color: '#52525b' }}>
+              style={active ? { color: '#00E5FF', borderBottom: '2px solid #00E5FF', marginBottom: -1 } : { color: '#a1a1aa' }}>
               {t.label}
               {count > 0 && (
                 <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full"

@@ -12,7 +12,7 @@ export default function ComingSoonPage({ icon, title, description }: ComingSoonP
       <div style={{ color: '#00E5FF', opacity: 0.9 }}>{icon}</div>
       <div>
         <h1 className="text-2xl font-bold mb-2" style={{ color: '#e4e4e7' }}>{title}</h1>
-        <p className="text-sm max-w-md" style={{ color: '#71717a' }}>{description}</p>
+        <p className="text-sm max-w-md" style={{ color: '#a1a1aa' }}>{description}</p>
       </div>
       <div className="flex flex-col items-center gap-2">
         <span className="text-xs font-semibold px-3 py-1.5 rounded-full"

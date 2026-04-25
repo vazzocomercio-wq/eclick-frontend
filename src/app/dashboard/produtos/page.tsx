@@ -134,7 +134,7 @@ function RowMenu({ onEdit, onDuplicate, onDelete }: {
     <>
       <button ref={btnRef} onClick={handleToggle}
         className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors"
-        style={{ color: '#52525b' }}
+        style={{ color: '#a1a1aa' }}
         onMouseEnter={e => (e.currentTarget.style.color = '#a1a1aa')}
         onMouseLeave={e => (e.currentTarget.style.color = '#52525b')}>
         <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
@@ -305,7 +305,7 @@ function TableRow({
                 R$ {wLevels[0].price}
               </span>
             </p>
-            <p className="text-[10px] mt-0.5" style={{ color: '#52525b' }}>
+            <p className="text-[10px] mt-0.5" style={{ color: '#a1a1aa' }}>
               Com {wLevels.length} preço{wLevels.length !== 1 ? 's' : ''} de atacado
             </p>
           </>
@@ -966,7 +966,7 @@ export default function ProdutosPage() {
                   </th>
                   {['ANÚNCIO', 'PREÇO', 'PLATAFORMAS', 'MÉTRICAS', 'STATUS', ''].map(h => (
                     <th key={h} className="px-3 py-3 text-left text-[10px] font-semibold uppercase tracking-widest"
-                      style={{ color: '#52525b' }}>
+                      style={{ color: '#a1a1aa' }}>
                       {h}
                     </th>
                   ))}

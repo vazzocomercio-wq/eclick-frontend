@@ -225,7 +225,7 @@ export default function FornecedoresPage() {
               className="px-3 py-1.5 text-xs font-medium transition-colors"
               style={{
                 background: filterType === t ? '#00E5FF' : 'transparent',
-                color: filterType === t ? '#09090b' : '#71717a',
+                color: filterType === t ? '#09090b' : '#a1a1aa',
               }}>
               {t === 'all' ? 'Todos' : t === 'nacional' ? 'Nacional' : 'Importado'}
             </button>

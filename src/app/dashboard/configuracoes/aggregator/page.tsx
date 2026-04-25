@@ -101,7 +101,7 @@ function Card({ children, style }: { children: React.ReactNode; style?: React.CS
 function Stat({ label, value, color }: { label: string; value: string | number; color?: string }) {
   return (
     <div>
-      <p style={{ fontSize: 11, color: '#71717a', marginBottom: 2 }}>{label}</p>
+      <p style={{ fontSize: 11, color: '#a1a1aa', marginBottom: 2 }}>{label}</p>
       <p style={{ fontSize: 18, fontWeight: 700, color: color ?? '#fff' }}>{value}</p>
     </div>
   )
@@ -130,7 +130,7 @@ function ConfirmModal({
       <div style={{ background: '#111114', border: '1px solid #1a1a1f', borderRadius: 14, padding: 28, width: 380 }}>
         <div className="flex items-center justify-between mb-4">
           <h3 style={{ fontWeight: 700, fontSize: 16, color: '#fff' }}>{title}</h3>
-          <button onClick={onClose} style={{ color: '#52525b' }}><X size={18} /></button>
+          <button onClick={onClose} style={{ color: '#a1a1aa' }}><X size={18} /></button>
         </div>
         <p style={{ fontSize: 13, color: '#a1a1aa', marginBottom: 24 }}>{description}</p>
         <div className="flex gap-3 justify-end">
@@ -165,7 +165,7 @@ function RunDetailModal({ run, onClose }: { run: AggregatorRun; onClose: () => v
             <TypeBadge type={run.run_type} />
             <StatusBadge status={run.status} />
           </div>
-          <button onClick={onClose} style={{ color: '#52525b' }}><X size={18} /></button>
+          <button onClick={onClose} style={{ color: '#a1a1aa' }}><X size={18} /></button>
         </div>
         <div className="grid grid-cols-2 gap-4 mb-6">
           <Stat label="Início" value={fmtDate(run.started_at)} />
@@ -185,7 +185,7 @@ function RunDetailModal({ run, onClose }: { run: AggregatorRun; onClose: () => v
         )}
         {run.error_details && (
           <div>
-            <p style={{ fontSize: 11, color: '#71717a', marginBottom: 6 }}>Detalhes dos erros</p>
+            <p style={{ fontSize: 11, color: '#a1a1aa', marginBottom: 6 }}>Detalhes dos erros</p>
             <pre style={{ fontSize: 11, color: '#a1a1aa', background: '#0c0c0f', padding: 12, borderRadius: 8, overflow: 'auto', maxHeight: 200 }}>
               {JSON.stringify(run.error_details, null, 2)}
             </pre>
@@ -325,7 +325,7 @@ export default function AggregatorPage() {
           <span style={{ fontSize: 13, fontWeight: 600, color: '#a1a1aa' }}>Status Atual</span>
           <button
             onClick={fetchStatus}
-            style={{ color: '#52525b', padding: 4, borderRadius: 6 }}
+            style={{ color: '#a1a1aa', padding: 4, borderRadius: 6 }}
             title="Atualizar"
           >
             <RefreshCw size={14} />
@@ -333,7 +333,7 @@ export default function AggregatorPage() {
         </div>
 
         {loading ? (
-          <p style={{ fontSize: 13, color: '#52525b' }}>Carregando...</p>
+          <p style={{ fontSize: 13, color: '#71717a' }}>Carregando...</p>
         ) : active ? (
           <div>
             <div className="flex items-center gap-3 mb-4">
@@ -405,8 +405,8 @@ export default function AggregatorPage() {
             <Clock size={16} style={{ color: '#00E5FF' }} />
             <span style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>Sincronização Diária</span>
           </div>
-          <p style={{ fontSize: 12, color: '#71717a', marginBottom: 4 }}>Re-processa os últimos 3 dias.</p>
-          <p style={{ fontSize: 11, color: '#52525b', marginBottom: 14 }}>Cron: 02:00 BRT todos os dias</p>
+          <p style={{ fontSize: 12, color: '#a1a1aa', marginBottom: 4 }}>Re-processa os últimos 3 dias.</p>
+          <p style={{ fontSize: 11, color: '#a1a1aa', marginBottom: 14 }}>Cron: 02:00 BRT todos os dias</p>
           <button
             onClick={() => handleRunNow(3)}
             disabled={!!active || actionLoading}
@@ -431,7 +431,7 @@ export default function AggregatorPage() {
             <Database size={16} style={{ color: '#f59e0b' }} />
             <span style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>Backfill Inicial</span>
           </div>
-          <p style={{ fontSize: 12, color: '#71717a', marginBottom: 4 }}>Importa histórico completo.</p>
+          <p style={{ fontSize: 12, color: '#a1a1aa', marginBottom: 4 }}>Importa histórico completo.</p>
           <p style={{ fontSize: 11, color: '#f59e0b', marginBottom: 10 }}>⚠ Pode levar 30–60 minutos</p>
           <div className="flex items-center gap-2 mb-3">
             <span style={{ fontSize: 12, color: '#a1a1aa' }}>Dias:</span>
@@ -471,8 +471,8 @@ export default function AggregatorPage() {
             <RefreshCw size={16} style={{ color: '#a78bfa' }} />
             <span style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>Sincronização Custom</span>
           </div>
-          <p style={{ fontSize: 12, color: '#71717a', marginBottom: 4 }}>Sincroniza um período personalizado.</p>
-          <p style={{ fontSize: 11, color: '#52525b', marginBottom: 10 }}>Máximo 30 dias</p>
+          <p style={{ fontSize: 12, color: '#a1a1aa', marginBottom: 4 }}>Sincroniza um período personalizado.</p>
+          <p style={{ fontSize: 11, color: '#a1a1aa', marginBottom: 10 }}>Máximo 30 dias</p>
           <div className="flex items-center gap-2 mb-3">
             <span style={{ fontSize: 12, color: '#a1a1aa' }}>Dias:</span>
             <input
@@ -506,14 +506,14 @@ export default function AggregatorPage() {
       <Card>
         <h2 style={{ fontSize: 14, fontWeight: 700, color: '#fff', marginBottom: 16 }}>Histórico de Execuções</h2>
         {!status?.recentRuns?.length ? (
-          <p style={{ fontSize: 13, color: '#52525b', textAlign: 'center', padding: '24px 0' }}>Nenhuma execução registrada.</p>
+          <p style={{ fontSize: 13, color: '#a1a1aa', textAlign: 'center', padding: '24px 0' }}>Nenhuma execução registrada.</p>
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid #1a1a1f' }}>
                   {['Tipo', 'Início', 'Duração', 'Status', 'Dias', 'Pedidos', 'Snapshots', ''].map(h => (
-                    <th key={h} style={{ padding: '8px 12px', textAlign: 'left', color: '#52525b', fontWeight: 600, whiteSpace: 'nowrap' }}>{h}</th>
+                    <th key={h} style={{ padding: '8px 12px', textAlign: 'left', color: '#a1a1aa', fontWeight: 600, whiteSpace: 'nowrap' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -534,7 +534,7 @@ export default function AggregatorPage() {
                     <td style={{ padding: '10px 12px', color: '#00E5FF', fontWeight: 600 }}>{run.orders_inserted}</td>
                     <td style={{ padding: '10px 12px', color: '#22c55e', fontWeight: 600 }}>{run.snapshots_inserted}</td>
                     <td style={{ padding: '10px 12px' }}>
-                      <ChevronRight size={14} style={{ color: '#52525b' }} />
+                      <ChevronRight size={14} style={{ color: '#a1a1aa' }} />
                     </td>
                   </tr>
                 ))}
