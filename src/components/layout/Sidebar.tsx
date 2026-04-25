@@ -84,7 +84,14 @@ const SECTIONS: NavSection[] = [
             ],
           },
           { label: 'Vínculos',     href: '/dashboard/catalogo/vinculos',  badgeKey: 'vinculos' as BadgeKey },
-          { label: 'Estoque',      href: '/dashboard/catalogo/estoque' },
+          {
+            label: 'Estoque', href: '/dashboard/catalogo/estoque',
+            subItems: [
+              { label: 'Visão Geral',           href: '/dashboard/catalogo/estoque' },
+              { label: 'Distribuição por Canal', href: '/dashboard/catalogo/vinculos' },
+              { label: 'Sincronizações',         href: '/dashboard/catalogo/estoque/sincronizacoes' },
+            ],
+          },
           { label: 'Concorrentes', href: '/dashboard/concorrentes' },
           { label: 'Preços',       href: '/dashboard/precos' },
         ],

@@ -48,6 +48,38 @@ type Movement = {
   created_at: string
 }
 
+type Reservation = {
+  id: string
+  quantity: number
+  reference_type: string
+  reference_id: string
+  channel: string
+  expires_at: string | null
+  created_at: string
+}
+
+type Distribution = {
+  id: string
+  channel: string
+  account_id: string | null
+  distribution_type: string
+  percentage: number | null
+  fixed_quantity: number | null
+  min_quantity: number
+  max_quantity: number | null
+  priority: number
+  is_active: boolean
+}
+
+type FullStockData = {
+  physical: number; virtual: number; reserved: number
+  safety: number; available: number; total_platform: number
+  stock_id: string | null
+  safety_mode: string; safety_percentage: number; safety_quantity: number
+  reservations: Reservation[]
+  distributions: Distribution[]
+}
+
 type Toast  = { id: number; msg: string; type: 'success' | 'error' | 'info' }
 type Filter = 'all' | 'vinculado' | 'sem_vinculo' | 'kit' | 'variacao'
 type PlatformFilter = 'all' | 'mercadolivre' | 'shopee' | 'amazon' | 'magalu'
@@ -338,6 +370,25 @@ function StockPanel({
   const [settingsErr,    setSettingsErr]    = useState<string | null>(null)
   const [settingsSaved,  setSettingsSaved]  = useState(false)
 
+  // Full stock state
+  const [fullStock,       setFullStock]       = useState<FullStockData | null>(null)
+  const [fullLoading,     setFullLoading]     = useState(false)
+  const [safetyMode,      setSafetyMode]      = useState<'percentage' | 'fixed'>('percentage')
+  const [safetyPct,       setSafetyPct]       = useState('10')
+  const [safetyQty,       setSafetyQty]       = useState('0')
+  const [savingBuffer,    setSavingBuffer]    = useState(false)
+  const [bufferSaved,     setBufferSaved]     = useState(false)
+  const [bufferErr,       setBufferErr]       = useState<string | null>(null)
+  const [distributions,   setDistributions]   = useState<Distribution[]>([])
+  const [newDistForm,     setNewDistForm]     = useState(false)
+  const [distChannel,     setDistChannel]     = useState('')
+  const [distType,        setDistType]        = useState<'percentage' | 'fixed'>('percentage')
+  const [distValue,       setDistValue]       = useState('')
+  const [distMin,         setDistMin]         = useState('0')
+  const [distMax,         setDistMax]         = useState('')
+  const [savingDist,      setSavingDist]      = useState(false)
+  const [distErr,         setDistErr]         = useState<string | null>(null)
+
   const sharedStock = product.product_stock.find(s => s.platform === null) ?? null
   const physicalQty = sharedStock?.quantity ?? 0
 
@@ -348,6 +399,24 @@ function StockPanel({
     setAutoPause(sharedStock.auto_pause_enabled ?? false)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sharedStock?.id])
+
+  useEffect(() => {
+    setFullLoading(true)
+    getHeaders()
+      .then(h => fetch(`${BACKEND}/stock/${product.id}/full`, { headers: h }))
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (!d) return
+        setFullStock(d)
+        setSafetyMode(d.safety_mode ?? 'percentage')
+        setSafetyPct(String(d.safety_percentage ?? 10))
+        setSafetyQty(String(d.safety_quantity ?? 0))
+        setDistributions(d.distributions ?? [])
+      })
+      .catch(() => {})
+      .finally(() => setFullLoading(false))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product.id])
 
   useEffect(() => {
     setMovLoading(true)
@@ -408,6 +477,76 @@ function StockPanel({
     } catch (e: unknown) {
       setAdjError(e instanceof Error ? e.message : 'Erro ao ajustar')
     } finally { setAdjSaving(false) }
+  }
+
+  async function handleSaveBuffer() {
+    if (!fullStock?.stock_id) return
+    setSavingBuffer(true); setBufferErr(null); setBufferSaved(false)
+    try {
+      const headers = await getHeaders()
+      const res = await fetch(`${BACKEND}/stock/${fullStock.stock_id}/safety`, {
+        method: 'PATCH',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          safety_mode: safetyMode,
+          safety_percentage: Number(safetyPct) || 10,
+          safety_quantity: Number(safetyQty) || 0,
+        }),
+      })
+      if (!res.ok) { const d = await res.json(); throw new Error(d.message ?? `HTTP ${res.status}`) }
+      const updated = await fetch(`${BACKEND}/stock/${product.id}/full`, { headers }).then(r => r.json())
+      setFullStock(updated)
+      setDistributions(updated.distributions ?? [])
+      setBufferSaved(true)
+      setTimeout(() => setBufferSaved(false), 2500)
+    } catch (e: unknown) {
+      setBufferErr(e instanceof Error ? e.message : 'Erro ao salvar buffer')
+    } finally { setSavingBuffer(false) }
+  }
+
+  async function handleSaveDist() {
+    if (!distChannel.trim() || !distValue.trim()) { setDistErr('Preencha canal e valor'); return }
+    setSavingDist(true); setDistErr(null)
+    try {
+      const headers = await getHeaders()
+      const body = {
+        product_id: product.id,
+        channel: distChannel.trim(),
+        distribution_type: distType,
+        percentage: distType === 'percentage' ? Number(distValue) : null,
+        fixed_quantity: distType === 'fixed' ? Number(distValue) : null,
+        min_quantity: Number(distMin) || 0,
+        max_quantity: distMax.trim() ? Number(distMax) : null,
+        is_active: true,
+      }
+      const res = await fetch(`${BACKEND}/stock/distribution`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const d = await res.json()
+      if (!res.ok) throw new Error(d.message ?? `HTTP ${res.status}`)
+      setDistributions(prev => [...prev, d as Distribution])
+      setNewDistForm(false); setDistChannel(''); setDistValue(''); setDistMin('0'); setDistMax('')
+    } catch (e: unknown) {
+      setDistErr(e instanceof Error ? e.message : 'Erro ao salvar distribuição')
+    } finally { setSavingDist(false) }
+  }
+
+  async function handleDeleteDist(id: string) {
+    try {
+      const headers = await getHeaders()
+      await fetch(`${BACKEND}/stock/distribution/${id}`, { method: 'DELETE', headers })
+      setDistributions(prev => prev.filter(d => d.id !== id))
+    } catch { /* ignore */ }
+  }
+
+  async function handleReleaseReservation(id: string) {
+    try {
+      const headers = await getHeaders()
+      await fetch(`${BACKEND}/stock/reservations/${id}/release`, { method: 'POST', headers })
+      setFullStock(prev => prev ? { ...prev, reservations: prev.reservations.filter(r => r.id !== id) } : prev)
+    } catch { /* ignore */ }
   }
 
   const inp = 'w-full bg-[#0f0f12] border border-[#27272a] text-white text-sm rounded-lg px-3 py-2 outline-none focus:border-[#00E5FF] tabular-nums'
@@ -615,6 +754,211 @@ function StockPanel({
               </div>
             )}
           </div>
+
+          {/* ── Estoque Reservado ─────────────────────────────────────────────── */}
+          <div style={{ borderTop: '1px solid #1e1e24' }} className="pt-4">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-2">Estoque Reservado</p>
+            {fullLoading ? (
+              <div className="h-8 rounded-lg animate-pulse" style={{ background: '#1a1a1f' }} />
+            ) : !fullStock?.reservations?.length ? (
+              <p className="text-zinc-600 text-xs py-1">Nenhuma reserva ativa</p>
+            ) : (
+              <div className="space-y-1.5">
+                {fullStock.reservations.map(r => (
+                  <div key={r.id} className="flex items-center gap-2 px-3 py-2 rounded-lg"
+                    style={{ background: '#0c0c10', border: '1px solid #1e1e24' }}>
+                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded"
+                      style={{ color: '#a78bfa', background: 'rgba(167,139,250,0.1)' }}>
+                      {r.reference_type}
+                    </span>
+                    <span className="flex-1 text-[11px] text-zinc-500 truncate">{r.reference_id}</span>
+                    <span className="text-[11px] font-bold tabular-nums text-yellow-400 shrink-0">{num(r.quantity)} unid.</span>
+                    <button onClick={() => handleReleaseReservation(r.id)}
+                      className="text-zinc-600 hover:text-red-400 transition-colors shrink-0">
+                      <svg width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* ── Buffer de Segurança ───────────────────────────────────────────── */}
+          <div style={{ borderTop: '1px solid #1e1e24' }} className="pt-4">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-3">Buffer de Segurança</p>
+            <div className="grid grid-cols-2 gap-1.5 mb-3">
+              {(['percentage', 'fixed'] as const).map(m => (
+                <button key={m} onClick={() => setSafetyMode(m)}
+                  className="py-1.5 rounded-lg text-[11px] font-semibold transition-all"
+                  style={{
+                    background: safetyMode === m ? 'rgba(0,229,255,0.1)' : '#111114',
+                    color: safetyMode === m ? '#00E5FF' : '#71717a',
+                    border: `1px solid ${safetyMode === m ? 'rgba(0,229,255,0.3)' : '#27272a'}`,
+                  }}>
+                  {m === 'percentage' ? '% Percentual' : '# Fixo'}
+                </button>
+              ))}
+            </div>
+            {safetyMode === 'percentage' ? (
+              <div className="relative">
+                <input type="number" min={0} max={100} value={safetyPct}
+                  onChange={e => setSafetyPct(e.target.value)} className={inp} />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-zinc-500">%</span>
+              </div>
+            ) : (
+              <div className="relative">
+                <input type="number" min={0} value={safetyQty}
+                  onChange={e => setSafetyQty(e.target.value)} className={inp} />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-zinc-500">unid.</span>
+              </div>
+            )}
+            {fullStock && (
+              <p className="text-[11px] text-zinc-600 mt-1.5">
+                Buffer atual: <span className="text-yellow-400 font-semibold">{num(fullStock.safety)} unid.</span>
+                {safetyMode === 'percentage'
+                  ? ` (${safetyPct}% de ${num(fullStock.physical)} físico)`
+                  : ` (fixo)`}
+              </p>
+            )}
+            {bufferErr && <p className="text-[11px] text-red-400 mt-1">{bufferErr}</p>}
+            <button onClick={handleSaveBuffer} disabled={savingBuffer || !fullStock?.stock_id}
+              className="w-full py-2 rounded-xl text-xs font-semibold transition-all disabled:opacity-50 mt-3"
+              style={{
+                background: bufferSaved ? 'rgba(74,222,128,0.1)' : 'rgba(0,229,255,0.08)',
+                color: bufferSaved ? '#4ade80' : '#00E5FF',
+                border: `1px solid ${bufferSaved ? 'rgba(74,222,128,0.2)' : 'rgba(0,229,255,0.2)'}`,
+              }}>
+              {savingBuffer ? 'Salvando…' : bufferSaved ? '✓ Buffer salvo' : 'Salvar buffer'}
+            </button>
+          </div>
+
+          {/* ── Estoque Disponível ────────────────────────────────────────────── */}
+          {fullStock && (
+            <div className="rounded-xl p-4" style={{ background: 'rgba(0,229,255,0.05)', border: '1px solid rgba(0,229,255,0.2)' }}>
+              <p className="text-[10px] font-semibold uppercase tracking-widest mb-3" style={{ color: '#00E5FF' }}>
+                Estoque Disponível para Venda
+              </p>
+              <div className="space-y-1 text-[12px]">
+                <div className="flex justify-between text-zinc-400">
+                  <span>Físico</span>
+                  <span className="tabular-nums">{num(fullStock.physical)}</span>
+                </div>
+                <div className="flex justify-between text-zinc-400">
+                  <span>+ Virtual</span>
+                  <span className="tabular-nums">{num(fullStock.virtual)}</span>
+                </div>
+                <div className="flex justify-between text-zinc-500">
+                  <span>− Reservado</span>
+                  <span className="tabular-nums text-yellow-400">−{num(fullStock.reserved)}</span>
+                </div>
+                <div className="flex justify-between text-zinc-500">
+                  <span>− Buffer segurança</span>
+                  <span className="tabular-nums text-orange-400">−{num(fullStock.safety)}</span>
+                </div>
+                <div className="border-t pt-1.5 flex justify-between font-bold" style={{ borderColor: 'rgba(0,229,255,0.2)' }}>
+                  <span style={{ color: '#00E5FF' }}>= Disponível</span>
+                  <span className="tabular-nums text-xl" style={{ color: '#00E5FF' }}>{num(fullStock.available)}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Distribuição por Canal ────────────────────────────────────────── */}
+          <div style={{ borderTop: '1px solid #1e1e24' }} className="pt-4">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Distribuição por Canal</p>
+              {!newDistForm && (
+                <button onClick={() => setNewDistForm(true)}
+                  className="text-[11px] px-2.5 py-1 rounded-lg font-semibold transition-all"
+                  style={{ background: 'rgba(0,229,255,0.06)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.15)' }}>
+                  + Canal
+                </button>
+              )}
+            </div>
+
+            {distributions.length === 0 && !newDistForm && (
+              <p className="text-zinc-600 text-xs py-1">Nenhuma distribuição configurada</p>
+            )}
+
+            {distributions.map(d => (
+              <div key={d.id} className="flex items-center gap-2 px-3 py-2 rounded-lg mb-1.5"
+                style={{ background: '#0c0c10', border: '1px solid #1e1e24' }}>
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0"
+                  style={{ color: '#00E5FF', background: 'rgba(0,229,255,0.1)' }}>
+                  {d.channel}{d.account_id ? ` · ${d.account_id}` : ''}
+                </span>
+                <span className="flex-1 text-[11px] text-zinc-400 tabular-nums">
+                  {d.distribution_type === 'percentage'
+                    ? `${d.percentage}%`
+                    : `${num(d.fixed_quantity ?? 0)} unid.`}
+                  {d.min_quantity > 0 && <span className="text-zinc-600"> mín:{d.min_quantity}</span>}
+                  {d.max_quantity != null && <span className="text-zinc-600"> máx:{d.max_quantity}</span>}
+                </span>
+                <span className="shrink-0 text-[10px]" style={{ color: d.is_active ? '#4ade80' : '#71717a' }}>
+                  {d.is_active ? '●' : '○'}
+                </span>
+                <button onClick={() => handleDeleteDist(d.id)}
+                  className="text-zinc-600 hover:text-red-400 transition-colors shrink-0">
+                  <svg width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            ))}
+
+            {newDistForm && (
+              <div className="rounded-xl p-4 space-y-3" style={{ background: '#0c0c10', border: '1px solid #1e1e24' }}>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {(['percentage', 'fixed'] as const).map(m => (
+                    <button key={m} onClick={() => setDistType(m)}
+                      className="py-1.5 rounded-lg text-[11px] font-semibold transition-all"
+                      style={{
+                        background: distType === m ? 'rgba(0,229,255,0.1)' : '#111114',
+                        color: distType === m ? '#00E5FF' : '#71717a',
+                        border: `1px solid ${distType === m ? 'rgba(0,229,255,0.3)' : '#27272a'}`,
+                      }}>
+                      {m === 'percentage' ? '% Percentual' : '# Fixo'}
+                    </button>
+                  ))}
+                </div>
+                <input value={distChannel} onChange={e => setDistChannel(e.target.value)}
+                  placeholder="Canal (ex: mercadolivre)" className={inp.replace('tabular-nums', '')} />
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="col-span-1">
+                    <label className="block text-[10px] text-zinc-500 mb-1">
+                      {distType === 'percentage' ? '%' : 'Qtd'}
+                    </label>
+                    <input type="number" min={0} value={distValue} onChange={e => setDistValue(e.target.value)} className={inp} />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-zinc-500 mb-1">Mín</label>
+                    <input type="number" min={0} value={distMin} onChange={e => setDistMin(e.target.value)} className={inp} />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-zinc-500 mb-1">Máx</label>
+                    <input type="number" min={0} value={distMax} onChange={e => setDistMax(e.target.value)}
+                      placeholder="∞" className={inp} />
+                  </div>
+                </div>
+                {distErr && <p className="text-[11px] text-red-400">{distErr}</p>}
+                <div className="flex gap-2">
+                  <button onClick={() => { setNewDistForm(false); setDistErr(null) }}
+                    className="flex-1 py-2 rounded-lg text-xs text-zinc-400 transition-colors hover:text-white"
+                    style={{ background: '#1a1a1f', border: '1px solid #27272a' }}>
+                    Cancelar
+                  </button>
+                  <button onClick={handleSaveDist} disabled={savingDist}
+                    className="flex-1 py-2 rounded-lg text-xs font-semibold transition-opacity disabled:opacity-50"
+                    style={{ background: '#00E5FF', color: '#000' }}>
+                    {savingDist ? 'Salvando…' : 'Adicionar'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
         </div>
       </div>
     </>
