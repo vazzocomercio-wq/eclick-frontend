@@ -450,11 +450,18 @@ function StockPanel({
       .then(r => r.ok ? r.json() : null)
       .then(d => {
         if (!d) return
-        setFullStock(d)
+        // Normalize array fields up front so downstream .filter/.map can't crash
+        // when the backend returns null for these collections.
+        const safe: FullStockData = {
+          ...d,
+          reservations:  Array.isArray(d.reservations)  ? d.reservations  : [],
+          distributions: Array.isArray(d.distributions) ? d.distributions : [],
+        }
+        setFullStock(safe)
         setSafetyMode(d.safety_mode ?? 'percentage')
         setSafetyPct(String(d.safety_percentage ?? 10))
         setSafetyQty(String(d.safety_quantity ?? 0))
-        setDistributions(d.distributions ?? [])
+        setDistributions(safe.distributions)
         // distOpen stays at its initial value (true) so the section is always
         // expanded when the panel mounts; user can still collapse via chevron.
       })
@@ -533,8 +540,13 @@ function StockPanel({
 
       // Refresh full stock to get updated calculations
       const updated = await fetch(`${BACKEND}/stock/${product.id}/full`, { headers }).then(r => r.json())
-      setFullStock(updated)
-      setDistributions(updated.distributions ?? [])
+      const safeUpdated: FullStockData = {
+        ...updated,
+        reservations:  Array.isArray(updated.reservations)  ? updated.reservations  : [],
+        distributions: Array.isArray(updated.distributions) ? updated.distributions : [],
+      }
+      setFullStock(safeUpdated)
+      setDistributions(safeUpdated.distributions)
 
       setSavedAll(true)
       setTimeout(() => setSavedAll(false), 2500)
@@ -614,7 +626,7 @@ function StockPanel({
       setAutoMsg('✓ Distribuição aplicada')
       // Refresh distributions in the panel
       const fresh = await fetch(`${BACKEND}/stock/${product.id}/full`, { headers }).then(r => r.json())
-      setDistributions(fresh.distributions ?? [])
+      setDistributions(Array.isArray(fresh?.distributions) ? fresh.distributions : [])
       setTimeout(() => { setAutoModalOpen(false); setAutoMsg(null) }, 1500)
     } catch (e: unknown) {
       setAutoMsg(e instanceof Error ? e.message : 'Erro ao aplicar')
@@ -1381,7 +1393,7 @@ function ProductCard({
                 const pb  = PLATFORM_BADGE[v.platform] ?? { label: v.platform, color: '#71717a', bg: 'rgba(113,113,122,0.1)' }
                 const vb  = vinculoBadge(v)
                 const isConfirm = confirmId === v.id
-                const mlUrl = v.platform === 'mercadolivre'
+                const mlUrl = v.platform === 'mercadolivre' && typeof v.listing_id === 'string' && v.listing_id
                   ? `https://produto.mercadolivre.com.br/${v.listing_id.replace(/^MLB/, 'MLB-')}`
                   : null
                 return (
@@ -1525,7 +1537,15 @@ export default function VinculosPage() {
       .order('name')
       .limit(200)
     if (error) { toast('Erro ao carregar produtos: ' + error.message, 'error'); setLoading(false); return }
-    setProducts((data ?? []) as unknown as ProductRow[])
+    // Supabase nested selects return null (not []) when no related rows exist —
+    // normalize so downstream .filter/.map/.length never explode.
+    const rows = Array.isArray(data) ? data : []
+    const safe = rows.map((r: Record<string, unknown>) => ({
+      ...r,
+      product_listings: Array.isArray(r.product_listings) ? r.product_listings : [],
+      product_stock:    Array.isArray(r.product_stock)    ? r.product_stock    : [],
+    })) as unknown as ProductRow[]
+    setProducts(safe)
     setLoading(false)
   }, [supabase])
 
