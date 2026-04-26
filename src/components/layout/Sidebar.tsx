@@ -11,7 +11,7 @@ import {
   Heart, MessageSquare, CheckSquare, Sparkles, Image as ImageIcon,
   Megaphone, ShoppingCart, TrendingUp, Settings, UserCog,
   Plug, Database, ChevronDown, Bot, Inbox, BookOpen,
-  GraduationCap, LineChart,
+  GraduationCap, LineChart, Network,
 } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
@@ -171,6 +171,7 @@ const SECTIONS: NavSection[] = [
       { label: 'Geral',       href: '/dashboard/configuracoes',            icon: <Settings size={15} />, exact: true },
       { label: 'Equipe',      href: '/dashboard/configuracoes/equipe',     icon: <UserCog size={15} /> },
       { label: 'Integrações', href: '/dashboard/configuracoes/integracoes', icon: <Plug size={15} /> },
+      { label: 'Canais',      href: '/dashboard/configuracoes/canais',     icon: <Network size={15} /> },
       { label: 'Agregador',   href: '/dashboard/configuracoes/aggregator', icon: <Database size={15} /> },
     ],
   },

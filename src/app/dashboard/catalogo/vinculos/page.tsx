@@ -397,6 +397,28 @@ function StockPanel({
   const [forceSyncing,   setForceSyncing]   = useState(false)
   const [forceSyncMsg,   setForceSyncMsg]   = useState<string | null>(null)
 
+  // Auto distribution mode
+  type AutoCheck = {
+    can_use: boolean; reason?: string
+    ready_channels: string[]; missing_integration: string[]; missing_sales_data: string[]
+  }
+  type AutoPreview = { ok: boolean; message?: string; distribution?: { channel: string; percentage: number }[] }
+  type RecalcLog = {
+    id: string; triggered_by: string; applied: boolean; created_at: string
+    channels_considered: { channel: string; percentage: number }[] | null
+    channels_skipped:    { channel?: string; reason?: string }[] | null
+    result: { channel: string; old_pct: number; new_pct: number }[] | null
+  }
+  const [autoModalOpen,  setAutoModalOpen]  = useState(false)
+  const [autoCheck,      setAutoCheck]      = useState<AutoCheck | null>(null)
+  const [autoPreview,    setAutoPreview]    = useState<AutoPreview | null>(null)
+  const [autoLoading,    setAutoLoading]    = useState(false)
+  const [autoApplying,   setAutoApplying]   = useState(false)
+  const [autoMsg,        setAutoMsg]        = useState<string | null>(null)
+  const [historyOpen,    setHistoryOpen]    = useState(false)
+  const [historyLogs,    setHistoryLogs]    = useState<RecalcLog[] | null>(null)
+  const [historyLoading, setHistoryLoading] = useState(false)
+
   const sharedStock = product.product_stock.find(s => s.platform === null) ?? null
   const physicalQty = sharedStock?.quantity ?? 0
 
@@ -532,6 +554,56 @@ function StockPanel({
     } catch (e: unknown) {
       setForceSyncMsg(e instanceof Error ? e.message : 'Erro ao sincronizar')
     } finally { setForceSyncing(false) }
+  }
+
+  async function handleOpenAuto() {
+    setAutoModalOpen(true)
+    setAutoMsg(null)
+    setAutoCheck(null)
+    setAutoPreview(null)
+    setAutoLoading(true)
+    try {
+      const headers = await getHeaders()
+      const checkRes = await fetch(`${BACKEND}/stock/${product.id}/auto-check`, { headers })
+      const check = await checkRes.json() as AutoCheck
+      setAutoCheck(check)
+      if (check.can_use) {
+        const previewRes = await fetch(`${BACKEND}/stock/${product.id}/auto-preview`, { headers })
+        const preview = await previewRes.json() as AutoPreview
+        setAutoPreview(preview)
+      }
+    } catch (e: unknown) {
+      setAutoMsg(e instanceof Error ? e.message : 'Erro ao verificar modo auto')
+    } finally { setAutoLoading(false) }
+  }
+
+  async function handleApplyAuto() {
+    setAutoApplying(true); setAutoMsg(null)
+    try {
+      const headers = await getHeaders()
+      const res = await fetch(`${BACKEND}/stock/${product.id}/recalc-auto`, { method: 'POST', headers })
+      const data = await res.json() as AutoPreview
+      if (!res.ok || !data.ok) throw new Error(data.message ?? `HTTP ${res.status}`)
+      setAutoMsg('✓ Distribuição aplicada')
+      // Refresh distributions in the panel
+      const fresh = await fetch(`${BACKEND}/stock/${product.id}/full`, { headers }).then(r => r.json())
+      setDistributions(fresh.distributions ?? [])
+      setTimeout(() => { setAutoModalOpen(false); setAutoMsg(null) }, 1500)
+    } catch (e: unknown) {
+      setAutoMsg(e instanceof Error ? e.message : 'Erro ao aplicar')
+    } finally { setAutoApplying(false) }
+  }
+
+  async function handleToggleHistory() {
+    if (historyOpen) { setHistoryOpen(false); return }
+    setHistoryOpen(true)
+    if (historyLogs) return
+    setHistoryLoading(true)
+    try {
+      const headers = await getHeaders()
+      const res = await fetch(`${BACKEND}/stock/${product.id}/recalc-history`, { headers })
+      setHistoryLogs(res.ok ? await res.json() as RecalcLog[] : [])
+    } catch { setHistoryLogs([]) } finally { setHistoryLoading(false) }
   }
 
   async function handleSaveDist() {
@@ -769,11 +841,18 @@ function StockPanel({
                 <span>{distOpen ? '▾' : '▸'}</span>
                 <span>7. Distribuição por Canal{distributions.length > 0 ? ` (${distributions.length})` : ''}</span>
               </button>
-              <button onClick={handleForceSync} disabled={forceSyncing}
-                className="text-[10px] px-2 py-1 rounded-lg font-semibold transition-all disabled:opacity-50"
-                style={{ background: '#1a1a1f', color: '#a1a1aa', border: '1px solid #27272a' }}>
-                {forceSyncing ? 'Sync…' : 'Forçar sync'}
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button onClick={handleOpenAuto}
+                  className="text-[10px] px-2 py-1 rounded-lg font-semibold transition-all"
+                  style={{ background: 'rgba(0,229,255,0.06)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.2)' }}>
+                  🤖 Auto
+                </button>
+                <button onClick={handleForceSync} disabled={forceSyncing}
+                  className="text-[10px] px-2 py-1 rounded-lg font-semibold transition-all disabled:opacity-50"
+                  style={{ background: '#1a1a1f', color: '#a1a1aa', border: '1px solid #27272a' }}>
+                  {forceSyncing ? 'Sync…' : 'Forçar sync'}
+                </button>
+              </div>
             </div>
             {forceSyncMsg && (
               <p className={`text-[11px] mb-2 ${forceSyncMsg.startsWith('✓') ? 'text-green-400' : 'text-red-400'}`}>{forceSyncMsg}</p>
@@ -921,6 +1000,133 @@ function StockPanel({
           </div>
         </div>
       </div>
+
+      {/* Auto distribution modal */}
+      {autoModalOpen && (
+        <div className="fixed inset-0 z-[60] bg-black/70 flex items-center justify-center p-4"
+          onClick={() => !autoApplying && setAutoModalOpen(false)}>
+          <div className="rounded-xl p-5 w-full max-w-md space-y-4"
+            style={{ background: '#111114', border: '1px solid #27272a' }}
+            onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">🤖 Distribuição Automática</p>
+              <button onClick={() => setAutoModalOpen(false)} className="text-zinc-600 hover:text-white">
+                <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {autoLoading && <p className="text-zinc-500 text-xs">Verificando…</p>}
+
+            {!autoLoading && autoCheck && !autoCheck.can_use && (
+              <div className="space-y-2">
+                <div className="rounded-lg p-3" style={{ background: 'rgba(248,113,113,0.05)', border: '1px solid rgba(248,113,113,0.2)' }}>
+                  <p className="text-red-400 text-xs font-semibold">Modo auto indisponível</p>
+                  <p className="text-zinc-400 text-[11px] mt-1">{autoCheck.reason}</p>
+                </div>
+                {autoCheck.missing_integration.length > 0 && (
+                  <div className="text-[11px]">
+                    <p className="text-zinc-500">Canais sem integração OAuth:</p>
+                    <ul className="text-yellow-400 mt-1 space-y-0.5">
+                      {autoCheck.missing_integration.map(c => <li key={c}>• {c}</li>)}
+                    </ul>
+                  </div>
+                )}
+                {autoCheck.missing_sales_data.length > 0 && (
+                  <div className="text-[11px]">
+                    <p className="text-zinc-500">Canais sem vendas em 30d (recebem só piso 10%):</p>
+                    <ul className="text-zinc-400 mt-1 space-y-0.5">
+                      {autoCheck.missing_sales_data.map(c => <li key={c}>• {c}</li>)}
+                    </ul>
+                  </div>
+                )}
+                <p className="text-zinc-500 text-[11px] pt-2">
+                  Use modo <span className="text-zinc-300 font-semibold">Percentual</span> ou{' '}
+                  <span className="text-zinc-300 font-semibold">Fixo</span> enquanto isso.
+                </p>
+              </div>
+            )}
+
+            {!autoLoading && autoCheck?.can_use && autoPreview?.distribution && (
+              <div className="space-y-3">
+                <p className="text-zinc-400 text-xs">
+                  Baseado nas vendas dos últimos <span className="text-zinc-200 font-semibold">30 dias</span>, com piso de 10% por canal:
+                </p>
+                <div className="space-y-1.5">
+                  {autoPreview.distribution.map(d => (
+                    <div key={d.channel} className="flex items-center justify-between px-3 py-2 rounded-lg"
+                      style={{ background: '#0c0c10', border: '1px solid #1e1e24' }}>
+                      <span className="text-[11px] font-bold px-1.5 py-0.5 rounded"
+                        style={{ color: '#00E5FF', background: 'rgba(0,229,255,0.1)' }}>{d.channel}</span>
+                      <span className="text-sm font-bold tabular-nums" style={{ color: '#00E5FF' }}>{d.percentage}%</span>
+                    </div>
+                  ))}
+                </div>
+                {autoMsg && (
+                  <p className={`text-[11px] ${autoMsg.startsWith('✓') ? 'text-green-400' : 'text-red-400'}`}>{autoMsg}</p>
+                )}
+                <div className="flex gap-2 pt-1">
+                  <button onClick={() => setAutoModalOpen(false)} disabled={autoApplying}
+                    className="flex-1 py-2 rounded-lg text-xs text-zinc-400 transition-colors hover:text-white disabled:opacity-50"
+                    style={{ background: '#1a1a1f', border: '1px solid #27272a' }}>
+                    Cancelar
+                  </button>
+                  <button onClick={handleApplyAuto} disabled={autoApplying}
+                    className="flex-1 py-2 rounded-lg text-xs font-semibold transition-opacity disabled:opacity-50"
+                    style={{ background: '#00E5FF', color: '#000' }}>
+                    {autoApplying ? 'Aplicando…' : '🔄 Recalcular agora'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {!autoLoading && autoMsg && !autoCheck && (
+              <p className="text-red-400 text-[11px]">{autoMsg}</p>
+            )}
+
+            <div className="pt-3" style={{ borderTop: '1px solid #1e1e24' }}>
+              <button onClick={handleToggleHistory}
+                className="text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors flex items-center gap-1.5">
+                <span>{historyOpen ? '▾' : '▸'}</span>
+                <span>📜 Ver últimos recálculos</span>
+              </button>
+              {historyOpen && (
+                <div className="mt-2 space-y-1.5 max-h-60 overflow-y-auto">
+                  {historyLoading && <p className="text-zinc-600 text-[11px]">Carregando…</p>}
+                  {!historyLoading && (!historyLogs || historyLogs.length === 0) && (
+                    <p className="text-zinc-600 text-[11px]">Sem recálculos anteriores</p>
+                  )}
+                  {historyLogs?.map(log => (
+                    <div key={log.id} className="px-3 py-2 rounded-lg text-[11px]"
+                      style={{ background: '#0c0c10', border: '1px solid #1e1e24' }}>
+                      <div className="flex items-center justify-between">
+                        <span className="text-zinc-500">
+                          {new Date(log.created_at).toLocaleString('pt-BR')}
+                        </span>
+                        <span className="text-[10px]" style={{ color: log.applied ? '#4ade80' : '#f87171' }}>
+                          {log.applied ? '✓ aplicado' : '✗ skip'} · {log.triggered_by}
+                        </span>
+                      </div>
+                      {log.applied && log.result?.length ? (
+                        <div className="text-zinc-400 mt-1 flex flex-wrap gap-x-2 gap-y-0.5">
+                          {log.result.map(r => (
+                            <span key={r.channel} className="tabular-nums">
+                              <span className="text-zinc-500">{r.channel}:</span> {r.old_pct}% → {r.new_pct}%
+                            </span>
+                          ))}
+                        </div>
+                      ) : log.channels_skipped?.[0]?.reason ? (
+                        <p className="text-yellow-400 mt-0.5">{log.channels_skipped[0].reason}</p>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Movement modal */}
       {movModalOpen && (
