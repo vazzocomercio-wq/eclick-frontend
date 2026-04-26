@@ -394,7 +394,7 @@ function StockPanel({
 
   // Channel distribution
   const [distributions,  setDistributions]  = useState<Distribution[]>([])
-  const [distOpen,       setDistOpen]       = useState(false)
+  const [distOpen,       setDistOpen]       = useState(true)
   const [newDistForm,    setNewDistForm]    = useState(false)
   const [channelOpts,    setChannelOpts]    = useState<ChannelOption[]>([])
   const [distChannel,    setDistChannel]    = useState('')
@@ -451,12 +451,9 @@ function StockPanel({
         setSafetyMode(d.safety_mode ?? 'percentage')
         setSafetyPct(String(d.safety_percentage ?? 10))
         setSafetyQty(String(d.safety_quantity ?? 0))
-        const dists = d.distributions ?? []
-        setDistributions(dists)
-        // Auto-open the section when the product has no distribution yet,
-        // so the empty-state CTA is immediately visible. Once configured,
-        // start collapsed (less noise on revisits).
-        setDistOpen(dists.length === 0)
+        setDistributions(d.distributions ?? [])
+        // distOpen stays at its initial value (true) so the section is always
+        // expanded when the panel mounts; user can still collapse via chevron.
       })
       .catch(() => {})
       .finally(() => setFullLoading(false))
