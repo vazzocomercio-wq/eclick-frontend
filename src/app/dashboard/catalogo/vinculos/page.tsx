@@ -157,12 +157,15 @@ function Toasts({ list }: { list: Toast[] }) {
 
 // ── KPI card ──────────────────────────────────────────────────────────────────
 
-function KpiCard({ label, value, sub, color }: { label: string; value: string; sub?: string; color: string }) {
+function KpiCard({ label, value, sub, color, subColor }: { label: string; value: string; sub?: string; color: string; subColor?: string }) {
   return (
-    <div className="rounded-2xl p-5 flex flex-col gap-1" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
-      <p className="text-zinc-500 text-xs">{label}</p>
-      <p className="text-2xl font-bold leading-none" style={{ color }}>{value}</p>
-      {sub && <p className="text-zinc-600 text-xs mt-0.5">{sub}</p>}
+    <div className="rounded-2xl p-5 flex flex-col justify-between min-h-[120px]"
+      style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
+      <p className="text-zinc-500 text-xs uppercase tracking-wide">{label}</p>
+      <div>
+        <p className="text-3xl font-bold leading-none tabular-nums" style={{ color }}>{value}</p>
+        {sub && <p className="text-xs mt-2" style={{ color: subColor ?? '#52525b' }}>{sub}</p>}
+      </div>
     </div>
   )
 }
@@ -1336,7 +1339,7 @@ function ProductCard({
 
   return (
     <div className="rounded-xl" style={{ background: '#0f0f12', border: '1px solid #1a1a1f' }}>
-      <div className="p-4 flex gap-4">
+      <div className="p-5 flex gap-4">
 
         {/* Thumbnail */}
         <div className="w-16 h-16 rounded-xl shrink-0 overflow-hidden flex items-center justify-center"
@@ -1352,12 +1355,20 @@ function ProductCard({
 
         {/* Info */}
         <div className="flex-1 min-w-0">
-          <p className="text-zinc-100 text-sm font-semibold leading-snug truncate">{product.name}</p>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-[11px] text-zinc-500">
-            {product.sku && <span>SKU: <span className="text-zinc-400 font-mono">{product.sku}</span></span>}
+          <p className="text-zinc-100 text-base font-medium leading-snug truncate">{product.name}</p>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1.5 text-[11px] text-zinc-500">
+            {product.sku && (
+              <>
+                <span>SKU: <span className="text-zinc-400 font-mono">{product.sku}</span></span>
+                <span className="text-zinc-700">·</span>
+              </>
+            )}
             <span>Estoque: <span className="text-zinc-300 font-semibold">{num(stock)}</span></span>
             {product.cost_price != null && product.cost_price > 0 && (
-              <span>Custo: <span className="text-zinc-300">{brl(product.cost_price)}</span></span>
+              <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] font-medium"
+                style={{ background: '#1a1a1f', border: '1px solid #27272a', color: '#a1a1aa' }}>
+                Custo {brl(product.cost_price)}
+              </span>
             )}
           </div>
 
@@ -1370,41 +1381,56 @@ function ProductCard({
                 const pb  = PLATFORM_BADGE[v.platform] ?? { label: v.platform, color: '#71717a', bg: 'rgba(113,113,122,0.1)' }
                 const vb  = vinculoBadge(v)
                 const isConfirm = confirmId === v.id
+                const mlUrl = v.platform === 'mercadolivre'
+                  ? `https://produto.mercadolivre.com.br/${v.listing_id.replace(/^MLB/, 'MLB-')}`
+                  : null
                 return (
-                  <div key={v.id} className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg"
+                  <div key={v.id} className="flex items-center gap-2 px-2.5 py-2 rounded-lg"
                     style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+                    {/* Platform logo / badge */}
                     <span className="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0"
                       style={{ color: pb.color, background: pb.bg }}>{pb.label}</span>
+
+                    {/* Listing thumbnail */}
                     {v.listing_thumbnail && (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={v.listing_thumbnail} alt="" className="w-6 h-6 rounded object-cover shrink-0" />
+                      <img src={v.listing_thumbnail} alt="" className="w-4 h-4 rounded object-cover shrink-0" />
                     )}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5 flex-wrap">
+
+                    {/* Listing id (clickable) + price + type badge */}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {mlUrl ? (
+                        <a href={mlUrl} target="_blank" rel="noopener noreferrer"
+                          className="text-[11px] font-mono text-zinc-300 hover:text-[#00E5FF] transition-colors">
+                          {v.listing_id}
+                        </a>
+                      ) : (
                         <span className="text-[11px] font-mono text-zinc-400">{v.listing_id}</span>
-                        {v.listing_price != null && (
-                          <span className="text-[11px] text-zinc-300 font-semibold">{brl(v.listing_price)}</span>
-                        )}
-                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded"
-                          style={{ color: vb.color, background: vb.bg }}>{vb.label}</span>
-                        {v.account_id && (
-                          <span className="text-[10px] text-zinc-600">{v.account_id}</span>
-                        )}
-                      </div>
-                      {v.listing_title && (
-                        <p className="text-[10px] text-zinc-600 truncate mt-0.5">{v.listing_title}</p>
                       )}
+                      {v.listing_price != null && (
+                        <span className="text-[11px] text-white font-semibold">{brl(v.listing_price)}</span>
+                      )}
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded"
+                        style={{ color: vb.color, background: vb.bg }}>{vb.label}</span>
                     </div>
-                    {/* Remove / confirm */}
+
+                    {/* Title (grayed, truncated, takes remaining space) */}
+                    {v.listing_title && (
+                      <p className="text-[11px] text-zinc-600 truncate flex-1 min-w-0">{v.listing_title}</p>
+                    )}
+                    {!v.listing_title && <div className="flex-1" />}
+
+                    {/* Remove / confirm — always at right edge */}
                     {!isConfirm ? (
                       <button onClick={() => setConfirmId(v.id)}
-                        className="shrink-0 text-zinc-600 hover:text-red-400 transition-colors px-1">
+                        title="Remover vínculo"
+                        className="shrink-0 ml-auto text-zinc-600 hover:text-red-400 transition-colors p-1">
                         <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                         </svg>
                       </button>
                     ) : (
-                      <div className="flex items-center gap-1 shrink-0">
+                      <div className="flex items-center gap-1 shrink-0 ml-auto">
                         <button onClick={() => setConfirmId(null)}
                           className="text-[10px] px-2 py-0.5 rounded text-zinc-500 hover:text-zinc-300 transition-colors">
                           Não
@@ -1426,27 +1452,28 @@ function ProductCard({
       </div>
 
       {/* Actions */}
-      <div className="px-4 pb-3 flex flex-wrap items-center gap-1.5" style={{ borderTop: '1px solid #111114' }}>
+      <div className="px-5 py-3 flex flex-wrap items-center gap-2"
+        style={{ borderTop: '1px solid #1a1a1f', background: '#0c0c0f' }}>
         <button onClick={() => onAddVinculo(product)}
-          className="flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-lg font-medium transition-all"
-          style={{ background: 'rgba(0,229,255,0.06)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.15)' }}>
-          <svg width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          className="flex items-center gap-1.5 text-[11px] px-3 py-1.5 rounded-lg font-medium transition-all hover:brightness-125"
+          style={{ background: 'rgba(0,229,255,0.08)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.2)' }}>
+          <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
           </svg>
           Adicionar vínculo
         </button>
         <button onClick={() => onAddKit(product)}
-          className="flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-lg font-medium transition-all"
-          style={{ background: 'rgba(167,139,250,0.06)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.15)' }}>
-          <svg width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          className="flex items-center gap-1.5 text-[11px] px-3 py-1.5 rounded-lg font-medium transition-all hover:brightness-125"
+          style={{ background: 'rgba(167,139,250,0.08)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.2)' }}>
+          <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
           </svg>
           Kit
         </button>
         <button onClick={() => onStockPanel(product)}
-          className="flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-lg font-medium transition-all"
+          className="flex items-center gap-1.5 text-[11px] px-3 py-1.5 rounded-lg font-medium transition-all hover:brightness-125 ml-auto"
           style={{ background: '#1a1a1f', color: '#a1a1aa', border: '1px solid #27272a' }}>
-          <svg width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
             <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
           </svg>
@@ -1585,16 +1612,18 @@ export default function VinculosPage() {
     { key: 'variacao',   label: 'Variação'    },
   ]
 
+  // Platform filter — "Todas" reset + 4 marketplace shortcuts.
+  // Removed the generic "Plataforma" label per UX feedback (icons already self-explanatory).
   const PLAT_BTNS: { key: PlatformFilter; label: string }[] = [
-    { key: 'all',          label: 'Plataforma' },
-    { key: 'mercadolivre', label: 'ML'         },
-    { key: 'shopee',       label: 'Shopee'     },
-    { key: 'amazon',       label: 'Amazon'     },
-    { key: 'magalu',       label: 'Magalu'     },
+    { key: 'all',          label: 'Todas'  },
+    { key: 'mercadolivre', label: 'ML'     },
+    { key: 'shopee',       label: 'Shopee' },
+    { key: 'amazon',       label: 'Amazon' },
+    { key: 'magalu',       label: 'Magalu' },
   ]
 
   return (
-    <div style={{ background: '#09090b', minHeight: '100vh' }} className="p-6 max-w-[1200px] space-y-6">
+    <div style={{ background: '#09090b', minHeight: '100vh' }} className="p-6 space-y-6">
       <Toasts list={toasts} />
 
       {/* Header */}
@@ -1612,17 +1641,19 @@ export default function VinculosPage() {
         <KpiCard label="Produtos vinculados"   value={num(kpis.vinculados)} color="#4ade80"
           sub={kpis.total > 0 ? `${Math.round(kpis.vinculados / kpis.total * 100)}% do catálogo` : undefined} />
         <KpiCard label="Anúncios vinculados"   value={num(kpis.anuncios)}   color="#00E5FF" />
-        <KpiCard label="Sem vínculo"           value={num(kpis.semVinculo)} color={kpis.semVinculo > 0 ? '#f59e0b' : '#4ade80'}
-          sub={kpis.semVinculo > 0 ? 'Precisam de vínculo' : 'Tudo vinculado!'} />
+        <KpiCard label="Sem vínculo"           value={num(kpis.semVinculo)} color={kpis.semVinculo > 0 ? '#f59e0b' : '#22c55e'}
+          sub={kpis.semVinculo > 0 ? 'Precisam de vínculo' : 'Tudo vinculado!'}
+          subColor={kpis.semVinculo > 0 ? '#52525b' : '#4ade80'} />
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-2">
+      {/* Search + filter groups + reload */}
+      <div className="flex flex-wrap items-center gap-3">
         <input value={search} onChange={e => setSearch(e.target.value)}
           placeholder="Buscar por nome ou SKU..."
           className="text-sm px-4 py-2 rounded-xl text-zinc-200 placeholder-zinc-600 outline-none w-64"
           style={{ background: '#111114', border: '1px solid #27272a' }} />
 
+        {/* Group 1: type filters */}
         <div className="flex items-center gap-1 p-1 rounded-xl" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
           {FILTER_BTNS.map(b => (
             <button key={b.key} onClick={() => setFilter(b.key)}
@@ -1635,6 +1666,10 @@ export default function VinculosPage() {
           ))}
         </div>
 
+        {/* Visual separator */}
+        <div className="h-6 w-px" style={{ background: '#1e1e24' }} />
+
+        {/* Group 2: platform filters */}
         <div className="flex items-center gap-1 p-1 rounded-xl" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
           {PLAT_BTNS.map(b => (
             <button key={b.key} onClick={() => setPlatFilter(b.key)}
@@ -1647,18 +1682,19 @@ export default function VinculosPage() {
           ))}
         </div>
 
+        <span className="text-[11px] text-zinc-600">
+          {filtered.length} produto{filtered.length !== 1 ? 's' : ''}
+        </span>
+
+        {/* Atualizar — moved to far right, separated from filters */}
         <button onClick={loadProducts}
-          className="flex items-center gap-1.5 text-[11px] px-3 py-2 rounded-xl transition-colors"
+          className="ml-auto flex items-center gap-1.5 text-[11px] px-3 py-2 rounded-xl transition-colors hover:text-zinc-300"
           style={{ color: '#a1a1aa', background: '#111114', border: '1px solid #1a1a1f' }}>
           <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
           </svg>
           Atualizar
         </button>
-
-        <span className="text-[11px] text-zinc-600 ml-auto">
-          {filtered.length} produto{filtered.length !== 1 ? 's' : ''}
-        </span>
       </div>
 
       {/* Product list */}
