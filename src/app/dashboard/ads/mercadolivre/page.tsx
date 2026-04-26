@@ -149,8 +149,11 @@ function CampaignRow({
   const [days, setDays] = useState<CampaignDayRow[]>([])
   const [loading, setLoading] = useState(false)
 
+  // Re-fetch only when row opens or the date range changes — never depend on
+  // `days` (which the effect itself sets), or it loops.
   useEffect(() => {
-    if (!expanded || days.length > 0) return
+    if (!expanded) return
+    let cancelled = false
     setLoading(true)
     ;(async () => {
       try {
@@ -159,13 +162,16 @@ function CampaignRow({
           `${BACKEND}/ml-ads/reports/campaign/${c.id}?from=${dateFrom}&to=${dateTo}`,
           { headers },
         )
+        if (cancelled) return
         if (res.ok) {
           const v = await res.json()
           setDays(Array.isArray(v) ? v : [])
         }
-      } finally { setLoading(false) }
+      } finally { if (!cancelled) setLoading(false) }
     })()
-  }, [expanded, c.id, dateFrom, dateTo, getHeaders, days.length])
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expanded, c.id, dateFrom, dateTo])
 
   return (
     <>
@@ -302,7 +308,10 @@ export default function MlAdsPage() {
     }
   }, [getHeaders, range.from, range.to])
 
-  useEffect(() => { load() }, [load])
+  // Depend on the primitive range strings (and supabase, which is stable),
+  // NOT on `load` — the callback identity can churn and trigger refetch loops.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { load() }, [range.from, range.to])
 
   async function sync() {
     setSyncing(true)
