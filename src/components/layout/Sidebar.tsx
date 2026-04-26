@@ -445,7 +445,8 @@ export default function Sidebar() {
 
         if (qRes.status === 'fulfilled' && qRes.value.ok) {
           const d = await qRes.value.json()
-          const n = d?.total ?? (d?.questions ?? []).filter((q: { status: string }) => q.status === 'unanswered').length
+          const qs = Array.isArray(d?.questions) ? d.questions : []
+          const n = d?.total ?? qs.filter((q: { status: string }) => q.status === 'unanswered').length
           if (n > 0) next['atendimento-perguntas'] = n
         }
         if (cRes.status === 'fulfilled' && cRes.value.ok) {
@@ -463,8 +464,10 @@ export default function Sidebar() {
           sb.from('product_listings').select('product_id'),
         ])
         if (mounted.current) {
-          const linkedIds = new Set((linked ?? []).map((r: { product_id: string }) => r.product_id))
-          const sem = (allProds ?? []).filter((p: { id: string }) => !linkedIds.has(p.id)).length
+          const linkedArr = Array.isArray(linked) ? linked : []
+          const prodArr   = Array.isArray(allProds) ? allProds : []
+          const linkedIds = new Set(linkedArr.map((r: { product_id: string }) => r.product_id))
+          const sem = prodArr.filter((p: { id: string }) => !linkedIds.has(p.id)).length
           if (sem > 0) next['vinculos'] = sem
         }
 
