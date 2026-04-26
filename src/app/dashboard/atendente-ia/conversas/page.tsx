@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase'
 import {
   Inbox, Search, Filter, RefreshCw, Send, Check, X, Edit3,
   AlertTriangle, CheckCircle2, UserCheck, Loader2, ChevronDown, ChevronUp,
-  MessageSquare, Package, Clock, User, Bot, Zap, BookOpen, Save,
+  MessageSquare, Package, Clock, User, Bot, Zap, BookOpen, Save, Phone, History,
 } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
@@ -71,6 +71,34 @@ interface Conversation {
   total_messages: number
   updated_at: string
   agent?: { id?: string; name: string; model_id?: string; model_provider?: string }
+  // Cross-channel identity (added in wave-2 SQL)
+  customer_phone?: string | null
+  customer_whatsapp_id?: string | null
+  unified_customer_id?: string | null
+}
+
+// Mask phone for the list view: +55 11 9XXX-X999 → +55 11 9****-9999
+function maskPhone(phone: string | null | undefined): string {
+  if (!phone) return ''
+  const digits = phone.replace(/\D/g, '')
+  if (digits.length < 10) return phone
+  // Keep country code + first 2 (DDD) + first digit of mobile + last 4
+  const cc = digits.length > 11 ? digits.slice(0, 2) : '55'
+  const ddd = digits.length > 11 ? digits.slice(2, 4) : digits.slice(0, 2)
+  const rest = digits.length > 11 ? digits.slice(4) : digits.slice(2)
+  const last4 = rest.slice(-4)
+  return `+${cc} ${ddd} ${rest[0] ?? '*'}****-${last4}`
+}
+
+// Format phone for display (no masking) and for tel://
+function formatPhoneFull(phone: string | null | undefined): string {
+  if (!phone) return ''
+  const d = phone.replace(/\D/g, '')
+  if (d.length < 10) return phone
+  const cc = d.length > 11 ? d.slice(0, 2) : '55'
+  const ddd = d.length > 11 ? d.slice(2, 4) : d.slice(0, 2)
+  const rest = d.length > 11 ? d.slice(4) : d.slice(2)
+  return `+${cc} (${ddd}) ${rest.slice(0, 5)}-${rest.slice(5, 9)}`
 }
 
 // ── Conversation list item ────────────────────────────────────────────────────
@@ -100,7 +128,9 @@ function ConvItem({ conv, active, onClick }: { conv: ConversationListItem; activ
       <div className="flex items-start justify-between gap-2 mb-1">
         <div className="flex items-center gap-1.5 min-w-0">
           <span className="text-[10px] px-1.5 py-0.5 rounded font-bold shrink-0"
-            style={{ background: '#1e1e24', color: '#71717a' }}>
+            style={conv.channel === 'whatsapp'
+              ? { background: 'rgba(37,211,102,0.15)', color: '#25D366' }
+              : { background: '#1e1e24', color: '#71717a' }}>
             {CHANNEL_LABELS[conv.channel] ?? conv.channel}
           </span>
           <span className="text-xs text-white truncate font-medium">{conv.customer_nickname ?? conv.customer_name ?? 'Desconhecido'}</span>
@@ -114,7 +144,11 @@ function ConvItem({ conv, active, onClick }: { conv: ConversationListItem; activ
           <span className="text-[10px] text-zinc-600">{timeAgo(conv.updated_at)}</span>
         </div>
       </div>
-      <p className="text-[11px] text-zinc-500 truncate">{conv.listing_title ?? 'Sem produto'}</p>
+      {conv.channel === 'whatsapp' && conv.customer_phone ? (
+        <p className="text-[11px] text-zinc-600 font-mono truncate">{maskPhone(conv.customer_phone)}</p>
+      ) : (
+        <p className="text-[11px] text-zinc-500 truncate">{conv.listing_title ?? 'Sem produto'}</p>
+      )}
       <div className="flex items-center justify-between mt-1.5">
         <span className="text-[9px] px-1.5 py-0.5 rounded-full font-medium"
           style={{
@@ -336,6 +370,72 @@ function MsgBubble({ msg, onApprove, onReject, onCaptureTraining }: {
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
+
+// ── Cross-channel customer history card (col 3) ────────────────────────────
+
+function CrossChannelHistory({ customerId, currentConvId, getHeaders }: {
+  customerId: string
+  currentConvId: string
+  getHeaders: () => Promise<Record<string, string>>
+}) {
+  type HistoryRow = { id: string; channel: string; status: string; total_messages: number; updated_at: string; listing_title?: string | null }
+  type CustomerProfile = { display_name?: string; tags?: string[]; total_conversations?: number; history?: HistoryRow[] }
+  const [profile, setProfile] = useState<CustomerProfile | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    getHeaders()
+      .then(h => fetch(`${BACKEND}/customers/${customerId}`, { headers: h }))
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (!cancelled) setProfile(d) })
+      .catch(() => { /* silent */ })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [customerId, getHeaders])
+
+  const others = (profile?.history ?? []).filter(h => h.id !== currentConvId)
+
+  return (
+    <div className="rounded-xl p-3 space-y-2" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+      <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 inline-flex items-center gap-1.5">
+        <History size={10} /> Histórico cross-canal
+      </p>
+      {loading ? (
+        <div className="flex items-center gap-2 text-[11px] text-zinc-500">
+          <Loader2 size={11} className="animate-spin" /> Carregando…
+        </div>
+      ) : !profile ? (
+        <p className="text-[11px] text-zinc-600">Sem perfil unificado ainda</p>
+      ) : others.length === 0 ? (
+        <p className="text-[11px] text-zinc-600">Primeira conversa deste cliente.</p>
+      ) : (
+        <div className="space-y-1">
+          {others.slice(0, 5).map(h => (
+            <div key={h.id} className="flex items-center gap-2 text-[11px]">
+              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold shrink-0"
+                style={h.channel === 'whatsapp'
+                  ? { background: 'rgba(37,211,102,0.15)', color: '#25D366' }
+                  : { background: '#1e1e24', color: '#71717a' }}>
+                {CHANNEL_LABELS[h.channel] ?? h.channel}
+              </span>
+              <span className="flex-1 truncate text-zinc-400">{h.listing_title ?? h.status}</span>
+              <span className="text-zinc-600 text-[10px] shrink-0">{new Date(h.updated_at).toLocaleDateString('pt-BR')}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {profile?.tags && profile.tags.length > 0 && (
+        <div className="flex flex-wrap gap-1 pt-1.5" style={{ borderTop: '1px solid #1e1e24' }}>
+          {profile.tags.map(t => (
+            <span key={t} className="px-1.5 py-0.5 rounded-full text-[9px]" style={{ background: '#1e1e24', color: '#a1a1aa' }}>{t}</span>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function ConversasPage() {
   const [conversations, setConversations] = useState<Conversation[]>([])
@@ -600,17 +700,36 @@ export default function ConversasPage() {
             </div>
 
             {/* Reply input */}
-            <div className="px-4 py-3 shrink-0" style={{ borderTop: '1px solid #1e1e24' }}>
+            <div className="px-4 py-3 shrink-0 space-y-2" style={{ borderTop: '1px solid #1e1e24' }}>
+              {/* WhatsApp 24h-window warning: outside the window only template
+                  messages are deliverable per Meta's policy. */}
+              {selectedConv.channel === 'whatsapp' && (() => {
+                const lastCustomer = [...messages].reverse().find(m => m.role === 'customer')
+                if (!lastCustomer) return null
+                const hoursSince = (Date.now() - new Date(lastCustomer.sent_at).getTime()) / 3600000
+                if (hoursSince <= 24) return null
+                return (
+                  <div className="flex items-start gap-2 px-3 py-2 rounded-lg text-[11px]"
+                    style={{ background: 'rgba(251,146,60,0.08)', border: '1px solid rgba(251,146,60,0.25)', color: '#fdba74' }}>
+                    <AlertTriangle size={12} className="mt-0.5 shrink-0" />
+                    <span>
+                      Última mensagem do cliente foi há {Math.round(hoursSince)}h.
+                      Fora da janela de 24h — envie via template aprovado pela Meta.
+                    </span>
+                  </div>
+                )
+              })()}
               <div className="flex gap-2">
                 <textarea value={reply} onChange={e => setReply(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendReply() }}}
-                  placeholder="Responder como humano... (Enter para enviar)"
+                  placeholder={selectedConv.channel === 'whatsapp' ? 'Responder via WhatsApp... (Enter para enviar)' : 'Responder como humano... (Enter para enviar)'}
+                  maxLength={selectedConv.channel === 'whatsapp' ? 4096 : undefined}
                   rows={2}
                   className="flex-1 px-3 py-2 rounded-xl text-sm text-white placeholder-zinc-600 resize-none"
                   style={{ background: '#111114', border: '1px solid #1e1e24' }} />
                 <button onClick={sendReply} disabled={!reply.trim() || sending}
                   className="px-3 rounded-xl transition-colors disabled:opacity-40 shrink-0"
-                  style={{ background: '#00E5FF', color: '#000' }}>
+                  style={{ background: selectedConv.channel === 'whatsapp' ? '#25D366' : '#00E5FF', color: '#000' }}>
                   {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
                 </button>
               </div>
@@ -630,12 +749,30 @@ export default function ConversasPage() {
                 <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: '#1e1e24' }}>
                   <User size={14} style={{ color: '#71717a' }} />
                 </div>
-                <div>
-                  <p className="text-sm font-medium text-white">{selectedConv.customer_nickname ?? selectedConv.customer_name ?? 'Desconhecido'}</p>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-white truncate">{selectedConv.customer_nickname ?? selectedConv.customer_name ?? 'Desconhecido'}</p>
                   <p className="text-[10px] text-zinc-500">Canal: {CHANNEL_LABELS[selectedConv.channel] ?? selectedConv.channel}</p>
                 </div>
               </div>
+              {selectedConv.customer_phone && (
+                <div className="pt-2 mt-2 space-y-1.5" style={{ borderTop: '1px solid #1e1e24' }}>
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-zinc-500">Telefone</span>
+                    <span className="text-zinc-300 font-mono">{formatPhoneFull(selectedConv.customer_phone)}</span>
+                  </div>
+                  <a href={`tel:+${selectedConv.customer_phone.replace(/\D/g, '')}`}
+                    className="inline-flex items-center gap-1.5 w-full justify-center py-1.5 rounded-lg text-[11px] font-semibold transition-colors"
+                    style={{ background: 'rgba(37,211,102,0.1)', color: '#25D366', border: '1px solid rgba(37,211,102,0.25)' }}>
+                    <Phone size={11} /> Chamar
+                  </a>
+                </div>
+              )}
             </div>
+
+            {/* Cross-channel history (only when we know who the customer is) */}
+            {selectedConv.unified_customer_id && (
+              <CrossChannelHistory customerId={selectedConv.unified_customer_id} currentConvId={selectedConv.id} getHeaders={getHeaders} />
+            )}
 
             {/* Product */}
             {selectedConv.listing_title && (

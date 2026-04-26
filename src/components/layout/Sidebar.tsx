@@ -154,6 +154,7 @@ const SECTIONS: NavSection[] = [
       { label: 'Treinamento',      href: '/dashboard/atendente-ia/treinamento',   icon: <GraduationCap size={15} /> },
       { label: 'Analytics',        href: '/dashboard/atendente-ia/analytics',     icon: <LineChart size={15} /> },
       { label: 'Widget',           href: '/dashboard/atendente-ia/widget',        icon: <MessageSquare size={15} /> },
+      { label: 'Clientes',         href: '/dashboard/atendente-ia/clientes',      icon: <Users size={15} /> },
       { label: 'Configurações',    href: '/dashboard/atendente-ia/configuracoes', icon: <Settings size={15} /> },
     ],
   },

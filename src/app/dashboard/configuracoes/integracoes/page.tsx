@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase'
 import {
   CheckCircle2, XCircle, Clock, RefreshCw, Plug, Zap,
   Key, Eye, EyeOff, Plus, Trash2, TestTube2, Loader2,
-  X, ExternalLink, AlertCircle, Bot, MessageCircle, BarChart2, Save,
+  X, ExternalLink, AlertCircle, Bot, MessageCircle, BarChart2, Save, Check, Settings,
 } from 'lucide-react'
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid,
@@ -774,11 +774,14 @@ interface WaConfig {
   last_verified_at:     string | null
 }
 
+type WizardStep = 'requirements' | 'credentials' | 'webhook' | 'done'
+
 function WhatsAppIntegCard({ onToast }: { onToast: (msg: string, t?: 'success' | 'error') => void }) {
   const supabase = useMemo(() => createClient(), [])
   const [config, setConfig] = useState<WaConfig | null>(null)
   const [loading, setLoading] = useState(true)
-  const [expanded, setExpanded] = useState(false)
+  const [step, setStep] = useState<WizardStep>('requirements')
+  const [wizardOpen, setWizardOpen] = useState(false)
   const [webhookInfo, setWebhookInfo] = useState<{ webhook_url: string; verify_token: string; is_verified: boolean } | null>(null)
   const [phoneNumberId, setPhoneNumberId] = useState('')
   const [wabaId, setWabaId]               = useState('')
@@ -829,10 +832,11 @@ function WhatsAppIntegCard({ onToast }: { onToast: (msg: string, t?: 'success' |
       const data = await res.json()
       if (!res.ok) throw new Error(data.message ?? `HTTP ${res.status}`)
       setConfig(data as WaConfig)
-      onToast('WhatsApp configurado — agora valide as credenciais', 'success')
       const wRes = await fetch(`${BACKEND}/whatsapp/config/${data.id}/webhook-info`, { headers })
       if (wRes.ok) setWebhookInfo(await wRes.json())
       setPhoneNumberId(''); setWabaId(''); setToken(''); setDisplayPhone(''); setDisplayName('')
+      setStep('webhook') // advance wizard
+      onToast('Credenciais salvas — agora configure o webhook na Meta', 'success')
     } catch (e: unknown) {
       onToast(e instanceof Error ? e.message : 'Erro ao salvar', 'error')
     } finally { setSaving(false) }
@@ -852,20 +856,45 @@ function WhatsAppIntegCard({ onToast }: { onToast: (msg: string, t?: 'success' |
     } finally { setValidating(false) }
   }
 
+  async function checkWebhookVerified() {
+    if (!config) return
+    const headers = await getHeaders()
+    const res = await fetch(`${BACKEND}/whatsapp/config/${config.id}/webhook-info`, { headers })
+    if (res.ok) {
+      const info = await res.json() as { is_verified: boolean }
+      setWebhookInfo(prev => prev ? { ...prev, is_verified: info.is_verified } : prev)
+      if (info.is_verified) {
+        await load() // refresh config.is_verified too
+        setStep('done')
+        onToast('✅ Webhook verificado pela Meta!', 'success')
+      } else {
+        onToast('⏳ Ainda não verificado. Confirme que colou URL + token no painel da Meta e tente de novo.', 'error')
+      }
+    }
+  }
+
   async function disconnect() {
     if (!config) return
     if (!confirm('Desconectar WhatsApp? As conversas existentes não são apagadas.')) return
     const headers = await getHeaders()
     await fetch(`${BACKEND}/whatsapp/config/${config.id}`, { method: 'DELETE', headers })
-    setConfig(null); setWebhookInfo(null); setExpanded(false)
+    setConfig(null); setWebhookInfo(null); setWizardOpen(false); setStep('requirements')
     onToast('WhatsApp desconectado', 'success')
   }
 
   const isConnected = !!config?.is_active
   const isVerified  = !!config?.is_verified
 
+  // Auto-advance wizard step based on current state when user opens wizard
+  function openWizard() {
+    setWizardOpen(true)
+    if (config && webhookInfo) setStep(isVerified ? 'done' : 'webhook')
+    else setStep('requirements')
+  }
+
   return (
     <div className="rounded-2xl p-4 space-y-3" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+      {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl shrink-0 flex items-center justify-center text-xs font-black"
@@ -892,70 +921,157 @@ function WhatsAppIntegCard({ onToast }: { onToast: (msg: string, t?: 'success' |
         )}
       </div>
 
-      {!isConnected && !expanded && (
-        <button onClick={() => setExpanded(true)}
-          className="flex items-center gap-1.5 w-full justify-center py-2 rounded-xl text-xs font-semibold transition-all"
-          style={{ background: 'rgba(37,211,102,0.1)', color: '#25D366', border: '1px solid rgba(37,211,102,0.25)' }}>
-          <Plug size={11} /> Conectar WhatsApp
-        </button>
-      )}
-
-      {!isConnected && expanded && (
-        <div className="space-y-2.5 pt-2" style={{ borderTop: '1px solid #1e1e24' }}>
-          <p className="text-[10px] uppercase tracking-widest text-zinc-500">Credenciais Meta</p>
-          <input value={phoneNumberId} onChange={e => setPhoneNumberId(e.target.value)} placeholder="Phone Number ID"
-            className="w-full bg-[#0d0d10] border border-[#27272a] text-white text-xs rounded-lg px-3 py-2 outline-none focus:border-[#25D366] font-mono" />
-          <input value={wabaId} onChange={e => setWabaId(e.target.value)} placeholder="Business Account ID (WABA)"
-            className="w-full bg-[#0d0d10] border border-[#27272a] text-white text-xs rounded-lg px-3 py-2 outline-none focus:border-[#25D366] font-mono" />
-          <input type="password" value={token} onChange={e => setToken(e.target.value)} placeholder="Access Token (permanente)"
-            className="w-full bg-[#0d0d10] border border-[#27272a] text-white text-xs rounded-lg px-3 py-2 outline-none focus:border-[#25D366] font-mono" />
-          <div className="grid grid-cols-2 gap-2">
-            <input value={displayName} onChange={e => setDisplayName(e.target.value)} placeholder="Nome (opcional)"
-              className="bg-[#0d0d10] border border-[#27272a] text-white text-xs rounded-lg px-3 py-2 outline-none focus:border-[#25D366]" />
-            <input value={displayPhone} onChange={e => setDisplayPhone(e.target.value)} placeholder="+55 11 9..."
-              className="bg-[#0d0d10] border border-[#27272a] text-white text-xs rounded-lg px-3 py-2 outline-none focus:border-[#25D366]" />
-          </div>
+      {/* Compact "open wizard" button when collapsed */}
+      {!wizardOpen && (
+        isConnected ? (
           <div className="flex gap-2 pt-1">
-            <button onClick={() => setExpanded(false)} className="flex-1 py-2 rounded-lg text-xs text-zinc-400 hover:text-white transition-colors"
-              style={{ background: '#1e1e24', border: '1px solid #27272a' }}>Cancelar</button>
-            <button onClick={save} disabled={saving}
-              className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-opacity disabled:opacity-50"
-              style={{ background: '#25D366', color: '#000' }}>
-              {saving ? <Loader2 size={11} className="animate-spin" /> : <Save size={11} />}
-              Salvar
-            </button>
-          </div>
-        </div>
-      )}
-
-      {isConnected && webhookInfo && (
-        <div className="space-y-2 pt-2" style={{ borderTop: '1px solid #1e1e24' }}>
-          <p className="text-[10px] uppercase tracking-widest text-zinc-500">Configurar webhook na Meta</p>
-          <CopyField label="URL do webhook" value={webhookInfo.webhook_url} />
-          <CopyField label="Verify Token" value={webhookInfo.verify_token} />
-          <p className="text-[10px] text-zinc-600">
-            Cole esses valores em developers.facebook.com → seu app → WhatsApp → Configuration → Webhook.
-            Assine os campos: <code className="text-zinc-400">messages, message_statuses</code>.
-          </p>
-          <div className="flex gap-2 pt-1">
-            <button onClick={validate} disabled={validating}
-              className="flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[11px] font-semibold transition-opacity disabled:opacity-50"
+            <button onClick={openWizard} className="flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[11px] font-semibold"
               style={{ background: '#1a1a1f', color: '#a1a1aa', border: '1px solid #27272a' }}>
-              {validating ? <Loader2 size={11} className="animate-spin" /> : <TestTube2 size={11} />}
-              Validar
-            </button>
-            <button onClick={load}
-              className="flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[11px] font-semibold transition-opacity"
-              style={{ background: '#1a1a1f', color: '#a1a1aa', border: '1px solid #27272a' }}>
-              <RefreshCw size={11} />
-              Recarregar
+              <Settings size={11} /> Configurações
             </button>
             <button onClick={disconnect}
-              className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-colors"
+              className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold"
               style={{ background: 'rgba(248,113,113,0.1)', color: '#f87171', border: '1px solid rgba(248,113,113,0.25)' }}>
               Desconectar
             </button>
           </div>
+        ) : (
+          <button onClick={openWizard}
+            className="flex items-center gap-1.5 w-full justify-center py-2 rounded-xl text-xs font-semibold transition-all"
+            style={{ background: 'rgba(37,211,102,0.1)', color: '#25D366', border: '1px solid rgba(37,211,102,0.25)' }}>
+            <Plug size={11} /> Conectar WhatsApp
+          </button>
+        )
+      )}
+
+      {/* Wizard */}
+      {wizardOpen && (
+        <div className="space-y-3 pt-3" style={{ borderTop: '1px solid #1e1e24' }}>
+          {/* Stepper */}
+          <div className="flex items-center justify-between gap-1">
+            {(['requirements', 'credentials', 'webhook', 'done'] as const).map((s, i) => {
+              const ix = ['requirements', 'credentials', 'webhook', 'done'].indexOf(step)
+              const labels = ['Requisitos', 'Credenciais', 'Webhook', 'Concluído']
+              const passed = i < ix
+              const current = i === ix
+              const color = passed ? '#25D366' : current ? '#25D366' : '#3f3f46'
+              return (
+                <div key={s} className="flex items-center gap-1 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
+                      style={{ background: passed || current ? '#25D36633' : '#1a1a1f', color, border: `1px solid ${color}55` }}>
+                      {passed ? '✓' : i + 1}
+                    </span>
+                    <span className="text-[10px] font-semibold whitespace-nowrap" style={{ color: current ? '#fff' : '#52525b' }}>
+                      {labels[i]}
+                    </span>
+                  </div>
+                  {i < 3 && <div className="flex-1 h-px" style={{ background: passed ? '#25D36655' : '#27272a' }} />}
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Step content */}
+          {step === 'requirements' && (
+            <div className="space-y-2 pt-1">
+              <p className="text-[11px] text-zinc-400">Antes de conectar, verifique:</p>
+              <ul className="space-y-1.5 text-[11px] text-zinc-500">
+                <li className="flex items-start gap-2"><Check size={10} className="mt-0.5 text-zinc-600 shrink-0" /> Conta Meta Business verificada</li>
+                <li className="flex items-start gap-2"><Check size={10} className="mt-0.5 text-zinc-600 shrink-0" /> App criado em developers.facebook.com com produto WhatsApp adicionado</li>
+                <li className="flex items-start gap-2"><Check size={10} className="mt-0.5 text-zinc-600 shrink-0" /> Número dedicado (não pode ser WhatsApp pessoal)</li>
+                <li className="flex items-start gap-2"><Check size={10} className="mt-0.5 text-zinc-600 shrink-0" /> Access Token <strong className="text-zinc-400">permanente</strong> gerado (não temporário)</li>
+              </ul>
+              <a href="https://developers.facebook.com/docs/whatsapp/cloud-api/get-started" target="_blank" rel="noreferrer"
+                className="inline-flex items-center gap-1 text-[11px] font-semibold mt-1" style={{ color: '#25D366' }}>
+                <ExternalLink size={11} /> Como criar meu App Meta
+              </a>
+              <div className="flex gap-2 pt-2">
+                <button onClick={() => setWizardOpen(false)} className="flex-1 py-2 rounded-lg text-xs text-zinc-400 hover:text-white"
+                  style={{ background: '#1e1e24', border: '1px solid #27272a' }}>Cancelar</button>
+                <button onClick={() => setStep('credentials')}
+                  className="flex-1 py-2 rounded-lg text-xs font-semibold"
+                  style={{ background: '#25D366', color: '#000' }}>Já tenho, continuar</button>
+              </div>
+            </div>
+          )}
+
+          {step === 'credentials' && (
+            <div className="space-y-2.5 pt-1">
+              <p className="text-[10px] uppercase tracking-widest text-zinc-500">Credenciais Meta</p>
+              <input value={phoneNumberId} onChange={e => setPhoneNumberId(e.target.value)} placeholder="Phone Number ID"
+                className="w-full bg-[#0d0d10] border border-[#27272a] text-white text-xs rounded-lg px-3 py-2 outline-none focus:border-[#25D366] font-mono" />
+              <input value={wabaId} onChange={e => setWabaId(e.target.value)} placeholder="Business Account ID (WABA)"
+                className="w-full bg-[#0d0d10] border border-[#27272a] text-white text-xs rounded-lg px-3 py-2 outline-none focus:border-[#25D366] font-mono" />
+              <input type="password" value={token} onChange={e => setToken(e.target.value)} placeholder="Access Token (permanente)"
+                className="w-full bg-[#0d0d10] border border-[#27272a] text-white text-xs rounded-lg px-3 py-2 outline-none focus:border-[#25D366] font-mono" />
+              <div className="grid grid-cols-2 gap-2">
+                <input value={displayName} onChange={e => setDisplayName(e.target.value)} placeholder="Nome (opcional)"
+                  className="bg-[#0d0d10] border border-[#27272a] text-white text-xs rounded-lg px-3 py-2 outline-none focus:border-[#25D366]" />
+                <input value={displayPhone} onChange={e => setDisplayPhone(e.target.value)} placeholder="+55 11 9..."
+                  className="bg-[#0d0d10] border border-[#27272a] text-white text-xs rounded-lg px-3 py-2 outline-none focus:border-[#25D366]" />
+              </div>
+              <div className="flex gap-2 pt-1">
+                <button onClick={() => setStep('requirements')} className="flex-1 py-2 rounded-lg text-xs text-zinc-400 hover:text-white"
+                  style={{ background: '#1e1e24', border: '1px solid #27272a' }}>← Voltar</button>
+                <button onClick={save} disabled={saving}
+                  className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold disabled:opacity-50"
+                  style={{ background: '#25D366', color: '#000' }}>
+                  {saving ? <Loader2 size={11} className="animate-spin" /> : <Save size={11} />}
+                  Salvar e continuar
+                </button>
+              </div>
+            </div>
+          )}
+
+          {step === 'webhook' && webhookInfo && (
+            <div className="space-y-2 pt-1">
+              <p className="text-[11px] text-zinc-400">Configure este webhook no painel da Meta:</p>
+              <CopyField label="URL do webhook" value={webhookInfo.webhook_url} />
+              <CopyField label="Verify Token" value={webhookInfo.verify_token} />
+              <p className="text-[10px] text-zinc-600">
+                developers.facebook.com → seu app → WhatsApp → Configuration → Webhook.
+                Assine: <code className="text-zinc-400">messages, message_statuses</code>.
+              </p>
+              <div className="flex gap-2 pt-1">
+                <button onClick={validate} disabled={validating}
+                  className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 rounded-lg text-[11px] font-semibold disabled:opacity-50"
+                  style={{ background: '#1a1a1f', color: '#a1a1aa', border: '1px solid #27272a' }}>
+                  {validating ? <Loader2 size={11} className="animate-spin" /> : <TestTube2 size={11} />}
+                  Validar credenciais
+                </button>
+                <button onClick={checkWebhookVerified}
+                  className="flex-1 py-2 rounded-lg text-[11px] font-semibold"
+                  style={{ background: '#25D366', color: '#000' }}>
+                  Webhook configurado, verificar
+                </button>
+              </div>
+            </div>
+          )}
+
+          {step === 'done' && config && (
+            <div className="space-y-3 pt-1 text-center">
+              <div className="flex justify-center">
+                <div className="w-12 h-12 rounded-full flex items-center justify-center"
+                  style={{ background: 'rgba(74,222,128,0.15)', border: '1px solid rgba(74,222,128,0.4)' }}>
+                  <Check size={24} style={{ color: '#4ade80' }} />
+                </div>
+              </div>
+              <div>
+                <p className="text-sm font-bold text-white">WhatsApp conectado!</p>
+                <p className="text-[11px] text-zinc-500 mt-0.5">{config.display_phone ?? config.phone_number_id}</p>
+              </div>
+              <div className="flex gap-2 pt-1">
+                <button onClick={() => setWizardOpen(false)} className="flex-1 py-2 rounded-lg text-xs text-zinc-400 hover:text-white"
+                  style={{ background: '#1e1e24', border: '1px solid #27272a' }}>Fechar</button>
+                <a href="/dashboard/atendente-ia/conversas"
+                  className="flex-1 inline-flex items-center justify-center py-2 rounded-lg text-xs font-semibold"
+                  style={{ background: '#25D366', color: '#000' }}>
+                  Ver conversas →
+                </a>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
