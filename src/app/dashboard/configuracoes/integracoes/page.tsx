@@ -17,7 +17,16 @@ const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? process.env.NEXT_PUBLIC_A
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type MlConn     = { seller_id: number; nickname: string | null; expires_at: string }
-type IntegStatus = 'connected' | 'expired' | 'disconnected' | 'soon'
+type IntegStatus = 'connected' | 'expired' | 'disconnected' | 'not_connected' | 'soon'
+
+type ChannelRow = {
+  id: string
+  name: string
+  api_status: 'available' | 'coming_soon' | 'deprecated'
+  is_integrated: boolean
+  integration_status: 'connected' | 'expired' | 'error' | 'never_connected' | null
+  last_token_check: string | null
+}
 
 interface Toast { id: number; message: string; type: 'success' | 'error' }
 
@@ -58,10 +67,11 @@ function timeAgo(iso?: string) {
 }
 
 const STATUS_CFG: Record<IntegStatus, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
-  connected:    { label: 'Conectado',      color: '#4ade80', bg: 'rgba(74,222,128,0.1)',   icon: <CheckCircle2 size={11} /> },
-  expired:      { label: 'Token expirado', color: '#f87171', bg: 'rgba(248,113,113,0.1)',  icon: <XCircle size={11} /> },
-  disconnected: { label: 'Desconectado',   color: '#71717a', bg: 'rgba(113,113,122,0.12)', icon: <XCircle size={11} /> },
-  soon:         { label: 'Em breve',       color: '#52525b', bg: 'rgba(82,82,91,0.15)',    icon: <Clock size={11} /> },
+  connected:     { label: 'Conectado',      color: '#4ade80', bg: 'rgba(74,222,128,0.1)',   icon: <CheckCircle2 size={11} /> },
+  expired:       { label: 'Token expirado', color: '#f87171', bg: 'rgba(248,113,113,0.1)',  icon: <XCircle size={11} /> },
+  disconnected:  { label: 'Desconectado',   color: '#71717a', bg: 'rgba(113,113,122,0.12)', icon: <XCircle size={11} /> },
+  not_connected: { label: 'Não integrado',  color: '#fb923c', bg: 'rgba(251,146,60,0.1)',   icon: <Plug size={11} /> },
+  soon:          { label: 'Em breve',       color: '#52525b', bg: 'rgba(82,82,91,0.15)',    icon: <Clock size={11} /> },
 }
 
 function StatusBadge({ status }: { status: IntegStatus }) {
@@ -436,13 +446,20 @@ function IntegCard({
   )
 }
 
-function Section({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
+function Section({ id, title, subtitle, icon, children }: {
+  id?: string
+  title: string
+  subtitle?: string
+  icon: React.ReactNode
+  children: React.ReactNode
+}) {
   return (
-    <div className="space-y-3">
+    <div id={id} className="space-y-3" style={{ scrollMarginTop: '5rem' }}>
       <div className="flex items-center gap-2">
         <span className="text-zinc-600">{icon}</span>
         <h3 className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">{title}</h3>
       </div>
+      {subtitle && <p className="text-zinc-500 text-[11px] -mt-1">{subtitle}</p>}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">{children}</div>
     </div>
   )
@@ -452,6 +469,7 @@ function Section({ title, icon, children }: { title: string; icon: React.ReactNo
 
 export default function IntegracoesPage() {
   const [mlConns, setMlConns]         = useState<MlConn[]>([])
+  const [channels, setChannels]       = useState<ChannelRow[]>([])
   const [credentials, setCredentials] = useState<Credential[]>([])
   const [loading, setLoading]         = useState(true)
   const [connecting, setConnecting]   = useState(false)
@@ -477,9 +495,10 @@ export default function IntegracoesPage() {
     setLoading(true)
     try {
       const headers = await getHeaders()
-      const [mlRes, credRes] = await Promise.allSettled([
+      const [mlRes, credRes, chRes] = await Promise.allSettled([
         fetch(`${BACKEND}/ml/connections`,  { headers }),
         fetch(`${BACKEND}/credentials`,     { headers }),
+        fetch(`${BACKEND}/channels`,        { headers }),
       ])
       const [sumRes, chartRes] = await Promise.allSettled([
         fetch(`${BACKEND}/ai-usage/summary`,    { headers }),
@@ -487,6 +506,7 @@ export default function IntegracoesPage() {
       ])
       if (mlRes.status === 'fulfilled'    && mlRes.value.ok)    setMlConns(await mlRes.value.json())
       if (credRes.status === 'fulfilled'  && credRes.value.ok)  setCredentials(await credRes.value.json())
+      if (chRes.status === 'fulfilled'    && chRes.value.ok)    setChannels(await chRes.value.json())
       if (sumRes.status === 'fulfilled'   && sumRes.value.ok)   setUsageSummary(await sumRes.value.json())
       if (chartRes.status === 'fulfilled' && chartRes.value.ok) setChartData(await chartRes.value.json())
     } catch { /* silent */ }
@@ -553,7 +573,7 @@ export default function IntegracoesPage() {
         <div>
           <p className="text-zinc-500 text-xs">Configurações</p>
           <h2 className="text-white text-lg font-semibold mt-0.5">Integrações</h2>
-          <p className="text-zinc-500 text-xs mt-1">Conecte marketplaces, mensageiros e ferramentas de IA ao eClick.</p>
+          <p className="text-zinc-500 text-xs mt-1">Configure provedores de IA, marketplaces e mensageiros em um só lugar.</p>
         </div>
         <button onClick={load} disabled={loading}
           className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border transition-all disabled:opacity-60"
@@ -563,8 +583,23 @@ export default function IntegracoesPage() {
         </button>
       </div>
 
+      {/* Anchor nav */}
+      <div className="flex flex-wrap gap-2 sticky top-0 z-30 -mx-6 px-6 py-3" style={{ background: 'rgba(9,9,11,0.85)', backdropFilter: 'blur(8px)', borderBottom: '1px solid #1e1e24' }}>
+        {[
+          { href: '#ia',           label: 'IA',           emoji: '🤖' },
+          { href: '#marketplaces', label: 'Marketplaces', emoji: '🏪' },
+          { href: '#mensageiros',  label: 'Mensageiros',  emoji: '💬' },
+        ].map(a => (
+          <a key={a.href} href={a.href}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all hover:bg-white/5"
+            style={{ background: '#111114', color: '#a1a1aa', border: '1px solid #1e1e24' }}>
+            <span>{a.emoji}</span> {a.label}
+          </a>
+        ))}
+      </div>
+
       {/* ── Inteligência Artificial ──────────────────────────────────────── */}
-      <Section title="Inteligência Artificial" icon={<Bot size={13} />}>
+      <Section id="ia" title="Inteligência Artificial" subtitle="Provedores de modelos de linguagem usados pelas features de IA do app." icon={<Bot size={13} />}>
         {AI_PROVIDERS_DEF.map(def => (
           <AIProviderCard
             key={def.id}
@@ -608,26 +643,43 @@ export default function IntegracoesPage() {
       )}
 
       {/* ── Marketplaces ─────────────────────────────────────────────────── */}
-      <Section title="Marketplaces" icon={<Zap size={13} />}>
+      <Section id="marketplaces" title="Marketplaces" subtitle="Conecte suas contas de marketplace para sincronizar estoque, preços e pedidos automaticamente." icon={<Zap size={13} />}>
+        {/* ML uses the rich OAuth flow (multiple accounts, token expiry tracking). */}
         <IntegCard
           name="Mercado Livre" abbr="ML" abbrBg="rgba(255,230,0,0.15)" abbrColor="#FFE600"
           status={connecting ? 'disconnected' : overallMlStatus}
           description="OAuth 2.0 · token renovado automaticamente pelo backend."
           accounts={mlConns} onConnect={connectML} onDisconnect={disconnectML}
         />
+        {/* Other channels — driven by marketplace_channels rows. */}
         {([
-          { name: 'Shopee',     abbr: 'SH', bg: 'rgba(238,77,45,0.15)',  fg: '#EE4D2D', desc: 'Sincronize pedidos, estoque e anúncios.' },
-          { name: 'Amazon',     abbr: 'AZ', bg: 'rgba(255,153,0,0.15)',  fg: '#FF9900', desc: 'Amazon Seller Central via SP-API.' },
-          { name: 'Magalu',     abbr: 'MG', bg: 'rgba(0,134,255,0.15)',  fg: '#0086FF', desc: 'Magazine Luiza Marketplace.' },
-          { name: 'Americanas', abbr: 'AM', bg: 'rgba(232,0,45,0.15)',   fg: '#e8002d', desc: 'Marketplace Americanas.' },
-        ] as const).map(m => (
-          <IntegCard key={m.name} name={m.name} abbr={m.abbr} abbrBg={m.bg} abbrColor={m.fg}
-            status="soon" description={m.desc} />
-        ))}
+          { id: 'shopee',     name: 'Shopee',         abbr: 'SH', bg: 'rgba(238,77,45,0.15)',  fg: '#EE4D2D', desc: 'Sincronize pedidos, estoque e anúncios.' },
+          { id: 'amazon',     name: 'Amazon',         abbr: 'AZ', bg: 'rgba(255,153,0,0.15)',  fg: '#FF9900', desc: 'Amazon Seller Central via SP-API.' },
+          { id: 'magalu',     name: 'Magazine Luiza', abbr: 'MG', bg: 'rgba(0,134,255,0.15)',  fg: '#0086FF', desc: 'Magazine Luiza Marketplace.' },
+          { id: 'americanas', name: 'Americanas',     abbr: 'AM', bg: 'rgba(232,0,45,0.15)',   fg: '#e8002d', desc: 'Marketplace Americanas.' },
+          { id: 'netshoes',   name: 'Netshoes',       abbr: 'NS', bg: 'rgba(255,107,0,0.15)',  fg: '#FF6B00', desc: 'Marketplace Netshoes.' },
+        ] as const).map(m => {
+          const ch = channels.find(c => c.id === m.id)
+          // Default to 'soon' if backend hasn't returned this channel yet (e.g. migration not run);
+          // 'coming_soon' from API → soon; everything else available + not integrated → not_connected.
+          const status: IntegStatus =
+            !ch                                  ? 'soon'
+            : ch.api_status === 'coming_soon'    ? 'soon'
+            : ch.is_integrated && ch.integration_status === 'connected' ? 'connected'
+            : ch.integration_status === 'expired' ? 'expired'
+            : 'not_connected'
+          const onConnect = status === 'soon'
+            ? undefined
+            : () => showToast(`OAuth para ${m.name} ainda não disponível — em breve`, 'error')
+          return (
+            <IntegCard key={m.id} name={m.name} abbr={m.abbr} abbrBg={m.bg} abbrColor={m.fg}
+              status={status} description={m.desc} onConnect={onConnect} />
+          )
+        })}
       </Section>
 
       {/* ── Mensageiros ──────────────────────────────────────────────────── */}
-      <Section title="Mensageiros" icon={<MessageCircle size={13} />}>
+      <Section id="mensageiros" title="Mensageiros" subtitle="Atendimento omnichannel em apps de mensagem." icon={<MessageCircle size={13} />}>
         {([
           { name: 'WhatsApp Business', abbr: 'WA', bg: 'rgba(37,211,102,0.15)', fg: '#25D366', desc: 'Atendimento via WhatsApp Business API (Meta).' },
           { name: 'Instagram',         abbr: 'IG', bg: 'rgba(228,64,95,0.15)',  fg: '#E4405F', desc: 'DMs e comentários via Instagram Graph API.' },
