@@ -938,18 +938,37 @@ function StockPanel({
                         </button>
                       ))}
                     </div>
-                    <select value={distChannel} onChange={e => setDistChannel(e.target.value)}
-                      className={inp.replace('tabular-nums', '') + ' appearance-none cursor-pointer'}>
-                      <option value="">Selecione um canal…</option>
-                      {channelOpts
-                        .filter(c => c.api_status !== 'coming_soon')
-                        .filter(c => !distributions.some(d => d.channel === c.id))
-                        .map(c => (
-                          <option key={c.id} value={c.id}>
-                            {c.name} {c.is_integrated && c.integration_status === 'connected' ? '✅' : '🟠'}
-                          </option>
-                        ))}
-                    </select>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Canal</label>
+                      <div className="flex flex-wrap gap-1.5">
+                        {channelOpts.map(ch => {
+                          const isSelected = distChannel === ch.id
+                          const isDisabled = ch.api_status === 'coming_soon'
+                          const isIntegrated = ch.is_integrated && ch.integration_status === 'connected'
+                          return (
+                            <button key={ch.id} type="button" disabled={isDisabled}
+                              onClick={() => setDistChannel(ch.id)}
+                              className="px-3 py-1.5 rounded-xl text-[11px] font-semibold transition-all flex items-center gap-1.5 disabled:cursor-not-allowed"
+                              style={{
+                                background: isSelected ? 'rgba(0,229,255,0.12)' : '#0d0d10',
+                                color:      isSelected ? '#00E5FF' : isDisabled ? '#52525b' : '#d4d4d8',
+                                border:    `1px solid ${isSelected ? '#00E5FF' : isDisabled ? '#1a1a1f' : '#27272a'}`,
+                                opacity:    isDisabled ? 0.5 : 1,
+                              }}>
+                              {ch.name}
+                              <span>{isIntegrated ? '✅' : isDisabled ? '⚪' : '🟠'}</span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                      {distChannel && (
+                        <p className="text-[11px] text-zinc-500">
+                          {channelOpts.find(c => c.id === distChannel)?.is_integrated
+                            ? '✅ Canal integrado, pronto para sincronizar'
+                            : '🟠 Canal não integrado — distribuição salva mas sync desabilitado'}
+                        </p>
+                      )}
+                    </div>
                     <div className="grid grid-cols-3 gap-2">
                       <div className="col-span-1">
                         <label className="block text-[10px] text-zinc-500 mb-1">
