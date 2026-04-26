@@ -153,6 +153,7 @@ const SECTIONS: NavSection[] = [
       { label: 'Conhecimento',     href: '/dashboard/atendente-ia/conhecimento', icon: <BookOpen size={15} /> },
       { label: 'Treinamento',      href: '/dashboard/atendente-ia/treinamento', icon: <GraduationCap size={15} /> },
       { label: 'Analytics',        href: '/dashboard/atendente-ia/analytics',   icon: <LineChart size={15} /> },
+      { label: 'Configurações',    href: '/dashboard/atendente-ia/configuracoes', icon: <Settings size={15} /> },
     ],
   },
   {
