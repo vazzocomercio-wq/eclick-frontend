@@ -377,7 +377,7 @@ export default function ConversasPage() {
         fetch(`${BACKEND}/atendente-ia/conversations/${convId}/messages`, { headers }),
         fetch(`${BACKEND}/atendente-ia/conversations/${convId}`, { headers }),
       ])
-      if (msgRes.ok) setMessages(await msgRes.json())
+      if (msgRes.ok) { const v = await msgRes.json(); setMessages(Array.isArray(v) ? v : []) }
       if (convRes.ok) setSelectedConv(await convRes.json())
     } catch { /* silent */ } finally { setLoadingMsgs(false) }
   }, [getHeaders])

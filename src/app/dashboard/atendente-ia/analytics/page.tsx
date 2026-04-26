@@ -74,7 +74,7 @@ export default function AnalyticsPage() {
       const from = new Date(Date.now() - range * 86400 * 1000).toISOString().split('T')[0]
       const to   = new Date().toISOString().split('T')[0]
       const res = await fetch(`${BACKEND}/atendente-ia/analytics?agent_id=${agentId}&from=${from}&to=${to}`, { headers })
-      if (res.ok) setRows(await res.json())
+      if (res.ok) { const v = await res.json(); setRows(Array.isArray(v) ? v : []) }
     } finally { setLoading(false) }
   }, [getHeaders, agentId, range])
 
@@ -86,9 +86,15 @@ export default function AnalyticsPage() {
         fetch(`${BACKEND}/atendente-ia/analytics/by-agent?days=${range}`, { headers }),
         fetch(`${BACKEND}/atendente-ia/analytics/insights?limit=10`, { headers }),
       ])
-      if (topRes.status === 'fulfilled' && topRes.value.ok) setTopQ(await topRes.value.json())
-      if (byRes.status  === 'fulfilled' && byRes.value.ok)  setByAgent(await byRes.value.json())
-      if (insRes.status === 'fulfilled' && insRes.value.ok) setInsights(await insRes.value.json())
+      if (topRes.status === 'fulfilled' && topRes.value.ok) {
+        const v = await topRes.value.json(); setTopQ(Array.isArray(v) ? v : [])
+      }
+      if (byRes.status  === 'fulfilled' && byRes.value.ok) {
+        const v = await byRes.value.json(); setByAgent(Array.isArray(v) ? v : [])
+      }
+      if (insRes.status === 'fulfilled' && insRes.value.ok) {
+        const v = await insRes.value.json(); setInsights(Array.isArray(v) ? v : [])
+      }
     } catch { /* silent */ }
   }, [getHeaders, range])
 

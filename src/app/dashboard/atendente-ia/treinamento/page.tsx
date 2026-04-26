@@ -63,7 +63,7 @@ export default function TreinamentoPage() {
     try {
       const headers = await getHeaders()
       const res = await fetch(`${BACKEND}/atendente-ia/agents/${agentId}/training`, { headers })
-      if (res.ok) setExamples(await res.json())
+      if (res.ok) { const v = await res.json(); setExamples(Array.isArray(v) ? v : []) }
     } finally { setLoading(false) }
   }, [getHeaders, agentId])
 

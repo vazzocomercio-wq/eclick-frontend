@@ -348,20 +348,32 @@ export default function TarefasPage() {
     setOrgId(oid)
     if (!oid) { setLoading(false); return }
 
-    const { data, error } = await sb
-      .from('tasks')
-      .select('*')
-      .eq('organization_id', oid)
-      .order('created_at', { ascending: false })
+    try {
+      const { data, error } = await sb
+        .from('tasks')
+        .select('*')
+        .eq('organization_id', oid)
+        .order('created_at', { ascending: false })
 
-    if (error) {
-      if (error.code === '42P01') { setNoTable(true) }
-      else console.error('[tasks]', error.message)
+      if (error) {
+        // 42P01 = relation does not exist (table not yet created)
+        // PGRST205 = schema cache miss (also "table not found" from PostgREST)
+        if (error.code === '42P01' || error.code === 'PGRST205' || /not.*exist|find the table/i.test(error.message ?? '')) {
+          setNoTable(true)
+        } else {
+          console.warn('[tasks]', error.message)
+          setNoTable(true) // fail closed — show "feature not available" instead of white screen
+        }
+        setLoading(false)
+        return
+      }
+      setTasks(Array.isArray(data) ? data as Task[] : [])
+    } catch (e) {
+      console.warn('[tasks] load failed:', (e as Error).message)
+      setNoTable(true)
+    } finally {
       setLoading(false)
-      return
     }
-    setTasks((data ?? []) as Task[])
-    setLoading(false)
   }, [])
 
   useEffect(() => { load() }, [load])

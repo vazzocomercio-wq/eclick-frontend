@@ -48,8 +48,14 @@ export default function WidgetPage() {
         fetch(`${BACKEND}/widgets`, { headers }),
         fetch(`${BACKEND}/atendente-ia/agents`, { headers }),
       ])
-      if (wRes.ok) setWidgets(await wRes.json())
-      if (aRes.ok) setAgents(await aRes.json())
+      if (wRes.ok) {
+        const w = await wRes.json()
+        setWidgets(Array.isArray(w) ? w : [])
+      }
+      if (aRes.ok) {
+        const a = await aRes.json()
+        setAgents(Array.isArray(a) ? a : [])
+      }
     } catch { /* silent */ } finally { setLoading(false) }
   }, [getHeaders])
 

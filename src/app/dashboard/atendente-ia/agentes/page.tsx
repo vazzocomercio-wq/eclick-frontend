@@ -544,7 +544,7 @@ function TemplatesModal({ onClose, onCreated }: { onClose: () => void; onCreated
         const res = await fetch(`${BACKEND}/ai/templates`, {
           headers: { Authorization: `Bearer ${session?.access_token}` },
         })
-        if (res.ok) setTemplates(await res.json())
+        if (res.ok) { const v = await res.json(); setTemplates(Array.isArray(v) ? v : []) }
       } catch (e: any) { setErr(e?.message ?? 'Erro') } finally { setLoading(false) }
     })()
   }, [])
@@ -643,7 +643,7 @@ export default function AgentesPage() {
       const res = await fetch(`${BACKEND}/atendente-ia/agents`, {
         headers: { Authorization: `Bearer ${session?.access_token}` },
       })
-      if (res.ok) setAgents(await res.json())
+      if (res.ok) { const v = await res.json(); setAgents(Array.isArray(v) ? v : []) }
     } catch { /* silent */ } finally { setLoading(false) }
   }, [])
 

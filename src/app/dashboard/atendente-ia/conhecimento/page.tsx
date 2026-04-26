@@ -73,7 +73,7 @@ export default function ConhecimentoPage() {
     try {
       const headers = await getHeaders()
       const res = await fetch(`${BACKEND}/atendente-ia/agents/${agentId}/knowledge`, { headers })
-      if (res.ok) setItems(await res.json())
+      if (res.ok) { const v = await res.json(); setItems(Array.isArray(v) ? v : []) }
     } catch { /* silent */ } finally { setLoading(false) }
   }, [getHeaders, agentId])
 
@@ -112,7 +112,7 @@ export default function ConhecimentoPage() {
       const headers = await getHeaders()
       const url = `${BACKEND}/ai/knowledge?agent_id=${encodeURIComponent(agentId)}&q=${encodeURIComponent(q)}`
       const res = await fetch(url, { headers })
-      if (res.ok) setSearchResults(await res.json() as KnowledgeItem[])
+      if (res.ok) { const v = await res.json(); setSearchResults(Array.isArray(v) ? v as KnowledgeItem[] : []) }
     } catch { /* silent */ } finally { setSearching(false) }
   }
 
