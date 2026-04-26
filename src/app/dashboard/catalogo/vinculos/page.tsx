@@ -357,37 +357,45 @@ function StockPanel({
   const supabase = useMemo(() => createClient(), [])
   const [movements,      setMovements]      = useState<Movement[]>([])
   const [movLoading,     setMovLoading]     = useState(true)
-  const [adjForm,        setAdjForm]        = useState(false)
+
+  // Movement modal
+  const [movModalOpen,   setMovModalOpen]   = useState(false)
   const [adjType,        setAdjType]        = useState<'in' | 'out' | 'adjustment'>('adjustment')
   const [adjQty,         setAdjQty]         = useState('')
   const [adjReason,      setAdjReason]      = useState('')
   const [adjSaving,      setAdjSaving]      = useState(false)
   const [adjError,       setAdjError]       = useState<string | null>(null)
+
+  // Editable fields (saved together via "Salvar tudo")
   const [virtualQty,     setVirtualQty]     = useState('0')
   const [minPause,       setMinPause]       = useState('0')
   const [autoPause,      setAutoPause]      = useState(false)
-  const [savingSettings, setSavingSettings] = useState(false)
-  const [settingsErr,    setSettingsErr]    = useState<string | null>(null)
-  const [settingsSaved,  setSettingsSaved]  = useState(false)
+  const [safetyMode,     setSafetyMode]     = useState<'percentage' | 'fixed'>('percentage')
+  const [safetyPct,      setSafetyPct]      = useState('10')
+  const [safetyQty,      setSafetyQty]      = useState('0')
 
-  // Full stock state
-  const [fullStock,       setFullStock]       = useState<FullStockData | null>(null)
-  const [fullLoading,     setFullLoading]     = useState(false)
-  const [safetyMode,      setSafetyMode]      = useState<'percentage' | 'fixed'>('percentage')
-  const [safetyPct,       setSafetyPct]       = useState('10')
-  const [safetyQty,       setSafetyQty]       = useState('0')
-  const [savingBuffer,    setSavingBuffer]    = useState(false)
-  const [bufferSaved,     setBufferSaved]     = useState(false)
-  const [bufferErr,       setBufferErr]       = useState<string | null>(null)
-  const [distributions,   setDistributions]   = useState<Distribution[]>([])
-  const [newDistForm,     setNewDistForm]     = useState(false)
-  const [distChannel,     setDistChannel]     = useState('')
-  const [distType,        setDistType]        = useState<'percentage' | 'fixed'>('percentage')
-  const [distValue,       setDistValue]       = useState('')
-  const [distMin,         setDistMin]         = useState('0')
-  const [distMax,         setDistMax]         = useState('')
-  const [savingDist,      setSavingDist]      = useState(false)
-  const [distErr,         setDistErr]         = useState<string | null>(null)
+  // Unified save state
+  const [savingAll,      setSavingAll]      = useState(false)
+  const [savedAll,       setSavedAll]       = useState(false)
+  const [saveErr,        setSaveErr]        = useState<string | null>(null)
+
+  // Full stock data
+  const [fullStock,      setFullStock]      = useState<FullStockData | null>(null)
+  const [fullLoading,    setFullLoading]    = useState(false)
+
+  // Channel distribution
+  const [distributions,  setDistributions]  = useState<Distribution[]>([])
+  const [distOpen,       setDistOpen]       = useState(false)
+  const [newDistForm,    setNewDistForm]    = useState(false)
+  const [distChannel,    setDistChannel]    = useState('')
+  const [distType,       setDistType]       = useState<'percentage' | 'fixed'>('percentage')
+  const [distValue,      setDistValue]      = useState('')
+  const [distMin,        setDistMin]        = useState('0')
+  const [distMax,        setDistMax]        = useState('')
+  const [savingDist,     setSavingDist]     = useState(false)
+  const [distErr,        setDistErr]        = useState<string | null>(null)
+  const [forceSyncing,   setForceSyncing]   = useState(false)
+  const [forceSyncMsg,   setForceSyncMsg]   = useState<string | null>(null)
 
   const sharedStock = product.product_stock.find(s => s.platform === null) ?? null
   const physicalQty = sharedStock?.quantity ?? 0
@@ -429,30 +437,61 @@ function StockPanel({
       .then(({ data }) => { setMovements((data ?? []) as Movement[]); setMovLoading(false) })
   }, [product.id, supabase])
 
-  const vQty        = Number(virtualQty) || 0
-  const mPause      = Number(minPause) || 0
-  const platformQty = physicalQty + vQty
-  // Effective physical threshold: when physical reaches this, platform_qty hits min
-  const physicalThreshold = mPause - vQty
+  const vQty   = Number(virtualQty) || 0
+  const mPause = Number(minPause) || 0
 
-  async function handleSaveSettings() {
+  // Saves virtual_quantity + min_stock_to_pause + auto_pause_enabled + safety_*
+  // in parallel, then refreshes full stock (which triggers ML sync via backend).
+  async function handleSaveAll() {
     if (!sharedStock) return
-    setSavingSettings(true); setSettingsErr(null); setSettingsSaved(false)
+    setSavingAll(true); setSaveErr(null); setSavedAll(false)
     try {
       const headers = await getHeaders()
-      const res = await fetch(`${BACKEND}/products/stock/${sharedStock.id}`, {
-        method: 'PATCH',
-        headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ virtual_quantity: vQty, min_stock_to_pause: mPause, auto_pause_enabled: autoPause }),
+      const jsonHeaders = { ...headers, 'Content-Type': 'application/json' }
+
+      const stockBody = {
+        virtual_quantity:    vQty,
+        min_stock_to_pause:  mPause,
+        auto_pause_enabled:  autoPause,
+      }
+      const safetyBody = {
+        safety_mode:        safetyMode,
+        safety_percentage:  Number(safetyPct) || 10,
+        safety_quantity:    Number(safetyQty) || 0,
+      }
+
+      const stockReq = fetch(`${BACKEND}/products/stock/${sharedStock.id}`, {
+        method: 'PATCH', headers: jsonHeaders, body: JSON.stringify(stockBody),
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.message ?? `HTTP ${res.status}`)
-      onSettingsSaved(product.id, { virtual_quantity: vQty, min_stock_to_pause: mPause, auto_pause_enabled: autoPause })
-      setSettingsSaved(true)
-      setTimeout(() => setSettingsSaved(false), 2500)
+      const safetyReq = fullStock?.stock_id
+        ? fetch(`${BACKEND}/stock/${fullStock.stock_id}/safety`, {
+            method: 'PATCH', headers: jsonHeaders, body: JSON.stringify(safetyBody),
+          })
+        : Promise.resolve(null)
+
+      const [stockRes, safetyRes] = await Promise.all([stockReq, safetyReq])
+
+      if (!stockRes.ok) {
+        const d = await stockRes.json().catch(() => ({}))
+        throw new Error(d.message ?? `Estoque: HTTP ${stockRes.status}`)
+      }
+      if (safetyRes && !safetyRes.ok) {
+        const d = await safetyRes.json().catch(() => ({}))
+        throw new Error(d.message ?? `Buffer: HTTP ${safetyRes.status}`)
+      }
+
+      onSettingsSaved(product.id, stockBody)
+
+      // Refresh full stock to get updated calculations
+      const updated = await fetch(`${BACKEND}/stock/${product.id}/full`, { headers }).then(r => r.json())
+      setFullStock(updated)
+      setDistributions(updated.distributions ?? [])
+
+      setSavedAll(true)
+      setTimeout(() => setSavedAll(false), 2500)
     } catch (e: unknown) {
-      setSettingsErr(e instanceof Error ? e.message : 'Erro ao salvar')
-    } finally { setSavingSettings(false) }
+      setSaveErr(e instanceof Error ? e.message : 'Erro ao salvar')
+    } finally { setSavingAll(false) }
   }
 
   async function handleAdjust() {
@@ -473,35 +512,26 @@ function StockPanel({
       const { data: mvs } = await supabase.from('stock_movements').select('id, type, quantity, reason, created_at')
         .eq('product_id', product.id).order('created_at', { ascending: false }).limit(10)
       setMovements((mvs ?? []) as Movement[])
-      setAdjForm(false); setAdjQty(''); setAdjReason('')
+      setMovModalOpen(false); setAdjQty(''); setAdjReason('')
     } catch (e: unknown) {
       setAdjError(e instanceof Error ? e.message : 'Erro ao ajustar')
     } finally { setAdjSaving(false) }
   }
 
-  async function handleSaveBuffer() {
-    if (!fullStock?.stock_id) return
-    setSavingBuffer(true); setBufferErr(null); setBufferSaved(false)
+  async function handleForceSync() {
+    setForceSyncing(true); setForceSyncMsg(null)
     try {
       const headers = await getHeaders()
-      const res = await fetch(`${BACKEND}/stock/${fullStock.stock_id}/safety`, {
-        method: 'PATCH',
-        headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          safety_mode: safetyMode,
-          safety_percentage: Number(safetyPct) || 10,
-          safety_quantity: Number(safetyQty) || 0,
-        }),
-      })
-      if (!res.ok) { const d = await res.json(); throw new Error(d.message ?? `HTTP ${res.status}`) }
-      const updated = await fetch(`${BACKEND}/stock/${product.id}/full`, { headers }).then(r => r.json())
-      setFullStock(updated)
-      setDistributions(updated.distributions ?? [])
-      setBufferSaved(true)
-      setTimeout(() => setBufferSaved(false), 2500)
+      const res = await fetch(`${BACKEND}/stock/sync/${product.id}`, { method: 'POST', headers })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        throw new Error(d.message ?? `HTTP ${res.status}`)
+      }
+      setForceSyncMsg('✓ Sync disparado')
+      setTimeout(() => setForceSyncMsg(null), 2500)
     } catch (e: unknown) {
-      setBufferErr(e instanceof Error ? e.message : 'Erro ao salvar buffer')
-    } finally { setSavingBuffer(false) }
+      setForceSyncMsg(e instanceof Error ? e.message : 'Erro ao sincronizar')
+    } finally { setForceSyncing(false) }
   }
 
   async function handleSaveDist() {
@@ -570,11 +600,12 @@ function StockPanel({
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+        {/* Scrollable body */}
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
 
-          {/* Estoque físico */}
+          {/* 1. ESTOQUE FÍSICO */}
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-2">Estoque Físico</p>
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-2">1. Estoque Físico</p>
             {product.product_stock.length === 0 ? (
               <p className="text-zinc-600 text-xs">Nenhum registro de estoque</p>
             ) : (
@@ -592,10 +623,10 @@ function StockPanel({
             )}
           </div>
 
-          {/* Estoque virtual */}
+          {/* 2. ESTOQUE VIRTUAL */}
           <div>
             <div className="flex items-center gap-1.5 mb-2">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Estoque Virtual</p>
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">2. Estoque Virtual</p>
               <TooltipInfo text={TOOLTIP_VIRTUAL} />
             </div>
             <div className="relative">
@@ -604,190 +635,9 @@ function StockPanel({
             </div>
           </div>
 
-          {/* Total plataformas */}
-          <div className="rounded-xl p-3" style={{ background: '#0c0c10', border: '1px solid #1e1e24' }}>
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-2">Total nas Plataformas</p>
-            <div className="space-y-1 text-[12px]">
-              <div className="flex justify-between text-zinc-400">
-                <span>Físico</span>
-                <span className="tabular-nums">{num(physicalQty)}</span>
-              </div>
-              <div className="flex justify-between text-zinc-400">
-                <span>+ Virtual</span>
-                <span className="tabular-nums">{num(vQty)}</span>
-              </div>
-              <div className="border-t pt-1 flex justify-between font-bold text-white" style={{ borderColor: '#1e1e24' }}>
-                <span>= Total</span>
-                <span className="tabular-nums" style={{ color: '#00E5FF' }}>{num(platformQty)} unid.</span>
-              </div>
-            </div>
-            {/* Dynamic pause preview */}
-            {(mPause > 0 || autoPause) && (
-              <div className="mt-2 pt-2 text-[11px] text-zinc-500" style={{ borderTop: '1px solid #1e1e24' }}>
-                <span>Pausa quando total ≤ </span>
-                <span className="font-semibold text-yellow-400">{num(mPause)}</span>
-                {physicalThreshold !== mPause && (
-                  <span> (físico ≤ {physicalThreshold >= 0 ? num(physicalThreshold) : '0 — nunca'})</span>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Estoque mínimo para pausar */}
+          {/* 3. BUFFER DE SEGURANÇA */}
           <div>
-            <div className="flex items-center gap-1.5 mb-2">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Estoque Mínimo para Pausar</p>
-              <TooltipInfo text={TOOLTIP_MINPAUSE} />
-            </div>
-            <div className="relative">
-              <input type="number" min={0} value={minPause} onChange={e => setMinPause(e.target.value)} className={inp} />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-zinc-500">unid.</span>
-            </div>
-          </div>
-
-          {/* Toggle pausar automaticamente */}
-          <div className="flex items-center justify-between py-1">
-            <p className="text-sm text-zinc-300">Pausar automaticamente</p>
-            <button onClick={() => setAutoPause(p => !p)}
-              className="relative w-10 h-5 rounded-full transition-colors shrink-0"
-              style={{ background: autoPause ? '#00E5FF' : '#27272a' }}>
-              <span className="absolute top-0.5 transition-all w-4 h-4 rounded-full shadow"
-                style={{ left: autoPause ? '1.25rem' : '0.125rem', background: autoPause ? '#000' : '#71717a' }} />
-            </button>
-          </div>
-
-          {/* Save settings */}
-          {settingsErr && <p className="text-[11px] text-red-400">{settingsErr}</p>}
-          <button onClick={handleSaveSettings} disabled={savingSettings || !sharedStock}
-            className="w-full py-2.5 rounded-xl text-sm font-semibold transition-all disabled:opacity-50"
-            style={{
-              background: settingsSaved ? 'rgba(74,222,128,0.1)' : 'rgba(0,229,255,0.08)',
-              color: settingsSaved ? '#4ade80' : '#00E5FF',
-              border: `1px solid ${settingsSaved ? 'rgba(74,222,128,0.2)' : 'rgba(0,229,255,0.2)'}`,
-            }}>
-            {savingSettings ? 'Salvando…' : settingsSaved ? '✓ Configurações salvas' : 'Salvar configurações'}
-          </button>
-
-          <div style={{ borderTop: '1px solid #1e1e24' }} className="pt-4">
-
-            {/* Adjust button / form */}
-            {!adjForm ? (
-              <button onClick={() => setAdjForm(true)}
-                className="w-full py-2.5 rounded-xl text-sm font-semibold transition-all"
-                style={{ background: '#1a1a1f', color: '#a1a1aa', border: '1px solid #27272a' }}>
-                Ajuste Manual
-              </button>
-            ) : (
-              <div className="rounded-xl p-4 space-y-3" style={{ background: '#0c0c10', border: '1px solid #1e1e24' }}>
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Ajuste Manual</p>
-                <div className="grid grid-cols-3 gap-1.5">
-                  {(['adjustment', 'in', 'out'] as const).map(t => (
-                    <button key={t} onClick={() => setAdjType(t)}
-                      className="py-1.5 rounded-lg text-[11px] font-semibold transition-all"
-                      style={{
-                        background: adjType === t ? (t === 'in' ? 'rgba(74,222,128,0.1)' : t === 'out' ? 'rgba(248,113,113,0.1)' : 'rgba(251,191,36,0.1)') : '#111114',
-                        color:      adjType === t ? (t === 'in' ? '#4ade80'              : t === 'out' ? '#f87171'             : '#fbbf24')             : '#71717a',
-                        border:     `1px solid ${adjType === t ? (t === 'in' ? 'rgba(74,222,128,0.3)' : t === 'out' ? 'rgba(248,113,113,0.3)' : 'rgba(251,191,36,0.3)') : '#27272a'}`,
-                      }}>
-                      {t === 'adjustment' ? '= Ajuste' : t === 'in' ? '+ Entrada' : '- Saída'}
-                    </button>
-                  ))}
-                </div>
-                <div>
-                  <label className="block text-[11px] text-zinc-500 mb-1">
-                    {adjType === 'adjustment' ? 'Nova quantidade total' : 'Quantidade'}
-                  </label>
-                  <input type="number" min={1} value={adjQty} onChange={e => setAdjQty(e.target.value)}
-                    placeholder="0" className={inp} />
-                </div>
-                <div>
-                  <label className="block text-[11px] text-zinc-500 mb-1">Motivo (opcional)</label>
-                  <input value={adjReason} onChange={e => setAdjReason(e.target.value)}
-                    placeholder="Contagem física, quebra, etc."
-                    className="w-full bg-[#0f0f12] border border-[#27272a] text-white text-sm rounded-lg px-3 py-2 outline-none focus:border-[#00E5FF]" />
-                </div>
-                {adjError && <p className="text-[11px] text-red-400">{adjError}</p>}
-                <div className="flex gap-2">
-                  <button onClick={() => { setAdjForm(false); setAdjError(null) }}
-                    className="flex-1 py-2 rounded-lg text-xs text-zinc-400 transition-colors hover:text-white"
-                    style={{ background: '#1a1a1f', border: '1px solid #27272a' }}>
-                    Cancelar
-                  </button>
-                  <button onClick={handleAdjust} disabled={adjSaving || !adjQty}
-                    className="flex-1 py-2 rounded-lg text-xs font-semibold transition-opacity disabled:opacity-50"
-                    style={{ background: '#00E5FF', color: '#000' }}>
-                    {adjSaving ? 'Salvando…' : 'Confirmar'}
-                  </button>
-                </div>
-              </div>
-            )}
-
-          </div>
-
-          {/* Movement history */}
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-2">Últimas Movimentações</p>
-            {movLoading ? (
-              <div className="space-y-2">
-                {[1,2,3].map(i => <div key={i} className="h-8 rounded-lg animate-pulse" style={{ background: '#1a1a1f' }} />)}
-              </div>
-            ) : movements.length === 0 ? (
-              <p className="text-zinc-600 text-xs py-2">Nenhuma movimentação registrada</p>
-            ) : (
-              <div className="space-y-1.5">
-                {movements.map(mv => {
-                  const t    = MOV_TYPE_LABEL[mv.type] ?? { label: mv.type, color: '#71717a' }
-                  const sign = mv.type === 'in' || mv.type === 'return' ? '+' : mv.type === 'adjustment' ? '→' : '-'
-                  return (
-                    <div key={mv.id} className="flex items-center gap-2 px-3 py-2 rounded-lg"
-                      style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
-                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded"
-                        style={{ color: t.color, background: `${t.color}15` }}>{t.label}</span>
-                      <span className="flex-1 text-[11px] text-zinc-500 truncate">{mv.reason ?? '—'}</span>
-                      <span className="text-[11px] font-bold tabular-nums shrink-0" style={{ color: t.color }}>
-                        {sign}{num(mv.quantity)}
-                      </span>
-                      <span className="text-[10px] text-zinc-600 shrink-0">{fmtMovDate(mv.created_at)}</span>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* ── Estoque Reservado ─────────────────────────────────────────────── */}
-          <div style={{ borderTop: '1px solid #1e1e24' }} className="pt-4">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-2">Estoque Reservado</p>
-            {fullLoading ? (
-              <div className="h-8 rounded-lg animate-pulse" style={{ background: '#1a1a1f' }} />
-            ) : !fullStock?.reservations?.length ? (
-              <p className="text-zinc-600 text-xs py-1">Nenhuma reserva ativa</p>
-            ) : (
-              <div className="space-y-1.5">
-                {fullStock.reservations.map(r => (
-                  <div key={r.id} className="flex items-center gap-2 px-3 py-2 rounded-lg"
-                    style={{ background: '#0c0c10', border: '1px solid #1e1e24' }}>
-                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded"
-                      style={{ color: '#a78bfa', background: 'rgba(167,139,250,0.1)' }}>
-                      {r.reference_type}
-                    </span>
-                    <span className="flex-1 text-[11px] text-zinc-500 truncate">{r.reference_id}</span>
-                    <span className="text-[11px] font-bold tabular-nums text-yellow-400 shrink-0">{num(r.quantity)} unid.</span>
-                    <button onClick={() => handleReleaseReservation(r.id)}
-                      className="text-zinc-600 hover:text-red-400 transition-colors shrink-0">
-                      <svg width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* ── Buffer de Segurança ───────────────────────────────────────────── */}
-          <div style={{ borderTop: '1px solid #1e1e24' }} className="pt-4">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-3">Buffer de Segurança</p>
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-3">3. Buffer de Segurança</p>
             <div className="grid grid-cols-2 gap-1.5 mb-3">
               {(['percentage', 'fixed'] as const).map(m => (
                 <button key={m} onClick={() => setSafetyMode(m)}
@@ -822,23 +672,43 @@ function StockPanel({
                   : ` (fixo)`}
               </p>
             )}
-            {bufferErr && <p className="text-[11px] text-red-400 mt-1">{bufferErr}</p>}
-            <button onClick={handleSaveBuffer} disabled={savingBuffer || !fullStock?.stock_id}
-              className="w-full py-2 rounded-xl text-xs font-semibold transition-all disabled:opacity-50 mt-3"
-              style={{
-                background: bufferSaved ? 'rgba(74,222,128,0.1)' : 'rgba(0,229,255,0.08)',
-                color: bufferSaved ? '#4ade80' : '#00E5FF',
-                border: `1px solid ${bufferSaved ? 'rgba(74,222,128,0.2)' : 'rgba(0,229,255,0.2)'}`,
-              }}>
-              {savingBuffer ? 'Salvando…' : bufferSaved ? '✓ Buffer salvo' : 'Salvar buffer'}
-            </button>
           </div>
 
-          {/* ── Estoque Disponível ────────────────────────────────────────────── */}
+          {/* 4. ESTOQUE RESERVADO */}
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-2">4. Estoque Reservado</p>
+            {fullLoading ? (
+              <div className="h-8 rounded-lg animate-pulse" style={{ background: '#1a1a1f' }} />
+            ) : !fullStock?.reservations?.length ? (
+              <p className="text-zinc-600 text-xs py-1">Nenhuma reserva ativa</p>
+            ) : (
+              <div className="space-y-1.5">
+                {fullStock.reservations.map(r => (
+                  <div key={r.id} className="flex items-center gap-2 px-3 py-2 rounded-lg"
+                    style={{ background: '#0c0c10', border: '1px solid #1e1e24' }}>
+                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded"
+                      style={{ color: '#a78bfa', background: 'rgba(167,139,250,0.1)' }}>
+                      {r.reference_type}
+                    </span>
+                    <span className="flex-1 text-[11px] text-zinc-500 truncate">{r.reference_id}</span>
+                    <span className="text-[11px] font-bold tabular-nums text-yellow-400 shrink-0">{num(r.quantity)} unid.</span>
+                    <button onClick={() => handleReleaseReservation(r.id)}
+                      className="text-zinc-600 hover:text-red-400 transition-colors shrink-0">
+                      <svg width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* 5. ESTOQUE DISPONÍVEL PARA VENDA */}
           {fullStock && (
             <div className="rounded-xl p-4" style={{ background: 'rgba(0,229,255,0.05)', border: '1px solid rgba(0,229,255,0.2)' }}>
               <p className="text-[10px] font-semibold uppercase tracking-widest mb-3" style={{ color: '#00E5FF' }}>
-                Estoque Disponível para Venda
+                5. Estoque Disponível para Venda
               </p>
               <div className="space-y-1 text-[12px]">
                 <div className="flex justify-between text-zinc-400">
@@ -865,102 +735,244 @@ function StockPanel({
             </div>
           )}
 
-          {/* ── Distribuição por Canal ────────────────────────────────────────── */}
-          <div style={{ borderTop: '1px solid #1e1e24' }} className="pt-4">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Distribuição por Canal</p>
-              {!newDistForm && (
-                <button onClick={() => setNewDistForm(true)}
-                  className="text-[11px] px-2.5 py-1 rounded-lg font-semibold transition-all"
-                  style={{ background: 'rgba(0,229,255,0.06)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.15)' }}>
-                  + Canal
-                </button>
-              )}
-            </div>
-
-            {distributions.length === 0 && !newDistForm && (
-              <p className="text-zinc-600 text-xs py-1">Nenhuma distribuição configurada</p>
-            )}
-
-            {distributions.map(d => (
-              <div key={d.id} className="flex items-center gap-2 px-3 py-2 rounded-lg mb-1.5"
-                style={{ background: '#0c0c10', border: '1px solid #1e1e24' }}>
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0"
-                  style={{ color: '#00E5FF', background: 'rgba(0,229,255,0.1)' }}>
-                  {d.channel}{d.account_id ? ` · ${d.account_id}` : ''}
-                </span>
-                <span className="flex-1 text-[11px] text-zinc-400 tabular-nums">
-                  {d.distribution_type === 'percentage'
-                    ? `${d.percentage}%`
-                    : `${num(d.fixed_quantity ?? 0)} unid.`}
-                  {d.min_quantity > 0 && <span className="text-zinc-600"> mín:{d.min_quantity}</span>}
-                  {d.max_quantity != null && <span className="text-zinc-600"> máx:{d.max_quantity}</span>}
-                </span>
-                <span className="shrink-0 text-[10px]" style={{ color: d.is_active ? '#4ade80' : '#71717a' }}>
-                  {d.is_active ? '●' : '○'}
-                </span>
-                <button onClick={() => handleDeleteDist(d.id)}
-                  className="text-zinc-600 hover:text-red-400 transition-colors shrink-0">
-                  <svg width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
+          {/* 6. CONFIGURAÇÕES DE PAUSA */}
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-2">6. Configurações de Pausa</p>
+            <div className="space-y-3">
+              <div>
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <p className="text-[11px] text-zinc-400">Mínimo para pausar</p>
+                  <TooltipInfo text={TOOLTIP_MINPAUSE} />
+                </div>
+                <div className="relative">
+                  <input type="number" min={0} value={minPause} onChange={e => setMinPause(e.target.value)} className={inp} />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-zinc-500">unid.</span>
+                </div>
+              </div>
+              <div className="flex items-center justify-between py-1">
+                <p className="text-sm text-zinc-300">Pausar automaticamente</p>
+                <button onClick={() => setAutoPause(p => !p)}
+                  className="relative w-10 h-5 rounded-full transition-colors shrink-0"
+                  style={{ background: autoPause ? '#00E5FF' : '#27272a' }}>
+                  <span className="absolute top-0.5 transition-all w-4 h-4 rounded-full shadow"
+                    style={{ left: autoPause ? '1.25rem' : '0.125rem', background: autoPause ? '#000' : '#71717a' }} />
                 </button>
               </div>
-            ))}
+            </div>
+          </div>
 
-            {newDistForm && (
-              <div className="rounded-xl p-4 space-y-3" style={{ background: '#0c0c10', border: '1px solid #1e1e24' }}>
-                <div className="grid grid-cols-2 gap-1.5">
-                  {(['percentage', 'fixed'] as const).map(m => (
-                    <button key={m} onClick={() => setDistType(m)}
-                      className="py-1.5 rounded-lg text-[11px] font-semibold transition-all"
-                      style={{
-                        background: distType === m ? 'rgba(0,229,255,0.1)' : '#111114',
-                        color: distType === m ? '#00E5FF' : '#71717a',
-                        border: `1px solid ${distType === m ? 'rgba(0,229,255,0.3)' : '#27272a'}`,
-                      }}>
-                      {m === 'percentage' ? '% Percentual' : '# Fixo'}
+          {/* 7. DISTRIBUIÇÃO POR CANAL (colapsável) */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <button onClick={() => setDistOpen(o => !o)}
+                className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-zinc-500 hover:text-zinc-300 transition-colors">
+                <span>{distOpen ? '▾' : '▸'}</span>
+                <span>7. Distribuição por Canal{distributions.length > 0 ? ` (${distributions.length})` : ''}</span>
+              </button>
+              <button onClick={handleForceSync} disabled={forceSyncing}
+                className="text-[10px] px-2 py-1 rounded-lg font-semibold transition-all disabled:opacity-50"
+                style={{ background: '#1a1a1f', color: '#a1a1aa', border: '1px solid #27272a' }}>
+                {forceSyncing ? 'Sync…' : 'Forçar sync'}
+              </button>
+            </div>
+            {forceSyncMsg && (
+              <p className={`text-[11px] mb-2 ${forceSyncMsg.startsWith('✓') ? 'text-green-400' : 'text-red-400'}`}>{forceSyncMsg}</p>
+            )}
+            {distOpen && (
+              <div className="space-y-1.5">
+                {distributions.length === 0 && !newDistForm && (
+                  <p className="text-zinc-600 text-xs py-1">Nenhuma distribuição configurada</p>
+                )}
+                {distributions.map(d => (
+                  <div key={d.id} className="flex items-center gap-2 px-3 py-2 rounded-lg"
+                    style={{ background: '#0c0c10', border: '1px solid #1e1e24' }}>
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0"
+                      style={{ color: '#00E5FF', background: 'rgba(0,229,255,0.1)' }}>
+                      {d.channel}{d.account_id ? ` · ${d.account_id}` : ''}
+                    </span>
+                    <span className="flex-1 text-[11px] text-zinc-400 tabular-nums">
+                      {d.distribution_type === 'percentage'
+                        ? `${d.percentage}%`
+                        : `${num(d.fixed_quantity ?? 0)} unid.`}
+                      {d.min_quantity > 0 && <span className="text-zinc-600"> mín:{d.min_quantity}</span>}
+                      {d.max_quantity != null && <span className="text-zinc-600"> máx:{d.max_quantity}</span>}
+                    </span>
+                    <span className="shrink-0 text-[10px]" style={{ color: d.is_active ? '#4ade80' : '#71717a' }}>
+                      {d.is_active ? '●' : '○'}
+                    </span>
+                    <button onClick={() => handleDeleteDist(d.id)}
+                      className="text-zinc-600 hover:text-red-400 transition-colors shrink-0">
+                      <svg width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
                     </button>
-                  ))}
-                </div>
-                <input value={distChannel} onChange={e => setDistChannel(e.target.value)}
-                  placeholder="Canal (ex: mercadolivre)" className={inp.replace('tabular-nums', '')} />
-                <div className="grid grid-cols-3 gap-2">
-                  <div className="col-span-1">
-                    <label className="block text-[10px] text-zinc-500 mb-1">
-                      {distType === 'percentage' ? '%' : 'Qtd'}
-                    </label>
-                    <input type="number" min={0} value={distValue} onChange={e => setDistValue(e.target.value)} className={inp} />
                   </div>
-                  <div>
-                    <label className="block text-[10px] text-zinc-500 mb-1">Mín</label>
-                    <input type="number" min={0} value={distMin} onChange={e => setDistMin(e.target.value)} className={inp} />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] text-zinc-500 mb-1">Máx</label>
-                    <input type="number" min={0} value={distMax} onChange={e => setDistMax(e.target.value)}
-                      placeholder="∞" className={inp} />
-                  </div>
-                </div>
-                {distErr && <p className="text-[11px] text-red-400">{distErr}</p>}
-                <div className="flex gap-2">
-                  <button onClick={() => { setNewDistForm(false); setDistErr(null) }}
-                    className="flex-1 py-2 rounded-lg text-xs text-zinc-400 transition-colors hover:text-white"
-                    style={{ background: '#1a1a1f', border: '1px solid #27272a' }}>
-                    Cancelar
+                ))}
+                {!newDistForm ? (
+                  <button onClick={() => setNewDistForm(true)}
+                    className="w-full text-[11px] py-2 rounded-lg font-semibold transition-all"
+                    style={{ background: 'rgba(0,229,255,0.06)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.15)' }}>
+                    + Adicionar canal
                   </button>
-                  <button onClick={handleSaveDist} disabled={savingDist}
-                    className="flex-1 py-2 rounded-lg text-xs font-semibold transition-opacity disabled:opacity-50"
-                    style={{ background: '#00E5FF', color: '#000' }}>
-                    {savingDist ? 'Salvando…' : 'Adicionar'}
-                  </button>
-                </div>
+                ) : (
+                  <div className="rounded-xl p-4 space-y-3" style={{ background: '#0c0c10', border: '1px solid #1e1e24' }}>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {(['percentage', 'fixed'] as const).map(m => (
+                        <button key={m} onClick={() => setDistType(m)}
+                          className="py-1.5 rounded-lg text-[11px] font-semibold transition-all"
+                          style={{
+                            background: distType === m ? 'rgba(0,229,255,0.1)' : '#111114',
+                            color: distType === m ? '#00E5FF' : '#71717a',
+                            border: `1px solid ${distType === m ? 'rgba(0,229,255,0.3)' : '#27272a'}`,
+                          }}>
+                          {m === 'percentage' ? '% Percentual' : '# Fixo'}
+                        </button>
+                      ))}
+                    </div>
+                    <input value={distChannel} onChange={e => setDistChannel(e.target.value)}
+                      placeholder="Canal (ex: mercadolivre)" className={inp.replace('tabular-nums', '')} />
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="col-span-1">
+                        <label className="block text-[10px] text-zinc-500 mb-1">
+                          {distType === 'percentage' ? '%' : 'Qtd'}
+                        </label>
+                        <input type="number" min={0} value={distValue} onChange={e => setDistValue(e.target.value)} className={inp} />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-zinc-500 mb-1">Mín</label>
+                        <input type="number" min={0} value={distMin} onChange={e => setDistMin(e.target.value)} className={inp} />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-zinc-500 mb-1">Máx</label>
+                        <input type="number" min={0} value={distMax} onChange={e => setDistMax(e.target.value)}
+                          placeholder="∞" className={inp} />
+                      </div>
+                    </div>
+                    {distErr && <p className="text-[11px] text-red-400">{distErr}</p>}
+                    <div className="flex gap-2">
+                      <button onClick={() => { setNewDistForm(false); setDistErr(null) }}
+                        className="flex-1 py-2 rounded-lg text-xs text-zinc-400 transition-colors hover:text-white"
+                        style={{ background: '#1a1a1f', border: '1px solid #27272a' }}>
+                        Cancelar
+                      </button>
+                      <button onClick={handleSaveDist} disabled={savingDist}
+                        className="flex-1 py-2 rounded-lg text-xs font-semibold transition-opacity disabled:opacity-50"
+                        style={{ background: '#00E5FF', color: '#000' }}>
+                        {savingDist ? 'Salvando…' : 'Adicionar'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* 8. ÚLTIMAS MOVIMENTAÇÕES */}
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-2">8. Últimas Movimentações</p>
+            {movLoading ? (
+              <div className="space-y-2">
+                {[1,2,3].map(i => <div key={i} className="h-8 rounded-lg animate-pulse" style={{ background: '#1a1a1f' }} />)}
+              </div>
+            ) : movements.length === 0 ? (
+              <p className="text-zinc-600 text-xs py-2">Nenhuma movimentação registrada</p>
+            ) : (
+              <div className="space-y-1.5">
+                {movements.map(mv => {
+                  const t    = MOV_TYPE_LABEL[mv.type] ?? { label: mv.type, color: '#71717a' }
+                  const sign = mv.type === 'in' || mv.type === 'return' ? '+' : mv.type === 'adjustment' ? '→' : '-'
+                  return (
+                    <div key={mv.id} className="flex items-center gap-2 px-3 py-2 rounded-lg"
+                      style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded"
+                        style={{ color: t.color, background: `${t.color}15` }}>{t.label}</span>
+                      <span className="flex-1 text-[11px] text-zinc-500 truncate">{mv.reason ?? '—'}</span>
+                      <span className="text-[11px] font-bold tabular-nums shrink-0" style={{ color: t.color }}>
+                        {sign}{num(mv.quantity)}
+                      </span>
+                      <span className="text-[10px] text-zinc-600 shrink-0">{fmtMovDate(mv.created_at)}</span>
+                    </div>
+                  )
+                })}
               </div>
             )}
           </div>
 
         </div>
+
+        {/* Sticky footer */}
+        <div className="shrink-0 px-5 py-3 space-y-2" style={{ borderTop: '1px solid #1e1e24', background: '#0f0f12' }}>
+          {saveErr && <p className="text-[11px] text-red-400">{saveErr}</p>}
+          <div className="flex gap-2">
+            <button onClick={() => { setMovModalOpen(true); setAdjError(null) }}
+              className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all"
+              style={{ background: '#1a1a1f', color: '#a1a1aa', border: '1px solid #27272a' }}>
+              Movimentar
+            </button>
+            <button onClick={handleSaveAll} disabled={savingAll || !sharedStock}
+              className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all disabled:opacity-50"
+              style={{
+                background: savedAll ? 'rgba(74,222,128,0.1)' : '#00E5FF',
+                color: savedAll ? '#4ade80' : '#000',
+                border: `1px solid ${savedAll ? 'rgba(74,222,128,0.2)' : '#00E5FF'}`,
+              }}>
+              {savingAll ? 'Salvando…' : savedAll ? '✓ Salvo' : 'Salvar tudo'}
+            </button>
+          </div>
+        </div>
       </div>
+
+      {/* Movement modal */}
+      {movModalOpen && (
+        <div className="fixed inset-0 z-[60] bg-black/70 flex items-center justify-center p-4"
+          onClick={() => !adjSaving && setMovModalOpen(false)}>
+          <div className="rounded-xl p-5 w-full max-w-sm space-y-3"
+            style={{ background: '#111114', border: '1px solid #27272a' }}
+            onClick={e => e.stopPropagation()}>
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Movimentar Estoque</p>
+            <div className="grid grid-cols-3 gap-1.5">
+              {(['adjustment', 'in', 'out'] as const).map(t => (
+                <button key={t} onClick={() => setAdjType(t)}
+                  className="py-1.5 rounded-lg text-[11px] font-semibold transition-all"
+                  style={{
+                    background: adjType === t ? (t === 'in' ? 'rgba(74,222,128,0.1)' : t === 'out' ? 'rgba(248,113,113,0.1)' : 'rgba(251,191,36,0.1)') : '#0c0c10',
+                    color:      adjType === t ? (t === 'in' ? '#4ade80'              : t === 'out' ? '#f87171'             : '#fbbf24')             : '#71717a',
+                    border:     `1px solid ${adjType === t ? (t === 'in' ? 'rgba(74,222,128,0.3)' : t === 'out' ? 'rgba(248,113,113,0.3)' : 'rgba(251,191,36,0.3)') : '#27272a'}`,
+                  }}>
+                  {t === 'adjustment' ? '= Ajuste' : t === 'in' ? '+ Entrada' : '- Saída'}
+                </button>
+              ))}
+            </div>
+            <div>
+              <label className="block text-[11px] text-zinc-500 mb-1">
+                {adjType === 'adjustment' ? 'Nova quantidade total' : 'Quantidade'}
+              </label>
+              <input type="number" min={1} value={adjQty} onChange={e => setAdjQty(e.target.value)}
+                placeholder="0" className={inp} autoFocus />
+            </div>
+            <div>
+              <label className="block text-[11px] text-zinc-500 mb-1">Motivo (opcional)</label>
+              <input value={adjReason} onChange={e => setAdjReason(e.target.value)}
+                placeholder="Contagem física, quebra, etc."
+                className="w-full bg-[#0c0c10] border border-[#27272a] text-white text-sm rounded-lg px-3 py-2 outline-none focus:border-[#00E5FF]" />
+            </div>
+            {adjError && <p className="text-[11px] text-red-400">{adjError}</p>}
+            <div className="flex gap-2 pt-1">
+              <button onClick={() => { setMovModalOpen(false); setAdjError(null) }}
+                disabled={adjSaving}
+                className="flex-1 py-2 rounded-lg text-xs text-zinc-400 transition-colors hover:text-white disabled:opacity-50"
+                style={{ background: '#1a1a1f', border: '1px solid #27272a' }}>
+                Cancelar
+              </button>
+              <button onClick={handleAdjust} disabled={adjSaving || !adjQty}
+                className="flex-1 py-2 rounded-lg text-xs font-semibold transition-opacity disabled:opacity-50"
+                style={{ background: '#00E5FF', color: '#000' }}>
+                {adjSaving ? 'Salvando…' : 'Confirmar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }
