@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts'
-import { TrendingUp, MessageCircle, Zap, UserCheck, AlertTriangle, Loader2, Calendar } from 'lucide-react'
+import { TrendingUp, MessageCircle, Zap, UserCheck, AlertTriangle, Loader2, Calendar, MessageSquare, Trophy, Sparkles, Plus } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 
@@ -21,6 +21,17 @@ interface AnalyticsRow {
 
 interface Agent { id: string; name: string }
 
+interface TopQuestion { question: string; count: number; last_at: string }
+interface AgentPerf {
+  agent_id: string; agent_name: string; model_id: string
+  messages: number; auto_pct: number; escalated: number; avg_confidence: number
+}
+interface InsightRow {
+  id: string; type: string
+  data: Record<string, unknown> | null
+  generated_at: string
+}
+
 const CHART_TOOLTIP_STYLE = {
   contentStyle: { background: '#111114', border: '1px solid #1e1e24', borderRadius: 12 },
   labelStyle: { color: '#a1a1aa', fontSize: 11 },
@@ -33,6 +44,11 @@ export default function AnalyticsPage() {
   const [rows, setRows]       = useState<AnalyticsRow[]>([])
   const [loading, setLoading] = useState(false)
   const [range, setRange]     = useState(30)
+
+  // Wave-1 sessão 3 additions
+  const [topQ,    setTopQ]    = useState<TopQuestion[] | null>(null)
+  const [byAgent, setByAgent] = useState<AgentPerf[] | null>(null)
+  const [insights,setInsights]= useState<InsightRow[] | null>(null)
 
   const getHeaders = useCallback(async () => {
     const sb = createClient()
@@ -62,8 +78,23 @@ export default function AnalyticsPage() {
     } finally { setLoading(false) }
   }, [getHeaders, agentId, range])
 
+  const loadAggregates = useCallback(async () => {
+    try {
+      const headers = await getHeaders()
+      const [topRes, byRes, insRes] = await Promise.allSettled([
+        fetch(`${BACKEND}/atendente-ia/analytics/top-questions?limit=10`, { headers }),
+        fetch(`${BACKEND}/atendente-ia/analytics/by-agent?days=${range}`, { headers }),
+        fetch(`${BACKEND}/atendente-ia/analytics/insights?limit=10`, { headers }),
+      ])
+      if (topRes.status === 'fulfilled' && topRes.value.ok) setTopQ(await topRes.value.json())
+      if (byRes.status  === 'fulfilled' && byRes.value.ok)  setByAgent(await byRes.value.json())
+      if (insRes.status === 'fulfilled' && insRes.value.ok) setInsights(await insRes.value.json())
+    } catch { /* silent */ }
+  }, [getHeaders, range])
+
   useEffect(() => { loadAgents() }, [loadAgents])
   useEffect(() => { loadAnalytics() }, [loadAnalytics])
+  useEffect(() => { loadAggregates() }, [loadAggregates])
 
   // Aggregated KPIs
   const totalReceived   = rows.reduce((s, r) => s + r.messages_received, 0)
@@ -194,6 +225,109 @@ export default function AnalyticsPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+
+          {/* Top perguntas recorrentes */}
+          <div className="rounded-2xl p-5 space-y-3" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+            <div className="flex items-center gap-2">
+              <MessageSquare size={14} style={{ color: '#00E5FF' }} />
+              <p className="text-sm font-semibold text-white">Top perguntas recorrentes</p>
+              <span className="text-[10px] text-zinc-500 ml-auto">últimas 2.000 mensagens</span>
+            </div>
+            {!topQ ? (
+              <div className="flex items-center gap-2 text-xs text-zinc-500"><Loader2 size={12} className="animate-spin" /> carregando…</div>
+            ) : topQ.length === 0 ? (
+              <p className="text-xs text-zinc-500 py-3">Sem perguntas suficientes pra agregar ainda.</p>
+            ) : (
+              <div className="space-y-1.5">
+                {topQ.map((q, i) => (
+                  <div key={i} className="flex items-center gap-3 px-3 py-2 rounded-lg"
+                    style={{ background: '#0d0d10', border: '1px solid #1e1e24' }}>
+                    <span className="text-[10px] font-bold tabular-nums w-6 text-zinc-600">#{i + 1}</span>
+                    <p className="text-xs text-zinc-300 flex-1 truncate">{q.question}</p>
+                    <span className="text-[11px] font-bold tabular-nums shrink-0" style={{ color: '#00E5FF' }}>{q.count}×</span>
+                    <button title="Criar item de conhecimento desta pergunta"
+                      onClick={() => window.location.href = `/dashboard/atendente-ia/conhecimento?prefill=${encodeURIComponent(q.question)}`}
+                      className="p-1 rounded transition-colors hover:bg-white/5 text-zinc-500 hover:text-cyan-400 shrink-0">
+                      <Plus size={12} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Performance por agente */}
+          <div className="rounded-2xl p-5 space-y-3" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+            <div className="flex items-center gap-2">
+              <Trophy size={14} style={{ color: '#fbbf24' }} />
+              <p className="text-sm font-semibold text-white">Performance por agente</p>
+              <span className="text-[10px] text-zinc-500 ml-auto">últimos {range} dias</span>
+            </div>
+            {!byAgent ? (
+              <div className="flex items-center gap-2 text-xs text-zinc-500"><Loader2 size={12} className="animate-spin" /> carregando…</div>
+            ) : byAgent.length === 0 ? (
+              <p className="text-xs text-zinc-500 py-3">Nenhum dado de agentes ainda.</p>
+            ) : (
+              <div className="overflow-hidden rounded-lg" style={{ border: '1px solid #1e1e24' }}>
+                <table className="w-full text-xs">
+                  <thead style={{ background: '#0d0d10' }}>
+                    <tr>
+                      {['Agente','Mensagens','Auto%','Conf. média','Escaladas'].map(h => (
+                        <th key={h} className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wide text-zinc-500">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {byAgent.map((a, i) => (
+                      <tr key={a.agent_id} style={{ background: i % 2 === 0 ? '#09090b' : '#0d0d10', borderTop: '1px solid #1e1e24' }}>
+                        <td className="px-3 py-2 text-zinc-300">
+                          <div>{a.agent_name}</div>
+                          <div className="text-[10px] text-zinc-600 font-mono truncate max-w-[200px]">{a.model_id}</div>
+                        </td>
+                        <td className="px-3 py-2 text-white font-medium tabular-nums">{a.messages}</td>
+                        <td className="px-3 py-2 tabular-nums" style={{ color: a.auto_pct >= 70 ? '#4ade80' : a.auto_pct >= 40 ? '#fbbf24' : '#f87171' }}>{a.auto_pct}%</td>
+                        <td className="px-3 py-2 text-zinc-400 tabular-nums">{a.avg_confidence > 0 ? `${a.avg_confidence}%` : '—'}</td>
+                        <td className="px-3 py-2 tabular-nums" style={{ color: a.escalated > 0 ? '#f87171' : '#52525b' }}>{a.escalated}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* Insights automáticos */}
+          <div className="rounded-2xl p-5 space-y-3" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+            <div className="flex items-center gap-2">
+              <Sparkles size={14} style={{ color: '#a78bfa' }} />
+              <p className="text-sm font-semibold text-white">Insights automáticos</p>
+            </div>
+            {!insights ? (
+              <div className="flex items-center gap-2 text-xs text-zinc-500"><Loader2 size={12} className="animate-spin" /> carregando…</div>
+            ) : insights.length === 0 ? (
+              <div className="rounded-lg p-4 text-center" style={{ background: '#0d0d10', border: '1px dashed #2a2a3f' }}>
+                <p className="text-xs text-zinc-500">
+                  Nenhum insight gerado ainda. O sistema vai detectar padrões automáticos
+                  (anúncios com pico de perguntas, queda de sentiment, etc) conforme o
+                  volume de conversas crescer.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {insights.map(ins => (
+                  <div key={ins.id} className="rounded-xl p-4" style={{ background: '#0d0d10', border: '1px solid rgba(167,139,250,0.15)' }}>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'rgba(167,139,250,0.15)', color: '#a78bfa' }}>{ins.type}</span>
+                      <span className="text-[10px] text-zinc-600 ml-auto">{new Date(ins.generated_at).toLocaleDateString('pt-BR')}</span>
+                    </div>
+                    <pre className="text-[11px] text-zinc-400 whitespace-pre-wrap leading-relaxed font-sans">
+                      {JSON.stringify(ins.data, null, 2)}
+                    </pre>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </>
       )}

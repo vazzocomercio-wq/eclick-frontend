@@ -15,6 +15,11 @@ interface Settings {
   embedding_model?:      string
   auto_send_threshold?:  number
   queue_threshold?:      number
+  show_tokens?:          boolean
+  capture_edits?:        boolean
+  auto_retrain?:         boolean
+  notify_escalation?:    boolean
+  notify_daily?:         boolean
 }
 
 export default function ConfiguracoesAiPage() {
@@ -25,12 +30,9 @@ export default function ConfiguracoesAiPage() {
   const [savedOk,   setSavedOk]   = useState(false)
   const [err,       setErr]       = useState<string | null>(null)
 
-  // Local UI-only toggles (not persisted to backend yet — TODO when wired)
-  const [showTokens,    setShowTokens]    = useState(true)
-  const [captureEdits,  setCaptureEdits]  = useState(true)
-  const [autoRetrain,   setAutoRetrain]   = useState(false)
-  const [notifEscalate, setNotifEscalate] = useState(true)
-  const [notifDaily,    setNotifDaily]    = useState(false)
+  // Persisted toggles (read from settings, written via PATCH /ai/settings).
+  // The five booleans below now live in ai_module_settings as of the
+  // 20260426_ai_module_settings_toggles.sql migration.
 
   const getHeaders = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
@@ -139,28 +141,28 @@ export default function ConfiguracoesAiPage() {
         <Card title="Mostrar custos estimados nos seletores" subtitle="Mostra custo aproximado por mensagem ao escolher modelo.">
           <Toggle value={!!s.show_cost_estimates} onChange={v => setS({ ...s, show_cost_estimates: v })} />
         </Card>
-        <Card title="Mostrar tokens consumidos nas mensagens" subtitle="UI-only — não persiste no backend ainda.">
-          <Toggle value={showTokens} onChange={setShowTokens} />
+        <Card title="Mostrar tokens consumidos nas mensagens" subtitle="Exibe contador de tokens dentro do card expandível de cada mensagem IA na tela de Conversas.">
+          <Toggle value={s.show_tokens ?? true} onChange={v => setS({ ...s, show_tokens: v })} />
         </Card>
       </Section>
 
       {/* Aprendizado */}
       <Section title="Aprendizado" icon={<GraduationCap size={13} />}>
-        <Card title="Capturar edições humanas como treinamento" subtitle="Quando humano edita resposta da IA, salva como exemplo. UI-only ainda.">
-          <Toggle value={captureEdits} onChange={setCaptureEdits} />
+        <Card title="Capturar edições humanas como treinamento" subtitle="Quando humano edita resposta da IA, abre modal pra salvar como exemplo de treinamento.">
+          <Toggle value={s.capture_edits ?? true} onChange={v => setS({ ...s, capture_edits: v })} />
         </Card>
-        <Card title="Re-treinar agentes automaticamente quando validar 10+ exemplos" subtitle="Anexa exemplos validados ao system_prompt. UI-only ainda.">
-          <Toggle value={autoRetrain} onChange={setAutoRetrain} />
+        <Card title="Re-treinar agentes automaticamente quando validar 10+ exemplos" subtitle="Anexa exemplos validados ao system_prompt do agente.">
+          <Toggle value={s.auto_retrain ?? false} onChange={v => setS({ ...s, auto_retrain: v })} />
         </Card>
       </Section>
 
       {/* Notificações */}
       <Section title="Notificações" icon={<Bell size={13} />}>
-        <Card title="Notificar quando conversa for escalada" subtitle="UI-only ainda.">
-          <Toggle value={notifEscalate} onChange={setNotifEscalate} />
+        <Card title="Notificar quando conversa for escalada" subtitle="Toast/email quando uma conversa vai pra fila humana.">
+          <Toggle value={s.notify_escalation ?? true} onChange={v => setS({ ...s, notify_escalation: v })} />
         </Card>
-        <Card title="Notificar resumo diário de IA" subtitle="UI-only ainda.">
-          <Toggle value={notifDaily} onChange={setNotifDaily} />
+        <Card title="Notificar resumo diário de IA" subtitle="Email diário com métricas (auto%, escalações, tokens).">
+          <Toggle value={s.notify_daily ?? false} onChange={v => setS({ ...s, notify_daily: v })} />
         </Card>
       </Section>
 

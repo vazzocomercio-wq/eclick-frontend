@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
-import { GraduationCap, Plus, Trash2, X, Save, Loader2, MessageSquare, CheckCircle2 } from 'lucide-react'
+import { GraduationCap, Plus, Trash2, X, Save, Loader2, MessageSquare, CheckCircle2, Check, AlertCircle, Edit3 } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 
@@ -34,6 +34,7 @@ export default function TreinamentoPage() {
   const [loading, setLoading]     = useState(false)
   const [showForm, setShowForm]   = useState(false)
   const [filterCat, setFilterCat] = useState('all')
+  const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'validated'>('all')
 
   const [question, setQuestion]   = useState('')
   const [answer, setAnswer]       = useState('')
@@ -91,7 +92,21 @@ export default function TreinamentoPage() {
     loadExamples()
   }
 
-  const filtered = filterCat === 'all' ? examples : examples.filter(e => e.category === filterCat)
+  async function validateExample(id: string) {
+    const headers = await getHeaders()
+    await fetch(`${BACKEND}/atendente-ia/training/${id}/validate`, { method: 'PATCH', headers })
+    loadExamples()
+  }
+
+  // Status filter: 'pending' = source 'human_edit' (auto-captured, awaiting human review)
+  // 'validated' = source 'manual' (created by hand) OR 'validated' (explicitly approved)
+  const isValidated = (e: TrainingExample) => e.source === 'manual' || e.source === 'validated'
+  const filtered = examples
+    .filter(e => filterCat === 'all' || e.category === filterCat)
+    .filter(e => filterStatus === 'all' || (filterStatus === 'pending' ? !isValidated(e) : isValidated(e)))
+
+  const pendingCount   = examples.filter(e => !isValidated(e)).length
+  const validatedCount = examples.filter(e => isValidated(e)).length
 
   return (
     <div className="min-h-screen p-6 space-y-6" style={{ background: '#09090b' }}>
@@ -122,13 +137,31 @@ export default function TreinamentoPage() {
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          { label: 'Total', value: examples.length },
-          ...CATEGORIES.slice(0, 3).map(c => ({ label: c.label, value: examples.filter(e => e.category === c.id).length })),
-        ].map(s => (
-          <div key={s.label} className="rounded-xl p-3 text-center" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
-            <p className="text-xl font-bold text-white">{s.value}</p>
-            <p className="text-xs text-zinc-500 mt-0.5">{s.label}</p>
+          { label: 'Total',      value: examples.length, color: '#a1a1aa' },
+          { label: 'Pendentes',  value: pendingCount,    color: '#fb923c' },
+          { label: 'Validados',  value: validatedCount,  color: '#4ade80' },
+          { label: 'Manuais',    value: examples.filter(e => e.source === 'manual').length, color: '#00E5FF' },
+        ].map(stat => (
+          <div key={stat.label} className="rounded-xl p-3 text-center" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+            <p className="text-xl font-bold tabular-nums" style={{ color: stat.color }}>{stat.value}</p>
+            <p className="text-xs text-zinc-500 mt-0.5">{stat.label}</p>
           </div>
+        ))}
+      </div>
+
+      {/* Status filter */}
+      <div className="flex gap-2 flex-wrap items-center">
+        <span className="text-[10px] uppercase tracking-widest text-zinc-600 mr-1">Status</span>
+        {[
+          { id: 'all',       label: 'Todos',     count: examples.length },
+          { id: 'pending',   label: 'Pendentes', count: pendingCount },
+          { id: 'validated', label: 'Validados', count: validatedCount },
+        ].map(s => (
+          <button key={s.id} onClick={() => setFilterStatus(s.id as 'all' | 'pending' | 'validated')}
+            className="px-3 py-1 rounded-lg text-xs font-medium transition-colors"
+            style={{ background: filterStatus === s.id ? 'rgba(0,229,255,0.12)' : '#111114', color: filterStatus === s.id ? '#00E5FF' : '#71717a' }}>
+            {s.label} ({s.count})
+          </button>
         ))}
       </div>
 
@@ -196,41 +229,78 @@ export default function TreinamentoPage() {
           <Loader2 size={24} className="animate-spin text-zinc-600" />
         </div>
       ) : filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 space-y-2">
-          <GraduationCap size={36} style={{ color: '#27272a' }} />
-          <p className="text-zinc-500 text-sm">{!agentId ? 'Selecione um agente' : 'Nenhum exemplo de treinamento'}</p>
+        <div className="rounded-2xl p-10 text-center"
+          style={{ background: '#0d0d10', border: '1px dashed #2a2a3f' }}>
+          <div className="flex justify-center mb-3"><GraduationCap size={40} style={{ color: '#3f3f46' }} /></div>
+          {!agentId ? (
+            <p className="text-zinc-500 text-sm">Selecione um agente</p>
+          ) : (
+            <>
+              <h3 className="text-base font-bold text-white mb-1">Como funciona o aprendizado</h3>
+              <p className="text-xs text-zinc-500 max-w-md mx-auto leading-relaxed mb-4">
+                Quando você edita uma resposta da IA na tela de Conversas e clica
+                <span className="text-zinc-300"> "Sim, melhora a IA"</span>, o exemplo aparece
+                aqui como <span className="text-orange-400">pendente</span>.
+                Você revisa, valida e o agente aprende com isso.
+                Você também pode adicionar exemplos manuais com o botão acima.
+              </p>
+              <div className="flex justify-center gap-3 text-[11px] text-zinc-600">
+                <span className="inline-flex items-center gap-1"><AlertCircle size={11} className="text-orange-400" /> Pendente</span>
+                <span className="inline-flex items-center gap-1"><Check size={11} className="text-green-400" /> Validado</span>
+              </div>
+            </>
+          )}
         </div>
       ) : (
         <div className="space-y-3">
-          {filtered.map(ex => (
-            <div key={ex.id} className="rounded-2xl p-4 group" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex-1 space-y-3">
-                  <div className="flex items-start gap-2">
-                    <MessageSquare size={13} className="mt-0.5 shrink-0" style={{ color: '#71717a' }} />
-                    <p className="text-sm text-zinc-200">{ex.question}</p>
-                  </div>
-                  <div className="flex items-start gap-2 pl-4" style={{ borderLeft: '2px solid rgba(0,229,255,0.2)' }}>
-                    <CheckCircle2 size={13} className="mt-0.5 shrink-0" style={{ color: '#00E5FF' }} />
-                    <p className="text-sm text-zinc-400 leading-relaxed">{ex.ideal_answer}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {ex.category && (
-                      <span className="px-2 py-0.5 rounded-full text-[10px]" style={{ background: '#1e1e24', color: '#71717a' }}>
-                        {CATEGORIES.find(c => c.id === ex.category)?.label ?? ex.category}
+          {filtered.map(ex => {
+            const validated = isValidated(ex)
+            return (
+              <div key={ex.id} className="rounded-2xl p-4 group" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 space-y-3">
+                    <div className="flex items-start gap-2">
+                      <MessageSquare size={13} className="mt-0.5 shrink-0" style={{ color: '#71717a' }} />
+                      <p className="text-sm text-zinc-200">{ex.question}</p>
+                    </div>
+                    <div className="flex items-start gap-2 pl-4" style={{ borderLeft: '2px solid rgba(0,229,255,0.2)' }}>
+                      <CheckCircle2 size={13} className="mt-0.5 shrink-0" style={{ color: '#00E5FF' }} />
+                      <p className="text-sm text-zinc-400 leading-relaxed">{ex.ideal_answer}</p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold"
+                        style={{
+                          background: validated ? 'rgba(74,222,128,0.1)' : 'rgba(251,146,60,0.1)',
+                          color:      validated ? '#4ade80' : '#fb923c',
+                        }}>
+                        {validated ? <Check size={9} /> : <AlertCircle size={9} />}
+                        {validated ? 'Validado' : 'Pendente'}
                       </span>
+                      {ex.category && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px]" style={{ background: '#1e1e24', color: '#71717a' }}>
+                          {CATEGORIES.find(c => c.id === ex.category)?.label ?? ex.category}
+                        </span>
+                      )}
+                      <span className="text-[10px] text-zinc-600">Usado {ex.times_used}×</span>
+                      <span className="text-[10px] text-zinc-600 capitalize">origem: {ex.source}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0 mt-1">
+                    {!validated && (
+                      <button onClick={() => validateExample(ex.id)} title="Validar exemplo"
+                        className="p-1.5 rounded transition-colors hover:bg-green-400/10 text-zinc-500 hover:text-green-400">
+                        <Check size={14} />
+                      </button>
                     )}
-                    <span className="text-[10px] text-zinc-600">Usado {ex.times_used}×</span>
-                    <span className="text-[10px] text-zinc-600 capitalize">{ex.source}</span>
+                    <button onClick={() => deleteExample(ex.id)} title="Excluir"
+                      className="p-1.5 rounded transition-colors hover:bg-red-400/10 text-zinc-500 hover:text-red-400">
+                      <Trash2 size={14} />
+                    </button>
                   </div>
                 </div>
-                <button onClick={() => deleteExample(ex.id)}
-                  className="opacity-0 group-hover:opacity-100 transition-opacity text-zinc-600 hover:text-red-400 shrink-0 mt-1">
-                  <Trash2 size={14} />
-                </button>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>
