@@ -126,20 +126,10 @@ export default function SincronizacoesPage() {
     setSyncing(true); setSyncMsg('')
     try {
       const headers = await getHeaders()
-      // Fetch all products with stock and sync each
-      const { data: products } = await supabase
-        .from('products')
-        .select('id')
-        .limit(200)
-      if (!products?.length) { setSyncMsg('Nenhum produto encontrado'); return }
-      let synced = 0
-      for (const p of products) {
-        try {
-          await fetch(`${BACKEND}/stock/sync/${p.id}`, { method: 'POST', headers })
-          synced++
-        } catch { /* ignore */ }
-      }
-      setSyncMsg(`${synced} produto(s) sincronizados com sucesso`)
+      const res = await fetch(`${BACKEND}/stock/sync-all`, { method: 'POST', headers })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.message ?? `HTTP ${res.status}`)
+      setSyncMsg(data.message ?? `${data.success ?? 0} produto(s) sincronizados`)
       await loadData()
     } catch (e: unknown) {
       setSyncMsg(e instanceof Error ? e.message : 'Erro ao sincronizar')
