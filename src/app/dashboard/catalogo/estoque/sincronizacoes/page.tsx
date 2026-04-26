@@ -10,10 +10,13 @@ const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 type SyncLog = {
   id: string
   product_id: string
+  product: { id: string; name: string; sku: string | null } | null
   channel: string
   account_id: string | null
-  quantity_sent: number
-  status: 'success' | 'error' | 'skipped'
+  listing_id: string | null
+  sent_quantity: number | null
+  confirmed_quantity: number | null
+  status: 'success' | 'error' | 'ignored' | 'divergent' | 'pending'
   error_message: string | null
   triggered_by: string | null
   duration_ms: number | null
@@ -24,7 +27,7 @@ type Summary = {
   total: number
   success: number
   error: number
-  skipped: number
+  ignored: number
   last_sync: string | null
 }
 
@@ -62,9 +65,10 @@ function KpiCard({ label, value, color, sub }: { label: string; value: string | 
 // ── Status Badge ──────────────────────────────────────────────────────────────
 
 const STATUS_STYLE: Record<string, { label: string; color: string; bg: string }> = {
-  success: { label: 'Sucesso',  color: '#4ade80', bg: 'rgba(74,222,128,0.1)'  },
-  error:   { label: 'Erro',     color: '#f87171', bg: 'rgba(248,113,113,0.1)' },
-  skipped: { label: 'Ignorado', color: '#a1a1aa', bg: 'rgba(161,161,170,0.1)' },
+  success:   { label: 'Sucesso',    color: '#4ade80', bg: 'rgba(74,222,128,0.1)'  },
+  error:     { label: 'Erro',       color: '#f87171', bg: 'rgba(248,113,113,0.1)' },
+  ignored:   { label: 'Ignorado',   color: '#a1a1aa', bg: 'rgba(161,161,170,0.1)' },
+  divergent: { label: 'Divergente', color: '#fbbf24', bg: 'rgba(251,191,36,0.1)'  },
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
@@ -110,7 +114,7 @@ export default function SincronizacoesPage() {
           total:    all.length,
           success:  all.filter(l => l.status === 'success').length,
           error:    all.filter(l => l.status === 'error').length,
-          skipped:  all.filter(l => l.status === 'skipped').length,
+          ignored:  all.filter(l => l.status === 'ignored').length,
           last_sync: all[0]?.created_at ?? null,
         }
         setSummary(s)
@@ -137,7 +141,7 @@ export default function SincronizacoesPage() {
   }
 
   const successRate = summary && summary.total > 0
-    ? Math.round(summary.success / (summary.total - summary.skipped) * 100)
+    ? Math.round(summary.success / (summary.total - summary.ignored) * 100)
     : 0
 
   const filterBtn = (active: boolean) => ({
@@ -189,7 +193,7 @@ export default function SincronizacoesPage() {
         <KpiCard label="Total"    value={summary?.total ?? 0}    color="#e4e4e7" />
         <KpiCard label="Sucesso"  value={summary?.success ?? 0}  color="#4ade80" />
         <KpiCard label="Erros"    value={summary?.error ?? 0}    color={summary?.error ? '#f87171' : '#71717a'} />
-        <KpiCard label="Ignorados" value={summary?.skipped ?? 0} color="#a1a1aa" />
+        <KpiCard label="Ignorados" value={summary?.ignored ?? 0} color="#a1a1aa" />
         <KpiCard label="Taxa de sucesso" value={`${successRate}%`} color={successRate >= 90 ? '#4ade80' : successRate >= 70 ? '#fbbf24' : '#f87171'}
           sub={summary?.last_sync ? `Última: ${relTime(summary.last_sync)}` : 'Sem dados'} />
       </div>
@@ -197,7 +201,7 @@ export default function SincronizacoesPage() {
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex items-center gap-1 p-1 rounded-xl" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
-          {['', 'success', 'error', 'skipped'].map(s => (
+          {['', 'success', 'error', 'ignored', 'divergent'].map(s => (
             <button key={s} onClick={() => setStatus(s)} {...filterBtn(status === s)}>
               {s === '' ? 'Todos' : STATUS_STYLE[s]?.label ?? s}
             </button>
@@ -281,11 +285,30 @@ export default function SincronizacoesPage() {
                         {log.channel === 'mercadolivre' ? 'ML' : log.channel}
                         {log.account_id && <span className="text-zinc-600 ml-1">· {log.account_id}</span>}
                       </td>
-                      <td className="px-4 py-3 text-zinc-500 font-mono text-[11px] max-w-[140px] truncate">
-                        {log.product_id.slice(0, 8)}…
+                      <td className="px-4 py-3 max-w-[220px]">
+                        {log.product?.name ? (
+                          <div className="truncate">
+                            <span className="text-zinc-300">{log.product.name}</span>
+                            {log.product.sku && (
+                              <span className="text-zinc-600 font-mono text-[10px] ml-1.5">{log.product.sku}</span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-zinc-500 font-mono text-[11px]">{log.product_id.slice(0, 8)}…</span>
+                        )}
                       </td>
-                      <td className="px-4 py-3 text-right text-zinc-300 tabular-nums font-semibold">
-                        {log.quantity_sent ?? '—'}
+                      <td className="px-4 py-3 text-right tabular-nums">
+                        {log.sent_quantity == null ? (
+                          <span className="text-zinc-700">—</span>
+                        ) : log.confirmed_quantity == null ? (
+                          <span className="text-zinc-300 font-semibold">{log.sent_quantity}</span>
+                        ) : log.confirmed_quantity === log.sent_quantity ? (
+                          <span className="text-zinc-300 font-semibold">{log.sent_quantity}</span>
+                        ) : (
+                          <span className="text-yellow-400 font-semibold">
+                            {log.sent_quantity} → {log.confirmed_quantity}
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-right text-zinc-500 tabular-nums">
                         {log.duration_ms != null ? `${log.duration_ms}ms` : '—'}
