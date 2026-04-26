@@ -180,8 +180,9 @@ function CampaignRow({
           <div className="flex items-center gap-2">
             {expanded ? <ChevronDown size={14} className="text-zinc-500" /> : <ChevronRight size={14} className="text-zinc-500" />}
             <div>
-              <p className="text-sm font-medium text-zinc-200 truncate max-w-[300px]">{c.name ?? '(sem nome)'}</p>
-              <p className="text-[10px] text-zinc-600 font-mono">{c.id}</p>
+              <p className="text-sm font-medium text-zinc-200 truncate max-w-[300px]">{c.name || '(sem nome)'}</p>
+              {c.id && <p className="text-[10px] text-zinc-600 font-mono">{c.id}</p>}
+              {c.type && <p className="text-[10px] text-zinc-600">{c.type}</p>}
             </div>
           </div>
         </td>
