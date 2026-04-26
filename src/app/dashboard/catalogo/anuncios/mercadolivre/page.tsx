@@ -409,45 +409,39 @@ function ListingCard({ item, selected, linked, stockInfo, onSelect, onCreateProd
           <span className="text-zinc-500">Vendidos: <span className="text-zinc-200 font-semibold">{num(item.sold_quantity)}</span></span>
           <span className="text-zinc-600">📷 {item.pictures_count}</span>
 
-          {/* Inline editable stock — only when a product is linked */}
+          {/* Inline editable stock — visible affordance even at rest */}
           <span className="inline-flex items-center gap-1.5 text-zinc-500">
             Estoque:
-            {stockInfo ? (
-              <input
-                ref={stockRef}
-                type="number"
-                min={0}
-                value={stockDraft}
-                onChange={e => setStockDraft(e.target.value)}
-                onBlur={commitStock}
-                onKeyDown={e => {
-                  if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
-                  if (e.key === 'Escape') { setStockDraft(String(stockInfo.quantity)); (e.target as HTMLInputElement).blur() }
-                }}
-                disabled={stockState === 'saving'}
-                className="w-[70px] text-zinc-200 font-semibold tabular-nums text-xs px-2 py-0.5 rounded outline-none transition-all"
-                style={{
-                  background: 'transparent',
-                  border: `1px solid ${
-                    stockState === 'success' ? '#22c55e' :
-                    stockState === 'error'   ? '#ef4444' :
-                    stockState === 'saving'  ? '#3f3f46' :
-                    'transparent'
-                  }`,
-                }}
-                onFocus={e => {
-                  e.currentTarget.style.background = '#0d0d10'
-                  if (stockState === 'idle') e.currentTarget.style.borderColor = '#27272a'
-                }}
-                onMouseLeave={e => {
-                  if (document.activeElement !== e.currentTarget) {
-                    e.currentTarget.style.background = 'transparent'
-                  }
-                }}
-              />
-            ) : (
-              <span className="text-zinc-700 cursor-help" title="Vincule um produto para editar o estoque">—</span>
-            )}
+            <input
+              ref={stockRef}
+              type="number"
+              min={0}
+              value={stockInfo ? stockDraft : ''}
+              placeholder={stockInfo ? '' : '—'}
+              onChange={e => setStockDraft(e.target.value)}
+              onBlur={commitStock}
+              onKeyDown={e => {
+                if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+                if (e.key === 'Escape' && stockInfo) {
+                  setStockDraft(String(stockInfo.quantity))
+                  ;(e.target as HTMLInputElement).blur()
+                }
+              }}
+              disabled={!stockInfo || stockState === 'saving'}
+              title={stockInfo ? '' : 'Vincule um produto para editar o estoque'}
+              className="w-[70px] text-zinc-200 font-semibold tabular-nums text-xs px-2 py-1 rounded outline-none transition-colors disabled:cursor-not-allowed disabled:text-zinc-700"
+              style={{
+                background: '#0d0d10',
+                border: `1px solid ${
+                  stockState === 'success' ? '#22c55e' :
+                  stockState === 'error'   ? '#ef4444' :
+                  stockState === 'saving'  ? '#3f3f46' :
+                  '#27272a'
+                }`,
+              }}
+              onFocus={e => { if (stockState === 'idle') e.currentTarget.style.borderColor = '#00E5FF' }}
+              onBlurCapture={e => { if (stockState === 'idle') e.currentTarget.style.borderColor = '#27272a' }}
+            />
           </span>
 
           <span className="text-zinc-600">Atualizado {ago(item.last_updated)}</span>
