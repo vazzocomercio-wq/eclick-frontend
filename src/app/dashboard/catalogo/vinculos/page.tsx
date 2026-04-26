@@ -450,7 +450,12 @@ function StockPanel({
         setSafetyMode(d.safety_mode ?? 'percentage')
         setSafetyPct(String(d.safety_percentage ?? 10))
         setSafetyQty(String(d.safety_quantity ?? 0))
-        setDistributions(d.distributions ?? [])
+        const dists = d.distributions ?? []
+        setDistributions(dists)
+        // Auto-open the section when the product has no distribution yet,
+        // so the empty-state CTA is immediately visible. Once configured,
+        // start collapsed (less noise on revisits).
+        setDistOpen(dists.length === 0)
       })
       .catch(() => {})
       .finally(() => setFullLoading(false))
@@ -867,7 +872,17 @@ function StockPanel({
               <button onClick={() => setDistOpen(o => !o)}
                 className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-zinc-500 hover:text-zinc-300 transition-colors">
                 <span>{distOpen ? '▾' : '▸'}</span>
-                <span>7. Distribuição por Canal{distributions.length > 0 ? ` (${distributions.length})` : ''}</span>
+                <span>7. Distribuição por Canal</span>
+                {distributions.length === 0 ? (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold animate-pulse normal-case tracking-normal"
+                    style={{ background: 'rgba(251,146,60,0.15)', color: '#fdba74', border: '1px solid rgba(251,146,60,0.3)' }}>
+                    ⚠️ Configurar
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-zinc-600 normal-case tracking-normal">
+                    · {distributions.length} {distributions.length === 1 ? 'canal' : 'canais'}
+                  </span>
+                )}
               </button>
               <div className="flex items-center gap-1.5">
                 <button onClick={handleOpenAuto}
@@ -888,7 +903,23 @@ function StockPanel({
             {distOpen && (
               <div className="space-y-1.5">
                 {distributions.length === 0 && !newDistForm && (
-                  <p className="text-zinc-600 text-xs py-1">Nenhuma distribuição configurada</p>
+                  <div className="rounded-xl p-6 text-center"
+                    style={{ background: '#0d0d10', border: '1px dashed #2a2a3f' }}>
+                    <div className="text-3xl mb-2">📡</div>
+                    <h4 className="text-sm font-bold text-white mb-1">
+                      Configure a distribuição entre canais
+                    </h4>
+                    <p className="text-[11px] text-zinc-500 mb-4 max-w-sm mx-auto leading-relaxed">
+                      Defina quanto do estoque disponível vai para cada marketplace.
+                      Sem configuração, o sistema envia o total para todos os canais vinculados.
+                    </p>
+                    <button onClick={() => setNewDistForm(true)}
+                      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all"
+                      style={{ background: '#00E5FF', color: '#000' }}>
+                      <span className="text-base leading-none">+</span>
+                      Adicionar primeiro canal
+                    </button>
+                  </div>
                 )}
                 {distributions.map(d => (
                   <div key={d.id} className="flex items-center gap-2 px-3 py-2 rounded-lg"
@@ -917,13 +948,17 @@ function StockPanel({
                     </button>
                   </div>
                 ))}
-                {!newDistForm ? (
+                {/* When form is closed AND there are existing channels →
+                    small "+ add another" button (empty state above has its
+                    own CTA when no channels). When form is open → render it. */}
+                {!newDistForm && distributions.length > 0 && (
                   <button onClick={() => setNewDistForm(true)}
                     className="w-full text-[11px] py-2 rounded-lg font-semibold transition-all"
                     style={{ background: 'rgba(0,229,255,0.06)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.15)' }}>
                     + Adicionar canal
                   </button>
-                ) : (
+                )}
+                {newDistForm && (
                   <div className="rounded-xl p-4 space-y-3" style={{ background: '#0c0c10', border: '1px solid #1e1e24' }}>
                     <div className="grid grid-cols-2 gap-1.5">
                       {(['percentage', 'fixed'] as const).map(m => (
