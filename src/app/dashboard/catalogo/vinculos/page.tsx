@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase'
+import { Bot, RefreshCw, AlertCircle, Radio, CheckCircle2, Clock } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 
@@ -874,9 +875,9 @@ function StockPanel({
                 <span>{distOpen ? '▾' : '▸'}</span>
                 <span>7. Distribuição por Canal</span>
                 {distributions.length === 0 ? (
-                  <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold animate-pulse normal-case tracking-normal"
+                  <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold animate-pulse normal-case tracking-normal"
                     style={{ background: 'rgba(251,146,60,0.15)', color: '#fdba74', border: '1px solid rgba(251,146,60,0.3)' }}>
-                    ⚠️ Configurar
+                    <AlertCircle size={10} /> Configurar
                   </span>
                 ) : (
                   <span className="text-[10px] text-zinc-600 normal-case tracking-normal">
@@ -886,13 +887,14 @@ function StockPanel({
               </button>
               <div className="flex items-center gap-1.5">
                 <button onClick={handleOpenAuto}
-                  className="text-[10px] px-2 py-1 rounded-lg font-semibold transition-all"
+                  className="inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded-lg font-semibold transition-all"
                   style={{ background: 'rgba(0,229,255,0.06)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.2)' }}>
-                  🤖 Auto
+                  <Bot size={11} /> Auto
                 </button>
                 <button onClick={handleForceSync} disabled={forceSyncing}
-                  className="text-[10px] px-2 py-1 rounded-lg font-semibold transition-all disabled:opacity-50"
+                  className="inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded-lg font-semibold transition-all disabled:opacity-50"
                   style={{ background: '#1a1a1f', color: '#a1a1aa', border: '1px solid #27272a' }}>
+                  <RefreshCw size={10} className={forceSyncing ? 'animate-spin' : ''} />
                   {forceSyncing ? 'Sync…' : 'Forçar sync'}
                 </button>
               </div>
@@ -905,7 +907,7 @@ function StockPanel({
                 {distributions.length === 0 && !newDistForm && (
                   <div className="rounded-xl p-6 text-center"
                     style={{ background: '#0d0d10', border: '1px dashed #2a2a3f' }}>
-                    <div className="text-3xl mb-2">📡</div>
+                    <div className="flex justify-center mb-2"><Radio size={32} style={{ color: '#3f3f46' }} /></div>
                     <h4 className="text-sm font-bold text-white mb-1">
                       Configure a distribuição entre canais
                     </h4>
@@ -932,7 +934,7 @@ function StockPanel({
                       {d.distribution_mode === 'percentage'
                         ? `${d.percentage}%`
                         : d.distribution_mode === 'auto'
-                          ? `${d.percentage}% 🤖`
+                          ? <span className="inline-flex items-center gap-1">{d.percentage}% <Bot size={10} style={{ color: '#00E5FF' }} /></span>
                           : `${num(d.fixed_quantity ?? 0)} unid.`}
                       {d.min_quantity > 0 && <span className="text-zinc-600"> mín:{d.min_quantity}</span>}
                       {d.max_quantity != null && <span className="text-zinc-600"> máx:{d.max_quantity}</span>}
@@ -975,23 +977,65 @@ function StockPanel({
                     </div>
                     <div className="space-y-2">
                       <label className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Canal</label>
-                      <div className="flex flex-wrap gap-1.5">
+                      <div className="space-y-1.5">
                         {channelOpts.map(ch => {
-                          const isSelected = distChannel === ch.id
-                          const isDisabled = ch.api_status === 'coming_soon'
+                          const isSelected   = distChannel === ch.id
+                          const isComingSoon = ch.api_status === 'coming_soon'
                           const isIntegrated = ch.is_integrated && ch.integration_status === 'connected'
+                          const subLabel     = isIntegrated ? 'Integrado · pronto para sync'
+                                              : isComingSoon ? 'Em breve'
+                                              : 'Não integrado'
                           return (
-                            <button key={ch.id} type="button" disabled={isDisabled}
+                            <button key={ch.id} type="button" disabled={isComingSoon}
                               onClick={() => setDistChannel(ch.id)}
-                              className="px-3 py-1.5 rounded-xl text-[11px] font-semibold transition-all flex items-center gap-1.5 disabled:cursor-not-allowed"
+                              className="w-full flex items-center justify-between px-4 py-3 rounded-xl border transition-all disabled:cursor-not-allowed"
                               style={{
-                                background: isSelected ? 'rgba(0,229,255,0.12)' : '#0d0d10',
-                                color:      isSelected ? '#00E5FF' : isDisabled ? '#52525b' : '#d4d4d8',
-                                border:    `1px solid ${isSelected ? '#00E5FF' : isDisabled ? '#1a1a1f' : '#27272a'}`,
-                                opacity:    isDisabled ? 0.5 : 1,
+                                background: isSelected ? 'rgba(0,229,255,0.06)' : '#0d0d10',
+                                borderColor: isSelected ? '#00E5FF' : isComingSoon ? '#1a1a1f' : '#1a1a1f',
+                                opacity:     isComingSoon ? 0.5 : 1,
                               }}>
-                              {ch.name}
-                              <span>{isIntegrated ? '✅' : isDisabled ? '⚪' : '🟠'}</span>
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-bold transition-all"
+                                  style={{
+                                    background: isSelected ? '#00E5FF' : '#1a1a1f',
+                                    color:      isSelected ? '#000'    : '#a1a1aa',
+                                  }}>
+                                  {ch.name.substring(0, 2).toUpperCase()}
+                                </div>
+                                <div className="text-left">
+                                  <p className="text-[13px] font-medium" style={{ color: isSelected ? '#fff' : '#d4d4d8' }}>
+                                    {ch.name}
+                                  </p>
+                                  <p className="text-[10px] text-zinc-500">{subLabel}</p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {isIntegrated && (
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: '#4ade80' }} />
+                                    <span className="text-[10px] uppercase tracking-wider font-medium" style={{ color: '#4ade80' }}>
+                                      Conectado
+                                    </span>
+                                  </div>
+                                )}
+                                {!isIntegrated && !isComingSoon && (
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#fb923c' }} />
+                                    <span className="text-[10px] uppercase tracking-wider font-medium" style={{ color: '#fb923c' }}>
+                                      Desconectado
+                                    </span>
+                                  </div>
+                                )}
+                                {isComingSoon && (
+                                  <div className="flex items-center gap-1.5">
+                                    <Clock size={10} style={{ color: '#71717a' }} />
+                                    <span className="text-[10px] uppercase tracking-wider font-medium text-zinc-500">
+                                      Em breve
+                                    </span>
+                                  </div>
+                                )}
+                                {isSelected && <CheckCircle2 size={16} style={{ color: '#00E5FF' }} className="ml-1" />}
+                              </div>
                             </button>
                           )
                         })}
@@ -999,8 +1043,8 @@ function StockPanel({
                       {distChannel && (
                         <p className="text-[11px] text-zinc-500">
                           {channelOpts.find(c => c.id === distChannel)?.is_integrated
-                            ? '✅ Canal integrado, pronto para sincronizar'
-                            : '🟠 Canal não integrado — distribuição salva mas sync desabilitado'}
+                            ? 'Canal integrado, pronto para sincronizar.'
+                            : 'Canal não integrado — distribuição salva mas sync desabilitado.'}
                         </p>
                       )}
                     </div>
@@ -1103,7 +1147,7 @@ function StockPanel({
             style={{ background: '#111114', border: '1px solid #27272a' }}
             onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">🤖 Distribuição Automática</p>
+              <p className="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-zinc-500"><Bot size={12} /> Distribuição Automática</p>
               <button onClick={() => setAutoModalOpen(false)} className="text-zinc-600 hover:text-white">
                 <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -1167,9 +1211,10 @@ function StockPanel({
                     Cancelar
                   </button>
                   <button onClick={handleApplyAuto} disabled={autoApplying}
-                    className="flex-1 py-2 rounded-lg text-xs font-semibold transition-opacity disabled:opacity-50"
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-opacity disabled:opacity-50"
                     style={{ background: '#00E5FF', color: '#000' }}>
-                    {autoApplying ? 'Aplicando…' : '🔄 Recalcular agora'}
+                    <RefreshCw size={12} className={autoApplying ? 'animate-spin' : ''} />
+                    {autoApplying ? 'Aplicando…' : 'Recalcular agora'}
                   </button>
                 </div>
               </div>
