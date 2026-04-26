@@ -208,10 +208,12 @@ function SkeletonRow() {
 
 // ── Item action menu ───────────────────────────────────────────────────────
 
-function ItemMenu({ item, onClose, onCreateProduct }: {
+function ItemMenu({ item, onClose, onCreateProduct, onFocusStock, hasLinkedStock }: {
   item: MListing
   onClose: () => void
   onCreateProduct: (id: string) => void
+  onFocusStock?: () => void
+  hasLinkedStock?: boolean
 }) {
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -239,6 +241,15 @@ function ItemMenu({ item, onClose, onCreateProduct }: {
         </svg>
         Criar Produto
       </button>
+      {hasLinkedStock && onFocusStock && (
+        <button onClick={() => { onFocusStock(); onClose() }}
+          className="w-full text-left flex items-center gap-2 px-4 py-2.5 text-sm text-zinc-300 hover:bg-zinc-800 transition-colors">
+          <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+          </svg>
+          Atualizar estoque
+        </button>
+      )}
       {[
         { label: 'Ver visitas', key: 'visits' },
         { label: item.status === 'active' ? 'Pausar anúncio' : 'Ativar anúncio', key: 'toggle' },
@@ -258,14 +269,38 @@ function ItemMenu({ item, onClose, onCreateProduct }: {
 
 // ── Listing card ───────────────────────────────────────────────────────────
 
-function ListingCard({ item, selected, linked, onSelect, onCreateProduct }: {
+function ListingCard({ item, selected, linked, stockInfo, onSelect, onCreateProduct, onUpdateStock }: {
   item: MListing
   selected: boolean
   linked: boolean
+  stockInfo?: { stock_id: string; product_id: string; quantity: number }
   onSelect: (id: string) => void
   onCreateProduct: (id: string) => void
+  onUpdateStock: (listingId: string, stockId: string, newQty: number) => Promise<boolean>
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
+  const stockRef = useRef<HTMLInputElement>(null)
+  const [stockDraft,  setStockDraft]  = useState<string>(stockInfo ? String(stockInfo.quantity) : '')
+  const [stockState,  setStockState]  = useState<'idle' | 'saving' | 'success' | 'error'>('idle')
+
+  // Keep input in sync when the parent's stockInfo changes (after save/refresh)
+  useEffect(() => {
+    if (stockInfo) setStockDraft(String(stockInfo.quantity))
+  }, [stockInfo?.quantity, stockInfo])
+
+  async function commitStock() {
+    if (!stockInfo) return
+    const next = parseInt(stockDraft, 10)
+    if (isNaN(next) || next < 0) {
+      setStockDraft(String(stockInfo.quantity))
+      return
+    }
+    if (next === stockInfo.quantity) return
+    setStockState('saving')
+    const ok = await onUpdateStock(item.id, stockInfo.stock_id, next)
+    setStockState(ok ? 'success' : 'error')
+    setTimeout(() => setStockState('idle'), 1200)
+  }
   const fee      = item.price * feeRate(item.listing_type_id)
   const net      = item.price - fee
   const badges   = typeBadge(item.listing_type_id, item.logistic_type, item.catalog_listing)
@@ -373,6 +408,48 @@ function ListingCard({ item, selected, linked, onSelect, onCreateProduct }: {
           <span className="text-zinc-500">Disp: <span className="text-zinc-200 font-semibold">{num(item.available_quantity)}</span></span>
           <span className="text-zinc-500">Vendidos: <span className="text-zinc-200 font-semibold">{num(item.sold_quantity)}</span></span>
           <span className="text-zinc-600">📷 {item.pictures_count}</span>
+
+          {/* Inline editable stock — only when a product is linked */}
+          <span className="inline-flex items-center gap-1.5 text-zinc-500">
+            Estoque:
+            {stockInfo ? (
+              <input
+                ref={stockRef}
+                type="number"
+                min={0}
+                value={stockDraft}
+                onChange={e => setStockDraft(e.target.value)}
+                onBlur={commitStock}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+                  if (e.key === 'Escape') { setStockDraft(String(stockInfo.quantity)); (e.target as HTMLInputElement).blur() }
+                }}
+                disabled={stockState === 'saving'}
+                className="w-[70px] text-zinc-200 font-semibold tabular-nums text-xs px-2 py-0.5 rounded outline-none transition-all"
+                style={{
+                  background: 'transparent',
+                  border: `1px solid ${
+                    stockState === 'success' ? '#22c55e' :
+                    stockState === 'error'   ? '#ef4444' :
+                    stockState === 'saving'  ? '#3f3f46' :
+                    'transparent'
+                  }`,
+                }}
+                onFocus={e => {
+                  e.currentTarget.style.background = '#0d0d10'
+                  if (stockState === 'idle') e.currentTarget.style.borderColor = '#27272a'
+                }}
+                onMouseLeave={e => {
+                  if (document.activeElement !== e.currentTarget) {
+                    e.currentTarget.style.background = 'transparent'
+                  }
+                }}
+              />
+            ) : (
+              <span className="text-zinc-700 cursor-help" title="Vincule um produto para editar o estoque">—</span>
+            )}
+          </span>
+
           <span className="text-zinc-600">Atualizado {ago(item.last_updated)}</span>
           {item.has_variations && (
             <span className="text-cyan-500 font-medium cursor-pointer hover:text-cyan-300 text-xs">Ver variações</span>
@@ -454,6 +531,8 @@ function ListingCard({ item, selected, linked, onSelect, onCreateProduct }: {
               item={item}
               onClose={() => setMenuOpen(false)}
               onCreateProduct={onCreateProduct}
+              hasLinkedStock={!!stockInfo}
+              onFocusStock={() => { stockRef.current?.focus(); stockRef.current?.select() }}
             />
           )}
         </div>
@@ -707,6 +786,9 @@ export default function MLAnunciosPage() {
   const [results, setResults]               = useState<CreateResult[] | null>(null)
   const [loadingCriacao, setLoadingCriacao] = useState(false)
   const [linkedIds, setLinkedIds]           = useState<Set<string>>(new Set())
+  // Map listing_id -> stock info (filled from Supabase). Used to render the
+  // inline stock input on each card and to compute the page-total KPI.
+  const [stockMap, setStockMap]             = useState<Map<string, { stock_id: string; product_id: string; quantity: number }>>(new Map())
 
   const tid = useRef(0)
   const PAGE = 20
@@ -776,13 +858,68 @@ export default function MLAnunciosPage() {
   useEffect(() => { loadCounts() }, [loadCounts])
   useEffect(() => { loadItems(tab, page, q) }, [tab, page, loadItems])
 
-  useEffect(() => {
-    getHeaders().then(h =>
-      fetch(`${BACKEND}/products/linked-listings`, { headers: h })
-        .then(r => r.ok ? r.json() : [])
-        .then((ids: string[]) => setLinkedIds(new Set(ids)))
-        .catch(() => {})
-    ).catch(() => {})
+  // Load linked listing IDs (used by the "Produto vinculado" badge) AND
+  // the per-listing stock map (used by the inline stock input on each card).
+  // Done in a single Supabase round-trip to avoid duplicate network cost.
+  const loadStockMap = useCallback(async () => {
+    type Row = {
+      listing_id: string
+      product_id: string
+      products: {
+        product_stock: Array<{ id: string; quantity: number; platform: string | null }> | null
+      } | null
+    }
+    const { data, error } = await supabase
+      .from('product_listings')
+      .select('listing_id, product_id, products(product_stock(id, quantity, platform))')
+      .eq('platform', 'mercadolivre')
+      .eq('is_active', true)
+
+    if (error || !data) return
+
+    const ids = new Set<string>()
+    const map = new Map<string, { stock_id: string; product_id: string; quantity: number }>()
+    for (const r of data as unknown as Row[]) {
+      if (!r.listing_id) continue
+      ids.add(r.listing_id)
+      // Use the "shared" stock row (platform IS NULL) — what the rest of the
+      // app treats as the canonical product_stock for an SKU.
+      const shared = r.products?.product_stock?.find(s => s.platform === null)
+      if (shared) {
+        map.set(r.listing_id, {
+          stock_id:   shared.id,
+          product_id: r.product_id,
+          quantity:   Number(shared.quantity ?? 0),
+        })
+      }
+    }
+    setLinkedIds(ids)
+    setStockMap(map)
+  }, [supabase])
+
+  useEffect(() => { loadStockMap() }, [loadStockMap])
+
+  // Optimistic update + PATCH the new stock value. Returns true on success.
+  // Called by ListingCard's inline stock input on blur/Enter.
+  const updateLinkedStock = useCallback(async (listingId: string, stockId: string, newQty: number): Promise<boolean> => {
+    try {
+      const headers = await getHeaders()
+      const res = await fetch(`${BACKEND}/products/stock/${stockId}`, {
+        method: 'PATCH',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ quantity: newQty }),
+      })
+      if (!res.ok) return false
+      setStockMap(prev => {
+        const next = new Map(prev)
+        const cur = next.get(listingId)
+        if (cur) next.set(listingId, { ...cur, quantity: newQty })
+        return next
+      })
+      return true
+    } catch {
+      return false
+    }
   }, [getHeaders])
 
   function handleTabChange(t: Tab) { setTab(t); setPage(0); setSelected(new Set()) }
@@ -857,13 +994,9 @@ export default function MLAnunciosPage() {
       const created = r.filter(x => x.status === 'created').length
       if (created > 0) {
         toast(`${created} produto${created > 1 ? 's' : ''} criado${created > 1 ? 's' : ''}!`, 'success')
-        // Refresh linked IDs so badges appear immediately
-        getHeaders().then(h =>
-          fetch(`${BACKEND}/products/linked-listings`, { headers: h })
-            .then(res => res.ok ? res.json() : [])
-            .then((ids: string[]) => setLinkedIds(new Set(ids)))
-            .catch(() => {})
-        ).catch(() => {})
+        // Refresh linked IDs + stock map so the badge AND the inline stock
+        // input appear immediately on freshly-created products
+        loadStockMap()
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Erro ao criar produtos'
@@ -877,7 +1010,13 @@ export default function MLAnunciosPage() {
 
   // ── KPIs derived ──────────────────────────────────────────────────────
 
-  const stockTotal = items.reduce((a, i) => a + i.available_quantity, 0)
+  // Page-total stock: prefer the linked product's quantity (more accurate
+  // than ML's available_quantity which can be stale), fallback to ML value
+  // for unlinked items.
+  const stockTotal = items.reduce((a, i) => {
+    const linked = stockMap.get(i.id)
+    return a + (linked ? linked.quantity : i.available_quantity)
+  }, 0)
 
   // ── Tabs config ───────────────────────────────────────────────────────
 
@@ -893,7 +1032,7 @@ export default function MLAnunciosPage() {
 
   return (
     <div style={{ background: '#09090b', minHeight: '100vh' }}
-      className={`p-6 max-w-6xl space-y-5 ${selected.size > 0 ? 'pb-24' : ''}`}>
+      className={`p-6 space-y-5 ${selected.size > 0 ? 'pb-24' : ''}`}>
       <Toasts list={toasts} />
 
       {/* ── Header ────────────────────────────────────────────────── */}
@@ -1036,8 +1175,10 @@ export default function MLAnunciosPage() {
               <ListingCard key={item.id} item={item}
                 selected={selected.has(item.id)}
                 linked={linkedIds.has(item.id)}
+                stockInfo={stockMap.get(item.id)}
                 onSelect={id => setSelected(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n })}
                 onCreateProduct={id => openCreateConfirm([id])}
+                onUpdateStock={updateLinkedStock}
               />
             ))
         }
