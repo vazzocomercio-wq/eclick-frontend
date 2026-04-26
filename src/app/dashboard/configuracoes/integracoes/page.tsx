@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase'
 import {
   CheckCircle2, XCircle, Clock, RefreshCw, Plug, Zap,
   Key, Eye, EyeOff, Plus, Trash2, TestTube2, Loader2,
-  X, ExternalLink, AlertCircle, Bot, MessageCircle, BarChart2,
+  X, ExternalLink, AlertCircle, Bot, MessageCircle, BarChart2, Save,
 } from 'lucide-react'
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid,
@@ -680,11 +680,11 @@ export default function IntegracoesPage() {
 
       {/* ── Mensageiros ──────────────────────────────────────────────────── */}
       <Section id="mensageiros" title="Mensageiros" subtitle="Atendimento omnichannel em apps de mensagem." icon={<MessageCircle size={13} />}>
+        <WhatsAppIntegCard onToast={showToast} />
         {([
-          { name: 'WhatsApp Business', abbr: 'WA', bg: 'rgba(37,211,102,0.15)', fg: '#25D366', desc: 'Atendimento via WhatsApp Business API (Meta).' },
-          { name: 'Instagram',         abbr: 'IG', bg: 'rgba(228,64,95,0.15)',  fg: '#E4405F', desc: 'DMs e comentários via Instagram Graph API.' },
-          { name: 'TikTok',            abbr: 'TT', bg: 'rgba(255,0,80,0.15)',   fg: '#ff0050', desc: 'Mensagens via TikTok Business API.' },
-          { name: 'Telegram',          abbr: 'TG', bg: 'rgba(0,136,204,0.15)', fg: '#0088cc', desc: 'Bot Telegram via Bot API.' },
+          { name: 'Instagram', abbr: 'IG', bg: 'rgba(228,64,95,0.15)',  fg: '#E4405F', desc: 'DMs e comentários via Instagram Graph API.' },
+          { name: 'TikTok',    abbr: 'TT', bg: 'rgba(255,0,80,0.15)',   fg: '#ff0050', desc: 'Mensagens via TikTok Business API.' },
+          { name: 'Telegram',  abbr: 'TG', bg: 'rgba(0,136,204,0.15)', fg: '#0088cc', desc: 'Bot Telegram via Bot API.' },
         ] as const).map(m => (
           <IntegCard key={m.name} name={m.name} abbr={m.abbr} abbrBg={m.bg} abbrColor={m.fg}
             status="soon" description={m.desc} />
@@ -755,6 +755,227 @@ export default function IntegracoesPage() {
           onSaved={cred => { setCredentials(prev => [...prev.filter(c => c.provider !== cred.provider), cred]); setAddingFor(null) }}
         />
       )}
+    </div>
+  )
+}
+
+// ── WhatsApp Integration Card (Onda 2) ───────────────────────────────────
+
+interface WaConfig {
+  id:                   string
+  phone_number_id:      string
+  business_account_id:  string
+  access_token:         string
+  display_phone:        string | null
+  display_name:         string | null
+  verify_token:         string
+  is_active:            boolean
+  is_verified:          boolean
+  last_verified_at:     string | null
+}
+
+function WhatsAppIntegCard({ onToast }: { onToast: (msg: string, t?: 'success' | 'error') => void }) {
+  const supabase = useMemo(() => createClient(), [])
+  const [config, setConfig] = useState<WaConfig | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [expanded, setExpanded] = useState(false)
+  const [webhookInfo, setWebhookInfo] = useState<{ webhook_url: string; verify_token: string; is_verified: boolean } | null>(null)
+  const [phoneNumberId, setPhoneNumberId] = useState('')
+  const [wabaId, setWabaId]               = useState('')
+  const [token, setToken]                 = useState('')
+  const [displayPhone, setDisplayPhone]   = useState('')
+  const [displayName, setDisplayName]     = useState('')
+  const [saving, setSaving]               = useState(false)
+  const [validating, setValidating]       = useState(false)
+
+  const getHeaders = useCallback(async () => {
+    const { data: { session } } = await supabase.auth.getSession()
+    return { Authorization: `Bearer ${session?.access_token ?? ''}`, 'Content-Type': 'application/json' }
+  }, [supabase])
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const headers = await getHeaders()
+      const res = await fetch(`${BACKEND}/whatsapp/config`, { headers })
+      const data = res.ok ? await res.json() as WaConfig | null : null
+      setConfig(data)
+      if (data) {
+        const wRes = await fetch(`${BACKEND}/whatsapp/config/${data.id}/webhook-info`, { headers })
+        if (wRes.ok) setWebhookInfo(await wRes.json())
+      }
+    } catch { /* silent */ } finally { setLoading(false) }
+  }, [getHeaders])
+
+  useEffect(() => { load() }, [load])
+
+  async function save() {
+    if (!phoneNumberId || !wabaId || !token) {
+      onToast('Preencha phone_number_id, business_account_id e access_token', 'error'); return
+    }
+    setSaving(true)
+    try {
+      const headers = await getHeaders()
+      const res = await fetch(`${BACKEND}/whatsapp/config`, {
+        method: 'POST', headers,
+        body: JSON.stringify({
+          phone_number_id: phoneNumberId,
+          business_account_id: wabaId,
+          access_token: token,
+          display_phone: displayPhone || undefined,
+          display_name:  displayName  || undefined,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.message ?? `HTTP ${res.status}`)
+      setConfig(data as WaConfig)
+      onToast('WhatsApp configurado — agora valide as credenciais', 'success')
+      const wRes = await fetch(`${BACKEND}/whatsapp/config/${data.id}/webhook-info`, { headers })
+      if (wRes.ok) setWebhookInfo(await wRes.json())
+      setPhoneNumberId(''); setWabaId(''); setToken(''); setDisplayPhone(''); setDisplayName('')
+    } catch (e: unknown) {
+      onToast(e instanceof Error ? e.message : 'Erro ao salvar', 'error')
+    } finally { setSaving(false) }
+  }
+
+  async function validate() {
+    if (!config) return
+    setValidating(true)
+    try {
+      const headers = await getHeaders()
+      const res = await fetch(`${BACKEND}/whatsapp/config/${config.id}/test`, { method: 'POST', headers })
+      const data = await res.json() as { ok: boolean; display_phone_number?: string; verified_name?: string; error?: string }
+      if (data.ok) onToast(`✅ Credenciais válidas — ${data.display_phone_number ?? ''} (${data.verified_name ?? ''})`, 'success')
+      else         onToast(`❌ ${data.error ?? 'Falha na validação'}`, 'error')
+    } catch (e: unknown) {
+      onToast(e instanceof Error ? e.message : 'Erro ao validar', 'error')
+    } finally { setValidating(false) }
+  }
+
+  async function disconnect() {
+    if (!config) return
+    if (!confirm('Desconectar WhatsApp? As conversas existentes não são apagadas.')) return
+    const headers = await getHeaders()
+    await fetch(`${BACKEND}/whatsapp/config/${config.id}`, { method: 'DELETE', headers })
+    setConfig(null); setWebhookInfo(null); setExpanded(false)
+    onToast('WhatsApp desconectado', 'success')
+  }
+
+  const isConnected = !!config?.is_active
+  const isVerified  = !!config?.is_verified
+
+  return (
+    <div className="rounded-2xl p-4 space-y-3" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl shrink-0 flex items-center justify-center text-xs font-black"
+            style={{ background: 'rgba(37,211,102,0.15)', color: '#25D366' }}>WA</div>
+          <div>
+            <p className="text-xs font-semibold text-zinc-200">WhatsApp Business</p>
+            <p className="text-[10px] text-zinc-500 mt-0.5 leading-snug">
+              {isConnected ? `Conectado · ${config.display_phone ?? config.phone_number_id}` : 'Atendimento via WhatsApp Business API (Meta).'}
+            </p>
+          </div>
+        </div>
+        {loading ? (
+          <Loader2 size={12} className="animate-spin text-zinc-600 mt-2" />
+        ) : isConnected ? (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold"
+            style={{ background: isVerified ? 'rgba(74,222,128,0.1)' : 'rgba(251,191,36,0.1)', color: isVerified ? '#4ade80' : '#fbbf24' }}>
+            <CheckCircle2 size={10} />{isVerified ? 'Conectado' : 'Aguardando webhook'}
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold"
+            style={{ background: 'rgba(251,146,60,0.1)', color: '#fb923c' }}>
+            <Plug size={10} />Não integrado
+          </span>
+        )}
+      </div>
+
+      {!isConnected && !expanded && (
+        <button onClick={() => setExpanded(true)}
+          className="flex items-center gap-1.5 w-full justify-center py-2 rounded-xl text-xs font-semibold transition-all"
+          style={{ background: 'rgba(37,211,102,0.1)', color: '#25D366', border: '1px solid rgba(37,211,102,0.25)' }}>
+          <Plug size={11} /> Conectar WhatsApp
+        </button>
+      )}
+
+      {!isConnected && expanded && (
+        <div className="space-y-2.5 pt-2" style={{ borderTop: '1px solid #1e1e24' }}>
+          <p className="text-[10px] uppercase tracking-widest text-zinc-500">Credenciais Meta</p>
+          <input value={phoneNumberId} onChange={e => setPhoneNumberId(e.target.value)} placeholder="Phone Number ID"
+            className="w-full bg-[#0d0d10] border border-[#27272a] text-white text-xs rounded-lg px-3 py-2 outline-none focus:border-[#25D366] font-mono" />
+          <input value={wabaId} onChange={e => setWabaId(e.target.value)} placeholder="Business Account ID (WABA)"
+            className="w-full bg-[#0d0d10] border border-[#27272a] text-white text-xs rounded-lg px-3 py-2 outline-none focus:border-[#25D366] font-mono" />
+          <input type="password" value={token} onChange={e => setToken(e.target.value)} placeholder="Access Token (permanente)"
+            className="w-full bg-[#0d0d10] border border-[#27272a] text-white text-xs rounded-lg px-3 py-2 outline-none focus:border-[#25D366] font-mono" />
+          <div className="grid grid-cols-2 gap-2">
+            <input value={displayName} onChange={e => setDisplayName(e.target.value)} placeholder="Nome (opcional)"
+              className="bg-[#0d0d10] border border-[#27272a] text-white text-xs rounded-lg px-3 py-2 outline-none focus:border-[#25D366]" />
+            <input value={displayPhone} onChange={e => setDisplayPhone(e.target.value)} placeholder="+55 11 9..."
+              className="bg-[#0d0d10] border border-[#27272a] text-white text-xs rounded-lg px-3 py-2 outline-none focus:border-[#25D366]" />
+          </div>
+          <div className="flex gap-2 pt-1">
+            <button onClick={() => setExpanded(false)} className="flex-1 py-2 rounded-lg text-xs text-zinc-400 hover:text-white transition-colors"
+              style={{ background: '#1e1e24', border: '1px solid #27272a' }}>Cancelar</button>
+            <button onClick={save} disabled={saving}
+              className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-opacity disabled:opacity-50"
+              style={{ background: '#25D366', color: '#000' }}>
+              {saving ? <Loader2 size={11} className="animate-spin" /> : <Save size={11} />}
+              Salvar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {isConnected && webhookInfo && (
+        <div className="space-y-2 pt-2" style={{ borderTop: '1px solid #1e1e24' }}>
+          <p className="text-[10px] uppercase tracking-widest text-zinc-500">Configurar webhook na Meta</p>
+          <CopyField label="URL do webhook" value={webhookInfo.webhook_url} />
+          <CopyField label="Verify Token" value={webhookInfo.verify_token} />
+          <p className="text-[10px] text-zinc-600">
+            Cole esses valores em developers.facebook.com → seu app → WhatsApp → Configuration → Webhook.
+            Assine os campos: <code className="text-zinc-400">messages, message_statuses</code>.
+          </p>
+          <div className="flex gap-2 pt-1">
+            <button onClick={validate} disabled={validating}
+              className="flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[11px] font-semibold transition-opacity disabled:opacity-50"
+              style={{ background: '#1a1a1f', color: '#a1a1aa', border: '1px solid #27272a' }}>
+              {validating ? <Loader2 size={11} className="animate-spin" /> : <TestTube2 size={11} />}
+              Validar
+            </button>
+            <button onClick={load}
+              className="flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[11px] font-semibold transition-opacity"
+              style={{ background: '#1a1a1f', color: '#a1a1aa', border: '1px solid #27272a' }}>
+              <RefreshCw size={11} />
+              Recarregar
+            </button>
+            <button onClick={disconnect}
+              className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-colors"
+              style={{ background: 'rgba(248,113,113,0.1)', color: '#f87171', border: '1px solid rgba(248,113,113,0.25)' }}>
+              Desconectar
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function CopyField({ label, value }: { label: string; value: string }) {
+  const [copied, setCopied] = useState(false)
+  return (
+    <div>
+      <p className="text-[10px] text-zinc-500 mb-0.5">{label}</p>
+      <div className="flex items-center gap-1">
+        <input readOnly value={value}
+          className="flex-1 bg-[#0d0d10] border border-[#27272a] text-white text-[11px] rounded-lg px-2 py-1.5 font-mono" />
+        <button onClick={() => navigator.clipboard.writeText(value).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500) })}
+          className="px-2 py-1.5 rounded-lg text-[10px] font-semibold transition-colors shrink-0"
+          style={{ background: copied ? 'rgba(74,222,128,0.15)' : '#1a1a1f', color: copied ? '#4ade80' : '#a1a1aa' }}>
+          {copied ? '✓' : 'Copiar'}
+        </button>
+      </div>
     </div>
   )
 }
