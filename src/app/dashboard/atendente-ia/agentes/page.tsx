@@ -6,7 +6,7 @@ import { AI_PROVIDERS } from '@/lib/ai/config'
 import {
   Bot, Plus, Settings, Trash2, ToggleLeft, ToggleRight,
   MessageCircle, Zap, Star, ChevronRight, ChevronLeft,
-  X, Check, AlertCircle, Loader2,
+  X, Check, AlertCircle, Loader2, LayoutTemplate,
 } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
@@ -519,11 +519,122 @@ function AgentCard({ agent, onToggle, onEdit, onDelete }: {
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
+// ── Templates modal ─────────────────────────────────────────────────────────
+
+interface AgentTemplate {
+  id: string
+  name: string
+  emoji: string
+  description: string
+  default_model: string
+  always_escalate: boolean
+}
+
+function TemplatesModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const [templates, setTemplates] = useState<AgentTemplate[]>([])
+  const [loading,   setLoading]   = useState(true)
+  const [creating,  setCreating]  = useState<string | null>(null)
+  const [err,       setErr]       = useState<string | null>(null)
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const sb = createClient()
+        const { data: { session } } = await sb.auth.getSession()
+        const res = await fetch(`${BACKEND}/ai/templates`, {
+          headers: { Authorization: `Bearer ${session?.access_token}` },
+        })
+        if (res.ok) setTemplates(await res.json())
+      } catch (e: any) { setErr(e?.message ?? 'Erro') } finally { setLoading(false) }
+    })()
+  }, [])
+
+  async function handleCreate(tplId: string) {
+    setCreating(tplId); setErr(null)
+    try {
+      const sb = createClient()
+      const { data: { session } } = await sb.auth.getSession()
+      const res = await fetch(`${BACKEND}/ai/agents/from-template/${tplId}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session?.access_token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        throw new Error(d.message ?? `HTTP ${res.status}`)
+      }
+      onCreated()
+    } catch (e: any) {
+      setErr(e?.message ?? 'Erro ao criar agente')
+    } finally { setCreating(null) }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }}>
+      <div className="w-full max-w-3xl rounded-2xl overflow-hidden shadow-2xl"
+        style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid #1e1e24' }}>
+          <div className="flex items-center gap-2">
+            <LayoutTemplate size={15} style={{ color: '#00E5FF' }} />
+            <p className="text-sm font-semibold text-white">Criar agente a partir de template</p>
+          </div>
+          <button onClick={onClose} className="text-zinc-500 hover:text-zinc-300 transition-colors"><X size={16} /></button>
+        </div>
+
+        <div className="p-5">
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 size={20} className="animate-spin text-zinc-600" />
+            </div>
+          ) : templates.length === 0 ? (
+            <div className="py-12 text-center text-zinc-500 text-sm">
+              Nenhum template disponível. Rodou a migration?
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {templates.map(t => (
+                <button key={t.id} onClick={() => handleCreate(t.id)} disabled={creating !== null}
+                  className="text-left p-4 rounded-xl transition-all disabled:opacity-50 hover:scale-[1.02]"
+                  style={{ background: '#0d0d10', border: '1px solid #1e1e24' }}>
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <div className="text-3xl">{t.emoji}</div>
+                    {creating === t.id && <Loader2 size={14} className="animate-spin text-cyan-400" />}
+                  </div>
+                  <p className="text-sm font-bold text-white mb-1">{t.name}</p>
+                  <p className="text-[11px] text-zinc-500 leading-snug mb-3">{t.description}</p>
+                  <div className="flex items-center gap-1 text-[10px] text-zinc-600">
+                    <Zap size={10} />
+                    <span className="font-mono truncate">{t.default_model.replace('claude-', '').replace('-20251001', '')}</span>
+                    {t.always_escalate && (
+                      <span className="ml-auto px-1.5 py-0.5 rounded font-semibold"
+                        style={{ background: 'rgba(248,113,113,0.1)', color: '#f87171' }}>
+                        Sempre escala
+                      </span>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {err && <p className="text-[11px] text-red-400 mt-3">{err}</p>}
+
+          <p className="text-[10px] text-zinc-600 mt-4">
+            O agente é criado com nome, descrição, prompt e modelo do template.
+            Você pode editar tudo depois.
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function AgentesPage() {
   const [agents, setAgents]         = useState<Agent[]>([])
   const [loading, setLoading]       = useState(true)
   const [showWizard, setShowWizard] = useState(false)
   const [editAgent, setEditAgent]   = useState<Agent | undefined>()
+  const [showTemplates, setShowTemplates] = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -569,11 +680,18 @@ export default function AgentesPage() {
           </h1>
           <p className="text-zinc-500 text-sm mt-1">Configure atendentes virtuais para cada canal</p>
         </div>
-        <button onClick={() => { setEditAgent(undefined); setShowWizard(true) }}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-colors"
-          style={{ background: '#00E5FF', color: '#000' }}>
-          <Plus size={15} /> Novo Agente
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setShowTemplates(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-colors"
+            style={{ background: 'rgba(0,229,255,0.08)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.25)' }}>
+            <LayoutTemplate size={15} /> Templates
+          </button>
+          <button onClick={() => { setEditAgent(undefined); setShowWizard(true) }}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-colors"
+            style={{ background: '#00E5FF', color: '#000' }}>
+            <Plus size={15} /> Novo Agente
+          </button>
+        </div>
       </div>
 
       {/* List */}
@@ -610,6 +728,13 @@ export default function AgentesPage() {
           editAgent={editAgent}
           onClose={() => setShowWizard(false)}
           onSaved={() => { setShowWizard(false); load() }}
+        />
+      )}
+
+      {showTemplates && (
+        <TemplatesModal
+          onClose={() => setShowTemplates(false)}
+          onCreated={() => { setShowTemplates(false); load() }}
         />
       )}
     </div>

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
-import { BookOpen, Plus, Trash2, Tag, Loader2, X, Save, FileText, HelpCircle, ShieldCheck, Clock, Smile, AlignLeft } from 'lucide-react'
+import { BookOpen, Plus, Trash2, Tag, Loader2, X, Save, FileText, HelpCircle, ShieldCheck, Clock, Smile, AlignLeft, Search, Sparkles } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 
@@ -43,6 +43,11 @@ export default function ConhecimentoPage() {
   const [tags, setTags]       = useState<string[]>([])
   const [newTag, setNewTag]   = useState('')
   const [saving, setSaving]   = useState(false)
+
+  // Semantic search
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<(KnowledgeItem & { score?: number })[] | null>(null)
+  const [searching,    setSearching]    = useState(false)
 
   const getHeaders = useCallback(async () => {
     const sb = createClient()
@@ -98,7 +103,23 @@ export default function ConhecimentoPage() {
     loadItems()
   }
 
-  const filtered = filterType === 'all' ? items : items.filter(i => i.type === filterType)
+  async function runSemanticSearch() {
+    const q = searchQuery.trim()
+    if (!q) { setSearchResults(null); return }
+    if (!agentId) return
+    setSearching(true)
+    try {
+      const headers = await getHeaders()
+      const url = `${BACKEND}/ai/knowledge?agent_id=${encodeURIComponent(agentId)}&q=${encodeURIComponent(q)}`
+      const res = await fetch(url, { headers })
+      if (res.ok) setSearchResults(await res.json() as KnowledgeItem[])
+    } catch { /* silent */ } finally { setSearching(false) }
+  }
+
+  // When semantic search is active, show those results; otherwise apply local type filter
+  const filtered = searchResults
+    ? searchResults
+    : filterType === 'all' ? items : items.filter(i => i.type === filterType)
 
   return (
     <div className="min-h-screen p-6 space-y-6" style={{ background: '#09090b' }}>
@@ -127,6 +148,36 @@ export default function ConhecimentoPage() {
             <Plus size={15} /> Adicionar
           </button>
         </div>
+      </div>
+
+      {/* Semantic search */}
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1 max-w-2xl">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+          <input value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') runSemanticSearch() }}
+            placeholder="Busca semântica: digite uma pergunta… (ex: 'a luminária é bivolt?')"
+            className="w-full pl-9 pr-10 py-2 rounded-xl text-sm text-white placeholder-zinc-600"
+            style={{ background: '#111114', border: '1px solid #1e1e24' }} />
+          {searchQuery && (
+            <button onClick={() => { setSearchQuery(''); setSearchResults(null) }}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300">
+              <X size={12} />
+            </button>
+          )}
+        </div>
+        <button onClick={runSemanticSearch} disabled={!searchQuery.trim() || !agentId || searching}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all disabled:opacity-50"
+          style={{ background: 'rgba(0,229,255,0.1)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.25)' }}>
+          {searching ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+          {searching ? 'Buscando…' : 'Buscar'}
+        </button>
+        {searchResults && (
+          <span className="text-[11px] text-zinc-500">
+            {searchResults.length} resultado(s) por similaridade
+          </span>
+        )}
       </div>
 
       {/* Type filter */}
