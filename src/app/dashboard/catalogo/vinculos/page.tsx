@@ -62,13 +62,21 @@ type Distribution = {
   id: string
   channel: string
   account_id: string | null
-  distribution_type: string
+  distribution_mode: string
   percentage: number | null
   fixed_quantity: number | null
   min_quantity: number
   max_quantity: number | null
   priority: number
   is_active: boolean
+}
+
+type ChannelOption = {
+  id: string
+  name: string
+  api_status: 'available' | 'coming_soon' | 'deprecated'
+  is_integrated: boolean
+  integration_status: 'connected' | 'expired' | 'error' | 'never_connected' | null
 }
 
 type FullStockData = {
@@ -387,6 +395,7 @@ function StockPanel({
   const [distributions,  setDistributions]  = useState<Distribution[]>([])
   const [distOpen,       setDistOpen]       = useState(false)
   const [newDistForm,    setNewDistForm]    = useState(false)
+  const [channelOpts,    setChannelOpts]    = useState<ChannelOption[]>([])
   const [distChannel,    setDistChannel]    = useState('')
   const [distType,       setDistType]       = useState<'percentage' | 'fixed'>('percentage')
   const [distValue,      setDistValue]      = useState('')
@@ -447,6 +456,18 @@ function StockPanel({
       .finally(() => setFullLoading(false))
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [product.id])
+
+  // Channel slugs/labels for the "Adicionar canal" dropdown.
+  // Loaded once per panel open, ignored failure (form falls back to empty list
+  // and shows "nenhum canal disponível").
+  useEffect(() => {
+    getHeaders()
+      .then(h => fetch(`${BACKEND}/channels`, { headers: h }))
+      .then(r => r.ok ? r.json() : [])
+      .then((rows: ChannelOption[]) => setChannelOpts(rows ?? []))
+      .catch(() => setChannelOpts([]))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     setMovLoading(true)
@@ -607,19 +628,26 @@ function StockPanel({
   }
 
   async function handleSaveDist() {
-    if (!distChannel.trim() || !distValue.trim()) { setDistErr('Preencha canal e valor'); return }
+    const channelSlug = distChannel.trim().toLowerCase()
+    // Validate before POST so we don't trip the channel CHECK constraint on the DB.
+    // Channel must be a slug from marketplace_channels (lowercase, no spaces).
+    if (!channelSlug)            { setDistErr('Selecione um canal'); return }
+    if (!/^[a-z0-9_]+$/.test(channelSlug)) { setDistErr(`Canal inválido: "${channelSlug}" — use o slug (ex: mercadolivre)`); return }
+    if (!['percentage', 'fixed', 'auto'].includes(distType)) { setDistErr('Modo de distribuição inválido'); return }
+    if (!distValue.trim())       { setDistErr('Preencha o valor'); return }
+
     setSavingDist(true); setDistErr(null)
     try {
       const headers = await getHeaders()
       const body = {
-        product_id: product.id,
-        channel: distChannel.trim(),
-        distribution_type: distType,
-        percentage: distType === 'percentage' ? Number(distValue) : null,
-        fixed_quantity: distType === 'fixed' ? Number(distValue) : null,
-        min_quantity: Number(distMin) || 0,
-        max_quantity: distMax.trim() ? Number(distMax) : null,
-        is_active: true,
+        product_id:        product.id,
+        channel:           channelSlug,            // slug, not label
+        distribution_mode: distType,                // matches DB column name
+        percentage:        distType === 'percentage' ? Number(distValue) : null,
+        fixed_quantity:    distType === 'fixed' ? Number(distValue) : null,
+        min_quantity:      Number(distMin) || 0,
+        max_quantity:      distMax.trim() ? Number(distMax) : null,
+        is_active:         true,
       }
       const res = await fetch(`${BACKEND}/stock/distribution`, {
         method: 'POST',
@@ -870,9 +898,11 @@ function StockPanel({
                       {d.channel}{d.account_id ? ` · ${d.account_id}` : ''}
                     </span>
                     <span className="flex-1 text-[11px] text-zinc-400 tabular-nums">
-                      {d.distribution_type === 'percentage'
+                      {d.distribution_mode === 'percentage'
                         ? `${d.percentage}%`
-                        : `${num(d.fixed_quantity ?? 0)} unid.`}
+                        : d.distribution_mode === 'auto'
+                          ? `${d.percentage}% 🤖`
+                          : `${num(d.fixed_quantity ?? 0)} unid.`}
                       {d.min_quantity > 0 && <span className="text-zinc-600"> mín:{d.min_quantity}</span>}
                       {d.max_quantity != null && <span className="text-zinc-600"> máx:{d.max_quantity}</span>}
                     </span>
@@ -908,8 +938,18 @@ function StockPanel({
                         </button>
                       ))}
                     </div>
-                    <input value={distChannel} onChange={e => setDistChannel(e.target.value)}
-                      placeholder="Canal (ex: mercadolivre)" className={inp.replace('tabular-nums', '')} />
+                    <select value={distChannel} onChange={e => setDistChannel(e.target.value)}
+                      className={inp.replace('tabular-nums', '') + ' appearance-none cursor-pointer'}>
+                      <option value="">Selecione um canal…</option>
+                      {channelOpts
+                        .filter(c => c.api_status !== 'coming_soon')
+                        .filter(c => !distributions.some(d => d.channel === c.id))
+                        .map(c => (
+                          <option key={c.id} value={c.id}>
+                            {c.name} {c.is_integrated && c.integration_status === 'connected' ? '✅' : '🟠'}
+                          </option>
+                        ))}
+                    </select>
                     <div className="grid grid-cols-3 gap-2">
                       <div className="col-span-1">
                         <label className="block text-[10px] text-zinc-500 mb-1">
