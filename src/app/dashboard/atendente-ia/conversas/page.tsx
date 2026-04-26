@@ -4,8 +4,8 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import {
   Inbox, Search, Filter, RefreshCw, Send, Check, X, Edit3,
-  AlertTriangle, CheckCircle2, UserCheck, Loader2, ChevronDown,
-  MessageSquare, Package, Clock, User,
+  AlertTriangle, CheckCircle2, UserCheck, Loader2, ChevronDown, ChevronUp,
+  MessageSquare, Package, Clock, User, Bot, Zap, BookOpen, Save,
 } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
@@ -40,8 +40,22 @@ interface Message {
   ai_provider?: string
   ai_model?: string
   ai_confidence?: number
+  ai_reasoning?: string
   was_auto_sent: boolean
   sent_at: string
+  // New tracking columns from refactored AiResponderService
+  confidence?: number
+  decision?: 'auto_send' | 'queue_for_human' | 'escalate'
+  knowledge_cited?: string[]
+  duration_ms?: number
+  tokens_used?: { input?: number; output?: number; total?: number }
+  edited_by_human?: boolean
+  original_ai_content?: string
+}
+
+interface ConversationListItem extends Conversation {
+  /** Best confidence found in last AI message — used for the dot indicator. */
+  last_ai_confidence?: number
 }
 
 interface Conversation {
@@ -56,18 +70,27 @@ interface Conversation {
   sentiment: string
   total_messages: number
   updated_at: string
-  agent?: { name: string }
+  agent?: { id?: string; name: string; model_id?: string; model_provider?: string }
 }
 
 // ── Conversation list item ────────────────────────────────────────────────────
 
-function ConvItem({ conv, active, onClick }: { conv: Conversation; active: boolean; onClick: () => void }) {
+function ConvItem({ conv, active, onClick }: { conv: ConversationListItem; active: boolean; onClick: () => void }) {
   const timeAgo = (d: string) => {
     const diff = Date.now() - new Date(d).getTime()
     if (diff < 3600000) return `${Math.floor(diff / 60000)}m`
     if (diff < 86400000) return `${Math.floor(diff / 3600000)}h`
     return `${Math.floor(diff / 86400000)}d`
   }
+
+  // Confidence dot — green ≥ 80, orange 50-79, red < 50, none if no AI msg yet
+  const confDot = (() => {
+    const c = conv.last_ai_confidence
+    if (c == null) return null
+    if (c >= 80) return { color: '#4ade80', label: 'Alta' }
+    if (c >= 50) return { color: '#fb923c', label: 'Média' }
+    return { color: '#f87171', label: 'Baixa' }
+  })()
 
   return (
     <button onClick={onClick} className="w-full text-left px-3 py-3 transition-colors"
@@ -83,6 +106,10 @@ function ConvItem({ conv, active, onClick }: { conv: Conversation; active: boole
           <span className="text-xs text-white truncate font-medium">{conv.customer_nickname ?? conv.customer_name ?? 'Desconhecido'}</span>
         </div>
         <div className="flex items-center gap-1 shrink-0">
+          {confDot && (
+            <span className="w-1.5 h-1.5 rounded-full" style={{ background: confDot.color }}
+              title={`Confiança IA: ${conv.last_ai_confidence}% (${confDot.label})`} />
+          )}
           <span className="text-[10px]">{SENTIMENT_EMOJI[conv.sentiment] ?? '😐'}</span>
           <span className="text-[10px] text-zinc-600">{timeAgo(conv.updated_at)}</span>
         </div>
@@ -105,14 +132,27 @@ function ConvItem({ conv, active, onClick }: { conv: Conversation; active: boole
 
 // ── Message bubble ────────────────────────────────────────────────────────────
 
-function MsgBubble({ msg, onApprove, onReject }: { msg: Message; onApprove?: (edited?: string) => void; onReject?: () => void }) {
+function MsgBubble({ msg, onApprove, onReject, onCaptureTraining }: {
+  msg: Message
+  onApprove?: (edited?: string) => void
+  onReject?: () => void
+  /** Called when user edits + confirms; original AI content + edited content saved as training example. */
+  onCaptureTraining?: (originalAiContent: string, editedContent: string) => Promise<void>
+}) {
   const [editing, setEditing]   = useState(false)
   const [edited, setEdited]     = useState(msg.content)
+  const [expanded, setExpanded] = useState(false)
+  const [captureModal, setCaptureModal] = useState<{ open: boolean; saving: boolean }>({ open: false, saving: false })
   const isCustomer = msg.role === 'customer'
   const isAI       = msg.role === 'agent'
   const isHuman    = msg.role === 'human'
   const isSystem   = msg.role === 'system'
   const pending    = isAI && !msg.was_auto_sent && onApprove
+
+  // Tracking metadata from refactored AiResponderService
+  const finalConf = msg.confidence ?? msg.ai_confidence
+  const tokens    = msg.tokens_used
+  const hasMetadata = isAI && (finalConf != null || msg.duration_ms != null || tokens?.total != null || (msg.knowledge_cited?.length ?? 0) > 0)
 
   if (isSystem) return (
     <div className="flex justify-center my-2">
@@ -140,16 +180,60 @@ function MsgBubble({ msg, onApprove, onReject }: { msg: Message; onApprove?: (ed
         {/* Badge */}
         <div className={`flex items-center gap-1.5 ${isCustomer ? '' : 'justify-end'}`}>
           {isAI && (
-            <span className="text-[10px] px-2 py-0.5 rounded-full"
+            <span className="text-[10px] px-2 py-0.5 rounded-full inline-flex items-center gap-1"
               style={{ background: 'rgba(0,229,255,0.08)', color: '#00E5FF' }}>
-              IA{msg.ai_confidence != null ? ` · ${msg.ai_confidence}%` : ''}
+              <Bot size={9} /> IA{finalConf != null ? ` · ${finalConf}%` : ''}
             </span>
           )}
           {isHuman && <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: 'rgba(59,130,246,0.1)', color: '#93c5fd' }}>Humano</span>}
+          {isAI && hasMetadata && (
+            <button onClick={() => setExpanded(e => !e)}
+              className="text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors inline-flex items-center gap-0.5">
+              {expanded ? <ChevronUp size={10} /> : <ChevronDown size={10} />} detalhes
+            </button>
+          )}
           <span className="text-[10px] text-zinc-600">
             {new Date(msg.sent_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
           </span>
         </div>
+
+        {/* Expandable AI metadata card */}
+        {isAI && expanded && (
+          <div className="text-[11px] rounded-lg p-2.5 mt-1 space-y-1.5"
+            style={{ background: 'rgba(0,229,255,0.04)', border: '1px solid rgba(0,229,255,0.15)' }}>
+            <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+              {finalConf != null && (
+                <div className="flex justify-between"><span className="text-zinc-500">Confiança</span><span className="text-zinc-300 tabular-nums">{finalConf}%</span></div>
+              )}
+              {msg.decision && (
+                <div className="flex justify-between"><span className="text-zinc-500">Decisão</span><span className="text-zinc-300">{msg.decision}</span></div>
+              )}
+              {msg.ai_model && (
+                <div className="flex justify-between col-span-2"><span className="text-zinc-500">Modelo</span><span className="text-zinc-300 font-mono text-[10px] truncate ml-2">{msg.ai_model}</span></div>
+              )}
+              {msg.duration_ms != null && (
+                <div className="flex justify-between"><span className="text-zinc-500">Duração</span><span className="text-zinc-300 tabular-nums">{msg.duration_ms}ms</span></div>
+              )}
+              {tokens?.total != null && (
+                <div className="flex justify-between"><span className="text-zinc-500">Tokens</span>
+                  <span className="text-zinc-300 tabular-nums">{tokens.input ?? 0} / {tokens.output ?? 0}</span>
+                </div>
+              )}
+            </div>
+            {(msg.knowledge_cited?.length ?? 0) > 0 && (
+              <div className="pt-1.5" style={{ borderTop: '1px solid rgba(0,229,255,0.1)' }}>
+                <div className="flex items-center gap-1 text-zinc-500"><BookOpen size={10} /> Conhecimento citado</div>
+                <p className="text-[10px] text-zinc-600 font-mono mt-0.5 break-all">{msg.knowledge_cited!.join(' · ')}</p>
+              </div>
+            )}
+            {msg.ai_reasoning && (
+              <div className="pt-1.5" style={{ borderTop: '1px solid rgba(0,229,255,0.1)' }}>
+                <div className="text-zinc-500">Raciocínio</div>
+                <p className="text-[10px] text-zinc-400 mt-0.5">{msg.ai_reasoning}</p>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Approval bar for pending AI suggestions */}
         {pending && (
@@ -164,7 +248,16 @@ function MsgBubble({ msg, onApprove, onReject }: { msg: Message; onApprove?: (ed
                 <span className="text-[10px] text-zinc-500">{msg.ai_confidence}%</span>
               </div>
             )}
-            <button onClick={() => editing ? (onApprove(edited), setEditing(false)) : onApprove()}
+            <button onClick={() => {
+              if (editing && edited !== msg.content && onCaptureTraining) {
+                // Open modal to ask whether to save edit as training example
+                setCaptureModal({ open: true, saving: false })
+              } else if (editing) {
+                onApprove(edited); setEditing(false)
+              } else {
+                onApprove()
+              }
+            }}
               className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors"
               style={{ background: 'rgba(34,197,94,0.12)', color: '#4ade80' }}>
               <Check size={11} />{editing ? 'Confirmar' : 'Aprovar'}
@@ -183,6 +276,61 @@ function MsgBubble({ msg, onApprove, onReject }: { msg: Message; onApprove?: (ed
           </div>
         )}
       </div>
+
+      {/* Capture training modal — appears when user edits + confirms */}
+      {captureModal.open && (
+        <div className="fixed inset-0 z-[60] bg-black/70 flex items-center justify-center p-4"
+          onClick={() => !captureModal.saving && setCaptureModal({ open: false, saving: false })}>
+          <div className="rounded-xl p-5 w-full max-w-md space-y-3"
+            style={{ background: '#111114', border: '1px solid #27272a' }}
+            onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-2">
+              <Save size={14} style={{ color: '#00E5FF' }} />
+              <p className="text-sm font-semibold text-white">Salvar como exemplo de treinamento?</p>
+            </div>
+            <p className="text-[11px] text-zinc-500">
+              Sua edição pode ser salva como exemplo de resposta ideal pra esse agente,
+              ajudando a IA a melhorar com o tempo.
+            </p>
+            <div className="space-y-2 text-[11px]">
+              <div className="rounded-lg p-2.5" style={{ background: 'rgba(248,113,113,0.05)', border: '1px solid rgba(248,113,113,0.15)' }}>
+                <p className="text-red-400 font-semibold mb-0.5">Resposta original IA</p>
+                <p className="text-zinc-300 leading-relaxed">{msg.content}</p>
+              </div>
+              <div className="rounded-lg p-2.5" style={{ background: 'rgba(74,222,128,0.05)', border: '1px solid rgba(74,222,128,0.15)' }}>
+                <p className="text-green-400 font-semibold mb-0.5">Sua versão editada</p>
+                <p className="text-zinc-300 leading-relaxed">{edited}</p>
+              </div>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <button onClick={() => { onApprove?.(edited); setEditing(false); setCaptureModal({ open: false, saving: false }) }}
+                disabled={captureModal.saving}
+                className="flex-1 py-2 rounded-lg text-xs text-zinc-400 transition-colors hover:text-white disabled:opacity-50"
+                style={{ background: '#1a1a1f', border: '1px solid #27272a' }}>
+                Apenas enviar
+              </button>
+              <button onClick={async () => {
+                if (!onCaptureTraining) return
+                setCaptureModal(s => ({ ...s, saving: true }))
+                try {
+                  await onCaptureTraining(msg.content, edited)
+                  onApprove?.(edited)
+                  setEditing(false)
+                  setCaptureModal({ open: false, saving: false })
+                } catch {
+                  setCaptureModal(s => ({ ...s, saving: false }))
+                }
+              }}
+                disabled={captureModal.saving}
+                className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-opacity disabled:opacity-50"
+                style={{ background: '#00E5FF', color: '#000' }}>
+                {captureModal.saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+                {captureModal.saving ? 'Salvando…' : 'Sim, melhora a IA'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -269,6 +417,32 @@ export default function ConversasPage() {
     })
     loadConversations()
     loadMessages(selectedId)
+  }
+
+  /**
+   * When the user edits an AI suggestion and clicks "Sim, melhora a IA" in
+   * the modal, capture both the original AI content and the edited version
+   * as a training example for the agent. Best-effort: a failure here doesn't
+   * block the approve flow.
+   */
+  async function captureTrainingExample(originalAi: string, editedHuman: string) {
+    if (!selectedConv?.agent) return
+    try {
+      const headers = await getHeaders()
+      // Pull the customer message that the AI was responding to (last customer msg)
+      const lastCustomerMsg = [...messages].reverse().find(m => m.role === 'customer')
+      const question = lastCustomerMsg?.content ?? '(pergunta não localizada)'
+      await fetch(`${BACKEND}/atendente-ia/agents/${(selectedConv.agent as { id?: string }).id ?? ''}/training`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          question,
+          ideal_answer: editedHuman,
+          source: 'human_edit',
+          category: 'edit_capture',
+        }),
+      })
+    } catch { /* silent — captured failures don't block approve */ }
   }
 
   async function rejectSuggestion(messageId: string) {
@@ -411,6 +585,11 @@ export default function ConversasPage() {
                       onReject={
                         msg.role === 'agent' && !msg.was_auto_sent
                           ? () => rejectSuggestion(msg.id)
+                          : undefined
+                      }
+                      onCaptureTraining={
+                        msg.role === 'agent' && !msg.was_auto_sent
+                          ? captureTrainingExample
                           : undefined
                       }
                     />
