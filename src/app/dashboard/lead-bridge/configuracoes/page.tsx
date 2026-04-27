@@ -180,26 +180,33 @@ export default function LeadBridgeConfigPage() {
           return (
             <>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <Field label="Provedor">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5">
+                    <label className="text-[11px] font-medium text-zinc-400">Provedor</label>
+                    <span className="relative group cursor-help" tabIndex={0}>
+                      <Info size={11} className="text-zinc-500 hover:text-cyan-400 transition-colors" />
+                      <span
+                        className="invisible group-hover:visible group-focus:visible opacity-0 group-hover:opacity-100 group-focus:opacity-100
+                                   transition-opacity absolute z-20 left-1/2 -translate-x-1/2 top-full mt-1 w-72
+                                   px-3 py-2 rounded-lg text-[11px] leading-relaxed text-zinc-200 pointer-events-none"
+                        style={{ background: '#0c0c10', border: '1px solid #00E5FF', boxShadow: '0 6px 24px rgba(0,0,0,0.4)' }}>
+                        <strong className="text-cyan-400 block mb-0.5">{sel.label}</strong>
+                        {sel.strength}
+                      </span>
+                    </span>
+                  </div>
                   <select className={inp} value={c.cpf_provider}
                     onChange={e => setC({ ...c, cpf_provider: e.target.value })}>
                     {CPF_PROVIDERS.map(p => (
                       <option key={p.id} value={p.id}>{p.label}</option>
                     ))}
                   </select>
-                </Field>
+                </div>
                 <Field label="API Key" hint={`Formato: ${sel.key_format}`}>
                   <input type="password" className={inp + ' font-mono'}
                     value={c.cpf_api_key ?? ''}
                     onChange={e => setC({ ...c, cpf_api_key: e.target.value })} />
                 </Field>
-              </div>
-              <div className="flex items-start gap-2 px-3 py-2 rounded-lg"
-                style={{ background: 'rgba(0,229,255,0.06)', border: '1px solid rgba(0,229,255,0.18)' }}>
-                <Info size={12} className="text-cyan-400 shrink-0 mt-0.5" />
-                <p className="text-[11px] text-zinc-300 leading-relaxed">
-                  <strong className="text-zinc-100">{sel.label}:</strong> {sel.strength}
-                </p>
               </div>
             </>
           )
