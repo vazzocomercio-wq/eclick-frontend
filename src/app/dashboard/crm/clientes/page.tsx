@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase'
 import {
   Search, RefreshCw, Users, CheckCircle2, AlertTriangle, XCircle,
-  Phone, Mail, MessageCircle, Sparkles,
+  Phone, Mail, MessageCircle, Sparkles, ScanLine,
 } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
@@ -100,6 +100,9 @@ export default function ClientesPage() {
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS)
   const [enriching, setEnriching] = useState(false)
   const [batchMsg, setBatchMsg] = useState<string | null>(null)
+  const [mlPending, setMlPending] = useState<number | null>(null)
+  const [mlFetching, setMlFetching] = useState(false)
+  const [mlMsg, setMlMsg] = useState<string | null>(null)
 
   const getHeaders = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
@@ -128,6 +131,46 @@ export default function ClientesPage() {
     } finally { setLoading(false) }
   }, [getHeaders, filters])
   useEffect(() => { load() }, [load])
+
+  const loadMlPending = useCallback(async () => {
+    try {
+      const headers = await getHeaders()
+      const res = await fetch(`${BACKEND}/ml/orders/billing-pending-count`, { headers })
+      const body = await res.json().catch(() => null) as { count?: number } | null
+      setMlPending(typeof body?.count === 'number' ? body.count : 0)
+    } catch { setMlPending(0) }
+  }, [getHeaders])
+  useEffect(() => { loadMlPending() }, [loadMlPending])
+
+  const fetchMlBilling = useCallback(async () => {
+    if (mlFetching || !mlPending) return
+    setMlFetching(true)
+    setMlMsg(`Buscando até 200 pedidos no ML…`)
+    try {
+      const headers = await getHeaders()
+      const res = await fetch(`${BACKEND}/ml/orders/fetch-billing`, {
+        method: 'POST', headers, body: JSON.stringify({ limit: 200 }),
+      })
+      const body = await res.json().catch(() => null) as
+        | { processed: number; with_cpf: number; with_email: number; with_phone: number; no_data: number; errors: number }
+        | null
+      if (!res.ok || !body) {
+        setMlMsg('Falha ao consultar ML — verifique a conexão em Configurações → Integrações')
+      } else if (body.processed === 0) {
+        setMlMsg('Nenhum pedido pendente para consultar')
+      } else {
+        setMlMsg(
+          `✓ ${body.processed} consultados — ${body.with_cpf} CPFs, ${body.with_email} emails, ${body.with_phone} telefones (${body.errors} falhas)`,
+        )
+      }
+      await Promise.all([load(), loadMlPending()])
+    } catch {
+      setMlMsg('Erro de rede ao consultar ML')
+    } finally {
+      setMlFetching(false)
+      setTimeout(() => setMlMsg(null), 8000)
+    }
+  }, [mlFetching, mlPending, getHeaders, load, loadMlPending])
 
   const enrichPending = useCallback(async () => {
     if (enriching) return
@@ -175,6 +218,14 @@ export default function ClientesPage() {
           <p className="text-zinc-500 text-xs mt-0.5">Perfis unificados a partir de pedidos ML, WhatsApp, widget e enriquecimento</p>
         </div>
         <div className="flex items-center gap-2">
+          <button onClick={fetchMlBilling} disabled={mlFetching || !mlPending}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ background: '#1a1a1f', color: '#FFE600', border: '1px solid #FFE60040' }}>
+            <ScanLine size={12} className={mlFetching ? 'animate-pulse' : ''} />
+            {mlFetching
+              ? 'Buscando…'
+              : `Buscar CPFs no ML${mlPending != null ? ` (${mlPending.toLocaleString('pt-BR')} pendentes)` : ''}`}
+          </button>
           {totals.pending > 0 && (
             <button onClick={enrichPending} disabled={enriching}
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-semibold transition-all disabled:opacity-60"
@@ -192,10 +243,20 @@ export default function ClientesPage() {
         </div>
       </div>
 
-      {batchMsg && (
-        <div className="rounded-xl px-3 py-2 text-[11px]"
-          style={{ background: '#111114', border: '1px solid #27272a', color: '#d4d4d8' }}>
-          {batchMsg}
+      {(batchMsg || mlMsg) && (
+        <div className="space-y-2">
+          {mlMsg && (
+            <div className="rounded-xl px-3 py-2 text-[11px]"
+              style={{ background: '#111114', border: '1px solid #27272a', color: '#d4d4d8' }}>
+              {mlMsg}
+            </div>
+          )}
+          {batchMsg && (
+            <div className="rounded-xl px-3 py-2 text-[11px]"
+              style={{ background: '#111114', border: '1px solid #27272a', color: '#d4d4d8' }}>
+              {batchMsg}
+            </div>
+          )}
         </div>
       )}
 
