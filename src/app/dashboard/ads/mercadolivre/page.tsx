@@ -10,6 +10,8 @@ import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis,
   CartesianGrid, Tooltip, Legend,
 } from 'recharts'
+import { InsightsBanner } from '@/components/ads-ai/InsightsBanner'
+import { AdsAIChat } from '@/components/ads-ai/AdsAIChat'
 
 const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 
@@ -347,6 +349,9 @@ export default function MlAdsPage() {
 
   return (
     <div className="p-6 space-y-6 min-h-full" style={{ background: '#09090b' }}>
+
+      <InsightsBanner />
+      <AdsAIChat />
 
       {/* Header */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
