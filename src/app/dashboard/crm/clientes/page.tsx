@@ -3,425 +3,288 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase'
 import {
-  Search, RefreshCw, TrendingUp, Users, ShoppingCart,
-  MapPin, ChevronDown, ChevronUp, Package,
+  Search, RefreshCw, Users, CheckCircle2, AlertTriangle, XCircle,
+  Phone, Mail, MessageCircle,
 } from 'lucide-react'
 
-const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
+const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-
-async function getToken() {
-  const { data } = await createClient().auth.getSession()
-  return data.session?.access_token ?? null
-}
 
 // ── types ─────────────────────────────────────────────────────────────────────
 
-type EnrichedOrder = {
-  order_id: number
-  status: string
-  date_created: string
-  total_amount: number
-  buyer: {
-    id: number | null
-    nickname: string | null
-    first_name: string | null
-    last_name: string | null
-  }
-  order_items: Array<{
-    item_id: string | null
-    title: string | null
-    quantity: number
-    unit_price: number
-    thumbnail: string | null
-  }>
-  shipping: {
-    status: string | null
-    receiver_address: {
-      city: string | null
-      state: string | null
-    }
-  }
-}
-
 type Customer = {
-  buyerId: number | null
-  nickname: string
-  displayName: string
-  orders: EnrichedOrder[]
-  totalSpent: number
-  orderCount: number
-  lastOrderDate: string
-  topProducts: string[]
-  city: string | null
-  state: string | null
+  id: string
+  display_name: string | null
+  phone: string | null
+  email: string | null
+  whatsapp_id: string | null
+  ml_buyer_id: string | null
+  cpf: string | null
+  cnpj: string | null
+  total_purchases: number
+  total_conversations: number
+  first_contact_at: string
+  last_contact_at: string
+  last_channel: string | null
+  enrichment_status: string | null
+  enriched_at: string | null
+  validated_phone: boolean
+  validated_whatsapp: boolean
+  validated_email: boolean
 }
 
-type SortKey = 'totalSpent' | 'orderCount' | 'lastOrderDate' | 'displayName'
+type Filters = {
+  search:            string
+  has_cpf:           boolean
+  has_phone:         boolean
+  has_whatsapp:      boolean
+  has_email:         boolean
+  enrichment_status: string
+}
+
+const DEFAULT_FILTERS: Filters = {
+  search: '', has_cpf: false, has_phone: false, has_whatsapp: false, has_email: false, enrichment_status: '',
+}
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
-function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' })
-}
-
-function relTime(iso: string) {
+function relTime(iso: string | null) {
+  if (!iso) return '—'
   const d = Date.now() - new Date(iso).getTime()
   const days = Math.floor(d / 86400000)
   if (days === 0) return 'Hoje'
   if (days === 1) return 'Ontem'
-  if (days < 30)  return `${days}d atrás`
-  if (days < 365) return `${Math.floor(days / 30)}m atrás`
-  return `${Math.floor(days / 365)}a atrás`
+  if (days < 30)  return `${days}d`
+  if (days < 365) return `${Math.floor(days / 30)}m`
+  return `${Math.floor(days / 365)}a`
 }
 
-function initials(name: string) {
+function initials(name: string | null) {
+  if (!name) return '?'
   const parts = name.trim().split(/\s+/)
   if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
   return name.slice(0, 2).toUpperCase()
 }
 
-const AVATAR_COLORS = [
-  '#6366f1','#8b5cf6','#ec4899','#f97316','#22c55e','#06b6d4','#f59e0b','#ef4444',
-]
-function avatarColor(name: string) {
-  let h = 0
-  for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h)
-  return AVATAR_COLORS[Math.abs(h) % AVATAR_COLORS.length]
+function maskCpf(v: string | null) {
+  if (!v) return null
+  const d = v.replace(/\D/g, '')
+  if (d.length !== 11) return v
+  return `${d.slice(0, 3)}.***.***-${d.slice(-2)}`
 }
 
-// ── CustomerRow ───────────────────────────────────────────────────────────────
+function fmtPhone(v: string | null) {
+  if (!v) return null
+  const d = v.replace(/\D/g, '')
+  if (d.length < 10) return v
+  const cc = d.length > 11 ? d.slice(0, 2) : '55'
+  const rest = d.length > 11 ? d.slice(2) : d
+  const ddd = rest.slice(0, 2)
+  const num = rest.slice(2)
+  return `+${cc} (${ddd}) ${num.slice(0, 5)}-${num.slice(5)}`
+}
 
-function CustomerRow({ customer }: { customer: Customer }) {
-  const [expanded, setExpanded] = useState(false)
-  const color = avatarColor(customer.displayName)
-  const ltv = customer.totalSpent
-  const ticketMedio = ltv / customer.orderCount
-
-  return (
-    <>
-      <tr
-        className="border-b border-zinc-800/60 hover:bg-zinc-900/30 transition-colors cursor-pointer"
-        onClick={() => setExpanded(v => !v)}
-      >
-        {/* customer */}
-        <td className="py-3 px-4">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
-              style={{ background: `${color}22`, color, border: `1px solid ${color}44` }}>
-              {initials(customer.displayName)}
-            </div>
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-white truncate max-w-[180px]">{customer.displayName}</p>
-              {customer.nickname !== customer.displayName && (
-                <p className="text-[10px] text-zinc-500">{customer.nickname}</p>
-              )}
-            </div>
-          </div>
-        </td>
-
-        {/* location */}
-        <td className="py-3 px-4 text-sm text-zinc-400">
-          {customer.city && customer.state
-            ? <span className="flex items-center gap-1"><MapPin size={11} />{customer.city}, {customer.state}</span>
-            : <span className="text-zinc-700">—</span>
-          }
-        </td>
-
-        {/* orders */}
-        <td className="py-3 px-4 text-sm text-center tabular-nums text-zinc-300">{customer.orderCount}</td>
-
-        {/* total spent */}
-        <td className="py-3 px-4 text-sm font-semibold text-white tabular-nums">{brl(ltv)}</td>
-
-        {/* ticket médio */}
-        <td className="py-3 px-4 text-sm text-zinc-400 tabular-nums">{brl(ticketMedio)}</td>
-
-        {/* last order */}
-        <td className="py-3 px-4 text-sm text-zinc-400">
-          <span title={fmtDate(customer.lastOrderDate)}>{relTime(customer.lastOrderDate)}</span>
-        </td>
-
-        {/* expand */}
-        <td className="py-3 px-4 text-zinc-600">
-          {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-        </td>
-      </tr>
-
-      {/* Expanded order history */}
-      {expanded && (
-        <tr className="border-b border-zinc-800/40">
-          <td colSpan={7} className="px-4 pb-3 pt-1">
-            <div className="rounded-xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <p className="text-[10px] font-semibold text-zinc-600 uppercase tracking-wide px-3 pt-2 pb-1">
-                Histórico de pedidos
-              </p>
-              <table className="w-full">
-                <tbody>
-                  {customer.orders.slice(0, 10).map(o => (
-                    <tr key={o.order_id} className="border-t border-zinc-800/40">
-                      <td className="py-1.5 px-3">
-                        {o.order_items[0]?.thumbnail && (
-                          <img src={o.order_items[0].thumbnail} alt="" className="w-7 h-7 rounded object-cover inline-block mr-2 align-middle" />
-                        )}
-                        <span className="text-xs text-zinc-300 align-middle">
-                          {o.order_items[0]?.title ?? '—'}
-                          {o.order_items.length > 1 && <span className="text-zinc-600 ml-1">+{o.order_items.length - 1}</span>}
-                        </span>
-                      </td>
-                      <td className="py-1.5 px-3 text-xs text-zinc-500 whitespace-nowrap">{fmtDate(o.date_created)}</td>
-                      <td className="py-1.5 px-3 text-xs font-semibold text-white tabular-nums whitespace-nowrap text-right">{brl(o.total_amount)}</td>
-                      <td className="py-1.5 px-3">
-                        <span className="text-[10px] px-1.5 py-0.5 rounded font-medium"
-                          style={{
-                            background: o.status === 'paid' ? 'rgba(34,197,94,0.1)' : 'rgba(113,113,122,0.15)',
-                            color: o.status === 'paid' ? '#34d399' : '#71717a',
-                          }}>
-                          {o.status === 'paid' ? 'Pago' : o.status === 'cancelled' ? 'Cancelado' : o.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </td>
-        </tr>
-      )}
-    </>
-  )
+const STATUS_META: Record<string, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
+  pending: { label: 'Pendente', color: '#a1a1aa', bg: 'rgba(161,161,170,0.10)', icon: <AlertTriangle size={11} /> },
+  partial: { label: 'Parcial',  color: '#facc15', bg: 'rgba(250,204,21,0.10)',  icon: <AlertTriangle size={11} /> },
+  full:    { label: 'Validado', color: '#4ade80', bg: 'rgba(74,222,128,0.10)',  icon: <CheckCircle2 size={11} /> },
+  failed:  { label: 'Falhou',   color: '#f87171', bg: 'rgba(248,113,113,0.10)', icon: <XCircle size={11} /> },
 }
 
 // ── page ──────────────────────────────────────────────────────────────────────
 
 export default function ClientesPage() {
-  const [orders,   setOrders]   = useState<EnrichedOrder[]>([])
-  const [loading,  setLoading]  = useState(true)
-  const [loadingMore, setLoadingMore] = useState(false)
-  const [total,    setTotal]    = useState(0)
-  const [offset,   setOffset]   = useState(0)
-  const [search,   setSearch]   = useState('')
-  const [sortKey,  setSortKey]  = useState<SortKey>('totalSpent')
-  const [sortDir,  setSortDir]  = useState<'asc' | 'desc'>('desc')
+  const supabase = useMemo(() => createClient(), [])
+  const [list, setList] = useState<Customer[]>([])
+  const [loading, setLoading] = useState(true)
+  const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS)
 
-  const PAGE = 50
+  const getHeaders = useCallback(async () => {
+    const { data: { session } } = await supabase.auth.getSession()
+    return {
+      Authorization: `Bearer ${session?.access_token ?? ''}`,
+      'Content-Type': 'application/json',
+    }
+  }, [supabase])
 
-  const fetchOrders = useCallback(async (off: number, append = false) => {
-    const token = await getToken()
-    if (!token) return
-    if (append) setLoadingMore(true)
-    else setLoading(true)
-
+  const load = useCallback(async () => {
+    setLoading(true)
     try {
-      const params = new URLSearchParams({ offset: String(off), limit: String(PAGE) })
-      const res = await fetch(`${BACKEND}/ml/orders/enriched?${params}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      if (!res.ok) throw new Error()
-      const body: { orders: EnrichedOrder[]; total: number } = await res.json()
-      setTotal(body.total)
-      setOrders(prev => append ? [...prev, ...body.orders] : body.orders)
-      setOffset(off + body.orders.length)
-    } catch { /* non-fatal */ }
-    finally { setLoading(false); setLoadingMore(false) }
-  }, [])
-
-  useEffect(() => { fetchOrders(0) }, [fetchOrders])
-
-  // Aggregate customers from orders
-  const customers = useMemo<Customer[]>(() => {
-    const map = new Map<string, Customer>()
-    const paidOrders = orders.filter(o => o.status !== 'cancelled')
-
-    for (const o of paidOrders) {
-      const key = o.buyer?.id != null ? String(o.buyer.id) : (o.buyer?.nickname ?? 'unknown')
-      const parts = [o.buyer?.first_name, o.buyer?.last_name].filter(Boolean)
-      const displayName = parts.length > 0
-        ? parts.join(' ')
-        : (o.buyer?.nickname ?? 'Comprador desconhecido')
-
-      if (!map.has(key)) {
-        map.set(key, {
-          buyerId:       o.buyer?.id ?? null,
-          nickname:      o.buyer?.nickname ?? '—',
-          displayName,
-          orders:        [],
-          totalSpent:    0,
-          orderCount:    0,
-          lastOrderDate: o.date_created,
-          topProducts:   [],
-          city:          o.shipping?.receiver_address?.city ?? null,
-          state:         o.shipping?.receiver_address?.state ?? null,
-        })
+      const headers = await getHeaders()
+      const qs = new URLSearchParams({ limit: '500' })
+      if (filters.search.trim())     qs.set('search', filters.search.trim())
+      if (filters.has_cpf)           qs.set('has_cpf', '1')
+      if (filters.has_phone)         qs.set('has_phone', '1')
+      if (filters.has_whatsapp)      qs.set('has_whatsapp', '1')
+      if (filters.has_email)         qs.set('has_email', '1')
+      if (filters.enrichment_status) qs.set('enrichment_status', filters.enrichment_status)
+      const res = await fetch(`${BACKEND}/customers?${qs}`, { headers })
+      if (res.ok) {
+        const v = await res.json()
+        setList(Array.isArray(v) ? v : [])
       }
-      const c = map.get(key)!
-      c.orders.push(o)
-      c.totalSpent    += o.total_amount
-      c.orderCount++
-      if (o.date_created > c.lastOrderDate) {
-        c.lastOrderDate = o.date_created
-        c.city  = o.shipping?.receiver_address?.city ?? c.city
-        c.state = o.shipping?.receiver_address?.state ?? c.state
-      }
-      for (const item of o.order_items) {
-        if (item.title && !c.topProducts.includes(item.title)) c.topProducts.push(item.title)
-      }
-    }
+    } finally { setLoading(false) }
+  }, [getHeaders, filters])
+  useEffect(() => { load() }, [load])
 
-    return [...map.values()]
-  }, [orders])
-
-  // Filter + sort
-  const filtered = useMemo(() => {
-    let r = customers
-    if (search) {
-      const q = search.toLowerCase()
-      r = r.filter(c =>
-        c.displayName.toLowerCase().includes(q) ||
-        c.nickname.toLowerCase().includes(q) ||
-        (c.city ?? '').toLowerCase().includes(q)
-      )
-    }
-    return [...r].sort((a, b) => {
-      let va: string | number = 0, vb: string | number = 0
-      switch (sortKey) {
-        case 'totalSpent':     va = a.totalSpent;    vb = b.totalSpent;    break
-        case 'orderCount':     va = a.orderCount;    vb = b.orderCount;    break
-        case 'lastOrderDate':  va = a.lastOrderDate; vb = b.lastOrderDate; break
-        case 'displayName':    va = a.displayName;   vb = b.displayName;   break
-      }
-      const cmp = va < vb ? -1 : va > vb ? 1 : 0
-      return sortDir === 'asc' ? cmp : -cmp
-    })
-  }, [customers, search, sortKey, sortDir])
-
-  function handleSort(k: SortKey) {
-    if (k === sortKey) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
-    else { setSortKey(k); setSortDir('desc') }
-  }
-
-  // KPIs
-  const totalLTV   = customers.reduce((s, c) => s + c.totalSpent, 0)
-  const avgLTV     = customers.length ? totalLTV / customers.length : 0
-  const repeat     = customers.filter(c => c.orderCount > 1).length
-  const repeatRate = customers.length ? (repeat / customers.length) * 100 : 0
-
-  function SortTh({ label, k }: { label: string; k: SortKey }) {
-    const active = k === sortKey
-    return (
-      <th className="py-2.5 px-4 text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wide cursor-pointer select-none hover:text-zinc-300 transition-colors whitespace-nowrap"
-        onClick={() => handleSort(k)}>
-        <span className="flex items-center gap-1">
-          {label}
-          {active
-            ? sortDir === 'asc' ? <ChevronUp size={11} className="text-cyan-400" /> : <ChevronDown size={11} className="text-cyan-400" />
-            : <ChevronUp size={11} className="opacity-20" />}
-        </span>
-      </th>
-    )
-  }
+  const totals = useMemo(() => ({
+    total:     list.length,
+    with_cpf:  list.filter(c => c.cpf).length,
+    with_wa:   list.filter(c => c.whatsapp_id || c.validated_whatsapp).length,
+    with_mail: list.filter(c => c.email).length,
+    revenue:   list.reduce((s, c) => s + Number(c.total_purchases ?? 0), 0),
+  }), [list])
 
   return (
-    <div className="flex flex-col h-full overflow-hidden" style={{ color: '#e4e4e7' }}>
-      {/* header */}
-      <div className="flex-shrink-0 px-6 pt-6 pb-4 flex items-center justify-between gap-4">
+    <div className="p-6 space-y-5 min-h-full" style={{ background: '#09090b' }}>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="text-xl font-bold text-white">Clientes</h1>
-          <p className="text-sm text-zinc-500 mt-0.5">
-            {loading ? 'Carregando…' : `${customers.length} clientes de ${orders.filter(o => o.status !== 'cancelled').length} pedidos`}
-          </p>
+          <p className="text-zinc-500 text-xs font-medium uppercase tracking-widest">CRM</p>
+          <h1 className="text-white text-xl font-semibold flex items-center gap-2"><Users size={18} /> Clientes</h1>
+          <p className="text-zinc-500 text-xs mt-0.5">Perfis unificados a partir de pedidos ML, WhatsApp, widget e enriquecimento</p>
         </div>
-        <button onClick={() => fetchOrders(0)} disabled={loading}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm transition-all"
-          style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#a1a1aa' }}>
-          <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
+        <button onClick={load} disabled={loading}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-semibold transition-all disabled:opacity-60"
+          style={{ background: '#111114', color: '#a1a1aa', border: '1px solid #27272a' }}>
+          <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
           Atualizar
         </button>
       </div>
 
       {/* KPIs */}
-      {!loading && customers.length > 0 && (
-        <div className="flex-shrink-0 px-6 pb-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {[
-            { label: 'Total de clientes',  value: String(customers.length), icon: <Users size={16} /> },
-            { label: 'LTV médio',          value: brl(avgLTV),              icon: <TrendingUp size={16} /> },
-            { label: 'Recompra',           value: `${repeatRate.toFixed(0)}%`, icon: <ShoppingCart size={16} /> },
-            { label: 'Pedidos carregados', value: `${orders.length}/${total}`, icon: <Package size={16} /> },
-          ].map(k => (
-            <div key={k.label} className="rounded-xl px-4 py-3 flex items-center gap-3"
-              style={{ background: '#111114', border: '1px solid #1e1e24' }}>
-              <span className="text-cyan-500">{k.icon}</span>
-              <div>
-                <p className="text-[10px] text-zinc-500">{k.label}</p>
-                <p className="text-lg font-bold text-white leading-tight">{k.value}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* search */}
-      <div className="flex-shrink-0 px-6 pb-3 flex items-center gap-3">
-        <div className="relative">
-          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Buscar cliente ou cidade…"
-            className="pl-8 pr-3 py-1.5 rounded-lg text-sm bg-zinc-800/60 border border-zinc-700 text-white placeholder-zinc-500 focus:outline-none focus:border-cyan-600"
-            style={{ width: 240 }}
-          />
-        </div>
-        <span className="text-xs text-zinc-600 ml-auto">{filtered.length} clientes</span>
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <Kpi label="Total"     value={totals.total.toLocaleString('pt-BR')}      color="#00E5FF" />
+        <Kpi label="Com CPF"   value={totals.with_cpf.toLocaleString('pt-BR')}   color="#a78bfa" />
+        <Kpi label="WhatsApp"  value={totals.with_wa.toLocaleString('pt-BR')}    color="#25D366" />
+        <Kpi label="Email"     value={totals.with_mail.toLocaleString('pt-BR')}  color="#60a5fa" />
+        <Kpi label="GMV"       value={brl(totals.revenue)}                       color="#4ade80" />
       </div>
 
-      {/* table */}
-      <div className="flex-1 overflow-auto px-6 pb-6 min-h-0">
-        {loading ? (
-          <div className="flex items-center justify-center h-40 text-zinc-600 text-sm gap-2">
-            <RefreshCw size={14} className="animate-spin" /> Carregando pedidos…
-          </div>
-        ) : customers.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-40 text-zinc-600 gap-2">
-            <Users size={24} />
-            <span className="text-sm">Nenhum cliente encontrado</span>
-          </div>
-        ) : (
-          <>
-            <table className="w-full border-collapse">
-              <thead className="sticky top-0 z-10" style={{ background: 'rgba(9,9,11,0.95)' }}>
-                <tr className="border-b border-zinc-800">
-                  <SortTh label="Cliente"      k="displayName" />
-                  <th className="py-2.5 px-4 text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wide">Localização</th>
-                  <SortTh label="Pedidos"      k="orderCount" />
-                  <SortTh label="Total gasto"  k="totalSpent" />
-                  <th className="py-2.5 px-4 text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wide">Ticket médio</th>
-                  <SortTh label="Último pedido" k="lastOrderDate" />
-                  <th className="py-2.5 px-4 w-8" />
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map(c => <CustomerRow key={c.buyerId ?? c.nickname} customer={c} />)}
-              </tbody>
-            </table>
+      {/* Filters */}
+      <div className="rounded-2xl p-4 flex items-center gap-2 flex-wrap" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+        <div className="relative flex-1 min-w-[240px]">
+          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+          <input value={filters.search} onChange={e => setFilters({ ...filters, search: e.target.value })}
+            placeholder="Buscar por nome, telefone, email ou CPF..."
+            className="w-full pl-9 pr-3 py-2 text-sm rounded-lg bg-[#0c0c10] border border-[#27272a] text-zinc-200 outline-none focus:border-[#00E5FF]" />
+        </div>
+        <FilterPill label="Com CPF"      active={filters.has_cpf}      onClick={() => setFilters({ ...filters, has_cpf:      !filters.has_cpf })} />
+        <FilterPill label="Com Telefone" active={filters.has_phone}    onClick={() => setFilters({ ...filters, has_phone:    !filters.has_phone })} />
+        <FilterPill label="Com WhatsApp" active={filters.has_whatsapp} onClick={() => setFilters({ ...filters, has_whatsapp: !filters.has_whatsapp })} />
+        <FilterPill label="Com Email"    active={filters.has_email}    onClick={() => setFilters({ ...filters, has_email:    !filters.has_email })} />
+        <select value={filters.enrichment_status} onChange={e => setFilters({ ...filters, enrichment_status: e.target.value })}
+          className="text-[11px] bg-[#0c0c10] border border-[#27272a] text-zinc-300 rounded-lg px-2 py-1.5">
+          <option value="">Qualquer status</option>
+          <option value="pending">Pendentes</option>
+          <option value="partial">Parciais</option>
+          <option value="full">Validados</option>
+          <option value="failed">Falharam</option>
+        </select>
+      </div>
 
-            {/* load more */}
-            {offset < total && (
-              <div className="flex justify-center pt-4">
-                <button
-                  onClick={() => fetchOrders(offset, true)}
-                  disabled={loadingMore}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all"
-                  style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#a1a1aa' }}
-                >
-                  {loadingMore ? <RefreshCw size={13} className="animate-spin" /> : <ChevronDown size={13} />}
-                  Carregar mais ({total - offset} restantes)
-                </button>
-              </div>
-            )}
-          </>
-        )}
+      {/* Table */}
+      <div className="rounded-2xl overflow-hidden" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="text-left text-[10px] uppercase tracking-wide text-zinc-600" style={{ borderBottom: '1px solid #1a1a1f' }}>
+                <th className="px-3 py-2 font-semibold">Cliente</th>
+                <th className="px-3 py-2 font-semibold">CPF</th>
+                <th className="px-3 py-2 font-semibold">Contatos</th>
+                <th className="px-3 py-2 font-semibold">Status</th>
+                <th className="px-3 py-2 font-semibold text-right">Compras</th>
+                <th className="px-3 py-2 font-semibold text-right">Última</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan={6} className="px-3 py-8 text-center text-xs text-zinc-600">Carregando…</td></tr>
+              ) : list.length === 0 ? (
+                <tr><td colSpan={6} className="px-3 py-8 text-center text-xs text-zinc-600 italic">
+                  Nenhum cliente encontrado. {filters.has_cpf || filters.enrichment_status ? 'Tente limpar os filtros.' : ''}
+                </td></tr>
+              ) : list.map(c => {
+                const status = STATUS_META[c.enrichment_status ?? 'pending'] ?? STATUS_META.pending
+                return (
+                  <tr key={c.id} className="hover:bg-[#161618] transition-colors">
+                    <td className="px-3 py-2.5">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
+                          style={{ background: '#1a1a1f', color: '#a1a1aa' }}>
+                          {initials(c.display_name)}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-zinc-200 text-xs font-medium truncate max-w-[200px]">{c.display_name ?? '(sem nome)'}</p>
+                          <p className="text-[10px] text-zinc-600">
+                            {c.last_channel ?? '—'}
+                            {c.ml_buyer_id && <span className="ml-1 font-mono">· ML #{c.ml_buyer_id}</span>}
+                          </p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-3 py-2.5 text-xs text-zinc-400 font-mono">{maskCpf(c.cpf) ?? '—'}</td>
+                    <td className="px-3 py-2.5">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {c.phone && (
+                          <span className="text-[10px] inline-flex items-center gap-1 px-1.5 py-0.5 rounded" style={{ background: 'rgba(96,165,250,0.10)', color: '#60a5fa' }}>
+                            <Phone size={9} /> {fmtPhone(c.phone)}
+                          </span>
+                        )}
+                        {c.whatsapp_id && (
+                          <span className="text-[10px] inline-flex items-center gap-1 px-1.5 py-0.5 rounded" style={{ background: 'rgba(37,211,102,0.10)', color: '#25D366' }}>
+                            <MessageCircle size={9} /> WA
+                          </span>
+                        )}
+                        {c.email && (
+                          <span className="text-[10px] inline-flex items-center gap-1 px-1.5 py-0.5 rounded max-w-[180px] truncate" style={{ background: 'rgba(167,139,250,0.10)', color: '#a78bfa' }}>
+                            <Mail size={9} /> {c.email}
+                          </span>
+                        )}
+                        {!c.phone && !c.whatsapp_id && !c.email && <span className="text-[10px] text-zinc-700">—</span>}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <span className="text-[10px] font-semibold inline-flex items-center gap-1 px-2 py-0.5 rounded"
+                        style={{ color: status.color, background: status.bg }}>
+                        {status.icon} {status.label}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5 text-right">
+                      <p className="text-xs font-semibold text-zinc-200 tabular-nums">{brl(Number(c.total_purchases ?? 0))}</p>
+                      <p className="text-[10px] text-zinc-600">{c.total_conversations} conv.</p>
+                    </td>
+                    <td className="px-3 py-2.5 text-right text-[11px] text-zinc-500">{relTime(c.last_contact_at)}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
+  )
+}
+
+function Kpi({ label, value, color }: { label: string; value: string; color: string }) {
+  return (
+    <div className="rounded-2xl p-4 flex flex-col gap-1.5 min-h-[90px] justify-between"
+      style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+      <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">{label}</span>
+      <p className="text-xl font-bold tabular-nums" style={{ color }}>{value}</p>
+    </div>
+  )
+}
+
+function FilterPill({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button onClick={onClick}
+      className="text-[11px] px-3 py-1.5 rounded-lg font-medium transition-colors"
+      style={{
+        background: active ? '#00E5FF' : '#0c0c10',
+        color:      active ? '#000'    : '#a1a1aa',
+        border: '1px solid ' + (active ? '#00E5FF' : '#27272a'),
+      }}>
+      {label}
+    </button>
   )
 }
