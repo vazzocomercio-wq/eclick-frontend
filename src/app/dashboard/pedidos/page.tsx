@@ -3,6 +3,11 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
+import {
+  MoreHorizontal, Truck, Printer, Send, AlertOctagon, Megaphone, Ban,
+  Headphones, BarChart2, Eye,
+} from 'lucide-react'
+import { ToastViewport, todoToast } from '@/hooks/useToast'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 const PAGE = 20
@@ -125,6 +130,65 @@ function ago(iso: string) {
   return (
     d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' +
     d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  )
+}
+
+// ── Order actions menu (kebab) ────────────────────────────────────────────────
+
+function OrderActionsMenu({ order }: { order: MOrder }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    function h(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [])
+
+  const trackingUrl = order.shipping?.id ? `https://www.mercadolibre.com.br/envios/${order.shipping.id}` : null
+
+  const items: Array<{ key: string; label: string; icon: React.ReactNode; tone?: string; onClick: () => void }> = [
+    { key: 'rastreio',  label: 'Acompanhar rastreio',     icon: <Truck size={12} />,
+      onClick: () => { trackingUrl ? window.open(trackingUrl, '_blank') : todoToast('Rastreio sem ID de envio') } },
+    { key: 'etiqueta',  label: 'Reimprimir etiqueta',     icon: <Printer size={12} />,    onClick: () => todoToast('Reimpressão de etiqueta') },
+    { key: 'wa',        label: 'Disparar WhatsApp',       icon: <Send size={12} />,       onClick: () => todoToast('Mensagem WhatsApp ao comprador') },
+    { key: 'problema',  label: 'Marcar problema',         icon: <AlertOctagon size={12} />, tone: 'warn',  onClick: () => todoToast('Marcação de reclamação') },
+    { key: 'posvenda',  label: 'Iniciar pós-venda',       icon: <Megaphone size={12} />,  onClick: () => todoToast('Campanha pós-venda') },
+    { key: 'cancelar',  label: 'Cancelar / reembolsar',   icon: <Ban size={12} />,  tone: 'danger', onClick: () => todoToast('Cancelamento ML') },
+    { key: 'sac',       label: 'Vincular ao SAC',         icon: <Headphones size={12} />, onClick: () => todoToast('Bridge SAC ↔ Atendente IA') },
+    { key: 'margem',    label: 'Análise de margem',       icon: <BarChart2 size={12} />,  onClick: () => todoToast('Drill-down de margem') },
+    { key: 'detalhes',  label: 'Ver detalhes (ML)',       icon: <Eye size={12} />,
+      onClick: () => window.open(`https://www.mercadolibre.com.br/orders/${order.order_id}`, '_blank') },
+  ]
+
+  return (
+    <div className="relative" ref={ref}>
+      <button onClick={() => setOpen(o => !o)}
+        className="p-1.5 rounded-md hover:bg-zinc-800/80 text-zinc-400 hover:text-zinc-200 transition-colors"
+        title="Ações">
+        <MoreHorizontal size={14} />
+      </button>
+      {open && (
+        <div className="absolute z-40 right-0 mt-1 min-w-[220px] rounded-xl py-1 shadow-2xl"
+          style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+          {items.map(it => {
+            const tone =
+              it.tone === 'danger' ? '#f87171' :
+              it.tone === 'warn'   ? '#facc15' : '#e4e4e7'
+            return (
+              <button key={it.key}
+                onClick={() => { it.onClick(); setOpen(false) }}
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-[12px] text-left hover:bg-zinc-900/70"
+                style={{ color: tone }}>
+                <span className="shrink-0 w-4 flex items-center justify-center">{it.icon}</span>
+                <span>{it.label}</span>
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -500,7 +564,11 @@ function OrderCard({
     .join(' · ')
 
   return (
-    <div className="rounded-xl transition-colors" style={{ background: '#0f0f12', border: '1px solid #1a1a1f' }}>
+    <div className="rounded-xl transition-colors relative" style={{ background: '#0f0f12', border: '1px solid #1a1a1f' }}>
+      {/* Floating row actions kebab — top-right of every order card. */}
+      <div className="absolute top-2 right-2 z-10">
+        <OrderActionsMenu order={order} />
+      </div>
       <div className="grid gap-0" style={{ gridTemplateColumns: '200px 1fr 210px' }}>
 
         {/* ── Buyer ── */}
@@ -1496,6 +1564,7 @@ export default function PedidosPage() {
 
   return (
     <div style={{ background: '#09090b', minHeight: '100vh' }} className="p-6 max-w-[1400px] space-y-5">
+      <ToastViewport />
       <Toasts list={toasts} />
 
       {/* Header */}
