@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase'
-import { Users, Search, Loader2, X, Phone, Mail, Tag, MessageSquare, Save, ExternalLink, Filter } from 'lucide-react'
+import { Users, Search, Loader2, X, Phone, Mail, Tag, MessageSquare, Save, ExternalLink, Filter, Sparkles, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
@@ -290,6 +290,9 @@ function CustomerProfileModal({ customerId, onClose, onSaved, getHeaders }: {
               <ContactRow icon={<Mail size={12} />} label="Email" value={profile.email ?? '—'} />
             </div>
 
+            {/* Enrichment status + action */}
+            <EnrichmentBlock customerId={customerId} phone={profile.phone} getHeaders={getHeaders} />
+
             {/* Channel IDs */}
             <div className="rounded-xl p-3 space-y-1.5" style={{ background: '#0d0d10', border: '1px solid #1e1e24' }}>
               <p className="text-[10px] uppercase tracking-widest text-zinc-500">Vínculos por canal</p>
@@ -406,5 +409,125 @@ function Stat({ label, value, sub }: { label: string; value: string; sub?: strin
       <p className="text-lg font-bold text-white tabular-nums">{value}</p>
       <p className="text-[10px] text-zinc-500 mt-0.5">{label} {sub && <span className="text-zinc-600">{sub}</span>}</p>
     </div>
+  )
+}
+
+// ── Enrichment block (in profile modal) ───────────────────────────────────────
+
+type EnrichLogRow = { id: string; query_type: string; final_status: string; final_provider: string | null; created_at: string }
+
+function EnrichmentBlock({ customerId, phone, getHeaders }: {
+  customerId: string
+  phone: string | null
+  getHeaders: () => Promise<Record<string, string>>
+}) {
+  const [history, setHistory] = useState<EnrichLogRow[]>([])
+  const [open, setOpen] = useState(false)
+  const [running, setRunning] = useState(false)
+
+  // Selected types in the modal (default: cpf + phone if phone exists)
+  const [picks, setPicks] = useState<Record<string, boolean>>({
+    cpf: true, phone: !!phone, whatsapp: !!phone, email: false, cnpj: false, cep: false,
+  })
+
+  const load = useCallback(async () => {
+    const headers = await getHeaders()
+    const res = await fetch(`${BACKEND}/enrichment/log?customer_id=${customerId}`, { headers })
+    if (res.ok) {
+      const v = await res.json()
+      setHistory(Array.isArray(v) ? v : [])
+    }
+  }, [getHeaders, customerId])
+  useEffect(() => { load() }, [load])
+
+  const lastSuccess = history.find(h => h.final_status === 'success' || h.final_status === 'partial' || h.final_status === 'cached')
+  const lastFailed  = history.find(h => h.final_status === 'failed')
+
+  let status: { label: string; color: string; icon: React.ReactNode }
+  if (lastSuccess) {
+    const partial = lastSuccess.final_status === 'partial'
+    status = partial
+      ? { label: 'Parcial',    color: '#facc15', icon: <AlertTriangle size={11} /> }
+      : { label: 'Validado',   color: '#4ade80', icon: <CheckCircle2 size={11} /> }
+  } else if (lastFailed) {
+    status = { label: 'Falhou', color: '#f87171', icon: <XCircle size={11} /> }
+  } else {
+    status = { label: 'Pendente', color: '#a1a1aa', icon: <AlertTriangle size={11} /> }
+  }
+  const lastWhen = lastSuccess?.created_at ?? lastFailed?.created_at ?? null
+  const lastAgo = lastWhen ? ago(lastWhen) : null
+
+  async function runEnrich() {
+    setRunning(true)
+    try {
+      const headers = await getHeaders()
+      // Fetch the customer to get the identifier values
+      const cRes = await fetch(`${BACKEND}/customers/${customerId}`, { headers })
+      const c = cRes.ok ? await cRes.json() : null
+      if (!c) return
+      const types = Object.entries(picks).filter(([, v]) => v).map(([k]) => k)
+      for (const qt of types) {
+        let value: string | null = null
+        if (qt === 'cpf')      value = c.cpf      ?? null
+        if (qt === 'cnpj')     value = c.cnpj     ?? null
+        if (qt === 'phone' || qt === 'whatsapp') value = c.phone ?? c.whatsapp_id ?? null
+        if (qt === 'email')    value = c.email    ?? null
+        if (!value) continue
+        await fetch(`${BACKEND}/enrichment/enrich`, {
+          method: 'POST', headers,
+          body: JSON.stringify({ query_type: qt, query_value: value, customer_id: customerId, trigger_source: 'manual' }),
+        }).catch(() => null)
+      }
+      await load()
+      setOpen(false)
+    } finally { setRunning(false) }
+  }
+
+  return (
+    <>
+      <div className="rounded-xl p-3 flex items-center gap-3" style={{ background: '#0d0d10', border: '1px solid #1e1e24' }}>
+        <Sparkles size={14} className="text-cyan-400 shrink-0" />
+        <div className="flex-1">
+          <p className="text-[11px] text-zinc-300 font-medium">Enriquecimento</p>
+          <p className="text-[10px] text-zinc-500">
+            <span className="inline-flex items-center gap-1" style={{ color: status.color }}>{status.icon} {status.label}</span>
+            {lastAgo && <span className="ml-2 text-zinc-600">há {lastAgo}</span>}
+          </p>
+        </div>
+        <button onClick={() => setOpen(true)}
+          className="text-[10px] font-semibold px-2 py-1 rounded-lg"
+          style={{ background: '#00E5FF', color: '#000' }}>
+          Enriquecer dados
+        </button>
+      </div>
+
+      {open && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={() => setOpen(false)}>
+          <div onClick={e => e.stopPropagation()} className="w-full max-w-sm rounded-2xl p-5 space-y-3"
+            style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+            <h3 className="text-white text-sm font-semibold">Enriquecer este cliente</h3>
+            <p className="text-zinc-500 text-[11px]">Marque os dados que deseja consultar:</p>
+            <div className="space-y-1.5">
+              {(['cpf','cnpj','phone','whatsapp','email'] as const).map(t => (
+                <label key={t} className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={picks[t]} onChange={e => setPicks({ ...picks, [t]: e.target.checked })}
+                    className="accent-cyan-400" />
+                  <span className="text-xs text-zinc-300">{t.toUpperCase()}</span>
+                </label>
+              ))}
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button onClick={() => setOpen(false)} className="flex-1 py-2 rounded-lg text-xs text-zinc-400 hover:text-white"
+                style={{ background: '#1a1a1f', border: '1px solid #27272a' }}>Cancelar</button>
+              <button onClick={runEnrich} disabled={running}
+                className="flex-1 py-2 rounded-lg text-xs font-semibold disabled:opacity-60"
+                style={{ background: '#00E5FF', color: '#000' }}>
+                {running ? 'Consultando…' : 'Consultar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }

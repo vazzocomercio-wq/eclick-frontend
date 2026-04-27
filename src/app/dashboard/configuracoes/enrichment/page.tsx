@@ -347,24 +347,221 @@ function RoutingTab({ getHeaders }: { getHeaders: () => Promise<Record<string, s
   )
 }
 
-// ── Stats / Log placeholders (filled in C5) ───────────────────────────────────
+// ── Stats Tab ─────────────────────────────────────────────────────────────────
 
-function StatsTab({ getHeaders: _ }: { getHeaders: () => Promise<Record<string, string>> }) {
+type Stats = {
+  totals: { queries: number; cache_hits: number; cache_hit_rate: number; cost_brl: number }
+  by_provider: Record<string, { queries: number; success: number; cost_cents: number }>
+  by_type:     Record<string, { queries: number; success: number }>
+  by_day: Array<{ date: string; count: number }>
+}
+
+function StatsTab({ getHeaders }: { getHeaders: () => Promise<Record<string, string>> }) {
+  const [s, setS] = useState<Stats | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const headers = await getHeaders()
+        const res = await fetch(`${BACKEND}/enrichment/stats`, { headers })
+        if (res.ok) setS(await res.json())
+      } finally { setLoading(false) }
+    })()
+  }, [getHeaders])
+
+  if (loading) return <p className="text-zinc-600 text-xs text-center py-8">Carregando…</p>
+  if (!s) return <p className="text-zinc-600 text-xs text-center py-8 italic">Sem dados ainda.</p>
+
+  const fmtBRL = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+  const fmtPct = (n: number) => `${(n * 100).toFixed(1)}%`
+  const maxDay = Math.max(1, ...s.by_day.map(d => d.count))
+
   return (
-    <div className="rounded-2xl p-8 text-center space-y-2"
-      style={{ background: '#111114', border: '1px solid #1e1e24' }}>
-      <AlertCircle size={20} className="mx-auto text-zinc-600" />
-      <p className="text-xs text-zinc-500">Estatísticas serão liberadas no próximo deploy.</p>
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <Kpi label="Consultas (30d)"    value={s.totals.queries.toLocaleString('pt-BR')} color="#00E5FF" />
+        <Kpi label="Cache hits"         value={s.totals.cache_hits.toLocaleString('pt-BR')} color="#60a5fa" />
+        <Kpi label="Cache hit rate"     value={fmtPct(s.totals.cache_hit_rate)} color="#a78bfa" />
+        <Kpi label="Custo no mês"       value={fmtBRL(s.totals.cost_brl)} color="#f87171" />
+      </div>
+
+      {/* Daily sparkline */}
+      <div className="rounded-2xl p-5 space-y-3" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+        <h3 className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">Consultas por dia (30d)</h3>
+        <div className="flex items-end gap-0.5 h-24">
+          {s.by_day.length === 0 ? (
+            <p className="text-xs text-zinc-600 italic">Sem dados</p>
+          ) : s.by_day.map(d => (
+            <div key={d.date} className="flex-1 transition-all hover:opacity-80"
+              title={`${d.date}: ${d.count}`}
+              style={{ height: `${(d.count / maxDay) * 100}%`, background: '#00E5FF', minHeight: 1, borderRadius: 2 }} />
+          ))}
+        </div>
+      </div>
+
+      {/* By provider + by type */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <DistTable title="Por provedor" rows={Object.entries(s.by_provider).map(([k, v]) => ({
+          label: PROVIDER_META[k]?.label ?? k,
+          queries: v.queries,
+          success: v.success,
+          extra:   `${fmtBRL(v.cost_cents / 100)}`,
+        }))} />
+        <DistTable title="Por tipo" rows={Object.entries(s.by_type).map(([k, v]) => ({
+          label: k.toUpperCase(),
+          queries: v.queries,
+          success: v.success,
+        }))} />
+      </div>
     </div>
   )
 }
 
-function LogTab({ getHeaders: _ }: { getHeaders: () => Promise<Record<string, string>> }) {
+function Kpi({ label, value, color }: { label: string; value: string; color: string }) {
   return (
-    <div className="rounded-2xl p-8 text-center space-y-2"
+    <div className="rounded-2xl p-4 flex flex-col gap-2 min-h-[100px] justify-between"
       style={{ background: '#111114', border: '1px solid #1e1e24' }}>
-      <AlertCircle size={20} className="mx-auto text-zinc-600" />
-      <p className="text-xs text-zinc-500">Histórico será liberado no próximo deploy.</p>
+      <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">{label}</span>
+      <p className="text-xl font-bold tabular-nums" style={{ color }}>{value}</p>
+    </div>
+  )
+}
+
+function DistTable({ title, rows }: { title: string; rows: Array<{ label: string; queries: number; success: number; extra?: string }> }) {
+  return (
+    <div className="rounded-2xl p-5" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+      <h3 className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-3">{title}</h3>
+      {rows.length === 0 ? (
+        <p className="text-xs text-zinc-600 italic">Sem dados</p>
+      ) : (
+        <div className="space-y-1.5">
+          {rows.sort((a, b) => b.queries - a.queries).map(r => {
+            const succRate = r.queries > 0 ? r.success / r.queries : 0
+            return (
+              <div key={r.label} className="flex items-center justify-between text-xs">
+                <span className="text-zinc-300 truncate flex-1">{r.label}</span>
+                <span className="text-zinc-500 w-16 text-right tabular-nums">{r.queries}</span>
+                <span className="text-zinc-500 w-12 text-right tabular-nums" style={{ color: succRate > 0.7 ? '#4ade80' : succRate > 0.3 ? '#facc15' : '#f87171' }}>
+                  {(succRate * 100).toFixed(0)}%
+                </span>
+                {r.extra && <span className="text-zinc-500 w-20 text-right tabular-nums">{r.extra}</span>}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Log Tab ───────────────────────────────────────────────────────────────────
+
+type LogRow = {
+  id: string
+  query_type: string
+  query_value_masked: string
+  trigger_source: string
+  final_provider: string | null
+  final_status: string
+  duration_ms: number
+  cost_cents: number
+  cache_hit: boolean
+  customer_id: string | null
+  created_at: string
+}
+
+function LogTab({ getHeaders }: { getHeaders: () => Promise<Record<string, string>> }) {
+  const [list, setList] = useState<LogRow[]>([])
+  const [loading, setLoading] = useState(true)
+  const [filterType, setFilterType] = useState<string>('')
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const headers = await getHeaders()
+      const res = await fetch(`${BACKEND}/enrichment/log`, { headers })
+      if (res.ok) {
+        const v = await res.json()
+        setList(Array.isArray(v) ? v : [])
+      }
+    } finally { setLoading(false) }
+  }, [getHeaders])
+  useEffect(() => { load() }, [load])
+
+  function exportCsv() {
+    const head = 'created_at,type,value_masked,provider,status,duration_ms,cost_cents,cache_hit\n'
+    const rows = list.map(r => [
+      r.created_at, r.query_type, r.query_value_masked,
+      r.final_provider ?? '', r.final_status, r.duration_ms,
+      r.cost_cents, r.cache_hit ? 'sim' : 'não',
+    ].join(',')).join('\n')
+    const blob = new Blob([head + rows], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = `enrichment-log-${Date.now()}.csv`; a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const filtered = filterType ? list.filter(r => r.query_type === filterType) : list
+
+  const STATUS_COLOR: Record<string, string> = {
+    success: '#4ade80', partial: '#facc15', cached: '#60a5fa',
+    failed:  '#f87171', no_credit: '#f59e0b', rate_limited: '#a78bfa',
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <select value={filterType} onChange={e => setFilterType(e.target.value)}
+          className="text-[11px] bg-[#111114] border border-[#27272a] text-zinc-300 rounded-lg px-2 py-1.5">
+          <option value="">Todos os tipos</option>
+          {QUERY_TYPES.map(t => <option key={t} value={t}>{t.toUpperCase()}</option>)}
+        </select>
+        <button onClick={exportCsv} disabled={filtered.length === 0}
+          className="text-[11px] px-3 py-1.5 rounded-lg disabled:opacity-50"
+          style={{ background: '#111114', color: '#a1a1aa', border: '1px solid #27272a' }}>
+          Exportar CSV
+        </button>
+      </div>
+
+      <div className="rounded-2xl overflow-hidden" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="text-left text-[10px] uppercase tracking-wide text-zinc-600" style={{ borderBottom: '1px solid #1a1a1f' }}>
+              <th className="px-3 py-2 font-semibold">Data</th>
+              <th className="px-3 py-2 font-semibold">Tipo</th>
+              <th className="px-3 py-2 font-semibold">Valor (mascarado)</th>
+              <th className="px-3 py-2 font-semibold">Provedor</th>
+              <th className="px-3 py-2 font-semibold">Status</th>
+              <th className="px-3 py-2 font-semibold text-right">ms</th>
+              <th className="px-3 py-2 font-semibold text-right">R$</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr><td colSpan={7} className="px-3 py-8 text-center text-zinc-600">Carregando…</td></tr>
+            ) : filtered.length === 0 ? (
+              <tr><td colSpan={7} className="px-3 py-8 text-center text-zinc-600 italic">Sem registros.</td></tr>
+            ) : filtered.slice(0, 200).map(r => (
+              <tr key={r.id} className="hover:bg-[#161618] transition-colors">
+                <td className="px-3 py-2 text-zinc-500 text-[10px] tabular-nums">{r.created_at?.slice(0, 19).replace('T', ' ')}</td>
+                <td className="px-3 py-2 text-zinc-300 uppercase tracking-wide text-[10px]">{r.query_type}</td>
+                <td className="px-3 py-2 text-zinc-400 font-mono text-[11px]">{r.query_value_masked}{r.cache_hit && <span className="ml-1 text-[9px] text-blue-400">cached</span>}</td>
+                <td className="px-3 py-2 text-zinc-400">{r.final_provider ? (PROVIDER_META[r.final_provider]?.label ?? r.final_provider) : '—'}</td>
+                <td className="px-3 py-2">
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded"
+                    style={{ color: STATUS_COLOR[r.final_status] ?? '#a1a1aa', background: (STATUS_COLOR[r.final_status] ?? '#a1a1aa') + '15' }}>
+                    {r.final_status}
+                  </span>
+                </td>
+                <td className="px-3 py-2 text-zinc-500 text-right tabular-nums">{r.duration_ms}</td>
+                <td className="px-3 py-2 text-zinc-500 text-right tabular-nums">{(r.cost_cents / 100).toFixed(2)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }
