@@ -140,6 +140,8 @@ function ProviderCard({
   const [saving, setSaving]   = useState(false)
   const [testing, setTesting] = useState(false)
   const [testRes, setTestRes] = useState<{ ok: boolean; message: string } | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [savedAt, setSavedAt]     = useState<number | null>(null)
 
   const spentPct = p.monthly_budget_brl && p.monthly_budget_brl > 0
     ? Math.min(100, (Number(p.monthly_spent_brl) / Number(p.monthly_budget_brl)) * 100)
@@ -149,9 +151,10 @@ function ProviderCard({
 
   async function save() {
     setSaving(true)
+    setSaveError(null)
     try {
       const headers = await getHeaders()
-      await fetch(`${BACKEND}/enrichment/providers/${p.provider_code}`, {
+      const res = await fetch(`${BACKEND}/enrichment/providers/${p.provider_code}`, {
         method: 'PATCH', headers,
         body: JSON.stringify({
           display_name: p.display_name,
@@ -162,7 +165,18 @@ function ProviderCard({
           monthly_budget_brl: p.monthly_budget_brl,
         }),
       })
+      // Backend's safe<T> wrapper returns null on errors with status 200 —
+      // verify the response body is the saved row, not null.
+      const body = await res.json().catch(() => null)
+      if (!res.ok || body === null) {
+        setSaveError('Não foi possível salvar — confira os campos e tente novamente.')
+        return
+      }
+      setSavedAt(Date.now())
       onChange()
+    } catch (e: unknown) {
+      const err = e as { message?: string }
+      setSaveError(err?.message ?? 'Erro de conexão')
     } finally { setSaving(false) }
   }
   async function test() {
@@ -227,7 +241,15 @@ function ProviderCard({
 
       <div className="flex items-center justify-between gap-2 flex-wrap pt-1">
         <div className="flex items-center gap-2">
-          {testRes ? (
+          {saveError ? (
+            <div className="flex items-center gap-1.5 text-[11px] text-red-400">
+              <XCircle size={12} /><span className="truncate max-w-xs">{saveError}</span>
+            </div>
+          ) : savedAt ? (
+            <div className="flex items-center gap-1.5 text-[11px] text-emerald-400">
+              <CheckCircle2 size={12} /><span>Salvo</span>
+            </div>
+          ) : testRes ? (
             <div className="flex items-center gap-1.5 text-[11px]"
               style={{ color: testRes.ok ? '#4ade80' : '#f87171' }}>
               {testRes.ok ? <CheckCircle2 size={12} /> : <XCircle size={12} />}
