@@ -39,6 +39,19 @@ type MOrder = {
     doc_type:            string | null
     doc_number:          string | null
     full_name:           string | null
+    billing_last_name:   string | null
+    billing_info_id:     string | null
+    billing_address: {
+      country_id?:    string | null
+      state?:         { id?: string | null; name?: string | null } | null
+      city?:          { id?: string | null; name?: string | null } | null
+      zip_code?:      string | null
+      street_name?:   string | null
+      street_number?: string | null
+      comment?:       string | null
+      neighborhood?:  { id?: string | null; name?: string | null } | null
+    } | null
+    billing_country:     string | null
     email:               string | null
     phone:               string | null
     billing_fetched_at:  string | null
@@ -452,7 +465,21 @@ function OrderCard({
         headers: { ...headers, 'Content-Type': 'application/json' },
       })
       const body = await res.json().catch(() => null) as
-        | { ok: boolean; buyer: { doc_type: string | null; doc_number: string | null; email: string | null; phone: string | null; name: string | null } | null; message?: string }
+        | {
+            ok: boolean
+            buyer: {
+              doc_type:        string | null
+              doc_number:      string | null
+              email:           string | null
+              phone:           string | null
+              name:            string | null
+              last_name:       string | null
+              billing_info_id: string | null
+              billing_address: MOrder['buyer']['billing_address']
+            } | null
+            log?: string[]
+            message?: string
+          }
         | null
       if (!res.ok || !body?.ok || !body.buyer) {
         onToast(body?.message ?? 'Falha ao buscar dados do comprador', 'error')
@@ -462,6 +489,10 @@ function OrderCard({
           doc_type:           body.buyer.doc_type,
           doc_number:         body.buyer.doc_number,
           full_name:          body.buyer.name,
+          billing_last_name:  body.buyer.last_name,
+          billing_info_id:    body.buyer.billing_info_id,
+          billing_address:    body.buyer.billing_address,
+          billing_country:    body.buyer.billing_address?.country_id ?? 'BR',
           email:              body.buyer.email,
           phone:              body.buyer.phone,
           billing_fetched_at: new Date().toISOString(),
@@ -967,12 +998,36 @@ function OrderCard({
                 </div>
               )}
 
-              {liveBuyer.email && (
-                <div className="flex items-start gap-1.5">
-                  <span className="text-[11px] text-zinc-600 w-14 shrink-0">Email</span>
-                  <span className="text-[11px] text-zinc-300 break-all">{liveBuyer.email}</span>
-                </div>
-              )}
+              {liveBuyer.billing_address && (() => {
+                const a   = liveBuyer.billing_address!
+                const lin = [a.street_name, a.street_number].filter(Boolean).join(', ')
+                const lin2 = [a.neighborhood?.name, a.city?.name, a.state?.name].filter(Boolean).join(' · ')
+                return (
+                  <div className="flex items-start gap-1.5">
+                    <span className="text-[11px] text-zinc-600 w-14 shrink-0">End. fiscal</span>
+                    <div className="text-[11px] text-zinc-300 leading-tight">
+                      {lin && <p>{lin}{a.comment ? `, ${a.comment}` : ''}</p>}
+                      {lin2 && <p className="text-zinc-500">{lin2}</p>}
+                      {a.zip_code && <p className="text-zinc-600 font-mono">CEP {a.zip_code}</p>}
+                    </div>
+                  </div>
+                )
+              })()}
+
+              {liveBuyer.email
+                ? (
+                  <div className="flex items-start gap-1.5">
+                    <span className="text-[11px] text-zinc-600 w-14 shrink-0">Email</span>
+                    <span className="text-[11px] text-zinc-300 break-all">{liveBuyer.email}</span>
+                  </div>
+                )
+                : liveBuyer.doc_number ? (
+                  <div className="flex items-start gap-1.5"
+                    title="ML não fornece email via API (LGPD). Use o enriquecimento via Direct Data com o CPF.">
+                    <span className="text-[11px] text-zinc-600 w-14 shrink-0">Email</span>
+                    <span className="text-[11px] text-zinc-700">— (vem do enriquecimento)</span>
+                  </div>
+                ) : null}
 
               {liveBuyer.phone && (
                 <div className="flex items-center gap-1.5">
