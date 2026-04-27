@@ -26,7 +26,18 @@ type MOrder = {
   date_closed:   string | null
   total_amount:  number
   paid_amount:   number
-  buyer: { id: number | null; nickname: string | null; first_name: string | null; last_name: string | null }
+  buyer: {
+    id:                  number | null
+    nickname:            string | null
+    first_name:          string | null
+    last_name:           string | null
+    doc_type:            string | null
+    doc_number:          string | null
+    full_name:           string | null
+    email:               string | null
+    phone:               string | null
+    billing_fetched_at:  string | null
+  }
   order_items: {
     item_id:              string | null
     item?:                { id: string | null }
@@ -78,6 +89,25 @@ type Toast  = { id: number; msg: string; type: 'success' | 'error' | 'info' }
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+
+function maskDoc(v: string | null, type: string | null): string | null {
+  if (!v) return null
+  const d = v.replace(/\D/g, '')
+  if (d.length === 11) return `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6,9)}-${d.slice(9)}`
+  if (d.length === 14) return `${d.slice(0,2)}.${d.slice(2,5)}.${d.slice(5,8)}/${d.slice(8,12)}-${d.slice(12)}`
+  return type ? `${type} ${d}` : d
+}
+
+function fmtPhone(v: string | null): string | null {
+  if (!v) return null
+  const d = v.replace(/\D/g, '')
+  if (d.length < 10) return v
+  const cc = d.length > 11 ? d.slice(0, 2) : '55'
+  const rest = d.length > 11 ? d.slice(2) : d
+  const ddd = rest.slice(0, 2)
+  const num = rest.slice(2)
+  return `+${cc} (${ddd}) ${num.slice(0, 5)}-${num.slice(5)}`
+}
 
 function fmtDate(iso: string | null) {
   if (!iso) return null
@@ -334,7 +364,7 @@ type CreateResult = {
 }
 
 function OrderCard({
-  order, itemId, vinculos, onSalvar, onCriarProduto, onToast,
+  order, itemId, vinculos, onSalvar, onCriarProduto, onToast, getHeaders,
 }: {
   order: MOrder
   itemId: string | null
@@ -342,7 +372,46 @@ function OrderCard({
   onSalvar: (productId: string, custo: number, imposto: number) => Promise<void>
   onCriarProduto: (itemId: string) => Promise<void>
   onToast: (msg: string, type: Toast['type']) => void
+  getHeaders: () => Promise<Record<string, string>>
 }) {
+  const [buyerOverride, setBuyerOverride] = useState<MOrder['buyer'] | null>(null)
+  const [refetching, setRefetching] = useState(false)
+  const liveBuyer = buyerOverride ?? order.buyer
+
+  const refetchBilling = useCallback(async () => {
+    if (refetching) return
+    setRefetching(true)
+    try {
+      const headers = await getHeaders()
+      const res = await fetch(`${BACKEND}/ml/orders/${order.order_id}/refetch-billing`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+      })
+      const body = await res.json().catch(() => null) as
+        | { ok: boolean; buyer: { doc_type: string | null; doc_number: string | null; email: string | null; phone: string | null; name: string | null } | null; message?: string }
+        | null
+      if (!res.ok || !body?.ok || !body.buyer) {
+        onToast(body?.message ?? 'Falha ao buscar dados do comprador', 'error')
+      } else {
+        setBuyerOverride({
+          ...liveBuyer,
+          doc_type:           body.buyer.doc_type,
+          doc_number:         body.buyer.doc_number,
+          full_name:          body.buyer.name,
+          email:              body.buyer.email,
+          phone:              body.buyer.phone,
+          billing_fetched_at: new Date().toISOString(),
+        })
+        if (body.buyer.doc_number) onToast(`✓ CPF/CNPJ encontrado: ${maskDoc(body.buyer.doc_number, body.buyer.doc_type) ?? ''}`, 'success')
+        else                       onToast('ML respondeu sem CPF (LGPD) — use enriquecimento via Direct Data', 'info')
+      }
+    } catch {
+      onToast('Erro de rede ao buscar dados', 'error')
+    } finally {
+      setRefetching(false)
+    }
+  }, [refetching, getHeaders, order.order_id, onToast, liveBuyer])
+
   const [expanded,    setExpanded]    = useState(false)
   const [criando,     setCriando]     = useState(false)
   const [editando,    setEditando]    = useState(true)
@@ -792,26 +861,77 @@ function OrderCard({
 
             {/* Comprador */}
             <div className="p-3 rounded-xl space-y-1.5" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-2">Comprador</p>
-              {(order.buyer.first_name || order.buyer.last_name) && (
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Comprador</p>
+                {!liveBuyer.doc_number && (
+                  <button onClick={refetchBilling} disabled={refetching}
+                    className="text-[10px] font-semibold px-2 py-0.5 rounded-md transition-colors disabled:opacity-50"
+                    style={{ background: 'rgba(0,229,255,0.10)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.30)' }}>
+                    {refetching ? 'Buscando…' : '📥 Buscar dados'}
+                  </button>
+                )}
+                {liveBuyer.doc_number && (
+                  <button onClick={refetchBilling} disabled={refetching}
+                    className="text-[10px] text-zinc-500 hover:text-zinc-300 disabled:opacity-50"
+                    title="Re-consultar billing_info">
+                    {refetching ? '…' : '↻'}
+                  </button>
+                )}
+              </div>
+
+              {(liveBuyer.full_name || liveBuyer.first_name || liveBuyer.last_name) && (
                 <div className="flex items-start gap-1.5">
                   <span className="text-[11px] text-zinc-600 w-14 shrink-0">Nome</span>
                   <span className="text-[11px] text-zinc-200 font-medium leading-tight">
-                    {[order.buyer.first_name, order.buyer.last_name].filter(Boolean).join(' ')}
+                    {liveBuyer.full_name ?? [liveBuyer.first_name, liveBuyer.last_name].filter(Boolean).join(' ')}
                   </span>
                 </div>
               )}
-              {order.buyer.nickname && (
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[11px] text-zinc-600 w-14 shrink-0">@usuário</span>
-                  <span className="text-[11px] text-zinc-300 font-mono">@{order.buyer.nickname}</span>
+
+              {liveBuyer.doc_number && (
+                <div className="flex items-start gap-1.5">
+                  <span className="text-[11px] text-zinc-600 w-14 shrink-0">
+                    {(liveBuyer.doc_type ?? '').toUpperCase().includes('CNPJ') ? 'CNPJ' : 'CPF'}
+                  </span>
+                  <span className="text-[11px] font-mono" style={{ color: '#4ade80' }}>
+                    {maskDoc(liveBuyer.doc_number, liveBuyer.doc_type)}
+                  </span>
                 </div>
               )}
-              {order.buyer.id && (
+
+              {liveBuyer.email && (
+                <div className="flex items-start gap-1.5">
+                  <span className="text-[11px] text-zinc-600 w-14 shrink-0">Email</span>
+                  <span className="text-[11px] text-zinc-300 break-all">{liveBuyer.email}</span>
+                </div>
+              )}
+
+              {liveBuyer.phone && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-zinc-600 w-14 shrink-0">Telefone</span>
+                  <span className="text-[11px] text-zinc-300 font-mono">{fmtPhone(liveBuyer.phone)}</span>
+                </div>
+              )}
+
+              {liveBuyer.nickname && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-zinc-600 w-14 shrink-0">@usuário</span>
+                  <span className="text-[11px] text-zinc-300 font-mono">@{liveBuyer.nickname}</span>
+                </div>
+              )}
+
+              {liveBuyer.id && (
                 <div className="flex items-center gap-1.5">
                   <span className="text-[11px] text-zinc-600 w-14 shrink-0">ID</span>
-                  <span className="text-[11px] text-zinc-600 font-mono">{order.buyer.id}</span>
+                  <span className="text-[11px] text-zinc-600 font-mono">{liveBuyer.id}</span>
                 </div>
+              )}
+
+              {!liveBuyer.doc_number && liveBuyer.billing_fetched_at && (
+                <p className="text-[10px] text-zinc-600 mt-2 leading-tight">
+                  ⓘ ML não liberou CPF/email para este pedido (LGPD).
+                  Use o enriquecimento via Direct Data com o CPF para resolver telefones/emails completos.
+                </p>
               )}
             </div>
 
@@ -1486,6 +1606,7 @@ export default function PedidosPage() {
                     onSalvar={salvar}
                     onCriarProduto={criarProduto}
                     onToast={toast}
+                    getHeaders={getHeaders}
                   />
                 )
               })
