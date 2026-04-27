@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase'
 import {
   Search, RefreshCw, Users, CheckCircle2, AlertTriangle, XCircle,
-  Phone, Mail, MessageCircle,
+  Phone, Mail, MessageCircle, Sparkles,
 } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
@@ -98,6 +98,8 @@ export default function ClientesPage() {
   const [list, setList] = useState<Customer[]>([])
   const [loading, setLoading] = useState(true)
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS)
+  const [enriching, setEnriching] = useState(false)
+  const [batchMsg, setBatchMsg] = useState<string | null>(null)
 
   const getHeaders = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
@@ -127,12 +129,41 @@ export default function ClientesPage() {
   }, [getHeaders, filters])
   useEffect(() => { load() }, [load])
 
+  const enrichPending = useCallback(async () => {
+    if (enriching) return
+    setEnriching(true)
+    setBatchMsg('Enriquecendo clientes pendentes…')
+    try {
+      const headers = await getHeaders()
+      const res = await fetch(`${BACKEND}/enrichment/batch`, {
+        method: 'POST', headers, body: JSON.stringify({ limit: 25 }),
+      })
+      const body = await res.json().catch(() => null) as
+        | { processed: number; full: number; partial: number; failed: number; skipped: number }
+        | null
+      if (!res.ok || !body) {
+        setBatchMsg('Falha ao enriquecer — verifique provedores em Configurações → Enriquecimento')
+      } else if (body.processed === 0) {
+        setBatchMsg('Nenhum cliente pendente para enriquecer')
+      } else {
+        setBatchMsg(`✓ ${body.processed} processados — ${body.full} validados, ${body.partial} parciais, ${body.failed} falharam`)
+      }
+      await load()
+    } catch {
+      setBatchMsg('Erro de rede ao enriquecer')
+    } finally {
+      setEnriching(false)
+      setTimeout(() => setBatchMsg(null), 6000)
+    }
+  }, [enriching, getHeaders, load])
+
   const totals = useMemo(() => ({
     total:     list.length,
     with_cpf:  list.filter(c => c.cpf).length,
     with_wa:   list.filter(c => c.whatsapp_id || c.validated_whatsapp).length,
     with_mail: list.filter(c => c.email).length,
     revenue:   list.reduce((s, c) => s + Number(c.total_purchases ?? 0), 0),
+    pending:   list.filter(c => (c.enrichment_status ?? 'pending') === 'pending' && (c.cpf || c.phone || c.whatsapp_id)).length,
   }), [list])
 
   return (
@@ -143,13 +174,30 @@ export default function ClientesPage() {
           <h1 className="text-white text-xl font-semibold flex items-center gap-2"><Users size={18} /> Clientes</h1>
           <p className="text-zinc-500 text-xs mt-0.5">Perfis unificados a partir de pedidos ML, WhatsApp, widget e enriquecimento</p>
         </div>
-        <button onClick={load} disabled={loading}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-semibold transition-all disabled:opacity-60"
-          style={{ background: '#111114', color: '#a1a1aa', border: '1px solid #27272a' }}>
-          <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
-          Atualizar
-        </button>
+        <div className="flex items-center gap-2">
+          {totals.pending > 0 && (
+            <button onClick={enrichPending} disabled={enriching}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-semibold transition-all disabled:opacity-60"
+              style={{ background: 'linear-gradient(90deg,#a78bfa,#00E5FF)', color: '#000' }}>
+              <Sparkles size={12} className={enriching ? 'animate-pulse' : ''} />
+              {enriching ? 'Enriquecendo…' : `Enriquecer ${Math.min(totals.pending, 25)} pendentes`}
+            </button>
+          )}
+          <button onClick={load} disabled={loading}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-semibold transition-all disabled:opacity-60"
+            style={{ background: '#111114', color: '#a1a1aa', border: '1px solid #27272a' }}>
+            <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
+            Atualizar
+          </button>
+        </div>
       </div>
+
+      {batchMsg && (
+        <div className="rounded-xl px-3 py-2 text-[11px]"
+          style={{ background: '#111114', border: '1px solid #27272a', color: '#d4d4d8' }}>
+          {batchMsg}
+        </div>
+      )}
 
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
