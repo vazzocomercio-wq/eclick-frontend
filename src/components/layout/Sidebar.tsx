@@ -11,7 +11,7 @@ import {
   Heart, MessageSquare, CheckSquare, Sparkles, Image as ImageIcon,
   Megaphone, ShoppingCart, TrendingUp, Settings, UserCog,
   Plug, Database, ChevronDown, Bot, Inbox, BookOpen,
-  GraduationCap, LineChart,
+  GraduationCap, LineChart, QrCode,
 } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
@@ -129,10 +129,11 @@ const SECTIONS: NavSection[] = [
     key: 'crm',
     label: 'CRM',
     items: [
-      { label: 'Clientes',  href: '/dashboard/crm/clientes',  icon: <Users size={15} /> },
-      { label: 'Pipeline',  href: '/dashboard/crm/pipeline',  icon: <Target size={15} /> },
-      { label: 'Pós-venda', href: '/dashboard/crm/pos-venda', icon: <Heart size={15} /> },
-      { label: 'WhatsApp',  href: '/dashboard/crm/whatsapp',  icon: <MessageSquare size={15} />, soon: true },
+      { label: 'Clientes',    href: '/dashboard/crm/clientes',  icon: <Users size={15} /> },
+      { label: 'Pipeline',    href: '/dashboard/crm/pipeline',  icon: <Target size={15} /> },
+      { label: 'Pós-venda',   href: '/dashboard/crm/pos-venda', icon: <Heart size={15} /> },
+      { label: 'Lead Bridge', href: '/dashboard/lead-bridge',   icon: <QrCode size={15} /> },
+      { label: 'WhatsApp',    href: '/dashboard/crm/whatsapp',  icon: <MessageSquare size={15} />, soon: true },
     ],
   },
   {
