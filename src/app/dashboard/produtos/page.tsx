@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
+import { ToastViewport, todoToast } from '@/hooks/useToast'
 
 const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
@@ -130,6 +131,20 @@ function RowMenu({ onEdit, onDuplicate, onDelete }: {
     setOpen(o => !o)
   }
 
+  type Item = { label: string; tone?: 'danger'; onClick: () => void }
+  const items: Item[] = [
+    { label: 'Editar',                onClick: onEdit },
+    { label: 'Editar preço inline',   onClick: () => todoToast('Edição inline de preço') },
+    { label: 'Editar custo inline',   onClick: () => todoToast('Edição inline de custo') },
+    { label: 'Atualizar estoque',     onClick: () => todoToast('Atualização de estoque') },
+    { label: 'Adicionar a campanha Ads', onClick: () => todoToast('Vínculo com campanha Ads') },
+    { label: 'Gerar conteúdo com IA', onClick: () => todoToast('IA — título / descrição / fotos / atributos') },
+    { label: 'Analisar concorrentes', onClick: () => todoToast('Drawer de concorrentes ML') },
+    { label: 'Marcar para repor',     onClick: () => todoToast('Bridge → módulo Compras') },
+    { label: 'Duplicar (outro marketplace)', onClick: onDuplicate },
+    { label: 'Excluir',               tone: 'danger', onClick: onDelete },
+  ]
+
   return (
     <>
       <button ref={btnRef} onClick={handleToggle}
@@ -143,34 +158,30 @@ function RowMenu({ onEdit, onDuplicate, onDelete }: {
       </button>
       {open && (
         <div ref={menuRef}
-          className="fixed z-[9999] w-40 rounded-xl border py-1 shadow-2xl"
+          className="fixed z-[9999] w-56 rounded-xl border py-1 shadow-2xl"
           style={{ background: '#18181b', borderColor: '#2e2e33', top: pos.top, right: pos.right }}>
-          {[
-            { label: 'Editar',   icon: 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z', action: onEdit },
-            { label: 'Duplicar', icon: 'M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z', action: onDuplicate },
-          ].map(item => (
-            <button key={item.label} onClick={() => { item.action(); setOpen(false) }}
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] transition-colors text-left"
-              style={{ color: '#a1a1aa' }}
-              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = '#fff' }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#a1a1aa' }}>
-              <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d={item.icon} />
-              </svg>
-              {item.label}
-            </button>
-          ))}
-          <div className="my-1" style={{ borderTop: '1px solid #2e2e33' }} />
-          <button onClick={() => { onDelete(); setOpen(false) }}
-            className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] transition-colors text-left"
-            style={{ color: '#f87171' }}
-            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(248,113,113,0.08)')}
-            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-            <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
-            Excluir
-          </button>
+          {items.map((it, i) => {
+            const isDanger = it.tone === 'danger'
+            const wrappedClick = () => { it.onClick(); setOpen(false) }
+            return (
+              <div key={it.label}>
+                {isDanger && i > 0 && <div className="my-1" style={{ borderTop: '1px solid #2e2e33' }} />}
+                <button onClick={wrappedClick}
+                  className="w-full text-left px-3 py-2 text-[13px] transition-colors"
+                  style={{ color: isDanger ? '#f87171' : '#a1a1aa' }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.background = isDanger ? 'rgba(248,113,113,0.08)' : 'rgba(255,255,255,0.05)'
+                    if (!isDanger) e.currentTarget.style.color = '#fff'
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.background = 'transparent'
+                    if (!isDanger) e.currentTarget.style.color = '#a1a1aa'
+                  }}>
+                  {it.label}
+                </button>
+              </div>
+            )
+          })}
         </div>
       )}
     </>
@@ -817,6 +828,7 @@ export default function ProdutosPage() {
 
   return (
     <div className="p-6 min-h-full" style={{ background: '#09090b' }}>
+      <ToastViewport />
 
       {/* Header */}
       <div className="flex items-center justify-between mb-5">
