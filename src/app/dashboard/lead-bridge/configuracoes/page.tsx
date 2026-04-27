@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase'
-import { Save, Settings, ScanLine, Shield, MessageCircle, Sparkles, Palette } from 'lucide-react'
+import { Save, Settings, ScanLine, Shield, MessageCircle, Sparkles, Palette, Info } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
@@ -62,6 +62,24 @@ function Field({ label, children, hint }: { label: string; children: React.React
 }
 
 const inp = 'w-full bg-[#0c0c10] border border-[#27272a] text-zinc-200 text-sm rounded-lg px-3 py-2 outline-none focus:border-[#00E5FF]'
+
+const CPF_PROVIDERS: Array<{ id: string; label: string; key_format: string; strength: string }> = [
+  { id: 'bigdatacorp',      label: 'Big Data Corp',
+    key_format: 'AccessToken:TokenId',
+    strength:   'Sociodemográficos, score de crédito, vínculos familiares e empresariais.' },
+  { id: 'directd',          label: 'Direct Data',
+    key_format: 'token único',
+    strength:   '300+ fontes consolidadas, 5000+ atributos, foco em compliance/KYC.' },
+  { id: 'datastone',        label: 'Data Stone',
+    key_format: 'Bearer JWT (token completo)',
+    strength:   'Waterfall Enrichment — consulta cascata, telefone/WhatsApp atualizado.' },
+  { id: 'assertiva',        label: 'Assertiva Soluções',
+    key_format: 'client_id:client_secret',
+    strength:   'Localização, telefone e endereço atualizados (recuperação de contato).' },
+  { id: 'hubdesenvolvedor', label: 'Hub do Desenvolvedor',
+    key_format: 'token único',
+    strength:   'Barato, ideal para baixo volume e MVPs.' },
+]
 
 export default function LeadBridgeConfigPage() {
   const supabase = useMemo(() => createClient(), [])
@@ -157,16 +175,35 @@ export default function LeadBridgeConfigPage() {
 
       <Section icon={<Sparkles size={14} />} title="Enriquecimento via CPF">
         <Toggle label="Habilitar enriquecimento" value={c.cpf_enrichment_enabled} onChange={v => setC({ ...c, cpf_enrichment_enabled: v })} />
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Field label="Provedor">
-            <select className={inp} value={c.cpf_provider} onChange={e => setC({ ...c, cpf_provider: e.target.value })}>
-              <option value="bigdatacorp">Big Data Corp</option>
-            </select>
-          </Field>
-          <Field label="API Key" hint="Formato: AccessToken:TokenId (Big Data Corp)">
-            <input type="password" className={inp + ' font-mono'} value={c.cpf_api_key ?? ''} onChange={e => setC({ ...c, cpf_api_key: e.target.value })} />
-          </Field>
-        </div>
+        {(() => {
+          const sel = CPF_PROVIDERS.find(p => p.id === c.cpf_provider) ?? CPF_PROVIDERS[0]
+          return (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Field label="Provedor">
+                  <select className={inp} value={c.cpf_provider}
+                    onChange={e => setC({ ...c, cpf_provider: e.target.value })}>
+                    {CPF_PROVIDERS.map(p => (
+                      <option key={p.id} value={p.id}>{p.label}</option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="API Key" hint={`Formato: ${sel.key_format}`}>
+                  <input type="password" className={inp + ' font-mono'}
+                    value={c.cpf_api_key ?? ''}
+                    onChange={e => setC({ ...c, cpf_api_key: e.target.value })} />
+                </Field>
+              </div>
+              <div className="flex items-start gap-2 px-3 py-2 rounded-lg"
+                style={{ background: 'rgba(0,229,255,0.06)', border: '1px solid rgba(0,229,255,0.18)' }}>
+                <Info size={12} className="text-cyan-400 shrink-0 mt-0.5" />
+                <p className="text-[11px] text-zinc-300 leading-relaxed">
+                  <strong className="text-zinc-100">{sel.label}:</strong> {sel.strength}
+                </p>
+              </div>
+            </>
+          )
+        })()}
       </Section>
 
       <Section icon={<MessageCircle size={14} />} title="WhatsApp automático">
