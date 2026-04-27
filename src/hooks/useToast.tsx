@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, type ReactNode, type ButtonHTMLAttributes } from 'react'
 import { createPortal } from 'react-dom'
 import { CheckCircle2, AlertTriangle, XCircle, Info, Construction } from 'lucide-react'
 
@@ -83,4 +83,44 @@ export function ToastViewport() {
 
 export function useToast() {
   return useCallback((input: ToastInput | string) => pushToast(input), [])
+}
+
+/** Drop-in replacement for a real action button while the feature is on
+ * the roadmap — fires todoToast when clicked. Style props mirror the
+ * project's existing inline-Tailwind buttons so it can sit next to real
+ * buttons without looking out of place. */
+export function StubAction({
+  label, children, sprint, icon, className, style, ...rest
+}: {
+  label: string
+  /** Optional next-sprint hint shown after the comma in the toast. */
+  sprint?: string
+  icon?: ReactNode
+  children?: ReactNode
+} & Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'onClick'>) {
+  const onClick = () => {
+    if (sprint) pushToast({ tone: 'todo', message: `${label} — ${sprint}`, duration: 5000 })
+    else        todoToast(label)
+  }
+  const baseStyle: React.CSSProperties = {
+    background: '#0c0c10',
+    color: '#a1a1aa',
+    border: '1px solid #27272a',
+    ...style,
+  }
+  return (
+    <button
+      type="button"
+      {...rest}
+      onClick={onClick}
+      className={
+        'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-colors hover:text-zinc-200 hover:border-zinc-700 ' +
+        (className ?? '')
+      }
+      style={baseStyle}
+      title="Em desenvolvimento — agendado para próxima sprint">
+      {icon}
+      {children ?? label}
+    </button>
+  )
 }
