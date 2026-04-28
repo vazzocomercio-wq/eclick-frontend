@@ -1,8 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { TemplatesTab } from './_components/TemplatesTab'
-import { JourneysTab }  from './_components/JourneysTab'
+import { TemplatesTab }  from './_components/TemplatesTab'
+import { JourneysTab }   from './_components/JourneysTab'
+import { CampaignsTab }  from './_components/CampaignsTab'
+import { AnalyticsTab }  from './_components/AnalyticsTab'
+import { SendsTab }      from './_components/SendsTab'
 
 type TabKey = 'templates' | 'journeys' | 'campaigns' | 'analytics' | 'sends'
 
@@ -54,7 +57,9 @@ export default function MessagingPage() {
         <div className="max-w-5xl mx-auto px-6 py-6">
           {tab === 'templates' && <TemplatesTab onToast={pushToast} />}
           {tab === 'journeys'  && <JourneysTab  onToast={pushToast} />}
-          {(tab === 'campaigns' || tab === 'analytics' || tab === 'sends') && <ComingSoonStub label={TABS.find(x => x.key === tab)!.label} />}
+          {tab === 'campaigns' && <CampaignsTab onToast={pushToast} />}
+          {tab === 'analytics' && <AnalyticsTab onToast={pushToast} />}
+          {tab === 'sends'     && <SendsTab     onToast={pushToast} />}
         </div>
       </div>
 
@@ -76,11 +81,3 @@ export default function MessagingPage() {
   )
 }
 
-function ComingSoonStub({ label }: { label: string }) {
-  return (
-    <div className="rounded-2xl px-6 py-12 text-center" style={{ background: '#111114', border: '1px dashed #27272a' }}>
-      <p className="text-white text-lg font-semibold mb-2">{label}</p>
-      <p className="text-zinc-500 text-sm">Em breve no C4 — backend já tem endpoints prontos.</p>
-    </div>
-  )
-}
