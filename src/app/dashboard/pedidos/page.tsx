@@ -45,6 +45,9 @@ type MOrder = {
     billing_address: {
       country_id?:    string | null
       state?:         { id?: string | null; name?: string | null } | null
+      // ML retorna city_name como STRING direta (não objeto aninhado)
+      city_name?:     string | null
+      // Compat: orders antigos podem ter city aninhado
       city?:          { id?: string | null; name?: string | null } | null
       zip_code?:      string | null
       street_name?:   string | null
@@ -1020,7 +1023,8 @@ function OrderCard({
               {liveBuyer.billing_address && (() => {
                 const a   = liveBuyer.billing_address!
                 const lin = [a.street_name, a.street_number].filter(Boolean).join(', ')
-                const lin2 = [a.neighborhood?.name, a.city?.name, a.state?.name].filter(Boolean).join(' · ')
+                const cityName = a.city_name ?? a.city?.name ?? null
+                const lin2 = [a.neighborhood?.name, cityName, a.state?.name].filter(Boolean).join(' · ')
                 return (
                   <div className="flex items-start gap-1.5">
                     <span className="text-[11px] text-zinc-600 w-14 shrink-0">End. fiscal</span>
