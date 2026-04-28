@@ -400,13 +400,13 @@ export default function ClientesPage() {
         )
       },
     },
-    { key: 'cpf', label: 'CPF', width: '140px',
+    { key: 'cpf', label: 'CPF', width: '130px',
       render: c => (
         <span className="text-zinc-400 text-[11px]">
           <MaskedField type="cpf" value={c.cpf} customerId={c.id} copyable={!!c.cpf} hideToggle={!c.cpf} />
         </span>
       ) },
-    { key: 'contatos', label: 'Contatos', width: '220px',
+    { key: 'contatos', label: 'Contatos', width: '200px',
       render: c => (
         <div className="flex items-center gap-1.5 flex-wrap">
           {c.phone && (
@@ -433,7 +433,7 @@ export default function ClientesPage() {
         </div>
       ),
     },
-    { key: 'cidade_uf', label: 'Cidade/UF', width: '120px', className: 'hidden lg:table-cell',
+    { key: 'cidade_uf', label: 'Cidade/UF', width: '100px', className: 'hidden lg:table-cell',
       render: c => {
         if (!c.city && !c.state) return <span className="text-zinc-700 text-[11px]">—</span>
         const uf = (c.state ?? '').slice(0, 2).toUpperCase()
@@ -447,7 +447,7 @@ export default function ClientesPage() {
         )
       },
     },
-    { key: 'status', label: 'Status', width: '110px',
+    { key: 'status', label: 'Status', width: '100px',
       render: c => {
         const m = STATUS_META[c.enrichment_status ?? 'pending'] ?? STATUS_META.pending
         return (
@@ -458,7 +458,7 @@ export default function ClientesPage() {
         )
       },
     },
-    { key: 'compras', label: 'Compras', align: 'right', width: '120px', className: 'hidden xl:table-cell',
+    { key: 'compras', label: 'Compras', align: 'right', width: '100px', className: 'hidden xl:table-cell',
       render: c => (
         <div className="text-right">
           <p className="text-zinc-100 text-xs font-semibold tabular-nums">{brl(Number(c.total_purchases ?? 0))}</p>

@@ -128,7 +128,7 @@ function RightPanel({ panel, onClose, isMobile }: {
       className={[
         isMobile
           ? 'fixed inset-x-0 bottom-0 z-40 max-h-[80vh] overflow-y-auto rounded-t-2xl'
-          : 'w-[280px] shrink-0 self-start sticky top-4 rounded-2xl overflow-hidden',
+          : 'w-[220px] shrink-0 self-start sticky top-4 rounded-2xl overflow-hidden',
       ].join(' ')}
       style={{ background: COL_BG, border: `1px solid ${COL_BORDER}` }}>
       <header className="flex items-center justify-between px-4 py-3"
@@ -329,15 +329,15 @@ export function DataTable<T>(props: DataTableProps<T>) {
 
       {/* Bulk-action banner */}
       {selection && selectedIds.length > 0 && (
-        <div className="rounded-xl px-3 py-2 flex items-center gap-2 flex-wrap"
+        <div className="rounded-xl px-3 py-2 flex items-center gap-2 flex-wrap min-w-0"
           style={{ background: 'rgba(0,229,255,0.08)', border: '1px solid rgba(0,229,255,0.30)', color: '#00E5FF' }}>
-          <span className="text-[12px] font-semibold">
+          <span className="text-[12px] font-semibold shrink-0">
             {selectedIds.length.toLocaleString('pt-BR')} selecionado{selectedIds.length === 1 ? '' : 's'}
           </span>
-          <span className="text-zinc-500">·</span>
+          <span className="text-zinc-500 shrink-0">·</span>
           <button onClick={() => selection.onChange([])}
-            className="text-[11px] text-zinc-400 hover:text-zinc-200">Limpar</button>
-          <div className="ml-auto flex items-center gap-1.5 flex-wrap">
+            className="text-[11px] text-zinc-400 hover:text-zinc-200 shrink-0">Limpar</button>
+          <div className="ml-auto flex items-center gap-1.5 flex-wrap overflow-x-auto max-w-full">
             {bulkActions.map(b => {
               const tone =
                 b.tone === 'danger'  ? '#f87171' :
@@ -346,7 +346,7 @@ export function DataTable<T>(props: DataTableProps<T>) {
               return (
                 <button key={b.key}
                   onClick={() => b.onClick(selectedRows)}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold hover:bg-zinc-900/50"
+                  className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] font-semibold hover:bg-zinc-900/50 shrink-0 whitespace-nowrap"
                   style={{ color: tone, border: `1px solid ${tone}40`, background: '#0c0c10' }}>
                   {b.icon}
                   {b.label}
@@ -391,7 +391,7 @@ export function DataTable<T>(props: DataTableProps<T>) {
           <div className="rounded-2xl overflow-hidden"
             style={{ background: COL_BG, border: `1px solid ${COL_BORDER}` }}>
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <table className="w-full table-fixed">
                 <thead>
                   <tr className="text-left text-[10px] uppercase tracking-wide text-zinc-600"
                     style={{ borderBottom: `1px solid ${COL_BORDER}` }}>
