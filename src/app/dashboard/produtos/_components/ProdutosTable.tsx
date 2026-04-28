@@ -1,14 +1,30 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useMemo, useState, useEffect, useCallback, useRef } from 'react'
+import { useRouter, useSearchParams, usePathname } from 'next/navigation'
+import { createClient } from '@/lib/supabase'
 import { DataTable } from '@/components/data-table'
-import type { Column, RowAction, BulkAction } from '@/components/data-table'
+import type { Column, RowAction, BulkAction, QuickFilter } from '@/components/data-table'
 import {
   Eye, Pause, Play, Copy, Trash2, Sparkles, Megaphone,
   Search as SearchIcon, FileDown,
 } from 'lucide-react'
 import { todoToast, pushToast } from '@/hooks/useToast'
+
+const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
+const PREFS_KEY = 'eclick.produtos.datatable.prefs'
+
+type QuickFilterValue = 'all' | 'active' | 'paused' | 'no_stock' | 'critical' | 'in_ads' | 'no_ads'
+
+const QUICK_OPTIONS: { value: QuickFilterValue; label: string }[] = [
+  { value: 'all',       label: 'Todos' },
+  { value: 'active',    label: 'Ativos' },
+  { value: 'paused',    label: 'Pausados' },
+  { value: 'no_stock',  label: 'Sem estoque' },
+  { value: 'critical',  label: 'Estoque crítico' },
+  { value: 'in_ads',    label: 'Em Ads' },
+  { value: 'no_ads',    label: 'Sem Ads' },
+]
 
 // Tipos vivem em page.tsx; redeclarado aqui pra contornar barrel.
 // Quando migração consolidar, vira import único.
@@ -42,9 +58,25 @@ const brl = (v: number | null) => v == null ? '—' : v.toLocaleString('pt-BR', 
 
 /** Beta DataTable view do catálogo. Ativável via `?view=table` na URL.
  * Bloco 1 da Sprint A — read-only. Inline editing virá no Bloco 2. */
+/** Carrega prefs do localStorage. Tolerante a chave inexistente / corrompida. */
+function loadPrefs(): { perPage: number; quickFilter: QuickFilterValue } {
+  if (typeof window === 'undefined') return { perPage: 25, quickFilter: 'all' }
+  try {
+    const raw = localStorage.getItem(PREFS_KEY)
+    if (raw) {
+      const p = JSON.parse(raw) as Partial<{ perPage: number; quickFilter: QuickFilterValue }>
+      return {
+        perPage:     [10, 25, 50, 100].includes(p.perPage ?? 0) ? p.perPage as number : 25,
+        quickFilter: QUICK_OPTIONS.some(o => o.value === p.quickFilter) ? p.quickFilter as QuickFilterValue : 'all',
+      }
+    }
+  } catch {}
+  return { perPage: 25, quickFilter: 'all' }
+}
+
 export function ProdutosTable({
-  products,
-  loading = false,
+  products: clientProducts,
+  loading: clientLoading = false,
   onRefresh,
   onToggleStatus,
   onDuplicate,
@@ -52,36 +84,119 @@ export function ProdutosTable({
   onBulkPause,
   onBulkDelete,
 }: {
-  products:        ProdutoRow[]
-  loading?:        boolean
-  onRefresh?:      () => void
-  onToggleStatus?: (id: string, next: 'active' | 'paused') => Promise<void> | void
-  onDuplicate?:    (id: string) => Promise<void> | void
-  onDelete?:       (id: string) => Promise<void> | void
-  onBulkPause?:    (ids: string[]) => Promise<void> | void
-  onBulkDelete?:   (ids: string[]) => Promise<void> | void
+  /** Quando passado, modo client-side (filtra/pagina o array localmente).
+   * Quando undefined, modo server-side: fetch GET /products?... */
+  products?:        ProdutoRow[]
+  loading?:         boolean
+  onRefresh?:       () => void
+  onToggleStatus?:  (id: string, next: 'active' | 'paused') => Promise<void> | void
+  onDuplicate?:     (id: string) => Promise<void> | void
+  onDelete?:        (id: string) => Promise<void> | void
+  onBulkPause?:     (ids: string[]) => Promise<void> | void
+  onBulkDelete?:    (ids: string[]) => Promise<void> | void
 }) {
-  const router = useRouter()
-  const [page,    setPage]    = useState(1)
-  const [perPage, setPerPage] = useState(25)
-  const [search,  setSearch]  = useState('')
-  const [selected, setSelected] = useState<string[]>([])
+  const router       = useRouter()
+  const pathname     = usePathname()
+  const searchParams = useSearchParams()
+  const supabase     = useMemo(() => createClient(), [])
 
-  // Filtro + paginação client-side neste bloco. Server-side virá no Bloco 4.
-  const filtered = useMemo(() => {
-    if (!search.trim()) return products
-    const s = search.trim().toLowerCase()
-    return products.filter(p =>
-      (p.name ?? '').toLowerCase().includes(s) ||
-      (p.sku  ?? '').toLowerCase().includes(s) ||
-      (p.brand ?? '').toLowerCase().includes(s),
-    )
-  }, [products, search])
+  // ── State (lido de URL ou prefs salvos no boot) ────────────────────────────
+  const initial = useMemo(() => {
+    const saved = loadPrefs()
+    const urlPage    = Number(searchParams.get('page'))     || 1
+    const urlPerPage = Number(searchParams.get('per_page')) || saved.perPage
+    const urlSearch  = searchParams.get('search')     ?? ''
+    const urlQF      = (searchParams.get('quick_filter') ?? saved.quickFilter) as QuickFilterValue
+    return { page: urlPage, perPage: urlPerPage, search: urlSearch, quickFilter: urlQF }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const [page,        setPage]        = useState(initial.page)
+  const [perPage,     setPerPage]     = useState(initial.perPage)
+  const [search,      setSearch]      = useState(initial.search)
+  const [quickFilter, setQuickFilter] = useState<QuickFilterValue>(initial.quickFilter)
+  const [selected,    setSelected]    = useState<string[]>([])
+
+  // ── Server-side fetch (quando products não foi passado) ───────────────────
+  const [serverData,    setServerData]    = useState<ProdutoRow[]>([])
+  const [serverTotal,   setServerTotal]   = useState(0)
+  const [serverLoading, setServerLoading] = useState(false)
+  const fetchSeq = useRef(0)
+
+  const isServerMode = clientProducts === undefined
+
+  const refetch = useCallback(async () => {
+    if (!isServerMode) return
+    const seq = ++fetchSeq.current
+    setServerLoading(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) { setServerData([]); setServerTotal(0); return }
+      const qs = new URLSearchParams({ page: String(page), per_page: String(perPage) })
+      if (search.trim())          qs.set('search', search.trim())
+      if (quickFilter !== 'all')  qs.set('quick_filter', quickFilter)
+      const res = await fetch(`${BACKEND}/products?${qs}`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      })
+      const body = await res.json().catch(() => null) as { data?: ProdutoRow[]; total?: number } | null
+      if (seq !== fetchSeq.current) return // request mais novo já chegou
+      setServerData(body?.data ?? [])
+      setServerTotal(body?.total ?? 0)
+    } finally {
+      if (seq === fetchSeq.current) setServerLoading(false)
+    }
+  }, [isServerMode, supabase, page, perPage, search, quickFilter])
+
+  useEffect(() => { void refetch() }, [refetch])
+
+  // Persiste prefs em localStorage (perPage, quickFilter) + sync URL
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try { localStorage.setItem(PREFS_KEY, JSON.stringify({ perPage, quickFilter })) } catch {}
+  }, [perPage, quickFilter])
+
+  useEffect(() => {
+    if (!pathname) return
+    const qs = new URLSearchParams()
+    if (page > 1)               qs.set('page',         String(page))
+    if (perPage !== 25)         qs.set('per_page',     String(perPage))
+    if (search.trim())          qs.set('search',       search.trim())
+    if (quickFilter !== 'all')  qs.set('quick_filter', quickFilter)
+    const next = qs.toString()
+    router.replace(next ? `${pathname}?${next}` : pathname, { scroll: false })
+  }, [page, perPage, search, quickFilter, pathname, router])
+
+  // ── Modo client-side: filtragem local (back-compat) ───────────────────────
+  const clientFiltered = useMemo(() => {
+    if (!clientProducts) return [] as ProdutoRow[]
+    let arr = clientProducts
+    if (search.trim()) {
+      const s = search.trim().toLowerCase()
+      arr = arr.filter(p =>
+        (p.name ?? '').toLowerCase().includes(s) ||
+        (p.sku  ?? '').toLowerCase().includes(s) ||
+        (p.brand ?? '').toLowerCase().includes(s),
+      )
+    }
+    switch (quickFilter) {
+      case 'active':   arr = arr.filter(p => p.status === 'active'); break
+      case 'paused':   arr = arr.filter(p => p.status === 'paused'); break
+      case 'no_stock': arr = arr.filter(p => (p.stock ?? 0) === 0); break
+      case 'critical': arr = arr.filter(p => (p.stock ?? 0) > 0 && (p.stock ?? 0) <= 5); break
+      // in_ads/no_ads em modo client-side ficam por conta do parent
+    }
+    return arr
+  }, [clientProducts, search, quickFilter])
+
+  const filtered = isServerMode ? serverData : clientFiltered
+  const total    = isServerMode ? serverTotal : clientFiltered.length
+  const loading  = isServerMode ? serverLoading : clientLoading
 
   const paged = useMemo(() => {
+    if (isServerMode) return filtered
     const start = (page - 1) * perPage
     return filtered.slice(start, start + perPage)
-  }, [filtered, page, perPage])
+  }, [isServerMode, filtered, page, perPage])
 
   const columns: Column<ProdutoRow>[] = useMemo(() => [
     {
@@ -149,7 +264,9 @@ export function ProdutosTable({
     if (onBulkPause) acts.push({
       key: 'pause-bulk', label: 'Pausar', icon: <Pause size={11} />, tone: 'warn',
       onClick: rows => {
-        const ids = rows.map(r => r.id).filter(id => products.find(p => p.id === id)?.status === 'active')
+        // Filtra só rows com status='active' direto da seleção (cada row já
+        // carrega o status atual; não precisa lookup numa lista externa).
+        const ids = rows.filter(r => r.status === 'active').map(r => r.id)
         if (ids.length === 0) {
           pushToast({ tone: 'info', message: 'Nenhum produto ativo na seleção' })
           return
@@ -186,7 +303,7 @@ export function ProdutosTable({
       },
     })
     return acts
-  }, [onBulkPause, onBulkDelete, products])
+  }, [onBulkPause, onBulkDelete])
 
   const rowActions = useMemo(() => (p: ProdutoRow): RowAction<ProdutoRow>[] => {
     const acts: RowAction<ProdutoRow>[] = [
@@ -211,13 +328,21 @@ export function ProdutosTable({
     return acts
   }, [router, onToggleStatus, onDuplicate, onDelete])
 
+  const quickFilterProp: QuickFilter = {
+    label:    'Filtro',
+    value:    quickFilter,
+    options:  QUICK_OPTIONS,
+    onChange: v => { setQuickFilter(v as QuickFilterValue); setPage(1); setSelected([]) },
+  }
+
   return (
     <DataTable<ProdutoRow>
       title="Produtos (DataTable beta)"
       breadcrumb={['Catálogo']}
+      quickFilter={quickFilterProp}
       columns={columns}
       data={paged}
-      totalCount={filtered.length}
+      totalCount={total}
       loading={loading}
       getRowId={p => p.id}
       onRowClick={p => router.push(`/dashboard/produtos/${p.id}/editar`)}
@@ -239,8 +364,8 @@ export function ProdutosTable({
         title: 'Nenhum produto encontrado',
         description: search ? 'Tente outra busca.' : 'O catálogo está vazio. Importe do ML pra começar.',
       }}
-      headerExtras={onRefresh && (
-        <button onClick={onRefresh}
+      headerExtras={(onRefresh || isServerMode) && (
+        <button onClick={() => { onRefresh?.(); void refetch() }}
           className="text-[11px] px-3 py-2 rounded-xl font-semibold transition-colors"
           style={{ background: '#111114', color: '#a1a1aa', border: '1px solid #27272a' }}>
           Atualizar

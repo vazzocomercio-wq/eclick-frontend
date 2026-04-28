@@ -111,13 +111,30 @@ function ProdutosToolsPanel({ products }: { products: Product[] }) {
   const [collapsed, setCollapsed] = useState(false)
   const [exporting, setExporting] = useState(false)
 
-  // KPIs derivados do catálogo carregado
-  const ativos       = products.filter(p => p.status === 'active').length
-  const semEstoque   = products.filter(p => (p.stock ?? 0) === 0).length
-  const critico      = products.filter(p => (p.stock ?? 0) > 0 && (p.stock ?? 0) <= 5).length
-  // "Sem Ads" — placeholder; campo real precisa join com ml_ads_campaigns,
-  // por enquanto mostra "—" pra deixar a slot reservada
-  const semAds = '—'
+  // KPIs reais do servidor (GET /products/kpis) — totais do catálogo inteiro,
+  // não filtrados pela paginação atual. Sem Ads = produtos cujo ml_listing_id
+  // não está em nenhum ml_ads_campaigns ativo (count exato).
+  type Kpis = { active: number; no_stock: number; critical: number; no_ads: number }
+  const [kpis, setKpis] = useState<Kpis | null>(null)
+  useEffect(() => {
+    (async () => {
+      try {
+        const token = await getAuthToken()
+        if (!token) return
+        const res = await fetch(`${BACKEND}/products/kpis`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        const body = await res.json().catch(() => null) as Kpis | null
+        if (body) setKpis(body)
+      } catch { /* fallback pra contagem local abaixo */ }
+    })()
+  }, [products.length]) // refresca quando o catálogo carregado muda
+
+  // Fallback local caso /kpis falhe (offline/network)
+  const ativos     = kpis?.active   ?? products.filter(p => p.status === 'active').length
+  const semEstoque = kpis?.no_stock ?? products.filter(p => (p.stock ?? 0) === 0).length
+  const critico    = kpis?.critical ?? products.filter(p => (p.stock ?? 0) > 0 && (p.stock ?? 0) <= 5).length
+  const semAds: string | number = kpis?.no_ads ?? '—'
 
   function exportCsv() {
     if (exporting) return
@@ -167,7 +184,7 @@ function ProdutosToolsPanel({ products }: { products: Product[] }) {
         <KpiRow label="Ativos"          value={ativos.toLocaleString('pt-BR')}      color="#34d399" />
         <KpiRow label="Sem estoque"     value={semEstoque.toLocaleString('pt-BR')}  color="#f87171" />
         <KpiRow label="Estoque crítico" value={critico.toLocaleString('pt-BR')}     color="#facc15" />
-        <KpiRow label="Sem Ads"         value={semAds}                              color="#a1a1aa" />
+        <KpiRow label="Sem Ads"         value={typeof semAds === 'number' ? semAds.toLocaleString('pt-BR') : semAds} color="#a1a1aa" />
       </div>
       <div className="px-3 py-2"
         style={{ borderTop: '1px solid #1e1e24' }}>
@@ -1109,9 +1126,10 @@ export default function ProdutosPage() {
             Inline editing de preço/custo/estoque NÃO existe na list/grid
             (só em /produtos/[id]/editar) — não há nada pra migrar. */}
       {view === 'table' && (
+        // Sem `products` → ProdutosTable entra em SERVER-SIDE mode:
+        // fetch GET /products?page=&per_page=&search=&quick_filter=&...
+        // com totais corretos do catálogo inteiro (não da página).
         <ProdutosTable
-          products={filtered}
-          loading={loading}
           onRefresh={load}
           onToggleStatus={togglePauseActive}
           onDuplicate={handleDuplicate}
