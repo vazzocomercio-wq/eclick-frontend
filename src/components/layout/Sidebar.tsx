@@ -11,7 +11,7 @@ import {
   Heart, MessageSquare, CheckSquare, Sparkles, Image as ImageIcon,
   Megaphone, ShoppingCart, TrendingUp, Settings, UserCog,
   Plug, Database, ChevronDown, Bot, Inbox, BookOpen,
-  GraduationCap, LineChart, QrCode, Shield, Users2,
+  GraduationCap, LineChart, QrCode, Shield, Users2, TrendingDown,
 } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
@@ -94,6 +94,14 @@ const SECTIONS: NavSection[] = [
           },
           { label: 'Concorrentes', href: '/dashboard/concorrentes' },
           { label: 'Preços',       href: '/dashboard/precos' },
+        ],
+      },
+      {
+        label: 'Precificação', href: '/dashboard/pricing/configuracao', icon: <TrendingDown size={15} />,
+        children: [
+          { label: 'Configuração', href: '/dashboard/pricing/configuracao' },
+          { label: 'Análise',      href: '/dashboard/pricing' },
+          { label: 'Chat IA',      href: '/dashboard/pricing/chat' },
         ],
       },
       { label: 'Pedidos', href: '/dashboard/pedidos', icon: <ShoppingBag size={15} /> },

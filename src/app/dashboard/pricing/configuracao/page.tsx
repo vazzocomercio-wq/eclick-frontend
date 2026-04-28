@@ -5,9 +5,14 @@ import { api } from './_components/api'
 import {
   PricingConfig, PresetName, MODE_META, PRESET_LABELS,
 } from './_components/types'
-import { GlobalsTab }        from './_components/GlobalsTab'
-import { AbcStrategiesTab }  from './_components/AbcStrategiesTab'
-import { TriggersTab }       from './_components/TriggersTab'
+import { GlobalsTab }              from './_components/GlobalsTab'
+import { AbcStrategiesTab }        from './_components/AbcStrategiesTab'
+import { TriggersTab }             from './_components/TriggersTab'
+import { BlocksTab }               from './_components/BlocksTab'
+import { ConfidenceTab }           from './_components/ConfidenceTab'
+import { SeasonalTab }             from './_components/SeasonalTab'
+import { UntouchableSellersTab }   from './_components/UntouchableSellersTab'
+import { AuditTab }                from './_components/AuditTab'
 
 type TabKey = 'globais' | 'abc' | 'triggers' | 'blocks' | 'confidence' | 'seasonal' | 'untouchable' | 'audit'
 
@@ -212,15 +217,14 @@ export default function PricingConfigPage() {
         {/* Tab content */}
         <div className="flex-1 overflow-y-auto">
           <div className="max-w-5xl mx-auto p-6">
-            {tab === 'globais'  && <GlobalsTab        params={config.global_params} isDirty={isDirty} setField={setField} />}
-            {tab === 'abc'      && <AbcStrategiesTab  strategies={config.abc_strategies} isDirty={isDirty} setField={setField} />}
-            {tab === 'triggers' && <TriggersTab       triggers={config.triggers} isDirty={isDirty} setField={setField} />}
-            {(tab === 'blocks' || tab === 'confidence' || tab === 'seasonal' || tab === 'untouchable' || tab === 'audit') && (
-              <div className="rounded-2xl px-6 py-12 text-center" style={{ background: '#111114', border: '1px dashed #27272a' }}>
-                <p className="text-white text-lg font-semibold mb-2">{TABS.find(x => x.key === tab)!.label}</p>
-                <p className="text-zinc-500 text-sm">Em breve no C4 — backend já tem endpoints prontos.</p>
-              </div>
-            )}
+            {tab === 'globais'     && <GlobalsTab              params={config.global_params}     isDirty={isDirty} setField={setField} />}
+            {tab === 'abc'         && <AbcStrategiesTab        strategies={config.abc_strategies} isDirty={isDirty} setField={setField} />}
+            {tab === 'triggers'    && <TriggersTab             triggers={config.triggers}        isDirty={isDirty} setField={setField} />}
+            {tab === 'blocks'      && <BlocksTab               blocks={config.absolute_blocks} />}
+            {tab === 'confidence'  && <ConfidenceTab           rules={config.confidence_rules}   isDirty={isDirty} setField={setField} />}
+            {tab === 'seasonal'    && <SeasonalTab             onToast={pushToast} />}
+            {tab === 'untouchable' && <UntouchableSellersTab   onToast={pushToast} />}
+            {tab === 'audit'       && <AuditTab                onToast={pushToast} />}
           </div>
         </div>
       </div>
