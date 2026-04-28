@@ -12,6 +12,9 @@ import {
 import { DataTable } from '@/components/data-table'
 import type { Column, RowAction, BulkAction, PanelSection } from '@/components/data-table'
 import { ToastViewport, useToast, todoToast } from '@/hooks/useToast'
+import { MaskedField } from '@/components/ui/masked-field'
+import { usePreferences } from '@/hooks/usePreferences'
+import { formatPii } from '@/lib/format'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -106,6 +109,7 @@ export default function ClientesPage() {
   const router   = useRouter()
   const search   = useSearchParams()
   const toast    = useToast()
+  const { maskExport } = usePreferences()
 
   const initialQF = (search.get('qf') as QF | null) ?? (typeof window !== 'undefined' ? localStorage.getItem(QF_KEY) as QF | null : null) ?? 'all'
   const initialPP = Number(search.get('per_page') ?? (typeof window !== 'undefined' ? localStorage.getItem(PER_PAGE_KEY) : null) ?? 25)
@@ -305,16 +309,25 @@ export default function ClientesPage() {
   const exportCsv = useCallback((rows: Customer[]) => {
     const cols = ['display_name','cpf','phone','email','whatsapp_id','enrichment_status','total_purchases','last_contact_at']
     const esc = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`
+    // Honor mask_export preference (default false — exports are offline use)
+    const maskValue = (key: string, raw: unknown): unknown => {
+      if (!maskExport || raw == null) return raw
+      const s = String(raw)
+      if (key === 'cpf')   return formatPii('cpf',   s, true)
+      if (key === 'phone') return formatPii('phone', s, true)
+      if (key === 'email') return formatPii('email', s, true)
+      return raw
+    }
     const csv = [cols.join(',')]
-      .concat(rows.map(r => cols.map(c => esc((r as unknown as Record<string,unknown>)[c])).join(',')))
+      .concat(rows.map(r => cols.map(k => esc(maskValue(k, (r as unknown as Record<string,unknown>)[k]))).join(',')))
       .join('\n')
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
     const url  = URL.createObjectURL(blob)
     const a    = document.createElement('a')
-    a.href = url; a.download = `clientes-${new Date().toISOString().slice(0,10)}.csv`; a.click()
+    a.href = url; a.download = `clientes-${new Date().toISOString().slice(0,10)}${maskExport ? '-masked' : ''}.csv`; a.click()
     URL.revokeObjectURL(url)
-    toast({ tone: 'success', message: `${rows.length} clientes exportados` })
-  }, [toast])
+    toast({ tone: 'success', message: `${rows.length} clientes exportados${maskExport ? ' (mascarado)' : ''}` })
+  }, [toast, maskExport])
 
   // ── columns ────────────────────────────────────────────────────────────────
   const columns: Column<Customer>[] = useMemo(() => [
@@ -357,14 +370,19 @@ export default function ClientesPage() {
       },
     },
     { key: 'cpf', label: 'CPF',
-      render: c => <span className="text-zinc-400 font-mono text-[11px]">{maskCpf(c.cpf) ?? '—'}</span> },
+      render: c => (
+        <span className="text-zinc-400 text-[11px]">
+          <MaskedField type="cpf" value={c.cpf} customerId={c.id} copyable={!!c.cpf} hideToggle={!c.cpf} />
+        </span>
+      ) },
     { key: 'contatos', label: 'Contatos',
       render: c => (
         <div className="flex items-center gap-1.5 flex-wrap">
           {c.phone && (
             <span className="text-[10px] inline-flex items-center gap-1 px-1.5 py-0.5 rounded"
               style={{ background: 'rgba(96,165,250,0.10)', color: '#60a5fa' }}>
-              <Phone size={9} /> {fmtPhone(c.phone)}
+              <Phone size={9} />
+              <MaskedField type="phone" value={c.phone} customerId={c.id} copyable={false} />
             </span>
           )}
           {c.whatsapp_id && (
@@ -374,9 +392,10 @@ export default function ClientesPage() {
             </span>
           )}
           {c.email && (
-            <span className="text-[10px] inline-flex items-center gap-1 px-1.5 py-0.5 rounded max-w-[180px] truncate"
+            <span className="text-[10px] inline-flex items-center gap-1 px-1.5 py-0.5 rounded max-w-[200px] truncate"
               style={{ background: 'rgba(167,139,250,0.10)', color: '#a78bfa' }}>
-              <Mail size={9} /> {c.email}
+              <Mail size={9} />
+              <MaskedField type="email" value={c.email} customerId={c.id} copyable={false} />
             </span>
           )}
           {!c.phone && !c.whatsapp_id && !c.email && <span className="text-[10px] text-zinc-700">—</span>}
