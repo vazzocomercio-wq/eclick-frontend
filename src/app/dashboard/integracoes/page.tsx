@@ -220,6 +220,46 @@ function ComingSoonCard({ name, logo, color }: { name: string; logo: string; col
   )
 }
 
+// ── Marketplace connect card (Shopee/Magalu) ──────────────────────────────────
+
+function MarketplaceConnectCard({
+  name, logo, color, description, onConnect, connecting,
+}: {
+  name: string
+  logo: string
+  color: string
+  description: string
+  onConnect: () => void
+  connecting: boolean
+}) {
+  return (
+    <div className="rounded-2xl overflow-hidden" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+      <div className="flex items-center justify-between px-6 py-5">
+        <div className="flex items-center gap-3">
+          <div
+            className="w-10 h-10 rounded-xl flex items-center justify-center text-xs font-bold shrink-0"
+            style={{ background: color, color: '#fff' }}
+          >
+            {logo}
+          </div>
+          <div>
+            <p className="text-white text-sm font-semibold">{name}</p>
+            <p className="text-zinc-500 text-xs mt-0.5">{description}</p>
+          </div>
+        </div>
+        <button
+          onClick={onConnect}
+          disabled={connecting}
+          className="flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-semibold transition-all active:scale-[0.98] disabled:opacity-60"
+          style={{ background: color, color: '#fff' }}
+        >
+          {connecting ? 'Abrindo…' : 'Conectar'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function IntegracoesPage() {
@@ -227,11 +267,38 @@ export default function IntegracoesPage() {
   const [loadingStatus, setLoadingStatus] = useState(true)
   const [disconnecting, setDisconnecting] = useState<number | null>(null)
   const [toasts, setToasts] = useState<Toast[]>([])
+  const [connectingShopee, setConnectingShopee] = useState(false)
+  const [connectingMagalu, setConnectingMagalu] = useState(false)
 
   function toast(msg: string, type: Toast['type'] = 'success') {
     const id = Date.now()
     setToasts(prev => [...prev, { id, msg, type }])
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000)
+  }
+
+  async function startOAuth(platform: 'shopee' | 'magalu') {
+    const setLoading = platform === 'shopee' ? setConnectingShopee : setConnectingMagalu
+    setLoading(true)
+    const token = await getToken()
+    if (!token) { toast('Sessão expirada.', 'error'); setLoading(false); return }
+    try {
+      const res = await fetch(`${BACKEND}/marketplace/${platform}/auth-url`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        toast(body?.message ?? `Falha ao iniciar OAuth ${platform}.`, 'error')
+        setLoading(false)
+        return
+      }
+      const data = await res.json()
+      if (!data?.url) { toast('Resposta inválida do backend.', 'error'); setLoading(false); return }
+      window.location.href = data.url
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      toast(`Erro de rede: ${msg}`, 'error')
+      setLoading(false)
+    }
   }
 
   const loadAccounts = useCallback(async () => {
@@ -257,8 +324,13 @@ export default function IntegracoesPage() {
     const search = window.location.search
     if (search.includes('connected=1')) {
       const params = new URLSearchParams(search)
+      const platform = params.get('platform') ?? 'ml'
       const nick = params.get('nickname')
-      toast(nick ? `Mercado Livre conectado como ${nick}!` : 'Mercado Livre conectado!', 'success')
+      const platformLabel: Record<string, string> = {
+        ml: 'Mercado Livre', shopee: 'Shopee', magalu: 'Magalu',
+      }
+      const label = platformLabel[platform] ?? platform
+      toast(nick ? `${label} conectado como ${nick}!` : `${label} conectado!`, 'success')
       window.history.replaceState({}, '', window.location.pathname)
     }
     loadAccounts()
@@ -345,9 +417,26 @@ export default function IntegracoesPage() {
               </div>
             )}
 
-            <ComingSoonCard name="Shopee"   logo="SP" color="#ee4d2d" />
-            <ComingSoonCard name="Amazon"   logo="AZ" color="#ff9900" />
-            <ComingSoonCard name="Shopify"  logo="SH" color="#96bf48" />
+            <MarketplaceConnectCard
+              name="Shopee"
+              logo="SP"
+              color="#ee4d2d"
+              description="Conecte sua loja Shopee para sincronizar pedidos."
+              onConnect={() => startOAuth('shopee')}
+              connecting={connectingShopee}
+            />
+
+            <MarketplaceConnectCard
+              name="Magalu"
+              logo="ML"
+              color="#0086ff"
+              description="Conecte sua conta Magalu Marketplace."
+              onConnect={() => startOAuth('magalu')}
+              connecting={connectingMagalu}
+            />
+
+            <ComingSoonCard name="Amazon"  logo="AZ" color="#ff9900" />
+            <ComingSoonCard name="Shopify" logo="SH" color="#96bf48" />
           </div>
         </div>
       </div>
