@@ -7,7 +7,7 @@ import {
   Users, Phone, Mail, MessageCircle,
   CheckCircle2, AlertTriangle, XCircle, Crown, Ban,
   Sparkles, ScanLine, Send, Tag, Map, MoreHorizontal,
-  Eye, Trash2, GitMerge, Megaphone, QrCode, Search,
+  Eye, Trash2, GitMerge, Megaphone, QrCode, Search, RotateCcw,
 } from 'lucide-react'
 import { DataTable } from '@/components/data-table'
 import type { Column, RowAction, BulkAction, PanelSection } from '@/components/data-table'
@@ -112,6 +112,8 @@ export default function ClientesPage() {
   const [selected, setSelected]   = useState<string[]>([])
   const [busy, setBusy]           = useState<'enrich' | 'ml' | null>(null)
   const [mlPending, setMlPending] = useState<number | null>(null)
+  const [orphans,   setOrphans]   = useState<number | null>(null)
+  const [resetting, setResetting] = useState(false)
 
   const getHeaders = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
@@ -175,6 +177,40 @@ export default function ClientesPage() {
     } catch { setMlPending(0) }
   }, [getHeaders])
   useEffect(() => { loadMlPending() }, [loadMlPending])
+
+  // ── Orphans count (orders with billing_fetched_at but NULL doc_number) ────
+  const loadOrphans = useCallback(async () => {
+    try {
+      const headers = await getHeaders()
+      const res = await fetch(`${BACKEND}/ml/orders/orphans-count`, { headers })
+      const body = await res.json().catch(() => null) as { count?: number } | null
+      setOrphans(typeof body?.count === 'number' ? body.count : 0)
+    } catch { setOrphans(0) }
+  }, [getHeaders])
+  useEffect(() => { loadOrphans() }, [loadOrphans])
+
+  const resetOrphans = useCallback(async () => {
+    if (resetting || !orphans) return
+    if (!confirm(`Isso vai marcar ${orphans} pedidos para reprocessar o billing_info. Continuar?`)) return
+    setResetting(true)
+    try {
+      const headers = await getHeaders()
+      const res = await fetch(`${BACKEND}/ml/orders/reset-billing-fetched`, {
+        method: 'POST', headers, body: JSON.stringify({}),
+      })
+      const body = await res.json().catch(() => null) as { reset?: number; message?: string } | null
+      if (!res.ok || !body || typeof body.reset !== 'number') {
+        toast({ tone: 'error', message: body?.message ?? 'Falha ao resetar' })
+      } else {
+        toast({ tone: 'success', message: `✓ ${body.reset} pedidos resetados. Clique em "Buscar CPFs no ML" para reprocessar.` })
+      }
+      await Promise.all([loadOrphans(), loadMlPending()])
+    } catch {
+      toast({ tone: 'error', message: 'Erro de rede ao resetar' })
+    } finally {
+      setResetting(false)
+    }
+  }, [resetting, orphans, getHeaders, toast, loadOrphans, loadMlPending])
 
   // ── KPIs ───────────────────────────────────────────────────────────────────
   const totals = useMemo(() => ({
@@ -384,6 +420,12 @@ export default function ClientesPage() {
         { label: busy === 'enrich' ? 'Enriquecendo…' : 'Enriquecer pendentes', icon: <Sparkles size={12} />, badge: totals.pending || undefined,
           tone: 'accent', disabled: !totals.pending || busy === 'enrich',
           onClick: enrichBatch },
+        { label: resetting ? 'Resetando…' : 'Resetar pedidos sem CPF',
+          icon: <RotateCcw size={12} />,
+          badge: orphans ? `${orphans} órfão${orphans === 1 ? '' : 's'}` : undefined,
+          tone: 'warn',
+          disabled: !orphans || resetting,
+          onClick: resetOrphans },
         { label: 'Detectar duplicados', icon: <GitMerge size={12} />, onClick: () => todoToast('Detecção de duplicados') },
         { label: 'Exportar lista atual', icon: <Map size={12} />, onClick: () => exportCsv(list) },
       ]},
@@ -398,7 +440,7 @@ export default function ClientesPage() {
         { label: 'LTV médio',    value: brl(ltvAvg) },
       ]},
     ]
-  }, [totals, total, mlPending, busy, fetchMlBilling, enrichBatch, exportCsv, list])
+  }, [totals, total, mlPending, orphans, busy, resetting, fetchMlBilling, enrichBatch, resetOrphans, exportCsv, list])
 
   // ── render ────────────────────────────────────────────────────────────────
   return (
