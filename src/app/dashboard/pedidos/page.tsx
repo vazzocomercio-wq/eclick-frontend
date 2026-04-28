@@ -10,6 +10,7 @@ import {
 import { ToastViewport, todoToast } from '@/hooks/useToast'
 import { ensurePulseStyles, pulseClass, PulsingButton } from '@/components/ui/pulsing-button'
 import { PedidosTable } from './_components/PedidosTable'
+import { OrderDetailDrawer } from './_components/OrderDetailDrawer'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 const PAGE = 20
@@ -1649,6 +1650,8 @@ export default function PedidosPage() {
   // Sprint B bloco 1 — terceira opção de view (DataTable beta opt-in).
   // Default 'cards' = comportamento atual. 'table' renderiza <PedidosTable>.
   const [view,        setView]        = useState<'cards' | 'table'>('cards')
+  // Sprint B bloco 2 — drawer detail aberto por click numa linha da tabela
+  const [selectedOrder, setSelectedOrder] = useState<MOrder | null>(null)
   const tid = useRef(0)
   const pageRef = useRef(0)
   const qRef    = useRef('')
@@ -1915,13 +1918,14 @@ export default function PedidosPage() {
         ))}
       </div>
 
-      {/* TABLE VIEW (BETA — Sprint B bloco 1, read-only). Drawer com OrderCard
-          vem no Bloco 2. Por ora cliques em "Ver detalhes" disparam todoToast. */}
+      {/* TABLE VIEW (BETA — Sprint B). Click em row abre OrderDetailDrawer
+          com OrderCard intacto dentro (Bloco 2). */}
       {view === 'table' && (
         <PedidosTable
           orders={filtered}
           loading={loading}
           onRefresh={() => loadOrders(pageRef.current, qRef.current)}
+          onViewDetails={(o) => setSelectedOrder(o as unknown as MOrder)}
         />
       )}
 
@@ -1978,6 +1982,33 @@ export default function PedidosPage() {
           getHeaders={getHeaders}
         />
       )}
+
+      {/* Drawer detail (Sprint B bloco 2). Renderiza OrderCard intacto
+          dentro — mesma instância do componente usada na cards view, com
+          todas as features preservadas: edição custo/imposto, kit/vinculos,
+          margem live, billing refetch, botões etiqueta + NF-e. */}
+      <OrderDetailDrawer
+        open={!!selectedOrder}
+        onClose={() => setSelectedOrder(null)}
+        title={selectedOrder ? `Pedido #${selectedOrder.order_id}` : undefined}>
+        {selectedOrder && (() => {
+          const oi     = selectedOrder.order_items[0]
+          const itemId = oi?.item_id ?? oi?.item?.id ?? null
+          const vinculos = itemId ? (vinculosPorListing[itemId] ?? []) : []
+          return (
+            <OrderCard
+              key={selectedOrder.order_id}
+              order={selectedOrder}
+              itemId={itemId}
+              vinculos={vinculos}
+              onSalvar={salvar}
+              onCriarProduto={criarProduto}
+              onToast={toast}
+              getHeaders={getHeaders}
+            />
+          )
+        })()}
+      </OrderDetailDrawer>
     </div>
   )
 }
