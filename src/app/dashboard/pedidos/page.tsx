@@ -177,14 +177,18 @@ function PedidosToolsPanel({ orders, kpis, getHeaders, onToast }: {
     setSyncing(true)
     try {
       const headers = await getHeaders()
+      // Endpoint Supabase-auth (JWT do usuário). NÃO usamos /admin/sync-now
+      // do browser pra não expor ADMIN_SECRET no cliente — esse fica
+      // reservado pra GitHub Action / cron OS sem session token. Mesma
+      // ação efetiva: dispara startRun('manual', days) pra org do usuário.
       const res = await fetch(`${BACKEND}/sales-aggregator/sync-now`, {
         method: 'POST',
         headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ days: 1 }),
+        body: JSON.stringify({ days: 7 }),
       })
       const body = await res.json().catch(() => null) as { runId?: string; message?: string } | null
       if (!res.ok || !body?.runId) onToast(body?.message ?? 'Falha ao sincronizar', 'error')
-      else onToast(`✓ Sync iniciado (runId ${body.runId.slice(0, 8)}…)`, 'success')
+      else onToast(`✓ Sync de 7 dias iniciado (runId ${body.runId.slice(0, 8)}…)`, 'success')
       setTimeout(loadPending, 30_000)
     } catch { onToast('Erro de rede ao sincronizar', 'error') }
     finally { setSyncing(false) }
