@@ -79,6 +79,9 @@ const CPF_PROVIDERS: Array<{ id: string; label: string; key_format: string; stre
   { id: 'hubdesenvolvedor', label: 'Hub do Desenvolvedor',
     key_format: 'token único',
     strength:   'Barato, ideal para baixo volume e MVPs.' },
+  { id: 'ph3a',             label: 'PH3A DataBusca',
+    key_format: 'email + senha (env PH3A_USER/PH3A_PASSWORD no Railway)',
+    strength:   'Telefones rankeados (≥90), e-mails validados, score de crédito, dados sociodemográficos completos.' },
 ]
 
 export default function LeadBridgeConfigPage() {
