@@ -64,6 +64,13 @@ function initials(name: string | null) {
   return name.slice(0, 2).toUpperCase()
 }
 
+/** Treats display_name as a bare ML nickname when it has no whitespace.
+ * Real names virtually always have at least a first + last name. */
+function isLikelyNickname(name: string | null) {
+  if (!name) return true
+  return !/\s/.test(name)
+}
+
 function maskCpf(v: string | null) {
   if (!v) return null
   const d = v.replace(/\D/g, '')
@@ -312,22 +319,37 @@ export default function ClientesPage() {
   const columns: Column<Customer>[] = useMemo(() => [
     {
       key: 'name', label: 'Cliente',
-      render: c => (
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
-            style={{ background: '#1a1a1f', color: '#a1a1aa' }}>{initials(c.display_name)}</div>
-          <div className="min-w-0">
-            <p className="text-zinc-100 text-xs font-medium truncate max-w-[220px]">
-              {c.display_name ?? '(sem nome)'}
-              {(c.tags ?? []).includes('vip')     && <Crown size={10} className="inline ml-1" style={{ color: '#facc15' }} />}
-              {(c.tags ?? []).includes('blocked') && <Ban   size={10} className="inline ml-1" style={{ color: '#f87171' }} />}
-            </p>
-            <p className="text-[10px] text-zinc-600">
-              {c.last_channel ?? '—'}{c.ml_buyer_id && <span className="ml-1 font-mono">· ML #{c.ml_buyer_id}</span>}
-            </p>
+      render: c => {
+        const nameIsNick = isLikelyNickname(c.display_name)
+        const primary = c.display_name == null
+          ? '(sem nome)'
+          : nameIsNick
+            ? `@${c.display_name}`     // bare nickname → flag with @
+            : c.display_name           // real name → render as is
+        return (
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
+              style={{ background: '#1a1a1f', color: '#a1a1aa' }}>{initials(c.display_name)}</div>
+            <div className="min-w-0">
+              <p className="text-zinc-100 text-xs font-medium truncate max-w-[220px]">
+                {primary}
+                {(c.tags ?? []).includes('vip')     && <Crown size={10} className="inline ml-1" style={{ color: '#facc15' }} />}
+                {(c.tags ?? []).includes('blocked') && <Ban   size={10} className="inline ml-1" style={{ color: '#f87171' }} />}
+              </p>
+              <p className="text-[10px] text-zinc-500">
+                {c.ml_buyer_id && <span className="font-mono">ML #{c.ml_buyer_id}</span>}
+                {nameIsNick && c.ml_buyer_id && <span> · </span>}
+                {nameIsNick && (
+                  <span style={{ color: '#facc15' }}>⚠️ Aguardando enriquecimento</span>
+                )}
+                {!nameIsNick && c.last_channel && (
+                  <span> · {c.last_channel}</span>
+                )}
+              </p>
+            </div>
           </div>
-        </div>
-      ),
+        )
+      },
     },
     { key: 'cpf', label: 'CPF',
       render: c => <span className="text-zinc-400 font-mono text-[11px]">{maskCpf(c.cpf) ?? '—'}</span> },
