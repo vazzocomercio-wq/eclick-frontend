@@ -4,8 +4,9 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
-import { ToastViewport, todoToast } from '@/hooks/useToast'
+import { ToastViewport, todoToast, pushToast } from '@/hooks/useToast'
 import { PulsingButton } from '@/components/ui/pulsing-button'
+import { ProdutosTable } from './_components/ProdutosTable'
 
 const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
@@ -110,13 +111,30 @@ function ProdutosToolsPanel({ products }: { products: Product[] }) {
   const [collapsed, setCollapsed] = useState(false)
   const [exporting, setExporting] = useState(false)
 
-  // KPIs derivados do catálogo carregado
-  const ativos       = products.filter(p => p.status === 'active').length
-  const semEstoque   = products.filter(p => (p.stock ?? 0) === 0).length
-  const critico      = products.filter(p => (p.stock ?? 0) > 0 && (p.stock ?? 0) <= 5).length
-  // "Sem Ads" — placeholder; campo real precisa join com ml_ads_campaigns,
-  // por enquanto mostra "—" pra deixar a slot reservada
-  const semAds = '—'
+  // KPIs reais do servidor (GET /products/kpis) — totais do catálogo inteiro,
+  // não filtrados pela paginação atual. Sem Ads = produtos cujo ml_listing_id
+  // não está em nenhum ml_ads_campaigns ativo (count exato).
+  type Kpis = { active: number; no_stock: number; critical: number; no_ads: number }
+  const [kpis, setKpis] = useState<Kpis | null>(null)
+  useEffect(() => {
+    (async () => {
+      try {
+        const token = await getAuthToken()
+        if (!token) return
+        const res = await fetch(`${BACKEND}/products/kpis`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        const body = await res.json().catch(() => null) as Kpis | null
+        if (body) setKpis(body)
+      } catch { /* fallback pra contagem local abaixo */ }
+    })()
+  }, [products.length]) // refresca quando o catálogo carregado muda
+
+  // Fallback local caso /kpis falhe (offline/network)
+  const ativos     = kpis?.active   ?? products.filter(p => p.status === 'active').length
+  const semEstoque = kpis?.no_stock ?? products.filter(p => (p.stock ?? 0) === 0).length
+  const critico    = kpis?.critical ?? products.filter(p => (p.stock ?? 0) > 0 && (p.stock ?? 0) <= 5).length
+  const semAds: string | number = kpis?.no_ads ?? '—'
 
   function exportCsv() {
     if (exporting) return
@@ -166,7 +184,7 @@ function ProdutosToolsPanel({ products }: { products: Product[] }) {
         <KpiRow label="Ativos"          value={ativos.toLocaleString('pt-BR')}      color="#34d399" />
         <KpiRow label="Sem estoque"     value={semEstoque.toLocaleString('pt-BR')}  color="#f87171" />
         <KpiRow label="Estoque crítico" value={critico.toLocaleString('pt-BR')}     color="#facc15" />
-        <KpiRow label="Sem Ads"         value={semAds}                              color="#a1a1aa" />
+        <KpiRow label="Sem Ads"         value={typeof semAds === 'number' ? semAds.toLocaleString('pt-BR') : semAds} color="#a1a1aa" />
       </div>
       <div className="px-3 py-2"
         style={{ borderTop: '1px solid #1e1e24' }}>
@@ -787,7 +805,7 @@ export default function ProdutosPage() {
   const [error, setError]           = useState<string | null>(null)
   const [search, setSearch]         = useState('')
   const [filterStatus, setFilter]   = useState('all')
-  const [view, setView]             = useState<'list' | 'grid'>('list')
+  const [view, setView]             = useState<'list' | 'grid' | 'table'>('list')
   const [selected, setSelected]     = useState<Set<string>>(new Set())
   const [orgId, setOrgId]           = useState<string | null>(null)
   const [showMlImport, setShowMlImport] = useState(false)
@@ -866,6 +884,29 @@ export default function ProdutosPage() {
     setProducts(prev => prev.map(p => p.id === id ? { ...p, status } : p))
   }
 
+  /** Page-level toggle pause/active — usado pela <ProdutosTable> (DataTable
+   * view). Mesma lógica do toggleStatus interno do TableRow/ProductCard
+   * (PUT /products/{id} { status }), mas extraído pra fora pra ser
+   * compartilhável. Optimistic UI com rollback em erro. */
+  const togglePauseActive = useCallback(async (id: string, next: 'active' | 'paused') => {
+    const token = await getAuthToken()
+    if (!token) return
+    const prev = products.find(p => p.id === id)?.status
+    setProducts(ps => ps.map(p => p.id === id ? { ...p, status: next } : p))
+    try {
+      const res = await fetch(`${BACKEND}/products/${id}`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: next }),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      pushToast({ tone: 'success', message: `✓ Anúncio ${next === 'paused' ? 'pausado' : 'ativado'}` })
+    } catch {
+      if (prev) setProducts(ps => ps.map(p => p.id === id ? { ...p, status: prev } : p))
+      pushToast({ tone: 'error', message: `Falha ao ${next === 'paused' ? 'pausar' : 'ativar'} anúncio` })
+    }
+  }, [products])
+
   async function handleDelete(id: string) {
     const token = await getAuthToken()
     if (!token) return
@@ -891,25 +932,30 @@ export default function ProdutosPage() {
     if (data) setProducts(prev => [data as Product, ...prev])
   }
 
-  async function bulkPause() {
-    const ids = [...selected]
+  /** Pausa N produtos. Aceita ids explícito (DataTable bulk actions);
+   * o BulkBar antigo passa [...selected]. Mesma lógica em ambos. */
+  async function bulkPause(ids: string[]) {
+    if (ids.length === 0) return
     const supabase = createClient()
     await supabase.from('products').update({ status: 'paused' }).in('id', ids)
     setProducts(prev => prev.map(p => ids.includes(p.id) ? { ...p, status: 'paused' } : p))
-    setSelected(new Set())
+    setSelected(prev => { const n = new Set(prev); ids.forEach(i => n.delete(i)); return n })
+    pushToast({ tone: 'success', message: `✓ ${ids.length} produto${ids.length === 1 ? '' : 's'} pausado${ids.length === 1 ? '' : 's'}` })
   }
 
-  async function bulkDelete() {
-    const ids = [...selected]
+  async function bulkDelete(ids: string[]) {
+    if (ids.length === 0) return
     const token = await getAuthToken()
     if (!token) return
+    if (!confirm(`Excluir ${ids.length} produto${ids.length === 1 ? '' : 's'}? Esta ação não pode ser desfeita.`)) return
     await fetch(`${BACKEND}/products/bulk-delete`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ ids }),
     })
     setProducts(prev => prev.filter(p => !ids.includes(p.id)))
-    setSelected(new Set())
+    setSelected(prev => { const n = new Set(prev); ids.forEach(i => n.delete(i)); return n })
+    pushToast({ tone: 'success', message: `${ids.length} produto${ids.length === 1 ? '' : 's'} excluído${ids.length === 1 ? '' : 's'}` })
   }
 
   // ── filter ───────────────────────────────────────────────────────────────────
@@ -1000,8 +1046,10 @@ export default function ProdutosPage() {
         {/* View toggle */}
         <div className="flex gap-1 ml-auto p-1 rounded-lg" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
           {([
-            { v: 'list', path: 'M4 6h16M4 10h16M4 14h16M4 18h16' },
-            { v: 'grid', path: 'M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM14 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zM14 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z' },
+            { v: 'list',  path: 'M4 6h16M4 10h16M4 14h16M4 18h16' },
+            { v: 'grid',  path: 'M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM14 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zM14 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z' },
+            // BETA — DataTable view (Sprint A bloco 1, read-only)
+            { v: 'table', path: 'M3 5h18M3 10h18M3 15h18M5 5v14M19 5v14' },
           ] as const).map(({ v, path }) => (
             <button key={v} onClick={() => setView(v)}
               className="w-8 h-8 rounded-md flex items-center justify-center transition-all"
@@ -1017,10 +1065,12 @@ export default function ProdutosPage() {
         </div>
       </div>
 
-      {/* Bulk action bar */}
-      {selected.size > 0 && (
+      {/* Bulk action bar (list/grid view — DataTable view tem seu próprio
+          banner integrado dentro de <ProdutosTable>) */}
+      {selected.size > 0 && view !== 'table' && (
         <BulkBar count={selected.size} onClear={() => setSelected(new Set())}
-          onPause={bulkPause} onDelete={bulkDelete} />
+          onPause={() => bulkPause([...selected])}
+          onDelete={() => bulkDelete([...selected])} />
       )}
 
       {/* Error */}
@@ -1066,6 +1116,27 @@ export default function ProdutosPage() {
             Limpar filtros
           </button>
         </div>
+      )}
+
+      {/* ── TABLE VIEW (BETA) ──
+          - Clique na linha → navega pra detail page (edição completa)
+          - Duplicar / Excluir wirados em handlers existentes
+          - Pausar/Ativar via togglePauseActive (Bloco 2): page-level
+            helper com PUT /products/{id} { status } + optimistic UI.
+            Inline editing de preço/custo/estoque NÃO existe na list/grid
+            (só em /produtos/[id]/editar) — não há nada pra migrar. */}
+      {view === 'table' && (
+        // Sem `products` → ProdutosTable entra em SERVER-SIDE mode:
+        // fetch GET /products?page=&per_page=&search=&quick_filter=&...
+        // com totais corretos do catálogo inteiro (não da página).
+        <ProdutosTable
+          onRefresh={load}
+          onToggleStatus={togglePauseActive}
+          onDuplicate={handleDuplicate}
+          onDelete={handleDelete}
+          onBulkPause={bulkPause}
+          onBulkDelete={bulkDelete}
+        />
       )}
 
       {/* ── LIST VIEW ── */}
