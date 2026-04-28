@@ -226,17 +226,46 @@ export default function ClientesPage() {
     }
   }, [resetting, orphans, getHeaders, toast, loadOrphans, loadMlPending])
 
-  // ── KPIs ───────────────────────────────────────────────────────────────────
+  // ── KPIs (agregados via /customers/stats — banco inteiro, não página) ──
+  type StatsAgg = {
+    total: number; with_cpf: number; with_phone: number; with_whatsapp: number
+    with_email: number; with_address: number; vip: number; blocked: number
+    pending: number; gmv_total: number; ltv_average: number
+  }
+  const [statsAgg, setStatsAgg] = useState<StatsAgg | null>(null)
+  const loadStats = useCallback(async () => {
+    try {
+      const headers = await getHeaders()
+      const res = await fetch(`${BACKEND}/customers/stats`, { headers })
+      if (res.ok) setStatsAgg(await res.json() as StatsAgg)
+    } catch { /* silent — stats são best-effort */ }
+  }, [getHeaders])
+  useEffect(() => {
+    loadStats()
+    const id = setInterval(loadStats, 5 * 60_000) // refresh a cada 5min
+    return () => clearInterval(id)
+  }, [loadStats])
+
+  // GMV/revenue da página atual (mostrado como "GMV pág."), separado do total
+  const pageRevenue = useMemo(
+    () => list.reduce((s, c) => s + Number(c.total_purchases ?? 0), 0),
+    [list],
+  )
+
+  /** Contadores reais do banco (preferência) ou fallback pra page-derived
+   * enquanto stats não carregaram. with_wa = customers com validated_whatsapp=true. */
   const totals = useMemo(() => ({
-    total,
-    with_cpf:    list.filter(c => c.cpf).length,
-    with_wa:     list.filter(c => c.whatsapp_id || c.validated_whatsapp).length,
-    with_mail:   list.filter(c => c.email).length,
-    revenue:     list.reduce((s, c) => s + Number(c.total_purchases ?? 0), 0),
-    pending:     list.filter(c => (c.enrichment_status ?? 'pending') === 'pending' && (c.cpf || c.phone || c.whatsapp_id)).length,
-    vip:         list.filter(c => (c.tags ?? []).includes('vip')).length,
-    blocked:     list.filter(c => (c.tags ?? []).includes('blocked')).length,
-  }), [list, total])
+    total:     statsAgg?.total     ?? total,
+    with_cpf:  statsAgg?.with_cpf  ?? list.filter(c => c.cpf).length,
+    with_wa:   statsAgg?.with_whatsapp ?? list.filter(c => c.whatsapp_id || c.validated_whatsapp).length,
+    with_mail: statsAgg?.with_email ?? list.filter(c => c.email).length,
+    revenue:   pageRevenue,
+    gmv_total: statsAgg?.gmv_total ?? null,
+    ltv_avg:   statsAgg?.ltv_average ?? null,
+    pending:   statsAgg?.pending ?? list.filter(c => (c.enrichment_status ?? 'pending') === 'pending' && (c.cpf || c.phone || c.whatsapp_id)).length,
+    vip:       statsAgg?.vip     ?? list.filter(c => (c.tags ?? []).includes('vip')).length,
+    blocked:   statsAgg?.blocked ?? list.filter(c => (c.tags ?? []).includes('blocked')).length,
+  }), [statsAgg, list, total, pageRevenue])
 
   // ── actions ────────────────────────────────────────────────────────────────
   const enrichOne = useCallback(async (c: Customer) => {
@@ -371,13 +400,13 @@ export default function ClientesPage() {
         )
       },
     },
-    { key: 'cpf', label: 'CPF',
+    { key: 'cpf', label: 'CPF', width: '140px',
       render: c => (
         <span className="text-zinc-400 text-[11px]">
           <MaskedField type="cpf" value={c.cpf} customerId={c.id} copyable={!!c.cpf} hideToggle={!c.cpf} />
         </span>
       ) },
-    { key: 'contatos', label: 'Contatos',
+    { key: 'contatos', label: 'Contatos', width: '220px',
       render: c => (
         <div className="flex items-center gap-1.5 flex-wrap">
           {c.phone && (
@@ -404,18 +433,21 @@ export default function ClientesPage() {
         </div>
       ),
     },
-    { key: 'cidade_uf', label: 'Cidade/UF',
+    { key: 'cidade_uf', label: 'Cidade/UF', width: '120px', className: 'hidden lg:table-cell',
       render: c => {
         if (!c.city && !c.state) return <span className="text-zinc-700 text-[11px]">—</span>
         const uf = (c.state ?? '').slice(0, 2).toUpperCase()
+        const city = c.city ?? '—'
+        const full = `${city}${uf ? ` / ${uf}` : ''}`
         return (
-          <span className="text-[11px] text-zinc-300">
-            {c.city ?? '—'}{uf && <span className="text-zinc-500"> / {uf}</span>}
-          </span>
+          <div className="flex items-center gap-1 max-w-[110px]" title={full}>
+            <span className="text-[11px] text-zinc-300 truncate">{city}</span>
+            {uf && <span className="text-[11px] text-zinc-500 shrink-0">/ {uf}</span>}
+          </div>
         )
       },
     },
-    { key: 'status', label: 'Status',
+    { key: 'status', label: 'Status', width: '110px',
       render: c => {
         const m = STATUS_META[c.enrichment_status ?? 'pending'] ?? STATUS_META.pending
         return (
@@ -426,7 +458,7 @@ export default function ClientesPage() {
         )
       },
     },
-    { key: 'compras', label: 'Compras', align: 'right',
+    { key: 'compras', label: 'Compras', align: 'right', width: '120px', className: 'hidden xl:table-cell',
       render: c => (
         <div className="text-right">
           <p className="text-zinc-100 text-xs font-semibold tabular-nums">{brl(Number(c.total_purchases ?? 0))}</p>
@@ -434,7 +466,7 @@ export default function ClientesPage() {
         </div>
       ),
     },
-    { key: 'last_contact_at', label: 'Última', align: 'right', sortable: true,
+    { key: 'last_contact_at', label: 'Última', align: 'right', sortable: true, width: '90px', className: 'hidden 2xl:table-cell',
       render: c => <span className="text-[11px] text-zinc-500">{relTime(c.last_contact_at)}</span> },
   ], [])
 
@@ -470,7 +502,8 @@ export default function ClientesPage() {
 
   // ── right panel ────────────────────────────────────────────────────────────
   const rightPanelSections: PanelSection[] = useMemo(() => {
-    const ltvAvg = totals.total ? totals.revenue / totals.total : 0
+    const ltvAvg = totals.ltv_avg ?? (totals.total ? totals.revenue / totals.total : 0)
+    const gmvTotal = totals.gmv_total
     return [
       { title: 'Ferramentas', items: [
         { label: 'Buscar CPFs no ML', icon: <ScanLine size={12} />, badge: mlPending ?? undefined,
@@ -492,17 +525,18 @@ export default function ClientesPage() {
         { label: 'Exportar lista atual', icon: <Map size={12} />, onClick: () => exportCsv(list) },
       ]},
       { title: 'Informações', items: [
-        { label: 'Total',        value: total.toLocaleString('pt-BR') },
-        { label: 'Com CPF',      value: totals.with_cpf.toLocaleString('pt-BR') },
-        { label: 'WhatsApp',     value: totals.with_wa.toLocaleString('pt-BR') },
-        { label: 'Email',        value: totals.with_mail.toLocaleString('pt-BR') },
-        { label: 'VIP',          value: totals.vip.toLocaleString('pt-BR'), tone: 'warn' },
-        { label: 'Bloqueados',   value: totals.blocked.toLocaleString('pt-BR'), tone: 'danger' },
-        { label: 'GMV (página)', value: brl(totals.revenue),  tone: 'success' },
-        { label: 'LTV médio',    value: brl(ltvAvg) },
+        { label: 'Total',       value: totals.total.toLocaleString('pt-BR') },
+        { label: 'Com CPF',     value: totals.with_cpf.toLocaleString('pt-BR') },
+        { label: 'WhatsApp',    value: totals.with_wa.toLocaleString('pt-BR') },
+        { label: 'Email',       value: totals.with_mail.toLocaleString('pt-BR') },
+        { label: 'VIP',         value: totals.vip.toLocaleString('pt-BR'), tone: 'warn' },
+        { label: 'Bloqueados',  value: totals.blocked.toLocaleString('pt-BR'), tone: 'danger' },
+        ...(gmvTotal != null ? [{ label: 'GMV total',  value: brl(gmvTotal),       tone: 'success' as const }] : []),
+        { label: 'GMV pág.',   value: brl(totals.revenue) },
+        { label: 'LTV médio',   value: brl(ltvAvg) },
       ]},
     ]
-  }, [totals, total, mlPending, orphans, busy, resetting, fetchMlBilling, enrichBatch, resetOrphans, exportCsv, list])
+  }, [totals, mlPending, orphans, busy, resetting, fetchMlBilling, enrichBatch, resetOrphans, exportCsv, list])
 
   // ── render ────────────────────────────────────────────────────────────────
   return (
