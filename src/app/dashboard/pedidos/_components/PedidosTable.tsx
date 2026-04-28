@@ -124,6 +124,8 @@ export function PedidosTable({
   onRefresh,
   onViewDetails,
   onBulkMarkProblem,
+  controlledPagination,
+  controlledSearch,
 }: {
   orders:         PedidoRow[]
   loading?:       boolean
@@ -133,16 +135,48 @@ export function PedidosTable({
   /** Bloco 3 — abre dialog com motivo + severidade, depois chama isto
    * com ids selecionados. Caller faz POST /ml/orders/bulk-mark-problem. */
   onBulkMarkProblem?: (ids: string[], note: string, severity: 'low'|'medium'|'high'|'critical') => Promise<void> | void
+  /** Bloco 4 — quando supplied, paginação é parent-controlled (server-side
+   * via fetch /ml/orders/enriched do parent). Total vem do response. Sem
+   * isso, paginação é client-side dentro do array `orders`. */
+  controlledPagination?: {
+    page:            number
+    perPage:         number
+    total:           number
+    onPageChange:    (page: number) => void
+    onPerPageChange?: (perPage: number) => void
+  }
+  /** Bloco 4 — search controlado pelo parent (re-fetch via parent.q). */
+  controlledSearch?: {
+    value:    string
+    onChange: (v: string) => void
+  }
 }) {
-  const [page,    setPage]    = useState(1)
-  const [perPage, setPerPage] = useState(25)
-  const [search,  setSearch]  = useState('')
+  // Pagination: usa controlled props quando supplied (server-side via parent),
+  // senão fallback pra state interno (client-side).
+  const [internalPage,    setInternalPage]    = useState(1)
+  const [internalPerPage, setInternalPerPage] = useState(25)
+  const page    = controlledPagination?.page    ?? internalPage
+  const perPage = controlledPagination?.perPage ?? internalPerPage
+  const setPage = controlledPagination?.onPageChange ?? setInternalPage
+  const setPerPage = controlledPagination?.onPerPageChange ?? setInternalPerPage
+
+  // Search: idem (controlado pelo parent quando q precisa hit /ml/orders/enriched)
+  const [internalSearch, setInternalSearch] = useState('')
+  const search    = controlledSearch?.value    ?? internalSearch
+  const setSearch = controlledSearch?.onChange ?? setInternalSearch
+
   const [quickFilter, setQuickFilter] = useState<QuickFilterValue>('all')
   const [selected, setSelected] = useState<string[]>([])
 
+  const isControlled = !!controlledPagination
+
+  // No modo controlado: orders já vem paginado server-side (1 página por
+  // vez). Só aplicamos quick_filter (status/shipping/mediations). Search e
+  // pagination são responsabilidade do parent — nada de client-side.
+  // No modo não-controlado: filtra + pagina tudo localmente.
   const filtered = useMemo(() => {
     let arr = orders.filter(o => applyQuickFilter(o, quickFilter))
-    if (search.trim()) {
+    if (!isControlled && search.trim()) {
       const s = search.trim().toLowerCase()
       arr = arr.filter(o =>
         String(o.order_id).includes(s) ||
@@ -153,12 +187,17 @@ export function PedidosTable({
       )
     }
     return arr
-  }, [orders, search, quickFilter])
+  }, [orders, search, quickFilter, isControlled])
 
   const paged = useMemo(() => {
+    if (isControlled) return filtered
     const start = (page - 1) * perPage
     return filtered.slice(start, start + perPage)
-  }, [filtered, page, perPage])
+  }, [isControlled, filtered, page, perPage])
+
+  const totalCount = isControlled
+    ? (controlledPagination!.total)
+    : filtered.length
 
   const columns: Column<PedidoRow>[] = useMemo(() => [
     {
@@ -317,7 +356,7 @@ export function PedidosTable({
       quickFilter={quickFilterProp}
       columns={columns}
       data={paged}
-      totalCount={filtered.length}
+      totalCount={totalCount}
       loading={loading}
       getRowId={o => String(o.order_id)}
       onRowClick={o => { onViewDetails ? onViewDetails(o) : undefined }}

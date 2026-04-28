@@ -1920,13 +1920,26 @@ export default function PedidosPage() {
 
       {/* TABLE VIEW (BETA — Sprint B). Click em row abre OrderDetailDrawer
           com OrderCard intacto dentro (Bloco 2). Bulk actions (Bloco 3): CSV
-          fretes, marcar problema (POST backend), reimprimir etiquetas (stub). */}
+          fretes, marcar problema (POST backend), reimprimir etiquetas (stub).
+          Bloco 4: pagination + search controlados pelo parent — server-side
+          via /ml/orders/enriched. Quick filter continua client-side (filtra
+          os 20 da página atual; spec atual do endpoint não aceita status). */}
       {view === 'table' && (
         <PedidosTable
           orders={filtered}
           loading={loading}
           onRefresh={() => loadOrders(pageRef.current, qRef.current)}
           onViewDetails={(o) => setSelectedOrder(o as unknown as MOrder)}
+          controlledPagination={{
+            page:    page + 1,                              // parent: 0-indexed → DataTable: 1-indexed
+            perPage: PAGE,
+            total:   total,
+            onPageChange: (p) => setPage(p - 1),            // DataTable → parent (re-fetch via useEffect)
+          }}
+          controlledSearch={{
+            value:    q,
+            onChange: setQ,                                 // parent debounced re-fetch já existe
+          }}
           onBulkMarkProblem={async (ids, note, severity) => {
             try {
               const headers = await getHeaders()
