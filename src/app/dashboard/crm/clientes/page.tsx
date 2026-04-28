@@ -21,6 +21,7 @@ const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', curren
 type Customer = {
   id: string
   display_name: string | null
+  ml_nickname: string | null
   phone: string | null
   email: string | null
   whatsapp_id: string | null
@@ -320,31 +321,35 @@ export default function ClientesPage() {
     {
       key: 'name', label: 'Cliente',
       render: c => {
-        const nameIsNick = isLikelyNickname(c.display_name)
-        const primary = c.display_name == null
-          ? '(sem nome)'
-          : nameIsNick
-            ? `@${c.display_name}`     // bare nickname → flag with @
-            : c.display_name           // real name → render as is
+        const hasRealName = !isLikelyNickname(c.display_name)
+        // Linha 1: nome real se houver, caso contrário @nickname (ou @display_name se for o nick).
+        const primary = hasRealName
+          ? c.display_name
+          : c.ml_nickname
+            ? `@${c.ml_nickname}`
+            : c.display_name
+              ? `@${c.display_name}`
+              : '(sem nome)'
+        // Linha 2: @nickname · ML #buyer_id (· ⚠️ pendente quando faltam dados)
+        const secondaryParts: React.ReactNode[] = []
+        if (hasRealName && c.ml_nickname) secondaryParts.push(<span key="nick" className="font-mono">@{c.ml_nickname}</span>)
+        if (c.ml_buyer_id)                secondaryParts.push(<span key="buy"  className="font-mono">ML #{c.ml_buyer_id}</span>)
+        if (!hasRealName)                 secondaryParts.push(<span key="warn" style={{ color: '#facc15' }}>⚠️ Aguardando enriquecimento</span>)
+
         return (
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
-              style={{ background: '#1a1a1f', color: '#a1a1aa' }}>{initials(c.display_name)}</div>
+              style={{ background: '#1a1a1f', color: '#a1a1aa' }}>{initials(hasRealName ? c.display_name : c.ml_nickname ?? c.display_name)}</div>
             <div className="min-w-0">
               <p className="text-zinc-100 text-xs font-medium truncate max-w-[220px]">
                 {primary}
                 {(c.tags ?? []).includes('vip')     && <Crown size={10} className="inline ml-1" style={{ color: '#facc15' }} />}
                 {(c.tags ?? []).includes('blocked') && <Ban   size={10} className="inline ml-1" style={{ color: '#f87171' }} />}
               </p>
-              <p className="text-[10px] text-zinc-500">
-                {c.ml_buyer_id && <span className="font-mono">ML #{c.ml_buyer_id}</span>}
-                {nameIsNick && c.ml_buyer_id && <span> · </span>}
-                {nameIsNick && (
-                  <span style={{ color: '#facc15' }}>⚠️ Aguardando enriquecimento</span>
-                )}
-                {!nameIsNick && c.last_channel && (
-                  <span> · {c.last_channel}</span>
-                )}
+              <p className="text-[10px] text-zinc-500 truncate max-w-[260px]">
+                {secondaryParts.map((node, i) => (
+                  <span key={i}>{i > 0 && <span> · </span>}{node}</span>
+                ))}
               </p>
             </div>
           </div>
