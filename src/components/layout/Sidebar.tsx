@@ -18,7 +18,7 @@ const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type BadgeKey = 'atendimento-perguntas' | 'atendimento-reclamacoes' | 'vinculos' | 'compras-criticos'
+type BadgeKey = 'atendimento-perguntas' | 'atendimento-reclamacoes' | 'vinculos' | 'compras-criticos' | 'pricing-critical'
 type Badges = Partial<Record<BadgeKey, number>>
 
 type SubItem = { label: string; href: string }
@@ -97,10 +97,10 @@ const SECTIONS: NavSection[] = [
         ],
       },
       {
-        label: 'Precificação', href: '/dashboard/pricing/configuracao', icon: <TrendingDown size={15} />,
+        label: 'Precificação', href: '/dashboard/pricing/analise', icon: <TrendingDown size={15} />,
         children: [
           { label: 'Configuração', href: '/dashboard/pricing/configuracao' },
-          { label: 'Análise',      href: '/dashboard/pricing' },
+          { label: 'Análise',      href: '/dashboard/pricing/analise',  badgeKey: 'pricing-critical' as BadgeKey },
           { label: 'Chat IA',      href: '/dashboard/pricing/chat' },
         ],
       },
@@ -447,10 +447,11 @@ export default function Sidebar() {
         if (!session || !mounted.current) return
         const headers = { Authorization: `Bearer ${session.access_token}` }
 
-        const [qRes, cRes, comprasRes] = await Promise.allSettled([
+        const [qRes, cRes, comprasRes, pricingRes] = await Promise.allSettled([
           fetch(`${BACKEND}/ml/questions`,                      { headers }),
           fetch(`${BACKEND}/ml/claims`,                         { headers }),
           fetch(`${BACKEND}/compras/inteligencia/summary`,      { headers }),
+          fetch(`${BACKEND}/pricing/signals/summary`,           { headers }),
         ])
 
         if (!mounted.current) return
@@ -471,6 +472,13 @@ export default function Sidebar() {
         if (comprasRes.status === 'fulfilled' && comprasRes.value.ok) {
           const d = await comprasRes.value.json()
           if (d?.produtos_criticos > 0) next['compras-criticos'] = d.produtos_criticos
+        }
+        if (pricingRes.status === 'fulfilled' && pricingRes.value.ok) {
+          const d = await pricingRes.value.json()
+          const critical = d?.by_severity?.critical ?? 0
+          const high     = d?.by_severity?.high     ?? 0
+          const total    = critical + high
+          if (total > 0) next['pricing-critical'] = total
         }
 
         const [{ data: allProds }, { data: linked }] = await Promise.all([

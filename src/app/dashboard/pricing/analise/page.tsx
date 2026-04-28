@@ -6,8 +6,9 @@ import {
   PricingSignal, Severity, SignalType, SignalsSummary,
   SEVERITY_META, SIGNAL_TYPE_META, fmtRelativeTime,
 } from './_components/types'
-import { SignalCard }   from './_components/SignalCard'
-import { SignalDrawer } from './_components/SignalDrawer'
+import { SignalCard }    from './_components/SignalCard'
+import { SignalDrawer }  from './_components/SignalDrawer'
+import { SettingsModal } from './_components/SettingsModal'
 
 interface NotifSettings { whatsapp_enabled: boolean }
 
@@ -34,6 +35,7 @@ export default function PricingAnalisePage() {
   const [scanning, setScanning]     = useState(false)
   const [toasts, setToasts]         = useState<Toast[]>([])
   const [drawer, setDrawer]         = useState<PricingSignal | null>(null)
+  const [showSettings, setShowSettings] = useState(false)
   const [filterSeverity, setSev]    = useState<SeverityFilter>('all')
   const [filterType, setType]       = useState<TypeFilter>('all')
   const [filterChannel, setChannel] = useState<string>('all')
@@ -127,7 +129,7 @@ export default function PricingAnalisePage() {
               🔔 WhatsApp: <span className="font-semibold">{waEnabled ? '● ATIVO' : '○ Inativo'}</span>
             </span>
             <button
-              onClick={() => pushToast('Configurações de notificação virão no C4', 'error')}
+              onClick={() => setShowSettings(true)}
               className="px-3 py-1.5 rounded-lg text-xs font-medium border"
               style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}
             >Configurar</button>
@@ -236,6 +238,14 @@ export default function PricingAnalisePage() {
           signal={drawer}
           onClose={() => setDrawer(null)}
           onActionTaken={(msg) => { setDrawer(null); pushToast(msg, 'success'); load() }}
+          onError={(m) => pushToast(m, 'error')}
+        />
+      )}
+
+      {showSettings && (
+        <SettingsModal
+          onClose={() => setShowSettings(false)}
+          onSaved={(msg) => { pushToast(msg, 'success'); load() }}
           onError={(m) => pushToast(m, 'error')}
         />
       )}
