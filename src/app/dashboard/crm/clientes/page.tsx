@@ -32,6 +32,8 @@ type Customer = {
   cpf: string | null
   cnpj: string | null
   tags: string[] | null
+  city: string | null
+  state: string | null
   total_purchases: number
   total_conversations: number
   first_contact_at: string
@@ -401,6 +403,17 @@ export default function ClientesPage() {
           {!c.phone && !c.whatsapp_id && !c.email && <span className="text-[10px] text-zinc-700">—</span>}
         </div>
       ),
+    },
+    { key: 'cidade_uf', label: 'Cidade/UF',
+      render: c => {
+        if (!c.city && !c.state) return <span className="text-zinc-700 text-[11px]">—</span>
+        const uf = (c.state ?? '').slice(0, 2).toUpperCase()
+        return (
+          <span className="text-[11px] text-zinc-300">
+            {c.city ?? '—'}{uf && <span className="text-zinc-500"> / {uf}</span>}
+          </span>
+        )
+      },
     },
     { key: 'status', label: 'Status',
       render: c => {
