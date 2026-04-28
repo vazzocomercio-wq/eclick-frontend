@@ -581,6 +581,7 @@ function OrderCard({
 }) {
   const [buyerOverride, setBuyerOverride] = useState<MOrder['buyer'] | null>(null)
   const [refetching, setRefetching] = useState(false)
+  const autoTriedRef = useRef(false)
   const liveBuyer = buyerOverride ?? order.buyer
   useEffect(ensurePulseStyles, [])
 
@@ -637,6 +638,22 @@ function OrderCard({
   }, [refetching, getHeaders, order.order_id, onToast, liveBuyer])
 
   const [expanded,    setExpanded]    = useState(false)
+
+  /** Auto-refetch billing quando o card é expandido pela primeira vez E
+   * o pedido ainda não tem buyer_billing_fetched_at no banco. Elimina
+   * 90% dos cliques no botão "Buscar dados" — pedidos que chegaram pelo
+   * proxy live antes do cron das :17 são preenchidos transparentemente
+   * em background. autoTriedRef garante 1 tentativa por sessão. */
+  useEffect(() => {
+    if (!expanded) return
+    if (liveBuyer.billing_fetched_at) return
+    if (autoTriedRef.current) return
+    autoTriedRef.current = true
+    // 100ms delay pra permitir que o skeleton renderize antes do request
+    const t = setTimeout(() => { void refetchBilling() }, 100)
+    return () => clearTimeout(t)
+  }, [expanded, liveBuyer.billing_fetched_at, refetchBilling])
+
   const [criando,     setCriando]     = useState(false)
   const [editando,    setEditando]    = useState(true)
   const [salvando,    setSalvando]    = useState(false)
@@ -1124,7 +1141,32 @@ function OrderCard({
                 </div>
               )}
 
-              {(liveBuyer.full_name || liveBuyer.first_name || liveBuyer.last_name) && (
+              {/* Skeleton durante auto-refetch (Bloco UX: refetch em background
+                  ao expandir card pela 1ª vez se billing_fetched_at IS NULL).
+                  3 linhas pulsantes simulam Nome / CPF / Endereço. */}
+              {refetching && !liveBuyer.doc_number && !liveBuyer.full_name && (
+                <>
+                  <div className="space-y-1.5 animate-pulse">
+                    <div className="flex items-start gap-1.5">
+                      <span className="text-[11px] text-zinc-600 w-14 shrink-0">Nome</span>
+                      <div className="h-3 rounded w-32" style={{ background: '#1a1a1f' }} />
+                    </div>
+                    <div className="flex items-start gap-1.5">
+                      <span className="text-[11px] text-zinc-600 w-14 shrink-0">CPF</span>
+                      <div className="h-3 rounded w-28" style={{ background: '#1a1a1f' }} />
+                    </div>
+                    <div className="flex items-start gap-1.5">
+                      <span className="text-[11px] text-zinc-600 w-14 shrink-0">End. fiscal</span>
+                      <div className="space-y-1 flex-1">
+                        <div className="h-3 rounded w-40" style={{ background: '#1a1a1f' }} />
+                        <div className="h-3 rounded w-24" style={{ background: '#1a1a1f' }} />
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {!(refetching && !liveBuyer.doc_number && !liveBuyer.full_name) && (liveBuyer.full_name || liveBuyer.first_name || liveBuyer.last_name) && (
                 <div className="flex items-start gap-1.5">
                   <span className="text-[11px] text-zinc-600 w-14 shrink-0">Nome</span>
                   <span className="text-[11px] text-zinc-200 font-medium leading-tight">
@@ -1183,14 +1225,14 @@ function OrderCard({
                 </div>
               )}
 
-              {liveBuyer.nickname && (
+              {!(refetching && !liveBuyer.doc_number && !liveBuyer.full_name) && liveBuyer.nickname && (
                 <div className="flex items-center gap-1.5">
                   <span className="text-[11px] text-zinc-600 w-14 shrink-0">@usuário</span>
                   <span className="text-[11px] text-zinc-300 font-mono">@{liveBuyer.nickname}</span>
                 </div>
               )}
 
-              {liveBuyer.id && (
+              {!(refetching && !liveBuyer.doc_number && !liveBuyer.full_name) && liveBuyer.id && (
                 <div className="flex items-center gap-1.5">
                   <span className="text-[11px] text-zinc-600 w-14 shrink-0">ID</span>
                   <span className="text-[11px] text-zinc-600 font-mono">{liveBuyer.id}</span>
