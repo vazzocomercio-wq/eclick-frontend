@@ -1919,13 +1919,31 @@ export default function PedidosPage() {
       </div>
 
       {/* TABLE VIEW (BETA — Sprint B). Click em row abre OrderDetailDrawer
-          com OrderCard intacto dentro (Bloco 2). */}
+          com OrderCard intacto dentro (Bloco 2). Bulk actions (Bloco 3): CSV
+          fretes, marcar problema (POST backend), reimprimir etiquetas (stub). */}
       {view === 'table' && (
         <PedidosTable
           orders={filtered}
           loading={loading}
           onRefresh={() => loadOrders(pageRef.current, qRef.current)}
           onViewDetails={(o) => setSelectedOrder(o as unknown as MOrder)}
+          onBulkMarkProblem={async (ids, note, severity) => {
+            try {
+              const headers = await getHeaders()
+              const res = await fetch(`${BACKEND}/ml/orders/bulk-mark-problem`, {
+                method: 'POST',
+                headers: { ...headers, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ order_ids: ids, note, severity }),
+              })
+              const body = await res.json().catch(() => null) as { marked?: number; message?: string } | null
+              if (!res.ok || typeof body?.marked !== 'number') {
+                toast(body?.message ?? 'Falha ao marcar problema', 'error')
+              } else {
+                const sevLabel = ({ low: 'baixa', medium: 'média', high: 'alta', critical: 'crítica' } as const)[severity]
+                toast(`${body.marked} pedido${body.marked === 1 ? '' : 's'} marcado${body.marked === 1 ? '' : 's'} (severidade ${sevLabel})`, 'success')
+              }
+            } catch { toast('Erro de rede', 'error') }
+          }}
         />
       )}
 

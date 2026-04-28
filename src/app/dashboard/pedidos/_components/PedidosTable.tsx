@@ -2,12 +2,12 @@
 
 import { useMemo, useState } from 'react'
 import { DataTable } from '@/components/data-table'
-import type { Column, RowAction, QuickFilter } from '@/components/data-table'
+import type { Column, RowAction, BulkAction, QuickFilter } from '@/components/data-table'
 import {
   Eye, Send, Truck, AlertOctagon, Printer,
-  Search as SearchIcon,
+  Search as SearchIcon, FileDown,
 } from 'lucide-react'
-import { todoToast } from '@/hooks/useToast'
+import { todoToast, pushToast } from '@/hooks/useToast'
 
 /** Subset do MOrder de page.tsx — só os campos que a tabela usa.
  * Quando Sprint B consolidar, vira import único. */
@@ -34,8 +34,19 @@ export type PedidoRow = {
     thumbnail:  string | null
   }>
   shipping: {
-    status:    string | null
-    substatus: string | null
+    status:           string | null
+    substatus:        string | null
+    logistic_type?:   string | null
+    posting_deadline?: string | null
+    receiver_address?: {
+      zip_code?:    string | null
+      city?:        string | null
+      state?:       string | null
+      street_name?: string | null
+      street_number?: string | null
+      neighborhood?: string | null
+      complement?:  string | null
+    } | null
   } | null
   mediations: unknown[]
 }
@@ -112,13 +123,16 @@ export function PedidosTable({
   loading = false,
   onRefresh,
   onViewDetails,
+  onBulkMarkProblem,
 }: {
   orders:         PedidoRow[]
   loading?:       boolean
   onRefresh?:     () => void
-  /** Hook pro Bloco 2 — quando definido, click em row chama isto em
-   * vez de navegar. Por ora o bloco 1 só passa stub via todoToast. */
+  /** Bloco 2 — click em row chama isto pra abrir o OrderDetailDrawer. */
   onViewDetails?: (order: PedidoRow) => void
+  /** Bloco 3 — abre dialog com motivo + severidade, depois chama isto
+   * com ids selecionados. Caller faz POST /ml/orders/bulk-mark-problem. */
+  onBulkMarkProblem?: (ids: string[], note: string, severity: 'low'|'medium'|'high'|'critical') => Promise<void> | void
 }) {
   const [page,    setPage]    = useState(1)
   const [perPage, setPerPage] = useState(25)
@@ -217,6 +231,53 @@ export function PedidosTable({
     },
   ], [])
 
+  // ── Mark problem dialog state ─────────────────────────────────────────────
+  const [problemDialog, setProblemDialog] = useState<{ ids: string[]; rows: PedidoRow[] } | null>(null)
+
+  const bulkActions: BulkAction<PedidoRow>[] = useMemo(() => [
+    {
+      key: 'export-fretes', label: 'Exportar fretes CSV', icon: <FileDown size={11} />,
+      onClick: rows => {
+        if (rows.length === 0) return
+        const cols = ['order_id','cliente','cpf','cep','cidade','uf','logistica','status_envio','prazo_envio']
+        const esc  = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`
+        const csv  = [cols.join(',')]
+          .concat(rows.map(o => {
+            const a = o.shipping?.receiver_address ?? null
+            return [
+              o.order_id,
+              clientName(o),
+              o.buyer.doc_number ?? '',
+              a?.zip_code ?? '',
+              a?.city ?? '',
+              a?.state ?? '',
+              o.shipping?.logistic_type ?? '',
+              o.shipping?.status ?? '',
+              o.shipping?.posting_deadline ?? '',
+            ].map(esc).join(',')
+          }))
+          .join('\n')
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+        const url  = URL.createObjectURL(blob)
+        const a    = document.createElement('a'); a.href = url
+        a.download = `fretes-${new Date().toISOString().slice(0,10)}.csv`
+        a.click(); URL.revokeObjectURL(url)
+        pushToast({ tone: 'success', message: `✓ ${rows.length} pedido${rows.length === 1 ? '' : 's'} exportado${rows.length === 1 ? '' : 's'}` })
+      },
+    },
+    ...(onBulkMarkProblem ? [{
+      key: 'mark-problem', label: 'Marcar problema', icon: <AlertOctagon size={11} />, tone: 'warn' as const,
+      onClick: (rows: PedidoRow[]) => {
+        // Abre dialog — caller envia ao confirmar
+        setProblemDialog({ ids: rows.map(r => String(r.order_id)), rows })
+      },
+    }] : []),
+    {
+      key: 'reprint-labels', label: 'Reimprimir etiquetas', icon: <Printer size={11} />,
+      onClick: rows => todoToast(`Reimpressão em lote (${rows.length} etiquetas)`),
+    },
+  ], [onBulkMarkProblem])
+
   const rowActions = useMemo(() => (o: PedidoRow): RowAction<PedidoRow>[] => [
     { key: 'view',     label: 'Ver detalhes',         icon: <Eye          size={12} />,
       onClick: () => { onViewDetails ? onViewDetails(o) : todoToast('Drawer de detalhes do pedido') } },
@@ -238,6 +299,18 @@ export function PedidosTable({
   }
 
   return (
+    <>
+    {problemDialog && (
+      <MarkProblemDialog
+        count={problemDialog.ids.length}
+        onCancel={() => setProblemDialog(null)}
+        onConfirm={async (note, severity) => {
+          if (onBulkMarkProblem) await onBulkMarkProblem(problemDialog.ids, note, severity)
+          setProblemDialog(null)
+          setSelected([])
+        }}
+      />
+    )}
     <DataTable<PedidoRow>
       title="Pedidos (DataTable beta)"
       breadcrumb={['Marketplace']}
@@ -259,6 +332,7 @@ export function PedidosTable({
         onChange: v => { setSearch(v); setPage(1) },
       }}
       selection={{ mode: 'multi', selected, onChange: setSelected }}
+      bulkActions={bulkActions}
       rowActions={rowActions}
       emptyState={{
         icon: <SearchIcon size={20} />,
@@ -273,5 +347,88 @@ export function PedidosTable({
         </button>
       )}
     />
+    </>
+  )
+}
+
+// ── MarkProblemDialog (Bloco 3) ───────────────────────────────────────────────
+
+function MarkProblemDialog({
+  count,
+  onCancel,
+  onConfirm,
+}: {
+  count:     number
+  onCancel:  () => void
+  onConfirm: (note: string, severity: 'low' | 'medium' | 'high' | 'critical') => void | Promise<void>
+}) {
+  const [note,     setNote]     = useState('')
+  const [severity, setSeverity] = useState<'low' | 'medium' | 'high' | 'critical'>('medium')
+  const [busy,     setBusy]     = useState(false)
+
+  return (
+    <div className="fixed inset-0 z-[160] flex items-center justify-center p-4"
+      style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(2px)' }}
+      onClick={onCancel}>
+      <div onClick={e => e.stopPropagation()}
+        className="w-full max-w-md rounded-2xl flex flex-col"
+        style={{ background: '#0c0c10', border: '1px solid #1e1e24', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
+        <header className="px-4 py-3" style={{ borderBottom: '1px solid #1e1e24' }}>
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Marcar problema em lote</p>
+          <h3 className="text-sm font-semibold text-zinc-100 mt-0.5">
+            {count} pedido{count === 1 ? '' : 's'} selecionado{count === 1 ? '' : 's'}
+          </h3>
+        </header>
+        <div className="px-4 py-3 space-y-3">
+          <div>
+            <label className="text-[11px] font-medium text-zinc-400 block mb-1">Severidade</label>
+            <div className="grid grid-cols-2 gap-1.5">
+              {([
+                { v: 'low',      label: 'Baixa',    color: '#a1a1aa' },
+                { v: 'medium',   label: 'Média',    color: '#facc15' },
+                { v: 'high',     label: 'Alta',     color: '#fb923c' },
+                { v: 'critical', label: 'Crítica',  color: '#f87171' },
+              ] as const).map(opt => (
+                <button key={opt.v} onClick={() => setSeverity(opt.v)}
+                  className="flex-1 text-[11px] font-semibold px-2 py-1.5 rounded-lg transition-colors"
+                  style={{
+                    background: severity === opt.v ? `${opt.color}20` : '#0c0c10',
+                    color:      severity === opt.v ? opt.color : '#71717a',
+                    border:     `1px solid ${severity === opt.v ? opt.color + '40' : '#27272a'}`,
+                  }}>
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="text-[11px] font-medium text-zinc-400 block mb-1">Motivo</label>
+            <textarea value={note} onChange={e => setNote(e.target.value)}
+              rows={4}
+              placeholder="Ex: produto avariado pelo Correios, cliente reclamou, etc."
+              className="w-full px-3 py-2 text-[12px] rounded-lg bg-[#0c0c10] border border-[#27272a] text-zinc-200 outline-none focus:border-[#facc15] resize-none" />
+          </div>
+        </div>
+        <footer className="px-4 py-3 flex justify-end gap-2"
+          style={{ borderTop: '1px solid #1e1e24' }}>
+          <button onClick={onCancel} disabled={busy}
+            className="text-[11px] px-3 py-1.5 rounded-lg font-semibold transition-colors disabled:opacity-50"
+            style={{ background: '#1a1a1f', color: '#a1a1aa', border: '1px solid #27272a' }}>
+            Cancelar
+          </button>
+          <button
+            onClick={async () => {
+              if (!note.trim() || busy) return
+              setBusy(true)
+              try { await onConfirm(note.trim(), severity) } finally { setBusy(false) }
+            }}
+            disabled={!note.trim() || busy}
+            className="text-[11px] px-4 py-1.5 rounded-lg font-semibold transition-colors disabled:opacity-50"
+            style={{ background: '#f59e0b', color: '#000' }}>
+            {busy ? 'Marcando…' : 'Confirmar'}
+          </button>
+        </footer>
+      </div>
+    </div>
   )
 }
