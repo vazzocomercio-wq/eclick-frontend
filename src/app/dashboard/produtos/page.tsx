@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
-import { ToastViewport, todoToast } from '@/hooks/useToast'
+import { ToastViewport, todoToast, pushToast } from '@/hooks/useToast'
 import { PulsingButton } from '@/components/ui/pulsing-button'
 import { ProdutosTable } from './_components/ProdutosTable'
 
@@ -867,6 +867,29 @@ export default function ProdutosPage() {
     setProducts(prev => prev.map(p => p.id === id ? { ...p, status } : p))
   }
 
+  /** Page-level toggle pause/active — usado pela <ProdutosTable> (DataTable
+   * view). Mesma lógica do toggleStatus interno do TableRow/ProductCard
+   * (PUT /products/{id} { status }), mas extraído pra fora pra ser
+   * compartilhável. Optimistic UI com rollback em erro. */
+  const togglePauseActive = useCallback(async (id: string, next: 'active' | 'paused') => {
+    const token = await getAuthToken()
+    if (!token) return
+    const prev = products.find(p => p.id === id)?.status
+    setProducts(ps => ps.map(p => p.id === id ? { ...p, status: next } : p))
+    try {
+      const res = await fetch(`${BACKEND}/products/${id}`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: next }),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      pushToast({ tone: 'success', message: `✓ Anúncio ${next === 'paused' ? 'pausado' : 'ativado'}` })
+    } catch {
+      if (prev) setProducts(ps => ps.map(p => p.id === id ? { ...p, status: prev } : p))
+      pushToast({ tone: 'error', message: `Falha ao ${next === 'paused' ? 'pausar' : 'ativar'} anúncio` })
+    }
+  }, [products])
+
   async function handleDelete(id: string) {
     const token = await getAuthToken()
     if (!token) return
@@ -1071,16 +1094,19 @@ export default function ProdutosPage() {
         </div>
       )}
 
-      {/* ── TABLE VIEW (BETA — Sprint A bloco 1, read-only) ──
+      {/* ── TABLE VIEW (BETA) ──
           - Clique na linha → navega pra detail page (edição completa)
-          - Duplicar / Excluir wirados nos handlers existentes
-          - Pausar/Ativar fica só na ProductCard até o Bloco 2 extrair
-            o handler com ML API call (hoje vive dentro de ProductCard) */}
+          - Duplicar / Excluir wirados em handlers existentes
+          - Pausar/Ativar via togglePauseActive (Bloco 2): page-level
+            helper com PUT /products/{id} { status } + optimistic UI.
+            Inline editing de preço/custo/estoque NÃO existe na list/grid
+            (só em /produtos/[id]/editar) — não há nada pra migrar. */}
       {view === 'table' && (
         <ProdutosTable
           products={filtered}
           loading={loading}
           onRefresh={load}
+          onToggleStatus={togglePauseActive}
           onDuplicate={handleDuplicate}
           onDelete={handleDelete}
         />
