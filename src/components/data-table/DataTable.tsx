@@ -12,6 +12,7 @@ import {
 import type {
   DataTableProps, Column, RowAction, PanelSection, SortState,
 } from './types'
+import { ensurePulseStyles, pulseClass } from '../ui/pulsing-button'
 
 const COL_BG    = '#111114'
 const COL_BORDER = '#1e1e24'
@@ -151,6 +152,7 @@ function RightPanel({ panel, onClose, isMobile }: {
 }
 
 function PanelSectionView({ section }: { section: PanelSection }) {
+  useEffect(ensurePulseStyles, [])
   return (
     <div>
       <div className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-1.5">
@@ -166,15 +168,18 @@ function PanelSectionView({ section }: { section: PanelSection }) {
               it.tone === 'success' ? '#4ade80' :
               it.tone === 'accent'  ? '#00E5FF' : '#d4d4d8'
             const Wrapper: React.ElementType = it.onClick ? 'button' : 'div'
+            const baseCls =
+              'w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg text-[12px] disabled:opacity-40 disabled:cursor-not-allowed enabled:hover:bg-zinc-800/70 transition-opacity'
+            const pulse = pulseClass(!!it.loading)
             return (
               <Wrapper
                 key={idx}
                 {...(it.onClick
                   ? {
                       onClick: it.onClick,
-                      disabled: it.disabled,
-                      className:
-                        'w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg text-[12px] disabled:opacity-40 disabled:cursor-not-allowed enabled:hover:bg-zinc-800/70',
+                      disabled: it.disabled || it.loading,
+                      'aria-busy': it.loading || undefined,
+                      className: `${baseCls} ${pulse}`,
                     }
                   : {
                       className:

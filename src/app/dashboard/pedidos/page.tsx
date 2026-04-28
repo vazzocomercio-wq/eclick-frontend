@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { ToastViewport, todoToast } from '@/hooks/useToast'
+import { ensurePulseStyles, pulseClass } from '@/components/ui/pulsing-button'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 const PAGE = 20
@@ -538,6 +539,7 @@ function OrderCard({
   const [debugLoading, setDebugLoading] = useState(false)
   const [debugData, setDebugData] = useState<unknown>(null)
   const liveBuyer = buyerOverride ?? order.buyer
+  useEffect(ensurePulseStyles, [])
 
   const debugBilling = useCallback(async () => {
     if (debugLoading) return
@@ -1070,24 +1072,27 @@ function OrderCard({
                 <div className="flex items-center gap-1.5">
                   {!liveBuyer.doc_number && (
                     <button onClick={refetchBilling} disabled={refetching}
-                      className="text-[10px] font-semibold px-2 py-0.5 rounded-md transition-colors disabled:opacity-50"
+                      aria-busy={refetching || undefined}
+                      className={`text-[10px] font-semibold px-2 py-0.5 rounded-md transition-opacity disabled:opacity-50 ${pulseClass(refetching)}`}
                       style={{ background: 'rgba(0,229,255,0.10)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.30)' }}>
-                      {refetching ? 'Buscando…' : '📥 Buscar dados'}
+                      📥 Buscar dados
                     </button>
                   )}
                   {liveBuyer.doc_number && (
                     <button onClick={refetchBilling} disabled={refetching}
-                      className="text-[10px] text-zinc-500 hover:text-zinc-300 disabled:opacity-50 px-1.5"
+                      aria-busy={refetching || undefined}
+                      className={`text-[10px] text-zinc-500 hover:text-zinc-300 disabled:opacity-50 px-1.5 ${pulseClass(refetching)}`}
                       title="Re-consultar billing_info">
-                      {refetching ? '…' : '↻'}
+                      ↻
                     </button>
                   )}
                   <button onClick={debugBilling} disabled={debugLoading}
-                    className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md transition-colors disabled:opacity-50"
+                    aria-busy={debugLoading || undefined}
+                    className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md transition-opacity disabled:opacity-50 ${pulseClass(debugLoading)}`}
                     style={{ background: '#1a1a1f', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.25)' }}
                     title="Inspeciona a resposta crua dos endpoints de billing da ML">
                     <FlaskConical size={9} />
-                    {debugLoading ? '…' : 'Debug'}
+                    Debug
                   </button>
                 </div>
               </div>

@@ -53,6 +53,8 @@ export type PanelSection = {
     icon?:    ReactNode
     onClick?: () => void
     disabled?: boolean
+    /** When true, shows pulsing-glow animation (no spinner replacement). */
+    loading?: boolean
     badge?:   string | number
     tone?:    'default' | 'danger' | 'warn' | 'success' | 'accent'
   }>
