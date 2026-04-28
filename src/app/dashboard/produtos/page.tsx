@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { ToastViewport, todoToast } from '@/hooks/useToast'
+import { PulsingButton } from '@/components/ui/pulsing-button'
 
 const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
@@ -102,6 +103,108 @@ function BulkBar({
 }
 
 // ── row menu ───────────────────────────────────────────────────────────────────
+
+// ── Floating Tools Panel (right side) ─────────────────────────────────────────
+
+function ProdutosToolsPanel({ products }: { products: Product[] }) {
+  const [collapsed, setCollapsed] = useState(false)
+  const [exporting, setExporting] = useState(false)
+
+  // KPIs derivados do catálogo carregado
+  const ativos       = products.filter(p => p.status === 'active').length
+  const semEstoque   = products.filter(p => (p.stock ?? 0) === 0).length
+  const critico      = products.filter(p => (p.stock ?? 0) > 0 && (p.stock ?? 0) <= 5).length
+  // "Sem Ads" — placeholder; campo real precisa join com ml_ads_campaigns,
+  // por enquanto mostra "—" pra deixar a slot reservada
+  const semAds = '—'
+
+  function exportCsv() {
+    if (exporting) return
+    setExporting(true)
+    try {
+      const cols = ['sku','name','status','stock','price','brand','platforms']
+      const esc  = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`
+      const csv  = [cols.join(',')]
+        .concat(products.map(p => cols.map(c => esc(
+          c === 'platforms' ? (p.platforms ?? []).join('|') : (p as unknown as Record<string, unknown>)[c],
+        )).join(',')))
+        .join('\n')
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+      const url  = URL.createObjectURL(blob)
+      const a    = document.createElement('a')
+      a.href = url
+      a.download = `catalogo-${new Date().toISOString().slice(0,10)}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+      todoToast(`✓ ${products.length} produtos exportados`)
+    } finally {
+      setTimeout(() => setExporting(false), 300)
+    }
+  }
+
+  if (collapsed) {
+    return (
+      <button onClick={() => setCollapsed(false)}
+        className="fixed top-24 right-3 z-30 w-9 h-9 rounded-full flex items-center justify-center transition-colors hidden lg:flex"
+        style={{ background: '#111114', color: '#a1a1aa', border: '1px solid #1e1e24', boxShadow: '0 4px 12px rgba(0,0,0,0.4)' }}
+        title="Abrir painel de ferramentas">◀</button>
+    )
+  }
+
+  return (
+    <aside
+      className="fixed top-24 right-3 z-30 w-[240px] rounded-2xl overflow-hidden hidden lg:block"
+      style={{ background: '#111114', border: '1px solid #1e1e24', boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}>
+      <header className="flex items-center justify-between px-3 py-2"
+        style={{ borderBottom: '1px solid #1e1e24' }}>
+        <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Catálogo</span>
+        <button onClick={() => setCollapsed(true)}
+          className="p-1 rounded hover:bg-zinc-800/70 text-zinc-500 hover:text-zinc-300"
+          title="Recolher">▶</button>
+      </header>
+      <div className="px-3 py-2.5 space-y-1.5">
+        <KpiRow label="Ativos"          value={ativos.toLocaleString('pt-BR')}      color="#34d399" />
+        <KpiRow label="Sem estoque"     value={semEstoque.toLocaleString('pt-BR')}  color="#f87171" />
+        <KpiRow label="Estoque crítico" value={critico.toLocaleString('pt-BR')}     color="#facc15" />
+        <KpiRow label="Sem Ads"         value={semAds}                              color="#a1a1aa" />
+      </div>
+      <div className="px-3 py-2"
+        style={{ borderTop: '1px solid #1e1e24' }}>
+        <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Ferramentas</span>
+      </div>
+      <div className="px-3 pb-3 space-y-2">
+        <PulsingButton
+          onClick={exportCsv}
+          loading={exporting}
+          icon={<span className="text-[11px]">📊</span>}
+          label="Exportar catálogo"
+          badge={products.length}
+          variant="emerald"
+          className="w-full justify-center"
+        />
+        <button onClick={() => todoToast('Otimizar SEO em lote com IA')}
+          className="w-full text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-colors"
+          style={{ background: '#0c0c10', color: '#a1a1aa', border: '1px solid #27272a' }}>
+          🤖 Otimizar SEO em lote
+        </button>
+        <button onClick={() => todoToast('Análise de mercado completo')}
+          className="w-full text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-colors"
+          style={{ background: '#0c0c10', color: '#a1a1aa', border: '1px solid #27272a' }}>
+          🕵️ Analisar mercado
+        </button>
+      </div>
+    </aside>
+  )
+}
+
+function KpiRow({ label, value, color }: { label: string; value: string; color: string }) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <span className="text-[11px] text-zinc-400">{label}</span>
+      <span className="text-[12px] font-bold tabular-nums" style={{ color }}>{value}</span>
+    </div>
+  )
+}
 
 function RowMenu({ onEdit, onDuplicate, onDelete }: {
   onEdit: () => void; onDuplicate: () => void; onDelete: () => void
@@ -829,6 +932,7 @@ export default function ProdutosPage() {
   return (
     <div className="p-6 min-h-full" style={{ background: '#09090b' }}>
       <ToastViewport />
+      <ProdutosToolsPanel products={products} />
 
       {/* Header */}
       <div className="flex items-center justify-between mb-5">
