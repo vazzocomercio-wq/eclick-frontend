@@ -6,6 +6,7 @@ import { JourneysTab }   from './_components/JourneysTab'
 import { CampaignsTab }  from './_components/CampaignsTab'
 import { AnalyticsTab }  from './_components/AnalyticsTab'
 import { SendsTab }      from './_components/SendsTab'
+import { WhatsAppStatusCard } from './_components/WhatsAppStatusCard'
 
 type TabKey = 'templates' | 'journeys' | 'campaigns' | 'analytics' | 'sends'
 
@@ -54,7 +55,8 @@ export default function MessagingPage() {
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-5xl mx-auto px-6 py-6">
+        <div className="max-w-5xl mx-auto px-6 py-6 space-y-4">
+          <WhatsAppStatusCard onToast={pushToast} />
           {tab === 'templates' && <TemplatesTab onToast={pushToast} />}
           {tab === 'journeys'  && <JourneysTab  onToast={pushToast} />}
           {tab === 'campaigns' && <CampaignsTab onToast={pushToast} />}
