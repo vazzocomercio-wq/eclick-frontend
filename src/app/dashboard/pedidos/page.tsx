@@ -5,9 +5,8 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import {
   MoreHorizontal, Truck, Printer, Send, AlertOctagon, Megaphone, Ban,
-  Headphones, BarChart2, Eye, FlaskConical, X, Copy, Check,
+  Headphones, BarChart2, Eye,
 } from 'lucide-react'
-import { createPortal } from 'react-dom'
 import { ToastViewport, todoToast } from '@/hooks/useToast'
 import { ensurePulseStyles, pulseClass } from '@/components/ui/pulsing-button'
 
@@ -145,87 +144,6 @@ function ago(iso: string) {
   return (
     d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' +
     d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-  )
-}
-
-// ── JSON syntax-highlight modal (debug billing) ───────────────────────────────
-
-function syntaxHighlightJson(raw: string): string {
-  // escape HTML first
-  const esc = raw.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  return esc.replace(
-    /("(\\u[a-fA-F0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
-    (m: string): string => {
-      let color = '#fbbf24' // number
-      if (/^"/.test(m)) color = /:\s*$/.test(m) ? '#60a5fa' /* key */ : '#4ade80' /* string */
-      else if (/true|false/.test(m)) color = '#f472b6'
-      else if (/null/.test(m))      color = '#a78bfa'
-      return `<span style="color:${color}">${m}</span>`
-    },
-  )
-}
-
-function DebugBillingModal({ data, onClose }: { data: unknown; onClose: () => void }) {
-  const [copied, setCopied] = useState(false)
-  const json = useMemo(() => JSON.stringify(data, null, 2), [data])
-  const html = useMemo(() => syntaxHighlightJson(json), [json])
-
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose() }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [onClose])
-
-  async function copyAll() {
-    try {
-      await navigator.clipboard.writeText(json)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
-    } catch { /* ignore */ }
-  }
-
-  if (typeof document === 'undefined') return null
-  return createPortal(
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4"
-      style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}
-      onClick={onClose}>
-      <div onClick={e => e.stopPropagation()}
-        className="w-full max-w-4xl rounded-2xl flex flex-col"
-        style={{ background: '#0c0c10', border: '1px solid #1e1e24', maxHeight: '85vh' }}>
-        <header className="flex items-center justify-between px-4 py-3 shrink-0"
-          style={{ borderBottom: '1px solid #1e1e24' }}>
-          <div className="flex items-center gap-2">
-            <FlaskConical size={14} style={{ color: '#a78bfa' }} />
-            <span className="text-sm font-semibold text-zinc-100">Debug billing</span>
-            <span className="text-[10px] text-zinc-600">— resposta crua da ML</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <button onClick={copyAll}
-              className="flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg transition-colors"
-              style={{
-                background: copied ? 'rgba(74,222,128,0.10)' : '#1a1a1f',
-                color:      copied ? '#4ade80' : '#a1a1aa',
-                border: '1px solid ' + (copied ? '#4ade8040' : '#27272a'),
-              }}>
-              {copied ? <Check size={11} /> : <Copy size={11} />}
-              {copied ? 'Copiado' : 'Copiar tudo'}
-            </button>
-            <button onClick={onClose}
-              className="p-1.5 rounded-md hover:bg-zinc-800/80 text-zinc-400 hover:text-zinc-200 transition-colors">
-              <X size={14} />
-            </button>
-          </div>
-        </header>
-        <div className="flex-1 overflow-auto p-4">
-          <pre
-            className="text-[12px] leading-relaxed whitespace-pre-wrap break-all"
-            style={{ fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace', color: '#d4d4d8' }}
-            dangerouslySetInnerHTML={{ __html: html }}
-          />
-        </div>
-      </div>
-    </div>,
-    document.body,
   )
 }
 
@@ -536,29 +454,8 @@ function OrderCard({
 }) {
   const [buyerOverride, setBuyerOverride] = useState<MOrder['buyer'] | null>(null)
   const [refetching, setRefetching] = useState(false)
-  const [debugLoading, setDebugLoading] = useState(false)
-  const [debugData, setDebugData] = useState<unknown>(null)
   const liveBuyer = buyerOverride ?? order.buyer
   useEffect(ensurePulseStyles, [])
-
-  const debugBilling = useCallback(async () => {
-    if (debugLoading) return
-    setDebugLoading(true)
-    try {
-      const headers = await getHeaders()
-      const res = await fetch(`${BACKEND}/ml/orders/${order.order_id}/debug-billing`, {
-        method: 'POST',
-        headers: { ...headers, 'Content-Type': 'application/json' },
-      })
-      const body = await res.json().catch(() => null)
-      if (!res.ok || !body) onToast('Falha ao consultar debug', 'error')
-      else                  setDebugData(body)
-    } catch {
-      onToast('Erro de rede', 'error')
-    } finally {
-      setDebugLoading(false)
-    }
-  }, [debugLoading, getHeaders, order.order_id, onToast])
 
   const refetchBilling = useCallback(async () => {
     if (refetching) return
@@ -700,8 +597,6 @@ function OrderCard({
     .join(' · ')
 
   return (
-    <>
-    {debugData && <DebugBillingModal data={debugData} onClose={() => setDebugData(null)} />}
     <div className="rounded-xl transition-colors relative" style={{ background: '#0f0f12', border: '1px solid #1a1a1f' }}>
       {/* Floating row actions kebab — top-right of every order card. */}
       <div className="absolute top-2 right-2 z-10">
@@ -1070,15 +965,18 @@ function OrderCard({
               <div className="flex items-center justify-between mb-2 gap-2">
                 <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Comprador</p>
                 <div className="flex items-center gap-1.5">
-                  {!liveBuyer.doc_number && (
+                  {/* Botão "📥 Buscar dados" só quando billing nunca foi tentado.
+                      Se já tentou e voltou sem CPF (ML 404 / LGPD), nada de
+                      botão amarelo — vira o banner abaixo. */}
+                  {!liveBuyer.billing_fetched_at && (
                     <button onClick={refetchBilling} disabled={refetching}
                       aria-busy={refetching || undefined}
                       className={`text-[10px] font-semibold px-2 py-0.5 rounded-md transition-opacity disabled:opacity-50 ${pulseClass(refetching)}`}
-                      style={{ background: 'rgba(0,229,255,0.10)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.30)' }}>
-                      📥 Buscar dados
+                      style={{ background: 'rgba(250,204,21,0.10)', color: '#facc15', border: '1px solid rgba(250,204,21,0.30)' }}>
+                      📥 Buscar dados de faturamento
                     </button>
                   )}
-                  {liveBuyer.doc_number && (
+                  {liveBuyer.billing_fetched_at && (
                     <button onClick={refetchBilling} disabled={refetching}
                       aria-busy={refetching || undefined}
                       className={`text-[10px] text-zinc-500 hover:text-zinc-300 disabled:opacity-50 px-1.5 ${pulseClass(refetching)}`}
@@ -1086,16 +984,18 @@ function OrderCard({
                       ↻
                     </button>
                   )}
-                  <button onClick={debugBilling} disabled={debugLoading}
-                    aria-busy={debugLoading || undefined}
-                    className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md transition-opacity disabled:opacity-50 ${pulseClass(debugLoading)}`}
-                    style={{ background: '#1a1a1f', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.25)' }}
-                    title="Inspeciona a resposta crua dos endpoints de billing da ML">
-                    <FlaskConical size={9} />
-                    Debug
-                  </button>
                 </div>
               </div>
+
+              {/* Banner: ML respondeu mas não veio CPF (vendas pré-LGPD ou
+                  buyer optou por não compartilhar). Próximo passo: enrichment
+                  cascade via /enrichment/customer/:id na tela /clientes. */}
+              {liveBuyer.billing_fetched_at && !liveBuyer.doc_number && (
+                <div className="rounded-md px-2 py-1.5 mb-1 text-[10px] leading-snug"
+                  style={{ background: 'rgba(96,165,250,0.08)', border: '1px solid rgba(96,165,250,0.25)', color: '#93c5fd' }}>
+                  ⓘ ML não retornou CPF para este pedido (404 ou LGPD). Use o enriquecimento via Direct Data com o cliente em <span className="font-mono">/clientes</span>.
+                </div>
+              )}
 
               {(liveBuyer.full_name || liveBuyer.first_name || liveBuyer.last_name) && (
                 <div className="flex items-start gap-1.5">
@@ -1349,7 +1249,6 @@ function OrderCard({
         </div>
       )}
     </div>
-    </>
   )
 }
 
