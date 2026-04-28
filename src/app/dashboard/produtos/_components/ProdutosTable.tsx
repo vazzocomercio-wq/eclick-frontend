@@ -3,12 +3,12 @@
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { DataTable } from '@/components/data-table'
-import type { Column, RowAction } from '@/components/data-table'
+import type { Column, RowAction, BulkAction } from '@/components/data-table'
 import {
   Eye, Pause, Play, Copy, Trash2, Sparkles, Megaphone,
-  Search as SearchIcon,
+  Search as SearchIcon, FileDown,
 } from 'lucide-react'
-import { todoToast } from '@/hooks/useToast'
+import { todoToast, pushToast } from '@/hooks/useToast'
 
 // Tipos vivem em page.tsx; redeclarado aqui pra contornar barrel.
 // Quando migração consolidar, vira import único.
@@ -49,6 +49,8 @@ export function ProdutosTable({
   onToggleStatus,
   onDuplicate,
   onDelete,
+  onBulkPause,
+  onBulkDelete,
 }: {
   products:        ProdutoRow[]
   loading?:        boolean
@@ -56,6 +58,8 @@ export function ProdutosTable({
   onToggleStatus?: (id: string, next: 'active' | 'paused') => Promise<void> | void
   onDuplicate?:    (id: string) => Promise<void> | void
   onDelete?:       (id: string) => Promise<void> | void
+  onBulkPause?:    (ids: string[]) => Promise<void> | void
+  onBulkDelete?:   (ids: string[]) => Promise<void> | void
 }) {
   const router = useRouter()
   const [page,    setPage]    = useState(1)
@@ -140,6 +144,50 @@ export function ProdutosTable({
     },
   ], [])
 
+  const bulkActions: BulkAction<ProdutoRow>[] = useMemo(() => {
+    const acts: BulkAction<ProdutoRow>[] = []
+    if (onBulkPause) acts.push({
+      key: 'pause-bulk', label: 'Pausar', icon: <Pause size={11} />, tone: 'warn',
+      onClick: rows => {
+        const ids = rows.map(r => r.id).filter(id => products.find(p => p.id === id)?.status === 'active')
+        if (ids.length === 0) {
+          pushToast({ tone: 'info', message: 'Nenhum produto ativo na seleção' })
+          return
+        }
+        void onBulkPause(ids)
+        setSelected([])
+      },
+    })
+    acts.push({
+      key: 'export-bulk', label: 'Exportar CSV', icon: <FileDown size={11} />,
+      onClick: rows => {
+        if (rows.length === 0) return
+        const cols = ['sku','name','status','stock','price','brand','platforms']
+        const esc  = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`
+        const csv  = [cols.join(',')]
+          .concat(rows.map(r => cols.map(c => esc(
+            c === 'platforms' ? (r.platforms ?? []).join('|') : (r as unknown as Record<string, unknown>)[c],
+          )).join(',')))
+          .join('\n')
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+        const url  = URL.createObjectURL(blob)
+        const a    = document.createElement('a'); a.href = url
+        a.download = `produtos-selecionados-${new Date().toISOString().slice(0,10)}.csv`
+        a.click(); URL.revokeObjectURL(url)
+        pushToast({ tone: 'success', message: `✓ ${rows.length} produto${rows.length === 1 ? '' : 's'} exportado${rows.length === 1 ? '' : 's'}` })
+      },
+    })
+    if (onBulkDelete) acts.push({
+      key: 'delete-bulk', label: 'Excluir', icon: <Trash2 size={11} />, tone: 'danger',
+      onClick: rows => {
+        const ids = rows.map(r => r.id)
+        void onBulkDelete(ids)
+        setSelected([])
+      },
+    })
+    return acts
+  }, [onBulkPause, onBulkDelete, products])
+
   const rowActions = useMemo(() => (p: ProdutoRow): RowAction<ProdutoRow>[] => {
     const acts: RowAction<ProdutoRow>[] = [
       { key: 'view',  label: 'Ver / Editar',          icon: <Eye size={12} />, onClick: () => router.push(`/dashboard/produtos/${p.id}/editar`) },
@@ -184,6 +232,7 @@ export function ProdutosTable({
         onChange: v => { setSearch(v); setPage(1) },
       }}
       selection={{ mode: 'multi', selected, onChange: setSelected }}
+      bulkActions={bulkActions}
       rowActions={rowActions}
       emptyState={{
         icon: <SearchIcon size={20} />,

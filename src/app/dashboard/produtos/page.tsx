@@ -915,25 +915,30 @@ export default function ProdutosPage() {
     if (data) setProducts(prev => [data as Product, ...prev])
   }
 
-  async function bulkPause() {
-    const ids = [...selected]
+  /** Pausa N produtos. Aceita ids explícito (DataTable bulk actions);
+   * o BulkBar antigo passa [...selected]. Mesma lógica em ambos. */
+  async function bulkPause(ids: string[]) {
+    if (ids.length === 0) return
     const supabase = createClient()
     await supabase.from('products').update({ status: 'paused' }).in('id', ids)
     setProducts(prev => prev.map(p => ids.includes(p.id) ? { ...p, status: 'paused' } : p))
-    setSelected(new Set())
+    setSelected(prev => { const n = new Set(prev); ids.forEach(i => n.delete(i)); return n })
+    pushToast({ tone: 'success', message: `✓ ${ids.length} produto${ids.length === 1 ? '' : 's'} pausado${ids.length === 1 ? '' : 's'}` })
   }
 
-  async function bulkDelete() {
-    const ids = [...selected]
+  async function bulkDelete(ids: string[]) {
+    if (ids.length === 0) return
     const token = await getAuthToken()
     if (!token) return
+    if (!confirm(`Excluir ${ids.length} produto${ids.length === 1 ? '' : 's'}? Esta ação não pode ser desfeita.`)) return
     await fetch(`${BACKEND}/products/bulk-delete`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ ids }),
     })
     setProducts(prev => prev.filter(p => !ids.includes(p.id)))
-    setSelected(new Set())
+    setSelected(prev => { const n = new Set(prev); ids.forEach(i => n.delete(i)); return n })
+    pushToast({ tone: 'success', message: `${ids.length} produto${ids.length === 1 ? '' : 's'} excluído${ids.length === 1 ? '' : 's'}` })
   }
 
   // ── filter ───────────────────────────────────────────────────────────────────
@@ -1043,10 +1048,12 @@ export default function ProdutosPage() {
         </div>
       </div>
 
-      {/* Bulk action bar */}
-      {selected.size > 0 && (
+      {/* Bulk action bar (list/grid view — DataTable view tem seu próprio
+          banner integrado dentro de <ProdutosTable>) */}
+      {selected.size > 0 && view !== 'table' && (
         <BulkBar count={selected.size} onClear={() => setSelected(new Set())}
-          onPause={bulkPause} onDelete={bulkDelete} />
+          onPause={() => bulkPause([...selected])}
+          onDelete={() => bulkDelete([...selected])} />
       )}
 
       {/* Error */}
@@ -1109,6 +1116,8 @@ export default function ProdutosPage() {
           onToggleStatus={togglePauseActive}
           onDuplicate={handleDuplicate}
           onDelete={handleDelete}
+          onBulkPause={bulkPause}
+          onBulkDelete={bulkDelete}
         />
       )}
 
