@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { ToastViewport, todoToast } from '@/hooks/useToast'
 import { ensurePulseStyles, pulseClass, PulsingButton } from '@/components/ui/pulsing-button'
+import { PedidosTable } from './_components/PedidosTable'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 const PAGE = 20
@@ -1645,6 +1646,9 @@ export default function PedidosPage() {
   const [vinculosPorListing, setVinculosPorListing] = useState<Record<string, VinculoItem[]>>({})
   const [lastUpdate,  setLastUpdate]  = useState<Date>(new Date())
   const [minsSince,   setMinsSince]   = useState(0)
+  // Sprint B bloco 1 — terceira opção de view (DataTable beta opt-in).
+  // Default 'cards' = comportamento atual. 'table' renderiza <PedidosTable>.
+  const [view,        setView]        = useState<'cards' | 'table'>('cards')
   const tid = useRef(0)
   const pageRef = useRef(0)
   const qRef    = useRef('')
@@ -1891,41 +1895,74 @@ export default function PedidosPage() {
       </div>
 
       {/* Order list */}
-      <div className="space-y-2 pedidos-scroll overflow-y-auto">
-        {loading
-          ? Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} />)
-          : filtered.length === 0
-            ? (
-              <div className="flex flex-col items-center justify-center py-20 text-zinc-600">
-                <svg width="48" height="48" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={0.8}
-                  className="mb-4 opacity-25">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                </svg>
-                <p className="text-sm font-medium text-zinc-500 mb-1">Nenhum pedido nesta aba</p>
-                <p className="text-xs text-zinc-600">
-                  {tab === 'abertas' ? 'Sem pedidos abertos no momento' : `Sem pedidos "${TABS.find(t => t.key === tab)?.label}"`}
-                </p>
-              </div>
-            )
-            : filtered.map(order => {
-                const oi     = order.order_items[0]
-                const itemId = oi?.item_id ?? oi?.item?.id ?? null
-                const vinculos = itemId ? (vinculosPorListing[itemId] ?? []) : []
-                return (
-                  <OrderCard
-                    key={order.order_id}
-                    order={order}
-                    itemId={itemId}
-                    vinculos={vinculos}
-                    onSalvar={salvar}
-                    onCriarProduto={criarProduto}
-                    onToast={toast}
-                    getHeaders={getHeaders}
-                  />
-                )
-              })
-        }
+      {/* View toggle (cards default | table beta — Sprint B bloco 1) */}
+      <div className="flex items-center justify-end mb-2 gap-1 px-1">
+        <span className="text-[10px] uppercase tracking-widest text-zinc-600 mr-1">View</span>
+        {([
+          { v: 'cards', path: 'M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM14 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zM14 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z' },
+          { v: 'table', path: 'M3 5h18M3 10h18M3 15h18M5 5v14M19 5v14' },
+        ] as const).map(({ v, path }) => (
+          <button key={v} onClick={() => setView(v)}
+            className="w-8 h-8 rounded-md flex items-center justify-center transition-all"
+            style={{
+              background: view === v ? 'rgba(0,229,255,0.10)' : 'transparent',
+              color:      view === v ? '#00E5FF' : '#52525b',
+            }}>
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.75}>
+              <path strokeLinecap="round" strokeLinejoin="round" d={path} />
+            </svg>
+          </button>
+        ))}
       </div>
+
+      {/* TABLE VIEW (BETA — Sprint B bloco 1, read-only). Drawer com OrderCard
+          vem no Bloco 2. Por ora cliques em "Ver detalhes" disparam todoToast. */}
+      {view === 'table' && (
+        <PedidosTable
+          orders={filtered}
+          loading={loading}
+          onRefresh={() => loadOrders(pageRef.current, qRef.current)}
+        />
+      )}
+
+      {/* CARDS VIEW (default — comportamento original intacto) */}
+      {view === 'cards' && (
+        <div className="space-y-2 pedidos-scroll overflow-y-auto">
+          {loading
+            ? Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} />)
+            : filtered.length === 0
+              ? (
+                <div className="flex flex-col items-center justify-center py-20 text-zinc-600">
+                  <svg width="48" height="48" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={0.8}
+                    className="mb-4 opacity-25">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                  </svg>
+                  <p className="text-sm font-medium text-zinc-500 mb-1">Nenhum pedido nesta aba</p>
+                  <p className="text-xs text-zinc-600">
+                    {tab === 'abertas' ? 'Sem pedidos abertos no momento' : `Sem pedidos "${TABS.find(t => t.key === tab)?.label}"`}
+                  </p>
+                </div>
+              )
+              : filtered.map(order => {
+                  const oi     = order.order_items[0]
+                  const itemId = oi?.item_id ?? oi?.item?.id ?? null
+                  const vinculos = itemId ? (vinculosPorListing[itemId] ?? []) : []
+                  return (
+                    <OrderCard
+                      key={order.order_id}
+                      order={order}
+                      itemId={itemId}
+                      vinculos={vinculos}
+                      onSalvar={salvar}
+                      onCriarProduto={criarProduto}
+                      onToast={toast}
+                      getHeaders={getHeaders}
+                    />
+                  )
+                })
+          }
+        </div>
+      )}
 
       {/* Pagination */}
       {!loading && (
