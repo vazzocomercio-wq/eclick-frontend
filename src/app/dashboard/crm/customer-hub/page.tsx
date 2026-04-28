@@ -1,8 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { OverviewTab } from './_components/OverviewTab'
-import { AbcTab }      from './_components/AbcTab'
+import { OverviewTab }   from './_components/OverviewTab'
+import { AbcTab }        from './_components/AbcTab'
+import { RfmTab }        from './_components/RfmTab'
+import { SegmentsTab }   from './_components/SegmentsTab'
+import { ChurnRiskTab }  from './_components/ChurnRiskTab'
 
 type TabKey = 'overview' | 'abc' | 'rfm' | 'segments' | 'churn'
 
@@ -49,14 +52,11 @@ export default function CustomerHubPage() {
 
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-6xl mx-auto px-6 py-6">
-          {tab === 'overview' && <OverviewTab onToast={pushToast} />}
-          {tab === 'abc'      && <AbcTab      onToast={pushToast} />}
-          {(tab === 'rfm' || tab === 'segments' || tab === 'churn') && (
-            <div className="rounded-2xl px-6 py-12 text-center" style={{ background: '#111114', border: '1px dashed #27272a' }}>
-              <p className="text-white text-lg font-semibold mb-2">{TABS.find(x => x.key === tab)!.label}</p>
-              <p className="text-zinc-500 text-sm">Em breve no C4 — backend já tem endpoints prontos.</p>
-            </div>
-          )}
+          {tab === 'overview' && <OverviewTab  onToast={pushToast} />}
+          {tab === 'abc'      && <AbcTab       onToast={pushToast} />}
+          {tab === 'rfm'      && <RfmTab       onToast={pushToast} />}
+          {tab === 'segments' && <SegmentsTab  onToast={pushToast} />}
+          {tab === 'churn'    && <ChurnRiskTab onToast={pushToast} />}
         </div>
       </div>
 
