@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { ToastViewport, todoToast } from '@/hooks/useToast'
 import { PulsingButton } from '@/components/ui/pulsing-button'
+import { ProdutosTable } from './_components/ProdutosTable'
 
 const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
@@ -787,7 +788,7 @@ export default function ProdutosPage() {
   const [error, setError]           = useState<string | null>(null)
   const [search, setSearch]         = useState('')
   const [filterStatus, setFilter]   = useState('all')
-  const [view, setView]             = useState<'list' | 'grid'>('list')
+  const [view, setView]             = useState<'list' | 'grid' | 'table'>('list')
   const [selected, setSelected]     = useState<Set<string>>(new Set())
   const [orgId, setOrgId]           = useState<string | null>(null)
   const [showMlImport, setShowMlImport] = useState(false)
@@ -1000,8 +1001,10 @@ export default function ProdutosPage() {
         {/* View toggle */}
         <div className="flex gap-1 ml-auto p-1 rounded-lg" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
           {([
-            { v: 'list', path: 'M4 6h16M4 10h16M4 14h16M4 18h16' },
-            { v: 'grid', path: 'M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM14 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zM14 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z' },
+            { v: 'list',  path: 'M4 6h16M4 10h16M4 14h16M4 18h16' },
+            { v: 'grid',  path: 'M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM14 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zM14 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z' },
+            // BETA — DataTable view (Sprint A bloco 1, read-only)
+            { v: 'table', path: 'M3 5h18M3 10h18M3 15h18M5 5v14M19 5v14' },
           ] as const).map(({ v, path }) => (
             <button key={v} onClick={() => setView(v)}
               className="w-8 h-8 rounded-md flex items-center justify-center transition-all"
@@ -1066,6 +1069,21 @@ export default function ProdutosPage() {
             Limpar filtros
           </button>
         </div>
+      )}
+
+      {/* ── TABLE VIEW (BETA — Sprint A bloco 1, read-only) ──
+          - Clique na linha → navega pra detail page (edição completa)
+          - Duplicar / Excluir wirados nos handlers existentes
+          - Pausar/Ativar fica só na ProductCard até o Bloco 2 extrair
+            o handler com ML API call (hoje vive dentro de ProductCard) */}
+      {view === 'table' && (
+        <ProdutosTable
+          products={filtered}
+          loading={loading}
+          onRefresh={load}
+          onDuplicate={handleDuplicate}
+          onDelete={handleDelete}
+        />
       )}
 
       {/* ── LIST VIEW ── */}
