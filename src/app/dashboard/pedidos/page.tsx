@@ -8,7 +8,7 @@ import {
   Headphones, BarChart2, Eye,
 } from 'lucide-react'
 import { ToastViewport, todoToast } from '@/hooks/useToast'
-import { ensurePulseStyles, pulseClass } from '@/components/ui/pulsing-button'
+import { ensurePulseStyles, pulseClass, PulsingButton } from '@/components/ui/pulsing-button'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 const PAGE = 20
@@ -147,6 +147,126 @@ function ago(iso: string) {
   return (
     d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' +
     d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  )
+}
+
+// ── Floating Tools Panel (right side) ─────────────────────────────────────────
+
+function PedidosToolsPanel({ orders, kpis, getHeaders, onToast }: {
+  orders:     MOrder[]
+  kpis:       KpiData | null
+  getHeaders: () => Promise<Record<string, string>>
+  onToast:    (msg: string, type: Toast['type']) => void
+}) {
+  const [collapsed, setCollapsed] = useState(false)
+  const [billingPending, setBillingPending] = useState<number | null>(null)
+  const [syncing, setSyncing] = useState(false)
+
+  const loadPending = useCallback(async () => {
+    try {
+      const headers = await getHeaders()
+      const res  = await fetch(`${BACKEND}/ml/orders/billing-pending-count`, { headers })
+      const body = await res.json().catch(() => null) as { count?: number } | null
+      setBillingPending(typeof body?.count === 'number' ? body.count : 0)
+    } catch { setBillingPending(0) }
+  }, [getHeaders])
+  useEffect(() => { loadPending() }, [loadPending])
+
+  const sync = useCallback(async () => {
+    if (syncing) return
+    setSyncing(true)
+    try {
+      const headers = await getHeaders()
+      const res = await fetch(`${BACKEND}/sales-aggregator/sync-now`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ days: 1 }),
+      })
+      const body = await res.json().catch(() => null) as { runId?: string; message?: string } | null
+      if (!res.ok || !body?.runId) onToast(body?.message ?? 'Falha ao sincronizar', 'error')
+      else onToast(`✓ Sync iniciado (runId ${body.runId.slice(0, 8)}…)`, 'success')
+      setTimeout(loadPending, 30_000)
+    } catch { onToast('Erro de rede ao sincronizar', 'error') }
+    finally { setSyncing(false) }
+  }, [syncing, getHeaders, onToast, loadPending])
+
+  const today = new Date()
+  const isToday = (iso: string | null) => {
+    if (!iso) return false
+    const d = new Date(iso)
+    return d.getUTCDate() === today.getUTCDate() && d.getUTCMonth() === today.getUTCMonth() && d.getUTCFullYear() === today.getUTCFullYear()
+  }
+  const todayPoint = kpis?.current_month?.by_day?.find(p => isToday(p.date))
+  const todayCount = todayPoint?.count ?? 0
+  const todayRev   = todayPoint?.revenue ?? 0
+
+  const pendentesEnvio = orders.filter(o => {
+    const ss = o.shipping?.status
+    return ss === 'ready_to_ship' || ss === 'pending'
+  }).length
+  const emTransito = orders.filter(o => {
+    const ss = o.shipping?.status
+    return ss === 'shipped' || ss === 'in_transit' || ss === 'handling'
+  }).length
+
+  if (collapsed) {
+    return (
+      <button onClick={() => setCollapsed(false)}
+        className="fixed top-24 right-3 z-30 w-9 h-9 rounded-full flex items-center justify-center transition-colors hidden lg:flex"
+        style={{ background: '#111114', color: '#a1a1aa', border: '1px solid #1e1e24', boxShadow: '0 4px 12px rgba(0,0,0,0.4)' }}
+        title="Abrir painel de ferramentas">
+        ◀
+      </button>
+    )
+  }
+
+  return (
+    <aside
+      className="fixed top-24 right-3 z-30 w-[240px] rounded-2xl overflow-hidden hidden lg:block"
+      style={{ background: '#111114', border: '1px solid #1e1e24', boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}>
+      <header className="flex items-center justify-between px-3 py-2"
+        style={{ borderBottom: '1px solid #1e1e24' }}>
+        <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Hoje</span>
+        <button onClick={() => setCollapsed(true)}
+          className="p-1 rounded hover:bg-zinc-800/70 text-zinc-500 hover:text-zinc-300"
+          title="Recolher">▶</button>
+      </header>
+      <div className="px-3 py-2.5 space-y-1.5">
+        <KpiRow label="Vendas hoje"     value={brl(todayRev)}                          color="#4ade80" />
+        <KpiRow label="Pedidos hoje"    value={todayCount.toLocaleString('pt-BR')}     color="#00E5FF" />
+        <KpiRow label="Pendentes envio" value={pendentesEnvio.toLocaleString('pt-BR')} color="#facc15" />
+        <KpiRow label="Em trânsito"     value={emTransito.toLocaleString('pt-BR')}     color="#a78bfa" />
+      </div>
+      <div className="px-3 py-2"
+        style={{ borderTop: '1px solid #1e1e24' }}>
+        <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Ferramentas</span>
+      </div>
+      <div className="px-3 pb-3 space-y-2">
+        <PulsingButton
+          onClick={sync}
+          loading={syncing}
+          icon={<Truck size={11} />}
+          label="Sincronizar pedidos"
+          badge={billingPending && billingPending > 0 ? billingPending : undefined}
+          variant="cyan"
+          className="w-full justify-center"
+        />
+        <button onClick={() => todoToast('Exportar relatório de pedidos')}
+          className="w-full text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-colors"
+          style={{ background: '#0c0c10', color: '#a1a1aa', border: '1px solid #27272a' }}>
+          📊 Exportar relatório
+        </button>
+      </div>
+    </aside>
+  )
+}
+
+function KpiRow({ label, value, color }: { label: string; value: string; color: string }) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <span className="text-[11px] text-zinc-400">{label}</span>
+      <span className="text-[12px] font-bold tabular-nums" style={{ color }}>{value}</span>
+    </div>
   )
 }
 
@@ -1644,6 +1764,7 @@ export default function PedidosPage() {
     <div style={{ background: '#09090b', minHeight: '100vh' }} className="p-6 max-w-[1400px] space-y-5">
       <ToastViewport />
       <Toasts list={toasts} />
+      <PedidosToolsPanel orders={orders} kpis={kpis} getHeaders={getHeaders} onToast={toast} />
 
       {/* Header */}
       <div className="flex items-end justify-between">
