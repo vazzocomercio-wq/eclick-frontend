@@ -571,7 +571,7 @@ type CreateResult = {
 }
 
 function OrderCard({
-  order, itemId, vinculos, onSalvar, onCriarProduto, onToast, getHeaders,
+  order, itemId, vinculos, onSalvar, onCriarProduto, onToast, getHeaders, onOpenDetail,
 }: {
   order: MOrder
   itemId: string | null
@@ -580,6 +580,7 @@ function OrderCard({
   onCriarProduto: (itemId: string) => Promise<void>
   onToast: (msg: string, type: Toast['type']) => void
   getHeaders: () => Promise<Record<string, string>>
+  onOpenDetail: (externalOrderId: string) => void
 }) {
   const [buyerOverride, setBuyerOverride] = useState<MOrder['buyer'] | null>(null)
   const [refetching, setRefetching] = useState(false)
@@ -744,8 +745,18 @@ function OrderCard({
 
   return (
     <div className="rounded-xl transition-colors relative" style={{ background: '#0f0f12', border: '1px solid #1a1a1f' }}>
-      {/* Floating row actions kebab — top-right of every order card. */}
-      <div className="absolute top-2 right-2 z-10">
+      {/* Floating row actions: "Ver detalhe completo" + kebab — top-right. */}
+      <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
+        <button
+          onClick={() => onOpenDetail(String(order.order_id))}
+          className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-md transition-colors"
+          style={{ background: 'transparent', border: '1px solid #1a1a1f', color: '#a1a1aa' }}
+          onMouseOver={e => { e.currentTarget.style.color = '#00E5FF'; e.currentTarget.style.borderColor = 'rgba(0,229,255,0.4)' }}
+          onMouseOut={e => { e.currentTarget.style.color = '#a1a1aa'; e.currentTarget.style.borderColor = '#1a1a1f' }}
+          title="Ver detalhe completo (Cliente + Comunicação)">
+          <Eye size={11} />
+          Ver detalhe completo
+        </button>
         <OrderActionsMenu order={order} />
       </div>
       <div className="grid gap-0" style={{ gridTemplateColumns: '200px 1fr 210px' }}>
@@ -1651,7 +1662,7 @@ export default function PedidosPage() {
   // Default 'cards' = comportamento atual. 'table' renderiza <PedidosTable>.
   const [view,        setView]        = useState<'cards' | 'table'>('cards')
   // Sprint B bloco 2 — drawer detail aberto por click numa linha da tabela
-  const [selectedOrder, setSelectedOrder] = useState<MOrder | null>(null)
+  const [openOrderId, setOpenOrderId] = useState<string | null>(null)
   const tid = useRef(0)
   const pageRef = useRef(0)
   const qRef    = useRef('')
@@ -1929,7 +1940,7 @@ export default function PedidosPage() {
           orders={filtered}
           loading={loading}
           onRefresh={() => loadOrders(pageRef.current, qRef.current)}
-          onViewDetails={(o) => setSelectedOrder(o as unknown as MOrder)}
+          onViewDetails={(o) => setOpenOrderId(String(o.order_id))}
           controlledPagination={{
             page:    page + 1,                              // parent: 0-indexed → DataTable: 1-indexed
             perPage: PAGE,
@@ -1992,6 +2003,7 @@ export default function PedidosPage() {
                       onCriarProduto={criarProduto}
                       onToast={toast}
                       getHeaders={getHeaders}
+                      onOpenDetail={setOpenOrderId}
                     />
                   )
                 })
@@ -2014,32 +2026,14 @@ export default function PedidosPage() {
         />
       )}
 
-      {/* Drawer detail (Sprint B bloco 2). Renderiza OrderCard intacto
-          dentro — mesma instância do componente usada na cards view, com
-          todas as features preservadas: edição custo/imposto, kit/vinculos,
-          margem live, billing refetch, botões etiqueta + NF-e. */}
+      {/* Sprint UI-1: drawer premium self-contained — fetch /ml/orders/:id/full-detail
+          e renderiza Comunicação (timeline) + Pedido + Cliente. Read-only: edição
+          de custo/imposto/NF-e continua no OrderCard inline do modo cards view. */}
       <OrderDetailDrawer
-        open={!!selectedOrder}
-        onClose={() => setSelectedOrder(null)}
-        title={selectedOrder ? `Pedido #${selectedOrder.order_id}` : undefined}>
-        {selectedOrder && (() => {
-          const oi     = selectedOrder.order_items[0]
-          const itemId = oi?.item_id ?? oi?.item?.id ?? null
-          const vinculos = itemId ? (vinculosPorListing[itemId] ?? []) : []
-          return (
-            <OrderCard
-              key={selectedOrder.order_id}
-              order={selectedOrder}
-              itemId={itemId}
-              vinculos={vinculos}
-              onSalvar={salvar}
-              onCriarProduto={criarProduto}
-              onToast={toast}
-              getHeaders={getHeaders}
-            />
-          )
-        })()}
-      </OrderDetailDrawer>
+        externalOrderId={openOrderId}
+        onClose={() => setOpenOrderId(null)}
+        getHeaders={getHeaders}
+      />
     </div>
   )
 }
