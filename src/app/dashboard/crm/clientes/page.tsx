@@ -365,6 +365,14 @@ export default function ClientesPage() {
   const [segModal,   setSegModal]   = useState<{ rows: Customer[] } | null>(null)
   const [mergeModal, setMergeModal] = useState<{ rows: Customer[] } | null>(null)
   const [segments,   setSegments]   = useState<Array<{ id: string; name: string; customer_count?: number }>>([])
+  const [confirmModal, setConfirmModal] = useState<{
+    open:          boolean
+    title:         string
+    message:       string
+    onConfirm:     () => void
+    confirmLabel?: string
+    confirmColor?: string
+  } | null>(null)
 
   const enrichBulk = useCallback(async (rows: Customer[]) => {
     if (!rows.length) return
@@ -398,20 +406,29 @@ export default function ClientesPage() {
     finally { setWaModal(null) }
   }, [getHeaders, toast])
 
-  const pvBulk = useCallback(async (rows: Customer[]) => {
+  const pvBulk = useCallback((rows: Customer[]) => {
     if (!rows.length) return
-    if (!confirm(`Iniciar jornada pós-venda para ${rows.length} cliente${rows.length === 1 ? '' : 's'}?`)) return
-    try {
-      const headers = await getHeaders()
-      const res = await fetch(`${BACKEND}/messaging/journeys/start-bulk`, {
-        method: 'POST', headers,
-        body: JSON.stringify({ customer_ids: rows.map(r => r.id), journey_type: 'pos_venda' }),
-      })
-      const body = await res.json().catch(() => null) as { success?: boolean; message?: string } | null
-      if (body?.message === 'Em breve') toast({ tone: 'warn', message: 'Funcionalidade em desenvolvimento' })
-      else if (res.ok && body?.success) toast({ tone: 'success', message: 'Jornada iniciada' })
-      else toast({ tone: 'error', message: 'Falha ao iniciar jornada' })
-    } catch { toast({ tone: 'error', message: 'Erro de rede' }) }
+    setConfirmModal({
+      open:          true,
+      title:         'Iniciar jornada pós-venda',
+      message:       `Iniciar jornada pós-venda para ${rows.length} cliente${rows.length === 1 ? '' : 's'}?`,
+      confirmLabel:  'Iniciar',
+      confirmColor:  '#00E5FF',
+      onConfirm: async () => {
+        setConfirmModal(null)
+        try {
+          const headers = await getHeaders()
+          const res = await fetch(`${BACKEND}/messaging/journeys/start-bulk`, {
+            method: 'POST', headers,
+            body: JSON.stringify({ customer_ids: rows.map(r => r.id), journey_type: 'pos_venda' }),
+          })
+          const body = await res.json().catch(() => null) as { success?: boolean; message?: string } | null
+          if (body?.message === 'Em breve') toast({ tone: 'warn', message: 'Funcionalidade em desenvolvimento' })
+          else if (res.ok && body?.success) toast({ tone: 'success', message: 'Jornada iniciada' })
+          else toast({ tone: 'error', message: 'Falha ao iniciar jornada' })
+        } catch { toast({ tone: 'error', message: 'Erro de rede' }) }
+      },
+    })
   }, [getHeaders, toast])
 
   const openSegModal = useCallback(async (rows: Customer[]) => {
@@ -468,31 +485,40 @@ export default function ClientesPage() {
     }
   }, [getHeaders, toast, load])
 
-  const blockBulk = useCallback(async (rows: Customer[]) => {
+  const blockBulk = useCallback((rows: Customer[]) => {
     if (!rows.length) return
-    if (!confirm(`⚠️ Bloquear ${rows.length} cliente${rows.length === 1 ? '' : 's'}? Não receberão comunicações.`)) return
-    const ids = new Set(rows.map(r => r.id))
-    setList(prev => prev.map(c => ids.has(c.id)
-      ? { ...c, tags: Array.from(new Set([...(c.tags ?? []), 'blocked'])) }
-      : c))
-    try {
-      const headers = await getHeaders()
-      const res = await fetch(`${BACKEND}/customers/bulk`, {
-        method: 'PATCH', headers,
-        body: JSON.stringify({ customer_ids: [...ids], is_blocked: true }),
-      })
-      const body = await res.json().catch(() => null) as { updated?: number } | null
-      if (!res.ok || !body) {
-        toast({ tone: 'error', message: 'Falha ao bloquear' })
-        await load()
-      } else {
-        toast({ tone: 'success', message: `${body.updated ?? 0} cliente${body.updated === 1 ? '' : 's'} bloqueado${body.updated === 1 ? '' : 's'}` })
-        await load()
-      }
-    } catch {
-      toast({ tone: 'error', message: 'Erro de rede' })
-      await load()
-    }
+    setConfirmModal({
+      open:          true,
+      title:         'Bloquear clientes',
+      message:       `Bloquear ${rows.length} cliente${rows.length === 1 ? '' : 's'} selecionado${rows.length === 1 ? '' : 's'}? Eles não receberão comunicações automáticas.`,
+      confirmLabel:  'Bloquear',
+      confirmColor:  '#ef4444',
+      onConfirm: async () => {
+        setConfirmModal(null)
+        const ids = new Set(rows.map(r => r.id))
+        setList(prev => prev.map(c => ids.has(c.id)
+          ? { ...c, tags: Array.from(new Set([...(c.tags ?? []), 'blocked'])) }
+          : c))
+        try {
+          const headers = await getHeaders()
+          const res = await fetch(`${BACKEND}/customers/bulk`, {
+            method: 'PATCH', headers,
+            body: JSON.stringify({ customer_ids: [...ids], is_blocked: true }),
+          })
+          const body = await res.json().catch(() => null) as { updated?: number } | null
+          if (!res.ok || !body) {
+            toast({ tone: 'error', message: 'Falha ao bloquear' })
+            await load()
+          } else {
+            toast({ tone: 'success', message: `${body.updated ?? 0} cliente${body.updated === 1 ? '' : 's'} bloqueado${body.updated === 1 ? '' : 's'}` })
+            await load()
+          }
+        } catch {
+          toast({ tone: 'error', message: 'Erro de rede' })
+          await load()
+        }
+      },
+    })
   }, [getHeaders, toast, load])
 
   const mergeBulk = useCallback((rows: Customer[]) => {
@@ -790,7 +816,36 @@ export default function ClientesPage() {
       {mergeModal && mergeModal.rows.length === 2 && (
         <MergeModal rows={mergeModal.rows as [Customer, Customer]}
           onClose={() => setMergeModal(null)}
-          onConfirm={(keep, discard) => confirmMerge(keep, discard)} />
+          onConfirm={(keep, discard) => {
+            const keepRow    = mergeModal.rows.find(r => r.id === keep)
+            const discardRow = mergeModal.rows.find(r => r.id === discard)
+            setMergeModal(null)
+            // Confirmação destrutiva final — backend agora soft-deleta + migra
+            // FK em 5 tabelas, mas mesmo assim a UI não tem "desmesclar".
+            setConfirmModal({
+              open:         true,
+              title:        'Confirmar mesclagem',
+              message:      `Tem certeza? Os dados de "${discardRow?.display_name ?? 'cliente descartado'}" serão mesclados em "${keepRow?.display_name ?? 'cliente mantido'}" permanentemente. Esta ação não pode ser desfeita.`,
+              confirmLabel: 'Sim, mesclar',
+              confirmColor: '#ef4444',
+              onConfirm: () => {
+                setConfirmModal(null)
+                void confirmMerge(keep, discard)
+              },
+            })
+          }} />
+      )}
+
+      {confirmModal && (
+        <ConfirmModal
+          open={confirmModal.open}
+          title={confirmModal.title}
+          message={confirmModal.message}
+          onConfirm={confirmModal.onConfirm}
+          onCancel={() => setConfirmModal(null)}
+          confirmLabel={confirmModal.confirmLabel}
+          confirmColor={confirmModal.confirmColor}
+        />
       )}
     </>
   )
@@ -801,6 +856,14 @@ export default function ClientesPage() {
 function ModalShell({ title, onClose, children, maxWidth = 480 }: {
   title: string; onClose: () => void; children: React.ReactNode; maxWidth?: number
 }) {
+  // ESC fecha (assumido pela spec do ConfirmModal — fix retroativo, beneficia
+  // todos os 4 modais que usam ModalShell).
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose])
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
       style={{ background: 'rgba(0,0,0,0.7)' }}
@@ -816,6 +879,34 @@ function ModalShell({ title, onClose, children, maxWidth = 480 }: {
         <div className="p-4">{children}</div>
       </div>
     </div>
+  )
+}
+
+function ConfirmModal({ open, title, message, onConfirm, onCancel, confirmLabel = 'Confirmar', confirmColor = '#ef4444' }: {
+  open:          boolean
+  title:         string
+  message:       string
+  onConfirm:     () => void
+  onCancel:      () => void
+  confirmLabel?: string
+  confirmColor?: string
+}) {
+  if (!open) return null
+  return (
+    <ModalShell title={title} onClose={onCancel} maxWidth={420}>
+      <p className="text-[12px] text-zinc-300 leading-relaxed">{message}</p>
+      <div className="flex items-center justify-end gap-2 mt-4">
+        <button onClick={onCancel}
+          className="px-3 py-1.5 rounded-lg text-[12px] border border-zinc-800 text-zinc-300 hover:bg-zinc-900/50">
+          Cancelar
+        </button>
+        <button onClick={onConfirm}
+          className="px-3 py-1.5 rounded-lg text-[12px] font-semibold"
+          style={{ background: `${confirmColor}1a`, color: confirmColor, border: `1px solid ${confirmColor}4d` }}>
+          {confirmLabel}
+        </button>
+      </div>
+    </ModalShell>
   )
 }
 
