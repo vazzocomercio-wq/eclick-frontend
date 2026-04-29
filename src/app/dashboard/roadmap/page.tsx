@@ -80,6 +80,7 @@ function StatusBadge({ status }: { status: RoadmapStatus }) {
 export default function RoadmapPage() {
   const [phases, setPhases]   = useState<RoadmapPhase[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError]     = useState<string | null>(null)
   const [filter, setFilter]   = useState<FilterKey>('all')
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [newIdea, setNewIdea] = useState<{ phaseId?: string } | null>(null)
@@ -93,18 +94,28 @@ export default function RoadmapPage() {
 
   const load = useCallback(async () => {
     setLoading(true)
+    setError(null)
     try {
       const headers = await getHeaders()
       const res = await fetch(`${BACKEND}/roadmap`, { headers })
-      if (res.ok) {
-        const data = await res.json() as RoadmapPhase[]
-        setPhases(data)
-        // Expand WIP phase by default; collapse rest pra dar foco visual.
-        const exp: Record<string, boolean> = {}
-        for (const p of data) exp[p.id] = p.status === 'wip'
-        setExpanded(exp)
+      if (!res.ok) {
+        const body = await res.text().catch(() => '')
+        console.error('[roadmap] fetch HTTP', res.status, body)
+        setError(`Erro ao carregar roadmap (HTTP ${res.status})`)
+        return
       }
-    } catch { /* silent */ } finally { setLoading(false) }
+      const data = await res.json() as RoadmapPhase[]
+      setPhases(data)
+      // Expand WIP phase by default; collapse rest pra dar foco visual.
+      const exp: Record<string, boolean> = {}
+      for (const p of data) exp[p.id] = p.status === 'wip'
+      setExpanded(exp)
+    } catch (err) {
+      console.error('[roadmap] fetch falhou:', err)
+      setError('Erro ao carregar roadmap')
+    } finally {
+      setLoading(false)
+    }
   }, [getHeaders])
 
   useEffect(() => { load() }, [load])
@@ -161,6 +172,14 @@ export default function RoadmapPage() {
           <Plus size={13} /> Nova ideia
         </button>
       </div>
+
+      {/* Error banner */}
+      {error && (
+        <div className="rounded-lg p-3 text-sm"
+          style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>
+          {error} · veja DevTools → Console pra detalhes
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex flex-wrap gap-1" style={{ borderBottom: '1px solid #1a1a1f' }}>
