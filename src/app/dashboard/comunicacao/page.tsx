@@ -62,7 +62,7 @@ export default function ComunicacaoPage() {
           {tab === 'pedidos'       && <PedidosEmCursoTab />}
           {tab === 'jornadas'      && <ModelosJornadasTab />}
           {tab === 'templates'     && <TemplatesTab onToast={pushToast} />}
-          {tab === 'configuracoes' && <ConfiguracoesTab />}
+          {tab === 'configuracoes' && <ConfiguracoesTab onToast={pushToast} />}
         </div>
       </div>
 
