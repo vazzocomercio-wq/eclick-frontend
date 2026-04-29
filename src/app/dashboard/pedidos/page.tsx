@@ -664,11 +664,9 @@ function OrderCard({
               <button
                 onClick={() => onOpenDetail(String(order.order_id))}
                 title="Ver detalhe completo (Cliente + Comunicação)"
-                className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded transition-colors"
-                style={{ background: 'transparent', border: '1px solid #1a1a1f', color: '#a1a1aa' }}
-                onMouseOver={e => { e.currentTarget.style.color = '#00E5FF'; e.currentTarget.style.borderColor = 'rgba(0,229,255,0.4)' }}
-                onMouseOut={e => { e.currentTarget.style.color = '#a1a1aa'; e.currentTarget.style.borderColor = '#1a1a1f' }}>
-                <Eye size={10} />
+                className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-md transition-colors hover:bg-[rgba(0,229,255,0.08)]"
+                style={{ background: 'transparent', border: '1px solid #00E5FF', color: '#00E5FF' }}>
+                <Eye size={11} />
                 Ver detalhe
               </button>
             </div>
