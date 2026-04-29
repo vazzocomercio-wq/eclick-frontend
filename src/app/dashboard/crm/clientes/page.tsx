@@ -360,6 +360,182 @@ export default function ClientesPage() {
     toast({ tone: 'success', message: `${rows.length} clientes exportados${maskExport ? ' (mascarado)' : ''}` })
   }, [toast, maskExport])
 
+  // ── bulk action handlers (chamados pela barra de seleção) ──────────────────
+  const [waModal,    setWaModal]    = useState<{ rows: Customer[] } | null>(null)
+  const [segModal,   setSegModal]   = useState<{ rows: Customer[] } | null>(null)
+  const [mergeModal, setMergeModal] = useState<{ rows: Customer[] } | null>(null)
+  const [segments,   setSegments]   = useState<Array<{ id: string; name: string; customer_count?: number }>>([])
+
+  const enrichBulk = useCallback(async (rows: Customer[]) => {
+    if (!rows.length) return
+    const ids = rows.map(r => r.id)
+    toast({ tone: 'info', message: `Enriquecendo ${ids.length} cliente${ids.length === 1 ? '' : 's'}…` })
+    try {
+      const headers = await getHeaders()
+      const res = await fetch(`${BACKEND}/enrichment/batch`, {
+        method: 'POST', headers, body: JSON.stringify({ customer_ids: ids, limit: ids.length }),
+      })
+      const body = await res.json().catch(() => null) as { processed: number; full: number; partial: number; failed: number } | null
+      if (!res.ok || !body) toast({ tone: 'error', message: 'Falha — verifique provedores em Configurações' })
+      else toast({ tone: 'success', message: `${body.processed} processados — ${body.full} validados, ${body.partial} parciais, ${body.failed} falharam` })
+      setTimeout(() => { void load() }, 3000)
+    } catch { toast({ tone: 'error', message: 'Erro de rede' }) }
+  }, [getHeaders, toast, load])
+
+  const sendWaBulk = useCallback(async (rows: Customer[], message: string) => {
+    if (!rows.length || !message.trim()) return
+    try {
+      const headers = await getHeaders()
+      const res = await fetch(`${BACKEND}/messaging/send-bulk`, {
+        method: 'POST', headers, body: JSON.stringify({ customer_ids: rows.map(r => r.id), message }),
+      })
+      const body = await res.json().catch(() => null) as { success?: boolean; message?: string } | null
+      // Stub retorna { success: true, message: 'Em breve' } → toast amarelo
+      if (body?.message === 'Em breve') toast({ tone: 'warn', message: 'Funcionalidade em desenvolvimento' })
+      else if (res.ok && body?.success) toast({ tone: 'success', message: 'Mensagem enviada' })
+      else toast({ tone: 'error', message: 'Falha ao enviar' })
+    } catch { toast({ tone: 'error', message: 'Erro de rede' }) }
+    finally { setWaModal(null) }
+  }, [getHeaders, toast])
+
+  const pvBulk = useCallback(async (rows: Customer[]) => {
+    if (!rows.length) return
+    if (!confirm(`Iniciar jornada pós-venda para ${rows.length} cliente${rows.length === 1 ? '' : 's'}?`)) return
+    try {
+      const headers = await getHeaders()
+      const res = await fetch(`${BACKEND}/messaging/journeys/start-bulk`, {
+        method: 'POST', headers,
+        body: JSON.stringify({ customer_ids: rows.map(r => r.id), journey_type: 'pos_venda' }),
+      })
+      const body = await res.json().catch(() => null) as { success?: boolean; message?: string } | null
+      if (body?.message === 'Em breve') toast({ tone: 'warn', message: 'Funcionalidade em desenvolvimento' })
+      else if (res.ok && body?.success) toast({ tone: 'success', message: 'Jornada iniciada' })
+      else toast({ tone: 'error', message: 'Falha ao iniciar jornada' })
+    } catch { toast({ tone: 'error', message: 'Erro de rede' }) }
+  }, [getHeaders, toast])
+
+  const openSegModal = useCallback(async (rows: Customer[]) => {
+    setSegModal({ rows })
+    try {
+      const headers = await getHeaders()
+      const res = await fetch(`${BACKEND}/customer-hub/segments`, { headers })
+      const body = await res.json().catch(() => null) as Array<{ id: string; name: string; customer_count?: number }> | null
+      setSegments(Array.isArray(body) ? body : [])
+    } catch { setSegments([]) }
+  }, [getHeaders])
+
+  const segmentBulk = useCallback(async (rows: Customer[], segmentId: string) => {
+    if (!rows.length || !segmentId) return
+    try {
+      const headers = await getHeaders()
+      const res = await fetch(`${BACKEND}/customers/segments/bulk-add`, {
+        method: 'POST', headers,
+        body: JSON.stringify({ customer_ids: rows.map(r => r.id), segment_id: segmentId }),
+      })
+      const body = await res.json().catch(() => null) as { success?: boolean; message?: string } | null
+      if (body?.message === 'Em breve') toast({ tone: 'warn', message: 'Funcionalidade em desenvolvimento' })
+      else if (res.ok && body?.success) toast({ tone: 'success', message: `${rows.length} cliente${rows.length === 1 ? '' : 's'} adicionado${rows.length === 1 ? '' : 's'} ao segmento` })
+      else toast({ tone: 'error', message: 'Falha ao adicionar' })
+    } catch { toast({ tone: 'error', message: 'Erro de rede' }) }
+    finally { setSegModal(null) }
+  }, [getHeaders, toast])
+
+  const vipBulk = useCallback(async (rows: Customer[]) => {
+    if (!rows.length) return
+    if (!confirm(`Marcar ${rows.length} cliente${rows.length === 1 ? '' : 's'} como VIP?`)) return
+    const ids = new Set(rows.map(r => r.id))
+    // Optimistic — adiciona tag vip imediatamente nas linhas selecionadas
+    setList(prev => prev.map(c => ids.has(c.id)
+      ? { ...c, tags: Array.from(new Set([...(c.tags ?? []), 'vip'])) }
+      : c))
+    try {
+      const headers = await getHeaders()
+      const res = await fetch(`${BACKEND}/customers/bulk`, {
+        method: 'PATCH', headers,
+        body: JSON.stringify({ customer_ids: [...ids], is_vip: true }),
+      })
+      const body = await res.json().catch(() => null) as { updated?: number; total?: number } | null
+      if (!res.ok || !body) {
+        toast({ tone: 'error', message: 'Falha ao marcar VIP' })
+        await load() // rollback do optimistic
+      } else {
+        toast({ tone: 'success', message: `${body.updated ?? 0} cliente${body.updated === 1 ? '' : 's'} marcado${body.updated === 1 ? '' : 's'} como VIP` })
+        await load()
+      }
+    } catch {
+      toast({ tone: 'error', message: 'Erro de rede' })
+      await load()
+    }
+  }, [getHeaders, toast, load])
+
+  const blockBulk = useCallback(async (rows: Customer[]) => {
+    if (!rows.length) return
+    if (!confirm(`⚠️ Bloquear ${rows.length} cliente${rows.length === 1 ? '' : 's'}? Não receberão comunicações.`)) return
+    const ids = new Set(rows.map(r => r.id))
+    setList(prev => prev.map(c => ids.has(c.id)
+      ? { ...c, tags: Array.from(new Set([...(c.tags ?? []), 'blocked'])) }
+      : c))
+    try {
+      const headers = await getHeaders()
+      const res = await fetch(`${BACKEND}/customers/bulk`, {
+        method: 'PATCH', headers,
+        body: JSON.stringify({ customer_ids: [...ids], is_blocked: true }),
+      })
+      const body = await res.json().catch(() => null) as { updated?: number } | null
+      if (!res.ok || !body) {
+        toast({ tone: 'error', message: 'Falha ao bloquear' })
+        await load()
+      } else {
+        toast({ tone: 'success', message: `${body.updated ?? 0} cliente${body.updated === 1 ? '' : 's'} bloqueado${body.updated === 1 ? '' : 's'}` })
+        await load()
+      }
+    } catch {
+      toast({ tone: 'error', message: 'Erro de rede' })
+      await load()
+    }
+  }, [getHeaders, toast, load])
+
+  const mergeBulk = useCallback((rows: Customer[]) => {
+    if (rows.length !== 2) {
+      toast({ tone: 'warn', message: 'Selecione exatamente 2 clientes para mesclar' })
+      return
+    }
+    setMergeModal({ rows })
+  }, [toast])
+
+  const confirmMerge = useCallback(async (keepId: string, discardId: string) => {
+    try {
+      const headers = await getHeaders()
+      const res = await fetch(`${BACKEND}/customers/merge`, {
+        method: 'POST', headers,
+        body: JSON.stringify({ keep_id: keepId, discard_id: discardId }),
+      })
+      if (!res.ok) toast({ tone: 'error', message: 'Falha ao mesclar' })
+      else toast({ tone: 'success', message: 'Clientes mesclados' })
+      setSelected([])
+      await load()
+    } catch { toast({ tone: 'error', message: 'Erro de rede' }) }
+    finally { setMergeModal(null) }
+  }, [getHeaders, toast, load])
+
+  const exportBulk = useCallback(async (rows: Customer[]) => {
+    if (!rows.length) return
+    try {
+      const headers = await getHeaders()
+      const ids = rows.map(r => r.id).join(',')
+      const res = await fetch(`${BACKEND}/customers/export?ids=${encodeURIComponent(ids)}`, { headers })
+      if (!res.ok) { toast({ tone: 'error', message: 'Falha ao exportar' }); return }
+      const blob = await res.blob()
+      const url  = URL.createObjectURL(blob)
+      const a    = document.createElement('a')
+      a.href = url
+      a.download = `clientes-${new Date().toISOString().slice(0, 10)}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+      toast({ tone: 'success', message: `${rows.length} cliente${rows.length === 1 ? '' : 's'} exportado${rows.length === 1 ? '' : 's'}` })
+    } catch { toast({ tone: 'error', message: 'Erro de rede' }) }
+  }, [getHeaders, toast])
+
   // ── columns ────────────────────────────────────────────────────────────────
   const columns: Column<Customer>[] = useMemo(() => [
     {
@@ -490,15 +666,15 @@ export default function ClientesPage() {
 
   // ── bulk actions ───────────────────────────────────────────────────────────
   const bulkActions: BulkAction<Customer>[] = useMemo(() => [
-    { key: 'enrich-bulk', label: 'Enriquecer',   icon: <Sparkles size={11} />, onClick: () => enrichBatch() },
-    { key: 'wa-bulk',     label: 'WhatsApp',     icon: <Send size={11} />,     onClick: () => todoToast('WhatsApp em massa') },
-    { key: 'pv-bulk',     label: 'Pós-venda',    icon: <Megaphone size={11} />, onClick: () => todoToast('Campanha pós-venda em massa') },
-    { key: 'seg-bulk',    label: 'Segmento',     icon: <Tag size={11} />,      onClick: rows => todoToast(`Criar segmento com ${rows.length}`) },
-    { key: 'vip-bulk',    label: 'VIP',          icon: <Crown size={11} />,    onClick: rows => rows.forEach(r => toggleTag(r, 'vip')) },
-    { key: 'block-bulk',  label: 'Bloquear',     icon: <Ban size={11} />,      tone: 'warn', onClick: rows => rows.forEach(r => toggleTag(r, 'blocked')) },
-    { key: 'merge-bulk',  label: 'Mesclar',      icon: <GitMerge size={11} />, onClick: () => todoToast('Detecção de duplicados') },
-    { key: 'export',      label: 'Exportar CSV', icon: <Map size={11} />,      onClick: rows => exportCsv(rows) },
-  ], [enrichBatch, exportCsv, toggleTag])
+    { key: 'enrich-bulk', label: 'Enriquecer',   icon: <Sparkles size={11} />, onClick: rows => enrichBulk(rows) },
+    { key: 'wa-bulk',     label: 'WhatsApp',     icon: <Send size={11} />,     onClick: rows => setWaModal({ rows }) },
+    { key: 'pv-bulk',     label: 'Pós-venda',    icon: <Megaphone size={11} />, onClick: rows => pvBulk(rows) },
+    { key: 'seg-bulk',    label: 'Segmento',     icon: <Tag size={11} />,      onClick: rows => openSegModal(rows) },
+    { key: 'vip-bulk',    label: 'VIP',          icon: <Crown size={11} />,    onClick: rows => vipBulk(rows) },
+    { key: 'block-bulk',  label: 'Bloquear',     icon: <Ban size={11} />,      tone: 'warn',   onClick: rows => blockBulk(rows) },
+    { key: 'merge-bulk',  label: 'Mesclar',      icon: <GitMerge size={11} />, onClick: rows => mergeBulk(rows) },
+    { key: 'export',      label: 'Exportar CSV', icon: <Map size={11} />,      onClick: rows => exportBulk(rows) },
+  ], [enrichBulk, pvBulk, openSegModal, vipBulk, blockBulk, mergeBulk, exportBulk])
 
   // ── right panel ────────────────────────────────────────────────────────────
   const rightPanelSections: PanelSection[] = useMemo(() => {
@@ -598,7 +774,156 @@ export default function ClientesPage() {
           description: 'Tente limpar os filtros ou aguardar a próxima sincronização de pedidos.',
         }}
       />
+
+      {waModal && (
+        <WaSendModal rows={waModal.rows}
+          onClose={() => setWaModal(null)}
+          onSend={msg => sendWaBulk(waModal.rows, msg)} />
+      )}
+
+      {segModal && (
+        <SegmentSelectModal rows={segModal.rows} segments={segments}
+          onClose={() => setSegModal(null)}
+          onPick={id => segmentBulk(segModal.rows, id)} />
+      )}
+
+      {mergeModal && mergeModal.rows.length === 2 && (
+        <MergeModal rows={mergeModal.rows as [Customer, Customer]}
+          onClose={() => setMergeModal(null)}
+          onConfirm={(keep, discard) => confirmMerge(keep, discard)} />
+      )}
     </>
+  )
+}
+
+// ── modais (extraídos pra arquivo separado seria overkill; ficam aqui) ────
+
+function ModalShell({ title, onClose, children, maxWidth = 480 }: {
+  title: string; onClose: () => void; children: React.ReactNode; maxWidth?: number
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: 'rgba(0,0,0,0.7)' }}
+      onClick={onClose}>
+      <div className="rounded-2xl w-full overflow-hidden"
+        style={{ background: '#0c0c10', border: '1px solid #27272a', maxWidth }}
+        onClick={e => e.stopPropagation()}>
+        <header className="flex items-center justify-between px-4 py-3"
+          style={{ borderBottom: '1px solid #1e1e24' }}>
+          <span className="text-zinc-100 text-[13px] font-semibold">{title}</span>
+          <button onClick={onClose} className="text-zinc-500 hover:text-zinc-200 text-lg leading-none">×</button>
+        </header>
+        <div className="p-4">{children}</div>
+      </div>
+    </div>
+  )
+}
+
+function WaSendModal({ rows, onClose, onSend }: {
+  rows: Customer[]; onClose: () => void; onSend: (msg: string) => void
+}) {
+  const [msg, setMsg] = useState('')
+  const ready = msg.trim().length > 0
+  return (
+    <ModalShell title={`Disparar WhatsApp para ${rows.length} contato${rows.length === 1 ? '' : 's'}`} onClose={onClose} maxWidth={520}>
+      <p className="text-[11px] text-zinc-500 mb-2">
+        Mensagem livre (sem template). Use {'{{first_name}}'} se quiser personalizar.
+      </p>
+      <textarea value={msg} onChange={e => setMsg(e.target.value)}
+        rows={6} placeholder="Olá {{first_name}}, ..."
+        className="w-full p-3 text-[12px] rounded-lg bg-[#070709] border border-[#27272a] text-zinc-200 outline-none focus:border-[#00E5FF] resize-none" />
+      <div className="flex items-center justify-end gap-2 mt-3">
+        <button onClick={onClose}
+          className="px-3 py-1.5 rounded-lg text-[12px] border border-zinc-800 text-zinc-300 hover:bg-zinc-900/50">Cancelar</button>
+        <button onClick={() => onSend(msg)} disabled={!ready}
+          className="px-3 py-1.5 rounded-lg text-[12px] font-semibold disabled:opacity-40"
+          style={{ background: 'rgba(37,211,102,0.10)', color: '#25D366', border: '1px solid rgba(37,211,102,0.30)' }}>
+          Enviar para {rows.length} contato{rows.length === 1 ? '' : 's'}
+        </button>
+      </div>
+    </ModalShell>
+  )
+}
+
+function SegmentSelectModal({ rows, segments, onClose, onPick }: {
+  rows: Customer[]
+  segments: Array<{ id: string; name: string; customer_count?: number }>
+  onClose: () => void
+  onPick: (segmentId: string) => void
+}) {
+  const [picked, setPicked] = useState<string>('')
+  return (
+    <ModalShell title={`Adicionar ${rows.length} cliente${rows.length === 1 ? '' : 's'} a um segmento`} onClose={onClose}>
+      {segments.length === 0 ? (
+        <p className="text-[12px] text-zinc-400">
+          Nenhum segmento encontrado. Crie um em <span className="text-zinc-200">CRM &gt; Segmentos</span> primeiro.
+        </p>
+      ) : (
+        <select value={picked} onChange={e => setPicked(e.target.value)}
+          className="w-full px-3 py-2 text-[12px] rounded-lg bg-[#070709] border border-[#27272a] text-zinc-200 outline-none focus:border-[#00E5FF]">
+          <option value="">Selecione um segmento…</option>
+          {segments.map(s => (
+            <option key={s.id} value={s.id}>
+              {s.name}{typeof s.customer_count === 'number' ? ` (${s.customer_count})` : ''}
+            </option>
+          ))}
+        </select>
+      )}
+      <div className="flex items-center justify-end gap-2 mt-3">
+        <button onClick={onClose}
+          className="px-3 py-1.5 rounded-lg text-[12px] border border-zinc-800 text-zinc-300 hover:bg-zinc-900/50">Cancelar</button>
+        <button onClick={() => picked && onPick(picked)} disabled={!picked}
+          className="px-3 py-1.5 rounded-lg text-[12px] font-semibold disabled:opacity-40"
+          style={{ background: 'rgba(0,229,255,0.08)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.30)' }}>
+          Adicionar ao segmento
+        </button>
+      </div>
+    </ModalShell>
+  )
+}
+
+function MergeModal({ rows, onClose, onConfirm }: {
+  rows: [Customer, Customer]; onClose: () => void; onConfirm: (keepId: string, discardId: string) => void
+}) {
+  const [keep, setKeep] = useState<string>(rows[0].id)
+  const discard = rows.find(r => r.id !== keep)?.id ?? rows[1].id
+  return (
+    <ModalShell title="Mesclar 2 clientes" onClose={onClose} maxWidth={680}>
+      <p className="text-[11px] text-zinc-500 mb-3">
+        Escolha qual cliente manter. O outro será apagado e seus dados/conversas migrados.
+      </p>
+      <div className="grid grid-cols-2 gap-3">
+        {rows.map(c => {
+          const isKeep = keep === c.id
+          return (
+            <button key={c.id} onClick={() => setKeep(c.id)}
+              className="rounded-xl p-3 text-left transition-colors"
+              style={{
+                background: isKeep ? 'rgba(74,222,128,0.06)' : '#070709',
+                border: `1px solid ${isKeep ? 'rgba(74,222,128,0.40)' : '#27272a'}`,
+              }}>
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <span className="text-zinc-100 text-[12px] font-semibold truncate">{c.display_name ?? '(sem nome)'}</span>
+                {isKeep && <span className="text-[10px] font-bold text-green-400">MANTER</span>}
+              </div>
+              <p className="text-[10px] text-zinc-500 truncate">CPF: {c.cpf ?? '—'}</p>
+              <p className="text-[10px] text-zinc-500 truncate">Tel: {c.phone ?? '—'}</p>
+              <p className="text-[10px] text-zinc-500 truncate">Email: {c.email ?? '—'}</p>
+              <p className="text-[10px] text-zinc-500 truncate">{c.total_purchases ?? 0} compra{c.total_purchases === 1 ? '' : 's'}</p>
+            </button>
+          )
+        })}
+      </div>
+      <div className="flex items-center justify-end gap-2 mt-4">
+        <button onClick={onClose}
+          className="px-3 py-1.5 rounded-lg text-[12px] border border-zinc-800 text-zinc-300 hover:bg-zinc-900/50">Cancelar</button>
+        <button onClick={() => onConfirm(keep, discard)}
+          className="px-3 py-1.5 rounded-lg text-[12px] font-semibold"
+          style={{ background: 'rgba(0,229,255,0.08)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.30)' }}>
+          Mesclar
+        </button>
+      </div>
+    </ModalShell>
   )
 }
 
