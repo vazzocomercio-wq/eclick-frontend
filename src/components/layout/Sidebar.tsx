@@ -11,7 +11,7 @@ import {
   Heart, MessageSquare, CheckSquare, Sparkles, Image as ImageIcon,
   Megaphone, ShoppingCart, TrendingUp, Settings, UserCog,
   Plug, Database, ChevronDown, Bot, Inbox, BookOpen,
-  GraduationCap, LineChart, QrCode, Shield, Users2, TrendingDown,
+  GraduationCap, LineChart, Shield, Users2, TrendingDown,
   Zap, Map as MapIcon,
 } from 'lucide-react'
 
@@ -142,7 +142,7 @@ const SECTIONS: NavSection[] = [
       { label: 'Customer Hub', href: '/dashboard/crm/customer-hub', icon: <Users2 size={15} /> },
       { label: 'Pipeline',    href: '/dashboard/crm/pipeline',  icon: <Target size={15} /> },
       { label: 'Pós-venda',   href: '/dashboard/crm/pos-venda', icon: <Heart size={15} /> },
-      { label: 'Lead Bridge', href: '/dashboard/lead-bridge',   icon: <QrCode size={15} /> },
+      { label: 'Enriquecimento de Dados', href: '/dashboard/enriquecimento', icon: <Database size={15} /> },
       { label: 'Mensageria',  href: '/dashboard/messaging',     icon: <MessageSquare size={15} /> },
       { label: 'Comunicação', href: '/dashboard/comunicacao',   icon: <Zap size={15} /> },
       { label: 'WhatsApp',    href: '/dashboard/crm/whatsapp',  icon: <MessageSquare size={15} />, soon: true },
@@ -197,7 +197,6 @@ const SECTIONS: NavSection[] = [
       { label: 'Equipe',               href: '/dashboard/configuracoes/equipe',      icon: <UserCog size={15} /> },
       { label: 'Integrações',          href: '/dashboard/configuracoes/integracoes', icon: <Plug size={15} /> },
       { label: 'Agregador',            href: '/dashboard/configuracoes/aggregator',  icon: <Database size={15} /> },
-      { label: 'Enriquecimento de Dados', href: '/dashboard/configuracoes/enrichment', icon: <Database size={15} /> },
     ],
   },
 ]
