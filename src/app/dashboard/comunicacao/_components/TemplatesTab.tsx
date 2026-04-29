@@ -8,7 +8,7 @@ const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? process.env.NEXT_PUBLIC_A
 
 // ── types ─────────────────────────────────────────────────────────────────────
 
-type Channel       = 'whatsapp' | 'instagram' | 'tiktok'
+type Channel       = 'whatsapp' | 'email' | 'instagram' | 'tiktok'
 type TemplateKind  = 'transactional' | 'marketing' | 'sac' | 'custom'
 type TriggerEvent  =
   | 'order_paid' | 'order_shipped' | 'order_delivered' | 'order_cancelled'
@@ -38,7 +38,7 @@ const KIND_META: Record<TemplateKind, { icon: string; label: string }> = {
   custom:        { icon: '⚙️', label: 'custom'        },
 }
 
-const CHANNELS: Channel[]      = ['whatsapp', 'instagram', 'tiktok']
+const CHANNELS: Channel[]      = ['whatsapp', 'email', 'instagram', 'tiktok']
 const KINDS:    TemplateKind[] = ['transactional', 'marketing', 'sac', 'custom']
 const TRIGGERS: TriggerEvent[] = [
   'order_paid', 'order_shipped', 'order_delivered', 'order_cancelled',
