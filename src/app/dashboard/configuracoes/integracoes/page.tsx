@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase'
 import {
   CheckCircle2, XCircle, Clock, RefreshCw, Plug, Zap,
   Key, Eye, EyeOff, Plus, Trash2, TestTube2, Loader2,
-  X, ExternalLink, AlertCircle, Bot, MessageCircle, BarChart2, Save, Check, Settings,
+  X, ExternalLink, AlertCircle, Bot, MessageCircle, BarChart2, Save, Check, Settings, Mail,
 } from 'lucide-react'
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid,
@@ -589,6 +589,7 @@ export default function IntegracoesPage() {
           { href: '#ia',           label: 'IA',           emoji: '🤖' },
           { href: '#marketplaces', label: 'Marketplaces', emoji: '🏪' },
           { href: '#mensageiros',  label: 'Mensageiros',  emoji: '💬' },
+          { href: '#email',        label: 'Email',        emoji: '📧' },
         ].map(a => (
           <a key={a.href} href={a.href}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all hover:bg-white/5"
@@ -689,6 +690,11 @@ export default function IntegracoesPage() {
           <IntegCard key={m.name} name={m.name} abbr={m.abbr} abbrBg={m.bg} abbrColor={m.fg}
             status="soon" description={m.desc} />
         ))}
+      </Section>
+
+      {/* ── Email (Sprint EM-1) ──────────────────────────────────────────── */}
+      <Section id="email" title="Email" subtitle="Provedor SMTP usado nas jornadas de comunicação pós-venda quando o canal escolhido é email." icon={<Mail size={13} />}>
+        <EmailProviderCard onToast={showToast} />
       </Section>
 
       {/* ── ERP ──────────────────────────────────────────────────────────── */}
@@ -1091,6 +1097,334 @@ function CopyField({ label, value }: { label: string; value: string }) {
           style={{ background: copied ? 'rgba(74,222,128,0.15)' : '#1a1a1f', color: copied ? '#4ade80' : '#a1a1aa' }}>
           {copied ? '✓' : 'Copiar'}
         </button>
+      </div>
+    </div>
+  )
+}
+
+// ── Email Integration Card (Sprint EM-1) ─────────────────────────────────
+
+type EmailProvider = 'resend' | 'sendgrid'
+
+interface EmailSettingsView {
+  id:              string
+  provider:        EmailProvider
+  api_key_preview: string
+  from_name:       string
+  from_address:    string
+  is_verified:     boolean
+  last_tested_at:  string | null
+  last_test_error: string | null
+  updated_at:      string
+}
+
+const EMAIL_PROVIDERS: Array<{
+  id: EmailProvider; name: string; abbr: string; bg: string; fg: string
+  helpUrl: string; helpLabel: string; placeholder: string
+}> = [
+  {
+    id: 'resend', name: 'Resend', abbr: 'RS', bg: 'rgba(0,0,0,0.4)', fg: '#fff',
+    helpUrl: 'https://resend.com/api-keys', helpLabel: 'resend.com/api-keys',
+    placeholder: 're_xxxxxxxxxxxx',
+  },
+  {
+    id: 'sendgrid', name: 'SendGrid', abbr: 'SG', bg: 'rgba(30,168,242,0.15)', fg: '#1ea8f2',
+    helpUrl: 'https://app.sendgrid.com/settings/api_keys', helpLabel: 'app.sendgrid.com',
+    placeholder: 'SG.xxxxxxxxxxxx',
+  },
+]
+
+function EmailProviderCard({ onToast }: { onToast: (msg: string, t?: 'success' | 'error') => void }) {
+  const [config, setConfig] = useState<EmailSettingsView | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [setupOpen, setSetupOpen] = useState(false)
+  const [testing, setTesting] = useState(false)
+
+  const getHeaders = useCallback(async () => {
+    const sb = createClient()
+    const { data: { session } } = await sb.auth.getSession()
+    return { Authorization: `Bearer ${session?.access_token ?? ''}`, 'Content-Type': 'application/json' }
+  }, [])
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const headers = await getHeaders()
+      const res = await fetch(`${BACKEND}/email-settings`, { headers })
+      if (res.ok) {
+        const data = await res.json() as EmailSettingsView | null
+        setConfig(data)
+      }
+    } catch { /* silent */ } finally { setLoading(false) }
+  }, [getHeaders])
+
+  useEffect(() => { load() }, [load])
+
+  async function test() {
+    if (!config) return
+    setTesting(true)
+    try {
+      const headers = await getHeaders()
+      const res = await fetch(`${BACKEND}/email-settings/test`, { method: 'POST', headers })
+      const data = await res.json() as { ok: boolean; error?: string; recipient?: string }
+      if (data.ok) onToast(`✅ Teste enviado pra ${data.recipient ?? 'você'}`, 'success')
+      else         onToast(`❌ ${data.error ?? 'Falha no envio'}`, 'error')
+      await load()
+    } catch (e: unknown) {
+      onToast(e instanceof Error ? e.message : 'Erro de rede', 'error')
+    } finally { setTesting(false) }
+  }
+
+  async function remove() {
+    if (!confirm('Remover configuração de email? Templates de email param de funcionar até reconfigurar.')) return
+    const headers = await getHeaders()
+    await fetch(`${BACKEND}/email-settings`, { method: 'DELETE', headers })
+    setConfig(null)
+    onToast('Configuração removida', 'success')
+  }
+
+  const providerDef = config ? EMAIL_PROVIDERS.find(p => p.id === config.provider) : null
+
+  return (
+    <div className="rounded-2xl p-4 space-y-3" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl shrink-0 flex items-center justify-center"
+            style={{ background: providerDef?.bg ?? 'rgba(0,229,255,0.15)' }}>
+            <Mail size={15} style={{ color: providerDef?.fg ?? '#00E5FF' }} />
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-zinc-200">
+              {config ? `Email · ${providerDef?.name ?? config.provider}` : 'Email transacional'}
+            </p>
+            <p className="text-[10px] text-zinc-500 mt-0.5 leading-snug">
+              {config
+                ? `${config.from_name} <${config.from_address}>`
+                : 'Resend ou SendGrid · usado pelas jornadas de comunicação.'}
+            </p>
+          </div>
+        </div>
+        {loading ? (
+          <Loader2 size={12} className="animate-spin text-zinc-600 mt-2" />
+        ) : config ? (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold"
+            style={{
+              background: config.is_verified ? 'rgba(74,222,128,0.1)' : 'rgba(251,191,36,0.1)',
+              color:      config.is_verified ? '#4ade80' : '#fbbf24',
+            }}>
+            <CheckCircle2 size={10} />{config.is_verified ? 'Conectado' : 'Sem teste'}
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold"
+            style={{ background: 'rgba(251,146,60,0.1)', color: '#fb923c' }}>
+            <Plug size={10} />Não integrado
+          </span>
+        )}
+      </div>
+
+      {config && (
+        <div className="px-3 py-2 rounded-xl space-y-1" style={{ background: '#0d0d10' }}>
+          <div className="flex items-center gap-2">
+            <Key size={10} style={{ color: '#52525b' }} />
+            <span className="text-[11px] font-mono text-zinc-400">{config.api_key_preview}</span>
+          </div>
+          {config.last_tested_at && (
+            <p className="flex items-center gap-1 text-[10px] flex-wrap"
+              style={{ color: config.is_verified ? '#4ade80' : '#f87171' }}>
+              {config.is_verified ? '✅' : '❌'}
+              <span>{config.is_verified ? 'Teste OK' : config.last_test_error ?? 'falhou'}</span>
+              <span className="text-zinc-600">· {timeAgo(config.last_tested_at) ?? 'agora'}</span>
+            </p>
+          )}
+        </div>
+      )}
+
+      {!config ? (
+        <button onClick={() => setSetupOpen(true)}
+          className="flex items-center gap-1.5 w-full justify-center py-2 rounded-xl text-xs font-semibold transition-all"
+          style={{ background: 'rgba(0,229,255,0.1)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.25)' }}>
+          <Plug size={11} /> Configurar
+        </button>
+      ) : (
+        <div className="flex gap-2">
+          <button onClick={test} disabled={testing}
+            className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-medium disabled:opacity-50"
+            style={{ background: '#1e1e24', color: '#a1a1aa' }}>
+            {testing ? <Loader2 size={11} className="animate-spin" /> : <TestTube2 size={11} />}
+            Testar envio
+          </button>
+          <button onClick={() => setSetupOpen(true)}
+            className="inline-flex items-center justify-center p-2 rounded-xl"
+            style={{ background: '#1e1e24', color: '#a1a1aa' }}
+            title="Editar">
+            <Settings size={12} />
+          </button>
+          <button onClick={remove}
+            className="inline-flex items-center justify-center p-2 rounded-xl text-zinc-600"
+            style={{ background: '#1e1e24' }}
+            onMouseEnter={e => { e.currentTarget.style.color = '#f87171'; e.currentTarget.style.background = 'rgba(239,68,68,0.1)' }}
+            onMouseLeave={e => { e.currentTarget.style.color = '#71717a'; e.currentTarget.style.background = '#1e1e24' }}>
+            <Trash2 size={12} />
+          </button>
+        </div>
+      )}
+
+      {setupOpen && (
+        <EmailSetupModal
+          existing={config}
+          onClose={() => setSetupOpen(false)}
+          onSaved={(saved, testResult) => {
+            setConfig(saved)
+            setSetupOpen(false)
+            if (testResult?.ok) onToast(`✅ Email salvo e teste enviado pra ${testResult.recipient ?? 'você'}`, 'success')
+            else if (testResult)  onToast(`⚠ Salvo, mas teste falhou: ${testResult.error}`, 'error')
+            else                  onToast('Configuração salva', 'success')
+            void load()
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+function EmailSetupModal({ existing, onClose, onSaved }: {
+  existing: EmailSettingsView | null
+  onClose:  () => void
+  onSaved:  (saved: EmailSettingsView, test: { ok: boolean; error?: string; recipient?: string } | null) => void
+}) {
+  const [provider, setProvider] = useState<EmailProvider>(existing?.provider ?? 'resend')
+  const [apiKey, setApiKey]     = useState('')
+  const [showKey, setShowKey]   = useState(false)
+  const [fromName, setFromName] = useState(existing?.from_name ?? '')
+  const [fromAddress, setFromAddress] = useState(existing?.from_address ?? '')
+  const [step, setStep]   = useState<'pick' | 'fill'>(existing ? 'fill' : 'pick')
+  const [saving, setSaving] = useState(false)
+
+  const def = EMAIL_PROVIDERS.find(p => p.id === provider)!
+
+  async function save() {
+    if (!apiKey.trim() || !fromName.trim() || !fromAddress.trim()) return
+    setSaving(true)
+    try {
+      const sb = createClient()
+      const { data: { session } } = await sb.auth.getSession()
+      const headers = { Authorization: `Bearer ${session?.access_token}`, 'Content-Type': 'application/json' }
+
+      const saveRes = await fetch(`${BACKEND}/email-settings`, {
+        method: 'POST', headers,
+        body: JSON.stringify({ provider, api_key: apiKey, from_name: fromName, from_address: fromAddress }),
+      })
+      if (!saveRes.ok) {
+        const err = await saveRes.json().catch(() => ({})) as { message?: string }
+        onSaved(existing as EmailSettingsView, { ok: false, error: err.message ?? `HTTP ${saveRes.status}` })
+        return
+      }
+      const saved = await saveRes.json() as EmailSettingsView
+
+      const testRes = await fetch(`${BACKEND}/email-settings/test`, { method: 'POST', headers })
+      const testData = await testRes.json() as { ok: boolean; error?: string; recipient?: string }
+      onSaved(saved, testData)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }}>
+      <div className="w-full max-w-md rounded-2xl overflow-hidden shadow-2xl"
+        style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid #1e1e24' }}>
+          <div className="flex items-center gap-2">
+            <Mail size={15} style={{ color: '#00E5FF' }} />
+            <p className="text-sm font-semibold text-white">
+              {existing ? 'Editar configuração de email' : 'Configurar email'}
+            </p>
+          </div>
+          <button onClick={onClose} className="text-zinc-500 hover:text-zinc-300"><X size={16} /></button>
+        </div>
+
+        {step === 'pick' && (
+          <div className="px-5 py-5 space-y-3">
+            <p className="text-xs text-zinc-400">Escolha o provedor:</p>
+            <div className="grid grid-cols-2 gap-3">
+              {EMAIL_PROVIDERS.map(p => (
+                <button key={p.id} onClick={() => { setProvider(p.id); setStep('fill') }}
+                  className="rounded-xl p-3 transition-colors text-left"
+                  style={{ background: '#0d0d10', border: `1px solid ${provider === p.id ? '#00E5FF' : '#27272a'}` }}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-black"
+                      style={{ background: p.bg, color: p.fg }}>{p.abbr}</div>
+                    <p className="text-xs font-semibold text-zinc-200">{p.name}</p>
+                  </div>
+                  <a href={p.helpUrl} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()}
+                    className="text-[10px] flex items-center gap-1" style={{ color: '#00E5FF' }}>
+                    <ExternalLink size={9} />{p.helpLabel}
+                  </a>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {step === 'fill' && (
+          <div className="px-5 py-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-zinc-400">Provider: <span className="text-zinc-200 font-semibold">{def.name}</span></p>
+              {!existing && (
+                <button onClick={() => setStep('pick')} className="text-[10px] text-zinc-500 hover:text-zinc-300">← Trocar</button>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-xs text-zinc-400 mb-1">API Key {existing && <span className="text-zinc-600">· deixe em branco pra manter atual</span>}</label>
+              <div className="relative">
+                <input type={showKey ? 'text' : 'password'} value={apiKey} onChange={e => setApiKey(e.target.value)}
+                  placeholder={def.placeholder}
+                  className="w-full pl-3 pr-10 py-2.5 rounded-xl text-sm text-white placeholder-zinc-600 font-mono"
+                  style={{ background: '#0d0d10', border: '1px solid #27272a' }} />
+                <button onClick={() => setShowKey(s => !s)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300">
+                  {showKey ? <EyeOff size={14} /> : <Eye size={14} />}
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-xs text-zinc-400 mb-1">Nome remetente</label>
+                <input value={fromName} onChange={e => setFromName(e.target.value)}
+                  placeholder="e-Click Comercio"
+                  className="w-full px-3 py-2 rounded-xl text-xs text-white placeholder-zinc-600"
+                  style={{ background: '#0d0d10', border: '1px solid #27272a' }} />
+              </div>
+              <div>
+                <label className="block text-xs text-zinc-400 mb-1">Email remetente</label>
+                <input type="email" value={fromAddress} onChange={e => setFromAddress(e.target.value)}
+                  placeholder="noreply@seudominio.com.br"
+                  className="w-full px-3 py-2 rounded-xl text-xs text-white placeholder-zinc-600"
+                  style={{ background: '#0d0d10', border: '1px solid #27272a' }} />
+              </div>
+            </div>
+
+            <p className="text-[10px] text-zinc-600">
+              Após salvar, dispara um email de teste pro endereço da sua conta. SPF/DKIM precisam estar OK no domínio do remetente.
+            </p>
+          </div>
+        )}
+
+        <div className="flex justify-between px-5 py-4" style={{ borderTop: '1px solid #1e1e24' }}>
+          <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm text-zinc-400"
+            style={{ background: '#1e1e24' }}>Cancelar</button>
+          {step === 'fill' && (
+            <button onClick={save}
+              disabled={!apiKey.trim() || !fromName.trim() || !fromAddress.trim() || saving}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold disabled:opacity-40"
+              style={{ background: '#00E5FF', color: '#000' }}>
+              {saving ? <Loader2 size={13} className="animate-spin" /> : <TestTube2 size={13} />}
+              Salvar e testar
+            </button>
+          )}
+        </div>
       </div>
     </div>
   )
