@@ -12,7 +12,7 @@ import {
   Megaphone, ShoppingCart, TrendingUp, Settings, UserCog,
   Plug, Database, ChevronDown, Bot, Inbox, BookOpen,
   GraduationCap, LineChart, QrCode, Shield, Users2, TrendingDown,
-  Zap,
+  Zap, Map as MapIcon,
 } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
@@ -179,6 +179,13 @@ const SECTIONS: NavSection[] = [
       { label: 'Inteligência', href: '/dashboard/ads/inteligencia', icon: <Sparkles size={15} /> },
       { label: 'Shopee Ads',   href: '/dashboard/ads/shopee',       icon: <ShoppingCart size={15} />, soon: true },
       { label: 'Performance',  href: '/dashboard/ads/performance',  icon: <TrendingUp size={15} /> },
+    ],
+  },
+  {
+    key: 'projeto',
+    label: 'PROJETO',
+    items: [
+      { label: 'Roadmap', href: '/dashboard/roadmap', icon: <MapIcon size={15} /> },
     ],
   },
   {
