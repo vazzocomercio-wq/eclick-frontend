@@ -59,7 +59,7 @@ export default function ComunicacaoPage() {
       {/* Content */}
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-5xl mx-auto px-6 py-6 space-y-4">
-          {tab === 'pedidos'       && <PedidosEmCursoTab />}
+          {tab === 'pedidos'       && <PedidosEmCursoTab onToast={pushToast} />}
           {tab === 'jornadas'      && <ModelosJornadasTab />}
           {tab === 'templates'     && <TemplatesTab onToast={pushToast} />}
           {tab === 'configuracoes' && <ConfiguracoesTab onToast={pushToast} />}
