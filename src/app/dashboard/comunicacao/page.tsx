@@ -24,13 +24,12 @@ export default function ComunicacaoPage() {
   const [tab, setTab]       = useState<TabKey>('pedidos')
   const [toasts, setToasts] = useState<Toast[]>([])
 
-  // Infra de toast já pronta pra próximas fases consumirem via prop.
+  // Infra de toast — TemplatesTab consome via prop; demais abas (3.4) idem.
   function pushToast(msg: string, type: Toast['type'] = 'success') {
     const id = Date.now() + Math.random()
     setToasts(prev => [...prev, { id, msg, type }])
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000)
   }
-  void pushToast // silencia unused-var; fases 3.3/3.4 vão usar
 
   return (
     <div className="flex flex-col h-full" style={{ background: '#09090b' }}>
@@ -62,7 +61,7 @@ export default function ComunicacaoPage() {
         <div className="max-w-5xl mx-auto px-6 py-6 space-y-4">
           {tab === 'pedidos'       && <PedidosEmCursoTab />}
           {tab === 'jornadas'      && <ModelosJornadasTab />}
-          {tab === 'templates'     && <TemplatesTab />}
+          {tab === 'templates'     && <TemplatesTab onToast={pushToast} />}
           {tab === 'configuracoes' && <ConfiguracoesTab />}
         </div>
       </div>
