@@ -157,8 +157,12 @@ export default function TemplatesTab({ onToast }: Props) {
     if (!name)                  errs.name = 'Nome obrigatório'
     else if (name.length < 3)   errs.name = 'Min 3 caracteres'
     else {
-      const dupe = templates.find(t => t.name === name && t.id !== selected)
-      if (dupe) errs.name = 'Já existe template com esse nome'
+      // Unicidade é POR (name + channel) — engine CC-2 resolve por esse par.
+      // 'boas_vindas' whatsapp e 'boas_vindas' email são templates distintos.
+      const dupe = templates.find(t =>
+        t.name === name && t.channel === form.channel && t.id !== selected,
+      )
+      if (dupe) errs.name = `Já existe template "${name}" no canal ${form.channel}`
     }
     const msg = (form.message_body ?? '').trim()
     if (!msg)                   errs.message_body = 'Mensagem obrigatória'
