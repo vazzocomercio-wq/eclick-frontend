@@ -185,7 +185,8 @@ const SECTIONS: NavSection[] = [
     key: 'projeto',
     label: 'PROJETO',
     items: [
-      { label: 'Roadmap', href: '/dashboard/roadmap', icon: <MapIcon size={15} /> },
+      { label: 'Roadmap',   href: '/dashboard/roadmap',   icon: <MapIcon size={15} /> },
+      { label: 'Campanhas', href: '/dashboard/campanhas', icon: <Megaphone size={15} /> },
     ],
   },
   {
@@ -196,6 +197,7 @@ const SECTIONS: NavSection[] = [
       { label: 'Preferências',         href: '/dashboard/configuracoes/preferencias',icon: <Shield size={15} /> },
       { label: 'Equipe',               href: '/dashboard/configuracoes/equipe',      icon: <UserCog size={15} /> },
       { label: 'Integrações',          href: '/dashboard/configuracoes/integracoes', icon: <Plug size={15} /> },
+      { label: 'IA',                   href: '/dashboard/configuracoes/ia',          icon: <Sparkles size={15} /> },
       { label: 'Agregador',            href: '/dashboard/configuracoes/aggregator',  icon: <Database size={15} /> },
     ],
   },

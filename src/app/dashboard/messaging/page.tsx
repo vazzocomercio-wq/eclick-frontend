@@ -3,17 +3,15 @@
 import { useState } from 'react'
 import { TemplatesTab }  from './_components/TemplatesTab'
 import { JourneysTab }   from './_components/JourneysTab'
-import { CampaignsTab }  from './_components/CampaignsTab'
 import { AnalyticsTab }  from './_components/AnalyticsTab'
 import { SendsTab }      from './_components/SendsTab'
 import { WhatsAppStatusCard } from './_components/WhatsAppStatusCard'
 
-type TabKey = 'templates' | 'journeys' | 'campaigns' | 'analytics' | 'sends'
+type TabKey = 'templates' | 'journeys' | 'analytics' | 'sends'
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'templates',  label: 'Templates' },
   { key: 'journeys',   label: 'Jornadas' },
-  { key: 'campaigns',  label: 'Campanhas' },
   { key: 'analytics',  label: 'Analytics' },
   { key: 'sends',      label: 'Envios' },
 ]
@@ -35,7 +33,7 @@ export default function MessagingPage() {
       {/* Header */}
       <div className="shrink-0 px-6 pt-6 pb-2" style={{ borderBottom: '1px solid #1e1e24' }}>
         <h1 className="text-white text-lg font-semibold">Mensageria</h1>
-        <p className="text-zinc-500 text-sm mt-0.5">Templates, jornadas, campanhas e analytics. WhatsApp ativo, Instagram/TikTok em breve.</p>
+        <p className="text-zinc-500 text-sm mt-0.5">Templates, jornadas e analytics. WhatsApp ativo, Instagram/TikTok em breve. Campanhas em massa em /dashboard/campanhas.</p>
 
         {/* Tabs */}
         <div className="flex gap-1 mt-4 overflow-x-auto">
@@ -59,7 +57,6 @@ export default function MessagingPage() {
           <WhatsAppStatusCard onToast={pushToast} />
           {tab === 'templates' && <TemplatesTab onToast={pushToast} />}
           {tab === 'journeys'  && <JourneysTab  onToast={pushToast} />}
-          {tab === 'campaigns' && <CampaignsTab onToast={pushToast} />}
           {tab === 'analytics' && <AnalyticsTab onToast={pushToast} />}
           {tab === 'sends'     && <SendsTab     onToast={pushToast} />}
         </div>

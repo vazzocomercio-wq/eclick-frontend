@@ -1,325 +1,472 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { setAIEnabled, setAIFeature, getAIState, AI_PROVIDERS, getAIPreference, setAIPreference } from '@/lib/ai/config'
-import type { AIFeature } from '@/lib/ai/config'
-import { CheckCircle2, XCircle, Loader2, Zap } from 'lucide-react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
+import { createClient } from '@/lib/supabase'
+import {
+  Sparkles, Key, Cpu, BarChart3, Info,
+  Save, RotateCcw, ExternalLink, AlertCircle, CheckCircle2,
+} from 'lucide-react'
+import {
+  LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid,
+  ResponsiveContainer, Legend,
+} from 'recharts'
+import ApiKeysManager from '@/components/ai/ApiKeysManager'
+import { AiModelSelector } from '@/components/ai/AiModelSelector'
 
-const FEATURE_META: Record<AIFeature, { label: string; desc: string; page: string }> = {
-  sugestao_resposta:    { label: 'Sugestão de Resposta',    desc: 'Gera respostas para perguntas de compradores', page: 'Atendimento → Perguntas' },
-  precificacao:         { label: 'Precificação Inteligente', desc: 'Sugere preço competitivo com base nos concorrentes', page: 'Anúncios' },
-  titulo_anuncio:       { label: 'Otimização de Título',    desc: 'Reescreve títulos de anúncios para melhor SEO', page: 'Catálogo' },
-  descricao_produto:    { label: 'Descrição de Produto',    desc: 'Gera descrições persuasivas para produtos', page: 'Catálogo' },
-  analise_concorrencia: { label: 'Análise de Concorrência', desc: 'Insights automáticos sobre posicionamento', page: 'Concorrentes' },
-  previsao_demanda:     { label: 'Previsão de Demanda',     desc: 'Prevê necessidade de reposição de estoque', page: 'Estoque' },
-  classificacao_ticket: { label: 'Classificação de Ticket', desc: 'Classifica urgência e categoria das mensagens', page: 'Atendimento' },
-  resumo_financeiro:    { label: 'Insights Financeiros',    desc: 'Análise automática de dados financeiros', page: 'Financeiro' },
+const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
+
+// ── Types ────────────────────────────────────────────────────────────────
+
+type TabKey = 'keys' | 'features' | 'usage' | 'about'
+type Provider = 'anthropic' | 'openai'
+
+interface MergedFeatureSetting {
+  feature_key:       string
+  label:             string
+  description:       string
+  primary_provider:  Provider
+  primary_model:     string
+  fallback_provider: Provider | null
+  fallback_model:    string | null
+  enabled:           boolean
+  isDefault:         boolean
 }
 
-function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <button onClick={() => onChange(!on)}
-      className="relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0"
-      style={{ background: on ? '#00E5FF' : '#27272a' }}>
-      <span className="inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform"
-        style={{ transform: on ? 'translateX(18px)' : 'translateX(2px)' }} />
-    </button>
-  )
+interface UsageData {
+  total: { tokens_input: number; tokens_output: number; cost_usd: number; calls: number; fallback_calls: number }
+  by_feature:  Array<{ feature: string; calls: number; tokens_total: number; cost_usd: number }>
+  by_provider: Array<{ provider: string; calls: number; cost_usd: number }>
+  by_day:      Array<{ date: string; cost_usd: number; by_feature: Record<string, number> }>
 }
 
-function SparklesIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 3l1.88 5.12L19 10l-5.12 1.88L12 17l-1.88-5.12L5 10l5.12-1.88L12 3z" />
-      <path d="M5 3l.94 2.56L8.5 6.5l-2.56.94L5 10l-.94-2.56L1.5 6.5l2.56-.94L5 3z" strokeWidth={1.5} />
-      <path d="M19 14l.94 2.56L22.5 17.5l-2.56.94L19 21l-.94-2.56L15.5 17.5l2.56-.94L19 14z" strokeWidth={1.5} />
-    </svg>
-  )
+interface Toast { id: number; message: string; type: 'success' | 'error' }
+
+// ── Helpers ──────────────────────────────────────────────────────────────
+
+function fmtUsd(n: number) { return `$${n.toFixed(4)}` }
+function fmtNum(n: number) { return n.toLocaleString('pt-BR') }
+
+const TAB_LABELS: Record<TabKey, { label: string; icon: React.ReactNode }> = {
+  keys:     { label: 'Keys',                icon: <Key       size={12} /> },
+  features: { label: 'Modelos por feature', icon: <Cpu       size={12} /> },
+  usage:    { label: 'Uso',                 icon: <BarChart3 size={12} /> },
+  about:    { label: 'Sobre',               icon: <Info      size={12} /> },
 }
 
-// ── Provider card ─────────────────────────────────────────────────────────────
+// ── Page ─────────────────────────────────────────────────────────────────
 
-function ProviderCard({
-  provId, prov, configured, onTest,
-}: {
-  provId: string
-  prov: { name: string; models: readonly { id: string; name: string; description: string }[] }
-  configured: boolean | null
-  onTest: (provId: string) => void
-}) {
-  const [testing, setTesting] = useState(false)
-  const [result,  setResult]  = useState<{ ok: boolean; msg: string } | null>(null)
+export default function IaSettingsPage() {
+  const supabase = useMemo(() => createClient(), [])
+  const [tab, setTab] = useState<TabKey>('keys')
+  const [toasts, setToasts] = useState<Toast[]>([])
 
-  const [selModel, setSelModel] = useState(() => {
-    const pref = getAIPreference()
-    return pref.provider === provId ? pref.model : prov.models[0].id
-  })
-
-  function applyModel(model: string) {
-    setSelModel(model)
-    const pref = getAIPreference()
-    if (pref.provider === provId) {
-      setAIPreference(provId, model)
+  const getHeaders = useCallback(async () => {
+    const { data: { session } } = await supabase.auth.getSession()
+    return {
+      Authorization: `Bearer ${session?.access_token ?? ''}`,
+      'Content-Type': 'application/json',
     }
-  }
+  }, [supabase])
 
-  function setAsDefault() {
-    setAIPreference(provId, selModel)
+  function pushToast(message: string, type: Toast['type'] = 'success') {
+    const id = Date.now() + Math.random()
+    setToasts(prev => [...prev, { id, message, type }])
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3500)
   }
-
-  async function handleTest() {
-    setTesting(true)
-    setResult(null)
-    try {
-      const res = await fetch('/api/ia/completar', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          feature:  'sugestao_resposta',
-          prompt:   'Responda apenas com "ok" em letras minúsculas.',
-          provider: provId,
-          model:    selModel,
-        }),
-      })
-      const data = await res.json()
-      if (res.ok && data.content) {
-        setResult({ ok: true, msg: `OK · ${data.tokens_used} tokens · modelo ${data.model}` })
-      } else {
-        setResult({ ok: false, msg: data.error ?? 'Resposta inesperada' })
-      }
-    } catch (e) {
-      setResult({ ok: false, msg: e instanceof Error ? e.message : 'Erro de rede' })
-    } finally {
-      setTesting(false)
-      onTest(provId)
-    }
-  }
-
-  const envVar = provId === 'anthropic' ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY'
-  const pref   = getAIPreference()
-  const isDefault = pref.provider === provId
 
   return (
-    <div className="rounded-xl overflow-hidden" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
-      <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: '#1e1e24' }}>
-        <div>
-          <p className="text-sm font-semibold text-white">{prov.name}</p>
-          <p className="text-[10px] font-mono text-zinc-600 mt-0.5">{envVar}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          {isDefault && (
-            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
-              style={{ background: 'rgba(0,229,255,0.1)', color: '#00E5FF' }}>
-              Padrão
-            </span>
-          )}
-          {configured === null ? (
-            <span className="text-[11px] text-zinc-600">Verificando…</span>
-          ) : configured ? (
-            <span className="flex items-center gap-1 text-[11px] text-green-400">
-              <CheckCircle2 size={12} /> Configurada
-            </span>
-          ) : (
-            <span className="flex items-center gap-1 text-[11px] text-red-400">
-              <XCircle size={12} /> Não configurada
-            </span>
-          )}
-        </div>
+    <div className="p-6 space-y-5 min-h-full" style={{ background: '#09090b' }}>
+      {/* Header */}
+      <div>
+        <p className="text-zinc-500 text-xs font-medium uppercase tracking-widest">Configurações</p>
+        <h1 className="text-white text-xl font-semibold flex items-center gap-2">
+          <Sparkles size={18} style={{ color: '#00E5FF' }} /> Inteligência Artificial
+        </h1>
+        <p className="text-zinc-500 text-xs mt-0.5">API keys, modelos por feature, uso e custos</p>
       </div>
 
-      {!configured && configured !== null && (
-        <div className="px-4 py-2 border-b" style={{ borderColor: '#1e1e24', background: 'rgba(248,113,113,0.04)' }}>
-          <p className="text-[10px] font-mono text-zinc-500">
-            Adicione <span className="text-cyan-400">{envVar}=sk-...</span> nas variáveis de ambiente da Vercel / .env.local
-          </p>
-        </div>
-      )}
-
-      {/* Model selector */}
-      <div className="px-4 py-3 space-y-2">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">Modelo</p>
-        <div className="grid grid-cols-1 gap-1.5">
-          {prov.models.map(m => (
-            <button key={m.id} onClick={() => applyModel(m.id)}
-              className="flex items-center justify-between px-3 py-2 rounded-lg text-left transition-colors"
-              style={{
-                background:  selModel === m.id ? 'rgba(0,229,255,0.06)' : 'rgba(255,255,255,0.02)',
-                border:      `1px solid ${selModel === m.id ? 'rgba(0,229,255,0.25)' : '#1e1e24'}`,
-              }}>
-              <div>
-                <p className="text-xs font-medium text-white">{m.name}</p>
-                <p className="text-[10px] text-zinc-500">{m.description}</p>
-              </div>
-              {selModel === m.id && <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: '#00E5FF' }} />}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Actions */}
-      <div className="flex items-center gap-2 px-4 pb-3">
-        <button onClick={handleTest} disabled={testing || !configured}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-colors disabled:opacity-40"
-          style={{ background: '#1a1a1f', color: '#a1a1aa', border: '1px solid #2e2e33' }}>
-          {testing ? <Loader2 size={11} className="animate-spin" /> : <Zap size={11} />}
-          {testing ? 'Testando…' : 'Testar conexão'}
-        </button>
-        {!isDefault && (
-          <button onClick={setAsDefault}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-colors"
-            style={{ background: 'rgba(0,229,255,0.08)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.2)' }}>
-            Definir como padrão
+      {/* Tabs */}
+      <div className="flex items-center gap-1 p-1 rounded-xl w-fit"
+        style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
+        {(Object.keys(TAB_LABELS) as TabKey[]).map(k => (
+          <button key={k} onClick={() => setTab(k)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all"
+            style={{ background: tab === k ? '#00E5FF' : 'transparent', color: tab === k ? '#000' : '#a1a1aa' }}>
+            {TAB_LABELS[k].icon}{TAB_LABELS[k].label}
           </button>
-        )}
-        {result && (
-          <span className={`text-[11px] ${result.ok ? 'text-green-400' : 'text-red-400'}`}>
-            {result.ok ? '✓' : '✗'} {result.msg}
-          </span>
-        )}
+        ))}
+      </div>
+
+      {tab === 'keys'     && <ApiKeysManager />}
+      {tab === 'features' && <FeaturesTab getHeaders={getHeaders} onToast={pushToast} />}
+      {tab === 'usage'    && <UsageTab    getHeaders={getHeaders} />}
+      {tab === 'about'    && <AboutTab />}
+
+      {/* Toasts */}
+      <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2 pointer-events-none">
+        {toasts.map(t => (
+          <div key={t.id}
+            className="flex items-center gap-2.5 px-4 py-3 rounded-xl text-sm font-medium shadow-2xl pointer-events-auto"
+            style={{
+              background: t.type === 'error' ? '#1a0a0a' : '#111114',
+              border: `1px solid ${t.type === 'error' ? 'rgba(248,113,113,0.3)' : 'rgba(74,222,128,0.3)'}`,
+              color: t.type === 'error' ? '#f87171' : '#4ade80',
+            }}>
+            {t.message}
+          </div>
+        ))}
       </div>
     </div>
   )
 }
 
-// ── Page ──────────────────────────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════════
+// Tab 2 — MODELOS POR FEATURE
+// ════════════════════════════════════════════════════════════════════════
 
-export default function IAConfigPage() {
-  const [globalOn,    setGlobalOn]    = useState(false)
-  const [features,    setFeatures]    = useState<Record<AIFeature, boolean>>({} as Record<AIFeature, boolean>)
-  const [keyStatus,   setKeyStatus]   = useState<{ anthropic: boolean | null; openai: boolean | null }>({ anthropic: null, openai: null })
-  const [testing,     setTesting]     = useState(false)
-  const [testResult,  setTestResult]  = useState<{ ok: boolean; msg: string } | null>(null)
+function FeaturesTab({
+  getHeaders, onToast,
+}: {
+  getHeaders: () => Promise<Record<string, string>>
+  onToast: (msg: string, type?: Toast['type']) => void
+}) {
+  const [features, setFeatures] = useState<MergedFeatureSetting[]>([])
+  const [loading, setLoading]   = useState(true)
 
-  useEffect(() => {
-    const state = getAIState()
-    setGlobalOn(state.enabled)
-    setFeatures(state.features)
-    fetch('/api/ia/status')
-      .then(r => r.json())
-      .then(d => setKeyStatus({ anthropic: d.anthropic ?? false, openai: d.openai ?? false }))
-      .catch(() => setKeyStatus({ anthropic: false, openai: false }))
-  }, [])
-
-  const handleGlobal  = (v: boolean) => { setGlobalOn(v); setAIEnabled(v); setTestResult(null) }
-  const handleFeature = (feature: AIFeature, v: boolean) => {
-    setFeatures(prev => ({ ...prev, [feature]: v }))
-    setAIFeature(feature, v)
-  }
-
-  const handleTest = useCallback(async () => {
-    setTesting(true)
-    setTestResult(null)
-    const pref = getAIPreference()
+  const load = useCallback(async () => {
+    setLoading(true)
     try {
-      const res = await fetch('/api/ia/completar', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ feature: 'sugestao_resposta', prompt: 'Responda apenas com "ok".', provider: pref.provider, model: pref.model }),
-      })
-      const data = await res.json()
-      setTestResult(res.ok && data.content
-        ? { ok: true,  msg: `Conexão ok · ${data.tokens_used} tokens · ${pref.provider}/${pref.model}` }
-        : { ok: false, msg: data.error ?? 'Resposta inesperada da API' })
-    } catch (e) {
-      setTestResult({ ok: false, msg: e instanceof Error ? e.message : 'Erro de rede' })
-    } finally { setTesting(false) }
-  }, [])
+      const headers = await getHeaders()
+      const res = await fetch(`${BACKEND}/ai/settings`, { headers })
+      if (res.ok) {
+        const v = await res.json()
+        setFeatures(Array.isArray(v) ? v : [])
+      }
+    } finally { setLoading(false) }
+  }, [getHeaders])
 
-  const activeCount   = Object.values(features).filter(Boolean).length
-  const totalFeatures = Object.keys(FEATURE_META).length
+  useEffect(() => { load() }, [load])
+
+  if (loading) return <p className="text-zinc-600 text-xs text-center py-8">Carregando…</p>
 
   return (
-    <div className="max-w-2xl mx-auto px-6 py-8 text-white">
+    <div className="space-y-3">
+      <div className="rounded-xl px-4 py-3 text-[11px] flex items-start gap-2"
+        style={{ background: 'rgba(0,229,255,0.05)', border: '1px solid rgba(0,229,255,0.2)', color: '#a5f3fc' }}>
+        <AlertCircle size={12} className="mt-0.5 shrink-0" />
+        <span>Cada feature usa o modelo configurado abaixo. Se o primário falhar com erro 5xx ou timeout, o fallback assume automaticamente.</span>
+      </div>
 
-      {/* Header */}
-      <div className="flex items-center gap-3 mb-6">
-        <div className="w-9 h-9 rounded-lg flex items-center justify-center text-[#00E5FF]"
-          style={{ background: 'rgba(0,229,255,0.08)', border: '1px solid rgba(0,229,255,0.15)' }}>
-          <SparklesIcon />
-        </div>
+      {features.map(f => (
+        <FeatureCard key={f.feature_key} feature={f} onToast={onToast} onChange={load} getHeaders={getHeaders} />
+      ))}
+    </div>
+  )
+}
+
+function FeatureCard({
+  feature, onToast, onChange, getHeaders,
+}: {
+  feature:    MergedFeatureSetting
+  onToast:    (msg: string, type?: Toast['type']) => void
+  onChange:   () => void
+  getHeaders: () => Promise<Record<string, string>>
+}) {
+  const [primary, setPrimary]   = useState({ provider: feature.primary_provider, model: feature.primary_model })
+  const [fallbackOn, setFallbackOn] = useState(!!feature.fallback_provider)
+  const [fallback, setFallback] = useState({
+    provider: (feature.fallback_provider ?? 'openai') as Provider,
+    model:    feature.fallback_model ?? '',
+  })
+  const [saving, setSaving]   = useState(false)
+  const [resetting, setResetting] = useState(false)
+
+  // Sync state when parent reloads (e.g., after reset)
+  useEffect(() => {
+    setPrimary({ provider: feature.primary_provider, model: feature.primary_model })
+    setFallbackOn(!!feature.fallback_provider)
+    setFallback({
+      provider: (feature.fallback_provider ?? 'openai') as Provider,
+      model:    feature.fallback_model ?? '',
+    })
+  }, [feature])
+
+  async function save() {
+    if (!primary.provider || !primary.model) {
+      onToast('Selecione provider e modelo primário', 'error')
+      return
+    }
+    if (fallbackOn && (!fallback.provider || !fallback.model)) {
+      onToast('Configure o fallback ou desligue o toggle', 'error')
+      return
+    }
+    setSaving(true)
+    try {
+      const headers = await getHeaders()
+      const res = await fetch(`${BACKEND}/ai/settings/${feature.feature_key}`, {
+        method: 'PUT', headers,
+        body: JSON.stringify({
+          primary_provider:  primary.provider,
+          primary_model:     primary.model,
+          fallback_provider: fallbackOn ? fallback.provider : null,
+          fallback_model:    fallbackOn ? fallback.model    : null,
+          enabled:           true,
+        }),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      onToast(`${feature.label} salvo`, 'success')
+      onChange()
+    } catch (e) {
+      onToast((e as Error).message, 'error')
+    } finally { setSaving(false) }
+  }
+
+  async function reset() {
+    if (!confirm(`Resetar "${feature.label}" pro padrão do sistema?`)) return
+    setResetting(true)
+    try {
+      const headers = await getHeaders()
+      const res = await fetch(`${BACKEND}/ai/settings/${feature.feature_key}`, { method: 'DELETE', headers })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      onToast(`${feature.label} resetado`, 'success')
+      onChange()
+    } catch (e) {
+      onToast((e as Error).message, 'error')
+    } finally { setResetting(false) }
+  }
+
+  return (
+    <div className="rounded-2xl p-5 space-y-4" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+      <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="text-base font-semibold">Inteligência Artificial</h1>
-          <p className="text-xs text-zinc-500 mt-0.5">Configure provedores e features de IA do eClick</p>
-        </div>
-      </div>
-
-      {/* Providers */}
-      <div className="space-y-3 mb-5">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 px-1">Provedores</p>
-        {Object.entries(AI_PROVIDERS).map(([provId, prov]) => (
-          <ProviderCard
-            key={provId}
-            provId={provId}
-            prov={prov}
-            configured={keyStatus[provId as keyof typeof keyStatus]}
-            onTest={() => {}}
-          />
-        ))}
-      </div>
-
-      {/* Global toggle */}
-      <div className="rounded-xl p-4 mb-4" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-semibold text-white">IA Global</p>
-            <p className="text-xs text-zinc-500 mt-0.5">
-              {globalOn
-                ? `${activeCount} de ${totalFeatures} features ativas`
-                : 'Todas as features de IA estão desativadas'}
-            </p>
+          <div className="flex items-center gap-2">
+            <p className="text-zinc-100 text-sm font-semibold">{feature.label}</p>
+            {feature.isDefault && (
+              <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded uppercase tracking-wide"
+                style={{ background: 'rgba(113,113,122,0.15)', color: '#a1a1aa' }}>Padrão do sistema</span>
+            )}
           </div>
-          <Toggle on={globalOn} onChange={handleGlobal} />
+          <p className="text-[11px] text-zinc-500 mt-0.5">{feature.description}</p>
+          <p className="text-[10px] text-zinc-700 font-mono mt-0.5">{feature.feature_key}</p>
         </div>
-        <div className="mt-3 pt-3 border-t flex items-center gap-3" style={{ borderColor: '#1e1e24' }}>
-          <button onClick={handleTest} disabled={testing}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-colors disabled:opacity-40"
-            style={{ background: '#09090b', border: '1px solid #1e1e24', color: '#a1a1aa' }}>
-            {testing
-              ? <><Loader2 size={12} className="animate-spin" /> Testando…</>
-              : <>
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                  Testar provedor padrão
-                </>
-            }
+      </div>
+
+      {/* Primary */}
+      <div>
+        <label className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-1.5 block">
+          Modelo primário
+        </label>
+        <AiModelSelector
+          value={primary}
+          onChange={(v) => setPrimary({ provider: v.provider as Provider, model: v.model })} />
+      </div>
+
+      {/* Fallback toggle + selector */}
+      <div className="space-y-2">
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" checked={fallbackOn} onChange={e => setFallbackOn(e.target.checked)}
+            className="w-3.5 h-3.5 accent-cyan-400" />
+          <span className="text-[11px] text-zinc-300">Habilitar fallback</span>
+          <span className="text-[10px] text-zinc-600">— assume automaticamente em caso de erro do primário</span>
+        </label>
+        {fallbackOn && (
+          <AiModelSelector
+            value={fallback}
+            onChange={(v) => setFallback({ provider: v.provider as Provider, model: v.model })} />
+        )}
+      </div>
+
+      {/* Actions */}
+      <div className="flex items-center justify-end gap-2 pt-1">
+        {!feature.isDefault && (
+          <button onClick={reset} disabled={resetting}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium disabled:opacity-50"
+            style={{ color: '#a1a1aa' }}>
+            <RotateCcw size={11} /> {resetting ? 'Resetando…' : 'Resetar pro padrão'}
           </button>
-          {testResult && (
-            <span className={`text-xs ${testResult.ok ? 'text-green-400' : 'text-red-400'}`}>
-              {testResult.ok ? '✓' : '✗'} {testResult.msg}
-            </span>
+        )}
+        <button onClick={save} disabled={saving}
+          className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-[11px] font-semibold disabled:opacity-60"
+          style={{ background: '#00E5FF', color: '#000' }}>
+          <Save size={11} /> {saving ? 'Salvando…' : 'Salvar'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// Tab 3 — USO
+// ════════════════════════════════════════════════════════════════════════
+
+function UsageTab({ getHeaders }: { getHeaders: () => Promise<Record<string, string>> }) {
+  const [data, setData] = useState<UsageData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [days, setDays] = useState(30)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const headers = await getHeaders()
+      const res = await fetch(`${BACKEND}/ai/usage?days=${days}`, { headers })
+      if (res.ok) setData(await res.json())
+    } finally { setLoading(false) }
+  }, [getHeaders, days])
+
+  useEffect(() => { load() }, [load])
+
+  // Prepare chart data: stack feature costs per day
+  const allFeatures = useMemo(() => {
+    if (!data) return []
+    const set = new Set<string>()
+    for (const d of data.by_day) for (const k of Object.keys(d.by_feature)) set.add(k)
+    return [...set]
+  }, [data])
+  const chartData = useMemo(() => {
+    if (!data) return []
+    return data.by_day.map(d => {
+      const row: Record<string, string | number> = { date: d.date.slice(5) }
+      for (const f of allFeatures) row[f] = d.by_feature[f] ?? 0
+      return row
+    })
+  }, [data, allFeatures])
+  const featureColors = ['#00E5FF', '#a78bfa', '#facc15', '#fb923c', '#34d399']
+
+  if (loading || !data) return <p className="text-zinc-600 text-xs text-center py-8">Carregando…</p>
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <select value={days} onChange={e => setDays(Number(e.target.value))}
+          className="bg-[#111114] border border-[#27272a] text-zinc-300 text-xs rounded-lg px-2 py-1.5">
+          <option value={7}>Últimos 7 dias</option>
+          <option value={30}>Últimos 30 dias</option>
+          <option value={90}>Últimos 90 dias</option>
+        </select>
+      </div>
+
+      {/* KPIs */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <UsageKpi label="Chamadas"     value={fmtNum(data.total.calls)}     color="#00E5FF" />
+        <UsageKpi label="Custo total"  value={fmtUsd(data.total.cost_usd)}  color="#facc15" />
+        <UsageKpi label="Tokens"       value={fmtNum(data.total.tokens_input + data.total.tokens_output)} color="#a78bfa" />
+        <UsageKpi label="Fallback usado" value={fmtNum(data.total.fallback_calls)} color="#fb923c"
+          sub={data.total.calls > 0 ? `${((data.total.fallback_calls / data.total.calls) * 100).toFixed(1)}% das chamadas` : undefined} />
+      </div>
+
+      {/* Stacked chart by feature */}
+      <div className="rounded-2xl p-5" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+        <h3 className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-3">Custo por dia (USD), empilhado por feature</h3>
+        <div style={{ width: '100%', height: 240 }}>
+          {chartData.length === 0 || allFeatures.length === 0 ? (
+            <p className="text-xs text-zinc-600 italic flex items-center justify-center h-full">Sem dados ainda</p>
+          ) : (
+            <ResponsiveContainer>
+              <LineChart data={chartData} margin={{ top: 5, right: 10, left: -25, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1e1e24" />
+                <XAxis dataKey="date" stroke="#52525b" fontSize={10} />
+                <YAxis stroke="#52525b" fontSize={10} tickFormatter={(v: number) => `$${v.toFixed(2)}`} />
+                <Tooltip contentStyle={{ background: '#0a0a0e', border: '1px solid #27272a', borderRadius: 8, fontSize: 11 }}
+                  formatter={(v) => [`$${(Number(v) || 0).toFixed(5)}`, undefined]} />
+                <Legend wrapperStyle={{ fontSize: 10 }} />
+                {allFeatures.map((f, i) => (
+                  <Line key={f} type="monotone" dataKey={f}
+                    stroke={featureColors[i % featureColors.length]} strokeWidth={1.5} dot={false} name={f} />
+                ))}
+              </LineChart>
+            </ResponsiveContainer>
           )}
         </div>
       </div>
 
-      {/* Feature list */}
-      <div className="rounded-xl overflow-hidden mb-4" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
-        <div className="px-4 py-3 border-b" style={{ borderColor: '#1e1e24' }}>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">Features</p>
+      {/* Table by feature */}
+      <div className="rounded-2xl overflow-hidden" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+        <div className="px-5 py-3" style={{ borderBottom: '1px solid #1a1a1f' }}>
+          <h3 className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">Por feature</h3>
         </div>
-        {(Object.entries(FEATURE_META) as [AIFeature, typeof FEATURE_META[AIFeature]][]).map(([key, meta], idx, arr) => (
-          <div key={key}
-            className="flex items-start gap-4 px-4 py-3.5"
-            style={{
-              borderBottom: idx < arr.length - 1 ? '1px solid #1e1e24' : undefined,
-              opacity: globalOn ? 1 : 0.5,
-            }}>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <p className="text-sm font-medium text-white">{meta.label}</p>
-                {features[key] && globalOn && (
-                  <span className="text-[10px] text-[#00E5FF] border border-[#00E5FF33] px-1.5 py-0.5 rounded-full">Ativa</span>
-                )}
-              </div>
-              <p className="text-xs text-zinc-500 mt-0.5">{meta.desc}</p>
-              <p className="text-[11px] text-zinc-600 mt-0.5">Página: {meta.page}</p>
-            </div>
-            <Toggle on={features[key] ?? false} onChange={v => handleFeature(key, v)} />
-          </div>
-        ))}
+        <table className="w-full text-sm">
+          <thead style={{ background: '#0a0a0e' }}>
+            <tr className="text-zinc-500 text-[10px] uppercase tracking-wider">
+              <th className="text-left px-4 py-2">Feature</th>
+              <th className="text-right px-4 py-2">Chamadas</th>
+              <th className="text-right px-4 py-2">Tokens</th>
+              <th className="text-right px-4 py-2">Custo (USD)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.by_feature.length === 0 ? (
+              <tr><td colSpan={4} className="px-4 py-6 text-center text-xs text-zinc-600 italic">Sem dados</td></tr>
+            ) : data.by_feature.map(f => (
+              <tr key={f.feature} className="border-t" style={{ borderColor: '#1e1e24' }}>
+                <td className="px-4 py-2.5 text-zinc-200">{f.feature}</td>
+                <td className="px-4 py-2.5 text-right text-zinc-400">{fmtNum(f.calls)}</td>
+                <td className="px-4 py-2.5 text-right text-zinc-400">{fmtNum(f.tokens_total)}</td>
+                <td className="px-4 py-2.5 text-right font-mono" style={{ color: '#facc15' }}>{fmtUsd(f.cost_usd)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+function UsageKpi({ label, value, sub, color }: { label: string; value: string; sub?: string; color: string }) {
+  return (
+    <div className="rounded-2xl p-4 flex flex-col gap-1.5" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+      <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">{label}</span>
+      <p className="text-2xl font-bold tabular-nums" style={{ color }}>{value}</p>
+      {sub && <p className="text-[10px] text-zinc-500">{sub}</p>}
+    </div>
+  )
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// Tab 4 — SOBRE
+// ════════════════════════════════════════════════════════════════════════
+
+function AboutTab() {
+  return (
+    <div className="space-y-3 max-w-2xl">
+      <div className="rounded-2xl p-5 space-y-4" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+        <h3 className="text-white text-sm font-semibold flex items-center gap-2">
+          <Sparkles size={14} style={{ color: '#00E5FF' }} /> Como funciona
+        </h3>
+        <ol className="space-y-2 text-sm text-zinc-400 list-decimal list-inside">
+          <li>Cada feature de IA (copy de campanha, atendente, embeddings, etc) usa um <strong className="text-zinc-200">modelo configurado</strong> nesta tela.</li>
+          <li>Se você não configurar nada, a feature usa o <strong className="text-zinc-200">padrão do sistema</strong> — escolhido pelo nosso time.</li>
+          <li>Se o modelo primário falhar com erro de servidor (5xx) ou timeout, o sistema <strong className="text-zinc-200">automaticamente tenta o fallback</strong>.</li>
+          <li>Cada chamada é registrada em <code className="text-cyan-400">ai_usage_log</code> com tokens, custo e flag de fallback. Veja na aba <strong className="text-zinc-200">Uso</strong>.</li>
+        </ol>
       </div>
 
-      <p className="text-xs text-zinc-700 text-center">
-        Configurações salvas localmente neste navegador via localStorage. As variáveis de ambiente de API key precisam ser configuradas no servidor.
-      </p>
+      <div className="rounded-2xl p-5 space-y-3" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+        <h3 className="text-white text-sm font-semibold">Recursos externos</h3>
+        <div className="space-y-1.5">
+          <a href="https://docs.anthropic.com" target="_blank" rel="noreferrer"
+            className="flex items-center gap-2 text-sm text-cyan-400 hover:underline">
+            <ExternalLink size={12} /> Documentação Anthropic
+          </a>
+          <a href="https://platform.openai.com/docs" target="_blank" rel="noreferrer"
+            className="flex items-center gap-2 text-sm text-cyan-400 hover:underline">
+            <ExternalLink size={12} /> Documentação OpenAI
+          </a>
+          <a href="https://www.anthropic.com/pricing" target="_blank" rel="noreferrer"
+            className="flex items-center gap-2 text-sm text-cyan-400 hover:underline">
+            <ExternalLink size={12} /> Preços Anthropic (USD por 1M tokens)
+          </a>
+          <a href="https://openai.com/api/pricing" target="_blank" rel="noreferrer"
+            className="flex items-center gap-2 text-sm text-cyan-400 hover:underline">
+            <ExternalLink size={12} /> Preços OpenAI (USD por 1M tokens)
+          </a>
+        </div>
+      </div>
+
+      <div className="rounded-xl px-4 py-3 text-[11px] flex items-start gap-2"
+        style={{ background: 'rgba(74,222,128,0.05)', border: '1px solid rgba(74,222,128,0.2)', color: '#86efac' }}>
+        <CheckCircle2 size={12} className="mt-0.5 shrink-0" />
+        <span>As chaves nunca são enviadas pro frontend. Toda chamada de IA passa pelo backend, que usa as chaves criptografadas armazenadas em <code>api_credentials</code>.</span>
+      </div>
     </div>
   )
 }
