@@ -745,17 +745,17 @@ function OrderCard({
 
   return (
     <div className="rounded-xl transition-colors relative" style={{ background: '#0f0f12', border: '1px solid #1a1a1f' }}>
-      {/* Floating row actions: "Ver detalhe completo" + kebab — top-right. */}
+      {/* Floating row actions: detalhe (icon-only) + kebab — top-right. */}
       <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
         <button
           onClick={() => onOpenDetail(String(order.order_id))}
-          className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-md transition-colors"
+          aria-label="Ver detalhe completo"
+          title="Ver detalhe completo (Cliente + Comunicação)"
+          className="w-7 h-7 inline-flex items-center justify-center rounded-md transition-colors"
           style={{ background: 'transparent', border: '1px solid #1a1a1f', color: '#a1a1aa' }}
           onMouseOver={e => { e.currentTarget.style.color = '#00E5FF'; e.currentTarget.style.borderColor = 'rgba(0,229,255,0.4)' }}
-          onMouseOut={e => { e.currentTarget.style.color = '#a1a1aa'; e.currentTarget.style.borderColor = '#1a1a1f' }}
-          title="Ver detalhe completo (Cliente + Comunicação)">
-          <Eye size={11} />
-          Ver detalhe completo
+          onMouseOut={e => { e.currentTarget.style.color = '#a1a1aa'; e.currentTarget.style.borderColor = '#1a1a1f' }}>
+          <Eye size={13} />
         </button>
         <OrderActionsMenu order={order} />
       </div>

@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom'
 import {
   X, RefreshCw, ExternalLink, Send as SendIcon, CheckCircle2, Eye,
   XCircle, Clock, AlertTriangle, MessageCircle, Package, User as UserIcon,
-  ShieldCheck, ShieldOff, ArrowRight,
+  ShieldCheck, ShieldOff, ShieldQuestion, ArrowRight,
 } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
@@ -34,7 +34,7 @@ interface CustomerBlock {
   cpf:                 string | null
   phone:               string | null
   email:               string | null
-  validated_whatsapp:  boolean
+  validated_whatsapp:  boolean | null
   city:                string | null
   state:               string | null
   enrichment_status:   string | null
@@ -587,17 +587,23 @@ export function OrderDetailDrawer({ externalOrderId, onClose, getHeaders }: Orde
                         <span className="text-zinc-500">CPF: </span>
                         <span className="text-zinc-200 font-mono">{fmtCpfMasked(customer.cpf)}</span>
                       </p>
-                      <p className="flex items-center gap-1.5">
+                      <p className="flex items-center gap-1.5 flex-wrap">
                         <span className="text-zinc-500">WhatsApp: </span>
                         <span className="text-zinc-200 font-mono">{fmtPhone(customer.phone)}</span>
                         {customer.phone && (
-                          customer.validated_whatsapp
-                            ? <span className="inline-flex items-center gap-0.5 text-[10px]" style={{ color: '#22c55e' }}>
-                                <ShieldCheck size={11} /> validado
-                              </span>
-                            : <span className="inline-flex items-center gap-0.5 text-[10px]" style={{ color: '#71717a' }}>
-                                <ShieldOff size={11} /> não é WA
-                              </span>
+                          customer.validated_whatsapp === true ? (
+                            <span className="inline-flex items-center gap-0.5 text-[10px]" style={{ color: '#22c55e' }}>
+                              <ShieldCheck size={11} /> WhatsApp válido
+                            </span>
+                          ) : customer.validated_whatsapp === false ? (
+                            <span className="inline-flex items-center gap-0.5 text-[10px]" style={{ color: '#ef4444' }}>
+                              <ShieldOff size={11} /> não é WhatsApp
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-0.5 text-[10px]" style={{ color: '#71717a' }}>
+                              <ShieldQuestion size={11} /> validação pendente
+                            </span>
+                          )
                         )}
                       </p>
                       <p>
