@@ -12,6 +12,7 @@ import {
   Megaphone, ShoppingCart, TrendingUp, Settings, UserCog,
   Plug, Database, ChevronDown, Bot, Inbox, BookOpen,
   GraduationCap, LineChart, QrCode, Shield, Users2, TrendingDown,
+  Zap,
 } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
@@ -143,6 +144,7 @@ const SECTIONS: NavSection[] = [
       { label: 'Pós-venda',   href: '/dashboard/crm/pos-venda', icon: <Heart size={15} /> },
       { label: 'Lead Bridge', href: '/dashboard/lead-bridge',   icon: <QrCode size={15} /> },
       { label: 'Mensageria',  href: '/dashboard/messaging',     icon: <MessageSquare size={15} /> },
+      { label: 'Comunicação', href: '/dashboard/comunicacao',   icon: <Zap size={15} /> },
       { label: 'WhatsApp',    href: '/dashboard/crm/whatsapp',  icon: <MessageSquare size={15} />, soon: true },
     ],
   },
