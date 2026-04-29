@@ -152,130 +152,6 @@ function ago(iso: string) {
   )
 }
 
-// ── Floating Tools Panel (right side) ─────────────────────────────────────────
-
-function PedidosToolsPanel({ orders, kpis, getHeaders, onToast }: {
-  orders:     MOrder[]
-  kpis:       KpiData | null
-  getHeaders: () => Promise<Record<string, string>>
-  onToast:    (msg: string, type: Toast['type']) => void
-}) {
-  const [collapsed, setCollapsed] = useState(false)
-  const [billingPending, setBillingPending] = useState<number | null>(null)
-  const [syncing, setSyncing] = useState(false)
-
-  const loadPending = useCallback(async () => {
-    try {
-      const headers = await getHeaders()
-      const res  = await fetch(`${BACKEND}/ml/orders/billing-pending-count`, { headers })
-      const body = await res.json().catch(() => null) as { count?: number } | null
-      setBillingPending(typeof body?.count === 'number' ? body.count : 0)
-    } catch { setBillingPending(0) }
-  }, [getHeaders])
-  useEffect(() => { loadPending() }, [loadPending])
-
-  const sync = useCallback(async () => {
-    if (syncing) return
-    setSyncing(true)
-    try {
-      const headers = await getHeaders()
-      // Endpoint Supabase-auth (JWT do usuário). NÃO usamos /admin/sync-now
-      // do browser pra não expor ADMIN_SECRET no cliente — esse fica
-      // reservado pra GitHub Action / cron OS sem session token. Mesma
-      // ação efetiva: dispara startRun('manual', days) pra org do usuário.
-      const res = await fetch(`${BACKEND}/sales-aggregator/sync-now`, {
-        method: 'POST',
-        headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ days: 7 }),
-      })
-      const body = await res.json().catch(() => null) as { runId?: string; message?: string } | null
-      if (!res.ok || !body?.runId) onToast(body?.message ?? 'Falha ao sincronizar', 'error')
-      else onToast(`✓ Sync de 7 dias iniciado (runId ${body.runId.slice(0, 8)}…)`, 'success')
-      setTimeout(loadPending, 30_000)
-    } catch { onToast('Erro de rede ao sincronizar', 'error') }
-    finally { setSyncing(false) }
-  }, [syncing, getHeaders, onToast, loadPending])
-
-  const today = new Date()
-  const isToday = (iso: string | null) => {
-    if (!iso) return false
-    const d = new Date(iso)
-    return d.getUTCDate() === today.getUTCDate() && d.getUTCMonth() === today.getUTCMonth() && d.getUTCFullYear() === today.getUTCFullYear()
-  }
-  const todayPoint = kpis?.current_month?.by_day?.find(p => isToday(p.date))
-  const todayCount = todayPoint?.count ?? 0
-  const todayRev   = todayPoint?.revenue ?? 0
-
-  const pendentesEnvio = orders.filter(o => {
-    const ss = o.shipping?.status
-    return ss === 'ready_to_ship' || ss === 'pending'
-  }).length
-  const emTransito = orders.filter(o => {
-    const ss = o.shipping?.status
-    return ss === 'shipped' || ss === 'in_transit' || ss === 'handling'
-  }).length
-
-  if (collapsed) {
-    return (
-      <button onClick={() => setCollapsed(false)}
-        className="fixed top-24 right-3 z-30 w-9 h-9 rounded-full flex items-center justify-center transition-colors hidden lg:flex"
-        style={{ background: '#111114', color: '#a1a1aa', border: '1px solid #1e1e24', boxShadow: '0 4px 12px rgba(0,0,0,0.4)' }}
-        title="Abrir painel de ferramentas">
-        ◀
-      </button>
-    )
-  }
-
-  return (
-    <aside
-      className="fixed top-24 right-3 z-30 w-[240px] rounded-2xl overflow-hidden hidden lg:block"
-      style={{ background: '#111114', border: '1px solid #1e1e24', boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}>
-      <header className="flex items-center justify-between px-3 py-2"
-        style={{ borderBottom: '1px solid #1e1e24' }}>
-        <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Hoje</span>
-        <button onClick={() => setCollapsed(true)}
-          className="p-1 rounded hover:bg-zinc-800/70 text-zinc-500 hover:text-zinc-300"
-          title="Recolher">▶</button>
-      </header>
-      <div className="px-3 py-2.5 space-y-1.5">
-        <KpiRow label="Vendas hoje"     value={brl(todayRev)}                          color="#4ade80" />
-        <KpiRow label="Pedidos hoje"    value={todayCount.toLocaleString('pt-BR')}     color="#00E5FF" />
-        <KpiRow label="Pendentes envio" value={pendentesEnvio.toLocaleString('pt-BR')} color="#facc15" />
-        <KpiRow label="Em trânsito"     value={emTransito.toLocaleString('pt-BR')}     color="#a78bfa" />
-      </div>
-      <div className="px-3 py-2"
-        style={{ borderTop: '1px solid #1e1e24' }}>
-        <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Ferramentas</span>
-      </div>
-      <div className="px-3 pb-3 space-y-2">
-        <PulsingButton
-          onClick={sync}
-          loading={syncing}
-          icon={<Truck size={11} />}
-          label="Sincronizar pedidos"
-          badge={billingPending && billingPending > 0 ? billingPending : undefined}
-          variant="cyan"
-          className="w-full justify-center"
-        />
-        <button onClick={() => todoToast('Exportar relatório de pedidos')}
-          className="w-full text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-colors"
-          style={{ background: '#0c0c10', color: '#a1a1aa', border: '1px solid #27272a' }}>
-          📊 Exportar relatório
-        </button>
-      </div>
-    </aside>
-  )
-}
-
-function KpiRow({ label, value, color }: { label: string; value: string; color: string }) {
-  return (
-    <div className="flex items-center justify-between gap-2">
-      <span className="text-[11px] text-zinc-400">{label}</span>
-      <span className="text-[12px] font-bold tabular-nums" style={{ color }}>{value}</span>
-    </div>
-  )
-}
-
 // ── Order actions menu (kebab) ────────────────────────────────────────────────
 
 function OrderActionsMenu({ order }: { order: MOrder }) {
@@ -745,18 +621,9 @@ function OrderCard({
 
   return (
     <div className="rounded-xl transition-colors relative" style={{ background: '#0f0f12', border: '1px solid #1a1a1f' }}>
-      {/* Floating row actions: detalhe (icon-only) + kebab — top-right. */}
-      <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
-        <button
-          onClick={() => onOpenDetail(String(order.order_id))}
-          aria-label="Ver detalhe completo"
-          title="Ver detalhe completo (Cliente + Comunicação)"
-          className="w-7 h-7 inline-flex items-center justify-center rounded-md transition-colors"
-          style={{ background: 'transparent', border: '1px solid #1a1a1f', color: '#a1a1aa' }}
-          onMouseOver={e => { e.currentTarget.style.color = '#00E5FF'; e.currentTarget.style.borderColor = 'rgba(0,229,255,0.4)' }}
-          onMouseOut={e => { e.currentTarget.style.color = '#a1a1aa'; e.currentTarget.style.borderColor = '#1a1a1f' }}>
-          <Eye size={13} />
-        </button>
+      {/* Kebab — top-right, sem o botão detalhe (movido pra rodapé do
+          card, ao lado do link "Venda #X" — UI-1.1). */}
+      <div className="absolute top-2 right-2 z-10">
         <OrderActionsMenu order={order} />
       </div>
       <div className="grid gap-0" style={{ gridTemplateColumns: '200px 1fr 210px' }}>
@@ -788,11 +655,23 @@ function OrderCard({
             </div>
           </div>
           <div className="space-y-0.5">
-            <a href={`https://www.mercadolivre.com.br/vendas/${order.order_id}`} target="_blank"
-              rel="noopener noreferrer"
-              className="text-[10px] font-mono text-cyan-400 hover:text-cyan-300 transition-colors block">
-              Venda #{order.order_id}
-            </a>
+            <div className="flex items-center gap-2 flex-wrap">
+              <a href={`https://www.mercadolivre.com.br/vendas/${order.order_id}`} target="_blank"
+                rel="noopener noreferrer"
+                className="text-[10px] font-mono text-cyan-400 hover:text-cyan-300 transition-colors">
+                Venda #{order.order_id}
+              </a>
+              <button
+                onClick={() => onOpenDetail(String(order.order_id))}
+                title="Ver detalhe completo (Cliente + Comunicação)"
+                className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded transition-colors"
+                style={{ background: 'transparent', border: '1px solid #1a1a1f', color: '#a1a1aa' }}
+                onMouseOver={e => { e.currentTarget.style.color = '#00E5FF'; e.currentTarget.style.borderColor = 'rgba(0,229,255,0.4)' }}
+                onMouseOut={e => { e.currentTarget.style.color = '#a1a1aa'; e.currentTarget.style.borderColor = '#1a1a1f' }}>
+                <Eye size={10} />
+                Ver detalhe
+              </button>
+            </div>
             {order.shipping.receiver_address.zip_code && (
               <p className="text-[10px] text-zinc-500">
                 CEP {order.shipping.receiver_address.zip_code}
@@ -1663,6 +1542,9 @@ export default function PedidosPage() {
   const [view,        setView]        = useState<'cards' | 'table'>('cards')
   // Sprint B bloco 2 — drawer detail aberto por click numa linha da tabela
   const [openOrderId, setOpenOrderId] = useState<string | null>(null)
+  // UI-1.1 — header consolidado (state que vivia no PedidosToolsPanel)
+  const [billingPending, setBillingPending] = useState<number | null>(null)
+  const [syncing,        setSyncing]        = useState(false)
   const tid = useRef(0)
   const pageRef = useRef(0)
   const qRef    = useRef('')
@@ -1688,6 +1570,37 @@ export default function PedidosPage() {
     } catch { /* silent */ }
     finally { setKpiLoad(false) }
   }, [getHeaders])
+
+  // UI-1.1 — billingPending count + sync (movidos do PedidosToolsPanel deletado)
+  const loadPending = useCallback(async () => {
+    try {
+      const headers = await getHeaders()
+      const res  = await fetch(`${BACKEND}/ml/orders/billing-pending-count`, { headers })
+      const body = await res.json().catch(() => null) as { count?: number } | null
+      setBillingPending(typeof body?.count === 'number' ? body.count : 0)
+    } catch { setBillingPending(0) }
+  }, [getHeaders])
+
+  const sync = useCallback(async () => {
+    if (syncing) return
+    setSyncing(true)
+    try {
+      const headers = await getHeaders()
+      // Endpoint Supabase-auth (JWT do usuário). NÃO usamos /admin/sync-now
+      // do browser pra não expor ADMIN_SECRET no cliente — esse fica
+      // reservado pra GitHub Action / cron OS sem session token.
+      const res = await fetch(`${BACKEND}/sales-aggregator/sync-now`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ days: 7 }),
+      })
+      const body = await res.json().catch(() => null) as { runId?: string; message?: string } | null
+      if (!res.ok || !body?.runId) toast(body?.message ?? 'Falha ao sincronizar', 'error')
+      else toast(`✓ Sync de 7 dias iniciado (runId ${body.runId.slice(0, 8)}…)`, 'success')
+      setTimeout(loadPending, 30_000)
+    } catch { toast('Erro de rede ao sincronizar', 'error') }
+    finally { setSyncing(false) }
+  }, [syncing, getHeaders, loadPending])
 
   const loadOrders = useCallback(async (currentPage: number, query: string) => {
     setLoading(true)
@@ -1794,6 +1707,7 @@ export default function PedidosPage() {
 
   useEffect(() => { loadKpis()          }, [loadKpis])
   useEffect(() => { loadOrders(page, q) }, [page, loadOrders])
+  useEffect(() => { loadPending()        }, [loadPending])
 
   // Polling: refetch de 2 em 2 min
   useEffect(() => {
@@ -1824,22 +1738,86 @@ export default function PedidosPage() {
   const prev = kpis?.last_month
   const num  = (v: number) => v.toLocaleString('pt-BR')
 
+  // UI-1.1 — KPIs "hoje" derivados (vivam no PedidosToolsPanel deletado)
+  const { todayCount, todayRev, pendentesEnvio, emTransito } = useMemo(() => {
+    const now = new Date()
+    const isToday = (iso: string | null) => {
+      if (!iso) return false
+      const d = new Date(iso)
+      return d.getUTCDate() === now.getUTCDate()
+        && d.getUTCMonth() === now.getUTCMonth()
+        && d.getUTCFullYear() === now.getUTCFullYear()
+    }
+    const tp = kpis?.current_month?.by_day?.find(p => isToday(p.date))
+    return {
+      todayCount:     tp?.count ?? 0,
+      todayRev:       tp?.revenue ?? 0,
+      pendentesEnvio: orders.filter(o => o.shipping?.status === 'ready_to_ship' || o.shipping?.status === 'pending').length,
+      emTransito:     orders.filter(o => {
+        const ss = o.shipping?.status
+        return ss === 'shipped' || ss === 'in_transit' || ss === 'handling'
+      }).length,
+    }
+  }, [kpis, orders])
+
   return (
     <div style={{ background: '#09090b', minHeight: '100vh' }} className="p-6 max-w-[1400px] space-y-5">
       <ToastViewport />
       <Toasts list={toasts} />
-      <PedidosToolsPanel orders={orders} kpis={kpis} getHeaders={getHeaders} onToast={toast} />
 
-      {/* Header */}
-      <div className="flex items-end justify-between">
-        <div>
-          <p className="text-zinc-500 text-xs font-medium tracking-widest uppercase mb-1">Dashboard · Vendas</p>
-          <h1 className="text-white text-2xl font-semibold">Pedidos</h1>
+      {/* Header consolidado (UI-1.1) — título + ações + linha "atualizado" + KPIs hoje. */}
+      <div>
+        <p className="text-zinc-500 text-xs font-medium tracking-widest uppercase mb-1">Dashboard · Vendas</p>
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <h1 className="text-white text-3xl font-semibold">Pedidos</h1>
+          <div className="flex items-center gap-2">
+            <PulsingButton
+              onClick={sync}
+              loading={syncing}
+              icon={<Truck size={11} />}
+              label="Sincronizar"
+              badge={billingPending && billingPending > 0 ? billingPending : undefined}
+              variant="cyan"
+            />
+            <button onClick={() => todoToast('Exportar relatório de pedidos')}
+              className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-colors"
+              style={{ background: '#18181b', color: '#fafafa', border: '1px solid #27272a' }}>
+              <BarChart2 size={12} /> Relatório
+            </button>
+          </div>
         </div>
-        <p className="text-xs text-zinc-600 pb-1">
+        <p className="text-xs text-zinc-600 mt-1">
           {minsSince === 0 ? 'Atualizado agora' : `Atualizado há ${minsSince}min`}
           {' · '}atualiza a cada 2min
         </p>
+
+        {/* KPI strip — uma linha, separadores · entre KPIs. */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-zinc-400 mt-3 pt-3"
+          style={{ borderTop: '1px solid #1a1a1f' }}>
+          <span>
+            <span className="font-bold tabular-nums" style={{ color: '#00E5FF' }}>{brl(todayRev)}</span>
+            <span className="ml-1.5">vendas hoje</span>
+          </span>
+          <span className="text-zinc-700">·</span>
+          <span>
+            <span className="font-bold tabular-nums text-zinc-100">{num(todayCount)}</span>
+            <span className="ml-1.5">pedidos hoje</span>
+          </span>
+          <span className="text-zinc-700">·</span>
+          <span>
+            <span className="font-bold tabular-nums" style={{ color: pendentesEnvio > 0 ? '#fbbf24' : '#a1a1aa' }}>
+              {num(pendentesEnvio)}
+            </span>
+            <span className="ml-1.5">pendentes envio</span>
+          </span>
+          <span className="text-zinc-700">·</span>
+          <span>
+            <span className="font-bold tabular-nums" style={{ color: emTransito > 0 ? '#a78bfa' : '#a1a1aa' }}>
+              {num(emTransito)}
+            </span>
+            <span className="ml-1.5">em trânsito</span>
+          </span>
+        </div>
       </div>
 
       {/* KPIs */}
