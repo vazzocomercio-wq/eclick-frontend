@@ -247,13 +247,15 @@ export default function ConfiguracoesTab({ onToast }: Props) {
             </p>
           </div>
 
-          {/* Toggle custom */}
+          {/* Toggle custom — track 44×24 + knob 20×20 com 2px de padding
+              em cada lado (44 − 20 − 2 − 2 = 20px de curso). Sem left:0
+              explícito, o knob ficava 4px fora do track à direita. */}
           <button type="button" aria-label="Toggle"
             onClick={() => setField('auto_communication_enabled', !on)}
-            className="relative w-14 h-7 rounded-full transition-colors shrink-0"
+            className="relative w-11 h-6 rounded-full transition-colors shrink-0"
             style={{ background: on ? '#00E5FF' : '#3f3f46' }}>
-            <span className="absolute top-0.5 w-6 h-6 rounded-full bg-white transition-transform shadow-sm"
-              style={{ transform: on ? 'translateX(28px)' : 'translateX(2px)' }} />
+            <span className="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform shadow-sm"
+              style={{ transform: on ? 'translateX(20px)' : 'translateX(0)' }} />
           </button>
         </div>
       </div>
