@@ -1,0 +1,366 @@
+'use client'
+
+import { useEffect, useRef, useState } from 'react'
+import { createClient } from '@/lib/supabase'
+import { Search, X, Image as ImageIcon, Edit3, ExternalLink, ChevronDown, Loader2 } from 'lucide-react'
+
+const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
+
+// ── Types ────────────────────────────────────────────────────────────────────
+
+export type ProductSource = 'catalog' | 'ml' | 'shopee' | 'manual'
+
+export interface ProductData {
+  source:         ProductSource
+  title:          string
+  price:          number
+  sale_price?:    number
+  image_url?:     string
+  url?:           string
+  catalog_id?:    string
+  ml_listing_id?: string
+  all_images?:    string[]
+}
+
+interface CatalogResult {
+  id:        string
+  title:     string
+  price:     number
+  image_url?: string
+}
+
+interface ImportResponse {
+  title:        string | null
+  price:        number | null
+  sale_price:   number | null
+  image_url:    string | null
+  all_images:   string[]
+  url:          string | null
+  platform:     string
+  listing_id:   string | null
+}
+
+interface Props {
+  value:    ProductData | null
+  onChange: (product: ProductData | null) => void
+}
+
+// ── HTTP helpers ────────────────────────────────────────────────────────────
+
+async function token(): Promise<string | null> {
+  const sb = createClient()
+  const { data } = await sb.auth.getSession()
+  return data.session?.access_token ?? null
+}
+
+async function api<T>(path: string, init?: RequestInit): Promise<T> {
+  const t = await token()
+  const res = await fetch(`${BACKEND}${path}`, {
+    ...init,
+    headers: { 'Content-Type': 'application/json', ...(t ? { Authorization: `Bearer ${t}` } : {}), ...(init?.headers ?? {}) },
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(`[${res.status}] ${(body as { message?: string; error?: string })?.message ?? (body as { error?: string })?.error ?? 'erro'}`)
+  }
+  return (await res.json()) as T
+}
+
+// ── Component ────────────────────────────────────────────────────────────────
+
+export default function SmartProductInput({ value, onChange }: Props) {
+  const [query, setQuery]           = useState('')
+  const [results, setResults]       = useState<CatalogResult[]>([])
+  const [isImporting, setImporting] = useState(false)
+  const [isSearching, setSearching] = useState(false)
+  const [error, setError]           = useState<string | null>(null)
+  const [showGallery, setGallery]   = useState(false)
+  const [galleryImgs, setGalleryImgs] = useState<string[]>([])
+  const [showEdit, setShowEdit]     = useState(false)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // ── Effects ───────────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (!query.trim() || value) {
+      setResults([])
+      return
+    }
+    const isUrl = /^https?:\/\//i.test(query.trim())
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => {
+      if (isUrl) handleImportUrl(query.trim())
+      else       handleSearch(query.trim())
+    }, isUrl ? 800 : 300)
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, value])
+
+  // Quando seleciona um produto com listing ML, pré-carrega galeria sob demanda
+  useEffect(() => {
+    if (showGallery && value?.ml_listing_id && galleryImgs.length === 0) {
+      api<{ all_images: string[] }>(`/campaigns/listing-images?listing_id=${encodeURIComponent(value.ml_listing_id)}`)
+        .then(r => setGalleryImgs(r.all_images ?? []))
+        .catch(e => setError((e as Error).message))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showGallery, value?.ml_listing_id])
+
+  // ── Actions ───────────────────────────────────────────────────────────────
+
+  async function handleSearch(q: string) {
+    setSearching(true)
+    setError(null)
+    try {
+      const r = await api<{ results: CatalogResult[] }>(`/campaigns/products/search?q=${encodeURIComponent(q)}&limit=10`)
+      setResults(r.results ?? [])
+    } catch (e) {
+      setError((e as Error).message)
+      setResults([])
+    } finally {
+      setSearching(false)
+    }
+  }
+
+  async function handleImportUrl(url: string) {
+    setImporting(true)
+    setError(null)
+    try {
+      const r = await api<ImportResponse>('/campaigns/import-from-url', {
+        method: 'POST',
+        body:   JSON.stringify({ url }),
+      })
+      const source: ProductSource = r.platform === 'mercadolivre' ? 'ml'
+                                  : r.platform === 'shopee'       ? 'shopee'
+                                  : 'manual'
+      onChange({
+        source,
+        title:         r.title ?? '',
+        price:         r.price ?? 0,
+        sale_price:    r.sale_price ?? undefined,
+        image_url:     r.image_url ?? undefined,
+        url:           r.url ?? url,
+        ml_listing_id: source === 'ml' ? (r.listing_id ?? undefined) : undefined,
+        all_images:    r.all_images,
+      })
+      setQuery('')
+    } catch (e) {
+      setError(`Não foi possível importar — ${(e as Error).message}. Preencha manual.`)
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  function handleSelectCatalog(item: CatalogResult) {
+    onChange({
+      source:     'catalog',
+      title:      item.title,
+      price:      item.price,
+      image_url:  item.image_url,
+      catalog_id: item.id,
+    })
+    setQuery('')
+    setResults([])
+  }
+
+  function handleClear() {
+    onChange(null)
+    setQuery('')
+    setResults([])
+    setGallery(false)
+    setGalleryImgs([])
+    setShowEdit(false)
+    setError(null)
+  }
+
+  function handleEditField<K extends keyof ProductData>(key: K, val: ProductData[K]) {
+    if (!value) return
+    onChange({ ...value, [key]: val, source: 'manual' })
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────────
+
+  const promoPct = (value?.sale_price && value?.price && value.price > value.sale_price)
+    ? Math.round((1 - value.sale_price / value.price) * 100)
+    : null
+
+  return (
+    <div className="space-y-3">
+      {!value && (
+        <div className="relative">
+          <div className="relative">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none" />
+            <input
+              type="text"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="Buscar produto ou colar URL do anúncio"
+              className="w-full bg-[#0d0d10] border border-zinc-800 rounded-lg pl-10 pr-10 py-3 text-sm text-zinc-200 placeholder-zinc-500 outline-none focus:border-cyan-500/50"
+            />
+            {(isSearching || isImporting) && (
+              <Loader2 size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-cyan-400 animate-spin" />
+            )}
+          </div>
+
+          {isImporting && (
+            <div className="mt-2 text-xs text-zinc-400 flex items-center gap-2">
+              <Loader2 size={12} className="animate-spin" /> Importando do marketplace…
+            </div>
+          )}
+
+          {results.length > 0 && (
+            <div className="absolute top-full left-0 right-0 mt-1 bg-[#0d0d10] border border-zinc-800 rounded-lg overflow-hidden z-20 max-h-80 overflow-y-auto">
+              {results.map(r => (
+                <button
+                  key={r.id}
+                  type="button"
+                  onClick={() => handleSelectCatalog(r)}
+                  className="w-full flex items-center gap-3 px-3 py-2 hover:bg-zinc-800/50 text-left"
+                >
+                  {r.image_url
+                    ? <img src={r.image_url} alt="" className="w-8 h-8 rounded object-cover bg-zinc-800" />
+                    : <div className="w-8 h-8 rounded bg-zinc-800 flex items-center justify-center"><ImageIcon size={14} className="text-zinc-600" /></div>}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-zinc-200 truncate">{r.title}</p>
+                    <p className="text-xs text-cyan-400">R$ {r.price.toFixed(2)}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {error && (
+        <div className="rounded-lg p-3 text-sm" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>
+          {error}
+        </div>
+      )}
+
+      {value && (
+        <div className="bg-[#0d0d10] border border-zinc-800 rounded-lg p-4 relative">
+          <button
+            type="button"
+            onClick={handleClear}
+            className="absolute top-3 right-3 text-zinc-500 hover:text-zinc-300"
+            aria-label="Remover"
+          >
+            <X size={16} />
+          </button>
+
+          <div className="flex gap-4">
+            {value.image_url
+              ? <img src={value.image_url} alt={value.title} className="w-[60px] h-[60px] rounded-lg object-cover bg-zinc-800 flex-shrink-0" />
+              : <div className="w-[60px] h-[60px] rounded-lg bg-zinc-800 flex items-center justify-center flex-shrink-0"><ImageIcon size={20} className="text-zinc-600" /></div>}
+
+            <div className="flex-1 min-w-0 pr-6">
+              <p className="text-sm font-bold text-zinc-100 truncate">{value.title || '(sem título)'}</p>
+              <div className="mt-1 flex items-center gap-2 flex-wrap">
+                {value.sale_price ? (
+                  <>
+                    <span className="text-xs text-zinc-500 line-through">R$ {value.price.toFixed(2)}</span>
+                    <span className="text-sm font-bold text-cyan-400">R$ {value.sale_price.toFixed(2)}</span>
+                    {promoPct !== null && (
+                      <span className="text-xs px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-400">-{promoPct}%</span>
+                    )}
+                  </>
+                ) : (
+                  <span className="text-sm font-bold text-cyan-400">R$ {value.price.toFixed(2)}</span>
+                )}
+              </div>
+              {value.url && (
+                <a href={value.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 mt-1 text-xs text-zinc-500 hover:text-zinc-300">
+                  Ver anúncio <ExternalLink size={11} />
+                </a>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            {value.ml_listing_id && (
+              <button
+                type="button"
+                onClick={() => setGallery(g => !g)}
+                className="text-xs flex items-center gap-1 px-2 py-1 rounded border border-zinc-800 text-zinc-300 hover:border-zinc-700"
+              >
+                <ImageIcon size={12} /> Imagens do anúncio
+                <ChevronDown size={12} className={`transition-transform ${showGallery ? 'rotate-180' : ''}`} />
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setShowEdit(s => !s)}
+              className="text-xs flex items-center gap-1 px-2 py-1 rounded border border-zinc-800 text-zinc-300 hover:border-zinc-700"
+            >
+              <Edit3 size={12} /> Editar dados manualmente
+              <ChevronDown size={12} className={`transition-transform ${showEdit ? 'rotate-180' : ''}`} />
+            </button>
+          </div>
+
+          {showGallery && value.ml_listing_id && (
+            <div className="mt-3 grid grid-cols-6 gap-2">
+              {galleryImgs.length === 0 && (
+                <div className="col-span-6 text-xs text-zinc-500 flex items-center gap-2">
+                  <Loader2 size={12} className="animate-spin" /> Carregando galeria…
+                </div>
+              )}
+              {galleryImgs.map((src, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => onChange({ ...value, image_url: src })}
+                  className={`aspect-square rounded overflow-hidden border-2 ${value.image_url === src ? 'border-cyan-500' : 'border-transparent hover:border-zinc-700'}`}
+                >
+                  <img src={src} alt="" className="w-full h-full object-cover bg-zinc-800" />
+                </button>
+              ))}
+            </div>
+          )}
+
+          {showEdit && (
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <label className="col-span-2 text-xs text-zinc-500">
+                Título
+                <input
+                  type="text"
+                  defaultValue={value.title}
+                  onBlur={e => handleEditField('title', e.target.value)}
+                  className="mt-1 w-full bg-zinc-900 border border-zinc-800 rounded px-2 py-1.5 text-sm text-zinc-200 outline-none focus:border-cyan-500/50"
+                />
+              </label>
+              <label className="text-xs text-zinc-500">
+                Preço
+                <input
+                  type="number"
+                  step="0.01"
+                  defaultValue={value.price}
+                  onBlur={e => handleEditField('price', Number(e.target.value) || 0)}
+                  className="mt-1 w-full bg-zinc-900 border border-zinc-800 rounded px-2 py-1.5 text-sm text-zinc-200 outline-none focus:border-cyan-500/50"
+                />
+              </label>
+              <label className="text-xs text-zinc-500">
+                Preço promo (opcional)
+                <input
+                  type="number"
+                  step="0.01"
+                  defaultValue={value.sale_price ?? ''}
+                  onBlur={e => handleEditField('sale_price', e.target.value === '' ? undefined : Number(e.target.value))}
+                  className="mt-1 w-full bg-zinc-900 border border-zinc-800 rounded px-2 py-1.5 text-sm text-zinc-200 outline-none focus:border-cyan-500/50"
+                />
+              </label>
+              <label className="col-span-2 text-xs text-zinc-500">
+                URL da imagem
+                <input
+                  type="text"
+                  defaultValue={value.image_url ?? ''}
+                  onBlur={e => handleEditField('image_url', e.target.value || undefined)}
+                  className="mt-1 w-full bg-zinc-900 border border-zinc-800 rounded px-2 py-1.5 text-sm text-zinc-200 outline-none focus:border-cyan-500/50"
+                />
+              </label>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
