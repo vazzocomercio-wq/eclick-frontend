@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase'
-import { Search, X, Image as ImageIcon, Edit3, ExternalLink, ChevronDown, Loader2 } from 'lucide-react'
+import { Search, X, Image as ImageIcon, Edit3, ExternalLink, ChevronDown, Loader2, AlertTriangle } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 
@@ -130,13 +130,19 @@ export default function SmartProductInput({ value, onChange }: Props) {
         method: 'POST',
         body:   JSON.stringify({ url }),
       })
+      // Validação semântica — backend pode retornar 200 com shape vazia
+      // (PolicyAgent ML, anúncio removido, catálogo silenciosamente vazio).
+      // Tratamos como erro pra usuário não ficar com card "(sem título) R$ 0,00".
+      if (!r.title || r.price === 0 || r.price == null) {
+        throw new Error('O anúncio não retornou dados (pode estar privado, removido ou bloqueado pela plataforma).')
+      }
       const source: ProductSource = r.platform === 'mercadolivre' ? 'ml'
                                   : r.platform === 'shopee'       ? 'shopee'
                                   : 'manual'
       onChange({
         source,
-        title:         r.title ?? '',
-        price:         r.price ?? 0,
+        title:         r.title,
+        price:         r.price,
         sale_price:    r.sale_price ?? undefined,
         image_url:     r.image_url ?? undefined,
         url:           r.url ?? url,
@@ -145,10 +151,27 @@ export default function SmartProductInput({ value, onChange }: Props) {
       })
       setQuery('')
     } catch (e) {
-      setError(`Não foi possível importar — ${(e as Error).message}. Preencha manual.`)
+      setError((e as Error).message || 'Não foi possível importar a URL.')
     } finally {
       setImporting(false)
     }
+  }
+
+  function handleStartManual() {
+    onChange({
+      source: 'manual',
+      title:  '',
+      price:  0,
+      url:    query || undefined,
+    })
+    setShowEdit(true)
+    setQuery('')
+    setError(null)
+  }
+
+  function handleRetryUrl() {
+    setError(null)
+    setQuery('')
   }
 
   function handleSelectCatalog(item: CatalogResult) {
@@ -208,6 +231,12 @@ export default function SmartProductInput({ value, onChange }: Props) {
             </div>
           )}
 
+          {!isImporting && !error && (
+            <p className="mt-2 text-[11px] text-zinc-500">
+              💡 Cole link direto do anúncio (não da página de catálogo)
+            </p>
+          )}
+
           {results.length > 0 && (
             <div className="absolute top-full left-0 right-0 mt-1 bg-[#0d0d10] border border-zinc-800 rounded-lg overflow-hidden z-20 max-h-80 overflow-y-auto">
               {results.map(r => (
@@ -232,8 +261,32 @@ export default function SmartProductInput({ value, onChange }: Props) {
       )}
 
       {error && (
-        <div className="rounded-lg p-3 text-sm" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>
-          {error}
+        <div
+          className="rounded-lg p-3 text-sm space-y-2"
+          style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}
+        >
+          <div className="flex items-start gap-2">
+            <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+            <span className="flex-1">{error}</span>
+          </div>
+          {!value && (
+            <div className="flex flex-wrap gap-2 pl-6">
+              <button
+                type="button"
+                onClick={handleRetryUrl}
+                className="text-xs px-2.5 py-1 rounded border border-red-400/30 hover:bg-red-400/10 text-red-300"
+              >
+                Tentar outra URL
+              </button>
+              <button
+                type="button"
+                onClick={handleStartManual}
+                className="text-xs px-2.5 py-1 rounded bg-red-400/20 hover:bg-red-400/30 text-red-200 font-semibold"
+              >
+                Preencher manualmente
+              </button>
+            </div>
+          )}
         </div>
       )}
 
