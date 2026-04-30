@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase'
-import { Search, X, Image as ImageIcon, Edit3, ExternalLink, ChevronDown, Loader2, AlertTriangle } from 'lucide-react'
+import { Search, X, Image as ImageIcon, Edit3, ExternalLink, ChevronDown, Loader2, AlertTriangle, Package, Link as LinkIcon } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 
@@ -69,6 +69,7 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
 // ── Component ────────────────────────────────────────────────────────────────
 
 export default function SmartProductInput({ value, onChange }: Props) {
+  const [mode, setMode]             = useState<'catalog' | 'url'>('catalog')
   const [query, setQuery]           = useState('')
   const [results, setResults]       = useState<CatalogResult[]>([])
   const [isImporting, setImporting] = useState(false)
@@ -79,6 +80,13 @@ export default function SmartProductInput({ value, onChange }: Props) {
   const [showEdit, setShowEdit]     = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  function switchMode(m: 'catalog' | 'url') {
+    setMode(m)
+    setQuery('')
+    setError(null)
+    setResults([])
+  }
+
   // ── Effects ───────────────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -86,15 +94,21 @@ export default function SmartProductInput({ value, onChange }: Props) {
       setResults([])
       return
     }
-    const isUrl = /^https?:\/\//i.test(query.trim())
     if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => {
-      if (isUrl) handleImportUrl(query.trim())
-      else       handleSearch(query.trim())
-    }, isUrl ? 800 : 300)
+
+    if (mode === 'catalog') {
+      // Sempre busca catálogo Vazzo, sem detectar URL
+      debounceRef.current = setTimeout(() => handleSearch(query.trim()), 300)
+    } else {
+      // URL só dispara import se for http(s)://
+      const isUrl = /^https?:\/\//i.test(query.trim())
+      if (isUrl) {
+        debounceRef.current = setTimeout(() => handleImportUrl(query.trim()), 800)
+      }
+    }
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, value])
+  }, [query, value, mode])
 
   // Quando seleciona um produto com listing ML, pré-carrega galeria sob demanda
   useEffect(() => {
@@ -131,9 +145,9 @@ export default function SmartProductInput({ value, onChange }: Props) {
         body:   JSON.stringify({ url }),
       })
       // Validação semântica — backend pode retornar 200 com shape vazia
-      // (PolicyAgent ML, anúncio removido, catálogo silenciosamente vazio).
-      // Tratamos como erro pra usuário não ficar com card "(sem título) R$ 0,00".
-      if (!r.title || r.price === 0 || r.price == null) {
+      // (PolicyAgent ML, anúncio removido). Aceitamos price=null pra
+      // suportar catálogo ML (MLBU), que nem sempre tem buy_box price.
+      if (!r.title) {
         throw new Error('O anúncio não retornou dados (pode estar privado, removido ou bloqueado pela plataforma).')
       }
       const source: ProductSource = r.platform === 'mercadolivre' ? 'ml'
@@ -142,7 +156,7 @@ export default function SmartProductInput({ value, onChange }: Props) {
       onChange({
         source,
         title:         r.title,
-        price:         r.price,
+        price:         r.price ?? 0,
         sale_price:    r.sale_price ?? undefined,
         image_url:     r.image_url ?? undefined,
         url:           r.url ?? url,
@@ -207,57 +221,101 @@ export default function SmartProductInput({ value, onChange }: Props) {
     ? Math.round((1 - value.sale_price / value.price) * 100)
     : null
 
+  const isUrlInput  = mode === 'url' && /^https?:\/\//i.test(query.trim())
+  const InputIcon   = mode === 'catalog' ? Search : LinkIcon
+  const placeholder = mode === 'catalog' ? 'Buscar produto pelo nome ou SKU' : 'Cole o link do anúncio ou catálogo'
+
   return (
     <div className="space-y-3">
       {!value && (
-        <div className="relative">
-          <div className="relative">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none" />
-            <input
-              type="text"
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-              placeholder="Buscar produto ou colar URL do anúncio"
-              className="w-full bg-[#0d0d10] border border-zinc-800 rounded-lg pl-10 pr-10 py-3 text-sm text-zinc-200 placeholder-zinc-500 outline-none focus:border-cyan-500/50"
-            />
-            {(isSearching || isImporting) && (
-              <Loader2 size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-cyan-400 animate-spin" />
-            )}
+        <>
+          {/* Tabs Catálogo Vazzo / Importar de URL */}
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => switchMode('catalog')}
+              className={`px-4 py-2 rounded-lg border text-sm font-medium transition flex items-center gap-1.5 ${
+                mode === 'catalog'
+                  ? 'bg-cyan-500/15 text-cyan-400 border-cyan-500/50'
+                  : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:border-zinc-700'
+              }`}
+            >
+              <Package size={14} /> Catálogo Vazzo
+            </button>
+            <button
+              type="button"
+              onClick={() => switchMode('url')}
+              className={`px-4 py-2 rounded-lg border text-sm font-medium transition flex items-center gap-1.5 ${
+                mode === 'url'
+                  ? 'bg-cyan-500/15 text-cyan-400 border-cyan-500/50'
+                  : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:border-zinc-700'
+              }`}
+            >
+              <LinkIcon size={14} /> Importar de URL
+            </button>
           </div>
 
-          {isImporting && (
-            <div className="mt-2 text-xs text-zinc-400 flex items-center gap-2">
-              <Loader2 size={12} className="animate-spin" /> Importando do marketplace…
+          <div className="relative">
+            <div className="relative">
+              <InputIcon size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none" />
+              <input
+                type="text"
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                placeholder={placeholder}
+                className="w-full bg-[#0d0d10] border border-zinc-800 rounded-lg pl-10 pr-10 py-3 text-sm text-zinc-200 placeholder-zinc-500 outline-none focus:border-cyan-500/50"
+              />
+              {(isSearching || isImporting) && (
+                <Loader2 size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-cyan-400 animate-spin" />
+              )}
             </div>
-          )}
 
-          {!isImporting && !error && (
-            <p className="mt-2 text-[11px] text-zinc-500">
-              💡 Cole link direto do anúncio (não da página de catálogo)
-            </p>
-          )}
+            {isImporting && (
+              <div className="mt-2 text-xs text-zinc-400 flex items-center gap-2">
+                <Loader2 size={12} className="animate-spin" /> Importando do marketplace…
+              </div>
+            )}
 
-          {results.length > 0 && (
-            <div className="absolute top-full left-0 right-0 mt-1 bg-[#0d0d10] border border-zinc-800 rounded-lg overflow-hidden z-20 max-h-80 overflow-y-auto">
-              {results.map(r => (
-                <button
-                  key={r.id}
-                  type="button"
-                  onClick={() => handleSelectCatalog(r)}
-                  className="w-full flex items-center gap-3 px-3 py-2 hover:bg-zinc-800/50 text-left"
-                >
-                  {r.image_url
-                    ? <img src={r.image_url} alt="" className="w-8 h-8 rounded object-cover bg-zinc-800" />
-                    : <div className="w-8 h-8 rounded bg-zinc-800 flex items-center justify-center"><ImageIcon size={14} className="text-zinc-600" /></div>}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-zinc-200 truncate">{r.title}</p>
-                    <p className="text-xs text-cyan-400">R$ {r.price.toFixed(2)}</p>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+            {!isImporting && !error && mode === 'catalog' && (
+              <p className="mt-2 text-[11px] text-zinc-500">
+                💡 Busca produtos da sua base. Para importar de fora, troque a aba acima.
+              </p>
+            )}
+
+            {!isImporting && !error && mode === 'url' && !isUrlInput && query.trim().length > 0 && (
+              <p className="mt-2 text-[11px] text-amber-400">
+                Cole uma URL completa (https://…) ou troque pra Catálogo Vazzo.
+              </p>
+            )}
+
+            {!isImporting && !error && mode === 'url' && (query.trim().length === 0 || isUrlInput) && (
+              <p className="mt-2 text-[11px] text-zinc-500">
+                💡 Modo auxiliar — funciona melhor com seus próprios anúncios (MLB-N) e catálogos (MLBU-N) do Mercado Livre. Para anúncios de outros vendedores, use Catálogo Vazzo.
+              </p>
+            )}
+
+            {results.length > 0 && (
+              <div className="absolute top-full left-0 right-0 mt-1 bg-[#0d0d10] border border-zinc-800 rounded-lg overflow-hidden z-20 max-h-80 overflow-y-auto">
+                {results.map(r => (
+                  <button
+                    key={r.id}
+                    type="button"
+                    onClick={() => handleSelectCatalog(r)}
+                    className="w-full flex items-center gap-3 px-3 py-2 hover:bg-zinc-800/50 text-left"
+                  >
+                    {r.image_url
+                      ? <img src={r.image_url} alt="" className="w-8 h-8 rounded object-cover bg-zinc-800" />
+                      : <div className="w-8 h-8 rounded bg-zinc-800 flex items-center justify-center"><ImageIcon size={14} className="text-zinc-600" /></div>}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-zinc-200 truncate">{r.title}</p>
+                      <p className="text-xs text-cyan-400">R$ {r.price.toFixed(2)}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </>
       )}
 
       {error && (
