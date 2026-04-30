@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase'
 import {
-  Sparkles, Key, Cpu, BarChart3, Info,
+  Sparkles, Key, Cpu, BarChart3, Info, Image as ImageIcon,
   Save, RotateCcw, ExternalLink, AlertCircle, CheckCircle2,
 } from 'lucide-react'
 import {
@@ -17,7 +17,7 @@ const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? process.env.NEXT_PUBLIC_A
 
 // ── Types ────────────────────────────────────────────────────────────────
 
-type TabKey = 'keys' | 'features' | 'usage' | 'about'
+type TabKey = 'keys' | 'features' | 'images' | 'usage' | 'about'
 type Provider = 'anthropic' | 'openai'
 
 interface MergedFeatureSetting {
@@ -49,6 +49,7 @@ function fmtNum(n: number) { return n.toLocaleString('pt-BR') }
 const TAB_LABELS: Record<TabKey, { label: string; icon: React.ReactNode }> = {
   keys:     { label: 'Keys',                icon: <Key       size={12} /> },
   features: { label: 'Modelos por feature', icon: <Cpu       size={12} /> },
+  images:   { label: 'Imagens',             icon: <ImageIcon size={12} /> },
   usage:    { label: 'Uso',                 icon: <BarChart3 size={12} /> },
   about:    { label: 'Sobre',               icon: <Info      size={12} /> },
 }
@@ -99,6 +100,7 @@ export default function IaSettingsPage() {
 
       {tab === 'keys'     && <ApiKeysManager />}
       {tab === 'features' && <FeaturesTab getHeaders={getHeaders} onToast={pushToast} />}
+      {tab === 'images'   && <ImagesTab   getHeaders={getHeaders} onToast={pushToast} />}
       {tab === 'usage'    && <UsageTab    getHeaders={getHeaders} />}
       {tab === 'about'    && <AboutTab />}
 
@@ -469,4 +471,176 @@ function AboutTab() {
       </div>
     </div>
   )
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// Tab — IMAGENS (campaign_card + Canva + custos)
+// ════════════════════════════════════════════════════════════════════════
+
+interface CanvaStatus {
+  connected:   boolean
+  configured:  boolean
+  expires_at?: string | null
+}
+
+function ImagesTab({
+  getHeaders, onToast,
+}: {
+  getHeaders: () => Promise<Record<string, string>>
+  onToast: (msg: string, type?: Toast['type']) => void
+}) {
+  const [feature, setFeature] = useState<MergedFeatureSetting | null>(null)
+  const [canva, setCanva]     = useState<CanvaStatus | null>(null)
+  const [usage, setUsage]     = useState<UsageData | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  const loadAll = useCallback(async () => {
+    setLoading(true)
+    try {
+      const headers = await getHeaders()
+      const [fRes, cRes, uRes] = await Promise.all([
+        fetch(`${BACKEND}/ai/feature-settings`, { headers }),
+        fetch(`${BACKEND}/canva/oauth/status`, { headers }),
+        fetch(`${BACKEND}/ai/feature-settings/usage?days=30`, { headers }),
+      ])
+      if (fRes.ok) {
+        const list = await fRes.json() as MergedFeatureSetting[]
+        setFeature(list.find(f => f.feature_key === 'campaign_card') ?? null)
+      }
+      if (cRes.ok) setCanva(await cRes.json() as CanvaStatus)
+      if (uRes.ok) setUsage(await uRes.json() as UsageData)
+    } finally { setLoading(false) }
+  }, [getHeaders])
+
+  useEffect(() => { loadAll() }, [loadAll])
+
+  async function connectCanva() {
+    try {
+      const headers = await getHeaders()
+      const res = await fetch(`${BACKEND}/canva/oauth/start`, { headers })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json() as { authorize_url?: string }
+      if (data.authorize_url) window.location.href = data.authorize_url
+      else throw new Error('authorize_url ausente na resposta')
+    } catch (e) {
+      onToast((e as Error).message, 'error')
+    }
+  }
+
+  if (loading) return <p className="text-zinc-600 text-xs text-center py-8">Carregando…</p>
+
+  // ── Custos da feature campaign_card (filter client-side) ─────────────────
+  const cardUsage = usage?.by_feature.find(f => f.feature === 'campaign_card')
+  const lastDayWithCardCost = usage?.by_day
+    .slice()
+    .reverse()
+    .find(d => (d.by_feature['campaign_card'] ?? 0) > 0)
+  const lastGenLabel = lastDayWithCardCost
+    ? relativeDays(lastDayWithCardCost.date)
+    : 'Nunca'
+
+  return (
+    <div className="space-y-3">
+      {/* Card 1 — Feature settings campaign_card */}
+      <div className="rounded-xl px-4 py-3 text-[11px] flex items-start gap-2"
+        style={{ background: 'rgba(0,229,255,0.05)', border: '1px solid rgba(0,229,255,0.2)', color: '#a5f3fc' }}>
+        <AlertCircle size={12} className="mt-0.5 shrink-0" />
+        <span>A feature <strong>capa de campanhas</strong> usa o provider configurado abaixo pra gerar imagens. Hoje só OpenAI <code>gpt-image-1</code> está disponível — Flux Pro e outros providers chegam em breve.</span>
+      </div>
+
+      {feature ? (
+        <FeatureCard feature={feature} onToast={onToast} onChange={loadAll} getHeaders={getHeaders} />
+      ) : (
+        <div className="rounded-2xl p-5" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+          <p className="text-zinc-500 text-xs">Feature <code>campaign_card</code> não encontrada — backend pode estar desatualizado.</p>
+        </div>
+      )}
+
+      {/* Card 2 — Conexão Canva */}
+      <div className="rounded-2xl p-5 space-y-3" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+        <div>
+          <p className="text-zinc-100 text-sm font-semibold flex items-center gap-2">
+            <ExternalLink size={14} style={{ color: '#a78bfa' }} /> Conexão Canva
+          </p>
+          <p className="text-[11px] text-zinc-500 mt-0.5">Permite abrir capas geradas direto no editor do Canva pra refinar manualmente.</p>
+        </div>
+
+        {!canva?.configured && (
+          <div className="rounded-xl px-3 py-2 text-[11px] flex items-start gap-2"
+            style={{ background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.25)', color: '#fcd34d' }}>
+            <AlertCircle size={12} className="mt-0.5 shrink-0" />
+            <span>Canva não disponível neste plano. Em breve.</span>
+          </div>
+        )}
+
+        {canva?.configured && !canva.connected && (
+          <button onClick={connectCanva}
+            className="px-4 py-1.5 rounded-lg text-[11px] font-semibold flex items-center gap-1.5"
+            style={{ background: '#00E5FF', color: '#000' }}>
+            <ExternalLink size={11} /> Conectar Canva
+          </button>
+        )}
+
+        {canva?.connected && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded uppercase tracking-wide flex items-center gap-1"
+                style={{ background: 'rgba(74,222,128,0.10)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)' }}>
+                <CheckCircle2 size={10} /> Conectado
+              </span>
+              {canva.expires_at && (
+                <span className="text-[10px] text-zinc-500">
+                  Token expira {relativeFromNow(canva.expires_at)} — auto-renova
+                </span>
+              )}
+            </div>
+            <button disabled
+              className="px-3 py-1 rounded-lg text-[10px] font-medium opacity-40 cursor-not-allowed"
+              style={{ color: '#a1a1aa', border: '1px solid #27272a' }}>
+              Desconectar (em breve)
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Card 3 — Custos da feature de imagens */}
+      <div className="rounded-2xl p-5 space-y-3" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+        <div>
+          <p className="text-zinc-100 text-sm font-semibold flex items-center gap-2">
+            <BarChart3 size={14} style={{ color: '#facc15' }} /> Custos — últimos 30 dias
+          </p>
+          <p className="text-[11px] text-zinc-500 mt-0.5">Apenas <code>campaign_card</code>. Pra ver custos de todas features, abra a aba <strong>Uso</strong>.</p>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          <UsageKpi label="Imagens geradas" value={fmtNum(cardUsage?.calls ?? 0)} color="#00E5FF" />
+          <UsageKpi label="Custo total"     value={fmtUsd(cardUsage?.cost_usd ?? 0)} color="#facc15" />
+          <UsageKpi label="Última geração"  value={lastGenLabel} color="#a78bfa" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Helpers compartilhados pela aba Imagens ─────────────────────────────────
+
+function relativeDays(dateStr: string): string {
+  const d = new Date(dateStr)
+  const ms = Date.now() - d.getTime()
+  const days = Math.floor(ms / 86_400_000)
+  if (days <= 0) return 'hoje'
+  if (days === 1) return 'ontem'
+  if (days < 30) return `há ${days}d`
+  if (days < 365) return `há ${Math.floor(days / 30)} meses`
+  return `há ${Math.floor(days / 365)}a`
+}
+
+function relativeFromNow(iso: string): string {
+  const ms = new Date(iso).getTime() - Date.now()
+  const mins = Math.round(ms / 60_000)
+  if (mins <= 0) return '(expirado)'
+  if (mins < 60) return `em ${mins} min`
+  const hrs = Math.round(mins / 60)
+  if (hrs < 24) return `em ${hrs}h`
+  return `em ${Math.round(hrs / 24)}d`
 }

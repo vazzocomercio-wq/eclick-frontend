@@ -4,8 +4,11 @@ import { useEffect, useState, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { createClient } from '@/lib/supabase'
 import Link from 'next/link'
-import { Megaphone, Sparkles, Pause, Play, Trash2, Plus, X, Settings as SettingsIcon } from 'lucide-react'
+import { Megaphone, Sparkles, Pause, Play, Trash2, Plus, X, Settings as SettingsIcon, Image as ImageIcon } from 'lucide-react'
 import { AI_PROVIDERS } from '@/constants/ai-models'
+import SmartProductInput, { type ProductData } from '@/components/campanhas/SmartProductInput'
+import WhatsAppPreview from '@/components/campanhas/WhatsAppPreview'
+import AICardGenerator from '@/components/campanhas/AICardGenerator'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 
@@ -363,7 +366,10 @@ interface WizardState {
   name:             string
   channel:          CampaignChannel
   // Step 1: produto + conteúdo
-  product_name:     string  // só pra IA, não persiste
+  product:          ProductData | null
+  capa_asset_id:    string | null
+  capa_storage_url: string | null
+  capa_format:      string | null
   objective:        string  // só pra IA
   tone:             'amigavel' | 'profissional' | 'urgente'
   template_a_id:    string | null
@@ -386,7 +392,10 @@ interface WizardState {
 const DEFAULT_STATE: WizardState = {
   name:             '',
   channel:          'whatsapp',
-  product_name:     '',
+  product:          null,
+  capa_asset_id:    null,
+  capa_storage_url: null,
+  capa_format:      null,
   objective:        '',
   tone:             'amigavel',
   template_a_id:    null,
@@ -439,6 +448,7 @@ function CampaignWizard({
   // (ai_feature_settings[campaign_copy] ou registry default).
   const [aiOverride, setAiOverride] = useState<{ provider: 'anthropic' | 'openai'; model: string } | null>(null)
   const [defaultAi, setDefaultAi]   = useState<{ provider: 'anthropic' | 'openai'; model: string } | null>(null)
+  const [aiCardOpen, setAiCardOpen] = useState(false)
 
   useEffect(() => {
     api<MessagingTemplate[]>('/messaging/templates')
@@ -485,7 +495,8 @@ function CampaignWizard({
           method: 'POST',
           body: JSON.stringify({
             objective:        state.objective,
-            product_name:     state.product_name || undefined,
+            product_name:     state.product?.title || undefined,
+            product:          state.product ?? undefined,
             tone:             state.tone,
             ab_variants:      state.ab_enabled,
             providerOverride: aiOverride ?? undefined,
@@ -575,9 +586,10 @@ function CampaignWizard({
 
   if (typeof window === 'undefined') return null
   return createPortal(
+    <>
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6"
       style={{ background: 'rgba(0,0,0,0.75)' }} onClick={onClose}>
-      <div className="w-full max-w-3xl rounded-2xl flex flex-col max-h-full"
+      <div className={`w-full ${step === 1 ? 'max-w-6xl' : 'max-w-3xl'} rounded-2xl flex flex-col max-h-full`}
         style={{ background: '#111114', border: '1px solid #1e1e24' }}
         onClick={e => e.stopPropagation()}>
         {/* Header */}
@@ -606,59 +618,107 @@ function CampaignWizard({
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
           {step === 1 && (
-            <>
-              <Field label="Nome da campanha">
-                <input className="cm-input" value={state.name} onChange={e => patch({ name: e.target.value })}
-                  placeholder="Ex: Black Friday 2026 — abandonadores" />
-              </Field>
+            <div className="grid lg:grid-cols-5 gap-5">
+              {/* ── Coluna esquerda — configuração (60%) ─────────────────────── */}
+              <div className="lg:col-span-3 space-y-4">
+                <Field label="Nome da campanha">
+                  <input className="cm-input" value={state.name} onChange={e => patch({ name: e.target.value })}
+                    placeholder="Ex: Black Friday 2026 — abandonadores" />
+                </Field>
 
-              <div className="grid md:grid-cols-2 gap-3">
-                <Field label="Produto (opcional)">
-                  <input className="cm-input" value={state.product_name} onChange={e => patch({ product_name: e.target.value })}
-                    placeholder="Ex: Tênis Nike Air Max" />
-                </Field>
-                <Field label="Tom da mensagem">
-                  <select className="cm-input" value={state.tone} onChange={e => patch({ tone: e.target.value as 'amigavel'|'profissional'|'urgente' })}>
-                    <option value="amigavel">Amigável</option>
-                    <option value="profissional">Profissional</option>
-                    <option value="urgente">Urgente</option>
-                  </select>
-                </Field>
+                {/* Card Produto */}
+                <div className="rounded-xl p-4 space-y-3" style={{ background: '#0a0a0e', border: '1px solid #1e1e24' }}>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Produto</p>
+                  <SmartProductInput value={state.product} onChange={p => patch({ product: p })} />
+
+                  {state.product && (
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => setAiCardOpen(true)}
+                        className="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5"
+                        style={{ background: 'rgba(0,229,255,0.10)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.3)' }}>
+                        <Sparkles size={12} /> Gerar capa IA
+                      </button>
+
+                      {state.capa_storage_url && (
+                        <div className="flex items-center gap-2 ml-1">
+                          <img src={state.capa_storage_url} alt="capa aprovada"
+                            className="w-[80px] h-[80px] rounded-lg object-cover bg-zinc-800 border border-zinc-700" />
+                          <button
+                            type="button"
+                            onClick={() => setAiCardOpen(true)}
+                            className="text-xs px-2 py-1 rounded border border-zinc-800 text-zinc-300 hover:border-zinc-700 flex items-center gap-1">
+                            <ImageIcon size={11} /> Trocar capa
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Card Conteúdo */}
+                <div className="rounded-xl p-4 space-y-3" style={{ background: '#0a0a0e', border: '1px solid #1e1e24' }}>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Conteúdo da mensagem</p>
+
+                  <Field label="Tom da mensagem">
+                    <select className="cm-input" value={state.tone} onChange={e => patch({ tone: e.target.value as 'amigavel'|'profissional'|'urgente' })}>
+                      <option value="amigavel">Amigável</option>
+                      <option value="profissional">Profissional</option>
+                      <option value="urgente">Urgente</option>
+                    </select>
+                  </Field>
+
+                  <Field label="Objetivo (pra IA gerar a mensagem)">
+                    <textarea className="cm-input font-mono text-xs" rows={2} value={state.objective}
+                      onChange={e => patch({ objective: e.target.value })}
+                      placeholder="Ex: Reativar clientes que abandonaram o carrinho nos últimos 7 dias" />
+                  </Field>
+
+                  <Field label="Template existente (opcional)">
+                    <select className="cm-input" value={state.template_a_id ?? ''}
+                      onChange={e => patch({ template_a_id: e.target.value || null, template_a_body: e.target.value ? '' : state.template_a_body })}>
+                      <option value="">— criar novo template a partir do texto abaixo —</option>
+                      {templates.filter(t => t.is_active && t.channel === 'whatsapp').map(t => (
+                        <option key={t.id} value={t.id}>{t.name}</option>
+                      ))}
+                    </select>
+                  </Field>
+
+                  {!state.template_a_id && (
+                    <Field label="Mensagem (variante A)">
+                      <AiOverrideRow value={aiOverride} fallback={defaultAi} onChange={setAiOverride} />
+                      <div className="flex gap-2 mb-2 mt-2">
+                        <button onClick={() => generateAi(false)} disabled={generating || !state.objective}
+                          className="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 disabled:opacity-50"
+                          style={{ background: 'rgba(0,229,255,0.10)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.3)' }}>
+                          <Sparkles size={12} />
+                          {generating ? 'Gerando…' : 'Gerar mensagem com IA'}
+                        </button>
+                      </div>
+                      <textarea className="cm-input font-mono text-xs" rows={5} value={state.template_a_body}
+                        onChange={e => patch({ template_a_body: e.target.value })}
+                        placeholder="Olá {{nome}}! Vim te lembrar que..." />
+                    </Field>
+                  )}
+                </div>
               </div>
 
-              <Field label="Objetivo (pra IA gerar a mensagem)">
-                <textarea className="cm-input font-mono text-xs" rows={2} value={state.objective}
-                  onChange={e => patch({ objective: e.target.value })}
-                  placeholder="Ex: Reativar clientes que abandonaram o carrinho nos últimos 7 dias" />
-              </Field>
-
-              <Field label="Template existente (opcional)">
-                <select className="cm-input" value={state.template_a_id ?? ''}
-                  onChange={e => patch({ template_a_id: e.target.value || null, template_a_body: e.target.value ? '' : state.template_a_body })}>
-                  <option value="">— criar novo template a partir do texto abaixo —</option>
-                  {templates.filter(t => t.is_active && t.channel === 'whatsapp').map(t => (
-                    <option key={t.id} value={t.id}>{t.name}</option>
-                  ))}
-                </select>
-              </Field>
-
-              {!state.template_a_id && (
-                <Field label="Mensagem (variante A)">
-                  <AiOverrideRow value={aiOverride} fallback={defaultAi} onChange={setAiOverride} />
-                  <div className="flex gap-2 mb-2 mt-2">
-                    <button onClick={() => generateAi(false)} disabled={generating || !state.objective}
-                      className="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 disabled:opacity-50"
-                      style={{ background: 'rgba(0,229,255,0.10)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.3)' }}>
-                      <Sparkles size={12} />
-                      {generating ? 'Gerando…' : 'Gerar com IA'}
-                    </button>
-                  </div>
-                  <textarea className="cm-input font-mono text-xs" rows={5} value={state.template_a_body}
-                    onChange={e => patch({ template_a_body: e.target.value })}
-                    placeholder="Olá {{nome}}! Vim te lembrar que..." />
-                </Field>
-              )}
-            </>
+              {/* ── Coluna direita — preview WhatsApp (40%) ───────────────────── */}
+              <div className="lg:col-span-2">
+                <div className="lg:sticky lg:top-2 flex justify-center">
+                  <WhatsAppPreview
+                    productImage={state.product?.image_url}
+                    productTitle={state.product?.title}
+                    productPrice={state.product?.price}
+                    productSalePrice={state.product?.sale_price}
+                    productUrl={state.product?.url}
+                    message={state.template_a_body}
+                    customerName="Maria"
+                  />
+                </div>
+              </div>
+            </div>
           )}
 
           {step === 2 && (
@@ -865,7 +925,27 @@ function CampaignWizard({
           .cm-input:focus { border-color: #00E5FF; }
         `}</style>
       </div>
-    </div>,
+    </div>
+
+    {state.product && (
+      <AICardGenerator
+        open={aiCardOpen}
+        onClose={() => setAiCardOpen(false)}
+        product={state.product}
+        onSelect={(asset) => {
+          setState(prev => ({
+            ...prev,
+            capa_asset_id:    asset.id,
+            capa_storage_url: asset.storage_url,
+            capa_format:      asset.format,
+            product:          prev.product ? { ...prev.product, image_url: asset.storage_url } : prev.product,
+          }))
+          setAiCardOpen(false)
+        }}
+        campaignId={editing?.id}
+      />
+    )}
+    </>,
     document.body,
   )
 }
