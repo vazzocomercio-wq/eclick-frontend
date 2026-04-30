@@ -445,7 +445,7 @@ function CampaignWizard({
       .then(setTemplates)
       .catch(e => onError((e as Error).message))
     // Busca o default de campaign_copy pra mostrar como pre-selected no dropdown
-    api<Array<{ feature_key: string; primary_provider: 'anthropic' | 'openai'; primary_model: string }>>('/ai/settings')
+    api<Array<{ feature_key: string; primary_provider: 'anthropic' | 'openai'; primary_model: string }>>('/ai/feature-settings')
       .then(list => {
         const f = list.find(x => x.feature_key === 'campaign_copy')
         if (f) setDefaultAi({ provider: f.primary_provider, model: f.primary_model })
@@ -876,7 +876,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 // ── AI override row ────────────────────────────────────────────────────────
 // Linha discreta acima do botão "Gerar com IA" pra escolher modelo na hora.
-// Default vem de /ai/settings (campaign_copy.primary). User pode trocar e o
+// Default vem de /ai/feature-settings (campaign_copy.primary). User pode trocar e o
 // valor entra como providerOverride no POST /campaigns/generate-content.
 // Lista vem de @/constants/ai-models — fonte única de verdade.
 

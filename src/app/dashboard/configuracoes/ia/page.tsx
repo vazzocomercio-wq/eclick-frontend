@@ -137,7 +137,7 @@ function FeaturesTab({
     setLoading(true)
     try {
       const headers = await getHeaders()
-      const res = await fetch(`${BACKEND}/ai/settings`, { headers })
+      const res = await fetch(`${BACKEND}/ai/feature-settings`, { headers })
       if (res.ok) {
         const v = await res.json()
         setFeatures(Array.isArray(v) ? v : [])
@@ -203,7 +203,7 @@ function FeatureCard({
     setSaving(true)
     try {
       const headers = await getHeaders()
-      const res = await fetch(`${BACKEND}/ai/settings/${feature.feature_key}`, {
+      const res = await fetch(`${BACKEND}/ai/feature-settings/${feature.feature_key}`, {
         method: 'PUT', headers,
         body: JSON.stringify({
           primary_provider:  primary.provider,
@@ -226,7 +226,7 @@ function FeatureCard({
     setResetting(true)
     try {
       const headers = await getHeaders()
-      const res = await fetch(`${BACKEND}/ai/settings/${feature.feature_key}`, { method: 'DELETE', headers })
+      const res = await fetch(`${BACKEND}/ai/feature-settings/${feature.feature_key}`, { method: 'DELETE', headers })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       onToast(`${feature.label} resetado`, 'success')
       onChange()
@@ -308,7 +308,7 @@ function UsageTab({ getHeaders }: { getHeaders: () => Promise<Record<string, str
     setLoading(true)
     try {
       const headers = await getHeaders()
-      const res = await fetch(`${BACKEND}/ai/usage?days=${days}`, { headers })
+      const res = await fetch(`${BACKEND}/ai/feature-settings/usage?days=${days}`, { headers })
       if (res.ok) setData(await res.json())
     } finally { setLoading(false) }
   }, [getHeaders, days])
