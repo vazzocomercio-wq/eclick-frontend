@@ -101,6 +101,11 @@ export default function AICardGenerator({ open, onClose, product, onSelect, camp
       const sourceImageUrl = source === 'product_image' ? product.image_url
                           : source === 'listing_image' ? listingImageUrl
                           : undefined
+      // Backend espera providerOverride: { provider, model } — não 'provider' solto.
+      // Mantém undefined se for o default OpenAI (deixa o backend escolher via ai_feature_settings).
+      const providerOverride = provider === 'flux'
+        ? { provider: 'flux', model: 'flux-pro' }
+        : undefined  // openai = default, sem override
       const r = await api<{ assets: GeneratedAsset[] }>('/campaigns/generate-card', {
         method: 'POST',
         body:   JSON.stringify({
@@ -116,7 +121,7 @@ export default function AICardGenerator({ open, onClose, product, onSelect, camp
           prompt:           prompt || undefined,
           formats,
           n,
-          provider,
+          providerOverride,
           campaign_id:      campaignId,
         }),
       })
