@@ -449,6 +449,8 @@ function CampaignWizard({
   const [aiOverride, setAiOverride] = useState<{ provider: 'anthropic' | 'openai'; model: string } | null>(null)
   const [defaultAi, setDefaultAi]   = useState<{ provider: 'anthropic' | 'openai'; model: string } | null>(null)
   const [aiCardOpen, setAiCardOpen] = useState(false)
+  const [textVariations, setTextVariations] = useState<string[]>([])
+  const [generatingText, setGeneratingText] = useState(false)
 
   useEffect(() => {
     api<MessagingTemplate[]>('/messaging/templates')
@@ -483,6 +485,29 @@ function CampaignWizard({
 
   function patch(p: Partial<WizardState>) {
     setState(prev => ({ ...prev, ...p }))
+  }
+
+  /** Batch 1.13 — gera 3 variações DOR/SOLUÇÃO/BENEFÍCIO. Não preenche
+   * direto; mostra cards pra user escolher qual usar. */
+  async function generateMessageText() {
+    if (!state.product) return onError('Selecione um produto primeiro')
+    setGeneratingText(true)
+    setTextVariations([])
+    try {
+      const res = await api<{ variations: string[] }>('/campaigns/generate-message-text', {
+        method: 'POST',
+        body: JSON.stringify({
+          product:  state.product,
+          tone:     state.tone,
+          goal:     state.objective || 'engajar e converter',
+          platform: 'whatsapp',
+        }),
+      })
+      setTextVariations(res.variations ?? [])
+    } catch (e) {
+      onError((e as Error).message)
+    }
+    setGeneratingText(false)
   }
 
   async function generateAi(forB = false) {
@@ -688,17 +713,54 @@ function CampaignWizard({
                   {!state.template_a_id && (
                     <Field label="Mensagem (variante A)">
                       <AiOverrideRow value={aiOverride} fallback={defaultAi} onChange={setAiOverride} />
-                      <div className="flex gap-2 mb-2 mt-2">
+                      <div className="flex gap-2 mb-2 mt-2 flex-wrap">
                         <button onClick={() => generateAi(false)} disabled={generating || !state.objective}
                           className="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 disabled:opacity-50"
                           style={{ background: 'rgba(0,229,255,0.10)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.3)' }}>
                           <Sparkles size={12} />
                           {generating ? 'Gerando…' : 'Gerar mensagem com IA'}
                         </button>
+                        <button
+                          onClick={generateMessageText}
+                          disabled={generatingText || !state.product}
+                          title={!state.product ? 'Selecione um produto primeiro' : ''}
+                          className="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                          style={{ background: 'rgba(168,85,247,0.10)', color: '#c084fc', border: '1px solid rgba(168,85,247,0.3)' }}>
+                          <Sparkles size={12} />
+                          {generatingText ? 'Gerando 3 variações…' : '3 variações com IA'}
+                        </button>
                       </div>
                       <textarea className="cm-input font-mono text-xs" rows={5} value={state.template_a_body}
                         onChange={e => patch({ template_a_body: e.target.value })}
                         placeholder="Olá {{nome}}! Vim te lembrar que..." />
+
+                      {textVariations.length > 0 && (
+                        <div className="mt-3 space-y-2">
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Variações geradas — DOR / SOLUÇÃO / BENEFÍCIO</p>
+                          {textVariations.map((v, i) => (
+                            <div key={i} className="rounded-lg p-3 space-y-2"
+                              style={{ background: 'rgba(168,85,247,0.05)', border: '1px solid rgba(168,85,247,0.2)' }}>
+                              <div className="flex items-start justify-between gap-2">
+                                <span className="text-[10px] font-bold uppercase tracking-widest text-purple-300">Variação {i + 1}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => { patch({ template_a_body: v }); setTextVariations([]) }}
+                                  className="text-[10px] px-2 py-1 rounded font-semibold flex items-center gap-1"
+                                  style={{ background: '#a855f7', color: '#000' }}>
+                                  Usar este
+                                </button>
+                              </div>
+                              <p className="text-xs text-zinc-200 whitespace-pre-wrap">{v}</p>
+                            </div>
+                          ))}
+                          <button
+                            type="button"
+                            onClick={() => setTextVariations([])}
+                            className="text-[10px] text-zinc-500 hover:text-zinc-300">
+                            Fechar variações
+                          </button>
+                        </div>
+                      )}
                     </Field>
                   )}
                 </div>

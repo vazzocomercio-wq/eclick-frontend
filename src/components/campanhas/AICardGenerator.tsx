@@ -9,7 +9,7 @@ const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-type Format = 'square_1080' | 'story_1080x1920' | 'feed_1080x1350'
+type Format = 'square' | 'story' | 'wide'
 type Source = 'product_image' | 'listing_image' | 'ai_only'
 type Provider = 'openai' | 'flux'
 
@@ -33,10 +33,15 @@ interface Props {
   campaignId?: string
 }
 
+const FORMAT_META: Record<Format, { ratio: string; name: string; dims: string; w: number; h: number }> = {
+  square: { ratio: '1:1',  name: 'Square', dims: '1080×1080', w: 32, h: 32 },
+  story:  { ratio: '9:16', name: 'Story',  dims: '1080×1920', w: 18, h: 32 },
+  wide:   { ratio: '16:9', name: 'Wide',   dims: '1920×1080', w: 32, h: 18 },
+}
 const FORMAT_LABEL: Record<Format, string> = {
-  square_1080:     '1080×1080',
-  story_1080x1920: '1080×1920',
-  feed_1080x1350:  '1080×1350',
+  square: '1080×1080',
+  story:  '1080×1920',
+  wide:   '1920×1080',
 }
 
 // ── HTTP ────────────────────────────────────────────────────────────────────
@@ -66,7 +71,7 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
 
 export default function AICardGenerator({ open, onClose, product, onSelect, campaignId }: Props) {
   const [n, setN]                       = useState(2)
-  const [formats, setFormats]           = useState<Format[]>(['square_1080'])
+  const [formats, setFormats]           = useState<Format[]>(['square'])
   const [source, setSource]             = useState<Source>('product_image')
   const [listingImageUrl, setListingImageUrl] = useState<string | undefined>(product.all_images?.[0])
   const [prompt, setPrompt]             = useState('')
@@ -204,17 +209,32 @@ export default function AICardGenerator({ open, onClose, product, onSelect, camp
               <div>
                 <label className="text-xs text-zinc-400 block mb-2">Formatos</label>
                 <div className="flex flex-wrap gap-2">
-                  {(['square_1080', 'story_1080x1920', 'feed_1080x1350'] as Format[]).map(f => (
-                    <label key={f} className={`text-xs px-3 py-1.5 rounded border cursor-pointer ${formats.includes(f) ? 'bg-cyan-500/10 border-cyan-500/50 text-cyan-300' : 'border-zinc-800 text-zinc-400 hover:border-zinc-700'}`}>
-                      <input
-                        type="checkbox"
-                        checked={formats.includes(f)}
-                        onChange={() => toggleFormat(f)}
-                        className="hidden"
-                      />
-                      {FORMAT_LABEL[f]}
-                    </label>
-                  ))}
+                  {(['square', 'story', 'wide'] as Format[]).map(f => {
+                    const meta = FORMAT_META[f]
+                    const active = formats.includes(f)
+                    return (
+                      <label key={f} className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition ${active ? 'bg-cyan-500/10 border-cyan-500/50 text-cyan-300' : 'border-zinc-800 text-zinc-400 hover:border-zinc-700'}`}>
+                        <input type="checkbox" checked={active} onChange={() => toggleFormat(f)} className="hidden" />
+                        <svg width="20" height="20" viewBox="0 0 32 32" className="shrink-0">
+                          <rect
+                            x={(32 - meta.w) / 2}
+                            y={(32 - meta.h) / 2}
+                            width={meta.w}
+                            height={meta.h}
+                            rx={2}
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth={2}
+                          />
+                        </svg>
+                        <div className="leading-tight">
+                          <div className="text-[10px] font-mono opacity-70">{meta.ratio}</div>
+                          <div className="text-xs font-semibold">{meta.name}</div>
+                          <div className="text-[10px] opacity-60">{meta.dims}</div>
+                        </div>
+                      </label>
+                    )
+                  })}
                 </div>
               </div>
             </div>
