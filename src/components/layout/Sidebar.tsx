@@ -144,6 +144,7 @@ const SECTIONS: NavSection[] = [
       { label: 'Pós-venda',   href: '/dashboard/crm/pos-venda', icon: <Heart size={15} /> },
       { label: 'Enriquecimento de Dados', href: '/dashboard/enriquecimento', icon: <Database size={15} /> },
       { label: 'Mensageria',  href: '/dashboard/messaging',     icon: <MessageSquare size={15} /> },
+      { label: 'Campanhas',   href: '/dashboard/campanhas',     icon: <Megaphone size={15} /> },
       { label: 'Comunicação', href: '/dashboard/comunicacao',   icon: <Zap size={15} /> },
       { label: 'WhatsApp',    href: '/dashboard/crm/whatsapp',  icon: <MessageSquare size={15} />, soon: true },
     ],
@@ -185,8 +186,7 @@ const SECTIONS: NavSection[] = [
     key: 'projeto',
     label: 'PROJETO',
     items: [
-      { label: 'Roadmap',   href: '/dashboard/roadmap',   icon: <MapIcon size={15} /> },
-      { label: 'Campanhas', href: '/dashboard/campanhas', icon: <Megaphone size={15} /> },
+      { label: 'Roadmap', href: '/dashboard/roadmap', icon: <MapIcon size={15} /> },
     ],
   },
   {
