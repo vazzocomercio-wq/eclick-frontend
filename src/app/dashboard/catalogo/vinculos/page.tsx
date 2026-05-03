@@ -475,7 +475,7 @@ function StockPanel({
   // and shows "nenhum canal disponível").
   useEffect(() => {
     getHeaders()
-      .then(h => fetch(`${BACKEND}/channels`, { headers: h }))
+      .then(h => fetch(`${BACKEND}/marketplace-channels`, { headers: h }))
       .then(r => r.ok ? r.json() : [])
       .then((rows: ChannelOption[]) => setChannelOpts(rows ?? []))
       .catch(() => setChannelOpts([]))

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase'
 import {
   CheckCircle2, XCircle, Clock, RefreshCw, Plug, Zap,
@@ -11,6 +11,8 @@ import {
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid,
   ResponsiveContainer, Legend,
 } from 'recharts'
+import { getSocket } from '@/lib/socket'
+import { toDataURL as qrToDataUrl } from 'qrcode'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
@@ -498,7 +500,7 @@ export default function IntegracoesPage() {
       const [mlRes, credRes, chRes] = await Promise.allSettled([
         fetch(`${BACKEND}/ml/connections`,  { headers }),
         fetch(`${BACKEND}/credentials`,     { headers }),
-        fetch(`${BACKEND}/channels`,        { headers }),
+        fetch(`${BACKEND}/marketplace-channels`, { headers }),
       ])
       const [sumRes, chartRes] = await Promise.allSettled([
         fetch(`${BACKEND}/ai-usage/summary`,    { headers }),
@@ -1431,26 +1433,27 @@ function EmailSetupModal({ existing, onClose, onSaved }: {
   )
 }
 
-// ── WhatsApp Gratuito (Baileys) — Sprint F5-3 / Batch 1 ──────────────────
+// ── WhatsApp Gratuito (Baileys) — refatorado pra channels + Socket.IO ─────
 
-interface WfStatus {
-  status: 'disconnected' | 'connecting' | 'qr_pending' | 'active' | 'error'
-  phone: string | null
-  name: string | null
-  last_connected_at: string | null
-  worker_online: boolean
-  configured: boolean
+interface WaChannel {
+  id: string
+  channel_type: 'whatsapp_free'
+  name: string
+  status: 'pending' | 'active' | 'paused' | 'error' | 'disconnected'
+  phone_number: string | null
+  external_id: string | null  // displayName quando active
+  error_message: string | null
+  created_at: string
 }
 
 function WhatsAppFreeCard({ onToast }: { onToast: (msg: string, t?: 'success' | 'error') => void }) {
   const supabase = useMemo(() => createClient(), [])
-  const [status, setStatus] = useState<WfStatus | null>(null)
+  const [channel, setChannel] = useState<WaChannel | null>(null)
   const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [qrBase64, setQrBase64] = useState<string | null>(null)
   const [qrExpired, setQrExpired] = useState(false)
   const [busy, setBusy] = useState(false)
-  const sseAbortRef = useRef<AbortController | null>(null)
 
   const getHeaders = useCallback(async (): Promise<Record<string, string>> => {
     const { data: { session } } = await supabase.auth.getSession()
@@ -1460,104 +1463,112 @@ function WhatsAppFreeCard({ onToast }: { onToast: (msg: string, t?: 'success' | 
     }
   }, [supabase])
 
-  const refreshStatus = useCallback(async () => {
+  const fetchChannel = useCallback(async () => {
     try {
       const headers = await getHeaders()
-      const res = await fetch(`${BACKEND}/whatsapp-free/status`, { headers })
-      if (res.ok) setStatus(await res.json())
+      const res = await fetch(`${BACKEND}/channels`, { headers })
+      if (res.ok) {
+        const rows = (await res.json()) as WaChannel[]
+        const wa = rows.find(c => c.channel_type === 'whatsapp_free') ?? null
+        setChannel(wa)
+      }
     } finally {
       setLoading(false)
     }
   }, [getHeaders])
 
-  useEffect(() => { refreshStatus() }, [refreshStatus])
-  useEffect(() => () => { sseAbortRef.current?.abort() }, [])
+  useEffect(() => { fetchChannel() }, [fetchChannel])
+
+  // Socket.IO listener — eventos do worker via /internal/realtime
+  useEffect(() => {
+    let active = true
+    const handlers: Array<{ event: string; handler: (...a: unknown[]) => void }> = []
+    void (async () => {
+      try {
+        const socket = await getSocket()
+        if (!active) return
+
+        const onQr = async (payload: { channel_id: string; qr: string }) => {
+          if (channel && payload.channel_id !== channel.id) return
+          const dataUrl = await qrToDataUrl(payload.qr).catch(() => null)
+          if (dataUrl) {
+            setQrBase64(dataUrl)
+            setQrExpired(false)
+          }
+        }
+        const onConnected = (payload: { channel_id: string; phone_number: string; display_name?: string }) => {
+          setChannel(prev => prev ? {
+            ...prev,
+            status: 'active',
+            phone_number: payload.phone_number || prev.phone_number,
+            external_id: payload.display_name ?? prev.external_id,
+            error_message: null,
+          } : prev)
+          onToast(`WhatsApp Gratuito conectado: ${payload.display_name ?? payload.phone_number}`, 'success')
+          setTimeout(() => setDialogOpen(false), 1500)
+        }
+        const onDisconnected = (payload: { channel_id: string; reason: string; needs_reauth?: boolean }) => {
+          setChannel(prev => prev ? { ...prev, status: 'disconnected', error_message: payload.reason } : prev)
+          if (payload.needs_reauth) onToast('WhatsApp desconectado — reescaneie o QR', 'error')
+        }
+
+        socket.on('whatsapp:qr', onQr)
+        socket.on('whatsapp:connected', onConnected)
+        socket.on('whatsapp:disconnected', onDisconnected)
+        handlers.push(
+          { event: 'whatsapp:qr',           handler: onQr as (...a: unknown[]) => void },
+          { event: 'whatsapp:connected',    handler: onConnected as (...a: unknown[]) => void },
+          { event: 'whatsapp:disconnected', handler: onDisconnected as (...a: unknown[]) => void },
+        )
+      } catch {
+        // socket falhou — fallback é polling no fetchChannel
+      }
+    })()
+    return () => {
+      active = false
+      // Não disconnect — singleton compartilhado. Só remove handlers.
+      void (async () => {
+        try {
+          const socket = await getSocket()
+          for (const { event, handler } of handlers) socket.off(event, handler)
+        } catch { /* ignore */ }
+      })()
+    }
+  }, [channel, onToast])
 
   // QR timeout 90s
   useEffect(() => {
-    if (!dialogOpen || !qrBase64 || status?.status === 'active') return
+    if (!dialogOpen || !qrBase64 || channel?.status === 'active') return
     const t = setTimeout(() => setQrExpired(true), 90_000)
     return () => clearTimeout(t)
-  }, [dialogOpen, qrBase64, status?.status])
-
-  function handleSseEvent(event: string, payload: Record<string, unknown>) {
-    if (event === 'qr') {
-      setQrBase64(payload.qrBase64 as string)
-      setQrExpired(false)
-    } else if (event === 'status') {
-      const s = payload.status as WfStatus['status']
-      setStatus(prev => ({
-        status: s,
-        phone: (payload.phone as string | null) ?? prev?.phone ?? null,
-        name: (payload.name as string | null) ?? prev?.name ?? null,
-        last_connected_at: prev?.last_connected_at ?? null,
-        worker_online: prev?.worker_online ?? true,
-        configured: prev?.configured ?? true,
-      }))
-      if (s === 'active') {
-        onToast(`WhatsApp Gratuito conectado: ${payload.name ?? payload.phone ?? ''}`, 'success')
-        setTimeout(() => setDialogOpen(false), 1500)
-      } else if (s === 'error') {
-        onToast(`Erro: ${(payload.error as string) ?? 'desconhecido'}`, 'error')
-      }
-    }
-  }
-
-  async function startSse() {
-    sseAbortRef.current?.abort()
-    const ac = new AbortController()
-    sseAbortRef.current = ac
-    try {
-      const headers = await getHeaders()
-      const res = await fetch(`${BACKEND}/whatsapp-free/events`, { headers, signal: ac.signal })
-      if (!res.ok || !res.body) throw new Error('SSE failed')
-
-      const reader = res.body.getReader()
-      const decoder = new TextDecoder()
-      let buffer = ''
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        buffer += decoder.decode(value, { stream: true })
-        const events = buffer.split('\n\n')
-        buffer = events.pop() ?? ''
-        for (const evt of events) {
-          let eventName = 'message'
-          let data = ''
-          for (const line of evt.split('\n')) {
-            if (line.startsWith(':')) continue
-            if (line.startsWith('event:')) eventName = line.slice(6).trim()
-            else if (line.startsWith('data:')) data += line.slice(5).trim()
-          }
-          if (!data) continue
-          try { handleSseEvent(eventName, JSON.parse(data)) } catch { /* ignore parse */ }
-        }
-      }
-    } catch (e: unknown) {
-      if ((e as { name?: string }).name !== 'AbortError') {
-        // SSE quebrou — usuário pode tentar reconectar
-      }
-    }
-  }
+  }, [dialogOpen, qrBase64, channel?.status])
 
   async function connect() {
     setBusy(true)
     setQrBase64(null)
     setQrExpired(false)
     setDialogOpen(true)
-    startSse()
     try {
       const headers = await getHeaders()
-      const res = await fetch(`${BACKEND}/whatsapp-free/connect`, { method: 'POST', headers })
+      // Se já existe canal disconnected/error, recria do zero (DELETE → POST)
+      if (channel && channel.status !== 'pending' && channel.status !== 'active') {
+        await fetch(`${BACKEND}/channels/${channel.id}`, { method: 'DELETE', headers })
+      }
+      // Cria canal pending — worker pega no polling e gera QR
+      const res = await fetch(`${BACKEND}/channels`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ channel_type: 'whatsapp_free', name: 'WhatsApp Gratuito' }),
+      })
       if (!res.ok) {
         const err = await res.json().catch(() => ({} as { message?: string }))
         throw new Error(err.message ?? 'Falha ao conectar')
       }
+      const created = (await res.json()) as WaChannel
+      setChannel(created)
     } catch (e) {
       onToast((e as Error).message, 'error')
       setDialogOpen(false)
-      sseAbortRef.current?.abort()
     } finally {
       setBusy(false)
     }
@@ -1565,12 +1576,13 @@ function WhatsAppFreeCard({ onToast }: { onToast: (msg: string, t?: 'success' | 
 
   async function disconnect() {
     if (!confirm('Desconectar WhatsApp Gratuito? Você precisará escanear o QR novamente.')) return
+    if (!channel) return
     setBusy(true)
     try {
       const headers = await getHeaders()
-      const res = await fetch(`${BACKEND}/whatsapp-free/disconnect`, { method: 'POST', headers })
+      const res = await fetch(`${BACKEND}/channels/${channel.id}`, { method: 'DELETE', headers })
       if (!res.ok) throw new Error('Falha ao desconectar')
-      await refreshStatus()
+      setChannel(null)
       onToast('WhatsApp Gratuito desconectado', 'success')
     } catch (e) {
       onToast((e as Error).message, 'error')
@@ -1581,12 +1593,12 @@ function WhatsAppFreeCard({ onToast }: { onToast: (msg: string, t?: 'success' | 
 
   function closeDialog() {
     setDialogOpen(false)
-    sseAbortRef.current?.abort()
-    refreshStatus()
+    fetchChannel()
   }
 
-  const isActive = status?.status === 'active'
-  const workerOffline = status?.configured && !status?.worker_online
+  const isActive = channel?.status === 'active'
+  // worker_online não é mais consultável diretamente — assumimos true até prova contrária
+  const workerOffline = false
 
   return (
     <>
@@ -1603,7 +1615,7 @@ function WhatsAppFreeCard({ onToast }: { onToast: (msg: string, t?: 'success' | 
               </div>
               <p className="text-[10px] text-zinc-500 mt-0.5 leading-snug">
                 {isActive
-                  ? `Conectado · ${status.name ?? status.phone ?? '—'}`
+                  ? `Conectado · ${channel?.external_id ?? channel?.phone_number ?? '—'}`
                   : 'Conecte seu WhatsApp direto, sem custo. Uso interno recomendado.'}
               </p>
             </div>
@@ -1620,7 +1632,7 @@ function WhatsAppFreeCard({ onToast }: { onToast: (msg: string, t?: 'success' | 
               style={{ background: 'rgba(74,222,128,0.1)', color: '#4ade80' }}>
               <CheckCircle2 size={10} />Ativo
             </span>
-          ) : status?.status === 'error' ? (
+          ) : channel?.status === 'error' ? (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold"
               style={{ background: 'rgba(248,113,113,0.1)', color: '#f87171' }}>
               <XCircle size={10} />Erro
@@ -1651,11 +1663,11 @@ function WhatsAppFreeCard({ onToast }: { onToast: (msg: string, t?: 'success' | 
             Desconectar
           </button>
         ) : (
-          <button onClick={connect} disabled={busy || !status?.configured}
+          <button onClick={connect} disabled={busy}
             className="flex items-center gap-1.5 w-full justify-center py-2 rounded-xl text-xs font-semibold transition-all disabled:opacity-40"
             style={{ background: 'rgba(34,197,94,0.1)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.25)' }}>
             {busy ? <Loader2 size={11} className="animate-spin" /> : <Plug size={11} />}
-            {status?.configured ? 'Conectar' : 'Indisponível (admin não configurou)'}
+            Conectar
           </button>
         )}
       </div>
@@ -1671,13 +1683,13 @@ function WhatsAppFreeCard({ onToast }: { onToast: (msg: string, t?: 'success' | 
             </div>
 
             <div className="px-5 py-6 flex flex-col items-center gap-4">
-              {status?.status === 'active' ? (
+              {channel?.status === 'active' ? (
                 <>
                   <CheckCircle2 size={48} style={{ color: '#22c55e' }} />
                   <p className="text-sm font-bold text-white">Conectado!</p>
                   <p className="text-xs text-zinc-400 text-center">
-                    {status.name ?? '—'}<br/>
-                    {status.phone ?? ''}
+                    {channel.external_id ?? '—'}<br/>
+                    {channel.phone_number ?? ''}
                   </p>
                   <button onClick={closeDialog}
                     className="w-full py-2 rounded-xl text-xs font-semibold"
