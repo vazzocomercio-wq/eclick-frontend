@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useSugestaoResposta } from '@/lib/ai/hooks'
-import { isAIEnabled, getAIPreference } from '@/lib/ai/config'
+import { getAIPreference } from '@/lib/ai/config'
 import { AISelector, AIBadge } from '@/components/ai/AISelector'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
@@ -241,7 +241,7 @@ export default function PerguntasPage() {
   const [toasts, setToasts]               = useState<{ id: number; msg: string; type: 'ok' | 'err' }[]>([])
   const prevIds = useRef<Set<number>>(new Set())
   const { sugestao: aiSuggestion, loading: aiLoading, gerar: gerarSugestao, limpar: limparSugestao } = useSugestaoResposta()
-  const aiAvailable = isAIEnabled('sugestao_resposta')
+  const aiAvailable = true  // gate real está no backend (ai_feature_settings per-org)
   const [aiProvider, setAiProvider] = useState(() => getAIPreference().provider)
   const [aiModel,    setAiModel]    = useState(() => getAIPreference().model)
   const [transformLoading, setTransformLoading]   = useState<TransformAction | null>(null)
