@@ -138,17 +138,12 @@ function AIAssistantPanel({ selected, aiSuggestion, aiLoading, aiAvailable, onSu
   onTransform: (action: TransformAction) => void
   transformLoading: TransformAction | null
 }) {
-  const chipsEnabled = aiAvailable && currentDraft.trim().length > 0 && !transformLoading
+  const chipsEnabled = aiAvailable && !!selected && !transformLoading
   return (
     <div className="bg-[#111114] border border-[#1a1a1f] rounded-xl p-4 flex-shrink-0">
       <div className="flex items-center gap-2 mb-3">
-        <SparklesIcon size={14} className={aiAvailable ? 'text-[#00E5FF]' : 'text-gray-600 opacity-50'} />
+        <SparklesIcon size={14} className="text-[#00E5FF]" />
         <span className="text-sm font-semibold text-white">Assistente IA</span>
-        {!aiAvailable && (
-          <span className="text-[10px] text-gray-500 border border-gray-700 px-2 py-0.5 rounded-full ml-auto">
-            Em breve
-          </span>
-        )}
         {aiAvailable && onProviderSelect && (
           <div className="ml-auto">
             <AISelector compact onSelect={onProviderSelect} />
@@ -183,7 +178,7 @@ function AIAssistantPanel({ selected, aiSuggestion, aiLoading, aiAvailable, onSu
       )}
 
       {/* Action chips */}
-      <div className={`grid grid-cols-2 gap-2 mb-3 ${!aiAvailable ? 'opacity-40' : ''}`}>
+      <div className="grid grid-cols-2 gap-2 mb-3">
         {(Object.keys(TRANSFORM_LABELS) as TransformAction[]).map(action => {
           const busy = transformLoading === action
           const disabled = !chipsEnabled
@@ -642,7 +637,10 @@ export default function PerguntasPage() {
               className="w-full bg-[#09090b] border border-[#1a1a1f] rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-[#00E5FF44]"
             />
           </div>
-          <div className="flex-1 overflow-y-auto scrollbar-thin">
+          <div
+            className="flex-1 overflow-y-auto"
+            style={{ scrollbarWidth: 'thin', scrollbarColor: '#3f3f46 #09090b' }}
+          >
             {loading ? (
               <div className="p-6 text-center text-xs text-gray-600">Carregando...</div>
             ) : filtered.length === 0 ? (
@@ -720,17 +718,16 @@ export default function PerguntasPage() {
 
               {/* Answer area */}
               <div className="flex-1 flex flex-col p-4 min-h-0">
-                {/* Auto-response toggle (Em breve) */}
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-xs text-gray-500 font-medium">Sua resposta</span>
-                  <div className="ml-auto flex items-center gap-1.5">
-                    <span className="text-[11px] text-gray-600">Resposta automática</span>
+                <div className="flex items-center gap-3 mb-2 flex-wrap">
+                  <span className="text-xs text-gray-500 font-medium whitespace-nowrap">Sua resposta</span>
+                  <div className="ml-auto flex items-center gap-2 whitespace-nowrap">
+                    <span className="text-[11px] text-gray-500">Resposta automática</span>
                     <button
                       type="button"
                       onClick={toggleAutoAnswer}
                       disabled={autoAnswerLoading}
                       title={autoAnswerEnabled ? 'Desativar auto-resposta' : 'Ativar auto-resposta (envia automaticamente sugestões com confiança ≥ 70%)'}
-                      className={`relative w-9 h-5 rounded-full transition-colors ${
+                      className={`relative w-9 h-5 rounded-full transition-colors flex-shrink-0 ${
                         autoAnswerEnabled ? 'bg-[#00E5FF]' : 'bg-[#1a1a1f]'
                       } ${autoAnswerLoading ? 'opacity-50 cursor-wait' : 'cursor-pointer'}`}
                     >
@@ -740,7 +737,7 @@ export default function PerguntasPage() {
                         }`}
                       />
                     </button>
-                    <span className={`text-[10px] ${autoAnswerEnabled ? 'text-[#00E5FF]' : 'text-gray-700'}`}>
+                    <span className={`text-[10px] font-medium ${autoAnswerEnabled ? 'text-[#00E5FF]' : 'text-gray-600'}`}>
                       {autoAnswerEnabled ? 'Ativa' : 'Inativa'}
                     </span>
                   </div>
