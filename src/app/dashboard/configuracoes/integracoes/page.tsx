@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import {
   CheckCircle2, XCircle, Clock, RefreshCw, Plug, Zap,
@@ -682,6 +682,7 @@ export default function IntegracoesPage() {
       {/* ── Mensageiros ──────────────────────────────────────────────────── */}
       <Section id="mensageiros" title="Mensageiros" subtitle="Atendimento omnichannel em apps de mensagem." icon={<MessageCircle size={13} />}>
         <WhatsAppIntegCard onToast={showToast} />
+        <WhatsAppFreeCard onToast={showToast} />
         {([
           { name: 'Instagram', abbr: 'IG', bg: 'rgba(228,64,95,0.15)',  fg: '#E4405F', desc: 'DMs e comentários via Instagram Graph API.' },
           { name: 'TikTok',    abbr: 'TT', bg: 'rgba(255,0,80,0.15)',   fg: '#ff0050', desc: 'Mensagens via TikTok Business API.' },
@@ -1427,5 +1428,291 @@ function EmailSetupModal({ existing, onClose, onSaved }: {
         </div>
       </div>
     </div>
+  )
+}
+
+// ── WhatsApp Gratuito (Baileys) — Sprint F5-3 / Batch 1 ──────────────────
+
+interface WfStatus {
+  status: 'disconnected' | 'connecting' | 'qr_pending' | 'active' | 'error'
+  phone: string | null
+  name: string | null
+  last_connected_at: string | null
+  worker_online: boolean
+  configured: boolean
+}
+
+function WhatsAppFreeCard({ onToast }: { onToast: (msg: string, t?: 'success' | 'error') => void }) {
+  const supabase = useMemo(() => createClient(), [])
+  const [status, setStatus] = useState<WfStatus | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [qrBase64, setQrBase64] = useState<string | null>(null)
+  const [qrExpired, setQrExpired] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const sseAbortRef = useRef<AbortController | null>(null)
+
+  const getHeaders = useCallback(async (): Promise<Record<string, string>> => {
+    const { data: { session } } = await supabase.auth.getSession()
+    return {
+      'Content-Type': 'application/json',
+      ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+    }
+  }, [supabase])
+
+  const refreshStatus = useCallback(async () => {
+    try {
+      const headers = await getHeaders()
+      const res = await fetch(`${BACKEND}/whatsapp-free/status`, { headers })
+      if (res.ok) setStatus(await res.json())
+    } finally {
+      setLoading(false)
+    }
+  }, [getHeaders])
+
+  useEffect(() => { refreshStatus() }, [refreshStatus])
+  useEffect(() => () => { sseAbortRef.current?.abort() }, [])
+
+  // QR timeout 90s
+  useEffect(() => {
+    if (!dialogOpen || !qrBase64 || status?.status === 'active') return
+    const t = setTimeout(() => setQrExpired(true), 90_000)
+    return () => clearTimeout(t)
+  }, [dialogOpen, qrBase64, status?.status])
+
+  function handleSseEvent(event: string, payload: Record<string, unknown>) {
+    if (event === 'qr') {
+      setQrBase64(payload.qrBase64 as string)
+      setQrExpired(false)
+    } else if (event === 'status') {
+      const s = payload.status as WfStatus['status']
+      setStatus(prev => ({
+        status: s,
+        phone: (payload.phone as string | null) ?? prev?.phone ?? null,
+        name: (payload.name as string | null) ?? prev?.name ?? null,
+        last_connected_at: prev?.last_connected_at ?? null,
+        worker_online: prev?.worker_online ?? true,
+        configured: prev?.configured ?? true,
+      }))
+      if (s === 'active') {
+        onToast(`WhatsApp Gratuito conectado: ${payload.name ?? payload.phone ?? ''}`, 'success')
+        setTimeout(() => setDialogOpen(false), 1500)
+      } else if (s === 'error') {
+        onToast(`Erro: ${(payload.error as string) ?? 'desconhecido'}`, 'error')
+      }
+    }
+  }
+
+  async function startSse() {
+    sseAbortRef.current?.abort()
+    const ac = new AbortController()
+    sseAbortRef.current = ac
+    try {
+      const headers = await getHeaders()
+      const res = await fetch(`${BACKEND}/whatsapp-free/events`, { headers, signal: ac.signal })
+      if (!res.ok || !res.body) throw new Error('SSE failed')
+
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const events = buffer.split('\n\n')
+        buffer = events.pop() ?? ''
+        for (const evt of events) {
+          let eventName = 'message'
+          let data = ''
+          for (const line of evt.split('\n')) {
+            if (line.startsWith(':')) continue
+            if (line.startsWith('event:')) eventName = line.slice(6).trim()
+            else if (line.startsWith('data:')) data += line.slice(5).trim()
+          }
+          if (!data) continue
+          try { handleSseEvent(eventName, JSON.parse(data)) } catch { /* ignore parse */ }
+        }
+      }
+    } catch (e: unknown) {
+      if ((e as { name?: string }).name !== 'AbortError') {
+        // SSE quebrou — usuário pode tentar reconectar
+      }
+    }
+  }
+
+  async function connect() {
+    setBusy(true)
+    setQrBase64(null)
+    setQrExpired(false)
+    setDialogOpen(true)
+    startSse()
+    try {
+      const headers = await getHeaders()
+      const res = await fetch(`${BACKEND}/whatsapp-free/connect`, { method: 'POST', headers })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({} as { message?: string }))
+        throw new Error(err.message ?? 'Falha ao conectar')
+      }
+    } catch (e) {
+      onToast((e as Error).message, 'error')
+      setDialogOpen(false)
+      sseAbortRef.current?.abort()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function disconnect() {
+    if (!confirm('Desconectar WhatsApp Gratuito? Você precisará escanear o QR novamente.')) return
+    setBusy(true)
+    try {
+      const headers = await getHeaders()
+      const res = await fetch(`${BACKEND}/whatsapp-free/disconnect`, { method: 'POST', headers })
+      if (!res.ok) throw new Error('Falha ao desconectar')
+      await refreshStatus()
+      onToast('WhatsApp Gratuito desconectado', 'success')
+    } catch (e) {
+      onToast((e as Error).message, 'error')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  function closeDialog() {
+    setDialogOpen(false)
+    sseAbortRef.current?.abort()
+    refreshStatus()
+  }
+
+  const isActive = status?.status === 'active'
+  const workerOffline = status?.configured && !status?.worker_online
+
+  return (
+    <>
+      <div className="rounded-2xl p-4 space-y-3" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl shrink-0 flex items-center justify-center text-xs font-black"
+              style={{ background: 'rgba(34,197,94,0.15)', color: '#22c55e' }}>WG</div>
+            <div>
+              <div className="flex items-center gap-2">
+                <p className="text-xs font-semibold text-zinc-200">WhatsApp Gratuito</p>
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded"
+                  style={{ background: 'rgba(34,197,94,0.15)', color: '#22c55e' }}>GRÁTIS</span>
+              </div>
+              <p className="text-[10px] text-zinc-500 mt-0.5 leading-snug">
+                {isActive
+                  ? `Conectado · ${status.name ?? status.phone ?? '—'}`
+                  : 'Conecte seu WhatsApp direto, sem custo. Uso interno recomendado.'}
+              </p>
+            </div>
+          </div>
+          {loading ? (
+            <Loader2 size={12} className="animate-spin text-zinc-600 mt-2" />
+          ) : workerOffline ? (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold"
+              style={{ background: 'rgba(113,113,122,0.15)', color: '#a1a1aa' }}>
+              <AlertCircle size={10} />Serviço offline
+            </span>
+          ) : isActive ? (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold"
+              style={{ background: 'rgba(74,222,128,0.1)', color: '#4ade80' }}>
+              <CheckCircle2 size={10} />Ativo
+            </span>
+          ) : status?.status === 'error' ? (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold"
+              style={{ background: 'rgba(248,113,113,0.1)', color: '#f87171' }}>
+              <XCircle size={10} />Erro
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold"
+              style={{ background: 'rgba(251,146,60,0.1)', color: '#fb923c' }}>
+              <Plug size={10} />Não conectado
+            </span>
+          )}
+        </div>
+
+        {!isActive && !workerOffline && (
+          <p className="text-[10px] text-zinc-600 leading-snug">
+            ⚠️ Uso intenso pode levar a restrição pelo WhatsApp. Recomendamos para volume baixo/atendimento manual.
+          </p>
+        )}
+
+        {workerOffline ? (
+          <div className="text-[11px] text-zinc-500 px-3 py-2 rounded-lg" style={{ background: '#0d0d10', border: '1px solid #27272a' }}>
+            Serviço temporariamente indisponível.
+          </div>
+        ) : isActive ? (
+          <button onClick={disconnect} disabled={busy}
+            className="inline-flex items-center justify-center gap-1.5 w-full py-2 rounded-xl text-xs font-semibold disabled:opacity-40"
+            style={{ background: 'rgba(248,113,113,0.1)', color: '#f87171', border: '1px solid rgba(248,113,113,0.25)' }}>
+            {busy ? <Loader2 size={11} className="animate-spin" /> : null}
+            Desconectar
+          </button>
+        ) : (
+          <button onClick={connect} disabled={busy || !status?.configured}
+            className="flex items-center gap-1.5 w-full justify-center py-2 rounded-xl text-xs font-semibold transition-all disabled:opacity-40"
+            style={{ background: 'rgba(34,197,94,0.1)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.25)' }}>
+            {busy ? <Loader2 size={11} className="animate-spin" /> : <Plug size={11} />}
+            {status?.configured ? 'Conectar' : 'Indisponível (admin não configurou)'}
+          </button>
+        )}
+      </div>
+
+      {/* Dialog QR */}
+      {dialogOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }}>
+          <div className="relative w-full max-w-sm rounded-2xl overflow-hidden"
+            style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+            <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: '1px solid #1e1e24' }}>
+              <p className="text-sm font-semibold text-zinc-200">Conectar WhatsApp Gratuito</p>
+              <button onClick={closeDialog} className="text-zinc-500 hover:text-white"><X size={16} /></button>
+            </div>
+
+            <div className="px-5 py-6 flex flex-col items-center gap-4">
+              {status?.status === 'active' ? (
+                <>
+                  <CheckCircle2 size={48} style={{ color: '#22c55e' }} />
+                  <p className="text-sm font-bold text-white">Conectado!</p>
+                  <p className="text-xs text-zinc-400 text-center">
+                    {status.name ?? '—'}<br/>
+                    {status.phone ?? ''}
+                  </p>
+                  <button onClick={closeDialog}
+                    className="w-full py-2 rounded-xl text-xs font-semibold"
+                    style={{ background: '#22c55e', color: '#000' }}>Fechar</button>
+                </>
+              ) : qrExpired ? (
+                <>
+                  <AlertCircle size={36} style={{ color: '#fb923c' }} />
+                  <p className="text-sm text-zinc-300 text-center">QR expirado.</p>
+                  <button onClick={connect} disabled={busy}
+                    className="w-full py-2 rounded-xl text-xs font-semibold disabled:opacity-40"
+                    style={{ background: 'rgba(34,197,94,0.15)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.3)' }}>
+                    Gerar novo QR
+                  </button>
+                </>
+              ) : qrBase64 ? (
+                <>
+                  <div className="rounded-xl p-2" style={{ background: '#fff' }}>
+                    <img src={qrBase64} alt="QR Code" width={250} height={250} />
+                  </div>
+                  <div className="text-[11px] text-zinc-400 text-center leading-relaxed">
+                    Abra o WhatsApp no celular →<br/>
+                    <strong className="text-zinc-200">⋮ → Aparelhos conectados → Conectar aparelho</strong>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <Loader2 size={36} className="animate-spin text-zinc-500" />
+                  <p className="text-xs text-zinc-400">Gerando QR code...</p>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
