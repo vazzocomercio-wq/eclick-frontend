@@ -36,6 +36,24 @@ interface Connection {
   nickname: string | null
 }
 
+type TransformAction = 'shorten' | 'humanize' | 'add_warranty' | 'ready_response'
+
+interface AiStats {
+  total_sent: number
+  used_as_is: number
+  edited: number
+  rejected: number
+  approval_rate: number | null
+  auto_sent_24h: number
+}
+
+const TRANSFORM_LABELS: Record<TransformAction, string> = {
+  shorten:        'Encurtar',
+  humanize:       'Humanizar',
+  add_warranty:   'Add garantia',
+  ready_response: 'Resp. pronta',
+}
+
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 function timeAgo(iso: string): string {
@@ -108,7 +126,7 @@ function KpiCard({
 
 // ── AI Assistant Panel ─────────────────────────────────────────────────────
 
-function AIAssistantPanel({ selected, aiSuggestion, aiLoading, aiAvailable, onSuggest, onUse, onProviderSelect }: {
+function AIAssistantPanel({ selected, aiSuggestion, aiLoading, aiAvailable, onSuggest, onUse, onProviderSelect, currentDraft, onTransform, transformLoading }: {
   selected: Question | null
   aiSuggestion: string | null
   aiLoading: boolean
@@ -116,7 +134,11 @@ function AIAssistantPanel({ selected, aiSuggestion, aiLoading, aiAvailable, onSu
   onSuggest: () => void
   onUse: (text: string) => void
   onProviderSelect?: (provider: string, model: string) => void
+  currentDraft: string
+  onTransform: (action: TransformAction) => void
+  transformLoading: TransformAction | null
 }) {
+  const chipsEnabled = aiAvailable && currentDraft.trim().length > 0 && !transformLoading
   return (
     <div className="bg-[#111114] border border-[#1a1a1f] rounded-xl p-4 flex-shrink-0">
       <div className="flex items-center gap-2 mb-3">
@@ -162,12 +184,30 @@ function AIAssistantPanel({ selected, aiSuggestion, aiLoading, aiAvailable, onSu
 
       {/* Action chips */}
       <div className={`grid grid-cols-2 gap-2 mb-3 ${!aiAvailable ? 'opacity-40' : ''}`}>
-        {['Encurtar', 'Humanizar', 'Add garantia', 'Resp. pronta'].map(a => (
-          <button key={a} disabled={!aiAvailable || !aiSuggestion}
-            className="text-xs p-2 rounded-lg border border-[#1a1a1f] text-gray-500 cursor-not-allowed hover:border-[#00E5FF33] hover:text-gray-300 transition-colors disabled:cursor-not-allowed">
-            {a}
-          </button>
-        ))}
+        {(Object.keys(TRANSFORM_LABELS) as TransformAction[]).map(action => {
+          const busy = transformLoading === action
+          const disabled = !chipsEnabled
+          return (
+            <button
+              key={action}
+              onClick={() => onTransform(action)}
+              disabled={disabled}
+              className={`text-xs p-2 rounded-lg border border-[#1a1a1f] transition-colors flex items-center justify-center gap-1.5 ${
+                disabled
+                  ? 'text-gray-600 cursor-not-allowed'
+                  : 'text-gray-300 hover:border-[#00E5FF33] hover:text-[#00E5FF]'
+              }`}
+            >
+              {busy && (
+                <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                </svg>
+              )}
+              {TRANSFORM_LABELS[action]}
+            </button>
+          )
+        })}
       </div>
 
       <button
@@ -209,6 +249,10 @@ export default function PerguntasPage() {
   const aiAvailable = isAIEnabled('sugestao_resposta')
   const [aiProvider, setAiProvider] = useState(() => getAIPreference().provider)
   const [aiModel,    setAiModel]    = useState(() => getAIPreference().model)
+  const [transformLoading, setTransformLoading]   = useState<TransformAction | null>(null)
+  const [autoAnswerEnabled, setAutoAnswerEnabled] = useState(false)
+  const [autoAnswerLoading, setAutoAnswerLoading] = useState(false)
+  const [aiStats, setAiStats]                     = useState<AiStats | null>(null)
 
   const addToast = useCallback((msg: string, type: 'ok' | 'err' = 'ok') => {
     const id = Date.now()
@@ -278,12 +322,99 @@ export default function PerguntasPage() {
     }
   }, [addToast, getSession])
 
+  const fetchAutoAnswer = useCallback(async () => {
+    try {
+      const session = await getSession()
+      if (!session) return
+      const res = await fetch(`${BACKEND}/ml/settings/auto-answer`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setAutoAnswerEnabled(data.enabled === true)
+      }
+    } catch { /* silent */ }
+  }, [getSession])
+
+  const fetchAiStats = useCallback(async () => {
+    try {
+      const session = await getSession()
+      if (!session) return
+      const res = await fetch(`${BACKEND}/ml/questions/ai-stats`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      })
+      if (res.ok) setAiStats(await res.json() as AiStats)
+    } catch { /* silent */ }
+  }, [getSession])
+
+  const toggleAutoAnswer = useCallback(async () => {
+    if (autoAnswerLoading) return
+    const next = !autoAnswerEnabled
+    setAutoAnswerLoading(true)
+    try {
+      const session = await getSession()
+      const res = await fetch(`${BACKEND}/ml/settings/auto-answer`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${session!.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ enabled: next }),
+      })
+      if (res.ok) {
+        setAutoAnswerEnabled(next)
+        addToast(next ? 'Resposta automática ativada' : 'Resposta automática desativada')
+      } else {
+        addToast('Falha ao atualizar', 'err')
+      }
+    } catch {
+      addToast('Falha ao atualizar', 'err')
+    } finally {
+      setAutoAnswerLoading(false)
+    }
+  }, [autoAnswerEnabled, autoAnswerLoading, getSession, addToast])
+
+  const handleTransform = useCallback(async (action: TransformAction) => {
+    if (!answerText.trim()) {
+      addToast('Digite ou gere uma resposta primeiro', 'err')
+      return
+    }
+    if (transformLoading) return
+    setTransformLoading(action)
+    try {
+      const session = await getSession()
+      const res = await fetch(`${BACKEND}/ml/questions/transform-text`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${session!.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ text: answerText, action }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        if (data.transformed) {
+          setAnswerText(data.transformed)
+          addToast('Texto transformado ✓')
+        }
+      } else {
+        addToast('Falha ao transformar', 'err')
+      }
+    } catch {
+      addToast('Falha ao transformar', 'err')
+    } finally {
+      setTransformLoading(null)
+    }
+  }, [answerText, transformLoading, getSession, addToast])
+
   useEffect(() => {
     fetchConnections()
     fetchQuestions()
+    fetchAutoAnswer()
+    fetchAiStats()
     const id = setInterval(() => fetchQuestions(true), 2 * 60 * 1000)
     return () => clearInterval(id)
-  }, [fetchQuestions, fetchConnections])
+  }, [fetchQuestions, fetchConnections, fetchAutoAnswer, fetchAiStats])
 
   useEffect(() => {
     if (selected) {
@@ -311,16 +442,28 @@ export default function PerguntasPage() {
     setAnswerError('')
     try {
       const session = await getSession()
-      const res = await fetch(`${BACKEND}/ml/questions/${selected.id}/answer`, {
+      // Quando há sugestão IA carregada, usa endpoint que rastreia métricas.
+      // Senão, envia direto via /answer (sem registrar em ml_question_suggestions).
+      const useApprove = !!aiSuggestion
+      const url = useApprove
+        ? `${BACKEND}/ml/questions/${selected.id}/approve-and-send`
+        : `${BACKEND}/ml/questions/${selected.id}/answer`
+      const body = useApprove
+        ? {
+            finalAnswer: answerText.trim(),
+            wasEdited:   answerText.trim() !== (aiSuggestion ?? '').trim(),
+          }
+        : { text: answerText.trim() }
+      const res = await fetch(url, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${session!.access_token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ text: answerText.trim() }),
+        body: JSON.stringify(body),
       })
       if (!res.ok) {
-        const errData = await res.json()
+        const errData = await res.json().catch(() => ({}))
         setAnswerError(errData.message ?? 'Erro ao enviar resposta')
         return
       }
@@ -337,6 +480,7 @@ export default function PerguntasPage() {
       )
       setSelected(next ?? null)
       fetchQuestions(true)
+      fetchAiStats()
     } catch {
       setAnswerError('Erro ao enviar. Tente novamente.')
     } finally {
@@ -473,15 +617,15 @@ export default function PerguntasPage() {
         />
         <KpiCard
           label="Resp. automáticas"
-          value={0}
+          value={aiStats?.auto_sent_24h ?? 0}
           color="#a78bfa"
-          sub="em breve"
+          sub="últimas 24h"
         />
         <KpiCard
           label="Aprovação IA"
-          value="--"
+          value={aiStats?.approval_rate != null ? `${aiStats.approval_rate}%` : '--'}
           color="#00E5FF"
-          soon
+          sub={aiStats ? `${aiStats.used_as_is} usadas sem editar` : '30 dias'}
         />
       </div>
 
@@ -581,11 +725,24 @@ export default function PerguntasPage() {
                   <span className="text-xs text-gray-500 font-medium">Sua resposta</span>
                   <div className="ml-auto flex items-center gap-1.5">
                     <span className="text-[11px] text-gray-600">Resposta automática</span>
-                    <div className="relative w-9 h-5 rounded-full bg-[#1a1a1f] cursor-not-allowed opacity-50"
-                      title="Em breve">
-                      <span className="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-gray-600" />
-                    </div>
-                    <span className="text-[10px] text-gray-700">Em breve</span>
+                    <button
+                      type="button"
+                      onClick={toggleAutoAnswer}
+                      disabled={autoAnswerLoading}
+                      title={autoAnswerEnabled ? 'Desativar auto-resposta' : 'Ativar auto-resposta (envia automaticamente sugestões com confiança ≥ 70%)'}
+                      className={`relative w-9 h-5 rounded-full transition-colors ${
+                        autoAnswerEnabled ? 'bg-[#00E5FF]' : 'bg-[#1a1a1f]'
+                      } ${autoAnswerLoading ? 'opacity-50 cursor-wait' : 'cursor-pointer'}`}
+                    >
+                      <span
+                        className={`absolute top-0.5 w-4 h-4 rounded-full transition-transform ${
+                          autoAnswerEnabled ? 'translate-x-[18px] bg-black' : 'translate-x-0.5 bg-gray-500'
+                        }`}
+                      />
+                    </button>
+                    <span className={`text-[10px] ${autoAnswerEnabled ? 'text-[#00E5FF]' : 'text-gray-700'}`}>
+                      {autoAnswerEnabled ? 'Ativa' : 'Inativa'}
+                    </span>
                   </div>
                 </div>
 
@@ -688,6 +845,9 @@ export default function PerguntasPage() {
             onSuggest={handleAiSuggest}
             onUse={(text) => setAnswerText(text)}
             onProviderSelect={(p, m) => { setAiProvider(p); setAiModel(m) }}
+            currentDraft={answerText}
+            onTransform={handleTransform}
+            transformLoading={transformLoading}
           />
 
           {/* Product card */}
