@@ -39,9 +39,9 @@ export const setAIPreference = (provider: string, model: string) => {
 
 export const AI_CONFIG = {
   // Master switch — all features respect this
-  enabled: false,
+  enabled: true,
   features: {
-    sugestao_resposta:    false, // Atendimento: sugerir resposta para perguntas
+    sugestao_resposta:    true,  // Atendimento: sugerir resposta para perguntas
     precificacao:         false, // Anúncios: sugerir preço ideal
     titulo_anuncio:       false, // Catálogo: otimizar título do anúncio
     descricao_produto:    false, // Catálogo: gerar descrição do produto
