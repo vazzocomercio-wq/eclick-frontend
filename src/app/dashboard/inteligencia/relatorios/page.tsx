@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
+import { getSocket } from '@/lib/socket'
 import OnboardingBanner from '@/components/inteligencia/OnboardingBanner'
 import {
   RefreshCw, TrendingUp, MessageSquare, Clock, CheckCircle2,
@@ -204,6 +205,43 @@ export default function RelatoriosPage() {
   }, [days])
 
   useEffect(() => { load() }, [load])
+
+  // Socket.IO — recarrega stats com debounce quando eventos do hub chegam.
+  // Debounce 3s evita que vários eventos em sequência (ex: digest enviou 10
+  // mensagens) gere 10 fetches.
+  useEffect(() => {
+    let cancelled = false
+    let timer: ReturnType<typeof setTimeout> | null = null
+    let socket: Awaited<ReturnType<typeof getSocket>> | null = null
+
+    void (async () => {
+      try {
+        socket = await getSocket()
+        if (cancelled || !socket) return
+
+        const debouncedReload = () => {
+          if (timer) clearTimeout(timer)
+          timer = setTimeout(() => { if (!cancelled) void load() }, 3000)
+        }
+
+        socket.on('alert:responded',  debouncedReload)
+        socket.on('alert:sent',       debouncedReload)
+        socket.on('alert:dispatched', debouncedReload)
+      } catch {
+        // Sem realtime, polling/refresh manual continua funcionando
+      }
+    })()
+
+    return () => {
+      cancelled = true
+      if (timer) clearTimeout(timer)
+      if (socket) {
+        socket.off('alert:responded')
+        socket.off('alert:sent')
+        socket.off('alert:dispatched')
+      }
+    }
+  }, [load])
 
   const sortedAnalyzers = stats
     ? Object.entries(stats.by_analyzer).sort((a, b) => b[1] - a[1])
