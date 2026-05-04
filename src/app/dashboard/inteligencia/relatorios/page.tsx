@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
+import OnboardingBanner from '@/components/inteligencia/OnboardingBanner'
 import {
   RefreshCw, TrendingUp, MessageSquare, Clock, CheckCircle2,
   Activity, AlertCircle, AlertTriangle, Award,
@@ -250,6 +251,8 @@ export default function RelatoriosPage() {
           {error}
         </div>
       )}
+
+      <OnboardingBanner />
 
       {/* Org-level KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">

@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
+import OnboardingBanner from '@/components/inteligencia/OnboardingBanner'
 import {
   Power, Save, RefreshCw, AlertCircle, Moon, Bell, Brain,
-  Sparkles, Zap, Plus,
+  Sparkles, Zap, Plus, Trash2, X,
 } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
@@ -42,6 +43,15 @@ const ANALYZERS: { key: AnalyzerName; label: string; icon: string; color: string
   { key: 'preco',   label: 'Preço',    icon: '💰', color: '#f59e0b' },
   { key: 'margem',  label: 'Margem',   icon: '📊', color: '#4ade80' },
   { key: 'ads',     label: 'Ads',      icon: '📣', color: '#f472b6' },
+]
+
+const ANALYZER_OPTIONS: { value: AnalyzerName | '*'; label: string }[] = [
+  { value: '*',       label: 'Todos (*)' },
+  { value: 'estoque', label: 'Estoque' },
+  { value: 'compras', label: 'Compras' },
+  { value: 'preco',   label: 'Preço' },
+  { value: 'margem',  label: 'Margem' },
+  { value: 'ads',     label: 'Ads' },
 ]
 
 const DEPTS: { value: Department; label: string; color: string }[] = [
@@ -160,6 +170,7 @@ export default function ConfiguracoesPage() {
   const [saving, setSaving]       = useState(false)
   const [error, setError]         = useState<string | null>(null)
   const [savedAt, setSavedAt]     = useState<number | null>(null)
+  const [showRuleModal, setShowRuleModal] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -264,6 +275,35 @@ export default function ConfiguracoesPage() {
     }
   }
 
+  async function deleteRule(rule: RoutingRule) {
+    const dept = DEPTS.find(d => d.value === rule.department)
+    const ana = rule.analyzer === '*' ? 'todos' : rule.analyzer
+    if (!confirm(`Remover regra "${dept?.label} ← ${ana}"?`)) return
+    try {
+      await api(`/alert-hub/routing-rules/${rule.id}`, { method: 'DELETE' })
+      setRules(prev => prev.filter(r => r.id !== rule.id))
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Erro')
+    }
+  }
+
+  async function createRule(input: {
+    department: Department; analyzer: AnalyzerName | '*'
+    categories: string[]; min_score: number
+  }) {
+    try {
+      const created = await api<RoutingRule>('/alert-hub/routing-rules', {
+        method: 'POST',
+        body: JSON.stringify({ ...input, enabled: true }),
+      })
+      setRules(prev => [...prev, created])
+      return true
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Erro ao criar regra')
+      return false
+    }
+  }
+
   if (loading || !config) {
     return (
       <div className="p-4 sm:p-6 space-y-4 min-h-full" style={{ background: '#09090b' }}>
@@ -309,6 +349,8 @@ export default function ConfiguracoesPage() {
           {error}
         </div>
       )}
+
+      <OnboardingBanner />
 
       {/* Master toggle */}
       <div className="rounded-2xl p-5 flex items-center justify-between gap-4"
@@ -475,10 +517,17 @@ export default function ConfiguracoesPage() {
 
       {/* Routing rules */}
       <SectionCard title="Regras de roteamento" icon={Plus} color="#00E5FF">
-        <p className="text-[11px] text-zinc-500 mb-2">
-          Define qual departamento recebe qual tipo de alerta. Cada regra cobre
-          um par (departamento × analyzer). Score mínimo filtra severity.
-        </p>
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-[11px] text-zinc-500 flex-1 pr-3">
+            Define qual departamento recebe qual tipo de alerta. Cada regra cobre
+            um par (departamento × analyzer). Score mínimo filtra severity.
+          </p>
+          <button onClick={() => setShowRuleModal(true)}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all whitespace-nowrap"
+            style={{ background: 'rgba(0,229,255,0.12)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.3)' }}>
+            <Plus size={12} /> Nova regra
+          </button>
+        </div>
         {rules.length === 0 ? (
           <div className="rounded-xl p-6 text-center">
             <AlertCircle size={20} className="mx-auto mb-2" style={{ color: '#71717a' }} />
@@ -502,8 +551,8 @@ export default function ConfiguracoesPage() {
                   <span className="text-[11px] text-zinc-600">←</span>
                   <span className="text-xs text-zinc-300 capitalize flex-1">{analyzer}</span>
                   {rule.categories.length > 0 && (
-                    <span className="text-[9px] text-zinc-600 hidden sm:inline">
-                      {rule.categories.length} categoria{rule.categories.length !== 1 ? 's' : ''}
+                    <span className="text-[9px] text-zinc-600 hidden sm:inline" title={rule.categories.join(', ')}>
+                      {rule.categories.length} cat
                     </span>
                   )}
                   <span className="text-[10px] text-zinc-500">score ≥</span>
@@ -513,16 +562,18 @@ export default function ConfiguracoesPage() {
                   <Toggle checked={rule.enabled}
                     onChange={() => toggleRule(rule)}
                     label="" />
+                  <button onClick={() => deleteRule(rule)}
+                    className="p-1.5 rounded-lg transition-colors" title="Remover regra"
+                    style={{ color: '#71717a' }}
+                    onMouseEnter={e => (e.currentTarget.style.color = '#f87171')}
+                    onMouseLeave={e => (e.currentTarget.style.color = '#71717a')}>
+                    <Trash2 size={12} />
+                  </button>
                 </div>
               )
             })}
           </div>
         )}
-        <p className="text-[10px] text-zinc-700 leading-relaxed pt-2">
-          Edição avançada de regras (categorias específicas, criar custom)
-          <span style={{ opacity: 0.5 }}> em breve</span>. Por agora dá pra ajustar score
-          mínimo e ligar/desligar regras.
-        </p>
       </SectionCard>
 
       <p className="text-[10px] text-zinc-700 leading-relaxed pt-2">
@@ -531,6 +582,160 @@ export default function ConfiguracoesPage() {
         respeitados em runtime; quiet_hours/anti-spam afetam todas as próximas
         entregas.
       </p>
+
+      {showRuleModal && (
+        <RuleFormModal
+          onClose={() => setShowRuleModal(false)}
+          onCreate={async input => {
+            const ok = await createRule(input)
+            if (ok) setShowRuleModal(false)
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+// ── Rule Form Modal ───────────────────────────────────────────────────────────
+
+function RuleFormModal({
+  onClose, onCreate,
+}: {
+  onClose: () => void
+  onCreate: (input: { department: Department; analyzer: AnalyzerName | '*'; categories: string[]; min_score: number }) => Promise<void>
+}) {
+  const [department, setDepartment] = useState<Department>('compras')
+  const [analyzer, setAnalyzer]     = useState<AnalyzerName | '*'>('estoque')
+  const [minScore, setMinScore]     = useState(30)
+  const [catInput, setCatInput]     = useState('')
+  const [categories, setCategories] = useState<string[]>([])
+  const [busy, setBusy]             = useState(false)
+
+  function addCategory() {
+    const c = catInput.trim().toLowerCase().replace(/\s+/g, '_')
+    if (!c) return
+    if (categories.includes(c)) return
+    setCategories([...categories, c])
+    setCatInput('')
+  }
+
+  function removeCategory(c: string) {
+    setCategories(categories.filter(x => x !== c))
+  }
+
+  async function submit() {
+    setBusy(true)
+    await onCreate({ department, analyzer, categories, min_score: minScore })
+    setBusy(false)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: 'rgba(0,0,0,0.7)' }} onClick={onClose}>
+      <div className="w-full max-w-md rounded-2xl p-6 space-y-4"
+        style={{ background: '#111114', border: '1px solid #27272a' }}
+        onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h3 className="text-white font-semibold text-base">Nova regra de roteamento</h3>
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-white/5 transition-colors" style={{ color: '#71717a' }}>
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="space-y-3">
+          <div>
+            <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 block mb-1">Departamento</label>
+            <div className="grid grid-cols-2 gap-1.5">
+              {DEPTS.map(d => {
+                const active = department === d.value
+                return (
+                  <button key={d.value} type="button" onClick={() => setDepartment(d.value)}
+                    className="px-2 py-1.5 rounded-lg text-xs font-semibold transition-all"
+                    style={{
+                      background: active ? `${d.color}1a` : '#18181b',
+                      color:      active ? d.color : '#a1a1aa',
+                      border:     `1px solid ${active ? d.color + '55' : '#27272a'}`,
+                    }}>
+                    {d.label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          <div>
+            <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 block mb-1">Analyzer</label>
+            <select value={analyzer} onChange={e => setAnalyzer(e.target.value as AnalyzerName | '*')}
+              className="w-full px-3 py-2 rounded-lg text-sm text-white outline-none transition-colors"
+              style={{ background: '#18181b', border: '1px solid #27272a', colorScheme: 'dark' }}>
+              {ANALYZER_OPTIONS.map(a => (
+                <option key={a.value} value={a.value}>{a.label}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 block mb-1">
+              Categorias <span className="text-zinc-600 normal-case">(opcional, vazio = todas)</span>
+            </label>
+            <div className="flex items-center gap-2">
+              <input type="text"
+                value={catInput}
+                onChange={e => setCatInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCategory() } }}
+                placeholder="ex: ruptura_iminente"
+                className="flex-1 px-3 py-2 rounded-lg text-sm text-white outline-none transition-colors font-mono"
+                style={{ background: '#18181b', border: '1px solid #27272a' }} />
+              <button type="button" onClick={addCategory}
+                disabled={!catInput.trim()}
+                className="px-3 py-2 rounded-lg text-xs font-semibold transition-all disabled:opacity-40"
+                style={{ background: '#18181b', color: '#00E5FF', border: '1px solid #27272a' }}>
+                <Plus size={12} />
+              </button>
+            </div>
+            {categories.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {categories.map(c => (
+                  <span key={c} className="text-[10px] font-mono px-2 py-1 rounded-full inline-flex items-center gap-1"
+                    style={{ background: '#18181b', color: '#a1a1aa', border: '1px solid #27272a' }}>
+                    {c}
+                    <button onClick={() => removeCategory(c)} className="hover:text-rose-400 transition-colors">
+                      <X size={10} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 block mb-1">
+              Score mínimo: <strong className="text-white">{minScore}</strong>
+            </label>
+            <input type="range" min={0} max={100} step={5} value={minScore}
+              onChange={e => setMinScore(Number(e.target.value))}
+              className="w-full" style={{ accentColor: '#00E5FF' }} />
+            <div className="flex justify-between text-[9px] text-zinc-600 mt-1">
+              <span>0 (tudo)</span>
+              <span>50 (warning+)</span>
+              <span>80 (crítico)</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 pt-2">
+          <button onClick={onClose}
+            className="flex-1 py-2 rounded-lg text-xs font-semibold transition-colors"
+            style={{ background: '#18181b', color: '#a1a1aa', border: '1px solid #27272a' }}>
+            Cancelar
+          </button>
+          <button onClick={submit} disabled={busy}
+            className="flex-1 py-2 rounded-lg text-xs font-semibold transition-all disabled:opacity-40"
+            style={{ background: 'rgba(0,229,255,0.12)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.3)' }}>
+            {busy ? 'Criando…' : 'Criar regra'}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

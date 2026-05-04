@@ -3,9 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import { getSocket } from '@/lib/socket'
+import OnboardingBanner from '@/components/inteligencia/OnboardingBanner'
 import {
   RefreshCw, Bell, Filter, AlertCircle, ShieldCheck, AlertTriangle, Activity,
-  Clock, MessageSquare, CheckCircle2, XCircle, ExternalLink,
+  Clock, MessageSquare, CheckCircle2, XCircle, ExternalLink, Sparkles, Link2,
 } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
@@ -31,6 +32,8 @@ interface AlertSignal {
   suggestion_pt:   string | null
   status:          SignalStatus
   created_at:      string
+  related_signals: string[] | null
+  cross_insight:   string | null
 }
 
 interface AlertDelivery {
@@ -48,11 +51,13 @@ interface AlertDelivery {
 }
 
 const ANALYZERS: { value: AnalyzerName | 'all'; label: string }[] = [
-  { value: 'all',     label: 'Todos' },
-  { value: 'estoque', label: 'Estoque' },
-  { value: 'compras', label: 'Compras' },
-  { value: 'preco',   label: 'Preço' },
-  { value: 'margem',  label: 'Margem' },
+  { value: 'all',         label: 'Todos' },
+  { value: 'cross_intel', label: 'Cross-Intel' },
+  { value: 'estoque',     label: 'Estoque' },
+  { value: 'compras',     label: 'Compras' },
+  { value: 'preco',       label: 'Preço' },
+  { value: 'margem',      label: 'Margem' },
+  { value: 'ads',         label: 'Ads' },
 ]
 
 const SEVERITY_META: Record<Severity, { color: string; icon: typeof AlertCircle; label: string }> = {
@@ -137,28 +142,55 @@ function DeliveryStatusIcon({ status }: { status: DeliveryStatus }) {
 
 // ── Card ──────────────────────────────────────────────────────────────────────
 
-function SignalCard({ signal, deliveries }: { signal: AlertSignal; deliveries: AlertDelivery[] }) {
+function SignalCard({ signal, deliveries, relatedSignals }: {
+  signal: AlertSignal
+  deliveries: AlertDelivery[]
+  relatedSignals: AlertSignal[]
+}) {
   const meta = SEVERITY_META[signal.severity]
+  const isCross = signal.analyzer === 'cross_intel'
   const responded = deliveries.filter(d => d.response_at).length
   const sent = deliveries.filter(d => ['sent', 'delivered', 'read'].includes(d.status)).length
   const failed = deliveries.filter(d => d.status === 'failed').length
 
-  return (
-    <div className="rounded-2xl p-4 flex flex-col gap-3"
-      style={{
+  // Cross-intel cards têm visual destaque: gradient sutil + border roxa
+  const crossColor = '#a78bfa'
+  const cardStyle = isCross
+    ? {
+        background: `linear-gradient(135deg, ${crossColor}0c 0%, #111114 60%)`,
+        border:     `1px solid ${crossColor}55`,
+        boxShadow:  `inset 0 1px 0 ${crossColor}22`,
+      }
+    : {
         background: '#111114',
-        border: `1px solid ${signal.severity === 'critical' ? meta.color + '55' : '#1e1e24'}`,
-      }}>
+        border:     `1px solid ${signal.severity === 'critical' ? meta.color + '55' : '#1e1e24'}`,
+      }
+
+  return (
+    <div className="rounded-2xl p-4 flex flex-col gap-3" style={cardStyle}>
+
+      {isCross && (
+        <div className="-mb-1 flex items-center gap-1.5">
+          <span className="text-[9px] font-bold uppercase tracking-[0.15em] px-2 py-0.5 rounded-full inline-flex items-center gap-1"
+            style={{ background: `${crossColor}1a`, color: crossColor, border: `1px solid ${crossColor}55` }}>
+            <Sparkles size={10} /> Cross-Insight
+          </span>
+        </div>
+      )}
 
       {/* Header */}
       <div className="flex items-start gap-3">
         <div className="w-9 h-9 rounded-lg shrink-0 flex items-center justify-center"
-          style={{ background: `${meta.color}1a`, border: `1px solid ${meta.color}33` }}>
-          <meta.icon size={15} style={{ color: meta.color }} />
+          style={{
+            background: isCross ? `${crossColor}1a` : `${meta.color}1a`,
+            border:     `1px solid ${(isCross ? crossColor : meta.color) + '33'}`,
+          }}>
+          {isCross ? <Sparkles size={15} style={{ color: crossColor }} /> : <meta.icon size={15} style={{ color: meta.color }} />}
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: meta.color }}>
+            <span className="text-[10px] uppercase tracking-wider font-semibold"
+              style={{ color: isCross ? crossColor : meta.color }}>
               {humanizeCategory(signal.category)}
             </span>
             <span className="text-[10px] text-zinc-600">·</span>
@@ -188,9 +220,36 @@ function SignalCard({ signal, deliveries }: { signal: AlertSignal; deliveries: A
       {/* Suggestion */}
       {signal.suggestion_pt && (
         <div className="px-3 py-2 rounded-lg flex items-start gap-2"
-          style={{ background: 'rgba(0,229,255,0.05)', border: '1px solid rgba(0,229,255,0.15)' }}>
-          <ShieldCheck size={11} style={{ color: '#00E5FF', marginTop: 2, flexShrink: 0 }} />
+          style={{
+            background: isCross ? `${crossColor}0d` : 'rgba(0,229,255,0.05)',
+            border:     `1px solid ${isCross ? crossColor + '33' : 'rgba(0,229,255,0.15)'}`,
+          }}>
+          <ShieldCheck size={11} style={{ color: isCross ? crossColor : '#00E5FF', marginTop: 2, flexShrink: 0 }} />
           <p className="text-[11px] text-zinc-300 leading-relaxed">{signal.suggestion_pt}</p>
+        </div>
+      )}
+
+      {/* Related signals (cross-intel only) */}
+      {isCross && relatedSignals.length > 0 && (
+        <div className="px-3 py-2 rounded-lg space-y-1.5"
+          style={{ background: '#18181b', border: '1px solid #27272a' }}>
+          <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500 inline-flex items-center gap-1">
+            <Link2 size={10} /> Sinais relacionados ({relatedSignals.length})
+          </p>
+          {relatedSignals.map(r => (
+            <div key={r.id} className="flex items-start gap-2 text-[10px] text-zinc-400 leading-relaxed">
+              <span className="text-zinc-600">·</span>
+              <span className="flex-1">
+                <span className="font-semibold text-zinc-300 capitalize">{r.analyzer}</span>
+                {' / '}
+                <span style={{ color: SEVERITY_META[r.severity].color }}>
+                  {humanizeCategory(r.category)}
+                </span>
+                {' — '}
+                {r.summary_pt.slice(0, 80)}{r.summary_pt.length > 80 ? '…' : ''}
+              </span>
+            </div>
+          ))}
         </div>
       )}
 
@@ -310,6 +369,13 @@ export default function AlertasPage() {
     return m
   }, [deliveries])
 
+  // Lookup signals by id (pra resolver related_signals)
+  const signalById = useMemo(() => {
+    const m = new Map<string, AlertSignal>()
+    for (const s of signals) m.set(s.id, s)
+    return m
+  }, [signals])
+
   const filtered = useMemo(() => {
     return signals.filter(s => {
       if (filter !== 'all' && s.analyzer !== filter) return false
@@ -374,6 +440,8 @@ export default function AlertasPage() {
           {error}
         </div>
       )}
+
+      <OnboardingBanner />
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-2">
@@ -445,13 +513,19 @@ export default function AlertasPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-          {filtered.map(s => (
-            <SignalCard
-              key={s.id}
-              signal={s}
-              deliveries={deliveriesBySignal.get(s.id) ?? []}
-            />
-          ))}
+          {filtered.map(s => {
+            const related = (s.related_signals ?? [])
+              .map(id => signalById.get(id))
+              .filter((x): x is AlertSignal => !!x)
+            return (
+              <SignalCard
+                key={s.id}
+                signal={s}
+                deliveries={deliveriesBySignal.get(s.id) ?? []}
+                relatedSignals={related}
+              />
+            )
+          })}
         </div>
       )}
 
