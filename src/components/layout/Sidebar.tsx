@@ -12,7 +12,7 @@ import {
   Megaphone, ShoppingCart, TrendingUp, Settings, UserCog,
   Plug, Database, ChevronDown, Bot, Inbox, BookOpen,
   GraduationCap, LineChart, Shield, Users2, TrendingDown,
-  Zap, Map as MapIcon,
+  Zap, Map as MapIcon, Bell,
 } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
@@ -190,6 +190,15 @@ const SECTIONS: NavSection[] = [
     ],
   },
   {
+    key: 'inteligencia',
+    label: 'INTELIGÊNCIA',
+    items: [
+      { label: 'Gestores',      href: '/dashboard/inteligencia/gestores',      icon: <Users size={15} /> },
+      { label: 'Alertas',       href: '/dashboard/inteligencia/alertas',       icon: <Bell size={15} />,     soon: true },
+      { label: 'Configurações', href: '/dashboard/inteligencia/configuracoes', icon: <Settings size={15} />, soon: true },
+    ],
+  },
+  {
     key: 'configuracoes',
     label: 'CONFIGURAÇÕES',
     items: [
@@ -211,6 +220,7 @@ const SECTION_DEFAULT_OPEN: Record<string, boolean> = {
   producao:        false,
   'atendente-ia':  false,
   ads:             false,
+  inteligencia:    false,
   configuracoes:   false,
 }
 
