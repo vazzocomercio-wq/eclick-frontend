@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase'
 import { ToastViewport, todoToast, pushToast } from '@/hooks/useToast'
 import { PulsingButton } from '@/components/ui/pulsing-button'
 import { ProdutosTable } from './_components/ProdutosTable'
+import { useConfirm } from '@/components/ui/dialog-provider'
 
 const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
@@ -811,6 +812,7 @@ export default function ProdutosPage() {
   const [showMlImport, setShowMlImport] = useState(false)
   const [mlConnected, setMlConnected]   = useState(false)
   const [stockMap, setStockMap]         = useState<Record<string, StockSummary>>({})
+  const confirm = useConfirm()
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
@@ -947,7 +949,13 @@ export default function ProdutosPage() {
     if (ids.length === 0) return
     const token = await getAuthToken()
     if (!token) return
-    if (!confirm(`Excluir ${ids.length} produto${ids.length === 1 ? '' : 's'}? Esta ação não pode ser desfeita.`)) return
+    const ok = await confirm({
+      title:        'Excluir produtos',
+      message:      `Excluir ${ids.length} produto${ids.length === 1 ? '' : 's'}? Esta ação não pode ser desfeita.`,
+      confirmLabel: 'Excluir',
+      variant:      'danger',
+    })
+    if (!ok) return
     await fetch(`${BACKEND}/products/bulk-delete`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },

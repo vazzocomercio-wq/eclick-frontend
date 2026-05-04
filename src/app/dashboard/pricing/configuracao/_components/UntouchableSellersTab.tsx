@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { api } from './api'
+import { useConfirm } from '@/components/ui/dialog-provider'
 
 type Channel = 'mercadolivre' | 'shopee' | 'amazon' | 'magalu' | 'all'
 
@@ -31,6 +32,7 @@ export function UntouchableSellersTab({ onToast }: { onToast: (m: string, type?:
   const [list, setList]       = useState<UntouchableSeller[]>([])
   const [loading, setLoading] = useState(true)
   const [adding, setAdding]   = useState(false)
+  const confirm = useConfirm()
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -42,7 +44,13 @@ export function UntouchableSellersTab({ onToast }: { onToast: (m: string, type?:
   useEffect(() => { load() }, [load])
 
   async function remove(id: string) {
-    if (!confirm('Remover vendedor da blocklist? IA poderá considerá-lo nas próximas execuções.')) return
+    const ok = await confirm({
+      title:        'Remover vendedor',
+      message:      'Remover vendedor da blocklist? IA poderá considerá-lo nas próximas execuções.',
+      confirmLabel: 'Remover',
+      variant:      'warning',
+    })
+    if (!ok) return
     try {
       await api(`/pricing/untouchable-sellers/${id}`, { method: 'DELETE' })
       setList(prev => prev.filter(x => x.id !== id))

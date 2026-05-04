@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import OnboardingBanner from '@/components/inteligencia/OnboardingBanner'
+import { useConfirm } from '@/components/ui/dialog-provider'
 import {
   Power, Save, RefreshCw, AlertCircle, Moon, Bell, Brain,
   Sparkles, Zap, Plus, Trash2, X,
@@ -171,6 +172,7 @@ export default function ConfiguracoesPage() {
   const [error, setError]         = useState<string | null>(null)
   const [savedAt, setSavedAt]     = useState<number | null>(null)
   const [showRuleModal, setShowRuleModal] = useState(false)
+  const confirm = useConfirm()
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -278,7 +280,13 @@ export default function ConfiguracoesPage() {
   async function deleteRule(rule: RoutingRule) {
     const dept = DEPTS.find(d => d.value === rule.department)
     const ana = rule.analyzer === '*' ? 'todos' : rule.analyzer
-    if (!confirm(`Remover regra "${dept?.label} ← ${ana}"?`)) return
+    const ok = await confirm({
+      title:        'Remover regra de roteamento',
+      message:      `Remover regra "${dept?.label} ← ${ana}"?`,
+      confirmLabel: 'Remover',
+      variant:      'danger',
+    })
+    if (!ok) return
     try {
       await api(`/alert-hub/routing-rules/${rule.id}`, { method: 'DELETE' })
       setRules(prev => prev.filter(r => r.id !== rule.id))

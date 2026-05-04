@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { BookOpen, Plus, Trash2, Tag, Loader2, X, Save, FileText, HelpCircle, ShieldCheck, Clock, Smile, AlignLeft, Search, Sparkles } from 'lucide-react'
+import { useConfirm } from '@/components/ui/dialog-provider'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 
@@ -48,6 +49,7 @@ export default function ConhecimentoPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<(KnowledgeItem & { score?: number })[] | null>(null)
   const [searching,    setSearching]    = useState(false)
+  const confirm = useConfirm()
 
   const getHeaders = useCallback(async () => {
     const sb = createClient()
@@ -97,7 +99,13 @@ export default function ConhecimentoPage() {
   }
 
   async function deleteItem(id: string) {
-    if (!confirm('Excluir este item?')) return
+    const ok = await confirm({
+      title:        'Excluir item',
+      message:      'Excluir este item?',
+      confirmLabel: 'Excluir',
+      variant:      'danger',
+    })
+    if (!ok) return
     const headers = await getHeaders()
     await fetch(`${BACKEND}/atendente-ia/knowledge/${id}`, { method: 'DELETE', headers })
     loadItems()

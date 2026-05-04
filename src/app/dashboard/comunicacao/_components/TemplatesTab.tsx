@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { createClient } from '@/lib/supabase'
 import { Plus, X, Save, Trash2, CheckCircle2, XCircle } from 'lucide-react'
+import { useConfirm } from '@/components/ui/dialog-provider'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
@@ -88,6 +89,7 @@ export default function TemplatesTab({ onToast }: Props) {
   const [errors,       setErrors]       = useState<{ name?: string; message_body?: string }>({})
   const [saving,       setSaving]       = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const confirm = useConfirm()
 
   const isDirty   = JSON.stringify(form) !== JSON.stringify(originalForm)
   const isEditing = selected !== null && !creating
@@ -121,8 +123,16 @@ export default function TemplatesTab({ onToast }: Props) {
   useEffect(() => { void load() }, [load])
 
   // ── selection / form lifecycle ───────────────────────────────────────────────
-  const selectTemplate = useCallback((id: string) => {
-    if (isDirty && !confirm('Descartar mudanças?')) return
+  const selectTemplate = useCallback(async (id: string) => {
+    if (isDirty) {
+      const ok = await confirm({
+        title:        'Descartar mudanças',
+        message:      'Descartar mudanças?',
+        confirmLabel: 'Descartar',
+        variant:      'warning',
+      })
+      if (!ok) return
+    }
     const t = templates.find(x => x.id === id)
     if (!t) return
     setSelected(id)
@@ -131,24 +141,40 @@ export default function TemplatesTab({ onToast }: Props) {
     setOriginalForm(t)
     setErrors({})
     setTagInput('')
-  }, [isDirty, templates])
+  }, [isDirty, templates, confirm])
 
-  const newTemplate = useCallback(() => {
-    if (isDirty && !confirm('Descartar mudanças?')) return
+  const newTemplate = useCallback(async () => {
+    if (isDirty) {
+      const ok = await confirm({
+        title:        'Descartar mudanças',
+        message:      'Descartar mudanças?',
+        confirmLabel: 'Descartar',
+        variant:      'warning',
+      })
+      if (!ok) return
+    }
     setSelected(null)
     setCreating(true)
     setForm(EMPTY_FORM)
     setOriginalForm(EMPTY_FORM)
     setErrors({})
     setTagInput('')
-  }, [isDirty])
+  }, [isDirty, confirm])
 
-  const cancelEdit = useCallback(() => {
-    if (isDirty && !confirm('Descartar mudanças?')) return
+  const cancelEdit = useCallback(async () => {
+    if (isDirty) {
+      const ok = await confirm({
+        title:        'Descartar mudanças',
+        message:      'Descartar mudanças?',
+        confirmLabel: 'Descartar',
+        variant:      'warning',
+      })
+      if (!ok) return
+    }
     setForm(originalForm)
     setErrors({})
     setTagInput('')
-  }, [isDirty, originalForm])
+  }, [isDirty, originalForm, confirm])
 
   // ── validation ───────────────────────────────────────────────────────────────
   const validate = (): boolean => {
@@ -216,7 +242,13 @@ export default function TemplatesTab({ onToast }: Props) {
 
   const deactivate = useCallback(async () => {
     if (!selected || creating) return
-    if (!confirm('Desativar template? Histórico preservado.')) return
+    const ok = await confirm({
+      title:        'Desativar template',
+      message:      'Desativar template? Histórico preservado.',
+      confirmLabel: 'Desativar',
+      variant:      'danger',
+    })
+    if (!ok) return
     try {
       const h = await headers()
       const res = await fetch(`${BACKEND}/communication/templates/${selected}`, {
@@ -235,7 +267,7 @@ export default function TemplatesTab({ onToast }: Props) {
     } catch {
       onToast?.('Erro de rede', 'error')
     }
-  }, [selected, creating, headers, load, onToast])
+  }, [selected, creating, headers, load, onToast, confirm])
 
   // ── variables auto-extracted ─────────────────────────────────────────────────
   const messageVars = useMemo(() => {

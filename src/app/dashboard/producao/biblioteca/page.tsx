@@ -6,6 +6,7 @@ import {
   ImageIcon, Upload, Search, Copy, Trash2, ExternalLink,
   RefreshCw, Grid3x3, List, CheckSquare, Square, X,
 } from 'lucide-react'
+import { useConfirm } from '@/components/ui/dialog-provider'
 
 const BUCKET = 'produtos'
 
@@ -191,6 +192,7 @@ export default function BibliotecaPage() {
   const [view,     setView]     = useState<'grid' | 'list'>('grid')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [deleting, setDeleting] = useState(false)
+  const confirm = useConfirm()
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -244,7 +246,13 @@ export default function BibliotecaPage() {
   useEffect(() => { load() }, [load])
 
   async function deleteSelected() {
-    if (!confirm(`Excluir ${selected.size} arquivo(s)? Esta ação não pode ser desfeita.`)) return
+    const ok = await confirm({
+      title:        'Excluir arquivos',
+      message:      `Excluir ${selected.size} arquivo(s)? Esta ação não pode ser desfeita.`,
+      confirmLabel: 'Excluir',
+      variant:      'danger',
+    })
+    if (!ok) return
     setDeleting(true)
     const sb = createClient()
     const toDelete = items.filter(i => selected.has(i.url))
@@ -386,8 +394,14 @@ export default function BibliotecaPage() {
               selected={selected.has(item.url)}
               onSelect={() => toggleSelect(item.url)}
               onCopy={() => {}}
-              onDelete={() => {
-                if (!confirm('Excluir este arquivo?')) return
+              onDelete={async () => {
+                const ok = await confirm({
+                  title:        'Excluir arquivo',
+                  message:      'Excluir este arquivo?',
+                  confirmLabel: 'Excluir',
+                  variant:      'danger',
+                })
+                if (!ok) return
                 const sb = createClient()
                 sb.storage.from(BUCKET).remove([item.path]).catch(() => {})
                 setItems(prev => prev.filter(i => i.url !== item.url))
@@ -427,8 +441,14 @@ export default function BibliotecaPage() {
                   </a>
                 )}
                 <button
-                  onClick={() => {
-                    if (!confirm('Excluir este arquivo?')) return
+                  onClick={async () => {
+                    const ok = await confirm({
+                      title:        'Excluir arquivo',
+                      message:      'Excluir este arquivo?',
+                      confirmLabel: 'Excluir',
+                      variant:      'danger',
+                    })
+                    if (!ok) return
                     const sb = createClient()
                     sb.storage.from(BUCKET).remove([item.path]).catch(() => {})
                     setItems(prev => prev.filter(i => i.url !== item.url))

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase'
 import { MessageSquare, Plus, Code2, Loader2, X, Save, Copy, Check, Trash2, ToggleLeft, ToggleRight, Eye } from 'lucide-react'
+import { useConfirm } from '@/components/ui/dialog-provider'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
@@ -34,6 +35,7 @@ export default function WidgetPage() {
   const [loading, setLoading] = useState(true)
   const [createOpen, setCreateOpen] = useState(false)
   const [snippetFor, setSnippetFor] = useState<{ widget: ChatWidget; snippet: Snippet | null; loading: boolean } | null>(null)
+  const confirm = useConfirm()
 
   const getHeaders = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
@@ -72,7 +74,13 @@ export default function WidgetPage() {
   }
 
   async function deleteWidget(w: ChatWidget) {
-    if (!confirm(`Excluir widget "${w.name}"? Sessões e conversas associadas continuam preservadas.`)) return
+    const ok = await confirm({
+      title:        'Excluir widget',
+      message:      `Excluir widget "${w.name}"? Sessões e conversas associadas continuam preservadas.`,
+      confirmLabel: 'Excluir',
+      variant:      'danger',
+    })
+    if (!ok) return
     const headers = await getHeaders()
     await fetch(`${BACKEND}/widgets/${w.id}`, { method: 'DELETE', headers })
     load()

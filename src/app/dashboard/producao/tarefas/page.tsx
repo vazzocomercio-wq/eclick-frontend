@@ -11,6 +11,7 @@ import {
   useDroppable, useDraggable, PointerSensor, useSensor, useSensors,
 } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
+import { useConfirm } from '@/components/ui/dialog-provider'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -338,6 +339,7 @@ export default function TarefasPage() {
   const [modal, setModal]         = useState<{ open: boolean; task?: Task; defaultStatus: Status }>({ open: false, defaultStatus: 'todo' })
   const [dragging, setDragging]   = useState<Task | null>(null)
   const [copied, setCopied]       = useState(false)
+  const confirm = useConfirm()
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
@@ -435,7 +437,13 @@ export default function TarefasPage() {
   }
 
   async function deleteTask(id: string) {
-    if (!confirm('Excluir esta tarefa?')) return
+    const ok = await confirm({
+      title:        'Excluir tarefa',
+      message:      'Excluir esta tarefa?',
+      confirmLabel: 'Excluir',
+      variant:      'danger',
+    })
+    if (!ok) return
     const sb = createClient()
     await sb.from('tasks').delete().eq('id', id)
     setTasks(ts => ts.filter(t => t.id !== id))

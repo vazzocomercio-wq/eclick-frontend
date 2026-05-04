@@ -9,6 +9,7 @@ import { AI_PROVIDERS } from '@/constants/ai-models'
 import SmartProductInput, { type ProductData } from '@/components/campanhas/SmartProductInput'
 import WhatsAppPreview from '@/components/campanhas/WhatsAppPreview'
 import AICardGenerator from '@/components/campanhas/AICardGenerator'
+import { useConfirm } from '@/components/ui/dialog-provider'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 
@@ -104,6 +105,7 @@ export default function CampanhasPage() {
   const [showWizard, setShowWizard] = useState(false)
   const [editing,    setEditing]    = useState<Campaign | null>(null)
   const [toasts, setToasts] = useState<Array<{ id: number; msg: string; type: 'success'|'error' }>>([])
+  const confirm = useConfirm()
 
   function pushToast(msg: string, type: 'success'|'error' = 'success') {
     const id = Date.now() + Math.random()
@@ -127,7 +129,13 @@ export default function CampanhasPage() {
   useEffect(() => { load() }, [load])
 
   async function handleLaunch(c: Campaign) {
-    if (!confirm(`Lançar campanha "${c.name}"? Os disparos serão agendados imediatamente.`)) return
+    const ok = await confirm({
+      title:        'Lançar campanha',
+      message:      `Lançar campanha "${c.name}"? Os disparos serão agendados imediatamente.`,
+      confirmLabel: 'Lançar',
+      variant:      'default',
+    })
+    if (!ok) return
     try {
       const res = await api<{ targets: number; first_at: string | null }>(`/campaigns/${c.id}/launch`, { method: 'POST' })
       pushToast(`Lançada — ${res.targets} alvos agendados`, 'success')
@@ -158,7 +166,13 @@ export default function CampanhasPage() {
   }
 
   async function handleDelete(c: Campaign) {
-    if (!confirm(`Deletar campanha "${c.name}"? Os targets também serão removidos.`)) return
+    const ok = await confirm({
+      title:        'Deletar campanha',
+      message:      `Deletar campanha "${c.name}"? Os targets também serão removidos.`,
+      confirmLabel: 'Deletar',
+      variant:      'danger',
+    })
+    if (!ok) return
     try {
       await api(`/campaigns/${c.id}`, { method: 'DELETE' })
       pushToast('Deletada', 'success')

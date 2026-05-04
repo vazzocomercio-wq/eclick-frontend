@@ -9,6 +9,7 @@ import {
   SEGMENT_FIELD_LABELS, OPERATOR_LABELS, SEGMENT_AUTO_LABELS,
   fmtNumber,
 } from './types'
+import { useConfirm } from '@/components/ui/dialog-provider'
 
 const ICON_PRESETS = ['👥', '👑', '⭐', '🎯', '💎', '🚀', '⚠️', '🔥', '📈', '💰', '❤️', '🛡️']
 
@@ -35,6 +36,7 @@ export function SegmentsTab({ onToast }: { onToast: (m: string, type?: 'success'
   const [list, setList]     = useState<CustomerSegment[]>([])
   const [loading, setLoad]  = useState(true)
   const [editing, setEdit]  = useState<CustomerSegment | 'new' | null>(null)
+  const confirm = useConfirm()
 
   const load = useCallback(async () => {
     setLoad(true)
@@ -54,7 +56,13 @@ export function SegmentsTab({ onToast }: { onToast: (m: string, type?: 'success'
   }
 
   async function remove(id: string) {
-    if (!confirm('Excluir segmento? Membros serão removidos (clientes preservados).')) return
+    const ok = await confirm({
+      title:        'Excluir segmento',
+      message:      'Excluir segmento? Membros serão removidos (clientes preservados).',
+      confirmLabel: 'Excluir',
+      variant:      'danger',
+    })
+    if (!ok) return
     try {
       await api(`/customer-hub/segments/${id}`, { method: 'DELETE' })
       setList(prev => prev.filter(s => s.id !== id))

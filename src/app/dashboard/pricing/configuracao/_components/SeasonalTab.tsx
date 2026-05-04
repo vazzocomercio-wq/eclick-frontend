@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { api } from './api'
+import { useConfirm } from '@/components/ui/dialog-provider'
 
 interface SeasonalPeriod {
   id:                     string
@@ -23,6 +24,7 @@ export function SeasonalTab({ onToast }: { onToast: (m: string, type?: 'success'
   const [list, setList]       = useState<SeasonalPeriod[]>([])
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState<SeasonalPeriod | 'new' | null>(null)
+  const confirm = useConfirm()
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -44,7 +46,13 @@ export function SeasonalTab({ onToast }: { onToast: (m: string, type?: 'success'
   }
 
   async function remove(id: string) {
-    if (!confirm('Excluir período sazonal?')) return
+    const ok = await confirm({
+      title:        'Excluir período sazonal',
+      message:      'Excluir período sazonal?',
+      confirmLabel: 'Excluir',
+      variant:      'danger',
+    })
+    if (!ok) return
     try {
       await api(`/pricing/seasonal/${id}`, { method: 'DELETE' })
       setList(prev => prev.filter(x => x.id !== id))

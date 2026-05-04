@@ -6,6 +6,7 @@ import {
   Map as MapIcon, ChevronDown, ChevronRight, Plus, Pencil, Loader2,
   CheckCircle2, Circle, Star, Clock, X, Save, Trash2,
 } from 'lucide-react'
+import { useConfirm } from '@/components/ui/dialog-provider'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
@@ -85,6 +86,7 @@ export default function RoadmapPage() {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [newIdea, setNewIdea] = useState<{ phaseId?: string } | null>(null)
   const [editingItemId, setEditingItemId] = useState<string | null>(null)
+  const confirm = useConfirm()
 
   const getHeaders = useCallback(async () => {
     const sb = createClient()
@@ -149,7 +151,13 @@ export default function RoadmapPage() {
   }
 
   async function deleteItem(id: string) {
-    if (!confirm('Remover essa ideia do roadmap?')) return
+    const ok = await confirm({
+      title:        'Remover ideia',
+      message:      'Remover essa ideia do roadmap?',
+      confirmLabel: 'Remover',
+      variant:      'danger',
+    })
+    if (!ok) return
     const headers = await getHeaders()
     await fetch(`${BACKEND}/roadmap/items/${id}`, { method: 'DELETE', headers })
     await load()

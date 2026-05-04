@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
+import { useConfirm } from '@/components/ui/dialog-provider'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 
@@ -109,6 +110,7 @@ export default function FornecedorDetailPage() {
   // edit mode for dados tab
   const [editMode, setEditMode]               = useState(false)
   const [editData, setEditData]               = useState<Partial<Supplier>>({})
+  const confirm = useConfirm()
 
   const getHeaders = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
@@ -175,7 +177,13 @@ export default function FornecedorDetailPage() {
   }
 
   async function handleDeactivate() {
-    if (!confirm('Desativar este fornecedor?')) return
+    const ok = await confirm({
+      title:        'Desativar fornecedor',
+      message:      'Desativar este fornecedor?',
+      confirmLabel: 'Desativar',
+      variant:      'danger',
+    })
+    if (!ok) return
     const headers = await getHeaders()
     await fetch(`${BACKEND}/suppliers/${id}`, { method: 'DELETE', headers })
     router.push('/dashboard/compras/fornecedores')
@@ -209,7 +217,13 @@ export default function FornecedorDetailPage() {
   }
 
   async function handleUnlink(productId: string) {
-    if (!confirm('Remover vínculo?')) return
+    const ok = await confirm({
+      title:        'Remover vínculo',
+      message:      'Remover vínculo?',
+      confirmLabel: 'Remover',
+      variant:      'danger',
+    })
+    if (!ok) return
     const headers = await getHeaders()
     await fetch(`${BACKEND}/suppliers/${id}/products/${productId}`, { method: 'DELETE', headers })
     await load()
@@ -243,7 +257,13 @@ export default function FornecedorDetailPage() {
   }
 
   async function handleRemoveDoc(docId: string) {
-    if (!confirm('Remover documento?')) return
+    const ok = await confirm({
+      title:        'Remover documento',
+      message:      'Remover documento?',
+      confirmLabel: 'Remover',
+      variant:      'danger',
+    })
+    if (!ok) return
     const headers = await getHeaders()
     await fetch(`${BACKEND}/suppliers/${id}/documents/${docId}`, { method: 'DELETE', headers })
     await load()

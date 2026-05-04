@@ -19,6 +19,7 @@ import {
   Plus, Save, Trash2, GripVertical, ChevronDown, ChevronUp,
   ArrowUp, ArrowDown, Loader2, CheckCircle2, XCircle,
 } from 'lucide-react'
+import { useConfirm } from '@/components/ui/dialog-provider'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
@@ -405,6 +406,7 @@ export default function ModelosJornadasTab({ onToast }: Props) {
   const [expandedStep, setExpandedStep] = useState<string | null>(null)
   const [errors,       setErrors]       = useState<{ name?: string; steps?: string }>({})
   const [saving,       setSaving]       = useState(false)
+  const confirm = useConfirm()
 
   const isDirty   = JSON.stringify(form) !== JSON.stringify(originalForm)
   const isEditing = selected !== null && !creating
@@ -442,8 +444,16 @@ export default function ModelosJornadasTab({ onToast }: Props) {
   useEffect(() => { void load() }, [load])
 
   // ── selection ──────────────────────────────────────────────────────────────
-  const selectJourney = useCallback((id: string) => {
-    if (isDirty && !confirm('Descartar mudanças?')) return
+  const selectJourney = useCallback(async (id: string) => {
+    if (isDirty) {
+      const ok = await confirm({
+        title:        'Descartar mudanças',
+        message:      'Descartar mudanças?',
+        confirmLabel: 'Descartar',
+        variant:      'warning',
+      })
+      if (!ok) return
+    }
     const j = journeys.find(x => x.id === id)
     if (!j) return
     const f: JourneyFormState = {
@@ -460,20 +470,36 @@ export default function ModelosJornadasTab({ onToast }: Props) {
     setCreating(false)
     setForm(f); setOriginalForm(f)
     setExpandedStep(null); setErrors({})
-  }, [isDirty, journeys])
+  }, [isDirty, journeys, confirm])
 
-  const newJourney = useCallback(() => {
-    if (isDirty && !confirm('Descartar mudanças?')) return
+  const newJourney = useCallback(async () => {
+    if (isDirty) {
+      const ok = await confirm({
+        title:        'Descartar mudanças',
+        message:      'Descartar mudanças?',
+        confirmLabel: 'Descartar',
+        variant:      'warning',
+      })
+      if (!ok) return
+    }
     setSelected(null); setCreating(true)
     setForm(EMPTY_FORM); setOriginalForm(EMPTY_FORM)
     setExpandedStep(null); setErrors({})
-  }, [isDirty])
+  }, [isDirty, confirm])
 
-  const cancelEdit = useCallback(() => {
-    if (isDirty && !confirm('Descartar mudanças?')) return
+  const cancelEdit = useCallback(async () => {
+    if (isDirty) {
+      const ok = await confirm({
+        title:        'Descartar mudanças',
+        message:      'Descartar mudanças?',
+        confirmLabel: 'Descartar',
+        variant:      'warning',
+      })
+      if (!ok) return
+    }
     setForm(originalForm)
     setExpandedStep(null); setErrors({})
-  }, [isDirty, originalForm])
+  }, [isDirty, originalForm, confirm])
 
   // ── step manipulators ──────────────────────────────────────────────────────
   const addStep = useCallback(() => {
@@ -492,11 +518,17 @@ export default function ModelosJornadasTab({ onToast }: Props) {
     setExpandedStep(newStep._id)
   }, [form.steps.length])
 
-  const removeStep = useCallback((id: string) => {
-    if (!confirm('Remover este step?')) return
+  const removeStep = useCallback(async (id: string) => {
+    const ok = await confirm({
+      title:        'Remover step',
+      message:      'Remover este step?',
+      confirmLabel: 'Remover',
+      variant:      'danger',
+    })
+    if (!ok) return
     setForm(f => ({ ...f, steps: f.steps.filter(s => s._id !== id) }))
     if (expandedStep === id) setExpandedStep(null)
-  }, [expandedStep])
+  }, [expandedStep, confirm])
 
   const updateStep = useCallback((id: string, patch: Partial<StepFormState>) => {
     setForm(f => ({
@@ -616,7 +648,13 @@ export default function ModelosJornadasTab({ onToast }: Props) {
 
   const deactivate = useCallback(async () => {
     if (!selected || creating) return
-    if (!confirm('Desativar modelo? Runs históricas ficam preservadas.')) return
+    const ok = await confirm({
+      title:        'Desativar modelo',
+      message:      'Desativar modelo? Runs históricas ficam preservadas.',
+      confirmLabel: 'Desativar',
+      variant:      'danger',
+    })
+    if (!ok) return
     try {
       const h = await headers()
       const res = await fetch(`${BACKEND}/communication/journeys-templates/${selected}`, {
@@ -631,7 +669,7 @@ export default function ModelosJornadasTab({ onToast }: Props) {
     } catch {
       onToast?.('Erro de rede', 'error')
     }
-  }, [selected, creating, headers, load, onToast])
+  }, [selected, creating, headers, load, onToast, confirm])
 
   // ── render ──────────────────────────────────────────────────────────────────
   return (

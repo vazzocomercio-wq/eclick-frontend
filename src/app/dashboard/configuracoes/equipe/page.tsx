@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { UserCog, Crown, User, Copy, Check, Mail, Shield, Trash2, Plus, RefreshCw } from 'lucide-react'
+import { useConfirm } from '@/components/ui/dialog-provider'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -65,6 +66,7 @@ export default function EquipePage() {
   const [inviteMsg, setInviteMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [copied, setCopied]     = useState(false)
   const [removing, setRemoving] = useState<string | null>(null)
+  const confirm = useConfirm()
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -135,7 +137,13 @@ export default function EquipePage() {
 
   async function handleRemove(userId: string) {
     if (userId === me?.id) return
-    if (!confirm('Remover este membro da organização?')) return
+    const ok = await confirm({
+      title:        'Remover membro',
+      message:      'Remover este membro da organização?',
+      confirmLabel: 'Remover',
+      variant:      'danger',
+    })
+    if (!ok) return
     setRemoving(userId)
     const sb = createClient()
     await sb.from('organization_members').delete().eq('user_id', userId).eq('organization_id', orgId!)

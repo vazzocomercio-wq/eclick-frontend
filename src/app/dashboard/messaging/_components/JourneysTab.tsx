@@ -8,6 +8,7 @@ import {
   TriggerEvent, JourneyMode, StepType,
   TRIGGER_LABELS, MODE_LABELS, STEP_TYPE_LABELS,
 } from './types'
+import { useConfirm } from '@/components/ui/dialog-provider'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 
@@ -46,6 +47,7 @@ export function JourneysTab({ onToast }: { onToast: (m: string, type?: 'success'
   const [loading, setLoading]         = useState(true)
   const [editing, setEditing]         = useState<MessagingJourney | 'new' | null>(null)
   const [triggering, setTriggering]   = useState<MessagingJourney | null>(null)
+  const confirm = useConfirm()
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -72,7 +74,13 @@ export function JourneysTab({ onToast }: { onToast: (m: string, type?: 'success'
   }
 
   async function remove(id: string) {
-    if (!confirm('Excluir jornada? Runs ativas continuarão (mas sem nova execução).')) return
+    const ok = await confirm({
+      title:        'Excluir jornada',
+      message:      'Excluir jornada? Runs ativas continuarão (mas sem nova execução).',
+      confirmLabel: 'Excluir',
+      variant:      'danger',
+    })
+    if (!ok) return
     try {
       await api(`/messaging/journeys/${id}`, { method: 'DELETE' })
       setList(prev => prev.filter(x => x.id !== id))

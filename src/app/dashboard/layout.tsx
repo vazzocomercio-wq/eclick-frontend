@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import Sidebar from '@/components/layout/Sidebar'
 import Header from '@/components/layout/Header'
+import { DialogProvider } from '@/components/ui/dialog-provider'
 
 export default async function DashboardLayout({
   children,
@@ -41,21 +42,23 @@ export default async function DashboardLayout({
   if (!membership) redirect('/onboarding')
 
   return (
-    <div
-      className="flex h-screen overflow-hidden"
-      style={{ background: '#09090b' }}
-    >
-      <Sidebar />
+    <DialogProvider>
+      <div
+        className="flex h-screen overflow-hidden"
+        style={{ background: '#09090b' }}
+      >
+        <Sidebar />
 
-      <div className="flex flex-col flex-1 overflow-hidden">
-        <Header
-          email={user.email!}
-          name={user.user_metadata?.full_name}
-        />
-        <main className="flex-1 overflow-y-auto">
-          {children}
-        </main>
+        <div className="flex flex-col flex-1 overflow-hidden">
+          <Header
+            email={user.email!}
+            name={user.user_metadata?.full_name}
+          />
+          <main className="flex-1 overflow-y-auto">
+            {children}
+          </main>
+        </div>
       </div>
-    </div>
+    </DialogProvider>
   )
 }

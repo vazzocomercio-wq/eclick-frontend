@@ -8,6 +8,7 @@ import {
   MessagingTemplate, Channel, TriggerEvent,
   TRIGGER_LABELS, CHANNEL_LABELS, SAMPLE_CONTEXT,
 } from './types'
+import { useConfirm } from '@/components/ui/dialog-provider'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 
@@ -38,6 +39,7 @@ export function TemplatesTab({ onToast }: { onToast: (m: string, type?: 'success
   const [list, setList]       = useState<MessagingTemplate[]>([])
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState<MessagingTemplate | 'new' | null>(null)
+  const confirm = useConfirm()
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -61,7 +63,13 @@ export function TemplatesTab({ onToast }: { onToast: (m: string, type?: 'success
   }
 
   async function remove(id: string) {
-    if (!confirm('Excluir template? Sends e jornadas que referenciam serão preservados, mas novos envios falharão.')) return
+    const ok = await confirm({
+      title:        'Excluir template',
+      message:      'Excluir template? Sends e jornadas que referenciam serão preservados, mas novos envios falharão.',
+      confirmLabel: 'Excluir',
+      variant:      'danger',
+    })
+    if (!ok) return
     try {
       await api(`/messaging/templates/${id}`, { method: 'DELETE' })
       setList(prev => prev.filter(x => x.id !== id))

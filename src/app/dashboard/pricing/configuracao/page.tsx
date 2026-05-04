@@ -13,6 +13,7 @@ import { ConfidenceTab }           from './_components/ConfidenceTab'
 import { SeasonalTab }             from './_components/SeasonalTab'
 import { UntouchableSellersTab }   from './_components/UntouchableSellersTab'
 import { AuditTab }                from './_components/AuditTab'
+import { useConfirm } from '@/components/ui/dialog-provider'
 
 type TabKey = 'globais' | 'abc' | 'triggers' | 'blocks' | 'confidence' | 'seasonal' | 'untouchable' | 'audit'
 
@@ -37,6 +38,7 @@ export default function PricingConfigPage() {
   const [tab, setTab]             = useState<TabKey>('globais')
   const [toasts, setToasts]       = useState<Toast[]>([])
   const [dirtyPaths, setDirty]    = useState<Set<string>>(new Set())
+  const confirm = useConfirm()
 
   function pushToast(msg: string, type: Toast['type'] = 'success') {
     const id = Date.now() + Math.random()
@@ -99,7 +101,15 @@ export default function PricingConfigPage() {
 
   async function applyPreset(preset: PresetName) {
     if (preset === 'custom') return
-    if (dirtyPaths.size > 0 && !confirm(`Você tem ${dirtyPaths.size} alteração(ões) pendentes. Aplicar preset "${PRESET_LABELS[preset]}" descarta-as. Continuar?`)) return
+    if (dirtyPaths.size > 0) {
+      const ok = await confirm({
+        title:        'Aplicar preset',
+        message:      `Você tem ${dirtyPaths.size} alteração(ões) pendentes. Aplicar preset "${PRESET_LABELS[preset]}" descarta-as. Continuar?`,
+        confirmLabel: 'Continuar',
+        variant:      'warning',
+      })
+      if (!ok) return
+    }
     setSaving(true)
     try {
       const c = await api<PricingConfig>('/pricing/config/preset', {
@@ -113,7 +123,13 @@ export default function PricingConfigPage() {
   }
 
   async function resetToDefaults() {
-    if (!confirm('Restaurar padrões? Esta ação descarta todas as customizações.')) return
+    const ok = await confirm({
+      title:        'Restaurar padrões',
+      message:      'Restaurar padrões? Esta ação descarta todas as customizações.',
+      confirmLabel: 'Restaurar',
+      variant:      'warning',
+    })
+    if (!ok) return
     setSaving(true)
     try {
       const c = await api<PricingConfig>('/pricing/config/reset', { method: 'POST' })
@@ -123,9 +139,17 @@ export default function PricingConfigPage() {
     setSaving(false)
   }
 
-  function discardChanges() {
+  async function discardChanges() {
     if (!original) return
-    if (dirtyPaths.size > 0 && !confirm(`Descartar ${dirtyPaths.size} alteração(ões) pendentes?`)) return
+    if (dirtyPaths.size > 0) {
+      const ok = await confirm({
+        title:        'Descartar mudanças',
+        message:      `Descartar ${dirtyPaths.size} alteração(ões) pendentes?`,
+        confirmLabel: 'Descartar',
+        variant:      'warning',
+      })
+      if (!ok) return
+    }
     setConfig(original); setDirty(new Set())
   }
 

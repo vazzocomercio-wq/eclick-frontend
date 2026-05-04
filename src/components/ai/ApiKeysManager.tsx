@@ -6,6 +6,7 @@ import {
   Bot, Key, Trash2, TestTube2, Plus, Loader2, X,
   CheckCircle2, AlertCircle, Eye, EyeOff, ExternalLink,
 } from 'lucide-react'
+import { useConfirm } from '@/components/ui/dialog-provider'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
@@ -64,6 +65,7 @@ export default function ApiKeysManager() {
   const [adding, setAdding] = useState<ProviderDef | null>(null)
   const [testingId, setTestingId] = useState<string | null>(null)
   const [toasts, setToasts] = useState<Toast[]>([])
+  const confirm = useConfirm()
 
   function showToast(message: string, type: Toast['type'] = 'success') {
     const id = Date.now() + Math.random()
@@ -109,7 +111,13 @@ export default function ApiKeysManager() {
   }
 
   async function removeCred(id: string, providerName: string) {
-    if (!confirm(`Tem certeza que deseja remover a chave ${providerName}? Esta ação não pode ser desfeita.`)) return
+    const ok = await confirm({
+      title:        'Remover chave',
+      message:      `Tem certeza que deseja remover a chave ${providerName}? Esta ação não pode ser desfeita.`,
+      confirmLabel: 'Remover',
+      variant:      'danger',
+    })
+    if (!ok) return
     const headers = await getHeaders()
     await fetch(`${BACKEND}/credentials/${id}`, { method: 'DELETE', headers })
     setCredentials(prev => prev.filter(c => c.id !== id))

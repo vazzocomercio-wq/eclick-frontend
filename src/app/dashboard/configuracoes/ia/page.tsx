@@ -12,6 +12,7 @@ import {
 } from 'recharts'
 import ApiKeysManager from '@/components/ai/ApiKeysManager'
 import { AiModelSelector } from '@/components/ai/AiModelSelector'
+import { useConfirm } from '@/components/ui/dialog-provider'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
@@ -182,6 +183,7 @@ function FeatureCard({
   })
   const [saving, setSaving]   = useState(false)
   const [resetting, setResetting] = useState(false)
+  const confirm = useConfirm()
 
   // Sync state when parent reloads (e.g., after reset)
   useEffect(() => {
@@ -224,7 +226,13 @@ function FeatureCard({
   }
 
   async function reset() {
-    if (!confirm(`Resetar "${feature.label}" pro padrão do sistema?`)) return
+    const ok = await confirm({
+      title:        'Resetar IA',
+      message:      `Resetar "${feature.label}" pro padrão do sistema?`,
+      confirmLabel: 'Resetar',
+      variant:      'warning',
+    })
+    if (!ok) return
     setResetting(true)
     try {
       const headers = await getHeaders()

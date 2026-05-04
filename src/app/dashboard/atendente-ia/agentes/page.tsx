@@ -8,6 +8,7 @@ import {
   MessageCircle, Zap, Star, ChevronRight, ChevronLeft,
   X, Check, AlertCircle, Loader2, LayoutTemplate,
 } from 'lucide-react'
+import { useConfirm } from '@/components/ui/dialog-provider'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 
@@ -635,6 +636,7 @@ export default function AgentesPage() {
   const [showWizard, setShowWizard] = useState(false)
   const [editAgent, setEditAgent]   = useState<Agent | undefined>()
   const [showTemplates, setShowTemplates] = useState(false)
+  const confirm = useConfirm()
 
   const load = useCallback(async () => {
     try {
@@ -660,7 +662,13 @@ export default function AgentesPage() {
   }
 
   async function deleteAgent(id: string) {
-    if (!confirm('Excluir este agente?')) return
+    const ok = await confirm({
+      title:        'Excluir agente',
+      message:      'Excluir este agente?',
+      confirmLabel: 'Excluir',
+      variant:      'danger',
+    })
+    if (!ok) return
     const sb = createClient()
     const { data: { session } } = await sb.auth.getSession()
     await fetch(`${BACKEND}/atendente-ia/agents/${id}`, {

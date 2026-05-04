@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { GraduationCap, Plus, Trash2, X, Save, Loader2, MessageSquare, CheckCircle2, Check, AlertCircle, Edit3 } from 'lucide-react'
+import { useConfirm } from '@/components/ui/dialog-provider'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 
@@ -40,6 +41,7 @@ export default function TreinamentoPage() {
   const [answer, setAnswer]       = useState('')
   const [category, setCategory]   = useState('outro')
   const [saving, setSaving]       = useState(false)
+  const confirm = useConfirm()
 
   const getHeaders = useCallback(async () => {
     const sb = createClient()
@@ -86,7 +88,13 @@ export default function TreinamentoPage() {
   }
 
   async function deleteExample(id: string) {
-    if (!confirm('Excluir este exemplo?')) return
+    const ok = await confirm({
+      title:        'Excluir exemplo',
+      message:      'Excluir este exemplo?',
+      confirmLabel: 'Excluir',
+      variant:      'danger',
+    })
+    if (!ok) return
     const headers = await getHeaders()
     await fetch(`${BACKEND}/atendente-ia/training/${id}`, { method: 'DELETE', headers })
     loadExamples()

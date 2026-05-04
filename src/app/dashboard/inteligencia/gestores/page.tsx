@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase'
+import { useConfirm, useAlert } from '@/components/ui/dialog-provider'
 import {
   Plus, Trash2, Edit3, Phone, ShieldCheck, RefreshCw, X, Send, AlertCircle,
   User as UserIcon, Briefcase, Clock,
@@ -526,6 +527,8 @@ export default function GestoresPage() {
   const [creating, setCreating]     = useState(false)
   const [verifying, setVerifying]   = useState<Manager | null>(null)
   const [filter, setFilter]         = useState<ManagerDepartment | 'all'>('all')
+  const confirm = useConfirm()
+  const alert   = useAlert()
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -562,12 +565,22 @@ export default function GestoresPage() {
   }
 
   async function handleDelete(m: Manager) {
-    if (!confirm(`Remover o gestor "${m.name}"? Essa ação não pode ser desfeita.`)) return
+    const ok = await confirm({
+      title:        'Remover gestor',
+      message:      `Remover "${m.name}"? Essa ação não pode ser desfeita.`,
+      confirmLabel: 'Remover',
+      variant:      'danger',
+    })
+    if (!ok) return
     try {
       await api(`/alert-managers/${m.id}`, { method: 'DELETE' })
       setManagers(prev => prev.filter(x => x.id !== m.id))
     } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : 'Erro ao remover')
+      await alert({
+        title:   'Erro ao remover',
+        message: e instanceof Error ? e.message : 'Erro desconhecido',
+        variant: 'danger',
+      })
     }
   }
 

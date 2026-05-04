@@ -11,6 +11,7 @@ import {
   useDroppable, useDraggable, PointerSensor, useSensor, useSensors,
 } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
+import { useConfirm } from '@/components/ui/dialog-provider'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -308,6 +309,7 @@ export default function PipelinePage() {
   const [dragging, setDragging] = useState<Deal | null>(null)
   const [copied, setCopied]     = useState(false)
   const [view, setView]         = useState<'kanban' | 'list'>('kanban')
+  const confirm = useConfirm()
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
@@ -393,7 +395,13 @@ export default function PipelinePage() {
   }
 
   async function deleteDeal(id: string) {
-    if (!confirm('Excluir este negócio?')) return
+    const ok = await confirm({
+      title:        'Excluir negócio',
+      message:      'Excluir este negócio?',
+      confirmLabel: 'Excluir',
+      variant:      'danger',
+    })
+    if (!ok) return
     const sb = createClient()
     await sb.from('deals').delete().eq('id', id)
     setDeals(ds => ds.filter(d => d.id !== id))

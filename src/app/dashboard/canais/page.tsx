@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { CheckCircle2, AlertCircle, Plus, Trash2, RefreshCw, ExternalLink, Clock } from 'lucide-react'
+import { useConfirm, useAlert } from '@/components/ui/dialog-provider'
 
 const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -151,6 +152,8 @@ export default function CanaisPage() {
   const [error, setError]             = useState<string | null>(null)
   const [disconnecting, setDisconn]   = useState(false)
   const [connecting, setConnecting]   = useState(false)
+  const confirm = useConfirm()
+  const alert   = useAlert()
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -187,7 +190,13 @@ export default function CanaisPage() {
   useEffect(() => { load() }, [load])
 
   async function handleDisconnect(sellerId: number) {
-    if (!confirm(`Desconectar a conta ML ${sellerId}?`)) return
+    const ok = await confirm({
+      title:        'Desconectar conta ML',
+      message:      `Desconectar a conta ML ${sellerId}?`,
+      confirmLabel: 'Desconectar',
+      variant:      'warning',
+    })
+    if (!ok) return
     setDisconn(true)
     try {
       const token = await getToken()
@@ -213,7 +222,11 @@ export default function CanaisPage() {
       const { url } = await res.json()
       window.location.href = url
     } catch (e: any) {
-      alert(e.message)
+      await alert({
+        title:   'Erro',
+        message: e.message,
+        variant: 'danger',
+      })
       setConnecting(false)
     }
   }

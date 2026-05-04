@@ -13,6 +13,7 @@ import {
 } from 'recharts'
 import { getSocket } from '@/lib/socket'
 import { toDataURL as qrToDataUrl } from 'qrcode'
+import { useConfirm } from '@/components/ui/dialog-provider'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
@@ -480,6 +481,7 @@ export default function IntegracoesPage() {
   const [toasts, setToasts]           = useState<Toast[]>([])
   const [usageSummary, setUsageSummary] = useState<Record<string, ProviderUsage>>({})
   const [chartData, setChartData]       = useState<DayUsage[]>([])
+  const confirm = useConfirm()
 
   function showToast(message: string, type: 'success' | 'error' = 'success') {
     const id = Date.now()
@@ -528,7 +530,13 @@ export default function IntegracoesPage() {
   }
 
   async function disconnectML(sellerId: number) {
-    if (!confirm(`Remover integração ML ${sellerId}?`)) return
+    const ok = await confirm({
+      title:        'Remover integração ML',
+      message:      `Remover integração ML ${sellerId}?`,
+      confirmLabel: 'Remover',
+      variant:      'danger',
+    })
+    if (!ok) return
     const headers = await getHeaders()
     await fetch(`${BACKEND}/ml/disconnect?seller_id=${sellerId}`, { method: 'DELETE', headers })
     setMlConns(cs => cs.filter(c => c.seller_id !== sellerId))
@@ -553,7 +561,13 @@ export default function IntegracoesPage() {
   }
 
   async function removeCredential(id: string, providerName: string) {
-    if (!confirm(`Tem certeza que deseja remover a chave ${providerName}? Esta ação não pode ser desfeita.`)) return
+    const ok = await confirm({
+      title:        'Remover chave',
+      message:      `Tem certeza que deseja remover a chave ${providerName}? Esta ação não pode ser desfeita.`,
+      confirmLabel: 'Remover',
+      variant:      'danger',
+    })
+    if (!ok) return
     const headers = await getHeaders()
     await fetch(`${BACKEND}/credentials/${id}`, { method: 'DELETE', headers })
     setCredentials(prev => prev.filter(c => c.id !== id))
@@ -799,6 +813,7 @@ function WhatsAppIntegCard({ onToast }: { onToast: (msg: string, t?: 'success' |
   const [displayName, setDisplayName]     = useState('')
   const [saving, setSaving]               = useState(false)
   const [validating, setValidating]       = useState(false)
+  const confirm = useConfirm()
 
   const getHeaders = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
@@ -884,7 +899,13 @@ function WhatsAppIntegCard({ onToast }: { onToast: (msg: string, t?: 'success' |
 
   async function disconnect() {
     if (!config) return
-    if (!confirm('Desconectar WhatsApp? As conversas existentes não são apagadas.')) return
+    const ok = await confirm({
+      title:        'Desconectar WhatsApp',
+      message:      'Desconectar WhatsApp? As conversas existentes não são apagadas.',
+      confirmLabel: 'Desconectar',
+      variant:      'warning',
+    })
+    if (!ok) return
     const headers = await getHeaders()
     await fetch(`${BACKEND}/whatsapp/config/${config.id}`, { method: 'DELETE', headers })
     setConfig(null); setWebhookInfo(null); setWizardOpen(false); setStep('requirements')
@@ -1142,6 +1163,7 @@ function EmailProviderCard({ onToast }: { onToast: (msg: string, t?: 'success' |
   const [loading, setLoading] = useState(true)
   const [setupOpen, setSetupOpen] = useState(false)
   const [testing, setTesting] = useState(false)
+  const confirm = useConfirm()
 
   const getHeaders = useCallback(async () => {
     const sb = createClient()
@@ -1179,7 +1201,13 @@ function EmailProviderCard({ onToast }: { onToast: (msg: string, t?: 'success' |
   }
 
   async function remove() {
-    if (!confirm('Remover configuração de email? Templates de email param de funcionar até reconfigurar.')) return
+    const ok = await confirm({
+      title:        'Remover configuração de email',
+      message:      'Remover configuração de email? Templates de email param de funcionar até reconfigurar.',
+      confirmLabel: 'Remover',
+      variant:      'danger',
+    })
+    if (!ok) return
     const headers = await getHeaders()
     await fetch(`${BACKEND}/email-settings`, { method: 'DELETE', headers })
     setConfig(null)
@@ -1454,6 +1482,7 @@ function WhatsAppFreeCard({ onToast }: { onToast: (msg: string, t?: 'success' | 
   const [qrBase64, setQrBase64] = useState<string | null>(null)
   const [qrExpired, setQrExpired] = useState(false)
   const [busy, setBusy] = useState(false)
+  const confirm = useConfirm()
 
   const getHeaders = useCallback(async (): Promise<Record<string, string>> => {
     const { data: { session } } = await supabase.auth.getSession()
@@ -1575,7 +1604,13 @@ function WhatsAppFreeCard({ onToast }: { onToast: (msg: string, t?: 'success' | 
   }
 
   async function disconnect() {
-    if (!confirm('Desconectar WhatsApp Gratuito? Você precisará escanear o QR novamente.')) return
+    const ok = await confirm({
+      title:        'Desconectar WhatsApp Gratuito',
+      message:      'Desconectar WhatsApp Gratuito? Você precisará escanear o QR novamente.',
+      confirmLabel: 'Desconectar',
+      variant:      'warning',
+    })
+    if (!ok) return
     if (!channel) return
     setBusy(true)
     try {

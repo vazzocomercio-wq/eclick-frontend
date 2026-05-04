@@ -15,6 +15,7 @@ import { ToastViewport, useToast, todoToast } from '@/hooks/useToast'
 import { MaskedField } from '@/components/ui/masked-field'
 import { usePreferences } from '@/hooks/usePreferences'
 import { formatPii } from '@/lib/format'
+import { useConfirm } from '@/components/ui/dialog-provider'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -128,6 +129,7 @@ export default function ClientesPage() {
   const [mlPending, setMlPending] = useState<number | null>(null)
   const [orphans,   setOrphans]   = useState<number | null>(null)
   const [resetting, setResetting] = useState(false)
+  const confirm = useConfirm()
 
   const getHeaders = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
@@ -205,7 +207,13 @@ export default function ClientesPage() {
 
   const resetOrphans = useCallback(async () => {
     if (resetting || !orphans) return
-    if (!confirm(`Isso vai marcar ${orphans} pedidos para reprocessar o billing_info. Continuar?`)) return
+    const ok = await confirm({
+      title:        'Reprocessar billing_info',
+      message:      `Isso vai marcar ${orphans} pedidos para reprocessar o billing_info. Continuar?`,
+      confirmLabel: 'Continuar',
+      variant:      'warning',
+    })
+    if (!ok) return
     setResetting(true)
     try {
       const headers = await getHeaders()
@@ -224,7 +232,7 @@ export default function ClientesPage() {
     } finally {
       setResetting(false)
     }
-  }, [resetting, orphans, getHeaders, toast, loadOrphans, loadMlPending])
+  }, [resetting, orphans, getHeaders, toast, loadOrphans, loadMlPending, confirm])
 
   // ── KPIs (agregados via /customers/stats — banco inteiro, não página) ──
   type StatsAgg = {
@@ -326,7 +334,13 @@ export default function ClientesPage() {
   }, [getHeaders, toast, load])
 
   const removeOne = useCallback(async (c: Customer) => {
-    if (!confirm(`Excluir ${c.display_name ?? 'este cliente'}? Esta ação não pode ser desfeita.`)) return
+    const ok = await confirm({
+      title:        'Excluir cliente',
+      message:      `Excluir ${c.display_name ?? 'este cliente'}? Esta ação não pode ser desfeita.`,
+      confirmLabel: 'Excluir',
+      variant:      'danger',
+    })
+    if (!ok) return
     try {
       const headers = await getHeaders()
       const res = await fetch(`${BACKEND}/customers/${c.id}`, { method: 'DELETE', headers })
@@ -335,7 +349,7 @@ export default function ClientesPage() {
       setSelected(s => s.filter(x => x !== c.id))
       await load()
     } catch { toast({ tone: 'error', message: 'Erro de rede' }) }
-  }, [getHeaders, toast, load])
+  }, [getHeaders, toast, load, confirm])
 
   const exportCsv = useCallback((rows: Customer[]) => {
     const cols = ['display_name','cpf','phone','email','whatsapp_id','enrichment_status','total_purchases','last_contact_at']
@@ -459,7 +473,13 @@ export default function ClientesPage() {
 
   const vipBulk = useCallback(async (rows: Customer[]) => {
     if (!rows.length) return
-    if (!confirm(`Marcar ${rows.length} cliente${rows.length === 1 ? '' : 's'} como VIP?`)) return
+    const ok = await confirm({
+      title:        'Marcar como VIP',
+      message:      `Marcar ${rows.length} cliente${rows.length === 1 ? '' : 's'} como VIP?`,
+      confirmLabel: 'Marcar VIP',
+      variant:      'default',
+    })
+    if (!ok) return
     const ids = new Set(rows.map(r => r.id))
     // Optimistic — adiciona tag vip imediatamente nas linhas selecionadas
     setList(prev => prev.map(c => ids.has(c.id)
@@ -483,7 +503,7 @@ export default function ClientesPage() {
       toast({ tone: 'error', message: 'Erro de rede' })
       await load()
     }
-  }, [getHeaders, toast, load])
+  }, [getHeaders, toast, load, confirm])
 
   const blockBulk = useCallback((rows: Customer[]) => {
     if (!rows.length) return
