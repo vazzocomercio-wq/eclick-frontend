@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react'
 import { ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import { api } from './api'
 import { TopCustomer, Curve, ABC_COLORS, fmtCurrency, fmtNumber } from './types'
+import CustomerDetailDrawer from '@/components/customer-hub/CustomerDetailDrawer'
 
 type CurveFilter = Curve | 'all'
 
@@ -11,6 +12,7 @@ export function AbcTab({ onToast }: { onToast: (m: string, type?: 'success' | 'e
   const [filter, setFilter]   = useState<CurveFilter>('all')
   const [list, setList]       = useState<TopCustomer[]>([])
   const [loading, setLoading] = useState(true)
+  const [selected, setSelected] = useState<TopCustomer | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -136,7 +138,9 @@ export function AbcTab({ onToast }: { onToast: (m: string, type?: 'success' | 'e
                 </thead>
                 <tbody>
                   {filtered.map(c => (
-                    <tr key={c.id} className="border-t" style={{ borderColor: '#1e1e24' }}>
+                    <tr key={c.id} className="border-t cursor-pointer hover:bg-[#161618] transition-colors"
+                      style={{ borderColor: '#1e1e24' }}
+                      onClick={() => setSelected(c)}>
                       <td className="px-4 py-2.5 text-white truncate max-w-xs">{c.display_name ?? c.phone ?? c.id.slice(0, 8)}</td>
                       <td className="px-4 py-2.5 text-right text-zinc-300">{fmtCurrency(c.rfm_monetary)}</td>
                       <td className="px-4 py-2.5 text-right text-zinc-400">{c.rfm_frequency ?? '—'}</td>
@@ -152,6 +156,24 @@ export function AbcTab({ onToast }: { onToast: (m: string, type?: 'success' | 'e
                 </tbody>
               </table>
             </div>}
+
+      {selected && (
+        <CustomerDetailDrawer
+          customerId={selected.id}
+          seed={{
+            id:               selected.id,
+            display_name:     selected.display_name,
+            phone:            selected.phone,
+            ltv_score:        selected.ltv_score,
+            avg_ticket:       selected.avg_ticket,
+            abc_curve:        selected.abc_curve,
+            rfm_score:        selected.rfm_score,
+            rfm_recency_days: selected.rfm_recency_days,
+            last_purchase_at: selected.last_purchase_at,
+          }}
+          onClose={() => setSelected(null)}
+        />
+      )}
     </>
   )
 }

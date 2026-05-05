@@ -55,6 +55,41 @@ export function SegmentsTab({ onToast }: { onToast: (m: string, type?: 'success'
     } catch (e) { onToast((e as Error).message, 'error') }
   }
 
+  async function exportSegmentCsv(s: CustomerSegment) {
+    try {
+      type Row = { id: string; display_name: string | null; phone: string | null; email: string | null; ltv_score?: number | null; avg_ticket?: number | null; abc_curve?: string | null; churn_risk?: string | null }
+      const rows = await api<Row[]>(`/customer-hub/segments/${s.id}/customers?limit=10000`)
+      if (rows.length === 0) {
+        onToast('Segmento sem clientes pra exportar', 'error')
+        return
+      }
+      const escape = (x: string) => /[",\n]/.test(x) ? `"${x.replace(/"/g, '""')}"` : x
+      const lines = [
+        ['Cliente', 'Telefone', 'Email', 'LTV', 'Ticket médio', 'Curva ABC', 'Churn'].join(','),
+        ...rows.map(r => [
+          escape(r.display_name ?? ''),
+          r.phone ?? '',
+          escape(r.email ?? ''),
+          (r.ltv_score ?? 0).toFixed(2),
+          (r.avg_ticket ?? 0).toFixed(2),
+          r.abc_curve ?? '',
+          r.churn_risk ?? '',
+        ].join(',')),
+      ]
+      const csv = '﻿' + lines.join('\n')
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      const stamp = new Date().toISOString().slice(0, 10)
+      const slug = s.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+      a.href = url
+      a.download = `segmento-${slug}-${stamp}.csv`
+      document.body.appendChild(a); a.click(); document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      onToast(`${rows.length} clientes exportados`, 'success')
+    } catch (e) { onToast((e as Error).message, 'error') }
+  }
+
   async function remove(id: string) {
     const ok = await confirm({
       title:        'Excluir segmento',
@@ -115,6 +150,7 @@ export function SegmentsTab({ onToast }: { onToast: (m: string, type?: 'success'
                     <button onClick={() => setEdit(s)} className="px-3 py-1.5 rounded-lg text-xs font-medium border" style={{ borderColor: '#3f3f46', color: '#e4e4e7' }}>Editar</button>
                     <button onClick={() => compute(s)} className="px-3 py-1.5 rounded-lg text-xs font-medium border" style={{ borderColor: '#00E5FF', color: '#00E5FF' }}>Recalcular</button>
                     <button onClick={() => router.push(`/dashboard/messaging?segment_id=${s.id}`)} className="px-3 py-1.5 rounded-lg text-xs font-medium border" style={{ borderColor: '#3f3f46', color: '#e4e4e7' }}>Campanha</button>
+                    <button onClick={() => exportSegmentCsv(s)} className="px-3 py-1.5 rounded-lg text-xs font-medium border" style={{ borderColor: '#3f3f46', color: '#e4e4e7' }}>CSV</button>
                     <button onClick={() => remove(s.id)} className="px-3 py-1.5 rounded-lg text-xs font-medium border" style={{ borderColor: '#3f3f46', color: '#f87171' }}>Excluir</button>
                   </div>
                 </div>
