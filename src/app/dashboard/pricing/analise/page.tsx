@@ -128,6 +128,12 @@ export default function PricingAnalisePage() {
                 : { background: 'rgba(161,161,170,0.1)', color: '#a1a1aa' }}>
               🔔 WhatsApp: <span className="font-semibold">{waEnabled ? '● ATIVO' : '○ Inativo'}</span>
             </span>
+            <a href="/dashboard/precos"
+              className="px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors hover:border-cyan-500 hover:text-cyan-400"
+              style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}
+              title="Tabela manual de preços × concorrentes">
+              Tabela de preços →
+            </a>
             <button
               onClick={() => setShowSettings(true)}
               className="px-3 py-1.5 rounded-lg text-xs font-medium border"

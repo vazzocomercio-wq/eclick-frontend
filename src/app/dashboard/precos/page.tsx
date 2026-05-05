@@ -413,7 +413,12 @@ export default function PrecosPage() {
       <div className="flex-shrink-0 px-6 pt-6 pb-4 flex items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold text-white">Gestão de Preços</h1>
-          <p className="text-sm text-zinc-500 mt-0.5">Margem, custo e comparativo com concorrentes</p>
+          <p className="text-sm text-zinc-500 mt-0.5">
+            Margem, custo e comparativo manual com concorrentes ·{' '}
+            <a href="/dashboard/pricing/analise" className="text-cyan-400 hover:text-cyan-300 underline-offset-2 hover:underline">
+              Ver alertas IA →
+            </a>
+          </p>
         </div>
         <button
           onClick={load}
