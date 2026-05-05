@@ -7,6 +7,7 @@ import OnboardingBanner from '@/components/inteligencia/OnboardingBanner'
 import {
   RefreshCw, Bell, Filter, AlertCircle, ShieldCheck, AlertTriangle, Activity,
   Clock, MessageSquare, CheckCircle2, XCircle, ExternalLink, Sparkles, Link2,
+  X, Code, User as UserIcon, Send,
 } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
@@ -142,10 +143,11 @@ function DeliveryStatusIcon({ status }: { status: DeliveryStatus }) {
 
 // ── Card ──────────────────────────────────────────────────────────────────────
 
-function SignalCard({ signal, deliveries, relatedSignals }: {
+function SignalCard({ signal, deliveries, relatedSignals, onClick }: {
   signal: AlertSignal
   deliveries: AlertDelivery[]
   relatedSignals: AlertSignal[]
+  onClick: () => void
 }) {
   const meta = SEVERITY_META[signal.severity]
   const isCross = signal.analyzer === 'cross_intel'
@@ -167,7 +169,12 @@ function SignalCard({ signal, deliveries, relatedSignals }: {
       }
 
   return (
-    <div className="rounded-2xl p-4 flex flex-col gap-3" style={cardStyle}>
+    <div className="rounded-2xl p-4 flex flex-col gap-3 cursor-pointer transition-transform hover:-translate-y-0.5"
+      style={cardStyle}
+      onClick={onClick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick() } }}>
 
       {isCross && (
         <div className="-mb-1 flex items-center gap-1.5">
@@ -291,17 +298,21 @@ export default function AlertasPage() {
   const [filter, setFilter]         = useState<AnalyzerName | 'all'>('all')
   const [severityFilter, setSeverityFilter] = useState<Severity | 'all'>('all')
   const [liveStatus, setLiveStatus] = useState<'connecting' | 'live' | 'disconnected'>('connecting')
+  const [selectedSignal, setSelectedSignal] = useState<AlertSignal | null>(null)
+  const [managers, setManagers] = useState<Array<{ id: string; name: string; department: string }>>([])
 
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const [s, d] = await Promise.all([
+      const [s, d, m] = await Promise.all([
         api<AlertSignal[]>('/alert-signals?limit=100'),
         api<AlertDelivery[]>('/alert-deliveries?limit=200'),
+        api<Array<{ id: string; name: string; department: string }>>('/alert-managers').catch(() => []),
       ])
       setSignals(s)
       setDeliveries(d)
+      setManagers(m)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Erro ao carregar alertas')
     } finally {
@@ -523,6 +534,7 @@ export default function AlertasPage() {
                 signal={s}
                 deliveries={deliveriesBySignal.get(s.id) ?? []}
                 relatedSignals={related}
+                onClick={() => setSelectedSignal(s)}
               />
             )
           })}
@@ -535,6 +547,239 @@ export default function AlertasPage() {
         Quando o gestor responde &quot;1&quot;, &quot;2&quot; ou &quot;3&quot; pelo WhatsApp, a ação é
         registrada aqui em tempo real.
       </p>
+
+      {selectedSignal && (
+        <SignalDetailDrawer
+          signal={selectedSignal}
+          deliveries={deliveriesBySignal.get(selectedSignal.id) ?? []}
+          relatedSignals={(selectedSignal.related_signals ?? [])
+            .map(id => signalById.get(id))
+            .filter((x): x is AlertSignal => !!x)}
+          managers={managers}
+          onClose={() => setSelectedSignal(null)}
+          onJumpToSignal={(s) => setSelectedSignal(s)}
+        />
+      )}
     </div>
   )
+}
+
+// ── SignalDetailDrawer ────────────────────────────────────────────────────────
+
+const RESPONSE_LABELS: Record<ResponseType, { label: string; color: string }> = {
+  approve:  { label: 'Aprovou',   color: '#4ade80' },
+  details:  { label: 'Detalhes',  color: '#60a5fa' },
+  ignore:   { label: 'Ignorou',   color: '#71717a' },
+  delegate: { label: 'Delegou',   color: '#a78bfa' },
+  custom:   { label: 'Resposta livre', color: '#a78bfa' },
+}
+
+function SignalDetailDrawer({
+  signal, deliveries, relatedSignals, managers, onClose, onJumpToSignal,
+}: {
+  signal: AlertSignal
+  deliveries: AlertDelivery[]
+  relatedSignals: AlertSignal[]
+  managers: Array<{ id: string; name: string; department: string }>
+  onClose: () => void
+  onJumpToSignal: (s: AlertSignal) => void
+}) {
+  const meta = SEVERITY_META[signal.severity]
+  const isCross = signal.analyzer === 'cross_intel'
+  const crossColor = '#a78bfa'
+  const accent = isCross ? crossColor : meta.color
+  const Icon = isCross ? Sparkles : meta.icon
+
+  // ESC fecha
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  const managerById = useMemo(() => {
+    const m = new Map<string, { name: string; department: string }>()
+    for (const x of managers) m.set(x.id, x)
+    return m
+  }, [managers])
+
+  const dataEntries = Object.entries(signal.data ?? {}).filter(([, v]) => v !== null && v !== undefined)
+
+  return (
+    <div className="fixed inset-0 z-50" onClick={onClose}>
+      {/* Backdrop */}
+      <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(2px)' }} />
+
+      {/* Drawer */}
+      <div className="absolute top-0 right-0 h-full w-full sm:w-[480px] overflow-y-auto"
+        style={{ background: '#0c0c0e', borderLeft: '1px solid #27272a' }}
+        onClick={e => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true">
+
+        {/* Header — sticky */}
+        <div className="sticky top-0 z-10 px-5 py-4 flex items-start gap-3"
+          style={{ background: '#0c0c0e', borderBottom: '1px solid #1e1e24' }}>
+          <div className="w-10 h-10 rounded-xl shrink-0 flex items-center justify-center"
+            style={{ background: `${accent}1a`, border: `1px solid ${accent}33` }}>
+            <Icon size={16} style={{ color: accent }} />
+          </div>
+          <div className="flex-1 min-w-0">
+            {isCross && (
+              <span className="text-[9px] font-bold uppercase tracking-[0.15em] inline-flex items-center gap-1"
+                style={{ color: crossColor }}>
+                <Sparkles size={9} /> Cross-Insight
+              </span>
+            )}
+            <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: accent }}>
+              {humanizeCategory(signal.category)}
+            </p>
+            {signal.entity_name && (
+              <h2 className="text-white font-semibold text-base mt-0.5 truncate">{signal.entity_name}</h2>
+            )}
+            <p className="text-[10px] text-zinc-500 mt-1">
+              {timeAgo(signal.created_at)} · {signal.analyzer} · score {signal.score}
+            </p>
+          </div>
+          <button onClick={onClose}
+            className="p-1.5 rounded-lg transition-colors shrink-0"
+            style={{ color: '#71717a' }}
+            onMouseEnter={e => (e.currentTarget.style.color = '#fff')}
+            onMouseLeave={e => (e.currentTarget.style.color = '#71717a')}
+            aria-label="Fechar">
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="p-5 space-y-5">
+          {/* Pills */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <SeverityPill severity={signal.severity} />
+            <StatusBadge status={signal.status} />
+          </div>
+
+          {/* Summary */}
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold mb-1.5">Resumo</p>
+            <p className="text-sm text-zinc-200 leading-relaxed">{signal.summary_pt}</p>
+          </div>
+
+          {/* Suggestion */}
+          {signal.suggestion_pt && (
+            <div className="px-3 py-2.5 rounded-lg flex items-start gap-2"
+              style={{
+                background: `${accent}0d`,
+                border:     `1px solid ${accent}33`,
+              }}>
+              <ShieldCheck size={12} style={{ color: accent, marginTop: 2, flexShrink: 0 }} />
+              <p className="text-xs text-zinc-200 leading-relaxed">{signal.suggestion_pt}</p>
+            </div>
+          )}
+
+          {/* Data jsonb formatado */}
+          {dataEntries.length > 0 && (
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold mb-1.5 inline-flex items-center gap-1">
+                <Code size={10} /> Dados do sinal
+              </p>
+              <div className="rounded-lg overflow-hidden" style={{ background: '#18181b', border: '1px solid #27272a' }}>
+                {dataEntries.map(([k, v], i) => (
+                  <div key={k} className="px-3 py-2 flex items-start gap-3 text-[11px]"
+                    style={{ borderTop: i > 0 ? '1px solid #1e1e24' : 'none' }}>
+                    <span className="text-zinc-500 font-mono shrink-0">{k}</span>
+                    <span className="flex-1 min-w-0 text-zinc-200 font-mono break-all text-right">
+                      {formatValue(v)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Related signals (cross-intel) */}
+          {relatedSignals.length > 0 && (
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold mb-1.5 inline-flex items-center gap-1">
+                <Link2 size={10} /> Sinais relacionados ({relatedSignals.length})
+              </p>
+              <div className="space-y-1.5">
+                {relatedSignals.map(r => {
+                  const rmeta = SEVERITY_META[r.severity]
+                  return (
+                    <button key={r.id} onClick={() => onJumpToSignal(r)}
+                      className="w-full text-left px-3 py-2 rounded-lg transition-colors"
+                      style={{ background: '#18181b', border: '1px solid #27272a' }}>
+                      <div className="flex items-center gap-2">
+                        <rmeta.icon size={11} style={{ color: rmeta.color }} />
+                        <span className="text-[10px] uppercase tracking-wider font-semibold capitalize" style={{ color: rmeta.color }}>
+                          {r.analyzer}
+                        </span>
+                        <span className="text-[10px] text-zinc-600">·</span>
+                        <span className="text-[10px] text-zinc-400">{humanizeCategory(r.category)}</span>
+                        <span className="ml-auto text-[10px] font-mono text-zinc-600">→</span>
+                      </div>
+                      <p className="text-[11px] text-zinc-300 mt-1 line-clamp-2">{r.summary_pt}</p>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Deliveries */}
+          {deliveries.length > 0 && (
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold mb-1.5 inline-flex items-center gap-1">
+                <Send size={10} /> Entregas ({deliveries.length})
+              </p>
+              <div className="space-y-1.5">
+                {deliveries.map(d => {
+                  const mgr = managerById.get(d.manager_id)
+                  const resp = d.response_type ? RESPONSE_LABELS[d.response_type] : null
+                  return (
+                    <div key={d.id} className="px-3 py-2 rounded-lg space-y-1.5"
+                      style={{ background: '#18181b', border: '1px solid #27272a' }}>
+                      <div className="flex items-center gap-2">
+                        <UserIcon size={11} style={{ color: '#a1a1aa' }} />
+                        <span className="text-xs text-zinc-200 font-medium">{mgr?.name ?? d.manager_id.slice(0, 8)}</span>
+                        {mgr && (
+                          <span className="text-[9px] text-zinc-600 capitalize">· {mgr.department}</span>
+                        )}
+                        <span className="ml-auto"><DeliveryStatusIcon status={d.status} /></span>
+                      </div>
+                      <div className="flex items-center gap-2 text-[10px] text-zinc-500">
+                        <span>{d.delivery_type === 'immediate' ? 'imediato' : d.delivery_type.replace('digest_', 'digest ')}</span>
+                        {d.sent_at && <span>· enviado {timeAgo(d.sent_at)}</span>}
+                        {d.status === 'failed' && d.error_message && (
+                          <span className="text-rose-400">· {d.error_message.slice(0, 40)}</span>
+                        )}
+                      </div>
+                      {resp && (
+                        <div className="flex items-center gap-1.5 text-[10px]" style={{ color: resp.color }}>
+                          <CheckCircle2 size={11} />
+                          <span className="font-semibold">{resp.label}</span>
+                          {d.response_text && d.response_type === 'custom' && (
+                            <span className="text-zinc-400 italic">&quot;{d.response_text.slice(0, 60)}&quot;</span>
+                          )}
+                          {d.response_at && <span className="text-zinc-600 ml-auto">{timeAgo(d.response_at)}</span>}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function formatValue(v: unknown): string {
+  if (v === null || v === undefined) return '—'
+  if (typeof v === 'number') return Number.isInteger(v) ? String(v) : v.toFixed(2)
+  if (typeof v === 'string') return v
+  if (typeof v === 'boolean') return v ? 'sim' : 'não'
+  return JSON.stringify(v)
 }
