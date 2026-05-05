@@ -5,8 +5,9 @@ import { createClient } from '@/lib/supabase'
 import Link from 'next/link'
 import {
   RefreshCw, Megaphone, AlertCircle, ChevronDown, ChevronRight,
-  TrendingUp, MousePointerClick, Eye, DollarSign, Target, Activity,
+  TrendingUp, TrendingDown, MousePointerClick, Eye, DollarSign, Target, Activity,
   Download, Clock, ArrowRight, Pause, Play, Edit2, Check, X, Package,
+  Filter,
 } from 'lucide-react'
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis,
@@ -48,13 +49,33 @@ type SeriesPoint = {
   acos: number
 }
 
+type Totals = {
+  clicks: number; impressions: number; spend: number
+  conversions: number; revenue: number
+  ctr: number; roas: number; acos: number
+}
+
 type SummaryResp = {
-  totals: {
-    clicks: number; impressions: number; spend: number
-    conversions: number; revenue: number
-    ctr: number; roas: number; acos: number
-  }
-  series: SeriesPoint[]
+  totals:    Totals
+  series:    SeriesPoint[]
+  previous?: { from: string; to: string; totals: Totals }
+}
+
+type BySkuRow = {
+  item_id:        string
+  product_id?:    string
+  product_name?:  string
+  sku?:           string
+  campaign_count: number
+  campaign_names: string[]
+  spend:          number
+  revenue:        number
+  clicks:         number
+  impressions:    number
+  conversions:    number
+  ctr:            number
+  roas:           number
+  acos:           number
 }
 
 type CampaignDayRow = SeriesPoint
@@ -123,9 +144,21 @@ function statusBadge(s: string | null) {
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-function KpiCard({ label, value, sub, icon, color = '#a1a1aa', subColor }: {
-  label: string; value: string; sub?: string; icon: React.ReactNode; color?: string; subColor?: string
+function KpiCard({ label, value, sub, icon, color = '#a1a1aa', subColor, delta, invertDelta }: {
+  label:        string
+  value:        string
+  sub?:         string
+  icon:         React.ReactNode
+  color?:       string
+  subColor?:    string
+  delta?:       number | null  // % change vs prev period (null = sem comparativo)
+  invertDelta?: boolean        // true se queda é positivo (ex: ACoS menor é melhor)
 }) {
+  const showDelta = delta != null && Number.isFinite(delta)
+  const positive  = showDelta ? (invertDelta ? delta < 0 : delta > 0) : false
+  const negative  = showDelta ? (invertDelta ? delta > 0 : delta < 0) : false
+  const deltaColor = positive ? '#4ade80' : negative ? '#f87171' : '#71717a'
+
   return (
     <div className="rounded-2xl p-4 flex flex-col gap-2 min-h-[110px] justify-between"
       style={{ background: '#111114', border: '1px solid #1e1e24' }}>
@@ -135,10 +168,24 @@ function KpiCard({ label, value, sub, icon, color = '#a1a1aa', subColor }: {
       </div>
       <div>
         <p className="text-2xl font-bold tabular-nums" style={{ color }}>{value}</p>
-        {sub && <p className="text-[11px] mt-1" style={{ color: subColor ?? '#52525b' }}>{sub}</p>}
+        <div className="flex items-center gap-2 mt-1">
+          {showDelta && (
+            <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold"
+              style={{ color: deltaColor }}>
+              {delta! >= 0 ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
+              {delta! >= 0 ? '+' : ''}{delta!.toFixed(1)}%
+            </span>
+          )}
+          {sub && <span className="text-[11px]" style={{ color: subColor ?? '#52525b' }}>{sub}</span>}
+        </div>
       </div>
     </div>
   )
+}
+
+function deltaPct(cur: number, prev: number): number | null {
+  if (!prev || !Number.isFinite(prev)) return null
+  return ((cur - prev) / prev) * 100
 }
 
 function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ dataKey: string; value: number; color: string; name?: string }>; label?: string }) {
@@ -392,6 +439,9 @@ export default function MlAdsPage() {
   const [lastSyncMsg, setLastSyncMsg] = useState<string | null>(null)
   const [mlConnected, setMlConnected] = useState<boolean | null>(null)
   const [campaignBusy, setCampaignBusy] = useState<Set<string>>(new Set())
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'paused'>('all')
+  const [bySkuRows, setBySkuRows] = useState<BySkuRow[]>([])
+  const [showBySku, setShowBySku] = useState(false)
 
   // Última sincronização derivada do max(synced_at) entre campaigns
   const lastSync = useMemo(() => {
@@ -421,9 +471,10 @@ export default function MlAdsPage() {
     setError(null)
     try {
       const headers = await getHeaders()
-      const [sumRes, campRes] = await Promise.all([
-        fetch(`${BACKEND}/ml-ads/reports/summary?from=${range.from}&to=${range.to}`, { headers }),
+      const [sumRes, campRes, skuRes] = await Promise.all([
+        fetch(`${BACKEND}/ml-ads/reports/summary?from=${range.from}&to=${range.to}&compare=1`, { headers }),
         fetch(`${BACKEND}/ml-ads/campaigns?from=${range.from}&to=${range.to}`, { headers }),
+        fetch(`${BACKEND}/ml-ads/reports/by-sku?from=${range.from}&to=${range.to}`, { headers }),
       ])
 
       if (sumRes.status === 401) {
@@ -434,13 +485,18 @@ export default function MlAdsPage() {
       if (sumRes.ok) {
         const v = await sumRes.json()
         setSummary({
-          totals: v?.totals ?? { clicks: 0, impressions: 0, spend: 0, conversions: 0, revenue: 0, ctr: 0, roas: 0, acos: 0 },
-          series: Array.isArray(v?.series) ? v.series : [],
+          totals:    v?.totals ?? { clicks: 0, impressions: 0, spend: 0, conversions: 0, revenue: 0, ctr: 0, roas: 0, acos: 0 },
+          series:    Array.isArray(v?.series) ? v.series : [],
+          previous:  v?.previous ?? undefined,
         })
       }
       if (campRes.ok) {
         const v = await campRes.json()
         setCampaigns(Array.isArray(v) ? v : [])
+      }
+      if (skuRes.ok) {
+        const v = await skuRes.json()
+        setBySkuRows(Array.isArray(v) ? v : [])
       }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Erro ao carregar')
@@ -567,7 +623,22 @@ export default function MlAdsPage() {
   }
 
   const totals = summary?.totals
+  const prevTotals = summary?.previous?.totals
   const series = (summary?.series ?? []).map(d => ({ ...d, label: shortDate(d.date) }))
+
+  const filteredCampaigns = useMemo(() => {
+    if (statusFilter === 'all') return campaigns
+    return campaigns.filter(c => (c.status ?? '').toLowerCase() === statusFilter)
+  }, [campaigns, statusFilter])
+
+  const top5 = useMemo(() => {
+    return [...campaigns]
+      .filter(c => c.spend > 0)
+      .sort((a, b) => b.spend - a.spend)
+      .slice(0, 5)
+  }, [campaigns])
+
+  const totalSpendForBars = top5.reduce((s, c) => s + c.spend, 0) || 1
 
   // Empty state: never synced (no campaigns in DB)
   const isEmpty = !loading && campaigns.length === 0 && (totals?.spend ?? 0) === 0
@@ -706,15 +777,63 @@ export default function MlAdsPage() {
         </div>
       ) : (
         <>
-          {/* KPIs */}
+          {/* KPIs com delta vs período anterior */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-            <KpiCard label="Gasto total"   value={loading ? '…' : fmtBRL(totals?.spend ?? 0)}    icon={<DollarSign size={13} />} color="#f87171" />
-            <KpiCard label="Receita"       value={loading ? '…' : fmtBRL(totals?.revenue ?? 0)}  icon={<TrendingUp size={13} />} color="#4ade80" />
-            <KpiCard label="ROAS"          value={loading ? '…' : fmtRoas(totals?.roas ?? 0)}    icon={<Target size={13} />}     color={roasColor(totals?.roas ?? 0)} />
-            <KpiCard label="Cliques"       value={loading ? '…' : fmtNum(totals?.clicks ?? 0)}   icon={<MousePointerClick size={13} />} color="#60a5fa" />
-            <KpiCard label="CTR"           value={loading ? '…' : fmtPct(totals?.ctr ?? 0)}      icon={<Eye size={13} />}        color="#a78bfa" sub={`${fmtNum(totals?.impressions ?? 0)} imp.`} />
-            <KpiCard label="ACoS"          value={loading ? '…' : fmtPct(totals?.acos ?? 0)}     icon={<Activity size={13} />}   color={acosColor(totals?.acos ?? 0)} />
+            <KpiCard label="Gasto total"   value={loading ? '…' : fmtBRL(totals?.spend ?? 0)}
+              delta={prevTotals ? deltaPct(totals?.spend ?? 0, prevTotals.spend) : null}
+              invertDelta
+              icon={<DollarSign size={13} />} color="#f87171" />
+            <KpiCard label="Receita"       value={loading ? '…' : fmtBRL(totals?.revenue ?? 0)}
+              delta={prevTotals ? deltaPct(totals?.revenue ?? 0, prevTotals.revenue) : null}
+              icon={<TrendingUp size={13} />} color="#4ade80" />
+            <KpiCard label="ROAS"          value={loading ? '…' : fmtRoas(totals?.roas ?? 0)}
+              delta={prevTotals ? deltaPct(totals?.roas ?? 0, prevTotals.roas) : null}
+              icon={<Target size={13} />}     color={roasColor(totals?.roas ?? 0)} />
+            <KpiCard label="Cliques"       value={loading ? '…' : fmtNum(totals?.clicks ?? 0)}
+              delta={prevTotals ? deltaPct(totals?.clicks ?? 0, prevTotals.clicks) : null}
+              icon={<MousePointerClick size={13} />} color="#60a5fa" />
+            <KpiCard label="CTR"           value={loading ? '…' : fmtPct(totals?.ctr ?? 0)}
+              delta={prevTotals ? deltaPct(totals?.ctr ?? 0, prevTotals.ctr) : null}
+              icon={<Eye size={13} />}        color="#a78bfa" sub={`${fmtNum(totals?.impressions ?? 0)} imp.`} />
+            <KpiCard label="ACoS"          value={loading ? '…' : fmtPct(totals?.acos ?? 0)}
+              delta={prevTotals ? deltaPct(totals?.acos ?? 0, prevTotals.acos) : null}
+              invertDelta
+              icon={<Activity size={13} />}   color={acosColor(totals?.acos ?? 0)} />
           </div>
+          {prevTotals && summary?.previous && (
+            <p className="text-[10px] text-zinc-700 -mt-2">
+              Δ vs período anterior {summary.previous.from} → {summary.previous.to} ·
+              gastou {fmtBRL(prevTotals.spend)}, ROAS {fmtRoas(prevTotals.roas)}
+            </p>
+          )}
+
+          {/* Top 5 campaigns por gasto */}
+          {top5.length > 0 && (
+            <div className="rounded-2xl p-5 space-y-3" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+              <h3 className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 inline-flex items-center gap-1">
+                <Target size={11} /> Top 5 campanhas (por gasto)
+              </h3>
+              <div className="space-y-2">
+                {top5.map(c => {
+                  const pct = (c.spend / totalSpendForBars) * 100
+                  return (
+                    <div key={c.id} className="space-y-1">
+                      <div className="flex items-center justify-between gap-3 text-[11px]">
+                        <span className="text-zinc-300 truncate">{c.name || '(sem nome)'}</span>
+                        <div className="flex items-center gap-3 shrink-0">
+                          <span className="text-zinc-400 tabular-nums">{fmtBRL(c.spend)}</span>
+                          <span className="text-zinc-500 tabular-nums">{fmtRoas(c.roas)}</span>
+                        </div>
+                      </div>
+                      <div className="h-1.5 rounded-full overflow-hidden" style={{ background: '#1e1e24' }}>
+                        <div className="h-full rounded-full" style={{ width: `${pct}%`, background: roasColor(c.roas) }} />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Chart: Spend vs Revenue vs ROAS */}
           {series.length > 0 && (
@@ -745,9 +864,31 @@ export default function MlAdsPage() {
 
           {/* Campaigns table */}
           <div className="rounded-2xl overflow-hidden" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
-            <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: '1px solid #1a1a1f' }}>
+            <div className="flex items-center justify-between px-5 py-3 flex-wrap gap-2" style={{ borderBottom: '1px solid #1a1a1f' }}>
               <h3 className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">Campanhas</h3>
-              <span className="text-[11px] text-zinc-600">{campaigns.length} no período</span>
+              <div className="flex items-center gap-2">
+                {/* Filtros */}
+                <span className="text-[10px] text-zinc-700 inline-flex items-center gap-1">
+                  <Filter size={10} />
+                </span>
+                {(['all', 'active', 'paused'] as const).map(s => {
+                  const active = statusFilter === s
+                  const label = s === 'all' ? `Todas (${campaigns.length})`
+                    : s === 'active' ? `Ativas (${campaigns.filter(c => (c.status ?? '').toLowerCase() === 'active').length})`
+                    : `Pausadas (${campaigns.filter(c => (c.status ?? '').toLowerCase() === 'paused').length})`
+                  return (
+                    <button key={s} onClick={() => setStatusFilter(s)}
+                      className="px-2.5 py-1 rounded-md text-[10px] font-semibold transition-all"
+                      style={{
+                        background: active ? 'rgba(0,229,255,0.1)' : 'transparent',
+                        color:      active ? '#00E5FF' : '#a1a1aa',
+                        border:     `1px solid ${active ? 'rgba(0,229,255,0.3)' : '#27272a'}`,
+                      }}>
+                      {label}
+                    </button>
+                  )
+                })}
+              </div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full">
@@ -768,9 +909,11 @@ export default function MlAdsPage() {
                 <tbody>
                   {loading ? (
                     <tr><td colSpan={9} className="px-3 py-8 text-center text-xs text-zinc-600">Carregando…</td></tr>
-                  ) : campaigns.length === 0 ? (
-                    <tr><td colSpan={9} className="px-3 py-8 text-center text-xs text-zinc-600 italic">Nenhuma campanha no período.</td></tr>
-                  ) : campaigns.map(c => (
+                  ) : filteredCampaigns.length === 0 ? (
+                    <tr><td colSpan={9} className="px-3 py-8 text-center text-xs text-zinc-600 italic">
+                      {campaigns.length === 0 ? 'Nenhuma campanha no período.' : `Nenhuma campanha ${statusFilter === 'active' ? 'ativa' : 'pausada'} no período.`}
+                    </td></tr>
+                  ) : filteredCampaigns.map(c => (
                     <CampaignRow
                       key={c.id}
                       c={c}
@@ -788,6 +931,71 @@ export default function MlAdsPage() {
               </table>
             </div>
           </div>
+
+          {/* By SKU report (toggleable) */}
+          {bySkuRows.length > 0 && (
+            <div className="rounded-2xl overflow-hidden" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+              <button onClick={() => setShowBySku(v => !v)}
+                className="w-full flex items-center justify-between px-5 py-3"
+                style={{ borderBottom: showBySku ? '1px solid #1a1a1f' : 'none' }}>
+                <h3 className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 inline-flex items-center gap-1">
+                  <Package size={11} /> Por anúncio · {bySkuRows.length} item{bySkuRows.length !== 1 ? 's' : ''}
+                </h3>
+                <span className="text-[10px] text-zinc-600 inline-flex items-center gap-1">
+                  {showBySku ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
+                </span>
+              </button>
+              {showBySku && (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="text-left text-[10px] uppercase tracking-wide text-zinc-600"
+                        style={{ borderBottom: '1px solid #1a1a1f' }}>
+                        <th className="px-3 py-2 font-semibold">Anúncio</th>
+                        <th className="px-3 py-2 font-semibold text-right">Campanhas</th>
+                        <th className="px-3 py-2 font-semibold text-right">Gasto</th>
+                        <th className="px-3 py-2 font-semibold text-right">Receita</th>
+                        <th className="px-3 py-2 font-semibold text-right">ROAS</th>
+                        <th className="px-3 py-2 font-semibold text-right">Cliques</th>
+                        <th className="px-3 py-2 font-semibold text-right">CTR</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {bySkuRows.slice(0, 50).map(r => (
+                        <tr key={r.item_id} className="hover:bg-[#161618] transition-colors">
+                          <td className="px-3 py-2.5">
+                            <div>
+                              <p className="text-[12px] font-medium text-zinc-200 truncate max-w-[300px]">
+                                {r.product_name ?? r.item_id}
+                              </p>
+                              <p className="text-[10px] text-zinc-600 font-mono">
+                                {r.sku ?? r.item_id}
+                              </p>
+                            </div>
+                          </td>
+                          <td className="px-3 py-2.5 text-right text-xs text-zinc-300 tabular-nums" title={r.campaign_names.join(', ')}>
+                            {r.campaign_count}
+                          </td>
+                          <td className="px-3 py-2.5 text-right text-xs text-zinc-300 tabular-nums">{fmtBRL(r.spend)}</td>
+                          <td className="px-3 py-2.5 text-right text-xs text-zinc-300 tabular-nums">{fmtBRL(r.revenue)}</td>
+                          <td className="px-3 py-2.5 text-right text-xs font-semibold tabular-nums" style={{ color: roasColor(r.roas) }}>
+                            {fmtRoas(r.roas)}
+                          </td>
+                          <td className="px-3 py-2.5 text-right text-xs text-zinc-300 tabular-nums">{fmtNum(r.clicks)}</td>
+                          <td className="px-3 py-2.5 text-right text-xs text-zinc-400 tabular-nums">{fmtPct(r.ctr)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <p className="text-[9px] text-zinc-700 px-5 py-2 italic" style={{ borderTop: '1px solid #1a1a1f' }}>
+                    Quando 1 campanha tem N anúncios, o gasto/receita da campanha é atribuído a TODOS os anúncios — usa
+                    pra ranking de relevância, não pra contabilidade exata.
+                    {bySkuRows.length > 50 && ' Mostrando top 50 por gasto.'}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
         </>
       )}
     </div>
