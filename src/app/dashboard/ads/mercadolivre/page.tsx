@@ -6,7 +6,7 @@ import Link from 'next/link'
 import {
   RefreshCw, Megaphone, AlertCircle, ChevronDown, ChevronRight,
   TrendingUp, MousePointerClick, Eye, DollarSign, Target, Activity,
-  Download, Clock, ArrowRight,
+  Download, Clock, ArrowRight, Pause, Play, Edit2, Check, X, Package,
 } from 'lucide-react'
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis,
@@ -58,6 +58,13 @@ type SummaryResp = {
 }
 
 type CampaignDayRow = SeriesPoint
+
+type CampaignItem = {
+  item_id:       string
+  product_id?:   string
+  product_name?: string
+  sku?:          string
+}
 
 type Preset = '7d' | '30d' | 'custom'
 
@@ -156,21 +163,26 @@ function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: 
 }
 
 function CampaignRow({
-  c, expanded, onToggle, getHeaders, dateFrom, dateTo,
+  c, expanded, onToggle, onTogglePause, onEditBudget, getHeaders, dateFrom, dateTo, busy,
 }: {
   c: Campaign
   expanded: boolean
   onToggle: () => void
+  onTogglePause: (c: Campaign) => Promise<void>
+  onEditBudget: (c: Campaign, newBudget: number) => Promise<void>
   getHeaders: () => Promise<Record<string, string>>
   dateFrom: string
   dateTo: string
+  busy: boolean
 }) {
   const sb = statusBadge(c.status)
   const [days, setDays] = useState<CampaignDayRow[]>([])
+  const [items, setItems] = useState<CampaignItem[]>([])
   const [loading, setLoading] = useState(false)
+  const [editingBudget, setEditingBudget] = useState(false)
+  const [budgetInput, setBudgetInput] = useState(String(c.daily_budget ?? ''))
 
-  // Re-fetch only when row opens or the date range changes — never depend on
-  // `days` (which the effect itself sets), or it loops.
+  // Re-fetch days + items quando abre ou o range muda
   useEffect(() => {
     if (!expanded) return
     let cancelled = false
@@ -178,14 +190,18 @@ function CampaignRow({
     ;(async () => {
       try {
         const headers = await getHeaders()
-        const res = await fetch(
-          `${BACKEND}/ml-ads/reports/campaign/${c.id}?from=${dateFrom}&to=${dateTo}`,
-          { headers },
-        )
+        const [daysRes, itemsRes] = await Promise.all([
+          fetch(`${BACKEND}/ml-ads/reports/campaign/${c.id}?from=${dateFrom}&to=${dateTo}`, { headers }),
+          fetch(`${BACKEND}/ml-ads/campaigns/${c.id}/items`, { headers }),
+        ])
         if (cancelled) return
-        if (res.ok) {
-          const v = await res.json()
+        if (daysRes.ok) {
+          const v = await daysRes.json()
           setDays(Array.isArray(v) ? v : [])
+        }
+        if (itemsRes.ok) {
+          const v = await itemsRes.json()
+          setItems(Array.isArray(v) ? v : [])
         }
       } finally { if (!cancelled) setLoading(false) }
     })()
@@ -193,10 +209,29 @@ function CampaignRow({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expanded, c.id, dateFrom, dateTo])
 
+  const isPaused = (c.status ?? '').toLowerCase() === 'paused'
+  const isActive = (c.status ?? '').toLowerCase() === 'active'
+
+  async function commitBudget() {
+    const v = parseFloat(budgetInput.replace(',', '.'))
+    if (!Number.isFinite(v) || v < 0) {
+      setBudgetInput(String(c.daily_budget ?? ''))
+      setEditingBudget(false)
+      return
+    }
+    if (v === c.daily_budget) { setEditingBudget(false); return }
+    await onEditBudget(c, v)
+    setEditingBudget(false)
+  }
+  function cancelBudget() {
+    setBudgetInput(String(c.daily_budget ?? ''))
+    setEditingBudget(false)
+  }
+
   return (
     <>
-      <tr onClick={onToggle} className="cursor-pointer hover:bg-[#161618] transition-colors">
-        <td className="px-3 py-3">
+      <tr className="hover:bg-[#161618] transition-colors">
+        <td className="px-3 py-3 cursor-pointer" onClick={onToggle}>
           <div className="flex items-center gap-2">
             {expanded ? <ChevronDown size={14} className="text-zinc-500" /> : <ChevronRight size={14} className="text-zinc-500" />}
             <div>
@@ -210,20 +245,92 @@ function CampaignRow({
           <span className="text-[10px] font-semibold px-2 py-0.5 rounded"
             style={{ color: sb.color, background: sb.bg }}>{sb.label}</span>
         </td>
-        <td className="px-3 py-3 text-right text-xs text-zinc-300 tabular-nums">
-          {c.daily_budget != null ? fmtBRL(c.daily_budget) : '—'}
+        <td className="px-3 py-3 text-right">
+          {editingBudget ? (
+            <div className="inline-flex items-center gap-1" onClick={e => e.stopPropagation()}>
+              <span className="text-[10px] text-zinc-600">R$</span>
+              <input type="text" autoFocus value={budgetInput}
+                onChange={e => setBudgetInput(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') { e.preventDefault(); void commitBudget() }
+                  if (e.key === 'Escape') { e.preventDefault(); cancelBudget() }
+                }}
+                className="w-20 px-2 py-0.5 rounded text-xs text-white outline-none text-right font-mono"
+                style={{ background: '#18181b', border: '1px solid #00E5FF' }} />
+              <button onClick={commitBudget} disabled={busy}
+                className="p-0.5 rounded transition-colors disabled:opacity-40"
+                style={{ color: '#4ade80' }} title="Salvar (Enter)">
+                <Check size={11} />
+              </button>
+              <button onClick={cancelBudget}
+                className="p-0.5 rounded transition-colors"
+                style={{ color: '#71717a' }} title="Cancelar (Esc)">
+                <X size={11} />
+              </button>
+            </div>
+          ) : (
+            <button onClick={(e) => { e.stopPropagation(); setEditingBudget(true) }}
+              className="text-xs text-zinc-300 tabular-nums hover:text-white transition-colors inline-flex items-center gap-1"
+              title="Clique pra editar">
+              {c.daily_budget != null ? fmtBRL(c.daily_budget) : '—'}
+              <Edit2 size={9} className="opacity-30" />
+            </button>
+          )}
         </td>
-        <td className="px-3 py-3 text-right text-xs text-zinc-300 tabular-nums">{fmtBRL(c.spend)}</td>
-        <td className="px-3 py-3 text-right text-xs text-zinc-300 tabular-nums">{fmtBRL(c.revenue)}</td>
-        <td className="px-3 py-3 text-right text-xs font-semibold tabular-nums" style={{ color: roasColor(c.roas) }}>
+        <td className="px-3 py-3 text-right text-xs text-zinc-300 tabular-nums cursor-pointer" onClick={onToggle}>{fmtBRL(c.spend)}</td>
+        <td className="px-3 py-3 text-right text-xs text-zinc-300 tabular-nums cursor-pointer" onClick={onToggle}>{fmtBRL(c.revenue)}</td>
+        <td className="px-3 py-3 text-right text-xs font-semibold tabular-nums cursor-pointer" onClick={onToggle} style={{ color: roasColor(c.roas) }}>
           {fmtRoas(c.roas)}
         </td>
-        <td className="px-3 py-3 text-right text-xs text-zinc-300 tabular-nums">{fmtNum(c.clicks)}</td>
-        <td className="px-3 py-3 text-right text-xs text-zinc-400 tabular-nums">{fmtPct(c.ctr)}</td>
+        <td className="px-3 py-3 text-right text-xs text-zinc-300 tabular-nums cursor-pointer" onClick={onToggle}>{fmtNum(c.clicks)}</td>
+        <td className="px-3 py-3 text-right text-xs text-zinc-400 tabular-nums cursor-pointer" onClick={onToggle}>{fmtPct(c.ctr)}</td>
+        <td className="px-3 py-3 text-right">
+          {(isActive || isPaused) && (
+            <button onClick={(e) => { e.stopPropagation(); void onTogglePause(c) }}
+              disabled={busy}
+              className="p-1.5 rounded-lg transition-colors disabled:opacity-40"
+              style={{
+                background: isPaused ? 'rgba(74,222,128,0.1)' : 'rgba(245,158,11,0.1)',
+                color:      isPaused ? '#4ade80' : '#f59e0b',
+                border:     `1px solid ${isPaused ? 'rgba(74,222,128,0.25)' : 'rgba(245,158,11,0.25)'}`,
+              }}
+              title={isPaused ? 'Reativar campanha' : 'Pausar campanha'}>
+              {isPaused ? <Play size={11} /> : <Pause size={11} />}
+            </button>
+          )}
+        </td>
       </tr>
       {expanded && (
         <tr>
-          <td colSpan={8} className="px-3 py-4" style={{ background: '#0c0c0f', borderTop: '1px solid #1a1a1f' }}>
+          <td colSpan={9} className="px-3 py-4 space-y-4" style={{ background: '#0c0c0f', borderTop: '1px solid #1a1a1f' }}>
+            {/* Items / SKUs vinculados */}
+            {items.length > 0 && (
+              <div>
+                <p className="text-[10px] uppercase tracking-wider text-zinc-600 font-semibold mb-1.5 inline-flex items-center gap-1 px-3">
+                  <Package size={10} /> Anúncios vinculados ({items.length})
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5 px-3">
+                  {items.map(it => (
+                    <div key={it.item_id} className="text-[10px] px-2 py-1.5 rounded-lg flex items-center gap-2"
+                      style={{ background: '#18181b', border: '1px solid #27272a' }}>
+                      <Package size={10} className="text-zinc-600 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        {it.product_name ? (
+                          <>
+                            <p className="text-zinc-300 truncate">{it.product_name}</p>
+                            <p className="text-zinc-600 font-mono">{it.sku ?? it.item_id}</p>
+                          </>
+                        ) : (
+                          <p className="text-zinc-500 font-mono truncate" title={it.item_id}>{it.item_id}</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Daily metrics */}
             {loading ? (
               <p className="text-xs text-zinc-500 px-3">Carregando dias…</p>
             ) : days.length === 0 ? (
@@ -284,6 +391,7 @@ export default function MlAdsPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [lastSyncMsg, setLastSyncMsg] = useState<string | null>(null)
   const [mlConnected, setMlConnected] = useState<boolean | null>(null)
+  const [campaignBusy, setCampaignBusy] = useState<Set<string>>(new Set())
 
   // Última sincronização derivada do max(synced_at) entre campaigns
   const lastSync = useMemo(() => {
@@ -364,6 +472,41 @@ export default function MlAdsPage() {
     })()
     return () => { cancelled = true }
   }, [getHeaders])
+
+  async function patchCampaign(c: Campaign, body: { status?: 'active' | 'paused'; daily_budget?: number }) {
+    setCampaignBusy(prev => { const n = new Set(prev); n.add(c.id); return n })
+    try {
+      const headers = await getHeaders()
+      const res = await fetch(`${BACKEND}/ml-ads/campaigns/${c.id}`, {
+        method:  'PATCH',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body:    JSON.stringify(body),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err?.message ?? `HTTP ${res.status}`)
+      }
+      const updated = await res.json() as { id: string; status: string | null; daily_budget: number | null }
+      setCampaigns(prev => prev.map(x => x.id === c.id
+        ? { ...x, status: updated.status ?? x.status, daily_budget: updated.daily_budget ?? x.daily_budget }
+        : x,
+      ))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Erro ao atualizar campanha')
+    } finally {
+      setCampaignBusy(prev => { const n = new Set(prev); n.delete(c.id); return n })
+    }
+  }
+
+  async function handleTogglePause(c: Campaign) {
+    const cur = (c.status ?? '').toLowerCase()
+    const next: 'active' | 'paused' = cur === 'paused' ? 'active' : 'paused'
+    await patchCampaign(c, { status: next })
+  }
+
+  async function handleEditBudget(c: Campaign, daily_budget: number) {
+    await patchCampaign(c, { daily_budget })
+  }
 
   function exportCSV() {
     if (campaigns.length === 0) return
@@ -619,19 +762,23 @@ export default function MlAdsPage() {
                     <th className="px-3 py-2 font-semibold text-right">ROAS</th>
                     <th className="px-3 py-2 font-semibold text-right">Cliques</th>
                     <th className="px-3 py-2 font-semibold text-right">CTR</th>
+                    <th className="px-3 py-2 font-semibold text-right w-[1%]"></th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading ? (
-                    <tr><td colSpan={8} className="px-3 py-8 text-center text-xs text-zinc-600">Carregando…</td></tr>
+                    <tr><td colSpan={9} className="px-3 py-8 text-center text-xs text-zinc-600">Carregando…</td></tr>
                   ) : campaigns.length === 0 ? (
-                    <tr><td colSpan={8} className="px-3 py-8 text-center text-xs text-zinc-600 italic">Nenhuma campanha no período.</td></tr>
+                    <tr><td colSpan={9} className="px-3 py-8 text-center text-xs text-zinc-600 italic">Nenhuma campanha no período.</td></tr>
                   ) : campaigns.map(c => (
                     <CampaignRow
                       key={c.id}
                       c={c}
                       expanded={expandedId === c.id}
                       onToggle={() => setExpandedId(expandedId === c.id ? null : c.id)}
+                      onTogglePause={handleTogglePause}
+                      onEditBudget={handleEditBudget}
+                      busy={campaignBusy.has(c.id)}
                       getHeaders={getHeaders}
                       dateFrom={range.from}
                       dateTo={range.to}
