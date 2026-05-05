@@ -2,9 +2,11 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase'
+import Link from 'next/link'
 import {
   RefreshCw, Megaphone, AlertCircle, ChevronDown, ChevronRight,
   TrendingUp, MousePointerClick, Eye, DollarSign, Target, Activity,
+  Download, Clock, ArrowRight,
 } from 'lucide-react'
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis,
@@ -23,6 +25,7 @@ type Campaign = {
   status: string | null
   daily_budget: number | null
   type: string | null
+  synced_at?: string | null
   clicks: number
   impressions: number
   spend: number
@@ -73,6 +76,21 @@ const shortDate = (d: string) => {
 function todayISO() { return new Date().toISOString().slice(0, 10) }
 function daysAgoISO(n: number) {
   return new Date(Date.now() - n * 86_400_000).toISOString().slice(0, 10)
+}
+
+function timeAgoBR(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime()
+  const m = Math.floor(diff / 60_000)
+  if (m < 1) return 'agora mesmo'
+  if (m < 60) return `há ${m} min`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `há ${h}h`
+  return `há ${Math.floor(h / 24)}d`
+}
+
+function csvEscape(s: string): string {
+  if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`
+  return s
 }
 
 function acosColor(acos: number) {
@@ -265,6 +283,18 @@ export default function MlAdsPage() {
   const [error, setError]       = useState<string | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [lastSyncMsg, setLastSyncMsg] = useState<string | null>(null)
+  const [mlConnected, setMlConnected] = useState<boolean | null>(null)
+
+  // Última sincronização derivada do max(synced_at) entre campaigns
+  const lastSync = useMemo(() => {
+    if (campaigns.length === 0) return null
+    const maxT = campaigns.reduce((max, c) => {
+      if (!c.synced_at) return max
+      const t = new Date(c.synced_at).getTime()
+      return t > max ? t : max
+    }, 0)
+    return maxT > 0 ? new Date(maxT).toISOString() : null
+  }, [campaigns])
 
   const range = useMemo(() => {
     if (preset === '7d')  return { from: daysAgoISO(7),  to: todayISO() }
@@ -315,6 +345,58 @@ export default function MlAdsPage() {
   // NOT on `load` — the callback identity can churn and trigger refetch loops.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { load() }, [range.from, range.to])
+
+  // Detecta se ML está conectado (1 fetch leve no mount). Se não, empty state
+  // muda pra CTA "conectar ML" em vez de "sincronizar".
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        const headers = await getHeaders()
+        const res = await fetch(`${BACKEND}/ml/connections`, { headers })
+        if (!res.ok) { if (!cancelled) setMlConnected(false); return }
+        const list = await res.json()
+        if (cancelled) return
+        setMlConnected(Array.isArray(list) && list.length > 0)
+      } catch {
+        if (!cancelled) setMlConnected(false)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [getHeaders])
+
+  function exportCSV() {
+    if (campaigns.length === 0) return
+    const lines: string[] = []
+    lines.push('Nome,Status,Tipo,Daily budget,Cliques,Impressões,CTR (%),Gasto,Conversões,Receita,ROAS (x),ACoS (%)')
+    for (const c of campaigns) {
+      lines.push([
+        csvEscape(c.name ?? '(sem nome)'),
+        c.status ?? '',
+        c.type ?? '',
+        c.daily_budget ?? '',
+        c.clicks,
+        c.impressions,
+        ((c.ctr ?? 0) * 100).toFixed(2),
+        (c.spend ?? 0).toFixed(2),
+        c.conversions,
+        (c.revenue ?? 0).toFixed(2),
+        (c.roas ?? 0).toFixed(2),
+        ((c.acos ?? 0) * 100).toFixed(2),
+      ].join(','))
+    }
+    const csv = '﻿' + lines.join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')
+    a.href     = url
+    a.download = `ml-ads-campaigns-${range.from}_${range.to}-${stamp}.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
 
   async function sync() {
     setSyncing(true)
@@ -391,6 +473,15 @@ export default function MlAdsPage() {
             </div>
           )}
 
+          {campaigns.length > 0 && (
+            <button onClick={exportCSV}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-semibold transition-all border"
+              style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}
+              title="Exportar tabela em CSV">
+              <Download size={12} />
+              <span className="hidden sm:inline">CSV</span>
+            </button>
+          )}
           <button onClick={sync} disabled={syncing}
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-semibold transition-all disabled:opacity-60"
             style={{ background: '#FFE600', color: '#000' }}>
@@ -399,6 +490,12 @@ export default function MlAdsPage() {
           </button>
         </div>
       </div>
+
+      {lastSync && (
+        <p className="text-[10px] text-zinc-600 inline-flex items-center gap-1">
+          <Clock size={10} /> Última sincronização: {timeAgoBR(lastSync)}
+        </p>
+      )}
 
       {lastSyncMsg && (
         <div className="px-4 py-2 rounded-xl text-[11px] text-emerald-400"
@@ -422,7 +519,7 @@ export default function MlAdsPage() {
         </div>
       )}
 
-      {/* Empty state */}
+      {/* Empty state — diferencia "ML não conectado" vs "ainda não sincronizou" */}
       {isEmpty && !error ? (
         <div className="rounded-2xl p-10 flex flex-col items-center text-center gap-4"
           style={{ background: '#111114', border: '1px solid #1e1e24' }}>
@@ -430,16 +527,39 @@ export default function MlAdsPage() {
             style={{ background: 'rgba(255,230,0,0.10)' }}>
             <Megaphone size={24} style={{ color: '#FFE600' }} />
           </div>
-          <div>
-            <h2 className="text-white text-base font-semibold">Sem dados de campanhas ainda</h2>
-            <p className="text-zinc-500 text-xs mt-1 max-w-md">Sincronize agora pra puxar suas campanhas e métricas dos últimos 30 dias direto do Mercado Livre Ads.</p>
-          </div>
-          <button onClick={sync} disabled={syncing}
-            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all disabled:opacity-60"
-            style={{ background: '#FFE600', color: '#000' }}>
-            <RefreshCw size={13} className={syncing ? 'animate-spin' : ''} />
-            {syncing ? 'Sincronizando…' : 'Sincronizar com ML Ads'}
-          </button>
+          {mlConnected === false ? (
+            <>
+              <div>
+                <h2 className="text-white text-base font-semibold">Mercado Livre não conectado</h2>
+                <p className="text-zinc-500 text-xs mt-1 max-w-md">
+                  Pra ver suas campanhas e métricas de ads, conecte sua conta ML em
+                  Configurações &gt; Integrações.
+                </p>
+              </div>
+              <Link href="/dashboard/configuracoes/integracoes"
+                className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all"
+                style={{ background: '#FFE600', color: '#000' }}>
+                Conectar ML
+                <ArrowRight size={13} />
+              </Link>
+            </>
+          ) : (
+            <>
+              <div>
+                <h2 className="text-white text-base font-semibold">Sem dados de campanhas ainda</h2>
+                <p className="text-zinc-500 text-xs mt-1 max-w-md">
+                  Sincronize agora pra puxar suas campanhas e métricas dos últimos 30 dias
+                  direto do Mercado Livre Ads.
+                </p>
+              </div>
+              <button onClick={sync} disabled={syncing}
+                className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all disabled:opacity-60"
+                style={{ background: '#FFE600', color: '#000' }}>
+                <RefreshCw size={13} className={syncing ? 'animate-spin' : ''} />
+                {syncing ? 'Sincronizando…' : 'Sincronizar com ML Ads'}
+              </button>
+            </>
+          )}
         </div>
       ) : (
         <>
