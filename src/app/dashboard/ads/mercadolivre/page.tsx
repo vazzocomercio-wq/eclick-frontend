@@ -7,7 +7,7 @@ import {
   RefreshCw, Megaphone, AlertCircle, ChevronDown, ChevronRight,
   TrendingUp, TrendingDown, MousePointerClick, Eye, DollarSign, Target, Activity,
   Download, Clock, ArrowRight, Pause, Play, Edit2, Check, X, Package,
-  Filter,
+  Filter, Sparkles, AlertTriangle,
 } from 'lucide-react'
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis,
@@ -77,6 +77,27 @@ type BySkuRow = {
   roas:           number
   acos:           number
 }
+
+type AdsSignal = {
+  id:             string
+  category:       string
+  severity:       'critical' | 'warning' | 'info'
+  score:          number
+  entity_id:      string | null
+  entity_name:    string | null
+  summary_pt:     string
+  suggestion_pt:  string | null
+  status:         string
+  created_at:     string
+}
+
+const SIGNAL_SEVERITY: Record<AdsSignal['severity'], { icon: typeof AlertCircle; color: string; bg: string; label: string }> = {
+  critical: { icon: AlertCircle,   color: '#f87171', bg: 'rgba(248,113,113,0.1)', label: 'Crítico' },
+  warning:  { icon: AlertTriangle, color: '#f59e0b', bg: 'rgba(245,158,11,0.1)', label: 'Atenção' },
+  info:     { icon: Sparkles,      color: '#60a5fa', bg: 'rgba(96,165,250,0.1)', label: 'Info'    },
+}
+
+function humanizeCategory(c: string) { return c.replace(/_/g, ' ') }
 
 type CampaignDayRow = SeriesPoint
 
@@ -210,7 +231,7 @@ function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: 
 }
 
 function CampaignRow({
-  c, expanded, onToggle, onTogglePause, onEditBudget, getHeaders, dateFrom, dateTo, busy,
+  c, expanded, onToggle, onTogglePause, onEditBudget, getHeaders, dateFrom, dateTo, busy, signals,
 }: {
   c: Campaign
   expanded: boolean
@@ -221,6 +242,7 @@ function CampaignRow({
   dateFrom: string
   dateTo: string
   busy: boolean
+  signals: AdsSignal[]
 }) {
   const sb = statusBadge(c.status)
   const [days, setDays] = useState<CampaignDayRow[]>([])
@@ -281,8 +303,22 @@ function CampaignRow({
         <td className="px-3 py-3 cursor-pointer" onClick={onToggle}>
           <div className="flex items-center gap-2">
             {expanded ? <ChevronDown size={14} className="text-zinc-500" /> : <ChevronRight size={14} className="text-zinc-500" />}
-            <div>
-              <p className="text-sm font-medium text-zinc-200 truncate max-w-[300px]">{c.name || '(sem nome)'}</p>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <p className="text-sm font-medium text-zinc-200 truncate max-w-[300px]">{c.name || '(sem nome)'}</p>
+                {signals.length > 0 && (() => {
+                  const worst = signals[0].severity   // já ordenado por score desc
+                  const meta = SIGNAL_SEVERITY[worst]
+                  return (
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold"
+                      style={{ background: meta.bg, color: meta.color, border: `1px solid ${meta.color}33` }}
+                      title={`${signals.length} sugestão${signals.length !== 1 ? 'ões' : ''} da IA`}>
+                      <Sparkles size={9} />
+                      {signals.length}
+                    </span>
+                  )
+                })()}
+              </div>
               {c.id && <p className="text-[10px] text-zinc-600 font-mono">{c.id}</p>}
               {c.type && <p className="text-[10px] text-zinc-600">{c.type}</p>}
             </div>
@@ -350,6 +386,40 @@ function CampaignRow({
       {expanded && (
         <tr>
           <td colSpan={9} className="px-3 py-4 space-y-4" style={{ background: '#0c0c0f', borderTop: '1px solid #1a1a1f' }}>
+            {/* Sugestões da IA (signals do Intelligence Hub) */}
+            {signals.length > 0 && (
+              <div className="px-3">
+                <p className="text-[10px] uppercase tracking-wider text-zinc-600 font-semibold mb-1.5 inline-flex items-center gap-1">
+                  <Sparkles size={10} style={{ color: '#a78bfa' }} /> Sugestões da IA ({signals.length})
+                </p>
+                <div className="space-y-2">
+                  {signals.map(s => {
+                    const meta = SIGNAL_SEVERITY[s.severity]
+                    return (
+                      <div key={s.id} className="rounded-lg p-3 space-y-1.5"
+                        style={{ background: '#18181b', border: `1px solid ${meta.color}33` }}>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <meta.icon size={11} style={{ color: meta.color }} />
+                          <span className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: meta.color }}>
+                            {humanizeCategory(s.category)}
+                          </span>
+                          <span className="text-[10px] text-zinc-600">·</span>
+                          <span className="text-[10px] text-zinc-500 font-mono">score {s.score}</span>
+                          <span className="ml-auto text-[10px] text-zinc-600">{s.status}</span>
+                        </div>
+                        <p className="text-xs text-zinc-300 leading-relaxed">{s.summary_pt}</p>
+                        {s.suggestion_pt && (
+                          <p className="text-[11px] text-zinc-400 leading-relaxed pl-3 border-l-2" style={{ borderColor: meta.color }}>
+                            💡 {s.suggestion_pt}
+                          </p>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Items / SKUs vinculados */}
             {items.length > 0 && (
               <div>
@@ -442,6 +512,7 @@ export default function MlAdsPage() {
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'paused'>('all')
   const [bySkuRows, setBySkuRows] = useState<BySkuRow[]>([])
   const [showBySku, setShowBySku] = useState(false)
+  const [signalsByCampaign, setSignalsByCampaign] = useState<Map<string, AdsSignal[]>>(new Map())
 
   // Última sincronização derivada do max(synced_at) entre campaigns
   const lastSync = useMemo(() => {
@@ -471,10 +542,11 @@ export default function MlAdsPage() {
     setError(null)
     try {
       const headers = await getHeaders()
-      const [sumRes, campRes, skuRes] = await Promise.all([
+      const [sumRes, campRes, skuRes, sigRes] = await Promise.all([
         fetch(`${BACKEND}/ml-ads/reports/summary?from=${range.from}&to=${range.to}&compare=1`, { headers }),
         fetch(`${BACKEND}/ml-ads/campaigns?from=${range.from}&to=${range.to}`, { headers }),
         fetch(`${BACKEND}/ml-ads/reports/by-sku?from=${range.from}&to=${range.to}`, { headers }),
+        fetch(`${BACKEND}/alert-signals?analyzer=ads&limit=200`, { headers }),
       ])
 
       if (sumRes.status === 401) {
@@ -497,6 +569,25 @@ export default function MlAdsPage() {
       if (skuRes.ok) {
         const v = await skuRes.json()
         setBySkuRows(Array.isArray(v) ? v : [])
+      }
+      if (sigRes.ok) {
+        const v = await sigRes.json() as AdsSignal[]
+        // Filtra só pendentes de ação (descarta acted/ignored/expired)
+        const pending = (Array.isArray(v) ? v : [])
+          .filter(s => ['new', 'dispatched', 'delivered'].includes(s.status))
+        const map = new Map<string, AdsSignal[]>()
+        for (const s of pending) {
+          if (!s.entity_id) continue
+          const arr = map.get(s.entity_id) ?? []
+          arr.push(s)
+          map.set(s.entity_id, arr)
+        }
+        // Ordena cada bucket por score desc
+        for (const [k, arr] of map) {
+          arr.sort((a, b) => b.score - a.score)
+          map.set(k, arr)
+        }
+        setSignalsByCampaign(map)
       }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Erro ao carregar')
@@ -925,6 +1016,7 @@ export default function MlAdsPage() {
                       getHeaders={getHeaders}
                       dateFrom={range.from}
                       dateTo={range.to}
+                      signals={signalsByCampaign.get(c.id) ?? []}
                     />
                   ))}
                 </tbody>
