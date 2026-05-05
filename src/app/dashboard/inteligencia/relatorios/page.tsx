@@ -6,7 +6,7 @@ import { getSocket } from '@/lib/socket'
 import OnboardingBanner from '@/components/inteligencia/OnboardingBanner'
 import {
   RefreshCw, TrendingUp, MessageSquare, Clock, CheckCircle2,
-  Activity, AlertCircle, AlertTriangle, Award,
+  Activity, AlertCircle, AlertTriangle, Award, Download,
 } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
@@ -66,6 +66,12 @@ async function api<T>(path: string): Promise<T> {
 
 function pct(n: number) { return `${Math.round(n * 100)}%` }
 function humanizeCategory(c: string) { return c.replace(/_/g, ' ') }
+
+/** Escape pra CSV: envolve em aspas se contém vírgula/aspas/quebra de linha */
+function csvEscape(s: string): string {
+  if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`
+  return s
+}
 
 function StatCard({ label, value, sub, color = '#00E5FF', icon: Icon }: {
   label: string; value: string | number; sub?: string; color?: string
@@ -247,6 +253,76 @@ export default function RelatoriosPage() {
     ? Object.entries(stats.by_analyzer).sort((a, b) => b[1] - a[1])
     : []
 
+  function exportCSV() {
+    if (!stats) return
+    const lines: string[] = []
+
+    // Header da org
+    lines.push('# Resumo da organização')
+    lines.push('Janela (dias),Signals total,Críticos,Atenções,Info,Mensagens enviadas,Falhas,Respondidos,Action rate (%),Tempo médio resposta (min)')
+    lines.push([
+      stats.window_days,
+      stats.signals_total,
+      stats.by_severity.critical,
+      stats.by_severity.warning,
+      stats.by_severity.info,
+      stats.deliveries_sent,
+      stats.deliveries_failed,
+      stats.responded_total,
+      Math.round(stats.action_rate * 100),
+      stats.avg_response_min != null ? Math.round(stats.avg_response_min) : '',
+    ].join(','))
+
+    // Por analyzer
+    lines.push('')
+    lines.push('# Signals por analyzer')
+    lines.push('Analyzer,Quantidade')
+    for (const [name, count] of sortedAnalyzers) lines.push(`${name},${count}`)
+
+    // Top categorias
+    if (stats.top_categories.length > 0) {
+      lines.push('')
+      lines.push('# Top categorias')
+      lines.push('Categoria,Quantidade')
+      for (const c of stats.top_categories) lines.push(`${csvEscape(c.category)},${c.count}`)
+    }
+
+    // Por gestor
+    if (managers.length > 0) {
+      lines.push('')
+      lines.push('# Por gestor')
+      lines.push('Nome,Departamento,Recebidos,Enviados,Falhas,Respondidos,Aprovados,Ignorados,Detalhes,Custom,Action rate (%),Tempo médio resposta (min)')
+      for (const m of managers) {
+        lines.push([
+          csvEscape(m.name),
+          m.department,
+          m.signals_received,
+          m.sent,
+          m.failed,
+          m.responded,
+          m.approved,
+          m.ignored,
+          m.details,
+          m.custom,
+          Math.round(m.action_rate * 100),
+          m.avg_response_min != null ? Math.round(m.avg_response_min) : '',
+        ].join(','))
+      }
+    }
+
+    const csv = '﻿' + lines.join('\n')   // BOM pra Excel reconhecer UTF-8
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+    const url  = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')
+    a.href     = url
+    a.download = `intelligence-hub-${days}d-${stamp}.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div className="p-4 sm:p-6 space-y-5 min-h-full" style={{ background: '#09090b' }}>
 
@@ -280,6 +356,12 @@ export default function RelatoriosPage() {
             style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>
             <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
             <span className="hidden sm:inline">Atualizar</span>
+          </button>
+          <button onClick={exportCSV} disabled={loading || !stats}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all disabled:opacity-40"
+            style={{ background: 'rgba(0,229,255,0.12)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.3)' }}>
+            <Download size={13} />
+            <span className="hidden sm:inline">CSV</span>
           </button>
         </div>
       </div>

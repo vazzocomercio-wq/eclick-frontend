@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase'
 import { useConfirm, useAlert } from '@/components/ui/dialog-provider'
 import {
   Plus, Trash2, Edit3, Phone, ShieldCheck, RefreshCw, X, Send, AlertCircle,
-  User as UserIcon, Briefcase, Clock,
+  User as UserIcon, Briefcase, Clock, Check, Pause, Play,
 } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
@@ -417,21 +417,35 @@ function VerifyPhoneModal({
 // ── Manager Card ──────────────────────────────────────────────────────────────
 
 function ManagerCard({
-  m, onEdit, onDelete, onVerify,
+  m, onEdit, onDelete, onVerify, selected, onToggleSelect,
 }: {
   m: Manager
   onEdit: (m: Manager) => void
   onDelete: (m: Manager) => void
   onVerify: (m: Manager) => void
+  selected: boolean
+  onToggleSelect: (m: Manager) => void
 }) {
   const dept = DEPT_MAP[m.department]
 
   return (
     <div className="rounded-2xl p-4 flex flex-col gap-3 transition-colors"
-      style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+      style={{
+        background: selected ? 'rgba(0,229,255,0.04)' : '#111114',
+        border: `1px solid ${selected ? 'rgba(0,229,255,0.4)' : '#1e1e24'}`,
+      }}>
 
       {/* Header */}
       <div className="flex items-start gap-3">
+        <button onClick={() => onToggleSelect(m)}
+          className="w-5 h-5 rounded shrink-0 flex items-center justify-center transition-all mt-1"
+          style={{
+            background: selected ? '#00E5FF' : 'transparent',
+            border: `1px solid ${selected ? '#00E5FF' : '#3f3f46'}`,
+          }}
+          title={selected ? 'Desmarcar' : 'Selecionar'}>
+          {selected && <Check size={12} style={{ color: '#000' }} strokeWidth={3} />}
+        </button>
         <div className="w-10 h-10 rounded-xl shrink-0 flex items-center justify-center text-base font-bold"
           style={{ background: `${dept.color}1a`, color: dept.color, border: `1px solid ${dept.color}33` }}>
           {m.name.charAt(0).toUpperCase()}
@@ -527,8 +541,23 @@ export default function GestoresPage() {
   const [creating, setCreating]     = useState(false)
   const [verifying, setVerifying]   = useState<Manager | null>(null)
   const [filter, setFilter]         = useState<ManagerDepartment | 'all'>('all')
+  const [selected, setSelected]     = useState<Set<string>>(new Set())
+  const [bulkBusy, setBulkBusy]     = useState(false)
   const confirm = useConfirm()
   const alert   = useAlert()
+
+  function toggleSelect(m: Manager) {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(m.id)) next.delete(m.id)
+      else                next.add(m.id)
+      return next
+    })
+  }
+  function clearSelection() { setSelected(new Set()) }
+  function selectAllFiltered(ids: string[]) {
+    setSelected(new Set(ids))
+  }
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -582,6 +611,65 @@ export default function GestoresPage() {
         variant: 'danger',
       })
     }
+  }
+
+  async function bulkSetStatus(status: 'active' | 'paused') {
+    const ids = [...selected]
+    if (ids.length === 0) return
+    const verb = status === 'active' ? 'reativar' : 'pausar'
+    const ok = await confirm({
+      title:        status === 'active' ? 'Reativar gestores' : 'Pausar gestores',
+      message:      `${verb.charAt(0).toUpperCase() + verb.slice(1)} ${ids.length} gestor${ids.length !== 1 ? 'es' : ''}?`,
+      confirmLabel: verb.charAt(0).toUpperCase() + verb.slice(1),
+      variant:      status === 'paused' ? 'warning' : 'default',
+    })
+    if (!ok) return
+    setBulkBusy(true)
+    try {
+      const results = await Promise.allSettled(ids.map(id =>
+        api<Manager>(`/alert-managers/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+      ))
+      const updates = new Map<string, Manager>()
+      let failed = 0
+      results.forEach((r, i) => {
+        if (r.status === 'fulfilled') updates.set(ids[i], r.value)
+        else                          failed++
+      })
+      setManagers(prev => prev.map(m => updates.get(m.id) ?? m))
+      clearSelection()
+      if (failed > 0) {
+        await alert({ title: 'Bulk parcialmente concluído', message: `${failed} gestor(es) falharam.`, variant: 'warning' })
+      }
+    } finally { setBulkBusy(false) }
+  }
+
+  async function bulkDelete() {
+    const ids = [...selected]
+    if (ids.length === 0) return
+    const ok = await confirm({
+      title:        'Remover gestores',
+      message:      `Remover ${ids.length} gestor${ids.length !== 1 ? 'es' : ''}? Essa ação não pode ser desfeita.`,
+      confirmLabel: 'Remover',
+      variant:      'danger',
+    })
+    if (!ok) return
+    setBulkBusy(true)
+    try {
+      const results = await Promise.allSettled(ids.map(id =>
+        api(`/alert-managers/${id}`, { method: 'DELETE' }),
+      ))
+      const successIds = new Set<string>()
+      let failed = 0
+      results.forEach((r, i) => {
+        if (r.status === 'fulfilled') successIds.add(ids[i])
+        else                          failed++
+      })
+      setManagers(prev => prev.filter(m => !successIds.has(m.id)))
+      clearSelection()
+      if (failed > 0) {
+        await alert({ title: 'Bulk parcialmente concluído', message: `${failed} gestor(es) não puderam ser removidos.`, variant: 'warning' })
+      }
+    } finally { setBulkBusy(false) }
   }
 
   const filtered = useMemo(
@@ -671,6 +759,47 @@ export default function GestoresPage() {
         </div>
       )}
 
+      {/* Bulk toolbar (sticky no topo quando há seleção) */}
+      {selected.size > 0 && (
+        <div className="sticky top-2 z-10 rounded-2xl px-4 py-2.5 flex items-center gap-2 flex-wrap"
+          style={{
+            background: 'rgba(0,229,255,0.08)',
+            border:     '1px solid rgba(0,229,255,0.3)',
+            backdropFilter: 'blur(8px)',
+          }}>
+          <span className="text-xs font-semibold" style={{ color: '#00E5FF' }}>
+            {selected.size} selecionado{selected.size !== 1 ? 's' : ''}
+          </span>
+          <div className="flex-1" />
+          <button onClick={() => selectAllFiltered(filtered.map(m => m.id))} disabled={bulkBusy}
+            className="text-[11px] px-2.5 py-1 rounded-md transition-colors disabled:opacity-40"
+            style={{ color: '#a1a1aa' }}>
+            Selecionar todos ({filtered.length})
+          </button>
+          <button onClick={() => bulkSetStatus('active')} disabled={bulkBusy}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all disabled:opacity-40"
+            style={{ background: 'rgba(74,222,128,0.1)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.25)' }}>
+            <Play size={11} /> Reativar
+          </button>
+          <button onClick={() => bulkSetStatus('paused')} disabled={bulkBusy}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all disabled:opacity-40"
+            style={{ background: 'rgba(245,158,11,0.1)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.25)' }}>
+            <Pause size={11} /> Pausar
+          </button>
+          <button onClick={bulkDelete} disabled={bulkBusy}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all disabled:opacity-40"
+            style={{ background: 'rgba(248,113,113,0.1)', color: '#f87171', border: '1px solid rgba(248,113,113,0.25)' }}>
+            <Trash2 size={11} /> Remover
+          </button>
+          <button onClick={clearSelection} disabled={bulkBusy}
+            className="p-1 rounded-md transition-colors disabled:opacity-40"
+            style={{ color: '#71717a' }}
+            title="Limpar seleção">
+            <X size={13} />
+          </button>
+        </div>
+      )}
+
       {/* Cards grid */}
       {loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
@@ -696,6 +825,8 @@ export default function GestoresPage() {
               onEdit={setEditing}
               onDelete={handleDelete}
               onVerify={setVerifying}
+              selected={selected.has(m.id)}
+              onToggleSelect={toggleSelect}
             />
           ))}
         </div>

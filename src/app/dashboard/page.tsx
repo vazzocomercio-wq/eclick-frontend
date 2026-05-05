@@ -6,6 +6,7 @@ import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import { useTodayOrders } from '@/hooks/useTodayOrders'
+import HubSummaryCard from '@/components/inteligencia/HubSummaryCard'
 import {
   AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip,
@@ -917,6 +918,9 @@ export default function DashboardPage() {
           </span>
         )}
       </div>
+
+      {/* Intelligence Hub summary (some quando hub disabled ou sem atividade 24h) */}
+      <HubSummaryCard />
 
       {/* LINHA 1 — Filters */}
       <DashHeader
