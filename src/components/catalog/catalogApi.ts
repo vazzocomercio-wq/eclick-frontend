@@ -188,6 +188,20 @@ export const CatalogApi = {
   enrichmentSummary: () =>
     api<EnrichmentSummary>('/products/enrichment-summary'),
 
+  /** L3 — Recomendações IA */
+  getRecommendations: () =>
+    api<{
+      buckets: Array<{
+        key:         string
+        title:       string
+        description: string
+        severity:    'critical' | 'warning' | 'opportunity' | 'success'
+        count:       number
+        action_path: string | null
+        products:    Array<{ id: string; name: string; sku: string | null; ai_score: number | null }>
+      }>
+    }>('/products/recommendations'),
+
   /** L2 — Landing page */
   setLandingPublished: (productId: string, published: boolean) =>
     api<{ landing_published: boolean; landing_published_at: string | null }>(
