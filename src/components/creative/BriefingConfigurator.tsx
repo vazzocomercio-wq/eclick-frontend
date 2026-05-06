@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { Palette, Globe, Volume2, Image as ImageIcon, Maximize2, BookmarkPlus, Bookmark, Loader2, X, Star, Trash2 } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Palette, Globe, Volume2, Image as ImageIcon, Maximize2, BookmarkPlus, Bookmark, Loader2, X, Star, Trash2, Sparkles, Upload, AlertTriangle } from 'lucide-react'
 import {
   MARKETPLACE_OPTIONS,
   VISUAL_STYLES,
@@ -12,15 +12,18 @@ import {
   type Marketplace,
   type BriefingTemplate,
 } from './types'
-import { CreativeApi } from './api'
+import { CreativeApi, uploadLogoImage, getMyOrgId } from './api'
 
 export interface BriefingFormState {
   target_marketplace:  Marketplace
   visual_style:        string
-  environment:         string
+  environments:        string[]
   custom_environment:  string
+  custom_prompt:       string
   background_color:    string
   use_logo:            boolean
+  logo_url:            string | null
+  logo_storage_path:   string | null
   communication_tone:  string
   image_count:         number
   image_format:        string
@@ -29,10 +32,13 @@ export interface BriefingFormState {
 export const DEFAULT_BRIEFING: BriefingFormState = {
   target_marketplace: 'mercado_livre',
   visual_style:       'clean',
-  environment:        'neutro',
+  environments:       [],
   custom_environment: '',
+  custom_prompt:      '',
   background_color:   '#FFFFFF',
   use_logo:           false,
+  logo_url:           null,
+  logo_storage_path:  null,
   communication_tone: 'vendedor',
   image_count:        10,
   image_format:       '1200x1200',
@@ -69,7 +75,7 @@ export default function BriefingConfigurator({ value, onChange, enableTemplates 
   useEffect(() => {
     if (templates.length === 0) return
     const def = templates.find(t => t.is_default)
-    if (def && value.target_marketplace === 'mercado_livre' && value.communication_tone === 'vendedor') {
+    if (def && value.target_marketplace === 'mercado_livre' && value.communication_tone === 'vendedor' && value.environments.length === 0) {
       // Não sobrescreve se user já está editando — só carrega no boot
       // Heurística: aplica só se ainda parece default
       applyTemplate(def)
@@ -87,13 +93,19 @@ export default function BriefingConfigurator({ value, onChange, enableTemplates 
   }
 
   function applyTemplate(t: BriefingTemplate) {
+    const envs = t.environments && t.environments.length > 0
+      ? t.environments
+      : (t.environment ? [t.environment] : [])
     onChange({
       target_marketplace: t.target_marketplace,
       visual_style:       t.visual_style,
-      environment:        t.environment ?? 'neutro',
+      environments:       envs,
       custom_environment: t.custom_environment ?? '',
+      custom_prompt:      t.custom_prompt ?? '',
       background_color:   t.background_color,
       use_logo:           t.use_logo,
+      logo_url:           t.logo_url,
+      logo_storage_path:  t.logo_storage_path,
       communication_tone: t.communication_tone,
       image_count:        t.image_count,
       image_format:       t.image_format,
@@ -108,10 +120,13 @@ export default function BriefingConfigurator({ value, onChange, enableTemplates 
         name:               saveName.trim(),
         target_marketplace: value.target_marketplace,
         visual_style:       value.visual_style,
-        environment:        value.environment === 'custom' ? 'custom' : value.environment,
-        custom_environment: value.environment === 'custom' ? value.custom_environment : undefined,
+        environments:       value.environments,
+        custom_environment: value.environments.includes('custom') ? value.custom_environment : undefined,
+        custom_prompt:      value.custom_prompt || undefined,
         background_color:   value.background_color,
         use_logo:           value.use_logo,
+        logo_url:           value.logo_url ?? undefined,
+        logo_storage_path:  value.logo_storage_path ?? undefined,
         communication_tone: value.communication_tone,
         image_count:        value.image_count,
         image_format:       value.image_format,
@@ -242,20 +257,32 @@ export default function BriefingConfigurator({ value, onChange, enableTemplates 
         </div>
       </Section>
 
-      {/* Ambiente */}
-      <Section icon={<ImageIcon size={14} />} title="Ambiente">
+      {/* Ambientes (multi-select) */}
+      <Section icon={<ImageIcon size={14} />} title="Ambientes (selecione 1+)">
+        <p className="text-[11px] text-zinc-500 mb-2">
+          As {value.image_count} imagens vão alternar entre os ambientes selecionados.
+          Sem nenhum: usa fundo neutro.
+        </p>
         <div className="flex flex-wrap gap-1.5">
-          {ENVIRONMENT_OPTIONS.map(e => (
-            <SmallChip
-              key={e.value}
-              active={value.environment === e.value}
-              onClick={() => set('environment', e.value)}
-            >
-              {e.label}
-            </SmallChip>
-          ))}
+          {ENVIRONMENT_OPTIONS.map(e => {
+            const active = value.environments.includes(e.value)
+            return (
+              <SmallChip
+                key={e.value}
+                active={active}
+                onClick={() => {
+                  const next = active
+                    ? value.environments.filter(x => x !== e.value)
+                    : [...value.environments, e.value]
+                  set('environments', next)
+                }}
+              >
+                {e.label}
+              </SmallChip>
+            )
+          })}
         </div>
-        {value.environment === 'custom' && (
+        {value.environments.includes('custom') && (
           <input
             type="text"
             value={value.custom_environment}
@@ -288,20 +315,38 @@ export default function BriefingConfigurator({ value, onChange, enableTemplates 
           </div>
           <div>
             <label className="text-[11px] text-zinc-500">Logo da marca</label>
-            <button
-              type="button"
-              onClick={() => set('use_logo', !value.use_logo)}
-              className={[
-                'mt-1 w-full rounded-lg border px-3 py-2 text-xs transition-colors',
-                value.use_logo
-                  ? 'border-cyan-400 bg-cyan-400/10 text-cyan-200'
-                  : 'border-zinc-800 bg-zinc-950 text-zinc-400 hover:border-zinc-700',
-              ].join(' ')}
-            >
-              {value.use_logo ? '✓ Incluir logo nas imagens' : 'Sem logo'}
-            </button>
+            <LogoSlot
+              logoUrl={value.logo_url}
+              onPicked={(r) => onChange({
+                ...value,
+                logo_url:          r.signed_url,
+                logo_storage_path: r.storage_path,
+                use_logo:          true,
+              })}
+              onRemoved={() => onChange({
+                ...value,
+                logo_url:          null,
+                logo_storage_path: null,
+                use_logo:          false,
+              })}
+            />
           </div>
         </div>
+      </Section>
+
+      {/* Prompt customizado */}
+      <Section icon={<Sparkles size={14} />} title="Instrução adicional (opcional)">
+        <textarea
+          value={value.custom_prompt}
+          onChange={e => set('custom_prompt', e.target.value)}
+          placeholder='Ex: "destaque o controle remoto", "evite ambientes com plantas", "estilo retrô anos 80"'
+          rows={3}
+          className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-200 outline-none focus:border-cyan-400 resize-y"
+          maxLength={1500}
+        />
+        <p className="mt-1 text-[10px] text-zinc-600 text-right">
+          {value.custom_prompt.length}/1500
+        </p>
       </Section>
 
       {/* Tom */}
@@ -479,12 +524,104 @@ export function briefingFormToApiBody(form: BriefingFormState) {
   return {
     target_marketplace:  form.target_marketplace,
     visual_style:        form.visual_style,
-    environment:         form.environment === 'custom' ? 'custom' : form.environment,
-    custom_environment:  form.environment === 'custom' ? (form.custom_environment || undefined) : undefined,
+    environments:        form.environments,
+    custom_environment:  form.environments.includes('custom') ? (form.custom_environment || undefined) : undefined,
+    custom_prompt:       form.custom_prompt || undefined,
     background_color:    form.background_color,
     use_logo:            form.use_logo,
+    logo_url:            form.logo_url ?? undefined,
+    logo_storage_path:   form.logo_storage_path ?? undefined,
     communication_tone:  form.communication_tone,
     image_count:         form.image_count,
     image_format:        form.image_format,
   }
+}
+
+// ── LogoSlot — dropzone compacto pra logo da marca ────────────────────────
+
+function LogoSlot({
+  logoUrl, onPicked, onRemoved,
+}: {
+  logoUrl:    string | null
+  onPicked:   (r: { signed_url: string; storage_path: string }) => void
+  onRemoved:  () => void
+}) {
+  const [uploading, setUploading] = useState(false)
+  const [error, setError]         = useState<string | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  async function handleFile(file: File) {
+    setError(null)
+    if (!['image/jpeg','image/png','image/webp'].includes(file.type)) {
+      setError('Formato: JPG, PNG ou WebP')
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Máximo 5MB')
+      return
+    }
+    setUploading(true)
+    try {
+      const orgId = await getMyOrgId()
+      if (!orgId) throw new Error('organização não encontrada')
+      const r = await uploadLogoImage(orgId, file)
+      onPicked(r)
+    } catch (e: unknown) {
+      setError((e as Error).message)
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  if (logoUrl) {
+    return (
+      <div className="mt-1 flex items-center gap-2 rounded-lg border border-cyan-400/40 bg-cyan-400/5 px-2 py-1.5">
+        <img src={logoUrl} alt="Logo" className="h-8 w-8 object-contain rounded bg-zinc-900 border border-zinc-800" />
+        <span className="flex-1 text-[11px] text-cyan-200 truncate">Logo carregado</span>
+        <button
+          type="button"
+          onClick={onRemoved}
+          className="text-zinc-400 hover:text-red-400"
+          title="Remover logo"
+        >
+          <X size={12} />
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => !uploading && inputRef.current?.click()}
+        disabled={uploading}
+        className={[
+          'mt-1 w-full rounded-lg border border-dashed px-3 py-2 text-xs transition-colors flex items-center justify-center gap-2',
+          'border-zinc-800 bg-zinc-950 text-zinc-400 hover:border-cyan-400/40 hover:text-zinc-200',
+          uploading && 'opacity-60 cursor-wait',
+        ].join(' ')}
+      >
+        {uploading ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
+        {uploading ? 'Enviando…' : 'Subir logo (PNG transparente)'}
+      </button>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        className="hidden"
+        onChange={e => {
+          const f = e.target.files?.[0]
+          if (f) void handleFile(f)
+          e.target.value = ''
+        }}
+      />
+      {error && (
+        <div className="mt-1 flex items-start gap-1.5 text-[10px] text-red-400">
+          <AlertTriangle size={10} className="shrink-0 mt-0.5" />
+          <span>{error}</span>
+        </div>
+      )}
+    </>
+  )
 }

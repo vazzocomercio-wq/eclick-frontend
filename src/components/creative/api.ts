@@ -40,14 +40,15 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
 
 // ── Storage upload (bucket privado `creative`) ────────────────────────────
 
-export async function uploadProductImage(
+async function uploadToCreativeBucket(
   orgId: string,
   file: File,
+  pathPrefix: string,
 ): Promise<{ storage_path: string; signed_url: string }> {
   const sb = createClient()
   const ext = (file.name.split('.').pop() ?? 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '')
   const uuid = crypto.randomUUID()
-  const path = `${orgId}/${uuid}.${ext || 'jpg'}`
+  const path = `${orgId}/${pathPrefix}${uuid}.${ext || 'jpg'}`
 
   const { error: uploadErr } = await sb.storage
     .from('creative')
@@ -64,6 +65,20 @@ export async function uploadProductImage(
   }
 
   return { storage_path: path, signed_url: signed.signedUrl }
+}
+
+export function uploadProductImage(
+  orgId: string,
+  file: File,
+): Promise<{ storage_path: string; signed_url: string }> {
+  return uploadToCreativeBucket(orgId, file, '')
+}
+
+export function uploadLogoImage(
+  orgId: string,
+  file: File,
+): Promise<{ storage_path: string; signed_url: string }> {
+  return uploadToCreativeBucket(orgId, file, 'logos/')
 }
 
 export async function getMyOrgId(): Promise<string | null> {
@@ -146,8 +161,9 @@ export const CreativeApi = {
   createBriefing: (productId: string, body: {
     target_marketplace:  Marketplace
     visual_style?:       string
-    environment?:        string
+    environments?:       string[]
     custom_environment?: string
+    custom_prompt?:      string
     background_color?:   string
     use_logo?:           boolean
     logo_url?:           string
@@ -172,10 +188,13 @@ export const CreativeApi = {
     description?:        string
     target_marketplace:  Marketplace
     visual_style?:       string
-    environment?:        string
+    environments?:       string[]
     custom_environment?: string
+    custom_prompt?:      string
     background_color?:   string
     use_logo?:           boolean
+    logo_url?:           string
+    logo_storage_path?:  string
     communication_tone?: string
     image_count?:        number
     image_format?:       string
