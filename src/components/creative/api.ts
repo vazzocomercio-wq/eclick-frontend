@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase'
 import type {
   CreativeProduct, CreativeBriefing, CreativeListing, Marketplace,
   CreativeImageJob, CreativeImage,
+  CreativeVideoJob, CreativeVideo, KlingModel, VideoDuration, VideoAspectRatio,
 } from './types'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
@@ -213,6 +214,45 @@ export const CreativeApi = {
 
   regenerateImage: (id: string, prompt?: string) =>
     api<CreativeImage>(`/creative/images/${id}/regenerate`, {
+      method: 'POST', body: JSON.stringify({ prompt }),
+    }),
+
+  // ── E3a: Video pipeline ─────────────────────────────────────────────────
+  createVideoJob: (body: {
+    product_id:        string
+    briefing_id:       string
+    listing_id?:       string
+    source_image_id?:  string
+    count?:            number
+    duration_seconds?: VideoDuration
+    aspect_ratio?:     VideoAspectRatio
+    model_name?:       KlingModel
+    max_cost_usd?:     number
+  }) =>
+    api<CreativeVideoJob>('/creative/video-jobs', {
+      method: 'POST', body: JSON.stringify(body),
+    }),
+
+  getVideoJob: (id: string) =>
+    api<CreativeVideoJob>(`/creative/video-jobs/${id}`),
+
+  listJobVideos: (id: string) =>
+    api<CreativeVideo[]>(`/creative/video-jobs/${id}/videos`),
+
+  listProductVideoJobs: (productId: string) =>
+    api<CreativeVideoJob[]>(`/creative/products/${productId}/video-jobs`),
+
+  cancelVideoJob: (id: string) =>
+    api<CreativeVideoJob>(`/creative/video-jobs/${id}/cancel`, { method: 'POST' }),
+
+  approveVideo: (id: string) =>
+    api<CreativeVideo>(`/creative/videos/${id}/approve`, { method: 'POST' }),
+
+  rejectVideo: (id: string) =>
+    api<CreativeVideo>(`/creative/videos/${id}/reject`, { method: 'POST' }),
+
+  regenerateVideo: (id: string, prompt?: string) =>
+    api<CreativeVideo>(`/creative/videos/${id}/regenerate`, {
       method: 'POST', body: JSON.stringify({ prompt }),
     }),
 }

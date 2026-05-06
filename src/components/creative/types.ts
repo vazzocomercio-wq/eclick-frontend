@@ -231,3 +231,114 @@ export const IMAGE_STATUS_LABELS: Record<ImageStatus, string> = {
 export function isJobActive(status: JobStatus): boolean {
   return status === 'queued' || status === 'generating_prompts' || status === 'generating_images'
 }
+
+// ── E3a: Video Pipeline ────────────────────────────────────────────────────
+
+export type VideoJobStatus =
+  | 'queued'
+  | 'generating_prompts'
+  | 'generating_videos'
+  | 'completed'
+  | 'failed'
+  | 'cancelled'
+
+export type VideoStatus =
+  | 'pending'
+  | 'generating'
+  | 'ready'
+  | 'approved'
+  | 'rejected'
+  | 'failed'
+
+export type KlingModel = 'kling-v1-6-std' | 'kling-v1-6-pro' | 'kling-v2-master'
+export type VideoDuration = 5 | 10
+export type VideoAspectRatio = '1:1' | '16:9' | '9:16'
+
+export interface CreativeVideoJob {
+  id:                  string
+  organization_id:     string
+  product_id:          string
+  briefing_id:         string
+  listing_id:          string | null
+  source_image_id:     string | null
+  user_id:             string | null
+  status:              VideoJobStatus
+  requested_count:     number
+  duration_seconds:    number
+  aspect_ratio:        VideoAspectRatio
+  model_name:          KlingModel
+  completed_count:     number
+  failed_count:        number
+  approved_count:      number
+  rejected_count:      number
+  max_cost_usd:        number
+  total_cost_usd:      number
+  prompts_generated:   string[]
+  prompts_metadata:    Record<string, unknown>
+  error_message:       string | null
+  started_at:          string | null
+  completed_at:        string | null
+  created_at:          string
+  updated_at:          string
+}
+
+export interface CreativeVideo {
+  id:                   string
+  job_id:               string
+  product_id:           string
+  organization_id:      string
+  position:             number
+  prompt_text:          string
+  status:               VideoStatus
+  duration_seconds:     number
+  aspect_ratio:         VideoAspectRatio
+  model_name:           KlingModel
+  external_task_id:     string | null
+  source_image_id:      string | null
+  storage_path:         string | null
+  thumbnail_path:       string | null
+  generation_metadata:  Record<string, unknown>
+  regenerated_from_id:  string | null
+  approved_at:          string | null
+  approved_by:          string | null
+  rejected_at:          string | null
+  rejected_by:          string | null
+  error_message:        string | null
+  created_at:           string
+  updated_at:           string
+  signed_video_url?:    string | null
+}
+
+export const VIDEO_JOB_STATUS_LABELS: Record<VideoJobStatus, string> = {
+  queued:             'Na fila',
+  generating_prompts: 'Gerando prompts',
+  generating_videos:  'Gerando vídeos',
+  completed:          'Concluído',
+  failed:             'Falhou',
+  cancelled:          'Cancelado',
+}
+
+export function isVideoJobActive(status: VideoJobStatus): boolean {
+  return status === 'queued' || status === 'generating_prompts' || status === 'generating_videos'
+}
+
+// Pricing por modelo (USD) — espelha backend kling.client.ts
+export const KLING_PRICING: Record<KlingModel, Record<5 | 10, number>> = {
+  'kling-v1-6-std':  { 5: 0.21, 10: 0.42 },
+  'kling-v1-6-pro':  { 5: 0.49, 10: 0.98 },
+  'kling-v2-master': { 5: 0.42, 10: 0.84 },
+}
+
+export const KLING_MODEL_OPTIONS: Array<{ value: KlingModel; label: string; description: string }> = [
+  { value: 'kling-v1-6-std',  label: 'v1.6 Standard', description: 'Mais rápido, mais barato ($0.21/5s)' },
+  { value: 'kling-v1-6-pro',  label: 'v1.6 Pro',      description: 'Qualidade alta ($0.49/5s)' },
+  { value: 'kling-v2-master', label: 'v2 Master',     description: 'Premium, motion suave ($0.42/5s)' },
+]
+
+export const VIDEO_DURATION_OPTIONS: VideoDuration[] = [5, 10]
+
+export const VIDEO_ASPECT_OPTIONS: Array<{ value: VideoAspectRatio; label: string; emoji: string }> = [
+  { value: '1:1',  label: '1:1 (quadrado)',     emoji: '◻️' },
+  { value: '16:9', label: '16:9 (landscape)',   emoji: '🖥️' },
+  { value: '9:16', label: '9:16 (vertical)',    emoji: '📱' },
+]
