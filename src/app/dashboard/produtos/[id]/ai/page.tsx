@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import AiScoreBadge from '@/components/catalog/AiScoreBadge'
 import ProductAiSuggestions from '@/components/catalog/ProductAiSuggestions'
+import ProductSocialAnalyticsCard from '@/components/products-analytics/ProductSocialAnalyticsCard'
 import { CatalogApi, type CatalogProductLight, SCORE_PART_LABELS, CATALOG_STATUS_LABELS } from '@/components/catalog/catalogApi'
 
 export default function ProductAiEnrichmentPage() {
@@ -140,6 +141,11 @@ export default function ProductAiEnrichmentPage() {
 
         {/* Sugestões aplicáveis (Delta extra) */}
         <ProductAiSuggestions product={product} onApplied={load} />
+
+        {/* Onda 3 / S6 — Analytics social/ads do produto */}
+        <div className="mb-6">
+          <ProductSocialAnalyticsCard productId={productId} />
+        </div>
 
         {/* Multi-channel preview (Delta 1) */}
         {(Object.keys(product.channel_titles ?? {}).length > 0 || Object.keys(product.channel_descriptions ?? {}).length > 0) && (
