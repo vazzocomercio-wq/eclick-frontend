@@ -1919,13 +1919,11 @@ export default function PedidosPage() {
     setKpiLoad(true)
     try {
       const headers = await getHeaders()
-      // Multi-conta: respeita conta selecionada no AccountSelector. Sem isso,
-      // backend cai no default ("conta mais recente") que pode estar
-      // diferente da conta que o user vê na lista — KPIs descalibrados.
+      // /orders/list/kpis agrega SQL — instantaneo, sem ML calls.
       const sellerId = getStoredSellerId()
       const url = sellerId != null
-        ? `${BACKEND}/ml/orders/kpis?seller_id=${sellerId}`
-        : `${BACKEND}/ml/orders/kpis`
+        ? `${BACKEND}/orders/list/kpis?seller_id=${sellerId}`
+        : `${BACKEND}/orders/list/kpis`
       const res = await fetch(url, { headers })
       if (res.ok) setKpis(await res.json())
     } catch { /* silent */ }
@@ -1971,7 +1969,9 @@ export default function PedidosPage() {
       if (query.trim()) params.set('q', query.trim())
       const sellerId = getStoredSellerId()
       if (sellerId != null) params.set('seller_id', String(sellerId))
-      const res  = await fetch(`${BACKEND}/ml/orders/enriched?${params}`, { headers })
+      // /orders/list le da tabela orders (sales-aggregator sync) — instantaneo
+      // vs /ml/orders/enriched que chamava ML em runtime (3-8s).
+      const res  = await fetch(`${BACKEND}/orders/list?${params}`, { headers })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const body = await res.json()
       setOrders(body.orders ?? [])
