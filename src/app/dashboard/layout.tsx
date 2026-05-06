@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import Sidebar from '@/components/layout/Sidebar'
 import Header from '@/components/layout/Header'
 import { DialogProvider } from '@/components/ui/dialog-provider'
+import FloatingCopilot from '@/components/copilot/FloatingCopilot'
 
 export default async function DashboardLayout({
   children,
@@ -58,6 +59,7 @@ export default async function DashboardLayout({
             {children}
           </main>
         </div>
+        <FloatingCopilot />
       </div>
     </DialogProvider>
   )
