@@ -5,8 +5,11 @@ import { usePathname } from 'next/navigation'
 import {
   Sparkles, X, Send, Loader2, ChevronRight, Brain, Trash2, Copy, Check,
   ThumbsUp, ThumbsDown, Compass,
+  HelpCircle, Target, AlertCircle, Lightbulb, BookOpen, Zap, Rocket, Wrench,
+  Map, ArrowDown,
 } from 'lucide-react'
 import { CopilotApi, type CopilotMessage, type RouteContext } from './copilotApi'
+import { AnimatedPromptSuggestions, type PromptSuggestion } from '@/components/ui/animated-prompt-suggestions'
 
 const STORAGE_KEY_ENABLED = 'eclick.copilot.enabled'
 
@@ -301,6 +304,18 @@ function EmptyState({
 }) {
   const noMatch = routeCtx && routeCtx.entries.length === 0
 
+  // Sugestões dinâmicas: tópicos da rota atual (se houver) + base genérica.
+  // Limita rota a 6 pra não dominar; mistura com base pra dar sensação de
+  // "IA viva" mesmo em telas sem KB rica.
+  const routeChips: PromptSuggestion[] = (routeCtx?.entries ?? []).slice(0, 6).map(e => ({
+    text:   `Me explica "${e.title}"`,
+    label:  e.title.length > 22 ? e.title.slice(0, 20) + '…' : e.title,
+    icon:   Map,
+    accent: '#00E5FF',
+  }))
+
+  const suggestions: PromptSuggestion[] = [...routeChips, ...BASE_SUGGESTIONS]
+
   return (
     <div className="space-y-3">
       <div className="rounded-lg border border-cyan-400/20 bg-cyan-400/[0.03] p-3">
@@ -310,23 +325,20 @@ function EmptyState({
         </p>
       </div>
 
-      {routeCtx && routeCtx.entries.length > 0 && (
-        <div>
-          <p className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">Tópicos desta tela</p>
-          <div className="space-y-1">
-            {routeCtx.entries.map(e => (
-              <button
-                key={e.title}
-                onClick={() => onAsk(`Me explica "${e.title}"`)}
-                className="w-full flex items-start gap-1.5 text-left text-[11px] px-2.5 py-1.5 rounded border border-zinc-800 bg-zinc-900/50 hover:border-cyan-400/40 hover:bg-zinc-900 text-zinc-300 transition-colors"
-              >
-                <ChevronRight size={11} className="text-cyan-400 mt-0.5 shrink-0" />
-                <span>{e.title}</span>
-              </button>
-            ))}
-          </div>
+      {/* Carrossel de chips animados — pause-on-hover. Substitui as listas
+          estáticas de "Tópicos" e "Sugestões". */}
+      <AnimatedPromptSuggestions
+        suggestions={suggestions}
+        onSuggestionClick={onAsk}
+        rows={2}
+        compact
+        speed={45}
+      >
+        <div className="flex items-center justify-center gap-1.5 text-[10px] text-zinc-600 pt-1">
+          <ArrowDown size={10} className="text-cyan-400/60" />
+          <span>ou pergunte qualquer coisa abaixo</span>
         </div>
-      )}
+      </AnimatedPromptSuggestions>
 
       {noMatch && (
         <div className="rounded-lg border border-amber-400/20 bg-amber-400/[0.03] p-3 space-y-2">
@@ -363,30 +375,22 @@ function EmptyState({
           )}
         </div>
       )}
-
-      <div>
-        <p className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">Sugestões</p>
-        <div className="space-y-1">
-          {SUGGESTIONS.map(s => (
-            <button
-              key={s}
-              onClick={() => onAsk(s)}
-              className="w-full text-left text-[11px] px-2.5 py-1.5 rounded text-zinc-400 hover:text-cyan-300 hover:bg-zinc-900/50 transition-colors"
-            >
-              💡 {s}
-            </button>
-          ))}
-        </div>
-      </div>
     </div>
   )
 }
 
-const SUGGESTIONS = [
-  'O que eu faço nesta tela?',
-  'Como extrair o melhor resultado aqui?',
-  'Quais são os erros comuns?',
-  'Quais boas práticas?',
+// Sugestões base — sempre presentes no carrossel, independente da rota.
+// Mistura ícones quentes/frios pra variedade visual (mesma estética do AdsAIChat).
+const BASE_SUGGESTIONS: PromptSuggestion[] = [
+  { text: 'O que eu faço nesta tela?',           label: 'O que faço aqui?', icon: HelpCircle,  accent: '#00E5FF' },
+  { text: 'Como extrair o melhor resultado aqui?', label: 'Melhor resultado', icon: Target,      accent: '#22c55e' },
+  { text: 'Quais são os erros comuns?',           label: 'Erros comuns',     icon: AlertCircle, accent: '#ef4444' },
+  { text: 'Quais boas práticas?',                  label: 'Boas práticas',    icon: Lightbulb,   accent: '#f59e0b' },
+  { text: 'Me dá um passo a passo',                label: 'Passo a passo',    icon: BookOpen,    accent: '#a855f7' },
+  { text: 'Quais atalhos eu deveria conhecer?',    label: 'Atalhos',          icon: Zap,         accent: '#00E5FF' },
+  { text: 'Como começar rápido aqui?',             label: 'Início rápido',    icon: Rocket,      accent: '#22c55e' },
+  { text: 'Tem alguma config importante?',         label: 'Configurações',    icon: Wrench,      accent: '#f59e0b' },
+  { text: 'Resume o que dá pra fazer aqui',       label: 'Resumo da tela',   icon: Sparkles,    accent: '#00E5FF' },
 ]
 
 function ChatTurnView({
