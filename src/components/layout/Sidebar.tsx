@@ -160,10 +160,11 @@ const SECTIONS: NavSection[] = [
     key: 'producao',
     label: 'PRODUÇÃO',
     items: [
-      { label: 'Tarefas',         href: '/dashboard/producao/tarefas',    icon: <CheckSquare size={15} /> },
-      { label: 'Conteúdo com IA', href: '/dashboard/producao/conteudo',   icon: <Sparkles size={15} /> },
-      { label: 'IA Criativo',     href: '/dashboard/creative',            icon: <Wand2 size={15} /> },
-      { label: 'Biblioteca',      href: '/dashboard/producao/biblioteca',  icon: <ImageIcon size={15} /> },
+      { label: 'Tarefas',          href: '/dashboard/producao/tarefas',    icon: <CheckSquare size={15} /> },
+      { label: 'Conteúdo com IA',  href: '/dashboard/producao/conteudo',   icon: <Sparkles size={15} /> },
+      { label: 'Conteúdo Social',  href: '/dashboard/social',              icon: <Megaphone size={15} /> },
+      { label: 'IA Criativo',      href: '/dashboard/creative',            icon: <Wand2 size={15} /> },
+      { label: 'Biblioteca',       href: '/dashboard/producao/biblioteca', icon: <ImageIcon size={15} /> },
     ],
   },
   {
