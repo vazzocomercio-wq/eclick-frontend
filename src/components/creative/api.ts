@@ -9,6 +9,7 @@ import type {
   CreativeVideoJob, CreativeVideo, KlingModel, VideoDuration, VideoAspectRatio,
   MlPublishContext, MlPredictedCategory, MlRequiredAttribute, MlPreviewResponse,
   MlListingType, MlCondition, CreativePublication,
+  BriefingTemplate,
 } from './types'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
@@ -135,6 +136,36 @@ export const CreativeApi = {
 
   listBriefings: (productId: string) =>
     api<CreativeBriefing[]>(`/creative/products/${productId}/briefings`),
+
+  // Briefing templates (melhoria #2)
+  listBriefingTemplates: () =>
+    api<BriefingTemplate[]>('/creative/briefing-templates'),
+
+  createBriefingTemplate: (body: {
+    name:                string
+    description?:        string
+    target_marketplace:  Marketplace
+    visual_style?:       string
+    environment?:        string
+    custom_environment?: string
+    background_color?:   string
+    use_logo?:           boolean
+    communication_tone?: string
+    image_count?:        number
+    image_format?:       string
+    is_default?:         boolean
+  }) =>
+    api<BriefingTemplate>('/creative/briefing-templates', {
+      method: 'POST', body: JSON.stringify(body),
+    }),
+
+  updateBriefingTemplate: (id: string, body: Partial<BriefingTemplate>) =>
+    api<BriefingTemplate>(`/creative/briefing-templates/${id}`, {
+      method: 'PATCH', body: JSON.stringify(body),
+    }),
+
+  deleteBriefingTemplate: (id: string) =>
+    api<{ ok: true }>(`/creative/briefing-templates/${id}`, { method: 'DELETE' }),
 
   listProductListings: (productId: string) =>
     api<CreativeListing[]>(`/creative/products/${productId}/listings`),

@@ -437,3 +437,27 @@ export const ML_CONDITION_OPTIONS: Array<{ value: MlCondition; label: string }> 
   { value: 'used',          label: 'Usado' },
   { value: 'not_specified', label: 'Não especificado' },
 ]
+
+// ── Melhoria #2: Briefing Templates ───────────────────────────────────────
+
+export interface BriefingTemplate {
+  id:                  string
+  organization_id:     string
+  user_id:             string | null
+  name:                string
+  description:         string | null
+  target_marketplace:  Marketplace
+  visual_style:        string
+  environment:         string | null
+  custom_environment:  string | null
+  background_color:    string
+  use_logo:            boolean
+  logo_url:            string | null
+  logo_storage_path:   string | null
+  communication_tone:  string
+  image_count:         number
+  image_format:        string
+  is_default:          boolean
+  created_at:          string
+  updated_at:          string
+}
