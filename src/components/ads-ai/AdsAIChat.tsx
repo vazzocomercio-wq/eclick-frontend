@@ -99,8 +99,8 @@ export function AdsAIChat() {
     }
   }
 
-  async function send() {
-    const text = input.trim()
+  async function send(overrideText?: string) {
+    const text = (overrideText ?? input).trim()
     if (!text || sending) return
 
     let convId = activeConv
@@ -253,7 +253,7 @@ export function AdsAIChat() {
 
               <AnimatedPromptSuggestions
                 suggestions={ADS_SUGGESTIONS}
-                onSuggestionClick={(t) => setInput(t)}
+                onSuggestionClick={(t) => { setInput(''); void send(t) }}
                 speed={45}
                 rows={2}
                 compact
@@ -276,7 +276,7 @@ export function AdsAIChat() {
                       rows={1}
                       className="flex-1 bg-transparent text-zinc-200 text-sm rounded-lg px-2 py-2 outline-none resize-none max-h-32"
                     />
-                    <button onClick={send} disabled={sending || !input.trim()}
+                    <button onClick={() => void send()} disabled={sending || !input.trim()}
                       className="p-2.5 rounded-lg transition-opacity disabled:opacity-50 shrink-0"
                       style={{ background: '#00E5FF', color: '#000' }}>
                       {sending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
@@ -302,7 +302,7 @@ export function AdsAIChat() {
                   rows={1}
                   className="flex-1 bg-[#111114] border border-[#27272a] text-zinc-200 text-sm rounded-lg px-3 py-2 outline-none focus:border-[#00E5FF] resize-none max-h-32"
                 />
-                <button onClick={send} disabled={sending || !input.trim()}
+                <button onClick={() => void send()} disabled={sending || !input.trim()}
                   className="p-2.5 rounded-lg transition-opacity disabled:opacity-50"
                   style={{ background: '#00E5FF', color: '#000' }}>
                   {sending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
