@@ -497,6 +497,12 @@ export default function DashboardPage() {
   const [financialSummary, setFinancialSummary] = useState<{ total_revenue: number; total_orders: number; ml_total: number; average_ticket: number } | null>(null)
   const [summaryLoading, setSummaryLoading] = useState(false)
   const [produtos, setProdutos] = useState<ProdutoCusto[]>([])
+  // Ads (mês atual) — investimento mídia + ROAS / ROI
+  const [adsSummary, setAdsSummary] = useState<{ spend: number; roas: number; clicks: number; revenue: number } | null>(null)
+  // Conversas abertas (proxy de "mensagens não lidas" enquanto não há endpoint dedicado)
+  const [openConvs, setOpenConvs] = useState<number>(0)
+  // Claims (lista) — usado pra derivar "mediações" (claims antigos = escalados)
+  const [claimsList, setClaimsList] = useState<Array<{ created_date?: string; date_created?: string }>>([])
 
   const supabase = useMemo(() => createClient(), [])
 
@@ -553,13 +559,18 @@ export default function DashboardPage() {
     }
 
     const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
-    const [ordersRes, questionsRes, claimsRes, sellerRes, myItemsRes, finRes] = await Promise.allSettled([
+    // Range pra Ads — mês atual em YYYY-MM-DD
+    const monthStartStr = brazilDateStr(new Date(new Date().getFullYear(), new Date().getMonth(), 1))
+    const todayStr = brazilDateStr()
+    const [ordersRes, questionsRes, claimsRes, sellerRes, myItemsRes, finRes, adsRes, convsRes] = await Promise.allSettled([
       fetch(`${BACKEND}/ml/recent-orders?limit=200`,  { headers: { Authorization: `Bearer ${token}` } }),
       fetch(`${BACKEND}/ml/questions`,                 { headers: { Authorization: `Bearer ${token}` } }),
       fetch(`${BACKEND}/ml/claims`,                    { headers: { Authorization: `Bearer ${token}` } }),
       fetch(`${BACKEND}/ml/seller-info`,               { headers: { Authorization: `Bearer ${token}` } }),
       fetch(`${BACKEND}/ml/my-items?limit=1`,          { headers: { Authorization: `Bearer ${token}` } }),
       fetch(`${BACKEND}/ml/financial-summary?kpis_only=true&date_from=${encodeURIComponent(monthStart)}`, { headers: { Authorization: `Bearer ${token}` } }),
+      fetch(`${BACKEND}/ml-ads/reports/summary?from=${monthStartStr}&to=${todayStr}`, { headers: { Authorization: `Bearer ${token}` } }),
+      fetch(`${BACKEND}/atendente-ia/conversations?status=open`, { headers: { Authorization: `Bearer ${token}` } }),
     ])
 
     console.log('[Dashboard] recent-orders:', ordersRes.status === 'fulfilled' ? ordersRes.value.status : `REJECTED(${(ordersRes as PromiseRejectedResult).reason})`)
@@ -590,7 +601,29 @@ export default function DashboardPage() {
     if (claimsRes.status === 'fulfilled' && claimsRes.value.ok) {
       try {
         const data = await claimsRes.value.json()
-        setClaims(Array.isArray(data?.data ?? data) ? (data?.data ?? data).length : (data?.total ?? 0))
+        const arr = Array.isArray(data?.data ?? data) ? (data?.data ?? data) : []
+        setClaims(arr.length || (data?.total ?? 0))
+        setClaimsList(arr)
+      } catch { /* non-fatal */ }
+    }
+    if (adsRes.status === 'fulfilled' && adsRes.value.ok) {
+      try {
+        const data = await adsRes.value.json()
+        const t = data?.totals
+        if (t) setAdsSummary({
+          spend:   Number(t.spend ?? 0),
+          roas:    Number(t.roas ?? 0),
+          clicks:  Number(t.clicks ?? 0),
+          revenue: Number(t.revenue ?? 0),
+        })
+      } catch { /* non-fatal */ }
+    }
+    if (convsRes.status === 'fulfilled' && convsRes.value.ok) {
+      try {
+        const data = await convsRes.value.json()
+        const arr = Array.isArray(data?.conversations) ? data.conversations
+                  : Array.isArray(data) ? data : []
+        setOpenConvs(arr.length)
       } catch { /* non-fatal */ }
     }
     if (sellerRes.status === 'fulfilled' && sellerRes.value.ok) {
@@ -861,6 +894,29 @@ export default function DashboardPage() {
   const noStockProds = products.filter(p => (p.stock ?? 0) <= 0 && p.status === 'active')
   const lowStockProds = products.filter(p => (p.stock ?? 0) > 0 && (p.stock ?? 0) < 5 && p.status === 'active')
 
+  // Pedidos atrasados — heurística: status=paid e idade > 5 dias (sem shipping_status
+  // disponível no payload do /ml/recent-orders, isso aproxima "pago mas não enviado/entregue").
+  const lateOrders = useMemo(() => {
+    const fiveDaysAgoMs = Date.now() - 5 * 24 * 60 * 60 * 1000
+    return orders.filter(o => {
+      if (o.status !== 'paid') return false
+      const t = new Date(o.date_created).getTime()
+      return Number.isFinite(t) && t < fiveDaysAgoMs
+    }).length
+  }, [orders])
+
+  // Mediações abertas — proxy: claims com idade > 14 dias (claims antigos tendem a
+  // escalar pra mediação no ML). Substituir quando endpoint /ml/mediations existir.
+  const mediations = useMemo(() => {
+    const twoWeeksAgoMs = Date.now() - 14 * 24 * 60 * 60 * 1000
+    return claimsList.filter(c => {
+      const raw = c.created_date ?? c.date_created
+      if (!raw) return false
+      const t = new Date(raw).getTime()
+      return Number.isFinite(t) && t < twoWeeksAgoMs
+    }).length
+  }, [claimsList])
+
   // Funnel (estimated from order data)
   const paidCount  = periodOrders.filter(isPaid).length
   const totalCount = periodOrders.length
@@ -1047,8 +1103,8 @@ export default function DashboardPage() {
           <KpiCard label="Reputação ML"         value={sellerInfo?.level_id?.replace(/_/g, ' ') ?? '—'} sub={sellerInfo?.power_seller_status ?? (mlConnected ? '…' : 'ML desconect.')} color="#60a5fa" loading={loading} />
           <KpiCard label="Vendas Aprovadas"   value={finKpis ? shortBrl(finKpis.vendas_aprovadas) : '—'} sub="líquido mês atual" color="#22c55e" loading={loading} />
           <KpiCard label={`Margem — ${PERIOD_LABEL[period]}`} value={`${margemPct.toFixed(1)}%`} sub={shortBrl(lucroEstimado)} color={margemPct >= 0 ? '#22c55e' : '#f87171'} loading={periodLoading || summaryLoading} />
-          <KpiCard label="Investimento mídia" value="—"  sub="via Ads"       color="#f87171" loading={loading} />
-          <KpiCard label="ROAS / ROI"         value="—"  sub="via Ads"       color="#e879f9" loading={loading} />
+          <KpiCard label="Investimento mídia" value={adsSummary ? shortBrl(adsSummary.spend) : '—'} sub={adsSummary && adsSummary.spend > 0 ? 'mês atual' : 'via Ads'} color="#f87171" loading={loading} />
+          <KpiCard label="ROAS / ROI"         value={adsSummary && adsSummary.roas > 0 ? `${adsSummary.roas.toFixed(2)}x` : '—'} sub={adsSummary && adsSummary.roas > 0 ? `receita ${shortBrl(adsSummary.revenue)}` : 'via Ads'} color="#e879f9" loading={loading} />
         </div>
       </section>
 
@@ -1057,10 +1113,10 @@ export default function DashboardPage() {
         <p className="text-zinc-500 text-[10px] uppercase tracking-widest font-semibold mb-3">Central de Alertas</p>
         <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-2.5">
           <AlertCard label="Reclamações abertas"    value={claims}              level={claims > 0 ? 'red' : 'green'}                              href="/dashboard/atendimento/reclamacoes" loading={loading} />
-          <AlertCard label="Mediações abertas"      value="—"                   level="green"                                                     loading={loading} />
-          <AlertCard label="Pedidos atrasados"      value="—"                   level="green"                                                     loading={loading} />
+          <AlertCard label="Mediações abertas"      value={mediations}          level={mediations > 0 ? 'yellow' : 'green'}                       href="/dashboard/atendimento/reclamacoes" loading={loading} />
+          <AlertCard label="Pedidos atrasados"      value={lateOrders}          level={lateOrders > 5 ? 'red' : lateOrders > 0 ? 'yellow' : 'green'} href="/dashboard/pedidos" loading={loading} />
           <AlertCard label="Perguntas sem resposta" value={questions}           level={questions > 5 ? 'red' : questions > 0 ? 'yellow' : 'green'} href="/dashboard/atendimento/perguntas" loading={loading} />
-          <AlertCard label="Mensagens não lidas"    value="—"                   level="yellow"                                                    loading={loading} />
+          <AlertCard label="Mensagens não lidas"    value={openConvs}           level={openConvs > 5 ? 'red' : openConvs > 0 ? 'yellow' : 'green'}  href="/dashboard/atendente-ia/conversas" loading={loading} />
           <AlertCard label="Sem estoque"            value={noStockProds.length} level={noStockProds.length > 0 ? 'red' : 'green'}                  href="/dashboard/produtos" loading={loading} />
           <AlertCard label="Anúncios pausados"      value={pausedProds.length}  level={pausedProds.length > 3 ? 'yellow' : 'green'}                href="/dashboard/produtos" loading={loading} />
           <AlertCard label="Acima da concorrência"  value={aboveConcPrice}      level={aboveConcPrice > 0 ? 'yellow' : 'green'}                   href="/dashboard/precos" loading={loading} />
@@ -1275,17 +1331,17 @@ export default function DashboardPage() {
           } items={[
             { label: 'Perguntas pendentes', value: questions, color: questions > 0 ? '#f59e0b' : '#34d399' },
             { label: 'Reclamações abertas', value: claims, color: claims > 0 ? '#f87171' : '#34d399' },
-            { label: 'SLA resposta', value: '—' },
-            { label: 'Mensagens não lidas', value: '—' },
+            { label: 'Mediações (>14d)', value: mediations, color: mediations > 0 ? '#f59e0b' : '#34d399' },
+            { label: 'Conversas abertas', value: openConvs, color: openConvs > 5 ? '#f87171' : openConvs > 0 ? '#f59e0b' : '#34d399' },
           ]} />
 
           <SectorCard title="Logística" loading={loading} icon={
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.75}><path strokeLinecap="round" strokeLinejoin="round" d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1" /></svg>
           } items={[
-            { label: 'A expedir', value: '—' },
-            { label: 'Em trânsito', value: '—' },
-            { label: 'Atrasados', value: '—' },
-            { label: 'Prazo médio', value: '—' },
+            { label: 'Pagos hoje', value: todayM.count, color: '#00E5FF' },
+            { label: 'Atrasados (>5d)', value: lateOrders, color: lateOrders > 5 ? '#f87171' : lateOrders > 0 ? '#f59e0b' : '#34d399' },
+            { label: 'Cancelados', value: orders.filter(o => o.status === 'cancelled').length, color: '#71717a' },
+            { label: 'Total pedidos', value: orders.length, color: '#a1a1aa' },
           ]} />
 
           <SectorCard title="Financeiro" loading={summaryLoading || loading} icon={
@@ -1300,10 +1356,10 @@ export default function DashboardPage() {
           <SectorCard title="Marketing" loading={loading} icon={
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.75}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" /></svg>
           } items={[
-            { label: 'Investimento', value: '—' },
-            { label: 'Cliques', value: '—' },
-            { label: 'ROAS', value: '—' },
-            { label: 'Receita por campanha', value: '—' },
+            { label: 'Investimento', value: adsSummary ? shortBrl(adsSummary.spend) : '—', color: '#f87171' },
+            { label: 'Cliques', value: adsSummary ? adsSummary.clicks.toLocaleString('pt-BR') : '—', color: '#a78bfa' },
+            { label: 'ROAS', value: adsSummary && adsSummary.roas > 0 ? `${adsSummary.roas.toFixed(2)}x` : '—', color: adsSummary && adsSummary.roas >= 3 ? '#34d399' : '#f59e0b' },
+            { label: 'Receita Ads', value: adsSummary ? shortBrl(adsSummary.revenue) : '—', color: '#22c55e' },
           ]} />
 
         </div>
