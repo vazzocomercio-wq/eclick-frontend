@@ -16,6 +16,7 @@ export interface MlConnection {
 }
 
 const LS_KEY = 'eclick.ml.selected_seller_id'
+const ACCOUNT_CHANGED_EVENT = 'eclick:ml-account-changed'
 
 /** Le seller_id selecionado do localStorage. null = "todas as contas". */
 export function getStoredSellerId(): number | null {
@@ -31,6 +32,10 @@ export function getStoredSellerId(): number | null {
 function setStoredSellerId(sellerId: number | null) {
   try {
     window.localStorage.setItem(LS_KEY, sellerId === null ? 'all' : String(sellerId))
+    // Notifica todas instancias de useMlAccount no mesmo tab.
+    // localStorage 'storage' event so dispara entre tabs/janelas — pra
+    // sincronizar componentes da mesma pagina precisa de custom event.
+    window.dispatchEvent(new CustomEvent(ACCOUNT_CHANGED_EVENT, { detail: { sellerId } }))
   } catch { /* noop */ }
 }
 
@@ -71,6 +76,24 @@ export function useMlAccount() {
   }, [])
 
   useEffect(() => { void load() }, [load])
+
+  // Sincroniza com mudancas de outras instancias do hook no mesmo tab
+  // (via custom event) e entre tabs (via storage event).
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    function syncFromStorage() {
+      setSelectedRaw(getStoredSellerId())
+    }
+    function onCustom(_e: Event) {
+      setSelectedRaw(getStoredSellerId())
+    }
+    window.addEventListener('storage', syncFromStorage)
+    window.addEventListener(ACCOUNT_CHANGED_EVENT, onCustom)
+    return () => {
+      window.removeEventListener('storage', syncFromStorage)
+      window.removeEventListener(ACCOUNT_CHANGED_EVENT, onCustom)
+    }
+  }, [])
 
   return {
     connections,
