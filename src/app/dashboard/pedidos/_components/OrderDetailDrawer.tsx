@@ -7,6 +7,7 @@ import {
   XCircle, Clock, AlertTriangle, MessageCircle, Package, User as UserIcon,
   ShieldCheck, ShieldOff, ShieldQuestion, ArrowRight,
 } from 'lucide-react'
+import OrderStatusTimeline from './OrderStatusTimeline'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 
@@ -422,6 +423,27 @@ export function OrderDetailDrawer({ externalOrderId, onClose, getHeaders }: Orde
 
           {!loading && !error && data && (
             <>
+              {/* ── ⚡ Timeline horizontal de status do pedido ──── */}
+              {order && (
+                <section
+                  className="rounded-xl px-4 py-3"
+                  style={{
+                    background: 'linear-gradient(180deg, rgba(0,229,255,0.04) 0%, rgba(10,10,12,0.6) 100%)',
+                    border: '1px solid rgba(0,229,255,0.12)',
+                    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)',
+                  }}
+                >
+                  <h2 className="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest mb-1">
+                    Status do pedido
+                  </h2>
+                  <OrderStatusTimeline
+                    paymentStatus={order.payment_status}
+                    shippingStatus={order.shipping_status}
+                    soldAt={order.sold_at}
+                  />
+                </section>
+              )}
+
               {/* ── 📨 Comunicação ─────────────────────────── */}
               <section>
                 <h2 className="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
