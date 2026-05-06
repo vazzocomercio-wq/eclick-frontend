@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import {
   ArrowLeft, Sparkles, Loader2, AlertCircle, CheckCircle2, RefreshCw,
-  Image as ImageIcon, Film, Tag, DollarSign, Package, Eye, Layers,
+  Image as ImageIcon, Film, Tag, DollarSign, Package, Eye, Layers, ExternalLink, Send, Lock, X,
 } from 'lucide-react'
 import MLImageSelector from '@/components/creative/MLImageSelector'
 import MLAttributesForm from '@/components/creative/MLAttributesForm'
@@ -14,6 +14,7 @@ import {
   ML_LISTING_TYPE_OPTIONS, ML_CONDITION_OPTIONS,
   type MlPublishContext, type MlPreviewResponse,
   type MlListingType, type MlCondition,
+  type CreativePublication,
 } from '@/components/creative/types'
 
 interface AttributeValue { id: string; value_name?: string; value_id?: string }
@@ -41,13 +42,30 @@ export default function MLPublishPage() {
   const [previewing, setPreviewing] = useState(false)
   const [previewError, setPreviewError] = useState<string | null>(null)
 
+  // Publications
+  const [publications, setPublications] = useState<CreativePublication[]>([])
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [publishing, setPublishing]   = useState(false)
+  const [publishError, setPublishError] = useState<string | null>(null)
+
   useEffect(() => { void load() }, [listingId])
+
+  async function refreshPublications() {
+    try {
+      const list = await CreativeApi.listListingPublications(listingId)
+      setPublications(list)
+    } catch { /* silencioso */ }
+  }
 
   async function load() {
     setError(null); setLoading(true)
     try {
-      const c = await CreativeApi.getMlContext(listingId)
+      const [c, pubs] = await Promise.all([
+        CreativeApi.getMlContext(listingId),
+        CreativeApi.listListingPublications(listingId).catch(() => []),
+      ])
       setCtx(c)
+      setPublications(pubs)
       // Defaults
       setImageIds(c.approved_images.map(i => i.id).slice(0, 10))
       setVideoId(c.approved_videos[0]?.id ?? null)
@@ -59,6 +77,33 @@ export default function MLPublishPage() {
       setError((e as Error).message)
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function publish() {
+    if (!preview?.ready || !preview.publish_enabled) return
+    setPublishError(null); setPublishing(true)
+    try {
+      const idempotency_key = (typeof crypto !== 'undefined' && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2)}`
+      const pub = await CreativeApi.publishMl(listingId, {
+        idempotency_key,
+        image_ids:    imageIds,
+        video_id:     videoId,
+        price:        Number(price) || 0,
+        stock:        Number(stock) || 0,
+        listing_type: listingType,
+        condition,
+        attributes:   attributes.filter(a => a.value_id || a.value_name),
+      })
+      setConfirmOpen(false)
+      // Atualiza histórico
+      setPublications(prev => [pub, ...prev.filter(p => p.id !== pub.id)])
+    } catch (e: unknown) {
+      setPublishError((e as Error).message)
+    } finally {
+      setPublishing(false)
     }
   }
 
@@ -129,14 +174,35 @@ export default function MLPublishPage() {
           </div>
         </header>
 
-        {/* Banner: F1+F2 only */}
-        <div className="mb-5 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-amber-200 flex items-start gap-2">
-          <AlertCircle size={14} className="shrink-0 mt-0.5" />
-          <span>
-            <strong>Modo preview ativo (F1+F2)</strong> — preencha os campos pra validar o anúncio.
-            A publicação real (F3) será habilitada na próxima sprint. Por enquanto, você pode copiar o JSON e usar como referência.
-          </span>
-        </div>
+        {/* Banner: estado da publicação */}
+        {preview && !preview.publish_enabled && (
+          <div className="mb-5 rounded-lg border border-zinc-700 bg-zinc-900/50 p-3 text-xs text-zinc-300 flex items-start gap-2">
+            <Lock size={14} className="shrink-0 mt-0.5" />
+            <span>
+              <strong>Publicação real desabilitada</strong> — set <code className="font-mono text-cyan-300">CREATIVE_ML_PUBLISH_ENABLED=true</code> no Railway pra ativar. Por enquanto preview-only, JSON copiável.
+            </span>
+          </div>
+        )}
+        {preview?.publish_enabled && (
+          <div className="mb-5 rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3 text-xs text-emerald-200 flex items-start gap-2">
+            <CheckCircle2 size={14} className="shrink-0 mt-0.5" />
+            <span>
+              <strong>Publicação ATIVA</strong> — anúncios são criados em <code className="font-mono">paused</code> no ML. Você revisa e ativa manualmente lá.
+            </span>
+          </div>
+        )}
+
+        {/* Histórico de publicações */}
+        {publications.length > 0 && (
+          <div className="mb-5">
+            <h3 className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">Publicações desse anúncio</h3>
+            <div className="space-y-1.5">
+              {publications.slice(0, 5).map(p => (
+                <PublicationRow key={p.id} pub={p} />
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* LEFT: Form */}
@@ -364,26 +430,145 @@ export default function MLPublishPage() {
                     </div>
                   </details>
 
-                  {/* Publish button (disabled — F3) */}
-                  <button
-                    type="button"
-                    disabled
-                    className="w-full px-4 py-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-500 text-xs font-semibold cursor-not-allowed"
-                    title="F3 será entregue em sprint dedicada com testes contra ML real"
-                  >
-                    Publicar no ML (em breve — F3)
-                  </button>
+                  {/* Publish button — estado depende de ready + publish_enabled */}
+                  {!preview.publish_enabled ? (
+                    <button
+                      type="button"
+                      disabled
+                      className="w-full flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-500 text-xs font-semibold cursor-not-allowed"
+                      title="Setar CREATIVE_ML_PUBLISH_ENABLED=true no Railway pra ativar"
+                    >
+                      <Lock size={12} /> Publicação desabilitada
+                    </button>
+                  ) : !preview.ready ? (
+                    <button
+                      type="button"
+                      disabled
+                      className="w-full flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-500 text-xs font-semibold cursor-not-allowed"
+                    >
+                      <AlertCircle size={12} /> Resolver pendências antes de publicar
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => { setPublishError(null); setConfirmOpen(true) }}
+                      className="w-full flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-semibold shadow-[0_0_12px_rgba(74,222,128,0.25)] transition-all"
+                    >
+                      <Send size={12} /> Publicar agora no ML (paused)
+                    </button>
+                  )}
                 </div>
               )}
             </Section>
           </div>
         </div>
       </div>
+
+      {/* Confirm publish dialog */}
+      {confirmOpen && preview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-2xl border border-emerald-500/30 bg-zinc-950 shadow-xl">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800">
+              <div className="flex items-center gap-2">
+                <Send size={14} className="text-emerald-400" />
+                <h3 className="text-sm font-semibold">Publicar no Mercado Livre</h3>
+              </div>
+              <button onClick={() => setConfirmOpen(false)} disabled={publishing} className="text-zinc-500 hover:text-zinc-200">
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-3">
+              <div className="rounded-lg bg-amber-500/5 border border-amber-500/30 p-3 text-xs text-amber-200 flex items-start gap-2">
+                <AlertCircle size={12} className="shrink-0 mt-0.5" />
+                <span>
+                  Anúncio será criado com status <code className="font-mono">paused</code>.
+                  Você precisa abrir no ML, revisar e <strong>ativar manualmente</strong> pra ficar visível.
+                </span>
+              </div>
+
+              <ul className="text-xs text-zinc-300 space-y-1">
+                <li><span className="text-zinc-500">Título:</span> {ctx?.listing.title.slice(0, 60)}</li>
+                <li><span className="text-zinc-500">Categoria:</span> {preview.predicted_category.category_id ?? '—'}</li>
+                <li><span className="text-zinc-500">Imagens:</span> {imageIds.length}</li>
+                <li><span className="text-zinc-500">Preço:</span> R$ {(Number(price) || 0).toFixed(2)}</li>
+                <li><span className="text-zinc-500">Estoque:</span> {Number(stock) || 0} un</li>
+                <li><span className="text-zinc-500">Modalidade:</span> {listingType}</li>
+              </ul>
+
+              {videoId && (
+                <p className="text-[11px] text-amber-300">
+                  ℹ️ Vídeo selecionado mas <strong>não vai pro ML nesta versão</strong> — upload de vídeo será adicionado em F3.1.
+                </p>
+              )}
+
+              {publishError && (
+                <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-2.5 text-xs text-red-200 flex items-start gap-1.5">
+                  <AlertCircle size={12} className="shrink-0 mt-0.5" />
+                  <span>{publishError}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-zinc-800">
+              <button onClick={() => setConfirmOpen(false)} disabled={publishing}
+                className="px-3 py-1.5 rounded-lg text-zinc-400 hover:text-zinc-200 text-xs">
+                Cancelar
+              </button>
+              <button onClick={publish} disabled={publishing}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-black text-xs font-semibold">
+                {publishing ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
+                Confirmar publicação
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────
+
+function PublicationRow({ pub }: { pub: CreativePublication }) {
+  const cfg: Record<CreativePublication['status'], { label: string; className: string }> = {
+    pending:    { label: 'pendente',    className: 'bg-zinc-900 text-zinc-400 border-zinc-700' },
+    publishing: { label: 'publicando',  className: 'bg-cyan-400/10 text-cyan-300 border-cyan-400/30' },
+    published:  { label: '✓ publicado', className: 'bg-emerald-400/10 text-emerald-300 border-emerald-400/30' },
+    failed:     { label: '✗ falhou',    className: 'bg-red-500/10 text-red-300 border-red-500/30' },
+  }
+  const c = cfg[pub.status]
+  return (
+    <div className="flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-900/30 px-3 py-2 text-xs">
+      <div className="flex items-center gap-2 min-w-0">
+        <span className={`px-2 py-0.5 rounded-full text-[10px] border ${c.className}`}>{c.label}</span>
+        {pub.external_id && (
+          <span className="font-mono text-cyan-300 text-[10px]">{pub.external_id}</span>
+        )}
+        <span className="text-zinc-500 text-[10px] truncate">
+          {new Date(pub.created_at).toLocaleString('pt-BR')}
+        </span>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        {pub.error_message && pub.status === 'failed' && (
+          <span className="text-[10px] text-red-300 truncate max-w-xs" title={pub.error_message}>
+            {pub.error_message.slice(0, 60)}
+          </span>
+        )}
+        {pub.external_url && (
+          <a
+            href={pub.external_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1 text-[10px] text-amber-300 hover:text-amber-200"
+          >
+            <ExternalLink size={10} /> ver no ML
+          </a>
+        )}
+      </div>
+    </div>
+  )
+}
 
 function Section({
   icon, title, actionLabel, onAction, actionLoading, children,

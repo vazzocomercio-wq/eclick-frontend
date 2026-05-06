@@ -8,7 +8,7 @@ import type {
   CreativeImageJob, CreativeImage,
   CreativeVideoJob, CreativeVideo, KlingModel, VideoDuration, VideoAspectRatio,
   MlPublishContext, MlPredictedCategory, MlRequiredAttribute, MlPreviewResponse,
-  MlListingType, MlCondition,
+  MlListingType, MlCondition, CreativePublication,
 } from './types'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
@@ -281,4 +281,25 @@ export const CreativeApi = {
     api<MlPreviewResponse>(`/creative/listings/${listingId}/ml-preview`, {
       method: 'POST', body: JSON.stringify(body),
     }),
+
+  publishMl: (listingId: string, body: {
+    idempotency_key: string
+    image_ids:       string[]
+    video_id?:       string | null
+    price:           number
+    stock:           number
+    listing_type?:   MlListingType
+    category_id?:    string
+    attributes?:     Array<{ id: string; value_name?: string; value_id?: string }>
+    condition?:      MlCondition
+  }) =>
+    api<CreativePublication>(`/creative/listings/${listingId}/ml-publish`, {
+      method: 'POST', body: JSON.stringify(body),
+    }),
+
+  listListingPublications: (listingId: string) =>
+    api<CreativePublication[]>(`/creative/listings/${listingId}/publications`),
+
+  getPublication: (id: string) =>
+    api<CreativePublication>(`/creative/publications/${id}`),
 }
