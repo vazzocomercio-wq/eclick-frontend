@@ -12,15 +12,21 @@ import { AdsCampaignsApi, type AdsPlatform, type AdsObjective } from '@/componen
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
 interface ProductLite {
-  id:          string
-  name:        string
-  brand?:      string | null
-  category?:   string | null
-  price?:      number | null
-  ai_score?:   number | null
-  photo_urls?: string[] | null
-  images?:     Array<{ url?: string }> | null
+  id:             string
+  name:           string
+  brand?:         string | null
+  category?:      string | null
+  price?:         number | null
+  ai_score?:      number | null
+  photo_urls?:    string[] | null
+  images?:        Array<{ url?: string }> | null
+  ml_item_id?:    string | null
+  ml_listing_id?: string | null
+  ml_title?:      string | null
+  ml_permalink?:  string | null
 }
+
+type SourceTab = 'catalog' | 'ml_ads'
 
 const PLATFORMS: Array<{ key: AdsPlatform; label: string; hint: string; color: string }> = [
   { key: 'meta',              label: 'Meta Ads',     hint: 'Facebook + Instagram',           color: '#0866FF' },
@@ -44,6 +50,7 @@ export default function NewCampaignWizard() {
   const [step, setStep] = useState<1 | 2 | 3>(1)
   const [products, setProducts] = useState<ProductLite[] | null>(null)
   const [search, setSearch] = useState('')
+  const [source, setSource] = useState<SourceTab>('catalog')
   const [picked, setPicked] = useState<ProductLite | null>(null)
   const [platform, setPlatform] = useState<AdsPlatform | null>(null)
   const [objective, setObjective] = useState<AdsObjective>('conversions')
@@ -69,16 +76,37 @@ export default function NewCampaignWizard() {
     })()
   }, [])
 
+  const counts = useMemo(() => {
+    if (!products) return { catalog: 0, ml_ads: 0 }
+    return {
+      catalog: products.length,
+      ml_ads:  products.filter(p => p.ml_item_id || p.ml_listing_id).length,
+    }
+  }, [products])
+
   const filtered = useMemo(() => {
     if (!products) return []
-    if (!search.trim()) return products.slice(0, 100)
+    let pool = products
+    if (source === 'ml_ads') {
+      pool = pool.filter(p => p.ml_item_id || p.ml_listing_id)
+    }
+    if (!search.trim()) return pool.slice(0, 100)
     const q = search.toLowerCase()
-    return products.filter(p =>
+    return pool.filter(p =>
       p.name?.toLowerCase().includes(q) ||
+      p.ml_title?.toLowerCase().includes(q) ||
       p.brand?.toLowerCase().includes(q) ||
       p.category?.toLowerCase().includes(q),
     ).slice(0, 100)
-  }, [products, search])
+  }, [products, search, source])
+
+  // Limpa picked se trocar de aba e o produto não está mais visível
+  useEffect(() => {
+    if (!picked || !products) return
+    if (source === 'ml_ads' && !picked.ml_item_id && !picked.ml_listing_id) {
+      setPicked(null)
+    }
+  }, [source, picked, products])
 
   async function generate() {
     if (!picked || !platform) return
@@ -136,23 +164,57 @@ export default function NewCampaignWizard() {
       {/* Step 1 — Product */}
       {step === 1 && (
         <div className="space-y-3">
+          {/* Toggle de fonte */}
+          <div className="flex items-center gap-1 rounded-lg border border-zinc-800 bg-zinc-900/40 p-1">
+            <button
+              onClick={() => setSource('catalog')}
+              className={[
+                'flex-1 px-3 py-1.5 rounded text-xs font-medium transition-colors',
+                source === 'catalog'
+                  ? 'bg-cyan-400/10 text-cyan-300 border border-cyan-400/30'
+                  : 'text-zinc-400 hover:text-zinc-200',
+              ].join(' ')}
+            >
+              Catálogo {products && <span className="text-zinc-600">· {counts.catalog}</span>}
+            </button>
+            <button
+              onClick={() => setSource('ml_ads')}
+              className={[
+                'flex-1 px-3 py-1.5 rounded text-xs font-medium transition-colors',
+                source === 'ml_ads'
+                  ? 'bg-cyan-400/10 text-cyan-300 border border-cyan-400/30'
+                  : 'text-zinc-400 hover:text-zinc-200',
+              ].join(' ')}
+            >
+              Anúncios ML {products && <span className="text-zinc-600">· {counts.ml_ads}</span>}
+            </button>
+          </div>
+
           <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3 flex items-center gap-2">
             <Search size={14} className="text-zinc-500" />
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Buscar produto…"
+              placeholder={source === 'ml_ads' ? 'Buscar anúncio…' : 'Buscar produto…'}
               className="flex-1 bg-transparent text-sm text-zinc-200 outline-none placeholder:text-zinc-600"
             />
           </div>
           {!products ? (
             <div className="flex items-center gap-2 text-zinc-500 text-sm">
-              <Loader2 size={14} className="animate-spin" /> carregando produtos…
+              <Loader2 size={14} className="animate-spin" /> carregando…
             </div>
+          ) : filtered.length === 0 ? (
+            <p className="text-sm text-zinc-500">
+              {source === 'ml_ads'
+                ? 'Nenhum anúncio sincronizado do ML.'
+                : 'Nenhum produto encontrado.'}
+            </p>
           ) : (
             <div className="space-y-1 max-h-[60vh] overflow-y-auto rounded-lg border border-zinc-800">
               {filtered.map(p => {
                 const thumb = p.photo_urls?.[0] ?? p.images?.[0]?.url ?? null
+                const displayName = source === 'ml_ads' && p.ml_title ? p.ml_title : p.name
+                const isMlListing = Boolean(p.ml_item_id || p.ml_listing_id)
                 return (
                 <button
                   key={p.id}
@@ -166,7 +228,7 @@ export default function NewCampaignWizard() {
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={thumb}
-                      alt={p.name}
+                      alt={displayName}
                       loading="lazy"
                       className="w-12 h-12 rounded object-cover shrink-0 bg-zinc-900 border border-zinc-800"
                       onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
@@ -177,10 +239,18 @@ export default function NewCampaignWizard() {
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm text-zinc-200 truncate">{p.name}</p>
+                    <div className="flex items-center gap-1.5">
+                      {isMlListing && source === 'ml_ads' && (
+                        <span className="rounded px-1 py-0.5 text-[9px] font-mono uppercase tracking-wider border border-yellow-400/40 bg-yellow-400/10 text-yellow-300 shrink-0">
+                          ML
+                        </span>
+                      )}
+                      <p className="text-sm text-zinc-200 truncate">{displayName}</p>
+                    </div>
                     <p className="text-[10px] text-zinc-500 truncate">
                       {[p.brand, p.category].filter(Boolean).join(' · ') || '—'}
                       {p.price != null && ` · R$ ${Number(p.price).toFixed(2)}`}
+                      {source === 'ml_ads' && p.ml_item_id && ` · ${p.ml_item_id}`}
                     </p>
                   </div>
                   {picked?.id === p.id && <Check size={14} className="text-cyan-400" />}

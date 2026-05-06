@@ -24,7 +24,15 @@ interface ProductLite {
   ai_score?:         number | null
   photo_urls?:       string[] | null
   images?:           Array<{ url?: string }> | null
+  // Mercado Livre — quando preenchido, este produto está sincronizado como
+  // anúncio na API do ML
+  ml_item_id?:       string | null
+  ml_listing_id?:    string | null
+  ml_title?:         string | null
+  ml_permalink?:     string | null
 }
+
+type SourceTab = 'catalog' | 'ml_ads'
 
 const STYLES = [
   { key: 'engaging',   label: 'Engajante',           hint: 'Storytelling, foco em conexão' },
@@ -44,6 +52,7 @@ export default function GenerateWizardPage() {
   // Data state
   const [products, setProducts]   = useState<ProductLite[] | null>(null)
   const [search, setSearch]       = useState('')
+  const [source, setSource]       = useState<SourceTab>('catalog')
   const [selected, setSelected]   = useState<string[]>([])
   const [channels, setChannels]   = useState<SocialChannel[]>([])
   const [styleKey, setStyleKey]   = useState<string>('engaging')
@@ -73,16 +82,43 @@ export default function GenerateWizardPage() {
     })()
   }, [])
 
+  // Counts pra mostrar nos toggles
+  const counts = useMemo(() => {
+    if (!products) return { catalog: 0, ml_ads: 0 }
+    return {
+      catalog: products.length,
+      ml_ads:  products.filter(p => p.ml_item_id || p.ml_listing_id).length,
+    }
+  }, [products])
+
   const filtered = useMemo(() => {
     if (!products) return []
-    if (!search.trim()) return products.slice(0, 100)
+    let pool = products
+    // Aplica filtro de fonte
+    if (source === 'ml_ads') {
+      pool = pool.filter(p => p.ml_item_id || p.ml_listing_id)
+    }
+    // Limpa quando troca aba (tira selecionados que não pertencem mais)
+    if (!search.trim()) return pool.slice(0, 100)
     const q = search.toLowerCase()
-    return products.filter(p =>
+    return pool.filter(p =>
       p.name?.toLowerCase().includes(q) ||
+      p.ml_title?.toLowerCase().includes(q) ||
       p.brand?.toLowerCase().includes(q) ||
       p.category?.toLowerCase().includes(q),
     ).slice(0, 100)
-  }, [products, search])
+  }, [products, search, source])
+
+  // Quando muda de aba, remove selecionados que não estão mais visíveis
+  useEffect(() => {
+    if (!products) return
+    const visibleIds = new Set(
+      source === 'ml_ads'
+        ? products.filter(p => p.ml_item_id || p.ml_listing_id).map(p => p.id)
+        : products.map(p => p.id),
+    )
+    setSelected(prev => prev.filter(id => visibleIds.has(id)))
+  }, [source, products])
 
   const toggleProduct = (id: string) => {
     setSelected(prev => prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id])
@@ -167,12 +203,40 @@ export default function GenerateWizardPage() {
       {/* Step 1 — Products */}
       {step === 1 && (
         <div className="space-y-3">
+          {/* Toggle de fonte */}
+          <div className="flex items-center gap-1 rounded-lg border border-zinc-800 bg-zinc-900/40 p-1">
+            <button
+              onClick={() => setSource('catalog')}
+              className={[
+                'flex-1 px-3 py-1.5 rounded text-xs font-medium transition-colors',
+                source === 'catalog'
+                  ? 'bg-cyan-400/10 text-cyan-300 border border-cyan-400/30'
+                  : 'text-zinc-400 hover:text-zinc-200',
+              ].join(' ')}
+            >
+              Catálogo {products && <span className="text-zinc-600">· {counts.catalog}</span>}
+            </button>
+            <button
+              onClick={() => setSource('ml_ads')}
+              className={[
+                'flex-1 px-3 py-1.5 rounded text-xs font-medium transition-colors',
+                source === 'ml_ads'
+                  ? 'bg-cyan-400/10 text-cyan-300 border border-cyan-400/30'
+                  : 'text-zinc-400 hover:text-zinc-200',
+              ].join(' ')}
+            >
+              Anúncios ML {products && <span className="text-zinc-600">· {counts.ml_ads}</span>}
+            </button>
+          </div>
+
           <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3 flex items-center gap-2">
             <Search size={14} className="text-zinc-500" />
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Buscar produto por nome, marca, categoria…"
+              placeholder={source === 'ml_ads'
+                ? 'Buscar anúncio por título, marca, categoria…'
+                : 'Buscar produto por nome, marca, categoria…'}
               className="flex-1 bg-transparent text-sm text-zinc-200 outline-none placeholder:text-zinc-600"
             />
             {selected.length > 0 && (
@@ -184,15 +248,21 @@ export default function GenerateWizardPage() {
 
           {!products ? (
             <div className="flex items-center gap-2 text-zinc-500 text-sm">
-              <Loader2 size={14} className="animate-spin" /> carregando produtos…
+              <Loader2 size={14} className="animate-spin" /> carregando…
             </div>
           ) : filtered.length === 0 ? (
-            <p className="text-sm text-zinc-500">Nenhum produto encontrado.</p>
+            <p className="text-sm text-zinc-500">
+              {source === 'ml_ads'
+                ? 'Nenhum anúncio sincronizado do ML. Conecte o Mercado Livre em /dashboard/integracoes pra começar.'
+                : 'Nenhum produto encontrado.'}
+            </p>
           ) : (
             <div className="space-y-1 max-h-[60vh] overflow-y-auto rounded-lg border border-zinc-800">
               {filtered.map(p => {
                 const sel = selected.includes(p.id)
                 const thumb = p.photo_urls?.[0] ?? p.images?.[0]?.url ?? null
+                const displayName = source === 'ml_ads' && p.ml_title ? p.ml_title : p.name
+                const isMlListing = Boolean(p.ml_item_id || p.ml_listing_id)
                 return (
                   <button
                     key={p.id}
@@ -212,7 +282,7 @@ export default function GenerateWizardPage() {
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={thumb}
-                        alt={p.name}
+                        alt={displayName}
                         loading="lazy"
                         className="w-12 h-12 rounded object-cover shrink-0 bg-zinc-900 border border-zinc-800"
                         onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
@@ -223,10 +293,18 @@ export default function GenerateWizardPage() {
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm text-zinc-200 truncate">{p.name}</p>
+                      <div className="flex items-center gap-1.5">
+                        {isMlListing && source === 'ml_ads' && (
+                          <span className="rounded px-1 py-0.5 text-[9px] font-mono uppercase tracking-wider border border-yellow-400/40 bg-yellow-400/10 text-yellow-300 shrink-0">
+                            ML
+                          </span>
+                        )}
+                        <p className="text-sm text-zinc-200 truncate">{displayName}</p>
+                      </div>
                       <p className="text-[10px] text-zinc-500 truncate">
                         {[p.brand, p.category].filter(Boolean).join(' · ') || '—'}
                         {p.price != null && ` · R$ ${Number(p.price).toFixed(2)}`}
+                        {source === 'ml_ads' && p.ml_item_id && ` · ${p.ml_item_id}`}
                       </p>
                     </div>
                     {p.ai_score != null && (
