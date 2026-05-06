@@ -535,9 +535,24 @@ function PublicationRow({ pub: initial }: { pub: CreativePublication }) {
   const [pub, setPub] = useState(initial)
   const [syncing, setSyncing] = useState(false)
   const [syncError, setSyncError] = useState<string | null>(null)
+  const [acking, setAcking]     = useState(false)
 
   // Re-sync com prop quando muda externamente
   useEffect(() => { setPub(initial) }, [initial])
+
+  const isDegraded = !!pub.degraded_at && !pub.degradation_acknowledged_at
+
+  async function ack() {
+    setAcking(true)
+    try {
+      const updated = await CreativeApi.acknowledgeDegradation(pub.id)
+      setPub(updated)
+    } catch (e: unknown) {
+      alert((e as Error).message)
+    } finally {
+      setAcking(false)
+    }
+  }
 
   const cfg: Record<CreativePublication['status'], { label: string; className: string }> = {
     pending:    { label: 'pendente',    className: 'bg-zinc-900 text-zinc-400 border-zinc-700' },
@@ -561,7 +576,29 @@ function PublicationRow({ pub: initial }: { pub: CreativePublication }) {
   }
 
   return (
-    <div className="rounded-lg border border-zinc-800 bg-zinc-900/30 px-3 py-2">
+    <div className={[
+      'rounded-lg border px-3 py-2',
+      isDegraded ? 'border-amber-500/40 bg-amber-500/5' : 'border-zinc-800 bg-zinc-900/30',
+    ].join(' ')}>
+      {isDegraded && (
+        <div className="mb-1.5 flex items-center justify-between gap-2 text-[11px] text-amber-200">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <AlertCircle size={12} className="shrink-0" />
+            <span className="truncate">
+              <strong>Anúncio rebaixado</strong> — passou de <code className="font-mono">{pub.degraded_from_status}</code> pra <code className="font-mono">{pub.degraded_to_status}</code>{' '}
+              em {new Date(pub.degraded_at!).toLocaleString('pt-BR')}. Considere regerar nova versão.
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={ack}
+            disabled={acking}
+            className="shrink-0 text-[10px] text-amber-300 hover:text-amber-100 disabled:opacity-50"
+          >
+            {acking ? '…' : 'dispensar alerta'}
+          </button>
+        </div>
+      )}
       <div className="flex items-center justify-between gap-2 text-xs">
         <div className="flex items-center gap-2 min-w-0 flex-wrap">
           <span className={`px-2 py-0.5 rounded-full text-[10px] border ${c.className}`}>{c.label}</span>

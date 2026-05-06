@@ -355,4 +355,10 @@ export const CreativeApi = {
 
   syncPublication: (id: string) =>
     api<CreativePublication>(`/creative/publications/${id}/sync`, { method: 'POST' }),
+
+  listDegradedPublications: () =>
+    api<CreativePublication[]>('/creative/publications/degraded'),
+
+  acknowledgeDegradation: (id: string) =>
+    api<CreativePublication>(`/creative/publications/${id}/acknowledge-degradation`, { method: 'POST' }),
 }

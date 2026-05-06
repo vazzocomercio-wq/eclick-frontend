@@ -396,34 +396,39 @@ export interface MlPreviewResponse {
 }
 
 export interface CreativePublication {
-  id:                     string
-  organization_id:        string
-  listing_id:             string
-  product_id:             string
-  user_id:                string | null
-  marketplace:            'mercado_livre' | 'shopee' | 'amazon' | 'magalu'
-  status:                 'pending' | 'publishing' | 'published' | 'failed'
-  idempotency_key:        string
-  image_ids:              string[]
-  video_id:               string | null
-  category_id:            string | null
-  listing_type:           string | null
-  condition:              string | null
-  price:                  number | null
-  stock:                  number | null
-  attributes:             unknown[]
-  payload_sent:           Record<string, unknown> | null
-  external_id:            string | null
-  external_url:           string | null
-  external_picture_ids:   string[]
-  external_video_id:      string | null
-  ml_response:            Record<string, unknown> | null
-  last_synced_status:     string | null
-  last_synced_at:         string | null
-  error_message:          string | null
-  published_at:           string | null
-  created_at:             string
-  updated_at:             string
+  id:                            string
+  organization_id:               string
+  listing_id:                    string
+  product_id:                    string
+  user_id:                       string | null
+  marketplace:                   'mercado_livre' | 'shopee' | 'amazon' | 'magalu'
+  status:                        'pending' | 'publishing' | 'published' | 'failed'
+  idempotency_key:               string
+  image_ids:                     string[]
+  video_id:                      string | null
+  category_id:                   string | null
+  listing_type:                  string | null
+  condition:                     string | null
+  price:                         number | null
+  stock:                         number | null
+  attributes:                    unknown[]
+  payload_sent:                  Record<string, unknown> | null
+  external_id:                   string | null
+  external_url:                  string | null
+  external_picture_ids:          string[]
+  external_video_id:             string | null
+  ml_response:                   Record<string, unknown> | null
+  last_synced_status:            string | null
+  last_synced_at:                string | null
+  degraded_at:                   string | null
+  degraded_from_status:          string | null
+  degraded_to_status:            string | null
+  degradation_acknowledged_at:   string | null
+  degradation_acknowledged_by:   string | null
+  error_message:                 string | null
+  published_at:                  string | null
+  created_at:                    string
+  updated_at:                    string
 }
 
 export const ML_LISTING_TYPE_OPTIONS: Array<{ value: MlListingType; label: string; description: string }> = [
