@@ -6,10 +6,12 @@ import {
   ArrowLeft, Sparkles, Loader2, AlertCircle, CheckCircle2, Wand2, Clock,
   Package, TrendingDown, AlertTriangle, RefreshCw,
 } from 'lucide-react'
-import { CatalogApi, type EnrichmentSummary, type BulkEnrichmentResult } from '@/components/catalog/catalogApi'
+import { CatalogApi, type EnrichmentSummary, type BulkEnrichmentResult, type CatalogHealth, type ProductEnrichmentJob, CATALOG_STATUS_LABELS, type CatalogStatus } from '@/components/catalog/catalogApi'
 
 export default function CatalogBulkEnrichmentPage() {
   const [summary, setSummary] = useState<EnrichmentSummary | null>(null)
+  const [health, setHealth]   = useState<CatalogHealth | null>(null)
+  const [activeJob, setActiveJob] = useState<ProductEnrichmentJob | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError]     = useState<string | null>(null)
   const [busyAction, setBusyAction] = useState<null | 'missing' | 'low-score' | 'very-low'>(null)
@@ -18,15 +20,46 @@ export default function CatalogBulkEnrichmentPage() {
 
   useEffect(() => { void load() }, [])
 
+  // Polling do job ativo (3s enquanto processing/queued)
+  useEffect(() => {
+    if (!activeJob) return
+    if (activeJob.status !== 'queued' && activeJob.status !== 'processing') return
+    const t = setInterval(async () => {
+      try {
+        const updated = await CatalogApi.getEnrichmentJob(activeJob.id)
+        setActiveJob(updated)
+        if (updated.status !== 'queued' && updated.status !== 'processing') {
+          await load() // refresh KPIs no fim
+        }
+      } catch { /* silencioso */ }
+    }, 3000)
+    return () => clearInterval(t)
+  }, [activeJob])
+
   async function load() {
     setLoading(true); setError(null)
     try {
-      const s = await CatalogApi.enrichmentSummary()
+      const [s, h] = await Promise.all([
+        CatalogApi.enrichmentSummary(),
+        CatalogApi.catalogHealth().catch(() => null),
+      ])
       setSummary(s)
+      setHealth(h)
     } catch (e: unknown) {
       setError((e as Error).message)
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function cancelActiveJob() {
+    if (!activeJob) return
+    if (!confirm('Cancelar o job? Produtos já enriquecidos preservam o trabalho.')) return
+    try {
+      const updated = await CatalogApi.cancelEnrichmentJob(activeJob.id)
+      setActiveJob(updated)
+    } catch (e: unknown) {
+      alert((e as Error).message)
     }
   }
 
@@ -36,7 +69,9 @@ export default function CatalogBulkEnrichmentPage() {
     try {
       const result = await CatalogApi.enrichBulk(payload)
       setLastResult({ action, result })
-      await load() // refresh KPIs
+      // Inicia polling do job
+      const job = await CatalogApi.getEnrichmentJob(result.job_id)
+      setActiveJob(job)
     } catch (e: unknown) {
       setActionError((e as Error).message)
     } finally {
@@ -89,14 +124,37 @@ export default function CatalogBulkEnrichmentPage() {
           </div>
         )}
 
+        {/* Catalog health (Delta 1) */}
+        {health && (
+          <div className="mb-5 rounded-xl border border-zinc-800 bg-zinc-900/30 p-3">
+            <h2 className="text-[10px] uppercase tracking-wider text-zinc-500 mb-2">Saúde do catálogo (catalog_status)</h2>
+            <div className="grid grid-cols-3 sm:grid-cols-7 gap-2">
+              {(Object.keys(CATALOG_STATUS_LABELS) as CatalogStatus[]).map(s => {
+                const c = health.by_status[s] ?? 0
+                const cfg = CATALOG_STATUS_LABELS[s]
+                return (
+                  <div key={s} className={`rounded-lg border bg-zinc-950 p-2 ${toneBorder(cfg.tone)}`}>
+                    <p className={`text-[10px] ${toneText(cfg.tone)}`}>{cfg.label}</p>
+                    <p className="text-lg font-mono font-semibold text-zinc-100">{c}</p>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Active job (Delta 2 — progress bar polling) */}
+        {activeJob && (
+          <ActiveJobCard job={activeJob} onCancel={cancelActiveJob} onDismiss={() => setActiveJob(null)} />
+        )}
+
         {/* Result banner */}
-        {lastResult && (
+        {lastResult && !activeJob && (
           <div className="mb-5 rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3 text-sm text-emerald-200 flex items-start gap-2">
             <CheckCircle2 size={14} className="shrink-0 mt-0.5" />
             <span>
-              <strong>{lastResult.result.marked} produto(s) marcado(s) na fila.</strong>{' '}
+              <strong>Job criado com {lastResult.result.total} produto(s).</strong>{' '}
               Custo estimado: ${lastResult.result.estimated_cost_usd.toFixed(2)}.
-              Worker vai processar ~5 a cada 5min.
             </span>
           </div>
         )}
@@ -154,6 +212,78 @@ export default function CatalogBulkEnrichmentPage() {
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+function toneBorder(tone: string): string {
+  return tone === 'red'     ? 'border-red-400/30'
+       : tone === 'amber'   ? 'border-amber-400/30'
+       : tone === 'cyan'    ? 'border-cyan-400/30'
+       : tone === 'emerald' ? 'border-emerald-400/30'
+       : 'border-zinc-800'
+}
+function toneText(tone: string): string {
+  return tone === 'red'     ? 'text-red-300'
+       : tone === 'amber'   ? 'text-amber-300'
+       : tone === 'cyan'    ? 'text-cyan-300'
+       : tone === 'emerald' ? 'text-emerald-300'
+       : 'text-zinc-400'
+}
+
+function ActiveJobCard({ job, onCancel, onDismiss }: { job: ProductEnrichmentJob; onCancel: () => void; onDismiss: () => void }) {
+  const pct = job.total_count > 0 ? Math.round((job.processed_count / job.total_count) * 100) : 0
+  const isActive = job.status === 'queued' || job.status === 'processing'
+  const finished = job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled'
+
+  const statusLabels: Record<string, { label: string; tone: string }> = {
+    queued:     { label: 'Na fila',     tone: 'cyan' },
+    processing: { label: 'Processando', tone: 'cyan' },
+    completed:  { label: '✓ Concluído', tone: 'emerald' },
+    failed:     { label: '✗ Falhou',    tone: 'red' },
+    cancelled:  { label: 'Cancelado',   tone: 'zinc' },
+  }
+  const s = statusLabels[job.status] ?? { label: job.status, tone: 'zinc' }
+
+  return (
+    <div className={`mb-5 rounded-xl border ${toneBorder(s.tone)} bg-zinc-900/30 p-4`}>
+      <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+        <div className="flex items-center gap-2">
+          {isActive && <Loader2 size={14} className="animate-spin text-cyan-400" />}
+          <span className={`text-xs font-semibold ${toneText(s.tone)}`}>{s.label}</span>
+          <span className="text-[11px] text-zinc-500">
+            · {job.processed_count}/{job.total_count} produtos
+            {' · '}
+            ${Number(job.total_cost_usd).toFixed(4)} / ${Number(job.max_cost_usd).toFixed(2)}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          {isActive && (
+            <button onClick={onCancel} className="text-[11px] text-zinc-500 hover:text-red-400">
+              cancelar
+            </button>
+          )}
+          {finished && (
+            <button onClick={onDismiss} className="text-[11px] text-zinc-500 hover:text-zinc-300">
+              dispensar
+            </button>
+          )}
+        </div>
+      </div>
+      <div className="h-2 rounded-full bg-zinc-900 overflow-hidden">
+        <div className="h-full bg-gradient-to-r from-cyan-400 to-cyan-300 transition-all duration-500"
+             style={{ width: `${pct}%` }} />
+      </div>
+      <div className="flex items-center justify-between mt-1.5 text-[10px] text-zinc-500">
+        <span>{pct}%</span>
+        <span>
+          {job.success_count > 0 && <span className="text-emerald-400">✓ {job.success_count}</span>}
+          {job.error_count > 0 && <span className="text-red-400 ml-2">✗ {job.error_count}</span>}
+        </span>
+      </div>
+      {job.error_message && (
+        <p className="mt-2 text-[11px] text-red-300">⚠ {job.error_message}</p>
+      )}
     </div>
   )
 }

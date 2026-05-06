@@ -72,6 +72,10 @@ export interface CatalogProductLight {
   landing_views:            number
   landing_published_at:     string | null
   landing_slug:             string | null
+  // Delta 1 — multicanal + status
+  catalog_status:           CatalogStatus
+  channel_titles:           Record<string, string>
+  channel_descriptions:     Record<string, string>
 }
 
 export interface ScoreBreakdown {
@@ -116,8 +120,47 @@ export interface EnrichmentSummary {
 }
 
 export interface BulkEnrichmentResult {
-  marked:             number
+  job_id:             string
+  total:              number
   estimated_cost_usd: number
+}
+
+export type CatalogStatus = 'incomplete' | 'draft' | 'enriching' | 'enriched' | 'ready' | 'published' | 'paused'
+
+export interface CatalogHealth {
+  by_status: Record<CatalogStatus, number>
+  total:     number
+}
+
+export interface ProductEnrichmentJob {
+  id:               string
+  organization_id:  string
+  user_id:          string | null
+  product_ids:      string[]
+  total_count:      number
+  processed_count:  number
+  success_count:    number
+  error_count:      number
+  options:          Record<string, unknown>
+  status:           'queued' | 'processing' | 'completed' | 'failed' | 'cancelled'
+  results:          Array<{ product_id: string; status: 'success' | 'error'; score_after?: number | null; cost_usd?: number; error?: string }>
+  total_cost_usd:   number
+  max_cost_usd:     number
+  error_message:    string | null
+  started_at:       string | null
+  completed_at:     string | null
+  created_at:       string
+  updated_at:       string
+}
+
+export const CATALOG_STATUS_LABELS: Record<CatalogStatus, { label: string; tone: string }> = {
+  incomplete: { label: 'Incompleto',    tone: 'red' },
+  draft:      { label: 'Rascunho',      tone: 'zinc' },
+  enriching:  { label: 'Enriquecendo',  tone: 'cyan' },
+  enriched:   { label: 'Enriquecido',   tone: 'cyan' },
+  ready:      { label: 'Pronto',        tone: 'amber' },
+  published:  { label: 'Publicado',     tone: 'emerald' },
+  paused:     { label: 'Pausado',       tone: 'zinc' },
 }
 
 export interface PublicLandingProduct {
@@ -161,7 +204,7 @@ export const CatalogApi = {
     const sb = createClient()
     const { data, error } = await sb
       .from('products')
-      .select('id, organization_id, name, sku, brand, category, description, ml_title, gtin, weight_kg, width_cm, length_cm, height_cm, cost_price, price, stock, photo_urls, category_ml_id, status, ai_short_description, ai_long_description, ai_keywords, ai_target_audience, ai_use_cases, ai_pros, ai_cons, ai_seo_keywords, ai_seasonality_hint, ai_score, ai_score_breakdown, ai_enriched_at, ai_enrichment_version, ai_enrichment_cost_usd, ai_enrichment_pending, landing_published, landing_views, landing_published_at, landing_slug')
+      .select('id, organization_id, name, sku, brand, category, description, ml_title, gtin, weight_kg, width_cm, length_cm, height_cm, cost_price, price, stock, photo_urls, category_ml_id, status, ai_short_description, ai_long_description, ai_keywords, ai_target_audience, ai_use_cases, ai_pros, ai_cons, ai_seo_keywords, ai_seasonality_hint, ai_score, ai_score_breakdown, ai_enriched_at, ai_enrichment_version, ai_enrichment_cost_usd, ai_enrichment_pending, landing_published, landing_views, landing_published_at, landing_slug, catalog_status, channel_titles, channel_descriptions')
       .eq('id', productId)
       .single()
     if (error) throw new Error(error.message)
@@ -174,19 +217,35 @@ export const CatalogApi = {
   recomputeScore: (productId: string) =>
     api<{ score: number; breakdown: ScoreBreakdown }>(`/products/${productId}/recompute-score`, { method: 'POST' }),
 
-  /** L1 — bulk enrichment */
+  /** L1 hybrid C — bulk enrichment via job */
   enrichBulk: (body: {
     product_ids?:        string[]
     missing_enrichment?: boolean
     ai_score_lt?:        number
     limit?:              number
+    max_cost_usd?:       number
   }) =>
     api<BulkEnrichmentResult>('/products/enrich-bulk', {
       method: 'POST', body: JSON.stringify(body),
     }),
 
+  getEnrichmentJob: (id: string) =>
+    api<ProductEnrichmentJob>(`/products/enrichment-jobs/${id}`),
+
+  cancelEnrichmentJob: (id: string) =>
+    api<ProductEnrichmentJob>(`/products/enrichment-jobs/${id}/cancel`, { method: 'POST' }),
+
   enrichmentSummary: () =>
     api<EnrichmentSummary>('/products/enrichment-summary'),
+
+  /** Delta 1 — Catalog health (count por catalog_status) */
+  catalogHealth: () =>
+    api<CatalogHealth>('/products/catalog-health'),
+
+  setCatalogStatus: (productId: string, status: 'paused' | 'ready' | 'draft') =>
+    api<{ catalog_status: CatalogStatus }>(`/products/${productId}/catalog-status`, {
+      method: 'PATCH', body: JSON.stringify({ status }),
+    }),
 
   /** L3 — Recomendações IA */
   getRecommendations: () =>

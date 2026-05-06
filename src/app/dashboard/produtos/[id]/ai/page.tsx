@@ -6,10 +6,10 @@ import Link from 'next/link'
 import {
   ArrowLeft, Sparkles, Loader2, AlertCircle, RefreshCw, Wand2, Check, X,
   Tag, Users, Lightbulb, ThumbsUp, ThumbsDown, Search, Calendar, FileText,
-  Globe, GlobeLock, ExternalLink, Eye,
+  Globe, GlobeLock, ExternalLink, Eye, Layers,
 } from 'lucide-react'
 import AiScoreBadge from '@/components/catalog/AiScoreBadge'
-import { CatalogApi, type CatalogProductLight, SCORE_PART_LABELS } from '@/components/catalog/catalogApi'
+import { CatalogApi, type CatalogProductLight, SCORE_PART_LABELS, CATALOG_STATUS_LABELS } from '@/components/catalog/catalogApi'
 
 export default function ProductAiEnrichmentPage() {
   const params = useParams<{ id: string }>()
@@ -122,6 +122,7 @@ export default function ProductAiEnrichmentPage() {
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
+            <CatalogStatusBadge status={product.catalog_status} />
             <AiScoreBadge score={product.ai_score} breakdown={breakdown} size="lg" />
             <button
               type="button"
@@ -135,6 +136,19 @@ export default function ProductAiEnrichmentPage() {
             </button>
           </div>
         </header>
+
+        {/* Multi-channel preview (Delta 1) */}
+        {(Object.keys(product.channel_titles ?? {}).length > 0 || Object.keys(product.channel_descriptions ?? {}).length > 0) && (
+          <div className="rounded-xl border border-cyan-400/20 bg-cyan-400/[0.03] p-4 mb-6">
+            <h2 className="flex items-center gap-2 text-sm font-semibold text-cyan-100 mb-3">
+              <Layers size={14} /> Preview multicanal
+            </h2>
+            <ChannelTabs
+              titles={product.channel_titles ?? {}}
+              descriptions={product.channel_descriptions ?? {}}
+            />
+          </div>
+        )}
 
         {/* Score breakdown card */}
         <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-4 mb-6">
@@ -333,6 +347,88 @@ export default function ProductAiEnrichmentPage() {
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────
+
+function CatalogStatusBadge({ status }: { status: CatalogProductLight['catalog_status'] }) {
+  const c = CATALOG_STATUS_LABELS[status]
+  if (!c) return null
+  const tones: Record<string, { border: string; bg: string; text: string }> = {
+    red:     { border: 'border-red-400/30',     bg: 'bg-red-400/10',     text: 'text-red-300' },
+    amber:   { border: 'border-amber-400/30',   bg: 'bg-amber-400/10',   text: 'text-amber-300' },
+    cyan:    { border: 'border-cyan-400/30',    bg: 'bg-cyan-400/10',    text: 'text-cyan-300' },
+    emerald: { border: 'border-emerald-400/30', bg: 'bg-emerald-400/10', text: 'text-emerald-300' },
+    zinc:    { border: 'border-zinc-700',       bg: 'bg-zinc-900',       text: 'text-zinc-400' },
+  }
+  const t = tones[c.tone] ?? tones.zinc
+  return (
+    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] border font-medium ${t.border} ${t.bg} ${t.text}`}>
+      {c.label}
+    </span>
+  )
+}
+
+function ChannelTabs({ titles, descriptions }: { titles: Record<string, string>; descriptions: Record<string, string> }) {
+  const ALL_CHANNELS: Array<{ key: string; label: string; emoji: string; titleLimit: number }> = [
+    { key: 'mercado_livre', label: 'Mercado Livre', emoji: '🟡', titleLimit: 60 },
+    { key: 'shopee',        label: 'Shopee',        emoji: '🟠', titleLimit: 120 },
+    { key: 'amazon',        label: 'Amazon',        emoji: '🟧', titleLimit: 200 },
+    { key: 'magalu',        label: 'Magalu',        emoji: '🔵', titleLimit: 150 },
+    { key: 'loja_propria',  label: 'Loja própria',  emoji: '🏪', titleLimit: 200 },
+  ]
+  const available = ALL_CHANNELS.filter(c => titles[c.key] || descriptions[c.key])
+  const [active, setActive] = useState(available[0]?.key ?? '')
+  const current = ALL_CHANNELS.find(c => c.key === active)
+  const title = titles[active] ?? ''
+  const description = descriptions[active] ?? ''
+
+  if (available.length === 0) return null
+
+  return (
+    <div>
+      <div className="flex flex-wrap gap-1.5 mb-3">
+        {available.map(c => (
+          <button
+            key={c.key}
+            type="button"
+            onClick={() => setActive(c.key)}
+            className={[
+              'flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] transition-all',
+              active === c.key
+                ? 'bg-cyan-400 text-black font-semibold'
+                : 'bg-zinc-950 text-zinc-400 border border-zinc-800',
+            ].join(' ')}
+          >
+            <span>{c.emoji}</span>{c.label}
+          </button>
+        ))}
+      </div>
+      {current && (
+        <div className="space-y-2">
+          {title && (
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-[10px] uppercase tracking-wider text-zinc-500">Título</p>
+                <p className={`text-[10px] font-mono ${title.length > current.titleLimit ? 'text-red-400' : 'text-zinc-500'}`}>
+                  {title.length}/{current.titleLimit}
+                </p>
+              </div>
+              <p className="text-sm text-zinc-100 px-3 py-2 rounded-lg bg-zinc-950 border border-zinc-800">
+                {title}
+              </p>
+            </div>
+          )}
+          {description && (
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1">Descrição</p>
+              <p className="text-xs text-zinc-300 px-3 py-2 rounded-lg bg-zinc-950 border border-zinc-800 whitespace-pre-line leading-relaxed max-h-48 overflow-y-auto">
+                {description}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
 
 function FieldCard({
   icon, title, hint, value, multiline,
