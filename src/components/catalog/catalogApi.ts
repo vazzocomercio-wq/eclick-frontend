@@ -101,6 +101,20 @@ export interface EnrichmentResult {
 
 // ── API ───────────────────────────────────────────────────────────────────
 
+export interface EnrichmentSummary {
+  total:          number
+  enriched:       number
+  pending:        number
+  missing:        number
+  score_under_60: number
+  score_under_40: number
+}
+
+export interface BulkEnrichmentResult {
+  marked:             number
+  estimated_cost_usd: number
+}
+
 export const CatalogApi = {
   /** Pega produto do catalog com fields AI. Usa Supabase JS direto (RLS
    *  garante org isolation) — produtos é tabela do user, não passa por
@@ -121,6 +135,20 @@ export const CatalogApi = {
 
   recomputeScore: (productId: string) =>
     api<{ score: number; breakdown: ScoreBreakdown }>(`/products/${productId}/recompute-score`, { method: 'POST' }),
+
+  /** L1 — bulk enrichment */
+  enrichBulk: (body: {
+    product_ids?:        string[]
+    missing_enrichment?: boolean
+    ai_score_lt?:        number
+    limit?:              number
+  }) =>
+    api<BulkEnrichmentResult>('/products/enrich-bulk', {
+      method: 'POST', body: JSON.stringify(body),
+    }),
+
+  enrichmentSummary: () =>
+    api<EnrichmentSummary>('/products/enrichment-summary'),
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
