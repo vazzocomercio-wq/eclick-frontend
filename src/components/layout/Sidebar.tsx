@@ -172,6 +172,7 @@ const SECTIONS: NavSection[] = [
       { label: 'Ads Hub (IA)',     href: '/dashboard/ads-campaigns', icon: <Megaphone size={15} /> },
       { label: 'Preços (IA)',      href: '/dashboard/pricing-ai',    icon: <DollarSign size={15} /> },
       { label: 'Automação (IA)',   href: '/dashboard/automation',    icon: <Zap size={15} /> },
+      { label: 'Kits & Combos',    href: '/dashboard/kits',          icon: <Package size={15} /> },
       { label: 'IA Criativo',      href: '/dashboard/creative',            icon: <Wand2 size={15} /> },
       { label: 'Biblioteca',       href: '/dashboard/producao/biblioteca', icon: <ImageIcon size={15} /> },
     ],
