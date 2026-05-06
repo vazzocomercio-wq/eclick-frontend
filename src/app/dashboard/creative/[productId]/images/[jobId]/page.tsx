@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import CreativeImageCard from '@/components/creative/CreativeImageCard'
 import { useImageJob } from '@/components/creative/useImageJob'
+import NotifyButton, { useNotifyOnComplete } from '@/components/creative/NotifyButton'
 import { CreativeApi } from '@/components/creative/api'
 import {
   JOB_STATUS_LABELS, isJobActive,
@@ -26,7 +27,22 @@ export default function ImageJobPage() {
   const [cancelling, setCancelling] = useState(false)
   const [bulkRegen, setBulkRegen]   = useState(false)
 
-  const { job, images, loading, error, refresh, patchImage } = useImageJob(jobId, { pollMs: 3000 })
+  const notify = useNotifyOnComplete()
+
+  const { job, images, loading, error, refresh, patchImage } = useImageJob(jobId, {
+    pollMs: 3000,
+    onTerminal: (terminalJob) => {
+      const title = terminalJob.status === 'completed'
+        ? 'Imagens prontas ✓'
+        : terminalJob.status === 'failed'
+          ? 'Geração falhou'
+          : 'Job cancelado'
+      const body = terminalJob.status === 'completed'
+        ? `${terminalJob.completed_count}/${terminalJob.requested_count} imagens geradas — clique pra revisar.`
+        : terminalJob.error_message ?? 'Veja detalhes na página do job.'
+      notify.fire(title, body, { tag: `creative-img-${terminalJob.id}` })
+    },
+  })
 
   useEffect(() => {
     void (async () => {
@@ -162,6 +178,13 @@ export default function ImageJobPage() {
           </div>
 
           <div className="flex items-center gap-2">
+            {active && (
+              <NotifyButton
+                permission={notify.permission}
+                onRequest={notify.requestPermission}
+                hintGranted="Avisaremos quando o job terminar"
+              />
+            )}
             {(() => {
               const rejectedCt = images.filter(i => i.status === 'rejected').length
               return rejectedCt > 0 ? (

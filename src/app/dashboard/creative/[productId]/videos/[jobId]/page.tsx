@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import CreativeVideoCard from '@/components/creative/CreativeVideoCard'
 import { useVideoJob } from '@/components/creative/useVideoJob'
+import NotifyButton, { useNotifyOnComplete } from '@/components/creative/NotifyButton'
 import { CreativeApi } from '@/components/creative/api'
 import {
   VIDEO_JOB_STATUS_LABELS, isVideoJobActive,
@@ -25,7 +26,22 @@ export default function VideoJobPage() {
   const [cancelling, setCancelling] = useState(false)
   const [bulkRegen, setBulkRegen]   = useState(false)
 
-  const { job, videos, loading, error, refresh, patchVideo } = useVideoJob(jobId, { pollMs: 5000 })
+  const notify = useNotifyOnComplete()
+
+  const { job, videos, loading, error, refresh, patchVideo } = useVideoJob(jobId, {
+    pollMs: 5000,
+    onTerminal: (terminalJob) => {
+      const title = terminalJob.status === 'completed'
+        ? 'Vídeos prontos ✓'
+        : terminalJob.status === 'failed'
+          ? 'Geração de vídeo falhou'
+          : 'Job de vídeo cancelado'
+      const body = terminalJob.status === 'completed'
+        ? `${terminalJob.completed_count}/${terminalJob.requested_count} vídeos prontos — clique pra revisar.`
+        : terminalJob.error_message ?? 'Veja detalhes na página do job.'
+      notify.fire(title, body, { tag: `creative-vid-${terminalJob.id}` })
+    },
+  })
 
   useEffect(() => {
     void (async () => {
@@ -146,6 +162,13 @@ export default function VideoJobPage() {
           </div>
 
           <div className="flex items-center gap-2">
+            {active && (
+              <NotifyButton
+                permission={notify.permission}
+                onRequest={notify.requestPermission}
+                hintGranted="Avisaremos quando o job terminar"
+              />
+            )}
             {(() => {
               const rejectedCt = videos.filter(v => v.status === 'rejected').length
               return rejectedCt > 0 ? (
