@@ -59,7 +59,15 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
     const body = await res.json().catch(() => ({}))
     throw new Error(`[${res.status}] ${(body as { message?: string }).message ?? 'erro'}`)
   }
-  return (await res.json()) as T
+  // 204 No Content ou body vazio → retorna null sem quebrar JSON.parse
+  if (res.status === 204) return null as T
+  const text = await res.text()
+  if (!text) return null as T
+  try {
+    return JSON.parse(text) as T
+  } catch (e) {
+    throw new Error(`Resposta inválida do servidor (${res.status}): ${text.slice(0, 80)}`)
+  }
 }
 
 export default function StoreConfigPage() {
