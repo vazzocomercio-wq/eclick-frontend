@@ -177,7 +177,7 @@ function OrderActionsMenu({ order }: { order: MOrder }) {
     return () => document.removeEventListener('mousedown', h)
   }, [])
 
-  const trackingUrl = order.shipping?.id ? `https://www.mercadolibre.com.br/envios/${order.shipping.id}` : null
+  const trackingUrl = order.shipping?.id ? `https://www.mercadolibre.com.br/envios/${order.shipping?.id}` : null
 
   const items: Array<{ key: string; label: string; icon: React.ReactNode; tone?: string; onClick: () => void }> = [
     { key: 'rastreio',  label: 'Acompanhar rastreio',     icon: <Truck size={12} />,
@@ -922,17 +922,17 @@ function OrderCard({
     }
   }
 
-  const moreItems  = order.order_items.length - 1
-  const color     = avatarColor(order.buyer.nickname ?? String(order.order_id))
+  const moreItems  = (order.order_items?.length ?? 1) - 1
+  const color     = avatarColor(order.buyer?.nickname ?? String(order.order_id))
   const ini       = initials(order)
   const buyer     = buyerDisplay(order)
-  const lt        = order.shipping.logistic_type
+  const lt        = order.shipping?.logistic_type
   const lbadge    = LOGISTIC[lt ?? ''] ?? { text: lt ?? 'Normal', color: '#52525b', bg: '#111114' }
-  const deadline  = deadlineInfo(order.shipping.posting_deadline)
-  const estDel    = order.shipping.estimated_delivery_date
-    ? new Date(order.shipping.estimated_delivery_date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+  const deadline  = deadlineInfo(order.shipping?.posting_deadline)
+  const estDel    = order.shipping?.estimated_delivery_date
+    ? new Date(order.shipping?.estimated_delivery_date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
     : null
-  const payment   = order.payments[0]
+  const payment   = order.payments?.[0]
   const payIcon   = PAY_ICON[payment?.payment_type ?? ''] ?? '💳'
 
   const vars = (item?.variation_attributes ?? [])
@@ -958,8 +958,8 @@ function OrderCard({
             </div>
             <div className="min-w-0">
               <p className="text-zinc-100 text-xs font-semibold leading-tight truncate">{buyer}</p>
-              {order.buyer.nickname && buyer !== order.buyer.nickname && (
-                <p className="text-zinc-500 text-[10px]">@{order.buyer.nickname}</p>
+              {order.buyer?.nickname && buyer !== order.buyer?.nickname && (
+                <p className="text-zinc-500 text-[10px]">@{order.buyer?.nickname}</p>
               )}
               {(() => {
                 const ss = order.shipping?.status
@@ -1007,10 +1007,10 @@ function OrderCard({
                 Ver detalhe
               </button>
             </div>
-            {order.shipping.receiver_address.zip_code && (
+            {order.shipping?.receiver_address?.zip_code && (
               <p className="text-[10px] text-zinc-500">
-                CEP {order.shipping.receiver_address.zip_code}
-                {order.shipping.receiver_address.city ? ` · ${order.shipping.receiver_address.city}` : ''}
+                CEP {order.shipping?.receiver_address?.zip_code}
+                {order.shipping?.receiver_address?.city ? ` · ${order.shipping?.receiver_address?.city}` : ''}
               </p>
             )}
             <p className="text-[10px] text-zinc-600">{ago(order.date_created)}</p>
@@ -1089,7 +1089,7 @@ function OrderCard({
             tooltip="Valor pago pelo comprador" />
           <FinRow icon="🚚" label="Frete vendedor"
             value={order.frete_vendedor ? `-${brl(order.frete_vendedor)}` : brl(0)} color="#f87171"
-            tooltip={`Frete comprador: ${order.shipping.receiver_cost != null ? brl(order.shipping.receiver_cost) : '—'} / Vendedor: ${brl(order.frete_vendedor)}`} />
+            tooltip={`Frete comprador: ${order.shipping?.receiver_cost != null ? brl(order.shipping?.receiver_cost) : '—'} / Vendedor: ${brl(order.frete_vendedor)}`} />
           <FinRow icon="🏪" label="Tarifa ML"           value={`-${brl(order.tarifa_ml)}`} color="#f87171"
             tooltip="Tarifa do Mercado Livre (~11,5%)" />
           <div className="border-t my-1.5" style={{ borderColor: '#1e1e24' }} />
@@ -1477,13 +1477,13 @@ function OrderCard({
             {/* Pagamento */}
             <div className="p-3 rounded-xl space-y-1.5" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
               <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-2">Pagamento</p>
-              {order.payments.length === 0
+              {order.payments?.length === 0
                 ? <span className="text-[11px] text-zinc-700">Nenhum pagamento</span>
-                : order.payments.map((pay, i) => {
+                : order.payments?.map((pay, i) => {
                     const ps = PAY_STATUS[pay.status]
                     return (
                       <div key={pay.id}>
-                        {order.payments.length > 1 && (
+                        {order.payments?.length > 1 && (
                           <p className="text-[10px] text-zinc-600 mb-1">Pgto. {i + 1}</p>
                         )}
                         <div className="space-y-1">
@@ -1510,7 +1510,7 @@ function OrderCard({
                             <span className="text-[11px] font-semibold text-zinc-200 tabular-nums">{brl(pay.total_paid_amount)}</span>
                           </div>
                         </div>
-                        {i < order.payments.length - 1 && (
+                        {i < order.payments?.length - 1 && (
                           <div className="border-t mt-2 mb-1" style={{ borderColor: '#1e1e24' }} />
                         )}
                       </div>
@@ -1522,46 +1522,46 @@ function OrderCard({
             {/* Endereço */}
             <div className="p-3 rounded-xl space-y-1.5" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
               <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-2">Endereço de entrega</p>
-              {order.shipping.receiver_address.street_name ? (
+              {order.shipping?.receiver_address?.street_name ? (
                 <>
                   <div className="flex items-start gap-1.5">
                     <span className="text-[11px] text-zinc-600 w-14 shrink-0">Rua</span>
                     <span className="text-[11px] text-zinc-200 leading-tight">
-                      {order.shipping.receiver_address.street_name}
-                      {order.shipping.receiver_address.street_number ? `, ${order.shipping.receiver_address.street_number}` : ''}
+                      {order.shipping?.receiver_address?.street_name}
+                      {order.shipping?.receiver_address?.street_number ? `, ${order.shipping?.receiver_address?.street_number}` : ''}
                     </span>
                   </div>
-                  {order.shipping.receiver_address.complement && (
+                  {order.shipping?.receiver_address?.complement && (
                     <div className="flex items-start gap-1.5">
                       <span className="text-[11px] text-zinc-600 w-14 shrink-0">Compl.</span>
-                      <span className="text-[11px] text-zinc-300">{order.shipping.receiver_address.complement}</span>
+                      <span className="text-[11px] text-zinc-300">{order.shipping?.receiver_address?.complement}</span>
                     </div>
                   )}
-                  {order.shipping.receiver_address.neighborhood && (
+                  {order.shipping?.receiver_address?.neighborhood && (
                     <div className="flex items-start gap-1.5">
                       <span className="text-[11px] text-zinc-600 w-14 shrink-0">Bairro</span>
-                      <span className="text-[11px] text-zinc-300">{order.shipping.receiver_address.neighborhood}</span>
+                      <span className="text-[11px] text-zinc-300">{order.shipping?.receiver_address?.neighborhood}</span>
                     </div>
                   )}
-                  {order.shipping.receiver_address.city && (
+                  {order.shipping?.receiver_address?.city && (
                     <div className="flex items-start gap-1.5">
                       <span className="text-[11px] text-zinc-600 w-14 shrink-0">Cidade</span>
                       <span className="text-[11px] text-zinc-300">
-                        {order.shipping.receiver_address.city}
-                        {order.shipping.receiver_address.state ? ` / ${order.shipping.receiver_address.state}` : ''}
+                        {order.shipping?.receiver_address?.city}
+                        {order.shipping?.receiver_address?.state ? ` / ${order.shipping?.receiver_address?.state}` : ''}
                       </span>
                     </div>
                   )}
-                  {order.shipping.receiver_address.zip_code && (
+                  {order.shipping?.receiver_address?.zip_code && (
                     <div className="flex items-center gap-1.5">
                       <span className="text-[11px] text-zinc-600 w-14 shrink-0">CEP</span>
-                      <span className="text-[11px] text-zinc-300 font-mono">{order.shipping.receiver_address.zip_code}</span>
+                      <span className="text-[11px] text-zinc-300 font-mono">{order.shipping?.receiver_address?.zip_code}</span>
                     </div>
                   )}
-                  {order.shipping.receiver_address.address_line && (
+                  {order.shipping?.receiver_address?.address_line && (
                     <div className="flex items-start gap-1.5">
                       <span className="text-[11px] text-zinc-600 w-14 shrink-0">Linha</span>
-                      <span className="text-[11px] text-zinc-500 italic">{order.shipping.receiver_address.address_line}</span>
+                      <span className="text-[11px] text-zinc-500 italic">{order.shipping?.receiver_address?.address_line}</span>
                     </div>
                   )}
                 </>
@@ -1573,56 +1573,56 @@ function OrderCard({
             {/* Envio */}
             <div className="p-3 rounded-xl space-y-1.5" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
               <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-2">Envio</p>
-              {order.shipping.id && (
+              {order.shipping?.id && (
                 <div className="flex items-center gap-1.5">
                   <span className="text-[11px] text-zinc-600 w-20 shrink-0">ID Envio</span>
-                  <a href={`https://www.mercadolivre.com.br/envios/${order.shipping.id}`}
+                  <a href={`https://www.mercadolivre.com.br/envios/${order.shipping?.id}`}
                     target="_blank" rel="noopener noreferrer"
                     className="text-[11px] font-mono text-cyan-500 hover:text-cyan-300 transition-colors">
-                    {order.shipping.id}
+                    {order.shipping?.id}
                   </a>
                 </div>
               )}
-              {order.shipping.logistic_type && (
+              {order.shipping?.logistic_type && (
                 <div className="flex items-center gap-1.5">
                   <span className="text-[11px] text-zinc-600 w-20 shrink-0">Logística</span>
                   <span className="text-[11px] font-semibold"
-                    style={{ color: (LOGISTIC[order.shipping.logistic_type] ?? { color: '#71717a' }).color }}>
-                    {(LOGISTIC[order.shipping.logistic_type] ?? { text: order.shipping.logistic_type }).text}
+                    style={{ color: (LOGISTIC[order.shipping?.logistic_type] ?? { color: '#71717a' }).color }}>
+                    {(LOGISTIC[order.shipping?.logistic_type] ?? { text: order.shipping?.logistic_type }).text}
                   </span>
                 </div>
               )}
-              {order.shipping.status && (
+              {order.shipping?.status && (
                 <div className="flex items-center gap-1.5">
                   <span className="text-[11px] text-zinc-600 w-20 shrink-0">Status</span>
                   <span className="text-[11px] font-semibold"
-                    style={{ color: (SHIPPING_STATUS_MAP[order.shipping.status] ?? { color: '#71717a' }).color }}>
-                    {(SHIPPING_STATUS_MAP[order.shipping.status] ?? { label: order.shipping.status }).label}
+                    style={{ color: (SHIPPING_STATUS_MAP[order.shipping?.status] ?? { color: '#71717a' }).color }}>
+                    {(SHIPPING_STATUS_MAP[order.shipping?.status] ?? { label: order.shipping?.status }).label}
                   </span>
                 </div>
               )}
-              {order.shipping.substatus && (
+              {order.shipping?.substatus && (
                 <div className="flex items-center gap-1.5">
                   <span className="text-[11px] text-zinc-600 w-20 shrink-0">Substatus</span>
-                  <span className="text-[11px] text-zinc-400">{order.shipping.substatus}</span>
+                  <span className="text-[11px] text-zinc-400">{order.shipping?.substatus}</span>
                 </div>
               )}
-              {order.shipping.date_created && (
+              {order.shipping?.date_created && (
                 <div className="flex items-center gap-1.5">
                   <span className="text-[11px] text-zinc-600 w-20 shrink-0">Criado em</span>
-                  <span className="text-[11px] text-zinc-400">{fmtDate(order.shipping.date_created)}</span>
+                  <span className="text-[11px] text-zinc-400">{fmtDate(order.shipping?.date_created)}</span>
                 </div>
               )}
-              {order.shipping.posting_deadline && (
+              {order.shipping?.posting_deadline && (
                 <div className="flex items-center gap-1.5">
                   <span className="text-[11px] text-zinc-600 w-20 shrink-0">Pr. postagem</span>
-                  <span className="text-[11px] text-zinc-400">{fmtDate(order.shipping.posting_deadline)}</span>
+                  <span className="text-[11px] text-zinc-400">{fmtDate(order.shipping?.posting_deadline)}</span>
                 </div>
               )}
-              {order.shipping.estimated_delivery_date && (
+              {order.shipping?.estimated_delivery_date && (
                 <div className="flex items-center gap-1.5">
                   <span className="text-[11px] text-zinc-600 w-20 shrink-0">Prev. entrega</span>
-                  <span className="text-[11px] text-zinc-400">{fmtDate(order.shipping.estimated_delivery_date)}</span>
+                  <span className="text-[11px] text-zinc-400">{fmtDate(order.shipping?.estimated_delivery_date)}</span>
                 </div>
               )}
             </div>
