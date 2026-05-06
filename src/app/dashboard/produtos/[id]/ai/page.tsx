@@ -6,6 +6,7 @@ import Link from 'next/link'
 import {
   ArrowLeft, Sparkles, Loader2, AlertCircle, RefreshCw, Wand2, Check, X,
   Tag, Users, Lightbulb, ThumbsUp, ThumbsDown, Search, Calendar, FileText,
+  Globe, GlobeLock, ExternalLink, Eye,
 } from 'lucide-react'
 import AiScoreBadge from '@/components/catalog/AiScoreBadge'
 import { CatalogApi, type CatalogProductLight, SCORE_PART_LABELS } from '@/components/catalog/catalogApi'
@@ -20,6 +21,9 @@ export default function ProductAiEnrichmentPage() {
   const [enriching, setEnriching] = useState(false)
   const [enrichErr, setEnrichErr] = useState<string | null>(null)
   const [recomputing, setRecomputing] = useState(false)
+  const [landingBusy, setLandingBusy] = useState(false)
+  const [landingPublished, setLandingPublished] = useState<boolean>(false)
+  const [landingViews, setLandingViews] = useState<number>(0)
 
   useEffect(() => { void load() }, [productId])
 
@@ -28,10 +32,29 @@ export default function ProductAiEnrichmentPage() {
     try {
       const p = await CatalogApi.getProductWithAi(productId)
       setProduct(p)
+      setLandingPublished(p.landing_published)
+      setLandingViews(p.landing_views)
     } catch (e: unknown) {
       setError((e as Error).message)
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function toggleLanding() {
+    if (!product) return
+    const next = !landingPublished
+    if (next && !product.ai_enriched_at) {
+      if (!confirm('Este produto ainda não foi enriquecido. A landing page vai ficar incompleta. Publicar mesmo assim?')) return
+    }
+    setLandingBusy(true)
+    try {
+      const res = await CatalogApi.setLandingPublished(productId, next)
+      setLandingPublished(res.landing_published)
+    } catch (e: unknown) {
+      alert((e as Error).message)
+    } finally {
+      setLandingBusy(false)
     }
   }
 
@@ -178,6 +201,57 @@ export default function ProductAiEnrichmentPage() {
               <AlertCircle size={12} className="shrink-0 mt-0.5" />{enrichErr}
             </div>
           )}
+        </div>
+
+        {/* Landing page toggle (L2) */}
+        <div className={[
+          'rounded-xl border p-4 mb-6',
+          landingPublished ? 'border-emerald-400/30 bg-emerald-400/5' : 'border-zinc-800 bg-zinc-900/30',
+        ].join(' ')}>
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div className="min-w-0 flex-1">
+              <h2 className={`flex items-center gap-2 text-sm font-semibold mb-1 ${landingPublished ? 'text-emerald-300' : 'text-zinc-200'}`}>
+                {landingPublished ? <Globe size={14} /> : <GlobeLock size={14} />}
+                Landing page pública
+                {landingPublished && (
+                  <span className="ml-2 px-2 py-0.5 rounded-full text-[10px] bg-emerald-400/20 text-emerald-200 border border-emerald-400/30">
+                    PUBLICADA
+                  </span>
+                )}
+              </h2>
+              <p className="text-[11px] text-zinc-400">
+                {landingPublished
+                  ? `Página acessível em /p/${productId.slice(0, 8)}… · ${landingViews} visualizações`
+                  : 'Quando ativado, gera uma landing page pública (sem auth) com os campos enriquecidos pela IA.'}
+              </p>
+              {landingPublished && (
+                <a
+                  href={`/p/${productId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 mt-2 text-[11px] text-emerald-300 hover:text-emerald-100"
+                >
+                  <ExternalLink size={11} /> abrir em nova aba
+                </a>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={toggleLanding}
+              disabled={landingBusy}
+              className={[
+                'flex items-center gap-1.5 px-4 py-2 rounded-lg disabled:opacity-50 text-xs font-semibold transition-all',
+                landingPublished
+                  ? 'bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300'
+                  : 'bg-emerald-500 hover:bg-emerald-400 text-black shadow-[0_0_12px_rgba(74,222,128,0.25)]',
+              ].join(' ')}
+            >
+              {landingBusy
+                ? <Loader2 size={12} className="animate-spin" />
+                : landingPublished ? <GlobeLock size={12} /> : <Globe size={12} />}
+              {landingPublished ? 'Despublicar' : 'Publicar landing'}
+            </button>
+          </div>
         </div>
 
         {/* Enriched fields */}
