@@ -74,7 +74,14 @@ const SECTIONS: NavSection[] = [
       {
         label: 'Catálogo', href: '/dashboard/catalogo', icon: <Package size={15} />,
         children: [
-          { label: 'Produtos', href: '/dashboard/produtos' },
+          {
+            label: 'Produtos', href: '/dashboard/produtos',
+            subItems: [
+              { label: 'Lista',                       href: '/dashboard/produtos' },
+              { label: 'IA: Enriquecimento em massa', href: '/dashboard/produtos/ai-bulk' },
+              { label: 'IA: Recomendações',           href: '/dashboard/produtos/recomendacoes-ia' },
+            ],
+          },
           {
             label: 'Anúncios', href: '/dashboard/catalogo/anuncios',
             subItems: [
