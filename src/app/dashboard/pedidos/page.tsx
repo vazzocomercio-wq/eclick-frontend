@@ -14,7 +14,9 @@ import { OrderDetailDrawer } from './_components/OrderDetailDrawer'
 import AccountSelector, { useMlAccount, getStoredSellerId } from '@/components/ml/AccountSelector'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
-const PAGE = 30
+const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const
+const PAGE_SIZE_LS_KEY = 'eclick.pedidos.page_size'
+const DEFAULT_PAGE_SIZE = 10
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -1864,6 +1866,17 @@ export default function PedidosPage() {
   const [kpiLoad,    setKpiLoad]    = useState(true)
   const [tab,        setTab]        = useState<TabKey>('abertas')
   const [page,       setPage]       = useState(0)
+  const [pageSize,   setPageSizeRaw] = useState<number>(() => {
+    if (typeof window === 'undefined') return DEFAULT_PAGE_SIZE
+    const raw = window.localStorage.getItem(PAGE_SIZE_LS_KEY)
+    const n = raw ? Number(raw) : DEFAULT_PAGE_SIZE
+    return (PAGE_SIZE_OPTIONS as readonly number[]).includes(n) ? n : DEFAULT_PAGE_SIZE
+  })
+  const setPageSize = useCallback((n: number) => {
+    setPageSizeRaw(n)
+    setPage(0)
+    try { window.localStorage.setItem(PAGE_SIZE_LS_KEY, String(n)) } catch { /* noop */ }
+  }, [])
   const [q,          setQ]          = useState('')
   const [modal,      setModal]      = useState(false)
   const [toasts,     setToasts]     = useState<Toast[]>([])
@@ -1954,7 +1967,7 @@ export default function PedidosPage() {
     setLoading(true)
     try {
       const headers = await getHeaders()
-      const params  = new URLSearchParams({ offset: String(currentPage * PAGE), limit: String(PAGE) })
+      const params  = new URLSearchParams({ offset: String(currentPage * pageSize), limit: String(pageSize) })
       if (query.trim()) params.set('q', query.trim())
       const sellerId = getStoredSellerId()
       if (sellerId != null) params.set('seller_id', String(sellerId))
@@ -1969,7 +1982,7 @@ export default function PedidosPage() {
       toast(e instanceof Error ? e.message : 'Erro ao carregar pedidos', 'error')
       setOrders([])
     } finally { setLoading(false) }
-  }, [getHeaders])
+  }, [getHeaders, pageSize])
 
   // Busca todos os vínculos uma vez — matching feito localmente em memória
   useEffect(() => {
@@ -2401,7 +2414,7 @@ export default function PedidosPage() {
           onViewDetails={(o) => setOpenOrderId(String(o.order_id))}
           controlledPagination={{
             page:    page + 1,                              // parent: 0-indexed → DataTable: 1-indexed
-            perPage: PAGE,
+            perPage: pageSize,
             total:   total,
             onPageChange: (p) => setPage(p - 1),            // DataTable → parent (re-fetch via useEffect)
           }}
@@ -2477,10 +2490,25 @@ export default function PedidosPage() {
         </div>
       )}
 
-      {/* Pagination */}
+      {/* Pagination + page size selector */}
       {!loading && (
-        <Pagination page={page} total={total} size={PAGE}
-          onChange={p => { setPage(p); window.scrollTo({ top: 0, behavior: 'smooth' }) }} />
+        <div className="flex items-center justify-between flex-wrap gap-3 pt-5">
+          <div className="flex items-center gap-2">
+            <span className="text-zinc-500 text-xs">Mostrar</span>
+            <select
+              value={pageSize}
+              onChange={e => setPageSize(Number(e.target.value))}
+              className="bg-zinc-950 border border-zinc-800 rounded-lg px-2 py-1 text-xs text-zinc-200 outline-none focus:border-cyan-400 cursor-pointer"
+            >
+              {PAGE_SIZE_OPTIONS.map(n => (
+                <option key={n} value={n}>{n}</option>
+              ))}
+            </select>
+            <span className="text-zinc-500 text-xs">por página</span>
+          </div>
+          <Pagination page={page} total={total} size={pageSize}
+            onChange={p => { setPage(p); window.scrollTo({ top: 0, behavior: 'smooth' }) }} />
+        </div>
       )}
 
       {/* Modal */}
