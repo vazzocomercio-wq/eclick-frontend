@@ -12,12 +12,14 @@ import { AdsCampaignsApi, type AdsPlatform, type AdsObjective } from '@/componen
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
 interface ProductLite {
-  id:        string
-  name:      string
-  brand?:    string | null
-  category?: string | null
-  price?:    number | null
-  ai_score?: number | null
+  id:          string
+  name:        string
+  brand?:      string | null
+  category?:   string | null
+  price?:      number | null
+  ai_score?:   number | null
+  photo_urls?: string[] | null
+  images?:     Array<{ url?: string }> | null
 }
 
 const PLATFORMS: Array<{ key: AdsPlatform; label: string; hint: string; color: string }> = [
@@ -149,7 +151,9 @@ export default function NewCampaignWizard() {
             </div>
           ) : (
             <div className="space-y-1 max-h-[60vh] overflow-y-auto rounded-lg border border-zinc-800">
-              {filtered.map(p => (
+              {filtered.map(p => {
+                const thumb = p.photo_urls?.[0] ?? p.images?.[0]?.url ?? null
+                return (
                 <button
                   key={p.id}
                   onClick={() => setPicked(p)}
@@ -158,7 +162,20 @@ export default function NewCampaignWizard() {
                     picked?.id === p.id ? 'bg-cyan-400/10' : 'hover:bg-zinc-900/60',
                   ].join(' ')}
                 >
-                  <Package size={14} className="text-zinc-500 shrink-0" />
+                  {thumb ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={thumb}
+                      alt={p.name}
+                      loading="lazy"
+                      className="w-12 h-12 rounded object-cover shrink-0 bg-zinc-900 border border-zinc-800"
+                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+                    />
+                  ) : (
+                    <div className="w-12 h-12 rounded shrink-0 bg-zinc-900 border border-zinc-800 flex items-center justify-center">
+                      <Package size={16} className="text-zinc-600" />
+                    </div>
+                  )}
                   <div className="flex-1 min-w-0">
                     <p className="text-sm text-zinc-200 truncate">{p.name}</p>
                     <p className="text-[10px] text-zinc-500 truncate">
@@ -168,7 +185,8 @@ export default function NewCampaignWizard() {
                   </div>
                   {picked?.id === p.id && <Check size={14} className="text-cyan-400" />}
                 </button>
-              ))}
+                )
+              })}
             </div>
           )}
           <div className="flex justify-end">

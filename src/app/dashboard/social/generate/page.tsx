@@ -22,6 +22,8 @@ interface ProductLite {
   price?:            number | null
   short_description?: string | null
   ai_score?:         number | null
+  photo_urls?:       string[] | null
+  images?:           Array<{ url?: string }> | null
 }
 
 const STYLES = [
@@ -190,6 +192,7 @@ export default function GenerateWizardPage() {
             <div className="space-y-1 max-h-[60vh] overflow-y-auto rounded-lg border border-zinc-800">
               {filtered.map(p => {
                 const sel = selected.includes(p.id)
+                const thumb = p.photo_urls?.[0] ?? p.images?.[0]?.url ?? null
                 return (
                   <button
                     key={p.id}
@@ -205,7 +208,20 @@ export default function GenerateWizardPage() {
                     ].join(' ')}>
                       {sel && <Check size={10} className="text-black" strokeWidth={3} />}
                     </span>
-                    <Package size={14} className="text-zinc-500 shrink-0" />
+                    {thumb ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={thumb}
+                        alt={p.name}
+                        loading="lazy"
+                        className="w-12 h-12 rounded object-cover shrink-0 bg-zinc-900 border border-zinc-800"
+                        onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+                      />
+                    ) : (
+                      <div className="w-12 h-12 rounded shrink-0 bg-zinc-900 border border-zinc-800 flex items-center justify-center">
+                        <Package size={16} className="text-zinc-600" />
+                      </div>
+                    )}
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-zinc-200 truncate">{p.name}</p>
                       <p className="text-[10px] text-zinc-500 truncate">
