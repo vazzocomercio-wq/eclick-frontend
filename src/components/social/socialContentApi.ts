@@ -94,4 +94,12 @@ export const SocialContentApi = {
   /** DELETE /social/content/:id */
   archive: (id: string) =>
     api<SocialContent>(`/social/content/${id}`, { method: 'DELETE' }),
+
+  /** POST /social/content/:id/publish-now — dispara WhatsApp Broadcast
+   *  imediatamente via Active bridge. */
+  publishNow: (id: string) =>
+    api<{ item: SocialContent; result: { dispatched?: number; skipped?: number; errors?: number; skipped_no_bridge?: boolean } }>(
+      `/social/content/${id}/publish-now`,
+      { method: 'POST' },
+    ),
 }

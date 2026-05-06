@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import {
   ArrowLeft, Loader2, RefreshCcw, Check, Calendar, Archive,
-  Eye, Code2, AlertCircle, Sparkles, Save, X,
+  Eye, Code2, AlertCircle, Sparkles, Save, X, Send,
 } from 'lucide-react'
 import { SocialContentApi } from '@/components/social/socialContentApi'
 import SocialContentPreview from '@/components/social/SocialContentPreview'
@@ -121,6 +121,25 @@ export default function SocialContentDetailPage() {
     }
   }
 
+  async function publishNow() {
+    if (!confirm('Publicar agora? Vai disparar a mensagem WhatsApp imediatamente para todos os contatos do segmento selecionado.')) return
+    setActing(true); setError(null)
+    try {
+      const r = await SocialContentApi.publishNow(id)
+      const s = r.result
+      if (s.skipped_no_bridge) {
+        alert('Bridge SaaS↔Active não configurado. Verifique as envs ACTIVE_AUTOMATION_BRIDGE_URL/SECRET no Railway.')
+      } else {
+        alert(`✓ Disparado! ${s.dispatched ?? 0} mensagens enviadas, ${s.skipped ?? 0} puladas, ${s.errors ?? 0} erros.`)
+      }
+      await refresh()
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setActing(false)
+    }
+  }
+
   if (loading) return (
     <div className="p-6 flex items-center gap-2 text-zinc-500 text-sm">
       <Loader2 size={14} className="animate-spin" /> carregando…
@@ -171,6 +190,17 @@ export default function SocialContentDetailPage() {
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-400 hover:bg-emerald-300 disabled:opacity-50 text-black text-xs font-medium"
               >
                 <Check size={12} /> Aprovar
+              </button>
+            )}
+            {/* Publicar agora — só pra whatsapp_broadcast aprovado/agendado */}
+            {item.channel === 'whatsapp_broadcast' && (item.status === 'approved' || item.status === 'scheduled' || item.status === 'draft') && (
+              <button
+                onClick={publishNow}
+                disabled={acting}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#25D366] hover:bg-[#1da851] disabled:opacity-50 text-white text-xs font-medium"
+                title="Dispara WhatsApp Broadcast imediatamente via Active"
+              >
+                <Send size={12} /> Publicar agora
               </button>
             )}
             {(item.status === 'draft' || item.status === 'approved') && (
