@@ -179,6 +179,38 @@ export const CreativeApi = {
   listBriefings: (productId: string) =>
     api<CreativeBriefing[]>(`/creative/products/${productId}/briefings`),
 
+  updateBriefing: (id: string, body: Partial<{
+    target_marketplace:  Marketplace
+    visual_style:        string
+    environments:        string[]
+    custom_environment:  string | null
+    custom_prompt:       string | null
+    background_color:    string
+    use_logo:            boolean
+    logo_url:            string | null
+    logo_storage_path:   string | null
+    communication_tone:  string
+    image_count:         number
+    image_format:        string
+    image_prompts:       string[] | null
+    video_prompts:       string[] | null
+  }>) =>
+    api<CreativeBriefing>(`/creative/briefings/${id}`, {
+      method: 'PATCH', body: JSON.stringify(body),
+    }),
+
+  generatePromptsBase: (briefingId: string, body: {
+    scope?:             'image' | 'video' | 'both'
+    override?:          { provider: 'anthropic' | 'openai'; model: string }
+    imageCount?:        number
+    videoCount?:        number
+    videoDurationSec?:  5 | 10
+    videoAspectRatio?:  '1:1' | '16:9' | '9:16'
+  } = {}) =>
+    api<CreativeBriefing>(`/creative/briefings/${briefingId}/generate-prompts`, {
+      method: 'POST', body: JSON.stringify(body),
+    }),
+
   // Briefing templates (melhoria #2)
   listBriefingTemplates: () =>
     api<BriefingTemplate[]>('/creative/briefing-templates'),

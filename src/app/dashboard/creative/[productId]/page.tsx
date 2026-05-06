@@ -7,6 +7,7 @@ import { ArrowLeft, Sparkles, Plus, Loader2, Image as ImageIcon, Check, RefreshC
 import ProductAnalysisCard from '@/components/creative/ProductAnalysisCard'
 import CanvaButton from '@/components/creative/CanvaButton'
 import CatalogLinkBanner from '@/components/creative/CatalogLinkBanner'
+import PromptsLibrary from '@/components/creative/PromptsLibrary'
 import { CreativeApi } from '@/components/creative/api'
 import type {
   CreativeProduct, CreativeBriefing, CreativeListing,
@@ -236,6 +237,16 @@ export default function ProductDetailPage() {
                 </Link>
               )}
             </div>
+
+            {/* Base de prompts editaveis (bloco 3) */}
+            {activeBriefing && (
+              <PromptsLibrary
+                briefing={activeBriefing}
+                onChange={(updated) =>
+                  setBriefings(prev => prev.map(b => b.id === updated.id ? updated : b))
+                }
+              />
+            )}
 
             {/* Image jobs */}
             <div>
