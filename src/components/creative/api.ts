@@ -101,8 +101,15 @@ export const CreativeApi = {
   createProduct: (body: CreateProductBody) =>
     api<CreativeProduct>('/creative/products', { method: 'POST', body: JSON.stringify(body) }),
 
-  listProducts: () =>
-    api<CreativeProduct[]>('/creative/products'),
+  listProducts: (opts: { status?: string; search?: string; sort?: 'recent' | 'name'; include_archived?: boolean } = {}) => {
+    const qs = new URLSearchParams()
+    if (opts.status)          qs.set('status', opts.status)
+    if (opts.search)          qs.set('search', opts.search)
+    if (opts.sort)            qs.set('sort',   opts.sort)
+    if (opts.include_archived) qs.set('include_archived', '1')
+    const suffix = qs.toString() ? `?${qs.toString()}` : ''
+    return api<CreativeProduct[]>(`/creative/products${suffix}`)
+  },
 
   getProduct: (id: string) =>
     api<CreativeProduct>(`/creative/products/${id}`),

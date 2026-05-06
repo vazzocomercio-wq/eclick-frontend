@@ -2,24 +2,46 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Plus, Sparkles, Loader2, Image as ImageIcon, Clock, CheckCircle2, AlertCircle } from 'lucide-react'
+import { Plus, Sparkles, Loader2, Image as ImageIcon, Clock, CheckCircle2, AlertCircle, Search, X, ArrowDownAZ, ArrowDown } from 'lucide-react'
 import { CreativeApi } from '@/components/creative/api'
 import CreativeUsageCard from '@/components/creative/CreativeUsageCard'
 import type { CreativeProduct } from '@/components/creative/types'
+
+type StatusFilter = 'all' | 'draft' | 'analyzing' | 'ready' | 'archived'
+type SortOption   = 'recent' | 'name'
 
 export default function CreativeListPage() {
   const [products, setProducts] = useState<CreativeProduct[]>([])
   const [loading, setLoading]   = useState(true)
   const [error, setError]       = useState<string | null>(null)
 
+  // Filtros
+  const [search, setSearch]   = useState('')
+  const [debounced, setDebounced] = useState('')
+  const [status, setStatus]   = useState<StatusFilter>('all')
+  const [sort, setSort]       = useState<SortOption>('recent')
+
+  // Debounce search 300ms
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(search), 300)
+    return () => clearTimeout(t)
+  }, [search])
+
   useEffect(() => {
     void load()
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debounced, status, sort])
 
   async function load() {
     setError(null)
+    setLoading(true)
     try {
-      const list = await CreativeApi.listProducts()
+      const list = await CreativeApi.listProducts({
+        search: debounced || undefined,
+        status: status === 'all' ? undefined : status,
+        sort,
+        include_archived: status === 'archived',
+      })
       setProducts(list)
     } catch (e: unknown) {
       setError((e as Error).message)
@@ -27,6 +49,8 @@ export default function CreativeListPage() {
       setLoading(false)
     }
   }
+
+  const hasFilters = !!debounced || status !== 'all' || sort !== 'recent'
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 px-4 sm:px-8 py-6">
@@ -62,12 +86,87 @@ export default function CreativeListPage() {
 
         <CreativeUsageCard />
 
-        {loading ? (
+        {/* Filtros */}
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          {/* Search */}
+          <div className="relative flex-1 min-w-[200px]">
+            <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500" />
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Buscar por nome, SKU ou marca…"
+              className="w-full pl-8 pr-8 py-1.5 bg-zinc-950 border border-zinc-800 rounded-lg text-xs text-zinc-200 outline-none focus:border-cyan-400 placeholder:text-zinc-600"
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-200"
+              >
+                <X size={11} />
+              </button>
+            )}
+          </div>
+
+          {/* Status filter */}
+          <div className="flex gap-1">
+            {([
+              { value: 'all',       label: 'Todos' },
+              { value: 'ready',     label: 'Prontos' },
+              { value: 'draft',     label: 'Rascunhos' },
+              { value: 'analyzing', label: 'Analisando' },
+              { value: 'archived',  label: 'Arquivados' },
+            ] as const).map(o => (
+              <button
+                key={o.value}
+                type="button"
+                onClick={() => setStatus(o.value)}
+                className={[
+                  'px-2.5 py-1 rounded-full text-[11px] transition-all',
+                  status === o.value
+                    ? 'bg-cyan-400 text-black font-semibold'
+                    : 'bg-zinc-950 text-zinc-400 border border-zinc-800 hover:border-zinc-700',
+                ].join(' ')}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Sort */}
+          <button
+            type="button"
+            onClick={() => setSort(s => s === 'recent' ? 'name' : 'recent')}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] bg-zinc-950 text-zinc-400 border border-zinc-800 hover:border-zinc-700"
+            title={sort === 'recent' ? 'Ordenado por mais recente — clique pra mudar' : 'Ordenado por nome — clique pra mudar'}
+          >
+            {sort === 'recent' ? <ArrowDown size={11} /> : <ArrowDownAZ size={11} />}
+            {sort === 'recent' ? 'Recentes' : 'A-Z'}
+          </button>
+
+          {hasFilters && (
+            <button
+              type="button"
+              onClick={() => { setSearch(''); setStatus('all'); setSort('recent') }}
+              className="text-[11px] text-zinc-500 hover:text-red-400"
+            >
+              limpar filtros
+            </button>
+          )}
+
+          {/* Result count */}
+          <span className="text-[11px] text-zinc-500 ml-auto">
+            {loading ? <Loader2 size={11} className="inline animate-spin" /> : `${products.length} resultado${products.length === 1 ? '' : 's'}`}
+          </span>
+        </div>
+
+        {loading && products.length === 0 ? (
           <div className="flex items-center gap-2 text-zinc-500">
             <Loader2 size={14} className="animate-spin" /> Carregando produtos…
           </div>
         ) : products.length === 0 ? (
-          <EmptyState />
+          hasFilters ? <NoResultsState /> : <EmptyState />
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
             {products.map(p => (
@@ -96,6 +195,16 @@ function EmptyState() {
       >
         <Plus size={14} /> Criar primeiro produto
       </Link>
+    </div>
+  )
+}
+
+function NoResultsState() {
+  return (
+    <div className="rounded-2xl border-2 border-dashed border-zinc-800 bg-zinc-900/30 p-10 text-center">
+      <Search size={24} className="text-zinc-600 mx-auto mb-3" />
+      <h2 className="text-sm font-semibold text-zinc-300">Nenhum produto encontrado</h2>
+      <p className="text-xs text-zinc-500 mt-1">Tente ajustar os filtros ou a busca.</p>
     </div>
   )
 }
