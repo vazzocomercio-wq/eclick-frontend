@@ -60,8 +60,11 @@ export interface CreativeBriefing {
   organization_id:     string
   target_marketplace:  Marketplace
   visual_style:        string
+  /** @deprecated use environments[] */
   environment:         string | null
+  environments:        string[]
   custom_environment:  string | null
+  custom_prompt:       string | null
   background_color:    string
   use_logo:            boolean
   logo_url:            string | null
@@ -69,6 +72,8 @@ export interface CreativeBriefing {
   communication_tone:  string
   image_count:         number
   image_format:        string
+  image_prompts:       string[] | null
+  video_prompts:       string[] | null
   marketplace_rules:   Record<string, unknown>
   is_active:           boolean
   created_at:          string
@@ -455,8 +460,11 @@ export interface BriefingTemplate {
   description:         string | null
   target_marketplace:  Marketplace
   visual_style:        string
+  /** @deprecated use environments[] */
   environment:         string | null
+  environments:        string[]
   custom_environment:  string | null
+  custom_prompt:       string | null
   background_color:    string
   use_logo:            boolean
   logo_url:            string | null
