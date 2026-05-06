@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import { useTodayOrders } from '@/hooks/useTodayOrders'
 import HubSummaryCard from '@/components/inteligencia/HubSummaryCard'
+import AccountSelector from '@/components/ml/AccountSelector'
 import {
   AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip,
@@ -1038,13 +1039,16 @@ export default function DashboardPage() {
           <p className="text-zinc-500 text-[12px] capitalize">{today}</p>
           <h2 className="text-white text-lg font-semibold mt-0.5">Visão Geral</h2>
         </div>
-        {mlConnected && (
-          <span className="flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full"
-            style={{ background: 'rgba(52,211,153,0.1)', color: '#34d399' }}>
-            <span className="w-1.5 h-1.5 rounded-full animate-pulse bg-emerald-400" />
-            ML conectado
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          {mlConnected && (
+            <span className="flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full"
+              style={{ background: 'rgba(52,211,153,0.1)', color: '#34d399' }}>
+              <span className="w-1.5 h-1.5 rounded-full animate-pulse bg-emerald-400" />
+              ML conectado
+            </span>
+          )}
+          <AccountSelector compact hideWhenEmpty />
+        </div>
       </div>
 
       {/* Intelligence Hub summary (some quando hub disabled ou sem atividade 24h) */}

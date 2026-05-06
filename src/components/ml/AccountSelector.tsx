@@ -92,13 +92,15 @@ interface Props {
   label?:    string
   /** Tamanho compacto vs default. */
   compact?:  boolean
+  /** Nao renderiza nada quando ha 0 contas (deixa pro chamador). Default false. */
+  hideWhenEmpty?: boolean
   className?: string
 }
 
 /** Dropdown de contas ML conectadas. Plug-and-play em paginas que filtram
  *  dados por conta. Quando ha 0 contas, mostra link pra conectar. Quando
  *  ha 1, mostra como info read-only (nao mostra dropdown). */
-export default function AccountSelector({ allowAll = true, label, compact = false, className = '' }: Props) {
+export default function AccountSelector({ allowAll = true, label, compact = false, hideWhenEmpty = false, className = '' }: Props) {
   const { connections, selected, setSelected, loading, error } = useMlAccount()
 
   if (loading) {
@@ -120,6 +122,7 @@ export default function AccountSelector({ allowAll = true, label, compact = fals
   }
 
   if (connections.length === 0) {
+    if (hideWhenEmpty) return null
     return (
       <div className={`flex items-center gap-2 text-xs text-amber-300 ${className}`}>
         <Store size={11} />

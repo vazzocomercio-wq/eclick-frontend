@@ -11,6 +11,7 @@ import { ToastViewport, todoToast } from '@/hooks/useToast'
 import { ensurePulseStyles, pulseClass, PulsingButton } from '@/components/ui/pulsing-button'
 import { PedidosTable } from './_components/PedidosTable'
 import { OrderDetailDrawer } from './_components/OrderDetailDrawer'
+import AccountSelector, { useMlAccount, getStoredSellerId } from '@/components/ml/AccountSelector'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 const PAGE = 30
@@ -455,48 +456,289 @@ type CreateResult = {
   listing_id: string; status: 'created' | 'skipped' | 'error'; product_id?: string; reason?: string
 }
 
-/** Botão "Vincular" — fica acima do "Venda #X" no card.
- *  ATIVO  → anúncio sem vínculo + há produto no catálogo com mesmo SKU
- *  HIDDEN → anúncio já vinculado (não polui a UI quando não há ação)
- *  Não renderiza nada se já está vinculado pra economizar espaço. */
-function VincularButton({
-  listingId, hasExistingLink, skuMatchProduct, onVincular, onToast,
+/** Modal "Vincular Anúncio ao Produto"
+ *
+ *  Aberto quando user clica em "Vincular" num card de pedido. Mostra:
+ *  - SKU de origem (do anúncio clicado)
+ *  - Lista de produtos do catálogo com o mesmo SKU (radio — escolhe 1)
+ *  - Lista de OUTROS anúncios na conta com mesmo SKU (checkboxes —
+ *    user pode vincular vários ao mesmo produto numa só ação)
+ *
+ *  Salvar dispara N chamadas POST /products/vinculos (uma por listing).
+ */
+function VincularModal({
+  listingId, listingTitle, thumbnail, sellerSku, candidates,
+  allOrders, vinculosPorListing,
+  onSave, onClose, onToast,
 }: {
-  listingId:        string
-  hasExistingLink:  boolean
-  skuMatchProduct:  { id: string; name: string; sku: string } | null
-  onVincular:       (listingId: string, productId: string) => Promise<void>
-  onToast:          (msg: string, type: Toast['type']) => void
+  listingId:           string
+  listingTitle:        string
+  thumbnail:           string | null
+  sellerSku:           string
+  candidates:          Array<{ id: string; name: string; sku: string }>
+  allOrders:           MOrder[]
+  vinculosPorListing:  Record<string, VinculoItem[]>
+  onSave:              (productId: string, listings: Array<{ listing_id: string; listing_title: string; thumbnail: string | null }>) => Promise<{ created: number; failed: number; errors: string[] }>
+  onClose:             () => void
+  onToast:             (msg: string, type: Toast['type']) => void
 }) {
-  const [busy, setBusy] = useState(false)
+  // Pré-seleciona o primeiro produto candidato
+  const [pickedProductId, setPickedProductId] = useState<string>(
+    candidates[0]?.id ?? ''
+  )
 
-  // Já vinculado: não renderiza (deixa UI limpa)
-  if (hasExistingLink) return null
+  // Outros anúncios com mesmo SKU (não-vinculados ainda)
+  const otherListings = useMemo(() => {
+    const sellerSkuKey = sellerSku.trim().toUpperCase()
+    const seen = new Set<string>([listingId])
+    const out: Array<{ listing_id: string; title: string; thumbnail: string | null; isLinked: boolean }> = []
+    for (const order of allOrders) {
+      for (const oi of order.order_items) {
+        const skuKey = (oi.seller_sku ?? '').trim().toUpperCase()
+        if (skuKey !== sellerSkuKey) continue
+        const lid = oi.item_id ?? oi.item?.id
+        if (!lid || seen.has(lid)) continue
+        seen.add(lid)
+        out.push({
+          listing_id: lid,
+          title:      oi.title ?? `Anúncio ${lid}`,
+          thumbnail:  oi.thumbnail ?? null,
+          isLinked:   (vinculosPorListing[lid] ?? []).length > 0,
+        })
+      }
+    }
+    return out
+  }, [allOrders, listingId, sellerSku, vinculosPorListing])
 
-  const canLink = skuMatchProduct !== null
-  const handle = async () => {
-    if (!skuMatchProduct || busy) return
-    setBusy(true)
+  // Pré-seleciona o anúncio clicado + os outros com mesmo SKU não-vinculados
+  const [pickedListingIds, setPickedListingIds] = useState<Set<string>>(() => {
+    const s = new Set<string>([listingId])
+    for (const o of otherListings) {
+      if (!o.isLinked) s.add(o.listing_id)
+    }
+    return s
+  })
+
+  const [saving, setSaving] = useState(false)
+
+  const togglePicked = (lid: string) => {
+    setPickedListingIds(prev => {
+      const next = new Set(prev)
+      if (next.has(lid)) next.delete(lid)
+      else next.add(lid)
+      return next
+    })
+  }
+
+  const allSelectableListings = useMemo(() => [
+    { listing_id: listingId, title: listingTitle, thumbnail, isLinked: false, isOrigin: true },
+    ...otherListings.map(o => ({ ...o, isOrigin: false })),
+  ], [listingId, listingTitle, thumbnail, otherListings])
+
+  const handleSave = async () => {
+    if (!pickedProductId || pickedListingIds.size === 0) return
+    setSaving(true)
     try {
-      await onVincular(listingId, skuMatchProduct.id)
-      onToast(`Vinculado a "${skuMatchProduct.name}" (SKU ${skuMatchProduct.sku})`, 'success')
-    } catch (e) {
-      onToast(`Erro ao vincular: ${(e as Error).message}`, 'error')
+      const toLink = allSelectableListings
+        .filter(l => pickedListingIds.has(l.listing_id) && !l.isLinked)
+        .map(l => ({ listing_id: l.listing_id, listing_title: l.title, thumbnail: l.thumbnail }))
+      if (toLink.length === 0) {
+        onToast('Nenhum anúncio novo selecionado pra vincular', 'info')
+        setSaving(false)
+        return
+      }
+      const r = await onSave(pickedProductId, toLink)
+      const picked = candidates.find(c => c.id === pickedProductId)
+      if (r.failed === 0) {
+        onToast(`✓ ${r.created} ${r.created === 1 ? 'anúncio vinculado' : 'anúncios vinculados'} a "${picked?.name ?? ''}"`, 'success')
+        onClose()
+      } else {
+        onToast(`${r.created} sucessos · ${r.failed} falhas. ${r.errors[0] ?? ''}`, 'error')
+      }
     } finally {
-      setBusy(false)
+      setSaving(false)
     }
   }
+
+  const newCount = allSelectableListings.filter(l => pickedListingIds.has(l.listing_id) && !l.isLinked).length
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={onClose}>
+      <div
+        className="w-full max-w-2xl rounded-xl border border-zinc-800 bg-zinc-950 max-h-[90vh] overflow-y-auto"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="px-5 py-4 border-b border-zinc-800 flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-zinc-100 text-base font-semibold">Vincular Anúncio ao Produto</h2>
+            <p className="text-[11px] text-zinc-500 mt-0.5">
+              SKU de origem: <span className="font-mono text-cyan-300">{sellerSku}</span>
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-zinc-500 hover:text-zinc-300 text-lg leading-none p-1"
+          >×</button>
+        </div>
+
+        <div className="p-5 space-y-5">
+          {/* Section: Produto */}
+          <section>
+            <p className="text-[10px] uppercase tracking-wider text-zinc-500 mb-2">
+              Produto do catálogo {candidates.length > 1 && `(${candidates.length} candidatos)`}
+            </p>
+            <div className="space-y-1.5">
+              {candidates.map(p => (
+                <label
+                  key={p.id}
+                  className={[
+                    'flex items-center gap-3 px-3 py-2 rounded border cursor-pointer transition-colors',
+                    pickedProductId === p.id
+                      ? 'border-cyan-400/60 bg-cyan-400/[0.05]'
+                      : 'border-zinc-800 hover:border-zinc-700',
+                  ].join(' ')}
+                >
+                  <input
+                    type="radio"
+                    name="vinc-product"
+                    value={p.id}
+                    checked={pickedProductId === p.id}
+                    onChange={() => setPickedProductId(p.id)}
+                    className="w-4 h-4 accent-cyan-400"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-zinc-200 truncate">{p.name}</p>
+                    <p className="text-[10px] text-zinc-500 font-mono">SKU {p.sku}</p>
+                  </div>
+                </label>
+              ))}
+            </div>
+          </section>
+
+          {/* Section: Anúncios pra vincular */}
+          <section>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[10px] uppercase tracking-wider text-zinc-500">
+                Anúncios com este SKU ({allSelectableListings.length})
+              </p>
+              <p className="text-[10px] text-zinc-600">
+                Marque quais conectar a este produto.
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              {allSelectableListings.map(l => {
+                const checked = pickedListingIds.has(l.listing_id)
+                return (
+                  <label
+                    key={l.listing_id}
+                    className={[
+                      'flex items-center gap-3 px-3 py-2 rounded border transition-colors',
+                      l.isLinked
+                        ? 'border-zinc-800 bg-zinc-900/40 opacity-60 cursor-not-allowed'
+                        : checked
+                          ? 'border-emerald-400/40 bg-emerald-400/[0.05] cursor-pointer'
+                          : 'border-zinc-800 hover:border-zinc-700 cursor-pointer',
+                    ].join(' ')}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      disabled={l.isLinked}
+                      onChange={() => togglePicked(l.listing_id)}
+                      className="w-4 h-4 accent-emerald-400"
+                    />
+                    {l.thumbnail ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={l.thumbnail} alt="" className="w-10 h-10 rounded object-cover bg-zinc-900 border border-zinc-800 shrink-0" />
+                    ) : (
+                      <div className="w-10 h-10 rounded bg-zinc-900 border border-zinc-800 shrink-0" />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        {l.isOrigin && (
+                          <span className="text-[9px] uppercase font-mono text-cyan-300 bg-cyan-400/10 border border-cyan-400/30 rounded px-1 py-0.5">
+                            origem
+                          </span>
+                        )}
+                        {l.isLinked && (
+                          <span className="text-[9px] uppercase font-mono text-zinc-500 bg-zinc-900 border border-zinc-700 rounded px-1 py-0.5">
+                            já vinculado
+                          </span>
+                        )}
+                        <p className="text-xs text-zinc-200 truncate">{l.title}</p>
+                      </div>
+                      <p className="text-[10px] text-zinc-500 font-mono">{l.listing_id}</p>
+                    </div>
+                  </label>
+                )
+              })}
+            </div>
+          </section>
+        </div>
+
+        {/* Footer */}
+        <div className="px-5 py-3 border-t border-zinc-800 flex items-center justify-between gap-3">
+          <p className="text-[11px] text-zinc-500">
+            {newCount > 0
+              ? `${newCount} ${newCount === 1 ? 'anúncio será vinculado' : 'anúncios serão vinculados'}`
+              : 'Selecione ao menos 1 anúncio não-vinculado'}
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={onClose}
+              className="px-3 py-1.5 rounded text-xs text-zinc-300 border border-zinc-800 hover:border-zinc-700"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={saving || !pickedProductId || newCount === 0}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold bg-emerald-400 hover:bg-emerald-300 disabled:opacity-50 disabled:cursor-not-allowed text-black"
+            >
+              {saving ? (
+                <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+              ) : (
+                <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                </svg>
+              )}
+              {saving ? 'Vinculando…' : 'Vincular'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/** Botão "Vincular" — fica acima do "Venda #X" no card.
+ *  ATIVO  → anúncio sem vínculo + há produto(s) no catálogo com mesmo SKU
+ *  HIDDEN → anúncio já vinculado (não polui a UI quando não há ação)
+ *  Click → abre modal pra user revisar candidatos e confirmar vínculo. */
+function VincularButton({
+  hasExistingLink, skuMatchProducts, onClick,
+}: {
+  hasExistingLink:    boolean
+  skuMatchProducts:   Array<{ id: string; name: string; sku: string }>
+  onClick:            () => void
+}) {
+  if (hasExistingLink) return null
+
+  const canLink = skuMatchProducts.length > 0
+  const tooltip = canLink
+    ? `${skuMatchProducts.length} produto${skuMatchProducts.length > 1 ? 's' : ''} no catálogo com este SKU. Click pra escolher.`
+    : 'Sem produto no catálogo com mesmo SKU. Use "Criar Produto" pra criar um novo.'
 
   return (
     <button
       type="button"
-      onClick={canLink ? handle : undefined}
-      disabled={!canLink || busy}
-      title={
-        canLink
-          ? `Vincular a "${skuMatchProduct.name}" (SKU ${skuMatchProduct.sku})`
-          : 'Sem produto no catálogo com mesmo SKU. Use "Criar Produto" pra criar um novo.'
-      }
+      onClick={canLink ? onClick : undefined}
+      disabled={!canLink}
+      title={tooltip}
       className={[
         'inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded transition-all',
         canLink
@@ -504,33 +746,33 @@ function VincularButton({
           : 'bg-zinc-900 text-zinc-600 border border-zinc-800 cursor-not-allowed opacity-60',
       ].join(' ')}
     >
-      {busy ? (
-        <svg className="w-2.5 h-2.5 animate-spin" fill="none" viewBox="0 0 24 24">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-        </svg>
-      ) : (
-        <svg width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-        </svg>
-      )}
-      {busy ? 'Vinculando…' : 'Vincular'}
+      <svg width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+      </svg>
+      Vincular{canLink && skuMatchProducts.length > 1 ? ` (${skuMatchProducts.length})` : ''}
     </button>
   )
 }
 
 function OrderCard({
-  order, itemId, vinculos, skuMatchProduct,
-  onSalvar, onCriarProduto, onVincularPorSku,
+  order, itemId, vinculos, sellerSku, skuMatchProducts,
+  onSalvar, onCriarProduto, onOpenVincularModal,
   onToast, getHeaders, onOpenDetail,
 }: {
   order: MOrder
   itemId: string | null
   vinculos: VinculoItem[]
-  skuMatchProduct: { id: string; name: string; sku: string } | null
+  sellerSku: string | null
+  skuMatchProducts: Array<{ id: string; name: string; sku: string }>
   onSalvar: (productId: string, custo: number, imposto: number) => Promise<void>
   onCriarProduto: (itemId: string) => Promise<void>
-  onVincularPorSku: (listingId: string, productId: string) => Promise<void>
+  onOpenVincularModal: (payload: {
+    listingId:    string
+    listingTitle: string
+    thumbnail:    string | null
+    sellerSku:    string
+    candidates:   Array<{ id: string; name: string; sku: string }>
+  }) => void
   onToast: (msg: string, type: Toast['type']) => void
   getHeaders: () => Promise<Record<string, string>>
   onOpenDetail: (externalOrderId: string) => void
@@ -733,15 +975,19 @@ function OrderCard({
           </div>
           <div className="space-y-0.5">
             {/* Vincular por SKU — só ativo quando anúncio NÃO tem vínculo
-                E existe produto no catálogo com o mesmo SKU do anúncio.
-                Disabled se já vinculado ou se não há match. */}
-            {itemId && (
+                E existe produto(s) no catálogo com o mesmo SKU do anúncio.
+                Click abre modal pra escolher e confirmar. */}
+            {itemId && sellerSku && (
               <VincularButton
-                listingId={itemId}
                 hasExistingLink={vinculos.length > 0}
-                skuMatchProduct={skuMatchProduct}
-                onVincular={onVincularPorSku}
-                onToast={onToast}
+                skuMatchProducts={skuMatchProducts}
+                onClick={() => onOpenVincularModal({
+                  listingId:    itemId,
+                  listingTitle: item?.title ?? `Anúncio ${itemId}`,
+                  thumbnail:    item?.thumbnail ?? null,
+                  sellerSku,
+                  candidates:   skuMatchProducts,
+                })}
               />
             )}
             <div className="flex items-center gap-2 flex-wrap">
@@ -1629,6 +1875,14 @@ export default function PedidosPage() {
   const [view,        setView]        = useState<'cards' | 'table'>('cards')
   // Sprint B bloco 2 — drawer detail aberto por click numa linha da tabela
   const [openOrderId, setOpenOrderId] = useState<string | null>(null)
+  // Modal de vínculo por SKU (opens quando user clica em "Vincular" no card)
+  const [vincularModal, setVincularModal] = useState<{
+    listingId:    string
+    listingTitle: string
+    thumbnail:    string | null
+    sellerSku:    string
+    candidates:   Array<{ id: string; name: string; sku: string }>
+  } | null>(null)
   // UI-1.1 — header consolidado (state que vivia no PedidosToolsPanel)
   const [billingPending, setBillingPending] = useState<number | null>(null)
   const [syncing,        setSyncing]        = useState(false)
@@ -1695,6 +1949,8 @@ export default function PedidosPage() {
       const headers = await getHeaders()
       const params  = new URLSearchParams({ offset: String(currentPage * PAGE), limit: String(PAGE) })
       if (query.trim()) params.set('q', query.trim())
+      const sellerId = getStoredSellerId()
+      if (sellerId != null) params.set('seller_id', String(sellerId))
       const res  = await fetch(`${BACKEND}/ml/orders/enriched?${params}`, { headers })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const body = await res.json()
@@ -1732,7 +1988,9 @@ export default function PedidosPage() {
 
   // Catálogo: products com SKU preenchido — pra detectar matching com
   // anúncios não-vinculados e habilitar botão "Vincular".
-  const [skuToProduct, setSkuToProduct] = useState<Record<string, { id: string; name: string; sku: string }>>({})
+  // Mapa SKU normalizado → ARRAY de produtos (pode haver mais de 1 com
+  // mesmo SKU; user escolhe no modal).
+  const [skuToProducts, setSkuToProducts] = useState<Record<string, Array<{ id: string; name: string; sku: string }>>>({})
   useEffect(() => {
     supabase
       .from('products')
@@ -1743,48 +2001,83 @@ export default function PedidosPage() {
       .limit(10_000)
       .then(({ data, error }) => {
         if (error) { console.error('[pedidos] erro query products SKU:', error); return }
-        const map: Record<string, { id: string; name: string; sku: string }> = {}
+        const map: Record<string, Array<{ id: string; name: string; sku: string }>> = {}
         for (const p of (data ?? []) as Array<{ id: string; sku: string | null; name: string }>) {
           if (!p.sku) continue
-          // Normaliza SKU (trim + uppercase) pra match case-insensitive
           const key = p.sku.trim().toUpperCase()
-          if (key) map[key] = { id: p.id, name: p.name, sku: p.sku }
+          if (!key) continue
+          if (!map[key]) map[key] = []
+          map[key].push({ id: p.id, name: p.name, sku: p.sku })
         }
-        setSkuToProduct(map)
+        setSkuToProducts(map)
       })
   }, [supabase])
 
-  /** Cria vínculo direto via Supabase. Reusa em OrderCard quando user
-   *  clica em "Vincular" e há match de SKU. */
-  const vincularPorSku = useCallback(async (listingId: string, productId: string): Promise<void> => {
-    const { error } = await supabase
-      .from('product_listings')
-      .upsert({
-        listing_id:        listingId,
-        product_id:        productId,
-        platform:          'mercadolivre',
-        is_active:         true,
-        quantity_per_unit: 1,
-      }, { onConflict: 'listing_id,product_id,platform' })
-    if (error) throw new Error(error.message)
+  /** Cria vínculo via backend (POST /products/vinculos — endpoint robusto
+   *  já usado pela tela /catalogo/vinculos). Aceita N listings → 1 produto. */
+  const vincularPorSku = useCallback(async (
+    productId: string,
+    listings: Array<{
+      listing_id:    string
+      listing_title: string
+      thumbnail:     string | null
+    }>,
+  ): Promise<{ created: number; failed: number; errors: string[] }> => {
+    const headers = await getHeaders()
+    let created = 0, failed = 0
+    const errors: string[] = []
+
+    for (const lst of listings) {
+      try {
+        const res = await fetch(`${BACKEND}/products/vinculos`, {
+          method: 'POST',
+          headers: { ...headers, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            product_id:        productId,
+            platform:          'mercadolivre',
+            listing_id:        lst.listing_id,
+            quantity_per_unit: 1,
+            listing_title:     lst.listing_title,
+            listing_thumbnail: lst.thumbnail,
+          }),
+        })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          failed++
+          errors.push(`${lst.listing_id}: ${data.message ?? `HTTP ${res.status}`}`)
+        } else {
+          created++
+        }
+      } catch (e) {
+        failed++
+        errors.push(`${lst.listing_id}: ${(e as Error).message}`)
+      }
+    }
 
     // Atualiza vinculos locais sem refetch
-    const { data: prod } = await supabase
-      .from('products')
-      .select('id, sku, name, cost_price, tax_percentage')
-      .eq('id', productId)
-      .maybeSingle()
-    if (prod) {
-      setVinculosPorListing(prev => ({
-        ...prev,
-        [listingId]: [{
-          listing_id:        listingId,
-          quantity_per_unit: 1,
-          product:           prod as VinculoItem['product'],
-        } as VinculoItem],
-      }))
+    if (created > 0) {
+      const { data: prod } = await supabase
+        .from('products')
+        .select('id, sku, name, cost_price, tax_percentage')
+        .eq('id', productId)
+        .maybeSingle()
+      if (prod) {
+        setVinculosPorListing(prev => {
+          const next = { ...prev }
+          for (const lst of listings) {
+            next[lst.listing_id] = [{
+              listing_id:        lst.listing_id,
+              quantity_per_unit: 1,
+              product:           prod as VinculoItem['product'],
+            } as VinculoItem]
+          }
+          return next
+        })
+      }
     }
-  }, [supabase])
+
+    return { created, failed, errors }
+  }, [getHeaders, supabase])
 
   const salvar = useCallback(async (productId: string, custo: number, imposto: number) => {
     const headers = await getHeaders()
@@ -1850,6 +2143,14 @@ export default function PedidosPage() {
 
   useEffect(() => { loadKpis()          }, [loadKpis])
   useEffect(() => { loadOrders(page, q) }, [page, loadOrders])
+
+  // Refetch ao trocar conta ML selecionada (reseta pagina pra 1)
+  const { selected: _mlSelected } = useMlAccount()
+  useEffect(() => {
+    setPage(0)
+    loadOrders(0, q)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [_mlSelected])
   useEffect(() => { loadPending()        }, [loadPending])
 
   // Polling: refetch de 2 em 2 min
@@ -1925,6 +2226,7 @@ export default function PedidosPage() {
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <h1 className="text-white text-3xl font-semibold">Pedidos</h1>
           <div className="flex items-center gap-2">
+            <AccountSelector compact hideWhenEmpty />
             <PulsingButton
               onClick={sync}
               loading={syncing}
@@ -2126,19 +2428,21 @@ export default function PedidosPage() {
                   const itemId = oi?.item_id ?? oi?.item?.id ?? null
                   const vinculos = itemId ? (vinculosPorListing[itemId] ?? []) : []
                   // Match de SKU pra botão "Vincular" — só ativa quando
-                  // anúncio tem SKU E há produto no catálogo com o mesmo SKU.
-                  const sellerSku = oi?.seller_sku?.trim().toUpperCase() ?? null
-                  const skuMatchProduct = sellerSku ? skuToProduct[sellerSku] ?? null : null
+                  // anúncio tem SKU E há produto(s) no catálogo com mesmo SKU.
+                  const sellerSku = oi?.seller_sku?.trim() ?? null
+                  const sellerSkuKey = sellerSku ? sellerSku.toUpperCase() : null
+                  const skuMatchProducts = sellerSkuKey ? (skuToProducts[sellerSkuKey] ?? []) : []
                   return (
                     <OrderCard
                       key={order.order_id}
                       order={order}
                       itemId={itemId}
                       vinculos={vinculos}
-                      skuMatchProduct={skuMatchProduct}
+                      sellerSku={sellerSku}
+                      skuMatchProducts={skuMatchProducts}
                       onSalvar={salvar}
                       onCriarProduto={criarProduto}
-                      onVincularPorSku={vincularPorSku}
+                      onOpenVincularModal={(payload) => setVincularModal(payload)}
                       onToast={toast}
                       getHeaders={getHeaders}
                       onOpenDetail={setOpenOrderId}
@@ -2161,6 +2465,22 @@ export default function PedidosPage() {
           onClose={() => setModal(false)}
           onSaved={() => { setModal(false); toast('Venda registrada com sucesso!', 'success') }}
           getHeaders={getHeaders}
+        />
+      )}
+
+      {/* Modal de vínculo por SKU (popup acima da página de pedidos) */}
+      {vincularModal && (
+        <VincularModal
+          listingId={vincularModal.listingId}
+          listingTitle={vincularModal.listingTitle}
+          thumbnail={vincularModal.thumbnail}
+          sellerSku={vincularModal.sellerSku}
+          candidates={vincularModal.candidates}
+          allOrders={orders}
+          vinculosPorListing={vinculosPorListing}
+          onSave={vincularPorSku}
+          onClose={() => setVincularModal(null)}
+          onToast={toast}
         />
       )}
 
