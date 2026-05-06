@@ -146,3 +146,88 @@ export const TONE_OPTIONS: Array<{ value: string; label: string; description: st
 
 export const IMAGE_COUNT_OPTIONS = [5, 7, 10, 11] as const
 export const IMAGE_FORMAT_OPTIONS = ['1200x1200', '1200x1500', '1000x1000', '800x800'] as const
+
+// ── E2: Image Pipeline ─────────────────────────────────────────────────────
+
+export type JobStatus =
+  | 'queued'
+  | 'generating_prompts'
+  | 'generating_images'
+  | 'completed'
+  | 'failed'
+  | 'cancelled'
+
+export type ImageStatus =
+  | 'pending'
+  | 'generating'
+  | 'ready'
+  | 'approved'
+  | 'rejected'
+  | 'failed'
+
+export interface CreativeImageJob {
+  id:                  string
+  organization_id:     string
+  product_id:          string
+  briefing_id:         string
+  listing_id:          string | null
+  user_id:             string | null
+  status:              JobStatus
+  requested_count:     number
+  completed_count:     number
+  failed_count:        number
+  approved_count:      number
+  rejected_count:      number
+  max_cost_usd:        number
+  total_cost_usd:      number
+  prompts_generated:   string[]
+  prompts_metadata:    Record<string, unknown>
+  error_message:       string | null
+  started_at:          string | null
+  completed_at:        string | null
+  created_at:          string
+  updated_at:          string
+}
+
+export interface CreativeImage {
+  id:                   string
+  job_id:               string
+  product_id:           string
+  organization_id:      string
+  position:             number
+  prompt_text:          string
+  status:               ImageStatus
+  storage_path:         string | null
+  generation_metadata:  Record<string, unknown>
+  regenerated_from_id:  string | null
+  approved_at:          string | null
+  approved_by:          string | null
+  rejected_at:          string | null
+  rejected_by:          string | null
+  error_message:        string | null
+  created_at:           string
+  updated_at:           string
+  signed_image_url?:    string | null
+}
+
+export const JOB_STATUS_LABELS: Record<JobStatus, string> = {
+  queued:             'Na fila',
+  generating_prompts: 'Gerando prompts',
+  generating_images:  'Gerando imagens',
+  completed:          'Concluído',
+  failed:             'Falhou',
+  cancelled:          'Cancelado',
+}
+
+export const IMAGE_STATUS_LABELS: Record<ImageStatus, string> = {
+  pending:    'Aguardando',
+  generating: 'Gerando',
+  ready:      'Pronta',
+  approved:   'Aprovada',
+  rejected:   'Rejeitada',
+  failed:     'Falhou',
+}
+
+export function isJobActive(status: JobStatus): boolean {
+  return status === 'queued' || status === 'generating_prompts' || status === 'generating_images'
+}

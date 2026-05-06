@@ -3,7 +3,10 @@
 // fetch com Authorization Bearer.
 
 import { createClient } from '@/lib/supabase'
-import type { CreativeProduct, CreativeBriefing, CreativeListing, Marketplace } from './types'
+import type {
+  CreativeProduct, CreativeBriefing, CreativeListing, Marketplace,
+  CreativeImageJob, CreativeImage,
+} from './types'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
@@ -177,4 +180,39 @@ export const CreativeApi = {
       by_operation:      Record<string, { count: number; cost_usd: number }>
       by_product_top10:  Array<{ product_id: string | null; product_name: string | null; count: number; cost_usd: number }>
     }>(`/creative/usage?days=${days}`),
+
+  // ── E2: Image pipeline ──────────────────────────────────────────────────
+  createImageJob: (body: {
+    product_id:    string
+    briefing_id:   string
+    listing_id?:   string
+    count?:        number
+    max_cost_usd?: number
+  }) =>
+    api<CreativeImageJob>('/creative/image-jobs', {
+      method: 'POST', body: JSON.stringify(body),
+    }),
+
+  getImageJob: (id: string) =>
+    api<CreativeImageJob>(`/creative/image-jobs/${id}`),
+
+  listJobImages: (id: string) =>
+    api<CreativeImage[]>(`/creative/image-jobs/${id}/images`),
+
+  listProductImageJobs: (productId: string) =>
+    api<CreativeImageJob[]>(`/creative/products/${productId}/image-jobs`),
+
+  cancelImageJob: (id: string) =>
+    api<CreativeImageJob>(`/creative/image-jobs/${id}/cancel`, { method: 'POST' }),
+
+  approveImage: (id: string) =>
+    api<CreativeImage>(`/creative/images/${id}/approve`, { method: 'POST' }),
+
+  rejectImage: (id: string) =>
+    api<CreativeImage>(`/creative/images/${id}/reject`, { method: 'POST' }),
+
+  regenerateImage: (id: string, prompt?: string) =>
+    api<CreativeImage>(`/creative/images/${id}/regenerate`, {
+      method: 'POST', body: JSON.stringify({ prompt }),
+    }),
 }
