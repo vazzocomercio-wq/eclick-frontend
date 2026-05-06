@@ -169,6 +169,7 @@ const SECTIONS: NavSection[] = [
           { label: 'Instagram / Facebook', href: '/dashboard/social-commerce/instagram' },
         ],
       },
+      { label: 'Ads Hub (IA)', href: '/dashboard/ads-campaigns', icon: <Megaphone size={15} /> },
       { label: 'IA Criativo',      href: '/dashboard/creative',            icon: <Wand2 size={15} /> },
       { label: 'Biblioteca',       href: '/dashboard/producao/biblioteca', icon: <ImageIcon size={15} /> },
     ],
