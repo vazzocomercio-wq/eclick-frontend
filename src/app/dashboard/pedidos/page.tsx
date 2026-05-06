@@ -2112,36 +2112,50 @@ export default function PedidosPage() {
   }, [getHeaders])
 
   const criarProduto = useCallback(async (itemId: string) => {
-    const headers = await getHeaders()
-    const res = await fetch(`${BACKEND}/ml/products/from-listing`, {
-      method: 'POST',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ listing_ids: [itemId] }),
-    })
-    const data = await res.json()
-    const results: CreateResult[] = data.results ?? []
-    const created = results.find(r => r.status === 'created')
-    const skipped = results.find(r => r.status === 'skipped')
-    if (!created && !skipped) {
-      throw new Error(results[0]?.reason ?? data.message ?? `HTTP ${res.status}`)
-    }
-    toast(created ? 'Produto criado com sucesso!' : 'Produto já existe no catálogo', created ? 'success' : 'info')
-
-    const { data: allVinculos } = await supabase
-      .from('product_listings')
-      .select('listing_id, quantity_per_unit, product:products(id, sku, name, cost_price, tax_percentage)')
-      .eq('is_active', true)
-      .eq('platform', 'mercadolivre')
-    if (allVinculos && allVinculos.length > 0) {
-      const rows = allVinculos as unknown as VinculoItem[]
-      const map: Record<string, VinculoItem[]> = {}
-      for (const v of rows) {
-        if (!v.product?.id) continue
-        const lid = v.listing_id
-        if (!map[lid]) map[lid] = []
-        map[lid].push(v)
+    try {
+      const headers = await getHeaders()
+      // Multi-conta: passa seller_id selecionado pra backend usar token
+      // certo. Sem isso, ML retorna 404 quando o anúncio é da outra conta.
+      const sellerId = getStoredSellerId()
+      const res = await fetch(`${BACKEND}/ml/products/from-listing`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          listing_ids: [itemId],
+          ...(sellerId != null ? { seller_id: sellerId } : {}),
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      const results: CreateResult[] = data.results ?? []
+      const created = results.find(r => r.status === 'created')
+      const skipped = results.find(r => r.status === 'skipped')
+      const errored = results.find(r => r.status === 'error')
+      if (!created && !skipped) {
+        const reason = errored?.reason ?? results[0]?.reason ?? (data as { message?: string }).message ?? `HTTP ${res.status}`
+        toast(`Erro ao criar produto: ${reason}`, 'error')
+        return
       }
-      setVinculosPorListing(map)
+      toast(created ? 'Produto criado e vinculado!' : 'Produto já existe no catálogo', created ? 'success' : 'info')
+
+      // Atualiza vinculos local pra habilitar campos CMV/Imposto sem F5
+      const { data: allVinculos } = await supabase
+        .from('product_listings')
+        .select('listing_id, quantity_per_unit, product:products(id, sku, name, cost_price, tax_percentage)')
+        .eq('is_active', true)
+        .eq('platform', 'mercadolivre')
+      if (allVinculos && allVinculos.length > 0) {
+        const rows = allVinculos as unknown as VinculoItem[]
+        const map: Record<string, VinculoItem[]> = {}
+        for (const v of rows) {
+          if (!v.product?.id) continue
+          const lid = v.listing_id
+          if (!map[lid]) map[lid] = []
+          map[lid].push(v)
+        }
+        setVinculosPorListing(map)
+      }
+    } catch (e) {
+      toast(`Erro ao criar produto: ${(e as Error).message}`, 'error')
     }
   }, [getHeaders, supabase])
 
