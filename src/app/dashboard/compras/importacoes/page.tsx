@@ -1257,16 +1257,8 @@ export default function ImportacoesPage() {
 
   return (
     <>
-      <style>{`
-        .kanban-scroll::-webkit-scrollbar { width: 4px }
-        .kanban-scroll::-webkit-scrollbar-track { background: transparent }
-        .kanban-scroll::-webkit-scrollbar-thumb { background: #27272a; border-radius: 2px }
-        .kanban-scroll::-webkit-scrollbar-thumb:hover { background: #3f3f46 }
-        .kanban-scroll-x::-webkit-scrollbar { height: 4px }
-        .kanban-scroll-x::-webkit-scrollbar-track { background: transparent }
-        .kanban-scroll-x::-webkit-scrollbar-thumb { background: #27272a; border-radius: 2px }
-        .kanban-scroll-x::-webkit-scrollbar-thumb:hover { background: #3f3f46 }
-      `}</style>
+      {/* scrollbars .kanban-scroll/.kanban-scroll-x herdam o estilo global
+          definido em src/app/globals.css (thin, dark, hover cyan). */}
 
       {/* Overlays */}
       {showNew    && <NewPoModal suppliers={suppliers} onClose={() => setShowNew(false)} onCreated={() => { setShowNew(false); fetchPos() }} />}
