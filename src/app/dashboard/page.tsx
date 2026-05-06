@@ -1061,9 +1061,17 @@ export default function DashboardPage() {
       {/* LINHA 2 — Cards grandes: Faturamento + Lucro */}
       <div className="grid grid-cols-2 gap-4">
 
-        {/* Faturamento */}
-        <div className="rounded-2xl p-6 transition-all"
-          style={{ background: 'linear-gradient(135deg,#0d1a1a,#091414)', border: '1px solid rgba(0,229,255,0.2)' }}>
+        {/* Faturamento — fundo com glow radial cyan (canto sup-dir) + counter-glow (canto inf-esq) */}
+        <div className="rounded-2xl p-6 transition-all relative overflow-hidden"
+          style={{
+            background: [
+              'radial-gradient(ellipse 70% 55% at 100% 0%, rgba(0,229,255,0.22), rgba(0,229,255,0) 65%)',
+              'radial-gradient(ellipse 60% 50% at 0% 100%, rgba(0,229,255,0.07), rgba(0,229,255,0) 60%)',
+              'linear-gradient(135deg, #0d1a1a, #091414)',
+            ].join(', '),
+            border: '1px solid rgba(0,229,255,0.25)',
+            boxShadow: '0 0 32px -12px rgba(0,229,255,0.2), inset 0 1px 0 rgba(255,255,255,0.04)',
+          }}>
           <p className="text-[#00E5FF] text-xs uppercase tracking-widest mb-3">
             Faturamento — {PERIOD_LABEL[period]}
           </p>
@@ -1104,9 +1112,17 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* Lucro */}
-        <div className="rounded-2xl p-6 transition-all"
-          style={{ background: 'linear-gradient(135deg,#0d1a0d,#091409)', border: '1px solid rgba(34,197,94,0.2)' }}>
+        {/* Lucro — mesmo efeito do Faturamento mas em verde (#22c55e) */}
+        <div className="rounded-2xl p-6 transition-all relative overflow-hidden"
+          style={{
+            background: [
+              'radial-gradient(ellipse 70% 55% at 100% 0%, rgba(34,197,94,0.22), rgba(34,197,94,0) 65%)',
+              'radial-gradient(ellipse 60% 50% at 0% 100%, rgba(34,197,94,0.07), rgba(34,197,94,0) 60%)',
+              'linear-gradient(135deg, #0d1a0d, #091409)',
+            ].join(', '),
+            border: '1px solid rgba(34,197,94,0.25)',
+            boxShadow: '0 0 32px -12px rgba(34,197,94,0.2), inset 0 1px 0 rgba(255,255,255,0.04)',
+          }}>
           <p className="text-[#22c55e] text-xs uppercase tracking-widest mb-3">
             Lucro Estimado — {PERIOD_LABEL[period]}
           </p>
