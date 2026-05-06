@@ -7,6 +7,8 @@ import type {
   CreativeProduct, CreativeBriefing, CreativeListing, Marketplace,
   CreativeImageJob, CreativeImage,
   CreativeVideoJob, CreativeVideo, KlingModel, VideoDuration, VideoAspectRatio,
+  MlPublishContext, MlPredictedCategory, MlRequiredAttribute, MlPreviewResponse,
+  MlListingType, MlCondition,
 } from './types'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
@@ -254,5 +256,29 @@ export const CreativeApi = {
   regenerateVideo: (id: string, prompt?: string) =>
     api<CreativeVideo>(`/creative/videos/${id}/regenerate`, {
       method: 'POST', body: JSON.stringify({ prompt }),
+    }),
+
+  // ── E3c: ML Publisher (F1+F2) ───────────────────────────────────────────
+  getMlContext: (listingId: string) =>
+    api<MlPublishContext>(`/creative/listings/${listingId}/ml-context`),
+
+  predictMlCategory: (title: string) =>
+    api<MlPredictedCategory>(`/creative/ml/predict-category?title=${encodeURIComponent(title)}`),
+
+  getMlCategoryAttributes: (categoryId: string) =>
+    api<MlRequiredAttribute[]>(`/creative/ml/categories/${encodeURIComponent(categoryId)}/attributes`),
+
+  buildMlPreview: (listingId: string, body: {
+    image_ids:     string[]
+    video_id?:     string | null
+    price:         number
+    stock:         number
+    listing_type?: MlListingType
+    category_id?:  string
+    attributes?:   Array<{ id: string; value_name?: string; value_id?: string }>
+    condition?:    MlCondition
+  }) =>
+    api<MlPreviewResponse>(`/creative/listings/${listingId}/ml-preview`, {
+      method: 'POST', body: JSON.stringify(body),
     }),
 }

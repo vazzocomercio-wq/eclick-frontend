@@ -342,3 +342,66 @@ export const VIDEO_ASPECT_OPTIONS: Array<{ value: VideoAspectRatio; label: strin
   { value: '16:9', label: '16:9 (landscape)',   emoji: '🖥️' },
   { value: '9:16', label: '9:16 (vertical)',    emoji: '📱' },
 ]
+
+// ── E3c: ML Publisher ─────────────────────────────────────────────────────
+
+export type MlListingType = 'free' | 'gold_special' | 'gold_pro'
+export type MlCondition   = 'new' | 'used' | 'not_specified'
+
+export interface MlPublishContext {
+  listing: CreativeListing
+  product: CreativeProduct
+  briefing_id: string
+  approved_images: Array<{
+    id:               string
+    position:         number
+    storage_path:     string
+    signed_image_url: string
+  }>
+  approved_videos: Array<{
+    id:               string
+    position:         number
+    storage_path:     string
+    signed_video_url: string
+    duration_seconds: number
+  }>
+  sku_suggestion: { product_id: string; sku: string; price: number | null; stock: number | null } | null
+}
+
+export interface MlPredictedCategory {
+  category_id:   string | null
+  category_name: string | null
+  domain_id:     string | null
+  domain_name:   string | null
+  suggested_attributes: Array<{ id: string; name: string; value_id?: string; value_name?: string }>
+}
+
+export interface MlRequiredAttribute {
+  id:               string
+  name:             string
+  value_type:       string  // string | number | boolean | list | number_unit
+  required:         boolean
+  value_max_length?: number
+  values?:          Array<{ id: string; name: string }>
+  hint?:            string
+}
+
+export interface MlPreviewResponse {
+  ready:    boolean
+  warnings: string[]
+  predicted_category:  MlPredictedCategory
+  required_attributes: MlRequiredAttribute[]
+  ml_payload:          Record<string, unknown>
+}
+
+export const ML_LISTING_TYPE_OPTIONS: Array<{ value: MlListingType; label: string; description: string }> = [
+  { value: 'free',         label: 'Free',         description: 'Sem custo de listagem, sem destaques' },
+  { value: 'gold_special', label: 'Gold Especial', description: 'Pago, com destaques e mais visibilidade' },
+  { value: 'gold_pro',     label: 'Gold Pro',     description: 'Pago premium, máxima exposição' },
+]
+
+export const ML_CONDITION_OPTIONS: Array<{ value: MlCondition; label: string }> = [
+  { value: 'new',           label: 'Novo' },
+  { value: 'used',          label: 'Usado' },
+  { value: 'not_specified', label: 'Não especificado' },
+]

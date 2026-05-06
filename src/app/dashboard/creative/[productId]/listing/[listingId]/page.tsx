@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
-  ArrowLeft, Sparkles, Check, Loader2, RefreshCw, X, AlertCircle, Eye, Edit3,
+  ArrowLeft, Sparkles, Check, Loader2, RefreshCw, X, AlertCircle, Eye, Edit3, Send,
 } from 'lucide-react'
 import ListingEditor from '@/components/creative/ListingEditor'
 import ListingPreview from '@/components/creative/ListingPreview'
@@ -139,6 +139,13 @@ export default function ListingDetailPage() {
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
+            <Link
+              href={`/dashboard/creative/${productId}/listing/${listingId}/publish/ml`}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-400/10 hover:bg-amber-400/20 border border-amber-400/30 text-amber-200 text-xs transition-all"
+              title="Preparar publicação no Mercado Livre"
+            >
+              <Send size={12} /> 🟡 Publicar no ML
+            </Link>
             <button
               type="button"
               onClick={() => setRegenOpen(true)}
