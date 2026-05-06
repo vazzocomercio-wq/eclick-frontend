@@ -498,7 +498,8 @@ export default function MLPublishPage() {
 
               {videoId && (
                 <p className="text-[11px] text-amber-300">
-                  ℹ️ Vídeo selecionado mas <strong>não vai pro ML nesta versão</strong> — upload de vídeo será adicionado em F3.1.
+                  ℹ️ Vídeo selecionado: tentaremos upload pro ML. Se a API rejeitar (depende da região/conta),
+                  o anúncio publica sem vídeo e a razão fica registrada no histórico.
                 </p>
               )}
 
@@ -530,7 +531,14 @@ export default function MLPublishPage() {
 
 // ── Sub-components ────────────────────────────────────────────────────────
 
-function PublicationRow({ pub }: { pub: CreativePublication }) {
+function PublicationRow({ pub: initial }: { pub: CreativePublication }) {
+  const [pub, setPub] = useState(initial)
+  const [syncing, setSyncing] = useState(false)
+  const [syncError, setSyncError] = useState<string | null>(null)
+
+  // Re-sync com prop quando muda externamente
+  useEffect(() => { setPub(initial) }, [initial])
+
   const cfg: Record<CreativePublication['status'], { label: string; className: string }> = {
     pending:    { label: 'pendente',    className: 'bg-zinc-900 text-zinc-400 border-zinc-700' },
     publishing: { label: 'publicando',  className: 'bg-cyan-400/10 text-cyan-300 border-cyan-400/30' },
@@ -538,35 +546,87 @@ function PublicationRow({ pub }: { pub: CreativePublication }) {
     failed:     { label: '✗ falhou',    className: 'bg-red-500/10 text-red-300 border-red-500/30' },
   }
   const c = cfg[pub.status]
+
+  async function sync() {
+    if (syncing) return
+    setSyncError(null); setSyncing(true)
+    try {
+      const updated = await CreativeApi.syncPublication(pub.id)
+      setPub(updated)
+    } catch (e: unknown) {
+      setSyncError((e as Error).message)
+    } finally {
+      setSyncing(false)
+    }
+  }
+
   return (
-    <div className="flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-900/30 px-3 py-2 text-xs">
-      <div className="flex items-center gap-2 min-w-0">
-        <span className={`px-2 py-0.5 rounded-full text-[10px] border ${c.className}`}>{c.label}</span>
-        {pub.external_id && (
-          <span className="font-mono text-cyan-300 text-[10px]">{pub.external_id}</span>
-        )}
-        <span className="text-zinc-500 text-[10px] truncate">
-          {new Date(pub.created_at).toLocaleString('pt-BR')}
-        </span>
-      </div>
-      <div className="flex items-center gap-2 shrink-0">
-        {pub.error_message && pub.status === 'failed' && (
-          <span className="text-[10px] text-red-300 truncate max-w-xs" title={pub.error_message}>
-            {pub.error_message.slice(0, 60)}
+    <div className="rounded-lg border border-zinc-800 bg-zinc-900/30 px-3 py-2">
+      <div className="flex items-center justify-between gap-2 text-xs">
+        <div className="flex items-center gap-2 min-w-0 flex-wrap">
+          <span className={`px-2 py-0.5 rounded-full text-[10px] border ${c.className}`}>{c.label}</span>
+          {pub.external_id && (
+            <span className="font-mono text-cyan-300 text-[10px]">{pub.external_id}</span>
+          )}
+          {pub.last_synced_status && pub.status === 'published' && (
+            <MlStatusBadge status={pub.last_synced_status} syncedAt={pub.last_synced_at} />
+          )}
+          <span className="text-zinc-500 text-[10px]">
+            {new Date(pub.created_at).toLocaleString('pt-BR')}
           </span>
-        )}
-        {pub.external_url && (
-          <a
-            href={pub.external_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1 text-[10px] text-amber-300 hover:text-amber-200"
-          >
-            <ExternalLink size={10} /> ver no ML
-          </a>
-        )}
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {pub.status === 'published' && (
+            <button
+              type="button"
+              onClick={sync}
+              disabled={syncing}
+              className="flex items-center gap-1 text-[10px] text-zinc-500 hover:text-cyan-300 disabled:opacity-50"
+              title="Sincronizar status com ML"
+            >
+              {syncing ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />}
+              sync
+            </button>
+          )}
+          {pub.external_url && (
+            <a
+              href={pub.external_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 text-[10px] text-amber-300 hover:text-amber-200"
+            >
+              <ExternalLink size={10} /> ver no ML
+            </a>
+          )}
+        </div>
       </div>
+      {pub.error_message && pub.status === 'failed' && (
+        <p className="mt-1 text-[10px] text-red-300 truncate" title={pub.error_message}>
+          ⚠ {pub.error_message}
+        </p>
+      )}
+      {syncError && (
+        <p className="mt-1 text-[10px] text-red-300">sync: {syncError}</p>
+      )}
     </div>
+  )
+}
+
+function MlStatusBadge({ status, syncedAt }: { status: string; syncedAt: string | null }) {
+  const cfg: Record<string, { label: string; className: string }> = {
+    active:           { label: 'ativo',          className: 'bg-emerald-400/10 text-emerald-300 border-emerald-400/30' },
+    paused:           { label: 'pausado',        className: 'bg-amber-400/10 text-amber-300 border-amber-400/30' },
+    closed:           { label: 'encerrado',      className: 'bg-zinc-800 text-zinc-400 border-zinc-700' },
+    under_review:     { label: 'em revisão',     className: 'bg-blue-400/10 text-blue-300 border-blue-400/30' },
+    inactive:         { label: 'inativo',        className: 'bg-red-500/10 text-red-300 border-red-500/30' },
+    payment_required: { label: 'pagto pendente', className: 'bg-red-500/10 text-red-300 border-red-500/30' },
+  }
+  const c = cfg[status] ?? { label: status, className: 'bg-zinc-900 text-zinc-300 border-zinc-700' }
+  const hint = syncedAt ? `Sincronizado em ${new Date(syncedAt).toLocaleString('pt-BR')}` : 'Não sincronizado'
+  return (
+    <span title={hint} className={`px-2 py-0.5 rounded-full text-[10px] border ${c.className}`}>
+      ML: {c.label}
+    </span>
   )
 }
 

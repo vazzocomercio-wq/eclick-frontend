@@ -302,4 +302,7 @@ export const CreativeApi = {
 
   getPublication: (id: string) =>
     api<CreativePublication>(`/creative/publications/${id}`),
+
+  syncPublication: (id: string) =>
+    api<CreativePublication>(`/creative/publications/${id}/sync`, { method: 'POST' }),
 }
