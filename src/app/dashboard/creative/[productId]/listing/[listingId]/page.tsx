@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
-  ArrowLeft, Sparkles, Check, Loader2, RefreshCw, X, AlertCircle, Eye, Edit3, Send,
+  ArrowLeft, Sparkles, Check, Loader2, RefreshCw, X, AlertCircle, Eye, Edit3, Send, Diff,
 } from 'lucide-react'
 import ListingEditor from '@/components/creative/ListingEditor'
 import ListingPreview from '@/components/creative/ListingPreview'
@@ -139,6 +139,21 @@ export default function ListingDetailPage() {
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
+            {allListings.length >= 2 && (() => {
+              // Pre-seleciona current vs versão anterior na mesma chain (se houver)
+              const currentIdx  = allListings.findIndex(x => x.id === listing.id)
+              const otherListing = allListings[currentIdx + 1] ?? allListings.find(x => x.id !== listing.id)
+              if (!otherListing) return null
+              return (
+                <Link
+                  href={`/dashboard/creative/${productId}/listing/compare?a=${otherListing.id}&b=${listing.id}`}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-cyan-400/40 text-zinc-200 text-xs transition-all"
+                  title="Comparar com outra versão"
+                >
+                  <Diff size={12} /> Comparar versões
+                </Link>
+              )
+            })()}
             <Link
               href={`/dashboard/creative/${productId}/listing/${listingId}/publish/ml`}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-400/10 hover:bg-amber-400/20 border border-amber-400/30 text-amber-200 text-xs transition-all"
