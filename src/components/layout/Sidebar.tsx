@@ -12,7 +12,7 @@ import {
   Megaphone, ShoppingCart, TrendingUp, Settings, UserCog,
   Plug, Database, ChevronDown, Bot, Inbox, BookOpen,
   GraduationCap, LineChart, Shield, Users2, TrendingDown,
-  Zap, Map as MapIcon, Bell,
+  Zap, Map as MapIcon, Bell, Wand2,
 } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
@@ -155,6 +155,7 @@ const SECTIONS: NavSection[] = [
     items: [
       { label: 'Tarefas',         href: '/dashboard/producao/tarefas',    icon: <CheckSquare size={15} /> },
       { label: 'Conteúdo com IA', href: '/dashboard/producao/conteudo',   icon: <Sparkles size={15} /> },
+      { label: 'IA Criativo',     href: '/dashboard/creative',            icon: <Wand2 size={15} /> },
       { label: 'Biblioteca',      href: '/dashboard/producao/biblioteca',  icon: <ImageIcon size={15} /> },
     ],
   },
