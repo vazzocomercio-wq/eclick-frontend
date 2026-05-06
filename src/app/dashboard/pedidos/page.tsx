@@ -1906,7 +1906,14 @@ export default function PedidosPage() {
     setKpiLoad(true)
     try {
       const headers = await getHeaders()
-      const res = await fetch(`${BACKEND}/ml/orders/kpis`, { headers })
+      // Multi-conta: respeita conta selecionada no AccountSelector. Sem isso,
+      // backend cai no default ("conta mais recente") que pode estar
+      // diferente da conta que o user vê na lista — KPIs descalibrados.
+      const sellerId = getStoredSellerId()
+      const url = sellerId != null
+        ? `${BACKEND}/ml/orders/kpis?seller_id=${sellerId}`
+        : `${BACKEND}/ml/orders/kpis`
+      const res = await fetch(url, { headers })
       if (res.ok) setKpis(await res.json())
     } catch { /* silent */ }
     finally { setKpiLoad(false) }
@@ -2144,11 +2151,14 @@ export default function PedidosPage() {
   useEffect(() => { loadKpis()          }, [loadKpis])
   useEffect(() => { loadOrders(page, q) }, [page, loadOrders])
 
-  // Refetch ao trocar conta ML selecionada (reseta pagina pra 1)
+  // Refetch ao trocar conta ML selecionada (reseta pagina pra 1).
+  // Inclui KPIs E pending pra todos os 3 datasets respeitarem a conta atual.
   const { selected: _mlSelected } = useMlAccount()
   useEffect(() => {
     setPage(0)
     loadOrders(0, q)
+    loadKpis()
+    loadPending()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [_mlSelected])
   useEffect(() => { loadPending()        }, [loadPending])
