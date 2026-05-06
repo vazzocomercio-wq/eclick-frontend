@@ -1902,6 +1902,7 @@ export default function PedidosPage() {
   const tid = useRef(0)
   const pageRef = useRef(0)
   const qRef    = useRef('')
+  const tabRef  = useRef<TabKey>('abertas')
 
   function toast(msg: string, type: Toast['type'] = 'info') {
     const id = ++tid.current
@@ -1961,16 +1962,17 @@ export default function PedidosPage() {
     finally { setSyncing(false) }
   }, [syncing, getHeaders, loadPending])
 
-  const loadOrders = useCallback(async (currentPage: number, query: string) => {
+  const loadOrders = useCallback(async (currentPage: number, query: string, currentTab: TabKey) => {
     setLoading(true)
     try {
       const headers = await getHeaders()
       const params  = new URLSearchParams({ offset: String(currentPage * pageSize), limit: String(pageSize) })
-      if (query.trim()) params.set('q', query.trim())
+      if (query.trim())  params.set('q', query.trim())
       const sellerId = getStoredSellerId()
       if (sellerId != null) params.set('seller_id', String(sellerId))
-      // /orders/list le da tabela orders (sales-aggregator sync) — instantaneo
-      // vs /ml/orders/enriched que chamava ML em runtime (3-8s).
+      // Filtro por tab no servidor — evita reduzir N por pagina quando
+      // a aba ativa nao bate com a maioria dos pedidos retornados.
+      params.set('tab', currentTab)
       const res  = await fetch(`${BACKEND}/orders/list?${params}`, { headers })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const body = await res.json()
@@ -2174,27 +2176,32 @@ export default function PedidosPage() {
 
   useEffect(() => { pageRef.current = page }, [page])
   useEffect(() => { qRef.current = q      }, [q])
+  useEffect(() => { tabRef.current = tab  }, [tab])
 
-  useEffect(() => { loadKpis()          }, [loadKpis])
-  useEffect(() => { loadOrders(page, q) }, [page, loadOrders])
+  useEffect(() => { loadKpis()                  }, [loadKpis])
+  // Refetch quando page, tab ou loadOrders mudam (loadOrders muda com pageSize).
+  useEffect(() => { loadOrders(page, q, tab)    }, [page, tab, loadOrders])
+
+  // Reseta pra pagina 1 ao trocar tab (UX coerente com filtros)
+  useEffect(() => { setPage(0) }, [tab])
 
   // Refetch ao trocar conta ML selecionada (reseta pagina pra 1).
   // Inclui KPIs E pending pra todos os 3 datasets respeitarem a conta atual.
   const { selected: _mlSelected } = useMlAccount()
   useEffect(() => {
     setPage(0)
-    loadOrders(0, q)
+    loadOrders(0, q, tabRef.current)
     loadKpis()
     loadPending()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [_mlSelected])
-  useEffect(() => { loadPending()        }, [loadPending])
+  useEffect(() => { loadPending() }, [loadPending])
 
   // Polling: refetch de 2 em 2 min
   useEffect(() => {
     const interval = setInterval(() => {
       console.log('[pedidos] refetch automático de status')
-      loadOrders(pageRef.current, qRef.current)
+      loadOrders(pageRef.current, qRef.current, tabRef.current)
     }, 120_000)
     return () => clearInterval(interval)
   }, [loadOrders])
@@ -2213,6 +2220,9 @@ export default function PedidosPage() {
     return c as Record<TabKey, number>
   }, [orders])
 
+  // Servidor já filtra pelo tab via /orders/list?tab=. Mantemos o filter
+  // client-side como guard contra dessincronia (caso o servidor retorne
+  // edge cases que classifyOrder reclassificaria).
   const filtered = useMemo(() => orders.filter(o => classifyOrder(o) === tab), [orders, tab])
 
   const cur  = kpis?.current_month
@@ -2332,17 +2342,17 @@ export default function PedidosPage() {
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2">
           <input value={q} onChange={e => setQ(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && (setPage(0), loadOrders(0, q))}
+            onKeyDown={e => e.key === 'Enter' && (setPage(0), loadOrders(0, q, tab))}
             placeholder="Buscar por comprador, produto..."
             className="text-sm px-4 py-2 rounded-xl text-zinc-200 placeholder-zinc-600 outline-none w-72"
             style={{ background: '#111114', border: '1px solid #27272a' }} />
-          <button onClick={() => { setPage(0); loadOrders(0, q) }}
+          <button onClick={() => { setPage(0); loadOrders(0, q, tab) }}
             className="text-sm px-5 py-2 rounded-xl font-semibold hover:opacity-90 transition-opacity"
             style={{ background: '#00E5FF', color: '#000' }}>
             Buscar
           </button>
           {q && (
-            <button onClick={() => { setQ(''); loadOrders(0, '') }}
+            <button onClick={() => { setQ(''); loadOrders(0, '', tab) }}
               className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors px-2">
               Limpar
             </button>
@@ -2410,7 +2420,7 @@ export default function PedidosPage() {
         <PedidosTable
           orders={filtered}
           loading={loading}
-          onRefresh={() => loadOrders(pageRef.current, qRef.current)}
+          onRefresh={() => loadOrders(pageRef.current, qRef.current, tabRef.current)}
           onViewDetails={(o) => setOpenOrderId(String(o.order_id))}
           controlledPagination={{
             page:    page + 1,                              // parent: 0-indexed → DataTable: 1-indexed
