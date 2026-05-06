@@ -7,7 +7,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import { useTodayOrders } from '@/hooks/useTodayOrders'
 import HubSummaryCard from '@/components/inteligencia/HubSummaryCard'
-import AccountSelector from '@/components/ml/AccountSelector'
+import AccountSelector, { useMlAccount, getStoredSellerId } from '@/components/ml/AccountSelector'
 import {
   AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip,
@@ -560,6 +560,7 @@ export default function DashboardPage() {
   const [refreshing, setRefreshing] = useState(false)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [mlConnected, setMlConnected] = useState(false)
+  const { selected: mlSelectedAccount } = useMlAccount()
   const [sellerInfo, setSellerInfo] = useState<SellerInfo | null>(null)
   const [mlItemsTotal, setMlItemsTotal] = useState<number | null>(null)
   const [aboveConcPrice, setAboveConcPrice] = useState(0)
@@ -635,13 +636,17 @@ export default function DashboardPage() {
     // Range pra Ads — mês atual em YYYY-MM-DD
     const monthStartStr = brazilDateStr(new Date(new Date().getFullYear(), new Date().getMonth(), 1))
     const todayStr = brazilDateStr()
+    // Multi-conta: append ?seller_id=X quando user selecionou conta especifica
+    const sellerIdSel = getStoredSellerId()
+    const sellerSuffix = sellerIdSel != null ? `&seller_id=${sellerIdSel}` : ''
+    const sellerOnly = sellerIdSel != null ? `?seller_id=${sellerIdSel}` : ''
     const [ordersRes, questionsRes, claimsRes, sellerRes, myItemsRes, finRes, adsRes, convsRes] = await Promise.allSettled([
-      fetch(`${BACKEND}/ml/recent-orders?limit=200`,  { headers: { Authorization: `Bearer ${token}` } }),
-      fetch(`${BACKEND}/ml/questions`,                 { headers: { Authorization: `Bearer ${token}` } }),
-      fetch(`${BACKEND}/ml/claims`,                    { headers: { Authorization: `Bearer ${token}` } }),
-      fetch(`${BACKEND}/ml/seller-info`,               { headers: { Authorization: `Bearer ${token}` } }),
-      fetch(`${BACKEND}/ml/my-items?limit=1`,          { headers: { Authorization: `Bearer ${token}` } }),
-      fetch(`${BACKEND}/ml/financial-summary?kpis_only=true&date_from=${encodeURIComponent(monthStart)}`, { headers: { Authorization: `Bearer ${token}` } }),
+      fetch(`${BACKEND}/ml/recent-orders?limit=200${sellerSuffix}`,  { headers: { Authorization: `Bearer ${token}` } }),
+      fetch(`${BACKEND}/ml/questions${sellerOnly}`,                  { headers: { Authorization: `Bearer ${token}` } }),
+      fetch(`${BACKEND}/ml/claims${sellerOnly}`,                     { headers: { Authorization: `Bearer ${token}` } }),
+      fetch(`${BACKEND}/ml/seller-info${sellerOnly}`,                { headers: { Authorization: `Bearer ${token}` } }),
+      fetch(`${BACKEND}/ml/my-items?limit=1${sellerSuffix}`,         { headers: { Authorization: `Bearer ${token}` } }),
+      fetch(`${BACKEND}/ml/financial-summary?kpis_only=true&date_from=${encodeURIComponent(monthStart)}${sellerSuffix}`, { headers: { Authorization: `Bearer ${token}` } }),
       fetch(`${BACKEND}/ml-ads/reports/summary?from=${monthStartStr}&to=${todayStr}`, { headers: { Authorization: `Bearer ${token}` } }),
       fetch(`${BACKEND}/atendente-ia/conversations?status=open`, { headers: { Authorization: `Bearer ${token}` } }),
     ])
@@ -735,6 +740,10 @@ export default function DashboardPage() {
 
   useEffect(() => { refresh(true) }, [refresh])
 
+  // Refetch ao trocar conta ML selecionada
+  useEffect(() => { refresh(false) /* silent reload */ // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mlSelectedAccount])
+
   useEffect(() => {
     supabase
       .from('product_listings')
@@ -792,7 +801,9 @@ export default function DashboardPage() {
         const token = await getToken()
         if (!token || cancelled) { if (!cancelled) setPeriodLoading(false); return }
         const { from, to } = getPeriodDates(period)
-        const url = `${BACKEND}/ml/recent-orders?date_from=${from}&date_to=${to}&limit=200`
+        const sellerIdSel = getStoredSellerId()
+        const sellerSuffix = sellerIdSel != null ? `&seller_id=${sellerIdSel}` : ''
+        const url = `${BACKEND}/ml/recent-orders?date_from=${from}&date_to=${to}&limit=200${sellerSuffix}`
         console.log('[period-fetch] URL:', url)
         const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
         if (!res.ok) {
@@ -810,7 +821,7 @@ export default function DashboardPage() {
       }
     })()
     return () => { cancelled = true }
-  }, [period])
+  }, [period, mlSelectedAccount])
 
   // ── Period data (prev) — previous period for comparison, independent ─────────
   useEffect(() => {
@@ -822,7 +833,9 @@ export default function DashboardPage() {
         if (!prevDates) return
         const token = await getToken()
         if (!token || cancelled) return
-        const url = `${BACKEND}/ml/recent-orders?date_from=${prevDates.from}&date_to=${prevDates.to}&limit=200`
+        const sellerIdSel = getStoredSellerId()
+        const sellerSuffix = sellerIdSel != null ? `&seller_id=${sellerIdSel}` : ''
+        const url = `${BACKEND}/ml/recent-orders?date_from=${prevDates.from}&date_to=${prevDates.to}&limit=200${sellerSuffix}`
         const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
         if (!res.ok || cancelled) return
         const data = await res.json()
@@ -839,7 +852,7 @@ export default function DashboardPage() {
       }
     })()
     return () => { cancelled = true }
-  }, [period])
+  }, [period, mlSelectedAccount])
 
   // ── Financial summary — exact totals from backend (all pages, no order list) ─
   useEffect(() => {
@@ -851,7 +864,9 @@ export default function DashboardPage() {
         const token = await getToken()
         if (!token || cancelled) { if (!cancelled) setSummaryLoading(false); return }
         const { from, to } = getPeriodDates(period)
-        const url = `${BACKEND}/ml/financial-summary?totals_only=true&date_from=${from}&date_to=${to}`
+        const sellerIdSel = getStoredSellerId()
+        const sellerSuffix = sellerIdSel != null ? `&seller_id=${sellerIdSel}` : ''
+        const url = `${BACKEND}/ml/financial-summary?totals_only=true&date_from=${from}&date_to=${to}${sellerSuffix}`
         const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
         if (!res.ok || cancelled) { if (!cancelled) setSummaryLoading(false); return }
         const data = await res.json()
@@ -862,7 +877,7 @@ export default function DashboardPage() {
       }
     })()
     return () => { cancelled = true }
-  }, [period])
+  }, [period, mlSelectedAccount])
 
   // ── Derived ──────────────────────────────────────────────────────────────────
 
