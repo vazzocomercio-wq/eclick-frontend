@@ -9,6 +9,7 @@ import {
   Globe, GlobeLock, ExternalLink, Eye, Layers,
 } from 'lucide-react'
 import AiScoreBadge from '@/components/catalog/AiScoreBadge'
+import ProductAiSuggestions from '@/components/catalog/ProductAiSuggestions'
 import { CatalogApi, type CatalogProductLight, SCORE_PART_LABELS, CATALOG_STATUS_LABELS } from '@/components/catalog/catalogApi'
 
 export default function ProductAiEnrichmentPage() {
@@ -136,6 +137,9 @@ export default function ProductAiEnrichmentPage() {
             </button>
           </div>
         </header>
+
+        {/* Sugestões aplicáveis (Delta extra) */}
+        <ProductAiSuggestions product={product} onApplied={load} />
 
         {/* Multi-channel preview (Delta 1) */}
         {(Object.keys(product.channel_titles ?? {}).length > 0 || Object.keys(product.channel_descriptions ?? {}).length > 0) && (
@@ -331,6 +335,64 @@ export default function ProductAiEnrichmentPage() {
               hint="Quando vende mais"
               value={product.ai_seasonality_hint}
             />
+
+            {/* Delta extra — campos estruturados de catálogo */}
+            {product.differentials.length > 0 && (
+              <ChipFieldCard
+                icon={<Sparkles size={12} />}
+                title="Diferenciais comerciais"
+                hint="USPs vs concorrente (≠ pros = benefícios)"
+                items={product.differentials}
+                tone="cyan"
+              />
+            )}
+            {Object.keys(product.technical_sheet ?? {}).length > 0 && (
+              <div className="rounded-lg border border-zinc-800 bg-zinc-900/30 p-3">
+                <header className="flex items-center gap-2 mb-2">
+                  <span className="text-cyan-400"><FileText size={12} /></span>
+                  <h3 className="text-xs font-semibold text-zinc-200 uppercase tracking-wider">Ficha técnica</h3>
+                  <span className="text-[10px] text-zinc-600">— {Object.keys(product.technical_sheet).length} campos</span>
+                </header>
+                <div className="rounded border border-zinc-800 overflow-hidden">
+                  <table className="w-full text-xs">
+                    <tbody>
+                      {Object.entries(product.technical_sheet).map(([k, v], i) => (
+                        <tr key={k} className={i % 2 === 0 ? 'bg-zinc-900' : 'bg-zinc-950'}>
+                          <td className="px-3 py-1.5 text-zinc-400 w-1/3">{k}</td>
+                          <td className="px-3 py-1.5 text-zinc-200">{String(v)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+            {product.faq.length > 0 && (
+              <div className="rounded-lg border border-zinc-800 bg-zinc-900/30 p-3">
+                <header className="flex items-center gap-2 mb-2">
+                  <span className="text-cyan-400"><FileText size={12} /></span>
+                  <h3 className="text-xs font-semibold text-zinc-200 uppercase tracking-wider">FAQ</h3>
+                  <span className="text-[10px] text-zinc-600">— {product.faq.length} perguntas</span>
+                </header>
+                <div className="space-y-1.5">
+                  {product.faq.map((f, i) => (
+                    <div key={i} className="rounded border border-zinc-800 bg-zinc-950 px-3 py-2">
+                      <p className="text-xs text-zinc-200 font-medium">{f.q}</p>
+                      <p className="text-[11px] text-zinc-400 mt-0.5">{f.a}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {product.tags.length > 0 && (
+              <ChipFieldCard
+                icon={<Tag size={12} />}
+                title="Tags"
+                hint="Categorização interna (≠ keywords)"
+                items={product.tags}
+                tone="violet"
+              />
+            )}
           </div>
         ) : (
           <div className="rounded-2xl border-2 border-dashed border-zinc-800 bg-zinc-900/30 p-12 text-center">

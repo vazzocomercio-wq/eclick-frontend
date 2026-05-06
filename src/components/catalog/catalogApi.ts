@@ -76,6 +76,16 @@ export interface CatalogProductLight {
   catalog_status:           CatalogStatus
   channel_titles:           Record<string, string>
   channel_descriptions:     Record<string, string>
+  // Delta extra — sugestões + campos oficiais
+  ai_analysis:              Record<string, unknown>
+  ai_suggested_title:       string | null
+  ai_suggested_bullets:     string[]
+  ai_suggested_category:    string | null
+  differentials:            string[]
+  bullets:                  string[]
+  technical_sheet:          Record<string, string>
+  faq:                      Array<{ q: string; a: string }>
+  tags:                     string[]
 }
 
 export interface ScoreBreakdown {
@@ -204,7 +214,7 @@ export const CatalogApi = {
     const sb = createClient()
     const { data, error } = await sb
       .from('products')
-      .select('id, organization_id, name, sku, brand, category, description, ml_title, gtin, weight_kg, width_cm, length_cm, height_cm, cost_price, price, stock, photo_urls, category_ml_id, status, ai_short_description, ai_long_description, ai_keywords, ai_target_audience, ai_use_cases, ai_pros, ai_cons, ai_seo_keywords, ai_seasonality_hint, ai_score, ai_score_breakdown, ai_enriched_at, ai_enrichment_version, ai_enrichment_cost_usd, ai_enrichment_pending, landing_published, landing_views, landing_published_at, landing_slug, catalog_status, channel_titles, channel_descriptions')
+      .select('id, organization_id, name, sku, brand, category, description, ml_title, gtin, weight_kg, width_cm, length_cm, height_cm, cost_price, price, stock, photo_urls, category_ml_id, status, ai_short_description, ai_long_description, ai_keywords, ai_target_audience, ai_use_cases, ai_pros, ai_cons, ai_seo_keywords, ai_seasonality_hint, ai_score, ai_score_breakdown, ai_enriched_at, ai_enrichment_version, ai_enrichment_cost_usd, ai_enrichment_pending, landing_published, landing_views, landing_published_at, landing_slug, catalog_status, channel_titles, channel_descriptions, ai_analysis, ai_suggested_title, ai_suggested_bullets, ai_suggested_category, differentials, bullets, technical_sheet, faq, tags')
       .eq('id', productId)
       .single()
     if (error) throw new Error(error.message)
@@ -245,6 +255,12 @@ export const CatalogApi = {
   setCatalogStatus: (productId: string, status: 'paused' | 'ready' | 'draft') =>
     api<{ catalog_status: CatalogStatus }>(`/products/${productId}/catalog-status`, {
       method: 'PATCH', body: JSON.stringify({ status }),
+    }),
+
+  /** Delta extra — copia ai_suggested_* pros campos oficiais. */
+  applySuggestions: (productId: string, body: { title?: boolean; description?: boolean; bullets?: boolean; category?: boolean; all?: boolean }) =>
+    api<{ applied: string[] }>(`/products/${productId}/apply-suggestions`, {
+      method: 'POST', body: JSON.stringify(body),
     }),
 
   /** L3 — Recomendações IA */
