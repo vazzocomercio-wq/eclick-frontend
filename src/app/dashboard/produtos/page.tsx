@@ -9,6 +9,7 @@ import AccountSelector from '@/components/ml/AccountSelector'
 import { PulsingButton } from '@/components/ui/pulsing-button'
 import { ProdutosTable } from './_components/ProdutosTable'
 import { useConfirm } from '@/components/ui/dialog-provider'
+import BulkCostUploadModal from '@/components/catalog/BulkCostUploadModal'
 
 const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
@@ -811,6 +812,7 @@ export default function ProdutosPage() {
   const [selected, setSelected]     = useState<Set<string>>(new Set())
   const [orgId, setOrgId]           = useState<string | null>(null)
   const [showMlImport, setShowMlImport] = useState(false)
+  const [showBulkCost, setShowBulkCost] = useState(false)
   const [mlConnected, setMlConnected]   = useState(false)
   const [stockMap, setStockMap]         = useState<Record<string, StockSummary>>({})
   const confirm = useConfirm()
@@ -1007,6 +1009,17 @@ export default function ProdutosPage() {
               Importar do ML
             </button>
           )}
+          <button
+            onClick={() => setShowBulkCost(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold border transition-all active:scale-[0.98]"
+            style={{ borderColor: 'rgba(34,197,94,0.4)', color: '#4ADE80', background: 'rgba(34,197,94,0.06)' }}
+            title="Importar planilha XLSX/CSV pra atualizar custos e impostos em massa"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-6h13M9 11V5h13M3 5h3M3 11h3M3 17h3" />
+            </svg>
+            Atualizar Custos
+          </button>
           <Link href="/dashboard/produtos/novo"
             className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all active:scale-[0.98]"
             style={{ background: '#00E5FF', color: '#000' }}>
@@ -1220,6 +1233,13 @@ export default function ProdutosPage() {
         <MlImportModal
           onClose={() => setShowMlImport(false)}
           onImported={() => { load() }}
+        />
+      )}
+
+      {showBulkCost && (
+        <BulkCostUploadModal
+          onClose={() => setShowBulkCost(false)}
+          onSaved={() => { load() }}
         />
       )}
     </div>
