@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { ArrowLeft, Sparkles, Plus, Loader2, Image as ImageIcon, Check, RefreshCw, FileText, X, Wand2, AlertCircle, Film } from 'lucide-react'
 import ProductAnalysisCard from '@/components/creative/ProductAnalysisCard'
 import CanvaButton from '@/components/creative/CanvaButton'
+import CatalogLinkBanner from '@/components/creative/CatalogLinkBanner'
 import { CreativeApi } from '@/components/creative/api'
 import type {
   CreativeProduct, CreativeBriefing, CreativeListing,
@@ -171,6 +172,12 @@ export default function ProductDetailPage() {
 
           {/* AI Analysis + actions */}
           <div className="md:col-span-2 space-y-4">
+            {/* Onda 1 M1 — vínculo com catálogo */}
+            <CatalogLinkBanner
+              creative={product}
+              onChange={setProduct}
+            />
+
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-semibold text-zinc-200">Análise IA</h2>
               <button

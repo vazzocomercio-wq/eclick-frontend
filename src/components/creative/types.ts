@@ -34,6 +34,8 @@ export interface CreativeProduct {
   reference_video_url:      string | null
   brand_identity_url:       string | null
   status:                   ProductStatus
+  /** Onda 1 M1 — vínculo opcional com catálogo mestre `products` */
+  product_id:               string | null
   created_at:               string
   updated_at:               string
   /** Quando vem de GET /creative/products[/:id], backend embute signed URL */

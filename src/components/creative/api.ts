@@ -94,6 +94,8 @@ export interface CreateProductBody {
   target_audience?:         string
   sku?:                     string
   ean?:                     string
+  /** Onda 1 M1 — vincula ao catálogo mestre. null = desvincular. */
+  product_id?:              string | null
 }
 
 export const CreativeApi = {
@@ -116,6 +118,23 @@ export const CreativeApi = {
 
   updateProduct: (id: string, body: Partial<CreateProductBody>) =>
     api<CreativeProduct>(`/creative/products/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+
+  // Onda 1 M1: bridge catálogo
+  creativeToCatalog: (creativeId: string) =>
+    api<{ creative: CreativeProduct; catalog_product_id: string }>(
+      `/creative/products/${creativeId}/to-catalog`,
+      { method: 'POST' },
+    ),
+
+  /** GET /products/:catalogProductId/creatives — lista criativos vinculados */
+  listCreativesByCatalogProduct: (catalogProductId: string) =>
+    api<CreativeProduct[]>(`/products/${catalogProductId}/creatives`),
+
+  /** POST /products/:catalogProductId/creative — cria criativo a partir do catálogo */
+  createCreativeFromCatalog: (catalogProductId: string, body: { main_image_url: string; main_image_storage_path: string }) =>
+    api<CreativeProduct>(`/products/${catalogProductId}/creative`, {
+      method: 'POST', body: JSON.stringify(body),
+    }),
 
   archiveProduct: (id: string) =>
     api<{ ok: true }>(`/creative/products/${id}`, { method: 'DELETE' }),
