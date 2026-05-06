@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Loader2, Sparkles, Megaphone, ShoppingBag, TrendingUp, Star } from 'lucide-react'
+import Link from 'next/link'
+import { Loader2, Sparkles, Megaphone, ShoppingBag, Star } from 'lucide-react'
 import {
   ProductsAnalyticsApi, type ProductSocialAnalytics,
 } from './productsAnalyticsApi'
@@ -50,9 +51,9 @@ export default function ProductSocialAnalyticsCard({ productId }: { productId: s
         <Sparkles size={20} className="mx-auto text-zinc-600" />
         <p className="text-xs text-zinc-400">Sem atividade social/ads ainda</p>
         <div className="flex items-center justify-center gap-2 text-[11px]">
-          <a href="/dashboard/social/generate" className="text-cyan-400 hover:underline">Gerar conteúdo →</a>
+          <Link href="/dashboard/social/generate" className="text-cyan-400 hover:underline">Gerar conteúdo →</Link>
           <span className="text-zinc-700">·</span>
-          <a href="/dashboard/ads-campaigns/new" className="text-cyan-400 hover:underline">Criar campanha →</a>
+          <Link href="/dashboard/ads-campaigns/new" className="text-cyan-400 hover:underline">Criar campanha →</Link>
         </div>
       </div>
     )
