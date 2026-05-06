@@ -11,7 +11,7 @@ import PromptsLibrary from '@/components/creative/PromptsLibrary'
 import { CreativeApi } from '@/components/creative/api'
 import type {
   CreativeProduct, CreativeBriefing, CreativeListing,
-  CreativeImageJob, JobStatus,
+  CreativeImageJob, JobStatus, CreativeImage,
   CreativeVideoJob, VideoJobStatus, KlingModel, VideoDuration, VideoAspectRatio,
 } from '@/components/creative/types'
 import {
@@ -466,14 +466,29 @@ function CreateVideoJobModal({
     ? briefings.filter(b => b.is_active)
     : briefings
 
-  const [briefingId, setBriefingId] = useState(activeBriefings[0]?.id ?? '')
-  const [count, setCount]           = useState(3)
-  const [duration, setDuration]     = useState<VideoDuration>(5)
-  const [aspect, setAspect]         = useState<VideoAspectRatio>('1:1')
-  const [model, setModel]           = useState<KlingModel>('kling-v2-master')
-  const [maxCost, setMaxCost]       = useState(5.0)
-  const [creating, setCreating]     = useState(false)
-  const [error, setError]           = useState<string | null>(null)
+  const [briefingId, setBriefingId]       = useState(activeBriefings[0]?.id ?? '')
+  const [sourceImageId, setSourceImageId] = useState<string | null>(null)
+  const [availableImages, setAvailableImages] = useState<CreativeImage[]>([])
+  const [count, setCount]                 = useState(3)
+  const [duration, setDuration]           = useState<VideoDuration>(5)
+  const [aspect, setAspect]               = useState<VideoAspectRatio>('1:1')
+  const [model, setModel]                 = useState<KlingModel>('kling-v2-master')
+  const [maxCost, setMaxCost]             = useState(5.0)
+  const [creating, setCreating]           = useState(false)
+  const [error, setError]                 = useState<string | null>(null)
+
+  // Carrega imagens elegiveis (ready/approved) do produto pra usar como
+  // first frame do video (override da imagem original).
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        const imgs = await CreativeApi.listProductImages(product.id)
+        if (!cancelled) setAvailableImages(imgs)
+      } catch { /* fallback silencioso pra imagem original */ }
+    })()
+    return () => { cancelled = true }
+  }, [product.id])
 
   const perVideoCost = KLING_PRICING[model][duration]
   const estimatedCost = count * perVideoCost
@@ -486,6 +501,7 @@ function CreateVideoJobModal({
       const job = await CreativeApi.createVideoJob({
         product_id:       product.id,
         briefing_id:      briefingId,
+        source_image_id:  sourceImageId ?? undefined,
         count,
         duration_seconds: duration,
         aspect_ratio:     aspect,
@@ -527,6 +543,31 @@ function CreateVideoJobModal({
                 return <option key={b.id} value={b.id}>{opt?.emoji} {opt?.label} · {b.visual_style}</option>
               })}
             </select>
+          </div>
+
+          {/* Source image: imagem original do produto OU 1 das geradas (ready/approved) */}
+          <div>
+            <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">
+              Imagem base (1º frame do vídeo)
+            </label>
+            <select
+              value={sourceImageId ?? ''}
+              onChange={e => setSourceImageId(e.target.value || null)}
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-200 outline-none focus:border-cyan-400"
+            >
+              <option value="">Imagem original do produto</option>
+              {availableImages.map((img, i) => (
+                <option key={img.id} value={img.id}>
+                  Imagem gerada #{i + 1} ({img.status})
+                </option>
+              ))}
+            </select>
+            {sourceImageId && (() => {
+              const img = availableImages.find(x => x.id === sourceImageId)
+              return img?.signed_image_url ? (
+                <img src={img.signed_image_url} alt="preview" className="mt-2 h-20 w-20 object-cover rounded border border-zinc-800" />
+              ) : null
+            })()}
           </div>
 
           <div>

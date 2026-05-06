@@ -313,6 +313,9 @@ export const CreativeApi = {
   listProductImageJobs: (productId: string) =>
     api<CreativeImageJob[]>(`/creative/products/${productId}/image-jobs`),
 
+  listProductImages: (productId: string) =>
+    api<CreativeImage[]>(`/creative/products/${productId}/images`),
+
   cancelImageJob: (id: string) =>
     api<CreativeImageJob>(`/creative/image-jobs/${id}/cancel`, { method: 'POST' }),
 
