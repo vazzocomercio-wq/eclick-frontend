@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase'
 import { useSugestaoResposta } from '@/lib/ai/hooks'
 import { getAIPreference } from '@/lib/ai/config'
 import { AISelector, AIBadge } from '@/components/ai/AISelector'
+import AccountSelector, { useMlAccount } from '@/components/ml/AccountSelector'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 
@@ -229,7 +230,7 @@ export default function PerguntasPage() {
   const [questions, setQuestions]         = useState<Question[]>([])
   const [answeredToday, setAnsweredToday] = useState<Question[]>([])
   const [total, setTotal]                 = useState(0)
-  const [connections, setConnections]     = useState<Connection[]>([])
+  const { connections, selected: selectedSellerId } = useMlAccount()
   const [loading, setLoading]             = useState(true)
   const [refreshing, setRefreshing]       = useState(false)
   const [selected, setSelected]           = useState<Question | null>(null)
@@ -261,20 +262,6 @@ export default function PerguntasPage() {
     return session
   }, [])
 
-  const fetchConnections = useCallback(async () => {
-    try {
-      const session = await getSession()
-      if (!session) return
-      const res = await fetch(`${BACKEND}/ml/connections`, {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      })
-      if (res.ok) {
-        const data = await res.json()
-        setConnections(Array.isArray(data) ? data : [])
-      }
-    } catch { /* silent */ }
-  }, [getSession])
-
   const fetchQuestions = useCallback(async (silent = false) => {
     if (!silent) setLoading(true)
     else setRefreshing(true)
@@ -283,11 +270,12 @@ export default function PerguntasPage() {
       if (!session) return
 
       // Fetch unanswered + answered today in parallel
+      const sellerSuffix = selectedSellerId != null ? `&seller_id=${selectedSellerId}` : ''
       const [unansweredRes, answeredRes] = await Promise.all([
-        fetch(`${BACKEND}/ml/questions?status=UNANSWERED`, {
+        fetch(`${BACKEND}/ml/questions?status=UNANSWERED${sellerSuffix}`, {
           headers: { Authorization: `Bearer ${session.access_token}` },
         }),
-        fetch(`${BACKEND}/ml/questions?status=ANSWERED`, {
+        fetch(`${BACKEND}/ml/questions?status=ANSWERED${sellerSuffix}`, {
           headers: { Authorization: `Bearer ${session.access_token}` },
         }).catch(() => null),
       ])
@@ -403,13 +391,18 @@ export default function PerguntasPage() {
   }, [answerText, transformLoading, getSession, addToast])
 
   useEffect(() => {
-    fetchConnections()
     fetchQuestions()
     fetchAutoAnswer()
     fetchAiStats()
     const id = setInterval(() => fetchQuestions(true), 2 * 60 * 1000)
     return () => clearInterval(id)
-  }, [fetchQuestions, fetchConnections, fetchAutoAnswer, fetchAiStats])
+  }, [fetchQuestions, fetchAutoAnswer, fetchAiStats])
+
+  // Refetch quando muda a conta ML selecionada
+  useEffect(() => {
+    fetchQuestions(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSellerId])
 
   useEffect(() => {
     if (selected) {
@@ -556,23 +549,7 @@ export default function PerguntasPage() {
           <p className="text-xs text-gray-500 mt-0.5">Atendimento · Mercado Livre</p>
         </div>
         <div className="flex items-center gap-2">
-          {/* Account tabs */}
-          {connections.length > 0 && (
-            <div className="flex items-center gap-1 mr-2">
-              {connections.map(c => (
-                <div key={c.seller_id}
-                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#111114] border border-[#00E5FF33] text-[11px] text-[#00E5FF]">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#00E5FF]" />
-                  {(c.nickname ?? `#${c.seller_id}`).slice(0, 14)}
-                  {unanswered > 0 && (
-                    <span className="bg-red-900/40 text-red-400 text-[9px] px-1 rounded-full font-bold">
-                      {unanswered}
-                    </span>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
+          <AccountSelector compact className="mr-2" />
           <button
             onClick={() => fetchQuestions()}
             disabled={loading || refreshing}
