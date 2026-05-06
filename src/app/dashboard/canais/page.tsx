@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { CheckCircle2, AlertCircle, Plus, Trash2, RefreshCw, ExternalLink, Clock } from 'lucide-react'
 import { useConfirm, useAlert } from '@/components/ui/dialog-provider'
+import AccountSelector from '@/components/ml/AccountSelector'
 
 const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -244,12 +245,15 @@ export default function CanaisPage() {
           <p className="text-zinc-500 text-xs">Comercial</p>
           <h2 className="text-white text-lg font-semibold mt-0.5">Canais de Venda</h2>
         </div>
+        <div className="flex items-center gap-2">
+        <AccountSelector compact hideWhenEmpty />
         <button onClick={load} disabled={loading}
           className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border transition-all disabled:opacity-60"
           style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>
           <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
           Atualizar
         </button>
+        </div>
       </div>
 
       {error && (

@@ -6,6 +6,7 @@ import {
   TrendingUp, TrendingDown, Minus, Search, RefreshCw,
   ChevronUp, ChevronDown, AlertTriangle, CheckCircle2, Edit2, X, Check,
 } from 'lucide-react'
+import AccountSelector from '@/components/ml/AccountSelector'
 
 const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
@@ -420,6 +421,8 @@ export default function PrecosPage() {
             </a>
           </p>
         </div>
+        <div className="flex items-center gap-2">
+        <AccountSelector compact hideWhenEmpty />
         <button
           onClick={load}
           disabled={loading}
@@ -429,6 +432,7 @@ export default function PrecosPage() {
           <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
           Atualizar
         </button>
+        </div>
       </div>
 
       {/* KPIs */}

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { ToastViewport, todoToast, pushToast } from '@/hooks/useToast'
+import AccountSelector from '@/components/ml/AccountSelector'
 import { PulsingButton } from '@/components/ui/pulsing-button'
 import { ProdutosTable } from './_components/ProdutosTable'
 import { useConfirm } from '@/components/ui/dialog-provider'
@@ -997,6 +998,7 @@ export default function ProdutosPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <AccountSelector compact hideWhenEmpty />
           {mlConnected && (
             <button onClick={() => setShowMlImport(true)}
               className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold border transition-all active:scale-[0.98]"
