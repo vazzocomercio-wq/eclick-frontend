@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
+import { getStoredSellerId } from '@/components/ml/AccountSelector'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 
@@ -36,8 +37,12 @@ export function useTodayOrders() {
       const today = getBrazilToday()
       const token = await getToken()
       if (!token) { setLoading(false); return }
+      // Propaga seller_id selecionado no AccountSelector — sem isso pega
+      // sempre conta default (mais recente) e mistura dados.
+      const sellerId = getStoredSellerId()
+      const sellerSuffix = sellerId != null ? `&seller_id=${sellerId}` : ''
       const res = await fetch(
-        `${BACKEND}/ml/recent-orders?date_from=${today}&date_to=${today}&limit=200`,
+        `${BACKEND}/ml/recent-orders?date_from=${today}&date_to=${today}&limit=200${sellerSuffix}`,
         { headers: { Authorization: `Bearer ${token}` } },
       )
       if (!res.ok) { setLoading(false); return }
@@ -48,6 +53,19 @@ export function useTodayOrders() {
   }, [])
 
   useEffect(() => { fetchOrders() }, [fetchOrders])
+
+  // Refetch ao trocar conta no AccountSelector (custom event sincroniza
+  // entre instancias de useMlAccount + outros hooks que escutam).
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const handler = () => { void fetchOrders() }
+    window.addEventListener('eclick:ml-account-changed', handler)
+    window.addEventListener('storage', handler)
+    return () => {
+      window.removeEventListener('eclick:ml-account-changed', handler)
+      window.removeEventListener('storage', handler)
+    }
+  }, [fetchOrders])
 
   const faturamento = orders.reduce((s, o) => s + (o.total_amount || 0), 0)
   const pedidos = orders.length
