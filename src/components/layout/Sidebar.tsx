@@ -163,6 +163,12 @@ const SECTIONS: NavSection[] = [
       { label: 'Tarefas',          href: '/dashboard/producao/tarefas',    icon: <CheckSquare size={15} /> },
       { label: 'Conteúdo com IA',  href: '/dashboard/producao/conteudo',   icon: <Sparkles size={15} /> },
       { label: 'Conteúdo Social',  href: '/dashboard/social',              icon: <Megaphone size={15} /> },
+      {
+        label: 'Social Shop', href: '/dashboard/social-commerce', icon: <ShoppingBag size={15} />,
+        children: [
+          { label: 'Instagram / Facebook', href: '/dashboard/social-commerce/instagram' },
+        ],
+      },
       { label: 'IA Criativo',      href: '/dashboard/creative',            icon: <Wand2 size={15} /> },
       { label: 'Biblioteca',       href: '/dashboard/producao/biblioteca', icon: <ImageIcon size={15} /> },
     ],
