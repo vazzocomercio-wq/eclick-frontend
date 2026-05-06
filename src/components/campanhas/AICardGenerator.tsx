@@ -2,8 +2,29 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase'
-import { X, Sparkles, Loader2, Check, Wand2, Edit3, ExternalLink } from 'lucide-react'
+import {
+  X, Sparkles, Loader2, Check, Wand2, Edit3, ExternalLink,
+  Sun, Moon, Gem, Tag, Camera, Gift, Zap, Box, Megaphone, Image as ImageIcon, Palette,
+} from 'lucide-react'
+import { AnimatedPromptSuggestions, type PromptSuggestion } from '@/components/ui/animated-prompt-suggestions'
 import type { ProductData } from './SmartProductInput'
+
+// ── Prompt suggestions (estilos de imagem) ──────────────────────────────────
+
+const IMAGE_PROMPT_SUGGESTIONS: PromptSuggestion[] = [
+  { text: 'Fundo branco minimalista, foco total no produto',                     label: 'Minimalista clean',     icon: Sun,       accent: '#00E5FF' },
+  { text: 'Composição editorial premium, mood luxo',                              label: 'Editorial premium',     icon: Gem,       accent: '#a78bfa' },
+  { text: 'Estilo Black Friday — preço grande e cores vibrantes',                 label: 'Black Friday',          icon: Tag,       accent: '#f87171' },
+  { text: 'Lifestyle — produto sendo usado em ambiente real',                     label: 'Lifestyle real',        icon: Camera,    accent: '#34d399' },
+  { text: 'Holiday season festivo com decoração temática',                        label: 'Holiday festivo',       icon: Gift,      accent: '#fb7185' },
+  { text: 'Cores vibrantes e energéticas, alta saturação',                        label: 'Vibrante / energético', icon: Zap,       accent: '#fbbf24' },
+  { text: 'Mood escuro premium, alto contraste e luz dramática',                  label: 'Dark premium',          icon: Moon,      accent: '#c084fc' },
+  { text: 'Estilo 3D moderno com sombras suaves',                                 label: '3D moderno',            icon: Box,       accent: '#38bdf8' },
+  { text: 'Banner promocional estilo ML com texto destacado',                     label: 'Banner ML',             icon: Megaphone, accent: '#00E5FF' },
+  { text: 'Composição limpa estilo Instagram, foco fotográfico',                  label: 'Instagram clean',       icon: ImageIcon, accent: '#f472b6' },
+  { text: 'Paleta pastel suave, vibe acolhedora',                                 label: 'Pastel acolhedor',      icon: Palette,   accent: '#fda4af' },
+  { text: 'Close-up macro com foco em textura e detalhe',                         label: 'Close-up macro',        icon: Camera,    accent: '#86efac' },
+]
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 
@@ -282,13 +303,21 @@ export default function AICardGenerator({ open, onClose, product, onSelect, camp
 
             <div>
               <label className="text-xs text-zinc-400 block mb-1">Prompt adicional (opcional)</label>
-              <textarea
-                value={prompt}
-                onChange={e => setPrompt(e.target.value)}
+              <AnimatedPromptSuggestions
+                suggestions={IMAGE_PROMPT_SUGGESTIONS}
+                onSuggestionClick={(text) => setPrompt(text)}
                 rows={2}
-                placeholder="Ex: deixe mais minimalista, fundo claro, foco no produto"
-                className="w-full bg-[#0d0d10] border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 outline-none focus:border-cyan-500/50"
-              />
+                speed={55}
+              >
+                <textarea
+                  value={prompt}
+                  onChange={e => setPrompt(e.target.value)}
+                  rows={2}
+                  placeholder="Ex: deixe mais minimalista, fundo claro, foco no produto"
+                  className="w-full bg-[#0d0d10] border border-cyan-500/20 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 outline-none focus:border-cyan-500/60 transition-colors"
+                  style={{ boxShadow: '0 0 0 1px rgba(0,229,255,0.05), 0 4px 16px -4px rgba(0,229,255,0.15)' }}
+                />
+              </AnimatedPromptSuggestions>
             </div>
 
             <div>

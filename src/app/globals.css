@@ -43,3 +43,16 @@ select option { background: #1c1c1f; }
 .pedidos-number-input::-webkit-outer-spin-button,
 .pedidos-number-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .pedidos-number-input { -moz-appearance: textfield; appearance: textfield; }
+
+/* Marquee infinito horizontal — usado no AnimatedPromptSuggestions
+   (carrossel de chips de sugestão atrás do input do copilot). */
+@keyframes marquee-left {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+@keyframes marquee-right {
+  from { transform: translateX(-50%); }
+  to   { transform: translateX(0); }
+}
+.animate-marquee-left  { animation: marquee-left  linear infinite; }
+.animate-marquee-right { animation: marquee-right linear infinite; }

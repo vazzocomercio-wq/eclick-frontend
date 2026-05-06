@@ -6,8 +6,43 @@ import { callAI } from '@/lib/ai/client'
 import { PROMPTS } from '@/lib/ai/prompts'
 import { isAIEnabled, setAIFeature, getAIPreference } from '@/lib/ai/config'
 import { AISelector, AIBadge } from '@/components/ai/AISelector'
-import { Sparkles, Copy, Check, Wand2, FileText, Tag, ChevronDown, ExternalLink, AlertTriangle, Loader2 } from 'lucide-react'
+import {
+  Sparkles, Copy, Check, Wand2, FileText, Tag, ChevronDown, ExternalLink, AlertTriangle, Loader2,
+  Mic, Heart, Briefcase, Smile, Shield, Gem, DollarSign, Award, Gift, Zap, Clock, Search,
+  Layers, Ruler,
+} from 'lucide-react'
 import Link from 'next/link'
+import { AnimatedPromptSuggestions, type PromptSuggestion } from '@/components/ui/animated-prompt-suggestions'
+
+// ── Context suggestions per tool ─────────────────────────────────────────────
+
+const DESCRICAO_SUGGESTIONS: PromptSuggestion[] = [
+  { text: 'Tom mais persuasivo, com gatilhos de venda',                  label: 'Tom persuasivo',     icon: Mic,        accent: '#00E5FF' },
+  { text: 'Linguagem técnica e detalhada para público especialista',     label: 'Técnico detalhado',  icon: Briefcase,  accent: '#a78bfa' },
+  { text: 'Texto descontraído e leve, conversacional',                   label: 'Descontraído',       icon: Smile,      accent: '#fbbf24' },
+  { text: 'Foco em durabilidade, materiais e construção robusta',        label: 'Durabilidade',       icon: Shield,     accent: '#34d399' },
+  { text: 'Tom premium e exclusivo, vibe luxo',                          label: 'Premium / luxo',     icon: Gem,        accent: '#c084fc' },
+  { text: 'Foco em custo-benefício e economia',                          label: 'Custo-benefício',    icon: DollarSign, accent: '#22c55e' },
+  { text: 'Destaque certificações, garantia e segurança',                label: 'Certificado / seguro', icon: Award,    accent: '#38bdf8' },
+  { text: 'Ideal para presente — embalagem e ocasião',                   label: 'Ideal pra presente', icon: Gift,       accent: '#fb7185' },
+  { text: 'Foco em performance, velocidade e resultado',                 label: 'Performance',        icon: Zap,        accent: '#f59e0b' },
+  { text: 'Inclua urgência, oferta limitada e escassez',                 label: 'Urgência / oferta',  icon: Clock,      accent: '#f87171' },
+  { text: 'Otimizado pra SEO Mercado Livre — palavras-chave de busca',   label: 'SEO ML',             icon: Search,     accent: '#00E5FF' },
+  { text: 'Apelo emocional — conta uma história curta',                  label: 'Emocional',          icon: Heart,      accent: '#f472b6' },
+]
+
+const BULLET_SUGGESTIONS: PromptSuggestion[] = [
+  { text: 'Foco em benefícios concretos, não só features',               label: 'Benefícios reais',    icon: Heart,     accent: '#00E5FF' },
+  { text: 'Inclua métricas e números — ex: "até 30% mais"',              label: 'Métricas / números',  icon: Layers,    accent: '#a78bfa' },
+  { text: 'Destaque compatibilidade e usos múltiplos',                   label: 'Compatibilidade',     icon: Zap,       accent: '#34d399' },
+  { text: 'Chame atenção pra dimensões e medidas exatas',                label: 'Dimensões',           icon: Ruler,     accent: '#fbbf24' },
+  { text: 'Reforce garantia, suporte e pós-venda',                       label: 'Garantia / suporte',  icon: Shield,    accent: '#38bdf8' },
+  { text: 'Linguagem técnica precisa pra público especialista',          label: 'Técnico preciso',     icon: Briefcase, accent: '#c084fc' },
+  { text: 'Tom descontraído, leitura rápida',                            label: 'Tom leve',            icon: Smile,     accent: '#f59e0b' },
+  { text: 'Use verbos no imperativo — "tenha", "leve", "aproveite"',     label: 'Verbo no imperativo', icon: Mic,       accent: '#fb7185' },
+  { text: 'Foque em economia e custo-benefício',                         label: 'Economia',            icon: DollarSign, accent: '#22c55e' },
+  { text: 'Destaque diferenciais únicos vs concorrência',                label: 'Diferenciais únicos', icon: Gem,       accent: '#f472b6' },
+]
 
 const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
@@ -304,20 +339,44 @@ Cada bullet com 1 linha. Use ícone ✓ no início. Em português.`
               <label className="block text-[10px] font-medium text-zinc-500 mb-1.5">
                 {tool === 'titulo' ? 'Título atual (ou deixe preencher pelo produto)' : 'Contexto adicional (ou descrição manual)'}
               </label>
-              <textarea
-                value={extra}
-                onChange={e => setExtra(e.target.value)}
-                rows={tool === 'titulo' ? 2 : 3}
-                placeholder={
-                  tool === 'titulo'    ? (selected?.ml_title ?? selected?.name ?? 'Cole o título atual aqui…') :
-                  tool === 'descricao' ? 'Descreva o produto: materiais, dimensões, diferenciais…' :
-                                         'Liste as características principais para gerar os bullets…'
-                }
-                className="w-full rounded-xl px-3 py-2.5 text-xs text-white outline-none resize-none transition-all"
-                style={{ background: '#1c1c1f', border: '1px solid #3f3f46' }}
-                onFocus={e => (e.target.style.borderColor = '#00E5FF')}
-                onBlur={e => (e.target.style.borderColor  = '#3f3f46')}
-              />
+              {tool === 'titulo' ? (
+                <textarea
+                  value={extra}
+                  onChange={e => setExtra(e.target.value)}
+                  rows={2}
+                  placeholder={selected?.ml_title ?? selected?.name ?? 'Cole o título atual aqui…'}
+                  className="w-full rounded-xl px-3 py-2.5 text-xs text-white outline-none resize-none transition-all"
+                  style={{ background: '#1c1c1f', border: '1px solid #3f3f46' }}
+                  onFocus={e => (e.target.style.borderColor = '#00E5FF')}
+                  onBlur={e => (e.target.style.borderColor  = '#3f3f46')}
+                />
+              ) : (
+                <AnimatedPromptSuggestions
+                  suggestions={tool === 'descricao' ? DESCRICAO_SUGGESTIONS : BULLET_SUGGESTIONS}
+                  onSuggestionClick={(text) => setExtra((prev) => (prev.trim() ? `${prev.trim()}\n${text}` : text))}
+                  rows={2}
+                  speed={55}
+                >
+                  <textarea
+                    value={extra}
+                    onChange={e => setExtra(e.target.value)}
+                    rows={3}
+                    placeholder={
+                      tool === 'descricao'
+                        ? 'Descreva o produto: materiais, dimensões, diferenciais…'
+                        : 'Liste as características principais para gerar os bullets…'
+                    }
+                    className="w-full rounded-xl px-3 py-2.5 text-xs text-white outline-none resize-none transition-all"
+                    style={{
+                      background: '#1c1c1f',
+                      border: '1px solid rgba(0,229,255,0.2)',
+                      boxShadow: '0 0 0 1px rgba(0,229,255,0.05), 0 4px 16px -4px rgba(0,229,255,0.15)',
+                    }}
+                    onFocus={e => (e.target.style.borderColor = '#00E5FF')}
+                    onBlur={e => (e.target.style.borderColor  = 'rgba(0,229,255,0.2)')}
+                  />
+                </AnimatedPromptSuggestions>
+              )}
             </div>
 
             {error && <p className="text-xs text-red-400">{error}</p>}

@@ -2,7 +2,29 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { createClient } from '@/lib/supabase'
-import { Sparkles, X, Send, Loader2, Wrench, ChevronDown, ChevronRight } from 'lucide-react'
+import {
+  Sparkles, X, Send, Loader2, Wrench, ChevronDown, ChevronRight,
+  TrendingUp, TrendingDown, Package, PauseCircle, BarChart3, Ban,
+  Target, Calendar, AlertTriangle, DollarSign, Trophy, Eye,
+} from 'lucide-react'
+import { AnimatedPromptSuggestions, type PromptSuggestion } from '@/components/ui/animated-prompt-suggestions'
+
+// Sugestões que fluem no fundo no empty state. Mistura ícones quentes
+// (verde/vermelho) e frios (cyan/amber) pra dar variedade visual.
+const ADS_SUGGESTIONS: PromptSuggestion[] = [
+  { text: 'Qual campanha tem o melhor ROAS?',          label: 'Melhor ROAS',           icon: TrendingUp,    accent: '#22c55e' },
+  { text: 'Onde estou perdendo dinheiro?',              label: 'Perdas',                icon: TrendingDown,  accent: '#ef4444' },
+  { text: 'Tenho estoque pra dobrar o budget?',         label: 'Estoque vs budget',     icon: Package,       accent: '#00E5FF' },
+  { text: 'Qual produto vende mais nos ads?',           label: 'Top produtos',          icon: Trophy,        accent: '#f59e0b' },
+  { text: 'Quais campanhas pausar?',                    label: 'Pausar',                icon: PauseCircle,   accent: '#f59e0b' },
+  { text: 'ACOS médio das campanhas',                   label: 'ACOS médio',            icon: BarChart3,     accent: '#00E5FF' },
+  { text: 'Termos negativos pra adicionar',             label: 'Negativar termos',      icon: Ban,           accent: '#ef4444' },
+  { text: 'Por que meu CTR está baixo?',                label: 'CTR baixo',             icon: Eye,           accent: '#f59e0b' },
+  { text: 'Sugestões pra aumentar conversão',           label: 'Aumentar conversão',    icon: Target,        accent: '#22c55e' },
+  { text: 'Performance dos últimos 7 dias',             label: 'Últimos 7 dias',        icon: Calendar,      accent: '#00E5FF' },
+  { text: 'Campanhas que não vendem',                   label: 'Sem vendas',            icon: AlertTriangle, accent: '#ef4444' },
+  { text: 'Quanto gastei essa semana?',                 label: 'Gasto semanal',         icon: DollarSign,    accent: '#00E5FF' },
+]
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
@@ -210,52 +232,84 @@ export function AdsAIChat() {
             </div>
           )}
 
-          {/* Messages */}
-          <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-            {messages.length === 0 && (
-              <div className="text-center py-12 text-zinc-500 text-xs space-y-3">
-                <Sparkles size={28} className="mx-auto" style={{ color: '#00E5FF' }} />
-                <p>Pergunte sobre suas campanhas, ROAS, oportunidades ou riscos.</p>
-                <div className="space-y-1.5 max-w-xs mx-auto">
-                  {[
-                    'Qual campanha tem o melhor ROAS?',
-                    'Onde estou perdendo dinheiro?',
-                    'Tenho estoque pra dobrar o budget?',
-                  ].map(s => (
-                    <button key={s} onClick={() => setInput(s)}
-                      className="block w-full text-left text-[11px] px-3 py-2 rounded-lg hover:bg-[#161618] transition-colors"
-                      style={{ background: '#18181b', border: '1px solid #27272a', color: '#a1a1aa' }}>
-                      {s}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-            {messages.map((m, i) => (
-              <Bubble key={m.id ?? i} message={m} />
-            ))}
-          </div>
-
-          {/* Input */}
-          <div className="px-3 py-3" style={{ borderTop: '1px solid #1a1a1f' }}>
-            <div className="flex items-end gap-2">
-              <textarea
-                value={input}
-                onChange={e => setInput(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() }
-                }}
-                placeholder="Pergunte algo… (Shift+Enter pra quebra de linha)"
-                rows={1}
-                className="flex-1 bg-[#111114] border border-[#27272a] text-zinc-200 text-sm rounded-lg px-3 py-2 outline-none focus:border-[#00E5FF] resize-none max-h-32"
-              />
-              <button onClick={send} disabled={sending || !input.trim()}
-                className="p-2.5 rounded-lg transition-opacity disabled:opacity-50"
-                style={{ background: '#00E5FF', color: '#000' }}>
-                {sending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-              </button>
+          {/* Messages — só renderizam quando há histórico. Empty state vira
+               carrossel de chips abaixo, com o input "encapsulado". */}
+          {messages.length > 0 && (
+            <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+              {messages.map((m, i) => (
+                <Bubble key={m.id ?? i} message={m} />
+              ))}
             </div>
-          </div>
+          )}
+
+          {messages.length === 0 && (
+            <div className="flex-1 flex flex-col justify-center px-3 py-4 overflow-hidden">
+              <div className="text-center mb-4 space-y-2">
+                <Sparkles size={28} className="mx-auto" style={{ color: '#00E5FF' }} />
+                <p className="text-zinc-400 text-xs px-2">
+                  Pergunte sobre suas campanhas, ROAS, oportunidades ou riscos.
+                </p>
+              </div>
+
+              <AnimatedPromptSuggestions
+                suggestions={ADS_SUGGESTIONS}
+                onSuggestionClick={(t) => setInput(t)}
+                speed={45}
+                rows={2}
+                compact
+              >
+                {/* Input "em destaque" — borda cyan + sutil glow */}
+                <div className="rounded-2xl p-2 transition-colors"
+                  style={{
+                    background: '#0d0d10',
+                    border: '1px solid #00E5FF40',
+                    boxShadow: '0 0 0 1px #00E5FF20, 0 8px 24px -12px #00E5FF40',
+                  }}>
+                  <div className="flex items-end gap-2">
+                    <textarea
+                      value={input}
+                      onChange={e => setInput(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() }
+                      }}
+                      placeholder="Pergunte algo… (Shift+Enter pra quebra de linha)"
+                      rows={1}
+                      className="flex-1 bg-transparent text-zinc-200 text-sm rounded-lg px-2 py-2 outline-none resize-none max-h-32"
+                    />
+                    <button onClick={send} disabled={sending || !input.trim()}
+                      className="p-2.5 rounded-lg transition-opacity disabled:opacity-50 shrink-0"
+                      style={{ background: '#00E5FF', color: '#000' }}>
+                      {sending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                    </button>
+                  </div>
+                </div>
+              </AnimatedPromptSuggestions>
+            </div>
+          )}
+
+          {/* Input fixo no rodapé — só quando há mensagens (empty state usa o
+              input "encapsulado" no AnimatedPromptSuggestions acima) */}
+          {messages.length > 0 && (
+            <div className="px-3 py-3" style={{ borderTop: '1px solid #1a1a1f' }}>
+              <div className="flex items-end gap-2">
+                <textarea
+                  value={input}
+                  onChange={e => setInput(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() }
+                  }}
+                  placeholder="Pergunte algo… (Shift+Enter pra quebra de linha)"
+                  rows={1}
+                  className="flex-1 bg-[#111114] border border-[#27272a] text-zinc-200 text-sm rounded-lg px-3 py-2 outline-none focus:border-[#00E5FF] resize-none max-h-32"
+                />
+                <button onClick={send} disabled={sending || !input.trim()}
+                  className="p-2.5 rounded-lg transition-opacity disabled:opacity-50"
+                  style={{ background: '#00E5FF', color: '#000' }}>
+                  {sending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </>
