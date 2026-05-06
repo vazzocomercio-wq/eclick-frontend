@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Plus, Sparkles, Loader2, Image as ImageIcon, Clock, CheckCircle2, AlertCircle } from 'lucide-react'
 import { CreativeApi } from '@/components/creative/api'
+import CreativeUsageCard from '@/components/creative/CreativeUsageCard'
 import type { CreativeProduct } from '@/components/creative/types'
 
 export default function CreativeListPage() {
@@ -58,6 +59,8 @@ export default function CreativeListPage() {
             <span>{error}</span>
           </div>
         )}
+
+        <CreativeUsageCard />
 
         {loading ? (
           <div className="flex items-center gap-2 text-zinc-500">

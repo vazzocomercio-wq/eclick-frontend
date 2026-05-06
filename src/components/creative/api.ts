@@ -219,6 +219,12 @@ export const CreativeApi = {
       method: 'POST', body: JSON.stringify({ prompt }),
     }),
 
+  regenerateAllRejectedImages: (jobId: string) =>
+    api<{ regenerated: number; skipped_cost_cap: boolean }>(
+      `/creative/image-jobs/${jobId}/regenerate-rejected`,
+      { method: 'POST' },
+    ),
+
   // ── E3a: Video pipeline ─────────────────────────────────────────────────
   createVideoJob: (body: {
     product_id:        string
@@ -257,6 +263,12 @@ export const CreativeApi = {
     api<CreativeVideo>(`/creative/videos/${id}/regenerate`, {
       method: 'POST', body: JSON.stringify({ prompt }),
     }),
+
+  regenerateAllRejectedVideos: (jobId: string) =>
+    api<{ regenerated: number; skipped_cost_cap: boolean }>(
+      `/creative/video-jobs/${jobId}/regenerate-rejected`,
+      { method: 'POST' },
+    ),
 
   // ── E3c: ML Publisher (F1+F2) ───────────────────────────────────────────
   getMlContext: (listingId: string) =>

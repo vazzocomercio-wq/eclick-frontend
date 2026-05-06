@@ -24,6 +24,7 @@ export default function ImageJobPage() {
   const [productLoading, setProductLoading] = useState(true)
   const [productError, setProductError]     = useState<string | null>(null)
   const [cancelling, setCancelling] = useState(false)
+  const [bulkRegen, setBulkRegen]   = useState(false)
 
   const { job, images, loading, error, refresh, patchImage } = useImageJob(jobId, { pollMs: 3000 })
 
@@ -58,6 +59,25 @@ export default function ImageJobPage() {
       alert((e as Error).message)
     } finally {
       setCancelling(false)
+    }
+  }
+
+  async function regenerateRejected() {
+    if (!job) return
+    const rejectedCount = images.filter(i => i.status === 'rejected').length
+    if (rejectedCount === 0) return
+    if (!confirm(`Regerar ${rejectedCount} imagem${rejectedCount === 1 ? '' : 'ns'} rejeitada${rejectedCount === 1 ? '' : 's'}? Vai consumir mais cota de geração.`)) return
+    setBulkRegen(true)
+    try {
+      const res = await CreativeApi.regenerateAllRejectedImages(job.id)
+      if (res.skipped_cost_cap) {
+        alert('Limite de custo do job já foi atingido. Crie um novo job pra continuar.')
+      }
+      await refresh()
+    } catch (e: unknown) {
+      alert((e as Error).message)
+    } finally {
+      setBulkRegen(false)
     }
   }
 
@@ -142,6 +162,20 @@ export default function ImageJobPage() {
           </div>
 
           <div className="flex items-center gap-2">
+            {(() => {
+              const rejectedCt = images.filter(i => i.status === 'rejected').length
+              return rejectedCt > 0 ? (
+                <button
+                  type="button"
+                  onClick={regenerateRejected}
+                  disabled={bulkRegen}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-amber-400/30 text-amber-300 hover:bg-amber-400/10 text-xs font-semibold transition-all disabled:opacity-50"
+                >
+                  {bulkRegen ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+                  Regerar {rejectedCt} rejeitada{rejectedCt > 1 ? 's' : ''}
+                </button>
+              ) : null
+            })()}
             {approvedCt > 0 && (
               <button
                 type="button"

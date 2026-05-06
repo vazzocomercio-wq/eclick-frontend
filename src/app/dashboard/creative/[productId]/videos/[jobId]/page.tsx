@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import {
-  ArrowLeft, Sparkles, Loader2, X, Check, Download, AlertCircle, Film,
+  ArrowLeft, Sparkles, Loader2, X, Check, Download, AlertCircle, Film, RefreshCw,
 } from 'lucide-react'
 import CreativeVideoCard from '@/components/creative/CreativeVideoCard'
 import { useVideoJob } from '@/components/creative/useVideoJob'
@@ -23,6 +23,7 @@ export default function VideoJobPage() {
   const [productLoading, setProductLoading] = useState(true)
   const [productError, setProductError]     = useState<string | null>(null)
   const [cancelling, setCancelling] = useState(false)
+  const [bulkRegen, setBulkRegen]   = useState(false)
 
   const { job, videos, loading, error, refresh, patchVideo } = useVideoJob(jobId, { pollMs: 5000 })
 
@@ -56,6 +57,25 @@ export default function VideoJobPage() {
       await CreativeApi.cancelVideoJob(job.id); await refresh()
     } catch (e: unknown) { alert((e as Error).message) }
     finally { setCancelling(false) }
+  }
+
+  async function regenerateRejected() {
+    if (!job) return
+    const rejectedCt = videos.filter(v => v.status === 'rejected').length
+    if (rejectedCt === 0) return
+    if (!confirm(`Regerar ${rejectedCt} vídeo${rejectedCt === 1 ? '' : 's'} rejeitado${rejectedCt === 1 ? '' : 's'}? Vai consumir ~$${(rejectedCt * (job.duration_seconds === 10 ? 0.84 : 0.42)).toFixed(2)}.`)) return
+    setBulkRegen(true)
+    try {
+      const res = await CreativeApi.regenerateAllRejectedVideos(job.id)
+      if (res.skipped_cost_cap) {
+        alert('Limite de custo do job já foi atingido. Crie um novo job pra continuar.')
+      }
+      await refresh()
+    } catch (e: unknown) {
+      alert((e as Error).message)
+    } finally {
+      setBulkRegen(false)
+    }
   }
 
   async function downloadAllApproved() {
@@ -126,6 +146,16 @@ export default function VideoJobPage() {
           </div>
 
           <div className="flex items-center gap-2">
+            {(() => {
+              const rejectedCt = videos.filter(v => v.status === 'rejected').length
+              return rejectedCt > 0 ? (
+                <button onClick={regenerateRejected} disabled={bulkRegen}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-amber-400/30 text-amber-300 hover:bg-amber-400/10 text-xs font-semibold transition-all disabled:opacity-50">
+                  {bulkRegen ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+                  Regerar {rejectedCt} rejeitado{rejectedCt > 1 ? 's' : ''}
+                </button>
+              ) : null
+            })()}
             {approvedCt > 0 && (
               <button onClick={downloadAllApproved}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-400 hover:bg-cyan-300 text-black text-xs font-semibold transition-all">
