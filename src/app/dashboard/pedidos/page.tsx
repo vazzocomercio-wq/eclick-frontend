@@ -13,15 +13,24 @@ import { PedidosTable } from './_components/PedidosTable'
 import { OrderDetailDrawer } from './_components/OrderDetailDrawer'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
-const PAGE = 20
+const PAGE = 30
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type DayPoint = { date: string; count: number; revenue: number }
 
+type KpiAggregate = {
+  count:             number
+  revenue:           number
+  pending_shipment?: number
+  in_transit?:       number
+  delivered?:        number
+  by_day:            DayPoint[]
+}
 type KpiData = {
-  current_month: { count: number; revenue: number; by_day: DayPoint[] }
-  last_month:    { count: number; revenue: number; by_day: DayPoint[] }
+  today?:        KpiAggregate
+  current_month: KpiAggregate
+  last_month:    KpiAggregate
 }
 
 type VarAttr = { id: string; name: string; value_id: string; value_name: string }
@@ -446,14 +455,82 @@ type CreateResult = {
   listing_id: string; status: 'created' | 'skipped' | 'error'; product_id?: string; reason?: string
 }
 
+/** Botão "Vincular" — fica acima do "Venda #X" no card.
+ *  ATIVO  → anúncio sem vínculo + há produto no catálogo com mesmo SKU
+ *  HIDDEN → anúncio já vinculado (não polui a UI quando não há ação)
+ *  Não renderiza nada se já está vinculado pra economizar espaço. */
+function VincularButton({
+  listingId, hasExistingLink, skuMatchProduct, onVincular, onToast,
+}: {
+  listingId:        string
+  hasExistingLink:  boolean
+  skuMatchProduct:  { id: string; name: string; sku: string } | null
+  onVincular:       (listingId: string, productId: string) => Promise<void>
+  onToast:          (msg: string, type: Toast['type']) => void
+}) {
+  const [busy, setBusy] = useState(false)
+
+  // Já vinculado: não renderiza (deixa UI limpa)
+  if (hasExistingLink) return null
+
+  const canLink = skuMatchProduct !== null
+  const handle = async () => {
+    if (!skuMatchProduct || busy) return
+    setBusy(true)
+    try {
+      await onVincular(listingId, skuMatchProduct.id)
+      onToast(`Vinculado a "${skuMatchProduct.name}" (SKU ${skuMatchProduct.sku})`, 'success')
+    } catch (e) {
+      onToast(`Erro ao vincular: ${(e as Error).message}`, 'error')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={canLink ? handle : undefined}
+      disabled={!canLink || busy}
+      title={
+        canLink
+          ? `Vincular a "${skuMatchProduct.name}" (SKU ${skuMatchProduct.sku})`
+          : 'Sem produto no catálogo com mesmo SKU. Use "Criar Produto" pra criar um novo.'
+      }
+      className={[
+        'inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded transition-all',
+        canLink
+          ? 'bg-emerald-400/10 hover:bg-emerald-400/20 text-emerald-300 border border-emerald-400/30 cursor-pointer'
+          : 'bg-zinc-900 text-zinc-600 border border-zinc-800 cursor-not-allowed opacity-60',
+      ].join(' ')}
+    >
+      {busy ? (
+        <svg className="w-2.5 h-2.5 animate-spin" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+        </svg>
+      ) : (
+        <svg width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+        </svg>
+      )}
+      {busy ? 'Vinculando…' : 'Vincular'}
+    </button>
+  )
+}
+
 function OrderCard({
-  order, itemId, vinculos, onSalvar, onCriarProduto, onToast, getHeaders, onOpenDetail,
+  order, itemId, vinculos, skuMatchProduct,
+  onSalvar, onCriarProduto, onVincularPorSku,
+  onToast, getHeaders, onOpenDetail,
 }: {
   order: MOrder
   itemId: string | null
   vinculos: VinculoItem[]
+  skuMatchProduct: { id: string; name: string; sku: string } | null
   onSalvar: (productId: string, custo: number, imposto: number) => Promise<void>
   onCriarProduto: (itemId: string) => Promise<void>
+  onVincularPorSku: (listingId: string, productId: string) => Promise<void>
   onToast: (msg: string, type: Toast['type']) => void
   getHeaders: () => Promise<Record<string, string>>
   onOpenDetail: (externalOrderId: string) => void
@@ -655,6 +732,18 @@ function OrderCard({
             </div>
           </div>
           <div className="space-y-0.5">
+            {/* Vincular por SKU — só ativo quando anúncio NÃO tem vínculo
+                E existe produto no catálogo com o mesmo SKU do anúncio.
+                Disabled se já vinculado ou se não há match. */}
+            {itemId && (
+              <VincularButton
+                listingId={itemId}
+                hasExistingLink={vinculos.length > 0}
+                skuMatchProduct={skuMatchProduct}
+                onVincular={onVincularPorSku}
+                onToast={onToast}
+              />
+            )}
             <div className="flex items-center gap-2 flex-wrap">
               <a href={`https://www.mercadolivre.com.br/vendas/${order.order_id}`} target="_blank"
                 rel="noopener noreferrer"
@@ -1641,6 +1730,62 @@ export default function PedidosPage() {
       })
   }, [supabase])
 
+  // Catálogo: products com SKU preenchido — pra detectar matching com
+  // anúncios não-vinculados e habilitar botão "Vincular".
+  const [skuToProduct, setSkuToProduct] = useState<Record<string, { id: string; name: string; sku: string }>>({})
+  useEffect(() => {
+    supabase
+      .from('products')
+      .select('id, sku, name')
+      .not('sku', 'is', null)
+      .neq('sku', '')
+      .neq('status', 'archived')
+      .limit(10_000)
+      .then(({ data, error }) => {
+        if (error) { console.error('[pedidos] erro query products SKU:', error); return }
+        const map: Record<string, { id: string; name: string; sku: string }> = {}
+        for (const p of (data ?? []) as Array<{ id: string; sku: string | null; name: string }>) {
+          if (!p.sku) continue
+          // Normaliza SKU (trim + uppercase) pra match case-insensitive
+          const key = p.sku.trim().toUpperCase()
+          if (key) map[key] = { id: p.id, name: p.name, sku: p.sku }
+        }
+        setSkuToProduct(map)
+      })
+  }, [supabase])
+
+  /** Cria vínculo direto via Supabase. Reusa em OrderCard quando user
+   *  clica em "Vincular" e há match de SKU. */
+  const vincularPorSku = useCallback(async (listingId: string, productId: string): Promise<void> => {
+    const { error } = await supabase
+      .from('product_listings')
+      .upsert({
+        listing_id:        listingId,
+        product_id:        productId,
+        platform:          'mercadolivre',
+        is_active:         true,
+        quantity_per_unit: 1,
+      }, { onConflict: 'listing_id,product_id,platform' })
+    if (error) throw new Error(error.message)
+
+    // Atualiza vinculos locais sem refetch
+    const { data: prod } = await supabase
+      .from('products')
+      .select('id, sku, name, cost_price, tax_percentage')
+      .eq('id', productId)
+      .maybeSingle()
+    if (prod) {
+      setVinculosPorListing(prev => ({
+        ...prev,
+        [listingId]: [{
+          listing_id:        listingId,
+          quantity_per_unit: 1,
+          product:           prod as VinculoItem['product'],
+        } as VinculoItem],
+      }))
+    }
+  }, [supabase])
+
   const salvar = useCallback(async (productId: string, custo: number, imposto: number) => {
     const headers = await getHeaders()
     const res = await fetch(`${BACKEND}/products/${productId}`, {
@@ -1736,8 +1881,19 @@ export default function PedidosPage() {
   const prev = kpis?.last_month
   const num  = (v: number) => v.toLocaleString('pt-BR')
 
-  // UI-1.1 — KPIs "hoje" derivados (vivam no PedidosToolsPanel deletado)
+  // UI-1.1 — KPIs "hoje". Prefere kpis.today do backend (cobre tudo).
+  // Fallback: agrega current_month.by_day pra hoje + filtra orders carregados.
   const { todayCount, todayRev, pendentesEnvio, emTransito } = useMemo(() => {
+    if (kpis?.today) {
+      return {
+        todayCount:     kpis.today.count,
+        todayRev:       kpis.today.revenue,
+        // pendentes/transito vêm do mês corrente (mais inclusivo) com fallback no today
+        pendentesEnvio: kpis.current_month?.pending_shipment ?? kpis.today.pending_shipment ?? 0,
+        emTransito:     kpis.current_month?.in_transit       ?? kpis.today.in_transit       ?? 0,
+      }
+    }
+    // Fallback legado (kpis sem today/shipping fields)
     const now = new Date()
     const isToday = (iso: string | null) => {
       if (!iso) return false
@@ -1969,14 +2125,20 @@ export default function PedidosPage() {
                   const oi     = order.order_items[0]
                   const itemId = oi?.item_id ?? oi?.item?.id ?? null
                   const vinculos = itemId ? (vinculosPorListing[itemId] ?? []) : []
+                  // Match de SKU pra botão "Vincular" — só ativa quando
+                  // anúncio tem SKU E há produto no catálogo com o mesmo SKU.
+                  const sellerSku = oi?.seller_sku?.trim().toUpperCase() ?? null
+                  const skuMatchProduct = sellerSku ? skuToProduct[sellerSku] ?? null : null
                   return (
                     <OrderCard
                       key={order.order_id}
                       order={order}
                       itemId={itemId}
                       vinculos={vinculos}
+                      skuMatchProduct={skuMatchProduct}
                       onSalvar={salvar}
                       onCriarProduto={criarProduto}
+                      onVincularPorSku={vincularPorSku}
                       onToast={toast}
                       getHeaders={getHeaders}
                       onOpenDetail={setOpenOrderId}
