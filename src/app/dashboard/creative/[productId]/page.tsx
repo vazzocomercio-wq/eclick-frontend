@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, Sparkles, Plus, Loader2, Image as ImageIcon, Check, RefreshCw, FileText, X, Wand2, AlertCircle } from 'lucide-react'
 import ProductAnalysisCard from '@/components/creative/ProductAnalysisCard'
+import CanvaButton from '@/components/creative/CanvaButton'
 import { CreativeApi } from '@/components/creative/api'
 import type {
   CreativeProduct, CreativeBriefing, CreativeListing,
@@ -149,6 +150,14 @@ export default function ProductDetailPage() {
                 </div>
               </div>
             )}
+
+            <div className="mt-3">
+              <CanvaButton
+                imageUrl={product.signed_image_url}
+                title={product.name}
+                variant="full"
+              />
+            </div>
           </div>
 
           {/* AI Analysis + actions */}

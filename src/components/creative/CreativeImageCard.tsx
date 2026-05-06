@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import type { CreativeImage } from './types'
 import { CreativeApi } from './api'
+import CanvaButton from './CanvaButton'
 
 interface Props {
   image:    CreativeImage
@@ -190,6 +191,18 @@ export default function CreativeImageCard({ image, onChange, disabled }: Props) 
               tone="cyan"
               onClick={download}
               disabled={disabled || !image.signed_image_url}
+            />
+          </div>
+        )}
+
+        {/* Canva — disponível em qualquer imagem com URL pronta */}
+        {(image.status === 'ready' || image.status === 'approved' || image.status === 'rejected') && image.signed_image_url && (
+          <div className="flex justify-end">
+            <CanvaButton
+              imageUrl={image.signed_image_url}
+              title={`Imagem ${image.position}`}
+              variant="compact"
+              disabled={disabled}
             />
           </div>
         )}
