@@ -340,6 +340,78 @@ function KpiCard({ label, value, vsYest, vsWeek, sub, color = '#00E5FF', loading
   )
 }
 
+// ── Row 2b: Reputação ML — termômetro estilo ML ────────────────────────────────
+//
+// Substitui o texto "5_green" por um indicador visual de 5 barras coloridas,
+// igual ao termômetro de reputação que aparece no painel do vendedor no ML.
+// Cores seguem a paleta oficial: vermelho → laranja → amarelo → verde-claro → verde.
+
+const ML_LEVEL_COLORS = ['#ef4444', '#f97316', '#eab308', '#84cc16', '#22c55e'] as const
+const ML_LEVEL_LABELS = ['Iniciante', 'Em construção', 'Razoável', 'Bom', 'Excelente'] as const
+
+function parseMlLevel(levelId: string | null | undefined): { level: number } | null {
+  if (!levelId) return null
+  // Formato esperado: "5_green", "4_light_green", "3_yellow", "2_orange", "1_red"
+  const m = levelId.match(/^([1-5])_/)
+  if (!m) return null
+  return { level: parseInt(m[1], 10) }
+}
+
+function ReputacaoMlCard({ sellerInfo, mlConnected, loading }: {
+  sellerInfo: SellerInfo | null
+  mlConnected: boolean
+  loading: boolean
+}) {
+  const parsed = parseMlLevel(sellerInfo?.level_id)
+  const level = parsed?.level ?? 0
+  const color = level > 0 ? ML_LEVEL_COLORS[level - 1] : '#71717a'
+  const label = level > 0 ? ML_LEVEL_LABELS[level - 1] : (mlConnected ? '—' : 'Desconectado')
+  const status = sellerInfo?.power_seller_status
+  const points = sellerInfo?.points ?? null
+
+  return (
+    <div className="rounded-xl p-4 flex flex-col gap-2.5 transition-all"
+      style={{ background: '#111114', border: '1px solid rgba(255,255,255,0.06)' }}
+      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = `${color}28` }}
+      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.06)' }}>
+      <p className="text-zinc-400 text-[11px] font-medium leading-tight">Reputação ML</p>
+      {loading ? (
+        <div className="space-y-2"><Skel h={28} className="w-3/4" /><Skel h={12} className="w-1/2" /></div>
+      ) : (
+        <>
+          {/* Termômetro: 5 barras (preenchidas até o nível atual) */}
+          <div className="flex gap-0.5 mt-0.5" aria-label={`Nível ${level} de 5`}>
+            {[1, 2, 3, 4, 5].map(i => (
+              <div key={i} className="h-2 flex-1 rounded-sm transition-all"
+                style={{
+                  background: i <= level ? color : '#27272a',
+                  boxShadow: i === level && level > 0 ? `0 0 6px ${color}66` : undefined,
+                  opacity: i <= level ? 1 : 0.5,
+                }} />
+            ))}
+          </div>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-white text-base font-bold leading-none tracking-tight truncate">
+              {label}
+            </p>
+            {status && (
+              <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded shrink-0"
+                style={{ background: `${color}20`, color }}>
+                {status}
+              </span>
+            )}
+          </div>
+          <span className="text-zinc-600 text-[10px]">
+            {level > 0
+              ? `Nível ${level} de 5${points ? ` · ${points.toLocaleString('pt-BR')} transações` : ''}`
+              : (mlConnected ? 'Aguardando dados' : 'ML desconect.')}
+          </span>
+        </>
+      )}
+    </div>
+  )
+}
+
 // ── Row 3: Alert Semaphores ────────────────────────────────────────────────────
 
 type AlertLevel = 'red' | 'yellow' | 'green'
@@ -1100,7 +1172,7 @@ export default function DashboardPage() {
         <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-2.5">
           <KpiCard label={`Pedidos — ${PERIOD_LABEL[period]}`} value={String(displayPedidos)} vsYest={period === 'today' ? pct(cur.count, yest.count) : null} color="#a78bfa" loading={displaySummaryLoading || periodLoading} />
           <KpiCard label="Ticket médio"       value={brl(financialSummary?.average_ticket ?? cur.avgTicket)} color="#fb923c" loading={summaryLoading || periodLoading || loading} />
-          <KpiCard label="Reputação ML"         value={sellerInfo?.level_id?.replace(/_/g, ' ') ?? '—'} sub={sellerInfo?.power_seller_status ?? (mlConnected ? '…' : 'ML desconect.')} color="#60a5fa" loading={loading} />
+          <ReputacaoMlCard sellerInfo={sellerInfo} mlConnected={mlConnected} loading={loading} />
           <KpiCard label="Vendas Aprovadas"   value={finKpis ? shortBrl(finKpis.vendas_aprovadas) : '—'} sub="líquido mês atual" color="#22c55e" loading={loading} />
           <KpiCard label={`Margem — ${PERIOD_LABEL[period]}`} value={`${margemPct.toFixed(1)}%`} sub={shortBrl(lucroEstimado)} color={margemPct >= 0 ? '#22c55e' : '#f87171'} loading={periodLoading || summaryLoading} />
           <KpiCard label="Investimento mídia" value={adsSummary ? shortBrl(adsSummary.spend) : '—'} sub={adsSummary && adsSummary.spend > 0 ? 'mês atual' : 'via Ads'} color="#f87171" loading={loading} />
