@@ -54,4 +54,23 @@ export const CopilotApi = {
       '/copilot/help',
       { method: 'POST', body: JSON.stringify(body) },
     ),
+
+  /** Feedback thumbs up/down + comentário opcional. */
+  feedback: (body: {
+    pathname: string
+    question: string
+    answer:   string
+    rating:   'up' | 'down'
+    comment?: string
+  }) =>
+    api<{ ok: true }>(
+      '/copilot/feedback',
+      { method: 'POST', body: JSON.stringify(body) },
+    ),
+
+  /** Lista KB completa por categoria. */
+  listKb: () =>
+    api<Record<string, Array<{ title: string; tags: string[]; routes: string[] }>>>(
+      '/copilot/kb',
+    ),
 }
