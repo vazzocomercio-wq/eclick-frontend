@@ -64,7 +64,7 @@ body {
   background-color: var(--background);
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
     Oxygen, Ubuntu, sans-serif;
-  color: #ffffff;
+  color: var(--text);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   margin: 0;
@@ -151,6 +151,100 @@ main::-webkit-scrollbar-thumb:hover {
 }
 
 select option { background: #1c1c1f; }
+:root[data-theme='light'] select option { background: #ffffff; color: #18181b; }
+
+/* ────────────────────────────────────────────────────────────
+   GLOBAL LIGHT MODE OVERRIDE — pega cores hardcoded sem precisar
+   migrar pagina por pagina.
+
+   Estrategia: usa attribute selector [style*="#XXX"] que casa com
+   o conteudo LITERAL do atributo style. React preserva o hex como
+   foi escrito (style={{ background: '#0c0c10' }} -> style="background:#0c0c10").
+
+   Tambem cobre classes Tailwind arbitrary tipo bg-[#0c0c10] e
+   border-[#1a1a1f], que viram CSS .bg-\[\#0c0c10\].
+
+   So afeta cores escuras de surface/border/text. NAO toca em brand
+   colors (#00E5FF cyan, #22c55e green, #ef4444 red, etc).
+   ──────────────────────────────────────────────────────────── */
+
+/* Backgrounds escuros (hex completos das telas) -> var(--surface).
+   Flag `i` no fim do bracket = case-insensitive (aceita #0c0c10 e #0C0C10). */
+:root[data-theme='light'] [style*="#070709" i],
+:root[data-theme='light'] [style*="#09090b" i],
+:root[data-theme='light'] [style*="#0a0a0c" i],
+:root[data-theme='light'] [style*="#0a0a0d" i],
+:root[data-theme='light'] [style*="#0a0a0e" i],
+:root[data-theme='light'] [style*="#0c0c10" i],
+:root[data-theme='light'] [style*="#0d0d10" i],
+:root[data-theme='light'] [style*="#0e0e12" i],
+:root[data-theme='light'] [style*="#0f0f12" i],
+:root[data-theme='light'] [style*="#111114" i],
+:root[data-theme='light'] [style*="#161618" i],
+:root[data-theme='light'] [style*="#18181b" i],
+:root[data-theme='light'] [style*="#1c1c1f" i],
+:root[data-theme='light'] [style*="#1a1a1f" i],
+:root[data-theme='light'] [style*="#1e1e24" i] {
+  background-color: var(--surface) !important;
+}
+
+/* Bordas via inline style — mesmo conjunto de hex (alguns sao usados
+   como border-color em algumas paginas) */
+:root[data-theme='light'] [style*="#1a1a1f" i],
+:root[data-theme='light'] [style*="#1e1e24" i],
+:root[data-theme='light'] [style*="#27272a" i],
+:root[data-theme='light'] [style*="#3f3f46" i] {
+  border-color: var(--border) !important;
+}
+
+/* Tailwind arbitrary bg/border classes */
+:root[data-theme='light'] .bg-\[\#070709\],
+:root[data-theme='light'] .bg-\[\#09090b\],
+:root[data-theme='light'] .bg-\[\#0a0a0d\],
+:root[data-theme='light'] .bg-\[\#0a0a0e\],
+:root[data-theme='light'] .bg-\[\#0c0c10\],
+:root[data-theme='light'] .bg-\[\#0d0d10\],
+:root[data-theme='light'] .bg-\[\#0f0f12\],
+:root[data-theme='light'] .bg-\[\#111114\],
+:root[data-theme='light'] .bg-\[\#161618\],
+:root[data-theme='light'] .bg-\[\#18181b\],
+:root[data-theme='light'] .bg-\[\#1a1a1f\],
+:root[data-theme='light'] .bg-\[\#1c1c1f\] {
+  background-color: var(--surface) !important;
+}
+:root[data-theme='light'] .border-\[\#1a1a1f\],
+:root[data-theme='light'] .border-\[\#1e1e24\],
+:root[data-theme='light'] .border-\[\#27272a\],
+:root[data-theme='light'] .border-\[\#3f3f46\] {
+  border-color: var(--border) !important;
+}
+
+/* Texto branco/quase-branco fica invisivel em fundo claro -> usa text token */
+:root[data-theme='light'] .text-white,
+:root[data-theme='light'] .text-zinc-100,
+:root[data-theme='light'] .text-zinc-200,
+:root[data-theme='light'] .text-zinc-300,
+:root[data-theme='light'] .text-gray-100,
+:root[data-theme='light'] .text-gray-200,
+:root[data-theme='light'] .text-gray-300 {
+  color: var(--text) !important;
+}
+
+/* Texto inline com hex claros tambem precisa virar dark em fundo branco.
+   So cobre branco puro #fff/#ffffff/#fafafa/#f4f4f5 que sao o caso comum. */
+:root[data-theme='light'] [style*="color: #ffffff"],
+:root[data-theme='light'] [style*="color: #fff;"],
+:root[data-theme='light'] [style*="color:#ffffff"],
+:root[data-theme='light'] [style*="color:#fff;"],
+:root[data-theme='light'] [style*="color: #fafafa"],
+:root[data-theme='light'] [style*="color:#fafafa"],
+:root[data-theme='light'] [style*="color: #f4f4f5"],
+:root[data-theme='light'] [style*="color:#f4f4f5"] {
+  color: var(--text) !important;
+}
+
+/* Zinc-400/500 sao subtitles em modo escuro. Em fundo claro continuam OK
+   (sao cinza médio ja). NAO sobrescrever — preserva hierarquia visual. */
 
 /* Remove spin buttons dos inputs numéricos dos pedidos */
 .pedidos-number-input::-webkit-outer-spin-button,
