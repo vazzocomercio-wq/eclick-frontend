@@ -124,10 +124,12 @@ const SECTIONS: NavSection[] = [
       {
         label: 'Campaign Center IA', href: '/dashboard/ml-campaigns', icon: <Megaphone size={15} />,
         children: [
-          { label: 'Dashboard',     href: '/dashboard/ml-campaigns' },
-          { label: 'Campanhas',     href: '/dashboard/ml-campaigns/list' },
-          { label: 'Encerrando',    href: '/dashboard/ml-campaigns/deadlines' },
-          { label: 'Health check',  href: '/dashboard/ml-campaigns/health' },
+          { label: 'Dashboard',        href: '/dashboard/ml-campaigns' },
+          { label: 'Campanhas',        href: '/dashboard/ml-campaigns/list' },
+          { label: 'Recomendações IA', href: '/dashboard/ml-campaigns/recommendations' },
+          { label: 'Encerrando',       href: '/dashboard/ml-campaigns/deadlines' },
+          { label: 'Health check',     href: '/dashboard/ml-campaigns/health' },
+          { label: 'Configuração',     href: '/dashboard/ml-campaigns/config' },
         ],
       },
       { label: 'Pedidos', href: '/dashboard/pedidos', icon: <ShoppingBag size={15} /> },

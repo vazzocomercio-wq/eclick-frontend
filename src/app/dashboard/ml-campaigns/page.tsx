@@ -220,6 +220,11 @@ export default function MlCampaignsDashboardPage() {
 
           {/* Atalhos */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            <Link href="/dashboard/ml-campaigns/recommendations"
+              className="rounded-lg px-3 py-2.5 text-xs font-semibold hover:border-cyan-400/40 transition-colors inline-flex items-center gap-1.5"
+              style={{ background: 'rgba(0,229,255,0.06)', border: '1px solid rgba(0,229,255,0.3)', color: '#67e8f9' }}>
+              <Sparkles size={12} /> Recomendações IA →
+            </Link>
             <Link href="/dashboard/ml-campaigns/list"
               className="rounded-lg px-3 py-2.5 text-xs font-medium hover:border-cyan-400/40 transition-colors"
               style={{ background: '#0c0c10', border: '1px solid #1a1a1f', color: '#a1a1aa' }}>
@@ -234,11 +239,6 @@ export default function MlCampaignsDashboardPage() {
               className="rounded-lg px-3 py-2.5 text-xs font-medium hover:border-cyan-400/40 transition-colors"
               style={{ background: '#0c0c10', border: '1px solid #1a1a1f', color: '#a1a1aa' }}>
               Health check →
-            </Link>
-            <Link href="/dashboard/ml-campaigns/list?has_subsidy=true"
-              className="rounded-lg px-3 py-2.5 text-xs font-medium hover:border-cyan-400/40 transition-colors"
-              style={{ background: '#0c0c10', border: '1px solid #1a1a1f', color: '#a1a1aa' }}>
-              Com subsídio ML →
             </Link>
           </div>
 
