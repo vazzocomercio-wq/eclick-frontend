@@ -44,25 +44,28 @@ interface PublicProduct {
 
 async function getStore(slug: string): Promise<StoreConfig | null> {
   try {
-    const res = await fetch(`${BACKEND}/public/store/${encodeURIComponent(slug)}`, {
+    const res = await fetch(`${BACKEND}/public/store/by-slug/${encodeURIComponent(slug)}`, {
       next: { revalidate: 60 },
     })
     if (!res.ok) return null
     const text = await res.text()
-    if (!text) return null
+    if (!text || text === 'null') return null
     return JSON.parse(text) as StoreConfig
   } catch { return null }
 }
 
 async function getProducts(slug: string): Promise<PublicProduct[]> {
   try {
+    // Endpoint retorna { config, products } — extrai products do shape
     const res = await fetch(`${BACKEND}/public/store/${encodeURIComponent(slug)}/products?limit=24`, {
       next: { revalidate: 60 },
     })
     if (!res.ok) return []
     const text = await res.text()
     if (!text) return []
-    return JSON.parse(text) as PublicProduct[]
+    const parsed = JSON.parse(text) as { products?: PublicProduct[] } | PublicProduct[]
+    if (Array.isArray(parsed)) return parsed
+    return parsed?.products ?? []
   } catch { return [] }
 }
 
