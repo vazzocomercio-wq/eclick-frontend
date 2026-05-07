@@ -451,12 +451,18 @@ export default function PerguntasPage() {
       const url = useApprove
         ? `${BACKEND}/ml/questions/${selected.id}/approve-and-send`
         : `${BACKEND}/ml/questions/${selected.id}/answer`
+      // Pega seller_id da pergunta (vem do fan-out backend) ou do AccountSelector
+      // como fallback. Sem isso o backend usa a conta default (mais recente)
+      // e ML rejeita "Action not allowed" quando o token nao e dono do anuncio.
+      const questionSellerId = (selected as Question & { _seller_id?: number })._seller_id
+      const sellerForRequest = questionSellerId ?? selectedSellerId ?? undefined
       const body = useApprove
         ? {
             finalAnswer: answerText.trim(),
             wasEdited:   answerText.trim() !== (aiSuggestion ?? '').trim(),
+            seller_id:   sellerForRequest,
           }
-        : { text: answerText.trim() }
+        : { text: answerText.trim(), seller_id: sellerForRequest }
       const res = await fetch(url, {
         method: 'POST',
         headers: {
