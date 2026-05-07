@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import AccountSelector, { useMlAccount, getStoredSellerId } from '@/components/ml/AccountSelector'
+import { useMlLabels } from '@/hooks/useMlLabels'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'https://eclick-backend-production-2a87.up.railway.app'
 
@@ -343,6 +344,7 @@ function ItemsPageInner() {
 // ────────────────────────────────────────────────────────────────────────
 
 function ItemRow({ item }: { item: QualityItem }) {
+  const { domainName, attributeName } = useMlLabels()
   const score      = item.ml_score ?? 0
   const color      = scoreColor(score)
   const missingTot = (item.pi_missing_count || 0) + (item.ft_missing_count || 0) + (item.all_missing_count || 0)
@@ -385,7 +387,7 @@ function ItemRow({ item }: { item: QualityItem }) {
 
           <div className="flex items-center gap-3 text-[11px] text-zinc-500 mt-1 flex-wrap">
             {item.ml_domain_id && (
-              <span className="font-mono">{cleanDomainName(item.ml_domain_id)}</span>
+              <span>{domainName(item.ml_domain_id)}</span>
             )}
             {missingTot > 0 && (
               <span>
@@ -408,10 +410,10 @@ function ItemRow({ item }: { item: QualityItem }) {
                 .map(attr => (
                   <span
                     key={attr}
-                    className="font-mono text-[10px] px-1.5 py-0.5 rounded"
+                    className="text-[10px] px-1.5 py-0.5 rounded"
                     style={{ background: 'rgba(251,191,36,0.06)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.2)' }}
                   >
-                    {attr}
+                    {attributeName(attr)}
                   </span>
                 ))}
               {([...(item.pi_missing_attributes ?? []), ...(item.ft_missing_attributes ?? [])].length > 6) && (
@@ -516,7 +518,3 @@ function scoreColor(s: number): string {
   return '#52525b'
 }
 
-function cleanDomainName(d: string): string {
-  return d.replace(/^MLB-/, '').replace(/_/g, ' ').toLowerCase()
-    .replace(/\b\w/g, c => c.toUpperCase())
-}

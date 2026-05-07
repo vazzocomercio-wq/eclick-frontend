@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import AccountSelector, { useMlAccount, getStoredSellerId } from '@/components/ml/AccountSelector'
+import { useMlLabels } from '@/hooks/useMlLabels'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'https://eclick-backend-production-2a87.up.railway.app'
 
@@ -47,6 +48,7 @@ function ago(iso: string | null): string {
 
 export default function MlQualityDashboardPage() {
   const { selected: selectedSellerId } = useMlAccount()
+  const { domainName, attributeName, refresh: refreshLabels } = useMlLabels()
   const [data, setData]       = useState<Dashboard | null>(null)
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
@@ -73,7 +75,7 @@ export default function MlQualityDashboardPage() {
     }
   }, [])
 
-  useEffect(() => { void load() }, [load, selectedSellerId])
+  useEffect(() => { void load(); void refreshLabels() }, [load, selectedSellerId, refreshLabels])
 
   async function syncNow() {
     setSyncing(true); setError(null)
@@ -208,7 +210,7 @@ export default function MlQualityDashboardPage() {
                       style={{ border: '1px solid #1a1a1f' }}
                     >
                       <div className="min-w-0 flex-1">
-                        <p className="text-zinc-200 truncate">{cleanDomainName(d.domain_id)}</p>
+                        <p className="text-zinc-200 truncate">{domainName(d.domain_id)}</p>
                         <p className="text-[10px] text-zinc-500 mt-0.5">
                           {d.items_incomplete} anúncios · score médio {d.avg_score}
                         </p>
@@ -231,7 +233,7 @@ export default function MlQualityDashboardPage() {
                   {data.top_missing_attributes.slice(0, 10).map(a => (
                     <div key={a.attribute} className="flex items-center justify-between text-xs px-2 py-1.5 rounded"
                       style={{ background: 'rgba(0,229,255,0.04)', border: '1px solid rgba(0,229,255,0.12)' }}>
-                      <span className="text-zinc-200 font-mono text-[11px]">{a.attribute}</span>
+                      <span className="text-zinc-200 text-[12px]">{attributeName(a.attribute)}</span>
                       <span className="text-cyan-400 font-semibold">{a.missing_in_items}</span>
                     </div>
                   ))}
@@ -324,7 +326,3 @@ function scoreColor(s: number): string {
   return '#52525b'
 }
 
-function cleanDomainName(d: string): string {
-  return d.replace(/^MLB-/, '').replace(/_/g, ' ').toLowerCase()
-    .replace(/\b\w/g, c => c.toUpperCase())
-}

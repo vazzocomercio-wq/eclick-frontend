@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { TrendingUp, Loader2, ChevronRight, ShieldCheck, Sparkles } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import AccountSelector, { useMlAccount, getStoredSellerId } from '@/components/ml/AccountSelector'
+import { useMlLabels } from '@/hooks/useMlLabels'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'https://eclick-backend-production-2a87.up.railway.app'
 
@@ -146,9 +147,11 @@ export default function QuickWinsPage() {
 }
 
 function QuickWinRow({ item }: { item: QualityItem }) {
+  const { domainName, attributeName } = useMlLabels()
   const score = item.ml_score ?? 0
   const gain  = (item.estimated_score_after_fix ?? 100) - score
   const missingAttrs = [...(item.pi_missing_attributes ?? []), ...(item.ft_missing_attributes ?? [])]
+  const missingNames = missingAttrs.map(a => attributeName(a))
 
   return (
     <Link
@@ -182,11 +185,11 @@ function QuickWinRow({ item }: { item: QualityItem }) {
             )}
           </div>
           <div className="flex items-center gap-3 text-[11px] text-zinc-500 mt-1 flex-wrap">
-            {item.ml_domain_id && <span>{cleanDomainName(item.ml_domain_id)}</span>}
-            {missingAttrs.length > 0 && (
+            {item.ml_domain_id && <span>{domainName(item.ml_domain_id)}</span>}
+            {missingNames.length > 0 && (
               <span>
-                Falta: <strong className="text-zinc-300">{missingAttrs.slice(0, 3).join(', ')}</strong>
-                {missingAttrs.length > 3 && <span className="text-zinc-500"> +{missingAttrs.length - 3}</span>}
+                Falta: <strong className="text-zinc-300">{missingNames.slice(0, 3).join(', ')}</strong>
+                {missingNames.length > 3 && <span className="text-zinc-500"> +{missingNames.length - 3}</span>}
               </span>
             )}
             <span>seller {item.seller_id}</span>
@@ -231,7 +234,3 @@ function KpiBox({ label, value, icon, color }: {
   )
 }
 
-function cleanDomainName(d: string): string {
-  return d.replace(/^MLB-/, '').replace(/_/g, ' ').toLowerCase()
-    .replace(/\b\w/g, c => c.toUpperCase())
-}

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { AlertOctagon, Loader2, ChevronRight, ShieldCheck } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import AccountSelector, { useMlAccount, getStoredSellerId } from '@/components/ml/AccountSelector'
+import { useMlLabels } from '@/hooks/useMlLabels'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'https://eclick-backend-production-2a87.up.railway.app'
 
@@ -174,6 +175,7 @@ export default function PenaltiesPage() {
 }
 
 function PenaltyRow({ item }: { item: QualityItem }) {
+  const { domainName } = useMlLabels()
   const score = item.ml_score ?? 0
   const color = score >= 60 ? '#fbbf24' : '#ef4444'
 
@@ -221,7 +223,7 @@ function PenaltyRow({ item }: { item: QualityItem }) {
           )}
 
           <div className="flex items-center gap-3 text-[11px] text-zinc-500 mt-1 flex-wrap">
-            {item.ml_domain_id && <span>{cleanDomainName(item.ml_domain_id)}</span>}
+            {item.ml_domain_id && <span>{domainName(item.ml_domain_id)}</span>}
             <span>seller {item.seller_id}</span>
           </div>
         </div>
@@ -241,7 +243,3 @@ function KpiBox({ label, value, color }: { label: string; value: string; color: 
   )
 }
 
-function cleanDomainName(d: string): string {
-  return d.replace(/^MLB-/, '').replace(/_/g, ' ').toLowerCase()
-    .replace(/\b\w/g, c => c.toUpperCase())
-}

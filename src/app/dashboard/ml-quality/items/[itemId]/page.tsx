@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import { getStoredSellerId, useMlAccount } from '@/components/ml/AccountSelector'
+import { useMlLabels } from '@/hooks/useMlLabels'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'https://eclick-backend-production-2a87.up.railway.app'
 
@@ -60,6 +61,7 @@ async function getToken(): Promise<string | null> {
 export default function ItemDetailPage({ params }: { params: Promise<{ itemId: string }> }) {
   const { itemId } = use(params)
   const { selected: selectedSellerId } = useMlAccount()
+  const { domainName, attributeName } = useMlLabels()
 
   const [item, setItem]       = useState<ItemSnapshot | null>(null)
   const [history, setHistory] = useState<ItemHistory[]>([])
@@ -182,7 +184,7 @@ export default function ItemDetailPage({ params }: { params: Promise<{ itemId: s
           </div>
 
           <div className="flex items-center gap-4 text-[11px] text-zinc-500 mt-2 flex-wrap">
-            {item.ml_domain_id && <span>{cleanDomainName(item.ml_domain_id)}</span>}
+            {item.ml_domain_id && <span>{domainName(item.ml_domain_id)}</span>}
             <span>seller {item.seller_id}</span>
             <span className="inline-flex items-center gap-1">
               <Calendar size={10} /> Última leitura: {formatDate(item.fetched_at)}
@@ -213,6 +215,7 @@ export default function ItemDetailPage({ params }: { params: Promise<{ itemId: s
           filled={item.pi_filled_count}
           missing={item.pi_missing_count}
           missingAttrs={item.pi_missing_attributes}
+          attributeName={attributeName}
           color="#a78bfa"
         />
         <DimensionCard
@@ -222,6 +225,7 @@ export default function ItemDetailPage({ params }: { params: Promise<{ itemId: s
           filled={item.ft_filled_count}
           missing={item.ft_missing_count}
           missingAttrs={item.ft_missing_attributes}
+          attributeName={attributeName}
           color="#00E5FF"
         />
         <DimensionCard
@@ -231,6 +235,7 @@ export default function ItemDetailPage({ params }: { params: Promise<{ itemId: s
           filled={item.all_filled_count}
           missing={item.all_missing_count}
           missingAttrs={item.all_missing_attributes}
+          attributeName={attributeName}
           color="#22c55e"
         />
       </div>
@@ -312,10 +317,10 @@ export default function ItemDetailPage({ params }: { params: Promise<{ itemId: s
             {dedupedMissing.map(a => (
               <span
                 key={a}
-                className="font-mono text-[11px] px-2 py-1 rounded"
+                className="text-[11px] px-2 py-1 rounded"
                 style={{ background: 'rgba(251,191,36,0.06)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.2)' }}
               >
-                {a}
+                {attributeName(a)}
               </span>
             ))}
           </div>
@@ -329,14 +334,15 @@ export default function ItemDetailPage({ params }: { params: Promise<{ itemId: s
 // Dimension card
 // ────────────────────────────────────────────────────────────────────────
 
-function DimensionCard({ title, weight, complete, filled, missing, missingAttrs, color }: {
-  title:        string
-  weight:       number
-  complete:     boolean
-  filled:       number
-  missing:      number
-  missingAttrs: string[]
-  color:        string
+function DimensionCard({ title, weight, complete, filled, missing, missingAttrs, attributeName, color }: {
+  title:         string
+  weight:        number
+  complete:      boolean
+  filled:        number
+  missing:       number
+  missingAttrs:  string[]
+  attributeName: (id: string) => string
+  color:         string
 }) {
   const total = filled + missing
   const pct   = total > 0 ? Math.round((filled / total) * 100) : 0
@@ -371,10 +377,10 @@ function DimensionCard({ title, weight, complete, filled, missing, missingAttrs,
             {missingAttrs.slice(0, 8).map(a => (
               <span
                 key={a}
-                className="font-mono text-[10px] px-1.5 py-0.5 rounded"
+                className="text-[10px] px-1.5 py-0.5 rounded"
                 style={{ background: 'rgba(251,191,36,0.06)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.2)' }}
               >
-                {a}
+                {attributeName(a)}
               </span>
             ))}
             {missingAttrs.length > 8 && (
@@ -482,11 +488,6 @@ function scoreColor(s: number): string {
   if (s >= 60) return '#fbbf24'
   if (s > 0)   return '#ef4444'
   return '#52525b'
-}
-
-function cleanDomainName(d: string): string {
-  return d.replace(/^MLB-/, '').replace(/_/g, ' ').toLowerCase()
-    .replace(/\b\w/g, c => c.toUpperCase())
 }
 
 function formatDate(iso: string): string {
