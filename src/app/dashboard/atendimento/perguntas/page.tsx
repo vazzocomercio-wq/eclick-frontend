@@ -264,6 +264,8 @@ export default function PerguntasPage() {
   const [autoAnswerEnabled, setAutoAnswerEnabled] = useState(false)
   const [autoAnswerLoading, setAutoAnswerLoading] = useState(false)
   const [aiStats, setAiStats]                     = useState<AiStats | null>(null)
+  const [confirmDelete, setConfirmDelete]         = useState(false)
+  const [deleting, setDeleting]                   = useState(false)
 
   const addToast = useCallback((msg: string, type: 'ok' | 'err' = 'ok') => {
     const id = Date.now()
@@ -432,6 +434,7 @@ export default function PerguntasPage() {
     setAnswerText('')
     setAnswerError('')
     setSent(false)
+    setConfirmDelete(false)
     limparSugestao()
   }
 
@@ -504,6 +507,48 @@ export default function PerguntasPage() {
       setAnswerError('Erro ao enviar. Tente novamente.')
     } finally {
       setSending(false)
+    }
+  }
+
+  /** Exclui pergunta no ML — reflete no marketplace (DELETE /questions/:id).
+   *  Multi-conta: prioriza _seller_id que ja vem da pergunta (do fan-out
+   *  do backend); fallback pro AccountSelector. Sem isso o backend usa
+   *  conta default e ML rejeita 403 quando o token nao e dono. */
+  const handleDeleteQuestion = async () => {
+    if (!selected || deleting) return
+    setDeleting(true)
+    try {
+      const session = await getSession()
+      const questionSellerId = (selected as Question & { _seller_id?: number })._seller_id
+      const sellerForRequest = questionSellerId ?? selectedSellerId ?? undefined
+      const sellerSuffix = sellerForRequest != null ? `?seller_id=${sellerForRequest}` : ''
+      const res = await fetch(`${BACKEND}/ml/questions/${selected.id}${sellerSuffix}`, {
+        method:  'DELETE',
+        headers: { Authorization: `Bearer ${session!.access_token}` },
+      })
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({})) as { message?: string }
+        const raw = errData.message ?? `Erro ao excluir (HTTP ${res.status})`
+        addToast(raw, 'err')
+        return
+      }
+      // Remove da lista local + escolhe proxima pergunta sem resposta
+      const removedId = selected.id
+      setQuestions(prev => prev.filter(p => p.id !== removedId))
+      const next = questions.find(p =>
+        p.id !== removedId && (p.status === 'unanswered' || p.status === 'UNANSWERED'),
+      )
+      setSelected(next ?? null)
+      setAnswerText('')
+      limparSugestao()
+      setConfirmDelete(false)
+      addToast('Pergunta excluida no Mercado Livre', 'ok')
+      // Refetch silencioso pra reconciliar com servidor
+      fetchQuestions(true)
+    } catch {
+      addToast('Erro ao excluir pergunta. Tente novamente.', 'err')
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -718,6 +763,54 @@ export default function PerguntasPage() {
                   }`}>
                     {(selected.status === 'unanswered' || selected.status === 'UNANSWERED') ? 'Sem resposta' : 'Respondida'}
                   </span>
+
+                  {/* Delete (so libera pra perguntas sem resposta — ML rejeita
+                      DELETE quando ja foi respondida) */}
+                  {(selected.status === 'unanswered' || selected.status === 'UNANSWERED') && (
+                    confirmDelete ? (
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={handleDeleteQuestion}
+                          disabled={deleting}
+                          className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-red-500 hover:bg-red-400 text-white disabled:opacity-50 flex items-center gap-1"
+                          title="Confirmar exclusao no Mercado Livre"
+                        >
+                          {deleting ? (
+                            <svg className="w-3 h-3 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <circle cx="12" cy="12" r="10" strokeWidth={3} strokeDasharray="40 60" />
+                            </svg>
+                          ) : (
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
+                          Confirmar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDelete(false)}
+                          disabled={deleting}
+                          className="text-[11px] px-2 py-0.5 rounded-full font-medium bg-[#1a1a1f] text-gray-400 hover:text-white disabled:opacity-50"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setConfirmDelete(true)}
+                        title="Excluir pergunta no Mercado Livre"
+                        className="text-gray-500 hover:text-red-400 transition-colors flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full hover:bg-red-900/20"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75}
+                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3" />
+                        </svg>
+                        Excluir
+                      </button>
+                    )
+                  )}
                 </div>
                 <div className="bg-[#09090b] rounded-lg p-3 border border-[#1a1a1f]">
                   <p className="text-white text-sm leading-relaxed">{selected.text}</p>
