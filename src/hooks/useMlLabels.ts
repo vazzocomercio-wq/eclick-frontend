@@ -74,7 +74,7 @@ export function useMlLabels(): {
 
   const attributeName = useCallback((id: string | null | undefined) => {
     if (!id) return ''
-    return labels.attributes[id] ?? id // sem MLB- prefix em attrs, mantem ID original
+    return labels.attributes[id] ?? humanize(id)
   }, [labels])
 
   return { labels, loading, domainName, attributeName, refresh }
