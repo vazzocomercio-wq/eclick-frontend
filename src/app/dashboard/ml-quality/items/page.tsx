@@ -158,7 +158,7 @@ function ItemsPageInner() {
   const currentPage = Math.floor(offset / LIMIT) + 1
 
   return (
-    <div className="p-6 space-y-4 max-w-7xl mx-auto" style={{ background: '#09090b', minHeight: '100vh', color: '#fafafa' }}>
+    <div className="p-6 space-y-4 max-w-7xl mx-auto" style={{ background: 'var(--background)', minHeight: '100vh', color: 'var(--text)' }}>
       {/* Header */}
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
@@ -188,7 +188,7 @@ function ItemsPageInner() {
               onChange={e => setSearchInput(e.target.value)}
               placeholder="Buscar por MLB ID…"
               className="w-full pl-9 pr-8 py-2 text-xs rounded-lg outline-none focus:border-cyan-400/50 transition-colors"
-              style={{ background: '#09090b', border: '1px solid #1a1a1f', color: '#fafafa' }}
+              style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)' }}
             />
             {searchInput && (
               <button
@@ -206,7 +206,7 @@ function ItemsPageInner() {
               value={sort}
               onChange={e => updateFilter({ sort: e.target.value })}
               className="rounded-lg px-2 py-2 text-xs outline-none cursor-pointer"
-              style={{ background: '#09090b', border: '1px solid #1a1a1f', color: '#fafafa' }}
+              style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)' }}
             >
               <option value="priority">Maior prioridade</option>
               <option value="score_asc">Score ↑</option>
@@ -474,7 +474,7 @@ function ScoreRangeFilter({ min, max, onChange }: {
         value={min}
         onChange={e => onChange(e.target.value, max)}
         className="w-14 rounded px-1.5 py-1 text-xs text-center outline-none"
-        style={{ background: '#09090b', border: '1px solid #1a1a1f', color: '#fafafa' }}
+        style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)' }}
       />
       <span className="text-zinc-600 text-xs">–</span>
       <input
@@ -482,7 +482,7 @@ function ScoreRangeFilter({ min, max, onChange }: {
         value={max}
         onChange={e => onChange(min, e.target.value)}
         className="w-14 rounded px-1.5 py-1 text-xs text-center outline-none"
-        style={{ background: '#09090b', border: '1px solid #1a1a1f', color: '#fafafa' }}
+        style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)' }}
       />
     </div>
   )

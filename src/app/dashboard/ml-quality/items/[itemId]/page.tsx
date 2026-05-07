@@ -98,7 +98,7 @@ export default function ItemDetailPage({ params }: { params: Promise<{ itemId: s
 
   if (loading) {
     return (
-      <div className="p-6 max-w-5xl mx-auto" style={{ background: '#09090b', minHeight: '100vh', color: '#fafafa' }}>
+      <div className="p-6 max-w-5xl mx-auto" style={{ background: 'var(--background)', minHeight: '100vh', color: 'var(--text)' }}>
         <div className="flex items-center gap-2 text-zinc-500 text-sm">
           <Loader2 size={14} className="animate-spin" /> Carregando…
         </div>
@@ -108,7 +108,7 @@ export default function ItemDetailPage({ params }: { params: Promise<{ itemId: s
 
   if (error || !item) {
     return (
-      <div className="p-6 max-w-5xl mx-auto" style={{ background: '#09090b', minHeight: '100vh', color: '#fafafa' }}>
+      <div className="p-6 max-w-5xl mx-auto" style={{ background: 'var(--background)', minHeight: '100vh', color: 'var(--text)' }}>
         <Link href="/dashboard/ml-quality/items" className="inline-flex items-center gap-1 text-cyan-400 text-xs mb-3 hover:underline">
           <ArrowLeft size={12} /> Voltar pra lista
         </Link>
@@ -129,7 +129,7 @@ export default function ItemDetailPage({ params }: { params: Promise<{ itemId: s
   const dedupedMissing = Array.from(new Set(allMissing))
 
   return (
-    <div className="p-6 space-y-4 max-w-5xl mx-auto" style={{ background: '#09090b', minHeight: '100vh', color: '#fafafa' }}>
+    <div className="p-6 space-y-4 max-w-5xl mx-auto" style={{ background: 'var(--background)', minHeight: '100vh', color: 'var(--text)' }}>
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-xs text-zinc-500">
         <Link href="/dashboard/ml-quality" className="hover:text-cyan-400 transition-colors">

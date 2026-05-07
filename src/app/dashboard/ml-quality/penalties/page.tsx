@@ -71,7 +71,7 @@ export default function PenaltiesPage() {
     .slice(0, 6)
 
   return (
-    <div className="p-6 space-y-4 max-w-7xl mx-auto" style={{ background: '#09090b', minHeight: '100vh', color: '#fafafa' }}>
+    <div className="p-6 space-y-4 max-w-7xl mx-auto" style={{ background: 'var(--background)', minHeight: '100vh', color: 'var(--text)' }}>
       {/* Header */}
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>

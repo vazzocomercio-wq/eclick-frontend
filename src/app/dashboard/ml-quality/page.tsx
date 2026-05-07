@@ -96,7 +96,7 @@ export default function MlQualityDashboardPage() {
   }
 
   return (
-    <div className="p-6 space-y-5 max-w-7xl mx-auto" style={{ background: '#09090b', minHeight: '100vh', color: '#fafafa' }}>
+    <div className="p-6 space-y-5 max-w-7xl mx-auto" style={{ background: 'var(--background)', minHeight: '100vh', color: 'var(--text)' }}>
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
