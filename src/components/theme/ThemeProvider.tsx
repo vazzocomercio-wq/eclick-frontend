@@ -65,26 +65,75 @@ const DARK_TEXT_RGB = new Set([
   'rgb(228, 228, 231)',
 ])
 
+// Substrings de cores escuras que aparecem em gradients (linear-gradient,
+// radial-gradient). Quando style.background = 'linear-gradient(...)' tem
+// alguma dessas, toda a stack de gradient eh substituida por var(--surface).
+const DARK_GRADIENT_PATTERNS = [
+  'rgb(7, 7, 9)',     'rgb(9, 9, 11)',    'rgb(10, 10, 12)',  'rgb(10, 10, 13)',
+  'rgb(10, 10, 14)',  'rgb(12, 12, 14)',  'rgb(12, 12, 15)',  'rgb(12, 12, 16)',
+  'rgb(13, 13, 16)',  'rgb(13, 17, 23)',  'rgb(14, 14, 17)',  'rgb(14, 14, 18)',
+  'rgb(15, 15, 18)',  'rgb(17, 17, 20)',  'rgb(22, 22, 24)',  'rgb(24, 24, 27)',
+  'rgb(26, 26, 31)',  'rgb(28, 28, 31)',  'rgb(30, 30, 36)',  'rgb(0, 0, 0)',
+]
+
+function hasDarkGradient(value: string): boolean {
+  if (!value) return false
+  // gradient lookup via includes (rgb forms)
+  for (const p of DARK_GRADIENT_PATTERNS) {
+    if (value.includes(p)) return true
+  }
+  return false
+}
+
+// Marca elementos modificados pra que possamos restaurar no toggle dark.
+// Guarda o valor original do inline style num data-attr.
+const MUTATED_ATTR = 'data-eclick-mutated'
+
 function processElement(el: HTMLElement) {
+  let mutated = false
+
+  // 1) background-color liso
   const bg = el.style.backgroundColor
   if (bg && DARK_BG_RGB.has(bg)) {
-    el.style.backgroundColor = 'var(--surface)'
+    // setProperty + 'important' garante que o inline style tem prioridade
+    // e CSS vars sao aceitos sem rejeicao do parser (alguns browsers
+    // descartam el.style.backgroundColor='var(--surface)' silenciosamente)
+    el.style.setProperty('background-color', 'var(--surface)', 'important')
+    mutated = true
   }
+
+  // 2) background-image (gradients) — quando style.background = 'linear-gradient(...)'
+  //    o gradient vai pro backgroundImage. Se contem cor escura, neutraliza.
+  const bgImage = el.style.backgroundImage
+  if (bgImage && bgImage !== 'none' && hasDarkGradient(bgImage)) {
+    el.style.setProperty('background-image', 'none', 'important')
+    el.style.setProperty('background-color', 'var(--surface)', 'important')
+    mutated = true
+  }
+
+  // 3) borders
   const border = el.style.borderColor
   if (border && DARK_BORDER_RGB.has(border)) {
-    el.style.borderColor = 'var(--border)'
+    el.style.setProperty('border-color', 'var(--border)', 'important')
+    mutated = true
   }
-  // border-top/right/bottom/left individual
   for (const side of ['borderTopColor', 'borderRightColor', 'borderBottomColor', 'borderLeftColor'] as const) {
     const v = el.style[side]
     if (v && DARK_BORDER_RGB.has(v)) {
-      el.style[side] = 'var(--border)'
+      const cssProp = side.replace(/([A-Z])/g, '-$1').toLowerCase()
+      el.style.setProperty(cssProp, 'var(--border)', 'important')
+      mutated = true
     }
   }
+
+  // 4) text
   const color = el.style.color
   if (color && DARK_TEXT_RGB.has(color)) {
-    el.style.color = 'var(--text)'
+    el.style.setProperty('color', 'var(--text)', 'important')
+    mutated = true
   }
+
+  if (mutated) el.setAttribute(MUTATED_ATTR, '1')
 }
 
 function walkAll(root: Node) {
