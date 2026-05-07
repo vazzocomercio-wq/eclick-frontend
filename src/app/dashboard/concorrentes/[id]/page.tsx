@@ -350,7 +350,7 @@ Máximo 350 palavras, use emojis para facilitar a leitura.`
 
   if (loading && !competitor) {
     return (
-      <div className="p-6 space-y-4 animate-pulse" style={{ background: '#09090b', minHeight: '100%' }}>
+      <div className="p-6 space-y-4 animate-pulse" style={{ background: 'var(--background)', minHeight: '100%' }}>
         <div className="h-5 w-36 rounded" style={{ background: '#111114' }} />
         <div className="h-32 rounded-2xl" style={{ background: '#111114' }} />
         <div className="grid grid-cols-6 gap-2">
@@ -364,7 +364,7 @@ Máximo 350 palavras, use emojis para facilitar a leitura.`
 
   if (!competitor) {
     return (
-      <div className="p-6 flex flex-col items-center justify-center gap-4 min-h-full" style={{ background: '#09090b' }}>
+      <div className="p-6 flex flex-col items-center justify-center gap-4 min-h-full" style={{ background: 'var(--background)' }}>
         <p className="text-sm" style={{ color: '#a1a1aa' }}>Concorrente não encontrado</p>
         <Link href="/dashboard/concorrentes" className="text-[13px] font-medium" style={{ color: '#00E5FF' }}>
           ← Voltar
@@ -377,7 +377,7 @@ Máximo 350 palavras, use emojis para facilitar a leitura.`
   const rep = reputationLabel(ml.seller?.seller_reputation?.level_id ?? competitor.seller_reputation)
 
   return (
-    <div style={{ background: '#09090b', minHeight: '100%', padding: '20px 24px 40px' }}>
+    <div style={{ background: 'var(--background)', minHeight: '100%', padding: '20px 24px 40px' }}>
 
       {lightbox && <Lightbox src={lightbox} onClose={() => setLightbox(null)} />}
 

@@ -402,7 +402,7 @@ export default function AlertasPage() {
   }), [signals])
 
   return (
-    <div className="p-4 sm:p-6 space-y-5 min-h-full" style={{ background: '#09090b' }}>
+    <div className="p-4 sm:p-6 space-y-5 min-h-full" style={{ background: 'var(--background)' }}>
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">

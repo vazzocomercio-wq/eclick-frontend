@@ -118,7 +118,7 @@ export default function AnalyticsPage() {
   }))
 
   return (
-    <div className="min-h-screen p-6 space-y-6" style={{ background: '#09090b' }}>
+    <div className="min-h-screen p-6 space-y-6" style={{ background: 'var(--background)' }}>
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>

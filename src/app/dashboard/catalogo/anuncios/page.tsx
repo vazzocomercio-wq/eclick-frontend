@@ -583,7 +583,7 @@ export default function Page() {
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="p-6 max-w-7xl space-y-5" style={{ background: '#09090b', minHeight: '100vh' }}>
+    <div className="p-6 max-w-7xl space-y-5" style={{ background: 'var(--background)', minHeight: '100vh' }}>
       <Toasts toasts={toasts} />
 
       {/* ── Section 1: Header visits ─────────────────────────────────── */}

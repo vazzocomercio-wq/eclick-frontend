@@ -162,7 +162,7 @@ export default function PricingConfigPage() {
   const presetName = (config.preset_name ?? 'custom') as PresetName
 
   return (
-    <div className="flex flex-col h-full" style={{ background: '#09090b' }}>
+    <div className="flex flex-col h-full" style={{ background: 'var(--background)' }}>
       {/* Header */}
       <div className="shrink-0 px-6 pt-6 pb-4" style={{ borderBottom: '1px solid #1e1e24' }}>
         <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -181,7 +181,7 @@ export default function PricingConfigPage() {
               onChange={(e) => applyPreset(e.target.value as PresetName)}
               disabled={saving}
               className="px-3 py-1.5 rounded-lg text-xs font-medium"
-              style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }}
+              style={{ background: '#0a0a0e', border: '1px solid #27272a', color: 'var(--text)' }}
             >
               {(['conservador', 'equilibrado', 'agressivo', 'custom'] as PresetName[]).map(p => (
                 <option key={p} value={p} disabled={p === 'custom'}>

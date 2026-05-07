@@ -1643,7 +1643,7 @@ export default function VinculosPage() {
   ]
 
   return (
-    <div style={{ background: '#09090b', minHeight: '100vh' }} className="p-6 space-y-6">
+    <div style={{ background: 'var(--background)', minHeight: '100vh' }} className="p-6 space-y-6">
       <Toasts list={toasts} />
 
       {/* Header */}

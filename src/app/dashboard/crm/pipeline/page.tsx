@@ -410,7 +410,7 @@ export default function PipelinePage() {
   // ── No table ──────────────────────────────────────────────────────────────────
 
   if (noTable) return (
-    <div className="p-6 space-y-4 min-h-full" style={{ background: '#09090b' }}>
+    <div className="p-6 space-y-4 min-h-full" style={{ background: 'var(--background)' }}>
       <div><p className="text-zinc-500 text-xs">CRM</p><h2 className="text-white text-lg font-semibold mt-0.5">Pipeline</h2></div>
       <div className="rounded-2xl p-5 space-y-4 max-w-2xl" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
         <div className="flex items-center gap-2 text-amber-400">
@@ -434,7 +434,7 @@ export default function PipelinePage() {
   // ── Render ────────────────────────────────────────────────────────────────────
 
   return (
-    <div className="p-6 space-y-5 min-h-full" style={{ background: '#09090b' }}>
+    <div className="p-6 space-y-5 min-h-full" style={{ background: 'var(--background)' }}>
 
       {/* Header */}
       <div className="flex items-center justify-between gap-4 flex-wrap">

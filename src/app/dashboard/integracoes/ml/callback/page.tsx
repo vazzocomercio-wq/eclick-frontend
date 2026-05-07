@@ -76,7 +76,7 @@ function MlCallbackContent() {
   }, [params, router])
 
   return (
-    <div className="flex flex-col items-center justify-center h-screen" style={{ background: '#09090b' }}>
+    <div className="flex flex-col items-center justify-center h-screen" style={{ background: 'var(--background)' }}>
       <div
         className="w-full max-w-sm mx-4 rounded-2xl px-8 py-10 flex flex-col items-center gap-5 text-center"
         style={{ background: '#111114', border: '1px solid #1e1e24' }}

@@ -157,6 +157,19 @@ select option { background: #1c1c1f; }
 .pedidos-number-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .pedidos-number-input { -moz-appearance: textfield; appearance: textfield; }
 
+/* Logo theme-aware. PNG sem alpha channel (8-bit RGB) — blend mode
+   diferente por tema pra "remover" o fundo opaco visualmente.
+   - Escuro: screen blend (logo em fundo escuro, partes claras passam)
+   - Claro:  invert + hue rotate preserva matiz do brand cyan enquanto
+             flipa lightness (escuro vira claro e vice-versa). */
+.logo-themed {
+  mix-blend-mode: screen;
+}
+:root[data-theme='light'] .logo-themed {
+  mix-blend-mode: multiply;
+  filter: brightness(0.85) contrast(1.2);
+}
+
 /* Marquee infinito horizontal — usado no AnimatedPromptSuggestions
    (carrossel de chips de sugestão atrás do input do copilot). */
 @keyframes marquee-left {

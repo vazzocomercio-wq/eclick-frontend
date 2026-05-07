@@ -30,7 +30,7 @@ export default function CustomerHubPage() {
   }
 
   return (
-    <div className="flex flex-col h-full" style={{ background: '#09090b' }}>
+    <div className="flex flex-col h-full" style={{ background: 'var(--background)' }}>
       <div className="shrink-0 px-6 pt-6 pb-2" style={{ borderBottom: '1px solid #1e1e24' }}>
         <h1 className="text-white text-lg font-semibold">Customer Hub</h1>
         <p className="text-zinc-500 text-sm mt-0.5">RFM · Curva ABC · Segmentação · Churn risk. Cron diário @03:17 BRT recalcula tudo automaticamente.</p>

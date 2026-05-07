@@ -107,7 +107,7 @@ export default function PricingAnalisePage() {
   const waEnabled   = !!notif?.whatsapp_enabled
 
   return (
-    <div className="flex flex-col h-full" style={{ background: '#09090b' }}>
+    <div className="flex flex-col h-full" style={{ background: 'var(--background)' }}>
       {/* Header */}
       <div className="shrink-0 px-6 pt-6 pb-4" style={{ borderBottom: '1px solid #1e1e24' }}>
         <div className="flex items-start justify-between gap-4 flex-wrap">

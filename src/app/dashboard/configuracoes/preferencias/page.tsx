@@ -24,7 +24,7 @@ const TABS: { key: TabKey; label: string; icon: React.ReactNode }[] = [
 export default function PreferenciasPage() {
   const [tab, setTab] = useState<TabKey>('privacidade')
   return (
-    <div className="p-6 space-y-5 min-h-full" style={{ background: '#09090b' }}>
+    <div className="p-6 space-y-5 min-h-full" style={{ background: 'var(--background)' }}>
       <ToastViewport />
       <div>
         <p className="text-zinc-500 text-[10px] font-medium uppercase tracking-widest">Configurações</p>

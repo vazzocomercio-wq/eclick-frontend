@@ -495,7 +495,7 @@ export default function InteligenciaPage() {
   }
 
   return (
-    <div style={{ background: '#09090b', minHeight: '100vh', padding: 24 }}>
+    <div style={{ background: 'var(--background)', minHeight: '100vh', padding: 24 }}>
 
       {/* Drawer */}
       {selectedProduct && (

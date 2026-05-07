@@ -392,7 +392,7 @@ export default function EditarProdutoPage() {
   // ── loading / error states ─────────────────────────────────────────────────
   if (loadingProduct) {
     return (
-      <div className="flex items-center justify-center h-full" style={{ background: '#09090b' }}>
+      <div className="flex items-center justify-center h-full" style={{ background: 'var(--background)' }}>
         <svg className="w-6 h-6 animate-spin" style={{ color: '#00E5FF' }} fill="none" viewBox="0 0 24 24">
           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
@@ -403,7 +403,7 @@ export default function EditarProdutoPage() {
 
   if (loadError) {
     return (
-      <div className="flex flex-col items-center justify-center h-full gap-4" style={{ background: '#09090b' }}>
+      <div className="flex flex-col items-center justify-center h-full gap-4" style={{ background: 'var(--background)' }}>
         <p className="text-zinc-400 text-sm">{loadError}</p>
         <button onClick={() => router.push('/dashboard/produtos')}
           className="text-sm font-medium" style={{ color: '#00E5FF' }}>
@@ -416,7 +416,7 @@ export default function EditarProdutoPage() {
   // ── render ─────────────────────────────────────────────────────────────────
   return (
     <>
-      <div className="flex flex-col h-full" style={{ background: '#09090b' }}>
+      <div className="flex flex-col h-full" style={{ background: 'var(--background)' }}>
 
         {/* ── Top bar ── */}
         <div className="shrink-0 px-6 pt-5 pb-0" style={{ borderBottom: '1px solid #1e1e24' }}>

@@ -77,7 +77,7 @@ export default function IaSettingsPage() {
   }
 
   return (
-    <div className="p-6 space-y-5 min-h-full" style={{ background: '#09090b' }}>
+    <div className="p-6 space-y-5 min-h-full" style={{ background: 'var(--background)' }}>
       {/* Header */}
       <div>
         <p className="text-zinc-500 text-xs font-medium uppercase tracking-widest">Configurações</p>

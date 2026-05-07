@@ -333,7 +333,7 @@ export default function VendasAoVivoPage() {
 
   if (!loading && !connected) {
     return (
-      <div className="flex flex-col items-center justify-center h-full gap-4" style={{ background: '#09090b' }}>
+      <div className="flex flex-col items-center justify-center h-full gap-4" style={{ background: 'var(--background)' }}>
         <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ background: 'rgba(0,229,255,0.08)' }}>
           <svg className="w-7 h-7" fill="none" stroke="#00E5FF" viewBox="0 0 24 24" strokeWidth={1.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
@@ -346,7 +346,7 @@ export default function VendasAoVivoPage() {
   }
 
   return (
-    <div className="flex flex-col h-full overflow-y-auto" style={{ background: '#09090b' }}>
+    <div className="flex flex-col h-full overflow-y-auto" style={{ background: 'var(--background)' }}>
 
       {/* ── HEADER ──────────────────────────────────────────────────────────── */}
       <div className="shrink-0 px-6 pt-6 pb-5 relative overflow-hidden"

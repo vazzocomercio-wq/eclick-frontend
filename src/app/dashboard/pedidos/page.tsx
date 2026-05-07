@@ -2307,7 +2307,7 @@ export default function PedidosPage() {
   }, [kpis, orders])
 
   return (
-    <div style={{ background: '#09090b', minHeight: '100vh' }} className="p-6 max-w-[1400px] space-y-5">
+    <div style={{ background: 'var(--background)', minHeight: '100vh' }} className="p-6 max-w-[1400px] space-y-5">
       <ToastViewport />
       <Toasts list={toasts} />
 
@@ -2328,7 +2328,7 @@ export default function PedidosPage() {
             />
             <button onClick={() => todoToast('Exportar relatório de pedidos')}
               className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-colors"
-              style={{ background: '#18181b', color: '#fafafa', border: '1px solid #27272a' }}>
+              style={{ background: '#18181b', color: 'var(--text)', border: '1px solid #27272a' }}>
               <BarChart2 size={12} /> Relatório
             </button>
           </div>

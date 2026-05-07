@@ -150,7 +150,7 @@ export default function SincronizacoesPage() {
   })
 
   return (
-    <div style={{ background: '#09090b', minHeight: '100vh' }} className="p-6 max-w-[1200px] space-y-6">
+    <div style={{ background: 'var(--background)', minHeight: '100vh' }} className="p-6 max-w-[1200px] space-y-6">
 
       {/* Header */}
       <div className="flex items-start justify-between gap-4">

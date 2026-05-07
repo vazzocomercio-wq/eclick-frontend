@@ -735,7 +735,7 @@ export default function MlAdsPage() {
   const isEmpty = !loading && campaigns.length === 0 && (totals?.spend ?? 0) === 0
 
   return (
-    <div className="p-6 space-y-6 min-h-full" style={{ background: '#09090b' }}>
+    <div className="p-6 space-y-6 min-h-full" style={{ background: 'var(--background)' }}>
 
       <InsightsBanner />
       <AdsAIChat />

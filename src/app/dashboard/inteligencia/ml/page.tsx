@@ -128,11 +128,11 @@ export default function IntelligenceMlPage() {
   useEffect(() => { void refresh() }, [refresh])
 
   return (
-    <div className="p-6 space-y-6" style={{ background: '#09090b', color: '#fafafa', minHeight: '100%' }}>
+    <div className="p-6 space-y-6" style={{ background: 'var(--background)', color: 'var(--text)', minHeight: '100%' }}>
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold" style={{ color: '#fafafa' }}>Intelligence Hub — Mercado Livre</h1>
+          <h1 className="text-xl font-semibold" style={{ color: 'var(--text)' }}>Intelligence Hub — Mercado Livre</h1>
           <p className="text-xs mt-0.5" style={{ color: '#a1a1aa' }}>
             Reputação, reclamações, atrasos e candidatos a exclusão de reclamação.
           </p>
@@ -346,7 +346,7 @@ function ClaimsPanel({ claims }: { claims: Claim[] }) {
           >
             <Package size={12} className="flex-shrink-0 mt-0.5" style={{ color: '#a5f3fc' }} />
             <div className="flex-1 min-w-0">
-              <div className="font-medium" style={{ color: '#fafafa' }}>
+              <div className="font-medium" style={{ color: 'var(--text)' }}>
                 {c.reason_name ?? c.type ?? 'Reclamação'}
                 {c.stage === 'mediation' && (
                   <span className="ml-2 text-[9px] px-1.5 py-0.5 rounded" style={{ background: '#ef444422', color: '#f87171' }}>
@@ -441,7 +441,7 @@ function RemovalCandidatesPanel({ candidates, onRefresh, onError }: {
                 {new Date(c.created_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
               </span>
             </div>
-            <div className="text-xs mb-1" style={{ color: '#fafafa' }}>{c.llm_reason}</div>
+            <div className="text-xs mb-1" style={{ color: 'var(--text)' }}>{c.llm_reason}</div>
             {c.llm_suggested_action && (
               <div className="text-[11px] mt-1" style={{ color: '#a1a1aa' }}>
                 Ação: {c.llm_suggested_action}

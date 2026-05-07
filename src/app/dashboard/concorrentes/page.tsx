@@ -257,7 +257,7 @@ export default function ConcorrentesPage() {
 
   return (
     <>
-      <div className="flex flex-col h-full" style={{ background: '#09090b' }}>
+      <div className="flex flex-col h-full" style={{ background: 'var(--background)' }}>
 
         {/* Top bar */}
         <div className="shrink-0 px-6 pt-6 pb-5" style={{ borderBottom: '1px solid #1e1e24' }}>

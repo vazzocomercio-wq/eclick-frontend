@@ -589,18 +589,14 @@ export default function Sidebar() {
           </button>
         ) : (
           <>
-            {/* Logo CSS-only — sem fundo (não usa PNG). 'e-' em cyan brand,
-                'Click' herda a cor do texto pra reagir ao tema (claro/escuro). */}
-            <span style={{
-              fontSize: 28,
-              fontWeight: 900,
-              lineHeight: 1,
-              letterSpacing: '-0.04em',
-              userSelect: 'none',
-            }}>
-              <span style={{ color: '#00E5FF' }}>e-</span>
-              <span style={{ color: 'var(--text)' }}>Click</span>
-            </span>
+            {/* Logo oficial — classe 'logo-themed' aplica blend correto por
+                tema (screen no escuro, invert no claro) via globals.css. */}
+            <img
+              src="/logo.png"
+              alt="e-Click"
+              className="logo-themed"
+              style={{ width: 160 }}
+            />
             <button
               onClick={toggleCollapsed}
               className="flex items-center justify-center w-7 h-7 rounded-md transition-colors"

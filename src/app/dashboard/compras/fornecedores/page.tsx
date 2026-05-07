@@ -192,7 +192,7 @@ export default function FornecedoresPage() {
   const label = 'block text-xs text-zinc-400 mb-1'
 
   return (
-    <div className="min-h-screen p-6" style={{ background: '#09090b', color: '#fff' }}>
+    <div className="min-h-screen p-6" style={{ background: 'var(--background)', color: '#fff' }}>
       {/* header */}
       <div className="flex items-center justify-between mb-6">
         <div>

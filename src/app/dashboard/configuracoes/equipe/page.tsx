@@ -159,7 +159,7 @@ export default function EquipePage() {
   // ── Render ──────────────────────────────────────────────────────────────────
 
   return (
-    <div className="p-6 space-y-6 min-h-full" style={{ background: '#09090b' }}>
+    <div className="p-6 space-y-6 min-h-full" style={{ background: 'var(--background)' }}>
 
       {/* Header */}
       <div className="flex items-center justify-between gap-4">

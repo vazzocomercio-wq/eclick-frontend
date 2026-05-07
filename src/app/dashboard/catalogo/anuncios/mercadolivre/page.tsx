@@ -1025,7 +1025,7 @@ export default function MLAnunciosPage() {
   const pendingItems = items.filter(i => pendingIds.includes(i.id))
 
   return (
-    <div style={{ background: '#09090b', minHeight: '100vh' }}
+    <div style={{ background: 'var(--background)', minHeight: '100vh' }}
       className={`p-6 space-y-5 ${selected.size > 0 ? 'pb-24' : ''}`}>
       <Toasts list={toasts} />
 

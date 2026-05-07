@@ -987,7 +987,7 @@ export default function ProdutosPage() {
   // ── render ───────────────────────────────────────────────────────────────────
 
   return (
-    <div className="p-6 min-h-full" style={{ background: '#09090b' }}>
+    <div className="p-6 min-h-full" style={{ background: 'var(--background)' }}>
       <ToastViewport />
       <ProdutosToolsPanel products={products} />
 

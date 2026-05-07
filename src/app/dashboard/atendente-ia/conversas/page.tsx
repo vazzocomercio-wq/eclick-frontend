@@ -573,7 +573,7 @@ export default function ConversasPage() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: '#09090b' }}>
+    <div className="flex h-screen overflow-hidden" style={{ background: 'var(--background)' }}>
 
       {/* ── Col 1: Conversation list ─────────────────────────────────────── */}
       <div className="w-72 shrink-0 flex flex-col" style={{ borderRight: '1px solid #1e1e24' }}>

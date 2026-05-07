@@ -99,7 +99,7 @@ export default function WidgetPage() {
   }
 
   return (
-    <div className="min-h-screen p-6 space-y-6" style={{ background: '#09090b' }}>
+    <div className="min-h-screen p-6 space-y-6" style={{ background: 'var(--background)' }}>
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-white flex items-center gap-2">
@@ -383,7 +383,7 @@ function SnippetModal({ data, onClose }: {
               <div>
                 <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-2">Preview</p>
                 <div className="rounded-lg overflow-hidden" style={{ border: '1px solid #1e1e24' }}>
-                  <iframe src={data.snippet.preview_url} title="Widget preview" className="w-full" style={{ height: 540, background: '#09090b' }} />
+                  <iframe src={data.snippet.preview_url} title="Widget preview" className="w-full" style={{ height: 540, background: 'var(--background)' }} />
                 </div>
                 <a href={data.snippet.preview_url} target="_blank" rel="noreferrer"
                   className="inline-flex items-center gap-1 text-[11px] mt-2"

@@ -290,7 +290,7 @@ Cada bullet com 1 linha. Use ícone ✓ no início. Em português.`
   // ── Render ──────────────────────────────────────────────────────────────────
 
   return (
-    <div className="p-6 space-y-5 min-h-full" style={{ background: '#09090b' }}>
+    <div className="p-6 space-y-5 min-h-full" style={{ background: 'var(--background)' }}>
 
       {/* Header */}
       <div>

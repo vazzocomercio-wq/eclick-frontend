@@ -154,7 +154,7 @@ export default function MensagensPage() {
   const displayed = tab === 'unanswered' ? questions : answered
 
   return (
-    <div className="p-6 space-y-7 min-h-full" style={{ background: '#09090b' }}>
+    <div className="p-6 space-y-7 min-h-full" style={{ background: 'var(--background)' }}>
 
       <div className="flex items-center justify-between gap-4">
         <div>

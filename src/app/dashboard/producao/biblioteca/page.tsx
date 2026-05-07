@@ -301,7 +301,7 @@ export default function BibliotecaPage() {
   const imgCount = filtered.filter(i => isImage(i.url)).length
 
   return (
-    <div className="p-6 space-y-5 min-h-full" style={{ background: '#09090b' }}>
+    <div className="p-6 space-y-5 min-h-full" style={{ background: 'var(--background)' }}>
 
       {/* Header */}
       <div className="flex items-center justify-between gap-4">

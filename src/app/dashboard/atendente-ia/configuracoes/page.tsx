@@ -75,7 +75,7 @@ export default function ConfiguracoesAiPage() {
 
   if (loading || !s) {
     return (
-      <div className="p-6 space-y-6 min-h-full" style={{ background: '#09090b' }}>
+      <div className="p-6 space-y-6 min-h-full" style={{ background: 'var(--background)' }}>
         <div className="flex items-center gap-2 text-zinc-500 text-sm">
           <Loader2 size={14} className="animate-spin" /> Carregando…
         </div>
@@ -93,7 +93,7 @@ export default function ConfiguracoesAiPage() {
   }
 
   return (
-    <div className="p-6 space-y-7 min-h-full" style={{ background: '#09090b' }}>
+    <div className="p-6 space-y-7 min-h-full" style={{ background: 'var(--background)' }}>
       <div>
         <p className="text-zinc-500 text-xs">Atendente IA</p>
         <h2 className="text-white text-lg font-semibold mt-0.5">Configurações</h2>

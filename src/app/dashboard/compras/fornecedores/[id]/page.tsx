@@ -270,7 +270,7 @@ export default function FornecedorDetailPage() {
   }
 
   if (loading) return (
-    <div className="min-h-screen flex items-center justify-center" style={{ background: '#09090b' }}>
+    <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--background)' }}>
       <p className="text-zinc-500 text-sm">Carregando...</p>
     </div>
   )
@@ -278,7 +278,7 @@ export default function FornecedorDetailPage() {
   if (!supplier) return null
 
   return (
-    <div className="min-h-screen p-6" style={{ background: '#09090b', color: '#fff' }}>
+    <div className="min-h-screen p-6" style={{ background: 'var(--background)', color: '#fff' }}>
       {/* header */}
       <div className="flex items-start justify-between mb-6">
         <div className="flex items-center gap-3">

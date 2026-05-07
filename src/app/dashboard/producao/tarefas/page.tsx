@@ -456,7 +456,7 @@ export default function TarefasPage() {
   // ── Table-not-found screen ───────────────────────────────────────────────────
 
   if (noTable) return (
-    <div className="p-6 space-y-4 min-h-full" style={{ background: '#09090b' }}>
+    <div className="p-6 space-y-4 min-h-full" style={{ background: 'var(--background)' }}>
       <div>
         <p className="text-zinc-500 text-xs">Produção</p>
         <h2 className="text-white text-lg font-semibold mt-0.5">Tarefas</h2>
@@ -496,7 +496,7 @@ export default function TarefasPage() {
   // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
-    <div className="p-6 space-y-5 min-h-full" style={{ background: '#09090b' }}>
+    <div className="p-6 space-y-5 min-h-full" style={{ background: 'var(--background)' }}>
 
       {/* Header */}
       <div className="flex items-center justify-between gap-4">

@@ -314,7 +314,7 @@ export default function ConfiguracoesPage() {
 
   if (loading || !config) {
     return (
-      <div className="p-4 sm:p-6 space-y-4 min-h-full" style={{ background: '#09090b' }}>
+      <div className="p-4 sm:p-6 space-y-4 min-h-full" style={{ background: 'var(--background)' }}>
         {[...Array(4)].map((_, i) => (
           <div key={i} className="h-40 rounded-2xl animate-pulse" style={{ background: '#111114' }} />
         ))}
@@ -323,7 +323,7 @@ export default function ConfiguracoesPage() {
   }
 
   return (
-    <div className="p-4 sm:p-6 space-y-5 min-h-full" style={{ background: '#09090b' }}>
+    <div className="p-4 sm:p-6 space-y-5 min-h-full" style={{ background: 'var(--background)' }}>
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">

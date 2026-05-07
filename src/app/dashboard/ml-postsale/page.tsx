@@ -325,11 +325,11 @@ export default function MlPostsalePage() {
   )
 
   return (
-    <div className="h-[calc(100vh-64px)] flex" style={{ background: '#09090b', color: '#fafafa' }}>
+    <div className="h-[calc(100vh-64px)] flex" style={{ background: 'var(--background)', color: 'var(--text)' }}>
       {/* Coluna 1 — Lista */}
       <aside className="w-[320px] flex flex-col border-r" style={{ borderColor: '#1e1e24', background: '#0a0a0e' }}>
         <header className="p-3 border-b flex flex-col gap-2" style={{ borderColor: '#1e1e24' }}>
-          <h2 className="text-sm font-semibold" style={{ color: '#fafafa' }}>ML Pós-venda</h2>
+          <h2 className="text-sm font-semibold" style={{ color: 'var(--text)' }}>ML Pós-venda</h2>
           <div className="relative">
             <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2" style={{ color: '#52525b' }} />
             <input
@@ -338,7 +338,7 @@ export default function MlPostsalePage() {
               value={filter.search}
               onChange={e => setFilter(f => ({ ...f, search: e.target.value }))}
               className="w-full pl-7 pr-2 py-1.5 text-xs rounded-md outline-none"
-              style={{ background: '#111114', color: '#fafafa', border: '1px solid #1e1e24' }}
+              style={{ background: '#111114', color: 'var(--text)', border: '1px solid #1e1e24' }}
             />
           </div>
           <div className="flex gap-1 flex-wrap">
@@ -420,7 +420,7 @@ export default function MlPostsalePage() {
                   <img src={selectedConv.product_thumbnail} alt="" className="w-10 h-10 rounded object-cover" />
                 )}
                 <div className="min-w-0">
-                  <div className="text-sm font-medium truncate" style={{ color: '#fafafa' }}>
+                  <div className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>
                     {selectedConv.buyer_nickname ?? `Comprador #${selectedConv.id.slice(0, 8)}`}
                   </div>
                   <div className="text-xs truncate" style={{ color: '#a1a1aa' }}>
@@ -534,7 +534,7 @@ function ConversationCard({ conv, selected, onClick }: {
         />
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-2">
-            <div className="text-xs font-medium truncate" style={{ color: '#fafafa' }}>
+            <div className="text-xs font-medium truncate" style={{ color: 'var(--text)' }}>
               {conv.buyer_nickname ?? 'Comprador'}
             </div>
             {conv.unread_count > 0 && (
@@ -726,7 +726,7 @@ function SaleContextPanel({ conversation, knowledge, onSaveKnowledge }: {
           // eslint-disable-next-line @next/next/no-img-element
           <img src={c.product_thumbnail} alt="" className="w-full h-32 object-cover rounded mb-2" />
         )}
-        <div className="text-xs font-medium" style={{ color: '#fafafa' }}>{c.product_title ?? 'Produto não identificado'}</div>
+        <div className="text-xs font-medium" style={{ color: 'var(--text)' }}>{c.product_title ?? 'Produto não identificado'}</div>
         {c.ml_listing_id && (
           <a
             href={`https://produto.mercadolivre.com.br/${c.ml_listing_id}`}
@@ -746,9 +746,9 @@ function SaleContextPanel({ conversation, knowledge, onSaveKnowledge }: {
           <CheckCircle2 size={12} /> Pedido
         </div>
         <div className="space-y-1 text-xs" style={{ color: '#a1a1aa' }}>
-          <div>Pack ID: <span style={{ color: '#fafafa' }}>{c.pack_id ?? '—'}</span></div>
-          <div>Order: <span style={{ color: '#fafafa' }}>{c.order_id ?? '—'}</span></div>
-          <div>Comprador: <span style={{ color: '#fafafa' }}>{c.buyer_nickname ?? `#${c.buyer_id ?? '—'}`}</span></div>
+          <div>Pack ID: <span style={{ color: 'var(--text)' }}>{c.pack_id ?? '—'}</span></div>
+          <div>Order: <span style={{ color: 'var(--text)' }}>{c.order_id ?? '—'}</span></div>
+          <div>Comprador: <span style={{ color: 'var(--text)' }}>{c.buyer_nickname ?? `#${c.buyer_id ?? '—'}`}</span></div>
         </div>
       </div>
 
@@ -834,7 +834,7 @@ function KbField({ label, value, onChange }: {
         onChange={e => onChange(e.target.value)}
         rows={2}
         className="w-full p-2 text-xs rounded outline-none resize-none"
-        style={{ background: '#0d0d10', color: '#fafafa', border: '1px solid #1e1e24' }}
+        style={{ background: '#0d0d10', color: 'var(--text)', border: '1px solid #1e1e24' }}
       />
     </div>
   )

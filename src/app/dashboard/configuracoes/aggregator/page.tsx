@@ -291,7 +291,7 @@ export default function AggregatorPage() {
   const pct = active ? Math.round((active.processed_dates / Math.max(active.total_dates, 1)) * 100) : 0
 
   return (
-    <div className="p-6" style={{ background: '#09090b', minHeight: '100%' }}>
+    <div className="p-6" style={{ background: 'var(--background)', minHeight: '100%' }}>
       {/* Toast */}
       {toast && (
         <div

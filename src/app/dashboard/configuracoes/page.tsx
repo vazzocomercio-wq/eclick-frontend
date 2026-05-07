@@ -91,7 +91,7 @@ export default function ConfiguracoesGeralPage() {
   }
 
   return (
-    <div className="p-6 space-y-7 min-h-full" style={{ background: '#09090b' }}>
+    <div className="p-6 space-y-7 min-h-full" style={{ background: 'var(--background)' }}>
 
       <div>
         <p className="text-zinc-500 text-xs">Configurações</p>

@@ -85,7 +85,7 @@ export default function ClientesPage() {
   useEffect(() => { load() }, [load])
 
   return (
-    <div className="min-h-screen p-6 space-y-5" style={{ background: '#09090b' }}>
+    <div className="min-h-screen p-6 space-y-5" style={{ background: 'var(--background)' }}>
       <div>
         <p className="text-zinc-500 text-xs font-medium tracking-widest uppercase mb-1">Atendente IA</p>
         <h1 className="text-white text-2xl font-semibold flex items-center gap-2"><Users size={22} style={{ color: '#00E5FF' }} /> Clientes</h1>
