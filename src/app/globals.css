@@ -159,15 +159,17 @@ select option { background: #1c1c1f; }
 
 /* Logo theme-aware. PNG sem alpha channel (8-bit RGB) — blend mode
    diferente por tema pra "remover" o fundo opaco visualmente.
-   - Escuro: screen blend (logo em fundo escuro, partes claras passam)
-   - Claro:  invert + hue rotate preserva matiz do brand cyan enquanto
-             flipa lightness (escuro vira claro e vice-versa). */
+   - Escuro: screen blend (preto da PNG some no fundo escuro, cyan passa)
+   - Claro:  invert(1) hue-rotate(180deg) faz preto -> branco mantendo
+             cyan como cyan; multiply em fundo branco torna o branco
+             invisivel. Sem isso o quadrado preto da PNG aparecia em
+             cima do fundo claro. */
 .logo-themed {
   mix-blend-mode: screen;
 }
 :root[data-theme='light'] .logo-themed {
+  filter: invert(1) hue-rotate(180deg);
   mix-blend-mode: multiply;
-  filter: brightness(0.85) contrast(1.2);
 }
 
 /* Marquee infinito horizontal — usado no AnimatedPromptSuggestions

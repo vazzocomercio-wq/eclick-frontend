@@ -235,22 +235,22 @@ function DashHeader({ period, setPeriod, channel, setChannel, onRefresh, refresh
   return (
     <div className="flex flex-wrap items-center gap-3">
       {/* Period pills */}
-      <div className="flex gap-1 p-1 rounded-lg" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+      <div className="flex gap-1 p-1 rounded-lg" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
         {PERIODS.map(p => (
           <button key={p.key} onClick={() => setPeriod(p.key)}
             className="px-3 py-1.5 rounded-md text-[12px] font-semibold transition-all"
-            style={{ background: period === p.key ? 'rgba(0,229,255,0.12)' : 'transparent', color: period === p.key ? '#00E5FF' : '#a1a1aa' }}>
+            style={{ background: period === p.key ? 'rgba(0,229,255,0.12)' : 'transparent', color: period === p.key ? 'var(--primary)' : 'var(--text-muted)' }}>
             {p.label}
           </button>
         ))}
       </div>
 
       {/* Channel pills */}
-      <div className="flex gap-1 p-1 rounded-lg" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+      <div className="flex gap-1 p-1 rounded-lg" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
         {CHANNELS.map(c => (
           <button key={c.key} onClick={() => setChannel(c.key)}
             className="px-3 py-1.5 rounded-md text-[12px] font-semibold transition-all"
-            style={{ background: channel === c.key ? `${c.color}18` : 'transparent', color: channel === c.key ? c.color : '#a1a1aa' }}>
+            style={{ background: channel === c.key ? `${c.color}18` : 'transparent', color: channel === c.key ? c.color : 'var(--text-muted)' }}>
             {c.label}
           </button>
         ))}
@@ -258,13 +258,13 @@ function DashHeader({ period, setPeriod, channel, setChannel, onRefresh, refresh
 
       <div className="ml-auto flex items-center gap-3">
         {minAgo !== null && (
-          <span className="text-zinc-600 text-[11px]">
+          <span className="text-[11px]" style={{ color: 'var(--text-dim)' }}>
             Atualizado há {minAgo < 1 ? 'menos de 1 min' : `${minAgo} min`}
           </span>
         )}
         <button onClick={onRefresh} disabled={refreshing}
           className="flex items-center gap-2 px-3 py-2 rounded-lg text-[12px] font-semibold border transition-all disabled:opacity-60"
-          style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>
+          style={{ borderColor: 'var(--border-strong)', color: 'var(--text-muted)' }}>
           {refreshing
             ? <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
             : <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
@@ -285,15 +285,15 @@ function KpiCard({ label, value, vsYest, vsWeek, sub, color = '#00E5FF', loading
 }) {
   return (
     <div className="rounded-xl p-4 flex flex-col gap-2.5 transition-all"
-      style={{ background: '#111114', border: '1px solid rgba(255,255,255,0.06)' }}
-      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = `${color}28` }}
-      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.06)' }}>
-      <p className="text-zinc-400 text-[11px] font-medium leading-tight">{label}</p>
+      style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = `${color}40` }}
+      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)' }}>
+      <p className="text-[11px] font-medium leading-tight" style={{ color: 'var(--text-muted)' }}>{label}</p>
       {loading ? (
         <div className="space-y-2"><Skel h={28} className="w-3/4" /><Skel h={12} className="w-1/2" /></div>
       ) : (
         <>
-          <p className="text-white text-xl font-bold leading-none tracking-tight">{value}</p>
+          <p className="text-xl font-bold leading-none tracking-tight" style={{ color: 'var(--text)' }}>{value}</p>
           <div className="flex flex-wrap gap-x-2 gap-y-1">
             {vsYest != null && (
               <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
@@ -307,18 +307,18 @@ function KpiCard({ label, value, vsYest, vsWeek, sub, color = '#00E5FF', loading
                 {vsWeek >= 0 ? '↑' : '↓'} {Math.abs(vsWeek).toFixed(1)}% sem.
               </span>
             )}
-            {sub && <span className="text-zinc-600 text-[10px]">{sub}</span>}
+            {sub && <span className="text-[10px]" style={{ color: 'var(--text-dim)' }}>{sub}</span>}
           </div>
           {comparison && (
-            <div className="mt-0.5 pt-2.5 border-t border-[#ffffff10]">
+            <div className="mt-0.5 pt-2.5" style={{ borderTop: '1px solid var(--border)' }}>
               <div className="flex items-center justify-between mb-0.5">
-                <span className="text-[10px] text-gray-400">{comparison.prevLabel}</span>
-                <span className="text-[10px] text-gray-400 font-medium">{brl(comparison.prevValue)}</span>
+                <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{comparison.prevLabel}</span>
+                <span className="text-[10px] font-medium" style={{ color: 'var(--text-muted)' }}>{brl(comparison.prevValue)}</span>
               </div>
               {(() => {
                 const diff = comparison.curRaw - comparison.prevValue
                 if (comparison.prevValue === 0) return (
-                  <span className="text-[10px] text-gray-400">sem dado anterior</span>
+                  <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>sem dado anterior</span>
                 )
                 const pctChange = (diff / comparison.prevValue) * 100
                 const isUp = diff >= 0
@@ -327,7 +327,7 @@ function KpiCard({ label, value, vsYest, vsWeek, sub, color = '#00E5FF', loading
                     <span className={`text-[10px] font-semibold ${isUp ? 'text-green-400' : 'text-red-400'}`}>
                       {isUp ? '↑' : '↓'} {Math.abs(pctChange).toFixed(1)}%
                     </span>
-                    <span className="text-[10px] text-gray-400">
+                    <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
                       ({isUp ? '+' : ''}{shortBrl(diff)})
                     </span>
                   </div>
@@ -372,10 +372,10 @@ function ReputacaoMlCard({ sellerInfo, mlConnected, loading }: {
 
   return (
     <div className="rounded-xl p-4 flex flex-col gap-2.5 transition-all"
-      style={{ background: '#111114', border: '1px solid rgba(255,255,255,0.06)' }}
-      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = `${color}28` }}
-      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.06)' }}>
-      <p className="text-zinc-400 text-[11px] font-medium leading-tight">Reputação ML</p>
+      style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = `${color}40` }}
+      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)' }}>
+      <p className="text-[11px] font-medium leading-tight" style={{ color: 'var(--text-muted)' }}>Reputação ML</p>
       {loading ? (
         <div className="space-y-2"><Skel h={28} className="w-3/4" /><Skel h={12} className="w-1/2" /></div>
       ) : (
@@ -385,14 +385,14 @@ function ReputacaoMlCard({ sellerInfo, mlConnected, loading }: {
             {[1, 2, 3, 4, 5].map(i => (
               <div key={i} className="h-2 flex-1 rounded-sm transition-all"
                 style={{
-                  background: i <= level ? color : '#27272a',
+                  background: i <= level ? color : 'var(--border-strong)',
                   boxShadow: i === level && level > 0 ? `0 0 6px ${color}66` : undefined,
                   opacity: i <= level ? 1 : 0.5,
                 }} />
             ))}
           </div>
           <div className="flex items-center justify-between gap-2">
-            <p className="text-white text-base font-bold leading-none tracking-tight truncate">
+            <p className="text-base font-bold leading-none tracking-tight truncate" style={{ color: 'var(--text)' }}>
               {label}
             </p>
             {status && (
@@ -402,7 +402,7 @@ function ReputacaoMlCard({ sellerInfo, mlConnected, loading }: {
               </span>
             )}
           </div>
-          <span className="text-zinc-600 text-[10px]">
+          <span className="text-[10px]" style={{ color: 'var(--text-dim)' }}>
             {level > 0
               ? `Nível ${level} de 5${points ? ` · ${points.toLocaleString('pt-BR')} transações` : ''}`
               : (mlConnected ? 'Aguardando dados' : 'ML desconect.')}
@@ -438,7 +438,7 @@ function AlertCard({ label, value, level, href, loading }: {
   ) : (
     <>
       <p className="text-xl font-black leading-none" style={{ color }}>{value}</p>
-      <p className="text-[11px] font-medium mt-0.5" style={{ color: '#a1a1aa' }}>{label}</p>
+      <p className="text-[11px] font-medium mt-0.5" style={{ color: 'var(--text-muted)' }}>{label}</p>
     </>
   )
   const card = (
@@ -446,7 +446,7 @@ function AlertCard({ label, value, level, href, loading }: {
       style={{ background: bg, border: `1px solid ${border}` }}>
       <div className="flex items-center justify-between mb-1">
         <span className="w-2 h-2 rounded-full" style={{ background: color }} />
-        {href && <svg className="w-3 h-3" style={{ color: '#52525b' }} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>}
+        {href && <svg className="w-3 h-3" style={{ color: 'var(--text-dim)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>}
       </div>
       {inner}
     </div>
@@ -1051,8 +1051,8 @@ export default function DashboardPage() {
       {/* Page title */}
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-zinc-500 text-[12px] capitalize">{today}</p>
-          <h2 className="text-white text-lg font-semibold mt-0.5">Visão Geral</h2>
+          <p className="text-[12px] capitalize" style={{ color: 'var(--text-dim)' }}>{today}</p>
+          <h2 className="text-lg font-semibold mt-0.5" style={{ color: 'var(--text)' }}>Visão Geral</h2>
         </div>
         <div className="flex items-center gap-2">
           {mlConnected && (
@@ -1080,16 +1080,18 @@ export default function DashboardPage() {
       {/* LINHA 2 — Cards grandes: Faturamento + Lucro */}
       <div className="grid grid-cols-2 gap-4">
 
-        {/* Faturamento — fundo com glow radial cyan (canto sup-dir) + counter-glow (canto inf-esq) */}
+        {/* Faturamento — fundo com glow radial cyan (canto sup-dir) + counter-glow (canto inf-esq).
+            Base usa var(--surface) pra adaptar ao tema; glows ficam em rgba e
+            funcionam em qualquer fundo. */}
         <div className="rounded-2xl p-6 transition-all relative overflow-hidden"
           style={{
             background: [
               'radial-gradient(ellipse 70% 55% at 100% 0%, rgba(0,229,255,0.22), rgba(0,229,255,0) 65%)',
               'radial-gradient(ellipse 60% 50% at 0% 100%, rgba(0,229,255,0.07), rgba(0,229,255,0) 60%)',
-              'linear-gradient(135deg, #0d1a1a, #091414)',
+              'var(--surface)',
             ].join(', '),
             border: '1px solid rgba(0,229,255,0.25)',
-            boxShadow: '0 0 32px -12px rgba(0,229,255,0.2), inset 0 1px 0 rgba(255,255,255,0.04)',
+            boxShadow: '0 0 32px -12px rgba(0,229,255,0.2)',
           }}>
           <p className="text-[#00E5FF] text-xs uppercase tracking-widest mb-3">
             Faturamento — {PERIOD_LABEL[period]}
@@ -1098,15 +1100,15 @@ export default function DashboardPage() {
             <div className="space-y-3"><Skel h={40} className="w-2/3" /><Skel h={14} className="w-1/2" /></div>
           ) : (
             <>
-              <p className="text-4xl font-bold text-white leading-none">{formatCurrency(faturamento)}</p>
-              <p className="text-xs text-zinc-500 mt-1">
+              <p className="text-4xl font-bold leading-none" style={{ color: 'var(--text)' }}>{formatCurrency(faturamento)}</p>
+              <p className="text-xs mt-1" style={{ color: 'var(--text-dim)' }}>
                 {displayPedidos} pedido{displayPedidos !== 1 ? 's' : ''} no período
               </p>
               {prevData && (
-                <div className="mt-4 pt-3 border-t border-[#ffffff10]">
+                <div className="mt-4 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
                   <div className="flex justify-between items-center">
-                    <span className="text-xs text-gray-400">{PREV_PERIOD_LABEL[period]}</span>
-                    <span className="text-xs text-gray-400">{formatCurrency(prevData.faturamento)}</span>
+                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{PREV_PERIOD_LABEL[period]}</span>
+                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{formatCurrency(prevData.faturamento)}</span>
                   </div>
                   <div className="flex items-center gap-2 mt-1">
                     {prevData.faturamento > 0 ? (() => {
@@ -1118,12 +1120,12 @@ export default function DashboardPage() {
                           <span className={`text-sm font-semibold ${up ? 'text-green-400' : 'text-red-400'}`}>
                             {up ? '↑' : '↓'} {Math.abs(p).toFixed(1)}%
                           </span>
-                          <span className="text-xs text-gray-400">
+                          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
                             ({up ? '+' : ''}{formatCurrency(diff)})
                           </span>
                         </>
                       )
-                    })() : <span className="text-xs text-gray-400">sem dado anterior</span>}
+                    })() : <span className="text-xs" style={{ color: 'var(--text-muted)' }}>sem dado anterior</span>}
                   </div>
                 </div>
               )}
@@ -1137,10 +1139,10 @@ export default function DashboardPage() {
             background: [
               'radial-gradient(ellipse 70% 55% at 100% 0%, rgba(34,197,94,0.22), rgba(34,197,94,0) 65%)',
               'radial-gradient(ellipse 60% 50% at 0% 100%, rgba(34,197,94,0.07), rgba(34,197,94,0) 60%)',
-              'linear-gradient(135deg, #0d1a0d, #091409)',
+              'var(--surface)',
             ].join(', '),
             border: '1px solid rgba(34,197,94,0.25)',
-            boxShadow: '0 0 32px -12px rgba(34,197,94,0.2), inset 0 1px 0 rgba(255,255,255,0.04)',
+            boxShadow: '0 0 32px -12px rgba(34,197,94,0.2)',
           }}>
           <p className="text-[#22c55e] text-xs uppercase tracking-widest mb-3">
             Lucro Estimado — {PERIOD_LABEL[period]}
@@ -1149,7 +1151,7 @@ export default function DashboardPage() {
             <div className="space-y-3"><Skel h={40} className="w-2/3" /><Skel h={14} className="w-1/2" /></div>
           ) : (
             <>
-              <p className="text-4xl font-bold text-white leading-none">{formatCurrency(lucroEstimado)}</p>
+              <p className="text-4xl font-bold leading-none" style={{ color: 'var(--text)' }}>{formatCurrency(lucroEstimado)}</p>
               <p className="text-xs text-[#22c55e] mt-1">
                 {margemPct.toFixed(1)}% do faturamento
               </p>
@@ -1168,13 +1170,13 @@ export default function DashboardPage() {
                 </div>
               )}
               {pedidosComCusto > 0 && pedidosSemCusto === 0 && (
-                <p className="text-[10px] text-zinc-500 mt-1.5">✓ Calculado com custos reais ({pedidosComCusto} pedidos)</p>
+                <p className="text-[10px] mt-1.5" style={{ color: 'var(--text-dim)' }}>✓ Calculado com custos reais ({pedidosComCusto} pedidos)</p>
               )}
               {prevData && (
-                <div className="mt-4 pt-3 border-t border-[#ffffff10]">
+                <div className="mt-4 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
                   <div className="flex justify-between items-center">
-                    <span className="text-xs text-gray-400">{PREV_PERIOD_LABEL[period]}</span>
-                    <span className="text-xs text-gray-400">{formatCurrency(prevData.lucro)}</span>
+                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{PREV_PERIOD_LABEL[period]}</span>
+                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{formatCurrency(prevData.lucro)}</span>
                   </div>
                   <div className="flex items-center gap-2 mt-1">
                     {prevData.lucro > 0 ? (() => {
@@ -1186,12 +1188,12 @@ export default function DashboardPage() {
                           <span className={`text-sm font-semibold ${up ? 'text-green-400' : 'text-red-400'}`}>
                             {up ? '↑' : '↓'} {Math.abs(p).toFixed(1)}%
                           </span>
-                          <span className="text-xs text-gray-400">
+                          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
                             ({up ? '+' : ''}{formatCurrency(diff)})
                           </span>
                         </>
                       )
-                    })() : <span className="text-xs text-gray-400">sem dado anterior</span>}
+                    })() : <span className="text-xs" style={{ color: 'var(--text-muted)' }}>sem dado anterior</span>}
                   </div>
                 </div>
               )}
@@ -1203,7 +1205,7 @@ export default function DashboardPage() {
 
       {/* LINHA 3 — KPIs menores */}
       <section>
-        <p className="text-zinc-500 text-[10px] uppercase tracking-widest font-semibold mb-3">KPIs Executivos</p>
+        <p className="text-[10px] uppercase tracking-widest font-semibold mb-3" style={{ color: 'var(--text-dim)' }}>KPIs Executivos</p>
         <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-2.5">
           <KpiCard label={`Pedidos — ${PERIOD_LABEL[period]}`} value={String(displayPedidos)} vsYest={period === 'today' ? pct(cur.count, yest.count) : null} color="#a78bfa" loading={displaySummaryLoading || periodLoading} />
           <KpiCard label="Ticket médio"       value={brl(financialSummary?.average_ticket ?? cur.avgTicket)} color="#fb923c" loading={summaryLoading || periodLoading || loading} />
@@ -1217,7 +1219,7 @@ export default function DashboardPage() {
 
       {/* LINHA 3 — Alerts */}
       <section>
-        <p className="text-zinc-500 text-[10px] uppercase tracking-widest font-semibold mb-3">Central de Alertas</p>
+        <p className="text-[10px] uppercase tracking-widest font-semibold mb-3" style={{ color: 'var(--text-dim)' }}>Central de Alertas</p>
         <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-2.5">
           <AlertCard label="Reclamações abertas"    value={claims}              level={claims > 0 ? 'red' : 'green'}                              href="/dashboard/atendimento/reclamacoes" loading={loading} />
           <AlertCard label="Mediações abertas"      value={mediations}          level={mediations > 0 ? 'yellow' : 'green'}                       href="/dashboard/atendimento/reclamacoes" loading={loading} />
@@ -1232,11 +1234,11 @@ export default function DashboardPage() {
 
       {/* LINHA 4 — Sales Chart */}
       <section>
-        <div className="rounded-2xl px-6 py-5" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+        <div className="rounded-2xl px-6 py-5" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
           <div className="flex items-center justify-between mb-5">
             <div>
-              <p className="text-white text-sm font-semibold">Resumo de Vendas</p>
-              <p className="text-zinc-500 text-xs mt-0.5">Faturamento diário — todos os pedidos</p>
+              <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Resumo de Vendas</p>
+              <p className="text-xs mt-0.5" style={{ color: 'var(--text-dim)' }}>Faturamento diário — todos os pedidos</p>
             </div>
             <div className="grid grid-cols-3 gap-4 text-center">
               {[

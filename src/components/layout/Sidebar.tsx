@@ -290,7 +290,7 @@ function NavSubGroup({ child }: { child: NavChild }) {
         <ChevronDown size={10} style={{ color: '#71717a', transform: open ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 150ms' }} />
       </button>
       {open && (
-        <div className="ml-2 pl-2 mt-0.5 space-y-0.5" style={{ borderLeft: '1px solid #1e1e24' }}>
+        <div className="ml-2 pl-2 mt-0.5 space-y-0.5" style={{ borderLeft: '1px solid var(--border)' }}>
           {(child.subItems ?? []).map(s => {
             const active = pathname.startsWith(s.href)
             return (
@@ -343,7 +343,7 @@ function NavGroupItem({ item, badges }: { item: NavItem; badges: Badges }) {
       </button>
 
       {open && (
-        <div className="ml-3.5 pl-3 mt-0.5 space-y-0.5" style={{ borderLeft: '1px solid #1e1e24' }}>
+        <div className="ml-3.5 pl-3 mt-0.5 space-y-0.5" style={{ borderLeft: '1px solid var(--border)' }}>
           {children.map((child, idx) => {
             if (child.subItems) return <NavSubGroup key={idx} child={child} />
             if (child.soon) return (
@@ -431,7 +431,7 @@ function SidebarSection({ section, open, onToggle, badges, first }: {
 }) {
   return (
     <div className={first ? '' : 'mt-1'}>
-      {!first && <div style={{ borderTop: '1px solid #1a1a1f', margin: '6px 0 4px' }} />}
+      {!first && <div style={{ borderTop: '1px solid var(--border)', margin: '6px 0 4px' }} />}
       <button
         onClick={onToggle}
         className="w-full flex items-center justify-between px-3 py-1"
@@ -572,7 +572,7 @@ export default function Sidebar() {
       <div
         className="flex items-center shrink-0"
         style={{
-          borderBottom: '1px solid rgba(255,255,255,0.05)',
+          borderBottom: '1px solid var(--border)',
           padding: collapsed ? '14px 0' : '14px 12px',
           justifyContent: collapsed ? 'center' : 'space-between',
           minHeight: 60,
@@ -582,7 +582,7 @@ export default function Sidebar() {
           <button onClick={toggleCollapsed} title="Expandir menu"
             className="flex items-center justify-center w-10 h-10 rounded-xl transition-colors"
             style={{ background: 'transparent' }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.06)' }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--hover-bg)' }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
           >
             <span style={{ color: '#00E5FF', fontSize: 26, fontWeight: 900, lineHeight: 1, letterSpacing: '-0.04em' }}>e</span>
@@ -601,7 +601,7 @@ export default function Sidebar() {
               onClick={toggleCollapsed}
               className="flex items-center justify-center w-7 h-7 rounded-md transition-colors"
               style={{ color: '#71717a', flexShrink: 0 }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#a1a1aa'; (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.06)' }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#a1a1aa'; (e.currentTarget as HTMLElement).style.background = 'var(--hover-bg)' }}
               onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = '#71717a'; (e.currentTarget as HTMLElement).style.background = 'transparent' }}
               title="Recolher menu"
             >
@@ -634,7 +634,7 @@ export default function Sidebar() {
         <nav className="flex-1 py-2 overflow-y-auto no-scrollbar flex flex-col items-center gap-0.5">
           {SECTIONS.map((section, si) => (
             <div key={section.key} className="w-full flex flex-col items-center">
-              {si > 0 && <div style={{ borderTop: '1px solid #1a1a1f', width: '70%', margin: '4px 0' }} />}
+              {si > 0 && <div style={{ borderTop: '1px solid var(--border)', width: '70%', margin: '4px 0' }} />}
               {section.items.map(item => {
                 const isActive = item.exact
                   ? pathname === item.href
@@ -648,7 +648,7 @@ export default function Sidebar() {
                   <Link key={item.href} href={item.href} title={item.label}
                     className="flex items-center justify-center w-10 h-10 rounded-xl transition-colors"
                     style={{ color: isActive ? '#00E5FF' : '#52525b', background: isActive ? 'rgba(0,229,255,0.09)' : 'transparent' }}
-                    onMouseEnter={e => { if (!isActive) { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.06)'; (e.currentTarget as HTMLElement).style.color = '#a1a1aa' } }}
+                    onMouseEnter={e => { if (!isActive) { (e.currentTarget as HTMLElement).style.background = 'var(--hover-bg)'; (e.currentTarget as HTMLElement).style.color = '#a1a1aa' } }}
                     onMouseLeave={e => { if (!isActive) { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = '#52525b' } }}
                   >
                     {bigIcon}

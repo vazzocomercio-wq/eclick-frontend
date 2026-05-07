@@ -87,8 +87,8 @@ export default function HubSummaryCard() {
           <Bell size={14} style={{ color: '#00E5FF' }} />
         </div>
         <div className="flex-1 min-w-0">
-          <h3 className="text-white font-semibold text-sm">Intelligence Hub · últimas 24h</h3>
-          <p className="text-[11px] text-zinc-500">
+          <h3 className="font-semibold text-sm" style={{ color: 'var(--text)' }}>Intelligence Hub · últimas 24h</h3>
+          <p className="text-[11px]" style={{ color: 'var(--text-dim)' }}>
             {stats.signals_total} alerta{stats.signals_total !== 1 ? 's' : ''} · {stats.deliveries_sent} mensage{stats.deliveries_sent === 1 ? 'm' : 'ns'} enviada{stats.deliveries_sent !== 1 ? 's' : ''}
           </p>
         </div>
@@ -108,13 +108,13 @@ export default function HubSummaryCard() {
 
       {stats.top_categories.length > 0 && (
         <div className="flex items-center gap-2 flex-wrap pt-1">
-          <span className="text-[10px] uppercase tracking-wider text-zinc-600 font-semibold">
+          <span className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'var(--text-dim)' }}>
             Top categorias:
           </span>
           {stats.top_categories.slice(0, 3).map(c => (
             <span key={c.category} className="text-[10px] px-2 py-0.5 rounded-full"
-              style={{ background: '#18181b', color: '#a1a1aa', border: '1px solid #27272a' }}>
-              {humanizeCategory(c.category)} <strong className="text-white">· {c.count}</strong>
+              style={{ background: 'var(--surface-elev)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
+              {humanizeCategory(c.category)} <strong style={{ color: 'var(--text)' }}>· {c.count}</strong>
             </span>
           ))}
         </div>
@@ -131,14 +131,14 @@ function Stat({ label, value, color, icon: Icon }: {
 }) {
   return (
     <div className="rounded-xl p-3 flex items-center gap-2"
-      style={{ background: '#18181b', border: '1px solid #27272a' }}>
+      style={{ background: 'var(--surface-elev)', border: '1px solid var(--border)' }}>
       <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
         style={{ background: `${color}1a`, border: `1px solid ${color}33` }}>
         <Icon size={14} style={{ color }} />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-[9px] uppercase tracking-wider text-zinc-500 leading-none">{label}</p>
-        <p className="text-lg font-bold leading-tight mt-0.5" style={{ color: value > 0 ? color : '#52525b' }}>
+        <p className="text-[9px] uppercase tracking-wider leading-none" style={{ color: 'var(--text-dim)' }}>{label}</p>
+        <p className="text-lg font-bold leading-tight mt-0.5" style={{ color: value > 0 ? color : 'var(--text-dim)' }}>
           {value}
         </p>
       </div>
