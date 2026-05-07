@@ -7,6 +7,20 @@ import { getAIPreference } from '@/lib/ai/config'
 import { AISelector, AIBadge } from '@/components/ai/AISelector'
 import AccountSelector, { useMlAccount } from '@/components/ml/AccountSelector'
 
+/** Remove headers markdown ("# Resposta ao Cliente", "## Resposta", "Resposta:")
+ *  e formatacao basica que a IA as vezes adiciona apesar das instrucoes. */
+function stripAiHeader(raw: string | null | undefined): string {
+  if (!raw) return ''
+  let t = raw.trim()
+  // Remove linhas iniciais que sao header markdown (# / ## / ### ...)
+  t = t.replace(/^\s*#{1,6}\s+[^\n]*\n+/gm, '').trim()
+  // Remove "Resposta:" / "Resposta ao Cliente:" no inicio
+  t = t.replace(/^(?:#+\s*)?Resposta(?:\s+ao\s+Cliente)?\s*:?\s*/i, '').trim()
+  // Remove ** negrito ** mantendo conteudo (texto plano)
+  t = t.replace(/\*\*([^*]+)\*\*/g, '$1')
+  return t
+}
+
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -241,7 +255,8 @@ export default function PerguntasPage() {
   const [search, setSearch]               = useState('')
   const [toasts, setToasts]               = useState<{ id: number; msg: string; type: 'ok' | 'err' }[]>([])
   const prevIds = useRef<Set<number>>(new Set())
-  const { sugestao: aiSuggestion, loading: aiLoading, gerar: gerarSugestao, limpar: limparSugestao } = useSugestaoResposta()
+  const { sugestao: aiSuggestionRaw, loading: aiLoading, gerar: gerarSugestao, limpar: limparSugestao } = useSugestaoResposta()
+  const aiSuggestion: string | null = aiSuggestionRaw ? (stripAiHeader(aiSuggestionRaw) || null) : null
   const aiAvailable = true  // gate real está no backend (ai_feature_settings per-org)
   const [aiProvider, setAiProvider] = useState(() => getAIPreference().provider)
   const [aiModel,    setAiModel]    = useState(() => getAIPreference().model)
@@ -451,8 +466,18 @@ export default function PerguntasPage() {
         body: JSON.stringify(body),
       })
       if (!res.ok) {
-        const errData = await res.json().catch(() => ({}))
-        setAnswerError(errData.message ?? 'Erro ao enviar resposta')
+        const errData = await res.json().catch(() => ({})) as { message?: string }
+        const raw = errData.message ?? 'Erro ao enviar resposta'
+        // Mensagens amigaveis pra erros conhecidos do ML
+        let friendly = raw
+        if (/item must be active/i.test(raw)) {
+          friendly = 'Anúncio pausado/inativo no Mercado Livre. Reative o anúncio antes de responder.'
+        } else if (/question.*closed/i.test(raw) || /already answered/i.test(raw)) {
+          friendly = 'Pergunta já foi respondida ou fechada no Mercado Livre.'
+        } else if (/forbidden/i.test(raw) || raw.startsWith('403')) {
+          friendly = 'Sem permissão pra responder. Verifique se a conta ML conectada é dona do anúncio.'
+        }
+        setAnswerError(friendly)
         return
       }
       // Mark as answered locally
@@ -746,10 +771,10 @@ export default function PerguntasPage() {
                   </span>
                 </div>
 
-                {/* AI suggestion inline */}
+                {/* AI suggestion inline — limita altura pra nao empurrar o botao Responder fora da tela */}
                 {aiSuggestion && (
-                  <div className="mt-2 bg-[#060d14] border border-[#00E5FF22] rounded-lg p-3 flex-shrink-0">
-                    <div className="flex items-center justify-between mb-1.5">
+                  <div className="mt-2 bg-[#060d14] border border-[#00E5FF22] rounded-lg p-3 flex-shrink-0 flex flex-col" style={{ maxHeight: '160px' }}>
+                    <div className="flex items-center justify-between mb-1.5 flex-shrink-0">
                       <span className="text-[11px] text-[#00E5FF] font-medium flex items-center gap-1">
                         <SparklesIcon size={11} className="text-[#00E5FF]" />
                         Sugestão da IA
@@ -759,12 +784,12 @@ export default function PerguntasPage() {
                         Usar essa
                       </button>
                     </div>
-                    <p className="text-xs text-gray-300 leading-relaxed">{aiSuggestion}</p>
+                    <p className="text-xs text-gray-300 leading-relaxed overflow-y-auto pr-1">{aiSuggestion}</p>
                   </div>
                 )}
 
-                {/* Actions */}
-                <div className="flex gap-2 mt-3 flex-shrink-0">
+                {/* Actions — sticky no rodape do painel pra nunca esconder */}
+                <div className="flex gap-2 mt-3 flex-shrink-0 sticky bottom-0 bg-[#0a0a0c] pt-2 pb-1 -mx-4 px-4 border-t border-[#1a1a1f]/40">
                   <button
                     onClick={handleAnswer}
                     disabled={sending || sent || !answerText.trim() || answerText.trim().length < 10 || (selected.status !== 'unanswered' && selected.status !== 'UNANSWERED')}
