@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import NotificationBell from './NotificationBell'
+import ThemeToggle from '@/components/theme/ThemeToggle'
 
 const routeLabels: Record<string, string> = {
   '/dashboard': 'Visão Geral',
@@ -44,13 +45,14 @@ export default function Header({ email, name }: HeaderProps) {
     <header
       className="h-[52px] flex items-center justify-between px-5 shrink-0"
       style={{
-        background: '#09090b',
-        borderBottom: '1px solid rgba(255,255,255,0.06)',
+        background: 'var(--background)',
+        borderBottom: '1px solid var(--border)',
+        color: 'var(--text)',
       }}
     >
       {/* Left — page title + breadcrumb */}
       <div className="flex items-center gap-2">
-        <h1 className="text-[13px] font-semibold text-white">{pageTitle}</h1>
+        <h1 className="text-[13px] font-semibold" style={{ color: 'var(--text)' }}>{pageTitle}</h1>
         <span
           className="hidden sm:inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full"
           style={{ background: 'rgba(0,229,255,0.08)', color: '#00E5FF' }}
@@ -74,11 +76,14 @@ export default function Header({ email, name }: HeaderProps) {
           <kbd className="hidden sm:inline text-[10px] text-zinc-600 border border-zinc-700 rounded px-1">⌘K</kbd>
         </button>
 
+        {/* Theme toggle (claro/escuro) */}
+        <ThemeToggle />
+
         {/* Notifications */}
         <NotificationBell />
 
         {/* Divider */}
-        <div className="w-px h-4 bg-zinc-800 mx-1" />
+        <div className="w-px h-4 mx-1" style={{ background: 'var(--border)' }} />
 
         {/* User */}
         <div className="relative">

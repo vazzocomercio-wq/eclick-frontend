@@ -560,7 +560,13 @@ export default function Sidebar() {
   return (
     <aside
       className="hidden md:flex flex-col h-screen shrink-0 overflow-hidden"
-      style={{ width: collapsed ? 56 : 236, background: '#0c0c0f', borderRight: '1px solid rgba(0,229,255,0.07)', transition: 'width 200ms ease' }}
+      style={{
+        width: collapsed ? 56 : 236,
+        background: 'var(--surface)',
+        borderRight: '1px solid var(--border)',
+        color: 'var(--text-muted)',
+        transition: 'width 200ms ease, background-color 0.2s ease',
+      }}
     >
       {/* Logo + collapse toggle */}
       <div

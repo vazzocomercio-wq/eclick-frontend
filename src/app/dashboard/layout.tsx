@@ -47,7 +47,7 @@ export default async function DashboardLayout({
     <DialogProvider>
       <div
         className="flex h-screen overflow-hidden"
-        style={{ background: '#09090b' }}
+        style={{ background: 'var(--background)', color: 'var(--text)' }}
       >
         <Sidebar />
 
