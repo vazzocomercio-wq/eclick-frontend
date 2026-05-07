@@ -22,37 +22,53 @@ async function resolveStorefrontRewrite(request: NextRequest): Promise<NextRespo
 
   const { pathname } = request.nextUrl
 
-  // Storefront subdomain padrao (storefront.eclick.app.br) usa ?slug= ou
-  // path /<slug>/... — implementacao simples: pega primeiro segmento como
-  // slug. Pra custom domain do cliente, busca por dominio.
+  // Loop guard: se ja foi reescrito pra /loja/<algo>, deixa passar
+  // (Next.js executa a rota direto sem segunda passagem do middleware
+  //  esperada — mas vale ter o guard pra evitar duplicacao tipo
+  //  /loja/vazzo/loja/vazzo).
+  if (pathname.startsWith('/loja/')) return null
+
+  // Ignora assets internos do Next (_next, api, etc) pra nao reescrever
+  if (pathname.startsWith('/_next/') || pathname.startsWith('/api/')) return null
+
   const isStorefrontSubdomain = host === 'storefront.eclick.app.br'
   let slug: string | null = null
+  let pathOffset = 0  // quantos segmentos do path original consumir como prefixo
 
   if (isStorefrontSubdomain) {
     const seg = pathname.split('/').filter(Boolean)[0]
-    if (seg) slug = seg
+    if (seg) {
+      slug = seg
+      pathOffset = 1  // o slug ja eh o primeiro segmento
+    }
   } else {
-    // Custom domain — resolve via backend
+    // Custom domain — resolve via backend (slug NAO esta no path,
+    // entao pathOffset fica 0 e o path inteiro vira sufixo).
     try {
       const res = await fetch(`${BACKEND}/public/store/by-domain?domain=${encodeURIComponent(host)}`, {
         cache: 'no-store',
       })
       if (res.ok) {
-        const cfg = await res.json().catch(() => null) as { store_slug?: string } | null
-        if (cfg?.store_slug) slug = cfg.store_slug
+        const text = await res.text()
+        if (text && text !== 'null') {
+          const cfg = JSON.parse(text) as { store_slug?: string } | null
+          if (cfg?.store_slug) slug = cfg.store_slug
+        }
       }
     } catch { /* fallback no-rewrite */ }
   }
 
   if (!slug) return null
 
-  // Reescreve pra /loja/<slug>/<resto-do-path> sem mudar a URL visivel
-  const url = request.nextUrl.clone()
-  const restOfPath = isStorefrontSubdomain
-    ? '/' + pathname.split('/').filter(Boolean).slice(1).join('/')
-    : pathname
-  url.pathname = `/loja/${slug}${restOfPath === '/' ? '' : restOfPath}`
-  return NextResponse.rewrite(url)
+  const segments = pathname.split('/').filter(Boolean)
+  const remainingPath = segments.slice(pathOffset).join('/')
+  const targetPath = remainingPath ? `/loja/${slug}/${remainingPath}` : `/loja/${slug}`
+
+  // Usa new URL com base do request.url pra evitar issues de origin/host
+  const targetUrl = new URL(targetPath, request.url)
+  // Preserva query string original
+  request.nextUrl.searchParams.forEach((v, k) => targetUrl.searchParams.set(k, v))
+  return NextResponse.rewrite(targetUrl)
 }
 
 export async function middleware(request: NextRequest) {
