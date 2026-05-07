@@ -217,6 +217,7 @@ const SECTIONS: NavSection[] = [
     label: 'INTELIGÊNCIA',
     items: [
       { label: 'Alertas',       href: '/dashboard/inteligencia/alertas',       icon: <Bell size={15} /> },
+      { label: 'Mercado Livre', href: '/dashboard/inteligencia/ml',            icon: <Sparkles size={15} /> },
       { label: 'Gestores',      href: '/dashboard/inteligencia/gestores',      icon: <Users size={15} /> },
       { label: 'Relatórios',    href: '/dashboard/inteligencia/relatorios',    icon: <LineChart size={15} /> },
       { label: 'Configurações', href: '/dashboard/inteligencia/configuracoes', icon: <Settings size={15} /> },

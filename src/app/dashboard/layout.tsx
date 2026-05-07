@@ -5,6 +5,7 @@ import Sidebar from '@/components/layout/Sidebar'
 import Header from '@/components/layout/Header'
 import { DialogProvider } from '@/components/ui/dialog-provider'
 import FloatingCopilot from '@/components/copilot/FloatingCopilot'
+import AlertToastListener from '@/components/intelligence/AlertToastListener'
 
 export default async function DashboardLayout({
   children,
@@ -60,6 +61,7 @@ export default async function DashboardLayout({
           </main>
         </div>
         <FloatingCopilot />
+        <AlertToastListener />
       </div>
     </DialogProvider>
   )
