@@ -112,6 +112,15 @@ const SECTIONS: NavSection[] = [
           { label: 'Chat IA',      href: '/dashboard/pricing/chat' },
         ],
       },
+      {
+        label: 'Quality Center IA', href: '/dashboard/ml-quality', icon: <Shield size={15} />,
+        children: [
+          { label: 'Diagnóstico',  href: '/dashboard/ml-quality' },
+          { label: 'Anúncios',     href: '/dashboard/ml-quality/items' },
+          { label: 'Quick wins',   href: '/dashboard/ml-quality/quick-wins' },
+          { label: 'Penalizados',  href: '/dashboard/ml-quality/penalties' },
+        ],
+      },
       { label: 'Pedidos', href: '/dashboard/pedidos', icon: <ShoppingBag size={15} /> },
       {
         label: 'Atendimento', href: '/dashboard/atendimento', icon: <MessageCircle size={15} />,
