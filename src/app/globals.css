@@ -168,7 +168,12 @@ select option { background: #1c1c1f; }
    colors (#00E5FF cyan, #22c55e green, #ef4444 red, etc).
    ──────────────────────────────────────────────────────────── */
 
-/* ── Backgrounds escuros via inline style ── */
+/* ── Backgrounds escuros via inline style ──
+   IMPORTANTE: o browser converte hex pra rgb(...) ao serializar inline
+   styles via React. Entao precisamos casar com AMBAS as formas: hex
+   (caso raro de SSR/strings) E rgb (caso comum apos hidratacao). */
+
+/* Formato hex (raro, mas pode aparecer em SSR estatico) */
 :root[data-theme='light'] [style*="#060d14" i],
 :root[data-theme='light'] [style*="#070709" i],
 :root[data-theme='light'] [style*="#09090b" i],
@@ -196,11 +201,42 @@ select option { background: #1c1c1f; }
 :root[data-theme='light'] [style*="#1a0a0a" i],
 :root[data-theme='light'] [style*="#1a1a1f" i],
 :root[data-theme='light'] [style*="#1c1c1f" i],
-:root[data-theme='light'] [style*="#1e1e24" i] {
+:root[data-theme='light'] [style*="#1e1e24" i],
+/* Formato rgb(N, N, N) — o browser NORMALIZA hex pra rgb apos React
+   set property. CSS attr selector compara o atributo serializado, entao
+   os hex nao casam mas os rgb sim. */
+:root[data-theme='light'] [style*="rgb(6, 13, 20)"],
+:root[data-theme='light'] [style*="rgb(7, 7, 9)"],
+:root[data-theme='light'] [style*="rgb(9, 9, 11)"],
+:root[data-theme='light'] [style*="rgb(10, 10, 12)"],
+:root[data-theme='light'] [style*="rgb(10, 10, 13)"],
+:root[data-theme='light'] [style*="rgb(10, 10, 14)"],
+:root[data-theme='light'] [style*="rgb(10, 21, 32)"],
+:root[data-theme='light'] [style*="rgb(10, 26, 26)"],
+:root[data-theme='light'] [style*="rgb(10, 58, 53)"],
+:root[data-theme='light'] [style*="rgb(12, 12, 14)"],
+:root[data-theme='light'] [style*="rgb(12, 12, 15)"],
+:root[data-theme='light'] [style*="rgb(12, 12, 16)"],
+:root[data-theme='light'] [style*="rgb(13, 13, 16)"],
+:root[data-theme='light'] [style*="rgb(13, 26, 13)"],
+:root[data-theme='light'] [style*="rgb(13, 26, 26)"],
+:root[data-theme='light'] [style*="rgb(13, 31, 23)"],
+:root[data-theme='light'] [style*="rgb(14, 14, 17)"],
+:root[data-theme='light'] [style*="rgb(14, 14, 18)"],
+:root[data-theme='light'] [style*="rgb(15, 15, 18)"],
+:root[data-theme='light'] [style*="rgb(9, 20, 9)"],
+:root[data-theme='light'] [style*="rgb(9, 20, 20)"],
+:root[data-theme='light'] [style*="rgb(17, 17, 20)"],
+:root[data-theme='light'] [style*="rgb(22, 22, 24)"],
+:root[data-theme='light'] [style*="rgb(24, 24, 27)"],
+:root[data-theme='light'] [style*="rgb(26, 10, 10)"],
+:root[data-theme='light'] [style*="rgb(26, 26, 31)"],
+:root[data-theme='light'] [style*="rgb(28, 28, 31)"],
+:root[data-theme='light'] [style*="rgb(30, 30, 36)"] {
   background-color: var(--surface) !important;
 }
 
-/* ── Bordas escuras via inline style ── */
+/* ── Bordas escuras via inline style (hex + rgb) ── */
 :root[data-theme='light'] [style*="#134e48" i],
 :root[data-theme='light'] [style*="#1a1a1f" i],
 :root[data-theme='light'] [style*="#1e1e24" i],
@@ -208,7 +244,15 @@ select option { background: #1c1c1f; }
 :root[data-theme='light'] [style*="#2a2a30" i],
 :root[data-theme='light'] [style*="#2a2a3f" i],
 :root[data-theme='light'] [style*="#2e2e33" i],
-:root[data-theme='light'] [style*="#3f3f46" i] {
+:root[data-theme='light'] [style*="#3f3f46" i],
+:root[data-theme='light'] [style*="rgb(19, 78, 72)"],
+:root[data-theme='light'] [style*="rgb(26, 26, 31)"],
+:root[data-theme='light'] [style*="rgb(30, 30, 36)"],
+:root[data-theme='light'] [style*="rgb(39, 39, 42)"],
+:root[data-theme='light'] [style*="rgb(42, 42, 48)"],
+:root[data-theme='light'] [style*="rgb(42, 42, 63)"],
+:root[data-theme='light'] [style*="rgb(46, 46, 51)"],
+:root[data-theme='light'] [style*="rgb(63, 63, 70)"] {
   border-color: var(--border) !important;
 }
 
