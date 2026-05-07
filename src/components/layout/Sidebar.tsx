@@ -117,6 +117,7 @@ const SECTIONS: NavSection[] = [
         label: 'Atendimento', href: '/dashboard/atendimento', icon: <MessageCircle size={15} />,
         children: [
           { label: 'Perguntas',   href: '/dashboard/atendimento/perguntas',   badgeKey: 'atendimento-perguntas' as BadgeKey },
+          { label: 'Pós-venda IA', href: '/dashboard/ml-postsale' },
           { label: 'Reclamações', href: '/dashboard/atendimento/reclamacoes', badgeKey: 'atendimento-reclamacoes' as BadgeKey },
           { label: 'Mensagens',   href: '/dashboard/atendimento/mensagens' },
         ],
