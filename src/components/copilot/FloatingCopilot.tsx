@@ -158,6 +158,14 @@ export default function FloatingCopilot() {
     } catch { /* silencioso — ja temos optimistic update */ }
   }
 
+  // Esconde nas rotas onde já existe IA especializada (botão flutuante
+  // dedicado). Evita conflito visual com AdsAIChat etc, e força user a
+  // usar a IA com contexto rico daquela tela específica.
+  // Cmd/Ctrl+K continua abrindo o copiloto via atalho mesmo escondido.
+  const HAS_SPECIALIZED_AI = pathname?.startsWith('/dashboard/ads/mercadolivre')
+                          || pathname?.startsWith('/dashboard/ads/inteligencia')
+  if (HAS_SPECIALIZED_AI && !open) return null
+
   if (!enabled) {
     return (
       <button
