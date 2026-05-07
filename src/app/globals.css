@@ -168,50 +168,72 @@ select option { background: #1c1c1f; }
    colors (#00E5FF cyan, #22c55e green, #ef4444 red, etc).
    ──────────────────────────────────────────────────────────── */
 
-/* Backgrounds escuros (hex completos das telas) -> var(--surface).
-   Flag `i` no fim do bracket = case-insensitive (aceita #0c0c10 e #0C0C10). */
+/* ── Backgrounds escuros via inline style ── */
+:root[data-theme='light'] [style*="#060d14" i],
 :root[data-theme='light'] [style*="#070709" i],
 :root[data-theme='light'] [style*="#09090b" i],
 :root[data-theme='light'] [style*="#0a0a0c" i],
 :root[data-theme='light'] [style*="#0a0a0d" i],
 :root[data-theme='light'] [style*="#0a0a0e" i],
+:root[data-theme='light'] [style*="#0a1520" i],
+:root[data-theme='light'] [style*="#0a1a1a" i],
+:root[data-theme='light'] [style*="#0a3a35" i],
+:root[data-theme='light'] [style*="#0c0c0e" i],
+:root[data-theme='light'] [style*="#0c0c0f" i],
 :root[data-theme='light'] [style*="#0c0c10" i],
 :root[data-theme='light'] [style*="#0d0d10" i],
+:root[data-theme='light'] [style*="#0d1a0d" i],
+:root[data-theme='light'] [style*="#0d1a1a" i],
+:root[data-theme='light'] [style*="#0d1f17" i],
+:root[data-theme='light'] [style*="#0e0e11" i],
 :root[data-theme='light'] [style*="#0e0e12" i],
 :root[data-theme='light'] [style*="#0f0f12" i],
+:root[data-theme='light'] [style*="#091409" i],
+:root[data-theme='light'] [style*="#091414" i],
 :root[data-theme='light'] [style*="#111114" i],
 :root[data-theme='light'] [style*="#161618" i],
 :root[data-theme='light'] [style*="#18181b" i],
-:root[data-theme='light'] [style*="#1c1c1f" i],
+:root[data-theme='light'] [style*="#1a0a0a" i],
 :root[data-theme='light'] [style*="#1a1a1f" i],
+:root[data-theme='light'] [style*="#1c1c1f" i],
 :root[data-theme='light'] [style*="#1e1e24" i] {
   background-color: var(--surface) !important;
 }
 
-/* Bordas via inline style — mesmo conjunto de hex (alguns sao usados
-   como border-color em algumas paginas) */
+/* ── Bordas escuras via inline style ── */
+:root[data-theme='light'] [style*="#134e48" i],
 :root[data-theme='light'] [style*="#1a1a1f" i],
 :root[data-theme='light'] [style*="#1e1e24" i],
 :root[data-theme='light'] [style*="#27272a" i],
+:root[data-theme='light'] [style*="#2a2a30" i],
+:root[data-theme='light'] [style*="#2a2a3f" i],
+:root[data-theme='light'] [style*="#2e2e33" i],
 :root[data-theme='light'] [style*="#3f3f46" i] {
   border-color: var(--border) !important;
 }
 
-/* Tailwind arbitrary bg/border classes */
+/* ── Tailwind arbitrary bg classes (bg-[#XXX]) ── */
+:root[data-theme='light'] .bg-\[\#060d14\],
 :root[data-theme='light'] .bg-\[\#070709\],
 :root[data-theme='light'] .bg-\[\#09090b\],
+:root[data-theme='light'] .bg-\[\#0a0a0c\],
 :root[data-theme='light'] .bg-\[\#0a0a0d\],
 :root[data-theme='light'] .bg-\[\#0a0a0e\],
+:root[data-theme='light'] .bg-\[\#0a1520\],
+:root[data-theme='light'] .bg-\[\#0a1a1a\],
 :root[data-theme='light'] .bg-\[\#0c0c10\],
 :root[data-theme='light'] .bg-\[\#0d0d10\],
 :root[data-theme='light'] .bg-\[\#0f0f12\],
 :root[data-theme='light'] .bg-\[\#111114\],
 :root[data-theme='light'] .bg-\[\#161618\],
 :root[data-theme='light'] .bg-\[\#18181b\],
+:root[data-theme='light'] .bg-\[\#1a0a0a\],
 :root[data-theme='light'] .bg-\[\#1a1a1f\],
 :root[data-theme='light'] .bg-\[\#1c1c1f\] {
   background-color: var(--surface) !important;
 }
+
+/* ── Tailwind arbitrary border classes (border-[#XXX]) ── */
 :root[data-theme='light'] .border-\[\#1a1a1f\],
 :root[data-theme='light'] .border-\[\#1e1e24\],
 :root[data-theme='light'] .border-\[\#27272a\],
@@ -219,32 +241,88 @@ select option { background: #1c1c1f; }
   border-color: var(--border) !important;
 }
 
-/* Texto branco/quase-branco fica invisivel em fundo claro -> usa text token */
+/* ── Tailwind PRESET dark classes (bg-zinc-*, bg-black, bg-gray-*) ── */
+:root[data-theme='light'] .bg-black,
+:root[data-theme='light'] .bg-zinc-800,
+:root[data-theme='light'] .bg-zinc-900,
+:root[data-theme='light'] .bg-zinc-950,
+:root[data-theme='light'] .bg-gray-800,
+:root[data-theme='light'] .bg-gray-900,
+:root[data-theme='light'] .bg-gray-950,
+:root[data-theme='light'] .bg-neutral-800,
+:root[data-theme='light'] .bg-neutral-900,
+:root[data-theme='light'] .bg-neutral-950,
+:root[data-theme='light'] .bg-stone-800,
+:root[data-theme='light'] .bg-stone-900,
+:root[data-theme='light'] .bg-stone-950,
+:root[data-theme='light'] .bg-slate-800,
+:root[data-theme='light'] .bg-slate-900,
+:root[data-theme='light'] .bg-slate-950 {
+  background-color: var(--surface) !important;
+}
+
+/* Variantes /50 /70 /80 /90 que sao usadas em hover/overlays */
+:root[data-theme='light'] [class*="bg-zinc-900\/"],
+:root[data-theme='light'] [class*="bg-zinc-800\/"],
+:root[data-theme='light'] [class*="bg-black\/"] {
+  background-color: var(--hover-bg) !important;
+}
+
+/* ── Tailwind PRESET dark border classes ── */
+:root[data-theme='light'] .border-zinc-700,
+:root[data-theme='light'] .border-zinc-800,
+:root[data-theme='light'] .border-zinc-900,
+:root[data-theme='light'] .border-zinc-950,
+:root[data-theme='light'] .border-gray-700,
+:root[data-theme='light'] .border-gray-800,
+:root[data-theme='light'] .border-gray-900,
+:root[data-theme='light'] .border-neutral-700,
+:root[data-theme='light'] .border-neutral-800,
+:root[data-theme='light'] .border-stone-700,
+:root[data-theme='light'] .border-stone-800,
+:root[data-theme='light'] .border-slate-700,
+:root[data-theme='light'] .border-slate-800 {
+  border-color: var(--border) !important;
+}
+
+/* ── Texto branco/quase-branco -> dark em fundo claro ── */
 :root[data-theme='light'] .text-white,
+:root[data-theme='light'] .text-zinc-50,
 :root[data-theme='light'] .text-zinc-100,
 :root[data-theme='light'] .text-zinc-200,
 :root[data-theme='light'] .text-zinc-300,
+:root[data-theme='light'] .text-gray-50,
 :root[data-theme='light'] .text-gray-100,
 :root[data-theme='light'] .text-gray-200,
-:root[data-theme='light'] .text-gray-300 {
+:root[data-theme='light'] .text-gray-300,
+:root[data-theme='light'] .text-neutral-100,
+:root[data-theme='light'] .text-neutral-200,
+:root[data-theme='light'] .text-neutral-300,
+:root[data-theme='light'] .text-slate-100,
+:root[data-theme='light'] .text-slate-200,
+:root[data-theme='light'] .text-slate-300 {
   color: var(--text) !important;
 }
 
-/* Texto inline com hex claros tambem precisa virar dark em fundo branco.
-   So cobre branco puro #fff/#ffffff/#fafafa/#f4f4f5 que sao o caso comum. */
-:root[data-theme='light'] [style*="color: #ffffff"],
-:root[data-theme='light'] [style*="color: #fff;"],
-:root[data-theme='light'] [style*="color:#ffffff"],
-:root[data-theme='light'] [style*="color:#fff;"],
-:root[data-theme='light'] [style*="color: #fafafa"],
-:root[data-theme='light'] [style*="color:#fafafa"],
-:root[data-theme='light'] [style*="color: #f4f4f5"],
-:root[data-theme='light'] [style*="color:#f4f4f5"] {
+/* ── Texto inline com hex claros -> dark ── */
+:root[data-theme='light'] [style*="color: #ffffff" i],
+:root[data-theme='light'] [style*="color:#ffffff" i],
+:root[data-theme='light'] [style*="color: #fff;" i],
+:root[data-theme='light'] [style*="color:#fff;" i],
+:root[data-theme='light'] [style*="color: '#fff'" i],
+:root[data-theme='light'] [style*="color: #fafafa" i],
+:root[data-theme='light'] [style*="color:#fafafa" i],
+:root[data-theme='light'] [style*="color: #f4f4f5" i],
+:root[data-theme='light'] [style*="color:#f4f4f5" i],
+:root[data-theme='light'] [style*="color: #e4e4e7" i],
+:root[data-theme='light'] [style*="color:#e4e4e7" i] {
   color: var(--text) !important;
 }
 
-/* Zinc-400/500 sao subtitles em modo escuro. Em fundo claro continuam OK
-   (sao cinza médio ja). NAO sobrescrever — preserva hierarquia visual. */
+/* ── Excecoes: brand colors cyan/cyan-400 com text-black ficam OK
+   pois text-black continua preto. Brand bg cores ficam intactas:
+   #00E5FF, #22c55e, #ef4444, #fbbf24, #f59e0b, etc. NAO sao listadas
+   acima entao nao recebem override. ── */
 
 /* Remove spin buttons dos inputs numéricos dos pedidos */
 .pedidos-number-input::-webkit-outer-spin-button,
