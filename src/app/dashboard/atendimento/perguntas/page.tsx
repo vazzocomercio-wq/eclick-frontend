@@ -318,7 +318,7 @@ export default function PerguntasPage() {
       setLoading(false)
       setRefreshing(false)
     }
-  }, [addToast, getSession])
+  }, [addToast, getSession, selectedSellerId])
 
   const fetchAutoAnswer = useCallback(async () => {
     try {
