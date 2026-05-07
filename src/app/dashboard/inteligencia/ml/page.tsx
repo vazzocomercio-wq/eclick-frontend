@@ -79,7 +79,15 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
     const body = await res.text().catch(() => '')
     throw new Error(`HTTP ${res.status}: ${body || res.statusText}`)
   }
-  return res.json() as Promise<T>
+  // Resilient JSON parse: backend may return empty body for null results
+  // (NestJS serializes null/undefined as empty body in some cases).
+  const text = await res.text()
+  if (!text || !text.trim()) return null as T
+  try {
+    return JSON.parse(text) as T
+  } catch {
+    return null as T
+  }
 }
 
 // ────────────────────────────────────────────────────────────────────────
@@ -97,22 +105,24 @@ export default function IntelligenceMlPage() {
   const refresh = useCallback(async () => {
     setLoading(true)
     setError(null)
-    try {
-      const [lat, hist, cls, cnd] = await Promise.all([
-        api<ReputationSnapshot | null>('/intelligence/ml/reputation/latest'),
-        api<ReputationSnapshot[]>('/intelligence/ml/reputation/history?days=30'),
-        api<Claim[]>('/intelligence/ml/claims?limit=50'),
-        api<RemovalCandidate[]>('/intelligence/ml/claim-removals?status=pending&limit=20'),
-      ])
-      setLatest(lat)
-      setHistory(hist)
-      setClaims(cls)
-      setCandidates(cnd)
-    } catch (e) {
-      setError((e as Error).message)
-    } finally {
-      setLoading(false)
-    }
+    const results = await Promise.allSettled([
+      api<ReputationSnapshot | null>('/intelligence/ml/reputation/latest'),
+      api<ReputationSnapshot[] | null>('/intelligence/ml/reputation/history?days=30'),
+      api<Claim[] | null>('/intelligence/ml/claims?limit=50'),
+      api<RemovalCandidate[] | null>('/intelligence/ml/claim-removals?status=pending&limit=20'),
+    ])
+    const [latRes, histRes, clsRes, cndRes] = results
+    setLatest(latRes.status === 'fulfilled' ? (latRes.value ?? null) : null)
+    setHistory(histRes.status === 'fulfilled' ? (histRes.value ?? []) : [])
+    setClaims(clsRes.status === 'fulfilled' ? (clsRes.value ?? []) : [])
+    setCandidates(cndRes.status === 'fulfilled' ? (cndRes.value ?? []) : [])
+
+    const failures = results
+      .map((r, i) => ({ r, label: ['reputação', 'histórico', 'reclamações', 'candidatos'][i]! }))
+      .filter(({ r }) => r.status === 'rejected')
+      .map(({ r, label }) => `${label}: ${(r as PromiseRejectedResult).reason instanceof Error ? ((r as PromiseRejectedResult).reason as Error).message : String((r as PromiseRejectedResult).reason)}`)
+    setError(failures.length > 0 ? failures.join(' · ') : null)
+    setLoading(false)
   }, [])
 
   useEffect(() => { void refresh() }, [refresh])
