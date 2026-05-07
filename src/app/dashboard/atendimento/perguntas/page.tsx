@@ -62,6 +62,29 @@ interface AiStats {
   auto_sent_24h: number
 }
 
+interface PerfPeriod {
+  count:   number
+  avg_min: number | null
+  sla_pct: number | null
+  status:  'good' | 'warn' | 'bad'
+}
+interface PerfStatsAggregate {
+  total_answered:      number
+  avg_response_min:    number | null
+  median_response_min: number | null
+  sla_under_1h_pct:    number | null
+  by_period: {
+    weekday_business: PerfPeriod
+    weekday_evening:  PerfPeriod
+    weekend:          PerfPeriod
+  }
+  impact_msg: string | null
+}
+interface PerfStats {
+  aggregate:   PerfStatsAggregate
+  per_account: Array<PerfStatsAggregate & { seller_id: number; nickname: string | null }>
+}
+
 const TRANSFORM_LABELS: Record<TransformAction, string> = {
   shorten:        'Encurtar',
   humanize:       'Humanizar',
@@ -264,6 +287,7 @@ export default function PerguntasPage() {
   const [autoAnswerEnabled, setAutoAnswerEnabled] = useState(false)
   const [autoAnswerLoading, setAutoAnswerLoading] = useState(false)
   const [aiStats, setAiStats]                     = useState<AiStats | null>(null)
+  const [perfStats, setPerfStats]                 = useState<PerfStats | null>(null)
   const [confirmDelete, setConfirmDelete]         = useState(false)
   const [deleting, setDeleting]                   = useState(false)
 
@@ -347,6 +371,18 @@ export default function PerguntasPage() {
     } catch { /* silent */ }
   }, [getSession])
 
+  const fetchPerfStats = useCallback(async () => {
+    try {
+      const session = await getSession()
+      if (!session) return
+      const sellerSuffix = selectedSellerId != null ? `?seller_id=${selectedSellerId}` : ''
+      const res = await fetch(`${BACKEND}/ml/questions/perf-stats${sellerSuffix}`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      })
+      if (res.ok) setPerfStats(await res.json() as PerfStats)
+    } catch { /* silent */ }
+  }, [getSession, selectedSellerId])
+
   const toggleAutoAnswer = useCallback(async () => {
     if (autoAnswerLoading) return
     const next = !autoAnswerEnabled
@@ -411,13 +447,15 @@ export default function PerguntasPage() {
     fetchQuestions()
     fetchAutoAnswer()
     fetchAiStats()
+    fetchPerfStats()
     const id = setInterval(() => fetchQuestions(true), 2 * 60 * 1000)
     return () => clearInterval(id)
-  }, [fetchQuestions, fetchAutoAnswer, fetchAiStats])
+  }, [fetchQuestions, fetchAutoAnswer, fetchAiStats, fetchPerfStats])
 
   // Refetch quando muda a conta ML selecionada
   useEffect(() => {
     fetchQuestions(true)
+    fetchPerfStats()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedSellerId])
 
@@ -636,6 +674,11 @@ export default function PerguntasPage() {
           </button>
         </div>
       </div>
+
+      {/* Prazo de resposta — espelha tela ML nativa (últimos 14 dias) */}
+      {perfStats && perfStats.aggregate.total_answered > 0 && (
+        <PrazoRespostaCard stats={perfStats} />
+      )}
 
       {/* 6 KPI cards */}
       <div className="grid grid-cols-6 gap-2 px-6 py-3 flex-shrink-0">
@@ -1017,6 +1060,152 @@ export default function PerguntasPage() {
           Resposta enviada com sucesso para o ML!
         </div>
       )}
+    </div>
+  )
+}
+
+// ── Card "Prazo de resposta" — espelha ML nativo ────────────────────────
+function PrazoRespostaCard({ stats }: { stats: PerfStats }) {
+  const agg = stats.aggregate
+  const avg = agg.avg_response_min ?? 0
+  const isAlert = avg > 60
+  const avgLabel = avg >= 60
+    ? `${Math.round(avg / 60 * 10) / 10}h`
+    : `${avg}min`
+
+  // Multi-conta: mostra breakdown se 2+ contas
+  const isMultiAccount = stats.per_account.length > 1
+
+  return (
+    <div className="mx-6 mt-3 mb-1 rounded-xl p-4"
+      style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
+      <div className="flex items-start gap-6 flex-wrap">
+        {/* Coluna esquerda — número grande */}
+        <div className="min-w-[180px]">
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-semibold text-zinc-200">Prazo de resposta</h3>
+            <span title="Tempo médio de resposta nos últimos 14 dias" className="text-zinc-600">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                <circle cx="12" cy="12" r="10" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.243 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M12 18h.01" />
+              </svg>
+            </span>
+          </div>
+          <div className="flex items-center gap-2 mt-2">
+            <span className={`text-3xl font-bold tabular-nums ${isAlert ? 'text-red-400' : 'text-emerald-400'}`}>
+              {avgLabel}
+            </span>
+            {isAlert ? (
+              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-red-500/15 border border-red-500/40">
+                <svg className="w-3 h-3 text-red-400" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 2L1 21h22L12 2zm0 6l8 14H4l8-14zm-1 6h2v3h-2v-3zm0 4h2v2h-2v-2z" />
+                </svg>
+              </span>
+            ) : (
+              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-emerald-500/15 border border-emerald-500/40">
+                <svg className="w-3 h-3 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={3}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              </span>
+            )}
+          </div>
+          <p className="text-[11px] text-zinc-500 mt-1">
+            Últimos 14 dias · {agg.total_answered} resposta{agg.total_answered === 1 ? '' : 's'}
+          </p>
+          {agg.impact_msg && (
+            <p className="text-[11px] text-amber-400 mt-2 leading-snug max-w-[200px]">
+              {agg.impact_msg}
+            </p>
+          )}
+          {agg.sla_under_1h_pct != null && (
+            <p className="text-[10px] text-zinc-600 mt-1">
+              <span className={agg.sla_under_1h_pct >= 80 ? 'text-emerald-400' : 'text-amber-400'}>
+                {agg.sla_under_1h_pct}%
+              </span> em até 1h · mediana <span className="text-zinc-400">{agg.median_response_min}min</span>
+            </p>
+          )}
+        </div>
+
+        {/* Coluna direita — bar chart por período */}
+        <div className="flex-1 min-w-[280px]">
+          <div className="space-y-2">
+            <PerfBar label="Seg a sex, das 9 às 18h" period={agg.by_period.weekday_business} />
+            <PerfBar label="Seg a sex, das 18 às 00h" period={agg.by_period.weekday_evening} />
+            <PerfBar label="Sábado e domingo"        period={agg.by_period.weekend} />
+          </div>
+          <div className="flex items-center gap-4 mt-3 text-[10px]">
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-400" />
+              <span className="text-zinc-500">Menos de 1 hora</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-red-400" />
+              <span className="text-zinc-500">Mais de 1 hora</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Multi-conta: mostra breakdown abaixo se 2+ contas */}
+      {isMultiAccount && (
+        <div className="mt-4 pt-3 border-t border-[#1a1a1f]">
+          <p className="text-[10px] uppercase tracking-widest text-zinc-600 mb-2">
+            Por conta
+          </p>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+            {stats.per_account.map(acc => {
+              const accAvg = acc.avg_response_min ?? 0
+              const accAlert = accAvg > 60
+              const accLabel = accAvg >= 60 ? `${Math.round(accAvg / 60 * 10) / 10}h` : `${accAvg}min`
+              return (
+                <div key={acc.seller_id}
+                  className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg"
+                  style={{ background: '#0a0a0d', border: '1px solid #1a1a1f' }}>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[11px] font-medium text-zinc-300 truncate">
+                      {acc.nickname ?? `Seller ${acc.seller_id}`}
+                    </p>
+                    <p className="text-[10px] text-zinc-600">
+                      {acc.total_answered} respostas · 14d
+                    </p>
+                  </div>
+                  <span className={`text-xs font-bold tabular-nums ${accAlert ? 'text-red-400' : 'text-emerald-400'}`}>
+                    {acc.total_answered > 0 ? accLabel : '—'}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function PerfBar({ label, period }: { label: string; period: PerfPeriod }) {
+  // Bar width: % do tempo médio em 90min de range. Se sem dados, vazio.
+  const max = 90
+  const widthPct = period.avg_min == null
+    ? 0
+    : Math.min(100, (period.avg_min / max) * 100)
+  const color = period.status === 'good' ? '#22c55e'
+              : period.status === 'warn' ? '#eab308'
+              : '#ef4444'
+
+  return (
+    <div className="flex items-center gap-3">
+      <span className="text-[11px] text-zinc-500 w-44 shrink-0">{label}</span>
+      <div className="flex-1 h-2 bg-zinc-800/50 rounded-full overflow-hidden relative">
+        {/* Marca dos 60min como referência (linha cinza vertical) */}
+        <div className="absolute top-0 bottom-0" style={{ left: `${(60 / max) * 100}%`, width: 1, background: '#3f3f46' }} />
+        {period.count > 0 && (
+          <div className="h-full rounded-full transition-all"
+            style={{ width: `${widthPct}%`, background: color }} />
+        )}
+      </div>
+      <span className="text-[10px] text-zinc-600 w-16 text-right shrink-0 tabular-nums">
+        {period.avg_min == null ? '—' : period.avg_min >= 60 ? `${Math.round(period.avg_min / 60 * 10) / 10}h` : `${period.avg_min}min`}
+      </span>
     </div>
   )
 }
