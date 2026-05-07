@@ -61,7 +61,10 @@ export default function MlQualityDashboardPage() {
         ? `${BACKEND}/ml-quality/dashboard?seller_id=${sid}`
         : `${BACKEND}/ml-quality/dashboard`
       const r = await fetch(url, { headers: { Authorization: `Bearer ${t}` } })
-      if (!r.ok) throw new Error(`HTTP ${r.status}`)
+      if (!r.ok) {
+        const body = await r.text().catch(() => '')
+        throw new Error(`HTTP ${r.status}: ${body || r.statusText}`)
+      }
       setData(await r.json())
     } catch (e) {
       setError((e as Error).message)

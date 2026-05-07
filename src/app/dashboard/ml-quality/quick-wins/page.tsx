@@ -45,7 +45,10 @@ export default function QuickWinsPage() {
         ? `${BACKEND}/ml-quality/quick-wins?seller_id=${sid}&limit=100`
         : `${BACKEND}/ml-quality/quick-wins?limit=100`
       const r = await fetch(url, { headers: { Authorization: `Bearer ${t}` } })
-      if (!r.ok) throw new Error(`HTTP ${r.status}`)
+      if (!r.ok) {
+        const body = await r.text().catch(() => '')
+        throw new Error(`HTTP ${r.status}: ${body || r.statusText}`)
+      }
       setItems(await r.json())
     } catch (e) {
       setError((e as Error).message)

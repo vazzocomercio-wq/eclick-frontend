@@ -44,7 +44,10 @@ export default function PenaltiesPage() {
         ? `${BACKEND}/ml-quality/penalties?seller_id=${sid}&limit=200`
         : `${BACKEND}/ml-quality/penalties?limit=200`
       const r = await fetch(url, { headers: { Authorization: `Bearer ${t}` } })
-      if (!r.ok) throw new Error(`HTTP ${r.status}`)
+      if (!r.ok) {
+        const body = await r.text().catch(() => '')
+        throw new Error(`HTTP ${r.status}: ${body || r.statusText}`)
+      }
       setItems(await r.json())
     } catch (e) {
       setError((e as Error).message)

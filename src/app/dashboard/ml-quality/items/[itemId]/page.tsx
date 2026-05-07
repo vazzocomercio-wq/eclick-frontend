@@ -78,7 +78,10 @@ export default function ItemDetailPage({ params }: { params: Promise<{ itemId: s
         fetch(`${BACKEND}/ml-quality/items/${itemId}${sidQ}`, { headers: { Authorization: `Bearer ${t}` } }),
         fetch(`${BACKEND}/ml-quality/items/${itemId}/history?days=90${sidQAmp}`, { headers: { Authorization: `Bearer ${t}` } }),
       ])
-      if (!itemRes.ok) throw new Error(`HTTP ${itemRes.status}`)
+      if (!itemRes.ok) {
+        const body = await itemRes.text().catch(() => '')
+        throw new Error(`HTTP ${itemRes.status}: ${body || itemRes.statusText}`)
+      }
       const text = await itemRes.text()
       setItem(text ? JSON.parse(text) : null)
       if (histRes.ok) setHistory(await histRes.json())
