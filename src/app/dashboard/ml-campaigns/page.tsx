@@ -87,10 +87,34 @@ export default function MlCampaignsDashboardPage() {
         : `${BACKEND}/ml-campaigns/sync`
       const r = await fetch(url, { method: 'POST', headers: { Authorization: `Bearer ${t}` } })
       if (!r.ok) throw new Error(`HTTP ${r.status}: ${await r.text().catch(() => '')}`)
-      await load()
+      // Sync agora roda em background. Resposta retorna { log_id, status: 'running' }
+      // imediatamente. Damos feedback visual e fazemos polling soft a cada 10s
+      // ate o status mudar pra completed/failed.
+      const { log_id } = await r.json() as { log_id: string; status: string }
+
+      // Polling soft: 30 ticks de 10s = 5min cap
+      let ticks = 0
+      const maxTicks = 30
+      const poll = async () => {
+        ticks++
+        if (ticks > maxTicks) { setSyncing(false); await load(); return }
+        try {
+          const lr = await fetch(`${BACKEND}/ml-campaigns/sync/logs?limit=5`, { headers: { Authorization: `Bearer ${t}` } })
+          if (lr.ok) {
+            const logs = await lr.json() as Array<{ id: string; status: string }>
+            const ours = logs.find(l => l.id === log_id)
+            if (ours && ['completed', 'failed', 'partial'].includes(ours.status)) {
+              setSyncing(false)
+              await load()
+              return
+            }
+          }
+        } catch { /* segue tentando */ }
+        setTimeout(poll, 10_000)
+      }
+      setTimeout(poll, 5_000)
     } catch (e) {
       setError((e as Error).message)
-    } finally {
       setSyncing(false)
     }
   }
