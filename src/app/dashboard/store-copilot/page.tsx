@@ -3,9 +3,12 @@
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import {
-  Bot, Send, Loader2, Sparkles, Check, AlertCircle, Zap,
-  ChevronRight, Brain,
+  Send, Loader2, Check, AlertCircle, Zap, Brain,
+  Package, Layers, DollarSign, ListChecks, Trophy, BarChart3,
+  TrendingUp, AlertTriangle, ShoppingCart, Sparkles, Image as ImageIcon,
+  MessageSquare, FileText, Calendar,
 } from 'lucide-react'
+import { AnimatedPromptSuggestions, type PromptSuggestion } from '@/components/ui/animated-prompt-suggestions'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
@@ -20,13 +23,25 @@ interface ChatTurn {
   awaiting_confirm?:     boolean
 }
 
-const SAMPLE_PROMPTS = [
-  'Crie 5 kits comerciais com IA',
-  'Gere 3 coleções para o Dia das Mães',
-  'Analise os preços dos meus produtos',
-  'Quais ações estão pendentes?',
-  'Top 10 produtos por score',
-  'Resumo de vendas dos últimos 7 dias',
+// Sugestões fluem em 3 rows alternadas no empty state — espelha o
+// padrão do FloatingCopilot/AdsAIChat. Mistura ícones quentes/frios pra
+// dar variedade visual e cobrir todas as áreas que o copilot atende
+// (kits, coleções, preços, ações, ranking, vendas, conteúdo, anúncios).
+const STORE_SUGGESTIONS: PromptSuggestion[] = [
+  { text: 'Crie 5 kits comerciais com IA',                label: 'Criar kits',           icon: Package,        accent: '#a78bfa' },
+  { text: 'Gere 3 coleções para o Dia das Mães',          label: 'Coleções sazonais',    icon: Layers,         accent: '#f472b6' },
+  { text: 'Analise os preços dos meus produtos',          label: 'Análise de preços',    icon: DollarSign,     accent: '#22c55e' },
+  { text: 'Quais ações estão pendentes?',                 label: 'Ações pendentes',      icon: ListChecks,     accent: '#f59e0b' },
+  { text: 'Top 10 produtos por score',                    label: 'Top produtos',         icon: Trophy,         accent: '#f59e0b' },
+  { text: 'Resumo de vendas dos últimos 7 dias',          label: 'Vendas 7 dias',        icon: BarChart3,      accent: '#00E5FF' },
+  { text: 'Quais produtos estão com estoque baixo?',      label: 'Estoque baixo',        icon: AlertTriangle,  accent: '#ef4444' },
+  { text: 'Sugira títulos otimizados pra meus anúncios',  label: 'Otimizar títulos',     icon: Sparkles,       accent: '#00E5FF' },
+  { text: 'Quem são meus clientes recorrentes?',          label: 'Clientes recorrentes', icon: ShoppingCart,   accent: '#22c55e' },
+  { text: 'Crie capas de campanha pro Dia dos Namorados', label: 'Capas de campanha',    icon: ImageIcon,      accent: '#f472b6' },
+  { text: 'Tendência de vendas do último mês',            label: 'Tendência mensal',     icon: TrendingUp,     accent: '#22c55e' },
+  { text: 'Responda perguntas pendentes no ML',           label: 'Perguntas ML',         icon: MessageSquare,  accent: '#00E5FF' },
+  { text: 'Gere descrição rica pra um produto',           label: 'Descrição IA',         icon: FileText,       accent: '#a78bfa' },
+  { text: 'Qual a melhor data pra campanha próxima?',     label: 'Calendário ideal',     icon: Calendar,       accent: '#f59e0b' },
 ]
 
 async function token(): Promise<string | null> {
@@ -152,71 +167,117 @@ export default function StoreCopilotPage() {
     }
   }
 
+  const isEmpty = turns.length === 0
+
   return (
     <div className="flex flex-col h-[calc(100vh-72px)] max-w-4xl mx-auto p-4 sm:p-6">
-      {/* Header */}
-      <div className="flex items-center gap-3 mb-4">
-        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-400 to-blue-600 flex items-center justify-center">
-          <Brain size={18} className="text-black" />
-        </div>
-        <div>
-          <h1 className="text-lg font-bold text-zinc-100">Copiloto da Loja</h1>
-          <p className="text-xs text-zinc-500">Mande comandos em linguagem natural — eu executo via tools.</p>
-        </div>
-      </div>
-
-      {/* Body */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-3 rounded-lg border border-zinc-800 bg-zinc-900/30 p-4 mb-3">
-        {turns.length === 0 ? (
-          <div className="space-y-3">
-            <div className="rounded-lg border border-cyan-400/20 bg-cyan-400/[0.05] p-3 text-sm text-zinc-300">
-              👋 Oi! Posso te ajudar a operar a loja. Mande um comando ou clique em uma sugestão:
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {SAMPLE_PROMPTS.map(p => (
-                <button
-                  key={p}
-                  onClick={() => void send(p)}
-                  className="text-left px-3 py-2 rounded border border-zinc-800 hover:border-cyan-400/40 bg-zinc-900/40 text-xs text-zinc-300 hover:text-cyan-300 transition-colors flex items-center gap-2"
-                >
-                  <ChevronRight size={11} className="text-cyan-400 shrink-0" />
-                  {p}
-                </button>
-              ))}
-            </div>
+      {/* Header — só aparece quando já tem conversa. No empty state, o
+           welcome centralizado faz o papel de "intro". */}
+      {!isEmpty && (
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-400 to-blue-600 flex items-center justify-center">
+            <Brain size={18} className="text-black" />
           </div>
-        ) : (
-          turns.map((turn, i) => <TurnView key={i} turn={turn} onConfirm={confirmLast} />)
-        )}
-        {busy && (
-          <div className="flex items-center gap-2 text-zinc-500 text-xs">
-            <Loader2 size={12} className="animate-spin text-cyan-400" />
-            <span>processando…</span>
+          <div>
+            <h1 className="text-lg font-bold text-zinc-100">Copiloto da Loja</h1>
+            <p className="text-xs text-zinc-500">Mande comandos em linguagem natural — eu executo via tools.</p>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
-      {/* Input */}
-      <div className="rounded-lg border border-cyan-400/20 focus-within:border-cyan-400/60 bg-zinc-900 p-2 flex items-end gap-2">
-        <textarea
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          onKeyDown={e => {
-            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(input) }
-          }}
-          placeholder="Pergunte ou comande... (Shift+Enter quebra linha)"
-          rows={1}
-          disabled={busy}
-          className="flex-1 bg-transparent text-sm text-zinc-200 outline-none resize-none max-h-32 placeholder:text-zinc-600"
-        />
-        <button
-          onClick={() => void send(input)}
-          disabled={busy || !input.trim()}
-          className="p-2 rounded-lg bg-cyan-400 hover:bg-cyan-300 disabled:opacity-40 text-black"
-        >
-          {busy ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-        </button>
-      </div>
+      {/* Body — empty state vira welcome centralizado + carrossel embaixo;
+           com mensagens, vira lista de turns scrollável. */}
+      {isEmpty ? (
+        <div className="flex-1 flex flex-col">
+          {/* Welcome centralizado — espelha padrão do Active */}
+          <div className="flex-1 flex flex-col items-center justify-center text-center px-4">
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4"
+              style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.3)' }}>
+              <Brain size={26} style={{ color: '#00E5FF' }} />
+            </div>
+            <h1 className="text-xl font-bold text-zinc-100 mb-2">Como posso ajudar?</h1>
+            <p className="text-zinc-500 text-sm max-w-md">
+              Pergunte sobre produtos, vendas, anúncios, performance ou peça pra criar kits, coleções e
+              tarefas direto pelo chat — eu executo via tools.
+            </p>
+          </div>
+
+          {/* Carrossel + input encapsulado — fixos no rodapé do empty state */}
+          <div className="px-3 pb-1">
+            <AnimatedPromptSuggestions
+              suggestions={STORE_SUGGESTIONS}
+              onSuggestionClick={(t) => { setInput(''); void send(t) }}
+              speed={50}
+              rows={3}
+            >
+              <div className="rounded-2xl p-2 transition-colors"
+                style={{
+                  background: '#0d0d10',
+                  border: '1px solid #00E5FF40',
+                  boxShadow: '0 0 0 1px #00E5FF20, 0 8px 24px -12px #00E5FF40',
+                }}>
+                <div className="flex items-end gap-2">
+                  <textarea
+                    value={input}
+                    onChange={e => setInput(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(input) }
+                    }}
+                    placeholder="Pergunte ou comande... (Shift+Enter quebra linha)"
+                    rows={1}
+                    disabled={busy}
+                    className="flex-1 bg-transparent text-zinc-200 text-sm rounded-lg px-2 py-2 outline-none resize-none max-h-32 placeholder:text-zinc-600"
+                  />
+                  <button
+                    onClick={() => void send(input)}
+                    disabled={busy || !input.trim()}
+                    className="p-2.5 rounded-lg transition-opacity disabled:opacity-50 shrink-0"
+                    style={{ background: '#00E5FF', color: '#000' }}>
+                    {busy ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                  </button>
+                </div>
+              </div>
+            </AnimatedPromptSuggestions>
+            <p className="text-[10px] text-zinc-600 text-center mt-2">
+              Enter pra enviar · Shift+Enter pra nova linha
+            </p>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-3 rounded-lg border border-zinc-800 bg-zinc-900/30 p-4 mb-3">
+            {turns.map((turn, i) => <TurnView key={i} turn={turn} onConfirm={confirmLast} />)}
+            {busy && (
+              <div className="flex items-center gap-2 text-zinc-500 text-xs">
+                <Loader2 size={12} className="animate-spin text-cyan-400" />
+                <span>processando…</span>
+              </div>
+            )}
+          </div>
+
+          {/* Input padrão — só após o user iniciar a conversa */}
+          <div className="rounded-lg border border-cyan-400/20 focus-within:border-cyan-400/60 bg-zinc-900 p-2 flex items-end gap-2">
+            <textarea
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(input) }
+              }}
+              placeholder="Pergunte ou comande... (Shift+Enter quebra linha)"
+              rows={1}
+              disabled={busy}
+              className="flex-1 bg-transparent text-sm text-zinc-200 outline-none resize-none max-h-32 placeholder:text-zinc-600"
+            />
+            <button
+              onClick={() => void send(input)}
+              disabled={busy || !input.trim()}
+              className="p-2 rounded-lg bg-cyan-400 hover:bg-cyan-300 disabled:opacity-40 text-black"
+            >
+              {busy ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+            </button>
+          </div>
+        </>
+      )}
     </div>
   )
 }
