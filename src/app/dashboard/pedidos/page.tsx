@@ -1007,6 +1007,11 @@ function OrderCard({
                 Ver detalhe
               </button>
             </div>
+            {(order as unknown as { pack_id?: number | string | null }).pack_id && (
+              <p className="text-[10px] font-mono text-zinc-500">
+                Carrinho #{(order as unknown as { pack_id: number | string }).pack_id}
+              </p>
+            )}
             {order.shipping?.receiver_address?.zip_code && (
               <p className="text-[10px] text-zinc-500">
                 CEP {order.shipping?.receiver_address?.zip_code}
@@ -1040,6 +1045,11 @@ function OrderCard({
                     {item.item_id    && <span className="font-mono text-zinc-600">{item.item_id}</span>}
                   </div>
                   {vars && <p className="text-[10px] text-zinc-500 mt-0.5 line-clamp-1">{vars}</p>}
+                  {(item as unknown as { available_quantity?: number | null }).available_quantity != null && (
+                    <p className="text-[10px] text-zinc-600 mt-0.5">
+                      {(item as unknown as { available_quantity: number }).available_quantity} disponíveis após esta venda
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -1066,6 +1076,18 @@ function OrderCard({
                 {estDel && (
                   <span className="text-[10px] text-zinc-500">
                     Entrega: <span className="text-zinc-300">{estDel}</span>
+                  </span>
+                )}
+                {(order as unknown as { coupon?: { amount?: number } | null }).coupon?.amount != null && (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
+                    style={{ background: 'rgba(245,158,11,0.12)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.25)' }}>
+                    🎟️ Cupom -{brl((order as unknown as { coupon: { amount: number } }).coupon.amount)}
+                  </span>
+                )}
+                {(order as unknown as { context?: { channel?: string; flows?: string[] } | null }).context?.flows?.includes('publicidade') && (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
+                    style={{ background: 'rgba(168,85,247,0.12)', color: '#a855f7', border: '1px solid rgba(168,85,247,0.25)' }}>
+                    📣 Publicidade
                   </span>
                 )}
               </div>
@@ -1623,6 +1645,28 @@ function OrderCard({
                 <div className="flex items-center gap-1.5">
                   <span className="text-[11px] text-zinc-600 w-20 shrink-0">Prev. entrega</span>
                   <span className="text-[11px] text-zinc-400">{fmtDate(order.shipping?.estimated_delivery_date)}</span>
+                </div>
+              )}
+              {(order.shipping as unknown as { receiver_name?: string | null })?.receiver_name && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-zinc-600 w-20 shrink-0">Quem recebe</span>
+                  <span className="text-[11px] text-zinc-400">{(order.shipping as unknown as { receiver_name: string }).receiver_name}</span>
+                </div>
+              )}
+              {(order.shipping as unknown as { tracking_number?: string | null })?.tracking_number && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-zinc-600 w-20 shrink-0">Rastreio</span>
+                  <span className="text-[11px] font-mono text-cyan-500">
+                    {(order.shipping as unknown as { tracking_number: string }).tracking_number}
+                  </span>
+                </div>
+              )}
+              {(order.shipping as unknown as { delivery_type?: string | null })?.delivery_type && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-zinc-600 w-20 shrink-0">Tipo entrega</span>
+                  <span className="text-[11px] text-zinc-400">
+                    {(order.shipping as unknown as { delivery_type: string }).delivery_type}
+                  </span>
                 </div>
               )}
             </div>
