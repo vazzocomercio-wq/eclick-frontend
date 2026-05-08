@@ -13,7 +13,7 @@ import {
   Plug, Database, ChevronDown, Bot, Inbox, BookOpen,
   GraduationCap, LineChart, Shield, Users2, TrendingDown,
   Zap, Map as MapIcon, Bell, Wand2, Layers, Store, Link2, Calendar, FileText, Eye,
-  RotateCcw, CreditCard, Scale,
+  RotateCcw, CreditCard, Scale, Trophy,
 } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
@@ -182,6 +182,7 @@ const SECTIONS: NavSection[] = [
       { label: 'Devoluções',     href: '/dashboard/dropship/returns',           icon: <RotateCcw size={15} /> },
       { label: 'Créditos',       href: '/dashboard/dropship/credits',           icon: <CreditCard size={15} /> },
       { label: 'Disputas',       href: '/dashboard/dropship/disputes',          icon: <Scale size={15} /> },
+      { label: 'Scores',         href: '/dashboard/dropship/scores',            icon: <Trophy size={15} /> },
       { label: 'Vínculo Contas', href: '/dashboard/dropship/account-suppliers', icon: <Link2 size={15} /> },
     ],
   },
