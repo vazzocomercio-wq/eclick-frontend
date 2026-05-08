@@ -152,6 +152,7 @@ const SECTIONS: NavSection[] = [
         label: 'Financeiro', href: '/dashboard/financeiro', icon: <DollarSign size={15} />,
         children: [
           { label: 'Resumo Financeiro', href: '/dashboard/financeiro/resumo' },
+          { label: 'Contas a Pagar',   href: '/dashboard/financeiro/contas-a-pagar' },
           { label: 'Fluxo de Caixa',   href: '/dashboard/financeiro/fluxo' },
           { label: 'DRE',              href: '/dashboard/financeiro/dre' },
         ],
