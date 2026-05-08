@@ -49,8 +49,6 @@ interface Item {
   thumbnail_url:               string | null
   title:                       string | null
   permalink:                   string | null
-  listing_status:              string | null
-  catalog_listing:             boolean | null
 }
 
 async function getToken(): Promise<string | null> {
@@ -71,7 +69,6 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   const [items, setItems]       = useState<Item[]>([])
   const [total, setTotal]       = useState(0)
   const [statusFilter, setStatusFilter] = useState<'candidate' | 'started' | ''>('candidate')
-  const [listingFilter, setListingFilter] = useState<'' | 'active' | 'paused' | 'closed' | 'catalog'>('')
   const [loading, setLoading]   = useState(true)
   const [error, setError]       = useState<string | null>(null)
 
@@ -83,16 +80,11 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
       const sidQ = sid != null ? `?seller_id=${sid}` : ''
       const sidQAmp = sid != null ? `&seller_id=${sid}` : ''
 
-      const itemsParams = new URLSearchParams()
-      itemsParams.set('limit', '100')
-      if (sid != null)             itemsParams.set('seller_id', String(sid))
-      if (statusFilter)            itemsParams.set('status', statusFilter)
-      if (listingFilter === 'catalog') itemsParams.set('catalog_only', 'true')
-      else if (listingFilter)      itemsParams.set('listing_status', listingFilter)
-
       const [cRes, iRes] = await Promise.all([
         fetch(`${BACKEND}/ml-campaigns/${id}${sidQ}`, { headers: { Authorization: `Bearer ${t}` } }),
-        fetch(`${BACKEND}/ml-campaigns/${id}/items?${itemsParams}`, { headers: { Authorization: `Bearer ${t}` } }),
+        fetch(`${BACKEND}/ml-campaigns/${id}/items?limit=100${sidQAmp}${statusFilter ? `&status=${statusFilter}` : ''}`, {
+          headers: { Authorization: `Bearer ${t}` },
+        }),
       ])
       if (!cRes.ok) throw new Error(`HTTP ${cRes.status}`)
       const text = await cRes.text()
@@ -108,7 +100,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
     } finally {
       setLoading(false)
     }
-  }, [id, statusFilter, listingFilter])
+  }, [id, statusFilter])
 
   useEffect(() => { void load() }, [load, selectedSellerId])
 
@@ -215,46 +207,21 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
       </div>
 
       {/* Items toolbar */}
-      <div className="space-y-2 mt-4">
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <h2 className="text-sm font-semibold">Anúncios</h2>
-          <div className="flex items-center gap-1 text-xs">
-            {[
-              { v: '',           label: 'Todos' },
-              { v: 'candidate',  label: `Candidatos (${campaign.candidate_count})` },
-              { v: 'started',    label: `Participando (${campaign.started_count})` },
-            ].map(opt => (
-              <button key={opt.v}
-                onClick={() => setStatusFilter(opt.v as any)}
-                className="px-2.5 py-1 rounded-lg transition-all"
-                style={{
-                  background: statusFilter === opt.v ? 'rgba(0,229,255,0.15)' : '#0c0c10',
-                  border: `1px solid ${statusFilter === opt.v ? 'rgba(0,229,255,0.4)' : '#1a1a1f'}`,
-                  color: statusFilter === opt.v ? '#67e8f9' : '#a1a1aa',
-                }}>
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Filtro de status do anuncio */}
-        <div className="flex items-center gap-2 flex-wrap text-xs">
-          <span className="text-zinc-500 text-[10px] uppercase tracking-wider">Anúncio:</span>
+      <div className="flex items-center justify-between flex-wrap gap-2 mt-4">
+        <h2 className="text-sm font-semibold">Anúncios</h2>
+        <div className="flex items-center gap-1 text-xs">
           {[
-            { v: '',        label: 'Todos',          color: '#71717a' },
-            { v: 'active',  label: 'Ativos',         color: '#22c55e' },
-            { v: 'paused',  label: 'Pausados',       color: '#fbbf24' },
-            { v: 'closed',  label: 'Fechados',       color: '#ef4444' },
-            { v: 'catalog', label: 'Catálogo (competindo)', color: '#a78bfa' },
+            { v: '',           label: 'Todos' },
+            { v: 'candidate',  label: `Candidatos (${campaign.candidate_count})` },
+            { v: 'started',    label: `Participando (${campaign.started_count})` },
           ].map(opt => (
             <button key={opt.v}
-              onClick={() => setListingFilter(opt.v as any)}
-              className="px-2 py-1 rounded transition-all"
+              onClick={() => setStatusFilter(opt.v as any)}
+              className="px-2.5 py-1 rounded-lg transition-all"
               style={{
-                background: listingFilter === opt.v ? `${opt.color}20` : '#09090b',
-                border: `1px solid ${listingFilter === opt.v ? `${opt.color}50` : '#1a1a1f'}`,
-                color: listingFilter === opt.v ? opt.color : '#a1a1aa',
+                background: statusFilter === opt.v ? 'rgba(0,229,255,0.15)' : '#0c0c10',
+                border: `1px solid ${statusFilter === opt.v ? 'rgba(0,229,255,0.4)' : '#1a1a1f'}`,
+                color: statusFilter === opt.v ? '#67e8f9' : '#a1a1aa',
               }}>
               {opt.label}
             </button>
@@ -315,17 +282,14 @@ function ItemRow({ item }: { item: Item }) {
               {item.title}
             </p>
           )}
-          <div className="flex items-center gap-1.5 flex-wrap">
+          <div className="flex items-center gap-1.5">
             <span className="font-mono text-[10px] text-zinc-400 truncate">{item.ml_item_id}</span>
             <a href={linkUrl} target="_blank" rel="noreferrer"
               className="text-cyan-400 hover:underline flex-shrink-0">
               <ExternalLink size={10} />
             </a>
           </div>
-          <div className="flex items-center gap-1 flex-wrap mt-0.5">
-            <ItemStatusBadge status={item.status} />
-            <ListingStatusBadge listingStatus={item.listing_status} catalogListing={item.catalog_listing} />
-          </div>
+          <ItemStatusBadge status={item.status} />
         </div>
 
         {/* Preços */}
@@ -411,33 +375,6 @@ function StatusBadge({ status }: { status: string }) {
   const m = map[status] ?? { label: status, color: '#71717a' }
   return (
     <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded font-bold"
-      style={{ background: `${m.color}15`, color: m.color, border: `1px solid ${m.color}40` }}>
-      {m.label}
-    </span>
-  )
-}
-
-function ListingStatusBadge({ listingStatus, catalogListing }: { listingStatus: string | null; catalogListing: boolean | null }) {
-  if (catalogListing) {
-    return (
-      <span className="text-[8px] uppercase tracking-wider px-1 py-0.5 rounded font-bold"
-        style={{ background: 'rgba(167,139,250,0.15)', color: '#c4b5fd', border: '1px solid rgba(167,139,250,0.4)' }}
-        title="Compete por buy box no catálogo">
-        Catálogo
-      </span>
-    )
-  }
-  if (!listingStatus) return null
-  const map: Record<string, { label: string; color: string }> = {
-    active:       { label: 'Ativo',     color: '#22c55e' },
-    paused:       { label: 'Pausado',   color: '#fbbf24' },
-    closed:       { label: 'Fechado',   color: '#ef4444' },
-    under_review: { label: 'Em revisão',color: '#fb923c' },
-  }
-  const m = map[listingStatus]
-  if (!m) return null
-  return (
-    <span className="text-[8px] uppercase tracking-wider px-1 py-0.5 rounded font-bold"
       style={{ background: `${m.color}15`, color: m.color, border: `1px solid ${m.color}40` }}>
       {m.label}
     </span>
