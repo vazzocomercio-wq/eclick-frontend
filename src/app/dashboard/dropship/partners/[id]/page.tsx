@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
-import { ArrowLeft, Save, Archive, AlertCircle } from 'lucide-react'
+import { ArrowLeft, Save, Archive, AlertCircle, Package, History } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 
@@ -185,7 +185,23 @@ export default function PartnerDetailPage() {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Link
+            href={`/dashboard/dropship/partners/${id}/products`}
+            className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors hover:bg-[#1a1a1f]"
+            style={{ border: '1px solid #27272a', color: '#a1a1aa' }}
+          >
+            <Package size={14} />
+            Catálogo
+          </Link>
+          <Link
+            href={`/dashboard/dropship/sync-logs?supplier_id=${partner.supplier_id}`}
+            className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors hover:bg-[#1a1a1f]"
+            style={{ border: '1px solid #27272a', color: '#a1a1aa' }}
+          >
+            <History size={14} />
+            Logs
+          </Link>
           <button
             onClick={handleArchive}
             className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors"
