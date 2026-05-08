@@ -845,18 +845,21 @@ export default function Page() {
       {/* ── Section 4: Advanced filters (collapsible) ─────────────────── */}
       <div>
         <button onClick={() => setShowFilters(v => !v)}
-          className="flex items-center gap-2 text-xs text-zinc-400 hover:text-zinc-200 transition-colors mb-3">
+          className="inline-flex items-center gap-1.5 text-sm px-3 py-2 rounded-xl font-semibold transition-all mb-3"
+          style={{
+            background: advCount > 0 ? 'rgba(0,229,255,0.08)' : '#111114',
+            border: `1px solid ${advCount > 0 || showFilters ? '#00E5FF' : '#27272a'}`,
+            color: advCount > 0 || showFilters ? '#00E5FF' : '#e4e4e7',
+          }}>
+          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+          </svg>
+          Filtros avançados
+          {advCount > 0 && <span className="text-[10px] font-bold px-1.5 rounded-full" style={{ background: '#00E5FF', color: '#000' }}>{advCount}</span>}
           <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
-            style={{ transform: showFilters ? 'rotate(180deg)' : undefined, transition: 'transform .2s' }}>
+            style={{ transform: showFilters ? 'rotate(180deg)' : undefined, transition: 'transform .2s', opacity: 0.7, marginLeft: 2 }}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
           </svg>
-          Filtros avancados
-          {advCount > 0 && (
-            <span className="px-1.5 py-0.5 rounded-full text-xs"
-              style={{ background: '#00E5FF22', color: '#00E5FF' }}>
-              {advCount} ativo{advCount > 1 ? 's' : ''}
-            </span>
-          )}
         </button>
 
         {showFilters && (
