@@ -92,6 +92,9 @@ export default function RecoDetailPage({ params }: { params: Promise<{ id: strin
   const [editPrice, setEditPrice] = useState('')
   const [editQty, setEditQty]     = useState('')
   const [strategy, setStrategy]   = useState<'conservative' | 'competitive' | 'aggressive' | null>(null)
+  // Threshold do soft gate vindo de ml_campaigns_config (default 10% se não conseguir buscar).
+  // Usado pra colorir o feedback de margem em tempo real.
+  const [gateThreshold, setGateThreshold] = useState<number>(10)
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
@@ -107,6 +110,23 @@ export default function RecoDetailPage({ params }: { params: Promise<{ id: strin
       if (data?.recommended_strategy) setStrategy(data.recommended_strategy as any)
       if (data?.recommended_price)    setEditPrice(String(data.recommended_price))
       if (data?.recommended_quantity) setEditQty(String(data.recommended_quantity))
+
+      // Busca threshold do soft gate da config (best-effort, não bloqueia).
+      // Aplica override por tipo de campanha se existir.
+      if (data?.seller_id) {
+        try {
+          const cfgRes = await fetch(`${BACKEND}/ml-campaigns/config?seller_id=${data.seller_id}`, { headers: { Authorization: `Bearer ${t}` } })
+          if (cfgRes.ok) {
+            const cfg = await cfgRes.json() as {
+              min_approval_margin_pct?: number;
+              per_campaign_type_overrides?: Record<string, number>;
+            }
+            const type = data.ml_campaign_items?.ml_campaigns?.ml_promotion_type
+            const override = (type && cfg.per_campaign_type_overrides) ? cfg.per_campaign_type_overrides[type] : undefined
+            setGateThreshold(Number(override ?? cfg.min_approval_margin_pct ?? 10))
+          }
+        } catch { /* fallback default 10 */ }
+      }
     } catch (e) {
       setError((e as Error).message)
     } finally {
@@ -208,6 +228,31 @@ export default function RecoDetailPage({ params }: { params: Promise<{ id: strin
   const cb = reco.cost_breakdown
   const score = reco.opportunity_score ?? 0
   const isPending = reco.status === 'pending'
+
+  // Margem em tempo real conforme user digita o preço.
+  // Custos % (imposto, comissão ML) são RECALCULADOS no novo preço.
+  // Custos fixos (cost_price, taxa fixa, frete grátis, embalagem,
+  // operacional, subsídio MELI) ficam como snapshot.
+  // Aproximação: operational_cost tratado como fixo (no config pode
+  // ser %, mas erro é pequeno e damos feedback rápido).
+  const liveMargin = (() => {
+    const price = Number(editPrice)
+    if (!price || price <= 0 || !cb) return null
+    const taxPct       = Number(cb.tax_percentage ?? 0) / 100
+    const commissionPct = Number(cb.ml_commission_pct ?? 0) / 100
+    const variableCosts = price * taxPct + price * commissionPct
+    const fixedCosts =
+      Number(cb.cost_price        ?? 0)
+    + Number(cb.ml_fixed_fee       ?? 0)
+    + Number(cb.free_shipping_cost ?? 0)
+    + Number(cb.packaging_cost     ?? 0)
+    + Number(cb.operational_cost   ?? 0)
+    - Number(cb.meli_subsidy_brl   ?? 0)
+    const totalCosts = fixedCosts + variableCosts
+    const marginBrl = price - totalCosts
+    const marginPct = (marginBrl / price) * 100
+    return { price, marginBrl, marginPct, totalCosts, taxAmount: price * taxPct, commission: price * commissionPct }
+  })()
 
   return (
     <div className="p-6 space-y-4 max-w-5xl mx-auto" style={{ background: 'var(--background)', minHeight: '100vh', color: 'var(--text)' }}>
@@ -416,6 +461,61 @@ export default function RecoDetailPage({ params }: { params: Promise<{ id: strin
                   className="flex-1 rounded px-2 py-1.5 text-sm outline-none"
                   style={{ background: '#09090b', border: '1px solid #27272a', color: '#fafafa' }} />
               </div>
+
+              {/* Feedback de margem em tempo real */}
+              {liveMargin && (() => {
+                const { price, marginBrl, marginPct, totalCosts, taxAmount, commission } = liveMargin
+                // Estado visual:
+                //   verde:    margem >= threshold do gate     (aprovação direta)
+                //   amarelo:  0 < margem < threshold           (vai pra fila do gestor)
+                //   vermelho: margem <= 0                      (prejuízo — abaixo do break-even)
+                const state =
+                  marginBrl <= 0           ? 'loss'    :
+                  marginPct < gateThreshold ? 'review' :
+                                              'ok'
+                const cfg = {
+                  ok:     { color: '#22c55e', bg: 'rgba(34,197,94,0.06)',  border: 'rgba(34,197,94,0.4)',  label: 'Aprovação direta',          icon: '✓' },
+                  review: { color: '#fbbf24', bg: 'rgba(251,191,36,0.06)', border: 'rgba(251,191,36,0.4)', label: 'Abaixo do limite — vai pra fila do gestor', icon: '⚠' },
+                  loss:   { color: '#ef4444', bg: 'rgba(239,68,68,0.06)',  border: 'rgba(239,68,68,0.4)',  label: 'Prejuízo — abaixo do break-even',           icon: '✕' },
+                }[state]
+                return (
+                  <div className="rounded-lg p-3 space-y-2"
+                    style={{ background: cfg.bg, border: `1px solid ${cfg.border}` }}>
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg" style={{ color: cfg.color }}>{cfg.icon}</span>
+                        <span className="text-xs font-semibold" style={{ color: cfg.color }}>
+                          A esse preço: {cfg.label}
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-zinc-500">limite: {gateThreshold.toFixed(1)}%</span>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+                      <div className="rounded p-2" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
+                        <p className="text-[9px] uppercase tracking-wider text-zinc-500">Margem</p>
+                        <p className="font-bold text-base" style={{ color: cfg.color }}>{marginPct.toFixed(1)}%</p>
+                      </div>
+                      <div className="rounded p-2" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
+                        <p className="text-[9px] uppercase tracking-wider text-zinc-500">Lucro (M.C.)</p>
+                        <p className="font-bold text-base" style={{ color: cfg.color }}>{brl(marginBrl)}</p>
+                      </div>
+                      <div className="rounded p-2 col-span-2 md:col-span-1" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
+                        <p className="text-[9px] uppercase tracking-wider text-zinc-500">Custo total</p>
+                        <p className="text-zinc-300 font-medium">{brl(totalCosts)}</p>
+                      </div>
+                    </div>
+                    {/* Quebra dos %s recalculados */}
+                    <div className="text-[10px] text-zinc-500 flex items-center gap-3 flex-wrap pt-1 border-t border-zinc-800">
+                      <span>Imposto: {brl(taxAmount)}</span>
+                      <span>·</span>
+                      <span>Comissão ML: {brl(commission)}</span>
+                      <span>·</span>
+                      <span>Preço: {brl(price)}</span>
+                    </div>
+                  </div>
+                )
+              })()}
+
               <div className="flex items-center gap-2">
                 <button onClick={() => approve(true)} disabled={busy !== null}
                   className="flex-1 px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50 inline-flex items-center justify-center gap-1.5"
