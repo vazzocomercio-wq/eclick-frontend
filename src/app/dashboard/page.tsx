@@ -1163,7 +1163,9 @@ export default function DashboardPage() {
                   </svg>
                   <span className="text-[10px] text-yellow-300">
                     {pedidosSemCusto} pedido{pedidosSemCusto > 1 ? 's' : ''} sem custo ·{' '}
-                    <Link href="/dashboard/pedidos" className="underline hover:text-yellow-200 transition-colors">
+                    <Link
+                      href={`/dashboard/pedidos?missing_cost=1&period=${period === 'month' ? '30d' : period}`}
+                      className="underline hover:text-yellow-200 transition-colors">
                       Atualizar →
                     </Link>
                   </span>

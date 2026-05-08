@@ -1960,18 +1960,34 @@ export default function PedidosPage() {
   // UI-1.1 — header consolidado (state que vivia no PedidosToolsPanel)
   const [billingPending, setBillingPending] = useState<number | null>(null)
   const [syncing,        setSyncing]        = useState(false)
+  // Inicialização vinda de query params do dashboard ("Atualizar →"
+  // dispara /pedidos?missing_cost=1&period=today). Lemos UMA vez de
+  // window.location pra evitar Suspense boundary do useSearchParams.
+  // useMemo([]) garante que rodará só na 1ª render — re-renders não
+  // re-leem a URL (filtros viram state local depois).
+  const initFromQs = useMemo(() => {
+    if (typeof window === 'undefined') return { missingCost: false, period: 'all' as const }
+    const sp = new URLSearchParams(window.location.search)
+    const p = sp.get('period')
+    return {
+      missingCost: sp.get('missing_cost') === '1',
+      period:      (p === 'today' || p === '7d' || p === '30d' ? p : 'all') as 'all' | 'today' | '7d' | '30d',
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   // Filtros avançados
-  const [advOpen, setAdvOpen]               = useState(false)
+  const [advOpen, setAdvOpen]               = useState<boolean>(initFromQs.missingCost)
   const [filterUFs, setFilterUFs]           = useState<Set<string>>(new Set())
-  const [filterPeriod, setFilterPeriod]     = useState<'all' | 'today' | '7d' | '30d'>('all')
+  const [filterPeriod, setFilterPeriod]     = useState<'all' | 'today' | '7d' | '30d'>(initFromQs.period)
   const [filterValueMin, setFilterValueMin] = useState<string>('')
   const [filterValueMax, setFilterValueMax] = useState<string>('')
   const [filterFlags, setFilterFlags]       = useState({
-    noLink:     false,  // sem vínculo (item_id não tem entry em vinculosPorListing)
-    noCost:     false,  // produto vinculado tem cost_price null/0
-    noCampaign: false,  // item não está em ml_ads_campaigns active
-    noTracking: false,  // shipping.tracking_number ausente
-    recurring:  false,  // buyer com 2+ pedidos no recorte
+    noLink:     false,
+    noCost:     initFromQs.missingCost,
+    noCampaign: false,
+    noTracking: false,
+    recurring:  false,
   })
   const [adItems, setAdItems] = useState<Set<string>>(new Set())
   const tid = useRef(0)
