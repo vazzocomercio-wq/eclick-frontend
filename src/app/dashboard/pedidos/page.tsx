@@ -1898,6 +1898,23 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'mediacao',      label: 'Mediação'       },
 ]
 
+// ── Active filter chip (filtros avançados de pedidos) ────────────────────────
+
+function ChipPed({ label, onRemove }: { label: string; onRemove: () => void }) {
+  return (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border"
+      style={{ background: 'rgba(0,229,255,0.06)', borderColor: 'rgba(0,229,255,0.25)', color: '#67e8f9' }}>
+      {label}
+      <button onClick={onRemove} className="hover:text-white transition-colors -mr-0.5"
+        aria-label={`Remover filtro ${label}`}>
+        <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </span>
+  )
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function PedidosPage() {
@@ -1943,6 +1960,20 @@ export default function PedidosPage() {
   // UI-1.1 — header consolidado (state que vivia no PedidosToolsPanel)
   const [billingPending, setBillingPending] = useState<number | null>(null)
   const [syncing,        setSyncing]        = useState(false)
+  // Filtros avançados
+  const [advOpen, setAdvOpen]               = useState(false)
+  const [filterUFs, setFilterUFs]           = useState<Set<string>>(new Set())
+  const [filterPeriod, setFilterPeriod]     = useState<'all' | 'today' | '7d' | '30d'>('all')
+  const [filterValueMin, setFilterValueMin] = useState<string>('')
+  const [filterValueMax, setFilterValueMax] = useState<string>('')
+  const [filterFlags, setFilterFlags]       = useState({
+    noLink:     false,  // sem vínculo (item_id não tem entry em vinculosPorListing)
+    noCost:     false,  // produto vinculado tem cost_price null/0
+    noCampaign: false,  // item não está em ml_ads_campaigns active
+    noTracking: false,  // shipping.tracking_number ausente
+    recurring:  false,  // buyer com 2+ pedidos no recorte
+  })
+  const [adItems, setAdItems] = useState<Set<string>>(new Set())
   const tid = useRef(0)
   const pageRef = useRef(0)
   const qRef    = useRef('')
@@ -2250,6 +2281,21 @@ export default function PedidosPage() {
     return () => clearInterval(interval)
   }, [loadOrders])
 
+  // Itens em campanhas ML Ads ativas — pra filtro "sem campanha"
+  useEffect(() => {
+    ;(async () => {
+      const { data } = await supabase
+        .from('ml_ads_campaigns')
+        .select('items')
+        .eq('status', 'active')
+      const items = new Set<string>()
+      for (const c of (data ?? []) as Array<{ items: string[] | null }>) {
+        for (const i of c.items ?? []) items.add(i)
+      }
+      setAdItems(items)
+    })()
+  }, [supabase])
+
   // Contador de minutos desde última atualização
   useEffect(() => {
     const tick = setInterval(() => {
@@ -2264,10 +2310,117 @@ export default function PedidosPage() {
     return c as Record<TabKey, number>
   }, [orders])
 
+  // Buyer counts pra filtro "Cliente recorrente" — calc sobre orders carregados
+  const buyerCounts = useMemo(() => {
+    const m: Record<string, number> = {}
+    for (const o of orders) {
+      const id = String(o.buyer.id ?? o.buyer.nickname ?? '')
+      if (!id) continue
+      m[id] = (m[id] ?? 0) + 1
+    }
+    return m
+  }, [orders])
+
   // Servidor já filtra pelo tab via /orders/list?tab=. Mantemos o filter
   // client-side como guard contra dessincronia (caso o servidor retorne
-  // edge cases que classifyOrder reclassificaria).
-  const filtered = useMemo(() => orders.filter(o => classifyOrder(o) === tab), [orders, tab])
+  // edge cases que classifyOrder reclassificaria) + aplica filtros avançados.
+  const filtered = useMemo(() => {
+    return orders.filter(o => {
+      if (classifyOrder(o) !== tab) return false
+
+      // UF de destino (multi-select)
+      if (filterUFs.size > 0) {
+        const uf = (o.shipping?.receiver_address?.state ?? '').toUpperCase()
+        if (!uf || !filterUFs.has(uf)) return false
+      }
+
+      // Período
+      if (filterPeriod !== 'all') {
+        const created = new Date(o.date_created).getTime()
+        const now = Date.now()
+        const day = 86400_000
+        if (filterPeriod === 'today' && (now - created) > day) return false
+        if (filterPeriod === '7d'    && (now - created) > 7  * day) return false
+        if (filterPeriod === '30d'   && (now - created) > 30 * day) return false
+      }
+
+      // Valor R$
+      const min = filterValueMin ? Number(filterValueMin) : null
+      const max = filterValueMax ? Number(filterValueMax) : null
+      if (min != null && o.total_amount < min) return false
+      if (max != null && o.total_amount > max) return false
+
+      // Sem vínculo / sem custo (via vinculosPorListing já existente)
+      const oi = o.order_items[0]
+      const itemId = oi?.item_id ?? oi?.item?.id ?? null
+      const vinculos = itemId ? (vinculosPorListing[itemId] ?? []) : []
+      const cost = vinculos[0]?.product?.cost_price ?? null
+      if (filterFlags.noLink && vinculos.length > 0) return false
+      if (filterFlags.noCost && (cost ?? 0) > 0)     return false
+
+      // Sem campanha ativa
+      if (filterFlags.noCampaign && itemId && adItems.has(itemId)) return false
+
+      // Sem rastreio (campo às vezes vem fora do tipo declarado — cast defensivo)
+      const tracking = (o.shipping as unknown as { tracking_number?: string | null })?.tracking_number
+      if (filterFlags.noTracking && tracking) return false
+
+      // Cliente recorrente (2+ pedidos no recorte atual)
+      if (filterFlags.recurring) {
+        const id = String(o.buyer.id ?? o.buyer.nickname ?? '')
+        if (!id || (buyerCounts[id] ?? 1) < 2) return false
+      }
+
+      return true
+    })
+  }, [orders, tab, filterUFs, filterPeriod, filterValueMin, filterValueMax, filterFlags, vinculosPorListing, adItems, buyerCounts])
+
+  // Lista de UFs disponíveis no recorte atual (das que aparecem em pelo menos 1 pedido)
+  const availableUFs = useMemo(() => {
+    const set = new Set<string>()
+    for (const o of orders) {
+      const uf = (o.shipping?.receiver_address?.state ?? '').toUpperCase()
+      if (uf && uf.length <= 3) set.add(uf)
+    }
+    return [...set].sort()
+  }, [orders])
+
+  // Contadores das flags pra mostrar ao lado de cada toggle (sobre orders na tab atual)
+  const tabOrders = useMemo(() => orders.filter(o => classifyOrder(o) === tab), [orders, tab])
+  const flagCounts = useMemo(() => ({
+    noLink:     tabOrders.filter(o => {
+      const id = o.order_items[0]?.item_id ?? o.order_items[0]?.item?.id ?? null
+      return id ? (vinculosPorListing[id] ?? []).length === 0 : false
+    }).length,
+    noCost:     tabOrders.filter(o => {
+      const id = o.order_items[0]?.item_id ?? o.order_items[0]?.item?.id ?? null
+      const v = id ? (vinculosPorListing[id] ?? []) : []
+      return v.length > 0 && (v[0]?.product?.cost_price ?? 0) === 0
+    }).length,
+    noCampaign: tabOrders.filter(o => {
+      const id = o.order_items[0]?.item_id ?? o.order_items[0]?.item?.id ?? null
+      return id ? !adItems.has(id) : false
+    }).length,
+    noTracking: tabOrders.filter(o => !(o.shipping as unknown as { tracking_number?: string | null })?.tracking_number).length,
+    recurring:  tabOrders.filter(o => {
+      const id = String(o.buyer.id ?? o.buyer.nickname ?? '')
+      return id && (buyerCounts[id] ?? 1) >= 2
+    }).length,
+  }), [tabOrders, vinculosPorListing, adItems, buyerCounts])
+
+  const advCount =
+    (filterUFs.size > 0 ? 1 : 0) +
+    (filterPeriod !== 'all' ? 1 : 0) +
+    (filterValueMin || filterValueMax ? 1 : 0) +
+    Object.values(filterFlags).filter(Boolean).length
+
+  function clearAdv() {
+    setFilterUFs(new Set())
+    setFilterPeriod('all')
+    setFilterValueMin('')
+    setFilterValueMax('')
+    setFilterFlags({ noLink: false, noCost: false, noCampaign: false, noTracking: false, recurring: false })
+  }
 
   const cur  = kpis?.current_month
   const prev = kpis?.last_month
@@ -2402,15 +2555,158 @@ export default function PedidosPage() {
             </button>
           )}
         </div>
-        <button onClick={() => setModal(true)}
-          className="flex items-center gap-2 text-sm px-4 py-2 rounded-xl font-semibold hover:opacity-90 transition-all"
-          style={{ background: '#1a1a1f', border: '1px solid #27272a', color: '#e4e4e7' }}>
-          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-          </svg>
-          Nova Venda Manual
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setAdvOpen(v => !v)}
+            className="inline-flex items-center gap-1.5 text-sm px-3 py-2 rounded-xl font-semibold transition-all"
+            style={{
+              background: advCount > 0 ? 'rgba(0,229,255,0.08)' : '#111114',
+              border: `1px solid ${advCount > 0 || advOpen ? '#00E5FF' : '#27272a'}`,
+              color: advCount > 0 || advOpen ? '#00E5FF' : '#e4e4e7',
+            }}>
+            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+            </svg>
+            Filtros
+            {advCount > 0 && <span className="text-[10px] font-bold px-1.5 rounded-full" style={{ background: '#00E5FF', color: '#000' }}>{advCount}</span>}
+          </button>
+          <button onClick={() => setModal(true)}
+            className="flex items-center gap-2 text-sm px-4 py-2 rounded-xl font-semibold hover:opacity-90 transition-all"
+            style={{ background: '#1a1a1f', border: '1px solid #27272a', color: '#e4e4e7' }}>
+            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+            </svg>
+            Nova Venda Manual
+          </button>
+        </div>
       </div>
+
+      {/* Painel de filtros avançados (collapsible) */}
+      {advOpen && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 p-4 rounded-xl"
+          style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
+          {/* UF destino */}
+          <div className="md:col-span-2">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2">UF destino</p>
+            <div className="flex flex-wrap gap-1">
+              {availableUFs.length === 0 ? (
+                <span className="text-[11px] text-zinc-600">Sem dado de UF nos pedidos da aba</span>
+              ) : availableUFs.map(uf => {
+                const active = filterUFs.has(uf)
+                return (
+                  <button key={uf}
+                    onClick={() => setFilterUFs(prev => { const n = new Set(prev); n.has(uf) ? n.delete(uf) : n.add(uf); return n })}
+                    className="px-2 py-1 rounded-md text-[11px] font-medium border transition-all"
+                    style={{
+                      background: active ? 'rgba(0,229,255,0.08)' : 'transparent',
+                      borderColor: active ? '#00E5FF' : '#27272a',
+                      color: active ? '#00E5FF' : '#a1a1aa',
+                    }}>
+                    {uf}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Período + Valor */}
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2">Período</p>
+            <div className="flex flex-wrap gap-1">
+              {([
+                { v: 'all',   label: 'Todos' },
+                { v: 'today', label: 'Hoje' },
+                { v: '7d',    label: '7 dias' },
+                { v: '30d',   label: '30 dias' },
+              ] as const).map(o => (
+                <button key={o.v} onClick={() => setFilterPeriod(o.v)}
+                  className="px-2 py-1 rounded-md text-[11px] font-medium border transition-all"
+                  style={{
+                    background: filterPeriod === o.v ? 'rgba(0,229,255,0.08)' : 'transparent',
+                    borderColor: filterPeriod === o.v ? '#00E5FF' : '#27272a',
+                    color: filterPeriod === o.v ? '#00E5FF' : '#a1a1aa',
+                  }}>
+                  {o.label}
+                </button>
+              ))}
+            </div>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2 mt-3">Valor (R$)</p>
+            <div className="flex items-center gap-1.5">
+              <input type="number" min="0" placeholder="Min"
+                value={filterValueMin} onChange={e => setFilterValueMin(e.target.value)}
+                className="w-full px-2 py-1.5 rounded-md text-[11px] text-white placeholder-zinc-600 border outline-none focus:border-[#00E5FF]"
+                style={{ background: '#070709', borderColor: '#27272a' }} />
+              <span className="text-zinc-600 text-[11px]">—</span>
+              <input type="number" min="0" placeholder="Máx"
+                value={filterValueMax} onChange={e => setFilterValueMax(e.target.value)}
+                className="w-full px-2 py-1.5 rounded-md text-[11px] text-white placeholder-zinc-600 border outline-none focus:border-[#00E5FF]"
+                style={{ background: '#070709', borderColor: '#27272a' }} />
+            </div>
+          </div>
+
+          {/* Saneamento */}
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2">Saneamento</p>
+            <div className="flex flex-col gap-1">
+              {([
+                { k: 'noLink',     label: 'Sem vínculo',          count: flagCounts.noLink,     accent: '#f59e0b' },
+                { k: 'noCost',     label: 'Sem custo',            count: flagCounts.noCost,     accent: '#f59e0b' },
+                { k: 'noCampaign', label: 'Sem campanha ativa',   count: flagCounts.noCampaign, accent: '#f59e0b' },
+                { k: 'noTracking', label: 'Sem rastreio',         count: flagCounts.noTracking, accent: '#f87171' },
+                { k: 'recurring',  label: 'Cliente recorrente',   count: flagCounts.recurring,  accent: '#22c55e' },
+              ] as const).map(o => {
+                const active = filterFlags[o.k]
+                return (
+                  <button key={o.k}
+                    onClick={() => setFilterFlags(p => ({ ...p, [o.k]: !p[o.k] }))}
+                    className="flex items-center justify-between px-2 py-1 rounded-md text-[11px] font-medium border transition-all"
+                    style={{
+                      background: active ? `${o.accent}14` : 'transparent',
+                      borderColor: active ? o.accent : '#27272a',
+                      color: active ? o.accent : '#a1a1aa',
+                    }}>
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-3 h-3 rounded border flex items-center justify-center"
+                        style={{ borderColor: active ? o.accent : '#3f3f46', background: active ? o.accent : 'transparent' }}>
+                        {active && <svg className="w-2 h-2" fill="none" stroke="#000" viewBox="0 0 24 24" strokeWidth={4}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
+                      </span>
+                      {o.label}
+                    </span>
+                    <span className="text-[10px] opacity-70">{o.count}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Active chips */}
+      {advCount > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+          <span className="text-zinc-500 font-medium">Ativos:</span>
+          {[...filterUFs].map(uf => (
+            <ChipPed key={uf} label={uf} onRemove={() => setFilterUFs(prev => { const n = new Set(prev); n.delete(uf); return n })} />
+          ))}
+          {filterPeriod !== 'all' && (
+            <ChipPed label={`Período: ${({ today: 'Hoje', '7d': '7 dias', '30d': '30 dias' } as const)[filterPeriod]}`} onRemove={() => setFilterPeriod('all')} />
+          )}
+          {(filterValueMin || filterValueMax) && (
+            <ChipPed label={`R$ ${filterValueMin || '0'} — ${filterValueMax || '∞'}`} onRemove={() => { setFilterValueMin(''); setFilterValueMax('') }} />
+          )}
+          {filterFlags.noLink     && <ChipPed label="Sem vínculo"         onRemove={() => setFilterFlags(p => ({ ...p, noLink: false }))} />}
+          {filterFlags.noCost     && <ChipPed label="Sem custo"           onRemove={() => setFilterFlags(p => ({ ...p, noCost: false }))} />}
+          {filterFlags.noCampaign && <ChipPed label="Sem campanha"        onRemove={() => setFilterFlags(p => ({ ...p, noCampaign: false }))} />}
+          {filterFlags.noTracking && <ChipPed label="Sem rastreio"        onRemove={() => setFilterFlags(p => ({ ...p, noTracking: false }))} />}
+          {filterFlags.recurring  && <ChipPed label="Cliente recorrente"  onRemove={() => setFilterFlags(p => ({ ...p, recurring: false }))} />}
+          <button onClick={clearAdv}
+            className="ml-1 px-2 py-0.5 text-[10px] font-medium rounded transition-colors"
+            style={{ color: '#71717a' }}
+            onMouseEnter={e => { e.currentTarget.style.color = '#f87171' }}
+            onMouseLeave={e => { e.currentTarget.style.color = '#71717a' }}>
+            Limpar tudo
+          </button>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-1 overflow-x-auto no-scrollbar" style={{ borderBottom: '1px solid #1a1a1f' }}>
