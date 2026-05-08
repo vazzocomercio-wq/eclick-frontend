@@ -67,8 +67,26 @@ export function useTodayOrders() {
     }
   }, [fetchOrders])
 
-  const faturamento = orders.reduce((s, o) => s + (o.total_amount || 0), 0)
-  const pedidos = orders.length
+  // ML usa status 'cancelled' pra pedidos cancelados (devolução, comprador
+  // desistiu, etc). Esses não geram receita real — separamos pra dashboard
+  // mostrar bruto vs líquido + abater do lucro estimado.
+  const cancelledOrders = orders.filter(o => o.status === 'cancelled')
+  const validOrders     = orders.filter(o => o.status !== 'cancelled')
 
-  return { orders, loading, faturamento, pedidos, refresh: fetchOrders }
+  const faturamentoBruto      = orders.reduce((s, o) => s + (o.total_amount || 0), 0)
+  const faturamentoCancelado  = cancelledOrders.reduce((s, o) => s + (o.total_amount || 0), 0)
+  const faturamentoLiquido    = validOrders.reduce((s, o) => s + (o.total_amount || 0), 0)
+  const pedidos               = orders.length
+  const pedidosCancelados     = cancelledOrders.length
+
+  return {
+    orders, loading,
+    /** Líquido (sem cancelados) — uso padrão pra KPIs do dashboard. */
+    faturamento: faturamentoLiquido,
+    faturamentoBruto,
+    faturamentoCancelado,
+    pedidos,
+    pedidosCancelados,
+    refresh: fetchOrders,
+  }
 }

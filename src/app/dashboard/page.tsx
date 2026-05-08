@@ -580,8 +580,16 @@ export default function DashboardPage() {
 
   const supabase = useMemo(() => createClient(), [])
 
-  // Shared hook: today's revenue/count without any status filter (same as Vendas ao Vivo)
-  const { faturamento: hookTodayRevenue, pedidos: hookTodayCount, loading: hookTodayLoading } = useTodayOrders()
+  // Shared hook: today's revenue/count. faturamento já vem LÍQUIDO (sem
+  // cancelados); faturamentoCancelado e pedidosCancelados surfaceiam o
+  // que foi descontado pra UI mostrar.
+  const {
+    faturamento:           hookTodayRevenue,
+    faturamentoCancelado:  hookTodayCancelled,
+    pedidos:               hookTodayCount,
+    pedidosCancelados:     hookTodayCancelledCount,
+    loading:               hookTodayLoading,
+  } = useTodayOrders()
 
   const refresh = useCallback(async (isInitial = false) => {
     if (!isInitial) setRefreshing(true)
@@ -890,13 +898,22 @@ export default function DashboardPage() {
 
   const cur  = useMemo(() => calcMetrics(periodOrders), [periodOrders])
 
-  const { faturamento, lucroEstimado, margemPct, pedidosComCusto, pedidosSemCusto } = useMemo(() => {
+  const { faturamento, lucroEstimado, margemPct, pedidosComCusto, pedidosSemCusto, faturamentoCancelado, pedidosCancelados } = useMemo(() => {
+    // Separa cancelados — não entram no faturamento nem no lucro real.
+    // (ML cancela pedidos por devolução/recusa/desistência do comprador.)
+    const validOrders     = periodOrders.filter(o => (o as { status?: string }).status !== 'cancelled')
+    const cancelledOrders = periodOrders.filter(o => (o as { status?: string }).status === 'cancelled')
+    const fatCancelado    = cancelledOrders.reduce((s, o) => s + (o.total_amount ?? 0), 0)
+
+    // Pra 'today': hook já retorna líquido (validOrders only). Demais: usa
+    // financialSummary (vem do backend, NÃO sabemos se inclui cancelados —
+    // abate manualmente o fatCancelado pra ficar consistente).
     const fat = period === 'today'
       ? hookTodayRevenue
-      : (financialSummary?.total_revenue ?? periodOrders.reduce((s, o) => s + (o.total_amount ?? 0), 0))
+      : (financialSummary?.total_revenue ?? validOrders.reduce((s, o) => s + (o.total_amount ?? 0), 0)) - fatCancelado
 
-    if (periodOrders.length === 0) {
-      return { faturamento: fat, lucroEstimado: fat * 0.885, margemPct: fat > 0 ? 88.5 : 0, pedidosComCusto: 0, pedidosSemCusto: 0 }
+    if (validOrders.length === 0) {
+      return { faturamento: fat, lucroEstimado: fat * 0.885, margemPct: fat > 0 ? 88.5 : 0, pedidosComCusto: 0, pedidosSemCusto: 0, faturamentoCancelado: fatCancelado, pedidosCancelados: cancelledOrders.length }
     }
 
     let custoTotal = 0
@@ -904,7 +921,7 @@ export default function DashboardPage() {
     let comCusto = 0
     let semCusto = 0
 
-    for (const order of periodOrders) {
+    for (const order of validOrders) {
       const valorPago    = order.total_amount || 0
       const item         = order.items?.[0]
       const itemId       = item?.item_id ?? null
@@ -932,8 +949,15 @@ export default function DashboardPage() {
       margemPct: margemP,
       pedidosComCusto: comCusto,
       pedidosSemCusto: semCusto,
+      faturamentoCancelado: fatCancelado,
+      pedidosCancelados: cancelledOrders.length,
     }
   }, [financialSummary, periodOrders, period, hookTodayRevenue, produtos])
+
+  // Pra hoje: prioriza dados do hook (mesma fonte do "Vendas ao Vivo").
+  // Pra outros períodos: usa o calculado dos periodOrders.
+  const fatCanceladoFinal = period === 'today' ? (hookTodayCancelled ?? 0) : faturamentoCancelado
+  const pedCanceladosFinal = period === 'today' ? (hookTodayCancelledCount ?? 0) : pedidosCancelados
   const yest = useMemo(() => calcMetrics(yestOrders), [yestOrders])
   const todayOrdersBR = useMemo(() => orders.filter(o => isPaid(o) && brazilDateStr(new Date(o.date_created)) === todayBR()), [orders])
   const todayM = useMemo(() => calcMetrics(todayOrdersBR), [todayOrdersBR])
@@ -1104,6 +1128,19 @@ export default function DashboardPage() {
               <p className="text-xs mt-1" style={{ color: 'var(--text-dim)' }}>
                 {displayPedidos} pedido{displayPedidos !== 1 ? 's' : ''} no período
               </p>
+              {pedCanceladosFinal > 0 && (
+                <div className="mt-2 px-2.5 py-1.5 rounded-lg flex items-center gap-1.5"
+                  style={{ background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.25)' }}>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#f87171" strokeWidth={2.5} className="shrink-0">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                  <span className="text-[10px] text-red-300">
+                    {pedCanceladosFinal} cancelado{pedCanceladosFinal > 1 ? 's' : ''} · −{formatCurrency(fatCanceladoFinal)}
+                    {' '}
+                    <span className="text-red-400/60">(já abatido do total)</span>
+                  </span>
+                </div>
+              )}
               {prevData && (
                 <div className="mt-4 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
                   <div className="flex justify-between items-center">
