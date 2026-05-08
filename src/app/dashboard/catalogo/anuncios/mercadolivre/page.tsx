@@ -386,16 +386,24 @@ function ListingCard({ item, selected, linked, stockInfo, onSelect, onCreateProd
           )}
         </div>
 
-        <a href={item.permalink} target="_blank" rel="noopener noreferrer"
-          className="text-zinc-100 text-sm font-medium hover:text-cyan-300 transition-colors line-clamp-2 block mb-1.5">
-          {item.title}
-        </a>
+        <div className="flex items-start gap-1 mb-1.5">
+          <a href={item.permalink} target="_blank" rel="noopener noreferrer"
+            className="text-zinc-100 text-sm font-medium hover:text-cyan-300 transition-colors line-clamp-2 block flex-1">
+            {item.title}
+          </a>
+          <Copy text={item.title} />
+        </div>
 
         <div className="flex flex-wrap items-center gap-3 text-xs text-zinc-500 mb-2">
           <span className="flex items-center font-mono text-zinc-400">
             {item.id}<Copy text={item.id} />
           </span>
-          {item.sku && <span>SKU: <span className="text-zinc-400">{item.sku}</span></span>}
+          {item.sku && (
+            <span className="flex items-center">
+              SKU: <span className="text-zinc-400 ml-1">{item.sku}</span>
+              <Copy text={item.sku} />
+            </span>
+          )}
           {item.catalog_product_id && (
             <span className="flex items-center">
               Cat: <span className="font-mono ml-1 text-zinc-400">{item.catalog_product_id}</span>
