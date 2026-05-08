@@ -1989,6 +1989,12 @@ export default function PedidosPage() {
     noTracking: false,
     recurring:  false,
   })
+  // Modo cross-tab: ignora filtro de aba (backend retorna todos os
+  // pedidos do periodo). Acionado automaticamente quando vem com
+  // ?missing_cost=1 do dashboard, porque os pedidos sem custo podem
+  // estar em qualquer aba (despachadas, encerradas, etc).
+  // User troca de aba manualmente -> sai do modo cross-tab.
+  const [crossTabMode, setCrossTabMode] = useState<boolean>(initFromQs.missingCost)
   const [adItems, setAdItems] = useState<Set<string>>(new Set())
   const tid = useRef(0)
   const pageRef = useRef(0)
@@ -2053,17 +2059,21 @@ export default function PedidosPage() {
     finally { setSyncing(false) }
   }, [syncing, getHeaders, loadPending])
 
-  const loadOrders = useCallback(async (currentPage: number, query: string, currentTab: TabKey) => {
+  const loadOrders = useCallback(async (currentPage: number, query: string, currentTab: TabKey | null) => {
     setLoading(true)
     try {
       const headers = await getHeaders()
-      const params  = new URLSearchParams({ offset: String(currentPage * pageSize), limit: String(pageSize) })
+      // Em cross-tab mode pedimos mais por pagina (200 max do backend) pra
+      // o filtro local ter chance de achar os matchs em uma carga
+      const effectiveLimit = currentTab === null ? Math.max(pageSize, 200) : pageSize
+      const params  = new URLSearchParams({ offset: String(currentPage * effectiveLimit), limit: String(effectiveLimit) })
       if (query.trim())  params.set('q', query.trim())
       const sellerId = getStoredSellerId()
       if (sellerId != null) params.set('seller_id', String(sellerId))
       // Filtro por tab no servidor — evita reduzir N por pagina quando
       // a aba ativa nao bate com a maioria dos pedidos retornados.
-      params.set('tab', currentTab)
+      // Cross-tab mode: nao passa tab, backend retorna todos.
+      if (currentTab !== null) params.set('tab', currentTab)
       const res  = await fetch(`${BACKEND}/orders/list?${params}`, { headers })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const body = await res.json()
@@ -2292,9 +2302,12 @@ export default function PedidosPage() {
   useEffect(() => { qRef.current = q      }, [q])
   useEffect(() => { tabRef.current = tab  }, [tab])
 
+  // Helper: tab efetivo levando em conta crossTabMode
+  const effectiveTab = (t: TabKey): TabKey | null => crossTabMode ? null : t
+
   useEffect(() => { loadKpis()                  }, [loadKpis])
   // Refetch quando page, tab ou loadOrders mudam (loadOrders muda com pageSize).
-  useEffect(() => { loadOrders(page, q, tab)    }, [page, tab, loadOrders])
+  useEffect(() => { loadOrders(page, q, effectiveTab(tab)) }, [page, tab, loadOrders, crossTabMode])
 
   // Reseta pra pagina 1 ao trocar tab (UX coerente com filtros)
   useEffect(() => { setPage(0) }, [tab])
@@ -2304,7 +2317,7 @@ export default function PedidosPage() {
   const { selected: _mlSelected } = useMlAccount()
   useEffect(() => {
     setPage(0)
-    loadOrders(0, q, tabRef.current)
+    loadOrders(0, q, effectiveTab(tabRef.current))
     loadKpis()
     loadPending()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2315,10 +2328,11 @@ export default function PedidosPage() {
   useEffect(() => {
     const interval = setInterval(() => {
       console.log('[pedidos] refetch automático de status')
-      loadOrders(pageRef.current, qRef.current, tabRef.current)
+      loadOrders(pageRef.current, qRef.current, effectiveTab(tabRef.current))
     }, 120_000)
     return () => clearInterval(interval)
-  }, [loadOrders])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadOrders, crossTabMode])
 
   // Itens em campanhas ML Ads ativas — pra filtro "sem campanha"
   useEffect(() => {
@@ -2435,8 +2449,12 @@ export default function PedidosPage() {
     return [...set].sort()
   }, [orders])
 
-  // Contadores das flags pra mostrar ao lado de cada toggle (sobre orders na tab atual)
-  const tabOrders = useMemo(() => orders.filter(o => classifyOrder(o) === tab), [orders, tab])
+  // Contadores das flags pra mostrar ao lado de cada toggle (sobre orders na tab atual).
+  // Em crossTabMode (vindo de ?missing_cost=1), ignora classify — usa orders inteiros.
+  const tabOrders = useMemo(
+    () => crossTabMode ? orders : orders.filter(o => classifyOrder(o) === tab),
+    [orders, tab, crossTabMode],
+  )
   const flagCounts = useMemo(() => ({
     noLink:     tabOrders.filter(o => {
       const id = o.order_items[0]?.item_id ?? o.order_items[0]?.item?.id ?? null
@@ -2769,15 +2787,30 @@ export default function PedidosPage() {
         </div>
       )}
 
+      {/* Cross-tab banner — quando vem do dashboard com filtro de saneamento */}
+      {crossTabMode && (
+        <div className="mb-3 px-3 py-2 rounded-lg flex items-center justify-between gap-3 flex-wrap"
+          style={{ background: 'rgba(0,229,255,0.06)', border: '1px solid rgba(0,229,255,0.25)' }}>
+          <span className="text-[11px] text-cyan-300">
+            ⓘ Mostrando pedidos de <strong>todas as abas</strong> (filtro de saneamento ativo). Trocar de aba volta ao modo normal.
+          </span>
+          <button onClick={() => setCrossTabMode(false)}
+            className="text-[10px] text-zinc-400 hover:text-cyan-300 underline">
+            Voltar pra aba {tab}
+          </button>
+        </div>
+      )}
+
       {/* Tabs */}
       <div className="flex gap-1 overflow-x-auto no-scrollbar" style={{ borderBottom: '1px solid #1a1a1f' }}>
         {TABS.map(t => {
           const count  = tabCounts[t.key] ?? 0
           const active = tab === t.key
           return (
-            <button key={t.key} onClick={() => setTab(t.key)}
+            <button key={t.key}
+              onClick={() => { setTab(t.key); if (crossTabMode) setCrossTabMode(false) }}
               className="px-4 py-2.5 text-sm font-medium transition-colors relative shrink-0"
-              style={active ? { color: '#00E5FF', borderBottom: '2px solid #00E5FF', marginBottom: -1 } : { color: '#a1a1aa' }}>
+              style={active && !crossTabMode ? { color: '#00E5FF', borderBottom: '2px solid #00E5FF', marginBottom: -1 } : { color: '#a1a1aa' }}>
               {t.label}
               {count > 0 && (
                 <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full"
