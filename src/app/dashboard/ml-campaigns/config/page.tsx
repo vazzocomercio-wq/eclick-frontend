@@ -38,6 +38,13 @@ interface Config {
   escalate_alerts:                   boolean
   auto_alert_when_subsidy_above_pct: number
   audit_attempts_threshold:          number
+  // M4 — Active integration
+  active_org_id:                     string | null
+  active_pipeline_id:                string | null
+  active_stage_initial_id:           string | null
+  active_stage_pending_manager_id:   string | null
+  active_stage_in_campaign_id:       string | null
+  active_assigned_to:                string | null
 }
 
 interface AiUsage {
@@ -217,6 +224,35 @@ export default function ConfigPage() {
               value={cfg.assignee_user_id ?? ''} onChange={v => update('assignee_user_id', v || null)} />
             <TextField label="ID do gestor no sistema (uuid)" hint="Opcional — quem pode aprovar override no painel da fila"
               value={cfg.manager_user_id ?? ''} onChange={v => update('manager_user_id', v || null)} />
+          </Section>
+
+          {/* M4 — Integração Active (cards + tasks) */}
+          <Section title="Integração Active — cards no funil + tasks (M4)">
+            <p className="text-[11px] text-zinc-500 -mt-1">
+              Quando alerta de deadline dispara, o sistema cria 1 card no funil "Campanhas/Promoção" do Active + 1 task vinculada,
+              forçando ação humana além do WhatsApp. Deixe vazio pra desligar (continua mandando só WhatsApp).
+            </p>
+            <p className="text-[10px] text-amber-300">
+              💡 Pegue os IDs no Supabase do Active: <code>SELECT id, name FROM active.organizations</code>; <code>SELECT id, name FROM active.pipelines</code>; <code>SELECT id, name FROM active.pipeline_stages WHERE pipeline_id='...'</code>
+            </p>
+            <TextField label="Active Org ID (mapeamento SaaS↔Active)"
+              hint="UUID da SUA org dentro da DB do Active (diferente do org_id do SaaS). Se vazio, usa o do SaaS — só funciona se as DBs compartilharem UUIDs."
+              value={cfg.active_org_id ?? ''} onChange={v => update('active_org_id', v || null)} />
+            <TextField label="Pipeline ID (funil Campanhas/Promoção)"
+              hint="UUID do pipeline criado no Active"
+              value={cfg.active_pipeline_id ?? ''} onChange={v => update('active_pipeline_id', v || null)} />
+            <TextField label="Stage inicial — Aguardando decisão"
+              hint="UUID do estágio onde o card entra quando deadline aproxima"
+              value={cfg.active_stage_initial_id ?? ''} onChange={v => update('active_stage_initial_id', v || null)} />
+            <TextField label="Stage pending manager — Aguardando autorização"
+              hint="UUID do estágio quando uma reco cai na fila do gestor (futuro)"
+              value={cfg.active_stage_pending_manager_id ?? ''} onChange={v => update('active_stage_pending_manager_id', v || null)} />
+            <TextField label="Stage final — Em campanha"
+              hint="UUID do estágio quando aplicar com sucesso (futuro)"
+              value={cfg.active_stage_in_campaign_id ?? ''} onChange={v => update('active_stage_in_campaign_id', v || null)} />
+            <TextField label="Assigned to (responsável dos cards/tasks)"
+              hint="UUID do user no Active que fica dono dos cards e tasks criados"
+              value={cfg.active_assigned_to ?? ''} onChange={v => update('active_assigned_to', v || null)} />
           </Section>
 
           {/* M1 — Alertas */}
