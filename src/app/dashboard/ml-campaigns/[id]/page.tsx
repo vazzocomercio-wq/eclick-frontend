@@ -2,8 +2,10 @@
 
 import { useEffect, useState, useCallback, use } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import {
   ArrowLeft, Loader2, ExternalLink, Sparkles, Clock, ChevronRight,
+  Zap, LogOut, AlertTriangle, CheckCircle2,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import AccountSelector, { useMlAccount, getStoredSellerId } from '@/components/ml/AccountSelector'
@@ -61,6 +63,7 @@ function brl(v: number | null) {
 
 export default function CampaignDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
+  const router = useRouter()
   const { selected: selectedSellerId } = useMlAccount()
   const [campaign, setCampaign] = useState<Campaign | null>(null)
   const [items, setItems]       = useState<Item[]>([])
@@ -68,6 +71,9 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   const [statusFilter, setStatusFilter] = useState<'candidate' | 'started' | ''>('candidate')
   const [loading, setLoading]   = useState(true)
   const [error, setError]       = useState<string | null>(null)
+  const [generating, setGenerating] = useState(false)
+  const [toast, setToast]       = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
+  const [leaving, setLeaving]   = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
@@ -100,6 +106,63 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   }, [id, statusFilter])
 
   useEffect(() => { void load() }, [load, selectedSellerId])
+
+  function showToast(msg: string, type: 'success' | 'error' = 'success') {
+    setToast({ msg, type })
+    setTimeout(() => setToast(null), 3500)
+  }
+
+  async function generateRecommendations() {
+    if (!campaign) return
+    setGenerating(true)
+    try {
+      const t = await getToken()
+      const sid = getStoredSellerId() ?? campaign.seller_id
+      const res = await fetch(`${BACKEND}/ml-campaigns/recommendations/generate?seller_id=${sid}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${t}` },
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({} as { message?: string }))
+        throw new Error(body.message ?? `HTTP ${res.status}`)
+      }
+      const data = await res.json().catch(() => ({} as { generated?: number }))
+      const n = data.generated ?? 0
+      showToast(`✨ ${n} recomendações geradas — redirecionando…`, 'success')
+      setTimeout(() => {
+        router.push(`/dashboard/ml-campaigns/recommendations?campaign_id=${id}`)
+      }, 1200)
+    } catch (e) {
+      showToast(`❌ ${(e as Error).message}`, 'error')
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  async function leaveCampaign(campaignItemId: string) {
+    if (!campaign) return
+    if (!confirm('Sair da campanha pra esse anúncio? O item volta a Candidato.')) return
+    setLeaving(campaignItemId)
+    try {
+      const t = await getToken()
+      const sid = getStoredSellerId() ?? campaign.seller_id
+      const res = await fetch(`${BACKEND}/ml-campaigns/leave/single`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ campaign_item_id: campaignItemId, seller_id: sid }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({} as { message?: string }))
+        throw new Error(body.message ?? `HTTP ${res.status}`)
+      }
+      showToast('✅ Item removido da campanha', 'success')
+      void load()
+    } catch (e) {
+      showToast(`❌ ${(e as Error).message}`, 'error')
+    } finally {
+      setLeaving(null)
+    }
+  }
 
   if (loading && !campaign) {
     return (
@@ -178,6 +241,42 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
         <Counter label="Total"        value={totalItems}                color="#fafafa" />
       </div>
 
+      {/* Action panel — fluxo de adesão */}
+      <div className="rounded-xl p-4 flex items-start gap-3 flex-wrap"
+        style={{ background: 'linear-gradient(135deg, rgba(0,229,255,0.08), rgba(167,139,250,0.06))', border: '1px solid rgba(0,229,255,0.25)' }}>
+        <div className="flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center"
+          style={{ background: 'rgba(0,229,255,0.15)' }}>
+          <Sparkles size={16} className="text-cyan-300" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-zinc-100">Como participar dessa campanha</p>
+          <p className="text-[11px] text-zinc-400 mt-1 leading-relaxed">
+            <strong className="text-cyan-300">1)</strong> Gere recomendações IA (analisa margem + subsídio ML por item) ·{' '}
+            <strong className="text-cyan-300">2)</strong> Aprove/edite as sugestões ·{' '}
+            <strong className="text-cyan-300">3)</strong> Aplique e o item entra na campanha.
+          </p>
+          {campaign.candidate_count === 0 && campaign.started_count === 0 && (
+            <p className="text-[11px] text-amber-300 mt-2">Nenhum item candidato — rode o sync na página de campanhas.</p>
+          )}
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          {campaign.candidate_count > 0 && (
+            <button onClick={generateRecommendations} disabled={generating}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all disabled:opacity-50"
+              style={{ background: '#00E5FF', color: '#000', border: '1px solid #00E5FF' }}>
+              {generating ? <Loader2 size={12} className="animate-spin" /> : <Zap size={12} />}
+              {generating ? 'Gerando…' : `Gerar Recomendações IA (${campaign.candidate_count})`}
+            </button>
+          )}
+          <Link href={`/dashboard/ml-campaigns/recommendations?campaign_id=${id}`}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all"
+            style={{ background: 'rgba(167,139,250,0.15)', color: '#c4b5fd', border: '1px solid rgba(167,139,250,0.35)' }}>
+            <Sparkles size={12} /> Ver Recomendações
+            <ChevronRight size={11} />
+          </Link>
+        </div>
+      </div>
+
       {/* Items toolbar */}
       <div className="flex items-center justify-between flex-wrap gap-2 mt-4">
         <h2 className="text-sm font-semibold">Anúncios</h2>
@@ -211,7 +310,15 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
 
       {items.length > 0 && (
         <div className="space-y-2">
-          {items.map(item => <ItemRow key={item.id} item={item} />)}
+          {items.map(item => (
+            <ItemRow
+              key={item.id}
+              item={item}
+              campaignId={id}
+              onLeave={() => leaveCampaign(item.id)}
+              leaving={leaving === item.id}
+            />
+          ))}
           {total > items.length && (
             <p className="text-[11px] text-zinc-500 text-center pt-2">
               Mostrando {items.length} de {total}
@@ -219,19 +326,41 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
           )}
         </div>
       )}
+
+      {/* Toast */}
+      {toast && (
+        <div className="fixed bottom-4 right-4 z-50 px-4 py-3 rounded-xl text-sm font-medium shadow-xl"
+          style={{
+            background: toast.type === 'success' ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
+            color:      toast.type === 'success' ? '#4ade80' : '#f87171',
+            border:     `1px solid ${toast.type === 'success' ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`,
+            backdropFilter: 'blur(8px)',
+          }}>
+          {toast.msg}
+        </div>
+      )}
     </div>
   )
 }
 
-function ItemRow({ item }: { item: Item }) {
+function ItemRow({ item, campaignId, onLeave, leaving }: {
+  item: Item
+  campaignId: string
+  onLeave: () => void
+  leaving: boolean
+}) {
   const showcasePrice = item.current_price ?? item.suggested_discounted_price
   const discount = (item.original_price && showcasePrice)
     ? Math.round(((item.original_price - showcasePrice) / item.original_price) * 100)
     : null
 
+  const isStarted    = item.status === 'started'
+  const isCandidate  = item.status === 'candidate'
+  const isIncomplete = item.health_status && item.health_status !== 'ready'
+
   return (
     <div className="rounded-lg p-3" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
-      <div className="flex items-start gap-3">
+      <div className="flex items-start gap-3 flex-wrap">
         {/* MLB ID + status */}
         <div className="flex-shrink-0 w-32">
           <div className="flex items-center gap-1.5">
@@ -252,7 +381,7 @@ function ItemRow({ item }: { item: Item }) {
           </div>
           <div>
             <p className="text-[9px] uppercase tracking-wider text-zinc-500">
-              {item.status === 'started' ? 'Preço promocional' : 'Sugerido ML'}
+              {isStarted ? 'Preço promocional' : 'Sugerido ML'}
             </p>
             <p className="font-medium" style={{ color: discount && discount > 0 ? '#22c55e' : '#fafafa' }}>
               {brl(showcasePrice)}
@@ -278,7 +407,7 @@ function ItemRow({ item }: { item: Item }) {
           </div>
         )}
 
-        {/* M.C. (placeholder até K2) */}
+        {/* M.C. */}
         {item.estimated_margin_pct != null && (
           <div className="flex-shrink-0 px-2 py-1.5 rounded text-right"
             style={{ background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.2)' }}>
@@ -287,12 +416,36 @@ function ItemRow({ item }: { item: Item }) {
           </div>
         )}
 
-        {/* Health warning */}
-        {item.health_status && item.health_status !== 'ready' && (
-          <div className="flex-shrink-0 text-amber-400 text-[10px] uppercase tracking-wider font-semibold">
-            ⚠ {item.health_status.replace('_', ' ')}
-          </div>
+        {/* Health warning (compact) */}
+        {isIncomplete && (
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wider"
+            style={{ background: 'rgba(251,191,36,0.1)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.3)' }}
+            title="Faltam dados (custo, margem, etc) — sync precisa enriquecer esse item">
+            <AlertTriangle size={9} />
+            INCOMPLETE
+          </span>
         )}
+
+        {/* Action buttons por linha */}
+        <div className="flex-shrink-0 flex items-center gap-1.5">
+          {isCandidate && (
+            <Link href={`/dashboard/ml-campaigns/recommendations?campaign_id=${campaignId}`}
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded text-[10px] font-semibold transition-all"
+              style={{ background: 'rgba(0,229,255,0.1)', color: '#67e8f9', border: '1px solid rgba(0,229,255,0.3)' }}
+              title="Ver/aprovar recomendação IA pra esse item">
+              <Sparkles size={10} /> Ver IA
+            </Link>
+          )}
+          {isStarted && (
+            <button onClick={onLeave} disabled={leaving}
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded text-[10px] font-semibold transition-all disabled:opacity-50"
+              style={{ background: 'rgba(248,113,113,0.1)', color: '#f87171', border: '1px solid rgba(248,113,113,0.3)' }}
+              title="Sair da campanha pra esse item">
+              {leaving ? <Loader2 size={10} className="animate-spin" /> : <LogOut size={10} />}
+              {leaving ? 'Saindo…' : 'Sair'}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   )
