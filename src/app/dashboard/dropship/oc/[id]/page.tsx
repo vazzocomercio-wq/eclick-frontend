@@ -7,7 +7,7 @@ import * as XLSX from 'xlsx'
 import { createClient } from '@/lib/supabase'
 import {
   ArrowLeft, AlertCircle, Calendar, Building2, FileText,
-  Ban, Package, Download,
+  Ban, Package, Download, Send, Mail, MessageSquare, CheckCircle2,
 } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
@@ -84,6 +84,8 @@ export default function OCDetailPage() {
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState('')
   const [cancelling, setCancelling] = useState(false)
+  const [sending, setSending] = useState(false)
+  const [sendResult, setSendResult] = useState<{ portal_url: string; email_status: string; whatsapp_status: string } | null>(null)
 
   const getHeaders = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
@@ -119,6 +121,25 @@ export default function OCDetailPage() {
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Erro ao cancelar')
     } finally { setCancelling(false) }
+  }
+
+  async function handleSend() {
+    if (!oc) return
+    if (!confirm(`Enviar OC ${oc.oc_number} ao parceiro? Vai disparar e-mail (e WhatsApp se configurado) com link de aprovação.`)) return
+    setSending(true); setErr('')
+    try {
+      const headers = await getHeaders()
+      const res = await fetch(`${BACKEND}/dropship/oc/${id}/send`, { method: 'POST', headers })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        throw new Error(d.message ?? `HTTP ${res.status}`)
+      }
+      const r = await res.json()
+      setSendResult(r)
+      await load()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Erro ao enviar')
+    } finally { setSending(false) }
   }
 
   function downloadExcel() {
@@ -238,6 +259,18 @@ export default function OCDetailPage() {
             <Download size={14} />
             Excel
           </button>
+          {['generated', 'sent', 'viewed'].includes(oc.status) && (
+            <button
+              onClick={handleSend}
+              disabled={sending}
+              className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg"
+              style={{ background: '#00E5FF', color: '#09090b', opacity: sending ? 0.6 : 1 }}
+              title="Enviar e-mail + WhatsApp ao parceiro com link de aprovação"
+            >
+              <Send size={14} />
+              {sending ? 'Enviando...' : oc.status === 'generated' ? 'Enviar Parceiro' : 'Reenviar'}
+            </button>
+          )}
           {oc.pdf_url && (
             <a href={oc.pdf_url} target="_blank" rel="noopener" className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg" style={{ border: '1px solid #27272a', color: '#a1a1aa' }}>
               <FileText size={14} />
@@ -264,6 +297,47 @@ export default function OCDetailPage() {
         }}>
           <AlertCircle size={14} className="inline mr-2" />
           {err}
+        </div>
+      )}
+
+      {/* send result */}
+      {sendResult && (
+        <div className="rounded-xl p-4 mb-4 space-y-2" style={{
+          background: 'rgba(34,197,94,0.05)', border: '1px solid rgba(34,197,94,0.2)',
+        }}>
+          <div className="flex items-center gap-2">
+            <CheckCircle2 size={16} style={{ color: '#22c55e' }} />
+            <p className="text-sm font-medium text-white">Notificação enviada ao parceiro</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-zinc-400">
+            <p><Mail size={11} className="inline mr-1" />E-mail: <span className="text-zinc-200">{sendResult.email_status}</span></p>
+            <p><MessageSquare size={11} className="inline mr-1" />WhatsApp: <span className="text-zinc-200">{sendResult.whatsapp_status}</span></p>
+          </div>
+          <p className="text-xs text-zinc-500 pt-1">
+            Link do portal:{' '}
+            <button
+              onClick={() => navigator.clipboard.writeText(sendResult.portal_url)}
+              className="font-mono"
+              style={{ color: '#00E5FF' }}
+              title="Copiar link"
+            >
+              {sendResult.portal_url}
+            </button>
+          </p>
+        </div>
+      )}
+
+      {/* OC já enviada — info do envio anterior */}
+      {!sendResult && oc.sent_to_partner_at && (
+        <div className="rounded-xl p-3 mb-4 flex items-center gap-2 text-sm" style={{
+          background: 'rgba(96,165,250,0.05)', border: '1px solid rgba(96,165,250,0.2)',
+        }}>
+          <Send size={14} style={{ color: '#60a5fa' }} />
+          <p className="text-zinc-300">
+            Enviada ao parceiro em <strong>{fmtDateTime(oc.sent_to_partner_at)}</strong>
+            {oc.partner_viewed_at && <> · visualizada em <strong>{fmtDateTime(oc.partner_viewed_at)}</strong></>}
+            {oc.partner_approved_at && <> · aprovada em <strong style={{ color: '#22c55e' }}>{fmtDateTime(oc.partner_approved_at)}</strong></>}
+          </p>
         </div>
       )}
 
