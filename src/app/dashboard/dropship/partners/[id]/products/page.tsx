@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
-import { Plus, X, Search, ArrowLeft, Edit2, Archive, AlertCircle, History, Package } from 'lucide-react'
+import { Plus, X, Search, ArrowLeft, Edit2, Archive, AlertCircle, History, Package, Upload } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 
@@ -134,15 +134,25 @@ export default function PartnerProductsPage() {
             </p>
           </div>
         </div>
-        <button
-          onClick={() => setShowAdd(true)}
-          disabled={!partner}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-          style={{ background: '#00E5FF', color: '#09090b', opacity: partner ? 1 : 0.5 }}
-        >
-          <Plus size={15} />
-          Adicionar Produto
-        </button>
+        <div className="flex items-center gap-2">
+          <Link
+            href={`/dashboard/dropship/partners/${profileId}/import`}
+            className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors hover:bg-[#1a1a1f]"
+            style={{ border: '1px solid #27272a', color: '#a1a1aa' }}
+          >
+            <Upload size={14} />
+            Importar Planilha
+          </Link>
+          <button
+            onClick={() => setShowAdd(true)}
+            disabled={!partner}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+            style={{ background: '#00E5FF', color: '#09090b', opacity: partner ? 1 : 0.5 }}
+          >
+            <Plus size={15} />
+            Adicionar Produto
+          </button>
+        </div>
       </div>
 
       {pageErr && (
@@ -263,16 +273,6 @@ export default function PartnerProductsPage() {
             ))}
           </tbody>
         </table>
-      </div>
-
-      {/* placeholder "import planilha" */}
-      <div className="mt-6 rounded-xl p-4 flex items-center gap-3" style={{ background: 'rgba(252,211,77,0.05)', border: '1px solid rgba(252,211,77,0.2)' }}>
-        <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: 'rgba(252,211,77,0.10)', color: '#fcd34d', border: '1px solid rgba(252,211,77,0.3)' }}>
-          Em breve
-        </span>
-        <p className="text-sm text-zinc-300">
-          Importação em massa via planilha (XLSX/CSV) chega no Sprint 2 Batch D.
-        </p>
       </div>
 
       {/* modal adicionar */}
