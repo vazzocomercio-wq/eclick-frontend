@@ -12,7 +12,7 @@ import {
   Megaphone, ShoppingCart, TrendingUp, Settings, UserCog,
   Plug, Database, ChevronDown, Bot, Inbox, BookOpen,
   GraduationCap, LineChart, Shield, Users2, TrendingDown,
-  Zap, Map as MapIcon, Bell, Wand2, Layers, Store, Link2, Calendar,
+  Zap, Map as MapIcon, Bell, Wand2, Layers, Store, Link2, Calendar, FileText, Eye,
 } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
@@ -175,6 +175,8 @@ const SECTIONS: NavSection[] = [
       { label: 'Parceiros',      href: '/dashboard/dropship/partners',          icon: <Building2 size={15} /> },
       { label: 'Pedidos',        href: '/dashboard/dropship/orders',            icon: <ShoppingCart size={15} /> },
       { label: 'Vendas Hoje',    href: '/dashboard/dropship/orders/today',      icon: <Calendar size={15} /> },
+      { label: 'OCs',            href: '/dashboard/dropship/oc',                icon: <FileText size={15} /> },
+      { label: 'Prévia OC',      href: '/dashboard/dropship/oc/preview',        icon: <Eye size={15} /> },
       { label: 'Vínculo Contas', href: '/dashboard/dropship/account-suppliers', icon: <Link2 size={15} /> },
     ],
   },

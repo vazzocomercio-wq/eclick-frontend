@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import {
   Truck, Building2, Link2, Package, AlertTriangle, ShoppingCart, Calendar,
-  ChevronRight, RefreshCw,
+  ChevronRight, RefreshCw, FileText, Eye,
 } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
@@ -153,7 +153,7 @@ export default function DropshipHomePage() {
       )}
 
       {/* Nav cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
         <NavCard
           href="/dashboard/dropship/partners"
           icon={<Building2 size={18} />}
@@ -177,6 +177,18 @@ export default function DropshipHomePage() {
           icon={<Calendar size={18} />}
           title="Vendas Hoje"
           description="Resumo do dia agregado por parceiro"
+        />
+        <NavCard
+          href="/dashboard/dropship/oc"
+          icon={<FileText size={18} />}
+          title="Ordens de Compra"
+          description="OCs geradas automaticamente às 22h por parceiro"
+        />
+        <NavCard
+          href="/dashboard/dropship/oc/preview"
+          icon={<Eye size={18} />}
+          title="Prévia OC"
+          description="Visualize quais OCs serão geradas no próximo cron"
         />
       </div>
 
