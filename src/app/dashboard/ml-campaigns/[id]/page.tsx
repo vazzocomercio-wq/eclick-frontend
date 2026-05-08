@@ -48,6 +48,9 @@ interface Item {
   health_status:               string | null
   health_warnings:             Array<{ code: string; message: string }>
   product_id:                  string | null
+  thumbnail_url:               string | null
+  title:                       string | null
+  permalink:                   string | null
 }
 
 async function getToken(): Promise<string | null> {
@@ -107,6 +110,31 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   }, [id, statusFilter])
 
   useEffect(() => { void load() }, [load, selectedSellerId])
+
+  // Fire-and-forget enrich quando os items carregam: se algum sem thumbnail,
+  // pede pro backend buscar do ML em background. Re-load 8s depois pra pegar
+  // o que já enriqueceu.
+  useEffect(() => {
+    if (items.length === 0) return
+    const missing = items.some(i => !i.thumbnail_url)
+    if (!missing) return
+    void (async () => {
+      try {
+        const t = await getToken()
+        const sid = getStoredSellerId() ?? campaign?.seller_id
+        if (sid == null) return
+        const res = await fetch(`${BACKEND}/ml-campaigns/sync/enrich-metadata?seller_id=${sid}`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${t}` },
+        })
+        if (!res.ok) return
+        const data = await res.json().catch(() => ({} as { started?: boolean }))
+        if (data.started) setTimeout(() => void load(), 8000)
+      } catch { /* silent */ }
+    })()
+    // só dispara 1x quando items mudam de [] pra preenchido — evita loop
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items.length, campaign?.seller_id])
 
   function showToast(msg: string, type: 'success' | 'error' = 'success') {
     setToast({ msg, type })
@@ -395,18 +423,40 @@ function ItemRow({ item, campaignId, onLeave, leaving }: {
   const isCandidate  = item.status === 'candidate'
   const isIncomplete = item.health_status && item.health_status !== 'ready'
 
+  const permalink = item.permalink ?? `https://www.mercadolivre.com.br/${item.ml_item_id}`
+
   return (
     <div className="rounded-lg p-3" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
       <div className="flex items-start gap-3 flex-wrap">
-        {/* MLB ID + status */}
-        <div className="flex-shrink-0 w-32">
+        {/* Thumbnail */}
+        <a href={permalink} target="_blank" rel="noreferrer"
+          className="flex-shrink-0 w-14 h-14 rounded-lg overflow-hidden bg-zinc-900 flex items-center justify-center"
+          style={{ border: '1px solid #1a1a1f' }}
+          title={item.title ?? item.ml_item_id}>
+          {item.thumbnail_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={item.thumbnail_url} alt={item.title ?? item.ml_item_id}
+              className="w-full h-full object-cover"
+              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
+          ) : (
+            <Loader2 size={14} className="text-zinc-700 animate-spin" />
+          )}
+        </a>
+
+        {/* MLB ID + título + status */}
+        <div className="flex-shrink-0 w-44 min-w-0">
           <div className="flex items-center gap-1.5">
-            <span className="font-mono text-xs text-zinc-200 truncate">{item.ml_item_id}</span>
-            <a href={`https://www.mercadolivre.com.br/${item.ml_item_id}`} target="_blank" rel="noreferrer"
+            <span className="font-mono text-[10px] text-zinc-400 truncate">{item.ml_item_id}</span>
+            <a href={permalink} target="_blank" rel="noreferrer"
               className="text-cyan-400 hover:underline flex-shrink-0">
               <ExternalLink size={10} />
             </a>
           </div>
+          {item.title && (
+            <p className="text-[11px] text-zinc-200 leading-tight mt-0.5 line-clamp-2" title={item.title}>
+              {item.title}
+            </p>
+          )}
           <ItemStatusBadge status={item.status} />
         </div>
 
