@@ -10,6 +10,7 @@ import {
 import { createClient } from '@/lib/supabase'
 import AccountSelector, { useMlAccount, getStoredSellerId } from '@/components/ml/AccountSelector'
 import { useMlLabels } from '@/hooks/useMlLabels'
+import { CopyButton } from '@/components/ui/copy-button'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'https://eclick-backend-production-2a87.up.railway.app'
 
@@ -390,8 +391,9 @@ function ItemRow({ item }: { item: QualityItem }) {
 
         {/* Main info */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 flex-wrap">
             <span className="font-mono text-xs text-zinc-200">{item.ml_item_id}</span>
+            <CopyButton value={item.ml_item_id} size={11} />
             <LevelBadge level={item.ml_level} />
             {item.has_exposure_penalty && (
               <span

@@ -8,6 +8,7 @@ import {
   AlertOctagon, ShieldCheck, TrendingUp,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
+import { CopyButton } from '@/components/ui/copy-button'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'https://eclick-backend-production-2a87.up.railway.app'
 
@@ -287,6 +288,7 @@ export default function RecoDetailPage({ params }: { params: Promise<{ id: strin
           </div>
           <h1 className="text-xl font-bold flex items-center gap-2">
             <span className="font-mono">{item?.ml_item_id ?? '—'}</span>
+            <CopyButton value={item?.ml_item_id} size={13} />
             {item?.ml_item_id && (
               <a href={`https://www.mercadolivre.com.br/${item.ml_item_id}`} target="_blank" rel="noreferrer"
                 className="text-cyan-400 text-xs hover:underline inline-flex items-center gap-1">

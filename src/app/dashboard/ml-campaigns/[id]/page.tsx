@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import AccountSelector, { useMlAccount, getStoredSellerId } from '@/components/ml/AccountSelector'
+import { CopyButton } from '@/components/ui/copy-button'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'https://eclick-backend-production-2a87.up.railway.app'
 
@@ -53,6 +54,7 @@ interface Item {
   permalink:                   string | null
   listing_status:              string | null
   catalog_listing:             boolean
+  seller_sku:                  string | null
 }
 
 interface RecoSlim {
@@ -566,19 +568,30 @@ function ItemRow({ item, campaignId, recoId, onOpenEditor, onLeave, leaving, gen
           )}
         </a>
 
-        {/* MLB ID + título + status */}
+        {/* MLB ID + título + SKU + status */}
         <div className="flex-shrink-0 w-44 min-w-0">
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-0.5">
             <span className="font-mono text-[10px] text-zinc-400 truncate">{item.ml_item_id}</span>
+            <CopyButton value={item.ml_item_id} size={9} />
             <a href={permalink} target="_blank" rel="noreferrer"
-              className="text-cyan-400 hover:underline flex-shrink-0">
+              className="text-cyan-400 hover:underline flex-shrink-0 ml-0.5">
               <ExternalLink size={10} />
             </a>
           </div>
           {item.title && (
-            <p className="text-[11px] text-zinc-200 leading-tight mt-0.5 line-clamp-2" title={item.title}>
-              {item.title}
-            </p>
+            <div className="flex items-start gap-0.5 mt-0.5">
+              <p className="text-[11px] text-zinc-200 leading-tight line-clamp-2 flex-1" title={item.title}>
+                {item.title}
+              </p>
+              <CopyButton value={item.title} size={9} />
+            </div>
+          )}
+          {item.seller_sku && (
+            <div className="flex items-center gap-0.5 mt-0.5">
+              <span className="text-[9px] uppercase tracking-wider text-zinc-500">SKU:</span>
+              <span className="font-mono text-[10px] text-zinc-300 truncate">{item.seller_sku}</span>
+              <CopyButton value={item.seller_sku} size={9} />
+            </div>
           )}
           <div className="flex items-center gap-1 flex-wrap mt-0.5">
             <ItemStatusBadge status={item.status} />

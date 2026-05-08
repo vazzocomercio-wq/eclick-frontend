@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import AccountSelector, { useMlAccount, getStoredSellerId } from '@/components/ml/AccountSelector'
+import { CopyButton } from '@/components/ui/copy-button'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'https://eclick-backend-production-2a87.up.railway.app'
 
@@ -173,9 +174,10 @@ export default function ManagerQueuePage() {
 
               {/* Header info */}
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-1 flex-wrap">
                   <span className="font-mono text-[10px] text-zinc-400">{it.ml_campaign_items?.ml_item_id}</span>
-                  <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded font-semibold"
+                  <CopyButton value={it.ml_campaign_items?.ml_item_id} size={9} />
+                  <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded font-semibold ml-1"
                     style={{ background: 'rgba(167,139,250,0.15)', color: '#c4b5fd', border: '1px solid rgba(167,139,250,0.4)' }}>
                     {it.ml_campaigns?.ml_promotion_type ?? '—'}
                   </span>
@@ -186,7 +188,10 @@ export default function ManagerQueuePage() {
                   )}
                 </div>
                 {it.ml_campaign_items?.title && (
-                  <p className="text-sm text-zinc-200 mt-0.5 line-clamp-1">{it.ml_campaign_items.title}</p>
+                  <div className="flex items-start gap-1 mt-0.5">
+                    <p className="text-sm text-zinc-200 line-clamp-1 flex-1">{it.ml_campaign_items.title}</p>
+                    <CopyButton value={it.ml_campaign_items.title} size={10} />
+                  </div>
                 )}
                 <p className="text-[11px] text-zinc-400 mt-1">
                   Campanha: <strong>{it.ml_campaigns?.name ?? '—'}</strong>

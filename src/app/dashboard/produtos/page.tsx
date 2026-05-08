@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase'
 import { ToastViewport, todoToast, pushToast } from '@/hooks/useToast'
 import AccountSelector from '@/components/ml/AccountSelector'
 import { PulsingButton } from '@/components/ui/pulsing-button'
+import { CopyButton } from '@/components/ui/copy-button'
 import { ProdutosTable } from './_components/ProdutosTable'
 import { useConfirm } from '@/components/ui/dialog-provider'
 import BulkCostUploadModal from '@/components/catalog/BulkCostUploadModal'
@@ -405,14 +406,20 @@ function TableRow({
           </div>
           {/* Info */}
           <div className="min-w-0 flex-1">
-            <p className="text-white text-[13px] font-medium leading-tight truncate max-w-[260px]">
-              {product.name}
-            </p>
+            <div className="flex items-start gap-1 max-w-[280px]">
+              <p className="text-white text-[13px] font-medium leading-tight truncate flex-1">
+                {product.name}
+              </p>
+              <CopyButton value={product.name} size={10} />
+            </div>
             <p className="text-zinc-600 text-[11px] mt-0.5 font-mono">
               ID: {shortId(product.id)}
             </p>
             {product.sku && (
-              <p className="text-zinc-600 text-[11px]">SKU: {product.sku}</p>
+              <div className="flex items-center gap-1 text-[11px]">
+                <span className="text-zinc-600">SKU: {product.sku}</span>
+                <CopyButton value={product.sku} size={10} />
+              </div>
             )}
             {product.ml_listing_id && (
               <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full mt-1"
@@ -628,8 +635,16 @@ function ProductCard({ product, onDelete, onStatusChange, onDuplicate }: {
         </div>
       </div>
       <div className="flex-1 p-4 flex flex-col gap-2">
-        <p className="text-white text-sm font-semibold leading-tight line-clamp-2">{product.name}</p>
-        {product.sku && <p className="text-zinc-600 text-[11px] font-mono">SKU: {product.sku}</p>}
+        <div className="flex items-start gap-1">
+          <p className="text-white text-sm font-semibold leading-tight line-clamp-2 flex-1">{product.name}</p>
+          <CopyButton value={product.name} size={11} />
+        </div>
+        {product.sku && (
+          <div className="flex items-center gap-1">
+            <p className="text-zinc-600 text-[11px] font-mono">SKU: {product.sku}</p>
+            <CopyButton value={product.sku} size={10} />
+          </div>
+        )}
         {product.ml_listing_id && (
           <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full"
             style={{ background: 'rgba(0,229,255,0.08)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.2)' }}>
