@@ -164,6 +164,16 @@ function ago(iso: string) {
   )
 }
 
+/** Data + hora exata do pedido — usado no card e no drawer header.
+ *  Operação precisa saber QUANDO o pedido entrou (não "ontem" relativo). */
+function orderDateTime(iso: string) {
+  const d = new Date(iso)
+  return (
+    d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' ' +
+    d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  )
+}
+
 // ── Order actions menu (kebab) ────────────────────────────────────────────────
 
 function OrderActionsMenu({ order }: { order: MOrder }) {
@@ -1018,7 +1028,9 @@ function OrderCard({
                 {order.shipping?.receiver_address?.city ? ` · ${order.shipping?.receiver_address?.city}` : ''}
               </p>
             )}
-            <p className="text-[10px] text-zinc-600">{ago(order.date_created)}</p>
+            <p className="text-[10px] text-zinc-500" title={`Pedido criado em ${new Date(order.date_created).toLocaleString('pt-BR')}`}>
+              {orderDateTime(order.date_created)}
+            </p>
           </div>
         </div>
 
