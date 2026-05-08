@@ -55,6 +55,12 @@ interface Item {
   catalog_listing:             boolean
 }
 
+interface RecoSlim {
+  id:               string
+  campaign_item_id: string
+  status:           string
+}
+
 async function getToken(): Promise<string | null> {
   const sb = createClient()
   const { data } = await sb.auth.getSession()
@@ -81,6 +87,8 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   const [syncing, setSyncing]   = useState(false)
   const [toast, setToast]       = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
   const [leaving, setLeaving]   = useState<string | null>(null)
+  const [recoMap, setRecoMap]   = useState<Map<string, string>>(new Map()) // campaign_item_id → recommendation_id
+  const [generatingItem, setGeneratingItem] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
@@ -96,9 +104,13 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
         : listingFilter
           ? `&listing_status=${listingFilter}`
           : ''
-      const [cRes, iRes] = await Promise.all([
+      const [cRes, iRes, rRes] = await Promise.all([
         fetch(`${BACKEND}/ml-campaigns/${id}${sidQ}`, { headers: { Authorization: `Bearer ${t}` } }),
         fetch(`${BACKEND}/ml-campaigns/${id}/items?limit=100${sidQAmp}${statusFilter ? `&status=${statusFilter}` : ''}${listingQ}`, {
+          headers: { Authorization: `Bearer ${t}` },
+        }),
+        // Recomendações dessa campanha (qualquer status) pra mapear item → reco
+        fetch(`${BACKEND}/ml-campaigns/recommendations?campaign_id=${id}&status=&limit=200${sidQAmp}`, {
           headers: { Authorization: `Bearer ${t}` },
         }),
       ])
@@ -110,6 +122,18 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
         const body = await iRes.json()
         setItems(body.items ?? [])
         setTotal(body.total ?? 0)
+      }
+
+      if (rRes.ok) {
+        const body = await rRes.json() as { recommendations?: RecoSlim[] }
+        const map = new Map<string, string>()
+        for (const r of body.recommendations ?? []) {
+          // Prioriza pending — se tiver várias pra mesmo item, fica com a ativa
+          if (!map.has(r.campaign_item_id) || r.status === 'pending') {
+            map.set(r.campaign_item_id, r.id)
+          }
+        }
+        setRecoMap(map)
       }
     } catch (e) {
       setError((e as Error).message)
@@ -198,6 +222,39 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
       showToast(`❌ ${(e as Error).message}`, 'error')
     } finally {
       setGenerating(false)
+    }
+  }
+
+  /** Atalho item-a-item: se já tem recomendação, abre o editor.
+   *  Se não, gera só pra esse item (mais rápido que gerar pra org toda),
+   *  depois redireciona pro editor. */
+  async function openItemEditor(campaignItemId: string) {
+    const existing = recoMap.get(campaignItemId)
+    if (existing) {
+      router.push(`/dashboard/ml-campaigns/recommendations/${existing}`)
+      return
+    }
+    setGeneratingItem(campaignItemId)
+    try {
+      const t = await getToken()
+      const res = await fetch(`${BACKEND}/ml-campaigns/recommendations/generate-item/${campaignItemId}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${t}` },
+      })
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({} as { message?: string }))
+        throw new Error(errBody.message ?? `HTTP ${res.status}`)
+      }
+      const data = await res.json() as { id?: string }
+      if (data.id) {
+        router.push(`/dashboard/ml-campaigns/recommendations/${data.id}`)
+      } else {
+        showToast('Recomendação gerada, mas sem id retornado', 'error')
+      }
+    } catch (e) {
+      showToast(`❌ ${(e as Error).message}`, 'error')
+    } finally {
+      setGeneratingItem(null)
     }
   }
 
@@ -411,8 +468,11 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
               key={item.id}
               item={item}
               campaignId={id}
+              recoId={recoMap.get(item.id) ?? null}
+              onOpenEditor={() => openItemEditor(item.id)}
               onLeave={() => leaveCampaign(item.id)}
               leaving={leaving === item.id}
+              generating={generatingItem === item.id}
             />
           ))}
           {total > items.length && (
@@ -439,11 +499,14 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   )
 }
 
-function ItemRow({ item, campaignId, onLeave, leaving }: {
+function ItemRow({ item, campaignId, recoId, onOpenEditor, onLeave, leaving, generating }: {
   item: Item
   campaignId: string
+  recoId: string | null
+  onOpenEditor: () => void
   onLeave: () => void
   leaving: boolean
+  generating: boolean
 }) {
   const showcasePrice = item.current_price ?? item.suggested_discounted_price
   const discount = (item.original_price && showcasePrice)
@@ -550,12 +613,17 @@ function ItemRow({ item, campaignId, onLeave, leaving }: {
         {/* Action buttons por linha */}
         <div className="flex-shrink-0 flex items-center gap-1.5">
           {isCandidate && (
-            <Link href={`/dashboard/ml-campaigns/recommendations?campaign_id=${campaignId}`}
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded text-[10px] font-semibold transition-all"
-              style={{ background: 'rgba(0,229,255,0.1)', color: '#67e8f9', border: '1px solid rgba(0,229,255,0.3)' }}
-              title="Ver/aprovar recomendação IA pra esse item">
-              <Sparkles size={10} /> Ver IA
-            </Link>
+            <button onClick={onOpenEditor} disabled={generating}
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded text-[10px] font-semibold transition-all disabled:opacity-50"
+              style={{
+                background: recoId ? '#00E5FF' : 'rgba(0,229,255,0.1)',
+                color:      recoId ? '#000'    : '#67e8f9',
+                border: '1px solid rgba(0,229,255,0.4)',
+              }}
+              title={recoId ? 'Definir preço e aderir' : 'Gerar recomendação IA + abrir editor'}>
+              {generating ? <Loader2 size={10} className="animate-spin" /> : <Sparkles size={10} />}
+              {generating ? 'Gerando…' : recoId ? '💰 Definir preço' : 'Gerar IA'}
+            </button>
           )}
           {isStarted && (
             <button onClick={onLeave} disabled={leaving}
