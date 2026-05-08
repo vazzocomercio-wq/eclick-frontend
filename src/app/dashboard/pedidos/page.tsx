@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
+import { getSocket } from '@/lib/socket'
 import {
   MoreHorizontal, Truck, Printer, Send, AlertOctagon, Megaphone, Ban,
   Headphones, BarChart2, Eye,
@@ -2336,13 +2337,49 @@ export default function PedidosPage() {
   }, [_mlSelected])
   useEffect(() => { loadPending() }, [loadPending])
 
-  // Polling: refetch de 2 em 2 min
+  // Polling: refetch de 2 em 2 min (fallback se Socket.IO falhar)
   useEffect(() => {
     const interval = setInterval(() => {
       console.log('[pedidos] refetch automático de status')
       loadOrders(pageRef.current, qRef.current, effectiveTab(tabRef.current))
     }, 120_000)
     return () => clearInterval(interval)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadOrders, crossTabMode])
+
+  // Realtime: webhook ML → dispatcher emite 'order:invalidate' pro org →
+  // refresh imediato. Debounced 1.5s pra evitar storm de refresh quando
+  // ML manda 5 webhooks em 2s pro mesmo pedido (status changes).
+  useEffect(() => {
+    let active = true
+    let debounceTimer: NodeJS.Timeout | null = null
+    const handler = (payload: { external_order_id?: string | null; seller_id?: number; topic?: string }) => {
+      console.log('[pedidos] realtime invalidate:', payload)
+      if (debounceTimer) clearTimeout(debounceTimer)
+      debounceTimer = setTimeout(() => {
+        if (!active) return
+        loadOrders(pageRef.current, qRef.current, effectiveTab(tabRef.current))
+      }, 1500)
+    }
+    void (async () => {
+      try {
+        const socket = await getSocket()
+        if (!active) return
+        socket.on('order:invalidate', handler)
+      } catch (e) {
+        console.warn('[pedidos] socket falhou — fallback no polling:', (e as Error).message)
+      }
+    })()
+    return () => {
+      active = false
+      if (debounceTimer) clearTimeout(debounceTimer)
+      void (async () => {
+        try {
+          const socket = await getSocket()
+          socket.off('order:invalidate', handler)
+        } catch { /* ignore */ }
+      })()
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadOrders, crossTabMode])
 
