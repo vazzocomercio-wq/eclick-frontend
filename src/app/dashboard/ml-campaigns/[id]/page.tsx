@@ -46,6 +46,9 @@ interface Item {
   health_status:               string | null
   health_warnings:             Array<{ code: string; message: string }>
   product_id:                  string | null
+  thumbnail_url:               string | null
+  title:                       string | null
+  permalink:                   string | null
 }
 
 async function getToken(): Promise<string | null> {
@@ -100,6 +103,31 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   }, [id, statusFilter])
 
   useEffect(() => { void load() }, [load, selectedSellerId])
+
+  // Dispara enrichment de thumbnails em background apos o load.
+  // Backend roda em paralelo, atualiza DB. Re-fetcha em 8s pra
+  // ver thumbnails populadas.
+  useEffect(() => {
+    if (loading) return
+    const itemsMissingThumb = items.filter(i => !i.thumbnail_url).length
+    if (itemsMissingThumb === 0) return
+
+    let cancelled = false
+    void (async () => {
+      const t = await getToken()
+      const sid = getStoredSellerId()
+      const url = sid != null
+        ? `${BACKEND}/ml-campaigns/sync/enrich-metadata?seller_id=${sid}`
+        : `${BACKEND}/ml-campaigns/sync/enrich-metadata`
+      try {
+        await fetch(url, { method: 'POST', headers: { Authorization: `Bearer ${t}` } })
+        // Aguarda 8s e re-fetcha pra mostrar thumbnails
+        setTimeout(() => { if (!cancelled) void load() }, 8_000)
+      } catch { /* silent */ }
+    })()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading])
 
   if (loading && !campaign) {
     return (
@@ -228,15 +256,35 @@ function ItemRow({ item }: { item: Item }) {
   const discount = (item.original_price && showcasePrice)
     ? Math.round(((item.original_price - showcasePrice) / item.original_price) * 100)
     : null
+  const linkUrl = item.permalink ?? `https://www.mercadolivre.com.br/${item.ml_item_id}`
 
   return (
     <div className="rounded-lg p-3" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
       <div className="flex items-start gap-3">
-        {/* MLB ID + status */}
-        <div className="flex-shrink-0 w-32">
+        {/* Thumbnail */}
+        <a href={linkUrl} target="_blank" rel="noreferrer"
+          className="flex-shrink-0 w-14 h-14 rounded overflow-hidden bg-zinc-900 flex items-center justify-center"
+          style={{ border: '1px solid #1a1a1f' }}>
+          {item.thumbnail_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={item.thumbnail_url} alt={item.title ?? item.ml_item_id}
+              className="w-full h-full object-cover"
+              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
+          ) : (
+            <span className="text-zinc-700 text-[10px] font-mono">no img</span>
+          )}
+        </a>
+
+        {/* Info: titulo + MLB + status */}
+        <div className="flex-shrink-0 w-44 min-w-0">
+          {item.title && (
+            <p className="text-xs text-zinc-200 line-clamp-2 leading-snug mb-1" title={item.title}>
+              {item.title}
+            </p>
+          )}
           <div className="flex items-center gap-1.5">
-            <span className="font-mono text-xs text-zinc-200 truncate">{item.ml_item_id}</span>
-            <a href={`https://www.mercadolivre.com.br/${item.ml_item_id}`} target="_blank" rel="noreferrer"
+            <span className="font-mono text-[10px] text-zinc-400 truncate">{item.ml_item_id}</span>
+            <a href={linkUrl} target="_blank" rel="noreferrer"
               className="text-cyan-400 hover:underline flex-shrink-0">
               <ExternalLink size={10} />
             </a>
