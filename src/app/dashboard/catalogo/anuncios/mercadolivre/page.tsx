@@ -756,6 +756,23 @@ function Pagination({ page, total, size, onChange }: {
   )
 }
 
+// ── Active filter chip (filtros avançados ML) ────────────────────────────────
+
+function ChipML({ label, onRemove }: { label: string; onRemove: () => void }) {
+  return (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border"
+      style={{ background: 'rgba(0,229,255,0.06)', borderColor: 'rgba(0,229,255,0.25)', color: '#67e8f9' }}>
+      {label}
+      <button onClick={onRemove} className="hover:text-white transition-colors -mr-0.5"
+        aria-label={`Remover filtro ${label}`}>
+        <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </span>
+  )
+}
+
 // ── Page ───────────────────────────────────────────────────────────────────
 
 export default function MLAnunciosPage() {
@@ -783,6 +800,23 @@ export default function MLAnunciosPage() {
   // Map listing_id -> stock info (filled from Supabase). Used to render the
   // inline stock input on each card and to compute the page-total KPI.
   const [stockMap, setStockMap]             = useState<Map<string, { stock_id: string; product_id: string; quantity: number }>>(new Map())
+
+  // Filtros avançados
+  const [advOpen, setAdvOpen]                 = useState(false)
+  const [filterListingType, setFilterListingType] = useState<'all' | 'premium' | 'gold' | 'classic'>('all')
+  const [filterLogistic, setFilterLogistic]   = useState<'all' | 'fulfillment' | 'cross_docking' | 'self_service' | 'drop_off'>('all')
+  const [filterFlags, setFilterFlags]         = useState({
+    promo:           false,
+    noLink:          false,
+    noCost:          false,
+    noPhoto:         false,
+    zeroStockActive: false,
+    noCampaign:      false,
+    badHealth:       false,  // health_status diferente de 'active' / null (warning/risk/critical)
+  })
+  // Map listing_id → cost_price (vinculado e com cost cadastrado)
+  const [costMap, setCostMap] = useState<Record<string, number | null>>({})
+  const [adItems, setAdItems] = useState<Set<string>>(new Set())
 
   const tid = useRef(0)
   const PAGE = 20
@@ -893,6 +927,81 @@ export default function MLAnunciosPage() {
 
   useEffect(() => { loadStockMap() }, [loadStockMap])
 
+  // Fetch cost_price por listing + campanhas ML Ads ativas (pra "sem custo" / "sem campanha")
+  useEffect(() => {
+    if (items.length === 0) return
+    const ids = items.map(i => i.id)
+    ;(async () => {
+      const [linkRes, campsRes] = await Promise.all([
+        supabase
+          .from('product_listings')
+          .select('listing_id, product:products(cost_price)')
+          .in('listing_id', ids)
+          .eq('platform', 'mercadolivre'),
+        supabase
+          .from('ml_ads_campaigns')
+          .select('items')
+          .eq('status', 'active'),
+      ])
+      type LinkRow = { listing_id: string; product: { cost_price: number | null } | { cost_price: number | null }[] | null }
+      const cm: Record<string, number | null> = {}
+      for (const r of (linkRes.data ?? []) as LinkRow[]) {
+        const prod = Array.isArray(r.product) ? r.product[0] : r.product
+        cm[r.listing_id] = prod?.cost_price ?? null
+      }
+      const inCamps = new Set<string>()
+      for (const c of (campsRes.data ?? []) as Array<{ items: string[] | null }>) {
+        for (const it of c.items ?? []) inCamps.add(it)
+      }
+      setCostMap(cm)
+      setAdItems(inCamps)
+    })()
+  }, [items, supabase])
+
+  // Aplica filtros avançados sobre items (server já filtra por status/q via API)
+  const displayedItems = useMemo(() => {
+    let list = items
+
+    if (filterListingType !== 'all') {
+      list = list.filter(l => {
+        if (filterListingType === 'premium') return l.listing_type_id === 'gold_pro' || l.listing_type_id === 'gold_premium'
+        if (filterListingType === 'gold')    return l.listing_type_id === 'gold_special'
+        if (filterListingType === 'classic') return !l.listing_type_id?.startsWith('gold')
+        return true
+      })
+    }
+    if (filterLogistic !== 'all')        list = list.filter(l => l.logistic_type === filterLogistic)
+    if (filterFlags.promo)               list = list.filter(l => l.original_price != null && l.original_price > l.price)
+    if (filterFlags.noLink)              list = list.filter(l => !linkedIds.has(l.id))
+    if (filterFlags.noCost)              list = list.filter(l => linkedIds.has(l.id) && !((costMap[l.id] ?? 0) > 0))
+    if (filterFlags.noPhoto)             list = list.filter(l => l.pictures_count === 0)
+    if (filterFlags.zeroStockActive)     list = list.filter(l => l.available_quantity === 0 && l.status === 'active')
+    if (filterFlags.noCampaign)          list = list.filter(l => !adItems.has(l.id))
+    if (filterFlags.badHealth)           list = list.filter(l => l.health_status != null && l.health_status !== 'active' && l.health_status !== 'good')
+
+    return list
+  }, [items, filterListingType, filterLogistic, filterFlags, linkedIds, costMap, adItems])
+
+  const flagCounts = useMemo(() => ({
+    promo:           items.filter(l => l.original_price != null && l.original_price > l.price).length,
+    noLink:          items.filter(l => !linkedIds.has(l.id)).length,
+    noCost:          items.filter(l => linkedIds.has(l.id) && !((costMap[l.id] ?? 0) > 0)).length,
+    noPhoto:         items.filter(l => l.pictures_count === 0).length,
+    zeroStockActive: items.filter(l => l.available_quantity === 0 && l.status === 'active').length,
+    noCampaign:      items.filter(l => !adItems.has(l.id)).length,
+    badHealth:       items.filter(l => l.health_status != null && l.health_status !== 'active' && l.health_status !== 'good').length,
+  }), [items, linkedIds, costMap, adItems])
+
+  const advCount =
+    (filterListingType !== 'all' ? 1 : 0) +
+    (filterLogistic !== 'all' ? 1 : 0) +
+    Object.values(filterFlags).filter(Boolean).length
+
+  function clearAdv() {
+    setFilterListingType('all'); setFilterLogistic('all')
+    setFilterFlags({ promo: false, noLink: false, noCost: false, noPhoto: false, zeroStockActive: false, noCampaign: false, badHealth: false })
+  }
+
   // Optimistic update + PATCH the new stock value. Returns true on success.
   // Called by ListingCard's inline stock input on blur/Enter.
   const updateLinkedStock = useCallback(async (listingId: string, stockId: string, newQty: number): Promise<boolean> => {
@@ -939,12 +1048,13 @@ export default function MLAnunciosPage() {
   }
 
   // ── Select helpers ─────────────────────────────────────────────────────
+  // Usa displayedItems pra select-all respeitar filtros avançados.
 
-  const allSelected = items.length > 0 && items.every(i => selected.has(i.id))
+  const allSelected = displayedItems.length > 0 && displayedItems.every(i => selected.has(i.id))
 
   function toggleAll() {
-    if (allSelected) setSelected(s => { const n = new Set(s); items.forEach(i => n.delete(i.id)); return n })
-    else             setSelected(s => { const n = new Set(s); items.forEach(i => n.add(i.id));    return n })
+    if (allSelected) setSelected(s => { const n = new Set(s); displayedItems.forEach(i => n.delete(i.id)); return n })
+    else             setSelected(s => { const n = new Set(s); displayedItems.forEach(i => n.add(i.id));    return n })
   }
 
   // ── Create from listing ────────────────────────────────────────────────
@@ -1118,15 +1228,181 @@ export default function MLAnunciosPage() {
         })}
       </div>
 
+      {/* ── Filtros avançados ──────────────────────────────────────── */}
+      <div>
+        <button onClick={() => setAdvOpen(v => !v)}
+          className="inline-flex items-center gap-1.5 text-sm px-3 py-2 rounded-xl font-semibold transition-all mb-3"
+          style={{
+            background: advCount > 0 ? 'rgba(0,229,255,0.08)' : '#111114',
+            border: `1px solid ${advCount > 0 || advOpen ? '#00E5FF' : '#27272a'}`,
+            color: advCount > 0 || advOpen ? '#00E5FF' : '#e4e4e7',
+          }}>
+          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+          </svg>
+          Filtros avançados
+          {advCount > 0 && <span className="text-[10px] font-bold px-1.5 rounded-full" style={{ background: '#00E5FF', color: '#000' }}>{advCount}</span>}
+          <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+            style={{ transform: advOpen ? 'rotate(180deg)' : undefined, transition: 'transform .2s', opacity: 0.7, marginLeft: 2 }}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+
+        {advOpen && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 p-4 rounded-xl mb-4"
+            style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
+            {/* Tipo de listagem */}
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2">Tipo de listagem</p>
+              <div className="flex flex-wrap gap-1">
+                {([
+                  { v: 'all',     label: 'Todos' },
+                  { v: 'premium', label: 'Premium' },
+                  { v: 'gold',    label: 'Ouro' },
+                  { v: 'classic', label: 'Clássico' },
+                ] as const).map(o => (
+                  <button key={o.v} onClick={() => setFilterListingType(o.v)}
+                    className="px-2 py-1 rounded-md text-[11px] font-medium border transition-all"
+                    style={{
+                      background: filterListingType === o.v ? 'rgba(0,229,255,0.08)' : 'transparent',
+                      borderColor: filterListingType === o.v ? '#00E5FF' : '#27272a',
+                      color: filterListingType === o.v ? '#00E5FF' : '#a1a1aa',
+                    }}>
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Logística */}
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2">Logística</p>
+              <div className="flex flex-wrap gap-1">
+                {([
+                  { v: 'all',           label: 'Todos' },
+                  { v: 'fulfillment',   label: 'Full' },
+                  { v: 'cross_docking', label: 'Coleta' },
+                  { v: 'self_service',  label: 'Self' },
+                  { v: 'drop_off',      label: 'Agência' },
+                ] as const).map(o => (
+                  <button key={o.v} onClick={() => setFilterLogistic(o.v)}
+                    className="px-2 py-1 rounded-md text-[11px] font-medium border transition-all"
+                    style={{
+                      background: filterLogistic === o.v ? 'rgba(0,229,255,0.08)' : 'transparent',
+                      borderColor: filterLogistic === o.v ? '#00E5FF' : '#27272a',
+                      color: filterLogistic === o.v ? '#00E5FF' : '#a1a1aa',
+                    }}>
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Atributos */}
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2">Atributos</p>
+              <div className="flex flex-col gap-1">
+                {([
+                  { k: 'promo',     label: 'Em promoção',       count: flagCounts.promo,     accent: '#22c55e' },
+                  { k: 'badHealth', label: 'Saúde com problemas', count: flagCounts.badHealth, accent: '#f87171' },
+                ] as const).map(o => {
+                  const active = filterFlags[o.k]
+                  return (
+                    <button key={o.k}
+                      onClick={() => setFilterFlags(p => ({ ...p, [o.k]: !p[o.k] }))}
+                      className="flex items-center justify-between px-2 py-1 rounded-md text-[11px] font-medium border transition-all"
+                      style={{
+                        background: active ? `${o.accent}14` : 'transparent',
+                        borderColor: active ? o.accent : '#27272a',
+                        color: active ? o.accent : '#a1a1aa',
+                      }}>
+                      <span className="flex items-center gap-1.5">
+                        <span className="w-3 h-3 rounded border flex items-center justify-center"
+                          style={{ borderColor: active ? o.accent : '#3f3f46', background: active ? o.accent : 'transparent' }}>
+                          {active && <svg className="w-2 h-2" fill="none" stroke="#000" viewBox="0 0 24 24" strokeWidth={4}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
+                        </span>
+                        {o.label}
+                      </span>
+                      <span className="text-[10px] opacity-70">{o.count}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Saneamento */}
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2">Saneamento</p>
+              <div className="flex flex-col gap-1">
+                {([
+                  { k: 'noLink',          label: 'Sem vínculo',      count: flagCounts.noLink,          accent: '#f59e0b' },
+                  { k: 'noCost',          label: 'Sem custo',        count: flagCounts.noCost,          accent: '#f59e0b' },
+                  { k: 'noPhoto',         label: 'Sem foto',         count: flagCounts.noPhoto,         accent: '#f59e0b' },
+                  { k: 'zeroStockActive', label: 'Estoque 0 + ativo', count: flagCounts.zeroStockActive, accent: '#f87171' },
+                  { k: 'noCampaign',      label: 'Sem campanha',     count: flagCounts.noCampaign,      accent: '#f59e0b' },
+                ] as const).map(o => {
+                  const active = filterFlags[o.k]
+                  return (
+                    <button key={o.k}
+                      onClick={() => setFilterFlags(p => ({ ...p, [o.k]: !p[o.k] }))}
+                      className="flex items-center justify-between px-2 py-1 rounded-md text-[11px] font-medium border transition-all"
+                      style={{
+                        background: active ? `${o.accent}14` : 'transparent',
+                        borderColor: active ? o.accent : '#27272a',
+                        color: active ? o.accent : '#a1a1aa',
+                      }}>
+                      <span className="flex items-center gap-1.5">
+                        <span className="w-3 h-3 rounded border flex items-center justify-center"
+                          style={{ borderColor: active ? o.accent : '#3f3f46', background: active ? o.accent : 'transparent' }}>
+                          {active && <svg className="w-2 h-2" fill="none" stroke="#000" viewBox="0 0 24 24" strokeWidth={4}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
+                        </span>
+                        {o.label}
+                      </span>
+                      <span className="text-[10px] opacity-70">{o.count}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {advCount > 0 && (
+          <div className="mb-3 flex flex-wrap items-center gap-1.5 text-[11px]">
+            <span className="text-zinc-500 font-medium">Ativos:</span>
+            {filterListingType !== 'all' && (
+              <ChipML label={`Tipo: ${({ premium: 'Premium', gold: 'Ouro', classic: 'Clássico' } as const)[filterListingType]}`} onRemove={() => setFilterListingType('all')} />
+            )}
+            {filterLogistic !== 'all' && (
+              <ChipML label={`Logística: ${({ fulfillment: 'Full', cross_docking: 'Coleta', self_service: 'Self', drop_off: 'Agência' } as const)[filterLogistic]}`} onRemove={() => setFilterLogistic('all')} />
+            )}
+            {filterFlags.promo           && <ChipML label="Em promoção"        onRemove={() => setFilterFlags(p => ({ ...p, promo: false }))} />}
+            {filterFlags.badHealth       && <ChipML label="Saúde com problemas" onRemove={() => setFilterFlags(p => ({ ...p, badHealth: false }))} />}
+            {filterFlags.noLink          && <ChipML label="Sem vínculo"        onRemove={() => setFilterFlags(p => ({ ...p, noLink: false }))} />}
+            {filterFlags.noCost          && <ChipML label="Sem custo"          onRemove={() => setFilterFlags(p => ({ ...p, noCost: false }))} />}
+            {filterFlags.noPhoto         && <ChipML label="Sem foto"           onRemove={() => setFilterFlags(p => ({ ...p, noPhoto: false }))} />}
+            {filterFlags.zeroStockActive && <ChipML label="Estoque 0 + ativo"  onRemove={() => setFilterFlags(p => ({ ...p, zeroStockActive: false }))} />}
+            {filterFlags.noCampaign      && <ChipML label="Sem campanha"       onRemove={() => setFilterFlags(p => ({ ...p, noCampaign: false }))} />}
+            <button onClick={clearAdv}
+              className="ml-1 px-2 py-0.5 text-[10px] font-medium rounded transition-colors"
+              style={{ color: '#71717a' }}
+              onMouseEnter={e => { e.currentTarget.style.color = '#f87171' }}
+              onMouseLeave={e => { e.currentTarget.style.color = '#71717a' }}>
+              Limpar tudo
+            </button>
+          </div>
+        )}
+      </div>
+
       {/* ── Select-all row ────────────────────────────────────────── */}
-      {!loading && items.length > 0 && (
+      {!loading && displayedItems.length > 0 && (
         <div className="flex items-center gap-3">
           <input type="checkbox" checked={allSelected} onChange={toggleAll}
             className="w-4 h-4 rounded accent-cyan-400 cursor-pointer" />
           <span className="text-zinc-500 text-xs">
             {selected.size > 0
               ? `${selected.size} selecionado${selected.size > 1 ? 's' : ''}`
-              : `${num(items.length)} anúncio${items.length !== 1 ? 's' : ''} nesta página`}
+              : `${num(displayedItems.length)} anúncio${displayedItems.length !== 1 ? 's' : ''}${advCount > 0 ? ' (filtrados)' : ' nesta página'}`}
           </span>
           {selected.size > 0 && (
             <button
@@ -1146,7 +1422,7 @@ export default function MLAnunciosPage() {
       <div className="space-y-2">
         {loading
           ? Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} />)
-          : items.length === 0
+          : displayedItems.length === 0
             ? (
               <div className="flex flex-col items-center justify-center py-20 text-zinc-600">
                 <svg width="52" height="52" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={0.8}
@@ -1165,7 +1441,7 @@ export default function MLAnunciosPage() {
                 </button>
               </div>
             )
-            : items.map(item => (
+            : displayedItems.map(item => (
               <ListingCard key={item.id} item={item}
                 selected={selected.has(item.id)}
                 linked={linkedIds.has(item.id)}
