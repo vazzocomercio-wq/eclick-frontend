@@ -69,6 +69,23 @@ function shortId(id: string) {
   return id.replace(/-/g, '').slice(0, 10).toUpperCase()
 }
 
+// ── active filter chip (compartilhado pelos filtros avançados) ────────────────
+
+function ActiveChip({ label, onRemove }: { label: string; onRemove: () => void }) {
+  return (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border"
+      style={{ background: 'rgba(0,229,255,0.06)', borderColor: 'rgba(0,229,255,0.25)', color: '#67e8f9' }}>
+      {label}
+      <button onClick={onRemove} className="hover:text-white transition-colors -mr-0.5"
+        aria-label={`Remover filtro ${label}`}>
+        <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </span>
+  )
+}
+
 // ── bulk action bar ────────────────────────────────────────────────────────────
 
 function BulkBar({
@@ -802,6 +819,15 @@ type StockSummary = {
   auto_pause_enabled: boolean
 }
 
+// Meta agregada por produto — populada em paralelo via Supabase pra alimentar
+// os filtros de saneamento (sem concorrentes / sem vínculo / sem custo / etc).
+type ProductMeta = {
+  competitorsCount: number
+  listingsCount:    number
+  distinctPlatforms: string[]
+  costPrice:        number | null
+}
+
 export default function ProdutosPage() {
   const [products, setProducts]     = useState<Product[]>([])
   const [loading, setLoading]       = useState(true)
@@ -815,6 +841,20 @@ export default function ProdutosPage() {
   const [showBulkCost, setShowBulkCost] = useState(false)
   const [mlConnected, setMlConnected]   = useState(false)
   const [stockMap, setStockMap]         = useState<Record<string, StockSummary>>({})
+  // Filtros avançados (toggle do painel + 5+3 critérios)
+  const [advOpen, setAdvOpen]       = useState(false)
+  const [filterStock, setFilterStock] = useState<'all' | 'zero' | 'critical' | 'normal'>('all')
+  const [filterPlatforms, setFilterPlatforms] = useState<Set<string>>(new Set())
+  const [filterPriceMin, setFilterPriceMin]   = useState<string>('')
+  const [filterPriceMax, setFilterPriceMax]   = useState<string>('')
+  const [filterFlags, setFilterFlags] = useState({
+    noCompetitors: false,  // sem competidores monitorados
+    noListings:    false,  // sem listing em nenhum marketplace
+    noCost:        false,  // cost_price null/0
+    noPhoto:       false,  // photo_urls vazio
+    singlePlatform: false, // anunciado em apenas 1 plataforma (oportunidade de expandir)
+  })
+  const [productMeta, setProductMeta] = useState<Record<string, ProductMeta>>({})
   const confirm = useConfirm()
 
   const load = useCallback(async () => {
@@ -857,6 +897,46 @@ export default function ProdutosPage() {
   }, [products])
 
   useEffect(() => { load() }, [load])
+
+  // Fetch supplementary data pros filtros avançados — competitors, listings,
+  // cost_price. Tudo via Supabase direto (RLS em cima de organization_id).
+  // Roda 1x quando products carrega (não muda durante a sessão).
+  useEffect(() => {
+    if (products.length === 0) return
+    const sb = createClient()
+    const ids = products.map(p => p.id)
+    ;(async () => {
+      const [compsRes, listingsRes, costsRes] = await Promise.all([
+        sb.from('competitors').select('product_id').in('product_id', ids),
+        sb.from('product_listings').select('product_id, platform').in('product_id', ids).eq('is_active', true),
+        sb.from('products').select('id, cost_price').in('id', ids),
+      ])
+      const compsCount: Record<string, number> = {}
+      for (const r of (compsRes.data ?? []) as Array<{ product_id: string }>) {
+        compsCount[r.product_id] = (compsCount[r.product_id] ?? 0) + 1
+      }
+      const platsByProduct: Record<string, Set<string>> = {}
+      for (const r of (listingsRes.data ?? []) as Array<{ product_id: string; platform: string | null }>) {
+        if (!platsByProduct[r.product_id]) platsByProduct[r.product_id] = new Set()
+        if (r.platform) platsByProduct[r.product_id].add(r.platform)
+      }
+      const costMap: Record<string, number | null> = {}
+      for (const r of (costsRes.data ?? []) as Array<{ id: string; cost_price: number | null }>) {
+        costMap[r.id] = r.cost_price
+      }
+      const meta: Record<string, ProductMeta> = {}
+      for (const p of products) {
+        const plats = platsByProduct[p.id] ?? new Set<string>()
+        meta[p.id] = {
+          competitorsCount:  compsCount[p.id] ?? 0,
+          listingsCount:     plats.size,
+          distinctPlatforms: [...plats],
+          costPrice:         costMap[p.id] ?? null,
+        }
+      }
+      setProductMeta(meta)
+    })()
+  }, [products])
 
   // Check ML connection
   useEffect(() => {
@@ -977,9 +1057,74 @@ export default function ProdutosPage() {
       p.name.toLowerCase().includes(q) ||
       (p.sku ?? '').toLowerCase().includes(q) ||
       (p.brand ?? '').toLowerCase().includes(q)
-    const matchStatus = filterStatus === 'all' || p.status === filterStatus
-    return matchSearch && matchStatus
+    if (!matchSearch) return false
+    if (filterStatus !== 'all' && p.status !== filterStatus) return false
+
+    // Estoque tier (usa stockMap quando disponível, senão p.stock)
+    if (filterStock !== 'all') {
+      const sm = stockMap[p.id]
+      const stock = sm ? (sm.virtual_quantity || sm.quantity) : (p.stock ?? 0)
+      if (filterStock === 'zero'     && stock !== 0) return false
+      if (filterStock === 'critical' && (stock <= 0 || stock > 5)) return false
+      if (filterStock === 'normal'   && stock <= 5) return false
+    }
+
+    // Plataformas — multi-select (qualquer match passa)
+    if (filterPlatforms.size > 0) {
+      const plats = p.platforms ?? []
+      if (!plats.some(plat => filterPlatforms.has(plat))) return false
+    }
+
+    // Preço range
+    const priceMin = filterPriceMin ? Number(filterPriceMin) : null
+    const priceMax = filterPriceMax ? Number(filterPriceMax) : null
+    if (priceMin != null && (p.price ?? 0) < priceMin) return false
+    if (priceMax != null && (p.price ?? Infinity) > priceMax) return false
+
+    // Flags de saneamento — só aplicam quando productMeta carregou
+    const meta = productMeta[p.id]
+    if (filterFlags.noCompetitors && meta && meta.competitorsCount > 0) return false
+    if (filterFlags.noListings    && meta && meta.listingsCount > 0)    return false
+    if (filterFlags.noCost        && meta && (meta.costPrice ?? 0) > 0) return false
+    if (filterFlags.noPhoto       && p.photo_urls && p.photo_urls.length > 0) return false
+    if (filterFlags.singlePlatform && meta && meta.distinctPlatforms.length !== 1) return false
+
+    return true
   })
+
+  // Contadores pra mostrar ao lado de cada chip de filtro (quantos passariam SE
+  // só esse filtro estivesse ativo). Calculados apenas em produtos que já
+  // passaram pelos filtros básicos (search + status), pra serem coerentes.
+  const baseFiltered = products.filter(p => {
+    const q = search.toLowerCase()
+    const ms = !q || p.name.toLowerCase().includes(q) || (p.sku ?? '').toLowerCase().includes(q) || (p.brand ?? '').toLowerCase().includes(q)
+    return ms && (filterStatus === 'all' || p.status === filterStatus)
+  })
+  const counts = {
+    noCompetitors:  baseFiltered.filter(p => (productMeta[p.id]?.competitorsCount ?? 0) === 0).length,
+    noListings:     baseFiltered.filter(p => (productMeta[p.id]?.listingsCount ?? 0) === 0).length,
+    noCost:         baseFiltered.filter(p => (productMeta[p.id]?.costPrice ?? 0) === 0).length,
+    noPhoto:        baseFiltered.filter(p => !p.photo_urls || p.photo_urls.length === 0).length,
+    singlePlatform: baseFiltered.filter(p => (productMeta[p.id]?.distinctPlatforms.length ?? 0) === 1).length,
+  }
+
+  // Lista total de plataformas disponíveis (das que aparecem em pelo menos 1 produto)
+  const availablePlatforms = [...new Set(products.flatMap(p => p.platforms ?? []))].sort()
+
+  // Conta total de filtros avançados ativos pra badge no toggle
+  const advCount =
+    (filterStock !== 'all' ? 1 : 0) +
+    (filterPlatforms.size > 0 ? 1 : 0) +
+    (filterPriceMin || filterPriceMax ? 1 : 0) +
+    Object.values(filterFlags).filter(Boolean).length
+
+  function clearAdv() {
+    setFilterStock('all')
+    setFilterPlatforms(new Set())
+    setFilterPriceMin('')
+    setFilterPriceMax('')
+    setFilterFlags({ noCompetitors: false, noListings: false, noCost: false, noPhoto: false, singlePlatform: false })
+  }
 
   const allFilteredIds = filtered.map(p => p.id)
   const allSelected = allFilteredIds.length > 0 && allFilteredIds.every(id => selected.has(id))
@@ -1066,6 +1211,21 @@ export default function ProdutosPage() {
           })}
         </div>
 
+        {/* Toggle filtros avançados */}
+        <button onClick={() => setAdvOpen(v => !v)}
+          className="px-3 py-1.5 rounded-lg text-[12px] font-medium border transition-all flex items-center gap-1.5"
+          style={{
+            background: advCount > 0 ? 'rgba(0,229,255,0.08)' : 'transparent',
+            borderColor: advCount > 0 || advOpen ? '#00E5FF' : '#3f3f46',
+            color: advCount > 0 || advOpen ? '#00E5FF' : '#71717a',
+          }}>
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+          </svg>
+          Filtros
+          {advCount > 0 && <span className="text-[10px] font-bold px-1.5 rounded-full" style={{ background: '#00E5FF', color: '#000' }}>{advCount}</span>}
+        </button>
+
         {/* View toggle */}
         <div className="flex gap-1 ml-auto p-1 rounded-lg" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
           {([
@@ -1087,6 +1247,145 @@ export default function ProdutosPage() {
           ))}
         </div>
       </div>
+
+      {/* Painel de filtros avançados — colapsável */}
+      {advOpen && (
+        <div className="mb-4 rounded-xl p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"
+          style={{ background: '#0c0c0f', border: '1px solid #1e1e24' }}>
+          {/* Estoque */}
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2">Estoque</p>
+            <div className="flex flex-wrap gap-1">
+              {([
+                { v: 'all',      label: 'Todos' },
+                { v: 'zero',     label: 'Zerado' },
+                { v: 'critical', label: 'Crítico (≤5)' },
+                { v: 'normal',   label: 'Normal (>5)' },
+              ] as const).map(o => (
+                <button key={o.v} onClick={() => setFilterStock(o.v)}
+                  className="px-2 py-1 rounded-md text-[11px] font-medium border transition-all"
+                  style={{
+                    background: filterStock === o.v ? 'rgba(0,229,255,0.08)' : 'transparent',
+                    borderColor: filterStock === o.v ? '#00E5FF' : '#27272a',
+                    color: filterStock === o.v ? '#00E5FF' : '#a1a1aa',
+                  }}>
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Plataformas */}
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2">Plataformas</p>
+            <div className="flex flex-wrap gap-1">
+              {availablePlatforms.length === 0 ? (
+                <span className="text-[11px] text-zinc-600">Nenhuma vinculada</span>
+              ) : availablePlatforms.map(plat => {
+                const meta = PM[plat]
+                const active = filterPlatforms.has(plat)
+                return (
+                  <button key={plat}
+                    onClick={() => setFilterPlatforms(prev => {
+                      const next = new Set(prev)
+                      next.has(plat) ? next.delete(plat) : next.add(plat)
+                      return next
+                    })}
+                    className="px-2 py-1 rounded-md text-[11px] font-medium border transition-all"
+                    style={{
+                      background: active ? `${meta?.bg ?? '#27272a'}24` : 'transparent',
+                      borderColor: active ? (meta?.bg ?? '#00E5FF') : '#27272a',
+                      color: active ? (meta?.bg ?? '#00E5FF') : '#a1a1aa',
+                    }}>
+                    {meta?.abbr ?? plat.slice(0, 2).toUpperCase()}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Preço range */}
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2">Preço (R$)</p>
+            <div className="flex items-center gap-1.5">
+              <input type="number" min="0" placeholder="Min"
+                value={filterPriceMin}
+                onChange={e => setFilterPriceMin(e.target.value)}
+                className="w-full px-2 py-1.5 rounded-md text-[11px] text-white placeholder-zinc-600 border outline-none focus:border-[#00E5FF]"
+                style={{ background: '#070709', borderColor: '#27272a' }} />
+              <span className="text-zinc-600 text-[11px]">—</span>
+              <input type="number" min="0" placeholder="Máx"
+                value={filterPriceMax}
+                onChange={e => setFilterPriceMax(e.target.value)}
+                className="w-full px-2 py-1.5 rounded-md text-[11px] text-white placeholder-zinc-600 border outline-none focus:border-[#00E5FF]"
+                style={{ background: '#070709', borderColor: '#27272a' }} />
+            </div>
+          </div>
+
+          {/* Saneamento de dados */}
+          <div className="md:col-span-2 lg:col-span-1">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2">Saneamento</p>
+            <div className="flex flex-col gap-1">
+              {([
+                { k: 'noCompetitors',  label: 'Sem concorrentes',          count: counts.noCompetitors },
+                { k: 'noListings',     label: 'Sem vínculo (marketplace)', count: counts.noListings },
+                { k: 'noCost',         label: 'Sem custo cadastrado',      count: counts.noCost },
+                { k: 'noPhoto',        label: 'Sem foto',                  count: counts.noPhoto },
+                { k: 'singlePlatform', label: 'Em 1 só plataforma',        count: counts.singlePlatform },
+              ] as const).map(o => {
+                const active = filterFlags[o.k]
+                return (
+                  <button key={o.k}
+                    onClick={() => setFilterFlags(prev => ({ ...prev, [o.k]: !prev[o.k] }))}
+                    className="flex items-center justify-between px-2 py-1 rounded-md text-[11px] font-medium border transition-all"
+                    style={{
+                      background: active ? 'rgba(245,158,11,0.08)' : 'transparent',
+                      borderColor: active ? '#f59e0b' : '#27272a',
+                      color: active ? '#f59e0b' : '#a1a1aa',
+                    }}>
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-3 h-3 rounded border flex items-center justify-center"
+                        style={{ borderColor: active ? '#f59e0b' : '#3f3f46', background: active ? '#f59e0b' : 'transparent' }}>
+                        {active && <svg className="w-2 h-2" fill="none" stroke="#000" viewBox="0 0 24 24" strokeWidth={4}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
+                      </span>
+                      {o.label}
+                    </span>
+                    <span className="text-[10px] opacity-70">{o.count}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Active filters chip bar — só renderiza quando há algo */}
+      {advCount > 0 && (
+        <div className="mb-4 flex flex-wrap items-center gap-1.5 text-[11px]">
+          <span className="text-zinc-500 font-medium">Ativos:</span>
+          {filterStock !== 'all' && (
+            <ActiveChip label={`Estoque: ${({ zero: 'Zerado', critical: 'Crítico', normal: 'Normal' } as const)[filterStock]}`} onRemove={() => setFilterStock('all')} />
+          )}
+          {[...filterPlatforms].map(plat => (
+            <ActiveChip key={plat} label={PM[plat]?.abbr ?? plat} onRemove={() => setFilterPlatforms(prev => { const n = new Set(prev); n.delete(plat); return n })} />
+          ))}
+          {(filterPriceMin || filterPriceMax) && (
+            <ActiveChip label={`R$ ${filterPriceMin || '0'} — ${filterPriceMax || '∞'}`} onRemove={() => { setFilterPriceMin(''); setFilterPriceMax('') }} />
+          )}
+          {filterFlags.noCompetitors  && <ActiveChip label="Sem concorrentes"  onRemove={() => setFilterFlags(p => ({ ...p, noCompetitors: false }))} />}
+          {filterFlags.noListings     && <ActiveChip label="Sem vínculo"        onRemove={() => setFilterFlags(p => ({ ...p, noListings: false }))} />}
+          {filterFlags.noCost         && <ActiveChip label="Sem custo"          onRemove={() => setFilterFlags(p => ({ ...p, noCost: false }))} />}
+          {filterFlags.noPhoto        && <ActiveChip label="Sem foto"           onRemove={() => setFilterFlags(p => ({ ...p, noPhoto: false }))} />}
+          {filterFlags.singlePlatform && <ActiveChip label="1 só plataforma"    onRemove={() => setFilterFlags(p => ({ ...p, singlePlatform: false }))} />}
+          <button onClick={clearAdv}
+            className="ml-1 px-2 py-0.5 text-[10px] font-medium rounded transition-colors"
+            style={{ color: '#71717a' }}
+            onMouseEnter={e => { e.currentTarget.style.color = '#f87171' }}
+            onMouseLeave={e => { e.currentTarget.style.color = '#71717a' }}>
+            Limpar tudo
+          </button>
+        </div>
+      )}
 
       {/* Bulk action bar (list/grid view — DataTable view tem seu próprio
           banner integrado dentro de <ProdutosTable>) */}
@@ -1134,7 +1433,7 @@ export default function ProdutosPage() {
         <div className="rounded-2xl border flex flex-col items-center justify-center py-14"
           style={{ background: '#111114', borderColor: '#1e1e24' }}>
           <p className="text-zinc-400 text-sm">Nenhum produto encontrado para <strong className="text-white">&quot;{search}&quot;</strong></p>
-          <button onClick={() => { setSearch(''); setFilter('all') }}
+          <button onClick={() => { setSearch(''); setFilter('all'); clearAdv() }}
             className="mt-3 text-[12px] font-medium" style={{ color: '#00E5FF' }}>
             Limpar filtros
           </button>
