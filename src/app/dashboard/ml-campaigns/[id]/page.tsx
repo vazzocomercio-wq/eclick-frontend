@@ -174,22 +174,51 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
     setTimeout(() => setToast(null), 3500)
   }
 
+  /** Atualiza dados em 2 fases:
+   *  1) Recompute health_status (sincronizo, ~5s) — instantaneamente
+   *     reflete custos/impostos atualizados no catalogo
+   *  2) Sync ML completo (fire-and-forget, 1-3min) — pega novos items
+   *     da campanha + subsidios novos
+   *  Reload imediato apos #1, depois 90s pro #2. */
   async function resync() {
     if (!campaign) return
     setSyncing(true)
     try {
       const t = await getToken()
       const sid = getStoredSellerId() ?? campaign.seller_id
-      const res = await fetch(`${BACKEND}/ml-campaigns/sync?seller_id=${sid}`, {
+
+      // Fase 1: recompute health (rápido, síncrono)
+      const recRes = await fetch(`${BACKEND}/ml-campaigns/sync/recompute-health?seller_id=${sid}`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${t}` },
       })
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({} as { message?: string }))
-        throw new Error(body.message ?? `HTTP ${res.status}`)
+      if (!recRes.ok) {
+        const body = await recRes.json().catch(() => ({} as { message?: string }))
+        throw new Error(body.message ?? `HTTP ${recRes.status}`)
       }
-      showToast('🔄 Sync iniciado em background — aguarde ~1-3min e recarregue', 'success')
-      // Auto-reload após 90s pra pegar resultado novo
+      const rec = await recRes.json() as {
+        total: number; updated: number; moved_to_ready: number;
+        by_status: Record<string, number>; auto_linked?: number;
+      }
+
+      // Fase 2: dispara sync ML em background (não espera)
+      void fetch(`${BACKEND}/ml-campaigns/sync?seller_id=${sid}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${t}` },
+      }).catch(() => { /* ignore */ })
+
+      // Toast informativo (varia conforme houve auto-link ou não)
+      const linkedNote = (rec.auto_linked ?? 0) > 0
+        ? `🔗 ${rec.auto_linked} items linkados a produtos via SKU. `
+        : ''
+      const movedMsg = rec.moved_to_ready > 0
+        ? `✅ ${rec.moved_to_ready} item${rec.moved_to_ready === 1 ? '' : 's'} viraram READY`
+        : `✅ ${rec.updated}/${rec.total} health recalculados`
+      showToast(`${linkedNote}${movedMsg}. Sync ML rodando em background…`, 'success')
+
+      // Reload imediato pra refletir health novo
+      void load()
+      // Reload tardio pra pegar sync ML
       setTimeout(() => { void load() }, 90_000)
     } catch (e) {
       showToast(`❌ ${(e as Error).message}`, 'error')
