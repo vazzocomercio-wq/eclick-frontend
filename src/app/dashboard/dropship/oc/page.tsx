@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import {
-  ArrowLeft, AlertCircle, FileText, RefreshCw, ChevronRight, Eye,
+  ArrowLeft, AlertCircle, FileText, RefreshCw, ChevronRight, Eye, Clock, Lock,
 } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
@@ -129,6 +129,9 @@ export default function OCsListPage() {
         </div>
       )}
 
+      {/* Cutoff banner — fase do dia */}
+      <CutoffBanner />
+
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         <Kpi label="Total OCs" value={total} />
@@ -213,6 +216,101 @@ export default function OCsListPage() {
 }
 
 // ── Components ─────────────────────────────────────────────────────────────────
+
+function CutoffBanner() {
+  // Re-render a cada minuto pro countdown atualizar
+  const [now, setNow] = useState(new Date())
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 60_000)
+    return () => clearInterval(t)
+  }, [])
+
+  const h = now.getHours()
+  const m = now.getMinutes()
+
+  // 12:00 → 21:00 = janela de prévia (editável)
+  // 21:00 → 22:00 = preview locked (admin only)
+  // 22:00 = geração
+  // 22:00 → 12:00 (next day) = depois geração
+
+  let phase: 'before_preview' | 'preview_open' | 'preview_locked' | 'generating'
+  let nextEventLabel: string
+  let nextEventHour: number
+
+  if (h < 12) {
+    phase = 'before_preview'
+    nextEventLabel = 'Prévia abre'
+    nextEventHour = 12
+  } else if (h < 21) {
+    phase = 'preview_open'
+    nextEventLabel = 'Prévia trava'
+    nextEventHour = 21
+  } else if (h < 22) {
+    phase = 'preview_locked'
+    nextEventLabel = 'Geração'
+    nextEventHour = 22
+  } else {
+    phase = 'generating'
+    nextEventLabel = 'Próxima prévia'
+    nextEventHour = 36  // 12:00 next day
+  }
+
+  const minsUntil = nextEventHour < 24
+    ? (nextEventHour - h) * 60 - m
+    : (24 - h + 12) * 60 - m
+
+  const hoursLeft = Math.floor(minsUntil / 60)
+  const minsLeft = minsUntil % 60
+  const countdown = hoursLeft > 0 ? `${hoursLeft}h${String(minsLeft).padStart(2, '0')}min` : `${minsLeft}min`
+
+  const cfg: Record<string, { bg: string; border: string; fg: string; icon: React.ReactNode; title: string }> = {
+    before_preview: {
+      bg: 'rgba(113,113,122,0.05)',
+      border: 'rgba(113,113,122,0.2)',
+      fg: '#a1a1aa',
+      icon: <Clock size={18} />,
+      title: 'Aguardando prévia abrir',
+    },
+    preview_open: {
+      bg: 'rgba(0,229,255,0.05)',
+      border: 'rgba(0,229,255,0.2)',
+      fg: '#00E5FF',
+      icon: <Eye size={18} />,
+      title: 'Prévia aberta — pedidos elegíveis editáveis',
+    },
+    preview_locked: {
+      bg: 'rgba(252,211,77,0.05)',
+      border: 'rgba(252,211,77,0.2)',
+      fg: '#fcd34d',
+      icon: <Lock size={18} />,
+      title: 'Prévia trancada — admin pode liberar',
+    },
+    generating: {
+      bg: 'rgba(34,197,94,0.05)',
+      border: 'rgba(34,197,94,0.2)',
+      fg: '#22c55e',
+      icon: <FileText size={18} />,
+      title: 'OCs do dia geradas',
+    },
+  }
+  const c = cfg[phase]
+
+  return (
+    <div className="rounded-xl p-4 mb-6 flex items-center gap-3" style={{
+      background: c.bg, border: `1px solid ${c.border}`,
+    }}>
+      <span style={{ color: c.fg }}>{c.icon}</span>
+      <div className="flex-1">
+        <p className="text-sm text-white font-medium">{c.title}</p>
+        <p className="text-xs text-zinc-400 mt-0.5">
+          {nextEventLabel} em <strong style={{ color: c.fg }}>{countdown}</strong>
+          {' · '}
+          12h abre · 21h trava · 22h gera
+        </p>
+      </div>
+    </div>
+  )
+}
 
 function Kpi({ label, value, accent }: { label: string; value: string | number; accent?: string }) {
   return (

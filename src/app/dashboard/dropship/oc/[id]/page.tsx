@@ -3,10 +3,11 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import * as XLSX from 'xlsx'
 import { createClient } from '@/lib/supabase'
 import {
-  ArrowLeft, AlertCircle, Calendar, Hash, Building2, FileText,
-  Ban, ExternalLink, Package,
+  ArrowLeft, AlertCircle, Calendar, Building2, FileText,
+  Ban, Package, Download,
 } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
@@ -120,6 +121,82 @@ export default function OCDetailPage() {
     } finally { setCancelling(false) }
   }
 
+  function downloadExcel() {
+    if (!oc) return
+    // 1. Aba "OC" — cabeçalho da ordem
+    const summary = [
+      ['ORDEM DE COMPRA DROPSHIP'],
+      [],
+      ['Número', oc.oc_number],
+      ['Parceiro', oc.suppliers?.name ?? '—'],
+      ['CNPJ', oc.suppliers?.tax_id ?? '—'],
+      ['Razão Social', oc.suppliers?.legal_name ?? '—'],
+      [],
+      ['Marketplace', oc.marketplace],
+      ['Conta', oc.marketplace_account_label ?? '—'],
+      [],
+      ['Data Referência', fmtDate(oc.reference_date)],
+      ['Geração', fmtDateTime(oc.generation_date)],
+      ['Vencimento', fmtDate(oc.due_date)],
+      ['Prazo Pagamento', oc.suppliers?.payment_terms ? `${oc.suppliers.payment_terms} dias` : '—'],
+      ['Método Pagamento', oc.suppliers?.payment_method ?? '—'],
+      [],
+      ['Itens', oc.items_count],
+      ['Unidades', oc.units_count],
+      ['Bruto', oc.gross_total],
+      ['Devoluções', -oc.return_credits],
+      ['Cancelamentos', -oc.cancellation_credits],
+      ['Garantias', -oc.warranty_credits],
+      ['Divergências', -oc.divergence_credits],
+      ['Outros', -oc.other_credits],
+      ['Total Créditos', -oc.total_credits],
+      ['LÍQUIDO', oc.net_total],
+      [],
+      ['Status', oc.status],
+    ]
+    const summarySheet = XLSX.utils.aoa_to_sheet(summary)
+    summarySheet['!cols'] = [{ wch: 25 }, { wch: 50 }]
+
+    // 2. Aba "Itens" — tabela de produtos
+    const itemHeaders = [
+      'SKU Parceiro', 'Master SKU', 'Produto', 'Variação',
+      'Marketplace', 'Pedido ML', 'Pack ID',
+      'Qtd', 'Custo Unit.', 'Embalagem', 'Manuseio', 'Total Linha',
+      'Data Venda', 'Data Envio', 'Status',
+    ]
+    const itemRows = oc.items.map(it => [
+      it.partner_sku,
+      it.master_sku ?? '',
+      it.product_name,
+      it.variation_label ?? '',
+      it.marketplace,
+      it.ml_order_id ?? '',
+      it.ml_pack_id ?? '',
+      it.quantity,
+      Number(it.unit_cost),
+      Number(it.packaging_cost),
+      Number(it.handling_cost),
+      Number(it.line_total),
+      fmtDate(it.sale_date),
+      it.shipped_at ? fmtDate(it.shipped_at) : '',
+      it.status,
+    ])
+    const itemsSheet = XLSX.utils.aoa_to_sheet([itemHeaders, ...itemRows])
+    itemsSheet['!cols'] = [
+      { wch: 18 }, { wch: 18 }, { wch: 40 }, { wch: 15 },
+      { wch: 15 }, { wch: 18 }, { wch: 15 },
+      { wch: 6 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 12 },
+      { wch: 12 }, { wch: 12 }, { wch: 12 },
+    ]
+
+    // Compose workbook
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, summarySheet, 'OC')
+    XLSX.utils.book_append_sheet(wb, itemsSheet, 'Itens')
+
+    XLSX.writeFile(wb, `${oc.oc_number}.xlsx`)
+  }
+
   if (loading) return <div className="min-h-screen p-6 text-zinc-500" style={{ background: 'var(--background)' }}>Carregando...</div>
   if (!oc) {
     return (
@@ -152,16 +229,19 @@ export default function OCDetailPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={downloadExcel}
+            className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors hover:bg-[#1a1a1f]"
+            style={{ border: '1px solid #27272a', color: '#a1a1aa' }}
+            title="Download XLSX"
+          >
+            <Download size={14} />
+            Excel
+          </button>
           {oc.pdf_url && (
             <a href={oc.pdf_url} target="_blank" rel="noopener" className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg" style={{ border: '1px solid #27272a', color: '#a1a1aa' }}>
               <FileText size={14} />
               PDF
-            </a>
-          )}
-          {oc.excel_url && (
-            <a href={oc.excel_url} target="_blank" rel="noopener" className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg" style={{ border: '1px solid #27272a', color: '#a1a1aa' }}>
-              <FileText size={14} />
-              Excel
             </a>
           )}
           {canCancel && (
@@ -310,12 +390,19 @@ export default function OCDetailPage() {
           Em breve
         </span>
         <p className="text-sm text-zinc-300">
-          Portal do parceiro com aprovação por token + envio automático de e-mail/WhatsApp chega no Sprint 6.
-          PDF/Excel da OC chega no Sprint 5.
+          Portal do parceiro com aprovação por token + envio automático de e-mail/WhatsApp + PDF
+          chegam no Sprint 6. Por enquanto use o download Excel acima pra enviar manualmente.
         </p>
       </div>
     </div>
   )
+}
+
+function fmtDateTime(d: string) {
+  return new Date(d).toLocaleString('pt-BR', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  })
 }
 
 // ── Components ─────────────────────────────────────────────────────────────────
