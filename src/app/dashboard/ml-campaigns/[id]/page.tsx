@@ -408,9 +408,11 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
           {campaign.candidate_count === 0 && campaign.started_count === 0 && (
             <p className="text-[11px] text-amber-300 mt-2">Nenhum item candidato — clique "Atualizar dados" pra sincronizar com ML.</p>
           )}
-          {campaign.candidate_count > 0 && items.some(i => i.health_status && i.health_status !== 'ready') && (
+          {campaign.candidate_count > 0 && items.some(i => i.health_status && !['ready','missing_shipping'].includes(i.health_status)) && (
             <p className="text-[11px] text-amber-300 mt-2">
-              ⚠ Items <strong>INCOMPLETE</strong>: a IA pula esses até você cadastrar custo + imposto no produto interno e rodar <strong>"Atualizar dados"</strong>.
+              ⚠ Items com badges <strong className="text-red-400">vermelhos</strong> (Sem custo / Sem imposto / Sem vínculo): IA bloqueia.
+              Vincule em <Link href="/dashboard/catalogo/vinculos" className="underline text-cyan-300">/catalogo/vinculos</Link> ou cadastre custo nos produtos, depois clique <strong>"Atualizar dados"</strong>.
+              <br/>Items <strong className="text-amber-300">"Sem dimensões"</strong> a IA processa normalmente (ML calcula frete).
             </p>
           )}
         </div>
@@ -546,12 +548,48 @@ function ItemRow({ item, campaignId, recoId, onOpenEditor, onLeave, leaving, gen
 
   const isStarted    = item.status === 'started'
   const isCandidate  = item.status === 'candidate'
-  const isIncomplete = item.health_status && item.health_status !== 'ready'
+
+  // Badge específico por health_status. missing_shipping NÃO bloqueia
+  // a IA (frete calculado pelo ML), então fica amarelo informativo.
+  // Os outros são vermelhos porque IA pula esses items.
+  const healthBadge = (() => {
+    const h = item.health_status
+    if (!h || h === 'ready') return null
+    if (h === 'missing_shipping') return { label: 'Sem dimensões', color: '#fbbf24', tip: 'Sem dimensões cadastradas. IA processa mesmo assim — ML calcula frete.' }
+    if (h === 'missing_cost')     return { label: 'Sem custo',     color: '#ef4444', tip: 'Custo não cadastrado no produto interno. IA bloqueia até preencher.' }
+    if (h === 'missing_tax')      return { label: 'Sem imposto',   color: '#ef4444', tip: 'Imposto não cadastrado no produto interno. IA bloqueia até preencher.' }
+    // 'incomplete' — sem produto interno OU produto não encontrado
+    return { label: 'Sem vínculo', color: '#ef4444', tip: 'Anúncio não vinculado a produto interno. Vincule em /catalogo/vinculos.' }
+  })()
 
   const permalink = item.permalink ?? `https://www.mercadolivre.com.br/${item.ml_item_id}`
 
+  // Linha inteira clicável quando candidato — chama mesmo handler do botão.
+  // Cliques em filhos com stopPropagation (links, copy, sair) não disparam.
+  const rowClickable = isCandidate
+  const handleRowClick = (e: React.MouseEvent) => {
+    if (!rowClickable || generating) return
+    // Se clique foi em link/button/input, deixa o handler nativo
+    const target = e.target as HTMLElement
+    if (target.closest('a, button, input')) return
+    onOpenEditor()
+  }
+
   return (
-    <div className="rounded-lg p-3" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
+    <div
+      className="rounded-lg p-3 transition-all"
+      style={{
+        background: '#0c0c10',
+        border: '1px solid #1a1a1f',
+        cursor: rowClickable ? 'pointer' : 'default',
+      }}
+      onMouseEnter={e => { if (rowClickable) e.currentTarget.style.borderColor = 'rgba(0,229,255,0.35)' }}
+      onMouseLeave={e => { if (rowClickable) e.currentTarget.style.borderColor = '#1a1a1f' }}
+      onClick={handleRowClick}
+      role={rowClickable ? 'button' : undefined}
+      tabIndex={rowClickable ? 0 : undefined}
+      onKeyDown={(e) => { if (rowClickable && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onOpenEditor() } }}
+      title={rowClickable ? 'Clique pra definir preço e participar' : undefined}>
       <div className="flex items-start gap-3 flex-wrap">
         {/* Thumbnail */}
         <a href={permalink} target="_blank" rel="noreferrer"
@@ -646,13 +684,17 @@ function ItemRow({ item, campaignId, recoId, onOpenEditor, onLeave, leaving, gen
           </div>
         )}
 
-        {/* Health warning (compact) */}
-        {isIncomplete && (
+        {/* Health warning (compact) — diferenciado por tipo */}
+        {healthBadge && (
           <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wider"
-            style={{ background: 'rgba(251,191,36,0.1)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.3)' }}
-            title="Faltam dados (custo, margem, etc) — sync precisa enriquecer esse item">
+            style={{
+              background: `${healthBadge.color}1a`,
+              color:      healthBadge.color,
+              border:     `1px solid ${healthBadge.color}55`,
+            }}
+            title={healthBadge.tip}>
             <AlertTriangle size={9} />
-            INCOMPLETE
+            {healthBadge.label}
           </span>
         )}
 
