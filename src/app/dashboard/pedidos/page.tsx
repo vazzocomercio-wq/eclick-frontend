@@ -2099,6 +2099,29 @@ export default function PedidosPage() {
       })
   }, [supabase])
 
+  // Source #2: products com ml_listing_id direto (mesma fonte que o
+  // dashboard usa pra contar "X pedidos sem custo"). Sem isso o filtro
+  // 'Sem custo' sub-conta porque ignora produtos vinculados via sync
+  // automático (não pela UI manual de /catalogo/vinculos).
+  const [produtosPorMlListingId, setProdutosPorMlListingId] = useState<Record<string, Array<{ cost_price: number | null; tax_percentage: number | null }>>>({})
+  useEffect(() => {
+    supabase
+      .from('products')
+      .select('ml_listing_id, cost_price, tax_percentage')
+      .not('ml_listing_id', 'is', null)
+      .limit(10000)
+      .then(({ data, error }) => {
+        if (error) { console.error('[pedidos] erro query products by ml_listing_id:', error); return }
+        const map: Record<string, Array<{ cost_price: number | null; tax_percentage: number | null }>> = {}
+        for (const p of (data ?? []) as Array<{ ml_listing_id: string; cost_price: number | null; tax_percentage: number | null }>) {
+          if (!p.ml_listing_id) continue
+          if (!map[p.ml_listing_id]) map[p.ml_listing_id] = []
+          map[p.ml_listing_id].push({ cost_price: p.cost_price, tax_percentage: p.tax_percentage })
+        }
+        setProdutosPorMlListingId(map)
+      })
+  }, [supabase])
+
   // Catálogo: products com SKU preenchido — pra detectar matching com
   // anúncios não-vinculados e habilitar botão "Vincular".
   // Mapa SKU normalizado → ARRAY de produtos (pode haver mais de 1 com
@@ -2366,13 +2389,24 @@ export default function PedidosPage() {
       if (min != null && o.total_amount < min) return false
       if (max != null && o.total_amount > max) return false
 
-      // Sem vínculo / sem custo (via vinculosPorListing já existente)
+      // Sem vínculo / sem custo — considera AMBAS fontes pra alinhar com
+      // o "X pedidos sem custo" do dashboard (que usa products.ml_listing_id).
       const oi = o.order_items[0]
       const itemId = oi?.item_id ?? oi?.item?.id ?? null
       const vinculos = itemId ? (vinculosPorListing[itemId] ?? []) : []
-      const cost = vinculos[0]?.product?.cost_price ?? null
-      if (filterFlags.noLink && vinculos.length > 0) return false
-      if (filterFlags.noCost && (cost ?? 0) > 0)     return false
+      // Source 1: vínculo manual via product_listings
+      const linkedCost = vinculos[0]?.product?.cost_price     ?? 0
+      const linkedTax  = vinculos[0]?.product?.tax_percentage ?? 0
+      // Source 2: produtos com ml_listing_id direto (sync ML)
+      const directProds = itemId ? (produtosPorMlListingId[itemId] ?? []) : []
+      const directCost  = directProds.reduce((s, p) => s + (p.cost_price ?? 0), 0)
+      const directTax   = directProds[0]?.tax_percentage ?? 0
+      // Tem dados de custo se qualquer fonte preenche
+      const hasCostData = (linkedCost > 0) || (linkedTax > 0) || (directCost > 0) || (directTax > 0)
+      const isLinked    = vinculos.length > 0 || directProds.length > 0
+
+      if (filterFlags.noLink && isLinked)    return false
+      if (filterFlags.noCost && hasCostData) return false
 
       // Sem campanha ativa
       if (filterFlags.noCampaign && itemId && adItems.has(itemId)) return false
@@ -2389,7 +2423,7 @@ export default function PedidosPage() {
 
       return true
     })
-  }, [orders, tab, filterUFs, filterPeriod, filterValueMin, filterValueMax, filterFlags, vinculosPorListing, adItems, buyerCounts])
+  }, [orders, tab, filterUFs, filterPeriod, filterValueMin, filterValueMax, filterFlags, vinculosPorListing, produtosPorMlListingId, adItems, buyerCounts])
 
   // Lista de UFs disponíveis no recorte atual (das que aparecem em pelo menos 1 pedido)
   const availableUFs = useMemo(() => {
@@ -2406,12 +2440,23 @@ export default function PedidosPage() {
   const flagCounts = useMemo(() => ({
     noLink:     tabOrders.filter(o => {
       const id = o.order_items[0]?.item_id ?? o.order_items[0]?.item?.id ?? null
-      return id ? (vinculosPorListing[id] ?? []).length === 0 : false
+      if (!id) return false
+      // Sem vínculo em NENHUMA das 2 fontes
+      const hasManual = (vinculosPorListing[id] ?? []).length > 0
+      const hasDirect = (produtosPorMlListingId[id] ?? []).length > 0
+      return !hasManual && !hasDirect
     }).length,
     noCost:     tabOrders.filter(o => {
       const id = o.order_items[0]?.item_id ?? o.order_items[0]?.item?.id ?? null
-      const v = id ? (vinculosPorListing[id] ?? []) : []
-      return v.length > 0 && (v[0]?.product?.cost_price ?? 0) === 0
+      if (!id) return false
+      const v = vinculosPorListing[id] ?? []
+      const linkedCost = v[0]?.product?.cost_price     ?? 0
+      const linkedTax  = v[0]?.product?.tax_percentage ?? 0
+      const direct     = produtosPorMlListingId[id] ?? []
+      const directCost = direct.reduce((s, p) => s + (p.cost_price ?? 0), 0)
+      const directTax  = direct[0]?.tax_percentage ?? 0
+      // Sem custo se nenhuma fonte tem cost ou tax
+      return !(linkedCost > 0 || linkedTax > 0 || directCost > 0 || directTax > 0)
     }).length,
     noCampaign: tabOrders.filter(o => {
       const id = o.order_items[0]?.item_id ?? o.order_items[0]?.item?.id ?? null
@@ -2422,7 +2467,7 @@ export default function PedidosPage() {
       const id = String(o.buyer.id ?? o.buyer.nickname ?? '')
       return id && (buyerCounts[id] ?? 1) >= 2
     }).length,
-  }), [tabOrders, vinculosPorListing, adItems, buyerCounts])
+  }), [tabOrders, vinculosPorListing, produtosPorMlListingId, adItems, buyerCounts])
 
   const advCount =
     (filterUFs.size > 0 ? 1 : 0) +
