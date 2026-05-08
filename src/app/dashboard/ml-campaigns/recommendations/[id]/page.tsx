@@ -133,7 +133,28 @@ export default function RecoDetailPage({ params }: { params: Promise<{ id: strin
         headers: { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
-      if (!r.ok) throw new Error(`HTTP ${r.status}`)
+      if (!r.ok) {
+        const errBody = await r.json().catch(() => ({} as { message?: string }))
+        throw new Error(errBody.message ?? `HTTP ${r.status}`)
+      }
+      const result = await r.json() as {
+        gate_triggered?:        boolean
+        attempted_margin_pct?:  number
+        threshold_pct?:         number
+        recent_attempts_count?: number
+        audit_threshold?:       number
+      }
+      if (result.gate_triggered) {
+        // Margem abaixo — foi pra fila do gestor
+        const m = result.attempted_margin_pct?.toFixed(1) ?? '?'
+        const t = result.threshold_pct?.toFixed(1) ?? '?'
+        let extra = ''
+        if (result.recent_attempts_count != null && result.audit_threshold != null
+            && result.recent_attempts_count > result.audit_threshold) {
+          extra = `\n\n⚠ ATENÇÃO: você teve ${result.recent_attempts_count} tentativas abaixo do limite nos últimos 30 dias (limite ${result.audit_threshold}). O gestor foi notificado.`
+        }
+        alert(`📋 Enviado pra fila do gestor.\n\nMargem ${m}% < ${t}% (limite). O gestor vai revisar e decidir aprovar ou rejeitar.${extra}`)
+      }
       router.push('/dashboard/ml-campaigns/recommendations')
     } catch (e) {
       setError((e as Error).message)

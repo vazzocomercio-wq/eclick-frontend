@@ -127,6 +127,7 @@ const SECTIONS: NavSection[] = [
           { label: 'Dashboard',         href: '/dashboard/ml-campaigns' },
           { label: 'Campanhas',         href: '/dashboard/ml-campaigns/list' },
           { label: 'Recomendações IA',  href: '/dashboard/ml-campaigns/recommendations' },
+          { label: 'Fila do gestor',    href: '/dashboard/ml-campaigns/manager-queue' },
           { label: 'Aplicar em lote',   href: '/dashboard/ml-campaigns/apply' },
           { label: 'Encerrando',        href: '/dashboard/ml-campaigns/deadlines' },
           { label: 'Health check',      href: '/dashboard/ml-campaigns/health' },

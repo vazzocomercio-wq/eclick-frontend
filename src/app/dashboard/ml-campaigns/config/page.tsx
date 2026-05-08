@@ -26,6 +26,18 @@ interface Config {
   daily_analysis_enabled:       boolean
   auto_approve_enabled:         boolean
   auto_approve_score_above:     number
+  // M1 — operação humana + soft gate
+  assignee_user_id:                  string | null
+  notification_phone:                string | null
+  manager_user_id:                   string | null
+  manager_whatsapp_phone:            string | null
+  min_approval_margin_pct:           number
+  per_campaign_type_overrides:       Record<string, number>
+  deadline_alert_days_before:        number
+  whatsapp_alerts_enabled:           boolean
+  escalate_alerts:                   boolean
+  auto_alert_when_subsidy_above_pct: number
+  audit_attempts_threshold:          number
 }
 
 interface AiUsage {
@@ -163,13 +175,64 @@ export default function ConfigPage() {
           )}
 
           {/* Margem */}
-          <Section title="Regras de margem">
+          <Section title="Regras de margem (motor de decisão)">
             <NumField  label="Margem mínima aceitável (%)"  hint="Abaixo disso, recomendação vira 'skip'"
               value={cfg.min_acceptable_margin_pct} onChange={v => update('min_acceptable_margin_pct', v)} />
             <NumField  label="Margem alvo (%)"               hint="Cenário 'conservador' protege essa margem"
               value={cfg.target_margin_pct} onChange={v => update('target_margin_pct', v)} />
             <NumField  label="Margem mínima pra liquidação (%)" hint="Cenário 'agressivo' usa esse piso"
               value={cfg.clearance_min_margin_pct} onChange={v => update('clearance_min_margin_pct', v)} />
+          </Section>
+
+          {/* M1 — Soft gate de aprovação */}
+          <Section title="Soft gate de aprovação (margem mínima pra operador)">
+            <p className="text-[11px] text-zinc-500 -mt-1">
+              Quando o operador tenta aprovar uma recomendação com margem abaixo do limite, ela vai pra fila do gestor pra liberação.
+              Tudo é registrado em audit log.
+            </p>
+            <NumField label="Margem mínima pra aprovação direta (%)" step={0.5}
+              hint="Acima desse %, operador aprova direto. Abaixo, vai pra fila do gestor."
+              value={cfg.min_approval_margin_pct} onChange={v => update('min_approval_margin_pct', v)} />
+            <PerTypeOverrides
+              value={cfg.per_campaign_type_overrides ?? {}}
+              defaultValue={cfg.min_approval_margin_pct}
+              onChange={v => update('per_campaign_type_overrides', v)} />
+            <NumField label="Tentativas suspeitas (alerta gestor em 30d)"
+              hint="Se operador tentar aprovar abaixo do limite X+ vezes em 30 dias, gestor recebe alerta."
+              value={cfg.audit_attempts_threshold} onChange={v => update('audit_attempts_threshold', v)} />
+          </Section>
+
+          {/* M1 — Responsáveis (operador + gestor) */}
+          <Section title="Responsáveis e canais de notificação">
+            <p className="text-[11px] text-zinc-500 -mt-1">
+              Quem recebe alertas de deadline + a quem alertar quando operador tenta aprovar abaixo do limite.
+            </p>
+            <TextField label="WhatsApp do operador (formato +5511...)"
+              hint="Recebe alertas de deadline. Pode ser de quem não tem login no sistema."
+              value={cfg.notification_phone ?? ''} onChange={v => update('notification_phone', v || null)} />
+            <TextField label="WhatsApp do gestor"
+              hint="Recebe alertas de fila pendente + tentativas suspeitas. Independe de login."
+              value={cfg.manager_whatsapp_phone ?? ''} onChange={v => update('manager_whatsapp_phone', v || null)} />
+            <TextField label="ID do operador no sistema (uuid)" hint="Opcional — usado pra rastreio de auditoria"
+              value={cfg.assignee_user_id ?? ''} onChange={v => update('assignee_user_id', v || null)} />
+            <TextField label="ID do gestor no sistema (uuid)" hint="Opcional — quem pode aprovar override no painel da fila"
+              value={cfg.manager_user_id ?? ''} onChange={v => update('manager_user_id', v || null)} />
+          </Section>
+
+          {/* M1 — Alertas */}
+          <Section title="Alertas de campanha (WhatsApp)">
+            <BoolField label="Ativar alertas via WhatsApp"
+              hint="Sem isso, sistema apenas registra in-app sem notificar."
+              value={cfg.whatsapp_alerts_enabled} onChange={v => update('whatsapp_alerts_enabled', v)} />
+            <NumField label="Avisar X dias antes do deadline"
+              hint="Inicia o ciclo de alertas. Default 2."
+              value={cfg.deadline_alert_days_before} onChange={v => update('deadline_alert_days_before', v)} />
+            <BoolField label="Escalar urgência conforme aproxima"
+              hint="D-2 medium · D-1 high · D-0 critical. Para de avisar quando você aprovar/rejeitar tudo."
+              value={cfg.escalate_alerts} onChange={v => update('escalate_alerts', v)} />
+            <NumField label="Alerta proativo de oportunidade — subsídio ML acima de (%)" step={0.5}
+              hint="Quando ML oferece subsídio alto numa campanha, dispara 'oportunidade rara'. 0 desliga."
+              value={cfg.auto_alert_when_subsidy_above_pct} onChange={v => update('auto_alert_when_subsidy_above_pct', v)} />
           </Section>
 
           {/* Estoque */}
@@ -275,6 +338,64 @@ function BoolField({ label, value, onChange, hint }: {
         {label}
       </label>
       {hint && <p className="text-[10px] text-zinc-500 mt-0.5 ml-6">{hint}</p>}
+    </div>
+  )
+}
+
+function TextField({ label, value, onChange, hint, placeholder }: {
+  label: string; value: string; onChange: (v: string) => void; hint?: string; placeholder?: string
+}) {
+  return (
+    <div>
+      <label className="block text-xs text-zinc-300 mb-1">{label}</label>
+      <input type="text" value={value} placeholder={placeholder}
+        onChange={e => onChange(e.target.value)}
+        className="w-full rounded px-2 py-1.5 text-sm outline-none"
+        style={{ background: '#09090b', border: '1px solid #27272a', color: '#fafafa' }} />
+      {hint && <p className="text-[10px] text-zinc-500 mt-1">{hint}</p>}
+    </div>
+  )
+}
+
+/** Editor pra `per_campaign_type_overrides`. Mostra os tipos comuns de
+ *  campanha ML e deixa user definir margem mínima específica por tipo,
+ *  sobrepondo o global `min_approval_margin_pct`. */
+function PerTypeOverrides({ value, defaultValue, onChange }: {
+  value: Record<string, number>
+  defaultValue: number
+  onChange: (v: Record<string, number>) => void
+}) {
+  const KNOWN_TYPES = [
+    { key: 'DEAL',                 label: 'DEAL — relâmpago' },
+    { key: 'PRICE_DISCOUNT',       label: 'PRICE_DISCOUNT — desconto direto' },
+    { key: 'LIGHTNING',            label: 'LIGHTNING — relâmpago do dia' },
+    { key: 'DOD',                  label: 'DOD — Deal of the Day' },
+    { key: 'MARKETPLACE_CAMPAIGN', label: 'MARKETPLACE_CAMPAIGN — patrocinada ML' },
+    { key: 'PRE_NEGOTIATED',       label: 'PRE_NEGOTIATED — pré-negociada' },
+  ]
+  return (
+    <div>
+      <label className="block text-xs text-zinc-300 mb-1">Override por tipo de campanha (%)</label>
+      <p className="text-[10px] text-zinc-500 mb-2">
+        Cada tipo pode ter um piso diferente. Vazio usa o global ({defaultValue}%).
+      </p>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+        {KNOWN_TYPES.map(t => (
+          <div key={t.key} className="flex items-center gap-2">
+            <span className="text-[10px] text-zinc-400 flex-1 truncate">{t.label}</span>
+            <input type="number" step={0.5} placeholder={`${defaultValue}`}
+              value={value[t.key] ?? ''}
+              onChange={e => {
+                const next = { ...value }
+                if (e.target.value === '') delete next[t.key]
+                else next[t.key] = Number(e.target.value)
+                onChange(next)
+              }}
+              className="w-20 rounded px-2 py-1 text-xs outline-none"
+              style={{ background: '#09090b', border: '1px solid #27272a', color: '#fafafa' }} />
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
