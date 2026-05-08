@@ -394,6 +394,46 @@ function Pagination({ page, total, pageSize, onChange }: {
   )
 }
 
+// ── Active filter chip + flag toggle button ──────────────────────────────────
+
+function ChipX({ label, onRemove }: { label: string; onRemove: () => void }) {
+  return (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border"
+      style={{ background: 'rgba(0,229,255,0.06)', borderColor: 'rgba(0,229,255,0.25)', color: '#67e8f9' }}>
+      {label}
+      <button onClick={onRemove} className="hover:text-white transition-colors -mr-0.5"
+        aria-label={`Remover filtro ${label}`}>
+        <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </span>
+  )
+}
+
+function FlagBtn({ label, active, onClick, count, accent }: {
+  label: string; active: boolean; onClick: () => void; count: number; accent: string
+}) {
+  return (
+    <button onClick={onClick}
+      className="flex items-center justify-between px-2 py-1 rounded-md text-[11px] font-medium border transition-all"
+      style={{
+        background: active ? `${accent}14` : 'transparent',
+        borderColor: active ? accent : '#27272a',
+        color: active ? accent : '#a1a1aa',
+      }}>
+      <span className="flex items-center gap-1.5">
+        <span className="w-3 h-3 rounded border flex items-center justify-center"
+          style={{ borderColor: active ? accent : '#3f3f46', background: active ? accent : 'transparent' }}>
+          {active && <svg className="w-2 h-2" fill="none" stroke="#000" viewBox="0 0 24 24" strokeWidth={4}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
+        </span>
+        {label}
+      </span>
+      <span className="text-[10px] opacity-70">{count}</span>
+    </button>
+  )
+}
+
 // ── Main page ──────────────────────────────────────────────────────────────
 
 export default function Page() {
@@ -419,6 +459,20 @@ export default function Page() {
   // Filter state
   const [filterFree, setFilterFree]   = useState(false)
   const [filterVars, setFilterVars]   = useState(false)
+  const [filterListingType, setFilterListingType] = useState<'all' | 'premium' | 'gold' | 'classic'>('all')
+  const [filterLogistic, setFilterLogistic] = useState<'all' | 'fulfillment' | 'cross_docking' | 'self_service' | 'drop_off'>('all')
+  const [filterFlags, setFilterFlags] = useState({
+    promo:        false,  // original_price > price
+    noLink:       false,  // sem product associado em product_listings
+    noCost:       false,  // product associado tem cost_price null/0
+    noPhoto:      false,  // pictures_count === 0
+    zeroStockActive: false, // available_quantity === 0 e status === 'active'
+    noCampaign:   false,  // não está em ml_ads_campaigns active
+  })
+  // Mapas pra filtros: ml_listing_id → cost_price (null se não vinculado, 0 se sem custo)
+  // e Set<ml_listing_id> de itens em campanha ativa.
+  const [linkMap,     setLinkMap]     = useState<Record<string, number | null>>({}) // listing_id → cost_price (undefined se sem vínculo)
+  const [adItems,     setAdItems]     = useState<Set<string>>(new Set())
 
   function toast(msg: string, type: Toast['type'] = 'info') {
     const id = ++toastId.current
@@ -487,6 +541,39 @@ export default function Page() {
   useEffect(() => { loadVisits(); loadCounts() }, [loadVisits, loadCounts])
   useEffect(() => { loadListings(tab, page) }, [tab, page, loadListings])
 
+  // ── Supplementary fetches pros filtros avançados ─────────────────────────
+  // 1. linkMap: listing_id → cost_price (chave existe = vinculado; valor null/0 = sem custo)
+  // 2. adItems: Set<listing_id> que estão em alguma campanha ML Ads active
+  useEffect(() => {
+    if (listings.length === 0) return
+    const ids = listings.map(l => l.id)
+    ;(async () => {
+      const [linksRes, campsRes] = await Promise.all([
+        supabase
+          .from('product_listings')
+          .select('listing_id, product:products(cost_price)')
+          .in('listing_id', ids)
+          .eq('platform', 'mercadolivre'),
+        supabase
+          .from('ml_ads_campaigns')
+          .select('items')
+          .eq('status', 'active'),
+      ])
+      const map: Record<string, number | null> = {}
+      type LinkRow = { listing_id: string; product: { cost_price: number | null } | { cost_price: number | null }[] | null }
+      for (const r of (linksRes.data ?? []) as LinkRow[]) {
+        const prod = Array.isArray(r.product) ? r.product[0] : r.product
+        map[r.listing_id] = prod?.cost_price ?? null
+      }
+      const inCamps = new Set<string>()
+      for (const c of (campsRes.data ?? []) as Array<{ items: string[] | null }>) {
+        for (const it of c.items ?? []) inCamps.add(it)
+      }
+      setLinkMap(map)
+      setAdItems(inCamps)
+    })()
+  }, [listings, supabase])
+
   // ── Tab change ────────────────────────────────────────────────────────────
 
   function handleTab(t: Tab) { setTab(t); setPage(0); setSelectedIds(new Set()) }
@@ -536,9 +623,37 @@ export default function Page() {
     if (tab === 'full')    list = list.filter(l => l.logistic_type === 'fulfillment')
     if (tab === 'catalog') list = list.filter(l => l.catalog_listing)
 
-    // Advanced filters
+    // Advanced filters originais
     if (filterFree) list = list.filter(l => l.free_shipping)
     if (filterVars) list = list.filter(l => l.has_variations)
+
+    // Tipo de listagem
+    if (filterListingType !== 'all') {
+      list = list.filter(l => {
+        if (filterListingType === 'premium') return l.listing_type_id === 'gold_pro' || l.listing_type_id === 'gold_premium'
+        if (filterListingType === 'gold')    return l.listing_type_id === 'gold_special'
+        if (filterListingType === 'classic') return !l.listing_type_id?.startsWith('gold')
+        return true
+      })
+    }
+
+    // Tipo logístico
+    if (filterLogistic !== 'all') {
+      list = list.filter(l => l.logistic_type === filterLogistic)
+    }
+
+    // Em promoção: original_price > price (descontado)
+    if (filterFlags.promo)        list = list.filter(l => l.original_price != null && l.original_price > l.price)
+    // Sem vínculo: listing.id NÃO está em linkMap
+    if (filterFlags.noLink)       list = list.filter(l => !(l.id in linkMap))
+    // Sem custo: vinculado mas cost_price null/0
+    if (filterFlags.noCost)       list = list.filter(l => (l.id in linkMap) && !(linkMap[l.id] && linkMap[l.id]! > 0))
+    // Sem foto
+    if (filterFlags.noPhoto)      list = list.filter(l => l.pictures_count === 0)
+    // Estoque zerado mas ativo
+    if (filterFlags.zeroStockActive) list = list.filter(l => l.available_quantity === 0 && l.status === 'active')
+    // Sem campanha ativa
+    if (filterFlags.noCampaign)   list = list.filter(l => !adItems.has(l.id))
 
     // Search
     const q = search.trim().toLowerCase()
@@ -550,7 +665,29 @@ export default function Page() {
       })
     }
     return list
-  }, [listings, tab, filterFree, filterVars, search, searchType])
+  }, [listings, tab, filterFree, filterVars, filterListingType, filterLogistic, filterFlags, linkMap, adItems, search, searchType])
+
+  // Contadores pra mostrar ao lado de cada flag (só na fatia atual de listings carregada)
+  const flagCounts = useMemo(() => ({
+    promo:        listings.filter(l => l.original_price != null && l.original_price > l.price).length,
+    noLink:       listings.filter(l => !(l.id in linkMap)).length,
+    noCost:       listings.filter(l => (l.id in linkMap) && !(linkMap[l.id] && linkMap[l.id]! > 0)).length,
+    noPhoto:      listings.filter(l => l.pictures_count === 0).length,
+    zeroStockActive: listings.filter(l => l.available_quantity === 0 && l.status === 'active').length,
+    noCampaign:   listings.filter(l => !adItems.has(l.id)).length,
+  }), [listings, linkMap, adItems])
+
+  const advCount =
+    (filterListingType !== 'all' ? 1 : 0) +
+    (filterLogistic !== 'all' ? 1 : 0) +
+    (filterFree ? 1 : 0) + (filterVars ? 1 : 0) +
+    Object.values(filterFlags).filter(Boolean).length
+
+  function clearAdv() {
+    setFilterFree(false); setFilterVars(false)
+    setFilterListingType('all'); setFilterLogistic('all')
+    setFilterFlags({ promo: false, noLink: false, noCost: false, noPhoto: false, zeroStockActive: false, noCampaign: false })
+  }
 
   // ── Visit stats derived ───────────────────────────────────────────────────
 
@@ -714,33 +851,121 @@ export default function Page() {
             <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
           </svg>
           Filtros avancados
-          {(filterFree || filterVars) && (
+          {advCount > 0 && (
             <span className="px-1.5 py-0.5 rounded-full text-xs"
               style={{ background: '#00E5FF22', color: '#00E5FF' }}>
-              {[filterFree, filterVars].filter(Boolean).length} ativo{[filterFree, filterVars].filter(Boolean).length > 1 ? 's' : ''}
+              {advCount} ativo{advCount > 1 ? 's' : ''}
             </span>
           )}
         </button>
 
         {showFilters && (
-          <div className="flex flex-wrap gap-4 p-4 rounded-xl mb-4"
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 p-4 rounded-xl mb-4"
             style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
-            <label className="flex items-center gap-2 text-sm text-zinc-300 cursor-pointer">
-              <input type="checkbox" checked={filterFree} onChange={e => setFilterFree(e.target.checked)}
-                className="w-4 h-4 rounded accent-cyan-400" />
-              Frete gratis
-            </label>
-            <label className="flex items-center gap-2 text-sm text-zinc-300 cursor-pointer">
-              <input type="checkbox" checked={filterVars} onChange={e => setFilterVars(e.target.checked)}
-                className="w-4 h-4 rounded accent-cyan-400" />
-              Tem variacoes
-            </label>
-            {(filterFree || filterVars) && (
-              <button onClick={() => { setFilterFree(false); setFilterVars(false) }}
-                className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">
-                Limpar filtros
-              </button>
+            {/* Tipo de listagem */}
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2">Tipo de listagem</p>
+              <div className="flex flex-wrap gap-1">
+                {([
+                  { v: 'all',     label: 'Todos' },
+                  { v: 'premium', label: 'Premium' },
+                  { v: 'gold',    label: 'Ouro' },
+                  { v: 'classic', label: 'Clássico' },
+                ] as const).map(o => (
+                  <button key={o.v} onClick={() => setFilterListingType(o.v)}
+                    className="px-2 py-1 rounded-md text-[11px] font-medium border transition-all"
+                    style={{
+                      background: filterListingType === o.v ? 'rgba(0,229,255,0.08)' : 'transparent',
+                      borderColor: filterListingType === o.v ? '#00E5FF' : '#27272a',
+                      color: filterListingType === o.v ? '#00E5FF' : '#a1a1aa',
+                    }}>
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Tipo logístico */}
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2">Logística</p>
+              <div className="flex flex-wrap gap-1">
+                {([
+                  { v: 'all',           label: 'Todos' },
+                  { v: 'fulfillment',   label: 'Full' },
+                  { v: 'cross_docking', label: 'Coleta' },
+                  { v: 'self_service',  label: 'Self' },
+                  { v: 'drop_off',      label: 'Agência' },
+                ] as const).map(o => (
+                  <button key={o.v} onClick={() => setFilterLogistic(o.v)}
+                    className="px-2 py-1 rounded-md text-[11px] font-medium border transition-all"
+                    style={{
+                      background: filterLogistic === o.v ? 'rgba(0,229,255,0.08)' : 'transparent',
+                      borderColor: filterLogistic === o.v ? '#00E5FF' : '#27272a',
+                      color: filterLogistic === o.v ? '#00E5FF' : '#a1a1aa',
+                    }}>
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Flags simples */}
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2">Atributos</p>
+              <div className="flex flex-col gap-1">
+                <FlagBtn label="Frete grátis" active={filterFree}
+                  onClick={() => setFilterFree(v => !v)} count={listings.filter(l => l.free_shipping).length} accent="#22c55e" />
+                <FlagBtn label="Tem variações" active={filterVars}
+                  onClick={() => setFilterVars(v => !v)} count={listings.filter(l => l.has_variations).length} accent="#22c55e" />
+                <FlagBtn label="Em promoção" active={filterFlags.promo}
+                  onClick={() => setFilterFlags(p => ({ ...p, promo: !p.promo }))} count={flagCounts.promo} accent="#22c55e" />
+              </div>
+            </div>
+
+            {/* Saneamento */}
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2">Saneamento</p>
+              <div className="flex flex-col gap-1">
+                <FlagBtn label="Sem vínculo" active={filterFlags.noLink}
+                  onClick={() => setFilterFlags(p => ({ ...p, noLink: !p.noLink }))} count={flagCounts.noLink} accent="#f59e0b" />
+                <FlagBtn label="Sem custo" active={filterFlags.noCost}
+                  onClick={() => setFilterFlags(p => ({ ...p, noCost: !p.noCost }))} count={flagCounts.noCost} accent="#f59e0b" />
+                <FlagBtn label="Sem foto" active={filterFlags.noPhoto}
+                  onClick={() => setFilterFlags(p => ({ ...p, noPhoto: !p.noPhoto }))} count={flagCounts.noPhoto} accent="#f59e0b" />
+                <FlagBtn label="Estoque 0 + ativo" active={filterFlags.zeroStockActive}
+                  onClick={() => setFilterFlags(p => ({ ...p, zeroStockActive: !p.zeroStockActive }))} count={flagCounts.zeroStockActive} accent="#f87171" />
+                <FlagBtn label="Sem campanha" active={filterFlags.noCampaign}
+                  onClick={() => setFilterFlags(p => ({ ...p, noCampaign: !p.noCampaign }))} count={flagCounts.noCampaign} accent="#f59e0b" />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Active chips */}
+        {advCount > 0 && (
+          <div className="mb-4 flex flex-wrap items-center gap-1.5 text-[11px]">
+            <span className="text-zinc-500 font-medium">Ativos:</span>
+            {filterListingType !== 'all' && (
+              <ChipX label={`Tipo: ${({ premium: 'Premium', gold: 'Ouro', classic: 'Clássico' } as const)[filterListingType]}`} onRemove={() => setFilterListingType('all')} />
             )}
+            {filterLogistic !== 'all' && (
+              <ChipX label={`Logística: ${({ fulfillment: 'Full', cross_docking: 'Coleta', self_service: 'Self', drop_off: 'Agência' } as const)[filterLogistic]}`} onRemove={() => setFilterLogistic('all')} />
+            )}
+            {filterFree         && <ChipX label="Frete grátis"      onRemove={() => setFilterFree(false)} />}
+            {filterVars         && <ChipX label="Variações"          onRemove={() => setFilterVars(false)} />}
+            {filterFlags.promo  && <ChipX label="Em promoção"        onRemove={() => setFilterFlags(p => ({ ...p, promo: false }))} />}
+            {filterFlags.noLink && <ChipX label="Sem vínculo"        onRemove={() => setFilterFlags(p => ({ ...p, noLink: false }))} />}
+            {filterFlags.noCost && <ChipX label="Sem custo"          onRemove={() => setFilterFlags(p => ({ ...p, noCost: false }))} />}
+            {filterFlags.noPhoto && <ChipX label="Sem foto"          onRemove={() => setFilterFlags(p => ({ ...p, noPhoto: false }))} />}
+            {filterFlags.zeroStockActive && <ChipX label="Estoque 0 + ativo" onRemove={() => setFilterFlags(p => ({ ...p, zeroStockActive: false }))} />}
+            {filterFlags.noCampaign && <ChipX label="Sem campanha"   onRemove={() => setFilterFlags(p => ({ ...p, noCampaign: false }))} />}
+            <button onClick={clearAdv}
+              className="ml-1 px-2 py-0.5 text-[10px] font-medium rounded transition-colors"
+              style={{ color: '#71717a' }}
+              onMouseEnter={e => { e.currentTarget.style.color = '#f87171' }}
+              onMouseLeave={e => { e.currentTarget.style.color = '#71717a' }}>
+              Limpar tudo
+            </button>
           </div>
         )}
       </div>
