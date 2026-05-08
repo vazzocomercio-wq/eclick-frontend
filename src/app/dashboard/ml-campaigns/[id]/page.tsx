@@ -613,17 +613,24 @@ function ItemRow({ item, campaignId, recoId, onOpenEditor, onLeave, leaving, gen
         {/* Action buttons por linha */}
         <div className="flex-shrink-0 flex items-center gap-1.5">
           {isCandidate && (
-            <button onClick={onOpenEditor} disabled={generating}
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded text-[10px] font-semibold transition-all disabled:opacity-50"
-              style={{
-                background: recoId ? '#00E5FF' : 'rgba(0,229,255,0.1)',
-                color:      recoId ? '#000'    : '#67e8f9',
-                border: '1px solid rgba(0,229,255,0.4)',
-              }}
-              title={recoId ? 'Definir preço e aderir' : 'Gerar recomendação IA + abrir editor'}>
-              {generating ? <Loader2 size={10} className="animate-spin" /> : <Sparkles size={10} />}
-              {generating ? 'Gerando…' : recoId ? '💰 Definir preço' : 'Gerar IA'}
-            </button>
+            <>
+              <button onClick={onOpenEditor} disabled={generating}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded text-[10px] font-semibold transition-all disabled:opacity-50"
+                style={{
+                  background: recoId ? '#00E5FF' : 'rgba(0,229,255,0.1)',
+                  color:      recoId ? '#000'    : '#67e8f9',
+                  border: '1px solid rgba(0,229,255,0.4)',
+                }}
+                title={recoId ? 'Definir preço e aderir (atalho — pula a lista)' : 'Gerar recomendação IA + abrir editor'}>
+                {generating ? <Loader2 size={10} className="animate-spin" /> : <Sparkles size={10} />}
+                {generating ? 'Gerando…' : recoId ? '💰 Definir preço' : 'Gerar IA'}
+              </button>
+              <Link href={`/dashboard/ml-campaigns/recommendations?campaign_id=${campaignId}`}
+                className="text-[10px] text-zinc-500 hover:text-cyan-300 underline-offset-2 hover:underline transition-colors"
+                title="Abrir lista completa de recomendações dessa campanha">
+                lista
+              </Link>
+            </>
           )}
           {isStarted && (
             <button onClick={onLeave} disabled={leaving}
