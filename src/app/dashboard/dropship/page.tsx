@@ -2,139 +2,221 @@
 
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
-import { Truck, Building2, Link2, ChevronRight, Package, AlertTriangle } from 'lucide-react'
+import {
+  Truck, Building2, Link2, Package, AlertTriangle, ShoppingCart, Calendar,
+  ChevronRight, RefreshCw,
+} from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 
-interface Partner {
-  id: string
-  dropship_status: string
-  cutoff_time: string
-  oc_generation_time: string
-  active_dropship_skus: number
-  orders_30d: number
-  pending_payable: number
-  partner_score: number | null
-  suppliers: { id: string; name: string }
+interface DashboardData {
+  kpis: {
+    active_partners: number
+    active_skus: number
+    shipped_today: number
+    today_value: number
+    today_cmv: number
+    today_margin: number
+    on_hold_count: number
+    out_of_stock_skus: number
+  }
+  recent_orders: Array<{
+    id: string
+    marketplace: string
+    partner_sku: string
+    quantity: number
+    sale_price: number | null
+    estimated_margin: number | null
+    dropship_status: string
+    identified_at: string
+    suppliers: { name: string } | null
+    products: { name: string } | null
+  }>
 }
 
 export default function DropshipHomePage() {
-  const router = useRouter()
   const supabase = useMemo(() => createClient(), [])
-  const [partners, setPartners] = useState<Partner[]>([])
-  const [loading, setLoading] = useState(true)
 
-  const load = useCallback(async () => {
-    setLoading(true)
+  const [data, setData] = useState<DashboardData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true)
+    else setRefreshing(true)
     try {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session?.access_token) return
-      const res = await fetch(`${BACKEND}/dropship/partners`, {
+      const res = await fetch(`${BACKEND}/dropship/dashboard`, {
         headers: { Authorization: `Bearer ${session.access_token}` },
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      setPartners(await res.json())
-    } catch { setPartners([]) }
-    finally { setLoading(false) }
+      setData(await res.json())
+    } catch { /* keep stale */ }
+    finally { setLoading(false); setRefreshing(false) }
   }, [supabase])
 
   useEffect(() => { load() }, [load])
 
-  const total = partners.length
-  const active = partners.filter(p => p.dropship_status === 'active').length
-  const totalSkus = partners.reduce((s, p) => s + (p.active_dropship_skus || 0), 0)
-  const totalPayable = partners.reduce((s, p) => s + (p.pending_payable || 0), 0)
+  const kpis = data?.kpis
 
   return (
     <div className="min-h-screen p-6" style={{ background: 'var(--background)', color: '#fff' }}>
-      <div className="mb-6">
-        <h1 className="text-xl font-semibold text-white">Dropship Center</h1>
-        <p className="text-sm text-zinc-500 mt-0.5">
-          Gerencie parceiros, OCs diárias, devoluções e abatimentos do fluxo dropship
-        </p>
+      <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+        <div>
+          <h1 className="text-xl font-semibold text-white">Dropship Center</h1>
+          <p className="text-sm text-zinc-500 mt-0.5">
+            Gerencie parceiros, OCs diárias, devoluções e abatimentos
+          </p>
+        </div>
+        <button
+          onClick={() => load(true)}
+          disabled={refreshing}
+          className="flex items-center gap-2 px-3 py-2 text-xs rounded-lg transition-colors"
+          style={{ border: '1px solid #27272a', color: '#a1a1aa' }}
+        >
+          <RefreshCw size={12} className={refreshing ? 'animate-spin' : ''} />
+          Atualizar
+        </button>
       </div>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-        <KpiCard label="Parceiros Ativos" value={loading ? '…' : `${active}/${total}`} />
-        <KpiCard label="SKUs Dropship" value={loading ? '…' : totalSkus} />
-        <KpiCard label="A Pagar (pendente)" value={loading ? '…' : fmtBrl(totalPayable)} />
-        <KpiCard label="OCs hoje" value="—" sub="Sprint 4" />
+      {/* KPIs primários (4) */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+        <Kpi
+          label="Parceiros Ativos"
+          value={loading ? '…' : kpis?.active_partners ?? 0}
+          icon={<Building2 size={14} />}
+        />
+        <Kpi
+          label="SKUs Dropship"
+          value={loading ? '…' : kpis?.active_skus ?? 0}
+          icon={<Package size={14} />}
+        />
+        <Kpi
+          label="Despachados Hoje"
+          value={loading ? '…' : kpis?.shipped_today ?? 0}
+          icon={<Truck size={14} />}
+          accent="#22c55e"
+        />
+        <Kpi
+          label="Receita Hoje"
+          value={loading ? '…' : fmtBrl(kpis?.today_value ?? 0)}
+          icon={<ShoppingCart size={14} />}
+        />
       </div>
+
+      {/* KPIs secundários (4) */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+        <KpiSmall label="CMV Hoje" value={loading ? '…' : fmtBrl(kpis?.today_cmv ?? 0)} />
+        <KpiSmall
+          label="Margem Hoje"
+          value={loading ? '…' : fmtBrl(kpis?.today_margin ?? 0)}
+          accent={(kpis?.today_margin ?? 0) >= 0 ? '#22c55e' : '#f87171'}
+        />
+        <KpiSmall
+          label="Em Hold"
+          value={loading ? '…' : kpis?.on_hold_count ?? 0}
+          accent={(kpis?.on_hold_count ?? 0) > 0 ? '#fcd34d' : undefined}
+        />
+        <KpiSmall
+          label="Sem Estoque"
+          value={loading ? '…' : kpis?.out_of_stock_skus ?? 0}
+          accent={(kpis?.out_of_stock_skus ?? 0) > 0 ? '#f87171' : undefined}
+        />
+      </div>
+
+      {/* alerts */}
+      {!loading && (kpis?.on_hold_count ?? 0) > 0 && (
+        <Link
+          href="/dashboard/dropship/orders?status=on_hold"
+          className="block rounded-xl p-3 mb-3 flex items-center gap-3 transition-colors hover:bg-[#1a1a1f]"
+          style={{ background: 'rgba(252,211,77,0.05)', border: '1px solid rgba(252,211,77,0.2)' }}
+        >
+          <AlertTriangle size={18} style={{ color: '#fcd34d' }} />
+          <p className="text-sm text-zinc-300 flex-1">
+            <strong className="text-white">{kpis?.on_hold_count} pedido{(kpis?.on_hold_count ?? 0) > 1 ? 's' : ''}</strong> em hold — clique pra revisar
+          </p>
+          <ChevronRight size={14} className="text-zinc-500" />
+        </Link>
+      )}
+      {!loading && (kpis?.out_of_stock_skus ?? 0) > 0 && (
+        <div
+          className="rounded-xl p-3 mb-3 flex items-center gap-3"
+          style={{ background: 'rgba(248,113,113,0.05)', border: '1px solid rgba(248,113,113,0.2)' }}
+        >
+          <AlertTriangle size={18} style={{ color: '#f87171' }} />
+          <p className="text-sm text-zinc-300 flex-1">
+            <strong className="text-white">{kpis?.out_of_stock_skus} SKUs</strong> ativos sem estoque do parceiro — anúncios podem ficar pendurados
+          </p>
+        </div>
+      )}
 
       {/* Nav cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
         <NavCard
           href="/dashboard/dropship/partners"
-          icon={<Building2 size={20} />}
+          icon={<Building2 size={18} />}
           title="Parceiros"
-          description="Cadastre e configure fornecedores dropship: cutoff, integração, estratégia comercial"
+          description="Cadastre fornecedores dropship: cutoff, integração, estratégia"
         />
         <NavCard
           href="/dashboard/dropship/account-suppliers"
-          icon={<Link2 size={20} />}
+          icon={<Link2 size={18} />}
           title="Vínculo Contas"
-          description="Mapeie qual parceiro despacha pelos pedidos de cada conta de marketplace"
+          description="Mapeie qual parceiro despacha pelos pedidos de cada conta"
         />
         <NavCard
-          href="/dashboard/dropship/partners"
-          icon={<Truck size={20} />}
-          title="Pedidos & OCs"
-          description="Em desenvolvimento (Sprint 3+4): identificação de pedidos dropship + geração diária de OC"
-          disabled
+          href="/dashboard/dropship/orders"
+          icon={<ShoppingCart size={18} />}
+          title="Pedidos"
+          description="Pedidos identificados como dropship (cron @5min)"
+        />
+        <NavCard
+          href="/dashboard/dropship/orders/today"
+          icon={<Calendar size={18} />}
+          title="Vendas Hoje"
+          description="Resumo do dia agregado por parceiro"
         />
       </div>
 
-      {/* Lista resumida de parceiros */}
+      {/* Recent orders */}
+      <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-3">Pedidos Recentes</h2>
       <div className="rounded-xl overflow-hidden" style={{ border: '1px solid #1a1a1f' }}>
-        <div className="px-4 py-3 flex items-center justify-between" style={{ background: '#111114', borderBottom: '1px solid #1a1a1f' }}>
-          <h2 className="text-sm font-medium text-white">Parceiros recentes</h2>
-          <Link
-            href="/dashboard/dropship/partners"
-            className="text-xs font-medium"
-            style={{ color: '#00E5FF' }}
-          >
-            Ver todos →
-          </Link>
-        </div>
         {loading ? (
           <div className="px-4 py-12 text-center text-zinc-500 text-sm">Carregando...</div>
-        ) : partners.length === 0 ? (
+        ) : !data || data.recent_orders.length === 0 ? (
           <div className="px-4 py-12 text-center text-zinc-500 text-sm">
-            Nenhum parceiro cadastrado.{' '}
-            <Link href="/dashboard/dropship/partners" style={{ color: '#00E5FF' }}>Cadastrar o primeiro</Link>
+            Nenhum pedido dropship ainda.{' '}
+            <Link href="/dashboard/dropship/account-suppliers" style={{ color: '#00E5FF' }}>
+              Verifique os vínculos conta↔parceiro
+            </Link>{' '}
+            pra começar.
           </div>
         ) : (
           <table className="w-full text-sm">
             <thead>
-              <tr style={{ background: '#0d0d10' }}>
-                {['Parceiro', 'Status', 'Cutoff', 'SKUs', 'Pedidos 30d', 'A Pagar', 'Score', ''].map(h => (
+              <tr style={{ background: '#111114', borderBottom: '1px solid #1a1a1f' }}>
+                {['Quando', 'Parceiro', 'Produto', 'SKU', 'Qtd', 'Preço', 'Margem', 'Status'].map(h => (
                   <th key={h} className="text-left px-4 py-2 text-xs font-medium text-zinc-500">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {partners.slice(0, 5).map(p => (
-                <tr
-                  key={p.id}
-                  onClick={() => router.push(`/dashboard/dropship/partners/${p.id}`)}
-                  className="cursor-pointer transition-colors"
-                  style={{ borderBottom: '1px solid #1a1a1f' }}
-                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = '#111114'}
-                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
-                >
-                  <td className="px-4 py-3 font-medium text-white">{p.suppliers?.name ?? '—'}</td>
-                  <td className="px-4 py-3"><StatusPill status={p.dropship_status} /></td>
-                  <td className="px-4 py-3 text-zinc-300 text-xs">{(p.cutoff_time || '').slice(0, 5)}</td>
-                  <td className="px-4 py-3 text-zinc-300">{p.active_dropship_skus ?? 0}</td>
-                  <td className="px-4 py-3 text-zinc-300">{p.orders_30d ?? 0}</td>
-                  <td className="px-4 py-3 text-zinc-300 text-xs">{fmtBrl(p.pending_payable ?? 0)}</td>
-                  <td className="px-4 py-3"><ScorePill score={p.partner_score} /></td>
-                  <td className="px-4 py-3 text-right">
-                    <ChevronRight size={14} className="inline text-zinc-600" />
+              {data.recent_orders.map(o => (
+                <tr key={o.id} style={{ borderBottom: '1px solid #1a1a1f' }}>
+                  <td className="px-4 py-2 text-zinc-400 text-xs">{fmtRelative(o.identified_at)}</td>
+                  <td className="px-4 py-2 text-zinc-300">{o.suppliers?.name ?? '—'}</td>
+                  <td className="px-4 py-2">
+                    <p className="text-white text-xs truncate max-w-[280px]">{o.products?.name ?? '—'}</p>
                   </td>
+                  <td className="px-4 py-2 text-xs font-mono text-zinc-500">{o.partner_sku}</td>
+                  <td className="px-4 py-2 text-zinc-300 text-xs">{o.quantity}</td>
+                  <td className="px-4 py-2 text-zinc-300 text-xs">{fmtBrl(Number(o.sale_price ?? 0))}</td>
+                  <td className="px-4 py-2 text-xs" style={{ color: Number(o.estimated_margin ?? 0) > 0 ? '#22c55e' : '#f87171' }}>
+                    {fmtBrl(Number(o.estimated_margin ?? 0))}
+                  </td>
+                  <td className="px-4 py-2 text-xs text-zinc-400">{o.dropship_status}</td>
                 </tr>
               ))}
             </tbody>
@@ -147,82 +229,65 @@ export default function DropshipHomePage() {
 
 // ── Components ─────────────────────────────────────────────────────────────────
 
-function KpiCard({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
+function Kpi({
+  label, value, icon, accent,
+}: { label: string; value: string | number; icon?: React.ReactNode; accent?: string }) {
   return (
     <div className="rounded-xl p-4" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
+      <div className="flex items-center justify-between mb-1">
+        <p className="text-xs text-zinc-500">{label}</p>
+        {icon && <span className="text-zinc-500">{icon}</span>}
+      </div>
+      <p className="text-2xl font-semibold" style={{ color: accent ?? '#fff' }}>{value}</p>
+    </div>
+  )
+}
+
+function KpiSmall({ label, value, accent }: { label: string; value: string | number; accent?: string }) {
+  return (
+    <div className="rounded-xl p-3" style={{ background: '#0f0f12', border: '1px solid #1a1a1f' }}>
       <p className="text-xs text-zinc-500 mb-1">{label}</p>
-      <p className="text-2xl font-semibold text-white">{value}</p>
-      {sub && <p className="text-xs text-zinc-500 mt-0.5">{sub}</p>}
+      <p className="text-base font-semibold" style={{ color: accent ?? '#fff' }}>{value}</p>
     </div>
   )
 }
 
 function NavCard({
-  href, icon, title, description, disabled,
-}: {
-  href: string; icon: React.ReactNode; title: string; description: string; disabled?: boolean
-}) {
-  const content = (
-    <div
-      className="rounded-xl p-5 h-full transition-all"
-      style={{
-        background: '#111114',
-        border: '1px solid #1a1a1f',
-        opacity: disabled ? 0.5 : 1,
-        cursor: disabled ? 'not-allowed' : 'pointer',
-      }}
-    >
-      <div className="flex items-center gap-3 mb-3">
-        <div
-          className="w-10 h-10 rounded-lg flex items-center justify-center"
-          style={{ background: 'rgba(0,229,255,0.10)', color: '#00E5FF' }}
-        >
-          {icon}
+  href, icon, title, description,
+}: { href: string; icon: React.ReactNode; title: string; description: string }) {
+  return (
+    <Link href={href}>
+      <div
+        className="rounded-xl p-4 h-full transition-all cursor-pointer hover:bg-[#1a1a1f]"
+        style={{ background: '#111114', border: '1px solid #1a1a1f' }}
+      >
+        <div className="flex items-center gap-2 mb-2">
+          <div
+            className="w-8 h-8 rounded-lg flex items-center justify-center"
+            style={{ background: 'rgba(0,229,255,0.10)', color: '#00E5FF' }}
+          >
+            {icon}
+          </div>
+          <h3 className="font-semibold text-white text-sm">{title}</h3>
         </div>
-        <h3 className="font-semibold text-white text-sm">{title}</h3>
+        <p className="text-xs text-zinc-500 leading-relaxed">{description}</p>
       </div>
-      <p className="text-xs text-zinc-500 leading-relaxed">{description}</p>
-      {disabled && (
-        <span className="inline-block mt-3 px-2 py-0.5 rounded-full text-xs"
-          style={{ background: 'rgba(252,211,77,0.10)', color: '#fcd34d', border: '1px solid rgba(252,211,77,0.3)' }}>
-          Em breve
-        </span>
-      )}
-    </div>
-  )
-  if (disabled) return content
-  return <Link href={href}>{content}</Link>
-}
-
-function StatusPill({ status }: { status: string }) {
-  const colors: Record<string, { bg: string; fg: string; label: string }> = {
-    active:        { bg: 'rgba(34,197,94,0.10)',   fg: '#22c55e', label: 'Ativo' },
-    paused:        { bg: 'rgba(252,211,77,0.10)',  fg: '#fcd34d', label: 'Pausado' },
-    inactive:      { bg: 'rgba(113,113,122,0.10)', fg: '#71717a', label: 'Inativo' },
-    pending_setup: { bg: 'rgba(0,229,255,0.10)',   fg: '#00E5FF', label: 'Setup pendente' },
-  }
-  const c = colors[status] ?? colors.inactive
-  return (
-    <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium"
-      style={{ background: c.bg, color: c.fg, border: `1px solid ${c.fg}33` }}>
-      {c.label}
-    </span>
+    </Link>
   )
 }
 
-function ScorePill({ score }: { score: number | null }) {
-  if (score == null) return <span className="text-zinc-600 text-xs">—</span>
-  let bg = 'rgba(34,197,94,0.10)', fg = '#22c55e'
-  if (score < 60) { bg = 'rgba(248,113,113,0.10)'; fg = '#f87171' }
-  else if (score < 80) { bg = 'rgba(252,211,77,0.10)'; fg = '#fcd34d' }
-  return (
-    <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium"
-      style={{ background: bg, color: fg, border: `1px solid ${fg}33` }}>
-      {score}
-    </span>
-  )
-}
+// ── helpers ────────────────────────────────────────────────────────────────────
 
 function fmtBrl(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+}
+
+function fmtRelative(d: string) {
+  const ms = Date.now() - new Date(d).getTime()
+  const min = Math.floor(ms / 60000)
+  if (min < 1) return 'agora'
+  if (min < 60) return `${min}min`
+  const hours = Math.floor(min / 60)
+  if (hours < 24) return `${hours}h`
+  return new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
 }
