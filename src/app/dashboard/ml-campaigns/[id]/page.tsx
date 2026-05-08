@@ -586,13 +586,17 @@ function ItemRow({ item, campaignId, recoId, onOpenEditor, onLeave, leaving, gen
               <CopyButton value={item.title} size={9} />
             </div>
           )}
-          {item.seller_sku && (
-            <div className="flex items-center gap-0.5 mt-0.5">
-              <span className="text-[9px] uppercase tracking-wider text-zinc-500">SKU:</span>
-              <span className="font-mono text-[10px] text-zinc-300 truncate">{item.seller_sku}</span>
-              <CopyButton value={item.seller_sku} size={9} />
-            </div>
-          )}
+          <div className="flex items-center gap-0.5 mt-0.5" title={item.seller_sku ? `SKU: ${item.seller_sku}` : 'SKU não cadastrado no anúncio ML'}>
+            <span className="text-[9px] uppercase tracking-wider text-zinc-500">SKU:</span>
+            {item.seller_sku ? (
+              <>
+                <span className="font-mono text-[10px] text-zinc-300 truncate">{item.seller_sku}</span>
+                <CopyButton value={item.seller_sku} size={9} />
+              </>
+            ) : (
+              <span className="text-[10px] text-zinc-600 italic">— sem SKU no ML</span>
+            )}
+          </div>
           <div className="flex items-center gap-1 flex-wrap mt-0.5">
             <ItemStatusBadge status={item.status} />
             <ListingStatusBadge listingStatus={item.listing_status} catalog={item.catalog_listing} />
