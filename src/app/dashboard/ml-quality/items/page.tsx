@@ -42,6 +42,8 @@ interface QualityItem {
   fix_complexity:             'easy' | 'medium' | 'hard' | 'blocked' | null
   fetched_at:                 string
   seller_id:                  number
+  listing_status:             string | null
+  catalog_listing:            boolean | null
 }
 
 interface ListResponse { items: QualityItem[]; total: number }
@@ -75,15 +77,17 @@ function ItemsPageInner() {
   const { selected: selectedSellerId } = useMlAccount()
 
   // Filtros via URL (deep-linkable)
-  const level      = (sp.get('level')      ?? '')         as Level
-  const domainId   = sp.get('domain_id')   ?? ''
-  const penalty    = (sp.get('penalty')    ?? '')         as Penalty
-  const minScore   = sp.get('min_score')   ?? ''
-  const maxScore   = sp.get('max_score')   ?? ''
-  const q          = sp.get('q')           ?? ''
-  const sort       = (sp.get('sort')       ?? 'priority') as SortKey
-  const offset     = Number(sp.get('offset') ?? '0')
-  const LIMIT      = 50
+  const level         = (sp.get('level')          ?? '')         as Level
+  const domainId      = sp.get('domain_id')       ?? ''
+  const penalty       = (sp.get('penalty')        ?? '')         as Penalty
+  const minScore      = sp.get('min_score')       ?? ''
+  const maxScore      = sp.get('max_score')       ?? ''
+  const listingStatus = sp.get('listing_status')  ?? ''
+  const catalogOnly   = sp.get('catalog_only')    ?? ''
+  const q             = sp.get('q')               ?? ''
+  const sort          = (sp.get('sort')           ?? 'priority') as SortKey
+  const offset        = Number(sp.get('offset') ?? '0')
+  const LIMIT         = 50
 
   // Estado local de busca (separado pra debounce)
   const [searchInput, setSearchInput] = useState(q)
@@ -111,14 +115,16 @@ function ItemsPageInner() {
       const t   = await getToken()
       const sid = getStoredSellerId()
       const params = new URLSearchParams()
-      if (sid != null)     params.set('seller_id', String(sid))
-      if (level)           params.set('level', level)
-      if (domainId)        params.set('domain_id', domainId)
-      if (penalty)         params.set('penalty', penalty)
-      if (minScore)        params.set('min_score', minScore)
-      if (maxScore)        params.set('max_score', maxScore)
-      if (q)               params.set('q', q)
-      if (sort)            params.set('sort', sort)
+      if (sid != null)        params.set('seller_id', String(sid))
+      if (level)              params.set('level', level)
+      if (domainId)           params.set('domain_id', domainId)
+      if (penalty)            params.set('penalty', penalty)
+      if (minScore)           params.set('min_score', minScore)
+      if (maxScore)           params.set('max_score', maxScore)
+      if (listingStatus)      params.set('listing_status', listingStatus)
+      if (catalogOnly === 'true') params.set('catalog_only', 'true')
+      if (q)                  params.set('q', q)
+      if (sort)               params.set('sort', sort)
       params.set('limit',  String(LIMIT))
       params.set('offset', String(offset))
 
@@ -136,9 +142,32 @@ function ItemsPageInner() {
     } finally {
       setLoading(false)
     }
-  }, [level, domainId, penalty, minScore, maxScore, q, sort, offset])
+  }, [level, domainId, penalty, minScore, maxScore, listingStatus, catalogOnly, q, sort, offset])
 
   useEffect(() => { void load() }, [load, selectedSellerId])
+
+  // Auto-enrich listing_status pra items que ainda nao tem.
+  // Backend em background, re-fetch em 8s pra mostrar badges.
+  useEffect(() => {
+    if (loading) return
+    const missing = items.filter(i => i.listing_status == null && i.catalog_listing == null).length
+    if (missing === 0) return
+
+    let cancelled = false
+    void (async () => {
+      const t = await getToken()
+      const sid = getStoredSellerId()
+      const url = sid != null
+        ? `${BACKEND}/ml-quality/sync/enrich-listing-status?seller_id=${sid}`
+        : `${BACKEND}/ml-quality/sync/enrich-listing-status`
+      try {
+        await fetch(url, { method: 'POST', headers: { Authorization: `Bearer ${t}` } })
+        setTimeout(() => { if (!cancelled) void load() }, 8_000)
+      } catch { /* silent */ }
+    })()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading])
 
   // Debounce busca
   useEffect(() => {
@@ -150,8 +179,8 @@ function ItemsPageInner() {
   }, [searchInput])
 
   const hasActiveFilters = useMemo(
-    () => Boolean(level || domainId || penalty || minScore || maxScore || q),
-    [level, domainId, penalty, minScore, maxScore, q],
+    () => Boolean(level || domainId || penalty || minScore || maxScore || listingStatus || catalogOnly || q),
+    [level, domainId, penalty, minScore, maxScore, listingStatus, catalogOnly, q],
   )
 
   const totalPages = Math.max(1, Math.ceil(total / LIMIT))
@@ -238,6 +267,27 @@ function ItemsPageInner() {
               { value: 'false', label: 'Sem penalidade' },
             ]}
             onChange={v => updateFilter({ penalty: v || null })}
+          />
+
+          <FilterChip
+            label="Anúncio"
+            value={catalogOnly === 'true' ? 'catalog' : listingStatus}
+            options={[
+              { value: '',        label: 'Todos' },
+              { value: 'active',  label: 'Ativos' },
+              { value: 'paused',  label: 'Pausados' },
+              { value: 'closed',  label: 'Fechados' },
+              { value: 'catalog', label: 'Catálogo (competindo)' },
+            ]}
+            onChange={v => {
+              if (v === 'catalog') {
+                updateFilter({ catalog_only: 'true', listing_status: null })
+              } else if (v) {
+                updateFilter({ listing_status: v, catalog_only: null })
+              } else {
+                updateFilter({ listing_status: null, catalog_only: null })
+              }
+            }}
           />
 
           <ScoreRangeFilter
@@ -370,6 +420,7 @@ function ItemRow({ item }: { item: QualityItem }) {
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-mono text-xs text-zinc-200">{item.ml_item_id}</span>
             <LevelBadge level={item.ml_level} />
+            <ListingStatusBadge listingStatus={item.listing_status} catalogListing={item.catalog_listing} />
             {item.has_exposure_penalty && (
               <span
                 className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wider font-semibold"
@@ -485,6 +536,33 @@ function ScoreRangeFilter({ min, max, onChange }: {
         style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)' }}
       />
     </div>
+  )
+}
+
+function ListingStatusBadge({ listingStatus, catalogListing }: { listingStatus: string | null; catalogListing: boolean | null }) {
+  if (catalogListing) {
+    return (
+      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wider font-semibold"
+        style={{ background: 'rgba(167,139,250,0.10)', color: '#c4b5fd', border: '1px solid rgba(167,139,250,0.3)' }}
+        title="Compete por buy box no catálogo">
+        Catálogo
+      </span>
+    )
+  }
+  if (!listingStatus) return null
+  const map: Record<string, { label: string; color: string }> = {
+    active:       { label: 'Ativo',      color: '#22c55e' },
+    paused:       { label: 'Pausado',    color: '#fbbf24' },
+    closed:       { label: 'Fechado',    color: '#ef4444' },
+    under_review: { label: 'Em revisão', color: '#fb923c' },
+  }
+  const m = map[listingStatus]
+  if (!m) return null
+  return (
+    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wider font-semibold"
+      style={{ background: `${m.color}15`, color: m.color, border: `1px solid ${m.color}40` }}>
+      {m.label}
+    </span>
   )
 }
 
