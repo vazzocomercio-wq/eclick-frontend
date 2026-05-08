@@ -91,8 +91,8 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
       else if (listingFilter)      itemsParams.set('listing_status', listingFilter)
 
       const [cRes, iRes] = await Promise.all([
-        fetch(`${BACKEND}/ml-campaigns/${id}${sidQ}`, { headers: { Authorization: `Bearer ${t}` } }),
-        fetch(`${BACKEND}/ml-campaigns/${id}/items?${itemsParams}`, { headers: { Authorization: `Bearer ${t}` } }),
+        fetch(`${BACKEND}/ml-campaigns/campaign/${id}${sidQ}`, { headers: { Authorization: `Bearer ${t}` } }),
+        fetch(`${BACKEND}/ml-campaigns/campaign/${id}/items?${itemsParams}`, { headers: { Authorization: `Bearer ${t}` } }),
       ])
       if (!cRes.ok) throw new Error(`HTTP ${cRes.status}`)
       const text = await cRes.text()
