@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   ArrowLeft, Loader2, ExternalLink, Sparkles, Clock, ChevronRight,
-  Zap, LogOut, AlertTriangle, CheckCircle2,
+  Zap, LogOut, AlertTriangle, CheckCircle2, RefreshCw,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import AccountSelector, { useMlAccount, getStoredSellerId } from '@/components/ml/AccountSelector'
@@ -72,6 +72,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   const [loading, setLoading]   = useState(true)
   const [error, setError]       = useState<string | null>(null)
   const [generating, setGenerating] = useState(false)
+  const [syncing, setSyncing]   = useState(false)
   const [toast, setToast]       = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
   const [leaving, setLeaving]   = useState<string | null>(null)
 
@@ -110,6 +111,30 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   function showToast(msg: string, type: 'success' | 'error' = 'success') {
     setToast({ msg, type })
     setTimeout(() => setToast(null), 3500)
+  }
+
+  async function resync() {
+    if (!campaign) return
+    setSyncing(true)
+    try {
+      const t = await getToken()
+      const sid = getStoredSellerId() ?? campaign.seller_id
+      const res = await fetch(`${BACKEND}/ml-campaigns/sync?seller_id=${sid}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${t}` },
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({} as { message?: string }))
+        throw new Error(body.message ?? `HTTP ${res.status}`)
+      }
+      showToast('🔄 Sync iniciado em background — aguarde ~1-3min e recarregue', 'success')
+      // Auto-reload após 90s pra pegar resultado novo
+      setTimeout(() => { void load() }, 90_000)
+    } catch (e) {
+      showToast(`❌ ${(e as Error).message}`, 'error')
+    } finally {
+      setSyncing(false)
+    }
   }
 
   async function generateRecommendations() {
@@ -256,10 +281,22 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
             <strong className="text-cyan-300">3)</strong> Aplique e o item entra na campanha.
           </p>
           {campaign.candidate_count === 0 && campaign.started_count === 0 && (
-            <p className="text-[11px] text-amber-300 mt-2">Nenhum item candidato — rode o sync na página de campanhas.</p>
+            <p className="text-[11px] text-amber-300 mt-2">Nenhum item candidato — clique "Atualizar dados" pra sincronizar com ML.</p>
+          )}
+          {campaign.candidate_count > 0 && items.some(i => i.health_status && i.health_status !== 'ready') && (
+            <p className="text-[11px] text-amber-300 mt-2">
+              ⚠ Items <strong>INCOMPLETE</strong>: a IA pula esses até você cadastrar custo + imposto no produto interno e rodar <strong>"Atualizar dados"</strong>.
+            </p>
           )}
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          <button onClick={resync} disabled={syncing}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all disabled:opacity-50"
+            style={{ background: 'rgba(251,191,36,0.12)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.3)' }}
+            title="Re-sincroniza com ML — recomputa health_status com seus custos atualizados">
+            {syncing ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+            {syncing ? 'Sincronizando…' : 'Atualizar dados'}
+          </button>
           {campaign.candidate_count > 0 && (
             <button onClick={generateRecommendations} disabled={generating}
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all disabled:opacity-50"
