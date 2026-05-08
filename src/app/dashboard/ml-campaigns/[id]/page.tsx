@@ -51,6 +51,8 @@ interface Item {
   thumbnail_url:               string | null
   title:                       string | null
   permalink:                   string | null
+  listing_status:              string | null
+  catalog_listing:             boolean
 }
 
 async function getToken(): Promise<string | null> {
@@ -72,6 +74,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   const [items, setItems]       = useState<Item[]>([])
   const [total, setTotal]       = useState(0)
   const [statusFilter, setStatusFilter] = useState<'candidate' | 'started' | ''>('candidate')
+  const [listingFilter, setListingFilter] = useState<'' | 'active' | 'paused' | 'catalog'>('')
   const [loading, setLoading]   = useState(true)
   const [error, setError]       = useState<string | null>(null)
   const [generating, setGenerating] = useState(false)
@@ -87,9 +90,15 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
       const sidQ = sid != null ? `?seller_id=${sid}` : ''
       const sidQAmp = sid != null ? `&seller_id=${sid}` : ''
 
+      // listingFilter='catalog' vira ?catalog=true; demais viram ?listing_status=...
+      const listingQ = listingFilter === 'catalog'
+        ? '&catalog=true'
+        : listingFilter
+          ? `&listing_status=${listingFilter}`
+          : ''
       const [cRes, iRes] = await Promise.all([
         fetch(`${BACKEND}/ml-campaigns/${id}${sidQ}`, { headers: { Authorization: `Bearer ${t}` } }),
-        fetch(`${BACKEND}/ml-campaigns/${id}/items?limit=100${sidQAmp}${statusFilter ? `&status=${statusFilter}` : ''}`, {
+        fetch(`${BACKEND}/ml-campaigns/${id}/items?limit=100${sidQAmp}${statusFilter ? `&status=${statusFilter}` : ''}${listingQ}`, {
           headers: { Authorization: `Bearer ${t}` },
         }),
       ])
@@ -107,7 +116,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
     } finally {
       setLoading(false)
     }
-  }, [id, statusFilter])
+  }, [id, statusFilter, listingFilter])
 
   useEffect(() => { void load() }, [load, selectedSellerId])
 
@@ -365,6 +374,28 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
         </div>
       </div>
 
+      {/* Listing status filter (ativo/pausado/catalogo) */}
+      <div className="flex items-center gap-1 text-[11px] flex-wrap">
+        <span className="text-zinc-500 mr-1">Anúncio:</span>
+        {[
+          { v: '',         label: 'Todos',     color: '#a1a1aa' },
+          { v: 'active',   label: 'Ativos',    color: '#22c55e' },
+          { v: 'paused',   label: 'Pausados',  color: '#fbbf24' },
+          { v: 'catalog',  label: 'Catálogo',  color: '#a78bfa' },
+        ].map(opt => (
+          <button key={opt.v}
+            onClick={() => setListingFilter(opt.v as any)}
+            className="px-2 py-0.5 rounded transition-all font-medium"
+            style={{
+              background: listingFilter === opt.v ? `${opt.color}20` : '#0c0c10',
+              border: `1px solid ${listingFilter === opt.v ? `${opt.color}60` : '#1a1a1f'}`,
+              color: listingFilter === opt.v ? opt.color : '#71717a',
+            }}>
+            {opt.label}
+          </button>
+        ))}
+      </div>
+
       {/* Items list */}
       {items.length === 0 && !loading && (
         <div className="rounded-xl p-6 text-center text-xs text-zinc-500"
@@ -457,7 +488,10 @@ function ItemRow({ item, campaignId, onLeave, leaving }: {
               {item.title}
             </p>
           )}
-          <ItemStatusBadge status={item.status} />
+          <div className="flex items-center gap-1 flex-wrap mt-0.5">
+            <ItemStatusBadge status={item.status} />
+            <ListingStatusBadge listingStatus={item.listing_status} catalog={item.catalog_listing} />
+          </div>
         </div>
 
         {/* Preços */}
@@ -582,7 +616,33 @@ function ItemStatusBadge({ status }: { status: string }) {
   }
   const m = map[status] ?? { label: status, color: '#71717a' }
   return (
-    <span className="text-[9px] mt-1 inline-block px-1.5 py-0.5 rounded uppercase tracking-wider font-semibold"
+    <span className="text-[9px] inline-block px-1.5 py-0.5 rounded uppercase tracking-wider font-semibold"
+      style={{ background: `${m.color}15`, color: m.color, border: `1px solid ${m.color}40` }}>
+      {m.label}
+    </span>
+  )
+}
+
+/** Badge do status do anúncio na ML (ativo/pausado/fechado) + flag catálogo. */
+function ListingStatusBadge({ listingStatus, catalog }: { listingStatus: string | null; catalog: boolean }) {
+  if (catalog) {
+    return (
+      <span className="text-[9px] inline-block px-1.5 py-0.5 rounded uppercase tracking-wider font-semibold"
+        style={{ background: 'rgba(167,139,250,0.15)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.4)' }}>
+        Catálogo
+      </span>
+    )
+  }
+  if (!listingStatus) return null
+  const map: Record<string, { label: string; color: string }> = {
+    active:       { label: 'Ativo',     color: '#22c55e' },
+    paused:       { label: 'Pausado',   color: '#fbbf24' },
+    closed:       { label: 'Fechado',   color: '#71717a' },
+    under_review: { label: 'Em revisão', color: '#fb923c' },
+  }
+  const m = map[listingStatus] ?? { label: listingStatus, color: '#71717a' }
+  return (
+    <span className="text-[9px] inline-block px-1.5 py-0.5 rounded uppercase tracking-wider font-semibold"
       style={{ background: `${m.color}15`, color: m.color, border: `1px solid ${m.color}40` }}>
       {m.label}
     </span>

@@ -75,15 +75,17 @@ function ItemsPageInner() {
   const { selected: selectedSellerId } = useMlAccount()
 
   // Filtros via URL (deep-linkable)
-  const level      = (sp.get('level')      ?? '')         as Level
-  const domainId   = sp.get('domain_id')   ?? ''
-  const penalty    = (sp.get('penalty')    ?? '')         as Penalty
-  const minScore   = sp.get('min_score')   ?? ''
-  const maxScore   = sp.get('max_score')   ?? ''
-  const q          = sp.get('q')           ?? ''
-  const sort       = (sp.get('sort')       ?? 'priority') as SortKey
-  const offset     = Number(sp.get('offset') ?? '0')
-  const LIMIT      = 50
+  const level         = (sp.get('level')         ?? '')         as Level
+  const domainId      = sp.get('domain_id')      ?? ''
+  const penalty       = (sp.get('penalty')       ?? '')         as Penalty
+  const minScore      = sp.get('min_score')      ?? ''
+  const maxScore      = sp.get('max_score')      ?? ''
+  const listingStatus = sp.get('listing_status') ?? ''
+  const catalog       = sp.get('catalog')        ?? ''
+  const q             = sp.get('q')              ?? ''
+  const sort          = (sp.get('sort')          ?? 'priority') as SortKey
+  const offset        = Number(sp.get('offset') ?? '0')
+  const LIMIT         = 50
 
   // Estado local de busca (separado pra debounce)
   const [searchInput, setSearchInput] = useState(q)
@@ -117,6 +119,8 @@ function ItemsPageInner() {
       if (penalty)         params.set('penalty', penalty)
       if (minScore)        params.set('min_score', minScore)
       if (maxScore)        params.set('max_score', maxScore)
+      if (listingStatus)   params.set('listing_status', listingStatus)
+      if (catalog)         params.set('catalog', catalog)
       if (q)               params.set('q', q)
       if (sort)            params.set('sort', sort)
       params.set('limit',  String(LIMIT))
@@ -136,7 +140,7 @@ function ItemsPageInner() {
     } finally {
       setLoading(false)
     }
-  }, [level, domainId, penalty, minScore, maxScore, q, sort, offset])
+  }, [level, domainId, penalty, minScore, maxScore, listingStatus, catalog, q, sort, offset])
 
   useEffect(() => { void load() }, [load, selectedSellerId])
 
@@ -238,6 +242,25 @@ function ItemsPageInner() {
               { value: 'false', label: 'Sem penalidade' },
             ]}
             onChange={v => updateFilter({ penalty: v || null })}
+          />
+
+          <FilterChip
+            label="Anúncio"
+            value={catalog === 'true' ? 'catalog' : listingStatus}
+            options={[
+              { value: '',         label: 'Todos' },
+              { value: 'active',   label: 'Ativos' },
+              { value: 'paused',   label: 'Pausados' },
+              { value: 'closed',   label: 'Fechados' },
+              { value: 'catalog',  label: 'Catálogo' },
+            ]}
+            onChange={v => {
+              if (v === 'catalog') {
+                updateFilter({ catalog: 'true', listing_status: null })
+              } else {
+                updateFilter({ catalog: null, listing_status: v || null })
+              }
+            }}
           />
 
           <ScoreRangeFilter
