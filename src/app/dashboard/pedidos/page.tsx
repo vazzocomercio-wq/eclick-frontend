@@ -113,11 +113,18 @@ type MOrder = {
   mediations: unknown[]
   tarifa_ml:           number
   frete_vendedor:      number
+  frete_comprador?:    number
   lucro_bruto:         number
   cost_price:          number | null
   tax_amount:          number | null
   contribution_margin: number | null
   contribution_margin_pct: number | null
+  shipping_breakdown?: {
+    buyer_paid:  number
+    ml_refund:   number
+    seller_paid: number
+    gross:       number
+  }
 }
 
 type TabKey = 'abertas' | 'em_preparacao' | 'despachadas' | 'pgto_pendente' | 'flex' | 'encerradas' | 'mediacao'
@@ -1121,16 +1128,30 @@ function OrderCard({
         {/* ── Financial ── */}
         <div className="p-4 pr-5 flex flex-col gap-0.5">
           <FinRow icon={payIcon} label="Valor pago"     value={brl(order.total_amount)}
-            tooltip="Valor pago pelo comprador" />
-          <FinRow icon="🚚" label="Frete vendedor"
-            value={order.frete_vendedor ? `-${brl(order.frete_vendedor)}` : brl(0)} color="#f87171"
-            tooltip={`Frete comprador: ${order.shipping?.receiver_cost != null ? brl(order.shipping?.receiver_cost) : '—'} / Vendedor: ${brl(order.frete_vendedor)}`} />
+            tooltip={`Valor pago pelo comprador (produtos + frete)\n* ID pgto: ${order.payments?.[0]?.id ?? '—'}\n* Modo: ${order.payments?.[0]?.payment_type ?? '—'}`} />
+
+          {/* Reembolso ML do frete — só renderiza se houve */}
+          {(order.shipping_breakdown?.ml_refund ?? 0) > 0 && (
+            <FinRow icon="🔄" label="Reembolso ML frete"
+              value={brl(order.shipping_breakdown!.ml_refund)} color="#4ade80"
+              tooltip="Valor reembolsado pelo Mercado Livre pra esse tipo de frete" />
+          )}
+
           <FinRow icon="🏪" label="Tarifa ML"           value={`-${brl(order.tarifa_ml)}`} color="#f87171"
-            tooltip="Tarifa do Mercado Livre (~11,5%)" />
+            tooltip={`Tarifa do ML: ${brl(order.tarifa_ml)} (~${order.total_amount > 0 ? Math.round((order.tarifa_ml / order.total_amount) * 1000) / 10 : 0}%)`} />
+
+          <FinRow icon="🚚" label="Frete vendedor"
+            value={order.frete_vendedor ? `-${brl(order.frete_vendedor)}` : brl(0)} color={order.frete_vendedor > 0 ? '#f87171' : '#71717a'}
+            tooltip={`Frete Comprador: ${brl(order.shipping_breakdown?.buyer_paid ?? order.frete_comprador ?? 0)}\nReembolso ML: ${brl(order.shipping_breakdown?.ml_refund ?? 0)}\nFrete Vendedor: ${brl(order.frete_vendedor)}`} />
           <div className="border-t my-1.5" style={{ borderColor: '#1e1e24' }} />
-          <FinRow icon="💰" label="Lucro bruto"         value={brl(order.lucro_bruto)}
+          <FinRow icon="💰" label="Lucro bruto"
+            value={
+              order.total_amount > 0
+                ? `${brl(order.lucro_bruto)} (${((order.lucro_bruto / order.total_amount) * 100).toFixed(1)}%)`
+                : brl(order.lucro_bruto)
+            }
             color={order.lucro_bruto >= 0 ? '#4ade80' : '#f87171'}
-            tooltip="Lucro bruto: valor − tarifa − frete" />
+            tooltip={`Lucro Bruto da Venda — ${order.total_amount > 0 ? ((order.lucro_bruto / order.total_amount) * 100).toFixed(2) : 0}% do valor do anúncio\n(valor − tarifa − frete vendedor)`} />
           {/* Custo / Imposto — 3 estados: vinculado | sem produto (criar) | sem item_id */}
           {vinculos.length > 0 ? (
             <>
@@ -1329,16 +1350,31 @@ function OrderCard({
               ? { margem: order.contribution_margin, margemPct: order.contribution_margin_pct ?? 0 }
               : null)
             const mc = cm != null ? (cm.margem >= 0 ? '#4ade80' : '#f87171') : '#4ade80'
+            // % sobre o custo (ROI direto sobre CMV) — mais útil pra
+            // entender retorno do que % sobre anúncio.
+            const custoBase = order.cost_price ?? 0
+            const pctSobreCusto = cm != null && custoBase > 0
+              ? (cm.margem / custoBase) * 100
+              : null
             return (
-              <Tip text={cm != null ? `Margem de contribuição: ${cm.margemPct}%` : 'Configure custo no produto para ver a margem'}>
+              <Tip text={cm != null
+                ? `Margem de Contribuição da Venda\n${cm.margemPct}% do valor do anúncio${pctSobreCusto != null ? `\n${pctSobreCusto.toFixed(2)}% do valor do custo` : ''}`
+                : 'Configure custo no produto para ver a margem'}>
                 <div className="flex items-center justify-between gap-2 py-0.5 cursor-default">
                   <span className="text-sm">🟢</span>
                   <span className="flex-1 text-xs font-semibold text-zinc-300 leading-tight">Margem contrib.</span>
                   {cm != null
-                    ? <span className="text-sm font-bold tabular-nums" style={{ color: mc }}>
-                        {brl(cm.margem)}
-                        <span className="text-xs font-semibold opacity-80 ml-1">({cm.margemPct}%)</span>
-                      </span>
+                    ? <div className="flex flex-col items-end">
+                        <span className="text-sm font-bold tabular-nums" style={{ color: mc }}>
+                          {brl(cm.margem)}
+                          <span className="text-xs font-semibold opacity-80 ml-1">({cm.margemPct}%)</span>
+                        </span>
+                        {pctSobreCusto != null && (
+                          <span className="text-[10px] text-zinc-500 tabular-nums">
+                            {pctSobreCusto.toFixed(1)}% do custo
+                          </span>
+                        )}
+                      </div>
                     : <span className="text-xs text-zinc-700">—</span>
                   }
                 </div>
