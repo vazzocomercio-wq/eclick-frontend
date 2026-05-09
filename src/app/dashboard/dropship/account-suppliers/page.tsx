@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
-import { Plus, X, Link2, Trash2, AlertCircle } from 'lucide-react'
+import { Plus, X, Link2, Trash2, AlertCircle, Loader2, AlertTriangle } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 
@@ -66,6 +66,15 @@ export default function AccountSuppliersPage() {
   const [formErr, setFormErr] = useState('')
   const [pageErr, setPageErr] = useState('')
 
+  // Contas conectadas (OAuth) do marketplace selecionado
+  const [connectedAccounts, setConnectedAccounts] = useState<Array<{
+    id_field: 'seller_id' | 'shopee_shop_id' | 'amazon_seller_id'
+    id_value: string
+    nickname: string | null
+    already_linked: boolean
+  }>>([])
+  const [loadingAccounts, setLoadingAccounts] = useState(false)
+
   const getHeaders = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session?.access_token) throw new Error('Não autenticado')
@@ -94,6 +103,49 @@ export default function AccountSuppliersPage() {
   }, [getHeaders, filterMarketplace])
 
   useEffect(() => { load() }, [load])
+
+  // Busca contas conectadas quando marketplace muda no modal
+  useEffect(() => {
+    if (!showModal) return
+    let cancelled = false
+    setLoadingAccounts(true)
+    setConnectedAccounts([])
+    // Reseta IDs ao trocar marketplace
+    setForm(f => ({ ...f, seller_id: '', shopee_shop_id: '', amazon_seller_id: '', account_label: '' }))
+    ;(async () => {
+      try {
+        const headers = await getHeaders()
+        const res = await fetch(
+          `${BACKEND}/dropship/connected-accounts?marketplace=${encodeURIComponent(form.marketplace)}`,
+          { headers },
+        )
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const data = await res.json()
+        if (!cancelled) setConnectedAccounts(data.accounts ?? [])
+      } catch {
+        if (!cancelled) setConnectedAccounts([])
+      } finally {
+        if (!cancelled) setLoadingAccounts(false)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [showModal, form.marketplace, getHeaders])
+
+  function selectAccount(idValue: string) {
+    const acc = connectedAccounts.find(a => a.id_value === idValue)
+    if (!acc) return
+    setForm(f => ({
+      ...f,
+      seller_id: acc.id_field === 'seller_id' ? acc.id_value : '',
+      shopee_shop_id: acc.id_field === 'shopee_shop_id' ? acc.id_value : '',
+      amazon_seller_id: acc.id_field === 'amazon_seller_id' ? acc.id_value : '',
+      // Auto-preenche label se vazio
+      account_label: f.account_label || acc.nickname || '',
+    }))
+  }
+
+  // Valor selecionado no dropdown (qual id_value está preenchido)
+  const selectedAccountValue = form.seller_id || form.shopee_shop_id || form.amazon_seller_id
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
@@ -316,29 +368,58 @@ export default function AccountSuppliersPage() {
                 </select>
               </div>
 
-              {form.marketplace === 'mercado_livre' && (
-                <div>
-                  <label className={lbl}>Seller ID (ML) *</label>
-                  <input value={form.seller_id} onChange={e => setForm(f => ({ ...f, seller_id: e.target.value }))} className={inp} placeholder="123456789" />
-                </div>
-              )}
-              {form.marketplace === 'shopee' && (
-                <div>
-                  <label className={lbl}>Shop ID (Shopee) *</label>
-                  <input value={form.shopee_shop_id} onChange={e => setForm(f => ({ ...f, shopee_shop_id: e.target.value }))} className={inp} />
-                </div>
-              )}
-              {form.marketplace === 'amazon' && (
-                <div>
-                  <label className={lbl}>Seller ID (Amazon) *</label>
-                  <input value={form.amazon_seller_id} onChange={e => setForm(f => ({ ...f, amazon_seller_id: e.target.value }))} className={inp} />
-                </div>
-              )}
-              {(form.marketplace === 'magalu' || form.marketplace === 'others') && (
-                <div className="rounded-lg p-3 text-xs" style={{ background: 'rgba(252,211,77,0.10)', color: '#fcd34d', border: '1px solid rgba(252,211,77,0.3)' }}>
-                  Use qualquer campo de ID disponível abaixo
-                </div>
-              )}
+              <div>
+                <label className={lbl}>Conta conectada *</label>
+                {loadingAccounts ? (
+                  <div className={inp + ' flex items-center gap-2 text-zinc-500'}>
+                    <Loader2 size={14} className="animate-spin" />
+                    Buscando contas conectadas...
+                  </div>
+                ) : connectedAccounts.length === 0 ? (
+                  <div className="rounded-lg p-3 text-xs flex items-start gap-2" style={{
+                    background: 'rgba(252,211,77,0.10)',
+                    color: '#fcd34d',
+                    border: '1px solid rgba(252,211,77,0.3)',
+                  }}>
+                    <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+                    <div className="flex-1">
+                      <p className="font-medium">Nenhuma conta {MARKETPLACE_LABELS[form.marketplace]} conectada</p>
+                      <p className="text-zinc-400 mt-1">
+                        Conecte uma conta primeiro em{' '}
+                        <Link href="/dashboard/integracoes" className="underline" style={{ color: '#00E5FF' }} onClick={() => setShowModal(false)}>
+                          Configurações &gt; Integrações
+                        </Link>
+                        .
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <select
+                      value={selectedAccountValue}
+                      onChange={e => selectAccount(e.target.value)}
+                      className={inp}
+                    >
+                      <option value="">— Selecione a conta —</option>
+                      {connectedAccounts.map(acc => (
+                        <option key={`${acc.id_field}:${acc.id_value}`} value={acc.id_value}>
+                          {acc.nickname ? `${acc.nickname}` : '(sem apelido)'}
+                          {' · '}
+                          {acc.id_field === 'seller_id' ? 'Seller ID' :
+                           acc.id_field === 'shopee_shop_id' ? 'Shop ID' :
+                           'Seller ID Amazon'}{' '}
+                          {acc.id_value}
+                          {acc.already_linked ? ' [já vinculada]' : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-zinc-500 mt-1">
+                      {connectedAccounts.length} {connectedAccounts.length === 1 ? 'conta' : 'contas'} conectada{connectedAccounts.length !== 1 ? 's' : ''}.
+                      Vinculadas em vermelho já têm parceiro ativo.
+                    </p>
+                  </>
+                )}
+              </div>
 
               <div>
                 <label className={lbl}>Apelido da conta</label>
