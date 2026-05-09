@@ -125,7 +125,25 @@ export default function OCDetailPage() {
 
   async function handleSend() {
     if (!oc) return
-    if (!confirm(`Enviar OC ${oc.oc_number} ao parceiro? Vai disparar e-mail (e WhatsApp se configurado) com link de aprovação.`)) return
+    // Pre-flight: verifica setup
+    try {
+      const headers = await getHeaders()
+      const setupRes = await fetch(`${BACKEND}/dropship/setup-status`, { headers })
+      if (setupRes.ok) {
+        const setup = await setupRes.json()
+        if (!setup.has_email_config) {
+          if (!confirm(
+            'Você ainda não configurou provider de e-mail (Resend/SendGrid). ' +
+            'O parceiro NÃO vai receber a notificação por e-mail.\n\n' +
+            'Configure em /dashboard/configuracoes/integracoes antes de continuar.\n\n' +
+            'Deseja enviar mesmo assim (só vai criar o link, sem disparar)?'
+          )) return
+        } else if (!confirm(`Enviar OC ${oc.oc_number} ao parceiro? Vai disparar e-mail${setup.has_whatsapp_config ? ' + WhatsApp' : ''} com link de aprovação.`)) {
+          return
+        }
+      }
+    } catch { /* segue mesmo se check falhar */ }
+
     setSending(true); setErr('')
     try {
       const headers = await getHeaders()

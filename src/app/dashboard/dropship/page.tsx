@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import {
   Truck, Building2, Link2, Package, AlertTriangle, ShoppingCart, Calendar,
-  ChevronRight, RefreshCw, FileText, Eye,
+  ChevronRight, RefreshCw, FileText, Eye, Mail, MessageSquare, Settings,
 } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
@@ -35,10 +35,20 @@ interface DashboardData {
   }>
 }
 
+interface SetupStatus {
+  has_partners: boolean
+  has_active_partners: boolean
+  has_email_config: boolean
+  has_whatsapp_config: boolean
+  has_account_links: boolean
+  blockers: string[]
+}
+
 export default function DropshipHomePage() {
   const supabase = useMemo(() => createClient(), [])
 
   const [data, setData] = useState<DashboardData | null>(null)
+  const [setup, setSetup] = useState<SetupStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
 
@@ -48,11 +58,13 @@ export default function DropshipHomePage() {
     try {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session?.access_token) return
-      const res = await fetch(`${BACKEND}/dropship/dashboard`, {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      setData(await res.json())
+      const headers = { Authorization: `Bearer ${session.access_token}` }
+      const [dashRes, setupRes] = await Promise.all([
+        fetch(`${BACKEND}/dropship/dashboard`, { headers }),
+        fetch(`${BACKEND}/dropship/setup-status`, { headers }),
+      ])
+      if (dashRes.ok) setData(await dashRes.json())
+      if (setupRes.ok) setSetup(await setupRes.json())
     } catch { /* keep stale */ }
     finally { setLoading(false); setRefreshing(false) }
   }, [supabase])
@@ -125,6 +137,11 @@ export default function DropshipHomePage() {
           accent={(kpis?.out_of_stock_skus ?? 0) > 0 ? '#f87171' : undefined}
         />
       </div>
+
+      {/* Onboarding checklist (se ainda faltando passos críticos) */}
+      {!loading && setup && setup.blockers.length > 0 && (
+        <OnboardingChecklist setup={setup} />
+      )}
 
       {/* alerts */}
       {!loading && (kpis?.on_hold_count ?? 0) > 0 && (
@@ -240,6 +257,115 @@ export default function DropshipHomePage() {
 }
 
 // ── Components ─────────────────────────────────────────────────────────────────
+
+function OnboardingChecklist({ setup }: { setup: SetupStatus }) {
+  const isCriticalBlocker = !setup.has_partners || !setup.has_account_links
+  const isWarning = setup.has_partners && setup.has_account_links
+
+  const steps = [
+    {
+      done: setup.has_partners,
+      title: 'Cadastre seu primeiro parceiro dropship',
+      desc: 'Fornecedor que despacha direto pro comprador',
+      href: '/dashboard/dropship/partners',
+      icon: <Building2 size={14} />,
+    },
+    {
+      done: setup.has_account_links,
+      title: 'Vincule conta de marketplace ao parceiro',
+      desc: 'Quais pedidos ML/Shopee/Amazon serão dropship',
+      href: '/dashboard/dropship/account-suppliers',
+      icon: <Link2 size={14} />,
+      requiresPrev: !setup.has_partners,
+    },
+    {
+      done: setup.has_email_config,
+      title: 'Configure provider de e-mail',
+      desc: 'Necessário pra enviar OCs ao parceiro (Resend/SendGrid)',
+      href: '/dashboard/configuracoes/integracoes',
+      icon: <Mail size={14} />,
+      optional: true,
+    },
+    {
+      done: setup.has_whatsapp_config,
+      title: 'Configure WhatsApp (opcional)',
+      desc: 'Notificação adicional ao parceiro junto com e-mail',
+      href: '/dashboard/configuracoes/integracoes',
+      icon: <MessageSquare size={14} />,
+      optional: true,
+    },
+  ]
+
+  return (
+    <div
+      className="rounded-xl p-5 mb-6"
+      style={{
+        background: isCriticalBlocker ? 'rgba(252,211,77,0.05)' : 'rgba(0,229,255,0.03)',
+        border: isCriticalBlocker
+          ? '1px solid rgba(252,211,77,0.2)'
+          : '1px solid rgba(0,229,255,0.15)',
+      }}
+    >
+      <div className="flex items-start gap-3 mb-4">
+        <Settings size={20} style={{ color: isCriticalBlocker ? '#fcd34d' : '#00E5FF' }} />
+        <div className="flex-1">
+          <h3 className="text-sm font-semibold text-white">
+            {isCriticalBlocker ? 'Configuração inicial pendente' : 'Configurações recomendadas'}
+          </h3>
+          <p className="text-xs text-zinc-400 mt-0.5">
+            {isCriticalBlocker
+              ? 'Complete os passos abaixo pra começar a operar dropship'
+              : isWarning
+              ? 'Configurações opcionais que melhoram a operação'
+              : ''}
+          </p>
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        {steps.map((s, idx) => (
+          <Link
+            key={idx}
+            href={s.href}
+            className="flex items-start gap-3 p-3 rounded-lg transition-colors hover:bg-[#1a1a1f]"
+            style={{
+              background: s.done ? 'rgba(34,197,94,0.05)' : '#0f0f12',
+              border: s.done ? '1px solid rgba(34,197,94,0.2)' : '1px solid #1a1a1f',
+              opacity: s.requiresPrev ? 0.5 : 1,
+            }}
+          >
+            <div
+              className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5"
+              style={{
+                background: s.done ? 'rgba(34,197,94,0.15)' : 'rgba(0,229,255,0.10)',
+                color: s.done ? '#22c55e' : '#00E5FF',
+              }}
+            >
+              {s.done ? '✓' : s.icon}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-medium" style={{ color: s.done ? '#a1a1aa' : '#fff' }}>
+                  {s.title}
+                </p>
+                {s.optional && !s.done && (
+                  <span
+                    className="text-xs px-1.5 py-0.5 rounded"
+                    style={{ background: 'rgba(113,113,122,0.10)', color: '#71717a' }}
+                  >
+                    opcional
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-zinc-500 mt-0.5">{s.desc}</p>
+            </div>
+            {!s.done && <ChevronRight size={14} className="text-zinc-500 shrink-0 mt-1" />}
+          </Link>
+        ))}
+      </div>
+    </div>
+  )
+}
 
 function Kpi({
   label, value, icon, accent,
