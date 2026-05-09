@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import {
   CheckCircle2, XCircle, AlertTriangle, Calendar, Clock,
-  FileText, Building2, Loader2, Package,
+  FileText, Building2, Loader2, Package, Download,
 } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
@@ -129,14 +129,26 @@ export default function PortalPage() {
     <div className="min-h-screen" style={{ background: '#09090b', color: '#fff' }}>
       {/* Header */}
       <header className="border-b" style={{ borderColor: '#1a1a1f' }}>
-        <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between gap-4 flex-wrap">
           <div>
             <p className="text-xs text-zinc-500">e-Click · Portal do Parceiro</p>
             <h1 className="text-lg font-semibold text-white font-mono">{oc.oc_number}</h1>
           </div>
-          <div className="text-right">
-            <p className="text-xs text-zinc-500">Link válido até</p>
-            <p className="text-sm text-zinc-300">{fmtDateTime(session.expires_at)}</p>
+          <div className="flex items-center gap-3">
+            <a
+              href={`${BACKEND}/portal/oc/${token}/pdf`}
+              target="_blank"
+              rel="noopener"
+              className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors hover:bg-[#1a1a1f]"
+              style={{ border: '1px solid #27272a', color: '#a1a1aa' }}
+            >
+              <Download size={14} />
+              Baixar PDF
+            </a>
+            <div className="text-right">
+              <p className="text-xs text-zinc-500">Link válido até</p>
+              <p className="text-sm text-zinc-300">{fmtDateTime(session.expires_at)}</p>
+            </div>
           </div>
         </div>
       </header>

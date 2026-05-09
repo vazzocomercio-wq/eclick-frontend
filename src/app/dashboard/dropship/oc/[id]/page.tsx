@@ -289,12 +289,27 @@ export default function OCDetailPage() {
               {sending ? 'Enviando...' : oc.status === 'generated' ? 'Enviar Parceiro' : 'Reenviar'}
             </button>
           )}
-          {oc.pdf_url && (
-            <a href={oc.pdf_url} target="_blank" rel="noopener" className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg" style={{ border: '1px solid #27272a', color: '#a1a1aa' }}>
-              <FileText size={14} />
-              PDF
-            </a>
-          )}
+          <button
+            onClick={async () => {
+              try {
+                const headers = await getHeaders()
+                const res = await fetch(`${BACKEND}/dropship/oc/${id}/pdf`, { headers })
+                if (!res.ok) throw new Error(`PDF HTTP ${res.status}`)
+                const blob = await res.blob()
+                const url = URL.createObjectURL(blob)
+                window.open(url, '_blank')
+                setTimeout(() => URL.revokeObjectURL(url), 60_000)
+              } catch (e) {
+                setErr(e instanceof Error ? e.message : 'Erro ao gerar PDF')
+              }
+            }}
+            className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors hover:bg-[#1a1a1f]"
+            style={{ border: '1px solid #27272a', color: '#a1a1aa' }}
+            title="Visualizar PDF"
+          >
+            <FileText size={14} />
+            PDF
+          </button>
           {canCancel && (
             <button
               onClick={handleCancel}
