@@ -240,6 +240,41 @@ function NewDisputeModal({
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
 
+  // Listas pra dropdown (filtradas por supplierId)
+  const [ocOptions, setOcOptions] = useState<Array<{ id: string; oc_number: string; reference_date: string; net_total: number }>>([])
+  const [returnOptions, setReturnOptions] = useState<Array<{ id: string; return_type: string; return_amount: number; opened_at: string }>>([])
+  const [loadingRefs, setLoadingRefs] = useState(false)
+
+  // Buscar OCs e Returns do supplier ao mudar
+  useEffect(() => {
+    if (!supplierId) {
+      setOcOptions([])
+      setReturnOptions([])
+      setOcId('')
+      setReturnId('')
+      return
+    }
+    let cancelled = false
+    setLoadingRefs(true)
+    setOcId('')
+    setReturnId('')
+    ;(async () => {
+      try {
+        const headers = await getHeaders()
+        const [ocRes, retRes] = await Promise.all([
+          fetch(`${BACKEND}/dropship/oc?supplier_id=${supplierId}`, { headers }),
+          fetch(`${BACKEND}/dropship/returns?supplier_id=${supplierId}`, { headers }),
+        ])
+        if (!cancelled) {
+          if (ocRes.ok) setOcOptions(await ocRes.json())
+          if (retRes.ok) setReturnOptions(await retRes.json())
+        }
+      } catch { /* ignore */ }
+      finally { if (!cancelled) setLoadingRefs(false) }
+    })()
+    return () => { cancelled = true }
+  }, [supplierId, getHeaders])
+
   async function submit() {
     if (!supplierId) { setErr('Parceiro obrigatório'); return }
     if (!reason.trim()) { setErr('Motivo obrigatório'); return }
@@ -316,20 +351,49 @@ function NewDisputeModal({
         <label className={lbl}>Descrição detalhada (opcional)</label>
         <textarea value={description} onChange={e => setDescription(e.target.value)} rows={3} className={inp + ' resize-none'} />
       </div>
-      <div className="grid grid-cols-3 gap-3">
-        <div>
-          <label className={lbl}>Valor reclamado (R$)</label>
-          <input type="number" step="0.01" value={amountClaimed} onChange={e => setAmountClaimed(e.target.value)} className={inp} />
-        </div>
-        <div>
-          <label className={lbl}>OC ID</label>
-          <input value={ocId} onChange={e => setOcId(e.target.value)} className={inp} placeholder="UUID" />
-        </div>
-        <div>
-          <label className={lbl}>Devolução ID</label>
-          <input value={returnId} onChange={e => setReturnId(e.target.value)} className={inp} placeholder="UUID" />
-        </div>
+      <div>
+        <label className={lbl}>Valor reclamado (R$)</label>
+        <input type="number" step="0.01" value={amountClaimed} onChange={e => setAmountClaimed(e.target.value)} className={inp} />
       </div>
+
+      {supplierId && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <label className={lbl}>OC vinculada (opcional)</label>
+            {loadingRefs ? (
+              <div className={inp + ' text-zinc-500'}>Carregando...</div>
+            ) : ocOptions.length === 0 ? (
+              <div className={inp + ' text-zinc-500'}>Sem OCs deste parceiro</div>
+            ) : (
+              <select value={ocId} onChange={e => setOcId(e.target.value)} className={inp}>
+                <option value="">— Nenhuma —</option>
+                {ocOptions.slice(0, 50).map(oc => (
+                  <option key={oc.id} value={oc.id}>
+                    {oc.oc_number} · {fmtDate(oc.reference_date)} · {fmtBrl(oc.net_total)}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+          <div>
+            <label className={lbl}>Devolução vinculada (opcional)</label>
+            {loadingRefs ? (
+              <div className={inp + ' text-zinc-500'}>Carregando...</div>
+            ) : returnOptions.length === 0 ? (
+              <div className={inp + ' text-zinc-500'}>Sem devoluções deste parceiro</div>
+            ) : (
+              <select value={returnId} onChange={e => setReturnId(e.target.value)} className={inp}>
+                <option value="">— Nenhuma —</option>
+                {returnOptions.slice(0, 50).map(r => (
+                  <option key={r.id} value={r.id}>
+                    {returnTypeLabel(r.return_type)} · {fmtDate(r.opened_at)} · {fmtBrl(r.return_amount)}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+        </div>
+      )}
       {err && <ErrBox msg={err} />}
       <div className="flex gap-2 justify-end pt-2">
         <button onClick={() => !saving && onClose()} disabled={saving} className="px-4 py-2 text-sm rounded-lg text-zinc-400 hover:text-white" style={{ border: '1px solid #27272a' }}>Cancelar</button>
@@ -497,6 +561,27 @@ function filterLabel(s: string): string {
     : s === 'resolved_seller' ? 'A favor seller'
     : s === 'resolved_compromise' ? 'Acordos'
     : 'Todas'
+}
+
+function returnTypeLabel(t: string): string {
+  const m: Record<string, string> = {
+    cancellation: 'Cancelamento',
+    return_buyer_regret: 'Arrependimento',
+    return_defective: 'Defeito',
+    return_wrong_item: 'Item errado',
+    return_damaged: 'Avariado',
+    return_not_delivered: 'Não entregue',
+    return_incomplete: 'Incompleto',
+    warranty_claim: 'Garantia',
+    reclamation_refund: 'Reembolso',
+    chargeback: 'Chargeback',
+    partner_negotiated: 'Negociado',
+  }
+  return m[t] ?? t
+}
+
+function fmtDate(d: string) {
+  return new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' })
 }
 
 function fmtBrl(v: number) {

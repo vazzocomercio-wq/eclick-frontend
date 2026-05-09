@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
-import { ArrowLeft, Save, Archive, AlertCircle, Package, History } from 'lucide-react'
+import { ArrowLeft, Save, Archive, AlertCircle, Package, History, Trophy, TrendingUp, TrendingDown, Minus } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 
@@ -60,6 +60,15 @@ export default function PartnerDetailPage() {
   const [err, setErr] = useState('')
   const [savedOk, setSavedOk] = useState(false)
 
+  // Score history (último período + delta)
+  const [latestScore, setLatestScore] = useState<{
+    total_score: number
+    score_change: number | null
+    period_end: string
+    score_breakdown: Record<string, number>
+  } | null>(null)
+  const [creditsBalance, setCreditsBalance] = useState<number>(0)
+
   // form local
   const [form, setForm] = useState<Record<string, unknown>>({})
 
@@ -109,6 +118,35 @@ export default function PartnerDetailPage() {
   }, [getHeaders, id])
 
   useEffect(() => { load() }, [load])
+
+  // Carrega score history + saldo de créditos pendentes em paralelo
+  useEffect(() => {
+    if (!partner?.supplier_id) return
+    (async () => {
+      try {
+        const headers = await getHeaders()
+        const [scoresRes, creditsRes] = await Promise.all([
+          fetch(`${BACKEND}/dropship/partners/${partner.supplier_id}/score-history`, { headers }),
+          fetch(`${BACKEND}/dropship/partners/${partner.supplier_id}/credits-balance`, { headers }),
+        ])
+        if (scoresRes.ok) {
+          const arr = await scoresRes.json()
+          if (arr.length > 0) {
+            setLatestScore({
+              total_score: arr[0].total_score,
+              score_change: arr[0].score_change,
+              period_end: arr[0].period_end,
+              score_breakdown: arr[0].score_breakdown,
+            })
+          }
+        }
+        if (creditsRes.ok) {
+          const r = await creditsRes.json()
+          setCreditsBalance(Number(r.pending_credits_balance ?? 0))
+        }
+      } catch { /* ignore */ }
+    })()
+  }, [partner?.supplier_id, getHeaders])
 
   async function handleSave() {
     setSaving(true); setErr(''); setSavedOk(false)
@@ -239,12 +277,28 @@ export default function PartnerDetailPage() {
         </div>
       )}
 
+      {/* Score banner (se já calculado) */}
+      {latestScore && (
+        <ScoreBadge
+          score={latestScore.total_score}
+          change={latestScore.score_change}
+          periodEnd={latestScore.period_end}
+          breakdown={latestScore.score_breakdown}
+          supplierId={partner.supplier_id}
+        />
+      )}
+
       {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
         <Kpi label="Status" value={statusLabel(partner.dropship_status)} />
         <Kpi label="SKUs ativos" value={partner.active_dropship_skus ?? 0} />
         <Kpi label="Pedidos 30d" value={partner.orders_30d ?? 0} />
         <Kpi label="A pagar" value={fmtBrl(partner.pending_payable ?? 0)} />
+        <Kpi
+          label="Créditos pendentes"
+          value={fmtBrl(creditsBalance)}
+          accent={creditsBalance > 0 ? '#fcd34d' : undefined}
+        />
       </div>
 
       {/* form em 2 colunas */}
@@ -390,11 +444,97 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   )
 }
 
-function Kpi({ label, value }: { label: string; value: string | number }) {
+function Kpi({ label, value, accent }: { label: string; value: string | number; accent?: string }) {
   return (
     <div className="rounded-xl p-4" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
       <p className="text-xs text-zinc-500 mb-1">{label}</p>
-      <p className="text-lg font-semibold text-white">{value}</p>
+      <p className="text-lg font-semibold" style={{ color: accent ?? '#fff' }}>{value}</p>
+    </div>
+  )
+}
+
+function ScoreBadge({
+  score, change, periodEnd, breakdown, supplierId,
+}: {
+  score: number
+  change: number | null
+  periodEnd: string
+  breakdown: Record<string, number>
+  supplierId: string
+}) {
+  const color = score >= 80 ? '#22c55e' : score >= 60 ? '#fcd34d' : '#f87171'
+  const bg = score >= 80 ? 'rgba(34,197,94,0.05)' : score >= 60 ? 'rgba(252,211,77,0.05)' : 'rgba(248,113,113,0.05)'
+
+  const dimLabels: Record<string, string> = {
+    stock_accuracy: 'Estoque',
+    ship_lead_compliance: 'Prazo',
+    divergence_rate: 'Divergência',
+    return_rate: 'Devolução',
+    approval_speed: 'Aprovação',
+  }
+
+  return (
+    <div
+      className="rounded-xl p-5 mb-6"
+      style={{ background: bg, border: `1px solid ${color}33` }}
+    >
+      <div className="flex items-start gap-5 flex-wrap">
+        <div className="flex items-center gap-3">
+          <div
+            className="w-16 h-16 rounded-full flex items-center justify-center font-bold text-2xl"
+            style={{ background: `${color}1A`, color, border: `2px solid ${color}66` }}
+          >
+            {score}
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <Trophy size={14} style={{ color }} />
+              <p className="text-sm font-semibold text-white">Score do parceiro</p>
+            </div>
+            <p className="text-xs text-zinc-500 mt-0.5">
+              Período {new Date(periodEnd).toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' })}
+            </p>
+            {change != null && change !== 0 && (
+              <div className="flex items-center gap-1 text-xs mt-1">
+                {change > 0 ? (
+                  <><TrendingUp size={11} style={{ color: '#22c55e' }} /><span style={{ color: '#22c55e' }}>+{change} vs anterior</span></>
+                ) : (
+                  <><TrendingDown size={11} style={{ color: '#f87171' }} /><span style={{ color: '#f87171' }}>{change} vs anterior</span></>
+                )}
+              </div>
+            )}
+            {change === 0 && (
+              <div className="flex items-center gap-1 text-xs mt-1 text-zinc-500">
+                <Minus size={11} /> sem mudança
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="flex-1 min-w-[280px] grid grid-cols-5 gap-2">
+          {Object.entries(breakdown).map(([key, value]) => {
+            const pct = (value / 20) * 100
+            const dimColor = pct >= 75 ? '#22c55e' : pct >= 50 ? '#fcd34d' : '#f87171'
+            return (
+              <div key={key} className="text-center">
+                <p className="text-xs font-semibold" style={{ color: dimColor }}>{value}/20</p>
+                <p className="text-xs text-zinc-500 mt-0.5">{dimLabels[key] ?? key}</p>
+                <div className="h-1 rounded-full overflow-hidden mt-1.5" style={{ background: '#0d0d10' }}>
+                  <div className="h-full" style={{ width: `${pct}%`, background: dimColor }} />
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        <Link
+          href={`/dashboard/dropship/scores`}
+          className="text-xs px-3 py-1.5 rounded-lg shrink-0"
+          style={{ border: `1px solid ${color}33`, color }}
+        >
+          Ver ranking →
+        </Link>
+      </div>
     </div>
   )
 }
