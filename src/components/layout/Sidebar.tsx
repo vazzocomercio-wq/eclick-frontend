@@ -141,9 +141,11 @@ const SECTIONS: NavSection[] = [
       {
         label: 'Listing Center IA', href: '/dashboard/listings', icon: <CheckSquare size={15} />,
         children: [
-          { label: 'Tarefas',     href: '/dashboard/listings' },
-          { label: 'Sem estoque', href: '/dashboard/listings?type=OUT_OF_STOCK' },
-          { label: 'Pausados',    href: '/dashboard/listings?type=INACTIVE_PAUSED' },
+          { label: 'Tarefas',         href: '/dashboard/listings' },
+          { label: 'Sem estoque',     href: '/dashboard/listings?type=OUT_OF_STOCK' },
+          { label: 'Pausados',        href: '/dashboard/listings?type=INACTIVE_PAUSED' },
+          { label: 'Pricing IA',      href: '/dashboard/listings/pricing' },
+          { label: 'Perdendo Buy Box', href: '/dashboard/listings?type=LOSING_BUY_BOX' },
         ],
       },
       { label: 'Pedidos', href: '/dashboard/pedidos', icon: <ShoppingBag size={15} /> },
