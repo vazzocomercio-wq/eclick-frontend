@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
+import { useConfirm } from '@/components/ui/dialog-provider'
 import {
   ArrowLeft, AlertCircle, FileText, RefreshCw, ChevronRight, Eye, Clock, Lock,
 } from 'lucide-react'
@@ -39,6 +40,7 @@ export default function OCsListPage() {
   const [err, setErr] = useState('')
   const [filterStatus, setFilterStatus] = useState<string>('all')
   const [generating, setGenerating] = useState(false)
+  const confirm = useConfirm()
 
   const getHeaders = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
@@ -64,7 +66,13 @@ export default function OCsListPage() {
   useEffect(() => { load() }, [load])
 
   async function generateNow() {
-    if (!confirm('Gerar OCs agora (fora do horário programado das 22h)? Apenas pedidos elegíveis sem OC ativa serão incluídos.')) return
+    const ok = await confirm({
+      title: 'Gerar OCs fora do horário',
+      message: 'Vai gerar agora (fora das 22h programadas). Apenas pedidos elegíveis sem OC ativa serão incluídos.',
+      confirmLabel: 'Gerar OCs',
+      variant: 'warning',
+    })
+    if (!ok) return
     setGenerating(true); setErr('')
     try {
       const headers = await getHeaders()

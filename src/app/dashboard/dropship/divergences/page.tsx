@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
+import { usePrompt } from '@/components/ui/dialog-provider'
 import {
   ArrowLeft, AlertCircle, Search, RefreshCw, AlertTriangle, CheckCircle2,
   EyeOff, X, Lightbulb,
@@ -47,6 +48,7 @@ export default function DivergencesPage() {
   const [err, setErr] = useState('')
   const [filterStatus, setFilterStatus] = useState<'open_all' | Divergence['status'] | 'all'>('open_all')
   const [filterSeverity, setFilterSeverity] = useState<Severity | 'all'>('all')
+  const prompt = usePrompt()
 
   const getHeaders = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
@@ -89,11 +91,24 @@ export default function DivergencesPage() {
   async function action(id: string, mode: 'acknowledge' | 'resolve' | 'ignore') {
     let body: Record<string, string> = {}
     if (mode === 'resolve') {
-      const notes = prompt('Notas de resolução:')
+      const notes = await prompt({
+        title: 'Resolver divergência',
+        message: 'Descreva como foi resolvida (vai pro registro de auditoria).',
+        placeholder: 'Ex: Parceiro confirmou envio às 16h após contato',
+        multiline: true,
+        confirmLabel: 'Resolver',
+      })
       if (!notes?.trim()) return
       body = { notes }
     } else if (mode === 'ignore') {
-      const reason = prompt('Motivo pra ignorar:')
+      const reason = await prompt({
+        title: 'Ignorar divergência',
+        message: 'Por que esta divergência pode ser ignorada?',
+        placeholder: 'Ex: Falso positivo — pedido cancelado pelo comprador',
+        multiline: true,
+        confirmLabel: 'Ignorar',
+        variant: 'warning',
+      })
       if (!reason?.trim()) return
       body = { reason }
     }

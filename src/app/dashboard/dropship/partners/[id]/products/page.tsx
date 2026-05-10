@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
+import { useConfirm } from '@/components/ui/dialog-provider'
 import { Plus, X, Search, ArrowLeft, Edit2, Archive, AlertCircle, History, Package, Upload } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
@@ -576,6 +577,8 @@ function EditProductModal({
     Math.abs(Number(packagingCost) - pp.partner_packaging_cost) > 0.001 ||
     Math.abs(Number(handlingCost) - pp.partner_handling_cost) > 0.001
 
+  const confirm = useConfirm()
+
   async function handleSave() {
     setSaving(true); setErr('')
     try {
@@ -607,7 +610,13 @@ function EditProductModal({
   }
 
   async function handleArchive() {
-    if (!confirm('Arquivar este produto? Marca como discontinued — pode ser reativado depois.')) return
+    const ok = await confirm({
+      title: 'Arquivar produto?',
+      message: 'Marca como descontinuado. Pode ser reativado depois mudando o status pra ativo.',
+      confirmLabel: 'Arquivar',
+      variant: 'warning',
+    })
+    if (!ok) return
     setArchiving(true); setErr('')
     try {
       const headers = await getHeaders()

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import { Plus, X, Link2, Trash2, AlertCircle, Loader2, AlertTriangle } from 'lucide-react'
+import { useConfirm } from '@/components/ui/dialog-provider'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 
@@ -74,6 +75,7 @@ export default function AccountSuppliersPage() {
     already_linked: boolean
   }>>([])
   const [loadingAccounts, setLoadingAccounts] = useState(false)
+  const confirm = useConfirm()
 
   const getHeaders = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
@@ -183,7 +185,13 @@ export default function AccountSuppliersPage() {
   }
 
   async function handleUnlink(linkId: string) {
-    if (!confirm('Desvincular esta conta? Histórico de pedidos antigos é preservado, mas pedidos novos não serão atribuídos a este parceiro.')) return
+    const ok = await confirm({
+      title: 'Desvincular conta?',
+      message: 'Histórico de pedidos antigos é preservado, mas pedidos novos NÃO serão mais atribuídos a este parceiro.',
+      confirmLabel: 'Desvincular',
+      variant: 'warning',
+    })
+    if (!ok) return
     try {
       const headers = await getHeaders()
       const res = await fetch(`${BACKEND}/dropship/account-suppliers/${linkId}`, { method: 'DELETE', headers })

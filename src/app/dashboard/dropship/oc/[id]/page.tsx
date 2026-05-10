@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import * as XLSX from 'xlsx'
 import { createClient } from '@/lib/supabase'
+import { useConfirm, usePrompt } from '@/components/ui/dialog-provider'
 import {
   ArrowLeft, AlertCircle, Calendar, Building2, FileText,
   Ban, Package, Download, Send, Mail, MessageSquare, CheckCircle2,
@@ -86,6 +87,8 @@ export default function OCDetailPage() {
   const [cancelling, setCancelling] = useState(false)
   const [sending, setSending] = useState(false)
   const [sendResult, setSendResult] = useState<{ portal_url: string; email_status: string; whatsapp_status: string } | null>(null)
+  const confirm = useConfirm()
+  const prompt = usePrompt()
 
   const getHeaders = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
@@ -108,7 +111,14 @@ export default function OCDetailPage() {
   useEffect(() => { load() }, [load])
 
   async function handleCancel() {
-    const reason = prompt('Motivo do cancelamento (pedidos voltam pra fila de OC):')
+    const reason = await prompt({
+      title: 'Cancelar OC',
+      message: 'Os pedidos voltam pra fila e podem entrar na próxima OC. Por que está cancelando?',
+      placeholder: 'Ex: Custos errados — vou regerar amanhã',
+      multiline: true,
+      confirmLabel: 'Cancelar OC',
+      variant: 'danger',
+    })
     if (!reason?.trim()) return
     setCancelling(true)
     try {
@@ -132,14 +142,20 @@ export default function OCDetailPage() {
       if (setupRes.ok) {
         const setup = await setupRes.json()
         if (!setup.has_email_config) {
-          if (!confirm(
-            'Você ainda não configurou provider de e-mail (Resend/SendGrid). ' +
-            'O parceiro NÃO vai receber a notificação por e-mail.\n\n' +
-            'Configure em /dashboard/configuracoes/integracoes antes de continuar.\n\n' +
-            'Deseja enviar mesmo assim (só vai criar o link, sem disparar)?'
-          )) return
-        } else if (!confirm(`Enviar OC ${oc.oc_number} ao parceiro? Vai disparar e-mail${setup.has_whatsapp_config ? ' + WhatsApp' : ''} com link de aprovação.`)) {
-          return
+          const ok = await confirm({
+            title: 'E-mail não configurado',
+            message: 'Você ainda não configurou provider de e-mail (Resend/SendGrid). O parceiro NÃO vai receber por e-mail. Configure em Configurações > Integrações antes. Deseja seguir mesmo assim (só cria o link, sem disparar)?',
+            confirmLabel: 'Seguir sem email',
+            variant: 'warning',
+          })
+          if (!ok) return
+        } else {
+          const ok = await confirm({
+            title: `Enviar OC ${oc.oc_number}?`,
+            message: `Vai disparar e-mail${setup.has_whatsapp_config ? ' + WhatsApp' : ''} ao parceiro com link de aprovação válido por 72h.`,
+            confirmLabel: 'Enviar',
+          })
+          if (!ok) return
         }
       }
     } catch { /* segue mesmo se check falhar */ }

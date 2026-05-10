@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
+import { useConfirm, usePrompt } from '@/components/ui/dialog-provider'
 import {
   ArrowLeft, AlertCircle, Search, RefreshCw, Pause, Play, Package,
 } from 'lucide-react'
@@ -49,6 +50,8 @@ export default function DropshipOrdersPage() {
   const [filterStatus, setFilterStatus] = useState<'all' | DropshipStatus>('all')
   const [search, setSearch] = useState('')
   const [identifying, setIdentifying] = useState(false)
+  const confirm = useConfirm()
+  const prompt = usePrompt()
 
   const getHeaders = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
@@ -89,7 +92,14 @@ export default function DropshipOrdersPage() {
   }
 
   async function holdOrder(id: string) {
-    const reason = prompt('Motivo da suspensão:')
+    const reason = await prompt({
+      title: 'Suspender pedido',
+      message: 'Por que esse pedido deve ficar em hold? (não vira OC até liberar)',
+      placeholder: 'Ex: Aguardando confirmação do parceiro sobre defeito',
+      multiline: true,
+      confirmLabel: 'Suspender',
+      variant: 'warning',
+    })
     if (!reason?.trim()) return
     try {
       const headers = await getHeaders()
@@ -104,7 +114,12 @@ export default function DropshipOrdersPage() {
   }
 
   async function releaseOrder(id: string) {
-    if (!confirm('Liberar este pedido do hold?')) return
+    const ok = await confirm({
+      title: 'Liberar pedido?',
+      message: 'O pedido sai do hold e fica elegível pra próxima OC.',
+      confirmLabel: 'Liberar',
+    })
+    if (!ok) return
     try {
       const headers = await getHeaders()
       const res = await fetch(`${BACKEND}/dropship/orders/${id}/release`, { method: 'POST', headers })

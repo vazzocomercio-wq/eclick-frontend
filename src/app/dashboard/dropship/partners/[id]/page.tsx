@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
+import { useConfirm } from '@/components/ui/dialog-provider'
 import { ArrowLeft, Save, Archive, AlertCircle, Package, History, Trophy, TrendingUp, TrendingDown, Minus } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
@@ -68,6 +69,7 @@ export default function PartnerDetailPage() {
     score_breakdown: Record<string, number>
   } | null>(null)
   const [creditsBalance, setCreditsBalance] = useState<number>(0)
+  const confirm = useConfirm()
 
   // form local
   const [form, setForm] = useState<Record<string, unknown>>({})
@@ -176,7 +178,13 @@ export default function PartnerDetailPage() {
   }
 
   async function handleArchive() {
-    if (!confirm('Arquivar este parceiro? Ele ficará inativo mas dados históricos serão preservados.')) return
+    const ok = await confirm({
+      title: 'Arquivar parceiro?',
+      message: 'Ficará inativo (sem novas OCs), mas todos os dados históricos são preservados. Pode reativar depois mudando o status.',
+      confirmLabel: 'Arquivar',
+      variant: 'warning',
+    })
+    if (!ok) return
     try {
       const headers = await getHeaders()
       const res = await fetch(`${BACKEND}/dropship/partners/${id}`, { method: 'DELETE', headers })

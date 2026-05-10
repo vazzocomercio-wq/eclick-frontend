@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
+import { usePrompt } from '@/components/ui/dialog-provider'
 import {
   ArrowLeft, AlertCircle, CheckCircle2, DollarSign, Building2,
   Calendar, FileText, Ban, ExternalLink,
@@ -48,6 +49,7 @@ export default function PayableDetailPage() {
   const [err, setErr] = useState('')
   const [showPay, setShowPay] = useState(false)
   const [cancelling, setCancelling] = useState(false)
+  const prompt = usePrompt()
 
   const getHeaders = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
@@ -70,7 +72,14 @@ export default function PayableDetailPage() {
   useEffect(() => { load() }, [load])
 
   async function handleCancel() {
-    const reason = prompt('Motivo do cancelamento:')
+    const reason = await prompt({
+      title: 'Cancelar conta a pagar',
+      message: 'Marca como cancelada (não vai mais ser cobrada). Por que está cancelando?',
+      placeholder: 'Ex: Pago em dinheiro fora do sistema · Duplicada',
+      multiline: true,
+      confirmLabel: 'Cancelar conta',
+      variant: 'danger',
+    })
     if (!reason?.trim()) return
     setCancelling(true)
     try {

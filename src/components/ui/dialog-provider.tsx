@@ -25,12 +25,26 @@ export interface AlertOptions {
   variant?:      DialogVariant   // default: 'info'
 }
 
+export interface PromptOptions {
+  title?:        string
+  message:       string | ReactNode
+  defaultValue?: string
+  placeholder?:  string
+  multiline?:    boolean   // default: false (input simples)
+  required?:     boolean   // default: true (não permite confirmar com vazio)
+  confirmLabel?: string   // default: "Confirmar"
+  cancelLabel?:  string   // default: "Cancelar"
+  variant?:      DialogVariant   // default: 'default'
+}
+
 type ConfirmFn = (opts: ConfirmOptions) => Promise<boolean>
 type AlertFn   = (opts: AlertOptions | string) => Promise<void>
+type PromptFn  = (opts: PromptOptions | string) => Promise<string | null>
 
 interface DialogContextValue {
   confirm: ConfirmFn
   alert:   AlertFn
+  prompt:  PromptFn
 }
 
 const DialogContext = createContext<DialogContextValue | null>(null)
@@ -47,6 +61,12 @@ export function useAlert(): AlertFn {
   const ctx = useContext(DialogContext)
   if (!ctx) throw new Error('useAlert must be used within DialogProvider')
   return ctx.alert
+}
+
+export function usePrompt(): PromptFn {
+  const ctx = useContext(DialogContext)
+  if (!ctx) throw new Error('usePrompt must be used within DialogProvider')
+  return ctx.prompt
 }
 
 // ── Variant styling ──────────────────────────────────────────────────────────
@@ -70,7 +90,12 @@ interface AlertState {
   options: AlertOptions
   resolve: () => void
 }
-type DialogState = ConfirmState | AlertState | null
+interface PromptState {
+  kind: 'prompt'
+  options: PromptOptions
+  resolve: (v: string | null) => void
+}
+type DialogState = ConfirmState | AlertState | PromptState | null
 
 export function DialogProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<DialogState>(null)
@@ -90,17 +115,28 @@ export function DialogProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
+  const prompt = useCallback<PromptFn>((optsOrMsg) => {
+    const opts: PromptOptions = typeof optsOrMsg === 'string'
+      ? { message: optsOrMsg }
+      : optsOrMsg
+    return new Promise<string | null>((resolve) => {
+      setState({ kind: 'prompt', options: opts, resolve })
+    })
+  }, [])
+
   function close() {
     if (!state) return
     if (state.kind === 'confirm') state.resolve(false)
-    else                          state.resolve()
+    else if (state.kind === 'prompt') state.resolve(null)
+    else state.resolve()
     setState(null)
   }
 
-  function handleConfirm() {
+  function handleConfirm(value?: string) {
     if (!state) return
     if (state.kind === 'confirm') state.resolve(true)
-    else                          state.resolve()
+    else if (state.kind === 'prompt') state.resolve(value ?? '')
+    else state.resolve()
     setState(null)
   }
 
@@ -108,12 +144,12 @@ export function DialogProvider({ children }: { children: ReactNode }) {
     close()
   }
 
-  // ESC fecha o modal (cancela)
+  // ESC fecha o modal (cancela). Enter confirma — exceto em prompt multiline.
   useEffect(() => {
     if (!state) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') close()
-      if (e.key === 'Enter')  handleConfirm()
+      if (e.key === 'Enter' && !e.shiftKey && state.kind !== 'prompt') handleConfirm()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -121,7 +157,7 @@ export function DialogProvider({ children }: { children: ReactNode }) {
   }, [state])
 
   return (
-    <DialogContext.Provider value={{ confirm, alert }}>
+    <DialogContext.Provider value={{ confirm, alert, prompt }}>
       {children}
       {state && (
         <DialogModal state={state} onConfirm={handleConfirm} onCancel={handleCancel} />
@@ -136,17 +172,32 @@ function DialogModal({
   state, onConfirm, onCancel,
 }: {
   state: NonNullable<DialogState>
-  onConfirm: () => void
+  onConfirm: (value?: string) => void
   onCancel:  () => void
 }) {
-  const variant = state.options.variant ?? (state.kind === 'confirm' ? 'default' : 'info')
+  const variant = state.options.variant ?? (state.kind === 'alert' ? 'info' : 'default')
   const meta = VARIANT_META[variant]
   const Icon = meta.icon
 
+  const isPrompt = state.kind === 'prompt'
   const isConfirm = state.kind === 'confirm'
   const opts = state.options
-  const confirmLabel = isConfirm ? (opts as ConfirmOptions).confirmLabel ?? 'Confirmar' : (opts as AlertOptions).okLabel ?? 'Ok'
-  const cancelLabel  = isConfirm ? (opts as ConfirmOptions).cancelLabel  ?? 'Cancelar' : null
+  const confirmLabel = isPrompt
+    ? (opts as PromptOptions).confirmLabel ?? 'Confirmar'
+    : isConfirm
+      ? (opts as ConfirmOptions).confirmLabel ?? 'Confirmar'
+      : (opts as AlertOptions).okLabel ?? 'Ok'
+  const cancelLabel  = isPrompt
+    ? (opts as PromptOptions).cancelLabel ?? 'Cancelar'
+    : isConfirm
+      ? (opts as ConfirmOptions).cancelLabel ?? 'Cancelar'
+      : null
+
+  // Estado local do input (só usado em prompt)
+  const promptOpts = isPrompt ? (opts as PromptOptions) : null
+  const [value, setValue] = useState<string>(promptOpts?.defaultValue ?? '')
+  const required = promptOpts?.required ?? true
+  const canConfirm = !isPrompt || !required || value.trim().length > 0
 
   // Cor do botão de confirmação ajustada por variant
   const confirmBg = variant === 'danger'
@@ -158,6 +209,15 @@ function DialogModal({
     : variant === 'warning' ? '#f59e0b'
     : '#00E5FF'
   const confirmBorder = `1px solid ${confirmFg}55`
+
+  function submit() {
+    if (isPrompt) {
+      if (!canConfirm) return
+      onConfirm(value)
+    } else {
+      onConfirm()
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4"
@@ -193,6 +253,45 @@ function DialogModal({
           </button>
         </div>
 
+        {/* Input (só prompt) */}
+        {isPrompt && promptOpts && (
+          promptOpts.multiline ? (
+            <textarea
+              value={value}
+              onChange={e => setValue(e.target.value)}
+              placeholder={promptOpts.placeholder}
+              autoFocus
+              rows={4}
+              className="w-full text-sm rounded-lg px-3 py-2 outline-none resize-none"
+              style={{
+                background: '#0f0f12',
+                border: `1px solid ${value.trim() ? confirmFg : '#27272a'}`,
+                color: '#fafafa',
+              }}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) submit()
+              }}
+            />
+          ) : (
+            <input
+              type="text"
+              value={value}
+              onChange={e => setValue(e.target.value)}
+              placeholder={promptOpts.placeholder}
+              autoFocus
+              className="w-full text-sm rounded-lg px-3 py-2 outline-none"
+              style={{
+                background: '#0f0f12',
+                border: `1px solid ${value.trim() ? confirmFg : '#27272a'}`,
+                color: '#fafafa',
+              }}
+              onKeyDown={e => {
+                if (e.key === 'Enter') submit()
+              }}
+            />
+          )
+        )}
+
         {/* Actions */}
         <div className="flex items-center gap-2 pt-2">
           {cancelLabel && (
@@ -202,10 +301,17 @@ function DialogModal({
               {cancelLabel}
             </button>
           )}
-          <button onClick={onConfirm}
-            autoFocus
+          <button onClick={submit}
+            autoFocus={!isPrompt}
+            disabled={!canConfirm}
             className="flex-1 py-2 rounded-lg text-xs font-semibold transition-all"
-            style={{ background: confirmBg, color: confirmFg, border: confirmBorder }}>
+            style={{
+              background: confirmBg,
+              color: confirmFg,
+              border: confirmBorder,
+              opacity: canConfirm ? 1 : 0.5,
+              cursor: canConfirm ? 'pointer' : 'not-allowed',
+            }}>
             {confirmLabel}
           </button>
         </div>

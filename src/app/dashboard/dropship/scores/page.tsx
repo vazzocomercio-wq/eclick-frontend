@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
+import { useConfirm } from '@/components/ui/dialog-provider'
 import {
   ArrowLeft, AlertCircle, RefreshCw, Trophy, TrendingUp, TrendingDown,
   Minus, AlertTriangle, Award,
@@ -40,6 +41,7 @@ export default function ScoresPage() {
   const [recalculating, setRecalculating] = useState(false)
   const [err, setErr] = useState('')
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const confirm = useConfirm()
 
   const getHeaders = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
@@ -62,7 +64,12 @@ export default function ScoresPage() {
   useEffect(() => { load() }, [load])
 
   async function recalculate() {
-    if (!confirm('Recalcular score de TODOS os parceiros ativos? Pode levar alguns segundos.')) return
+    const ok = await confirm({
+      title: 'Recalcular scores',
+      message: 'Vai processar TODOS os parceiros ativos. Pode levar alguns segundos.',
+      confirmLabel: 'Recalcular',
+    })
+    if (!ok) return
     setRecalculating(true); setErr('')
     try {
       const headers = await getHeaders()
