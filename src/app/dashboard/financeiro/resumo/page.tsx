@@ -20,6 +20,12 @@ type Kpis = {
   margem_contribuicao: number; margem_pct: number
   qtd_aprovadas: number; qtd_canceladas: number
   ticket_medio: number; ticket_medio_mc: number
+  // Cobertura de custos — alertam margem possivelmente inflada
+  qtd_com_custo?: number
+  qtd_sem_custo?: number
+  custo_pct_medio?: number       // % custo dos pedidos COM custo cadastrado
+  margem_projetada?: number      // R$ se aplicar custo_pct_medio aos sem cadastro
+  margem_projetada_pct?: number
 }
 
 type DonutSlice = { name: string; value: number; pct: number; color: string }
@@ -72,11 +78,13 @@ function Skel({ h = 16, w = '100%', className = '' }: { h?: number; w?: string; 
 // ── KPI Cards ─────────────────────────────────────────────────────────────────
 
 function KpiCard6({
-  label, value, sub1, sub2, color, loading, toggle, toggled, onToggle,
+  label, value, sub1, sub2, color, loading, toggle, toggled, onToggle, warning,
 }: {
   label: string; value: string; sub1?: string; sub2?: string
   color: string; loading: boolean
   toggle?: string; toggled?: boolean; onToggle?: () => void
+  /** Alerta âmbar dentro do card (ex.: "X de Y sem custo · margem inflada"). */
+  warning?: { text: string; href?: string }
 }) {
   return (
     <div className="rounded-xl p-4 flex flex-col gap-2" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
@@ -96,6 +104,20 @@ function KpiCard6({
             <p className="text-xl font-black leading-none" style={{ color }}>{value}</p>
             {sub1 && <p className="text-[10px] text-zinc-500 leading-snug">{sub1}</p>}
             {sub2 && <p className="text-[10px] text-zinc-600 leading-snug">{sub2}</p>}
+            {warning && (
+              <div className="mt-1 px-2 py-1 rounded-md flex items-start gap-1.5"
+                style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)' }}>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth={2.5} className="shrink-0 mt-0.5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                </svg>
+                <span className="text-[9.5px] text-yellow-300 leading-snug">
+                  {warning.text}
+                  {warning.href && (
+                    <> · <a href={warning.href} className="underline hover:text-yellow-200 transition-colors">Atualizar →</a></>
+                  )}
+                </span>
+              </div>
+            )}
           </>
       }
     </div>
@@ -524,6 +546,15 @@ export default function FinancialSummaryPage() {
             label="Margem de Contribuição" loading={loading}
             value={kpis ? `${brl(kpis.margem_contribuicao)} / ${pctFmt(kpis.margem_pct)}` : '—'}
             color={kpis ? (kpis.margem_pct >= 0 ? '#22c55e' : '#f87171') : '#52525b'}
+            sub1={kpis && kpis.qtd_sem_custo != null && kpis.qtd_sem_custo > 0 && kpis.margem_projetada_pct != null
+              ? `Real estimada: ${brl(kpis.margem_projetada ?? 0)} / ${pctFmt(kpis.margem_projetada_pct)}`
+              : undefined}
+            warning={kpis && kpis.qtd_sem_custo != null && kpis.qtd_sem_custo > 0 && kpis.qtd_aprovadas > 0
+              ? {
+                  text: `${kpis.qtd_sem_custo} de ${kpis.qtd_aprovadas} pedidos sem custo · margem pode estar superestimada`,
+                  href: '/dashboard/produtos?missing_cost=1',
+                }
+              : undefined}
           />
           <KpiCard6
             label="Ticket Médio MC" loading={loading}
