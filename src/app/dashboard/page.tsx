@@ -979,16 +979,33 @@ export default function DashboardPage() {
     const stateMap: Record<string, { count: number; revenue: number }> = {}
     const cityMap:  Record<string, { count: number; revenue: number }> = {}
     for (const o of periodOrders) {
-      if (o.shipping_state) {
-        const uf = o.shipping_state.includes('-') ? o.shipping_state.split('-').pop()! : o.shipping_state
-        if (!stateMap[uf]) stateMap[uf] = { count: 0, revenue: 0 }
-        stateMap[uf].count += 1
-        stateMap[uf].revenue += o.total_amount ?? 0
+      // shipping_state às vezes vem como object {id, name} do ML — coerção defensiva
+      const stateRaw = o.shipping_state as unknown
+      let stateStr = ''
+      if (typeof stateRaw === 'string') stateStr = stateRaw
+      else if (stateRaw && typeof stateRaw === 'object') {
+        const so = stateRaw as { id?: unknown; name?: unknown }
+        stateStr = String(so.id ?? so.name ?? '')
+      } else if (stateRaw != null) stateStr = String(stateRaw)
+      if (stateStr) {
+        const uf = stateStr.includes('-') ? stateStr.split('-').pop()! : stateStr
+        const ufKey = String(uf).toUpperCase()
+        if (!stateMap[ufKey]) stateMap[ufKey] = { count: 0, revenue: 0 }
+        stateMap[ufKey].count += 1
+        stateMap[ufKey].revenue += o.total_amount ?? 0
       }
-      if (o.shipping_city) {
-        if (!cityMap[o.shipping_city]) cityMap[o.shipping_city] = { count: 0, revenue: 0 }
-        cityMap[o.shipping_city].count += 1
-        cityMap[o.shipping_city].revenue += o.total_amount ?? 0
+      // shipping_city idem (pode vir como object)
+      const cityRaw = o.shipping_city as unknown
+      let cityStr = ''
+      if (typeof cityRaw === 'string') cityStr = cityRaw
+      else if (cityRaw && typeof cityRaw === 'object') {
+        const co = cityRaw as { name?: unknown }
+        cityStr = String(co.name ?? '')
+      } else if (cityRaw != null) cityStr = String(cityRaw)
+      if (cityStr) {
+        if (!cityMap[cityStr]) cityMap[cityStr] = { count: 0, revenue: 0 }
+        cityMap[cityStr].count += 1
+        cityMap[cityStr].revenue += o.total_amount ?? 0
       }
     }
     const topEstados = Object.entries(stateMap)
@@ -1648,7 +1665,7 @@ export default function DashboardPage() {
                         onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
-                            <span className="text-[9px] font-black px-1.5 py-0.5 rounded" style={{ background: meta.bg, color: meta.color }}>{row.key.toUpperCase().slice(0, 2)}</span>
+                            <span className="text-[9px] font-black px-1.5 py-0.5 rounded" style={{ background: meta.bg, color: meta.color }}>{String(row.key ?? '').toUpperCase().slice(0, 2)}</span>
                             <span className="text-[12px] text-white font-medium">{meta.label}</span>
                           </div>
                         </td>

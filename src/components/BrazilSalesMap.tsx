@@ -3,11 +3,22 @@
 import { useState } from 'react'
 import { BRAZIL_VIEW_BOX, STATE_POSITIONS, STATE_PATHS } from '@/data/brazil-svg-paths'
 
-// Handles both "BR-SP" and "SP" formats
-function extractUF(state: string | null | undefined): string | null {
-  if (!state) return null
-  const uf = state.includes('-') ? state.split('-').pop()! : state
-  return uf.toUpperCase()
+// Handles both "BR-SP" and "SP" formats. ML também retorna às vezes
+// como object {id, name} — coerção defensiva.
+function extractUF(state: unknown): string | null {
+  if (state == null) return null
+  let raw: string
+  if (typeof state === 'string') {
+    raw = state
+  } else if (typeof state === 'object') {
+    const o = state as { id?: unknown; name?: unknown }
+    raw = String(o.id ?? o.name ?? '')
+  } else {
+    raw = String(state)
+  }
+  if (!raw) return null
+  const uf = raw.includes('-') ? raw.split('-').pop()! : raw
+  return String(uf).toUpperCase()
 }
 
 export interface MapOrder {
@@ -100,9 +111,12 @@ export default function BrazilSalesMap({
         uf,
         color: dotColor(value),
         size: dotSize(value),
-        city: order.shipping_city ?? uf,
+        // shipping_city às vezes vem como object {name} — coerção
+        city: (typeof order.shipping_city === 'object' && order.shipping_city
+          ? String((order.shipping_city as { name?: unknown }).name ?? uf)
+          : String(order.shipping_city ?? uf)),
         state: uf,
-        title: (order.items?.[0]?.title ?? '').substring(0, 30),
+        title: String(order.items?.[0]?.title ?? '').substring(0, 30),
         value,
         time: order.date_created
           ? new Date(order.date_created).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
