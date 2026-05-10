@@ -138,6 +138,14 @@ const SECTIONS: NavSection[] = [
           { label: 'Configuração',      href: '/dashboard/ml-campaigns/config' },
         ],
       },
+      {
+        label: 'Listing Center IA', href: '/dashboard/listings', icon: <CheckSquare size={15} />,
+        children: [
+          { label: 'Tarefas',     href: '/dashboard/listings' },
+          { label: 'Sem estoque', href: '/dashboard/listings?type=OUT_OF_STOCK' },
+          { label: 'Pausados',    href: '/dashboard/listings?type=INACTIVE_PAUSED' },
+        ],
+      },
       { label: 'Pedidos', href: '/dashboard/pedidos', icon: <ShoppingBag size={15} /> },
       {
         label: 'Atendimento', href: '/dashboard/atendimento', icon: <MessageCircle size={15} />,
