@@ -32,10 +32,22 @@ type Order = {
   status: string
   date_created: string
   total_amount: number
-  contribution_margin?: number
-  items: Array<{ item_id: string; title: string; quantity: number; unit_price: number }>
+  contribution_margin?: number | null
+  contribution_margin_pct?: number | null
+  gross_profit?: number | null
+  // Campos enriquecidos pelo aggregator — vêm do backend /ml/recent-orders
+  // (versão DB-driven). Quando presentes, dashboards usam esses valores
+  // reais em vez de heurísticas (ex.: tarifa hardcoded 11,5%).
+  platform_fee?: number | null         // tarifa real ML (item.sale_fee)
+  shipping_cost?: number | null        // frete vendedor real (/shipments/.../costs)
+  shipping_buyer_paid?: number | null  // frete comprador
+  cost_price?: number | null           // custo unit total (via vínculo product_listings)
+  tax_amount?: number | null           // imposto
+  items: Array<{ item_id: string; title: string; quantity: number; unit_price: number; seller_sku?: string | null }>
   shipping_state?: string | null
   shipping_city?: string | null
+  seller_id?: number
+  account_nickname?: string
 }
 
 type DBProduct = {
@@ -811,7 +823,9 @@ export default function DashboardPage() {
         const { from, to } = getPeriodDates(period)
         const sellerIdSel = getStoredSellerId()
         const sellerSuffix = sellerIdSel != null ? `&seller_id=${sellerIdSel}` : ''
-        const url = `${BACKEND}/ml/recent-orders?date_from=${from}&date_to=${to}&limit=200${sellerSuffix}`
+        // limit=5000 cobre meses grandes (Vazzo abril/2026 = 1222 pedidos).
+        // Backend agora pagina pela DB — sem cap de 500 do live ML antigo.
+        const url = `${BACKEND}/ml/recent-orders?date_from=${from}&date_to=${to}&limit=5000${sellerSuffix}`
         console.log('[period-fetch] URL:', url)
         const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
         if (!res.ok) {
@@ -899,48 +913,86 @@ export default function DashboardPage() {
   const cur  = useMemo(() => calcMetrics(periodOrders), [periodOrders])
 
   const { faturamento, lucroEstimado, margemPct, pedidosComCusto, pedidosSemCusto, faturamentoCancelado, pedidosCancelados } = useMemo(() => {
-    // Separa cancelados — não entram no faturamento nem no lucro real.
-    // (ML cancela pedidos por devolução/recusa/desistência do comprador.)
+    // Separa cancelados — não entram no faturamento nem no lucro.
     const validOrders     = periodOrders.filter(o => (o as { status?: string }).status !== 'cancelled')
     const cancelledOrders = periodOrders.filter(o => (o as { status?: string }).status === 'cancelled')
     const fatCancelado    = cancelledOrders.reduce((s, o) => s + (o.total_amount ?? 0), 0)
 
-    // Pra 'today': hook já retorna líquido (validOrders only). Demais: usa
-    // financialSummary (vem do backend, NÃO sabemos se inclui cancelados —
-    // abate manualmente o fatCancelado pra ficar consistente).
+    // Faturamento — pra 'today' usa hook. Demais usa financialSummary.
     const fat = period === 'today'
       ? hookTodayRevenue
       : (financialSummary?.total_revenue ?? validOrders.reduce((s, o) => s + (o.total_amount ?? 0), 0)) - fatCancelado
 
     if (validOrders.length === 0) {
-      return { faturamento: fat, lucroEstimado: fat * 0.885, margemPct: fat > 0 ? 88.5 : 0, pedidosComCusto: 0, pedidosSemCusto: 0, faturamentoCancelado: fatCancelado, pedidosCancelados: cancelledOrders.length }
+      // Sem dados: zero, NÃO chuta margem mágica de 88,5%
+      return { faturamento: fat, lucroEstimado: 0, margemPct: 0, pedidosComCusto: 0, pedidosSemCusto: 0, faturamentoCancelado: fatCancelado, pedidosCancelados: cancelledOrders.length }
     }
 
-    let custoTotal = 0
-    let impostoTotal = 0
+    // Lucro = margem de contribuição: faturamento − custo − imposto − tarifa ML − frete vendedor.
+    // Cada row da DB já tem esses campos (preferidos quando presentes).
+    // Pedidos sem custo cadastrado entram com custo=0 (NÃO inventamos
+    // 75% como fallback antigo) — o alerta "X sem custo" comunica a
+    // estimativa parcial sem distorcer o número.
+    let custoTotal     = 0
+    let impostoTotal   = 0
+    let tarifaTotal    = 0
+    let freteVendTotal = 0
     let comCusto = 0
     let semCusto = 0
 
     for (const order of validOrders) {
-      const valorPago    = order.total_amount || 0
-      const item         = order.items?.[0]
-      const itemId       = item?.item_id ?? null
-      const quantidade   = item?.quantity ?? 1
-      const kitProdutos  = itemId ? produtos.filter(p => p.ml_listing_id === itemId) : []
-      const taxPct       = Number(kitProdutos[0]?.tax_percentage || 0) / 100
-      const kitCustoSum  = kitProdutos.reduce((s, p) => s + Number(p.cost_price || 0) * Number(p.quantity_per_unit || 1) * quantidade, 0)
+      // Custo: prefere campo enriquecido vindo do backend; fallback no
+      // lookup local de produtos.ml_listing_id (legacy).
+      const enrichedCost = (order as Order).cost_price
+      let costForThisOrder: number | null = null
+      let taxForThisOrder: number = 0
 
-      if (kitCustoSum > 0 || taxPct > 0) {
-        comCusto++
-        custoTotal   += kitCustoSum
-        impostoTotal += valorPago * taxPct
+      if (enrichedCost != null && enrichedCost > 0) {
+        costForThisOrder = enrichedCost
+        taxForThisOrder  = (order as Order).tax_amount ?? 0
       } else {
-        semCusto++
-        custoTotal   += valorPago * 0.75
+        // Fallback legado: busca por ml_listing_id
+        const valorPago   = order.total_amount || 0
+        const item        = order.items?.[0]
+        const itemId      = item?.item_id ?? null
+        const quantidade  = item?.quantity ?? 1
+        const kitProdutos = itemId ? produtos.filter(p => p.ml_listing_id === itemId) : []
+        const taxPct      = Number(kitProdutos[0]?.tax_percentage || 0) / 100
+        const kitCustoSum = kitProdutos.reduce((s, p) => s + Number(p.cost_price || 0) * Number(p.quantity_per_unit || 1) * quantidade, 0)
+        if (kitCustoSum > 0) {
+          costForThisOrder = kitCustoSum
+          taxForThisOrder  = valorPago * taxPct
+        }
       }
+
+      if (costForThisOrder != null && costForThisOrder > 0) {
+        comCusto++
+        custoTotal   += costForThisOrder
+        impostoTotal += taxForThisOrder
+      } else {
+        // Sem custo cadastrado: NÃO conta no custoTotal — sinaliza no alerta UI.
+        semCusto++
+      }
+
+      // Tarifa ML real (campo enriquecido) e frete vendedor real.
+      // Quando campos vêm preenchidos pelo aggregator, são reais; quando
+      // vêm 0/undefined (ingestão antiga), 0 é melhor estimativa que chute.
+      tarifaTotal    += Number((order as Order).platform_fee  ?? 0)
+      freteVendTotal += Number((order as Order).shipping_cost ?? 0)
     }
 
-    const lucro = fat - custoTotal - impostoTotal
+    // Se a soma de custos veio do banco (campos enriquecidos),
+    // os totais já refletem o subset desses pedidos. Se o `fat` veio do
+    // financialSummary (todos os pedidos do período, inclusive os fora
+    // dessa página), pode haver descalibração quando periodOrders é
+    // subset paginado. Pra essas situações, normalizamos pelo subset:
+    const fatSubset = validOrders.reduce((s, o) => s + (o.total_amount ?? 0), 0)
+    const lucroSubset = fatSubset - custoTotal - impostoTotal - tarifaTotal - freteVendTotal
+    // Escala se fat (do summary) for maior — preserva proporcionalidade
+    // até periodOrders cobrir o período inteiro. Quando recent-orders
+    // fixa o cap, fat ≈ fatSubset e a escala vira 1:1.
+    const scale = fatSubset > 0 ? fat / fatSubset : 1
+    const lucro = Math.round(lucroSubset * scale * 100) / 100
     const margemP = fat > 0 ? (lucro / fat) * 100 : 0
 
     return {
