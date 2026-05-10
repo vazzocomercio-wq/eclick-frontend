@@ -1982,6 +1982,7 @@ export default function PedidosPage() {
   const supabase = useMemo(() => createClient(), [])
 
   const [kpis,       setKpis]       = useState<KpiData | null>(null)
+  const [serverTabCounts, setServerTabCounts] = useState<Record<TabKey, number> | null>(null)
   const [orders,     setOrders]     = useState<MOrder[]>([])
   const [total,      setTotal]      = useState(0)
   const [loading,    setLoading]    = useState(true)
@@ -2080,11 +2081,13 @@ export default function PedidosPage() {
       const headers = await getHeaders()
       // /orders/list/kpis agrega SQL — instantaneo, sem ML calls.
       const sellerId = getStoredSellerId()
-      const url = sellerId != null
-        ? `${BACKEND}/orders/list/kpis?seller_id=${sellerId}`
-        : `${BACKEND}/orders/list/kpis`
-      const res = await fetch(url, { headers })
-      if (res.ok) setKpis(await res.json())
+      const sellerQs = sellerId != null ? `?seller_id=${sellerId}` : ''
+      const [kpiRes, tabRes] = await Promise.all([
+        fetch(`${BACKEND}/orders/list/kpis${sellerQs}`, { headers }),
+        fetch(`${BACKEND}/orders/list/tab-counts${sellerQs}`, { headers }),
+      ])
+      if (kpiRes.ok) setKpis(await kpiRes.json())
+      if (tabRes.ok) setServerTabCounts(await tabRes.json())
     } catch { /* silent */ }
     finally { setKpiLoad(false) }
   }, [getHeaders])
@@ -2915,7 +2918,10 @@ export default function PedidosPage() {
       {/* Tabs */}
       <div className="flex gap-1 overflow-x-auto no-scrollbar" style={{ borderBottom: '1px solid #1a1a1f' }}>
         {TABS.map(t => {
-          const count  = tabCounts[t.key] ?? 0
+          // serverTabCounts (vindo do backend) é a fonte canônica — conta
+          // todos os pedidos na DB. tabCounts (local) só vê a página atual,
+          // então não bate quando filtro server-side está ativo.
+          const count  = serverTabCounts?.[t.key] ?? tabCounts[t.key] ?? 0
           const active = tab === t.key
           return (
             <button key={t.key}
