@@ -262,10 +262,10 @@ function avatarColor(name: string) {
 }
 
 function initials(o: MOrder) {
-  const fn = o.buyer.first_name ?? ''
-  const ln = o.buyer.last_name  ?? ''
+  const fn = String(o.buyer.first_name ?? '')
+  const ln = String(o.buyer.last_name  ?? '')
   if (fn || ln) return ((fn[0] ?? '') + (ln[0] ?? '')).toUpperCase()
-  return (o.buyer.nickname ?? '?').substring(0, 2).toUpperCase()
+  return String(o.buyer.nickname ?? '?').substring(0, 2).toUpperCase()
 }
 
 function buyerDisplay(o: MOrder) {
@@ -509,12 +509,13 @@ function VincularModal({
 
   // Outros anúncios com mesmo SKU (não-vinculados ainda)
   const otherListings = useMemo(() => {
-    const sellerSkuKey = sellerSku.trim().toUpperCase()
+    // Coerção defensiva: ML às vezes retorna seller_sku como number
+    const sellerSkuKey = String(sellerSku ?? '').trim().toUpperCase()
     const seen = new Set<string>([listingId])
     const out: Array<{ listing_id: string; title: string; thumbnail: string | null; isLinked: boolean }> = []
     for (const order of allOrders) {
       for (const oi of order.order_items) {
-        const skuKey = (oi.seller_sku ?? '').trim().toUpperCase()
+        const skuKey = String(oi.seller_sku ?? '').trim().toUpperCase()
         if (skuKey !== sellerSkuKey) continue
         const lid = oi.item_id ?? oi.item?.id
         if (!lid || seen.has(lid)) continue
@@ -1476,7 +1477,7 @@ function OrderCard({
               {liveBuyer.doc_number && (
                 <div className="flex items-start gap-1.5">
                   <span className="text-[11px] text-zinc-600 w-14 shrink-0">
-                    {(liveBuyer.doc_type ?? '').toUpperCase().includes('CNPJ') ? 'CNPJ' : 'CPF'}
+                    {String(liveBuyer.doc_type ?? '').toUpperCase().includes('CNPJ') ? 'CNPJ' : 'CPF'}
                   </span>
                   <span className="text-[11px] font-mono" style={{ color: '#4ade80' }}>
                     {maskDoc(liveBuyer.doc_number, liveBuyer.doc_type)}
@@ -2199,7 +2200,7 @@ export default function PedidosPage() {
         const map: Record<string, Array<{ id: string; name: string; sku: string }>> = {}
         for (const p of (data ?? []) as Array<{ id: string; sku: string | null; name: string }>) {
           if (!p.sku) continue
-          const key = p.sku.trim().toUpperCase()
+          const key = String(p.sku).trim().toUpperCase()
           if (!key) continue
           if (!map[key]) map[key] = []
           map[key].push({ id: p.id, name: p.name, sku: p.sku })
@@ -2995,7 +2996,9 @@ export default function PedidosPage() {
                   const vinculos = itemId ? (vinculosPorListing[itemId] ?? []) : []
                   // Match de SKU pra botão "Vincular" — só ativa quando
                   // anúncio tem SKU E há produto(s) no catálogo com mesmo SKU.
-                  const sellerSku = oi?.seller_sku?.trim() ?? null
+                  // ML às vezes retorna seller_sku como number — coerção defensiva
+                  const rawSku = oi?.seller_sku
+                  const sellerSku = rawSku != null ? String(rawSku).trim() : null
                   const sellerSkuKey = sellerSku ? sellerSku.toUpperCase() : null
                   const skuMatchProducts = sellerSkuKey ? (skuToProducts[sellerSkuKey] ?? []) : []
                   return (
