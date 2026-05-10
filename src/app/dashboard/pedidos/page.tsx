@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { ToastViewport, todoToast } from '@/hooks/useToast'
 import { ensurePulseStyles, pulseClass, PulsingButton } from '@/components/ui/pulsing-button'
+import { CopyButton } from '@/components/ui/copy-button'
 import { PedidosTable } from './_components/PedidosTable'
 import { OrderDetailDrawer } from './_components/OrderDetailDrawer'
 import AccountSelector, { useMlAccount, getStoredSellerId } from '@/components/ml/AccountSelector'
@@ -1062,8 +1063,18 @@ function OrderCard({
                     <span className="text-zinc-400 font-bold">{item.quantity}x </span>{item.title}
                   </p>
                   <div className="flex flex-wrap items-center gap-x-2 mt-1 text-[10px] text-zinc-500">
-                    {item.seller_sku && <span>SKU: <span className="text-zinc-400 font-mono">{item.seller_sku}</span></span>}
-                    {item.item_id    && <span className="font-mono text-zinc-600">{item.item_id}</span>}
+                    {item.seller_sku && (
+                      <span className="inline-flex items-center gap-0.5">
+                        SKU: <span className="text-zinc-400 font-mono">{item.seller_sku}</span>
+                        <CopyButton value={String(item.seller_sku)} size={10} label="SKU copiado" />
+                      </span>
+                    )}
+                    {item.item_id && (
+                      <span className="inline-flex items-center gap-0.5">
+                        <span className="font-mono text-zinc-600">{item.item_id}</span>
+                        <CopyButton value={item.item_id} size={10} label="MLB copiado" />
+                      </span>
+                    )}
                   </div>
                   {vars && <p className="text-[10px] text-zinc-500 mt-0.5 line-clamp-1">{vars}</p>}
                   {(item as unknown as { available_quantity?: number | null }).available_quantity != null && (
