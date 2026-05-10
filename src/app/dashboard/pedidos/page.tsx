@@ -128,7 +128,7 @@ type MOrder = {
   }
 }
 
-type TabKey = 'abertas' | 'em_preparacao' | 'despachadas' | 'pgto_pendente' | 'flex' | 'encerradas' | 'mediacao'
+type TabKey = 'abertas' | 'em_preparacao' | 'despachadas' | 'pgto_pendente' | 'flex' | 'encerradas' | 'canceladas' | 'mediacao'
 type Toast  = { id: number; msg: string; type: 'success' | 'error' | 'info' }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -1957,6 +1957,7 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'flex',          label: 'Flex'           },
   { key: 'encerradas',    label: 'Encerradas'     },
   { key: 'mediacao',      label: 'Mediação'       },
+  { key: 'canceladas',    label: 'Canceladas'     },
 ]
 
 // ── Active filter chip (filtros avançados de pedidos) ────────────────────────
@@ -2460,6 +2461,9 @@ export default function PedidosPage() {
   const tabCounts = useMemo<Record<TabKey, number>>(() => {
     const c: Record<string, number> = {}
     for (const o of orders) { const k = classifyOrder(o); c[k] = (c[k] ?? 0) + 1 }
+    // 'canceladas' = count INDEPENDENTE de classifyOrder. Pedido com
+    // mediação + cancelled aparece nas DUAS tabs (Mediação + Canceladas).
+    c.canceladas = orders.filter(o => o.status === 'cancelled').length
     return c as Record<TabKey, number>
   }, [orders])
 
@@ -2565,10 +2569,16 @@ export default function PedidosPage() {
 
   // Contadores das flags pra mostrar ao lado de cada toggle (sobre orders na tab atual).
   // Em crossTabMode (vindo de ?missing_cost=1), ignora classify — usa orders inteiros.
-  const tabOrders = useMemo(
-    () => crossTabMode ? orders : orders.filter(o => classifyOrder(o) === tab),
-    [orders, tab, crossTabMode],
-  )
+  // tabOrders: respeita modo cross-tab; pra 'canceladas' usa filtro
+  // INDEPENDENTE (status === 'cancelled'), ignorando classifyOrder.
+  // Resultado: pedido cancelado com mediação aparece em AMBAS as tabs
+  // ("Mediação" via classify + "Canceladas" via filtro direto) — esse é
+  // o comportamento desejado (opção C escolhida pelo user).
+  const tabOrders = useMemo(() => {
+    if (crossTabMode) return orders
+    if (tab === 'canceladas') return orders.filter(o => o.status === 'cancelled')
+    return orders.filter(o => classifyOrder(o) === tab)
+  }, [orders, tab, crossTabMode])
   const flagCounts = useMemo(() => ({
     noLink:     tabOrders.filter(o => {
       const id = o.order_items[0]?.item_id ?? o.order_items[0]?.item?.id ?? null
@@ -2621,17 +2631,8 @@ export default function PedidosPage() {
 
   // UI-1.1 — KPIs "hoje". Prefere kpis.today do backend (cobre tudo).
   // Fallback: agrega current_month.by_day pra hoje + filtra orders carregados.
-  const { todayCount, todayRev, pendentesEnvio, emTransito } = useMemo(() => {
-    if (kpis?.today) {
-      return {
-        todayCount:     kpis.today.count,
-        todayRev:       kpis.today.revenue,
-        // pendentes/transito vêm do mês corrente (mais inclusivo) com fallback no today
-        pendentesEnvio: kpis.current_month?.pending_shipment ?? kpis.today.pending_shipment ?? 0,
-        emTransito:     kpis.current_month?.in_transit       ?? kpis.today.in_transit       ?? 0,
-      }
-    }
-    // Fallback legado (kpis sem today/shipping fields)
+  const { todayCount, todayRev, pendentesEnvio, emTransito, todayCancelados } = useMemo(() => {
+    // Filtro "today" canônico usado pra cancelados (e fallback dos outros)
     const now = new Date()
     const isToday = (iso: string | null) => {
       if (!iso) return false
@@ -2640,15 +2641,29 @@ export default function PedidosPage() {
         && d.getUTCMonth() === now.getUTCMonth()
         && d.getUTCFullYear() === now.getUTCFullYear()
     }
+    const cancelHoje = orders.filter(o => o.status === 'cancelled' && isToday(o.date_created)).length
+
+    if (kpis?.today) {
+      return {
+        todayCount:       kpis.today.count,
+        todayRev:         kpis.today.revenue,
+        // pendentes/transito vêm do mês corrente (mais inclusivo) com fallback no today
+        pendentesEnvio:   kpis.current_month?.pending_shipment ?? kpis.today.pending_shipment ?? 0,
+        emTransito:       kpis.current_month?.in_transit       ?? kpis.today.in_transit       ?? 0,
+        todayCancelados:  cancelHoje,
+      }
+    }
+    // Fallback legado (kpis sem today/shipping fields)
     const tp = kpis?.current_month?.by_day?.find(p => isToday(p.date))
     return {
-      todayCount:     tp?.count ?? 0,
-      todayRev:       tp?.revenue ?? 0,
-      pendentesEnvio: orders.filter(o => o.shipping?.status === 'ready_to_ship' || o.shipping?.status === 'pending').length,
-      emTransito:     orders.filter(o => {
+      todayCount:       tp?.count ?? 0,
+      todayRev:         tp?.revenue ?? 0,
+      pendentesEnvio:   orders.filter(o => o.shipping?.status === 'ready_to_ship' || o.shipping?.status === 'pending').length,
+      emTransito:       orders.filter(o => {
         const ss = o.shipping?.status
         return ss === 'shipped' || ss === 'in_transit' || ss === 'handling'
       }).length,
+      todayCancelados:  cancelHoje,
     }
   }, [kpis, orders])
 
@@ -2710,6 +2725,17 @@ export default function PedidosPage() {
             </span>
             <span className="ml-1.5">em trânsito</span>
           </span>
+          {todayCancelados > 0 && (
+            <>
+              <span className="text-zinc-700">·</span>
+              <span>
+                <span className="font-bold tabular-nums" style={{ color: '#f87171' }}>
+                  {num(todayCancelados)}
+                </span>
+                <span className="ml-1.5 text-red-300/80">cancelad{todayCancelados === 1 ? 'a' : 'as'} hoje</span>
+              </span>
+            </>
+          )}
         </div>
       </div>
 
