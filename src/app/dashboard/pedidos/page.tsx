@@ -2468,8 +2468,15 @@ export default function PedidosPage() {
       if (classifyOrder(o) !== tab) return false
 
       // UF de destino (multi-select)
+      // ML às vezes retorna state como object {id, name} em vez de string
       if (filterUFs.size > 0) {
-        const uf = (o.shipping?.receiver_address?.state ?? '').toUpperCase()
+        const stateRaw = o.shipping?.receiver_address?.state as unknown
+        const stateStr = typeof stateRaw === 'string'
+          ? stateRaw
+          : (stateRaw && typeof stateRaw === 'object'
+              ? String((stateRaw as { id?: unknown; name?: unknown }).id ?? (stateRaw as { name?: unknown }).name ?? '')
+              : String(stateRaw ?? ''))
+        const uf = stateStr.toUpperCase()
         if (!uf || !filterUFs.has(uf)) return false
       }
 
@@ -2529,7 +2536,14 @@ export default function PedidosPage() {
   const availableUFs = useMemo(() => {
     const set = new Set<string>()
     for (const o of orders) {
-      const uf = (o.shipping?.receiver_address?.state ?? '').toUpperCase()
+      // ML às vezes retorna state como object {id, name} — coerção defensiva
+      const stateRaw = o.shipping?.receiver_address?.state as unknown
+      const stateStr = typeof stateRaw === 'string'
+        ? stateRaw
+        : (stateRaw && typeof stateRaw === 'object'
+            ? String((stateRaw as { id?: unknown; name?: unknown }).id ?? (stateRaw as { name?: unknown }).name ?? '')
+            : String(stateRaw ?? ''))
+      const uf = stateStr.toUpperCase()
       if (uf && uf.length <= 3) set.add(uf)
     }
     return [...set].sort()
