@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
+import AccountSelector, { useMlAccount } from '@/components/ml/AccountSelector'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 const ML_FEE_DEFAULT = 0.115
@@ -1078,15 +1079,21 @@ export default function MLAnunciosPage() {
     return { Authorization: `Bearer ${session.access_token}` }
   }, [supabase])
 
+  // Conta ML selecionada (multi-conta). `selected=null` = todas as contas.
+  // O hook tem custom event que dispara re-render quando o dropdown muda,
+  // então o useEffect que depende de `selectedSellerId` refaz fetch.
+  const { selected: selectedSellerId } = useMlAccount()
+
   // ── Load counts ────────────────────────────────────────────────────────
 
   const loadCounts = useCallback(async () => {
     try {
       const headers = await getHeaders()
-      const res = await fetch(`${BACKEND}/ml/listings/counts`, { headers })
+      const qs = selectedSellerId != null ? `?seller_id=${selectedSellerId}` : ''
+      const res = await fetch(`${BACKEND}/ml/listings/counts${qs}`, { headers })
       if (res.ok) setCounts(await res.json())
     } catch { /* silent */ }
-  }, [getHeaders])
+  }, [getHeaders, selectedSellerId])
 
   // ── Load items ─────────────────────────────────────────────────────────
 
@@ -1100,6 +1107,7 @@ export default function MLAnunciosPage() {
         limit: String(PAGE),
       })
       if (query.trim() && stype === 'title') params.set('q', query.trim())
+      if (selectedSellerId != null) params.set('seller_id', String(selectedSellerId))
       const res  = await fetch(`${BACKEND}/ml/listings?${params}`, { headers })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const body = await res.json()
@@ -1122,12 +1130,15 @@ export default function MLAnunciosPage() {
     } finally {
       setLoading(false)
     }
-  }, [getHeaders, stype])
+  }, [getHeaders, stype, selectedSellerId])
 
   // ── Initial + reactive loads ───────────────────────────────────────────
 
   useEffect(() => { loadCounts() }, [loadCounts])
   useEffect(() => { loadItems(tab, page, q) }, [tab, page, loadItems])
+  // Quando troca de conta, volta pra página 0 e limpa seleção pra evitar
+  // operar em IDs que sumiram do filtro atual.
+  useEffect(() => { setPage(0); setSelected(new Set()) }, [selectedSellerId])
 
   // Load linked listing IDs (used by the "Produto vinculado" badge) AND
   // the per-listing stock map (used by the inline stock input on each card).
@@ -1449,22 +1460,31 @@ export default function MLAnunciosPage() {
       className={`p-6 space-y-5 ${selected.size > 0 ? 'pb-24' : ''}`}>
       <Toasts list={toasts} />
 
-      {/* ── Header ────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between">
+      {/* ── Header ──────────────────────────────────────────────────
+          Toolbar compacto: título à esquerda, seletor de conta ML +
+          botão sync à direita. Sync menor (px-3 py-1.5) pra equiparar
+          com o select e não roubar atenção visual. */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <p className="text-zinc-500 text-xs font-medium tracking-widest uppercase mb-1">Catálogo · Anúncios</p>
           <h1 className="text-white text-2xl font-semibold">Mercado Livre</h1>
         </div>
-        <button onClick={handleSync} disabled={syncing}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all"
-          style={{ background: syncing ? '#0e2a33' : '#00E5FF', color: syncing ? '#00E5FF' : '#000',
-            border: syncing ? '1px solid #00E5FF33' : 'none', opacity: syncing ? 0.8 : 1 }}>
-          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
-            style={{ animation: syncing ? 'spin 1s linear infinite' : undefined }}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-          </svg>
-          {syncing ? 'Sincronizando...' : 'Sincronizar ML'}
-        </button>
+        <div className="flex items-center gap-3">
+          {/* Multi-conta: filtra anúncios pela conta selecionada (default
+              = todas). Quando há 1 só conta, vira read-only. localStorage
+              persiste seleção entre páginas. */}
+          <AccountSelector compact label="Conta" hideWhenEmpty />
+          <button onClick={handleSync} disabled={syncing}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+            style={{ background: syncing ? '#0e2a33' : '#00E5FF', color: syncing ? '#00E5FF' : '#000',
+              border: syncing ? '1px solid #00E5FF33' : 'none', opacity: syncing ? 0.8 : 1 }}>
+            <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
+              style={{ animation: syncing ? 'spin 1s linear infinite' : undefined }}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            {syncing ? 'Sincronizando…' : 'Sincronizar ML'}
+          </button>
+        </div>
       </div>
 
       {/* ── KPIs ──────────────────────────────────────────────────── */}
