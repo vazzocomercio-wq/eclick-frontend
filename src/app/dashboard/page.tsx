@@ -157,6 +157,28 @@ function PrevRow({ label, prevValue, currentValue, format, isClamped = false }: 
           )
         })() : <span className="text-xs" style={{ color: 'var(--text-muted)' }}>sem dado anterior</span>}
       </div>
+      {/* Mensagem actionable destacada: "Faltam R$ X pra igualar" quando
+          current < prev, "Superando em R$ X" quando current > prev. Deixa
+          claro O QUE FAZER (ou comemorar) — só mostra se há prev > 0 e
+          diff != 0 pra evitar ruído quando period acabou de começar. */}
+      {prevValue > 0 && currentValue !== prevValue && (() => {
+        const diff = currentValue - prevValue
+        const up   = diff > 0
+        const pctNeed = !up ? Math.abs((diff / prevValue) * 100) : 0
+        return (
+          <div className="mt-1.5 px-2 py-1 rounded inline-flex items-center gap-1.5"
+            style={{
+              background: up ? 'rgba(74,222,128,0.10)' : 'rgba(248,113,113,0.10)',
+              border:     up ? '1px solid rgba(74,222,128,0.25)' : '1px solid rgba(248,113,113,0.25)',
+            }}>
+            <span className="text-[11px] font-semibold" style={{ color: up ? '#4ade80' : '#f87171' }}>
+              {up
+                ? `Superando em ${format(diff)}`
+                : `Faltam ${format(Math.abs(diff))} (${pctNeed.toFixed(1)}%) pra igualar`}
+            </span>
+          </div>
+        )
+      })()}
     </div>
   )
 }
