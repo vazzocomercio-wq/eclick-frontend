@@ -26,6 +26,15 @@ interface NewSaleData {
   ml_item_id?: string | null
   sku?:        string | null
   thumbnail?:  string | null
+  source?: {
+    channel:       'catalog' | 'direct_listing'
+    tags:          string[]
+    is_b2b:        boolean
+    is_kit:        boolean
+    is_pack:       boolean
+    has_discount:  boolean
+    ads_attribution: { is_ads: boolean; source?: string } | null
+  } | null
   values: {
     quantity:        number
     unit_price:      number
@@ -446,6 +455,21 @@ function NewSaleDetail({ data, color }: { data: NewSaleData; color: string }) {
 
   return (
     <div className="mt-2 space-y-1.5 text-[10.5px]">
+      {/* Linha 0 — Origem da venda (chips) */}
+      {data.source && (
+        <div className="flex flex-wrap items-center gap-1">
+          <SourceChip
+            label={data.source.channel === 'catalog' ? '📦 Catálogo ML' : '🏷️ Anúncio direto'}
+            tone="primary"
+          />
+          {data.source.ads_attribution?.is_ads && <SourceChip label="📢 ADS" tone="warning" />}
+          {data.source.is_b2b       && <SourceChip label="B2B"     tone="info" />}
+          {data.source.is_kit       && <SourceChip label="Kit"     tone="info" />}
+          {data.source.is_pack      && <SourceChip label="Carrinho" tone="info" />}
+          {data.source.has_discount && <SourceChip label="Cupom"   tone="success" />}
+        </div>
+      )}
+
       {/* Linha 1 — Valores */}
       <div className="grid grid-cols-2 gap-x-2 gap-y-0.5">
         <KV label="Total"    value={`${brl(v.total)}${v.quantity > 1 ? ` (${v.quantity}× ${brl(v.unit_price)})` : ''}`} />
@@ -523,6 +547,24 @@ function NewSaleDetail({ data, color }: { data: NewSaleData; color: string }) {
         Ver pedido #{data.order_id} <ExternalLink size={9} />
       </a>
     </div>
+  )
+}
+
+function SourceChip({ label, tone }: {
+  label: string
+  tone:  'primary' | 'warning' | 'info' | 'success'
+}) {
+  const palette = {
+    primary: { bg: 'rgba(0,229,255,0.12)',   border: 'rgba(0,229,255,0.32)',   color: '#5dd5e8' },
+    warning: { bg: 'rgba(245,158,11,0.14)',  border: 'rgba(245,158,11,0.38)',  color: '#f59e0b' },
+    info:    { bg: 'rgba(255,255,255,0.05)', border: 'rgba(255,255,255,0.12)', color: '#a1a1aa' },
+    success: { bg: 'rgba(34,197,94,0.12)',   border: 'rgba(34,197,94,0.32)',   color: '#4ade80' },
+  }[tone]
+  return (
+    <span className="text-[10px] px-1.5 py-0.5 rounded-md font-medium"
+      style={{ background: palette.bg, border: `1px solid ${palette.border}`, color: palette.color }}>
+      {label}
+    </span>
   )
 }
 
