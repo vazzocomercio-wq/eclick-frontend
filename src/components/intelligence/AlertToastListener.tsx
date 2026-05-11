@@ -25,6 +25,7 @@ interface NewSaleData {
   order_id:    string | number
   ml_item_id?: string | null
   sku?:        string | null
+  thumbnail?:  string | null
   values: {
     quantity:        number
     unit_price:      number
@@ -315,21 +316,44 @@ function ToastCard({ group, stackIndex, onDismiss }: {
           </button>
         </div>
 
-        {/* Linha 2 — summary (1 linha em compact, ilimitado em hover) */}
-        <p
-          className={`text-[12px] text-zinc-200 leading-snug mt-1 transition-all ${
-            hovered ? '' : 'truncate'
-          }`}
-          style={{
-            // Forçar truncate em compact (line-clamp inline pra não depender de plugin)
-            display:           hovered ? 'block' : '-webkit-box',
-            WebkitLineClamp:   hovered ? 'unset' : 1,
-            WebkitBoxOrient:   'vertical',
-            overflow:          'hidden',
-          }}
-        >
-          {latest.summary}
-        </p>
+        {/* Linha 2 — thumbnail (se houver) + summary lado a lado */}
+        {(() => {
+          const newSale = group.category === 'new_sale' ? (latest.data as unknown as NewSaleData | undefined) : undefined
+          const thumb = newSale?.thumbnail
+          return (
+            <div className="flex items-start gap-2 mt-1">
+              {thumb && (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  src={thumb}
+                  alt=""
+                  className="rounded-md object-cover flex-shrink-0"
+                  style={{
+                    width:  hovered ? 48 : 36,
+                    height: hovered ? 48 : 36,
+                    border: '1px solid rgba(255,255,255,0.08)',
+                    transition: 'width 200ms ease, height 200ms ease',
+                    background: '#0d0d10',
+                  }}
+                  onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+                />
+              )}
+              <p
+                className={`text-[12px] text-zinc-200 leading-snug flex-1 min-w-0 transition-all ${
+                  hovered ? '' : 'truncate'
+                }`}
+                style={{
+                  display:           hovered ? 'block' : '-webkit-box',
+                  WebkitLineClamp:   hovered ? 'unset' : 2,
+                  WebkitBoxOrient:   'vertical',
+                  overflow:          'hidden',
+                }}
+              >
+                {latest.summary}
+              </p>
+            </div>
+          )
+        })()}
 
         {/* Suggestion + link — só aparecem em hover (mantém compact limpo) */}
         <div
