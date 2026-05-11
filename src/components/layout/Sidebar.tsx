@@ -56,8 +56,18 @@ const SECTIONS: NavSection[] = [
     key: 'visaogeral',
     label: 'VISÃO GERAL',
     items: [
-      { label: 'Dashboard',      href: '/dashboard',               icon: <Home size={15} />,  exact: true },
-      { label: 'Vendas ao Vivo', href: '/dashboard/vendas-ao-vivo', icon: <Radio size={15} /> },
+      { label: 'Dashboard',           href: '/dashboard',               icon: <Home size={15} />,      exact: true },
+      {
+        label: 'Executive Dashboard', href: '/dashboard/executive',     icon: <LineChart size={15} />,
+        children: [
+          { label: 'Visão geral',  href: '/dashboard/executive' },
+          { label: 'Reputação ML', href: '/dashboard/executive/reputation' },
+          { label: 'Logística',    href: '/dashboard/executive/logistics' },
+          { label: 'Visitas + conversão', href: '/dashboard/executive/visits' },
+          { label: 'Ads (visibility)',    href: '/dashboard/executive/ads' },
+        ],
+      },
+      { label: 'Vendas ao Vivo',      href: '/dashboard/vendas-ao-vivo', icon: <Radio size={15} /> },
     ],
   },
   {
