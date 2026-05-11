@@ -717,6 +717,237 @@ function ResultModal({
   )
 }
 
+// ── Link-to-product modal ──────────────────────────────────────────────────
+// Permite selecionar UM produto do catálogo e vincular vários anúncios
+// (multi-conta consciente: cada anúncio carrega seu account_seller_id pra
+// gravar `account_id` em product_listings).
+
+type ProductOption = {
+  id:          string
+  name:        string
+  sku:         string | null
+  cost_price:  number | null
+  photo_urls:  string[] | null
+}
+
+type BulkLinkResult = {
+  created: number
+  skipped: number
+  errors:  number
+  results: Array<{ listing_id: string; status: 'created' | 'skipped' | 'error'; message?: string }>
+}
+
+function LinkToProductModal({
+  selectedItems, linking, onConfirm, onClose,
+}: {
+  selectedItems: MListing[]
+  linking: boolean
+  onConfirm: (productId: string, productLabel: string, qtyPerUnit: number) => void
+  onClose: () => void
+}) {
+  const supabase = useMemo(() => createClient(), [])
+  const [search, setSearch] = useState('')
+  const [products, setProducts] = useState<ProductOption[]>([])
+  const [searching, setSearching] = useState(false)
+  const [picked, setPicked] = useState<ProductOption | null>(null)
+  const [qtyPerUnit, setQtyPerUnit] = useState('1')
+
+  // Busca produtos com debounce — Supabase direto (usa RLS por org)
+  useEffect(() => {
+    const term = search.trim()
+    let cancelled = false
+    setSearching(true)
+    const t = setTimeout(async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let query: any = supabase
+        .from('products')
+        .select('id, name, sku, cost_price, photo_urls')
+        .order('updated_at', { ascending: false })
+        .limit(30)
+      if (term) query = query.or(`name.ilike.%${term}%,sku.ilike.%${term}%`)
+      const { data } = await query
+      if (cancelled) return
+      setProducts((data ?? []) as ProductOption[])
+      setSearching(false)
+    }, 220)
+    return () => { cancelled = true; clearTimeout(t) }
+  }, [search, supabase])
+
+  // Agrupa selecionados por conta pra exibir breakdown multi-conta
+  const byAccount = useMemo(() => {
+    const m = new Map<string, { nickname: string; sellerId: number | null; items: MListing[] }>()
+    for (const it of selectedItems) {
+      const key = it.account_nickname ?? `seller-${it.account_seller_id ?? 'unknown'}`
+      if (!m.has(key)) m.set(key, { nickname: it.account_nickname ?? 'Conta sem nickname', sellerId: it.account_seller_id, items: [] })
+      m.get(key)!.items.push(it)
+    }
+    return [...m.values()]
+  }, [selectedItems])
+
+  const count = selectedItems.length
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }}>
+      <div className="w-full max-w-2xl rounded-2xl flex flex-col overflow-hidden"
+        style={{ background: '#111114', border: '1px solid #1e1e24', maxHeight: '85vh' }}>
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 shrink-0"
+          style={{ borderBottom: '1px solid #1e1e24' }}>
+          <div>
+            <p className="text-white text-sm font-semibold">Vincular Anúncios a um Produto</p>
+            <p className="text-zinc-500 text-xs mt-0.5">
+              {count} anúncio{count > 1 ? 's' : ''} selecionado{count > 1 ? 's' : ''}
+              {byAccount.length > 1 && ` · ${byAccount.length} contas`}
+            </p>
+          </div>
+          <button onClick={onClose} disabled={linking}
+            className="text-zinc-500 hover:text-white transition-colors disabled:opacity-40">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Multi-account breakdown */}
+        {byAccount.length > 1 && (
+          <div className="px-5 py-2 shrink-0" style={{ background: 'rgba(0,229,255,0.04)', borderBottom: '1px solid #1e1e24' }}>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[10px] uppercase tracking-wider text-zinc-500">Multi-conta:</span>
+              {byAccount.map((g, idx) => {
+                const palette = accountPalette(g.sellerId)
+                return (
+                  <span key={idx} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border"
+                    style={{ background: palette.bg, borderColor: palette.border, color: palette.color }}>
+                    {g.nickname}
+                    <span className="text-zinc-500">({g.items.length})</span>
+                  </span>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Search */}
+        <div className="px-5 py-3 shrink-0" style={{ borderBottom: '1px solid #1e1e24' }}>
+          <input
+            type="text"
+            autoFocus
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Buscar produto por nome ou SKU…"
+            className="w-full px-4 py-2 rounded-lg text-sm outline-none"
+            style={{ background: '#09090b', border: '1px solid #27272a', color: '#fafafa' }}
+            disabled={linking}
+          />
+        </div>
+
+        {/* Product list */}
+        <div className="flex-1 overflow-y-auto" style={{ minHeight: 120 }}>
+          {searching && products.length === 0 ? (
+            <p className="text-zinc-500 text-sm px-5 py-6">Buscando produtos…</p>
+          ) : products.length === 0 ? (
+            <p className="text-zinc-500 text-sm px-5 py-6">Nenhum produto encontrado.</p>
+          ) : (
+            <div className="divide-y" style={{ borderColor: '#1e1e24' }}>
+              {products.map(p => {
+                const isPicked = picked?.id === p.id
+                const thumb = p.photo_urls?.[0] ?? null
+                return (
+                  <button
+                    key={p.id}
+                    onClick={() => setPicked(p)}
+                    disabled={linking}
+                    className="w-full flex items-center gap-3 px-5 py-3 text-left transition-colors"
+                    style={{ background: isPicked ? 'rgba(0,229,255,0.08)' : 'transparent' }}
+                    onMouseEnter={e => { if (!isPicked) e.currentTarget.style.background = '#15151a' }}
+                    onMouseLeave={e => { if (!isPicked) e.currentTarget.style.background = 'transparent' }}>
+                    {thumb ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={thumb} alt="" className="w-11 h-11 rounded-lg object-cover shrink-0" style={{ background: '#1c1c1f' }} />
+                    ) : (
+                      <div className="w-11 h-11 rounded-lg shrink-0 flex items-center justify-center text-zinc-700"
+                        style={{ background: '#1c1c1f' }}>
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                        </svg>
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-zinc-100 text-xs font-medium truncate">{p.name}</p>
+                      <p className="text-zinc-500 text-[10px] mt-0.5">
+                        {p.sku ? `SKU: ${p.sku}` : 'sem SKU'}
+                        {p.cost_price != null && ` · custo ${brl(Number(p.cost_price))}`}
+                      </p>
+                    </div>
+                    {isPicked && (
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded"
+                        style={{ background: 'rgba(0,229,255,0.15)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.4)' }}>
+                        Selecionado
+                      </span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Picked summary + qty input */}
+        {picked && (
+          <div className="px-5 py-3 shrink-0" style={{ borderTop: '1px solid #1e1e24', background: '#0c0c0f' }}>
+            <p className="text-zinc-300 text-xs">
+              <span className="text-zinc-500">Vincular </span>
+              <span className="text-cyan-300 font-semibold">{count} anúncio{count > 1 ? 's' : ''}</span>
+              <span className="text-zinc-500"> ao produto </span>
+              <span className="text-white font-semibold">{picked.name}</span>
+            </p>
+            <div className="flex items-center gap-2 mt-2">
+              <label className="text-[11px] text-zinc-500">Qtd por unidade:</label>
+              <input
+                type="number"
+                min={1}
+                value={qtyPerUnit}
+                onChange={e => setQtyPerUnit(e.target.value)}
+                disabled={linking}
+                className="w-16 px-2 py-1 rounded text-xs text-center outline-none"
+                style={{ background: '#09090b', border: '1px solid #27272a', color: '#fafafa' }}
+              />
+              <span className="text-[10px] text-zinc-600">
+                (kits: quantos do produto = 1 unidade do anúncio)
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-3 px-5 py-4 shrink-0"
+          style={{ borderTop: '1px solid #1e1e24' }}>
+          <button onClick={onClose} disabled={linking}
+            className="px-4 py-2 rounded-lg text-sm font-medium border transition-all disabled:opacity-50"
+            style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>
+            Cancelar
+          </button>
+          <button
+            onClick={() => picked && onConfirm(picked.id, picked.name, Number(qtyPerUnit) || 1)}
+            disabled={linking || !picked}
+            className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold transition-all active:scale-[0.98] disabled:opacity-50"
+            style={{ background: '#00E5FF', color: '#000' }}>
+            {linking && (
+              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+            )}
+            {linking ? 'Vinculando…' : `Vincular ${count} →`}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Pagination ─────────────────────────────────────────────────────────────
 
 function Pagination({ page, total, size, onChange }: {
@@ -805,6 +1036,10 @@ export default function MLAnunciosPage() {
   const [results, setResults]               = useState<CreateResult[] | null>(null)
   const [loadingCriacao, setLoadingCriacao] = useState(false)
   const [linkedIds, setLinkedIds]           = useState<Set<string>>(new Set())
+  // Link-to-product (bulk) state — modal abre com selecionados (filtrados pra
+  // só não-vinculados) e exige escolha de UM produto + qty_per_unit.
+  const [linkOpen, setLinkOpen]             = useState(false)
+  const [linking, setLinking]               = useState(false)
   // Map listing_id -> stock info (filled from Supabase). Used to render the
   // inline stock input on each card and to compute the page-total KPI.
   const [stockMap, setStockMap]             = useState<Map<string, { stock_id: string; product_id: string; quantity: number }>>(new Map())
@@ -1120,6 +1355,73 @@ export default function MLAnunciosPage() {
     }
   }
 
+  // ── Bulk-link to product ──────────────────────────────────────────────
+  // Coleta selecionados, filtra os que já estão vinculados (so para os não-
+  // vinculados é que faz sentido vincular) e abre o picker de produto.
+  // Filtragem é client-side via linkedIds que já vem carregado.
+
+  const unlinkedSelected = useMemo(
+    () => items.filter(i => selected.has(i.id) && !linkedIds.has(i.id)),
+    [items, selected, linkedIds],
+  )
+
+  function openLinkModal() {
+    if (unlinkedSelected.length === 0) {
+      toast('Todos os selecionados já estão vinculados a algum produto.', 'info')
+      return
+    }
+    setLinkOpen(true)
+  }
+
+  async function handleBulkLink(productId: string, productLabel: string, qtyPerUnit: number) {
+    if (unlinkedSelected.length === 0) return
+    setLinking(true)
+    try {
+      const headers = await getHeaders()
+      const payload = {
+        product_id: productId,
+        platform:   'mercadolivre',
+        items: unlinkedSelected.map(it => ({
+          listing_id:        it.id,
+          quantity_per_unit: qtyPerUnit,
+          // account_id armazena seller_id como text (multi-conta). Cada
+          // anúncio carrega sua própria conta — o batch pode misturar.
+          account_id:        it.account_seller_id != null ? String(it.account_seller_id) : null,
+          listing_title:     it.title ?? null,
+          listing_price:     it.price ?? null,
+          listing_thumbnail: it.thumbnail ?? null,
+          listing_permalink: it.permalink ?? null,
+        })),
+      }
+      const res = await fetch(`${BACKEND}/products/vinculos/bulk`, {
+        method:  'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body:    JSON.stringify(payload),
+      })
+      const body = (await res.json().catch(() => ({}))) as Partial<BulkLinkResult> & { message?: string }
+      if (!res.ok) throw new Error(body.message ?? `HTTP ${res.status}`)
+
+      const created = body.created ?? 0
+      const skipped = body.skipped ?? 0
+      const errors  = body.errors  ?? 0
+      const partsTxt: string[] = []
+      if (created > 0) partsTxt.push(`${created} vinculado${created > 1 ? 's' : ''}`)
+      if (skipped > 0) partsTxt.push(`${skipped} já existia${skipped > 1 ? 'm' : ''}`)
+      if (errors  > 0) partsTxt.push(`${errors} erro${errors > 1 ? 's' : ''}`)
+      const msg = `${partsTxt.join(' · ')} → ${productLabel}`
+      toast(msg, errors > 0 ? 'error' : 'success')
+
+      setLinkOpen(false)
+      setSelected(new Set())
+      // Refresh linked IDs + stock map pra badges atualizarem imediatamente
+      loadStockMap()
+    } catch (e: unknown) {
+      toast(e instanceof Error ? e.message : 'Erro ao vincular', 'error')
+    } finally {
+      setLinking(false)
+    }
+  }
+
   // ── KPIs derived ──────────────────────────────────────────────────────
 
   // Page-total stock: prefer the linked product's quantity (more accurate
@@ -1413,15 +1715,30 @@ export default function MLAnunciosPage() {
               : `${num(displayedItems.length)} anúncio${displayedItems.length !== 1 ? 's' : ''}${advCount > 0 ? ' (filtrados)' : ' nesta página'}`}
           </span>
           {selected.size > 0 && (
-            <button
-              onClick={() => openCreateConfirm([...selected])}
-              className="ml-2 flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-semibold transition-all"
-              style={{ background: 'rgba(0,229,255,0.1)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.2)' }}>
-              <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-              </svg>
-              Criar Produtos
-            </button>
+            <>
+              <button
+                onClick={openLinkModal}
+                className="ml-2 flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-semibold transition-all"
+                style={{ background: 'rgba(167,139,250,0.1)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.25)' }}
+                title={unlinkedSelected.length === 0 ? 'Todos os selecionados já estão vinculados' : `Vincular ${unlinkedSelected.length} não-vinculado(s) a um produto`}>
+                <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                </svg>
+                Vincular a produto
+                {unlinkedSelected.length > 0 && unlinkedSelected.length !== selected.size && (
+                  <span className="ml-1 text-[10px] opacity-70">({unlinkedSelected.length})</span>
+                )}
+              </button>
+              <button
+                onClick={() => openCreateConfirm([...selected])}
+                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-semibold transition-all"
+                style={{ background: 'rgba(0,229,255,0.1)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.2)' }}>
+                <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                </svg>
+                Criar Produtos
+              </button>
+            </>
           )}
         </div>
       )}
@@ -1487,6 +1804,20 @@ export default function MLAnunciosPage() {
           </span>
           <div className="flex items-center gap-3">
             <button
+              onClick={openLinkModal}
+              disabled={unlinkedSelected.length === 0}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{ background: 'rgba(167,139,250,0.15)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.35)' }}
+              title={unlinkedSelected.length === 0 ? 'Todos os selecionados já estão vinculados' : `Vincular ${unlinkedSelected.length} a um produto`}>
+              <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+              </svg>
+              Vincular a produto
+              {unlinkedSelected.length > 0 && unlinkedSelected.length !== selected.size && (
+                <span className="text-[11px] opacity-80">({unlinkedSelected.length})</span>
+              )}
+            </button>
+            <button
               onClick={() => {
                 const ids = [...selected]
                 console.log('IDs selecionados:', ids)
@@ -1526,6 +1857,16 @@ export default function MLAnunciosPage() {
           results={results}
           loading={loadingCriacao}
           onClose={() => { if (!loadingCriacao) setResults(null) }}
+        />
+      )}
+
+      {/* ── Link-to-product modal ─────────────────────────────────── */}
+      {linkOpen && (
+        <LinkToProductModal
+          selectedItems={unlinkedSelected}
+          linking={linking}
+          onConfirm={handleBulkLink}
+          onClose={() => { if (!linking) setLinkOpen(false) }}
         />
       )}
     </div>
