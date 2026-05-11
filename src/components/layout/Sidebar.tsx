@@ -148,6 +148,7 @@ const SECTIONS: NavSection[] = [
           { label: 'Automação preço', href: '/dashboard/listings/pricing/automation' },
           { label: 'Perdendo Buy Box', href: '/dashboard/listings?type=LOSING_BUY_BOX' },
           { label: 'Catálogo',        href: '/dashboard/listings?type=CATALOG_ELIGIBLE' },
+          { label: 'Fiscal (NF-e)',   href: '/dashboard/listings/fiscal' },
         ],
       },
       { label: 'Pedidos', href: '/dashboard/pedidos', icon: <ShoppingBag size={15} /> },
