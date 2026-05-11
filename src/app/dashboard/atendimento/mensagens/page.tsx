@@ -26,7 +26,7 @@ type Conversation = {
 
 type ConversationMessage = {
   id:              string
-  direction:       'inbound' | 'outbound'
+  direction:       'buyer' | 'seller'    // schema canônico ml_messages_direction_check
   text:            string
   sent_at:         string | null
   received_at:     string | null
@@ -321,7 +321,7 @@ export default function MensagensPage() {
                   <p className="text-xs text-gray-600 text-center py-8">Sem mensagens nesta conversa.</p>
                 ) : (
                   detail.messages.map(m => {
-                    const isOut = m.direction === 'outbound'
+                    const isOut = m.direction === 'seller'
                     return (
                       <div key={m.id} className={`flex ${isOut ? 'justify-end' : 'justify-start'}`}>
                         <div className={`max-w-[80%] rounded-2xl px-3 py-2`}
