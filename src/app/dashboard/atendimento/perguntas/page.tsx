@@ -640,7 +640,7 @@ export default function PerguntasPage() {
   const uniqueItems = new Set(questions.map(q => q.item_id)).size
 
   return (
-    <div className="h-screen bg-[#09090b] text-white flex flex-col overflow-hidden">
+    <div className="min-h-screen bg-[#09090b] text-white flex flex-col">
       {/* Toast stack */}
       <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none">
         {toasts.map(t => (
@@ -680,8 +680,8 @@ export default function PerguntasPage() {
         <PrazoRespostaCard stats={perfStats} />
       )}
 
-      {/* 6 KPI cards */}
-      <div className="grid grid-cols-6 gap-2 px-6 py-3 flex-shrink-0">
+      {/* 6 KPI cards — 2 cols mobile, 3 tablet, 6 desktop */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 px-6 py-3 flex-shrink-0">
         <KpiCard
           label="Sem resposta"
           value={unanswered}
@@ -720,8 +720,8 @@ export default function PerguntasPage() {
         />
       </div>
 
-      {/* 3-column workspace */}
-      <div className="flex-1 grid grid-cols-[300px_1fr_260px] gap-3 px-6 pb-4 overflow-hidden min-h-0">
+      {/* 3-column workspace — responsivo: 1 col em mobile, 2 em md, 3 em xl */}
+      <div className="flex-1 grid grid-cols-1 md:grid-cols-[260px_1fr] xl:grid-cols-[280px_1fr_260px] gap-3 px-6 pb-4 min-h-0" style={{ minHeight: 'calc(100vh - 220px)' }}>
         {/* ── Column 1: Question list ── */}
         <div className="bg-[#111114] border border-[#1a1a1f] rounded-xl flex flex-col overflow-hidden">
           <div className="p-3 border-b border-[#1a1a1f] flex-shrink-0">
@@ -893,7 +893,7 @@ export default function PerguntasPage() {
                   placeholder="Digite sua resposta..."
                   disabled={sending || (selected.status !== 'unanswered' && selected.status !== 'UNANSWERED')}
                   maxLength={2000}
-                  className="flex-1 bg-[#09090b] border border-[#1a1a1f] rounded-lg p-3 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[#00E5FF44] resize-none disabled:opacity-50 min-h-[120px]"
+                  className="flex-1 bg-[#09090b] border border-[#1a1a1f] rounded-lg p-3 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[#00E5FF44] resize-y disabled:opacity-50 min-h-[220px]"
                 />
 
                 {/* Char counter + error row */}
@@ -913,20 +913,20 @@ export default function PerguntasPage() {
                   </span>
                 </div>
 
-                {/* AI suggestion inline — limita altura pra nao empurrar o botao Responder fora da tela */}
+                {/* AI suggestion inline — sem maxHeight: cresce com o conteúdo, página rola se precisar */}
                 {aiSuggestion && (
-                  <div className="mt-2 bg-[#060d14] border border-[#00E5FF22] rounded-lg p-3 flex-shrink-0 flex flex-col" style={{ maxHeight: '160px' }}>
-                    <div className="flex items-center justify-between mb-1.5 flex-shrink-0">
-                      <span className="text-[11px] text-[#00E5FF] font-medium flex items-center gap-1">
-                        <SparklesIcon size={11} className="text-[#00E5FF]" />
+                  <div className="mt-3 bg-[#060d14] border border-[#00E5FF44] rounded-lg p-3 flex-shrink-0 flex flex-col">
+                    <div className="flex items-center justify-between mb-2 flex-shrink-0">
+                      <span className="text-xs text-[#00E5FF] font-semibold flex items-center gap-1.5">
+                        <SparklesIcon size={13} className="text-[#00E5FF]" />
                         Sugestão da IA
                       </span>
                       <button onClick={() => setAnswerText(aiSuggestion)}
-                        className="text-[11px] text-[#00E5FF] hover:underline">
-                        Usar essa
+                        className="text-xs text-[#00E5FF] hover:underline font-medium px-2 py-1 rounded hover:bg-[#00E5FF11] transition-colors">
+                        Usar essa →
                       </button>
                     </div>
-                    <p className="text-xs text-gray-300 leading-relaxed overflow-y-auto pr-1">{aiSuggestion}</p>
+                    <p className="text-sm text-gray-200 leading-relaxed whitespace-pre-wrap">{aiSuggestion}</p>
                   </div>
                 )}
 
