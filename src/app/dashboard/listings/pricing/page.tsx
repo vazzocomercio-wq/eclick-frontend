@@ -62,6 +62,9 @@ export default function PricingPage() {
   const [applying, setApplying] = useState<Set<string>>(new Set())
   const [filterStatus, setFilterStatus] = useState<BuyBoxStatus | ''>('')
   const [minDiffPct, setMinDiffPct] = useState<number>(0)
+  // Sprint 8 — seleção em lote
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [bulkApplying, setBulkApplying] = useState(false)
 
   const getHeaders = useCallback(async (): Promise<Record<string, string>> => {
     const { data: { session } } = await supabase.auth.getSession()
@@ -116,6 +119,55 @@ export default function PricingPage() {
       toast({ message: e instanceof Error ? e.message : 'Erro', tone: 'error' })
     } finally {
       setScanning(false)
+    }
+  }
+
+  const bulkApply = async (mode: 'safe' | 'best_effort' | 'dry_run' = 'safe') => {
+    const sellerId = getStoredSellerId()
+    if (sellerId == null) { toast({ message: 'Selecione uma conta ML', tone: 'error' }); return }
+    if (selected.size === 0) { toast({ message: 'Selecione pelo menos 1 anúncio', tone: 'warn' }); return }
+    setBulkApplying(true)
+    try {
+      const headers = await getHeaders()
+      const res = await fetch(`${BACKEND}/listings/bulk/apply-prices`, {
+        method: 'POST', headers,
+        body: JSON.stringify({
+          seller_id: sellerId,
+          item_ids: Array.from(selected),
+          apply_mode: mode,
+        }),
+      })
+      const body = await res.json()
+      if (!res.ok) throw new Error(body?.message ?? `HTTP ${res.status}`)
+      toast({
+        message: mode === 'dry_run'
+          ? `Dry-run de ${selected.size} anúncios iniciado · ver progresso em /bulk`
+          : `Aplicação em lote de ${selected.size} anúncios iniciada · ver progresso em /bulk`,
+        tone: 'success',
+      })
+      setSelected(new Set())
+      // Refresh em 5s pra capturar os primeiros aplicados
+      setTimeout(() => { void load() }, 5000)
+    } catch (e) {
+      toast({ message: e instanceof Error ? e.message : 'Erro', tone: 'error' })
+    } finally {
+      setBulkApplying(false)
+    }
+  }
+
+  const toggleSelect = (itemId: string) => {
+    setSelected(prev => {
+      const n = new Set(prev)
+      if (n.has(itemId)) n.delete(itemId); else n.add(itemId)
+      return n
+    })
+  }
+
+  const selectAll = () => {
+    if (selected.size === suggestions.length) {
+      setSelected(new Set())
+    } else {
+      setSelected(new Set(suggestions.filter(s => !s.is_below_cost).map(s => s.ml_item_id)))
     }
   }
 
@@ -204,6 +256,52 @@ export default function PricingPage() {
         </select>
       </section>
 
+      {/* Bulk bar — só aparece quando tem suggestions */}
+      {!loading && suggestions.length > 0 && (
+        <section className="rounded-xl p-3 flex items-center gap-3 flex-wrap"
+          style={{ background: selected.size > 0 ? 'rgba(0,229,255,0.06)' : '#111114', border: `1px solid ${selected.size > 0 ? 'rgba(0,229,255,0.3)' : '#1a1a1f'}` }}>
+          <label className="flex items-center gap-2 text-xs text-zinc-300 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={selected.size > 0 && selected.size === suggestions.filter(s => !s.is_below_cost).length}
+              onChange={selectAll}
+              className="accent-cyan-400"
+            />
+            Selecionar todos os elegíveis ({suggestions.filter(s => !s.is_below_cost).length})
+          </label>
+          {selected.size > 0 && (
+            <>
+              <span className="text-xs text-cyan-400 font-bold">{selected.size} selecionado{selected.size !== 1 ? 's' : ''}</span>
+              <div className="flex items-center gap-2 ml-auto">
+                <button onClick={() => bulkApply('dry_run')} disabled={bulkApplying}
+                  className="text-[11px] px-2.5 py-1.5 rounded-lg disabled:opacity-50"
+                  style={{ background: '#0d0d10', border: '1px solid #27272a', color: '#a1a1aa' }}>
+                  Simular (dry-run)
+                </button>
+                <Link href="/dashboard/listings/bulk"
+                  className="text-[11px] px-2.5 py-1.5 rounded-lg flex items-center"
+                  style={{ background: '#0d0d10', border: '1px solid #27272a', color: '#a1a1aa' }}>
+                  Histórico
+                </Link>
+                <button onClick={() => bulkApply('safe')} disabled={bulkApplying}
+                  className="text-[11px] font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5 disabled:opacity-50"
+                  style={{ background: '#00E5FF', color: '#0d0d10' }}>
+                  {bulkApplying ? <RefreshCw size={11} className="animate-spin" /> : <Check size={11} />}
+                  Aplicar em lote (mode=safe)
+                </button>
+              </div>
+            </>
+          )}
+          {selected.size === 0 && (
+            <Link href="/dashboard/listings/bulk"
+              className="ml-auto text-[11px] px-2.5 py-1.5 rounded-lg flex items-center"
+              style={{ background: '#0d0d10', border: '1px solid #27272a', color: '#a1a1aa' }}>
+              Ver histórico de bulk
+            </Link>
+          )}
+        </section>
+      )}
+
       {/* Lista */}
       {loading ? (
         <div className="rounded-xl p-12 text-center text-zinc-500 text-xs"
@@ -217,7 +315,14 @@ export default function PricingPage() {
       ) : (
         <div className="space-y-2">
           {suggestions.map(s => (
-            <SuggestionCard key={s.id} s={s} applying={applying.has(s.ml_item_id)} onApply={applyPrice} />
+            <SuggestionCard
+              key={s.id}
+              s={s}
+              applying={applying.has(s.ml_item_id)}
+              selected={selected.has(s.ml_item_id)}
+              onToggleSelect={() => toggleSelect(s.ml_item_id)}
+              onApply={applyPrice}
+            />
           ))}
         </div>
       )}
@@ -237,9 +342,11 @@ function FilterChip({ label, active, onClick, color }: { label: string; active: 
   )
 }
 
-function SuggestionCard({ s, applying, onApply }: {
+function SuggestionCard({ s, applying, selected, onToggleSelect, onApply }: {
   s: Suggestion
   applying: boolean
+  selected: boolean
+  onToggleSelect: () => void
   onApply: (s: Suggestion, mode?: 'safe' | 'force') => void
 }) {
   const status = s.buy_box_status ? STATUS_META[s.buy_box_status] : null
@@ -255,6 +362,18 @@ function SuggestionCard({ s, applying, onApply }: {
         borderLeft: status ? `3px solid ${status.color}` : '3px solid #27272a',
       }}>
       <div className="flex items-start gap-3">
+        {/* Checkbox de seleção */}
+        <label className="shrink-0 mt-1 cursor-pointer" onClick={e => e.stopPropagation()}>
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={onToggleSelect}
+            disabled={s.is_below_cost}
+            className="accent-cyan-400 w-3.5 h-3.5"
+            title={s.is_below_cost ? 'Abaixo do custo — não selecionável' : 'Selecionar pra bulk apply'}
+          />
+        </label>
+
         {/* Status pill */}
         <div className="shrink-0 mt-0.5">
           {status && (

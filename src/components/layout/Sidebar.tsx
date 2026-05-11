@@ -151,6 +151,7 @@ const SECTIONS: NavSection[] = [
           { label: 'Fiscal (NF-e)',   href: '/dashboard/listings/fiscal' },
           { label: 'Política & motivos', href: '/dashboard/listings/policy' },
           { label: 'Health Score',    href: '/dashboard/listings/scores' },
+          { label: 'Ações em massa',  href: '/dashboard/listings/bulk' },
         ],
       },
       { label: 'Pedidos', href: '/dashboard/pedidos', icon: <ShoppingBag size={15} /> },
