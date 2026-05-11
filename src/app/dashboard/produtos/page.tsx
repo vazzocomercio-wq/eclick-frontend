@@ -370,14 +370,30 @@ function TableRow({
     ? 'rgba(0,229,255,0.05)'
     : hover ? 'rgba(255,255,255,0.02)' : 'transparent'
 
+  // Click na linha vira "editar" — mesma UX da view card. Controles
+  // internos (checkbox, botões Ativo/Pausar, RowMenu) param propagação
+  // pra não disparar navegação ao serem clicados.
+  const handleRowClick = (e: React.MouseEvent) => {
+    const target = e.target as HTMLElement
+    if (target.closest('input, button, [role="menu"], a')) return
+    router.push(`/dashboard/produtos/${product.id}/editar`)
+  }
+
   return (
     <tr
-      style={{ background: rowBg, transition: 'background 0.15s', borderBottom: '1px solid #1e1e24' }}
+      style={{
+        background: rowBg,
+        transition: 'background 0.15s',
+        borderBottom: '1px solid #1e1e24',
+        cursor: 'pointer',
+      }}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
+      onClick={handleRowClick}
+      title="Clique pra editar o produto"
     >
       {/* Checkbox */}
-      <td className="pl-4 pr-2 py-3 w-10">
+      <td className="pl-4 pr-2 py-3 w-10" onClick={e => e.stopPropagation()}>
         <input type="checkbox" checked={selected} onChange={() => onSelect(product.id)}
           className="w-4 h-4 rounded cursor-pointer accent-[#00E5FF]" />
       </td>
