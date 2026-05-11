@@ -153,7 +153,7 @@ export default function FullFulfillmentCard() {
                     {it.listing_title ?? it.ml_item_id}
                   </span>
                   <span style={{ color: '#71717a', whiteSpace: 'nowrap', marginLeft: 8 }}>
-                    {it.available_quantity}u · {it.days_since_sale ?? '?'}d
+                    {it.available_quantity} un · {it.days_since_sale ?? '?'} dias
                   </span>
                 </a>
               ))}

@@ -218,7 +218,7 @@ export default function LogisticsPage() {
                 {num(current.shipments_to_dispatch_today)}
               </div>
               <div style={{ fontSize: 12, color: '#71717a', marginTop: 4 }}>
-                shipments com status ready_to_ship
+                envios prontos para envio
               </div>
             </div>
 
@@ -406,7 +406,7 @@ export default function LogisticsPage() {
               <div style={{ fontSize: 24, fontWeight: 500, color: '#84cc16' }}>
                 {num(current.flex_eligible_count)}
                 <span style={{ fontSize: 13, color: '#71717a', fontWeight: 400, marginLeft: 8 }}>
-                  de {current.flex_scan_coverage_pct ?? 0}% scaneado
+                  de {current.flex_scan_coverage_pct ?? 0}% verificado
                 </span>
               </div>
             </div>

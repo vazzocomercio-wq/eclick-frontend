@@ -506,7 +506,7 @@ export default function ExecutiveDashboardPage() {
                   </div>
                   <div style={{ fontSize: 11, color: '#a1a1aa', marginTop: 8, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                     {s.reputation_complaints_pct != null && (
-                      <span>Claims {(s.reputation_complaints_pct * 100).toFixed(2)}%</span>
+                      <span>Reclamações {(s.reputation_complaints_pct * 100).toFixed(2)}%</span>
                     )}
                     {s.reputation_late_shipments_pct != null && (
                       <span>Atrasos {(s.reputation_late_shipments_pct * 100).toFixed(2)}%</span>
@@ -531,7 +531,7 @@ export default function ExecutiveDashboardPage() {
               tone={(aggregate.shipments_to_dispatch_today ?? 0) > 0 ? 'attention' : 'positive'}
               label="Pra despachar hoje"
               value={num(aggregate.shipments_to_dispatch_today ?? 0)}
-              hint={(aggregate.shipments_to_dispatch_today ?? 0) > 0 ? 'shipments ready_to_ship' : 'sem pendências'}
+              hint={(aggregate.shipments_to_dispatch_today ?? 0) > 0 ? 'envios prontos para envio' : 'sem pendências'}
               onClick={() => { window.location.href = '/dashboard/executive/logistics' }}
             />
             <KpiCard
@@ -673,7 +673,7 @@ export default function ExecutiveDashboardPage() {
                     </span>
                     {s.visits_7d_change_pct != null && (
                       <span style={{ color: s.visits_7d_change_pct >= 0 ? '#22c55e' : '#ef4444' }}>
-                        {s.visits_7d_change_pct > 0 ? '+' : ''}{s.visits_7d_change_pct.toFixed(1)}% vs 7d ant.
+                        {s.visits_7d_change_pct > 0 ? '+' : ''}{s.visits_7d_change_pct.toFixed(1)}% vs 7 dias anteriores
                       </span>
                     )}
                   </div>

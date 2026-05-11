@@ -121,7 +121,7 @@ export default function FlexOpportunityCard() {
               borderRadius: 8, padding: '8px 10px',
               fontSize: 11, color: '#f59e0b',
             }}>
-              Scan parcial — {num(data.summary.nullCoverage)} items ainda não verificados
+              Varredura parcial — {num(data.summary.nullCoverage)} itens ainda não verificados
             </div>
           )}
           {data.opportunityTopItems.length > 0 && (
@@ -142,7 +142,7 @@ export default function FlexOpportunityCard() {
                     {it.listing_title ?? it.ml_item_id}
                   </span>
                   <span style={{ color: '#84cc16', whiteSpace: 'nowrap', marginLeft: 8 }}>
-                    {it.visits_7d > 0 ? `${num(it.visits_7d)} v/7d` : '—'}
+                    {it.visits_7d > 0 ? `${num(it.visits_7d)} visitas/7d` : '—'}
                   </span>
                 </a>
               ))}

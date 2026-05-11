@@ -364,7 +364,7 @@ export default function AdsPage() {
               {summary.ads_spend_change_pct != null && (
                 <div style={{ fontSize: 12, color: summary.ads_spend_change_pct >= 0 ? '#ef4444' : '#22c55e', marginTop: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
                   {summary.ads_spend_change_pct >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-                  {summary.ads_spend_change_pct > 0 ? '+' : ''}{summary.ads_spend_change_pct.toFixed(1)}% vs 7d ant.
+                  {summary.ads_spend_change_pct > 0 ? '+' : ''}{summary.ads_spend_change_pct.toFixed(1)}% vs 7 dias anteriores
                 </div>
               )}
             </div>
@@ -378,7 +378,7 @@ export default function AdsPage() {
               {summary.ads_revenue_change_pct != null && (
                 <div style={{ fontSize: 12, color: summary.ads_revenue_change_pct >= 0 ? '#22c55e' : '#ef4444', marginTop: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
                   {summary.ads_revenue_change_pct >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-                  {summary.ads_revenue_change_pct > 0 ? '+' : ''}{summary.ads_revenue_change_pct.toFixed(1)}% vs 7d ant.
+                  {summary.ads_revenue_change_pct > 0 ? '+' : ''}{summary.ads_revenue_change_pct.toFixed(1)}% vs 7 dias anteriores
                 </div>
               )}
             </div>

@@ -125,7 +125,7 @@ export default function VisitsLowConvCard() {
       {!loading && empty && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#22c55e' }}>
           <CheckCircle2 size={18} />
-          <span style={{ fontSize: 13 }}>Todos items com tráfego performam dentro ou acima da média.</span>
+          <span style={{ fontSize: 13 }}>Todos os itens com tráfego performam dentro ou acima da média.</span>
         </div>
       )}
 
@@ -154,7 +154,7 @@ export default function VisitsLowConvCard() {
                   {brl(data.summary.totalGmvUnderperforming)}
                 </div>
                 <div style={{ fontSize: 11, color: '#71717a', marginTop: 4 }}>
-                  GMV atual destes items
+                  GMV atual destes itens
                 </div>
               </div>
             )}
@@ -179,13 +179,13 @@ export default function VisitsLowConvCard() {
                     <div style={{ fontSize: 10, color: '#71717a', marginTop: 2, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                       <span>{it.ml_item_id}</span>
                       {it.category_ml_id && <span>· {it.category_ml_id}</span>}
-                      {it.benchmark_source === 'category' && <span style={{ color: '#84cc16' }}>· benchmark cat</span>}
-                      {it.benchmark_source === 'seller' && <span style={{ color: '#f59e0b' }}>· benchmark seller</span>}
+                      {it.benchmark_source === 'category' && <span style={{ color: '#84cc16' }}>· referência da categoria</span>}
+                      {it.benchmark_source === 'seller' && <span style={{ color: '#f59e0b' }}>· referência da conta</span>}
                     </div>
                     <div style={{ fontSize: 11, color: '#a1a1aa', marginTop: 6, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                       <span>{num(it.visits_7d)} visits</span>
                       <span>{num(it.orders_7d)} vendas</span>
-                      <span style={{ color: '#ef4444' }}>conv {it.conversion_pct}%</span>
+                      <span style={{ color: '#ef4444' }}>conversão {it.conversion_pct}%</span>
                       {it.benchmark_pct != null && (
                         <span style={{ color: '#71717a' }}>vs {it.benchmark_pct}% médio</span>
                       )}
