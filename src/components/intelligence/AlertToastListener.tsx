@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { getSocket } from '@/lib/socket'
-import { AlertTriangle, AlertCircle, Info, X, ExternalLink, Sparkles } from 'lucide-react'
+import { AlertTriangle, AlertCircle, Info, X, ExternalLink, Sparkles, TrendingUp, TrendingDown, Minus, Megaphone, Eye, ShoppingCart } from 'lucide-react'
 
 interface IntelligenceAlertEvent {
   id:           string
@@ -15,7 +15,46 @@ interface IntelligenceAlertEvent {
   entity_name:  string | null
   summary:      string
   suggestion:   string | null
+  /** Payload livre. Pra `new_sale` traz blocos { values, trend, ads, conversion }. */
+  data?:        Record<string, unknown>
   created_at:   string
+}
+
+/** Shape do `data` quando category='new_sale' (gerado pelo NewSaleNotifier no backend). */
+interface NewSaleData {
+  order_id:    string | number
+  ml_item_id?: string | null
+  sku?:        string | null
+  values: {
+    quantity:        number
+    unit_price:      number
+    total:           number
+    cost:            number
+    tarifa_ml:       number
+    frete_vendedor:  number
+    imposto:         number
+    margem_brl:      number
+    margem_pct:      number
+  }
+  trend?: {
+    sales_7d:      number
+    sales_prev_7d: number
+    delta_pct:     number
+    direction:     'up' | 'down' | 'flat'
+  } | null
+  ads?: {
+    has_active_campaign: boolean
+    campaign_name?:      string | null
+    clicks_7d?:          number
+    impressions_7d?:     number
+    ctr_pct?:            number | null
+    cost_7d?:            number | null
+  } | null
+  conversion?: {
+    visits_7d: number
+    sales_7d:  number
+    rate_pct:  number | null
+  } | null
 }
 
 /** Toast com lista de alertas agrupados — um cartão pode representar 1+
@@ -52,7 +91,11 @@ const CATEGORY_LABEL: Record<string, string> = {
   estoque_alto:           'Estoque parado',
   margem_alta:            'Margem alta',
   estoque_baixo:          'Estoque baixo',
+  margem_baixa:           'Margem baixa',
+  new_sale:               'Nova venda',
 }
+
+const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
 const MAX_VISIBLE      = 3            // 3 cards visíveis simultâneos
 const GROUP_WINDOW_MS  = 60_000       // alertas mesma categoria em <60s agrupam
@@ -292,11 +335,16 @@ function ToastCard({ group, stackIndex, onDismiss }: {
         <div
           className="overflow-hidden transition-all"
           style={{
-            maxHeight: hovered ? 200 : 0,
+            maxHeight: hovered ? 600 : 0,
             opacity:   hovered ? 1   : 0,
           }}
         >
-          {latest.suggestion && (
+          {/* Bloco rich pra category='new_sale' — mostra valores/trend/ads/conversão */}
+          {group.category === 'new_sale' && latest.data && (
+            <NewSaleDetail data={latest.data as unknown as NewSaleData} color={color} />
+          )}
+
+          {latest.suggestion && group.category !== 'new_sale' && (
             <div className="flex items-start gap-1 mt-2 text-[11px] text-cyan-200/90">
               <Sparkles size={10} className="flex-shrink-0 mt-0.5" />
               <span className="leading-snug">{latest.suggestion}</span>
@@ -348,6 +396,121 @@ function ToastCard({ group, stackIndex, onDismiss }: {
           />
         </div>
       )}
+    </div>
+  )
+}
+
+// ── Detalhe rich pra notificação de venda nova ─────────────────────────────
+
+function NewSaleDetail({ data, color }: { data: NewSaleData; color: string }) {
+  const v = data.values
+  const trendIcon =
+    data.trend?.direction === 'up'   ? <TrendingUp size={10} className="text-emerald-400" /> :
+    data.trend?.direction === 'down' ? <TrendingDown size={10} className="text-rose-400" /> :
+    <Minus size={10} className="text-zinc-500" />
+
+  const trendColor =
+    data.trend?.direction === 'up'   ? '#22c55e' :
+    data.trend?.direction === 'down' ? '#ef4444' :
+    '#a1a1aa'
+
+  const marginColor =
+    v.margem_pct < 0  ? '#ef4444' :
+    v.margem_pct < 10 ? '#f59e0b' :
+    v.margem_pct < 20 ? '#fbbf24' :
+    '#22c55e'
+
+  return (
+    <div className="mt-2 space-y-1.5 text-[10.5px]">
+      {/* Linha 1 — Valores */}
+      <div className="grid grid-cols-2 gap-x-2 gap-y-0.5">
+        <KV label="Total"    value={`${brl(v.total)}${v.quantity > 1 ? ` (${v.quantity}× ${brl(v.unit_price)})` : ''}`} />
+        <KV label="Margem"   value={`${brl(v.margem_brl)} (${v.margem_pct.toFixed(1)}%)`} valueColor={marginColor} bold />
+        <KV label="Custo"    value={brl(v.cost)} dim={v.cost === 0} />
+        <KV label="Tarifa"   value={brl(v.tarifa_ml)} />
+        <KV label="Frete v." value={brl(v.frete_vendedor)} />
+        <KV label="Imposto"  value={brl(v.imposto)} dim={v.imposto === 0} />
+      </div>
+
+      {/* Linha 2 — Trend */}
+      {data.trend && (
+        <div className="flex items-center gap-1.5 px-1.5 py-1 rounded"
+          style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+          <ShoppingCart size={10} className="text-zinc-500" />
+          <span className="text-zinc-400">Vendas 7d:</span>
+          <span className="font-bold text-zinc-200 tabular-nums">{data.trend.sales_7d}</span>
+          {trendIcon}
+          <span className="font-semibold tabular-nums" style={{ color: trendColor }}>
+            {data.trend.delta_pct >= 0 ? '+' : ''}{data.trend.delta_pct}%
+          </span>
+          <span className="text-zinc-600">vs anterior ({data.trend.sales_prev_7d})</span>
+        </div>
+      )}
+
+      {/* Linha 3 — Conversão */}
+      {data.conversion && (
+        <div className="flex items-center gap-1.5 px-1.5 py-1 rounded"
+          style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+          <Eye size={10} className="text-zinc-500" />
+          <span className="text-zinc-400">Conversão:</span>
+          {data.conversion.rate_pct != null ? (
+            <>
+              <span className="font-bold text-cyan-300 tabular-nums">{data.conversion.rate_pct.toFixed(2)}%</span>
+              <span className="text-zinc-600 tabular-nums">
+                ({data.conversion.sales_7d}/{data.conversion.visits_7d.toLocaleString('pt-BR')} visitas)
+              </span>
+            </>
+          ) : (
+            <span className="text-zinc-500 italic">sem dados de visitas 7d</span>
+          )}
+        </div>
+      )}
+
+      {/* Linha 4 — Ads */}
+      {data.ads && (
+        <div className="flex items-start gap-1.5 px-1.5 py-1 rounded"
+          style={{
+            background: data.ads.has_active_campaign ? 'rgba(0,229,255,0.06)' : 'rgba(255,255,255,0.03)',
+            border: data.ads.has_active_campaign ? '1px solid rgba(0,229,255,0.18)' : '1px solid rgba(255,255,255,0.06)',
+          }}>
+          <Megaphone size={10} className={`mt-0.5 ${data.ads.has_active_campaign ? 'text-cyan-400' : 'text-zinc-500'}`} />
+          {data.ads.has_active_campaign ? (
+            <div className="flex-1 min-w-0">
+              <p className="text-cyan-200 truncate">
+                <span className="font-semibold">ADS ativo</span> · {data.ads.campaign_name}
+              </p>
+              {(data.ads.clicks_7d != null || data.ads.cost_7d != null) && (
+                <p className="text-zinc-500 mt-0.5">
+                  {data.ads.clicks_7d != null && <>{data.ads.clicks_7d} clicks / {data.ads.impressions_7d?.toLocaleString('pt-BR')} imps</>}
+                  {data.ads.ctr_pct != null && <> · CTR {data.ads.ctr_pct}%</>}
+                  {data.ads.cost_7d != null && data.ads.cost_7d > 0 && <> · gasto 7d {brl(data.ads.cost_7d)}</>}
+                </p>
+              )}
+            </div>
+          ) : (
+            <span className="text-zinc-500 italic">sem campanha ADS ativa</span>
+          )}
+        </div>
+      )}
+
+      {/* Footer — link pro pedido */}
+      <a href={`/dashboard/pedidos?q=${data.order_id}`}
+        className="inline-flex items-center gap-1 mt-1 text-[10px] text-cyan-400 hover:text-cyan-300 transition-colors">
+        Ver pedido #{data.order_id} <ExternalLink size={9} />
+      </a>
+    </div>
+  )
+}
+
+function KV({ label, value, valueColor, bold, dim }: { label: string; value: string; valueColor?: string; bold?: boolean; dim?: boolean }) {
+  return (
+    <div className="flex items-baseline gap-1 truncate">
+      <span className="text-zinc-600 shrink-0">{label}:</span>
+      <span
+        className={`tabular-nums truncate ${bold ? 'font-bold' : ''} ${dim ? 'text-zinc-600' : ''}`}
+        style={{ color: valueColor ?? (dim ? '#52525b' : '#e4e4e7') }}>
+        {value}
+      </span>
     </div>
   )
 }
