@@ -117,6 +117,50 @@ function Skel({ h = 16, className = '' }: { h?: number; className?: string }) {
   return <div className={`rounded-lg animate-pulse ${className}`} style={{ height: h, background: '#1e1e24' }} />
 }
 
+/** Linha de comparação com período anterior (usada nos cards Faturamento + Lucro).
+ *  Renderiza label + valor do prev period + delta (↑/↓ X%) com cor verde/red.
+ *  Quando prevValue=0 mostra "sem dado anterior".
+ *
+ *  Usada DUAS vezes por card: uma pro full (dia todo), outra pro clamped
+ *  (até mesmo horário). Visualmente diferenciadas: full em tom muted,
+ *  clamped destacada com ícone ⏱ pra deixar claro qual é qual. */
+function PrevRow({ label, prevValue, currentValue, format, isClamped = false }: {
+  label: string
+  prevValue: number
+  currentValue: number
+  format: (v: number) => string
+  isClamped?: boolean
+}) {
+  return (
+    <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
+      <div className="flex justify-between items-center">
+        <span className="text-xs flex items-center gap-1.5" style={{ color: 'var(--text-muted)' }}>
+          {isClamped && <span className="text-[10px] opacity-70">⏱</span>}
+          {label}
+        </span>
+        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{format(prevValue)}</span>
+      </div>
+      <div className="flex items-center gap-2 mt-1">
+        {prevValue > 0 ? (() => {
+          const diff = currentValue - prevValue
+          const p = (diff / prevValue) * 100
+          const up = diff >= 0
+          return (
+            <>
+              <span className={`text-sm font-semibold ${up ? 'text-green-400' : 'text-red-400'}`}>
+                {up ? '↑' : '↓'} {Math.abs(p).toFixed(1)}%
+              </span>
+              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                ({up ? '+' : ''}{format(diff)})
+              </span>
+            </>
+          )
+        })() : <span className="text-xs" style={{ color: 'var(--text-muted)' }}>sem dado anterior</span>}
+      </div>
+    </div>
+  )
+}
+
 /** Linha de "Meta do período" usada nos cards grandes Faturamento + Lucro.
  *  Mostra % atingido + barra de progresso quando há target configurado;
  *  CTA "Definir meta →" quando ainda não foi configurado em /dashboard/metas.
@@ -638,9 +682,17 @@ const PERIOD_LABEL: Record<Period, string> = {
   month: 'Mês atual',
 }
 
-// Label do período anterior — explicita que a comparação é time-clamped
-// (até o mesmo ponto do tempo decorrido no período corrente).
-const PREV_PERIOD_LABEL: Record<Period, string> = {
+// Labels do período anterior:
+//   FULL    = período inteiro (ontem dia todo, mês passado completo) — histórico padrão
+//   CLAMPED = mesmo offset de tempo decorrido (ontem até este horário) — apples-to-apples
+// Mostramos AMBOS em linhas separadas pra dar contexto completo.
+const PREV_PERIOD_LABEL_FULL: Record<Period, string> = {
+  today: 'Ontem',
+  '7d':  '7 dias anteriores',
+  '30d': '30 dias anteriores',
+  month: 'Mês passado',
+}
+const PREV_PERIOD_LABEL_CLAMPED: Record<Period, string> = {
   today: 'Ontem até este horário',
   '7d':  '7d anteriores (mesmo offset)',
   '30d': '30d anteriores (mesmo offset)',
@@ -667,7 +719,15 @@ export default function DashboardPage() {
   const [finKpis, setFinKpis] = useState<{ vendas_aprovadas: number; margem_pct: number; margem_contrib: number } | null>(null)
   const [periodOrders, setPeriodOrders] = useState<Order[]>([])
   const [periodLoading, setPeriodLoading] = useState(false)
-  const [prevData, setPrevData] = useState<{ faturamento: number; lucro: number } | null>(null)
+  // prevData tem DOIS comparativos:
+  //   - full:    período anterior INTEIRO (ex: ontem dia todo) — comparação histórica padrão
+  //   - clamped: período anterior até o MESMO offset de tempo decorrido (ex: ontem até
+  //              este horário) — apples-to-apples com o período corrente parcial
+  // Ambos são mostrados em linhas separadas em cada card.
+  const [prevData, setPrevData] = useState<{
+    full:    { faturamento: number; lucro: number }
+    clamped: { faturamento: number; lucro: number }
+  } | null>(null)
   // Meta do período — lê de `goals` (tabela do módulo /dashboard/metas).
   // Pode ser null em 3 cenários: tabela não existe ainda, sem permissão,
   // ou usuário ainda não configurou meta pro tipo+período corrente. Em
@@ -961,22 +1021,32 @@ export default function DashboardPage() {
         const prevOrdersRaw: Order[] = data?.orders ?? data?.results ?? []
         // Cancelados não entram (paridade com cálculo do período corrente)
         const prevValidOrders = prevOrdersRaw.filter(o => o.status !== 'cancelled')
-        // Time-clamp: só conta orders cujo timestamp (em GMT-3) seja
-        // <= cutoff. cutoff = início do período anterior + tempo decorrido
-        // no período corrente. Apples-to-apples sempre.
+
+        // ── 1. FULL: período anterior inteiro (ontem dia todo, mês passado completo)
+        const sumFat = (arr: Order[]) => arr.reduce((s, o) => s + (o.total_amount ?? 0), 0)
+        const sumLucro = (arr: Order[]) => {
+          const wm = arr.filter(o => (o.contribution_margin ?? 0) > 0)
+          if (wm.length > 0) return wm.reduce((s, o) => s + (o.contribution_margin ?? 0), 0)
+          return sumFat(arr) * 0.885 // fallback heurístico quando não há margem cadastrada
+        }
+        const fullFat   = sumFat(prevValidOrders)
+        const fullLucro = sumLucro(prevValidOrders)
+
+        // ── 2. CLAMPED: período anterior até o MESMO offset de tempo decorrido
+        // Apples-to-apples com período corrente parcial (ex: hoje 14h30 vs ontem 14h30).
         const cutoff = getPrevPeriodCutoff(period, prevDates.from)
-        const prevOrders = prevValidOrders.filter(o => {
+        const prevClampedOrders = prevValidOrders.filter(o => {
           const t = new Date(o.date_created).getTime()
           if (!Number.isFinite(t)) return false
           return brazilDate(new Date(t)).getTime() <= cutoff.getTime()
         })
+        const clampedFat   = sumFat(prevClampedOrders)
+        const clampedLucro = sumLucro(prevClampedOrders)
 
-        const prevFaturamento = prevOrders.reduce((s, o) => s + (o.total_amount ?? 0), 0)
-        const prevWithMargin  = prevOrders.filter(o => (o.contribution_margin ?? 0) > 0)
-        const prevLucro = prevWithMargin.length > 0
-          ? prevWithMargin.reduce((s, o) => s + (o.contribution_margin ?? 0), 0)
-          : prevFaturamento * 0.885
-        if (!cancelled) setPrevData({ faturamento: prevFaturamento, lucro: prevLucro })
+        if (!cancelled) setPrevData({
+          full:    { faturamento: fullFat,    lucro: fullLucro },
+          clamped: { faturamento: clampedFat, lucro: clampedLucro },
+        })
       } catch (e) {
         console.error('[prev-fetch] exception:', e)
         if (!cancelled) setPrevData(null)
@@ -1373,29 +1443,23 @@ export default function DashboardPage() {
                 </div>
               )}
               {prevData && (
-                <div className="mt-4 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{PREV_PERIOD_LABEL[period]}</span>
-                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{formatCurrency(prevData.faturamento)}</span>
-                  </div>
-                  <div className="flex items-center gap-2 mt-1">
-                    {prevData.faturamento > 0 ? (() => {
-                      const diff = faturamento - prevData.faturamento
-                      const p = (diff / prevData.faturamento) * 100
-                      const up = diff >= 0
-                      return (
-                        <>
-                          <span className={`text-sm font-semibold ${up ? 'text-green-400' : 'text-red-400'}`}>
-                            {up ? '↑' : '↓'} {Math.abs(p).toFixed(1)}%
-                          </span>
-                          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                            ({up ? '+' : ''}{formatCurrency(diff)})
-                          </span>
-                        </>
-                      )
-                    })() : <span className="text-xs" style={{ color: 'var(--text-muted)' }}>sem dado anterior</span>}
-                  </div>
-                </div>
+                <>
+                  {/* Linha 1: período anterior INTEIRO (histórico padrão) */}
+                  <PrevRow
+                    label={PREV_PERIOD_LABEL_FULL[period]}
+                    prevValue={prevData.full.faturamento}
+                    currentValue={faturamento}
+                    format={formatCurrency}
+                  />
+                  {/* Linha 2: período anterior CLAMPED (até mesmo offset) */}
+                  <PrevRow
+                    label={PREV_PERIOD_LABEL_CLAMPED[period]}
+                    prevValue={prevData.clamped.faturamento}
+                    currentValue={faturamento}
+                    format={formatCurrency}
+                    isClamped
+                  />
+                </>
               )}
 
               {/* Meta — slot pra %atingido do alvo do período. Quando o
@@ -1454,29 +1518,21 @@ export default function DashboardPage() {
                 <p className="text-[10px] mt-1.5" style={{ color: 'var(--text-dim)' }}>✓ Calculado com custos reais ({pedidosComCusto} pedidos)</p>
               )}
               {prevData && (
-                <div className="mt-4 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{PREV_PERIOD_LABEL[period]}</span>
-                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{formatCurrency(prevData.lucro)}</span>
-                  </div>
-                  <div className="flex items-center gap-2 mt-1">
-                    {prevData.lucro > 0 ? (() => {
-                      const diff = lucroEstimado - prevData.lucro
-                      const p = (diff / prevData.lucro) * 100
-                      const up = diff >= 0
-                      return (
-                        <>
-                          <span className={`text-sm font-semibold ${up ? 'text-green-400' : 'text-red-400'}`}>
-                            {up ? '↑' : '↓'} {Math.abs(p).toFixed(1)}%
-                          </span>
-                          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                            ({up ? '+' : ''}{formatCurrency(diff)})
-                          </span>
-                        </>
-                      )
-                    })() : <span className="text-xs" style={{ color: 'var(--text-muted)' }}>sem dado anterior</span>}
-                  </div>
-                </div>
+                <>
+                  <PrevRow
+                    label={PREV_PERIOD_LABEL_FULL[period]}
+                    prevValue={prevData.full.lucro}
+                    currentValue={lucroEstimado}
+                    format={formatCurrency}
+                  />
+                  <PrevRow
+                    label={PREV_PERIOD_LABEL_CLAMPED[period]}
+                    prevValue={prevData.clamped.lucro}
+                    currentValue={lucroEstimado}
+                    format={formatCurrency}
+                    isClamped
+                  />
+                </>
               )}
 
               {/* Meta de lucro do período. Lê tipo='margin' do módulo
