@@ -249,12 +249,20 @@ function RowMenu({ onEdit, onDuplicate, onDelete }: {
   onEdit: () => void; onDuplicate: () => void; onDelete: () => void
 }) {
   const [open, setOpen] = useState(false)
-  const [pos, setPos]   = useState({ top: 0, right: 0 })
+  // placement: 'bottom' = abre pra baixo do botão (default).
+  //            'top'    = abre pra cima (quando não há espaço abaixo).
+  const [pos, setPos] = useState<{ top?: number; bottom?: number; right: number; placement: 'top' | 'bottom' }>({
+    top: 0, right: 0, placement: 'bottom',
+  })
+  // Visible = open + 1 tick — separamos pra animação CSS funcionar (opacity 0 → 1).
+  // Sem isso, o menu aparece direto sem fade in.
+  const [visible, setVisible] = useState(false)
   const btnRef  = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (!open) return
+    if (!open) { setVisible(false); return }
+    const t = setTimeout(() => setVisible(true), 10)
     function handle(e: MouseEvent) {
       if (
         !btnRef.current?.contains(e.target as Node) &&
@@ -262,14 +270,36 @@ function RowMenu({ onEdit, onDuplicate, onDelete }: {
       ) setOpen(false)
     }
     document.addEventListener('mousedown', handle)
-    return () => document.removeEventListener('mousedown', handle)
+    return () => {
+      clearTimeout(t)
+      document.removeEventListener('mousedown', handle)
+    }
+  }, [open])
+
+  // Reposiciona em scroll/resize quando aberto — evita menu "voar" do botão
+  useEffect(() => {
+    if (!open) return
+    const reposition = () => {
+      if (!btnRef.current) return
+      const r = btnRef.current.getBoundingClientRect()
+      const spaceBelow = window.innerHeight - r.bottom
+      const spaceAbove = r.top
+      const MENU_EST_H = 380 // ~10 items * 36px + paddings
+      const flipUp = spaceBelow < MENU_EST_H && spaceAbove > spaceBelow
+      setPos(flipUp
+        ? { bottom: window.innerHeight - r.top + 4, right: window.innerWidth - r.right, placement: 'top' }
+        : { top: r.bottom + 4,                       right: window.innerWidth - r.right, placement: 'bottom' })
+    }
+    reposition()
+    window.addEventListener('scroll', reposition, true)
+    window.addEventListener('resize', reposition)
+    return () => {
+      window.removeEventListener('scroll', reposition, true)
+      window.removeEventListener('resize', reposition)
+    }
   }, [open])
 
   function handleToggle() {
-    if (!open && btnRef.current) {
-      const r = btnRef.current.getBoundingClientRect()
-      setPos({ top: r.bottom + 4, right: window.innerWidth - r.right })
-    }
     setOpen(o => !o)
   }
 
@@ -301,7 +331,23 @@ function RowMenu({ onEdit, onDuplicate, onDelete }: {
       {open && (
         <div ref={menuRef}
           className="fixed z-[9999] w-56 rounded-xl border py-1 shadow-2xl"
-          style={{ background: '#18181b', borderColor: '#2e2e33', top: pos.top, right: pos.right }}>
+          style={{
+            background:    '#18181b',
+            borderColor:   '#2e2e33',
+            top:           pos.top,
+            bottom:        pos.bottom,
+            right:         pos.right,
+            // Animação: fade + escala + leve translate na direção oposta
+            // ao placement (vem "de cima" se abrindo pra baixo, e vice-versa).
+            opacity:        visible ? 1 : 0,
+            transform:      visible
+              ? 'scale(1) translateY(0)'
+              : pos.placement === 'bottom' ? 'scale(0.95) translateY(-6px)' : 'scale(0.95) translateY(6px)',
+            transformOrigin: pos.placement === 'bottom' ? 'top right' : 'bottom right',
+            transition:     'opacity 0.14s ease, transform 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
+            // Box shadow elevado pra destacar do fundo
+            boxShadow:      '0 10px 38px -10px rgba(0,0,0,0.6), 0 10px 20px -15px rgba(0,0,0,0.4)',
+          }}>
           {items.map((it, i) => {
             const isDanger = it.tone === 'danger'
             const wrappedClick = () => { it.onClick(); setOpen(false) }
