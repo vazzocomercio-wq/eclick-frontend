@@ -31,8 +31,9 @@ const TABS = [
   { n: 4, label: 'Variações',          short: 'Variações' },
   { n: 5, label: 'Vendas & Estoque',   short: 'Vendas' },
   { n: 6, label: 'Envio',              short: 'Envio' },
-  { n: 7, label: 'Fiscal',             short: 'Fiscal' },
-  { n: 8, label: 'Outros',             short: 'Outros' },
+  { n: 7, label: 'Vínculos',           short: 'Vínculos' },
+  { n: 8, label: 'Fiscal',             short: 'Fiscal' },
+  { n: 9, label: 'Outros',             short: 'Outros' },
 ]
 
 const REQUIRED: (keyof ProductForm)[] = [
@@ -499,8 +500,9 @@ export default function EditarProdutoPage() {
             {tab === 4 && <Tab4Variations data={form} set={set} />}
             {tab === 5 && <Tab5Sales data={form} set={set} />}
             {tab === 6 && <Tab6Shipping data={form} set={set} />}
-            {tab === 7 && <Tab7Fiscal data={form} set={set} />}
-            {tab === 8 && <Tab8Others data={form} set={set} />}
+            {tab === 7 && <TabVinculos productId={id} productName={form.name ?? ''} />}
+            {tab === 8 && <Tab7Fiscal data={form} set={set} />}
+            {tab === 9 && <Tab8Others data={form} set={set} />}
           </div>
         </div>
 
@@ -541,8 +543,8 @@ export default function EditarProdutoPage() {
             </button>
           </div>
 
-          <button type="button" disabled={tab === 8 || saving}
-            onClick={() => setTab(t => Math.min(8, t + 1))}
+          <button type="button" disabled={tab === 9 || saving}
+            onClick={() => setTab(t => Math.min(9, t + 1))}
             className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium border transition-all disabled:opacity-40 disabled:cursor-not-allowed"
             style={{ borderColor: '#3f3f46', color: '#a1a1aa', background: 'transparent' }}>
             Próxima
@@ -555,5 +557,252 @@ export default function EditarProdutoPage() {
 
       <Toasts toasts={toasts} />
     </>
+  )
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// Tab Vínculos — gerencia product_listings deste produto
+// ════════════════════════════════════════════════════════════════════════
+
+interface VinculoRow {
+  id:                 string
+  listing_id:         string
+  platform:           string
+  listing_title:      string | null
+  listing_thumbnail:  string | null
+  listing_price:      number | null
+  listing_permalink:  string | null
+  quantity_per_unit:  number
+  is_active:          boolean
+  created_at:         string
+}
+
+function TabVinculos({ productId, productName }: { productId: string; productName: string }) {
+  const supabase = createClient()
+  const [vinculos, setVinculos]   = useState<VinculoRow[]>([])
+  const [loading, setLoading]     = useState(true)
+  const [adding, setAdding]       = useState(false)
+  const [mlbInput, setMlbInput]   = useState('')
+  const [preview, setPreview]     = useState<{ id: string; title: string; price: number; thumbnail?: string; permalink?: string } | null>(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [qtyPerUnit, setQtyPerUnit] = useState('1')
+  const [error, setError]         = useState<string | null>(null)
+  const [success, setSuccess]     = useState<string | null>(null)
+
+  // Carrega vínculos existentes
+  const load = async () => {
+    setLoading(true)
+    const { data, error: err } = await supabase
+      .from('product_listings')
+      .select('id, listing_id, platform, listing_title, listing_thumbnail, listing_price, listing_permalink, quantity_per_unit, is_active, created_at')
+      .eq('product_id', productId)
+      .order('created_at', { ascending: false })
+    if (err) setError(err.message)
+    else setVinculos((data ?? []) as VinculoRow[])
+    setLoading(false)
+  }
+  useEffect(() => { void load() }, [productId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Preview do MLB digitado
+  async function fetchPreview() {
+    setError(null); setSuccess(null); setPreview(null)
+    const mlb = mlbInput.trim().toUpperCase()
+    if (!mlb.match(/^MLB\d+$/i)) { setError('Formato inválido. Use MLB seguido de números (ex: MLB1234567890)'); return }
+    setPreviewLoading(true)
+    try {
+      const token = await getAuthToken()
+      const res = await fetch(`${BACKEND}/ml/vinculos/preview?listing_id=${mlb}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({} as { message?: string }))
+        throw new Error(body.message ?? `HTTP ${res.status}`)
+      }
+      const data = await res.json()
+      setPreview(data)
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setPreviewLoading(false)
+    }
+  }
+
+  async function addVinculo() {
+    if (!preview) return
+    setError(null); setSuccess(null); setAdding(true)
+    try {
+      const token = await getAuthToken()
+      const res = await fetch(`${BACKEND}/products/vinculos`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          product_id:         productId,
+          platform:           'mercadolivre',
+          listing_id:         preview.id,
+          quantity_per_unit:  Number(qtyPerUnit) || 1,
+          listing_title:      preview.title,
+          listing_price:      preview.price,
+          listing_thumbnail:  preview.thumbnail ?? null,
+          listing_permalink:  preview.permalink ?? null,
+        }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({} as { message?: string }))
+        throw new Error(body.message ?? `HTTP ${res.status}`)
+      }
+      setSuccess(`✓ ${preview.id} vinculado`)
+      setMlbInput(''); setPreview(null); setQtyPerUnit('1')
+      void load()
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setAdding(false)
+    }
+  }
+
+  async function removeVinculo(vid: string, listingId: string) {
+    if (!confirm(`Remover vínculo com ${listingId}?`)) return
+    try {
+      const token = await getAuthToken()
+      const res = await fetch(`${BACKEND}/products/vinculos/${vid}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      setSuccess(`✓ Vínculo removido`)
+      void load()
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-lg font-semibold text-zinc-100">Vínculos com anúncios</h2>
+        <p className="text-sm text-zinc-500 mt-1">
+          Vincule o produto <strong className="text-zinc-300">{productName || 'atual'}</strong> a anúncios do Mercado Livre.
+          Pedidos vindos desses anúncios puxam custo + imposto deste produto automaticamente.
+        </p>
+      </div>
+
+      {/* Adicionar novo vínculo */}
+      <div className="rounded-xl p-4 space-y-3" style={{ background: '#0c0c0f', border: '1px solid #27272a' }}>
+        <h3 className="text-sm font-semibold text-cyan-300">+ Adicionar vínculo</h3>
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            placeholder="Cole o ID do anúncio (MLB...)"
+            value={mlbInput}
+            onChange={e => { setMlbInput(e.target.value); setPreview(null); setError(null) }}
+            onKeyDown={e => { if (e.key === 'Enter') fetchPreview() }}
+            className="flex-1 px-3 py-2 rounded-lg text-sm outline-none font-mono"
+            style={{ background: '#09090b', border: '1px solid #27272a', color: '#fafafa' }}
+          />
+          <button
+            onClick={fetchPreview}
+            disabled={previewLoading || !mlbInput.trim()}
+            className="px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50"
+            style={{ background: 'rgba(0,229,255,0.15)', color: '#67e8f9', border: '1px solid rgba(0,229,255,0.35)' }}>
+            {previewLoading ? 'Buscando…' : 'Pré-visualizar'}
+          </button>
+        </div>
+
+        {error && (
+          <p className="text-xs text-red-400">⚠ {error}</p>
+        )}
+        {success && (
+          <p className="text-xs text-emerald-400">{success}</p>
+        )}
+
+        {/* Preview + confirmar */}
+        {preview && (
+          <div className="rounded-lg p-3 flex items-start gap-3" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+            {preview.thumbnail && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={preview.thumbnail} alt="" className="w-16 h-16 rounded object-cover flex-shrink-0" style={{ border: '1px solid #2e2e33' }} />
+            )}
+            <div className="flex-1 min-w-0">
+              <p className="text-sm text-zinc-100 line-clamp-2">{preview.title}</p>
+              <p className="text-xs text-zinc-500 mt-1 font-mono">{preview.id} · R$ {preview.price?.toFixed(2)}</p>
+              <div className="flex items-center gap-2 mt-2">
+                <label className="text-xs text-zinc-400">Qtd por unidade:</label>
+                <input
+                  type="number"
+                  min={1}
+                  value={qtyPerUnit}
+                  onChange={e => setQtyPerUnit(e.target.value)}
+                  className="w-16 px-2 py-1 rounded text-xs text-center outline-none"
+                  style={{ background: '#09090b', border: '1px solid #27272a', color: '#fafafa' }}
+                />
+                <span className="text-[10px] text-zinc-600">
+                  (para kits: quantos deste produto = 1 unidade do anúncio)
+                </span>
+              </div>
+            </div>
+            <button
+              onClick={addVinculo}
+              disabled={adding}
+              className="px-4 py-2 rounded-lg text-sm font-semibold flex-shrink-0 disabled:opacity-50"
+              style={{ background: '#00E5FF', color: '#000' }}>
+              {adding ? 'Vinculando…' : 'Confirmar vínculo'}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Lista de vínculos atuais */}
+      <div>
+        <h3 className="text-sm font-semibold text-zinc-200 mb-3">
+          Vínculos ativos
+          {!loading && <span className="text-xs text-zinc-500 ml-2">({vinculos.length})</span>}
+        </h3>
+        {loading && <p className="text-sm text-zinc-500">Carregando…</p>}
+        {!loading && vinculos.length === 0 && (
+          <p className="text-sm text-zinc-500 italic">Nenhum vínculo ainda. Adicione um anúncio acima.</p>
+        )}
+        <div className="space-y-2">
+          {vinculos.map(v => (
+            <div key={v.id} className="rounded-lg p-3 flex items-center gap-3" style={{ background: '#0c0c0f', border: '1px solid #1e1e24' }}>
+              {v.listing_thumbnail && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={v.listing_thumbnail} alt="" className="w-14 h-14 rounded object-cover flex-shrink-0" style={{ border: '1px solid #2e2e33' }} />
+              )}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] uppercase tracking-wider font-semibold px-1.5 py-0.5 rounded"
+                    style={{ background: 'rgba(255,230,0,0.12)', color: '#FFE600', border: '1px solid rgba(255,230,0,0.3)' }}>
+                    {v.platform === 'mercadolivre' ? 'ML' : v.platform.toUpperCase()}
+                  </span>
+                  <span className="font-mono text-xs text-zinc-300">{v.listing_id}</span>
+                  {v.listing_permalink && (
+                    <a href={v.listing_permalink} target="_blank" rel="noreferrer" className="text-cyan-400 text-xs hover:underline">
+                      ↗ ver
+                    </a>
+                  )}
+                  {v.quantity_per_unit !== 1 && (
+                    <span className="text-[10px] text-violet-300 px-1.5 py-0.5 rounded" style={{ background: 'rgba(167,139,250,0.1)' }}>
+                      kit × {v.quantity_per_unit}
+                    </span>
+                  )}
+                </div>
+                {v.listing_title && (
+                  <p className="text-sm text-zinc-200 mt-1 line-clamp-1">{v.listing_title}</p>
+                )}
+                {v.listing_price != null && (
+                  <p className="text-xs text-zinc-500 mt-0.5">R$ {Number(v.listing_price).toFixed(2)}</p>
+                )}
+              </div>
+              <button
+                onClick={() => removeVinculo(v.id, v.listing_id)}
+                className="px-3 py-1.5 rounded text-xs font-semibold flex-shrink-0"
+                style={{ background: 'rgba(248,113,113,0.1)', color: '#f87171', border: '1px solid rgba(248,113,113,0.3)' }}>
+                Remover
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
   )
 }
