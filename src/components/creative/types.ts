@@ -450,6 +450,92 @@ export const ML_CONDITION_OPTIONS: Array<{ value: MlCondition; label: string }> 
   { value: 'not_specified', label: 'Não especificado' },
 ]
 
+// ── F6 Sprint 2: Prompt Templates (image generation) ─────────────────────
+
+export type AspectRatio = '1:1' | '4:5' | '16:9' | '9:16'
+
+export interface ReferenceMatchConfig {
+  by_tags?:              string[]
+  by_category?:          boolean
+  by_position_default?:  boolean
+  limit?:                number
+}
+
+export interface TemplatePosition {
+  position:                number
+  name:                    string
+  prompt_template:         string
+  negative_prompt?:        string
+  use_product_reference:   boolean
+  use_brand_logo:          boolean
+  use_reference_ids:       string[]
+  reference_match?:        ReferenceMatchConfig
+  ambient_hint?:           string
+  aspect_ratio?:           AspectRatio
+}
+
+export interface CreativePromptTemplate {
+  id:              string
+  organization_id: string
+  name:            string
+  description:     string | null
+  is_default:      boolean
+  category_ml_ids: string[]
+  brand_voice:     string | null
+  positions:       TemplatePosition[]
+  created_by:      string | null
+  created_at:      string
+  updated_at:      string
+}
+
+export interface MatchedTemplate {
+  template:                 CreativePromptTemplate
+  match_reason:             'category_exact' | 'org_default' | 'most_recent' | 'none'
+  matched_category_ml_id?:  string
+}
+
+export interface ResolvedPositionPreview {
+  position:           number
+  name:               string
+  prompt_template:    string
+  prompt_resolved:    string
+  negative_prompt?:   string
+  aspect_ratio:       AspectRatio
+  references:         Array<{
+    id:           string
+    name:         string
+    storage_path: string
+    signed_url:   string
+    source:       'fixed_id' | 'tag_match' | 'category_match' | 'position_default' | 'product_main' | 'brand_logo'
+  }>
+  variables_resolved: Record<string, string>
+  warnings:           string[]
+}
+
+export interface TemplatePreviewResponse {
+  template_id: string
+  product_id:  string
+  briefing_id: string | null
+  positions:   ResolvedPositionPreview[]
+}
+
+// References (Fase 2.5 vai usar; backend já existe da 2.2)
+export interface CreativeReference {
+  id:                    string
+  organization_id:       string | null
+  is_curated:            boolean
+  name:                  string
+  description:           string | null
+  storage_path:          string
+  tags:                  string[]
+  category_ml_ids:       string[]
+  default_for_positions: number[]
+  product_type:          string | null
+  ambient:               string | null
+  is_active:             boolean
+  signed_url:            string | null
+}
+
 // ── Melhoria #2: Briefing Templates ───────────────────────────────────────
 
 export interface BriefingTemplate {

@@ -10,6 +10,8 @@ import type {
   MlPublishContext, MlPredictedCategory, MlRequiredAttribute, MlPreviewResponse,
   MlListingType, MlCondition, CreativePublication,
   BriefingTemplate,
+  CreativePromptTemplate, MatchedTemplate, TemplatePreviewResponse, TemplatePosition,
+  CreativeReference,
 } from './types'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
@@ -434,4 +436,94 @@ export const CreativeApi = {
 
   acknowledgeDegradation: (id: string) =>
     api<CreativePublication>(`/creative/publications/${id}/acknowledge-degradation`, { method: 'POST' }),
+
+  // ── F6 Sprint 2: Prompt Templates ─────────────────────────────────────────
+
+  /** GET /creative/prompt-templates/variables — 12 vars interpoláveis. */
+  listTemplateVariables: () =>
+    api<{ variables: readonly string[] }>('/creative/prompt-templates/variables'),
+
+  /** GET /creative/prompt-templates/match?product_id=X */
+  matchTemplateForProduct: (productId: string) =>
+    api<MatchedTemplate | null>(`/creative/prompt-templates/match?product_id=${encodeURIComponent(productId)}`),
+
+  /** GET /creative/prompt-templates */
+  listPromptTemplates: (opts: { search?: string; category_ml_id?: string } = {}) => {
+    const qs = new URLSearchParams()
+    if (opts.search?.trim())         qs.set('search', opts.search.trim())
+    if (opts.category_ml_id?.trim()) qs.set('category_ml_id', opts.category_ml_id.trim())
+    const suffix = qs.toString() ? `?${qs.toString()}` : ''
+    return api<CreativePromptTemplate[]>(`/creative/prompt-templates${suffix}`)
+  },
+
+  /** POST /creative/prompt-templates */
+  createPromptTemplate: (body: {
+    name:             string
+    description?:     string
+    is_default?:      boolean
+    category_ml_ids?: string[]
+    brand_voice?:     string
+    positions:        TemplatePosition[]
+  }) =>
+    api<CreativePromptTemplate>('/creative/prompt-templates', {
+      method: 'POST', body: JSON.stringify(body),
+    }),
+
+  /** GET /creative/prompt-templates/:id */
+  getPromptTemplate: (id: string) =>
+    api<CreativePromptTemplate>(`/creative/prompt-templates/${id}`),
+
+  /** PATCH /creative/prompt-templates/:id */
+  updatePromptTemplate: (id: string, body: Partial<{
+    name:             string
+    description:      string | null
+    is_default:       boolean
+    category_ml_ids:  string[]
+    brand_voice:      string | null
+    positions:        TemplatePosition[]
+  }>) =>
+    api<CreativePromptTemplate>(`/creative/prompt-templates/${id}`, {
+      method: 'PATCH', body: JSON.stringify(body),
+    }),
+
+  /** DELETE /creative/prompt-templates/:id */
+  deletePromptTemplate: (id: string) =>
+    api<{ ok: true }>(`/creative/prompt-templates/${id}`, { method: 'DELETE' }),
+
+  /** POST /creative/prompt-templates/:id/set-default */
+  setPromptTemplateDefault: (id: string) =>
+    api<CreativePromptTemplate>(`/creative/prompt-templates/${id}/set-default`, { method: 'POST' }),
+
+  /** POST /creative/prompt-templates/:id/clone */
+  clonePromptTemplate: (id: string, name?: string) =>
+    api<CreativePromptTemplate>(`/creative/prompt-templates/${id}/clone`, {
+      method: 'POST',
+      body: JSON.stringify(name ? { name } : {}),
+    }),
+
+  /** POST /creative/prompt-templates/:id/preview */
+  previewPromptTemplate: (id: string, body: { product_id: string; briefing_id?: string; positions?: number[] }) =>
+    api<TemplatePreviewResponse>(`/creative/prompt-templates/${id}/preview`, {
+      method: 'POST', body: JSON.stringify(body),
+    }),
+
+  // ── F6 Sprint 2: References (preview já consome via signed_url do response) ─
+
+  /** GET /creative/references — pra ReferenceSelector. */
+  listReferences: (opts: {
+    search?:         string
+    tags?:           string[]
+    category_ml_id?: string
+    position?:       number
+    include_curated?: boolean
+  } = {}) => {
+    const qs = new URLSearchParams()
+    if (opts.search?.trim())         qs.set('search', opts.search.trim())
+    if (opts.tags?.length)           qs.set('tags', opts.tags.join(','))
+    if (opts.category_ml_id?.trim()) qs.set('category_ml_id', opts.category_ml_id.trim())
+    if (opts.position !== undefined) qs.set('position', String(opts.position))
+    if (opts.include_curated)        qs.set('include_curated', '1')
+    const suffix = qs.toString() ? `?${qs.toString()}` : ''
+    return api<CreativeReference[]>(`/creative/references${suffix}`)
+  },
 }

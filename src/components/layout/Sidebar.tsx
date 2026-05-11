@@ -249,7 +249,13 @@ const SECTIONS: NavSection[] = [
       { label: 'Coleções',         href: '/dashboard/collections',   icon: <Layers size={15} /> },
       { label: 'Copiloto da Loja', href: '/dashboard/store-copilot', icon: <Bot size={15} /> },
       { label: 'Config da Loja',   href: '/dashboard/store/config',  icon: <Store size={15} /> },
-      { label: 'IA Criativo',      href: '/dashboard/creative',            icon: <Wand2 size={15} /> },
+      {
+        label: 'IA Criativo', href: '/dashboard/creative', icon: <Wand2 size={15} />,
+        children: [
+          { label: 'Templates',      href: '/dashboard/creative/templates' },
+          { label: 'Novo produto',   href: '/dashboard/creative/new' },
+        ],
+      },
       { label: 'Biblioteca',       href: '/dashboard/producao/biblioteca', icon: <ImageIcon size={15} /> },
     ],
   },
