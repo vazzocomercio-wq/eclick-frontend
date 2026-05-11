@@ -117,6 +117,55 @@ function Skel({ h = 16, className = '' }: { h?: number; className?: string }) {
   return <div className={`rounded-lg animate-pulse ${className}`} style={{ height: h, background: '#1e1e24' }} />
 }
 
+/** Linha de "Meta do período" usada nos cards grandes Faturamento + Lucro.
+ *  Mostra % atingido + barra de progresso quando há target configurado;
+ *  CTA "Definir meta →" quando ainda não foi configurado em /dashboard/metas.
+ *
+ *  Cor da barra escala por progresso: <50% red, 50-75% amber, 75-100% cyan,
+ *  >=100% green (mesma escala do módulo metas pra consistência visual). */
+function MetaRow({ label, value, target, color }: {
+  label: string
+  value: number
+  target: number | null
+  color: string
+}) {
+  if (target == null) {
+    return (
+      <div className="mt-3 pt-3" style={{ borderTop: '1px dashed var(--border)' }}>
+        <div className="flex items-center justify-between">
+          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{label}</span>
+          <Link href="/dashboard/metas"
+            className="text-xs font-medium transition-colors"
+            style={{ color: `${color}cc` }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = color }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = `${color}cc` }}>
+            Definir meta →
+          </Link>
+        </div>
+      </div>
+    )
+  }
+  const pct = target > 0 ? (value / target) * 100 : 0
+  const barColor = pct >= 100 ? '#34d399' : pct >= 75 ? color : pct >= 50 ? '#f59e0b' : '#f43f5e'
+  const pctText  = pct >= 1000 ? '999+%' : `${pct.toFixed(1)}%`
+  return (
+    <div className="mt-3 pt-3" style={{ borderTop: '1px dashed var(--border)' }}>
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{label}</span>
+        <span className="text-xs font-semibold" style={{ color: barColor }}>
+          {pctText} de {value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })} / {target.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })}
+        </span>
+      </div>
+      {/* Barra de progresso — clamped a 100% visual mesmo se ultrapassou,
+          mas o texto mostra o % real (ex: 142%) pra deixar claro. */}
+      <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--border)' }}>
+        <div className="h-full transition-all duration-500"
+          style={{ width: `${Math.min(100, Math.max(0, pct))}%`, background: barColor, boxShadow: `0 0 8px ${barColor}55` }} />
+      </div>
+    </div>
+  )
+}
+
 // ── derived calc ──────────────────────────────────────────────────────────────
 
 function calcMetrics(orders: Order[]) {
@@ -173,6 +222,43 @@ function getPreviousPeriodDates(period: Period): { from: string; to: string } | 
   const lastDay = new Date(now); lastDay.setDate(0)
   const lms = lastDay.toISOString().slice(0, 10)
   return { from: `${lms.substring(0, 7)}-01`, to: lms }
+}
+
+/** Cutoff timestamp pra clamping da janela anterior em tempo real.
+ *  Razão: comparar HOJE 14:30 (acumulado de 14h30) com ONTEM 14:30
+ *  (acumulado até 14h30) — apples-to-apples. Se compararmos com o dia
+ *  inteiro de ontem (24h), o painel mostra sempre negativo absurdo nas
+ *  primeiras horas do dia.
+ *
+ *  Computa o tempo decorrido do início do período corrente até agora,
+ *  e aplica o MESMO offset ao início do período anterior. Retorna o
+ *  timestamp (Date) — caller filtra orders cujo brazilDate(date_created)
+ *  <= cutoff. */
+function getPrevPeriodCutoff(period: Period, prevFromIso: string): Date {
+  const now = brazilDate()
+  // Início do período corrente (em horário Brasil, representado em UTC)
+  const currentStart = (() => {
+    if (period === 'today') {
+      const s = new Date(now)
+      s.setUTCHours(0, 0, 0, 0)
+      return s
+    }
+    if (period === 'month') {
+      const s = new Date(now)
+      s.setUTCDate(1)
+      s.setUTCHours(0, 0, 0, 0)
+      return s
+    }
+    // 7d/30d: rolling window — start = now - N dias (00:00 do dia)
+    const days = period === '7d' ? 7 : 30
+    const s = new Date(now)
+    s.setUTCDate(s.getUTCDate() - days)
+    s.setUTCHours(0, 0, 0, 0)
+    return s
+  })()
+  const elapsedMs = now.getTime() - currentStart.getTime()
+  const prevStart = new Date(prevFromIso + 'T00:00:00.000Z')
+  return new Date(prevStart.getTime() + elapsedMs)
 }
 
 function filterByPeriod(orders: Order[], period: Period) {
@@ -552,11 +638,13 @@ const PERIOD_LABEL: Record<Period, string> = {
   month: 'Mês atual',
 }
 
+// Label do período anterior — explicita que a comparação é time-clamped
+// (até o mesmo ponto do tempo decorrido no período corrente).
 const PREV_PERIOD_LABEL: Record<Period, string> = {
-  today: 'Ontem',
-  '7d':  '7 dias anteriores',
-  '30d': '30 dias anteriores',
-  month: 'Mês passado',
+  today: 'Ontem até este horário',
+  '7d':  '7d anteriores (mesmo offset)',
+  '30d': '30d anteriores (mesmo offset)',
+  month: 'Mês passado (mesmo dia/hora)',
 }
 
 // ── Main page ─────────────────────────────────────────────────────────────────
@@ -580,6 +668,13 @@ export default function DashboardPage() {
   const [periodOrders, setPeriodOrders] = useState<Order[]>([])
   const [periodLoading, setPeriodLoading] = useState(false)
   const [prevData, setPrevData] = useState<{ faturamento: number; lucro: number } | null>(null)
+  // Meta do período — lê de `goals` (tabela do módulo /dashboard/metas).
+  // Pode ser null em 3 cenários: tabela não existe ainda, sem permissão,
+  // ou usuário ainda não configurou meta pro tipo+período corrente. Em
+  // qualquer um dos casos a UI mostra "Definir meta →".
+  // Estrutura: { revenue, profit } — ambos derivados pra match com o
+  // período corrente (monthly target ÷ days_in_month × elapsed_days etc).
+  const [goalData, setGoalData] = useState<{ revenue: number | null; profit: number | null }>({ revenue: null, profit: null })
   const [financialSummary, setFinancialSummary] = useState<{ total_revenue: number; total_orders: number; ml_total: number; average_ticket: number } | null>(null)
   const [summaryLoading, setSummaryLoading] = useState(false)
   const [produtos, setProdutos] = useState<ProdutoCusto[]>([])
@@ -857,11 +952,25 @@ export default function DashboardPage() {
         if (!token || cancelled) return
         const sellerIdSel = getStoredSellerId()
         const sellerSuffix = sellerIdSel != null ? `&seller_id=${sellerIdSel}` : ''
-        const url = `${BACKEND}/ml/recent-orders?date_from=${prevDates.from}&date_to=${prevDates.to}&limit=200${sellerSuffix}`
+        // limit=2000 pra cobrir todo o período anterior (clamping é JS-side,
+        // precisamos do conjunto completo pra filtrar pelo cutoff de tempo).
+        const url = `${BACKEND}/ml/recent-orders?date_from=${prevDates.from}&date_to=${prevDates.to}&limit=2000${sellerSuffix}`
         const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
         if (!res.ok || cancelled) return
         const data = await res.json()
-        const prevOrders: Order[] = data?.orders ?? data?.results ?? []
+        const prevOrdersRaw: Order[] = data?.orders ?? data?.results ?? []
+        // Cancelados não entram (paridade com cálculo do período corrente)
+        const prevValidOrders = prevOrdersRaw.filter(o => o.status !== 'cancelled')
+        // Time-clamp: só conta orders cujo timestamp (em GMT-3) seja
+        // <= cutoff. cutoff = início do período anterior + tempo decorrido
+        // no período corrente. Apples-to-apples sempre.
+        const cutoff = getPrevPeriodCutoff(period, prevDates.from)
+        const prevOrders = prevValidOrders.filter(o => {
+          const t = new Date(o.date_created).getTime()
+          if (!Number.isFinite(t)) return false
+          return brazilDate(new Date(t)).getTime() <= cutoff.getTime()
+        })
+
         const prevFaturamento = prevOrders.reduce((s, o) => s + (o.total_amount ?? 0), 0)
         const prevWithMargin  = prevOrders.filter(o => (o.contribution_margin ?? 0) > 0)
         const prevLucro = prevWithMargin.length > 0
@@ -875,6 +984,59 @@ export default function DashboardPage() {
     })()
     return () => { cancelled = true }
   }, [period, mlSelectedAccount])
+
+  // ── Goals (meta) — fetch from `goals` table per type + current period ────────
+  // Tabela `goals` é nova (módulo /dashboard/metas). Defensivo contra a
+  // tabela não existir (50x na response do Supabase). Sem goals → mostra
+  // "Definir meta →" no card.
+  useEffect(() => {
+    let cancelled = false
+    setGoalData({ revenue: null, profit: null })
+    ;(async () => {
+      try {
+        const now = brazilDate()
+        const year = now.getUTCFullYear()
+        const monthIdx = now.getUTCMonth() + 1 // 1..12
+        // Pega monthly goals do mês corrente (cobre todos os períodos do
+        // dashboard: today/7d/30d/month → derivamos proporcional).
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data, error } = await (supabase as any)
+          .from('goals')
+          .select('type, target_value, period, year, month')
+          .eq('period', 'monthly')
+          .eq('year', year)
+          .eq('month', monthIdx)
+          .in('type', ['revenue', 'margin'])
+        if (cancelled) return
+        if (error) {
+          // tabela não existe ou sem RLS — silent fallback
+          setGoalData({ revenue: null, profit: null })
+          return
+        }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const rows: Array<any> = data ?? []
+        const monthly = {
+          revenue: rows.find(r => r.type === 'revenue')?.target_value ?? null,
+          // 'margin' geralmente é % esperada — usamos como "lucro target"
+          // se vier em BRL (custom uso). Se for %, deixamos null e o
+          // usuário pode criar tipo 'custom' chamado "Lucro mensal" depois.
+          profit:  rows.find(r => r.type === 'margin')?.target_value ?? null,
+        }
+        // Deriva pro período exibido. Se period=today → monthly/days_in_month
+        // (meta diária linear). 7d → 7×daily. 30d → 30×daily ≈ monthly. month → monthly.
+        const daysInMonth = new Date(year, monthIdx, 0).getDate()
+        const dailyRev = monthly.revenue != null ? Number(monthly.revenue) / daysInMonth : null
+        const dailyProf = monthly.profit  != null ? Number(monthly.profit)  / daysInMonth : null
+        const factor = period === 'today' ? 1 : period === '7d' ? 7 : period === '30d' ? 30 : daysInMonth
+        const targetRev = dailyRev  != null ? dailyRev  * factor : null
+        const targetPrf = dailyProf != null ? dailyProf * factor : null
+        setGoalData({ revenue: targetRev, profit: targetPrf })
+      } catch {
+        if (!cancelled) setGoalData({ revenue: null, profit: null })
+      }
+    })()
+    return () => { cancelled = true }
+  }, [period, supabase])
 
   // ── Financial summary — exact totals from backend (all pages, no order list) ─
   useEffect(() => {
@@ -1235,6 +1397,17 @@ export default function DashboardPage() {
                   </div>
                 </div>
               )}
+
+              {/* Meta — slot pra %atingido do alvo do período. Quando o
+                  módulo /dashboard/metas tem revenue configurado, deriva
+                  meta proporcional (mensal÷dias × período). Sem config:
+                  CTA "Definir meta →". */}
+              <MetaRow
+                label="Meta do período"
+                value={faturamento}
+                target={goalData.revenue}
+                color="#00E5FF"
+              />
             </>
           )}
         </div>
@@ -1305,6 +1478,16 @@ export default function DashboardPage() {
                   </div>
                 </div>
               )}
+
+              {/* Meta de lucro do período. Lê tipo='margin' do módulo
+                  metas; se vier em BRL (custom uso) compara direto, senão
+                  fica em null e o usuário cria custom "Lucro mensal". */}
+              <MetaRow
+                label="Meta de lucro"
+                value={lucroEstimado}
+                target={goalData.profit}
+                color="#22c55e"
+              />
             </>
           )}
         </div>
