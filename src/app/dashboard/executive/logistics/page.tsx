@@ -11,6 +11,7 @@ const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 
 interface LogisticsSummary {
   seller_id:                          number
+  nickname:                           string | null
   shipments_to_dispatch_today:        number
   shipments_dispatched_today:         number
   open_delays_count:                  number
@@ -181,7 +182,7 @@ export default function LogisticsPage() {
                 cursor: 'pointer', fontWeight: 500,
               }}
             >
-              Conta {s.seller_id}
+              {s.nickname ?? `Conta ${s.seller_id}`}
               {s.open_delays_count > 0 && <AlertTriangle size={11} style={{ marginLeft: 6, color: '#f59e0b' }} />}
             </button>
           ))}

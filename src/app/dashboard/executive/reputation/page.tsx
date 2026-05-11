@@ -14,6 +14,7 @@ type Trend = 'improving' | 'stable' | 'degrading' | 'unknown'
 interface ReputationCurrent {
   organization_id:         string
   seller_id:               number
+  nickname:                string | null
   level_id:                string | null
   level_color:             string | null
   power_seller_status:     string | null
@@ -317,7 +318,7 @@ export default function ReputationPage() {
                 cursor: 'pointer', fontWeight: 500,
               }}
             >
-              Conta {s.seller_id}
+              {s.nickname ?? `Conta ${s.seller_id}`}
               {s.is_at_risk && <AlertTriangle size={11} style={{ marginLeft: 6, color: '#f59e0b' }} />}
             </button>
           ))}
