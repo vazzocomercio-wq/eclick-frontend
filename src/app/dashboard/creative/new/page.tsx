@@ -15,7 +15,21 @@ import { CreativeApi } from '@/components/creative/api'
 import type { CreativeProduct } from '@/components/creative/types'
 
 type Step = 1 | 2 | 3
+type Phase = 'idle' | 'briefing' | 'parallel' | 'done'
 type UploadResult = { storage_path: string; signed_url: string; preview_url: string }
+
+/**
+ * Calcula max_cost_usd baseado em count × pricing do motor de imagem + margem 20%.
+ * Hoje (gpt-image-1 high quality 1024x1024) = $0.167/img → 10 imgs = ~$2.00 com margem.
+ * Quando trocar pra Gemini Nano Banana 2 (Sprint 2), pricing cai pra $0.045/img,
+ * e essa função pode ser refatorada pra ler do model setting.
+ */
+function computeMaxCostUsd(imageCount: number): number {
+  const pricePerImageUsd = 0.17  // gpt-image-1 high
+  const safetyMargin     = 1.20
+  const computed         = imageCount * pricePerImageUsd * safetyMargin
+  return Math.max(0.50, Math.min(20, Math.round(computed * 100) / 100))
+}
 
 interface BasicForm {
   name:     string
@@ -48,7 +62,9 @@ export default function CreativeNewPage() {
   const router = useRouter()
   const [step, setStep] = useState<Step>(1)
   const [error, setError] = useState<string | null>(null)
+  const [warning, setWarning] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [phase, setPhase] = useState<Phase>('idle')
 
   // ── Step 1 ──
   const [upload, setUpload]     = useState<UploadResult | null>(null)
@@ -143,20 +159,66 @@ export default function CreativeNewPage() {
   }
 
   // ──────────────────────────────────────────────────────────────────────────
-  // Step 3 → Submit: cria briefing + gera listing + redireciona
+  // Step 3 → Submit: cria briefing + dispara TEXTO + IMAGENS em paralelo
+  //
+  // Sprint 1 fix (2026-05-11): antes só chamava generateListing (texto). Agora
+  // dispara `generateListing` e `createImageJob` via Promise.allSettled, com
+  // fail-isolated — se imagem falhar, texto ainda passa e usuário vê warning
+  // banner. Job de imagem é passado via ?job= pra próxima tela polar progresso.
   // ──────────────────────────────────────────────────────────────────────────
   async function submitFinal() {
     setError(null)
+    setWarning(null)
     if (!product) { setError('Erro: produto perdido. Volte ao passo 1.'); return }
 
     setSubmitting(true)
+    setPhase('briefing')
     try {
-      const briefingRow = await CreativeApi.createBriefing(product.id, briefingFormToApiBody(briefing))
-      const listing = await CreativeApi.generateListing(product.id, briefingRow.id)
-      router.push(`/dashboard/creative/${product.id}/listing/${listing.id}`)
+      const briefingRow = await CreativeApi.createBriefing(
+        product.id,
+        briefingFormToApiBody(briefing),
+      )
+
+      setPhase('parallel')
+      const desiredImageCount = Math.max(1, Math.min(20, briefing.image_count ?? 10))
+      const maxCostUsd        = computeMaxCostUsd(desiredImageCount)
+
+      const [listingResult, imageJobResult] = await Promise.allSettled([
+        CreativeApi.generateListing(product.id, briefingRow.id),
+        CreativeApi.createImageJob({
+          product_id:   product.id,
+          briefing_id:  briefingRow.id,
+          count:        desiredImageCount,
+          max_cost_usd: maxCostUsd,
+        }),
+      ])
+
+      // Texto é blocker — se falhou, aborta tudo
+      if (listingResult.status === 'rejected') {
+        setError(`Falha ao gerar texto: ${(listingResult.reason as Error)?.message ?? 'erro desconhecido'}`)
+        setSubmitting(false)
+        setPhase('idle')
+        return
+      }
+
+      const listing    = listingResult.value
+      const imageJobId = imageJobResult.status === 'fulfilled' ? imageJobResult.value.id : null
+
+      // Imagem é best-effort — warning, mas segue pro listing
+      if (imageJobResult.status === 'rejected') {
+        setWarning(
+          `Texto gerado, mas imagens falharam: ${(imageJobResult.reason as Error)?.message ?? 'erro'}. ` +
+          `Tente regenerar manualmente na próxima tela.`,
+        )
+      }
+
+      setPhase('done')
+      const qs = imageJobId ? `?job=${imageJobId}` : ''
+      router.push(`/dashboard/creative/${product.id}/listing/${listing.id}${qs}`)
     } catch (e: unknown) {
       setError((e as Error).message)
       setSubmitting(false)
+      setPhase('idle')
     }
   }
 
@@ -195,6 +257,13 @@ export default function CreativeNewPage() {
           <div className="mt-4 flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
             <AlertTriangle size={14} className="shrink-0 mt-0.5" />
             <span>{error}</span>
+          </div>
+        )}
+
+        {warning && (
+          <div className="mt-4 flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">
+            <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+            <span>{warning}</span>
           </div>
         )}
 
@@ -320,7 +389,10 @@ export default function CreativeNewPage() {
                 <ArrowLeft size={14} /> Voltar
               </SecondaryButton>
               <PrimaryButton onClick={submitFinal} disabled={submitting} loading={submitting}>
-                {submitting ? 'Gerando anúncio…' : <>Gerar anúncio <Check size={14} /></>}
+                {phase === 'idle'     && <>Gerar anúncio <Check size={14} /></>}
+                {phase === 'briefing' && 'Preparando briefing…'}
+                {phase === 'parallel' && 'Gerando texto + imagens…'}
+                {phase === 'done'     && 'Pronto!'}
               </PrimaryButton>
             </div>
           </div>

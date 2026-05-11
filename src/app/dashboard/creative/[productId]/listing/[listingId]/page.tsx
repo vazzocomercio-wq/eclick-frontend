@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import {
   ArrowLeft, Sparkles, Check, Loader2, RefreshCw, X, AlertCircle, Eye, Edit3, Send, Diff,
@@ -10,14 +10,21 @@ import ListingEditor from '@/components/creative/ListingEditor'
 import ListingPreview from '@/components/creative/ListingPreview'
 import MarketplaceVariantTabs from '@/components/creative/MarketplaceVariantTabs'
 import VersionHistory from '@/components/creative/VersionHistory'
+import CreativeImageGenerationProgress from '@/app/dashboard/creative/_components/CreativeImageGenerationProgress'
 import { CreativeApi } from '@/components/creative/api'
-import type { CreativeListing, CreativeProduct, Marketplace } from '@/components/creative/types'
+import type {
+  CreativeListing, CreativeProduct, Marketplace,
+  CreativeImageJob, CreativeImage,
+} from '@/components/creative/types'
+import { isJobActive } from '@/components/creative/types'
 
 export default function ListingDetailPage() {
   const params = useParams<{ productId: string; listingId: string }>()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const productId = params.productId
   const listingId = params.listingId
+  const imageJobId = searchParams.get('job')
 
   const [product, setProduct]         = useState<CreativeProduct | null>(null)
   const [listing, setListing]         = useState<CreativeListing | null>(null)
@@ -27,6 +34,10 @@ export default function ListingDetailPage() {
 
   const [loading, setLoading] = useState(true)
   const [error, setError]     = useState<string | null>(null)
+
+  // Sprint 1 (F6): polling do job de imagem disparado em /creative/new
+  const [imageJob, setImageJob]       = useState<CreativeImageJob | null>(null)
+  const [images, setImages]           = useState<CreativeImage[]>([])
 
   // Modal de regenerate
   const [regenOpen, setRegenOpen]         = useState(false)
@@ -39,6 +50,87 @@ export default function ListingDetailPage() {
     void loadAll()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productId, listingId])
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Sprint 1 (F6): polling do job de imagem.
+  // - Roda só se ?job= veio na URL
+  // - Refresh a cada 3s enquanto job ativo (queued/generating_prompts/generating_images)
+  // - On error: backoff 5s
+  // - Para quando job conclui (completed/failed/cancelled) — última leitura do
+  //   estado final, depois libera o timeout
+  // - Cleanup completo no unmount via flag `cancelled` + clearTimeout
+  // ──────────────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!imageJobId) return
+    let cancelled = false
+    let timeoutId: ReturnType<typeof setTimeout> | undefined
+
+    const poll = async () => {
+      if (cancelled) return
+      try {
+        const [job, imgs] = await Promise.all([
+          CreativeApi.getImageJob(imageJobId),
+          CreativeApi.listJobImages(imageJobId),
+        ])
+        if (cancelled) return
+        setImageJob(job)
+        setImages(imgs)
+        if (isJobActive(job.status)) {
+          timeoutId = setTimeout(poll, 3000)
+        }
+      } catch (e) {
+        if (cancelled) return
+        // eslint-disable-next-line no-console
+        console.error('[image-job poll] falhou:', e)
+        timeoutId = setTimeout(poll, 5000)
+      }
+    }
+
+    void poll()
+    return () => {
+      cancelled = true
+      if (timeoutId) clearTimeout(timeoutId)
+    }
+  }, [imageJobId])
+
+  // Handlers de aprovação/regeneração — refetch a lista de imagens após ação
+  async function refreshJobImages() {
+    if (!imageJobId) return
+    try {
+      const imgs = await CreativeApi.listJobImages(imageJobId)
+      setImages(imgs)
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error('[refreshJobImages] falhou:', e)
+    }
+  }
+
+  async function approveImage(id: string) {
+    try {
+      await CreativeApi.approveImage(id)
+      await refreshJobImages()
+    } catch (e) {
+      setError(`Falha ao aprovar imagem: ${(e as Error).message}`)
+    }
+  }
+
+  async function rejectImage(id: string) {
+    try {
+      await CreativeApi.rejectImage(id)
+      await refreshJobImages()
+    } catch (e) {
+      setError(`Falha ao rejeitar imagem: ${(e as Error).message}`)
+    }
+  }
+
+  async function regenerateImage(id: string) {
+    try {
+      await CreativeApi.regenerateImage(id)
+      await refreshJobImages()
+    } catch (e) {
+      setError(`Falha ao regenerar imagem: ${(e as Error).message}`)
+    }
+  }
 
   async function loadAll() {
     setError(null)
@@ -193,6 +285,19 @@ export default function ListingDetailPage() {
           <ViewButton active={view === 'edit'}    onClick={() => setView('edit')}>    <Edit3 size={12} /> Editor    </ViewButton>
           <ViewButton active={view === 'preview'} onClick={() => setView('preview')}> <Eye size={12} /> Preview   </ViewButton>
         </div>
+
+        {/* Sprint 1 (F6): progresso do job de imagens, quando ?job= presente */}
+        {imageJobId && (
+          <div className="mb-6">
+            <CreativeImageGenerationProgress
+              job={imageJob}
+              images={images}
+              onApprove={approveImage}
+              onReject={rejectImage}
+              onRegenerate={regenerateImage}
+            />
+          </div>
+        )}
 
         {/* Main grid: editor + preview */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
