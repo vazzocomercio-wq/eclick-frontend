@@ -60,12 +60,28 @@ export default function ImageJobPage() {
     })()
   }, [productId])
 
+  /**
+   * Dedup por position — backend cria nova row em regenerate (mesma position,
+   * regenerated_from_id apontando pra original). Sem dedup, UI duplica cards.
+   * Mantém a mais RECENTE por position (a regenerada ganha da original).
+   */
+  const visibleImages = useMemo(() => {
+    const byPos = new Map<number, CreativeImage>()
+    for (const img of images) {
+      const existing = byPos.get(img.position)
+      if (!existing || new Date(img.created_at).getTime() > new Date(existing.created_at).getTime()) {
+        byPos.set(img.position, img)
+      }
+    }
+    return Array.from(byPos.values()).sort((a, b) => a.position - b.position)
+  }, [images])
+
   const progress = useMemo(() => {
     if (!job) return { percent: 0, doneAt: 0, total: 0 }
     const total  = job.requested_count
-    const doneAt = images.filter(i => i.status === 'ready' || i.status === 'approved' || i.status === 'rejected' || i.status === 'failed').length
+    const doneAt = visibleImages.filter(i => i.status === 'ready' || i.status === 'approved' || i.status === 'rejected' || i.status === 'failed').length
     return { percent: total > 0 ? Math.round((doneAt / total) * 100) : 0, doneAt, total }
-  }, [job, images])
+  }, [job, visibleImages])
 
   async function cancelJob() {
     if (!job) return
@@ -90,7 +106,7 @@ export default function ImageJobPage() {
 
   async function regenerateRejected() {
     if (!job) return
-    const rejectedCount = images.filter(i => i.status === 'rejected').length
+    const rejectedCount = visibleImages.filter(i => i.status === 'rejected').length
     if (rejectedCount === 0) return
     const ok = await confirmDialog({
       title:        'Regerar rejeitadas',
@@ -118,7 +134,7 @@ export default function ImageJobPage() {
   }
 
   async function downloadAllApproved() {
-    const approved = images.filter(i => i.status === 'approved' && i.signed_image_url)
+    const approved = visibleImages.filter(i => i.status === 'approved' && i.signed_image_url)
     if (approved.length === 0) {
       await alertDialog({
         title:   'Nenhuma imagem aprovada',
@@ -176,7 +192,7 @@ export default function ImageJobPage() {
   const active     = job ? isJobActive(job.status) : false
   const failed     = job?.status === 'failed'
   const cancelled  = job?.status === 'cancelled'
-  const approvedCt = images.filter(i => i.status === 'approved').length
+  const approvedCt = visibleImages.filter(i => i.status === 'approved').length
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 px-4 sm:px-8 py-6">
@@ -210,7 +226,7 @@ export default function ImageJobPage() {
               />
             )}
             {(() => {
-              const rejectedCt = images.filter(i => i.status === 'rejected').length
+              const rejectedCt = visibleImages.filter(i => i.status === 'rejected').length
               return rejectedCt > 0 ? (
                 <button
                   type="button"
@@ -282,9 +298,9 @@ export default function ImageJobPage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {images.map(img => (
+              {visibleImages.map(img => (
                 <CreativeImageCard
-                  key={img.id}
+                  key={`pos-${img.position}`}
                   image={img}
                   onChange={(next: CreativeImage) => {
                     patchImage(next)
