@@ -33,12 +33,15 @@ export function useImageJob(jobId: string | null, opts: UseImageJobOptions = {})
   const [images, setImages] = useState<CreativeImage[]>([])
   const [loading, setLoading] = useState(false)
   const [error,  setError]  = useState<string | null>(null)
+  /** Incrementa pra forçar useEffect a recriar timer (usado após regen quando
+   *  job estava completed e queremos voltar a pollar). */
+  const [pollEpoch, setPollEpoch] = useState(0)
 
   const terminalFiredRef = useRef(false)
   const onTerminalRef    = useRef(opts.onTerminal)
   onTerminalRef.current  = opts.onTerminal
 
-  const fetchOnce = useCallback(async (currentId: string) => {
+  const fetchOnce = useCallback(async (currentId: string): Promise<{ job: CreativeImageJob; images: CreativeImage[] } | null> => {
     try {
       const [j, imgs] = await Promise.all([
         CreativeApi.getImageJob(currentId),
@@ -47,12 +50,14 @@ export function useImageJob(jobId: string | null, opts: UseImageJobOptions = {})
       setJob(j)
       setImages(imgs)
       setError(null)
-      // Dispara callback terminal só uma vez
-      if (!isJobActive(j.status) && !terminalFiredRef.current) {
+      // Dispara callback terminal só uma vez — quando job inativo E sem
+      // imagens em transição (regen pode estar rolando mesmo com job completed)
+      const hasInTransition = imgs.some(i => i.status === 'pending' || i.status === 'generating')
+      if (!isJobActive(j.status) && !hasInTransition && !terminalFiredRef.current) {
         terminalFiredRef.current = true
         onTerminalRef.current?.(j)
       }
-      return j
+      return { job: j, images: imgs }
     } catch (e: unknown) {
       setError((e as Error).message)
       return null
@@ -74,12 +79,21 @@ export function useImageJob(jobId: string | null, opts: UseImageJobOptions = {})
 
     const tick = async () => {
       if (cancelled) return
-      const j = await fetchOnce(jobId)
+      const result = await fetchOnce(jobId)
       if (cancelled) return
       setLoading(false)
-      // Continua polling se ativo OU se houver imagens em transição
-      // (pending/generating/regenerated_from após approve quando user pediu regenerate)
-      const stillPolling = j && isJobActive(j.status)
+      // Continua polling se:
+      //  (a) status do job ainda é ativo (queued/generating_prompts/generating_images), OU
+      //  (b) há imagens individuais em transição (pending/generating)
+      //
+      // Caso (b) cobre regenerate após job 'completed': backend cria nova row
+      // creative_images pending e reseta job pra generating_images, mas se o
+      // frontend pegou snapshot ANTES do reset, fica achando que terminou.
+      // Detectar pending/generating nas rows garante polling até resolver.
+      const stillPolling = result && (
+        isJobActive(result.job.status)
+        || result.images.some(i => i.status === 'pending' || i.status === 'generating')
+      )
       if (stillPolling) {
         timer = setTimeout(tick, pollMs)
       }
@@ -90,11 +104,17 @@ export function useImageJob(jobId: string | null, opts: UseImageJobOptions = {})
       cancelled = true
       if (timer) clearTimeout(timer)
     }
-  }, [jobId, pollMs, fetchOnce])
+  }, [jobId, pollMs, fetchOnce, pollEpoch])
 
   const refresh = useCallback(async () => {
     if (!jobId) return
-    await fetchOnce(jobId)
+    const result = await fetchOnce(jobId)
+    // Se há pending/generating após refresh e polling estava parado, restart
+    // (caso clássico: user clicou regenerar num job já completed)
+    if (result && result.images.some(i => i.status === 'pending' || i.status === 'generating')) {
+      terminalFiredRef.current = false
+      setPollEpoch(e => e + 1)
+    }
   }, [jobId, fetchOnce])
 
   const patchImage = useCallback((next: CreativeImage) => {
