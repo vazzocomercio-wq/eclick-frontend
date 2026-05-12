@@ -509,21 +509,135 @@ export const CreativeApi = {
 
   // ── F6 Sprint 2: References (preview já consome via signed_url do response) ─
 
-  /** GET /creative/references — pra ReferenceSelector. */
+  /** GET /creative/references — galeria + selector. */
   listReferences: (opts: {
-    search?:         string
-    tags?:           string[]
-    category_ml_id?: string
-    position?:       number
-    include_curated?: boolean
+    search?:           string
+    tags?:             string[]
+    category_ml_id?:   string
+    product_type?:     string
+    ambient?:          string
+    include_curated?:  boolean
+    include_inactive?: boolean
+    limit?:            number
   } = {}) => {
     const qs = new URLSearchParams()
-    if (opts.search?.trim())         qs.set('search', opts.search.trim())
-    if (opts.tags?.length)           qs.set('tags', opts.tags.join(','))
-    if (opts.category_ml_id?.trim()) qs.set('category_ml_id', opts.category_ml_id.trim())
-    if (opts.position !== undefined) qs.set('position', String(opts.position))
-    if (opts.include_curated)        qs.set('include_curated', '1')
+    if (opts.search?.trim())         qs.set('search',           opts.search.trim())
+    if (opts.tags?.length)           qs.set('tags',             opts.tags.join(','))
+    if (opts.category_ml_id?.trim()) qs.set('category_ml_id',   opts.category_ml_id.trim())
+    if (opts.product_type?.trim())   qs.set('product_type',     opts.product_type.trim())
+    if (opts.ambient?.trim())        qs.set('ambient',          opts.ambient.trim())
+    if (opts.include_curated)        qs.set('include_curated',  '1')
+    if (opts.include_inactive)       qs.set('include_inactive', '1')
+    if (opts.limit !== undefined)    qs.set('limit',            String(opts.limit))
     const suffix = qs.toString() ? `?${qs.toString()}` : ''
     return api<CreativeReference[]>(`/creative/references${suffix}`)
+  },
+
+  /** GET /creative/references/curated — somente curated (plataforma). */
+  listCuratedReferences: (limit?: number) => {
+    const qs = limit !== undefined ? `?limit=${limit}` : ''
+    return api<CreativeReference[]>(`/creative/references/curated${qs}`)
+  },
+
+  /** GET /creative/references/by-position — debug match dinâmico. */
+  listReferencesByPosition: (opts: {
+    position?:        number
+    category_ml_id?:  string
+    product_type?:    string
+    ambient?:         string
+    limit?:           number
+  } = {}) => {
+    const qs = new URLSearchParams()
+    if (opts.position !== undefined) qs.set('position',       String(opts.position))
+    if (opts.category_ml_id?.trim()) qs.set('category_ml_id', opts.category_ml_id.trim())
+    if (opts.product_type?.trim())   qs.set('product_type',   opts.product_type.trim())
+    if (opts.ambient?.trim())        qs.set('ambient',        opts.ambient.trim())
+    if (opts.limit !== undefined)    qs.set('limit',          String(opts.limit))
+    const suffix = qs.toString() ? `?${qs.toString()}` : ''
+    return api<CreativeReference[]>(`/creative/references/by-position${suffix}`)
+  },
+
+  /** GET /creative/references/:id */
+  getReference: (id: string) =>
+    api<CreativeReference>(`/creative/references/${id}`),
+
+  /**
+   * POST /creative/references/upload-url — pede signed write URL.
+   * Frontend faz PUT direto pro `upload_url`, depois `createReference()`
+   * com o `storage_path` retornado.
+   */
+  issueReferenceUploadUrl: (body: {
+    filename:    string
+    mime_type:   'image/jpeg' | 'image/png' | 'image/webp'
+    size_bytes?: number
+  }) =>
+    api<{
+      upload_url:   string
+      storage_path: string
+      bucket:       string
+      expires_at:   string
+    }>('/creative/references/upload-url', {
+      method: 'POST', body: JSON.stringify(body),
+    }),
+
+  /** POST /creative/references — grava metadata após upload. */
+  createReference: (body: {
+    storage_path:           string
+    name:                   string
+    description?:           string
+    tags?:                  string[]
+    category_ml_ids?:       string[]
+    default_for_positions?: number[]
+    product_type?:          string
+    ambient?:               string
+    width?:                 number
+    height?:                number
+    size_bytes?:            number
+    mime_type?:             'image/jpeg' | 'image/png' | 'image/webp'
+  }) =>
+    api<CreativeReference>('/creative/references', {
+      method: 'POST', body: JSON.stringify(body),
+    }),
+
+  /** PATCH /creative/references/:id */
+  updateReference: (id: string, body: Partial<{
+    name:                  string
+    description:           string | null
+    tags:                  string[]
+    category_ml_ids:       string[]
+    default_for_positions: number[]
+    product_type:          string | null
+    ambient:               string | null
+    is_active:             boolean
+  }>) =>
+    api<CreativeReference>(`/creative/references/${id}`, {
+      method: 'PATCH', body: JSON.stringify(body),
+    }),
+
+  /** DELETE /creative/references/:id */
+  deleteReference: (id: string) =>
+    api<{ ok: true }>(`/creative/references/${id}`, { method: 'DELETE' }),
+
+  /** POST /creative/references/:id/toggle-active */
+  toggleReferenceActive: (id: string) =>
+    api<CreativeReference>(`/creative/references/${id}/toggle-active`, { method: 'POST' }),
+
+  /** Bulk helpers — backend não tem endpoint bulk, são N requests paralelos. */
+  bulkToggleReferenceActive: async (ids: string[], active: boolean) => {
+    const results = await Promise.allSettled(
+      ids.map(id =>
+        api<CreativeReference>(`/creative/references/${id}`, {
+          method: 'PATCH', body: JSON.stringify({ is_active: active }),
+        }),
+      ),
+    )
+    return results
+  },
+
+  bulkDeleteReferences: async (ids: string[]) => {
+    const results = await Promise.allSettled(
+      ids.map(id => api<{ ok: true }>(`/creative/references/${id}`, { method: 'DELETE' })),
+    )
+    return results
   },
 }
