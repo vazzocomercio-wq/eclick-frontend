@@ -338,7 +338,9 @@ export default function CreativeNewPage() {
 
             {/* Differentials chips */}
             <div>
-              <label className="block text-xs text-zinc-400 mb-1.5">Diferenciais comerciais</label>
+              <label className="block text-xs text-zinc-400 mb-1.5">
+                Características <span className="text-[10px] text-zinc-600">(aparecem no card "Características / medidas")</span>
+              </label>
               <div className="flex flex-wrap gap-1.5 mb-2">
                 {details.differentials.map((d, i) => (
                   <span key={i} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] bg-cyan-400/10 text-cyan-200 border border-cyan-400/30">
