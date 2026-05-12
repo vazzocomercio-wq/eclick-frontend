@@ -29,6 +29,9 @@ export default function MLPublishPage() {
   const [loading, setLoading]     = useState(true)
   const [error, setError]         = useState<string | null>(null)
 
+  // Listing types vêm da API ML (cacheados 1h no backend)
+  const [listingTypesFromApi, setListingTypesFromApi] = useState<Array<{ id: string; name: string }> | null>(null)
+
   // Form state
   const [imageIds, setImageIds]   = useState<string[]>([])
   const [videoId, setVideoId]     = useState<string | null>(null)
@@ -37,6 +40,13 @@ export default function MLPublishPage() {
   const [listingType, setListingType] = useState<MlListingType>('free')
   const [condition, setCondition] = useState<MlCondition>('new')
   const [attributes, setAttributes] = useState<AttributeValue[]>([])
+
+  // Carrega listing types da API ML no mount
+  useEffect(() => {
+    CreativeApi.listMlListingTypes()
+      .then(setListingTypesFromApi)
+      .catch(() => setListingTypesFromApi([]))  // fallback pro ML_LISTING_TYPE_OPTIONS hardcoded
+  }, [])
 
   // Preview
   const [preview, setPreview]     = useState<MlPreviewResponse | null>(null)
@@ -327,25 +337,49 @@ export default function MLPublishPage() {
             <Section icon={<Sparkles size={14} />} title="Tipo de anúncio & condição">
               <div className="space-y-3">
                 <div>
-                  <p className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">Modalidade</p>
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <p className="text-[10px] uppercase tracking-wider text-zinc-500">Modalidade</p>
+                    {listingTypesFromApi !== null && (
+                      <span className="text-[9px] text-cyan-300/70" title="Lista vem da API do Mercado Livre">
+                        · ML API
+                      </span>
+                    )}
+                  </div>
                   <div className="space-y-1">
-                    {ML_LISTING_TYPE_OPTIONS.map(o => (
-                      <button
-                        key={o.value} type="button" onClick={() => setListingType(o.value)}
-                        className={[
-                          'w-full text-left px-3 py-1.5 rounded-lg text-[11px] transition-all border',
-                          listingType === o.value
-                            ? 'border-cyan-400/40 bg-cyan-400/5 text-cyan-100'
-                            : 'border-zinc-800 bg-zinc-950 text-zinc-400 hover:border-zinc-700',
-                        ].join(' ')}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="font-semibold">{o.label}</span>
-                          {listingType === o.value && <CheckCircle2 size={11} />}
-                        </div>
-                        <p className="text-[10px] text-zinc-500 mt-0.5">{o.description}</p>
-                      </button>
-                    ))}
+                    {/* Lista da API ML quando disponível, com descrição do hardcoded como fallback;
+                        se a API falhar (array vazio), cai no hardcoded ML_LISTING_TYPE_OPTIONS pra UX */}
+                    {(() => {
+                      const apiList = listingTypesFromApi ?? []
+                      // Mescla: prioriza API mas pega description do hardcoded se houver matching value
+                      const merged: Array<{ value: MlListingType; label: string; description: string }> =
+                        apiList.length > 0
+                          ? apiList.map(t => {
+                              const hc = ML_LISTING_TYPE_OPTIONS.find(o => o.value === t.id)
+                              return {
+                                value:       t.id as MlListingType,
+                                label:       t.name,
+                                description: hc?.description ?? '',
+                              }
+                            })
+                          : ML_LISTING_TYPE_OPTIONS
+                      return merged.map(o => (
+                        <button
+                          key={o.value} type="button" onClick={() => setListingType(o.value)}
+                          className={[
+                            'w-full text-left px-3 py-1.5 rounded-lg text-[11px] transition-all border',
+                            listingType === o.value
+                              ? 'border-cyan-400/40 bg-cyan-400/5 text-cyan-100'
+                              : 'border-zinc-800 bg-zinc-950 text-zinc-400 hover:border-zinc-700',
+                          ].join(' ')}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-semibold">{o.label}</span>
+                            {listingType === o.value && <CheckCircle2 size={11} />}
+                          </div>
+                          {o.description && <p className="text-[10px] text-zinc-500 mt-0.5">{o.description}</p>}
+                        </button>
+                      ))
+                    })()}
                   </div>
                 </div>
                 <div>

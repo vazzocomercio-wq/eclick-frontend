@@ -297,6 +297,10 @@ export const CreativeApi = {
       hint?:             string
     }>>(`/creative/ml/categories/${encodeURIComponent(categoryId)}/attributes-detail`),
 
+  /** Modalidades de anúncio MLB (Free, Gold Especial, Gold Pro, Premium…). */
+  listMlListingTypes: () =>
+    api<Array<{ id: string; name: string }>>('/creative/ml/listing-types'),
+
   createVariant: (id: string, target: Marketplace) =>
     api<CreativeListing>(`/creative/listings/${id}/variant`, {
       method: 'POST', body: JSON.stringify({ target_marketplace: target }),
