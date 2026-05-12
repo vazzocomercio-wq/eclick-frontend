@@ -130,7 +130,16 @@ export default function TaxonomySelect({
     setLoading(true)
     try {
       const list = await CreativeApi.listTaxonomy(kind, { include_hidden: showHidden })
-      setOptions(list)
+      // Reordena: customs da org primeiro (mais visível, especialmente após criar),
+      // depois defaults. Dentro de cada grupo: sort_order ASC, label ASC.
+      const sorted = [...list].sort((a, b) => {
+        const aCustom = a.organization_id !== null && !a.is_default ? 0 : 1
+        const bCustom = b.organization_id !== null && !b.is_default ? 0 : 1
+        if (aCustom !== bCustom) return aCustom - bCustom
+        if (a.sort_order !== b.sort_order) return a.sort_order - b.sort_order
+        return a.label.localeCompare(b.label)
+      })
+      setOptions(sorted)
     } catch (e) {
       await alertDialog({
         title:   'Falha ao carregar opções',
@@ -300,7 +309,26 @@ export default function TaxonomySelect({
           value ? 'text-zinc-200' : 'text-zinc-500',
         ].join(' ')}
       >
-        <span className="truncate">{currentLabel}</span>
+        <span className="truncate flex-1">{currentLabel}</span>
+        {value && !disabled && (
+          <span
+            role="button"
+            tabIndex={0}
+            onClick={e => { e.stopPropagation(); onChange('') }}
+            onKeyDown={e => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.stopPropagation()
+                e.preventDefault()
+                onChange('')
+              }
+            }}
+            className="p-0.5 rounded text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 shrink-0 transition-colors"
+            title="Limpar seleção"
+            aria-label="Limpar seleção"
+          >
+            <X size={12} />
+          </span>
+        )}
         <ChevronDown size={12} className={['shrink-0 text-zinc-500 transition-transform', open ? 'rotate-180' : ''].join(' ')} />
       </button>
 
@@ -338,18 +366,31 @@ export default function TaxonomySelect({
                 </button>
               )}
 
-              {options.map(opt => (
-                <OptionRow
-                  key={opt.id}
-                  opt={opt}
-                  selected={value === opt.value}
-                  busy={busyId === opt.id}
-                  onSelect={() => select(opt.value)}
-                  onEdit={() => setEditing(opt)}
-                  onDelete={() => handleDelete(opt)}
-                  onUnhide={() => handleUnhide(opt)}
-                />
-              ))}
+              {options.map((opt, i) => {
+                const prev = i > 0 ? options[i - 1] : null
+                const prevIsCustom = prev && prev.organization_id !== null && !prev.is_default
+                const currIsCustom = opt.organization_id !== null && !opt.is_default
+                // Linha separadora entre o último custom e o primeiro default
+                const showSeparator = prev !== null && prevIsCustom && !currIsCustom
+                return (
+                  <div key={opt.id}>
+                    {showSeparator && (
+                      <div className="px-3 py-1 text-[9px] font-bold uppercase tracking-wider text-zinc-600 border-t border-zinc-800 mt-1">
+                        Opções padrão
+                      </div>
+                    )}
+                    <OptionRow
+                      opt={opt}
+                      selected={value === opt.value}
+                      busy={busyId === opt.id}
+                      onSelect={() => select(opt.value)}
+                      onEdit={() => setEditing(opt)}
+                      onDelete={() => handleDelete(opt)}
+                      onUnhide={() => handleUnhide(opt)}
+                    />
+                  </div>
+                )
+              })}
 
               {options.length === 0 && (
                 <div className="px-3 py-4 text-xs text-zinc-500 text-center">
