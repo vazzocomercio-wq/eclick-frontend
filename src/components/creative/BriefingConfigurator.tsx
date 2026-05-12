@@ -5,12 +5,12 @@ import { Palette, Globe, Volume2, Image as ImageIcon, Maximize2, BookmarkPlus, B
 import {
   MARKETPLACE_OPTIONS,
   VISUAL_STYLES,
-  ENVIRONMENT_OPTIONS,
   TONE_OPTIONS,
   IMAGE_COUNT_OPTIONS,
   IMAGE_FORMAT_OPTIONS,
   type Marketplace,
   type BriefingTemplate,
+  type TaxonomyOption,
 } from './types'
 import { CreativeApi, uploadLogoImage, getMyOrgId } from './api'
 
@@ -63,6 +63,20 @@ export default function BriefingConfigurator({ value, onChange, enableTemplates 
   const [saveDefault, setSaveDefault] = useState(false)
   const [saving, setSaving]           = useState(false)
   const [saveError, setSaveError]     = useState<string | null>(null)
+
+  // Lista de ambientes vem da taxonomy (defaults globais + customs da org).
+  // Substitui o array hardcoded ENVIRONMENT_OPTIONS — garante consistência
+  // com refs e elimina desalinhamento de values (ex: 'area_gourmet' vs 'gourmet').
+  const [ambientOptions, setAmbientOptions] = useState<TaxonomyOption[]>([])
+  const [ambientLoading, setAmbientLoading] = useState(false)
+
+  useEffect(() => {
+    setAmbientLoading(true)
+    CreativeApi.listTaxonomy('ambient')
+      .then(setAmbientOptions)
+      .catch(() => setAmbientOptions([]))
+      .finally(() => setAmbientLoading(false))
+  }, [])
 
   useEffect(() => {
     if (!enableTemplates) return
@@ -257,31 +271,50 @@ export default function BriefingConfigurator({ value, onChange, enableTemplates 
         </div>
       </Section>
 
-      {/* Ambientes (multi-select) */}
+      {/* Ambientes (multi-select) — alimentado pela taxonomy */}
       <Section icon={<ImageIcon size={14} />} title="Ambientes (selecione 1+)">
         <p className="text-[11px] text-zinc-500 mb-2">
           As {value.image_count} imagens vão alternar entre os ambientes selecionados.
-          Sem nenhum: usa fundo neutro.
+          Sem nenhum: usa fundo neutro. Gerenciar opções na <strong>Galeria de referências</strong>.
         </p>
-        <div className="flex flex-wrap gap-1.5">
-          {ENVIRONMENT_OPTIONS.map(e => {
-            const active = value.environments.includes(e.value)
-            return (
-              <SmallChip
-                key={e.value}
-                active={active}
-                onClick={() => {
-                  const next = active
-                    ? value.environments.filter(x => x !== e.value)
-                    : [...value.environments, e.value]
-                  set('environments', next)
-                }}
-              >
-                {e.label}
-              </SmallChip>
-            )
-          })}
-        </div>
+        {ambientLoading && ambientOptions.length === 0 ? (
+          <div className="flex items-center gap-1.5 text-[11px] text-zinc-500">
+            <Loader2 size={12} className="animate-spin" /> carregando ambientes…
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-1.5">
+            {ambientOptions.map(opt => {
+              const active = value.environments.includes(opt.value)
+              return (
+                <SmallChip
+                  key={opt.id}
+                  active={active}
+                  onClick={() => {
+                    const next = active
+                      ? value.environments.filter(x => x !== opt.value)
+                      : [...value.environments, opt.value]
+                    set('environments', next)
+                  }}
+                >
+                  {opt.label}
+                </SmallChip>
+              )
+            })}
+            {/* "Personalizado" — escape hatch livre, sentinel value='custom' */}
+            <SmallChip
+              active={value.environments.includes('custom')}
+              onClick={() => {
+                const active = value.environments.includes('custom')
+                const next = active
+                  ? value.environments.filter(x => x !== 'custom')
+                  : [...value.environments, 'custom']
+                set('environments', next)
+              }}
+            >
+              Personalizado
+            </SmallChip>
+          </div>
+        )}
         {value.environments.includes('custom') && (
           <input
             type="text"

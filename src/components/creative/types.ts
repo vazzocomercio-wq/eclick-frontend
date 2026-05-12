@@ -126,6 +126,17 @@ export const VISUAL_STYLES: Array<{ value: string; label: string; description: s
   { value: 'luxo_acessivel',  label: 'Luxo acessível',  description: 'Premium sem ser inacessível' },
 ]
 
+/**
+ * @deprecated Use `CreativeApi.listTaxonomy('ambient')` em vez disso.
+ *
+ * Lista hardcoded antiga — substituída pela tabela `creative_taxonomy_options`
+ * (defaults globais + customs por org). Mantido só pra compat se algum lugar
+ * ainda referenciar. Não usar em código novo.
+ *
+ * Bug que motivou: values aqui (`area_gourmet`, `area_externa`) não batiam
+ * com values nas refs (`gourmet`, `externa`), causando match falho silencioso
+ * no template.
+ */
 export const ENVIRONMENT_OPTIONS: Array<{ value: string; label: string }> = [
   { value: 'cozinha',       label: 'Cozinha' },
   { value: 'sala',          label: 'Sala' },
