@@ -519,6 +519,21 @@ export interface TemplatePreviewResponse {
   positions:   ResolvedPositionPreview[]
 }
 
+// Taxonomy (ambient + product_type customizáveis por org)
+export type TaxonomyKind = 'ambient' | 'product_type'
+
+export interface TaxonomyOption {
+  id:               string
+  organization_id:  string | null   // null = default global
+  kind:             TaxonomyKind
+  value:            string
+  label:            string
+  sort_order:       number
+  is_default:       boolean
+  created_at:       string
+  updated_at:       string
+}
+
 // References (Fase 2.5 vai usar; backend já existe da 2.2)
 export interface CreativeReference {
   id:                    string

@@ -13,27 +13,8 @@ import { useEffect, useState } from 'react'
 import { X, Save, Trash2, AlertTriangle, Loader2, Plus, ImageOff } from 'lucide-react'
 import type { CreativeReference } from '@/components/creative/types'
 import { useConfirm } from '@/components/ui/dialog-provider'
+import TaxonomySelect from './TaxonomySelect'
 
-const PRODUCT_TYPES = ['', 'lustre', 'pendente', 'abajur', 'plafon', 'spot', 'arandela', 'outro']
-const AMBIENTS: Array<{ value: string; label: string }> = [
-  { value: '',            label: '— sem ambiente —' },
-  { value: 'sala',        label: 'Sala' },
-  { value: 'sala_estar',  label: 'Sala de estar' },
-  { value: 'sala_jantar', label: 'Sala de jantar' },
-  { value: 'quarto',      label: 'Quarto' },
-  { value: 'cozinha',     label: 'Cozinha' },
-  { value: 'banheiro',    label: 'Banheiro' },
-  { value: 'gourmet',     label: 'Gourmet' },
-  { value: 'varanda',     label: 'Varanda' },
-  { value: 'escritorio',  label: 'Escritório' },
-  { value: 'externa',     label: 'Externa' },
-  { value: 'estudio',     label: 'Estúdio' },
-  { value: 'neutro',      label: 'Neutro' },
-  { value: 'capa',                   label: 'Capa' },
-  { value: 'embalagem',              label: 'Embalagem' },
-  { value: 'caracteristicas_medidas', label: 'Características / medidas' },
-  { value: 'detalhes',               label: 'Detalhes' },
-]
 const POSITIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
 
 export default function ReferenceEditorDrawer({
@@ -291,28 +272,22 @@ export default function ReferenceEditorDrawer({
           {/* Tipo + ambiente lado a lado */}
           <div className="grid grid-cols-2 gap-3">
             <Field label="Tipo de produto">
-              <select
+              <TaxonomySelect
+                kind="product_type"
                 value={productType}
-                onChange={e => setProductType(e.target.value)}
+                onChange={setProductType}
+                placeholder="— sem tipo —"
                 disabled={curated}
-                className="w-full px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-sm text-zinc-200 outline-none focus:border-cyan-400 disabled:opacity-50"
-              >
-                {PRODUCT_TYPES.map(t => (
-                  <option key={t} value={t}>{t || '— sem tipo —'}</option>
-                ))}
-              </select>
+              />
             </Field>
             <Field label="Ambiente">
-              <select
+              <TaxonomySelect
+                kind="ambient"
                 value={ambient}
-                onChange={e => setAmbient(e.target.value)}
+                onChange={setAmbient}
+                placeholder="— sem ambiente —"
                 disabled={curated}
-                className="w-full px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-sm text-zinc-200 outline-none focus:border-cyan-400 disabled:opacity-50"
-              >
-                {AMBIENTS.map(a => (
-                  <option key={a.value} value={a.value}>{a.label}</option>
-                ))}
-              </select>
+              />
             </Field>
           </div>
 

@@ -12,6 +12,7 @@ import type {
   BriefingTemplate,
   CreativePromptTemplate, MatchedTemplate, TemplatePreviewResponse, TemplatePosition,
   CreativeReference,
+  TaxonomyOption, TaxonomyKind,
 } from './types'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
@@ -640,4 +641,35 @@ export const CreativeApi = {
     )
     return results
   },
+
+  // ── F6 Sprint 2 patch: Taxonomia customizável ──────────────────────────
+
+  /** GET /creative/taxonomy?kind=ambient|product_type — defaults + org's. */
+  listTaxonomy: (kind: TaxonomyKind) =>
+    api<TaxonomyOption[]>(`/creative/taxonomy?kind=${encodeURIComponent(kind)}`),
+
+  /** POST /creative/taxonomy — cria custom da org. */
+  createTaxonomy: (body: {
+    kind:        TaxonomyKind
+    value:       string
+    label:       string
+    sort_order?: number
+  }) =>
+    api<TaxonomyOption>('/creative/taxonomy', {
+      method: 'POST', body: JSON.stringify(body),
+    }),
+
+  /** PATCH /creative/taxonomy/:id — edita custom (não-default). */
+  updateTaxonomy: (id: string, body: Partial<{
+    value:      string
+    label:      string
+    sort_order: number
+  }>) =>
+    api<TaxonomyOption>(`/creative/taxonomy/${id}`, {
+      method: 'PATCH', body: JSON.stringify(body),
+    }),
+
+  /** DELETE /creative/taxonomy/:id — apaga custom (não-default). */
+  deleteTaxonomy: (id: string) =>
+    api<{ ok: true }>(`/creative/taxonomy/${id}`, { method: 'DELETE' }),
 }

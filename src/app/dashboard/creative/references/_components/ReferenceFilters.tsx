@@ -16,6 +16,7 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { Search, X } from 'lucide-react'
+import TaxonomySelect from './TaxonomySelect'
 
 export type FilterState = {
   search:           string
@@ -37,25 +38,8 @@ export const EMPTY_FILTERS: FilterState = {
   include_inactive: false,
 }
 
-const PRODUCT_TYPES = ['lustre', 'pendente', 'abajur', 'plafon', 'spot', 'arandela', 'outro']
-const AMBIENTS: Array<{ value: string; label: string }> = [
-  { value: 'sala',        label: 'Sala' },
-  { value: 'sala_estar',  label: 'Sala de estar' },
-  { value: 'sala_jantar', label: 'Sala de jantar' },
-  { value: 'quarto',      label: 'Quarto' },
-  { value: 'cozinha',     label: 'Cozinha' },
-  { value: 'banheiro',    label: 'Banheiro' },
-  { value: 'gourmet',     label: 'Gourmet' },
-  { value: 'varanda',     label: 'Varanda' },
-  { value: 'escritorio',  label: 'Escritório' },
-  { value: 'externa',     label: 'Externa' },
-  { value: 'estudio',     label: 'Estúdio' },
-  { value: 'neutro',      label: 'Neutro' },
-  { value: 'capa',                   label: 'Capa' },
-  { value: 'embalagem',              label: 'Embalagem' },
-  { value: 'caracteristicas_medidas', label: 'Características / medidas' },
-  { value: 'detalhes',               label: 'Detalhes' },
-]
+// AMBIENTS e PRODUCT_TYPES agora vêm do backend via TaxonomySelect
+// (tabela creative_taxonomy_options — defaults globais + customs da org).
 
 export default function ReferenceFilters({
   value, onChange, totalCount, activeCount, inactiveCount,
@@ -118,23 +102,21 @@ export default function ReferenceFilters({
           className="px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-xs text-zinc-200 outline-none focus:border-cyan-400 placeholder:text-zinc-600 w-40"
         />
 
-        <select
+        <TaxonomySelect
+          kind="product_type"
           value={value.product_type}
-          onChange={e => onChange({ ...value, product_type: e.target.value })}
-          className="px-2 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-xs text-zinc-200 outline-none focus:border-cyan-400"
-        >
-          <option value="">Tipo: todos</option>
-          {PRODUCT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-        </select>
+          onChange={v => onChange({ ...value, product_type: v })}
+          placeholder="Tipo: todos"
+          className="w-40"
+        />
 
-        <select
+        <TaxonomySelect
+          kind="ambient"
           value={value.ambient}
-          onChange={e => onChange({ ...value, ambient: e.target.value })}
-          className="px-2 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-xs text-zinc-200 outline-none focus:border-cyan-400"
-        >
-          <option value="">Ambiente: todos</option>
-          {AMBIENTS.map(a => <option key={a.value} value={a.value}>{a.label}</option>)}
-        </select>
+          onChange={v => onChange({ ...value, ambient: v })}
+          placeholder="Ambiente: todos"
+          className="w-44"
+        />
 
         <label className="flex items-center gap-2 px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-800 cursor-pointer text-xs text-zinc-300">
           <input
