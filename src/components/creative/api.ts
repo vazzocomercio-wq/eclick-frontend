@@ -644,9 +644,20 @@ export const CreativeApi = {
 
   // ── F6 Sprint 2 patch: Taxonomia customizável ──────────────────────────
 
-  /** GET /creative/taxonomy?kind=ambient|product_type — defaults + org's. */
-  listTaxonomy: (kind: TaxonomyKind) =>
-    api<TaxonomyOption[]>(`/creative/taxonomy?kind=${encodeURIComponent(kind)}`),
+  /** GET /creative/taxonomy?kind=ambient|product_type[&include_hidden=1] */
+  listTaxonomy: (kind: TaxonomyKind, opts: { include_hidden?: boolean } = {}) => {
+    const qs = new URLSearchParams({ kind })
+    if (opts.include_hidden) qs.set('include_hidden', '1')
+    return api<TaxonomyOption[]>(`/creative/taxonomy?${qs.toString()}`)
+  },
+
+  /** POST /creative/taxonomy/:id/hide — oculta da org (soft, reversível). */
+  hideTaxonomy: (id: string) =>
+    api<{ ok: true }>(`/creative/taxonomy/${id}/hide`, { method: 'POST' }),
+
+  /** DELETE /creative/taxonomy/:id/hide — desfaz hide. */
+  unhideTaxonomy: (id: string) =>
+    api<{ ok: true }>(`/creative/taxonomy/${id}/hide`, { method: 'DELETE' }),
 
   /** POST /creative/taxonomy — cria custom da org. */
   createTaxonomy: (body: {

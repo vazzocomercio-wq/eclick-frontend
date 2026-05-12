@@ -23,7 +23,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ChevronDown, Plus, X, Edit3, Trash2, Loader2, Check } from 'lucide-react'
+import { ChevronDown, Plus, X, Edit3, Trash2, Loader2, Check, EyeOff, RotateCcw } from 'lucide-react'
 import { CreativeApi } from '@/components/creative/api'
 import type { TaxonomyKind, TaxonomyOption } from '@/components/creative/types'
 import { useConfirm, useAlert } from '@/components/ui/dialog-provider'
@@ -46,6 +46,7 @@ export default function TaxonomySelect({
   const [creating, setCreating] = useState(false)
   const [editing, setEditing]   = useState<TaxonomyOption | null>(null)
   const [busyId, setBusyId]     = useState<string | null>(null)
+  const [showHidden, setShowHidden] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   const confirmDialog = useConfirm()
   const alertDialog   = useAlert()
@@ -54,7 +55,7 @@ export default function TaxonomySelect({
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const list = await CreativeApi.listTaxonomy(kind)
+      const list = await CreativeApi.listTaxonomy(kind, { include_hidden: showHidden })
       setOptions(list)
     } catch (e) {
       await alertDialog({
@@ -65,7 +66,7 @@ export default function TaxonomySelect({
     } finally {
       setLoading(false)
     }
-  }, [kind, alertDialog])
+  }, [kind, alertDialog, showHidden])
 
   useEffect(() => { void load() }, [load])
 
@@ -126,9 +127,38 @@ export default function TaxonomySelect({
     }
   }
 
-  // ── Delete ────────────────────────────────────────────────────────────
+  // ── Delete / Hide ─────────────────────────────────────────────────────
+  //
+  // - Custom da org (org_id preenchido, !is_default) → DELETE real
+  // - Default global (org_id=null, is_default=true) → HIDE (soft, reversível)
 
   const handleDelete = async (opt: TaxonomyOption) => {
+    if (opt.is_default) {
+      // Hide (reversível)
+      const ok = await confirmDialog({
+        title:        'Ocultar opção',
+        message:      `Ocultar "${opt.label}" da sua organização? Não vai ser apagada do sistema — você pode reativar depois ativando "Mostrar ocultas".`,
+        confirmLabel: 'Ocultar',
+        variant:      'warning',
+      })
+      if (!ok) return
+      setBusyId(opt.id)
+      try {
+        await CreativeApi.hideTaxonomy(opt.id)
+        await load()
+        if (value === opt.value) onChange('')
+      } catch (e) {
+        await alertDialog({
+          title:   'Falha ao ocultar',
+          message: (e as Error).message,
+          variant: 'danger',
+        })
+      } finally {
+        setBusyId(null)
+      }
+      return
+    }
+    // Custom da org → DELETE real
     const ok = await confirmDialog({
       title:        'Apagar opção',
       message:      `Apagar "${opt.label}"? References cadastradas com esse valor não serão apagadas, mas o campo ficará órfão.`,
@@ -140,11 +170,26 @@ export default function TaxonomySelect({
     try {
       await CreativeApi.deleteTaxonomy(opt.id)
       await load()
-      // Se era o selecionado, limpa
       if (value === opt.value) onChange('')
     } catch (e) {
       await alertDialog({
         title:   'Falha ao apagar',
+        message: (e as Error).message,
+        variant: 'danger',
+      })
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const handleUnhide = async (opt: TaxonomyOption) => {
+    setBusyId(opt.id)
+    try {
+      await CreativeApi.unhideTaxonomy(opt.id)
+      await load()
+    } catch (e) {
+      await alertDialog({
+        title:   'Falha ao reativar',
         message: (e as Error).message,
         variant: 'danger',
       })
@@ -206,6 +251,7 @@ export default function TaxonomySelect({
                   onSelect={() => select(opt.value)}
                   onEdit={() => setEditing(opt)}
                   onDelete={() => handleDelete(opt)}
+                  onUnhide={() => handleUnhide(opt)}
                 />
               ))}
 
@@ -234,13 +280,24 @@ export default function TaxonomySelect({
                 onSaved={handleEdited}
               />
             ) : (
-              <button
-                type="button"
-                onClick={() => setCreating(true)}
-                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-cyan-300 hover:bg-cyan-400/10 transition-colors"
-              >
-                <Plus size={12} /> Adicionar nova opção…
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => setCreating(true)}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs text-cyan-300 hover:bg-cyan-400/10 transition-colors border-b border-zinc-800"
+                >
+                  <Plus size={12} /> Adicionar nova opção…
+                </button>
+                <label className="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] text-zinc-500 cursor-pointer hover:text-zinc-300 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={showHidden}
+                    onChange={e => setShowHidden(e.target.checked)}
+                    className="accent-cyan-400"
+                  />
+                  Mostrar ocultas
+                </label>
+              </>
             )}
           </div>
         </div>
@@ -252,7 +309,7 @@ export default function TaxonomySelect({
 // ── Sub-components ─────────────────────────────────────────────────────
 
 function OptionRow({
-  opt, selected, busy, onSelect, onEdit, onDelete,
+  opt, selected, busy, onSelect, onEdit, onDelete, onUnhide,
 }: {
   opt:       TaxonomyOption
   selected:  boolean
@@ -260,20 +317,26 @@ function OptionRow({
   onSelect:  () => void
   onEdit:    () => void
   onDelete:  () => void
+  onUnhide:  () => void
 }) {
+  const isHidden = opt.hidden === true
+
   return (
     <div
       className={[
         'group flex items-center gap-1 px-2 py-1.5 transition-colors',
         selected ? 'bg-cyan-400/10' : 'hover:bg-zinc-900',
+        isHidden ? 'opacity-50' : '',
       ].join(' ')}
     >
       <button
         type="button"
-        onClick={onSelect}
+        onClick={isHidden ? undefined : onSelect}
+        disabled={isHidden}
         className={[
           'flex-1 flex items-center gap-2 text-xs text-left truncate',
           selected ? 'text-cyan-300' : 'text-zinc-200',
+          isHidden ? 'line-through cursor-not-allowed' : '',
         ].join(' ')}
       >
         <span className="w-3 shrink-0">{selected && <Check size={11} className="text-cyan-400" />}</span>
@@ -283,14 +346,28 @@ function OptionRow({
             padrão
           </span>
         )}
+        {isHidden && (
+          <span className="text-[9px] font-medium px-1 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/30 shrink-0">
+            oculta
+          </span>
+        )}
       </button>
 
-      {!opt.is_default && (
-        <div className="flex items-center gap-0.5 shrink-0">
-          {busy ? (
-            <Loader2 size={10} className="animate-spin text-zinc-500 mx-1.5" />
-          ) : (
-            <>
+      <div className="flex items-center gap-0.5 shrink-0">
+        {busy ? (
+          <Loader2 size={10} className="animate-spin text-zinc-500 mx-1.5" />
+        ) : isHidden ? (
+          <button
+            type="button"
+            onClick={e => { e.stopPropagation(); onUnhide() }}
+            className="p-1 rounded text-cyan-400 hover:text-cyan-200 hover:bg-cyan-400/10 transition-all"
+            title="Reativar"
+          >
+            <RotateCcw size={10} />
+          </button>
+        ) : (
+          <>
+            {!opt.is_default && (
               <button
                 type="button"
                 onClick={e => { e.stopPropagation(); onEdit() }}
@@ -299,18 +376,23 @@ function OptionRow({
               >
                 <Edit3 size={10} />
               </button>
-              <button
-                type="button"
-                onClick={e => { e.stopPropagation(); onDelete() }}
-                className="p-1 rounded text-zinc-500 hover:text-red-300 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-all"
-                title="Apagar"
-              >
-                <Trash2 size={10} />
-              </button>
-            </>
-          )}
-        </div>
-      )}
+            )}
+            <button
+              type="button"
+              onClick={e => { e.stopPropagation(); onDelete() }}
+              className={[
+                'p-1 rounded opacity-0 group-hover:opacity-100 transition-all',
+                opt.is_default
+                  ? 'text-zinc-500 hover:text-amber-300 hover:bg-amber-500/10'
+                  : 'text-zinc-500 hover:text-red-300 hover:bg-red-500/10',
+              ].join(' ')}
+              title={opt.is_default ? 'Ocultar (reversível)' : 'Apagar'}
+            >
+              {opt.is_default ? <EyeOff size={10} /> : <Trash2 size={10} />}
+            </button>
+          </>
+        )}
+      </div>
     </div>
   )
 }

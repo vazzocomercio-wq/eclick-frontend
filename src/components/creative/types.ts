@@ -533,6 +533,8 @@ export interface TaxonomyOption {
   linked_position:  number | null   // 1..11 (só kind='ambient'); null = sem link
   created_at:       string
   updated_at:       string
+  /** Marcado true só quando list(include_hidden=true). Indica que a org ocultou. */
+  hidden?:          boolean
 }
 
 // References (Fase 2.5 vai usar; backend já existe da 2.2)
