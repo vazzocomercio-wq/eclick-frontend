@@ -23,6 +23,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { ChevronDown, Plus, X, Edit3, Trash2, Loader2, Check, EyeOff, RotateCcw } from 'lucide-react'
 import { CreativeApi } from '@/components/creative/api'
 import type { TaxonomyKind, TaxonomyOption } from '@/components/creative/types'
@@ -47,9 +48,75 @@ export default function TaxonomySelect({
   const [editing, setEditing]   = useState<TaxonomyOption | null>(null)
   const [busyId, setBusyId]     = useState<string | null>(null)
   const [showHidden, setShowHidden] = useState(false)
+  /**
+   * Position calculada pra renderizar o dropdown em PORTAL no document.body.
+   * Necessário porque o componente é usado dentro de containers com overflow:auto
+   * (drawer de ref), o que clipparia um dropdown absolute relativo ao container.
+   */
+  const [pos, setPos] = useState<{
+    top:       number
+    left:      number
+    width:     number
+    maxHeight: number
+    direction: 'down' | 'up'
+  } | null>(null)
   const ref = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
   const confirmDialog = useConfirm()
   const alertDialog   = useAlert()
+
+  /**
+   * Recalcula posição absoluta do dropdown na viewport.
+   * Decide direção (up/down) baseado em espaço disponível.
+   */
+  const recalcPosition = useCallback(() => {
+    const trigger = triggerRef.current
+    if (!trigger) return
+    const rect = trigger.getBoundingClientRect()
+    const vh = window.innerHeight
+    const spaceBelow = vh - rect.bottom - 8
+    const spaceAbove = rect.top - 8
+    const desired = 360
+
+    let direction: 'down' | 'up'
+    let maxHeight: number
+    let top: number
+
+    if (spaceBelow >= desired) {
+      direction = 'down'
+      maxHeight = Math.min(desired, spaceBelow)
+      top = rect.bottom + 4
+    } else if (spaceAbove > spaceBelow) {
+      direction = 'up'
+      maxHeight = Math.min(desired, spaceAbove)
+      top = rect.top - maxHeight - 4
+    } else {
+      direction = 'down'
+      maxHeight = Math.max(180, spaceBelow)
+      top = rect.bottom + 4
+    }
+
+    setPos({
+      top,
+      left:  rect.left,
+      width: rect.width,
+      maxHeight,
+      direction,
+    })
+  }, [])
+
+  // Recalcula ao abrir + listeners de resize/scroll
+  useEffect(() => {
+    if (!open) return
+    recalcPosition()
+    const onAny = () => recalcPosition()
+    window.addEventListener('resize', onAny)
+    window.addEventListener('scroll', onAny, true) // capture = pega qualquer ancestral scrollando
+    return () => {
+      window.removeEventListener('resize', onAny)
+      window.removeEventListener('scroll', onAny, true)
+    }
+  }, [open, recalcPosition])
 
   // Carrega na montagem
   const load = useCallback(async () => {
@@ -70,11 +137,16 @@ export default function TaxonomySelect({
 
   useEffect(() => { void load() }, [load])
 
-  // Fecha ao clicar fora
+  const portalRef = useRef<HTMLDivElement>(null)
+
+  // Fecha ao clicar fora (considera ref do trigger E portal do dropdown)
   useEffect(() => {
     if (!open) return
     const onClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
+      const target = e.target as Node
+      const inTrigger = ref.current?.contains(target)
+      const inPortal  = portalRef.current?.contains(target)
+      if (!inTrigger && !inPortal) {
         setOpen(false)
         setCreating(false)
         setEditing(null)
@@ -203,6 +275,7 @@ export default function TaxonomySelect({
   return (
     <div ref={ref} className={['relative', className ?? ''].join(' ')}>
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => !disabled && setOpen(o => !o)}
         disabled={disabled}
@@ -217,8 +290,17 @@ export default function TaxonomySelect({
         <ChevronDown size={12} className={['shrink-0 text-zinc-500 transition-transform', open ? 'rotate-180' : ''].join(' ')} />
       </button>
 
-      {open && !disabled && (
-        <div className="absolute left-0 right-0 top-full mt-1 z-30 rounded-lg border border-zinc-800 bg-zinc-950 shadow-xl overflow-hidden max-h-[360px] flex flex-col">
+      {open && !disabled && pos && typeof window !== 'undefined' && createPortal(
+        <div
+          ref={portalRef}
+          className="fixed z-[60] rounded-lg border border-zinc-800 bg-zinc-950 shadow-2xl overflow-hidden flex flex-col"
+          style={{
+            top:       `${pos.top}px`,
+            left:      `${pos.left}px`,
+            width:     `${pos.width}px`,
+            maxHeight: `${pos.maxHeight}px`,
+          }}
+        >
           {loading && (
             <div className="flex items-center justify-center gap-1.5 py-3 text-xs text-zinc-500">
               <Loader2 size={12} className="animate-spin" /> carregando…
@@ -300,7 +382,8 @@ export default function TaxonomySelect({
               </>
             )}
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   )
