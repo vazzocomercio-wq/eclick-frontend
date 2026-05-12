@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Wand2, ChevronDown, Loader2, AlertCircle, ExternalLink, Plug } from 'lucide-react'
 import {
   CanvaApi,
@@ -41,18 +42,76 @@ export default function CanvaButton({
   const [error, setError] = useState<string | null>(null)
   const [lastEdit, setLastEdit] = useState<{ url: string; key: CanvaMarketplaceKey } | null>(null)
   const wrapperRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const portalRef  = useRef<HTMLDivElement>(null)
 
-  // Click outside fecha o dropdown
+  /**
+   * Position calculada pra renderizar o dropdown via portal no document.body.
+   * Necessário porque CreativeImageCard tem overflow:hidden — sem portal o
+   * dropdown fica clipado e some atrás do card.
+   */
+  const [pos, setPos] = useState<{
+    top:       number
+    left:      number
+    maxHeight: number
+    direction: 'down' | 'up'
+  } | null>(null)
+
+  const recalcPosition = useCallback(() => {
+    const trigger = triggerRef.current
+    if (!trigger) return
+    const rect = trigger.getBoundingClientRect()
+    const vh = window.innerHeight
+    const desired = 360
+    const spaceBelow = vh - rect.bottom - 8
+    const spaceAbove = rect.top - 8
+
+    let direction: 'down' | 'up'
+    let maxHeight: number
+    let top: number
+    if (spaceBelow >= desired) {
+      direction = 'down'
+      maxHeight = Math.min(desired, spaceBelow)
+      top = rect.bottom + 4
+    } else if (spaceAbove > spaceBelow) {
+      direction = 'up'
+      maxHeight = Math.min(desired, spaceAbove)
+      top = rect.top - maxHeight - 4
+    } else {
+      direction = 'down'
+      maxHeight = Math.max(180, spaceBelow)
+      top = rect.bottom + 4
+    }
+    // Dropdown 280px alinha pela direita do trigger
+    const left = Math.max(8, rect.right - 280)
+    setPos({ top, left, maxHeight, direction })
+  }, [])
+
+  // Click outside + ESC fecha — considera trigger E portal
   useEffect(() => {
     if (!open) return
-    function onClick(e: MouseEvent) {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
-        setOpen(false)
-      }
+    recalcPosition()
+    const onClick = (e: MouseEvent) => {
+      const target = e.target as Node
+      const inTrigger = wrapperRef.current?.contains(target)
+      const inPortal  = portalRef.current?.contains(target)
+      if (!inTrigger && !inPortal) setOpen(false)
     }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    const onScroll = () => recalcPosition()
     document.addEventListener('mousedown', onClick)
-    return () => document.removeEventListener('mousedown', onClick)
-  }, [open])
+    document.addEventListener('keydown', onKey)
+    window.addEventListener('resize', onScroll)
+    window.addEventListener('scroll', onScroll, true) // capture pega scroll ancestral
+    return () => {
+      document.removeEventListener('mousedown', onClick)
+      document.removeEventListener('keydown', onKey)
+      window.removeEventListener('resize', onScroll)
+      window.removeEventListener('scroll', onScroll, true)
+    }
+  }, [open, recalcPosition])
 
   async function handleOpen() {
     if (disabled || !imageUrl) return
@@ -109,6 +168,7 @@ export default function CanvaButton({
   return (
     <div ref={wrapperRef} className="relative inline-block">
       <button
+        ref={triggerRef}
         type="button"
         onClick={handleOpen}
         disabled={triggerDisabled}
@@ -125,11 +185,16 @@ export default function CanvaButton({
         <ChevronDown size={variant === 'full' ? 12 : 10} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
 
-      {open && (
-        <div className={[
-          'absolute z-30 mt-1 right-0 min-w-[260px] max-w-[300px] rounded-xl border bg-zinc-950 shadow-xl',
-          'border-[#7D2AE7]/40',
-        ].join(' ')}>
+      {open && pos && typeof window !== 'undefined' && createPortal(
+        <div
+          ref={portalRef}
+          className="fixed z-[60] w-[280px] rounded-xl border border-[#7D2AE7]/40 bg-zinc-950 shadow-2xl overflow-hidden flex flex-col"
+          style={{
+            top:       `${pos.top}px`,
+            left:      `${pos.left}px`,
+            maxHeight: `${pos.maxHeight}px`,
+          }}
+        >
           {/* Header */}
           <div className="flex items-center gap-2 px-3 py-2 border-b border-zinc-800">
             <span className="h-5 w-5 rounded flex items-center justify-center bg-[#7D2AE7] text-white text-[10px] font-bold">C</span>
@@ -213,7 +278,8 @@ export default function CanvaButton({
               )}
             </div>
           )}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   )
