@@ -14,6 +14,7 @@ import {
   JOB_STATUS_LABELS, isJobActive,
   type CreativeProduct, type JobStatus, type CreativeImage,
 } from '@/components/creative/types'
+import { useConfirm, useAlert } from '@/components/ui/dialog-provider'
 
 export default function ImageJobPage() {
   const params = useParams<{ productId: string; jobId: string }>()
@@ -26,6 +27,8 @@ export default function ImageJobPage() {
   const [productError, setProductError]     = useState<string | null>(null)
   const [cancelling, setCancelling] = useState(false)
   const [bulkRegen, setBulkRegen]   = useState(false)
+  const confirmDialog = useConfirm()
+  const alertDialog   = useAlert()
 
   const notify = useNotifyOnComplete()
 
@@ -66,13 +69,20 @@ export default function ImageJobPage() {
 
   async function cancelJob() {
     if (!job) return
-    if (!confirm('Cancelar o job? Imagens já geradas serão preservadas.')) return
+    const ok = await confirmDialog({
+      title:        'Cancelar job',
+      message:      'Cancelar o job? Imagens já geradas serão preservadas.',
+      confirmLabel: 'Cancelar job',
+      cancelLabel:  'Voltar',
+      variant:      'warning',
+    })
+    if (!ok) return
     setCancelling(true)
     try {
       await CreativeApi.cancelImageJob(job.id)
       await refresh()
     } catch (e: unknown) {
-      alert((e as Error).message)
+      await alertDialog({ title: 'Erro', message: (e as Error).message, variant: 'danger' })
     } finally {
       setCancelling(false)
     }
@@ -82,16 +92,26 @@ export default function ImageJobPage() {
     if (!job) return
     const rejectedCount = images.filter(i => i.status === 'rejected').length
     if (rejectedCount === 0) return
-    if (!confirm(`Regerar ${rejectedCount} imagem${rejectedCount === 1 ? '' : 'ns'} rejeitada${rejectedCount === 1 ? '' : 's'}? Vai consumir mais cota de geração.`)) return
+    const ok = await confirmDialog({
+      title:        'Regerar rejeitadas',
+      message:      `Regerar ${rejectedCount} imagem${rejectedCount === 1 ? '' : 'ns'} rejeitada${rejectedCount === 1 ? '' : 's'}? Vai consumir mais cota de geração.`,
+      confirmLabel: 'Regerar',
+      variant:      'default',
+    })
+    if (!ok) return
     setBulkRegen(true)
     try {
       const res = await CreativeApi.regenerateAllRejectedImages(job.id)
       if (res.skipped_cost_cap) {
-        alert('Limite de custo do job já foi atingido. Crie um novo job pra continuar.')
+        await alertDialog({
+          title:   'Limite de custo atingido',
+          message: 'Limite de custo do job já foi atingido. Crie um novo job pra continuar.',
+          variant: 'warning',
+        })
       }
       await refresh()
     } catch (e: unknown) {
-      alert((e as Error).message)
+      await alertDialog({ title: 'Erro', message: (e as Error).message, variant: 'danger' })
     } finally {
       setBulkRegen(false)
     }
@@ -100,7 +120,11 @@ export default function ImageJobPage() {
   async function downloadAllApproved() {
     const approved = images.filter(i => i.status === 'approved' && i.signed_image_url)
     if (approved.length === 0) {
-      alert('Aprove pelo menos uma imagem antes de baixar.')
+      await alertDialog({
+        title:   'Nenhuma imagem aprovada',
+        message: 'Aprove pelo menos uma imagem antes de baixar.',
+        variant: 'warning',
+      })
       return
     }
     // Sequential downloads — abrir 10 fetchs em paralelo trava browser

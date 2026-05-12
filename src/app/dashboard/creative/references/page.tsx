@@ -21,6 +21,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ImageIcon, Upload, AlertTriangle, Loader2 } from 'lucide-react'
 import { CreativeApi } from '@/components/creative/api'
 import type { CreativeReference } from '@/components/creative/types'
+import { useConfirm } from '@/components/ui/dialog-provider'
 import EmptyReferencesState from './_components/EmptyReferencesState'
 import UploadDropZone from './_components/UploadDropZone'
 import UploadProgressList, { type UploadItem } from './_components/UploadProgressList'
@@ -42,6 +43,7 @@ export default function ReferencesPage() {
   const [drawerBusy, setDrawerBusy]       = useState(false)
   const [showDropZone, setShowDropZone]   = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const confirmDialog = useConfirm()
 
   // ── Load ──────────────────────────────────────────────────────────────────
 
@@ -201,7 +203,13 @@ export default function ReferencesPage() {
 
   const handleDelete = async (ref: CreativeReference) => {
     if (ref.is_curated) return
-    if (!confirm(`Apagar "${ref.name}"? Esta ação não pode ser desfeita.`)) return
+    const ok = await confirmDialog({
+      title:        'Apagar referência',
+      message:      `Apagar "${ref.name}"? Esta ação não pode ser desfeita.`,
+      confirmLabel: 'Apagar',
+      variant:      'danger',
+    })
+    if (!ok) return
     markBusy(ref.id, true)
     try {
       await CreativeApi.deleteReference(ref.id)
@@ -274,8 +282,22 @@ export default function ReferencesPage() {
 
   const handleBulkDelete = async () => {
     if (selectedRefs.length === 0) return
-    const names = selectedRefs.map(r => `· ${r.name}`).join('\n')
-    if (!confirm(`Apagar ${selectedRefs.length} referência${selectedRefs.length > 1 ? 's' : ''}?\n\n${names}\n\nEsta ação não pode ser desfeita.`)) return
+    const ok = await confirmDialog({
+      title:   `Apagar ${selectedRefs.length} referência${selectedRefs.length > 1 ? 's' : ''}`,
+      message: (
+        <div>
+          <p className="mb-2">As seguintes referências serão removidas — esta ação não pode ser desfeita:</p>
+          <ul className="text-xs text-zinc-400 space-y-0.5 max-h-40 overflow-y-auto rounded-md border border-zinc-800 bg-zinc-900/50 p-2">
+            {selectedRefs.map(r => (
+              <li key={r.id} className="truncate" title={r.name}>· {r.name}</li>
+            ))}
+          </ul>
+        </div>
+      ),
+      confirmLabel: `Apagar ${selectedRefs.length}`,
+      variant:      'danger',
+    })
+    if (!ok) return
     setBulkBusy(true)
     try {
       await CreativeApi.bulkDeleteReferences(selectedRefs.map(r => r.id))

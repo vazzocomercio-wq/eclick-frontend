@@ -14,6 +14,7 @@ import {
   VIDEO_JOB_STATUS_LABELS, isVideoJobActive,
   type CreativeProduct, type VideoJobStatus, type CreativeVideo,
 } from '@/components/creative/types'
+import { useConfirm, useAlert } from '@/components/ui/dialog-provider'
 
 export default function VideoJobPage() {
   const params = useParams<{ productId: string; jobId: string }>()
@@ -25,6 +26,8 @@ export default function VideoJobPage() {
   const [productError, setProductError]     = useState<string | null>(null)
   const [cancelling, setCancelling] = useState(false)
   const [bulkRegen, setBulkRegen]   = useState(false)
+  const confirmDialog = useConfirm()
+  const alertDialog   = useAlert()
 
   const notify = useNotifyOnComplete()
 
@@ -67,28 +70,46 @@ export default function VideoJobPage() {
 
   async function cancelJob() {
     if (!job) return
-    if (!confirm('Cancelar o job? Vídeos já gerados serão preservados.')) return
+    const ok = await confirmDialog({
+      title:        'Cancelar job',
+      message:      'Cancelar o job? Vídeos já gerados serão preservados.',
+      confirmLabel: 'Cancelar job',
+      cancelLabel:  'Voltar',
+      variant:      'warning',
+    })
+    if (!ok) return
     setCancelling(true)
     try {
       await CreativeApi.cancelVideoJob(job.id); await refresh()
-    } catch (e: unknown) { alert((e as Error).message) }
-    finally { setCancelling(false) }
+    } catch (e: unknown) {
+      await alertDialog({ title: 'Erro', message: (e as Error).message, variant: 'danger' })
+    } finally { setCancelling(false) }
   }
 
   async function regenerateRejected() {
     if (!job) return
     const rejectedCt = videos.filter(v => v.status === 'rejected').length
     if (rejectedCt === 0) return
-    if (!confirm(`Regerar ${rejectedCt} vídeo${rejectedCt === 1 ? '' : 's'} rejeitado${rejectedCt === 1 ? '' : 's'}? Vai consumir ~$${(rejectedCt * (job.duration_seconds === 10 ? 0.84 : 0.42)).toFixed(2)}.`)) return
+    const ok = await confirmDialog({
+      title:        'Regerar rejeitados',
+      message:      `Regerar ${rejectedCt} vídeo${rejectedCt === 1 ? '' : 's'} rejeitado${rejectedCt === 1 ? '' : 's'}? Vai consumir ~$${(rejectedCt * (job.duration_seconds === 10 ? 0.84 : 0.42)).toFixed(2)}.`,
+      confirmLabel: 'Regerar',
+      variant:      'default',
+    })
+    if (!ok) return
     setBulkRegen(true)
     try {
       const res = await CreativeApi.regenerateAllRejectedVideos(job.id)
       if (res.skipped_cost_cap) {
-        alert('Limite de custo do job já foi atingido. Crie um novo job pra continuar.')
+        await alertDialog({
+          title:   'Limite de custo atingido',
+          message: 'Limite de custo do job já foi atingido. Crie um novo job pra continuar.',
+          variant: 'warning',
+        })
       }
       await refresh()
     } catch (e: unknown) {
-      alert((e as Error).message)
+      await alertDialog({ title: 'Erro', message: (e as Error).message, variant: 'danger' })
     } finally {
       setBulkRegen(false)
     }
@@ -96,7 +117,14 @@ export default function VideoJobPage() {
 
   async function downloadAllApproved() {
     const approved = videos.filter(v => v.status === 'approved' && v.signed_video_url)
-    if (approved.length === 0) { alert('Aprove pelo menos um vídeo antes de baixar.'); return }
+    if (approved.length === 0) {
+      await alertDialog({
+        title:   'Nenhum vídeo aprovado',
+        message: 'Aprove pelo menos um vídeo antes de baixar.',
+        variant: 'warning',
+      })
+      return
+    }
     for (const v of approved) {
       const a = document.createElement('a')
       a.href = v.signed_video_url!; a.download = `creative-video-${v.position}.mp4`; a.target = '_blank'; a.rel = 'noopener'

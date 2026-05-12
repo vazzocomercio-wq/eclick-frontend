@@ -8,6 +8,7 @@
 import { Sparkles } from 'lucide-react'
 import { CANONICAL_POSITIONS } from './constants'
 import type { TemplatePosition } from '@/components/creative/types'
+import { useConfirm } from '@/components/ui/dialog-provider'
 
 export default function ApplyCanonicalSkeleton({
   existingCount,
@@ -18,13 +19,18 @@ export default function ApplyCanonicalSkeleton({
   onApply:       (positions: TemplatePosition[]) => void
   disabled?:     boolean
 }) {
-  const handle = () => {
+  const confirmDialog = useConfirm()
+
+  const handle = async () => {
     if (existingCount > 0) {
-      const ok = confirm(
-        `Você já tem ${existingCount} posição${existingCount !== 1 ? 'ões' : ''} configurada${existingCount !== 1 ? 's' : ''}. ` +
-        `Aplicar o esqueleto canônico vai SUBSTITUIR tudo pelas 11 posições padrão. ` +
-        `Continuar?`,
-      )
+      const ok = await confirmDialog({
+        title:   'Substituir posições atuais?',
+        message:
+          `Você já tem ${existingCount} posição${existingCount !== 1 ? 'ões' : ''} configurada${existingCount !== 1 ? 's' : ''}. ` +
+          `Aplicar o esqueleto canônico vai SUBSTITUIR tudo pelas 11 posições padrão.`,
+        confirmLabel: 'Substituir',
+        variant:      'warning',
+      })
       if (!ok) return
     }
     // Clone deep pra evitar mutação acidental do constant

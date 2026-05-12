@@ -12,6 +12,7 @@
 import { useEffect, useState } from 'react'
 import { X, Save, Trash2, AlertTriangle, Loader2, Plus, ImageOff } from 'lucide-react'
 import type { CreativeReference } from '@/components/creative/types'
+import { useConfirm } from '@/components/ui/dialog-provider'
 
 const PRODUCT_TYPES = ['', 'lustre', 'pendente', 'abajur', 'plafon', 'spot', 'arandela', 'outro']
 const AMBIENTS = ['', 'sala', 'quarto', 'cozinha', 'banheiro', 'gourmet', 'escritorio', 'externa', 'estudio', 'neutro']
@@ -48,6 +49,7 @@ export default function ReferenceEditorDrawer({
   const [categoryInput, setCategoryInput] = useState('')
   const [error, setError]               = useState<string | null>(null)
   const [imgError, setImgError]         = useState(false)
+  const confirmDialog = useConfirm()
 
   // Reset form quando reference muda
   useEffect(() => {
@@ -121,7 +123,13 @@ export default function ReferenceEditorDrawer({
   }
 
   const remove = async () => {
-    if (!confirm(`Apagar "${reference.name}"? A imagem será removida do Storage também.`)) return
+    const ok = await confirmDialog({
+      title:        'Apagar referência',
+      message:      `Apagar "${reference.name}"? A imagem será removida do Storage também.`,
+      confirmLabel: 'Apagar',
+      variant:      'danger',
+    })
+    if (!ok) return
     setError(null)
     try {
       await onDelete(reference.id)

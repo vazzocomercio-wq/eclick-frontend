@@ -16,6 +16,7 @@ import {
   type MlListingType, type MlCondition,
   type CreativePublication,
 } from '@/components/creative/types'
+import { useAlert } from '@/components/ui/dialog-provider'
 
 interface AttributeValue { id: string; value_name?: string; value_id?: string }
 
@@ -536,6 +537,7 @@ function PublicationRow({ pub: initial }: { pub: CreativePublication }) {
   const [syncing, setSyncing] = useState(false)
   const [syncError, setSyncError] = useState<string | null>(null)
   const [acking, setAcking]     = useState(false)
+  const alertDialog = useAlert()
 
   // Re-sync com prop quando muda externamente
   useEffect(() => { setPub(initial) }, [initial])
@@ -548,7 +550,7 @@ function PublicationRow({ pub: initial }: { pub: CreativePublication }) {
       const updated = await CreativeApi.acknowledgeDegradation(pub.id)
       setPub(updated)
     } catch (e: unknown) {
-      alert((e as Error).message)
+      await alertDialog({ title: 'Erro', message: (e as Error).message, variant: 'danger' })
     } finally {
       setAcking(false)
     }

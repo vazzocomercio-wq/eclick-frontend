@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import { CreativeApi } from '@/components/creative/api'
 import type { CreativePromptTemplate } from '@/components/creative/types'
+import { useConfirm, useAlert } from '@/components/ui/dialog-provider'
 import EmptyTemplatesState from './EmptyTemplatesState'
 import { CANONICAL_POSITIONS } from './constants'
 
@@ -27,6 +28,8 @@ export default function TemplatesList() {
   const [categoryFilter, setCategoryFilter] = useState('')
   const [actionId, setActionId]   = useState<string | null>(null)
   const [busyId, setBusyId]       = useState<string | null>(null)
+  const confirmDialog = useConfirm()
+  const alertDialog   = useAlert()
 
   const load = async () => {
     setLoading(true)
@@ -75,10 +78,20 @@ export default function TemplatesList() {
 
   const handleDelete = async (id: string, name: string, isDefault: boolean) => {
     if (isDefault) {
-      alert('Template default não pode ser apagado. Promova outro template a default antes.')
+      await alertDialog({
+        title:   'Não é possível apagar',
+        message: 'Template default não pode ser apagado. Promova outro template a default antes.',
+        variant: 'warning',
+      })
       return
     }
-    if (!confirm(`Apagar template "${name}"? Esta ação não pode ser desfeita.`)) return
+    const ok = await confirmDialog({
+      title:        'Apagar template',
+      message:      `Apagar template "${name}"? Esta ação não pode ser desfeita.`,
+      confirmLabel: 'Apagar',
+      variant:      'danger',
+    })
+    if (!ok) return
     setBusyId(id)
     try {
       await CreativeApi.deletePromptTemplate(id)

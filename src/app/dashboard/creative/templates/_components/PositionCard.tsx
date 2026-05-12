@@ -16,6 +16,7 @@ import { ChevronDown, ChevronUp, GripVertical, Trash2, AlertTriangle } from 'luc
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { TemplatePosition, AspectRatio } from '@/components/creative/types'
+import { useConfirm } from '@/components/ui/dialog-provider'
 import VariablesChips from './VariablesChips'
 import ReferenceSelector from './ReferenceSelector'
 import ReferenceMatchConfig from './ReferenceMatchConfig'
@@ -37,6 +38,7 @@ export default function PositionCard({
   const [expanded, setExpanded] = useState(defaultExpanded)
   const promptRef   = useRef<HTMLTextAreaElement | null>(null)
   const negativeRef = useRef<HTMLTextAreaElement | null>(null)
+  const confirmDialog = useConfirm()
 
   const sortable = useSortable({ id: position.position })
   const style: React.CSSProperties = {
@@ -108,8 +110,16 @@ export default function PositionCard({
 
         <button
           type="button"
-          onClick={() => {
-            if (hasPrompt && !confirm(`Apagar posição "${position.name}"?`)) return
+          onClick={async () => {
+            if (hasPrompt) {
+              const ok = await confirmDialog({
+                title:        'Apagar posição',
+                message:      `Apagar posição "${position.name}"?`,
+                confirmLabel: 'Apagar',
+                variant:      'danger',
+              })
+              if (!ok) return
+            }
             onDelete()
           }}
           disabled={disabled}
