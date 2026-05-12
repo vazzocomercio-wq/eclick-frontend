@@ -32,14 +32,21 @@ import { useConfirm, useAlert } from '@/components/ui/dialog-provider'
 export default function TaxonomySelect({
   kind, value, onChange,
   placeholder, allowEmpty = true, disabled, className,
+  onOptionsChanged,
 }: {
-  kind:         TaxonomyKind
-  value:        string
-  onChange:     (next: string) => void
-  placeholder:  string
-  allowEmpty?:  boolean
-  disabled?:    boolean
-  className?:   string
+  kind:               TaxonomyKind
+  value:              string
+  onChange:           (next: string) => void
+  placeholder:        string
+  allowEmpty?:        boolean
+  disabled?:          boolean
+  className?:         string
+  /**
+   * Chamado APÓS create/update/delete/hide/unhide bem-sucedidos.
+   * Permite ao parent (ex: drawer com botões 1..11) refetch a lista
+   * pra refletir mudanças sem precisar refresh da página.
+   */
+  onOptionsChanged?:  () => void
 }) {
   const [options, setOptions] = useState<TaxonomyOption[]>([])
   const [loading, setLoading] = useState(false)
@@ -186,6 +193,7 @@ export default function TaxonomySelect({
     // Seleciona automaticamente a nova
     onChange(created.value)
     setOpen(false)
+    onOptionsChanged?.()
   }
 
   // ── Edit ──────────────────────────────────────────────────────────────
@@ -197,6 +205,7 @@ export default function TaxonomySelect({
     if (value && value === edited.value) {
       onChange(edited.value)
     }
+    onOptionsChanged?.()
   }
 
   // ── Delete ────────────────────────────────────────────────────────────
@@ -221,6 +230,7 @@ export default function TaxonomySelect({
         await CreativeApi.hideTaxonomy(opt.id)
         await load()
         if (value === opt.value) onChange('')
+        onOptionsChanged?.()
       } catch (e) {
         await alertDialog({
           title:   'Falha ao apagar',
@@ -245,6 +255,7 @@ export default function TaxonomySelect({
       await CreativeApi.deleteTaxonomy(opt.id)
       await load()
       if (value === opt.value) onChange('')
+      onOptionsChanged?.()
     } catch (e) {
       await alertDialog({
         title:   'Falha ao apagar',
@@ -261,6 +272,7 @@ export default function TaxonomySelect({
     try {
       await CreativeApi.unhideTaxonomy(opt.id)
       await load()
+      onOptionsChanged?.()
     } catch (e) {
       await alertDialog({
         title:   'Falha ao reativar',

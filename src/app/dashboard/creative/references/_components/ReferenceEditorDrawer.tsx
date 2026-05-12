@@ -9,7 +9,7 @@
  * Fecha por ESC, ✕, ou click no overlay.
  */
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { X, Save, Trash2, AlertTriangle, Loader2, Plus, ImageOff } from 'lucide-react'
 import { CreativeApi } from '@/components/creative/api'
 import type { CreativeReference, TaxonomyOption } from '@/components/creative/types'
@@ -53,12 +53,16 @@ export default function ReferenceEditorDrawer({
   const confirmDialog = useConfirm()
 
   // Carrega ambientes pra mapear position → label dos botões 1..11
-  useEffect(() => {
-    if (!open) return
+  const reloadAmbientOptions = useCallback(() => {
     void CreativeApi.listTaxonomy('ambient')
       .then(setAmbientOptions)
       .catch(() => setAmbientOptions([]))
-  }, [open])
+  }, [])
+
+  useEffect(() => {
+    if (!open) return
+    reloadAmbientOptions()
+  }, [open, reloadAmbientOptions])
 
   // Map de position → label do ambient linkado
   const positionLabel = new Map<number, string>()
@@ -321,6 +325,7 @@ export default function ReferenceEditorDrawer({
                 onChange={setAmbient}
                 placeholder="— sem ambiente —"
                 disabled={curated}
+                onOptionsChanged={reloadAmbientOptions}
               />
             </Field>
           </div>
