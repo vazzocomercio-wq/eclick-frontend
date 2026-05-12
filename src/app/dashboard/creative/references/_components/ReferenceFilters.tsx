@@ -51,6 +51,9 @@ const AMBIENTS: Array<{ value: string; label: string }> = [
   { value: 'externa',     label: 'Externa' },
   { value: 'estudio',     label: 'Estúdio' },
   { value: 'neutro',      label: 'Neutro' },
+  { value: 'capa',                   label: 'Capa' },
+  { value: 'embalagem',              label: 'Embalagem' },
+  { value: 'caracteristicas_medidas', label: 'Características / medidas' },
 ]
 
 export default function ReferenceFilters({
