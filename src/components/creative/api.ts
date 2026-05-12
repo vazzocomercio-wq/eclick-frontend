@@ -650,10 +650,11 @@ export const CreativeApi = {
 
   /** POST /creative/taxonomy — cria custom da org. */
   createTaxonomy: (body: {
-    kind:        TaxonomyKind
-    value:       string
-    label:       string
-    sort_order?: number
+    kind:             TaxonomyKind
+    value:            string
+    label:            string
+    sort_order?:      number
+    linked_position?: number | null
   }) =>
     api<TaxonomyOption>('/creative/taxonomy', {
       method: 'POST', body: JSON.stringify(body),
@@ -661,9 +662,10 @@ export const CreativeApi = {
 
   /** PATCH /creative/taxonomy/:id — edita custom (não-default). */
   updateTaxonomy: (id: string, body: Partial<{
-    value:      string
-    label:      string
-    sort_order: number
+    value:           string
+    label:           string
+    sort_order:      number
+    linked_position: number | null
   }>) =>
     api<TaxonomyOption>(`/creative/taxonomy/${id}`, {
       method: 'PATCH', body: JSON.stringify(body),

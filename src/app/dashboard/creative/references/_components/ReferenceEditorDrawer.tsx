@@ -11,7 +11,8 @@
 
 import { useEffect, useState } from 'react'
 import { X, Save, Trash2, AlertTriangle, Loader2, Plus, ImageOff } from 'lucide-react'
-import type { CreativeReference } from '@/components/creative/types'
+import { CreativeApi } from '@/components/creative/api'
+import type { CreativeReference, TaxonomyOption } from '@/components/creative/types'
 import { useConfirm } from '@/components/ui/dialog-provider'
 import TaxonomySelect from './TaxonomySelect'
 
@@ -48,7 +49,24 @@ export default function ReferenceEditorDrawer({
   const [categoryInput, setCategoryInput] = useState('')
   const [error, setError]               = useState<string | null>(null)
   const [imgError, setImgError]         = useState(false)
+  const [ambientOptions, setAmbientOptions] = useState<TaxonomyOption[]>([])
   const confirmDialog = useConfirm()
+
+  // Carrega ambientes pra mapear position → label dos botões 1..11
+  useEffect(() => {
+    if (!open) return
+    void CreativeApi.listTaxonomy('ambient')
+      .then(setAmbientOptions)
+      .catch(() => setAmbientOptions([]))
+  }, [open])
+
+  // Map de position → label do ambient linkado
+  const positionLabel = new Map<number, string>()
+  for (const opt of ambientOptions) {
+    if (opt.linked_position != null) {
+      positionLabel.set(opt.linked_position, opt.label)
+    }
+  }
 
   // Reset form quando reference muda
   useEffect(() => {
@@ -244,29 +262,45 @@ export default function ReferenceEditorDrawer({
             />
           </Field>
 
-          {/* Posições */}
+          {/* Posições — botões mostram label do ambient linkado ou número */}
           <Field label="Posições default (em que slots da N a ref entra por default)">
-            <div className="grid grid-cols-6 sm:grid-cols-11 gap-1">
+            <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-1.5">
               {POSITIONS.map(p => {
                 const checked = positions.has(p)
+                const label   = positionLabel.get(p)
                 return (
                   <button
                     key={p}
                     type="button"
                     onClick={() => togglePosition(p)}
                     disabled={curated}
+                    title={label ? `Posição ${p}: ${label}` : `Posição ${p} (sem link)`}
                     className={[
-                      'h-8 rounded-md text-xs font-mono font-semibold transition-colors disabled:opacity-50',
+                      'h-12 px-1.5 rounded-md flex flex-col items-center justify-center gap-0.5 transition-colors disabled:opacity-50',
                       checked
                         ? 'bg-cyan-400 text-black'
                         : 'bg-zinc-900 border border-zinc-800 text-zinc-400 hover:border-cyan-500/40 hover:text-zinc-200',
                     ].join(' ')}
                   >
-                    {p}
+                    <span className={[
+                      'text-[9px] font-mono leading-none',
+                      checked ? 'text-black/60' : 'text-zinc-500',
+                    ].join(' ')}>
+                      {p}
+                    </span>
+                    <span className={[
+                      'text-[11px] font-semibold leading-tight truncate w-full text-center',
+                      label ? '' : 'opacity-50 italic',
+                    ].join(' ')}>
+                      {label ?? 'sem link'}
+                    </span>
                   </button>
                 )
               })}
             </div>
+            <p className="text-[10px] text-zinc-500 mt-1">
+              Cada posição vira o nome do ambiente linkado (Configure em <strong>Ambiente</strong> abaixo).
+            </p>
           </Field>
 
           {/* Tipo + ambiente lado a lado */}

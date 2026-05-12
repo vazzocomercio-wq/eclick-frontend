@@ -530,6 +530,7 @@ export interface TaxonomyOption {
   label:            string
   sort_order:       number
   is_default:       boolean
+  linked_position:  number | null   // 1..11 (só kind='ambient'); null = sem link
   created_at:       string
   updated_at:       string
 }

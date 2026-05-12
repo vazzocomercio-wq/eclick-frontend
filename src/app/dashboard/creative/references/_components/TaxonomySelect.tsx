@@ -222,12 +222,14 @@ export default function TaxonomySelect({
             {creating ? (
               <CreateInlineForm
                 kind={kind}
+                existingOptions={options}
                 onCancel={() => setCreating(false)}
                 onCreated={handleCreated}
               />
             ) : editing ? (
               <EditInlineForm
                 option={editing}
+                existingOptions={options}
                 onCancel={() => setEditing(null)}
                 onSaved={handleEdited}
               />
@@ -314,14 +316,16 @@ function OptionRow({
 }
 
 function CreateInlineForm({
-  kind, onCancel, onCreated,
+  kind, existingOptions, onCancel, onCreated,
 }: {
-  kind:      TaxonomyKind
-  onCancel:  () => void
-  onCreated: (opt: TaxonomyOption) => void
+  kind:            TaxonomyKind
+  existingOptions: TaxonomyOption[]
+  onCancel:        () => void
+  onCreated:       (opt: TaxonomyOption) => void
 }) {
   const [label, setLabel] = useState('')
   const [value, setValue] = useState('')
+  const [linkedPosition, setLinkedPosition] = useState<number | null>(null)
   const [busy, setBusy]   = useState(false)
   const [error, setError] = useState<string | null>(null)
   const labelRef = useRef<HTMLInputElement>(null)
@@ -331,7 +335,6 @@ function CreateInlineForm({
   // Auto-derive value snake_case do label conforme digita
   const onLabelChange = (v: string) => {
     setLabel(v)
-    // Só atualiza value se user não editou manualmente
     if (value === '' || value === slugify(label)) {
       setValue(slugify(v))
     }
@@ -348,6 +351,7 @@ function CreateInlineForm({
         kind,
         value: value.trim(),
         label: label.trim(),
+        linked_position: kind === 'ambient' ? linkedPosition : null,
       })
       onCreated(created)
     } catch (e) {
@@ -389,6 +393,15 @@ function CreateInlineForm({
         disabled={busy}
         className="w-full px-2 py-1.5 bg-zinc-900 border border-zinc-800 rounded text-[11px] font-mono text-zinc-300 outline-none focus:border-cyan-400 placeholder:text-zinc-600"
       />
+      {kind === 'ambient' && (
+        <PositionLinkSelect
+          value={linkedPosition}
+          onChange={setLinkedPosition}
+          existingOptions={existingOptions}
+          excludeId={null}
+          disabled={busy}
+        />
+      )}
       {error && (
         <p className="text-[10px] text-red-300">{error}</p>
       )}
@@ -416,13 +429,15 @@ function CreateInlineForm({
 }
 
 function EditInlineForm({
-  option, onCancel, onSaved,
+  option, existingOptions, onCancel, onSaved,
 }: {
-  option:    TaxonomyOption
-  onCancel:  () => void
-  onSaved:   (opt: TaxonomyOption) => void
+  option:          TaxonomyOption
+  existingOptions: TaxonomyOption[]
+  onCancel:        () => void
+  onSaved:         (opt: TaxonomyOption) => void
 }) {
   const [label, setLabel] = useState(option.label)
+  const [linkedPosition, setLinkedPosition] = useState<number | null>(option.linked_position)
   const [busy, setBusy]   = useState(false)
   const [error, setError] = useState<string | null>(null)
   const labelRef = useRef<HTMLInputElement>(null)
@@ -434,11 +449,16 @@ function EditInlineForm({
 
   const submit = async () => {
     if (!label.trim()) { setError('Nome obrigatório'); return }
-    if (label.trim() === option.label) { onCancel(); return }
+    const labelChanged    = label.trim() !== option.label
+    const positionChanged = linkedPosition !== option.linked_position
+    if (!labelChanged && !positionChanged) { onCancel(); return }
     setBusy(true)
     setError(null)
     try {
-      const updated = await CreativeApi.updateTaxonomy(option.id, { label: label.trim() })
+      const patch: { label?: string; linked_position?: number | null } = {}
+      if (labelChanged)    patch.label = label.trim()
+      if (positionChanged) patch.linked_position = linkedPosition
+      const updated = await CreativeApi.updateTaxonomy(option.id, patch)
       onSaved(updated)
     } catch (e) {
       setError((e as Error).message)
@@ -475,6 +495,15 @@ function EditInlineForm({
         className="w-full px-2 py-1.5 bg-zinc-900 border border-zinc-800 rounded text-xs text-zinc-200 outline-none focus:border-cyan-400"
       />
       <p className="text-[10px] text-zinc-600 font-mono">chave: {option.value} (não editável)</p>
+      {option.kind === 'ambient' && (
+        <PositionLinkSelect
+          value={linkedPosition}
+          onChange={setLinkedPosition}
+          existingOptions={existingOptions}
+          excludeId={option.id}
+          disabled={busy}
+        />
+      )}
       {error && (
         <p className="text-[10px] text-red-300">{error}</p>
       )}
@@ -497,6 +526,62 @@ function EditInlineForm({
           Salvar
         </button>
       </div>
+    </div>
+  )
+}
+
+/**
+ * Sub-componente: select de "Linkar à posição: [— sem link, 1, 2, ..., 11]".
+ * Mostra ao lado de cada posição o ambient que já está nela (se houver),
+ * pra user não escolher conflito sem perceber. Se escolher posição ocupada,
+ * backend retorna 409 — frontend não bloqueia client-side (só avisa).
+ */
+function PositionLinkSelect({
+  value, onChange, existingOptions, excludeId, disabled,
+}: {
+  value:           number | null
+  onChange:        (v: number | null) => void
+  existingOptions: TaxonomyOption[]
+  excludeId:       string | null
+  disabled?:       boolean
+}) {
+  // Map de position → label do ambient que ocupa (excluindo o próprio em edit)
+  // Só considera ambient (defaults globais não têm linked_position).
+  const positionOwner = new Map<number, string>()
+  for (const opt of existingOptions) {
+    if (opt.kind !== 'ambient') continue
+    if (opt.id === excludeId)   continue
+    if (opt.linked_position != null) positionOwner.set(opt.linked_position, opt.label)
+  }
+
+  const conflictLabel = value != null ? positionOwner.get(value) : undefined
+
+  return (
+    <div className="space-y-1">
+      <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">
+        Linkar à posição
+      </label>
+      <select
+        value={value ?? ''}
+        onChange={e => onChange(e.target.value === '' ? null : Number(e.target.value))}
+        disabled={disabled}
+        className="w-full px-2 py-1.5 bg-zinc-900 border border-zinc-800 rounded text-xs text-zinc-200 outline-none focus:border-cyan-400 disabled:opacity-50"
+      >
+        <option value="">— sem link (só metadado)</option>
+        {Array.from({ length: 11 }, (_, i) => i + 1).map(p => {
+          const owner = positionOwner.get(p)
+          return (
+            <option key={p} value={p}>
+              Posição {p}{owner ? ` — ocupada por "${owner}"` : ' — livre'}
+            </option>
+          )
+        })}
+      </select>
+      {conflictLabel && (
+        <p className="text-[10px] text-amber-300">
+          ⚠ Posição {value} já tem "{conflictLabel}". Salvar vai falhar — desvincule essa outra primeiro.
+        </p>
+      )}
     </div>
   )
 }
