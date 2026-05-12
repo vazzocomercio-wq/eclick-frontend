@@ -113,6 +113,9 @@ export default function ListingEditor({ listing, onSaved, disabled }: Props) {
         </div>
       )}
 
+      {/* Sub-sprint C: banner de prontidão pra ML */}
+      <PublishReadinessBanner listing={listing} technicalSheet={state.technical_sheet} />
+
       <Field label="Título" value={state.title} onChange={v => update('title', v)} disabled={disabled} />
       <Field label="Subtítulo" value={state.subtitle} onChange={v => update('subtitle', v)} disabled={disabled} placeholder="Opcional" />
 
@@ -540,6 +543,95 @@ function MlCategoryBadge({
       )}
 
       {error && <p className="text-[10px] text-red-300">{error}</p>}
+    </div>
+  )
+}
+
+// ── Sub-sprint C: PublishReadinessBanner ──────────────────────────────────
+//
+// Indicador visual no topo do editor: mostra se o listing está pronto pra
+// publicar no ML.
+//
+// Lógica leve (não chama buildMlPreview — esse fica pra página de publish):
+//   1. Conta required attributes do listing.attributes_ml_suggested
+//   2. Verifica quais estão preenchidos no technical_sheet
+//   3. Mostra status + atalho pra página de publicação
+//
+// Estados:
+//   - sem categoria ML: amber, "Detectar categoria ML primeiro"
+//   - todos obrigatórios OK: verde, link verde "Publicar no ML →"
+//   - alguns faltando: amber, "X campos obrigatórios faltam"
+
+function PublishReadinessBanner({
+  listing, technicalSheet,
+}: {
+  listing:         CreativeListing
+  technicalSheet:  Array<{ key: string; value: string }>
+}) {
+  const categoryMlId = listing.category_ml_id
+  const attrs = listing.attributes_ml_suggested ?? []
+
+  if (!categoryMlId) {
+    return (
+      <div className="flex items-center gap-2 rounded-lg border border-amber-400/30 bg-amber-400/5 px-3 py-2 text-xs">
+        <AlertCircle size={12} className="text-amber-400 shrink-0" />
+        <span className="text-amber-200 flex-1">
+          Sem categoria ML detectada. Detecte abaixo pra habilitar a publicação.
+        </span>
+      </div>
+    )
+  }
+
+  // Conta required preenchidos.
+  // attributes_ml_suggested vem do predict (não tem flag required confiável aí);
+  // só os RETORNADOS pelo predict_category são "sugeridos como importantes" —
+  // tratamos todos como obrigatórios pra fins de status quick. A página de
+  // publish faz a validação completa via /ml-preview.
+  const filled = (key: string) =>
+    technicalSheet.some(r => r.key.toLowerCase() === key.toLowerCase() && r.value.trim().length > 0)
+
+  const missing = attrs.filter(a => !filled(a.name))
+  const totalReq = attrs.length
+  const ok = missing.length === 0 && totalReq > 0
+  const publishHref = `/dashboard/creative/${listing.product_id}/listing/${listing.id}/publish/ml`
+
+  return (
+    <div
+      className={[
+        'flex items-center gap-2 rounded-lg border px-3 py-2 text-xs',
+        ok
+          ? 'border-emerald-400/30 bg-emerald-400/5'
+          : 'border-amber-400/30 bg-amber-400/5',
+      ].join(' ')}
+    >
+      {ok ? (
+        <CheckCircle2 size={12} className="text-emerald-400 shrink-0" />
+      ) : (
+        <AlertCircle size={12} className="text-amber-400 shrink-0" />
+      )}
+      <span className={['flex-1', ok ? 'text-emerald-200' : 'text-amber-200'].join(' ')}>
+        {ok ? (
+          <>Pronto pra publicar — todos os {totalReq} atributos sugeridos preenchidos.</>
+        ) : totalReq === 0 ? (
+          <>Nenhum atributo sugerido pela categoria ML. Verifique manualmente antes de publicar.</>
+        ) : (
+          <>
+            <strong>{missing.length}</strong> de {totalReq} atributos sugeridos faltam:{' '}
+            <span className="text-amber-300/80">{missing.slice(0, 3).map(m => m.name).join(', ')}{missing.length > 3 ? '…' : ''}</span>
+          </>
+        )}
+      </span>
+      <a
+        href={publishHref}
+        className={[
+          'inline-flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-semibold transition-colors',
+          ok
+            ? 'bg-emerald-500 hover:bg-emerald-400 text-black'
+            : 'bg-zinc-900 border border-zinc-800 hover:border-amber-400/40 text-zinc-300',
+        ].join(' ')}
+      >
+        {ok ? 'Publicar no ML' : 'Revisar e publicar'} →
+      </a>
     </div>
   )
 }
