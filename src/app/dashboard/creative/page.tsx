@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Plus, Sparkles, Loader2, Image as ImageIcon, Clock, CheckCircle2, AlertCircle, Search, X, ArrowDownAZ, ArrowDown } from 'lucide-react'
+import { Plus, Sparkles, Loader2, Image as ImageIcon, Clock, CheckCircle2, AlertCircle, Search, X, ArrowDownAZ, ArrowDown, Trash2, Archive } from 'lucide-react'
 import { CreativeApi } from '@/components/creative/api'
 import CreativeUsageCard from '@/components/creative/CreativeUsageCard'
 import type { CreativeProduct } from '@/components/creative/types'
+import { useConfirm, useAlert } from '@/components/ui/dialog-provider'
 
 type StatusFilter = 'all' | 'draft' | 'analyzing' | 'ready' | 'archived'
 type SortOption   = 'recent' | 'name'
@@ -14,6 +15,10 @@ export default function CreativeListPage() {
   const [products, setProducts] = useState<CreativeProduct[]>([])
   const [loading, setLoading]   = useState(true)
   const [error, setError]       = useState<string | null>(null)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [bulkBusy, setBulkBusy] = useState(false)
+  const confirmDialog = useConfirm()
+  const alertDialog   = useAlert()
 
   // Filtros
   const [search, setSearch]   = useState('')
@@ -47,6 +52,59 @@ export default function CreativeListPage() {
       setError((e as Error).message)
     } finally {
       setLoading(false)
+    }
+  }
+
+  // ── Seleção & bulk archive ────────────────────────────────────────────
+
+  function toggleSelect(id: string) {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function clearSelection() {
+    setSelected(new Set())
+  }
+
+  async function handleBulkArchive() {
+    const ids = Array.from(selected)
+    if (ids.length === 0) return
+    const names = products.filter(p => selected.has(p.id)).map(p => `· ${p.name}`).join('\n')
+    const ok = await confirmDialog({
+      title:        `Arquivar ${ids.length} produto${ids.length > 1 ? 's' : ''}`,
+      message: (
+        <div>
+          <p className="mb-2">Os produtos selecionados serão arquivados — saem da listagem principal mas o histórico (briefings, imagens, listings) é preservado:</p>
+          <pre className="text-xs text-zinc-400 max-h-40 overflow-y-auto bg-zinc-900/50 p-2 rounded whitespace-pre-wrap">{names}</pre>
+        </div>
+      ),
+      confirmLabel: `Arquivar ${ids.length}`,
+      variant:      'danger',
+    })
+    if (!ok) return
+    setBulkBusy(true)
+    try {
+      const results = await Promise.allSettled(
+        ids.map(id => CreativeApi.archiveProduct(id)),
+      )
+      const failed = results.filter(r => r.status === 'rejected').length
+      if (failed > 0) {
+        await alertDialog({
+          title:   'Atenção',
+          message: `${failed} produto${failed > 1 ? 's' : ''} não pôde ser arquivado. Os outros foram processados normalmente.`,
+          variant: 'warning',
+        })
+      }
+      clearSelection()
+      await load()
+    } catch (e) {
+      await alertDialog({ title: 'Erro', message: (e as Error).message, variant: 'danger' })
+    } finally {
+      setBulkBusy(false)
     }
   }
 
@@ -170,11 +228,46 @@ export default function CreativeListPage() {
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
             {products.map(p => (
-              <ProductCard key={p.id} product={p} />
+              <ProductCard
+                key={p.id}
+                product={p}
+                selected={selected.has(p.id)}
+                onToggleSelect={() => toggleSelect(p.id)}
+              />
             ))}
           </div>
         )}
       </div>
+
+      {/* Bulk actions floating bar */}
+      {selected.size > 0 && (
+        <div className="fixed left-1/2 -translate-x-1/2 bottom-6 z-30 max-w-[95vw]">
+          <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-zinc-950 border border-zinc-700 shadow-2xl">
+            <span className="text-sm font-medium text-zinc-100 whitespace-nowrap">
+              {selected.size} selecionad{selected.size > 1 ? 'os' : 'o'}
+            </span>
+            <div className="h-5 w-px bg-zinc-800" />
+            <button
+              type="button"
+              onClick={handleBulkArchive}
+              disabled={bulkBusy}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-red-300 hover:bg-red-500/10 disabled:opacity-50 transition-colors"
+            >
+              {bulkBusy ? <Loader2 size={12} className="animate-spin" /> : <Archive size={12} />}
+              Arquivar
+            </button>
+            <div className="h-5 w-px bg-zinc-800" />
+            <button
+              type="button"
+              onClick={clearSelection}
+              disabled={bulkBusy}
+              className="inline-flex items-center gap-1 px-2 py-1.5 rounded-md text-xs text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors"
+            >
+              <X size={12} /> Limpar
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -209,37 +302,66 @@ function NoResultsState() {
   )
 }
 
-function ProductCard({ product }: { product: CreativeProduct }) {
+function ProductCard({
+  product, selected, onToggleSelect,
+}: {
+  product:         CreativeProduct
+  selected:        boolean
+  onToggleSelect:  () => void
+}) {
   const status = product.status
   return (
-    <Link
-      href={`/dashboard/creative/${product.id}`}
-      className="group block rounded-xl overflow-hidden border border-zinc-800 bg-zinc-900/50 hover:border-cyan-400/40 hover:bg-zinc-900 transition-all"
+    <div
+      className={[
+        'group block rounded-xl overflow-hidden border bg-zinc-900/50 transition-all',
+        selected ? 'border-cyan-400 ring-2 ring-cyan-400/20' : 'border-zinc-800 hover:border-cyan-400/40 hover:bg-zinc-900',
+      ].join(' ')}
     >
-      <div className="aspect-square bg-zinc-950 relative overflow-hidden">
-        {product.signed_image_url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={product.signed_image_url}
-            alt={product.name}
-            className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
-          />
-        ) : (
-          <div className="flex items-center justify-center h-full text-zinc-700">
-            <ImageIcon size={32} />
-          </div>
-        )}
-        <StatusBadge status={status} />
-      </div>
-      <div className="p-3">
-        <h3 className="text-sm font-medium text-zinc-100 truncate" title={product.name}>
-          {product.name}
-        </h3>
-        <p className="text-[11px] text-zinc-500 mt-0.5 truncate">
-          {product.category}{product.brand ? ` · ${product.brand}` : ''}
-        </p>
-      </div>
-    </Link>
+      <Link href={`/dashboard/creative/${product.id}`} className="block">
+        <div className="aspect-square bg-zinc-950 relative overflow-hidden">
+          {product.signed_image_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={product.signed_image_url}
+              alt={product.name}
+              className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
+            />
+          ) : (
+            <div className="flex items-center justify-center h-full text-zinc-700">
+              <ImageIcon size={32} />
+            </div>
+          )}
+          <StatusBadge status={status} />
+
+          {/* Checkbox de seleção — top-left. Click NÃO navega. */}
+          <button
+            type="button"
+            onClick={e => { e.preventDefault(); e.stopPropagation(); onToggleSelect() }}
+            aria-label={selected ? 'Desmarcar produto' : 'Selecionar produto'}
+            className={[
+              'absolute top-2 left-2 w-6 h-6 rounded-md border-2 flex items-center justify-center transition-all',
+              selected
+                ? 'bg-cyan-400 border-cyan-400 opacity-100'
+                : 'bg-zinc-950/70 border-zinc-600 opacity-0 group-hover:opacity-100 hover:border-cyan-400',
+            ].join(' ')}
+          >
+            {selected && (
+              <svg className="w-3.5 h-3.5 text-black" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3}>
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            )}
+          </button>
+        </div>
+        <div className="p-3">
+          <h3 className="text-sm font-medium text-zinc-100 truncate" title={product.name}>
+            {product.name}
+          </h3>
+          <p className="text-[11px] text-zinc-500 mt-0.5 truncate">
+            {product.category}{product.brand ? ` · ${product.brand}` : ''}
+          </p>
+        </div>
+      </Link>
+    </div>
   )
 }
 

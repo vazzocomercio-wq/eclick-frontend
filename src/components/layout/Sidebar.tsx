@@ -252,6 +252,7 @@ const SECTIONS: NavSection[] = [
       {
         label: 'IA Criativo', href: '/dashboard/creative', icon: <Wand2 size={15} />,
         children: [
+          { label: 'Produtos',     href: '/dashboard/creative' },
           { label: 'Templates',    href: '/dashboard/creative/templates' },
           { label: 'Referências',  href: '/dashboard/creative/references' },
           { label: 'Novo produto', href: '/dashboard/creative/new' },
