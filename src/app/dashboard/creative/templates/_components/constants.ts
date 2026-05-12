@@ -145,7 +145,10 @@ export const VARIABLE_EXAMPLES: Record<string, string> = {
   ambient_label:             'sala',
 }
 
-export const MAX_POSITIONS = 11
+/** Limite frontend de slots por template. Backend aceita até 50 mas mantemos
+ *  esse teto menor pra evitar UX de scroll infinito + custo descontrolado de
+ *  geração (cada slot = 1 imagem extra no job). Aumentar se necessário. */
+export const MAX_POSITIONS = 20
 
 export const ASPECT_RATIO_OPTIONS: Array<{ value: NonNullable<TemplatePosition['aspect_ratio']>; label: string }> = [
   { value: '1:1',  label: '1:1 (quadrado)' },
