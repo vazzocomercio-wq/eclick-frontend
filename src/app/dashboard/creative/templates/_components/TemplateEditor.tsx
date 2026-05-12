@@ -274,7 +274,13 @@ export default function TemplateEditor({ mode, templateId }: { mode: Mode; templ
 
       {/* Positions */}
       <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-4">
-        <PositionList positions={positions} onChange={setPositions} disabled={saving} />
+        <PositionList
+          positions={positions}
+          onChange={setPositions}
+          disabled={saving}
+          templateId={mode === 'edit' ? templateId : undefined}
+          templateName={name}
+        />
         {positionsWithoutPrompt > 0 && (
           <div className="mt-3 flex items-start gap-2 rounded-md bg-amber-500/10 border border-amber-500/20 px-3 py-2 text-xs text-amber-200">
             <AlertTriangle size={12} className="shrink-0 mt-0.5" />

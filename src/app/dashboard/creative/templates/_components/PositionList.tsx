@@ -34,10 +34,15 @@ export default function PositionList({
   positions,
   onChange,
   disabled,
+  templateId,
+  templateName,
 }: {
   positions: TemplatePosition[]
   onChange:  (next: TemplatePosition[]) => void
   disabled?: boolean
+  /** Quando passado, PositionCard mostra botão "Testar slot". */
+  templateId?:   string
+  templateName?: string
 }) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -135,6 +140,8 @@ export default function PositionList({
                   onDelete={() => removeOne(i)}
                   defaultExpanded={positions.length <= 3}
                   disabled={disabled}
+                  templateId={templateId}
+                  templateName={templateName}
                 />
               ))}
             </div>

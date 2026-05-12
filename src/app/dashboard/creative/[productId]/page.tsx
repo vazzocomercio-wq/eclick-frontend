@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Sparkles, Plus, Loader2, Image as ImageIcon, Check, RefreshCw, FileText, X, Wand2, AlertCircle, Film } from 'lucide-react'
+import { ArrowLeft, Sparkles, Plus, Loader2, Image as ImageIcon, Check, RefreshCw, FileText, X, Wand2, AlertCircle, Film, FileStack } from 'lucide-react'
 import ProductAnalysisCard from '@/components/creative/ProductAnalysisCard'
 import CanvaButton from '@/components/creative/CanvaButton'
 import CatalogLinkBanner from '@/components/creative/CatalogLinkBanner'
@@ -701,12 +701,30 @@ function CreateImageJobModal({
   const [maxCost, setMaxCost]       = useState(1.0)
   const [creating, setCreating]     = useState(false)
   const [error, setError]           = useState<string | null>(null)
+  const [matched, setMatched]       = useState<{ template_id: string; name: string; match_reason: string; positions_count: number } | null>(null)
 
   // Atualiza count quando user muda briefing (default = image_count do briefing)
   useEffect(() => {
     const b = briefings.find(x => x.id === briefingId)
     if (b) setCount(b.image_count)
   }, [briefingId, briefings])
+
+  // Match template do produto pra mostrar qual vai ser usado
+  useEffect(() => {
+    let cancelled = false
+    void CreativeApi.matchTemplateForProduct(product.id)
+      .then(m => {
+        if (cancelled || !m?.template) return
+        setMatched({
+          template_id:     m.template.id,
+          name:            m.template.name,
+          match_reason:    m.match_reason,
+          positions_count: m.template.positions?.length ?? 0,
+        })
+      })
+      .catch(() => { /* sem template — caí no fallback LLM */ })
+    return () => { cancelled = true }
+  }, [product.id])
 
   async function submit() {
     if (!briefingId) { setError('Selecione um briefing.'); return }
@@ -747,6 +765,42 @@ function CreateImageJobModal({
             A IA gera {count} prompts coerentes (hero, lifestyle, close-up, etc.) e
             usa a imagem do produto como referência pra gerar cada uma.
           </p>
+
+          {/* Template ativo */}
+          {matched ? (
+            <div className="rounded-lg border border-cyan-400/30 bg-cyan-400/5 p-2.5 flex items-center justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  <FileStack size={11} className="text-cyan-300 shrink-0" />
+                  <span className="text-[10px] uppercase tracking-wider text-cyan-300">Template ativo</span>
+                  <span className="text-[9px] text-zinc-500 ml-auto">{matched.match_reason}</span>
+                </div>
+                <p className="text-xs text-zinc-200 truncate">{matched.name}</p>
+                <p className="text-[10px] text-zinc-500">{matched.positions_count} posições configuradas</p>
+              </div>
+              <a
+                href={`/dashboard/creative/templates/${matched.template_id}`}
+                target="_blank"
+                rel="noreferrer"
+                className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-md bg-zinc-900 border border-zinc-800 hover:border-cyan-400/60 text-cyan-300 text-[10px] transition-colors"
+              >
+                Editar template
+              </a>
+            </div>
+          ) : (
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-2.5">
+              <div className="flex items-start gap-2">
+                <AlertCircle size={12} className="text-amber-300 shrink-0 mt-0.5" />
+                <div className="text-[11px] text-amber-200">
+                  Sem template configurado — IA vai gerar prompts via Claude Sonnet (fallback).{' '}
+                  <a href="/dashboard/creative/templates/new" target="_blank" rel="noreferrer" className="text-cyan-300 underline">
+                    Crie um template
+                  </a>{' '}
+                  pra ter controle do estilo.
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Briefing selector */}
           <div>

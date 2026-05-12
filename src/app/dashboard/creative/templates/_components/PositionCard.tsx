@@ -6,21 +6,29 @@
  * Features:
  *   - Drag handle (lucide GripVertical) — listener vem do useSortable do parent
  *   - Header colapsível: "Posição N — Nome" + warning badge se prompt vazio
+ *   - Botão "Testar slot" no header → SlotTestModal (gera 1 imagem isolada)
  *   - Expand mostra: nome, aspect_ratio, ambient_hint, textarea prompt + chips,
- *     negative_prompt, toggles use_product/use_logo, ReferenceSelector,
- *     ReferenceMatchConfig accordion, delete button
+ *     negative_prompt, toggles use_product/use_logo, SlotReferencesPanel inline
+ *     (grid + drop-zone upload + gallery picker), ReferenceMatchConfig accordion,
+ *     delete button.
+ *
+ * Refatorado (F6): substituiu ReferenceSelector modal-only pelo SlotReferencesPanel
+ * inline. Sub-task pendente do template editor.
  */
 
 import { useRef, useState } from 'react'
-import { ChevronDown, ChevronUp, GripVertical, Trash2, AlertTriangle } from 'lucide-react'
+import { ChevronDown, ChevronUp, GripVertical, Trash2, AlertTriangle, Play } from 'lucide-react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { TemplatePosition, AspectRatio } from '@/components/creative/types'
 import { useConfirm } from '@/components/ui/dialog-provider'
 import VariablesChips from './VariablesChips'
-import ReferenceSelector from './ReferenceSelector'
+import SlotReferencesPanel from './SlotReferencesPanel'
+import SlotTestModal from './SlotTestModal'
 import ReferenceMatchConfig from './ReferenceMatchConfig'
 import { ASPECT_RATIO_OPTIONS } from './constants'
+
+const PROMPT_SOFT_LIMIT = 900
 
 export default function PositionCard({
   position,
@@ -28,14 +36,20 @@ export default function PositionCard({
   onDelete,
   defaultExpanded = false,
   disabled,
+  templateId,
+  templateName,
 }: {
   position:          TemplatePosition
   onChange:          (next: TemplatePosition) => void
   onDelete:          () => void
   defaultExpanded?:  boolean
   disabled?:         boolean
+  /** Necessário pra botão "Testar slot" — só aparece se passado. */
+  templateId?:       string
+  templateName?:     string
 }) {
   const [expanded, setExpanded] = useState(defaultExpanded)
+  const [testOpen, setTestOpen] = useState(false)
   const promptRef   = useRef<HTMLTextAreaElement | null>(null)
   const negativeRef = useRef<HTMLTextAreaElement | null>(null)
   const confirmDialog = useConfirm()
@@ -50,6 +64,8 @@ export default function PositionCard({
   const set = (patch: Partial<TemplatePosition>) => onChange({ ...position, ...patch })
 
   const hasPrompt = position.prompt_template.trim().length > 0
+  const promptLen = position.prompt_template.length
+  const overPromptLimit = promptLen > PROMPT_SOFT_LIMIT
 
   const insertAtCursor = (targetRef: React.RefObject<HTMLTextAreaElement | null>, field: 'prompt_template' | 'negative_prompt') => (token: string) => {
     const ta = targetRef.current
@@ -60,7 +76,6 @@ export default function PositionCard({
     const after  = ta.value.slice(end)
     const next   = before + token + after
     set({ [field]: next } as Partial<TemplatePosition>)
-    // Reposiciona cursor após o token inserido (próximo tick pra DOM atualizar)
     requestAnimationFrame(() => {
       ta.focus()
       const pos = start + token.length
@@ -90,7 +105,7 @@ export default function PositionCard({
         <button
           type="button"
           onClick={() => setExpanded(e => !e)}
-          className="flex-1 flex items-center gap-2 text-left"
+          className="flex-1 flex items-center gap-2 text-left min-w-0"
         >
           <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700">
             #{position.position}
@@ -103,10 +118,27 @@ export default function PositionCard({
               <AlertTriangle size={9} /> sem prompt
             </span>
           )}
+          {position.use_reference_ids.length > 0 && (
+            <span className="text-[10px] text-cyan-300 bg-cyan-400/10 px-1.5 py-0.5 rounded border border-cyan-400/30">
+              {position.use_reference_ids.length} refs
+            </span>
+          )}
           <span className="ml-auto text-zinc-500">
             {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
           </span>
         </button>
+
+        {templateId && hasPrompt && (
+          <button
+            type="button"
+            onClick={() => setTestOpen(true)}
+            disabled={disabled}
+            className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-cyan-400/10 border border-cyan-400/30 hover:bg-cyan-400/20 text-cyan-300 text-[10px] transition-colors disabled:opacity-40"
+            title="Gera 1 imagem de teste deste slot"
+          >
+            <Play size={10} /> Testar
+          </button>
+        )}
 
         <button
           type="button"
@@ -154,14 +186,23 @@ export default function PositionCard({
 
           {/* Prompt template */}
           <div>
-            <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1">Prompt template *</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-[10px] uppercase tracking-wider text-zinc-500">Prompt template *</label>
+              <span className={[
+                'text-[9px] font-mono',
+                overPromptLimit ? 'text-amber-300' : 'text-zinc-600',
+              ].join(' ')}>
+                {promptLen}/{PROMPT_SOFT_LIMIT}
+                {overPromptLimit && ' · longo pode competir com refs'}
+              </span>
+            </div>
             <textarea
               ref={promptRef}
               value={position.prompt_template}
               onChange={e => set({ prompt_template: e.target.value })}
               disabled={disabled}
-              rows={4}
-              placeholder="Fotografia profissional de {product_name}..."
+              rows={5}
+              placeholder="Diretrizes essenciais — refs visuais carregam o estilo. Ex: Sala de estar premium brasileira, produto aceso luz quente, logo VAZZO canto superior esquerdo. {product_name} sempre em destaque."
               className="w-full bg-zinc-950 border border-zinc-800 rounded-md px-2.5 py-2 text-xs text-zinc-100 outline-none focus:border-cyan-400 placeholder:text-zinc-600 resize-y font-mono"
             />
             <div className="mt-1.5">
@@ -202,17 +243,16 @@ export default function PositionCard({
             />
           </div>
 
-          {/* Refs fixas */}
-          <div>
-            <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">References fixas</label>
-            <ReferenceSelector
-              value={position.use_reference_ids}
-              onChange={v => set({ use_reference_ids: v })}
-              disabled={disabled}
-            />
-          </div>
+          {/* Refs visuais (inline grid + upload + gallery) */}
+          <SlotReferencesPanel
+            positionNumber={position.position}
+            positionName={position.name}
+            value={position.use_reference_ids}
+            onChange={v => set({ use_reference_ids: v })}
+            disabled={disabled}
+          />
 
-          {/* Match dinâmico */}
+          {/* Match dinâmico (fallback quando refs fixas vazias) */}
           <ReferenceMatchConfig
             value={position.reference_match}
             onChange={v => set({ reference_match: v })}
@@ -220,6 +260,16 @@ export default function PositionCard({
             disabled={disabled}
           />
         </div>
+      )}
+
+      {testOpen && templateId && (
+        <SlotTestModal
+          templateId={templateId}
+          templateName={templateName ?? ''}
+          positionNumber={position.position}
+          positionName={position.name || `Posição ${position.position}`}
+          onClose={() => setTestOpen(false)}
+        />
       )}
     </div>
   )

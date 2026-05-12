@@ -528,6 +528,31 @@ export const CreativeApi = {
       method: 'POST', body: JSON.stringify(body),
     }),
 
+  /**
+   * POST /creative/prompt-templates/:id/positions/:position/test
+   * Gera UMA imagem isolada pra essa position. Não persiste em creative_images.
+   * Usado pelo editor de template ("Testar slot") pra iterar visual rápido.
+   */
+  testPromptTemplatePosition: (
+    id:       string,
+    position: number,
+    body:     { product_id: string; briefing_id?: string },
+  ) =>
+    api<{
+      test_image_url:   string
+      test_image_path:  string
+      prompt_text:      string
+      references_used:  Array<{ name: string; signed_url: string; source: string }>
+      cost_usd:         number
+      latency_ms:       number
+      provider:         string
+      model:            string
+      fallback_used:    boolean
+      warnings:         string[]
+    }>(`/creative/prompt-templates/${id}/positions/${position}/test`, {
+      method: 'POST', body: JSON.stringify(body),
+    }),
+
   // ── F6 Sprint 2: References (preview já consome via signed_url do response) ─
 
   /** GET /creative/references — galeria + selector. */
