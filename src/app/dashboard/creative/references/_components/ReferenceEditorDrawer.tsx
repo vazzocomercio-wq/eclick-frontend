@@ -15,7 +15,21 @@ import type { CreativeReference } from '@/components/creative/types'
 import { useConfirm } from '@/components/ui/dialog-provider'
 
 const PRODUCT_TYPES = ['', 'lustre', 'pendente', 'abajur', 'plafon', 'spot', 'arandela', 'outro']
-const AMBIENTS = ['', 'sala', 'quarto', 'cozinha', 'banheiro', 'gourmet', 'escritorio', 'externa', 'estudio', 'neutro']
+const AMBIENTS: Array<{ value: string; label: string }> = [
+  { value: '',            label: '— sem ambiente —' },
+  { value: 'sala',        label: 'Sala' },
+  { value: 'sala_estar',  label: 'Sala de estar' },
+  { value: 'sala_jantar', label: 'Sala de jantar' },
+  { value: 'quarto',      label: 'Quarto' },
+  { value: 'cozinha',     label: 'Cozinha' },
+  { value: 'banheiro',    label: 'Banheiro' },
+  { value: 'gourmet',     label: 'Gourmet' },
+  { value: 'varanda',     label: 'Varanda' },
+  { value: 'escritorio',  label: 'Escritório' },
+  { value: 'externa',     label: 'Externa' },
+  { value: 'estudio',     label: 'Estúdio' },
+  { value: 'neutro',      label: 'Neutro' },
+]
 const POSITIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
 
 export default function ReferenceEditorDrawer({
@@ -292,7 +306,7 @@ export default function ReferenceEditorDrawer({
                 className="w-full px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-sm text-zinc-200 outline-none focus:border-cyan-400 disabled:opacity-50"
               >
                 {AMBIENTS.map(a => (
-                  <option key={a} value={a}>{a || '— sem ambiente —'}</option>
+                  <option key={a.value} value={a.value}>{a.label}</option>
                 ))}
               </select>
             </Field>

@@ -38,7 +38,20 @@ export const EMPTY_FILTERS: FilterState = {
 }
 
 const PRODUCT_TYPES = ['lustre', 'pendente', 'abajur', 'plafon', 'spot', 'arandela', 'outro']
-const AMBIENTS = ['sala', 'quarto', 'cozinha', 'banheiro', 'gourmet', 'escritorio', 'externa', 'estudio', 'neutro']
+const AMBIENTS: Array<{ value: string; label: string }> = [
+  { value: 'sala',        label: 'Sala' },
+  { value: 'sala_estar',  label: 'Sala de estar' },
+  { value: 'sala_jantar', label: 'Sala de jantar' },
+  { value: 'quarto',      label: 'Quarto' },
+  { value: 'cozinha',     label: 'Cozinha' },
+  { value: 'banheiro',    label: 'Banheiro' },
+  { value: 'gourmet',     label: 'Gourmet' },
+  { value: 'varanda',     label: 'Varanda' },
+  { value: 'escritorio',  label: 'Escritório' },
+  { value: 'externa',     label: 'Externa' },
+  { value: 'estudio',     label: 'Estúdio' },
+  { value: 'neutro',      label: 'Neutro' },
+]
 
 export default function ReferenceFilters({
   value, onChange, totalCount, activeCount, inactiveCount,
@@ -116,7 +129,7 @@ export default function ReferenceFilters({
           className="px-2 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-xs text-zinc-200 outline-none focus:border-cyan-400"
         >
           <option value="">Ambiente: todos</option>
-          {AMBIENTS.map(a => <option key={a} value={a}>{a}</option>)}
+          {AMBIENTS.map(a => <option key={a.value} value={a.value}>{a.label}</option>)}
         </select>
 
         <label className="flex items-center gap-2 px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-800 cursor-pointer text-xs text-zinc-300">

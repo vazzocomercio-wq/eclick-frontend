@@ -149,7 +149,7 @@ export default function PositionCard({
                 ))}
               </select>
             </div>
-            <Field label="Ambient hint" value={position.ambient_hint ?? ''} onChange={v => set({ ambient_hint: v || undefined })} placeholder="sala, quarto, cozinha…" disabled={disabled} />
+            <Field label="Ambient hint" value={position.ambient_hint ?? ''} onChange={v => set({ ambient_hint: v || undefined })} placeholder="sala de estar, varanda, cozinha…" disabled={disabled} />
           </div>
 
           {/* Prompt template */}
