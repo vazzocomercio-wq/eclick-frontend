@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Plus, X, Save, Loader2, AlertCircle, RefreshCw, ExternalLink, CheckCircle2 } from 'lucide-react'
 import type { CreativeListing } from './types'
 import { CreativeApi } from './api'
+import MlAttributesEditor from './MlAttributesEditor'
 
 interface Props {
   listing:  CreativeListing
@@ -136,9 +137,9 @@ export default function ListingEditor({ listing, onSaved, disabled }: Props) {
         disabled={disabled}
       />
 
-      {/* Technical sheet */}
-      <KeyValueEditor
-        label="Ficha técnica"
+      {/* Technical sheet — ML-aware quando há categoria, fallback livre se não */}
+      <MlAttributesEditor
+        categoryMlId={listing.category_ml_id}
         items={state.technical_sheet}
         onChange={v => update('technical_sheet', v)}
         disabled={disabled}
