@@ -24,7 +24,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronDown, Plus, X, Edit3, Trash2, Loader2, Check, EyeOff, RotateCcw } from 'lucide-react'
+import { ChevronDown, Plus, X, Edit3, Trash2, Loader2, Check, RotateCcw } from 'lucide-react'
 import { CreativeApi } from '@/components/creative/api'
 import type { TaxonomyKind, TaxonomyOption } from '@/components/creative/types'
 import { useConfirm, useAlert } from '@/components/ui/dialog-provider'
@@ -199,19 +199,21 @@ export default function TaxonomySelect({
     }
   }
 
-  // ── Delete / Hide ─────────────────────────────────────────────────────
+  // ── Delete ────────────────────────────────────────────────────────────
   //
-  // - Custom da org (org_id preenchido, !is_default) → DELETE real
-  // - Default global (org_id=null, is_default=true) → HIDE (soft, reversível)
+  // - Default da plataforma → soft-delete (hide) reversível
+  // - Custom da org → DELETE real
+  //
+  // UI usa a palavra "Apagar" pros dois — funcionalmente são iguais pro user.
 
   const handleDelete = async (opt: TaxonomyOption) => {
     if (opt.is_default) {
-      // Hide (reversível)
+      // Soft-delete (hide) — texto "Apagar"
       const ok = await confirmDialog({
-        title:        'Ocultar opção',
-        message:      `Ocultar "${opt.label}" da sua organização? Não vai ser apagada do sistema — você pode reativar depois ativando "Mostrar ocultas".`,
-        confirmLabel: 'Ocultar',
-        variant:      'warning',
+        title:        'Apagar opção',
+        message:      `Apagar "${opt.label}" da sua organização? Você pode recuperar depois ativando "Mostrar apagadas" no rodapé.`,
+        confirmLabel: 'Apagar',
+        variant:      'danger',
       })
       if (!ok) return
       setBusyId(opt.id)
@@ -221,7 +223,7 @@ export default function TaxonomySelect({
         if (value === opt.value) onChange('')
       } catch (e) {
         await alertDialog({
-          title:   'Falha ao ocultar',
+          title:   'Falha ao apagar',
           message: (e as Error).message,
           variant: 'danger',
         })
@@ -233,7 +235,7 @@ export default function TaxonomySelect({
     // Custom da org → DELETE real
     const ok = await confirmDialog({
       title:        'Apagar opção',
-      message:      `Apagar "${opt.label}"? References cadastradas com esse valor não serão apagadas, mas o campo ficará órfão.`,
+      message:      `Apagar "${opt.label}"? Esta ação não pode ser desfeita. References já cadastradas com esse valor não serão apagadas, mas o campo ficará órfão.`,
       confirmLabel: 'Apagar',
       variant:      'danger',
     })
@@ -377,7 +379,7 @@ export default function TaxonomySelect({
                     onChange={e => setShowHidden(e.target.checked)}
                     className="accent-cyan-400"
                   />
-                  Mostrar ocultas
+                  Mostrar apagadas
                 </label>
               </>
             )}
@@ -431,7 +433,7 @@ function OptionRow({
         )}
         {isHidden && (
           <span className="text-[9px] font-medium px-1 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/30 shrink-0">
-            oculta
+            apagada
           </span>
         )}
       </button>
@@ -450,28 +452,22 @@ function OptionRow({
           </button>
         ) : (
           <>
-            {!opt.is_default && (
-              <button
-                type="button"
-                onClick={e => { e.stopPropagation(); onEdit() }}
-                className="p-1 rounded text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 opacity-0 group-hover:opacity-100 transition-all"
-                title="Editar"
-              >
-                <Edit3 size={10} />
-              </button>
-            )}
+            {/* Edit funciona em defaults também (backend faz clone-on-modify silencioso) */}
+            <button
+              type="button"
+              onClick={e => { e.stopPropagation(); onEdit() }}
+              className="p-1 rounded text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 opacity-0 group-hover:opacity-100 transition-all"
+              title="Editar"
+            >
+              <Edit3 size={10} />
+            </button>
             <button
               type="button"
               onClick={e => { e.stopPropagation(); onDelete() }}
-              className={[
-                'p-1 rounded opacity-0 group-hover:opacity-100 transition-all',
-                opt.is_default
-                  ? 'text-zinc-500 hover:text-amber-300 hover:bg-amber-500/10'
-                  : 'text-zinc-500 hover:text-red-300 hover:bg-red-500/10',
-              ].join(' ')}
-              title={opt.is_default ? 'Ocultar (reversível)' : 'Apagar'}
+              className="p-1 rounded text-zinc-500 hover:text-red-300 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-all"
+              title="Apagar"
             >
-              {opt.is_default ? <EyeOff size={10} /> : <Trash2 size={10} />}
+              <Trash2 size={10} />
             </button>
           </>
         )}
