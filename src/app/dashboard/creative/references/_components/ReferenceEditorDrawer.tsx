@@ -32,6 +32,7 @@ const AMBIENTS: Array<{ value: string; label: string }> = [
   { value: 'capa',                   label: 'Capa' },
   { value: 'embalagem',              label: 'Embalagem' },
   { value: 'caracteristicas_medidas', label: 'Características / medidas' },
+  { value: 'detalhes',               label: 'Detalhes' },
 ]
 const POSITIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
 

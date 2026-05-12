@@ -54,6 +54,7 @@ const AMBIENTS: Array<{ value: string; label: string }> = [
   { value: 'capa',                   label: 'Capa' },
   { value: 'embalagem',              label: 'Embalagem' },
   { value: 'caracteristicas_medidas', label: 'Características / medidas' },
+  { value: 'detalhes',               label: 'Detalhes' },
 ]
 
 export default function ReferenceFilters({
