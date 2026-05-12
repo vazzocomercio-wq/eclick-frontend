@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Plus, X, Save, Loader2, AlertCircle } from 'lucide-react'
+import { Plus, X, Save, Loader2, AlertCircle, RefreshCw, ExternalLink, CheckCircle2 } from 'lucide-react'
 import type { CreativeListing } from './types'
 import { CreativeApi } from './api'
 
@@ -171,6 +171,9 @@ export default function ListingEditor({ listing, onSaved, disabled }: Props) {
         disabled={disabled}
         placeholder="Categoria sugerida pelo marketplace"
       />
+
+      {/* Sub-sprint A: Categoria ML real (MLB...) com badge linkável + refresh */}
+      <MlCategoryBadge listing={listing} onUpdated={onSaved} disabled={disabled} />
 
       {/* FAQ */}
       <FaqEditor
@@ -442,6 +445,100 @@ function FaqEditor({
           </button>
         )}
       </div>
+    </div>
+  )
+}
+
+
+// ── Sub-sprint A: MlCategoryBadge ─────────────────────────────────────────────
+//
+// Mostra a categoria ML real (MLB189195) que veio do predict_category do ML.
+// Permite refresh quando user edita o título. Link direto pra categoria no ML.
+// Estado:
+//   - sem category_ml_id → banner amber sugerindo rodar refresh
+//   - com category_ml_id → chip cyan com ID + nome + link externo + botão refresh
+
+function MlCategoryBadge({
+  listing, onUpdated, disabled,
+}: {
+  listing:   CreativeListing
+  onUpdated: (next: CreativeListing) => void
+  disabled?: boolean
+}) {
+  const [refreshing, setRefreshing] = useState(false)
+  const [error, setError]           = useState<string | null>(null)
+  const categoryId = listing.category_ml_id
+  const nAttrs     = listing.attributes_ml_suggested?.length ?? 0
+
+  const handleRefresh = async () => {
+    setRefreshing(true)
+    setError(null)
+    try {
+      const updated = await CreativeApi.refreshMlCategory(listing.id)
+      onUpdated(updated)
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setRefreshing(false)
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-500">
+        Categoria Mercado Livre <span className="text-[9px] text-zinc-600 normal-case font-medium">(usada no anúncio)</span>
+      </label>
+
+      {categoryId ? (
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-cyan-400/10 text-cyan-300 border border-cyan-400/30 text-xs font-medium">
+            <CheckCircle2 size={11} />
+            {categoryId}
+            <a
+              href={`https://www.mercadolivre.com.br/categorias#menu=categories&filterCategoryId=${categoryId}`}
+              target="_blank"
+              rel="noopener"
+              className="opacity-70 hover:opacity-100"
+              title="Ver categoria no ML"
+            >
+              <ExternalLink size={10} />
+            </a>
+          </span>
+          {nAttrs > 0 && (
+            <span className="text-[10px] text-zinc-500">
+              {nAttrs} atributo{nAttrs === 1 ? '' : 's'} sugerido{nAttrs === 1 ? '' : 's'}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={handleRefresh}
+            disabled={disabled || refreshing}
+            className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors disabled:opacity-50"
+            title="Re-detectar categoria com base no título atual"
+          >
+            {refreshing ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />}
+            Atualizar
+          </button>
+        </div>
+      ) : (
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-500/10 text-amber-300 border border-amber-500/30 text-xs">
+            <AlertCircle size={11} />
+            Sem categoria ML detectada
+          </span>
+          <button
+            type="button"
+            onClick={handleRefresh}
+            disabled={disabled || refreshing}
+            className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] text-cyan-300 hover:text-cyan-200 hover:bg-cyan-400/10 transition-colors disabled:opacity-50"
+          >
+            {refreshing ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />}
+            Detectar agora
+          </button>
+        </div>
+      )}
+
+      {error && <p className="text-[10px] text-red-300">{error}</p>}
     </div>
   )
 }

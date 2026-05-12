@@ -281,6 +281,22 @@ export const CreativeApi = {
   approveListing: (id: string) =>
     api<CreativeListing>(`/creative/listings/${id}/approve`, { method: 'POST' }),
 
+  /** Sub-sprint A: força re-predict da categoria ML (quando user edita título). */
+  refreshMlCategory: (listingId: string) =>
+    api<CreativeListing>(`/creative/listings/${listingId}/refresh-ml-category`, { method: 'POST' }),
+
+  /** Sub-sprint B (prep): attributes ML formatados pra montar ficha técnica. */
+  getMlCategoryAttributesDetail: (categoryId: string) =>
+    api<Array<{
+      id:                string
+      name:              string
+      value_type:        string
+      required:          boolean
+      value_max_length?: number
+      values?:           Array<{ id: string; name: string }>
+      hint?:             string
+    }>>(`/creative/ml/categories/${encodeURIComponent(categoryId)}/attributes-detail`),
+
   createVariant: (id: string, target: Marketplace) =>
     api<CreativeListing>(`/creative/listings/${id}/variant`, {
       method: 'POST', body: JSON.stringify({ target_marketplace: target }),

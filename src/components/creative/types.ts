@@ -93,6 +93,10 @@ export interface CreativeListing {
   keywords:                 string[]
   search_tags:              string[]
   suggested_category:       string | null
+  /** Sub-sprint A: categoria ML real (MLB...) sugerida pelo predict_category. */
+  category_ml_id:           string | null
+  /** Sub-sprint A: attributes sugeridos pelo predict_category. Base pra ficha técnica ML. */
+  attributes_ml_suggested:  Array<{ id: string; name: string; value_id?: string; value_name?: string }>
   faq:                      Array<{ q: string; a: string }>
   commercial_differentials: string[]
   marketplace_variants:     Record<string, { title: string; description: string; bullets: string[] }>
