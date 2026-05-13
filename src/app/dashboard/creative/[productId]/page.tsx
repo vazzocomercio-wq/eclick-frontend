@@ -472,7 +472,7 @@ function CreateVideoJobModal({
   const [count, setCount]                 = useState(3)
   const [duration, setDuration]           = useState<VideoDuration>(5)
   const [aspect, setAspect]               = useState<VideoAspectRatio>('1:1')
-  const [model, setModel]                 = useState<KlingModel>('kling-v2-master')
+  const [model, setModel]                 = useState<KlingModel>('kling-v2-6')
   const [maxCost, setMaxCost]             = useState(5.0)
   const [creating, setCreating]           = useState(false)
   const [error, setError]                 = useState<string | null>(null)
