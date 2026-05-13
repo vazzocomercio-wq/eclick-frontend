@@ -55,24 +55,26 @@ export default function GenerateVideoModal({
   const [duration, setDuration]           = useState<number>(15)
   const [motion, setMotion]               = useState<typeof MOTIONS[number]['value']>('dolly-in')
   const [aspect, setAspect]               = useState<'1:1' | '16:9' | '9:16'>(defaultAspect)
-  // Auto-detect a partir da imagem-base — Kling herda aspect da source image
-  const [lockedAspect, setLockedAspect]   = useState<'1:1' | '16:9' | '9:16' | null>(null)
+  // Aspect detectado da imagem-base — backend faz center-crop quando aspect
+  // do vídeo difere. Não travamos, só pré-selecionamos + avisamos.
+  const [detectedAspect, setDetectedAspect] = useState<'1:1' | '16:9' | '9:16' | null>(null)
   const [submitting, setSubmitting]       = useState(false)
   const [error, setError]                 = useState<string | null>(null)
 
-  // Detecta aspect da imagem-base e trava o seletor
+  // Detecta aspect da imagem-base e pré-seleciona quando user ainda não interagiu
   useEffect(() => {
     if (!imageUrl) return
     let cancelled = false
     void detectImageAspect(imageUrl)
       .then(detected => {
         if (cancelled) return
-        setLockedAspect(detected)
-        setAspect(detected)
+        setDetectedAspect(detected)
+        // Pré-seleciona aspect da imagem só se ainda for o default (= não tocou no seletor)
+        setAspect(prev => prev === defaultAspect ? detected : prev)
       })
       .catch(() => { /* fallback silencioso pro defaultAspect */ })
     return () => { cancelled = true }
-  }, [imageUrl])
+  }, [imageUrl, defaultAspect])
 
   useEffect(() => {
     setLoadingModels(true)
@@ -149,38 +151,41 @@ export default function GenerateVideoModal({
             </div>
           </Field>
 
-          {/* Aspect ratio — travado pelo aspect da imagem-base quando detectado */}
+          {/* Aspect ratio — backend recorta a imagem se aspect difere do detectado */}
           <Field icon={<Film size={11} />} label="Formato">
             <div className="grid grid-cols-3 gap-1.5">
-              {ASPECTS.map(a => {
-                const disabled = lockedAspect !== null && lockedAspect !== a.value
-                return (
-                  <button
-                    key={a.value}
-                    type="button"
-                    onClick={() => { if (!disabled) setAspect(a.value) }}
-                    disabled={disabled}
-                    title={disabled ? 'Travado pelo aspect da imagem-base — providers herdam a proporção' : undefined}
-                    className={[
-                      'rounded-md px-2 py-1.5 text-left transition-colors',
-                      aspect === a.value
-                        ? 'bg-cyan-400 text-black'
-                        : disabled
-                          ? 'bg-zinc-950 text-zinc-700 border border-zinc-900 cursor-not-allowed'
-                          : 'bg-zinc-900 text-zinc-300 border border-zinc-800 hover:border-zinc-700',
-                    ].join(' ')}
-                  >
-                    <div className="text-xs font-semibold">{a.label}</div>
-                    <div className={['text-[9px]', aspect === a.value ? 'text-black/60' : 'text-zinc-500'].join(' ')}>{a.hint}</div>
-                  </button>
-                )
-              })}
+              {ASPECTS.map(a => (
+                <button
+                  key={a.value}
+                  type="button"
+                  onClick={() => setAspect(a.value)}
+                  className={[
+                    'rounded-md px-2 py-1.5 text-left transition-colors',
+                    aspect === a.value
+                      ? 'bg-cyan-400 text-black'
+                      : 'bg-zinc-900 text-zinc-300 border border-zinc-800 hover:border-zinc-700',
+                  ].join(' ')}
+                >
+                  <div className="text-xs font-semibold">{a.label}</div>
+                  <div className={['text-[9px]', aspect === a.value ? 'text-black/60' : 'text-zinc-500'].join(' ')}>{a.hint}</div>
+                </button>
+              ))}
             </div>
-            {lockedAspect && (
-              <p className="mt-1.5 text-[10px] text-cyan-300/80 flex items-start gap-1">
-                <AlertCircle size={10} className="shrink-0 mt-0.5" />
-                <span>Aspect <strong>{lockedAspect}</strong> detectado na imagem-base — travado pra evitar letterbox.</span>
-              </p>
+            {detectedAspect && (
+              detectedAspect === aspect ? (
+                <p className="mt-1.5 text-[10px] text-emerald-300/80 flex items-start gap-1">
+                  <AlertCircle size={10} className="shrink-0 mt-0.5" />
+                  <span>Imagem é <strong>{detectedAspect}</strong> — match perfeito, sem corte.</span>
+                </p>
+              ) : (
+                <p className="mt-1.5 text-[10px] text-amber-300/80 flex items-start gap-1">
+                  <AlertCircle size={10} className="shrink-0 mt-0.5" />
+                  <span>
+                    Imagem é <strong>{detectedAspect}</strong> e vídeo será <strong>{aspect}</strong> —
+                    {' '}o sistema recorta o centro da cena automaticamente.
+                  </span>
+                </p>
+              )
             )}
           </Field>
 

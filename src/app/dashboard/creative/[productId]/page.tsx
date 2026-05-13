@@ -472,9 +472,9 @@ function CreateVideoJobModal({
   const [count, setCount]                 = useState(3)
   const [duration, setDuration]           = useState<VideoDuration>(5)
   const [aspect, setAspect]               = useState<VideoAspectRatio>('1:1')
-  // Aspect detectado da imagem-base — quando presente, trava o seletor pra
-  // garantir match (Kling herda aspect da source image em image2video).
-  const [lockedAspect, setLockedAspect]   = useState<VideoAspectRatio | null>(null)
+  // Aspect detectado da imagem-base. Backend faz center-crop quando aspect
+  // do vídeo difere — então não travamos mais a escolha, só avisamos.
+  const [detectedAspect, setDetectedAspect] = useState<VideoAspectRatio | null>(null)
   const [model, setModel]                 = useState<KlingModel>('kling-v2-6')
   const [maxCost, setMaxCost]             = useState(5.0)
   const [creating, setCreating]           = useState(false)
@@ -493,21 +493,24 @@ function CreateVideoJobModal({
     return () => { cancelled = true }
   }, [product.id])
 
-  // Auto-detecta aspect da imagem-base selecionada (main_image OU geradas)
-  // e trava o seletor de proporção pra evitar mismatch com Kling.
+  // Auto-detecta aspect da imagem-base e pré-seleciona aspect que casa
+  // (sem cortes). Usuário pode override pra outro aspect → backend faz
+  // center-crop antes de submeter pro Kling/Veo.
   useEffect(() => {
     let cancelled = false
     const url = sourceImageId
       ? availableImages.find(i => i.id === sourceImageId)?.signed_image_url ?? null
       : product.signed_image_url ?? null
-    if (!url) { setLockedAspect(null); return }
+    if (!url) { setDetectedAspect(null); return }
     void detectImageAspect(url)
       .then(detected => {
         if (cancelled) return
-        setLockedAspect(detected)
-        setAspect(detected)
+        setDetectedAspect(detected)
+        // Só pré-seleciona se user ainda não interagiu (aspect = '1:1' default)
+        // Heurística simples: se aspect ainda é o default '1:1' e detected é diferente, ajusta.
+        setAspect(prev => prev === '1:1' && detected !== '1:1' ? detected : prev)
       })
-      .catch(() => { if (!cancelled) setLockedAspect(null) })
+      .catch(() => { if (!cancelled) setDetectedAspect(null) })
     return () => { cancelled = true }
   }, [sourceImageId, availableImages, product.signed_image_url])
 
@@ -622,38 +625,33 @@ function CreateVideoJobModal({
           <div>
             <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">Proporção</label>
             <div className="grid grid-cols-3 gap-1.5">
-              {VIDEO_ASPECT_OPTIONS.map(o => {
-                const disabled = lockedAspect !== null && lockedAspect !== o.value
-                return (
-                  <button
-                    key={o.value}
-                    type="button"
-                    onClick={() => { if (!disabled) setAspect(o.value) }}
-                    disabled={disabled}
-                    title={disabled ? 'Travado pelo aspect da imagem-base — Kling herda a proporção' : undefined}
-                    className={[
-                      'flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-[11px] transition-all',
-                      aspect === o.value
-                        ? 'bg-cyan-400 text-black font-semibold'
-                        : disabled
-                          ? 'bg-zinc-950 text-zinc-700 border border-zinc-900 cursor-not-allowed'
-                          : 'bg-zinc-900 text-zinc-400 border border-zinc-800',
-                    ].join(' ')}>
-                    <span>{o.emoji}</span><span>{o.value}</span>
-                  </button>
-                )
-              })}
+              {VIDEO_ASPECT_OPTIONS.map(o => (
+                <button key={o.value} type="button" onClick={() => setAspect(o.value)}
+                  className={[
+                    'flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-[11px] transition-all',
+                    aspect === o.value
+                      ? 'bg-cyan-400 text-black font-semibold'
+                      : 'bg-zinc-900 text-zinc-400 border border-zinc-800',
+                  ].join(' ')}>
+                  <span>{o.emoji}</span><span>{o.value}</span>
+                </button>
+              ))}
             </div>
-            {lockedAspect ? (
-              <p className="mt-1.5 text-[10px] text-cyan-300/80 flex items-start gap-1">
-                <AlertCircle size={10} className="shrink-0 mt-0.5" />
-                <span>Aspect <strong>{lockedAspect}</strong> detectado na imagem-base e travado — Kling vai herdar essa proporção.</span>
-              </p>
-            ) : (
-              <p className="mt-1.5 text-[10px] text-zinc-500 flex items-start gap-1">
-                <AlertCircle size={10} className="shrink-0 mt-0.5" />
-                <span>Detectando aspect da imagem-base…</span>
-              </p>
+            {detectedAspect && (
+              detectedAspect === aspect ? (
+                <p className="mt-1.5 text-[10px] text-emerald-300/80 flex items-start gap-1">
+                  <Check size={10} className="shrink-0 mt-0.5" />
+                  <span>Imagem-base é <strong>{detectedAspect}</strong> — match perfeito, sem corte.</span>
+                </p>
+              ) : (
+                <p className="mt-1.5 text-[10px] text-amber-300/80 flex items-start gap-1">
+                  <AlertCircle size={10} className="shrink-0 mt-0.5" />
+                  <span>
+                    Imagem-base é <strong>{detectedAspect}</strong> e vídeo será <strong>{aspect}</strong> —
+                    {' '}IA vai recortar o centro da cena pra ajustar.
+                  </span>
+                </p>
+              )
             )}
           </div>
 
