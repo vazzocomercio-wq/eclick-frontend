@@ -49,7 +49,7 @@ export default function GenerateVideoModal({
   const router = useRouter()
   const [models, setModels]               = useState<VideoModel[]>([])
   const [loadingModels, setLoadingModels] = useState(true)
-  const [modelId, setModelId]             = useState<string>('kling-v2-6')
+  const [modelId, setModelId]             = useState<string>('veo-3.1-fast-generate-preview')
   const [duration, setDuration]           = useState<number>(15)
   const [motion, setMotion]               = useState<typeof MOTIONS[number]['value']>('dolly-in')
   const [aspect, setAspect]               = useState<'1:1' | '16:9' | '9:16'>(defaultAspect)
@@ -61,8 +61,13 @@ export default function GenerateVideoModal({
     CreativeApi.listVideoModels()
       .then(list => {
         setModels(list)
-        // Se o default v2-6 não estiver disponível, cai no primeiro
-        if (!list.some(m => m.id === 'kling-v2-6') && list.length > 0) {
+        // Preferência: Veo 3.1 Fast > Kling v2-6 > primeiro disponível.
+        // Veo Fast é o default porque tem áudio nativo + preço melhor (~$1.20 / 8s vs $1.40 / 10s Kling v2-6).
+        const preferred = ['veo-3.1-fast-generate-preview', 'kling-v2-6']
+        const found = preferred.find(id => list.some(m => m.id === id))
+        if (found) {
+          setModelId(found)
+        } else if (list.length > 0) {
           setModelId(list[0].id)
         }
       })
@@ -83,7 +88,7 @@ export default function GenerateVideoModal({
         source_image_id:         imageId,
         target_duration_seconds: duration,
         aspect_ratio:            aspect,
-        model_name:              modelId as 'kling-v2-6',
+        model_name:              modelId,
         // Só envia camera_motion quando o modelo suporta — caso contrário,
         // a IA infere o movimento do prompt e o param é ignorado pelo Kling.
         camera_motion:           selectedModel?.supportsCameraControl ? motion : undefined,

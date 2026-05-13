@@ -368,7 +368,8 @@ export const CreativeApi = {
     count?:            number
     duration_seconds?: VideoDuration
     aspect_ratio?:     VideoAspectRatio
-    model_name?:       KlingModel
+    // F6: aceita Kling OU Veo (Flow). String genérica — registry no backend roteia.
+    model_name?:       string
     max_cost_usd?:     number
   }) =>
     api<CreativeVideoJob>('/creative/video-jobs', {
@@ -383,7 +384,8 @@ export const CreativeApi = {
     source_image_id:         string
     target_duration_seconds: number
     aspect_ratio?:           VideoAspectRatio
-    model_name?:             KlingModel
+    // F6: aceita Kling OU Veo (Flow). Pipeline calcula parts conforme provider.
+    model_name?:             string
     camera_motion?:          'dolly-in' | 'dolly-out' | 'pan-left' | 'pan-right' | 'tilt-up' | 'tilt-down' | 'orbit' | 'static'
     max_cost_usd?:           number
     prompt?:                 string
