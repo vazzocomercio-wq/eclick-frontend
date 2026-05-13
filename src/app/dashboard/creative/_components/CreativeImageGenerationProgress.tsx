@@ -18,8 +18,9 @@
  * placeholder com loader. Quando job concluído, mostra resumo final.
  */
 
+import { useState } from 'react'
 import {
-  Check, X, RefreshCw, Loader2, AlertTriangle, ImageIcon,
+  Check, X, RefreshCw, Loader2, AlertTriangle, ImageIcon, Film,
 } from 'lucide-react'
 import type {
   CreativeImageJob, CreativeImage,
@@ -28,6 +29,7 @@ import type {
 import {
   JOB_STATUS_LABELS, IMAGE_STATUS_LABELS, isJobActive,
 } from '@/components/creative/types'
+import GenerateVideoModal from '@/components/creative/GenerateVideoModal'
 
 type Props = {
   job:           CreativeImageJob | null
@@ -35,11 +37,16 @@ type Props = {
   onApprove:     (id: string) => void | Promise<void>
   onReject:      (id: string) => void | Promise<void>
   onRegenerate:  (id: string) => void | Promise<void>
+  /** Quando productId + briefingId presentes, slots aprovados ganham botão "Gerar vídeo". */
+  productId?:    string
+  briefingId?:   string
 }
 
 export default function CreativeImageGenerationProgress({
-  job, images, onApprove, onReject, onRegenerate,
+  job, images, onApprove, onReject, onRegenerate, productId, briefingId,
 }: Props) {
+  const [videoModalImageId, setVideoModalImageId] = useState<string | null>(null)
+  const canGenerateVideo = !!productId && !!briefingId
   if (!job) {
     return (
       <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-4">
@@ -127,10 +134,21 @@ export default function CreativeImageGenerationProgress({
               onApprove={onApprove}
               onReject={onReject}
               onRegenerate={onRegenerate}
+              onGenerateVideo={canGenerateVideo ? id => setVideoModalImageId(id) : undefined}
             />
           ))}
         </div>
       </div>
+
+      {/* Modal de gerar vídeo a partir de uma imagem aprovada */}
+      {videoModalImageId && productId && briefingId && (
+        <GenerateVideoModal
+          productId={productId}
+          briefingId={briefingId}
+          imageId={videoModalImageId}
+          onClose={() => setVideoModalImageId(null)}
+        />
+      )}
     </div>
   )
 }
@@ -138,13 +156,14 @@ export default function CreativeImageGenerationProgress({
 // ── Sub-component: slot individual ───────────────────────────────────────────
 
 function ImageSlot({
-  image, position, onApprove, onReject, onRegenerate,
+  image, position, onApprove, onReject, onRegenerate, onGenerateVideo,
 }: {
-  image:        CreativeImage | null
-  position:     number
-  onApprove:    (id: string) => void | Promise<void>
-  onReject:     (id: string) => void | Promise<void>
-  onRegenerate: (id: string) => void | Promise<void>
+  image:           CreativeImage | null
+  position:        number
+  onApprove:       (id: string) => void | Promise<void>
+  onReject:        (id: string) => void | Promise<void>
+  onRegenerate:    (id: string) => void | Promise<void>
+  onGenerateVideo?: (id: string) => void
 }) {
   // Slot vazio (job ainda não criou linha pra esta posição)
   if (!image) {
@@ -192,6 +211,18 @@ function ImageSlot({
         onReject={onReject}
         onRegenerate={onRegenerate}
       />
+
+      {/* Botão de gerar vídeo — só em aprovadas e quando productId+briefingId estão disponíveis */}
+      {status === 'approved' && onGenerateVideo && (
+        <button
+          type="button"
+          onClick={() => onGenerateVideo(image.id)}
+          className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 border-t border-zinc-800 bg-gradient-to-r from-cyan-400/10 to-cyan-400/5 hover:from-cyan-400/20 hover:to-cyan-400/10 text-cyan-300 text-[10px] uppercase tracking-wider transition-colors"
+          title="Gerar vídeo a partir desta imagem"
+        >
+          <Film size={11} /> Gerar vídeo
+        </button>
+      )}
     </div>
   )
 }

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import {
-  ArrowLeft, Sparkles, Check, Loader2, RefreshCw, X, AlertCircle, Eye, Edit3, Send, Diff,
+  ArrowLeft, Sparkles, Check, Loader2, RefreshCw, X, AlertCircle, Eye, Edit3, Send, Diff, Film,
 } from 'lucide-react'
 import ListingEditor from '@/components/creative/ListingEditor'
 import ListingPreview from '@/components/creative/ListingPreview'
@@ -247,6 +247,13 @@ export default function ListingDetailPage() {
               )
             })()}
             <Link
+              href={`/dashboard/creative/${productId}`}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-cyan-400/30 hover:border-cyan-400/60 text-cyan-300 text-xs transition-all"
+              title="Abrir Studio do produto (gerar vídeos, ver outros jobs)"
+            >
+              <Film size={12} /> Studio
+            </Link>
+            <Link
               href={`/dashboard/creative/${productId}/listing/${listingId}/publish/ml`}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-400/10 hover:bg-amber-400/20 border border-amber-400/30 text-amber-200 text-xs transition-all"
               title="Preparar publicação no Mercado Livre"
@@ -295,6 +302,8 @@ export default function ListingDetailPage() {
               onApprove={approveImage}
               onReject={rejectImage}
               onRegenerate={regenerateImage}
+              productId={productId}
+              briefingId={imageJob?.briefing_id}
             />
           </div>
         )}
