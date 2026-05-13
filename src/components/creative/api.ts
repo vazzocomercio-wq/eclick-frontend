@@ -97,6 +97,50 @@ export async function getMyOrgId(): Promise<string | null> {
   return (data as { organization_id?: string } | null)?.organization_id ?? null
 }
 
+// ── Helpers de aspect ratio ───────────────────────────────────────────────
+
+/** Aspects de vídeo suportados pelo Kling/Veo. */
+const VIDEO_ASPECTS: ReadonlyArray<readonly [VideoAspectRatio, number]> = [
+  ['1:1',  1.0],
+  ['16:9', 16 / 9],
+  ['9:16', 9 / 16],
+]
+
+/**
+ * Detecta a proporção de uma imagem URL e retorna o aspect ratio mais
+ * próximo dos suportados ('1:1', '16:9', '9:16'). Usa Image() nativa do
+ * browser — sem upload, sem chamada extra ao backend.
+ *
+ * Útil pra travar a proporção do vídeo no aspect da imagem-base (Kling
+ * herda da source image em image2video).
+ */
+export async function detectImageAspect(url: string): Promise<VideoAspectRatio> {
+  return new Promise<VideoAspectRatio>((resolve, reject) => {
+    if (!url) { reject(new Error('URL vazia')); return }
+    const img = new Image()
+    img.crossOrigin = 'anonymous' // permite ler dimensões de imagens cross-origin
+    img.onload = () => {
+      if (img.naturalWidth <= 0 || img.naturalHeight <= 0) {
+        reject(new Error('dimensões inválidas'))
+        return
+      }
+      const ratio = img.naturalWidth / img.naturalHeight
+      let best: VideoAspectRatio = '1:1'
+      let minDiff = Infinity
+      for (const [aspect, target] of VIDEO_ASPECTS) {
+        const diff = Math.abs(ratio - target)
+        if (diff < minDiff) {
+          minDiff = diff
+          best = aspect
+        }
+      }
+      resolve(best)
+    }
+    img.onerror = () => reject(new Error('falha ao carregar imagem'))
+    img.src = url
+  })
+}
+
 // ── Products ──────────────────────────────────────────────────────────────
 
 export interface CreateProductBody {

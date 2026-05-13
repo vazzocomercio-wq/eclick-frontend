@@ -146,6 +146,7 @@ export default function CreativeImageGenerationProgress({
           productId={productId}
           briefingId={briefingId}
           imageId={videoModalImageId}
+          imageUrl={images.find(i => i.id === videoModalImageId)?.signed_image_url ?? null}
           onClose={() => setVideoModalImageId(null)}
         />
       )}

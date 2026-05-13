@@ -8,7 +8,7 @@ import ProductAnalysisCard from '@/components/creative/ProductAnalysisCard'
 import CanvaButton from '@/components/creative/CanvaButton'
 import CatalogLinkBanner from '@/components/creative/CatalogLinkBanner'
 import PromptsLibrary from '@/components/creative/PromptsLibrary'
-import { CreativeApi } from '@/components/creative/api'
+import { CreativeApi, detectImageAspect } from '@/components/creative/api'
 import type {
   CreativeProduct, CreativeBriefing, CreativeListing,
   CreativeImageJob, JobStatus, CreativeImage,
@@ -472,6 +472,9 @@ function CreateVideoJobModal({
   const [count, setCount]                 = useState(3)
   const [duration, setDuration]           = useState<VideoDuration>(5)
   const [aspect, setAspect]               = useState<VideoAspectRatio>('1:1')
+  // Aspect detectado da imagem-base — quando presente, trava o seletor pra
+  // garantir match (Kling herda aspect da source image em image2video).
+  const [lockedAspect, setLockedAspect]   = useState<VideoAspectRatio | null>(null)
   const [model, setModel]                 = useState<KlingModel>('kling-v2-6')
   const [maxCost, setMaxCost]             = useState(5.0)
   const [creating, setCreating]           = useState(false)
@@ -489,6 +492,24 @@ function CreateVideoJobModal({
     })()
     return () => { cancelled = true }
   }, [product.id])
+
+  // Auto-detecta aspect da imagem-base selecionada (main_image OU geradas)
+  // e trava o seletor de proporção pra evitar mismatch com Kling.
+  useEffect(() => {
+    let cancelled = false
+    const url = sourceImageId
+      ? availableImages.find(i => i.id === sourceImageId)?.signed_image_url ?? null
+      : product.signed_image_url ?? null
+    if (!url) { setLockedAspect(null); return }
+    void detectImageAspect(url)
+      .then(detected => {
+        if (cancelled) return
+        setLockedAspect(detected)
+        setAspect(detected)
+      })
+      .catch(() => { if (!cancelled) setLockedAspect(null) })
+    return () => { cancelled = true }
+  }, [sourceImageId, availableImages, product.signed_image_url])
 
   const perVideoCost = KLING_PRICING[model][duration]
   const estimatedCost = count * perVideoCost
@@ -601,22 +622,39 @@ function CreateVideoJobModal({
           <div>
             <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">Proporção</label>
             <div className="grid grid-cols-3 gap-1.5">
-              {VIDEO_ASPECT_OPTIONS.map(o => (
-                <button key={o.value} type="button" onClick={() => setAspect(o.value)}
-                  className={[
-                    'flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-[11px] transition-all',
-                    aspect === o.value
-                      ? 'bg-cyan-400 text-black font-semibold'
-                      : 'bg-zinc-900 text-zinc-400 border border-zinc-800',
-                  ].join(' ')}>
-                  <span>{o.emoji}</span><span>{o.value}</span>
-                </button>
-              ))}
+              {VIDEO_ASPECT_OPTIONS.map(o => {
+                const disabled = lockedAspect !== null && lockedAspect !== o.value
+                return (
+                  <button
+                    key={o.value}
+                    type="button"
+                    onClick={() => { if (!disabled) setAspect(o.value) }}
+                    disabled={disabled}
+                    title={disabled ? 'Travado pelo aspect da imagem-base — Kling herda a proporção' : undefined}
+                    className={[
+                      'flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-[11px] transition-all',
+                      aspect === o.value
+                        ? 'bg-cyan-400 text-black font-semibold'
+                        : disabled
+                          ? 'bg-zinc-950 text-zinc-700 border border-zinc-900 cursor-not-allowed'
+                          : 'bg-zinc-900 text-zinc-400 border border-zinc-800',
+                    ].join(' ')}>
+                    <span>{o.emoji}</span><span>{o.value}</span>
+                  </button>
+                )
+              })}
             </div>
-            <p className="mt-1.5 text-[10px] text-amber-300/80 flex items-start gap-1">
-              <AlertCircle size={10} className="shrink-0 mt-0.5" />
-              <span>Kling herda a proporção da imagem-base no image2video. Escolha o aspect que combina com a imagem (imagens de briefing são 1:1).</span>
-            </p>
+            {lockedAspect ? (
+              <p className="mt-1.5 text-[10px] text-cyan-300/80 flex items-start gap-1">
+                <AlertCircle size={10} className="shrink-0 mt-0.5" />
+                <span>Aspect <strong>{lockedAspect}</strong> detectado na imagem-base e travado — Kling vai herdar essa proporção.</span>
+              </p>
+            ) : (
+              <p className="mt-1.5 text-[10px] text-zinc-500 flex items-start gap-1">
+                <AlertCircle size={10} className="shrink-0 mt-0.5" />
+                <span>Detectando aspect da imagem-base…</span>
+              </p>
+            )}
           </div>
 
           <div>

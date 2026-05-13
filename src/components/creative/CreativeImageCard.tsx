@@ -299,6 +299,7 @@ export default function CreativeImageCard({ image, onChange, disabled, productId
           productId={productId}
           briefingId={briefingId}
           imageId={image.id}
+          imageUrl={image.signed_image_url}
           onClose={() => setVideoModalOpen(false)}
         />
       )}
