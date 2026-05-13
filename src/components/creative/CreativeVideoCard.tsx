@@ -19,6 +19,9 @@ export default function CreativeVideoCard({ video, onChange, disabled }: Props) 
   const [showPrompt, setShowPrompt]   = useState(false)
   const [regenOpen, setRegenOpen]     = useState(false)
   const [regenPrompt, setRegenPrompt] = useState('')
+  // Aspect real detectado quando o MP4 carrega (Kling image2video herda do
+  // source image, então pode diferir do video.aspect_ratio gravado no DB).
+  const [naturalAspect, setNaturalAspect] = useState<string | null>(null)
 
   const isLoading  = video.status === 'pending' || video.status === 'generating'
   const showVideo  = (video.status === 'ready' || video.status === 'approved' || video.status === 'rejected') && !!video.signed_video_url
@@ -52,11 +55,14 @@ export default function CreativeVideoCard({ video, onChange, disabled }: Props) 
     document.body.appendChild(a); a.click(); document.body.removeChild(a)
   }
 
-  // Aspect ratio inline pra container
-  const aspectClass =
+  // Aspect ratio do container — usa o real do MP4 quando disponível, senão
+  // o que estava no DB (placeholder enquanto carrega).
+  const fallbackAspectClass =
     video.aspect_ratio === '16:9' ? 'aspect-video' :
     video.aspect_ratio === '9:16' ? 'aspect-[9/16]' :
                                     'aspect-square'
+  const aspectStyle = naturalAspect ? { aspectRatio: naturalAspect } : undefined
+  const aspectClass = naturalAspect ? '' : fallbackAspectClass
 
   return (
     <div className={[
@@ -66,7 +72,7 @@ export default function CreativeVideoCard({ video, onChange, disabled }: Props) 
       video.status === 'failed'   ? 'border-red-500/40' :
       'border-zinc-800',
     ].join(' ')}>
-      <div className={`relative bg-zinc-950 ${aspectClass}`}>
+      <div className={`relative bg-zinc-950 ${aspectClass}`} style={aspectStyle}>
         {isLoading && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-zinc-500">
             <Film size={28} className="text-cyan-400" />
@@ -90,7 +96,13 @@ export default function CreativeVideoCard({ video, onChange, disabled }: Props) 
             src={video.signed_video_url!}
             controls
             preload="metadata"
-            className="w-full h-full object-contain bg-black"
+            onLoadedMetadata={e => {
+              const v = e.currentTarget
+              if (v.videoWidth > 0 && v.videoHeight > 0) {
+                setNaturalAspect(`${v.videoWidth} / ${v.videoHeight}`)
+              }
+            }}
+            className="w-full h-full object-cover bg-black"
           />
         )}
 

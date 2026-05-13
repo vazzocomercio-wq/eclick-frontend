@@ -613,6 +613,10 @@ function CreateVideoJobModal({
                 </button>
               ))}
             </div>
+            <p className="mt-1.5 text-[10px] text-amber-300/80 flex items-start gap-1">
+              <AlertCircle size={10} className="shrink-0 mt-0.5" />
+              <span>Kling herda a proporção da imagem-base no image2video. Escolha o aspect que combina com a imagem (imagens de briefing são 1:1).</span>
+            </p>
           </div>
 
           <div>
