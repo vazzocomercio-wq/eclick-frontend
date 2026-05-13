@@ -12,13 +12,15 @@ import { CreativeApi, detectImageAspect } from '@/components/creative/api'
 import type {
   CreativeProduct, CreativeBriefing, CreativeListing,
   CreativeImageJob, JobStatus, CreativeImage,
-  CreativeVideoJob, VideoJobStatus, KlingModel, VideoDuration, VideoAspectRatio,
+  CreativeVideoJob, VideoJobStatus, VideoAspectRatio,
 } from '@/components/creative/types'
 import {
   MARKETPLACE_OPTIONS, JOB_STATUS_LABELS, isJobActive,
-  VIDEO_JOB_STATUS_LABELS, KLING_MODEL_OPTIONS, KLING_PRICING,
-  VIDEO_DURATION_OPTIONS, VIDEO_ASPECT_OPTIONS,
+  VIDEO_JOB_STATUS_LABELS, VIDEO_ASPECT_OPTIONS,
 } from '@/components/creative/types'
+
+// Tipo do modelo retornado pelo /creative/video-jobs/models (Kling+Veo+Sora)
+type VideoModelInfo = Awaited<ReturnType<typeof CreativeApi.listVideoModels>>[number]
 
 export default function ProductDetailPage() {
   const params = useParams<{ productId: string }>()
@@ -470,12 +472,14 @@ function CreateVideoJobModal({
   const [sourceImageId, setSourceImageId] = useState<string | null>(null)
   const [availableImages, setAvailableImages] = useState<CreativeImage[]>([])
   const [count, setCount]                 = useState(3)
-  const [duration, setDuration]           = useState<VideoDuration>(5)
+  const [duration, setDuration]           = useState<number>(5)
   const [aspect, setAspect]               = useState<VideoAspectRatio>('1:1')
   // Aspect detectado da imagem-base. Backend faz center-crop quando aspect
   // do vídeo difere — então não travamos mais a escolha, só avisamos.
   const [detectedAspect, setDetectedAspect] = useState<VideoAspectRatio | null>(null)
-  const [model, setModel]                 = useState<KlingModel>('kling-v2-6')
+  const [models, setModels]               = useState<VideoModelInfo[]>([])
+  const [loadingModels, setLoadingModels] = useState(true)
+  const [model, setModel]                 = useState<string>('kling-v2-6')
   const [maxCost, setMaxCost]             = useState(5.0)
   const [creating, setCreating]           = useState(false)
   const [error, setError]                 = useState<string | null>(null)
@@ -492,6 +496,35 @@ function CreateVideoJobModal({
     })()
     return () => { cancelled = true }
   }, [product.id])
+
+  // Carrega catálogo de modelos (Kling + Veo + Sora se configurados).
+  useEffect(() => {
+    let cancelled = false
+    setLoadingModels(true)
+    void CreativeApi.listVideoModels()
+      .then(list => {
+        if (cancelled) return
+        setModels(list)
+        // Default preferido: kling-v2-6 > primeiro disponível
+        if (!list.some(m => m.id === 'kling-v2-6') && list.length > 0) {
+          setModel(list[0].id)
+        }
+      })
+      .catch(() => { /* fallback silencioso */ })
+      .finally(() => { if (!cancelled) setLoadingModels(false) })
+    return () => { cancelled = true }
+  }, [])
+
+  const selectedModel = models.find(m => m.id === model)
+
+  // Quando trocar modelo, valida duração — se não suportada, pula pra primeira válida
+  useEffect(() => {
+    if (!selectedModel) return
+    if (!selectedModel.supportedDurations.includes(duration)) {
+      setDuration(selectedModel.supportedDurations[0] ?? 5)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedModel?.id])
 
   // Auto-detecta aspect da imagem-base e pré-seleciona aspect que casa
   // (sem cortes). Usuário pode override pra outro aspect → backend faz
@@ -514,7 +547,7 @@ function CreateVideoJobModal({
     return () => { cancelled = true }
   }, [sourceImageId, availableImages, product.signed_image_url])
 
-  const perVideoCost = KLING_PRICING[model][duration]
+  const perVideoCost = selectedModel?.pricing[duration] ?? 0
   const estimatedCost = count * perVideoCost
   const willBlock     = estimatedCost > maxCost
 
@@ -607,11 +640,11 @@ function CreateVideoJobModal({
 
           <div>
             <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">Duração</label>
-            <div className="flex gap-1.5">
-              {VIDEO_DURATION_OPTIONS.map(d => (
+            <div className="flex gap-1.5 flex-wrap">
+              {(selectedModel?.supportedDurations ?? [5, 10]).map(d => (
                 <button key={d} type="button" onClick={() => setDuration(d)}
                   className={[
-                    'flex-1 px-3 py-1.5 rounded-lg text-xs transition-all',
+                    'flex-1 min-w-[60px] px-3 py-1.5 rounded-lg text-xs transition-all',
                     duration === d
                       ? 'bg-cyan-400 text-black font-semibold'
                       : 'bg-zinc-900 text-zinc-400 border border-zinc-800',
@@ -620,6 +653,11 @@ function CreateVideoJobModal({
                 </button>
               ))}
             </div>
+            {selectedModel && (
+              <p className="text-[10px] text-zinc-500 mt-1">
+                {selectedModel.label} suporta {selectedModel.supportedDurations.join('/')}s
+              </p>
+            )}
           </div>
 
           <div>
@@ -656,24 +694,47 @@ function CreateVideoJobModal({
           </div>
 
           <div>
-            <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">Modelo Kling</label>
-            <div className="space-y-1">
-              {KLING_MODEL_OPTIONS.map(o => (
-                <button key={o.value} type="button" onClick={() => setModel(o.value)}
-                  className={[
-                    'w-full text-left px-3 py-1.5 rounded-lg text-[11px] transition-all',
-                    model === o.value
-                      ? 'bg-cyan-400/10 text-cyan-100 border border-cyan-400/40'
-                      : 'bg-zinc-900 text-zinc-400 border border-zinc-800',
-                  ].join(' ')}>
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold">{o.label}</span>
-                    <span className="font-mono text-[10px] text-zinc-500">${KLING_PRICING[o.value][duration].toFixed(2)}/{duration}s</span>
-                  </div>
-                  <p className="text-[10px] text-zinc-500 mt-0.5">{o.description}</p>
-                </button>
-              ))}
-            </div>
+            <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">Modelo de IA</label>
+            {loadingModels ? (
+              <div className="flex items-center gap-2 text-[11px] text-zinc-500 py-2">
+                <Loader2 size={12} className="animate-spin" /> carregando modelos…
+              </div>
+            ) : models.length === 0 ? (
+              <p className="text-[11px] text-amber-400">Nenhum modelo disponível — verifique config de providers</p>
+            ) : (
+              <div className="space-y-1">
+                {models.map(m => {
+                  // Preço — usa duração atual se suportada, senão a primeira da lista do modelo
+                  const showDur = m.supportedDurations.includes(duration) ? duration : m.supportedDurations[0]
+                  const price = m.pricing[showDur] ?? 0
+                  const audio = m.hasAudio ? '🔊' : ''
+                  return (
+                    <button key={m.id} type="button" onClick={() => setModel(m.id)}
+                      className={[
+                        'w-full text-left px-3 py-1.5 rounded-lg text-[11px] transition-all',
+                        model === m.id
+                          ? 'bg-cyan-400/10 text-cyan-100 border border-cyan-400/40'
+                          : 'bg-zinc-900 text-zinc-400 border border-zinc-800',
+                      ].join(' ')}>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-semibold flex items-center gap-1">
+                          {audio} {m.label}
+                          {m.badge && (
+                            <span className="text-[9px] px-1 py-0.5 rounded bg-zinc-800 text-cyan-300 font-normal">{m.badge}</span>
+                          )}
+                        </span>
+                        <span className="font-mono text-[10px] text-zinc-500 shrink-0">${price.toFixed(2)}/{showDur}s</span>
+                      </div>
+                      <p className="text-[10px] text-zinc-500 mt-0.5">
+                        Provider: <span className="capitalize">{m.provider}</span> · {m.supportedDurations.join('/')}s
+                        {m.supportsTailImage && ' · encadeamento nativo'}
+                        {m.supportsCameraControl && ' · controle de câmera'}
+                      </p>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
           </div>
 
           <div>

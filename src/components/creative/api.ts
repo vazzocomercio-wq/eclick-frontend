@@ -410,9 +410,10 @@ export const CreativeApi = {
     listing_id?:       string
     source_image_id?:  string
     count?:            number
-    duration_seconds?: VideoDuration
+    // Aceita qualquer int — backend valida contra supportedDurations do modelo
+    duration_seconds?: number
     aspect_ratio?:     VideoAspectRatio
-    // F6: aceita Kling OU Veo (Flow). String genérica — registry no backend roteia.
+    // F6: aceita Kling, Veo (Flow) ou Sora. Registry no backend roteia.
     model_name?:       string
     max_cost_usd?:     number
   }) =>
