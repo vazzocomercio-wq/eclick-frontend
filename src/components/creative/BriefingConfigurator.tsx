@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Palette, Globe, Volume2, Image as ImageIcon, Maximize2, BookmarkPlus, Bookmark, Loader2, X, Star, Trash2, Sparkles, Upload, AlertTriangle } from 'lucide-react'
+import { Palette, Globe, Volume2, Image as ImageIcon, Maximize2, BookmarkPlus, Bookmark, Loader2, X, Star, Trash2, Sparkles, Upload, AlertTriangle, Package } from 'lucide-react'
 import {
   MARKETPLACE_OPTIONS,
   VISUAL_STYLES,
@@ -11,6 +11,8 @@ import {
   type Marketplace,
   type BriefingTemplate,
   type TaxonomyOption,
+  type CreativePromptTemplate,
+  type TemplatePosition,
 } from './types'
 import { CreativeApi, uploadLogoImage, getMyOrgId } from './api'
 
@@ -27,6 +29,10 @@ export interface BriefingFormState {
   communication_tone:  string
   image_count:         number
   image_format:        string
+  /** F6: Tipo de produto (template de imagens) escolhido. NULL = auto-match no backend. */
+  template_id:         string | null
+  /** F6: slots do template selecionados — 1 imagem por slot. Vazio = usa N primeiras (legado). */
+  selected_positions:  number[]
 }
 
 export const DEFAULT_BRIEFING: BriefingFormState = {
@@ -42,6 +48,8 @@ export const DEFAULT_BRIEFING: BriefingFormState = {
   communication_tone: 'vendedor',
   image_count:        10,
   image_format:       '1200x1200',
+  template_id:        null,
+  selected_positions: [],
 }
 
 interface Props {
@@ -49,13 +57,34 @@ interface Props {
   onChange: (next: BriefingFormState) => void
   /** Permite carregar/salvar templates por org. Default true. */
   enableTemplates?: boolean
+  /** F6: quando passado, tenta auto-detectar template pela category_ml_id do produto. */
+  autoDetectByCategoryMlId?: string | null
 }
 
-export default function BriefingConfigurator({ value, onChange, enableTemplates = true }: Props) {
+/**
+ * F6: heurística pra separar slots utilitários (Capa/Macro/Card/Embalagem/Banner)
+ * dos slots de ambiente nos chips.
+ */
+const UTILITY_SLOT_PATTERNS = [
+  /^capa\b/i,
+  /^detalhe\b/i,
+  /^macro\b/i,
+  /^t[ée]cnica\b/i,
+  /\bcard\b/i,
+  /^embalagem\b/i,
+  /^banner\b/i,
+  /^medidas\b/i,
+  /^caracter[íi]sticas\b/i,
+]
+function isUtilitySlot(name: string): boolean {
+  return UTILITY_SLOT_PATTERNS.some(rx => rx.test(name ?? ''))
+}
+
+export default function BriefingConfigurator({ value, onChange, enableTemplates = true, autoDetectByCategoryMlId }: Props) {
   const set = <K extends keyof BriefingFormState>(k: K, v: BriefingFormState[K]) =>
     onChange({ ...value, [k]: v })
 
-  // ── Templates state ──────────────────────────────────────────────────────
+  // ── Briefing-templates state (presets salvos) ────────────────────────────
   const [templates, setTemplates]     = useState<BriefingTemplate[]>([])
   const [tplLoading, setTplLoading]   = useState(false)
   const [saveOpen, setSaveOpen]       = useState(false)
@@ -64,9 +93,13 @@ export default function BriefingConfigurator({ value, onChange, enableTemplates 
   const [saving, setSaving]           = useState(false)
   const [saveError, setSaveError]     = useState<string | null>(null)
 
-  // Lista de ambientes vem da taxonomy (defaults globais + customs da org).
-  // Substitui o array hardcoded ENVIRONMENT_OPTIONS — garante consistência
-  // com refs e elimina desalinhamento de values (ex: 'area_gourmet' vs 'gourmet').
+  // ── F6: Tipos de produto (prompt templates) ──────────────────────────────
+  const [productTypes, setProductTypes]       = useState<CreativePromptTemplate[]>([])
+  const [productTypesLoading, setProductTypesLoading] = useState(false)
+  const [activeTypePositions, setActiveTypePositions] = useState<TemplatePosition[]>([])
+  const [autoDetectedTypeId, setAutoDetectedTypeId]   = useState<string | null>(null)
+
+  // Lista de ambientes da taxonomy (fluxo legado — sem tipo de produto escolhido)
   const [ambientOptions, setAmbientOptions] = useState<TaxonomyOption[]>([])
   const [ambientLoading, setAmbientLoading] = useState(false)
 
@@ -77,6 +110,53 @@ export default function BriefingConfigurator({ value, onChange, enableTemplates 
       .catch(() => setAmbientOptions([]))
       .finally(() => setAmbientLoading(false))
   }, [])
+
+  // F6: carrega tipos de produto da org no mount + auto-detect (categoria > default)
+  useEffect(() => {
+    setProductTypesLoading(true)
+    CreativeApi.listPromptTemplates()
+      .then(list => {
+        setProductTypes(list)
+        if (value.template_id || list.length === 0) return
+
+        // Prioridade 1: match por category_ml_id (quando passado pela page)
+        if (autoDetectByCategoryMlId) {
+          const byCategory = list.find(t => t.category_ml_ids.includes(autoDetectByCategoryMlId))
+          if (byCategory) {
+            setAutoDetectedTypeId(byCategory.id)
+            onChange({ ...value, template_id: byCategory.id })
+            return
+          }
+        }
+
+        // Prioridade 2: template default da org
+        const byDefault = list.find(t => t.is_default)
+        if (byDefault) {
+          setAutoDetectedTypeId(byDefault.id)
+          onChange({ ...value, template_id: byDefault.id })
+        }
+      })
+      .catch(() => setProductTypes([]))
+      .finally(() => setProductTypesLoading(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoDetectByCategoryMlId])
+
+  // F6: quando template_id muda, carrega slots do template ativo
+  useEffect(() => {
+    if (!value.template_id) {
+      setActiveTypePositions([])
+      return
+    }
+    let cancelled = false
+    CreativeApi.getPromptTemplate(value.template_id)
+      .then(tpl => {
+        if (cancelled) return
+        const sorted = [...(tpl.positions ?? [])].sort((a, b) => a.position - b.position)
+        setActiveTypePositions(sorted)
+      })
+      .catch(() => { if (!cancelled) setActiveTypePositions([]) })
+    return () => { cancelled = true }
+  }, [value.template_id])
 
   useEffect(() => {
     if (!enableTemplates) return
@@ -123,6 +203,9 @@ export default function BriefingConfigurator({ value, onChange, enableTemplates 
       communication_tone: t.communication_tone,
       image_count:        t.image_count,
       image_format:       t.image_format,
+      // F6: presets salvos não persistem tipo de produto/slots — limpa
+      template_id:        null,
+      selected_positions: [],
     })
   }
 
@@ -271,58 +354,202 @@ export default function BriefingConfigurator({ value, onChange, enableTemplates 
         </div>
       </Section>
 
-      {/* Ambientes (multi-select) — alimentado pela taxonomy */}
-      <Section icon={<ImageIcon size={14} />} title="Ambientes (selecione 1+)">
+      {/* F6: Tipo de produto (template de imagens) — antes dos ambientes */}
+      <Section icon={<Package size={14} />} title="Tipo de produto">
         <p className="text-[11px] text-zinc-500 mb-2">
-          As {value.image_count} imagens vão alternar entre os ambientes selecionados.
-          Sem nenhum: usa fundo neutro. Gerenciar opções na <strong>Galeria de referências</strong>.
+          Define quais ambientes/cenas serão usados pra gerar imagens. {autoDetectedTypeId === value.template_id && value.template_id ? '✨ Detectado automaticamente pela categoria.' : ''} Gerenciar em <strong>/templates</strong>.
         </p>
-        {ambientLoading && ambientOptions.length === 0 ? (
+        {productTypesLoading ? (
           <div className="flex items-center gap-1.5 text-[11px] text-zinc-500">
-            <Loader2 size={12} className="animate-spin" /> carregando ambientes…
+            <Loader2 size={12} className="animate-spin" /> carregando tipos de produto…
           </div>
         ) : (
-          <div className="flex flex-wrap gap-1.5">
-            {ambientOptions.map(opt => {
-              const active = value.environments.includes(opt.value)
-              return (
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={value.template_id ?? ''}
+              onChange={e => {
+                const newId = e.target.value || null
+                // Reset selected_positions ao trocar tipo
+                onChange({ ...value, template_id: newId, selected_positions: [] })
+              }}
+              className="bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-200 outline-none focus:border-cyan-400"
+            >
+              <option value="">— Nenhum (usar ambientes livres) —</option>
+              {productTypes.map(t => (
+                <option key={t.id} value={t.id}>
+                  {t.name}{t.is_default ? ' (default)' : ''} · {t.positions.length} slots
+                </option>
+              ))}
+            </select>
+            {value.template_id && (
+              <button
+                type="button"
+                onClick={() => onChange({ ...value, template_id: null, selected_positions: [] })}
+                className="text-[11px] text-zinc-500 hover:text-zinc-200 inline-flex items-center gap-1"
+                title="Limpar tipo escolhido"
+              >
+                <X size={10} /> limpar
+              </button>
+            )}
+          </div>
+        )}
+      </Section>
+
+      {/* Ambientes / Slots — dinâmico baseado em template_id */}
+      <Section
+        icon={<ImageIcon size={14} />}
+        title={value.template_id
+          ? `Ambientes do template (selecione 1+)`
+          : `Ambientes (selecione 1+)`}
+      >
+        {value.template_id ? (
+          /* MODO TEMPLATE: chips dos slots do tipo de produto escolhido */
+          <>
+            <p className="text-[11px] text-zinc-500 mb-2">
+              {value.selected_positions.length > 0
+                ? <>Vai gerar <strong className="text-cyan-300">{value.selected_positions.length}</strong> imagem(ns) — 1 por slot marcado.</>
+                : <>Sem nenhum marcado: vai gerar as <strong>{value.image_count}</strong> primeiras do template.</>}
+            </p>
+            {activeTypePositions.length === 0 ? (
+              <div className="flex items-center gap-1.5 text-[11px] text-zinc-500">
+                <Loader2 size={12} className="animate-spin" /> carregando slots…
+              </div>
+            ) : (
+              <>
+                {/* Slots de ambiente (não-utilitários) */}
+                <div className="flex flex-wrap gap-1.5 mb-3">
+                  {activeTypePositions
+                    .filter(p => !isUtilitySlot(p.name))
+                    .map(p => {
+                      const active = value.selected_positions.includes(p.position)
+                      return (
+                        <SmallChip
+                          key={p.position}
+                          active={active}
+                          onClick={() => {
+                            const next = active
+                              ? value.selected_positions.filter(n => n !== p.position)
+                              : [...value.selected_positions, p.position].sort((a, b) => a - b)
+                            set('selected_positions', next)
+                          }}
+                        >
+                          {p.name}
+                        </SmallChip>
+                      )
+                    })}
+                </div>
+
+                {/* Slots utilitários (Capa, Detalhe macro, Card, Embalagem) — agrupados */}
+                {activeTypePositions.some(p => isUtilitySlot(p.name)) && (
+                  <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-2">
+                    <p className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">📐 Utilitários (recomendados pra todo anúncio)</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {activeTypePositions
+                        .filter(p => isUtilitySlot(p.name))
+                        .map(p => {
+                          const active = value.selected_positions.includes(p.position)
+                          return (
+                            <SmallChip
+                              key={p.position}
+                              active={active}
+                              onClick={() => {
+                                const next = active
+                                  ? value.selected_positions.filter(n => n !== p.position)
+                                  : [...value.selected_positions, p.position].sort((a, b) => a - b)
+                                set('selected_positions', next)
+                              }}
+                            >
+                              {p.name}
+                            </SmallChip>
+                          )
+                        })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Atalhos */}
+                <div className="mt-2 flex items-center gap-2 text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => set('selected_positions', activeTypePositions.map(p => p.position))}
+                    className="text-cyan-400 hover:text-cyan-300"
+                  >
+                    marcar todos
+                  </button>
+                  <span className="text-zinc-700">·</span>
+                  <button
+                    type="button"
+                    onClick={() => set('selected_positions', activeTypePositions.filter(p => isUtilitySlot(p.name)).map(p => p.position))}
+                    className="text-zinc-400 hover:text-zinc-200"
+                  >
+                    só utilitários
+                  </button>
+                  <span className="text-zinc-700">·</span>
+                  <button
+                    type="button"
+                    onClick={() => set('selected_positions', [])}
+                    className="text-zinc-400 hover:text-zinc-200"
+                  >
+                    limpar
+                  </button>
+                </div>
+              </>
+            )}
+          </>
+        ) : (
+          /* MODO LEGADO: chips de taxonomy (sem tipo de produto escolhido) */
+          <>
+            <p className="text-[11px] text-zinc-500 mb-2">
+              As {value.image_count} imagens vão alternar entre os ambientes selecionados.
+              Sem nenhum: usa fundo neutro. Gerenciar opções na <strong>Galeria de referências</strong>.
+            </p>
+            {ambientLoading && ambientOptions.length === 0 ? (
+              <div className="flex items-center gap-1.5 text-[11px] text-zinc-500">
+                <Loader2 size={12} className="animate-spin" /> carregando ambientes…
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-1.5">
+                {ambientOptions.map(opt => {
+                  const active = value.environments.includes(opt.value)
+                  return (
+                    <SmallChip
+                      key={opt.id}
+                      active={active}
+                      onClick={() => {
+                        const next = active
+                          ? value.environments.filter(x => x !== opt.value)
+                          : [...value.environments, opt.value]
+                        set('environments', next)
+                      }}
+                    >
+                      {opt.label}
+                    </SmallChip>
+                  )
+                })}
                 <SmallChip
-                  key={opt.id}
-                  active={active}
+                  active={value.environments.includes('custom')}
                   onClick={() => {
+                    const active = value.environments.includes('custom')
                     const next = active
-                      ? value.environments.filter(x => x !== opt.value)
-                      : [...value.environments, opt.value]
+                      ? value.environments.filter(x => x !== 'custom')
+                      : [...value.environments, 'custom']
                     set('environments', next)
                   }}
                 >
-                  {opt.label}
+                  Personalizado
                 </SmallChip>
-              )
-            })}
-            {/* "Personalizado" — escape hatch livre, sentinel value='custom' */}
-            <SmallChip
-              active={value.environments.includes('custom')}
-              onClick={() => {
-                const active = value.environments.includes('custom')
-                const next = active
-                  ? value.environments.filter(x => x !== 'custom')
-                  : [...value.environments, 'custom']
-                set('environments', next)
-              }}
-            >
-              Personalizado
-            </SmallChip>
-          </div>
-        )}
-        {value.environments.includes('custom') && (
-          <input
-            type="text"
-            value={value.custom_environment}
-            onChange={e => set('custom_environment', e.target.value)}
-            placeholder="Descreva o ambiente personalizado"
-            className="mt-3 w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-200 outline-none focus:border-cyan-400"
-          />
+              </div>
+            )}
+            {value.environments.includes('custom') && (
+              <input
+                type="text"
+                value={value.custom_environment}
+                onChange={e => set('custom_environment', e.target.value)}
+                placeholder="Descreva o ambiente personalizado"
+                className="mt-3 w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-200 outline-none focus:border-cyan-400"
+              />
+            )}
+          </>
         )}
       </Section>
 
@@ -567,6 +794,9 @@ export function briefingFormToApiBody(form: BriefingFormState) {
     communication_tone:  form.communication_tone,
     image_count:         form.image_count,
     image_format:        form.image_format,
+    // F6: tipo de produto + slots escolhidos (substituem environments[] quando preenchidos)
+    template_id:         form.template_id ?? undefined,
+    selected_positions:  form.selected_positions.length > 0 ? form.selected_positions : undefined,
   }
 }
 

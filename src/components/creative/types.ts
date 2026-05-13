@@ -76,6 +76,10 @@ export interface CreativeBriefing {
   video_prompts:       string[] | null
   marketplace_rules:   Record<string, unknown>
   is_active:           boolean
+  /** F6: tipo de produto (template de imagens) escolhido. NULL = auto-match. */
+  template_id:         string | null
+  /** F6: slots do template selecionados (1 imagem por slot). Vazio = N primeiras. */
+  selected_positions:  number[]
   created_at:          string
   updated_at:          string
 }
