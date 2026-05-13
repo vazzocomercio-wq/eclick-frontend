@@ -143,10 +143,12 @@ function DeliveryStatusIcon({ status }: { status: DeliveryStatus }) {
 
 // ── Card ──────────────────────────────────────────────────────────────────────
 
-function SignalCard({ signal, deliveries, relatedSignals, onClick }: {
+function SignalCard({ signal, deliveries, relatedSignals, thumbnail, onClick }: {
   signal: AlertSignal
   deliveries: AlertDelivery[]
   relatedSignals: AlertSignal[]
+  /** URL da photo do produto referenciado em entity_id (quando entity_type=product). */
+  thumbnail?: string
   onClick: () => void
 }) {
   const meta = SEVERITY_META[signal.severity]
@@ -187,13 +189,39 @@ function SignalCard({ signal, deliveries, relatedSignals, onClick }: {
 
       {/* Header */}
       <div className="flex items-start gap-3">
-        <div className="w-9 h-9 rounded-lg shrink-0 flex items-center justify-center"
-          style={{
-            background: isCross ? `${crossColor}1a` : `${meta.color}1a`,
-            border:     `1px solid ${(isCross ? crossColor : meta.color) + '33'}`,
-          }}>
-          {isCross ? <Sparkles size={15} style={{ color: crossColor }} /> : <meta.icon size={15} style={{ color: meta.color }} />}
-        </div>
+        {thumbnail ? (
+          /* Thumb do produto + badge do severity sobreposto no canto */
+          <div className="relative shrink-0">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={thumbnail}
+              alt=""
+              className="w-9 h-9 rounded-lg object-cover"
+              style={{
+                background: '#0d0d10',
+                border: `1px solid ${(isCross ? crossColor : meta.color) + '55'}`,
+              }}
+              onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+            />
+            <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center"
+              style={{
+                background: '#0d0d10',
+                border: `1px solid ${(isCross ? crossColor : meta.color) + 'aa'}`,
+              }}>
+              {isCross
+                ? <Sparkles size={9} style={{ color: crossColor }} />
+                : <meta.icon size={9} style={{ color: meta.color }} />}
+            </div>
+          </div>
+        ) : (
+          <div className="w-9 h-9 rounded-lg shrink-0 flex items-center justify-center"
+            style={{
+              background: isCross ? `${crossColor}1a` : `${meta.color}1a`,
+              border:     `1px solid ${(isCross ? crossColor : meta.color) + '33'}`,
+            }}>
+            {isCross ? <Sparkles size={15} style={{ color: crossColor }} /> : <meta.icon size={15} style={{ color: meta.color }} />}
+          </div>
+        )}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className="text-[10px] uppercase tracking-wider font-semibold"
@@ -300,6 +328,9 @@ export default function AlertasPage() {
   const [liveStatus, setLiveStatus] = useState<'connecting' | 'live' | 'disconnected'>('connecting')
   const [selectedSignal, setSelectedSignal] = useState<AlertSignal | null>(null)
   const [managers, setManagers] = useState<Array<{ id: string; name: string; department: string }>>([])
+  /** Map entity_id (product UUID) → primeira foto. Carregado em lote
+   *  após signals chegarem, pra mostrar thumbnail nos SignalCards. */
+  const [productPhotos, setProductPhotos] = useState<Record<string, string>>({})
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -321,6 +352,35 @@ export default function AlertasPage() {
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  // Fetch em lote das photo_urls dos produtos referenciados nos signals
+  useEffect(() => {
+    const productIds = [...new Set(
+      signals
+        .filter(s => s.entity_type === 'product' && s.entity_id && !productPhotos[s.entity_id])
+        .map(s => s.entity_id!),
+    )]
+    if (productIds.length === 0) return
+
+    void (async () => {
+      try {
+        const supa = createClient()
+        const { data } = await supa
+          .from('products')
+          .select('id, photo_urls, images')
+          .in('id', productIds)
+        const map: Record<string, string> = {}
+        for (const p of (data ?? []) as Array<{ id: string; photo_urls: string[] | null; images: string[] | null }>) {
+          const first = (p.photo_urls?.[0] ?? p.images?.[0] ?? '').toString().trim()
+          if (first) map[p.id] = first
+        }
+        if (Object.keys(map).length > 0) {
+          setProductPhotos(prev => ({ ...prev, ...map }))
+        }
+      } catch { /* falha silenciosa — cards seguem sem foto */ }
+    })()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signals])
 
   // Socket.IO listeners
   useEffect(() => {
@@ -534,6 +594,7 @@ export default function AlertasPage() {
                 signal={s}
                 deliveries={deliveriesBySignal.get(s.id) ?? []}
                 relatedSignals={related}
+                thumbnail={s.entity_type === 'product' && s.entity_id ? productPhotos[s.entity_id] : undefined}
                 onClick={() => setSelectedSignal(s)}
               />
             )
