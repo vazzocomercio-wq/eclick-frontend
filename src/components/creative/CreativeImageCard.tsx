@@ -25,6 +25,15 @@ export default function CreativeImageCard({ image, onChange, disabled }: Props) 
   const isLoadingImage = image.status === 'pending' || image.status === 'generating'
   const showImage      = image.status === 'ready' || image.status === 'approved' || image.status === 'rejected'
 
+  // Nome do slot persistido pelo backend em generation_metadata.position_name.
+  // Quando o briefing usou template_id, esse campo está preenchido (ex: "Peq - Banheiro").
+  // Fallback (briefings legacy via LLM): mostra "#N" com o número da position.
+  const slotName: string | null = (() => {
+    const meta = image.generation_metadata as Record<string, unknown> | null
+    const name = meta && typeof meta.position_name === 'string' ? meta.position_name.trim() : ''
+    return name || null
+  })()
+
   async function approve() {
     setError(null); setBusy('approve')
     try {
@@ -105,9 +114,24 @@ export default function CreativeImageCard({ image, onChange, disabled }: Props) 
           </div>
         )}
 
-        {/* Position badge */}
-        <span className="absolute top-2 left-2 inline-flex items-center justify-center h-6 w-6 rounded-md bg-black/70 text-cyan-300 text-[10px] font-bold border border-cyan-400/30">
-          {image.position}
+        {/* Slot name (ou position fallback) — pílula com nome do ambiente quando briefing usou template */}
+        <span
+          className={[
+            'absolute top-2 left-2 inline-flex items-center max-w-[70%]',
+            slotName
+              ? 'gap-1 px-2 py-0.5 rounded-md bg-black/75 text-cyan-300 text-[10px] font-semibold border border-cyan-400/30 backdrop-blur-sm'
+              : 'justify-center h-6 w-6 rounded-md bg-black/70 text-cyan-300 text-[10px] font-bold border border-cyan-400/30',
+          ].join(' ')}
+          title={slotName ? `${slotName} (posição ${image.position})` : `Posição ${image.position}`}
+        >
+          {slotName ? (
+            <>
+              <span className="opacity-60">#{image.position}</span>
+              <span className="truncate">{slotName}</span>
+            </>
+          ) : (
+            image.position
+          )}
         </span>
 
         {/* Status badge top-right */}
