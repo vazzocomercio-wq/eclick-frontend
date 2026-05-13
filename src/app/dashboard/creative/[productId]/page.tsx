@@ -468,11 +468,16 @@ function CreateVideoJobModal({
     ? briefings.filter(b => b.is_active)
     : briefings
 
+  // Modo: variações (N vídeos curtos) OU longo (1 vídeo encadeado 15-30s)
+  const [mode, setMode]                   = useState<'variations' | 'long'>('variations')
   const [briefingId, setBriefingId]       = useState(activeBriefings[0]?.id ?? '')
   const [sourceImageId, setSourceImageId] = useState<string | null>(null)
   const [availableImages, setAvailableImages] = useState<CreativeImage[]>([])
   const [count, setCount]                 = useState(3)
   const [duration, setDuration]           = useState<number>(5)
+  // Pra modo longo: duração total alvo (chain 15-30s)
+  const [longDuration, setLongDuration]   = useState<number>(15)
+  const [cameraMotion, setCameraMotion]   = useState<string>('dolly-in')
   const [aspect, setAspect]               = useState<VideoAspectRatio>('1:1')
   // Aspect detectado da imagem-base. Backend faz center-crop quando aspect
   // do vídeo difere — então não travamos mais a escolha, só avisamos.
@@ -548,13 +553,51 @@ function CreateVideoJobModal({
   }, [sourceImageId, availableImages, product.signed_image_url])
 
   const perVideoCost = selectedModel?.pricing[duration] ?? 0
-  const estimatedCost = count * perVideoCost
+  // Estima custo do chain (modo longo): algoritmo guloso igual ao backend
+  function estimateChainCost(): number {
+    if (!selectedModel) return 0
+    const sortedDesc = [...selectedModel.supportedDurations].sort((a, b) => b - a)
+    const smallest = sortedDesc[sortedDesc.length - 1]
+    let remaining = longDuration
+    let cost = 0
+    while (remaining > 0) {
+      const slice = sortedDesc.find(d => d <= remaining) ?? smallest
+      cost += selectedModel.pricing[slice] ?? 0
+      remaining -= slice
+      if (cost > 100) break // safety
+    }
+    return cost
+  }
+  const estimatedCost = mode === 'long' ? estimateChainCost() : count * perVideoCost
   const willBlock     = estimatedCost > maxCost
 
   async function submit() {
     if (!briefingId) { setError('Selecione um briefing.'); return }
     setError(null); setCreating(true)
     try {
+      if (mode === 'long') {
+        // Modo longo: chain 15-30s a partir de imagem aprovada — exige source_image_id
+        if (!sourceImageId) {
+          setError('Modo longo exige escolher uma imagem-base aprovada.')
+          setCreating(false)
+          return
+        }
+        const job = await CreativeApi.createChainedVideoFromImage({
+          product_id:              product.id,
+          briefing_id:             briefingId,
+          source_image_id:         sourceImageId,
+          target_duration_seconds: longDuration,
+          aspect_ratio:            aspect,
+          model_name:              model,
+          camera_motion:           selectedModel?.supportsCameraControl
+            ? (cameraMotion as 'dolly-in' | 'dolly-out' | 'pan-left' | 'pan-right' | 'tilt-up' | 'tilt-down' | 'orbit' | 'static')
+            : undefined,
+          max_cost_usd:            maxCost,
+        })
+        onCreated(job.id)
+        return
+      }
+      // Modo variações (padrão): N vídeos curtos do mesmo briefing
       const job = await CreativeApi.createVideoJob({
         product_id:       product.id,
         briefing_id:      briefingId,
@@ -584,8 +627,43 @@ function CreateVideoJobModal({
         </div>
 
         <div className="p-4 space-y-4 max-h-[calc(100vh-12rem)] overflow-y-auto">
+          {/* Modo: variações curtas OU vídeo longo encadeado */}
+          <div>
+            <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">Modo</label>
+            <div className="grid grid-cols-2 gap-1.5">
+              <button
+                type="button"
+                onClick={() => setMode('variations')}
+                className={[
+                  'flex flex-col items-start px-3 py-2 rounded-lg text-[11px] transition-all text-left',
+                  mode === 'variations'
+                    ? 'bg-cyan-400 text-black font-semibold'
+                    : 'bg-zinc-900 text-zinc-400 border border-zinc-800',
+                ].join(' ')}
+              >
+                <span className="font-semibold">📹 Variações</span>
+                <span className={mode === 'variations' ? 'text-black/60' : 'text-zinc-500'}>1-5 vídeos curtos</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode('long')}
+                className={[
+                  'flex flex-col items-start px-3 py-2 rounded-lg text-[11px] transition-all text-left',
+                  mode === 'long'
+                    ? 'bg-cyan-400 text-black font-semibold'
+                    : 'bg-zinc-900 text-zinc-400 border border-zinc-800',
+                ].join(' ')}
+              >
+                <span className="font-semibold">🎬 Longo</span>
+                <span className={mode === 'long' ? 'text-black/60' : 'text-zinc-500'}>1 vídeo 15-30s encadeado</span>
+              </button>
+            </div>
+          </div>
+
           <p className="text-xs text-zinc-400">
-            IA gera prompts de motion (cinemagraph, zoom, rotação) e usa a imagem do produto como primeiro frame. Cada vídeo demora ~1-3 min no Kling.
+            {mode === 'variations'
+              ? 'IA gera prompts de motion (cinemagraph, zoom, rotação) e usa a imagem do produto como primeiro frame. Cada vídeo demora ~1-3 min.'
+              : 'IA gera UM vídeo longo encadeando partes (5-12s cada). Cada parte usa o último frame da anterior como primeiro frame da próxima — transição suave. Demora ~5-15 min.'}
           </p>
 
           <div>
@@ -627,38 +705,92 @@ function CreateVideoJobModal({
             })()}
           </div>
 
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="text-[10px] uppercase tracking-wider text-zinc-500">Quantidade</label>
-              <span className="text-xs font-mono text-zinc-200">{count}</span>
-            </div>
-            <input type="range" min={1} max={5} step={1} value={count}
-              onChange={e => setCount(Number(e.target.value))}
-              className="w-full accent-cyan-400" />
-            <div className="flex justify-between text-[10px] text-zinc-600 mt-0.5"><span>1</span><span>5</span></div>
-          </div>
+          {mode === 'variations' ? (
+            <>
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-[10px] uppercase tracking-wider text-zinc-500">Quantidade</label>
+                  <span className="text-xs font-mono text-zinc-200">{count}</span>
+                </div>
+                <input type="range" min={1} max={5} step={1} value={count}
+                  onChange={e => setCount(Number(e.target.value))}
+                  className="w-full accent-cyan-400" />
+                <div className="flex justify-between text-[10px] text-zinc-600 mt-0.5"><span>1</span><span>5</span></div>
+              </div>
 
-          <div>
-            <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">Duração</label>
-            <div className="flex gap-1.5 flex-wrap">
-              {(selectedModel?.supportedDurations ?? [5, 10]).map(d => (
-                <button key={d} type="button" onClick={() => setDuration(d)}
-                  className={[
-                    'flex-1 min-w-[60px] px-3 py-1.5 rounded-lg text-xs transition-all',
-                    duration === d
-                      ? 'bg-cyan-400 text-black font-semibold'
-                      : 'bg-zinc-900 text-zinc-400 border border-zinc-800',
-                  ].join(' ')}>
-                  {d}s
-                </button>
-              ))}
-            </div>
-            {selectedModel && (
-              <p className="text-[10px] text-zinc-500 mt-1">
-                {selectedModel.label} suporta {selectedModel.supportedDurations.join('/')}s
-              </p>
-            )}
-          </div>
+              <div>
+                <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">Duração</label>
+                <div className="flex gap-1.5 flex-wrap">
+                  {(selectedModel?.supportedDurations ?? [5, 10]).map(d => (
+                    <button key={d} type="button" onClick={() => setDuration(d)}
+                      className={[
+                        'flex-1 min-w-[60px] px-3 py-1.5 rounded-lg text-xs transition-all',
+                        duration === d
+                          ? 'bg-cyan-400 text-black font-semibold'
+                          : 'bg-zinc-900 text-zinc-400 border border-zinc-800',
+                      ].join(' ')}>
+                      {d}s
+                    </button>
+                  ))}
+                </div>
+                {selectedModel && (
+                  <p className="text-[10px] text-zinc-500 mt-1">
+                    {selectedModel.label} suporta {selectedModel.supportedDurations.join('/')}s
+                  </p>
+                )}
+              </div>
+            </>
+          ) : (
+            <>
+              {/* Modo longo: duração total alvo + movimento de câmera */}
+              <div>
+                <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">Duração total</label>
+                <div className="grid grid-cols-6 gap-1.5">
+                  {[8, 12, 15, 20, 25, 30].map(d => (
+                    <button key={d} type="button" onClick={() => setLongDuration(d)}
+                      className={[
+                        'px-2 py-1.5 rounded-lg text-xs transition-all',
+                        longDuration === d
+                          ? 'bg-cyan-400 text-black font-semibold'
+                          : 'bg-zinc-900 text-zinc-400 border border-zinc-800',
+                      ].join(' ')}>
+                      {d}s
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[10px] text-zinc-500 mt-1">
+                  Backend encadeia partes do {selectedModel?.label ?? 'modelo'} ({selectedModel?.supportedDurations.join('/')}s cada).
+                  {longDuration < (selectedModel?.supportedDurations?.[selectedModel.supportedDurations.length - 1] ?? 0) &&
+                    ' Single-shot.'}
+                </p>
+              </div>
+
+              {selectedModel?.supportsCameraControl && (
+                <div>
+                  <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">Movimento de câmera</label>
+                  <select
+                    value={cameraMotion}
+                    onChange={e => setCameraMotion(e.target.value)}
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-200 outline-none focus:border-cyan-400"
+                  >
+                    <option value="dolly-in">Câmera em direção ao produto (recomendado)</option>
+                    <option value="dolly-out">Câmera afastando</option>
+                    <option value="pan-right">Panorâmica direita</option>
+                    <option value="pan-left">Panorâmica esquerda</option>
+                    <option value="orbit">Orbital</option>
+                    <option value="static">Estática (movimento sutil)</option>
+                  </select>
+                </div>
+              )}
+
+              {!sourceImageId && (
+                <div className="rounded-lg border border-amber-400/30 bg-amber-400/5 p-2.5 text-[11px] text-amber-200 flex items-start gap-1.5">
+                  <AlertCircle size={12} className="shrink-0 mt-0.5" />
+                  <span>Modo longo exige imagem-base — escolha uma <strong>Imagem gerada</strong> aprovada acima.</span>
+                </div>
+              )}
+            </>
+          )}
 
           <div>
             <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">Proporção</label>
