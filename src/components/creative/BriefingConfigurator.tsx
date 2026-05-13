@@ -679,23 +679,35 @@ export default function BriefingConfigurator({ value, onChange, enableTemplates 
         </div>
       )}
 
-      {/* Imagens — qtde + formato */}
+      {/* Imagens — qtde (só sem template) + formato */}
       <Section icon={<Maximize2 size={14} />} title="Imagens">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <label className="text-[11px] text-zinc-500">Quantidade</label>
-            <div className="flex gap-1.5 mt-1">
-              {IMAGE_COUNT_OPTIONS.map(n => (
-                <SmallChip
-                  key={n}
-                  active={value.image_count === n}
-                  onClick={() => set('image_count', n)}
-                >
-                  {n} imagens
-                </SmallChip>
-              ))}
+          {value.template_id ? (
+            /* Com template: quantidade calculada automaticamente, sem seletor */
+            <div>
+              <label className="text-[11px] text-zinc-500">Quantidade</label>
+              <div className="mt-1 px-3 py-2 rounded-lg bg-zinc-950 border border-zinc-800 text-xs text-zinc-300">
+                {value.selected_positions.length > 0
+                  ? <><strong className="text-cyan-300">{value.selected_positions.length}</strong> imagens — 1 por slot marcado acima</>
+                  : <span className="text-zinc-500">marque slots em <strong>Ambientes</strong> ↑</span>}
+              </div>
             </div>
-          </div>
+          ) : (
+            <div>
+              <label className="text-[11px] text-zinc-500">Quantidade</label>
+              <div className="flex gap-1.5 mt-1">
+                {IMAGE_COUNT_OPTIONS.map(n => (
+                  <SmallChip
+                    key={n}
+                    active={value.image_count === n}
+                    onClick={() => set('image_count', n)}
+                  >
+                    {n} imagens
+                  </SmallChip>
+                ))}
+              </div>
+            </div>
+          )}
           <div>
             <label className="text-[11px] text-zinc-500">Formato</label>
             <div className="flex gap-1.5 mt-1 flex-wrap">
@@ -781,6 +793,12 @@ function SmallChip({
 // ── Helper pra montar o body que vai pra POST /briefings ──────────────────
 
 export function briefingFormToApiBody(form: BriefingFormState) {
+  // F6: quando template + slots, image_count = N slots (1 imagem por slot)
+  // Backend recalcula mas mandamos o valor correto pra evitar mismatch.
+  const effectiveImageCount = form.template_id && form.selected_positions.length > 0
+    ? form.selected_positions.length
+    : form.image_count
+
   return {
     target_marketplace:  form.target_marketplace,
     visual_style:        form.visual_style,
@@ -792,7 +810,7 @@ export function briefingFormToApiBody(form: BriefingFormState) {
     logo_url:            form.logo_url ?? undefined,
     logo_storage_path:   form.logo_storage_path ?? undefined,
     communication_tone:  form.communication_tone,
-    image_count:         form.image_count,
+    image_count:         effectiveImageCount,
     image_format:        form.image_format,
     // F6: tipo de produto + slots escolhidos (substituem environments[] quando preenchidos)
     template_id:         form.template_id ?? undefined,
