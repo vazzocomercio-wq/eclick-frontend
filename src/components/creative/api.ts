@@ -395,15 +395,16 @@ export const CreativeApi = {
   /** F6: catálogo de modelos de vídeo (Kling + Flow se configurado). */
   listVideoModels: () =>
     api<Array<{
-      id:                 string
-      label:              string
-      badge?:             string
-      provider:           'kling' | 'flow'
-      quality:            'standard' | 'premium' | 'audio-native' | 'fast' | 'economy'
-      hasAudio:           boolean
-      supportedDurations: number[]
-      supportsTailImage:  boolean
-      pricing:            Record<number, number>
+      id:                     string
+      label:                  string
+      badge?:                 string
+      provider:               'kling' | 'flow'
+      quality:                'standard' | 'premium' | 'audio-native' | 'fast' | 'economy'
+      hasAudio:               boolean
+      supportedDurations:     number[]
+      supportsTailImage:      boolean
+      supportsCameraControl:  boolean
+      pricing:                Record<number, number>
     }>>('/creative/video-jobs/models'),
 
   getVideoJob: (id: string) =>

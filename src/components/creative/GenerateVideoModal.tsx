@@ -84,7 +84,9 @@ export default function GenerateVideoModal({
         target_duration_seconds: duration,
         aspect_ratio:            aspect,
         model_name:              modelId as 'kling-v2-6',
-        camera_motion:           motion,
+        // Só envia camera_motion quando o modelo suporta — caso contrário,
+        // a IA infere o movimento do prompt e o param é ignorado pelo Kling.
+        camera_motion:           selectedModel?.supportsCameraControl ? motion : undefined,
         max_cost_usd:            Math.max(5, estimatedCost * 1.5),
       })
       router.push(`/dashboard/creative/${productId}/videos/${job.id}`)
@@ -188,26 +190,35 @@ export default function GenerateVideoModal({
             )}
           </Field>
 
-          {/* Câmera */}
-          <Field icon={<Camera size={11} />} label="Movimento de câmera">
-            <div className="grid grid-cols-2 gap-1.5">
-              {MOTIONS.map(m => (
-                <button
-                  key={m.value}
-                  type="button"
-                  onClick={() => setMotion(m.value)}
-                  className={[
-                    'text-left rounded-md px-2 py-1.5 text-[11px] transition-colors',
-                    motion === m.value
-                      ? 'bg-cyan-400 text-black font-semibold'
-                      : 'bg-zinc-900 text-zinc-300 border border-zinc-800 hover:border-zinc-700',
-                  ].join(' ')}
-                >
-                  {m.label}{m.recommended && motion !== m.value && <span className="text-[9px] text-cyan-300 ml-1">recom.</span>}
-                </button>
-              ))}
-            </div>
-          </Field>
+          {/* Câmera — só mostra se modelo suporta control nativo */}
+          {selectedModel?.supportsCameraControl ? (
+            <Field icon={<Camera size={11} />} label="Movimento de câmera">
+              <div className="grid grid-cols-2 gap-1.5">
+                {MOTIONS.map(m => (
+                  <button
+                    key={m.value}
+                    type="button"
+                    onClick={() => setMotion(m.value)}
+                    className={[
+                      'text-left rounded-md px-2 py-1.5 text-[11px] transition-colors',
+                      motion === m.value
+                        ? 'bg-cyan-400 text-black font-semibold'
+                        : 'bg-zinc-900 text-zinc-300 border border-zinc-800 hover:border-zinc-700',
+                    ].join(' ')}
+                  >
+                    {m.label}{m.recommended && motion !== m.value && <span className="text-[9px] text-cyan-300 ml-1">recom.</span>}
+                  </button>
+                ))}
+              </div>
+            </Field>
+          ) : (
+            <Field icon={<Camera size={11} />} label="Movimento de câmera">
+              <p className="text-[10px] text-zinc-500 rounded-md border border-zinc-800 bg-zinc-900/40 px-2 py-1.5">
+                Este modelo infere o movimento direto do prompt (a IA já descreve dolly-in/orbit/etc na descrição da cena).
+                Pra controle explícito de câmera, escolha <strong className="text-cyan-300">Kling v1.6</strong>.
+              </p>
+            </Field>
+          )}
 
           {/* Custo estimado */}
           <div className="rounded-lg border border-cyan-400/30 bg-cyan-400/5 p-3 flex items-center justify-between">
