@@ -444,7 +444,7 @@ export const CreativeApi = {
       id:                     string
       label:                  string
       badge?:                 string
-      provider:               'kling' | 'flow'
+      provider:               'kling' | 'flow' | 'sora'
       quality:                'standard' | 'premium' | 'audio-native' | 'fast' | 'economy'
       hasAudio:               boolean
       supportedDurations:     number[]

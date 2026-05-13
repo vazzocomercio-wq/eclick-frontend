@@ -30,7 +30,8 @@ interface Props {
 
 type VideoModel = Awaited<ReturnType<typeof CreativeApi.listVideoModels>>[number]
 
-const DURATIONS = [15, 20, 25, 30] as const
+// 8s/12s = single-part Sora (TikTok-style). 15-30s = chain (Kling/Veo).
+const DURATIONS = [8, 12, 15, 20, 25, 30] as const
 const MOTIONS = [
   { value: 'dolly-in' as const,  label: 'Câmera em direção ao produto', recommended: true },
   { value: 'dolly-out' as const, label: 'Câmera afastando' },
