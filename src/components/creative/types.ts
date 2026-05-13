@@ -315,6 +315,10 @@ export interface CreativeVideoJob {
   completed_at:        string | null
   created_at:          string
   updated_at:          string
+  // F6: chain fields (vídeos longos 15s+ encadeados)
+  target_duration_seconds?: number | null
+  source_provider?:    'kling' | 'flow' | 'sora' | null
+  camera_motion?:      string | null
 }
 
 export interface CreativeVideo {

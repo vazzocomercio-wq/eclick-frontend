@@ -439,6 +439,18 @@ export const CreativeApi = {
       method: 'POST', body: JSON.stringify(body),
     }),
 
+  /** F6: sobe max_cost_usd e reativa job que travou por cost-cap. */
+  raiseVideoJobCostLimit: (id: string, body: { multiplier?: number; absolute?: number } = {}) =>
+    api<CreativeVideoJob>(`/creative/video-jobs/${id}/raise-cost-limit`, {
+      method: 'POST', body: JSON.stringify(body),
+    }),
+
+  /** F6: força concat das parts ready (descarta pending/failed). */
+  forceFinalizeVideoJob: (id: string) =>
+    api<CreativeVideoJob>(`/creative/video-jobs/${id}/force-finalize`, {
+      method: 'POST', body: JSON.stringify({}),
+    }),
+
   /** F6: catálogo de modelos de vídeo (Kling + Flow se configurado). */
   listVideoModels: () =>
     api<Array<{

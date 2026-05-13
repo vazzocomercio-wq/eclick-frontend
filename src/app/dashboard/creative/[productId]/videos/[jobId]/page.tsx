@@ -1,10 +1,10 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
-  ArrowLeft, Sparkles, Loader2, X, Check, Download, AlertCircle, Film, RefreshCw,
+  ArrowLeft, Sparkles, Loader2, X, Check, Download, AlertCircle, Film, RefreshCw, TrendingUp, Scissors,
 } from 'lucide-react'
 import CreativeVideoCard from '@/components/creative/CreativeVideoCard'
 import { useVideoJob } from '@/components/creative/useVideoJob'
@@ -18,6 +18,7 @@ import { useConfirm, useAlert } from '@/components/ui/dialog-provider'
 
 export default function VideoJobPage() {
   const params = useParams<{ productId: string; jobId: string }>()
+  const router = useRouter()
   const productId = params.productId
   const jobId     = params.jobId
 
@@ -26,6 +27,8 @@ export default function VideoJobPage() {
   const [productError, setProductError]     = useState<string | null>(null)
   const [cancelling, setCancelling] = useState(false)
   const [bulkRegen, setBulkRegen]   = useState(false)
+  const [raisingLimit, setRaisingLimit] = useState(false)
+  const [forceFinalizing, setForceFinalizing] = useState(false)
   const confirmDialog = useConfirm()
   const alertDialog   = useAlert()
 
@@ -84,6 +87,49 @@ export default function VideoJobPage() {
     } catch (e: unknown) {
       await alertDialog({ title: 'Erro', message: (e as Error).message, variant: 'danger' })
     } finally { setCancelling(false) }
+  }
+
+  /** A — sobe limite (2x) e retoma o job */
+  async function raiseLimitAndResume() {
+    if (!job) return
+    const newLimit = (job.max_cost_usd ?? 5) * 2
+    const ok = await confirmDialog({
+      title:        'Subir limite e retomar',
+      message:      `Limite atual: $${job.max_cost_usd?.toFixed(2)}. Subir pra $${newLimit.toFixed(2)} (2×) e processar partes restantes?`,
+      confirmLabel: 'Subir e retomar',
+      variant:      'default',
+    })
+    if (!ok) return
+    setRaisingLimit(true)
+    try {
+      await CreativeApi.raiseVideoJobCostLimit(job.id, { multiplier: 2 })
+      await refresh()
+    } catch (e: unknown) {
+      await alertDialog({ title: 'Erro', message: (e as Error).message, variant: 'danger' })
+    } finally { setRaisingLimit(false) }
+  }
+
+  /** C — finaliza com parts já prontas, descarta o resto */
+  async function forceFinalize() {
+    if (!job) return
+    const readyCount = videos.filter(v => v.status === 'ready' && !v.is_chain_master).length
+    const totalDuration = videos
+      .filter(v => v.status === 'ready' && !v.is_chain_master)
+      .reduce((sum, v) => sum + (v.duration_seconds ?? 0), 0)
+    const ok = await confirmDialog({
+      title:        'Finalizar com partes prontas',
+      message:      `Vai concatenar ${readyCount} partes prontas (~${totalDuration}s) e descartar o resto. Sem custo adicional. Continuar?`,
+      confirmLabel: 'Finalizar agora',
+      variant:      'default',
+    })
+    if (!ok) return
+    setForceFinalizing(true)
+    try {
+      await CreativeApi.forceFinalizeVideoJob(job.id)
+      await refresh()
+    } catch (e: unknown) {
+      await alertDialog({ title: 'Erro', message: (e as Error).message, variant: 'danger' })
+    } finally { setForceFinalizing(false) }
   }
 
   async function regenerateRejected() {
@@ -233,11 +279,55 @@ export default function VideoJobPage() {
           failedCount={job?.failed_count ?? 0}
         />
 
-        {failed && job?.error_message && (
-          <div className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200 flex items-start gap-2">
-            <AlertCircle size={14} className="shrink-0 mt-0.5" /><span>{job.error_message}</span>
-          </div>
-        )}
+        {failed && job?.error_message && (() => {
+          const isCostCap = /limite de custo|cost.?limit|cost.?cap/i.test(job.error_message ?? '')
+          const isChainJob = (job.target_duration_seconds ?? 0) > 0
+          const readyParts = videos.filter(v => v.status === 'ready' && !v.is_chain_master)
+          const canForceFinalize = isChainJob && readyParts.length >= 1 && !videos.some(v => v.is_chain_master)
+          return (
+            <div className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
+              <div className="flex items-start gap-2">
+                <AlertCircle size={14} className="shrink-0 mt-0.5" />
+                <span>{job.error_message}</span>
+              </div>
+              {isCostCap && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={raiseLimitAndResume}
+                    disabled={raisingLimit || forceFinalizing}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-400 hover:bg-cyan-300 disabled:opacity-50 text-black text-xs font-semibold transition-all"
+                    title="Sobe o limite pra 2× e processa partes pendentes"
+                  >
+                    {raisingLimit ? <Loader2 size={12} className="animate-spin" /> : <TrendingUp size={12} />}
+                    Subir limite (2×) e retomar
+                  </button>
+                  {canForceFinalize && (
+                    <button
+                      type="button"
+                      onClick={forceFinalize}
+                      disabled={raisingLimit || forceFinalizing}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 text-amber-200 text-xs font-semibold transition-all disabled:opacity-50"
+                      title="Concatena só as partes prontas e descarta o resto"
+                    >
+                      {forceFinalizing ? <Loader2 size={12} className="animate-spin" /> : <Scissors size={12} />}
+                      Finalizar com {readyParts.length} parte{readyParts.length > 1 ? 's' : ''} pronta{readyParts.length > 1 ? 's' : ''}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/dashboard/creative/${productId}`)}
+                    disabled={raisingLimit || forceFinalizing}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-300 text-xs transition-all disabled:opacity-50"
+                    title="Volta pro produto e cria um novo job"
+                  >
+                    <RefreshCw size={12} /> Cancelar e refazer
+                  </button>
+                </div>
+              )}
+            </div>
+          )
+        })()}
         {cancelled && (
           <div className="mt-3 rounded-lg border border-zinc-700 bg-zinc-900 p-3 text-sm text-zinc-300 flex items-start gap-2">
             <X size={14} className="shrink-0 mt-0.5" /><span>Job cancelado. Vídeos gerados continuam disponíveis abaixo.</span>
