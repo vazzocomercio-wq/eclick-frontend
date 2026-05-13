@@ -276,7 +276,16 @@ export type VideoStatus =
   | 'rejected'
   | 'failed'
 
-export type KlingModel = 'kling-v1-6-std' | 'kling-v1-6-pro' | 'kling-v2-master'
+export type KlingModel =
+  | 'kling-v2-1'
+  | 'kling-v2-1-master'
+  | 'kling-v2-5'
+  | 'kling-v2-6'
+  | 'kling-v1-6'
+  // legados (pra retrocompat com vídeos antigos no DB)
+  | 'kling-v1-6-std'
+  | 'kling-v1-6-pro'
+  | 'kling-v2-master'
 export type VideoDuration = 5 | 10
 export type VideoAspectRatio = '1:1' | '16:9' | '9:16'
 
@@ -333,6 +342,14 @@ export interface CreativeVideo {
   created_at:           string
   updated_at:           string
   signed_video_url?:    string | null
+  // F6: chain fields (vídeos longos 15s+)
+  parent_video_id?:     string | null
+  chain_position?:      number | null
+  chain_total?:         number | null
+  is_chain_master?:     boolean
+  chain_master_id?:     string | null
+  provider?:            'kling' | 'flow'
+  source_frame_path?:   string | null
 }
 
 export const VIDEO_JOB_STATUS_LABELS: Record<VideoJobStatus, string> = {
@@ -348,17 +365,25 @@ export function isVideoJobActive(status: VideoJobStatus): boolean {
   return status === 'queued' || status === 'generating_prompts' || status === 'generating_videos'
 }
 
-// Pricing por modelo (USD) — espelha backend kling.client.ts
+// Pricing por modelo (USD) — espelha backend kling.client.ts (atualizado 2026 com v2-x)
 export const KLING_PRICING: Record<KlingModel, Record<5 | 10, number>> = {
-  'kling-v1-6-std':  { 5: 0.21, 10: 0.42 },
-  'kling-v1-6-pro':  { 5: 0.49, 10: 0.98 },
-  'kling-v2-master': { 5: 0.42, 10: 0.84 },
+  'kling-v2-1':        { 5: 0.21, 10: 0.42 },
+  'kling-v2-1-master': { 5: 0.42, 10: 0.84 },
+  'kling-v2-5':        { 5: 0.30, 10: 0.60 },
+  'kling-v2-6':        { 5: 0.40, 10: 0.80 },
+  'kling-v1-6':        { 5: 0.18, 10: 0.36 },
+  // legados (DB pode ter rows antigas)
+  'kling-v1-6-std':    { 5: 0.21, 10: 0.42 },
+  'kling-v1-6-pro':    { 5: 0.49, 10: 0.98 },
+  'kling-v2-master':   { 5: 0.42, 10: 0.84 },
 }
 
 export const KLING_MODEL_OPTIONS: Array<{ value: KlingModel; label: string; description: string }> = [
-  { value: 'kling-v1-6-std',  label: 'v1.6 Standard', description: 'Mais rápido, mais barato ($0.21/5s)' },
-  { value: 'kling-v1-6-pro',  label: 'v1.6 Pro',      description: 'Qualidade alta ($0.49/5s)' },
-  { value: 'kling-v2-master', label: 'v2 Master',     description: 'Premium, motion suave ($0.42/5s)' },
+  { value: 'kling-v2-6',        label: 'v2.6 (áudio)',   description: 'NOVO — áudio nativo ($0.40/5s)' },
+  { value: 'kling-v2-1-master', label: 'v2.1 Master',    description: 'Premium ($0.42/5s)' },
+  { value: 'kling-v2-5',        label: 'v2.5',           description: 'Standard recente ($0.30/5s)' },
+  { value: 'kling-v2-1',        label: 'v2.1',           description: 'Padrão ($0.21/5s)' },
+  { value: 'kling-v1-6',        label: 'v1.6',           description: 'Econômico ($0.18/5s)' },
 ]
 
 export const VIDEO_DURATION_OPTIONS: VideoDuration[] = [5, 10]

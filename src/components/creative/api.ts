@@ -375,6 +375,37 @@ export const CreativeApi = {
       method: 'POST', body: JSON.stringify(body),
     }),
 
+  /** F6: gera 1 vídeo longo (15-30s) a partir de uma imagem aprovada. */
+  createChainedVideoFromImage: (body: {
+    product_id:              string
+    briefing_id:             string
+    listing_id?:             string
+    source_image_id:         string
+    target_duration_seconds: number
+    aspect_ratio?:           VideoAspectRatio
+    model_name?:             KlingModel
+    camera_motion?:          'dolly-in' | 'dolly-out' | 'pan-left' | 'pan-right' | 'tilt-up' | 'tilt-down' | 'orbit' | 'static'
+    max_cost_usd?:           number
+    prompt?:                 string
+  }) =>
+    api<CreativeVideoJob>('/creative/video-jobs/from-image', {
+      method: 'POST', body: JSON.stringify(body),
+    }),
+
+  /** F6: catálogo de modelos de vídeo (Kling + Flow se configurado). */
+  listVideoModels: () =>
+    api<Array<{
+      id:                 string
+      label:              string
+      badge?:             string
+      provider:           'kling' | 'flow'
+      quality:            'standard' | 'premium' | 'audio-native' | 'fast' | 'economy'
+      hasAudio:           boolean
+      supportedDurations: number[]
+      supportsTailImage:  boolean
+      pricing:            Record<number, number>
+    }>>('/creative/video-jobs/models'),
+
   getVideoJob: (id: string) =>
     api<CreativeVideoJob>(`/creative/video-jobs/${id}`),
 

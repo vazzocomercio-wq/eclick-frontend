@@ -2,25 +2,30 @@
 
 import { useState } from 'react'
 import {
-  Check, X, RefreshCw, Loader2, AlertCircle, Download, Image as ImageIcon, MessageSquare,
+  Check, X, RefreshCw, Loader2, AlertCircle, Download, Image as ImageIcon, MessageSquare, Film,
 } from 'lucide-react'
 import type { CreativeImage } from './types'
 import { CreativeApi } from './api'
 import CanvaButton from './CanvaButton'
+import GenerateVideoModal from './GenerateVideoModal'
 
 interface Props {
   image:    CreativeImage
   onChange: (next: CreativeImage) => void
   /** Quando true, ações desabilitadas (ex: durante outras chamadas). */
   disabled?: boolean
+  /** F6: pra abrir modal de "gerar vídeo desta imagem". Sem esses ids, botão fica oculto. */
+  productId?:  string
+  briefingId?: string
 }
 
-export default function CreativeImageCard({ image, onChange, disabled }: Props) {
+export default function CreativeImageCard({ image, onChange, disabled, productId, briefingId }: Props) {
   const [busy, setBusy]               = useState<null | 'approve' | 'reject' | 'regen'>(null)
   const [error, setError]             = useState<string | null>(null)
   const [showPrompt, setShowPrompt]   = useState(false)
   const [regenOpen, setRegenOpen]     = useState(false)
   const [regenPrompt, setRegenPrompt] = useState('')
+  const [videoModalOpen, setVideoModalOpen] = useState(false)
 
   const isLoadingImage = image.status === 'pending' || image.status === 'generating'
   const showImage      = image.status === 'ready' || image.status === 'approved' || image.status === 'rejected'
@@ -200,23 +205,37 @@ export default function CreativeImageCard({ image, onChange, disabled }: Props) 
         )}
 
         {image.status === 'approved' && (
-          <div className="flex gap-1">
-            <ActionButton
-              icon={<X size={10} />}
-              label="Rejeitar"
-              tone="red"
-              onClick={reject}
-              disabled={disabled || !!busy}
-              loading={busy === 'reject'}
-            />
-            <ActionButton
-              icon={<Download size={10} />}
-              label="Download"
-              tone="cyan"
-              onClick={download}
-              disabled={disabled || !image.signed_image_url}
-            />
-          </div>
+          <>
+            <div className="flex gap-1">
+              <ActionButton
+                icon={<X size={10} />}
+                label="Rejeitar"
+                tone="red"
+                onClick={reject}
+                disabled={disabled || !!busy}
+                loading={busy === 'reject'}
+              />
+              <ActionButton
+                icon={<Download size={10} />}
+                label="Download"
+                tone="cyan"
+                onClick={download}
+                disabled={disabled || !image.signed_image_url}
+              />
+            </div>
+
+            {/* F6: gerar vídeo a partir desta cena aprovada */}
+            {productId && briefingId && (
+              <button
+                type="button"
+                onClick={() => setVideoModalOpen(true)}
+                disabled={disabled}
+                className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md bg-gradient-to-r from-cyan-400/15 to-cyan-400/5 border border-cyan-400/30 hover:border-cyan-400/60 text-cyan-300 text-[11px] font-semibold transition-colors disabled:opacity-40"
+              >
+                <Film size={12} /> Gerar vídeo desta cena
+              </button>
+            )}
+          </>
         )}
 
         {/* Canva — disponível em qualquer imagem com URL pronta */}
@@ -272,6 +291,16 @@ export default function CreativeImageCard({ image, onChange, disabled }: Props) 
             Regerar imagem
           </button>
         </div>
+      )}
+
+      {/* F6: modal de gerar vídeo desta imagem (renderiza somente quando aberto) */}
+      {videoModalOpen && productId && briefingId && (
+        <GenerateVideoModal
+          productId={productId}
+          briefingId={briefingId}
+          imageId={image.id}
+          onClose={() => setVideoModalOpen(false)}
+        />
       )}
     </div>
   )

@@ -252,20 +252,56 @@ export default function VideoJobPage() {
               <p className="text-[11px] text-zinc-500 mt-1">Cada vídeo demora ~1-3 min pra renderizar no Kling</p>
             </div>
           ) : (
-            <div className={`grid ${gridClass} gap-4`}>
-              {videos.map(v => (
-                <CreativeVideoCard
-                  key={v.id}
-                  video={v}
-                  onChange={(next: CreativeVideo) => {
-                    patchVideo(next)
-                    if (next.status === 'pending' && next.regenerated_from_id === v.id) {
-                      void refresh()
-                    }
-                  }}
-                />
-              ))}
-            </div>
+            (() => {
+              // F6: separa chain master (vídeo concatenado final) das parts individuais
+              const masters = videos.filter(v => v.is_chain_master)
+              const parts   = videos.filter(v => !v.is_chain_master)
+              const ordered = [...masters, ...parts]
+              return (
+                <div className="space-y-4">
+                  {masters.length > 0 && (
+                    <div>
+                      <p className="text-[11px] uppercase tracking-wider text-cyan-300 mb-2">
+                        ✨ Vídeo final ({masters.length})
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {masters.map(v => (
+                          <CreativeVideoCard
+                            key={v.id}
+                            video={v}
+                            onChange={(next: CreativeVideo) => patchVideo(next)}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {parts.length > 0 && (
+                    <div>
+                      <p className="text-[11px] uppercase tracking-wider text-zinc-500 mb-2">
+                        {masters.length > 0 ? 'Partes individuais' : 'Vídeos'} ({parts.length})
+                      </p>
+                      <div className={`grid ${gridClass} gap-4`}>
+                        {parts.map(v => (
+                          <CreativeVideoCard
+                            key={v.id}
+                            video={v}
+                            onChange={(next: CreativeVideo) => {
+                              patchVideo(next)
+                              if (next.status === 'pending' && next.regenerated_from_id === v.id) {
+                                void refresh()
+                              }
+                            }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {ordered.length === 0 && (
+                    <div className="text-center py-12 text-zinc-500 text-sm">Sem vídeos.</div>
+                  )}
+                </div>
+              )
+            })()
           )}
         </div>
       </div>

@@ -94,8 +94,15 @@ export default function CreativeVideoCard({ video, onChange, disabled }: Props) 
           />
         )}
 
-        <span className="absolute top-2 left-2 inline-flex items-center justify-center h-6 w-6 rounded-md bg-black/70 text-cyan-300 text-[10px] font-bold border border-cyan-400/30">
-          {video.position}
+        {/* Badge esquerdo: posição OU sequência (chain) */}
+        <span className="absolute top-2 left-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-black/75 text-cyan-300 text-[10px] font-bold border border-cyan-400/30 backdrop-blur-sm">
+          {video.is_chain_master ? (
+            <>✨ Final · {video.duration_seconds}s</>
+          ) : video.chain_position && video.chain_total ? (
+            <>Parte {video.chain_position}/{video.chain_total}</>
+          ) : (
+            <>#{video.position}</>
+          )}
         </span>
         <span className="absolute top-2 right-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] bg-black/70 text-zinc-300 border border-zinc-700">
           <Clock size={9} /> {video.duration_seconds}s

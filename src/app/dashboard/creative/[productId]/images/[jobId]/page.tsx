@@ -302,6 +302,8 @@ export default function ImageJobPage() {
                 <CreativeImageCard
                   key={`pos-${img.position}`}
                   image={img}
+                  productId={productId}
+                  briefingId={job?.briefing_id}
                   onChange={(next: CreativeImage) => {
                     patchImage(next)
                     // Se foi regenerate, refresh pra pegar a nova row criada
