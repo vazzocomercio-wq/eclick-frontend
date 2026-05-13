@@ -485,7 +485,9 @@ function CreateVideoJobModal({
   const [models, setModels]               = useState<VideoModelInfo[]>([])
   const [loadingModels, setLoadingModels] = useState(true)
   const [model, setModel]                 = useState<string>('kling-v2-6')
+  // Auto-suggest = estimatedCost * 1.5 com piso $5. User pode override.
   const [maxCost, setMaxCost]             = useState(5.0)
+  const [maxCostTouched, setMaxCostTouched] = useState(false) // se user mexeu, não auto-ajusta
   const [creating, setCreating]           = useState(false)
   const [error, setError]                 = useState<string | null>(null)
 
@@ -570,6 +572,15 @@ function CreateVideoJobModal({
   }
   const estimatedCost = mode === 'long' ? estimateChainCost() : count * perVideoCost
   const willBlock     = estimatedCost > maxCost
+
+  // Auto-ajusta o limite quando estimativa muda (até user mexer manualmente).
+  // Piso $5, sugestão = estimativa × 1.5 (mesma fórmula da GenerateVideoModal).
+  useEffect(() => {
+    if (maxCostTouched) return
+    const suggested = Math.max(5, Math.ceil(estimatedCost * 1.5))
+    if (suggested !== maxCost) setMaxCost(suggested)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [estimatedCost, maxCostTouched])
 
   async function submit() {
     if (!briefingId) { setError('Selecione um briefing.'); return }
@@ -871,12 +882,19 @@ function CreateVideoJobModal({
 
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="text-[10px] uppercase tracking-wider text-zinc-500">Limite de custo</label>
+              <label className="text-[10px] uppercase tracking-wider text-zinc-500">
+                Limite de custo {!maxCostTouched && <span className="text-cyan-400/60 normal-case">(auto)</span>}
+              </label>
               <span className="text-xs font-mono text-zinc-200">${maxCost.toFixed(2)}</span>
             </div>
-            <input type="range" min={0.5} max={20} step={0.5} value={maxCost}
-              onChange={e => setMaxCost(Number(e.target.value))}
+            <input type="range" min={0.5} max={50} step={0.5} value={maxCost}
+              onChange={e => { setMaxCost(Number(e.target.value)); setMaxCostTouched(true) }}
               className="w-full accent-cyan-400" />
+            <p className="mt-1 text-[10px] text-zinc-600">
+              {maxCostTouched
+                ? <>Auto-ajuste desligado. <button type="button" onClick={() => setMaxCostTouched(false)} className="text-cyan-400 hover:underline">Voltar pra automático</button></>
+                : <>Sugerido: estimativa × 1.5 (cobre overshoot e re-tries).</>}
+            </p>
           </div>
 
           <div className={[
