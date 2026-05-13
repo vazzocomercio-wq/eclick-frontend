@@ -365,25 +365,27 @@ export function isVideoJobActive(status: VideoJobStatus): boolean {
   return status === 'queued' || status === 'generating_prompts' || status === 'generating_videos'
 }
 
-// Pricing por modelo (USD) — espelha backend kling.client.ts (atualizado 2026 com v2-x)
+// Pricing API real (USD) — confirmado em console.kling.com em 2026-05-13.
+// IMPORTANTE: o pricing do site/subscription é DIFERENTE — esses valores
+// são pra carteira da API (chamadas via KLING_ACCESS_KEY/SECRET_KEY).
 export const KLING_PRICING: Record<KlingModel, Record<5 | 10, number>> = {
-  'kling-v2-1':        { 5: 0.21, 10: 0.42 },
-  'kling-v2-1-master': { 5: 0.42, 10: 0.84 },
-  'kling-v2-5':        { 5: 0.30, 10: 0.60 },
-  'kling-v2-6':        { 5: 0.40, 10: 0.80 },
-  'kling-v1-6':        { 5: 0.18, 10: 0.36 },
-  // legados (DB pode ter rows antigas)
-  'kling-v1-6-std':    { 5: 0.21, 10: 0.42 },
+  'kling-v2-1':        { 5: 0.49, 10: 0.98 },
+  'kling-v2-1-master': { 5: 1.40, 10: 2.80 },
+  'kling-v2-5':        { 5: 0.35, 10: 0.70 },
+  'kling-v2-6':        { 5: 0.70, 10: 1.40 },
+  'kling-v1-6':        { 5: 0.49, 10: 0.98 },
+  // legados (DB pode ter rows antigas — mesmos valores do equivalente atual)
+  'kling-v1-6-std':    { 5: 0.49, 10: 0.98 },
   'kling-v1-6-pro':    { 5: 0.49, 10: 0.98 },
-  'kling-v2-master':   { 5: 0.42, 10: 0.84 },
+  'kling-v2-master':   { 5: 1.40, 10: 2.80 },
 }
 
 export const KLING_MODEL_OPTIONS: Array<{ value: KlingModel; label: string; description: string }> = [
-  { value: 'kling-v2-6',        label: 'v2.6 (áudio)',   description: 'NOVO — áudio nativo ($0.40/5s)' },
-  { value: 'kling-v2-1-master', label: 'v2.1 Master',    description: 'Premium ($0.42/5s)' },
-  { value: 'kling-v2-5',        label: 'v2.5',           description: 'Standard recente ($0.30/5s)' },
-  { value: 'kling-v2-1',        label: 'v2.1',           description: 'Padrão ($0.21/5s)' },
-  { value: 'kling-v1-6',        label: 'v1.6',           description: 'Econômico ($0.18/5s)' },
+  { value: 'kling-v2-6',        label: 'v2.6 (áudio)',   description: 'NOVO — áudio nativo ($0.70/5s)' },
+  { value: 'kling-v2-5',        label: 'v2.5 Turbo',     description: 'Recomendado — bom equilíbrio ($0.35/5s)' },
+  { value: 'kling-v2-1',        label: 'v2.1',           description: 'Padrão Pro ($0.49/5s)' },
+  { value: 'kling-v1-6',        label: 'v1.6',           description: 'Com controle de câmera ($0.49/5s)' },
+  { value: 'kling-v2-1-master', label: 'v2.1 Master',    description: 'Premium — caro ($1.40/5s)' },
 ]
 
 export const VIDEO_DURATION_OPTIONS: VideoDuration[] = [5, 10]
