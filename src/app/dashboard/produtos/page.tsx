@@ -128,9 +128,24 @@ function BulkBar({
 
 // ── Floating Tools Panel (right side) ─────────────────────────────────────────
 
+const TOOLS_PANEL_PREFS_KEY = 'eclick.produtos.tools-panel.collapsed'
+
 function ProdutosToolsPanel({ products }: { products: Product[] }) {
   const router = useRouter()
-  const [collapsed, setCollapsed] = useState(false)
+  // Padrão: fechado. Lembra preferência via localStorage (sessão 2026-05-14
+  // — antes abria aberto e sobrepunha o header de actions do /produtos).
+  const [collapsed, setCollapsed] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return true
+    try {
+      const raw = localStorage.getItem(TOOLS_PANEL_PREFS_KEY)
+      if (raw === 'false') return false
+      return true
+    } catch { return true }
+  })
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try { localStorage.setItem(TOOLS_PANEL_PREFS_KEY, String(collapsed)) } catch {}
+  }, [collapsed])
   const [exporting, setExporting] = useState(false)
 
   // KPIs reais do servidor (GET /products/kpis) — totais do catálogo inteiro,
@@ -189,11 +204,42 @@ function ProdutosToolsPanel({ products }: { products: Product[] }) {
   }
 
   if (collapsed) {
+    // Aba vertical fina estilo "Copilot" — colada na borda direita, texto
+    // rotacionado 90° pra ler de cima pra baixo. Não sobrepõe nada (~28px
+    // de largura) e fica visível pra abrir quando precisar.
     return (
       <button onClick={() => setCollapsed(false)}
-        className="fixed top-24 right-3 z-30 w-9 h-9 rounded-full flex items-center justify-center transition-colors hidden lg:flex"
-        style={{ background: '#111114', color: '#a1a1aa', border: '1px solid #1e1e24', boxShadow: '0 4px 12px rgba(0,0,0,0.4)' }}
-        title="Abrir painel de ferramentas">◀</button>
+        className="fixed top-1/2 -translate-y-1/2 right-0 z-30 group transition-all hover:right-0.5 hidden lg:flex"
+        title="Abrir painel do catálogo">
+        <div
+          className="flex flex-col items-center justify-center gap-2 py-4 px-1.5 rounded-l-xl"
+          style={{
+            background: 'linear-gradient(180deg, #1a1a20 0%, #111114 100%)',
+            borderTop: '1px solid #27272a',
+            borderLeft: '1px solid #27272a',
+            borderBottom: '1px solid #27272a',
+            boxShadow: '-4px 0 12px rgba(0,0,0,0.35)',
+          }}>
+          {/* Drag handle / decorativo (3 pontos) */}
+          <div className="flex flex-col gap-0.5 opacity-50 group-hover:opacity-80 transition-opacity">
+            <span className="w-0.5 h-0.5 rounded-full bg-zinc-500" />
+            <span className="w-0.5 h-0.5 rounded-full bg-zinc-500" />
+            <span className="w-0.5 h-0.5 rounded-full bg-zinc-500" />
+          </div>
+          <span
+            className="text-[10px] font-bold uppercase tracking-widest text-zinc-300 group-hover:text-cyan-400 transition-colors"
+            style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>
+            Catálogo
+          </span>
+          {/* Badge pra cadastro pendente se houver — chama atenção */}
+          {pendentes != null && pendentes > 0 && (
+            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+              style={{ background: 'rgba(245,158,11,0.18)', color: '#f59e0b' }}>
+              {pendentes > 999 ? '999+' : pendentes}
+            </span>
+          )}
+        </div>
+      </button>
     )
   }
 
