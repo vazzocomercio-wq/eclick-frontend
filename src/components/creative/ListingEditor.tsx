@@ -1,10 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Plus, X, Save, Loader2, AlertCircle, RefreshCw, ExternalLink, CheckCircle2 } from 'lucide-react'
+import { Plus, X, Save, Loader2, AlertCircle, RefreshCw, ExternalLink, CheckCircle2, Sparkles } from 'lucide-react'
 import type { CreativeListing } from './types'
 import { CreativeApi } from './api'
 import MlAttributesEditor from './MlAttributesEditor'
+import SeoSourcesPanel from './SeoSourcesPanel'
 
 interface Props {
   listing:  CreativeListing
@@ -45,6 +46,12 @@ export default function ListingEditor({ listing, onSaved, disabled }: Props) {
   const [dirty, setDirty]   = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError]   = useState<string | null>(null)
+  const [seoOpen, setSeoOpen] = useState(false)
+
+  // Detecta se este listing tem fontes do e-Otimizer registradas
+  const hasSeoSources = Boolean(
+    (listing.generation_metadata as Record<string, unknown> | undefined)?.seo_sources,
+  )
 
   // Re-sync quando o user navega entre versões
   useEffect(() => {
@@ -96,16 +103,34 @@ export default function ListingEditor({ listing, onSaved, disabled }: Props) {
         <span className={`text-[11px] ${dirty ? 'text-amber-400' : 'text-zinc-500'}`}>
           {dirty ? '● alterações não salvas' : '✓ tudo salvo'}
         </span>
-        <button
-          type="button"
-          onClick={save}
-          disabled={!dirty || saving || disabled}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-400 hover:bg-cyan-300 disabled:opacity-50 disabled:cursor-not-allowed text-black text-xs font-semibold transition-all"
-        >
-          {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
-          Salvar
-        </button>
+        <div className="flex items-center gap-2">
+          {hasSeoSources && (
+            <button
+              type="button"
+              onClick={() => setSeoOpen(true)}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-cyan-400/30 hover:border-cyan-400/60 text-cyan-300 text-xs font-medium transition-all"
+              title="Ver os anúncios e keywords reais que serviram de base"
+            >
+              <Sparkles size={12} /> Ver fontes
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={save}
+            disabled={!dirty || saving || disabled}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-400 hover:bg-cyan-300 disabled:opacity-50 disabled:cursor-not-allowed text-black text-xs font-semibold transition-all"
+          >
+            {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+            Salvar
+          </button>
+        </div>
       </div>
+
+      <SeoSourcesPanel
+        open={seoOpen}
+        onClose={() => setSeoOpen(false)}
+        generationMetadata={(listing.generation_metadata as Record<string, unknown>) ?? null}
+      />
 
       {error && (
         <div className="flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/10 p-2.5 text-xs text-red-200">
