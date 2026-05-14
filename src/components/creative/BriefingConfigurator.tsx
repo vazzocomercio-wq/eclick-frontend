@@ -1,7 +1,10 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
-import { Palette, Globe, Volume2, Image as ImageIcon, Maximize2, Loader2, X, Sparkles, Upload, AlertTriangle, Package } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import {
+  Palette, Globe, Volume2, Image as ImageIcon, Loader2, X, Sparkles,
+  Upload, AlertTriangle, Package, ChevronDown,
+} from 'lucide-react'
 import {
   MARKETPLACE_OPTIONS,
   VISUAL_STYLES,
@@ -82,10 +85,11 @@ export default function BriefingConfigurator({ value, onChange, autoDetectByCate
     onChange({ ...value, [k]: v })
 
   // ── F6: Tipos de produto (prompt templates) ──────────────────────────────
-  const [productTypes, setProductTypes]       = useState<CreativePromptTemplate[]>([])
+  const [productTypes, setProductTypes]               = useState<CreativePromptTemplate[]>([])
   const [productTypesLoading, setProductTypesLoading] = useState(false)
   const [activeTypePositions, setActiveTypePositions] = useState<TemplatePosition[]>([])
   const [autoDetectedTypeId, setAutoDetectedTypeId]   = useState<string | null>(null)
+  const [showTypePicker, setShowTypePicker]           = useState(false)
 
   // Lista de ambientes da taxonomy (fluxo legado — sem tipo de produto escolhido)
   const [ambientOptions, setAmbientOptions] = useState<TaxonomyOption[]>([])
@@ -146,11 +150,33 @@ export default function BriefingConfigurator({ value, onChange, autoDetectByCate
     return () => { cancelled = true }
   }, [value.template_id])
 
+  const activeType = useMemo(
+    () => productTypes.find(t => t.id === value.template_id) ?? null,
+    [productTypes, value.template_id],
+  )
+  const isAutoDetected = !!value.template_id && autoDetectedTypeId === value.template_id
+
   return (
-    <div className="space-y-6">
-      {/* Marketplace */}
-      <Section icon={<Globe size={14} />} title="Marketplace alvo" >
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+    <div className="space-y-5">
+      {/* CONTEXT BAR — tipo de produto (compact, readonly + trocar) */}
+      <TypeContextBar
+        activeType={activeType}
+        slotCount={activeTypePositions.length}
+        isAutoDetected={isAutoDetected}
+        loading={productTypesLoading}
+        open={showTypePicker}
+        onToggle={() => setShowTypePicker(v => !v)}
+        productTypes={productTypes}
+        currentTemplateId={value.template_id}
+        onSelectType={(id) => {
+          onChange({ ...value, template_id: id, selected_positions: [] })
+          setShowTypePicker(false)
+        }}
+      />
+
+      {/* Marketplace — 1 linha em desktop */}
+      <Section icon={<Globe size={14} />} title="Marketplace alvo">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
           {MARKETPLACE_OPTIONS.map(o => (
             <ChipButton
               key={o.value}
@@ -180,76 +206,42 @@ export default function BriefingConfigurator({ value, onChange, autoDetectByCate
         </div>
       </Section>
 
-      {/* F6: Tipo de produto (template de imagens) — antes dos ambientes */}
-      <Section icon={<Package size={14} />} title="Tipo de produto">
-        <p className="text-[11px] text-zinc-500 mb-2">
-          Define quais ambientes/cenas serão usados pra gerar imagens. {autoDetectedTypeId === value.template_id && value.template_id ? '✨ Detectado automaticamente pela categoria.' : ''} Gerenciar em <strong>/templates</strong>.
-        </p>
-        {productTypesLoading ? (
-          <div className="flex items-center gap-1.5 text-[11px] text-zinc-500">
-            <Loader2 size={12} className="animate-spin" /> carregando tipos de produto…
-          </div>
-        ) : (
-          <div className="flex flex-wrap items-center gap-2">
-            <select
-              value={value.template_id ?? ''}
-              onChange={e => {
-                const newId = e.target.value || null
-                // Reset selected_positions ao trocar tipo
-                onChange({ ...value, template_id: newId, selected_positions: [] })
-              }}
-              className="bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-200 outline-none focus:border-cyan-400"
-            >
-              <option value="">— Nenhum (usar ambientes livres) —</option>
-              {productTypes.map(t => (
-                <option key={t.id} value={t.id}>
-                  {t.name}{t.is_default ? ' (default)' : ''} · {t.positions.length} slots
-                </option>
-              ))}
-            </select>
-            {value.template_id && (
-              <button
-                type="button"
-                onClick={() => onChange({ ...value, template_id: null, selected_positions: [] })}
-                className="text-[11px] text-zinc-500 hover:text-zinc-200 inline-flex items-center gap-1"
-                title="Limpar tipo escolhido"
-              >
-                <X size={10} /> limpar
-              </button>
-            )}
-          </div>
-        )}
-      </Section>
-
       {/* Ambientes / Slots — dinâmico baseado em template_id */}
       <Section
         icon={<ImageIcon size={14} />}
-        title={value.template_id
-          ? `Ambientes do template (selecione 1+)`
-          : `Ambientes (selecione 1+)`}
+        title={value.template_id ? 'Ambientes do template' : 'Ambientes'}
       >
         {value.template_id ? (
           /* MODO TEMPLATE: chips dos slots do tipo de produto escolhido */
           <>
+            {/* Status line — coerente com summary do footer */}
             <p className="text-[11px] text-zinc-500 mb-2">
-              {value.selected_positions.length > 0
-                ? <>Vai gerar <strong className="text-cyan-300">{value.selected_positions.length}</strong> imagem(ns) — 1 por slot marcado.</>
-                : <>Sem nenhum marcado: vai gerar as <strong>{value.image_count}</strong> primeiras do template.</>}
+              {value.selected_positions.length > 0 ? (
+                <>
+                  <span className="text-cyan-300 font-semibold">{value.selected_positions.length}</span>
+                  {' selecionados — 1 imagem por slot.'}
+                </>
+              ) : (
+                <>
+                  Default: vai usar as <strong className="text-zinc-300">{value.image_count}</strong> primeiras do template.
+                </>
+              )}
             </p>
+
             {activeTypePositions.length === 0 ? (
               <div className="flex items-center gap-1.5 text-[11px] text-zinc-500">
                 <Loader2 size={12} className="animate-spin" /> carregando slots…
               </div>
             ) : (
               <>
-                {/* Slots de ambiente (não-utilitários) */}
-                <div className="flex flex-wrap gap-1.5 mb-3">
+                {/* Slots de ambiente (não-utilitários) — primários */}
+                <div className="flex flex-wrap gap-1.5">
                   {activeTypePositions
                     .filter(p => !isUtilitySlot(p.name))
                     .map(p => {
                       const active = value.selected_positions.includes(p.position)
                       return (
-                        <SmallChip
+                        <SlotChip
                           key={p.position}
                           active={active}
                           onClick={() => {
@@ -260,24 +252,27 @@ export default function BriefingConfigurator({ value, onChange, autoDetectByCate
                           }}
                         >
                           {p.name}
-                        </SmallChip>
+                        </SlotChip>
                       )
                     })}
                 </div>
 
-                {/* Slots utilitários (Capa, Detalhe macro, Card, Embalagem) — agrupados */}
+                {/* Utilitários — divisor minimal + chips outline (secundário) */}
                 {activeTypePositions.some(p => isUtilitySlot(p.name)) && (
-                  <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-2">
-                    <p className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">📐 Utilitários (recomendados pra todo anúncio)</p>
+                  <div className="mt-3">
+                    <p className="text-[10px] uppercase tracking-wider text-zinc-600 mb-1.5">
+                      Utilitários
+                    </p>
                     <div className="flex flex-wrap gap-1.5">
                       {activeTypePositions
                         .filter(p => isUtilitySlot(p.name))
                         .map(p => {
                           const active = value.selected_positions.includes(p.position)
                           return (
-                            <SmallChip
+                            <SlotChip
                               key={p.position}
                               active={active}
+                              variant="outline"
                               onClick={() => {
                                 const next = active
                                   ? value.selected_positions.filter(n => n !== p.position)
@@ -286,7 +281,7 @@ export default function BriefingConfigurator({ value, onChange, autoDetectByCate
                               }}
                             >
                               {p.name}
-                            </SmallChip>
+                            </SlotChip>
                           )
                         })}
                     </div>
@@ -294,7 +289,7 @@ export default function BriefingConfigurator({ value, onChange, autoDetectByCate
                 )}
 
                 {/* Atalhos */}
-                <div className="mt-2 flex items-center gap-2 text-[11px]">
+                <div className="mt-3 flex items-center gap-2 text-[11px]">
                   <button
                     type="button"
                     onClick={() => set('selected_positions', activeTypePositions.map(p => p.position))}
@@ -326,8 +321,8 @@ export default function BriefingConfigurator({ value, onChange, autoDetectByCate
           /* MODO LEGADO: chips de taxonomy (sem tipo de produto escolhido) */
           <>
             <p className="text-[11px] text-zinc-500 mb-2">
-              As {value.image_count} imagens vão alternar entre os ambientes selecionados.
-              Sem nenhum: usa fundo neutro. Gerenciar opções na <strong>Galeria de referências</strong>.
+              As <strong className="text-zinc-300">{value.image_count}</strong> imagens vão alternar entre os ambientes selecionados.
+              Sem nenhum: fundo neutro.
             </p>
             {ambientLoading && ambientOptions.length === 0 ? (
               <div className="flex items-center gap-1.5 text-[11px] text-zinc-500">
@@ -338,7 +333,7 @@ export default function BriefingConfigurator({ value, onChange, autoDetectByCate
                 {ambientOptions.map(opt => {
                   const active = value.environments.includes(opt.value)
                   return (
-                    <SmallChip
+                    <SlotChip
                       key={opt.id}
                       active={active}
                       onClick={() => {
@@ -349,10 +344,10 @@ export default function BriefingConfigurator({ value, onChange, autoDetectByCate
                       }}
                     >
                       {opt.label}
-                    </SmallChip>
+                    </SlotChip>
                   )
                 })}
-                <SmallChip
+                <SlotChip
                   active={value.environments.includes('custom')}
                   onClick={() => {
                     const active = value.environments.includes('custom')
@@ -363,7 +358,7 @@ export default function BriefingConfigurator({ value, onChange, autoDetectByCate
                   }}
                 >
                   Personalizado
-                </SmallChip>
+                </SlotChip>
               </div>
             )}
             {value.environments.includes('custom') && (
@@ -379,126 +374,215 @@ export default function BriefingConfigurator({ value, onChange, autoDetectByCate
         )}
       </Section>
 
-      {/* Cor de fundo + logo */}
-      <Section icon={<Palette size={14} />} title="Identidade visual">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      {/* Comunicação — tom + instrução adicional (impactam copy) */}
+      <Section icon={<Volume2 size={14} />} title="Comunicação">
+        <div className="space-y-3">
           <div>
-            <label className="text-[11px] text-zinc-500">Cor de fundo</label>
-            <div className="flex items-center gap-2 mt-1">
-              <input
-                type="color"
-                value={value.background_color}
-                onChange={e => set('background_color', e.target.value)}
-                className="h-9 w-12 rounded border border-zinc-800 bg-zinc-950 cursor-pointer"
-              />
-              <input
-                type="text"
-                value={value.background_color}
-                onChange={e => set('background_color', e.target.value)}
-                className="flex-1 bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-zinc-200 font-mono outline-none focus:border-cyan-400"
-              />
-            </div>
-          </div>
-          <div>
-            <label className="text-[11px] text-zinc-500">Logo da marca</label>
-            <LogoSlot
-              logoUrl={value.logo_url}
-              onPicked={(r) => onChange({
-                ...value,
-                logo_url:          r.signed_url,
-                logo_storage_path: r.storage_path,
-                use_logo:          true,
-              })}
-              onRemoved={() => onChange({
-                ...value,
-                logo_url:          null,
-                logo_storage_path: null,
-                use_logo:          false,
-              })}
-            />
-          </div>
-        </div>
-      </Section>
-
-      {/* Prompt customizado */}
-      <Section icon={<Sparkles size={14} />} title="Instrução adicional (opcional)">
-        <textarea
-          value={value.custom_prompt}
-          onChange={e => set('custom_prompt', e.target.value)}
-          placeholder='Ex: "destaque o controle remoto", "evite ambientes com plantas", "estilo retrô anos 80"'
-          rows={3}
-          className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-200 outline-none focus:border-cyan-400 resize-y"
-          maxLength={1500}
-        />
-        <p className="mt-1 text-[10px] text-zinc-600 text-right">
-          {value.custom_prompt.length}/1500
-        </p>
-      </Section>
-
-      {/* Tom */}
-      <Section icon={<Volume2 size={14} />} title="Tom de comunicação">
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-          {TONE_OPTIONS.map(t => (
-            <ChipButton
-              key={t.value}
-              active={value.communication_tone === t.value}
-              onClick={() => set('communication_tone', t.value)}
-              title={t.description}
-            >
-              {t.label}
-            </ChipButton>
-          ))}
-        </div>
-      </Section>
-
-      {/* Imagens — qtde (só sem template) + formato */}
-      <Section icon={<Maximize2 size={14} />} title="Imagens">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {value.template_id ? (
-            /* Com template: quantidade calculada automaticamente, sem seletor */
-            <div>
-              <label className="text-[11px] text-zinc-500">Quantidade</label>
-              <div className="mt-1 px-3 py-2 rounded-lg bg-zinc-950 border border-zinc-800 text-xs text-zinc-300">
-                {value.selected_positions.length > 0
-                  ? <><strong className="text-cyan-300">{value.selected_positions.length}</strong> imagens — 1 por slot marcado acima</>
-                  : <span className="text-zinc-500">marque slots em <strong>Ambientes</strong> ↑</span>}
-              </div>
-            </div>
-          ) : (
-            <div>
-              <label className="text-[11px] text-zinc-500">Quantidade</label>
-              <div className="flex gap-1.5 mt-1">
-                {IMAGE_COUNT_OPTIONS.map(n => (
-                  <SmallChip
-                    key={n}
-                    active={value.image_count === n}
-                    onClick={() => set('image_count', n)}
-                  >
-                    {n} imagens
-                  </SmallChip>
-                ))}
-              </div>
-            </div>
-          )}
-          <div>
-            <label className="text-[11px] text-zinc-500">Formato</label>
-            <div className="flex gap-1.5 mt-1 flex-wrap">
-              {IMAGE_FORMAT_OPTIONS.map(f => (
-                <SmallChip
-                  key={f}
-                  active={value.image_format === f}
-                  onClick={() => set('image_format', f)}
+            <label className="text-[11px] text-zinc-500 mb-1.5 block">Tom</label>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {TONE_OPTIONS.map(t => (
+                <ChipButton
+                  key={t.value}
+                  active={value.communication_tone === t.value}
+                  onClick={() => set('communication_tone', t.value)}
+                  title={t.description}
                 >
-                  {f}
-                </SmallChip>
+                  {t.label}
+                </ChipButton>
               ))}
             </div>
           </div>
+          <div>
+            <label className="text-[11px] text-zinc-500 mb-1.5 block flex items-center gap-1.5">
+              <Sparkles size={11} className="text-cyan-400" />
+              Instrução adicional (opcional)
+            </label>
+            <textarea
+              value={value.custom_prompt}
+              onChange={e => set('custom_prompt', e.target.value)}
+              placeholder='Ex: "destaque o controle remoto", "evite ambientes com plantas", "estilo retrô anos 80"'
+              rows={3}
+              className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-200 outline-none focus:border-cyan-400 resize-y"
+              maxLength={1500}
+            />
+            <p className="mt-1 text-[10px] text-zinc-600 text-right">
+              {value.custom_prompt.length}/1500
+            </p>
+          </div>
         </div>
       </Section>
+
+      {/* Avançado collapsible — cor de fundo, logo, formato, quantidade (modo legado) */}
+      <details className="group rounded-lg border border-zinc-800 bg-zinc-950/40">
+        <summary className="cursor-pointer list-none flex items-center justify-between px-3 py-2 text-xs text-zinc-400 hover:text-zinc-200 select-none">
+          <span className="flex items-center gap-2">
+            <ChevronDown size={14} className="transition-transform group-open:rotate-180" />
+            Configurações avançadas
+          </span>
+          <span className="text-[10px] text-zinc-600 hidden sm:inline">
+            cor de fundo · logo · formato{!value.template_id && ' · quantidade'}
+          </span>
+        </summary>
+        <div className="px-3 pb-3 pt-2 space-y-4 border-t border-zinc-800/60">
+          {/* Cor de fundo + logo */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="text-[11px] text-zinc-500">Cor de fundo</label>
+              <div className="flex items-center gap-2 mt-1">
+                <input
+                  type="color"
+                  value={value.background_color}
+                  onChange={e => set('background_color', e.target.value)}
+                  className="h-9 w-12 rounded border border-zinc-800 bg-zinc-950 cursor-pointer"
+                />
+                <input
+                  type="text"
+                  value={value.background_color}
+                  onChange={e => set('background_color', e.target.value)}
+                  className="flex-1 bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-zinc-200 font-mono outline-none focus:border-cyan-400"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="text-[11px] text-zinc-500">Logo da marca</label>
+              <LogoSlot
+                logoUrl={value.logo_url}
+                onPicked={(r) => onChange({
+                  ...value,
+                  logo_url:          r.signed_url,
+                  logo_storage_path: r.storage_path,
+                  use_logo:          true,
+                })}
+                onRemoved={() => onChange({
+                  ...value,
+                  logo_url:          null,
+                  logo_storage_path: null,
+                  use_logo:          false,
+                })}
+              />
+            </div>
+          </div>
+
+          {/* Formato + (modo legado) quantidade */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {!value.template_id && (
+              <div>
+                <label className="text-[11px] text-zinc-500">Quantidade</label>
+                <div className="flex gap-1.5 mt-1 flex-wrap">
+                  {IMAGE_COUNT_OPTIONS.map(n => (
+                    <SlotChip
+                      key={n}
+                      active={value.image_count === n}
+                      onClick={() => set('image_count', n)}
+                    >
+                      {n} imagens
+                    </SlotChip>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div>
+              <label className="text-[11px] text-zinc-500">Formato</label>
+              <div className="flex gap-1.5 mt-1 flex-wrap">
+                {IMAGE_FORMAT_OPTIONS.map(f => (
+                  <SlotChip
+                    key={f}
+                    active={value.image_format === f}
+                    onClick={() => set('image_format', f)}
+                  >
+                    {f}
+                  </SlotChip>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </details>
     </div>
   )
 }
+
+// ── Type context bar ──────────────────────────────────────────────────────
+
+function TypeContextBar({
+  activeType, slotCount, isAutoDetected, loading, open, onToggle,
+  productTypes, currentTemplateId, onSelectType,
+}: {
+  activeType:        CreativePromptTemplate | null
+  slotCount:         number
+  isAutoDetected:    boolean
+  loading:           boolean
+  open:              boolean
+  onToggle:          () => void
+  productTypes:      CreativePromptTemplate[]
+  currentTemplateId: string | null
+  onSelectType:      (id: string | null) => void
+}) {
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-[11px] text-zinc-500">
+        <Loader2 size={12} className="animate-spin" /> carregando tipos de produto…
+      </div>
+    )
+  }
+
+  return (
+    <div className="rounded-lg border border-cyan-400/20 bg-cyan-400/5">
+      <div className="flex items-center justify-between gap-2 px-3 py-2">
+        <div className="flex items-center gap-2 text-xs min-w-0">
+          <Package size={14} className="text-cyan-400 shrink-0" />
+          {activeType ? (
+            <>
+              <span className="text-zinc-200 font-medium truncate">{activeType.name}</span>
+              <span className="text-zinc-700">·</span>
+              <span className="text-zinc-500 shrink-0">{slotCount} slots</span>
+              {isAutoDetected && (
+                <span className="text-cyan-300 shrink-0 hidden sm:inline">✨ detectado automaticamente</span>
+              )}
+            </>
+          ) : (
+            <span className="text-zinc-400">Sem tipo de produto — usando ambientes livres</span>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={onToggle}
+          className="text-[11px] text-zinc-400 hover:text-cyan-300 shrink-0 inline-flex items-center gap-1"
+        >
+          {open ? 'fechar' : 'trocar'}
+          <ChevronDown size={12} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+        </button>
+      </div>
+
+      {open && (
+        <div className="border-t border-cyan-400/20 px-3 py-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={currentTemplateId ?? ''}
+              onChange={e => onSelectType(e.target.value || null)}
+              className="flex-1 min-w-[200px] bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-zinc-200 outline-none focus:border-cyan-400"
+            >
+              <option value="">— Nenhum (usar ambientes livres) —</option>
+              {productTypes.map(t => (
+                <option key={t.id} value={t.id}>
+                  {t.name}{t.is_default ? ' (default)' : ''} · {t.positions.length} slots
+                </option>
+              ))}
+            </select>
+            <a
+              href="/dashboard/creative/templates"
+              className="text-[11px] text-zinc-500 hover:text-cyan-300"
+            >
+              gerenciar em /templates →
+            </a>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Section ────────────────────────────────────────────────────────────────
 
 function Section({
   icon, title, children,
@@ -513,6 +597,8 @@ function Section({
     </div>
   )
 }
+
+// ── Chips ──────────────────────────────────────────────────────────────────
 
 function ChipButton({
   active, onClick, title, children,
@@ -539,27 +625,53 @@ function ChipButton({
   )
 }
 
-function SmallChip({
-  active, onClick, children,
+function SlotChip({
+  active, onClick, variant = 'solid', children,
 }: {
   active:   boolean
   onClick:  () => void
+  variant?: 'solid' | 'outline'
   children: React.ReactNode
 }) {
+  const styles = variant === 'outline'
+    ? active
+      ? 'bg-cyan-400/10 text-cyan-200 border border-cyan-400/60 font-medium'
+      : 'bg-transparent text-zinc-500 border border-zinc-800 border-dashed hover:border-zinc-600 hover:text-zinc-300'
+    : active
+      ? 'bg-cyan-400 text-black font-semibold border border-cyan-400'
+      : 'bg-zinc-950 text-zinc-300 border border-zinc-800 hover:border-cyan-400/40 hover:text-zinc-100'
+
   return (
     <button
       type="button"
       onClick={onClick}
-      className={[
-        'px-2.5 py-1 rounded-full text-[11px] transition-all',
-        active
-          ? 'bg-cyan-400 text-black font-semibold'
-          : 'bg-zinc-950 text-zinc-400 border border-zinc-800 hover:border-cyan-400/40 hover:text-zinc-200',
-      ].join(' ')}
+      className={`px-2.5 py-1 rounded-full text-[11px] transition-all ${styles}`}
     >
       {children}
     </button>
   )
+}
+
+// ── Helper pra summary do footer (consumido em /creative/new/page.tsx) ────
+
+export function briefingSummary(form: BriefingFormState): {
+  count:            number
+  format:           string
+  marketplaceLabel: string
+  styleLabel:       string
+  toneLabel:        string
+} {
+  const count =
+    form.template_id && form.selected_positions.length > 0
+      ? form.selected_positions.length
+      : form.image_count
+  const marketplaceLabel =
+    MARKETPLACE_OPTIONS.find(o => o.value === form.target_marketplace)?.label ?? form.target_marketplace
+  const styleLabel =
+    VISUAL_STYLES.find(s => s.value === form.visual_style)?.label ?? form.visual_style
+  const toneLabel =
+    TONE_OPTIONS.find(t => t.value === form.communication_tone)?.label ?? form.communication_tone
+  return { count, format: form.image_format, marketplaceLabel, styleLabel, toneLabel }
 }
 
 // ── Helper pra montar o body que vai pra POST /briefings ──────────────────

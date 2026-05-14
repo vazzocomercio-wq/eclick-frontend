@@ -241,9 +241,33 @@ export default function ProductDetailPage() {
 
             {/* Briefings + generate */}
             <div>
-              <h2 className="text-sm font-semibold text-zinc-200 mb-2">Briefings</h2>
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-sm font-semibold text-zinc-200">Briefings</h2>
+                {briefings.length > 0 && (
+                  <Link
+                    href={`/dashboard/creative/new?productId=${product.id}`}
+                    className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] bg-zinc-900 border border-zinc-800 hover:border-cyan-400/60 text-cyan-300 shrink-0"
+                  >
+                    <Plus size={10} /> Novo briefing
+                  </Link>
+                )}
+              </div>
               {briefings.length === 0 ? (
-                <p className="text-xs text-zinc-500">Nenhum briefing ainda.</p>
+                <Link
+                  href={`/dashboard/creative/new?productId=${product.id}`}
+                  className="flex items-center justify-between rounded-lg border border-dashed border-cyan-400/30 bg-cyan-400/5 hover:bg-cyan-400/10 hover:border-cyan-400/60 px-3 py-3 transition-colors group"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <div className="rounded-md bg-cyan-400/10 p-1.5 border border-cyan-400/30">
+                      <Plus size={14} className="text-cyan-300" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium text-cyan-100">Criar primeiro briefing</p>
+                      <p className="text-[10px] text-cyan-300/70">Define marketplace, estilo e tom — base pra gerar imagens e anúncio</p>
+                    </div>
+                  </div>
+                  <ChevronRight size={14} className="text-cyan-300 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                </Link>
               ) : (
                 <div className="space-y-2">
                   {briefings.map(b => {
@@ -270,14 +294,6 @@ export default function ProductDetailPage() {
                     )
                   })}
                 </div>
-              )}
-              {activeBriefing && (
-                <Link
-                  href={`/dashboard/creative/new?productId=${product.id}`}
-                  className="text-[11px] text-zinc-500 hover:text-cyan-400 mt-2 inline-block"
-                >
-                  + Adicionar briefing pra outro marketplace
-                </Link>
               )}
             </div>
 
@@ -309,11 +325,18 @@ export default function ProductDetailPage() {
                 )}
               </div>
               {imageJobs.length === 0 ? (
-                <p className="text-xs text-zinc-500">
-                  {briefings.length === 0
-                    ? 'Crie um briefing primeiro pra gerar imagens.'
-                    : 'Nenhum job rodado ainda. Clique em "Gerar imagens" pra começar.'}
-                </p>
+                briefings.length === 0 ? (
+                  <Link
+                    href={`/dashboard/creative/new?productId=${product.id}`}
+                    className="inline-flex items-center gap-1 text-[11px] text-cyan-400 hover:text-cyan-300"
+                  >
+                    Crie um briefing primeiro <ChevronRight size={11} />
+                  </Link>
+                ) : (
+                  <p className="text-xs text-zinc-500">
+                    Nenhum job rodado ainda. Clique em &quot;Gerar imagens&quot; pra começar.
+                  </p>
+                )
               ) : (
                 <div className="space-y-1.5">
                   {imageJobs.map(j => (
@@ -365,11 +388,18 @@ export default function ProductDetailPage() {
                 )}
               </div>
               {videoJobs.length === 0 ? (
-                <p className="text-xs text-zinc-500">
-                  {briefings.length === 0
-                    ? 'Crie um briefing primeiro pra gerar vídeos.'
-                    : 'Nenhum job rodado ainda. Vídeo demora ~2-3 min por clip.'}
-                </p>
+                briefings.length === 0 ? (
+                  <Link
+                    href={`/dashboard/creative/new?productId=${product.id}`}
+                    className="inline-flex items-center gap-1 text-[11px] text-cyan-400 hover:text-cyan-300"
+                  >
+                    Crie um briefing primeiro <ChevronRight size={11} />
+                  </Link>
+                ) : (
+                  <p className="text-xs text-zinc-500">
+                    Nenhum job rodado ainda. Vídeo demora ~2-3 min por clip.
+                  </p>
+                )
               ) : (
                 <div className="space-y-1.5">
                   {videoJobs.map(j => (
@@ -410,7 +440,16 @@ export default function ProductDetailPage() {
                 <span className="text-[10px] text-zinc-500">({listings.length})</span>
               </h2>
               {listings.length === 0 ? (
-                <p className="text-xs text-zinc-500">Nenhum anúncio gerado ainda. Use um briefing pra começar.</p>
+                briefings.length === 0 ? (
+                  <Link
+                    href={`/dashboard/creative/new?productId=${product.id}`}
+                    className="inline-flex items-center gap-1 text-[11px] text-cyan-400 hover:text-cyan-300"
+                  >
+                    Crie um briefing primeiro <ChevronRight size={11} />
+                  </Link>
+                ) : (
+                  <p className="text-xs text-zinc-500">Nenhum anúncio gerado ainda. Use um briefing pra começar.</p>
+                )
               ) : (
                 <div className="space-y-1.5">
                   {listings.map(l => (

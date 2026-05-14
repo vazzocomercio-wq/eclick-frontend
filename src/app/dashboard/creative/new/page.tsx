@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, ArrowRight, Sparkles, Check, Loader2, AlertTriangle, Plus, X } from 'lucide-react'
 import CreativeProductUpload from '@/components/creative/CreativeProductUpload'
@@ -9,6 +9,7 @@ import ProductAnalysisCard from '@/components/creative/ProductAnalysisCard'
 import BriefingConfigurator, {
   DEFAULT_BRIEFING,
   briefingFormToApiBody,
+  briefingSummary,
   type BriefingFormState,
 } from '@/components/creative/BriefingConfigurator'
 import { CreativeApi } from '@/components/creative/api'
@@ -60,11 +61,16 @@ const EMPTY_DETAILS: DetailsForm = {
 
 export default function CreativeNewPage() {
   const router = useRouter()
-  const [step, setStep] = useState<Step>(1)
+  const searchParams = useSearchParams()
+  // ?productId=X → continuar produto existente (pula direto pro step 3 Briefing)
+  const presetProductId = searchParams.get('productId')
+
+  const [step, setStep] = useState<Step>(presetProductId ? 3 : 1)
   const [error, setError] = useState<string | null>(null)
   const [warning, setWarning] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [phase, setPhase] = useState<Phase>('idle')
+  const [loadingPreset, setLoadingPreset] = useState(!!presetProductId)
 
   // ── Step 1 ──
   const [upload, setUpload]     = useState<UploadResult | null>(null)
@@ -79,6 +85,35 @@ export default function CreativeNewPage() {
 
   // ── Step 3 ──
   const [briefing, setBriefing] = useState<BriefingFormState>(DEFAULT_BRIEFING)
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Continuar produto existente: GET /products/{id} e pular pro step 3
+  // Usado quando o user veio do detalhe do produto via "+ Criar briefing".
+  // ──────────────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!presetProductId) return
+    let cancelled = false
+    void (async () => {
+      try {
+        const p = await CreativeApi.getProduct(presetProductId)
+        if (cancelled) return
+        setProduct(p)
+        setBasic({ name: p.name, category: p.category, brand: p.brand ?? '' })
+        // upload/details não são necessários pra step 3 — produto já existe
+        // com todos os dados salvos.
+        setStep(3)
+      } catch (e: unknown) {
+        if (!cancelled) {
+          setError(`Não consegui carregar o produto: ${(e as Error).message}`)
+          setStep(1)
+        }
+      } finally {
+        if (!cancelled) setLoadingPreset(false)
+      }
+    })()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [presetProductId])
 
   // ──────────────────────────────────────────────────────────────────────────
   // Step 1 → Step 2: cria produto + dispara análise IA em background
@@ -244,14 +279,19 @@ export default function CreativeNewPage() {
           <Link href="/dashboard/creative" className="p-2 rounded-lg hover:bg-zinc-900 text-zinc-400">
             <ArrowLeft size={18} />
           </Link>
-          <div className="flex items-center gap-2">
-            <Sparkles size={18} className="text-cyan-400" />
-            <h1 className="text-lg font-semibold">Novo produto criativo</h1>
+          <div className="flex items-center gap-2 min-w-0">
+            <Sparkles size={18} className="text-cyan-400 shrink-0" />
+            <h1 className="text-lg font-semibold truncate">
+              {presetProductId ? 'Criar briefing' : 'Novo produto criativo'}
+            </h1>
+            {presetProductId && product?.name && (
+              <span className="text-xs text-zinc-500 truncate">· {product.name}</span>
+            )}
           </div>
         </div>
 
-        {/* Stepper */}
-        <Stepper current={step} />
+        {/* Stepper — só no fluxo de criação novo (não no modo continuar) */}
+        {!presetProductId && <Stepper current={step} />}
 
         {error && (
           <div className="mt-4 flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
@@ -381,22 +421,56 @@ export default function CreativeNewPage() {
           </div>
         )}
 
-        {/* Step 3 — Briefing */}
-        {step === 3 && (
-          <div className="mt-6 space-y-6">
-            <BriefingConfigurator value={briefing} onChange={setBriefing} />
+        {/* Loader enquanto carrega produto via ?productId */}
+        {loadingPreset && (
+          <div className="mt-10 flex items-center justify-center gap-2 text-sm text-zinc-500">
+            <Loader2 size={14} className="animate-spin" /> Carregando produto…
+          </div>
+        )}
 
-            <div className="flex justify-between">
-              <SecondaryButton onClick={() => setStep(2)} disabled={submitting}>
-                <ArrowLeft size={14} /> Voltar
-              </SecondaryButton>
-              <PrimaryButton onClick={submitFinal} disabled={submitting} loading={submitting}>
-                {phase === 'idle'     && <>Gerar anúncio <Check size={14} /></>}
-                {phase === 'briefing' && 'Preparando briefing…'}
-                {phase === 'parallel' && 'Gerando texto + imagens…'}
-                {phase === 'done'     && 'Pronto!'}
-              </PrimaryButton>
-            </div>
+        {/* Step 3 — Briefing */}
+        {step === 3 && !loadingPreset && (
+          <div className="mt-6 space-y-6">
+            <BriefingConfigurator
+              value={briefing}
+              onChange={setBriefing}
+              autoDetectByCategoryMlId={product?.ai_analysis?.product_type ?? null}
+            />
+
+            {/* Summary line + ações */}
+            {(() => {
+              const s = briefingSummary(briefing)
+              return (
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-2 border-t border-zinc-800">
+                  <p className="text-[11px] text-zinc-500 leading-relaxed">
+                    Vai gerar <strong className="text-cyan-300">{s.count}</strong> imagens
+                    {' '}<span className="text-zinc-400">{s.format}</span>
+                    {' · '}<strong className="text-zinc-300">{s.marketplaceLabel}</strong>
+                    {' · '}{s.styleLabel}
+                    {' · tom '}{s.toneLabel}
+                  </p>
+                  <div className="flex justify-between sm:gap-3">
+                    <SecondaryButton
+                      onClick={() => {
+                        // Veio via "+ Criar briefing" no detalhe do produto → volta pra lá.
+                        // Fluxo normal (step 1 → 2 → 3) → volta pro step 2.
+                        if (presetProductId) router.push(`/dashboard/creative/${presetProductId}`)
+                        else setStep(2)
+                      }}
+                      disabled={submitting}
+                    >
+                      <ArrowLeft size={14} /> Voltar
+                    </SecondaryButton>
+                    <PrimaryButton onClick={submitFinal} disabled={submitting} loading={submitting}>
+                      {phase === 'idle'     && <>Gerar anúncio <Check size={14} /></>}
+                      {phase === 'briefing' && 'Preparando briefing…'}
+                      {phase === 'parallel' && 'Gerando texto + imagens…'}
+                      {phase === 'done'     && 'Pronto!'}
+                    </PrimaryButton>
+                  </div>
+                </div>
+              )
+            })()}
           </div>
         )}
       </div>
