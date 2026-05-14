@@ -570,6 +570,10 @@ function TabBtn({ active, onClick, label, count }: { active: boolean; onClick: (
   )
 }
 
+type ActiveAgent    = { member_id: string; user_id: string; display_name: string | null; role: string; status: string }
+type ActivePipeline = { id: string; name: string; is_default: boolean; description: string | null; template_key: string | null }
+type ActiveStage    = { id: string; pipeline_id: string; name: string; position: number; color: string | null; is_won: boolean; is_lost: boolean }
+
 function DispatchModal({ count, onClose, onConfirm, loading }: {
   count:     number
   onClose:   () => void
@@ -583,7 +587,77 @@ function DispatchModal({ count, onClose, onConfirm, loading }: {
   const [priority, setPriority] = useState<DispatchConfig['priority']>('normal')
   const [notes, setNotes] = useState('')
 
+  // Dropdowns Active
+  const [agents, setAgents]       = useState<ActiveAgent[]>([])
+  const [pipelines, setPipelines] = useState<ActivePipeline[]>([])
+  const [stages, setStages]       = useState<ActiveStage[]>([])
+  const [loadingConfig, setLoadingConfig] = useState(true)
+  const [configError, setConfigError]     = useState<string | null>(null)
+
+  // Fetch agentes + pipelines no mount
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      setLoadingConfig(true)
+      setConfigError(null)
+      try {
+        const token = await getAuthToken()
+        if (!token) throw new Error('Não autenticado')
+        const headers = { 'Authorization': `Bearer ${token}` }
+        const [agentsRes, pipelinesRes] = await Promise.all([
+          fetch(`${BACKEND}/products/active-config/agents`, { headers }),
+          fetch(`${BACKEND}/products/active-config/pipelines`, { headers }),
+        ])
+        if (!agentsRes.ok) throw new Error('Não foi possível carregar agentes do Active')
+        if (!pipelinesRes.ok) throw new Error('Não foi possível carregar pipelines do Active')
+        const agentsData    = await agentsRes.json() as ActiveAgent[]
+        const pipelinesData = await pipelinesRes.json() as ActivePipeline[]
+        if (cancelled) return
+        setAgents(agentsData)
+        setPipelines(pipelinesData)
+
+        // Auto-seleciona: pipeline com template_key='operacao_cadastro' OU is_default OU 1º
+        const preferred = pipelinesData.find(p => p.template_key === 'operacao_cadastro')
+                       ?? pipelinesData.find(p => p.is_default)
+                       ?? pipelinesData[0]
+        if (preferred) setPipeline(preferred.id)
+      } catch (e) {
+        if (!cancelled) setConfigError((e as Error).message)
+      } finally {
+        if (!cancelled) setLoadingConfig(false)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [])
+
+  // Fetch stages sempre que pipeline muda
+  useEffect(() => {
+    if (!pipeline) { setStages([]); setStage(''); return }
+    let cancelled = false
+    void (async () => {
+      try {
+        const token = await getAuthToken()
+        const res = await fetch(`${BACKEND}/products/active-config/pipelines/${pipeline}/stages`, {
+          headers: { 'Authorization': `Bearer ${token}` },
+        })
+        if (!res.ok) throw new Error('Não foi possível carregar estágios')
+        const data = await res.json() as ActiveStage[]
+        if (cancelled) return
+        setStages(data)
+        // Auto-seleciona o primeiro stage (position 0 = "A Fazer" por convenção)
+        const first = data[0]
+        if (first) setStage(first.id)
+      } catch (e) {
+        if (!cancelled) setConfigError((e as Error).message)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [pipeline])
+
   const canSubmit = operator.trim() && pipeline.trim() && stage.trim()
+  const selectStyle = {
+    background: '#0a0a0c', borderColor: '#27272a', color: '#e4e4e7',
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={onClose}>
@@ -597,39 +671,81 @@ function DispatchModal({ count, onClose, onConfirm, loading }: {
           </p>
         </div>
 
+        {configError && (
+          <div className="mb-3 rounded-lg p-2.5 text-xs"
+            style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>
+            ⚠ {configError}
+          </div>
+        )}
+
         <div className="space-y-3">
-          <Field label="UUID do operador (user Active)" hint="Cole o uuid do operador no Active CRM">
-            <input value={operator} onChange={e => setOperator(e.target.value)}
-              placeholder="00000000-0000-0000-0000-000000000000"
-              className="w-full px-3 py-2 rounded-lg text-sm font-mono border outline-none"
-              style={{ background: '#0a0a0c', borderColor: '#27272a', color: '#e4e4e7' }} />
+          <Field label="Operador" hint={loadingConfig ? 'carregando agentes do Active…' : `${agents.length} agente${agents.length === 1 ? '' : 's'} disponíve${agents.length === 1 ? 'l' : 'is'}`}>
+            <select
+              value={operator}
+              onChange={e => setOperator(e.target.value)}
+              disabled={loadingConfig || agents.length === 0}
+              className="w-full px-3 py-2 rounded-lg text-sm border outline-none disabled:opacity-50"
+              style={selectStyle}
+            >
+              <option value="">— Selecione o agente —</option>
+              {agents.map(a => (
+                <option key={a.user_id} value={a.user_id}>
+                  {a.display_name ?? a.user_id.slice(0, 8)}
+                  {a.role !== 'agent' ? ` (${a.role})` : ''}
+                  {a.status === 'invited' ? ' · convidado' : ''}
+                </option>
+              ))}
+            </select>
           </Field>
 
-          <Field label="Pipeline ID" hint="UUID do funil 'Operação de Cadastro' no Active">
-            <input value={pipeline} onChange={e => setPipeline(e.target.value)}
-              placeholder="UUID do pipeline"
-              className="w-full px-3 py-2 rounded-lg text-sm font-mono border outline-none"
-              style={{ background: '#0a0a0c', borderColor: '#27272a', color: '#e4e4e7' }} />
+          <Field label="Funil (Pipeline)" hint={loadingConfig ? 'carregando…' : `${pipelines.length} funil(is) disponíve${pipelines.length === 1 ? 'l' : 'is'}`}>
+            <select
+              value={pipeline}
+              onChange={e => setPipeline(e.target.value)}
+              disabled={loadingConfig || pipelines.length === 0}
+              className="w-full px-3 py-2 rounded-lg text-sm border outline-none disabled:opacity-50"
+              style={selectStyle}
+            >
+              <option value="">— Selecione o funil —</option>
+              {pipelines.map(p => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                  {p.template_key === 'operacao_cadastro' ? ' ★ recomendado' : ''}
+                  {p.is_default ? ' · default' : ''}
+                </option>
+              ))}
+            </select>
           </Field>
 
-          <Field label="Stage ID inicial" hint="UUID do estágio 'A Fazer'">
-            <input value={stage} onChange={e => setStage(e.target.value)}
-              placeholder="UUID do estágio"
-              className="w-full px-3 py-2 rounded-lg text-sm font-mono border outline-none"
-              style={{ background: '#0a0a0c', borderColor: '#27272a', color: '#e4e4e7' }} />
+          <Field label="Estágio inicial" hint={pipeline ? `${stages.length} estágio(s) deste funil` : 'escolha um funil primeiro'}>
+            <select
+              value={stage}
+              onChange={e => setStage(e.target.value)}
+              disabled={!pipeline || stages.length === 0}
+              className="w-full px-3 py-2 rounded-lg text-sm border outline-none disabled:opacity-50"
+              style={selectStyle}
+            >
+              <option value="">— Selecione o estágio —</option>
+              {stages.map(s => (
+                <option key={s.id} value={s.id}>
+                  {s.position + 1}. {s.name}
+                  {s.is_won ? ' ✓' : s.is_lost ? ' ✗' : ''}
+                </option>
+              ))}
+            </select>
           </Field>
 
           <div className="grid grid-cols-2 gap-3">
             <Field label="Prazo">
               <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)}
                 className="w-full px-3 py-2 rounded-lg text-sm border outline-none"
-                style={{ background: '#0a0a0c', borderColor: '#27272a', color: '#e4e4e7' }} />
+                style={selectStyle} />
             </Field>
 
             <Field label="Prioridade">
               <select value={priority} onChange={e => setPriority(e.target.value as DispatchConfig['priority'])}
                 className="w-full px-3 py-2 rounded-lg text-sm border outline-none"
-                style={{ background: '#0a0a0c', borderColor: '#27272a', color: '#e4e4e7' }}>
+                style={selectStyle}>
                 <option value="low">Baixa</option>
                 <option value="normal">Normal</option>
                 <option value="high">Alta</option>
@@ -642,7 +758,7 @@ function DispatchModal({ count, onClose, onConfirm, loading }: {
             <textarea value={notes} onChange={e => setNotes(e.target.value)}
               rows={2} placeholder="Instruções extras pro operador"
               className="w-full px-3 py-2 rounded-lg text-sm border outline-none resize-none"
-              style={{ background: '#0a0a0c', borderColor: '#27272a', color: '#e4e4e7' }} />
+              style={selectStyle} />
           </Field>
         </div>
 
