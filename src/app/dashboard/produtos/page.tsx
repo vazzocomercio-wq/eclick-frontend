@@ -1242,6 +1242,24 @@ export default function ProdutosPage() {
             </svg>
             Atualizar Custos
           </button>
+          <Link href="/dashboard/produtos/importar"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium border transition-all hover:border-cyan-500/50 hover:text-cyan-400"
+            style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}
+            title="Subir planilha CSV/XLSX">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+            </svg>
+            Importar planilha
+          </Link>
+          <Link href="/dashboard/produtos/operacao-cadastro"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium border transition-all hover:border-amber-500/50 hover:text-amber-400"
+            style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}
+            title="Cadastros pendentes + despacho pro operador">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+            </svg>
+            Operação cadastro
+          </Link>
           <Link href="/dashboard/produtos/novo"
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-semibold transition-all active:scale-[0.98]"
             style={{ background: '#00E5FF', color: '#000' }}>

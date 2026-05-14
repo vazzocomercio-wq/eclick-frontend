@@ -14,16 +14,17 @@ import { todoToast, pushToast } from '@/hooks/useToast'
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 const PREFS_KEY = 'eclick.produtos.datatable.prefs'
 
-type QuickFilterValue = 'all' | 'active' | 'paused' | 'no_stock' | 'critical' | 'in_ads' | 'no_ads'
+type QuickFilterValue = 'all' | 'active' | 'paused' | 'no_stock' | 'critical' | 'in_ads' | 'no_ads' | 'cadastro_pendente'
 
 const QUICK_OPTIONS: { value: QuickFilterValue; label: string }[] = [
-  { value: 'all',       label: 'Todos' },
-  { value: 'active',    label: 'Ativos' },
-  { value: 'paused',    label: 'Pausados' },
-  { value: 'no_stock',  label: 'Sem estoque' },
-  { value: 'critical',  label: 'Estoque crítico' },
-  { value: 'in_ads',    label: 'Em Ads' },
-  { value: 'no_ads',    label: 'Sem Ads' },
+  { value: 'all',                label: 'Todos' },
+  { value: 'active',             label: 'Ativos' },
+  { value: 'paused',             label: 'Pausados' },
+  { value: 'no_stock',           label: 'Sem estoque' },
+  { value: 'critical',           label: 'Estoque crítico' },
+  { value: 'cadastro_pendente',  label: 'Cadastro pendente' },  // F2/F3 (2026-05-14)
+  { value: 'in_ads',             label: 'Em Ads' },
+  { value: 'no_ads',             label: 'Sem Ads' },
 ]
 
 // Tipos vivem em page.tsx; redeclarado aqui pra contornar barrel.
