@@ -7,7 +7,8 @@
  * respeitando zonas 🟢🟡🔴 → user aplica ou ignora.
  */
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import {
   Search, Sparkles, Loader2, AlertCircle, CheckCircle2, Copy, ExternalLink,
   Lock, AlertTriangle, Send, History, RotateCw, TrendingUp, Eye, Award, Activity,
@@ -125,8 +126,17 @@ const MODE_BADGE: Record<EditMode, { label: string; cls: string; icon: typeof Lo
 // ── Main page ──────────────────────────────────────────────────────────────
 
 export default function SeoOptimizerPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-zinc-950 text-zinc-100 px-4 py-6 text-sm text-zinc-500">Carregando…</div>}>
+      <SeoOptimizerPageInner />
+    </Suspense>
+  )
+}
+
+function SeoOptimizerPageInner() {
   const supabase = useMemo(() => createClient(), [])
   const toast = useToast()
+  const searchParams = useSearchParams()
 
   const [mlbInput, setMlbInput]       = useState('')
   const [analysis, setAnalysis]       = useState<OptimizationAnalysis | null>(null)
@@ -134,6 +144,9 @@ export default function SeoOptimizerPage() {
   const [error, setError]             = useState<string | null>(null)
   const [history, setHistory]         = useState<HistoryItem[]>([])
   const [feedback, setFeedback]       = useState<FeedbackSummary | null>(null)
+
+  // Pra não disparar analyze() 2x em StrictMode dev ou em re-renders rápidos
+  const autoRanRef = useRef(false)
 
   async function getAuthHeaders(): Promise<HeadersInit> {
     const { data: { session } } = await supabase.auth.getSession()
@@ -162,9 +175,9 @@ export default function SeoOptimizerPage() {
     void loadFeedback()
   }, [])
 
-  async function analyze() {
+  async function analyze(overrideId?: string) {
     setError(null)
-    const mlbId = extractMlbId(mlbInput)
+    const mlbId = overrideId ?? extractMlbId(mlbInput)
     if (!mlbId) {
       setError('MLB ID inválido. Cole o ID (ex: MLB1234567890) ou a URL do anúncio.')
       return
@@ -184,6 +197,19 @@ export default function SeoOptimizerPage() {
       setLoading(false)
     }
   }
+
+  // Auto-analyze quando vem com ?mlbId= na URL (deeplink do card de anúncio)
+  useEffect(() => {
+    if (autoRanRef.current) return
+    const fromUrl = searchParams.get('mlbId')
+    if (!fromUrl) return
+    const cleaned = extractMlbId(fromUrl)
+    if (!cleaned) return
+    autoRanRef.current = true
+    setMlbInput(cleaned)
+    void analyze(cleaned)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 px-4 sm:px-8 py-6">
