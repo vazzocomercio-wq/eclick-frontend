@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import Link from 'next/link'
 import {
   Palette, Globe, Volume2, Image as ImageIcon, Loader2, X, Sparkles,
   Upload, AlertTriangle, Package, ChevronDown,
@@ -569,12 +570,12 @@ function TypeContextBar({
                 </option>
               ))}
             </select>
-            <a
+            <Link
               href="/dashboard/creative/templates"
               className="text-[11px] text-zinc-500 hover:text-cyan-300"
             >
               gerenciar em /templates →
-            </a>
+            </Link>
           </div>
         </div>
       )}
