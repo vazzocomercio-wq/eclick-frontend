@@ -129,6 +129,7 @@ function BulkBar({
 // ── Floating Tools Panel (right side) ─────────────────────────────────────────
 
 function ProdutosToolsPanel({ products }: { products: Product[] }) {
+  const router = useRouter()
   const [collapsed, setCollapsed] = useState(false)
   const [exporting, setExporting] = useState(false)
 
@@ -137,16 +138,22 @@ function ProdutosToolsPanel({ products }: { products: Product[] }) {
   // não está em nenhum ml_ads_campaigns ativo (count exato).
   type Kpis = { active: number; no_stock: number; critical: number; no_ads: number }
   const [kpis, setKpis] = useState<Kpis | null>(null)
+  // Cadastro pendente — count separado vindo do completeness-summary
+  // (2026-05-14: F2/F3 — campos faltando vs requisitos ML).
+  const [pendentes, setPendentes] = useState<number | null>(null)
   useEffect(() => {
     (async () => {
       try {
         const token = await getAuthToken()
         if (!token) return
-        const res = await fetch(`${BACKEND}/products/kpis`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        const body = await res.json().catch(() => null) as Kpis | null
-        if (body) setKpis(body)
+        const [kpisRes, pendRes] = await Promise.all([
+          fetch(`${BACKEND}/products/kpis`, { headers: { Authorization: `Bearer ${token}` } }),
+          fetch(`${BACKEND}/products/completeness-summary?limit=500`, { headers: { Authorization: `Bearer ${token}` } }),
+        ])
+        const kpisBody = await kpisRes.json().catch(() => null) as Kpis | null
+        const pendBody = await pendRes.json().catch(() => null) as { incomplete_count?: number } | null
+        if (kpisBody) setKpis(kpisBody)
+        if (pendBody && typeof pendBody.incomplete_count === 'number') setPendentes(pendBody.incomplete_count)
       } catch { /* fallback pra contagem local abaixo */ }
     })()
   }, [products.length]) // refresca quando o catálogo carregado muda
@@ -206,6 +213,16 @@ function ProdutosToolsPanel({ products }: { products: Product[] }) {
         <KpiRow label="Sem estoque"     value={semEstoque.toLocaleString('pt-BR')}  color="#f87171" />
         <KpiRow label="Estoque crítico" value={critico.toLocaleString('pt-BR')}     color="#facc15" />
         <KpiRow label="Sem Ads"         value={typeof semAds === 'number' ? semAds.toLocaleString('pt-BR') : semAds} color="#a1a1aa" />
+        {pendentes != null && pendentes > 0 && (
+          <button
+            onClick={() => router.push('/dashboard/produtos?quick_filter=cadastro_pendente')}
+            className="w-full -mx-3 px-3 py-1.5 flex items-center justify-between text-[11px] transition-colors hover:bg-amber-500/5 group"
+            title="Filtrar produtos com cadastro pendente"
+            style={{ borderTop: '1px solid #1e1e24' }}>
+            <span className="text-zinc-400 group-hover:text-amber-300 transition-colors">Cadastro pendente</span>
+            <span className="font-bold text-amber-400">{pendentes.toLocaleString('pt-BR')} →</span>
+          </button>
+        )}
       </div>
       <div className="px-3 py-2"
         style={{ borderTop: '1px solid #1e1e24' }}>
@@ -221,16 +238,27 @@ function ProdutosToolsPanel({ products }: { products: Product[] }) {
           variant="emerald"
           className="w-full justify-center"
         />
-        <button onClick={() => todoToast('Otimizar SEO em lote com IA')}
-          className="w-full text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-colors"
+        {/* 2026-05-14: atalhos pras features novas (F1-F5) */}
+        <Link href="/dashboard/produtos/importar"
+          className="block w-full text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-colors text-center hover:border-cyan-500/40 hover:text-cyan-400"
           style={{ background: '#0c0c10', color: '#a1a1aa', border: '1px solid #27272a' }}>
-          🤖 Otimizar SEO em lote
-        </button>
-        <button onClick={() => todoToast('Análise de mercado completo')}
-          className="w-full text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-colors"
+          📤 Importar planilha
+        </Link>
+        <Link href="/dashboard/produtos/operacao-cadastro"
+          className="block w-full text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-colors text-center hover:border-amber-500/40 hover:text-amber-400"
+          style={{ background: '#0c0c10', color: '#a1a1aa', border: '1px solid #27272a' }}>
+          📋 Operação cadastro
+        </Link>
+        <Link href="/dashboard/produtos/ai-bulk"
+          className="block w-full text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-colors text-center hover:border-cyan-500/40 hover:text-cyan-400"
+          style={{ background: '#0c0c10', color: '#a1a1aa', border: '1px solid #27272a' }}>
+          🤖 Enriquecer SEO em lote
+        </Link>
+        <Link href="/dashboard/inteligencia/ml"
+          className="block w-full text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-colors text-center hover:border-purple-500/40 hover:text-purple-400"
           style={{ background: '#0c0c10', color: '#a1a1aa', border: '1px solid #27272a' }}>
           🕵️ Analisar mercado
-        </button>
+        </Link>
       </div>
     </aside>
   )
