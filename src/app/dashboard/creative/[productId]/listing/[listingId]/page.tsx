@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import ListingEditor from '@/components/creative/ListingEditor'
 import ListingPreview from '@/components/creative/ListingPreview'
+import ListingSeoPanel from '@/components/creative/ListingSeoPanel'
 import MarketplaceVariantTabs from '@/components/creative/MarketplaceVariantTabs'
 import VersionHistory from '@/components/creative/VersionHistory'
 import CreativeImageGenerationProgress from '@/app/dashboard/creative/_components/CreativeImageGenerationProgress'
@@ -343,6 +344,13 @@ export default function ListingDetailPage() {
                 currentCost={cost}
                 totalCost={totalCost}
                 versionCount={allListings.length}
+              />
+              {/* e-Otimizer SEO — análise pré-publicação, refetch quando listing muda */}
+              <ListingSeoPanel
+                listingId={listing.id}
+                variant="card"
+                listingVersion={listing.version}
+                picturesCount={images.filter(i => i.status === 'approved').length || undefined}
               />
             </div>
           </div>

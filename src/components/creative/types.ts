@@ -611,6 +611,45 @@ export interface CreativeReference {
   signed_url:            string | null
 }
 
+// ── SEO score (pré-publicação) ────────────────────────────────────────────
+
+export type SeoIssueArea     = 'title' | 'attributes' | 'pictures' | 'description' | 'general'
+export type SeoIssueSeverity = 'critical' | 'high' | 'medium' | 'low' | 'info'
+
+export interface SeoIssue {
+  code:        string
+  area:        SeoIssueArea
+  severity:    SeoIssueSeverity
+  message:     string
+  fixHint?:    string
+  fixesField?: 'title' | 'subtitle' | 'description' | 'bullets' | 'attributes' | 'pictures'
+}
+
+export interface CreativeListingSeoResult {
+  listing_id: string
+  scores: {
+    title:      number
+    attributes: number
+    pictures:   number
+    structural: number
+  }
+  issues:  SeoIssue[]
+  summary: {
+    score_label:    'excelente' | 'bom' | 'regular' | 'baixo' | 'crítico'
+    critical_count: number
+    high_count:     number
+  }
+  context: {
+    title_length:         number
+    has_brand_in_title:   boolean
+    has_keyword_in_title: boolean
+    attributes_total:     number
+    attributes_filled:    number
+    attributes_missing:   string[]
+    pictures_count:       number
+  }
+}
+
 // ── Melhoria #2: Briefing Templates ───────────────────────────────────────
 
 export interface BriefingTemplate {

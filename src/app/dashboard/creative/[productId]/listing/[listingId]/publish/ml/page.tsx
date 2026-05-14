@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import MLImageSelector from '@/components/creative/MLImageSelector'
 import MLAttributesForm from '@/components/creative/MLAttributesForm'
+import ListingSeoPanel from '@/components/creative/ListingSeoPanel'
 import { CreativeApi } from '@/components/creative/api'
 import {
   ML_LISTING_TYPE_OPTIONS, ML_CONDITION_OPTIONS,
@@ -202,6 +203,16 @@ export default function MLPublishPage() {
             </span>
           </div>
         )}
+
+        {/* e-Otimizer SEO — checkpoint antes de publicar. */}
+        <div className="mb-5">
+          <ListingSeoPanel
+            listingId={listingId}
+            variant="compact"
+            picturesCount={imageIds.length}
+            listingVersion={ctx.listing.version}
+          />
+        </div>
 
         {/* Histórico de publicações */}
         {publications.length > 0 && (

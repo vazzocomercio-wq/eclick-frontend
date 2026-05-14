@@ -13,6 +13,7 @@ import type {
   CreativePromptTemplate, MatchedTemplate, TemplatePreviewResponse, TemplatePosition,
   CreativeReference,
   TaxonomyOption, TaxonomyKind,
+  CreativeListingSeoResult,
 } from './types'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
@@ -324,6 +325,16 @@ export const CreativeApi = {
 
   approveListing: (id: string) =>
     api<CreativeListing>(`/creative/listings/${id}/approve`, { method: 'POST' }),
+
+  /**
+   * Score SEO do listing ANTES de publicar — usado pelo ListingSeoPanel.
+   * `picturesCount` opcional: passa quando o consumidor sabe quantas imagens
+   * vão na publicação (ex: /publish/ml). No editor sem essa info, omite.
+   */
+  getListingSeoScore: (id: string, picturesCount?: number) => {
+    const qs = picturesCount !== undefined ? `?images=${picturesCount}` : ''
+    return api<CreativeListingSeoResult>(`/creative/listings/${id}/seo-score${qs}`)
+  },
 
   /** Sub-sprint A: força re-predict da categoria ML (quando user edita título). */
   refreshMlCategory: (listingId: string) =>
