@@ -8,7 +8,7 @@ import AccountSelector, { getStoredSellerId } from '@/components/ml/AccountSelec
 import {
   AlertTriangle, AlertCircle, Info, ChevronRight, RefreshCw, Filter,
   Package, Pause, TrendingUp, Tag, FileText, Truck, ShoppingCart,
-  ExternalLink, Clock, X, Check,
+  ExternalLink, Clock, X, Check, Sparkles, Eye,
 } from 'lucide-react'
 import { useToast, ToastViewport } from '@/hooks/useToast'
 
@@ -23,6 +23,7 @@ type TaskType =
   | 'PROMOTION_AVAILABLE' | 'PROMOTION_HIGH_OPPORTUNITY'
   | 'DROPSHIP_PARTNER_OUT_OF_STOCK'
   | 'CATALOG_ELIGIBLE' | 'LOSING_BUY_BOX'
+  | 'SEO_LOW' | 'SEO_HIGH_VISITS_LOW_SCORE'
   | string
 
 interface Summary {
@@ -35,6 +36,18 @@ interface Summary {
   total_estimated_impact_brl: number
   high_impact_tasks_count: number
   last_full_scan_at: string | null
+}
+
+interface SeoOpportunity {
+  ml_item_id:       string
+  title:            string | null
+  structural_score: number
+  title_score:      number
+  attributes_score: number
+  pictures_score:   number
+  visits_30d:       number | null
+  sold_quantity:    number | null
+  price:            number | null
 }
 
 interface Task {
@@ -80,6 +93,8 @@ const TASK_TYPE_LABELS: Record<string, { label: string; icon: typeof Package }> 
   DROPSHIP_PARTNER_OUT_OF_STOCK:  { label: 'Parceiro sem estoque', icon: Truck },
   CATALOG_ELIGIBLE:               { label: 'Catálogo elegível',   icon: ShoppingCart },
   LOSING_BUY_BOX:                 { label: 'Perdendo Buy Box',    icon: AlertTriangle },
+  SEO_LOW:                        { label: 'SEO baixo',           icon: Sparkles },
+  SEO_HIGH_VISITS_LOW_SCORE:      { label: 'Tráfego × SEO ruim',  icon: Eye },
 }
 
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -95,6 +110,7 @@ export default function ListingsHomePage() {
   const [total, setTotal]     = useState(0)
   const [loading, setLoading] = useState(true)
   const [scanning, setScanning] = useState(false)
+  const [seoTop, setSeoTop]     = useState<SeoOpportunity[]>([])
 
   // Filtros — type vem do query string (atalhos do sidebar)
   const [filterType, setFilterType]         = useState<TaskType | ''>(initialType)
@@ -118,9 +134,10 @@ export default function ListingsHomePage() {
         filterSeverity ? `&severity=${filterSeverity}` : '',
       ].join('')
 
-      const [sumRes, tasksRes] = await Promise.all([
+      const [sumRes, tasksRes, seoRes] = await Promise.all([
         fetch(`${BACKEND}/listings/summary?_=1${sellerQs}`, { headers }),
         fetch(`${BACKEND}/listings/tasks?limit=50${sellerQs}${filterQs}`, { headers }),
+        fetch(`${BACKEND}/listings/seo/top-opportunities?limit=5${sellerQs}`, { headers }),
       ])
       if (sumRes.ok)   setSummary(await sumRes.json())
       if (tasksRes.ok) {
@@ -128,6 +145,7 @@ export default function ListingsHomePage() {
         setTasks(body.tasks ?? [])
         setTotal(body.total ?? 0)
       }
+      if (seoRes.ok)   setSeoTop((await seoRes.json()) as SeoOpportunity[])
     } catch (e) {
       toast({ message: e instanceof Error ? e.message : 'Erro ao carregar', tone: 'error' })
     } finally {
@@ -214,6 +232,47 @@ export default function ListingsHomePage() {
         <KpiCard label="Impacto estimado total"
           value={summary ? brl(summary.total_estimated_impact_brl) : '—'} color="#22c55e" loading={loading} isCurrency />
       </div>
+
+      {/* SEO Top ROI — Passo 3 (visitas × score baixo) */}
+      {seoTop.length > 0 && (
+        <section className="rounded-xl p-4" style={{ background: 'linear-gradient(135deg, rgba(0,229,255,0.06), rgba(0,229,255,0.02))', border: '1px solid rgba(0,229,255,0.25)' }}>
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-[10px] uppercase tracking-widest font-semibold flex items-center gap-1.5" style={{ color: '#00E5FF' }}>
+                <Sparkles size={11} /> Top ROI — otimizar agora
+              </p>
+              <p className="text-xs text-zinc-400 mt-0.5">Anúncios com tráfego alto e score SEO baixo. Otimizar = converter o tráfego existente.</p>
+            </div>
+            <Link href="/dashboard/listings/seo-optimizer"
+              className="text-[11px] font-semibold px-2.5 py-1 rounded-lg" style={{ color: '#00E5FF', border: '1px solid rgba(0,229,255,0.3)' }}>
+              Abrir Otimizador →
+            </Link>
+          </div>
+          <div className="space-y-1.5">
+            {seoTop.map(s => (
+              <Link key={s.ml_item_id}
+                href={`/dashboard/listings/seo-optimizer?mlbId=${s.ml_item_id}`}
+                className="flex items-center gap-3 px-2.5 py-2 rounded-lg hover:bg-zinc-900/40 transition-colors group">
+                <div className="flex items-center gap-1 shrink-0 w-16">
+                  <Eye size={11} className="text-zinc-500" />
+                  <span className="text-xs font-bold text-zinc-200">{(s.visits_30d ?? 0).toLocaleString('pt-BR')}</span>
+                </div>
+                <div className="shrink-0 w-12 text-center">
+                  <span className={`text-xs font-bold ${s.structural_score < 40 ? 'text-red-400' : s.structural_score < 60 ? 'text-amber-400' : 'text-zinc-300'}`}>
+                    {s.structural_score}
+                  </span>
+                  <span className="text-[9px] text-zinc-500">/100</span>
+                </div>
+                <span className="text-[11px] font-mono text-zinc-500 shrink-0 w-28 truncate">{s.ml_item_id}</span>
+                <span className="text-xs text-zinc-300 truncate flex-1" title={s.title ?? ''}>
+                  {s.title ?? '—'}
+                </span>
+                <ChevronRight size={14} className="text-zinc-600 group-hover:text-cyan-400 shrink-0" />
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Quick filters por tipo */}
       {summary && Object.keys(summary.tasks_by_type).length > 0 && (
