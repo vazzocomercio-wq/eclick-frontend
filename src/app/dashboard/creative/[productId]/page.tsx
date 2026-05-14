@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useParams } from 'next/navigation'
+import { useEffect, useState, useMemo } from 'react'
+import { useParams, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Sparkles, Plus, Loader2, Image as ImageIcon, Check, RefreshCw, FileText, X, Wand2, AlertCircle, Film, FileStack } from 'lucide-react'
+import { ArrowLeft, Sparkles, Plus, Loader2, Image as ImageIcon, Check, RefreshCw, FileText, X, Wand2, AlertCircle, Film, FileStack, Briefcase, ChevronRight } from 'lucide-react'
+import { createClient } from '@/lib/supabase'
 import ProductAnalysisCard from '@/components/creative/ProductAnalysisCard'
 import CanvaButton from '@/components/creative/CanvaButton'
 import CatalogLinkBanner from '@/components/creative/CatalogLinkBanner'
@@ -24,18 +25,30 @@ type VideoModelInfo = Awaited<ReturnType<typeof CreativeApi.listVideoModels>>[nu
 
 export default function ProductDetailPage() {
   const params = useParams<{ productId: string }>()
+  const searchParams = useSearchParams()
   const productId = params.productId
+  // Deeplink do Active CRM vem com ?source=cadastro — usar pra mostrar
+  // banner de "você foi designado a completar este cadastro"
+  const fromCadastro = searchParams.get('source') === 'cadastro'
 
   const [product, setProduct]       = useState<CreativeProduct | null>(null)
   const [briefings, setBriefings]   = useState<CreativeBriefing[]>([])
   const [listings, setListings]     = useState<CreativeListing[]>([])
   const [imageJobs, setImageJobs]   = useState<CreativeImageJob[]>([])
   const [videoJobs, setVideoJobs]   = useState<CreativeVideoJob[]>([])
+  const [completeness, setCompleteness] = useState<{
+    ready_for_ml:      boolean
+    complete:          boolean
+    missing_universal: string[]
+    missing_ml_attrs:  Array<{ id: string; name: string }>
+  } | null>(null)
   const [loading, setLoading]       = useState(true)
   const [error, setError]           = useState<string | null>(null)
   const [regenAnalyzing, setRegenAnalyzing] = useState(false)
   const [imageModalOpen, setImageModalOpen] = useState(false)
   const [videoModalOpen, setVideoModalOpen] = useState(false)
+
+  const supabase = useMemo(() => createClient(), [])
 
   useEffect(() => {
     void load()
@@ -58,11 +71,27 @@ export default function ProductDetailPage() {
       setListings(ls)
       setImageJobs(ijobs)
       setVideoJobs(vjobs)
+
+      // Carrega completeness em paralelo (não bloqueia se falhar)
+      void loadCompleteness()
     } catch (e: unknown) {
       setError((e as Error).message)
     } finally {
       setLoading(false)
     }
+  }
+
+  async function loadCompleteness() {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) return
+      const backend = process.env.NEXT_PUBLIC_BACKEND_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
+      const res = await fetch(`${backend}/products/${productId}/completeness`, {
+        headers: { 'Authorization': `Bearer ${session.access_token}` },
+      })
+      if (!res.ok) return
+      setCompleteness(await res.json())
+    } catch { /* silent */ }
   }
 
   async function reanalyze() {
@@ -122,6 +151,18 @@ export default function ProductDetailPage() {
             <h1 className="text-base font-semibold truncate" title={product.name}>{product.name}</h1>
           </div>
         </header>
+
+        {/* Banner do operador — só aparece quando deeplink vem do Active CRM
+            ou produto tem missing fields. Guia o operador no passo-a-passo. */}
+        {(fromCadastro || (completeness && !completeness.complete)) && (
+          <OperatorMissionBanner
+            productId={productId}
+            completeness={completeness}
+            briefingsCount={briefings.length}
+            imagesCount={imageJobs.length}
+            listingsCount={listings.length}
+          />
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           {/* Image */}
@@ -1145,5 +1186,145 @@ function CreateImageJobModal({
         </div>
       </div>
     </div>
+  )
+}
+
+// ── Operator mission banner ─────────────────────────────────────────────────
+// Aparece quando o produto tem cadastro pendente OU o user veio do Active
+// (deeplink ?source=cadastro). Guia o operador no passo-a-passo da missão.
+
+function OperatorMissionBanner({
+  productId, completeness, briefingsCount, imagesCount, listingsCount,
+}: {
+  productId:      string
+  completeness:   {
+    ready_for_ml:      boolean
+    complete:          boolean
+    missing_universal: string[]
+    missing_ml_attrs:  Array<{ id: string; name: string }>
+  } | null
+  briefingsCount: number
+  imagesCount:    number
+  listingsCount:  number
+}) {
+  const totalMissing = (completeness?.missing_universal.length ?? 0)
+                     + (completeness?.missing_ml_attrs.length ?? 0)
+
+  const steps: Array<{ key: string; label: string; done: boolean; hint: string }> = [
+    {
+      key: 'fields',
+      label: 'Completar campos faltantes',
+      done: !completeness || completeness.complete,
+      hint: totalMissing > 0 ? `${totalMissing} campo${totalMissing === 1 ? '' : 's'} pendente${totalMissing === 1 ? '' : 's'}` : 'Todos preenchidos ✓',
+    },
+    {
+      key: 'briefing',
+      label: 'Criar briefing',
+      done: briefingsCount > 0,
+      hint: briefingsCount > 0 ? `${briefingsCount} criado${briefingsCount === 1 ? '' : 's'}` : 'Sem briefing ainda',
+    },
+    {
+      key: 'images',
+      label: 'Gerar imagens IA',
+      done: imagesCount > 0,
+      hint: imagesCount > 0 ? `${imagesCount} job${imagesCount === 1 ? '' : 's'} de imagem` : 'Use IA pra gerar fotos',
+    },
+    {
+      key: 'listing',
+      label: 'Gerar anúncio (título/descrição/atributos)',
+      done: listingsCount > 0,
+      hint: listingsCount > 0 ? `${listingsCount} versão${listingsCount === 1 ? '' : 'ões'} criada${listingsCount === 1 ? '' : 's'}` : 'IA cria com base em concorrentes reais',
+    },
+    {
+      key: 'publish',
+      label: 'Publicar no Mercado Livre',
+      done: false,
+      hint: 'Após aprovar o listing',
+    },
+  ]
+
+  const nextStep = steps.find(s => !s.done) ?? steps[steps.length - 1]
+  const doneCount = steps.filter(s => s.done).length
+  const totalSteps = steps.length
+  const pct = Math.round((doneCount / totalSteps) * 100)
+
+  return (
+    <section className="mb-5 rounded-2xl border border-cyan-400/30 bg-gradient-to-br from-cyan-400/10 to-cyan-400/5 p-4">
+      <div className="flex items-start gap-3">
+        <div className="rounded-lg bg-cyan-400/20 p-2 shrink-0">
+          <Briefcase size={18} className="text-cyan-300" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between gap-3 mb-2">
+            <div>
+              <h2 className="text-sm font-semibold text-cyan-100">Você foi designado a completar este produto</h2>
+              <p className="text-[11px] text-cyan-300/70 mt-0.5">
+                Siga o fluxo guiado abaixo. Cada etapa usa IA pra acelerar o trabalho.
+              </p>
+            </div>
+            <div className="text-right shrink-0">
+              <div className="text-[10px] uppercase tracking-wider text-cyan-300/60">Progresso</div>
+              <div className="text-lg font-bold text-cyan-200">{doneCount}/{totalSteps}</div>
+            </div>
+          </div>
+
+          <div className="h-1.5 rounded-full bg-cyan-950/50 overflow-hidden mb-3">
+            <div
+              className="h-full bg-cyan-400 transition-all"
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+
+          <ol className="space-y-1.5 mb-3">
+            {steps.map((s, i) => {
+              const isNext = s.key === nextStep.key && !s.done
+              return (
+                <li key={s.key} className="flex items-center gap-2 text-[12px]">
+                  <div className={`shrink-0 h-5 w-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                    s.done
+                      ? 'bg-emerald-400/20 text-emerald-300 border border-emerald-400/40'
+                      : isNext
+                        ? 'bg-cyan-400/30 text-cyan-200 border border-cyan-400/50 animate-pulse'
+                        : 'bg-zinc-800 text-zinc-500 border border-zinc-700'
+                  }`}>
+                    {s.done ? '✓' : i + 1}
+                  </div>
+                  <span className={s.done ? 'text-zinc-400 line-through' : isNext ? 'text-cyan-100 font-semibold' : 'text-zinc-400'}>
+                    {s.label}
+                  </span>
+                  <span className="text-[10px] text-zinc-500 ml-auto">{s.hint}</span>
+                </li>
+              )
+            })}
+          </ol>
+
+          {completeness && !completeness.complete && (
+            <details className="text-[11px] text-zinc-400 mt-2">
+              <summary className="cursor-pointer text-cyan-300/80 hover:text-cyan-300 select-none">
+                Ver campos faltantes ({totalMissing})
+              </summary>
+              <div className="mt-2 pl-4 space-y-1">
+                {completeness.missing_universal.length > 0 && (
+                  <div>
+                    <strong className="text-zinc-300">Universais:</strong> {completeness.missing_universal.join(' • ')}
+                  </div>
+                )}
+                {completeness.missing_ml_attrs.length > 0 && (
+                  <div>
+                    <strong className="text-zinc-300">Atributos ML:</strong> {completeness.missing_ml_attrs.map(a => a.name).join(' • ')}
+                  </div>
+                )}
+                <Link
+                  href={`/dashboard/produtos/${productId}/editar`}
+                  className="inline-flex items-center gap-1 mt-1 text-cyan-400 hover:text-cyan-300"
+                >
+                  Editar dados básicos do produto <ChevronRight size={11} />
+                </Link>
+              </div>
+            </details>
+          )}
+        </div>
+      </div>
+    </section>
   )
 }
