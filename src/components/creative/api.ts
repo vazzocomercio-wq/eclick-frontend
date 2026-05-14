@@ -341,7 +341,7 @@ export const CreativeApi = {
       hint?:             string
     }>>(`/creative/ml/categories/${encodeURIComponent(categoryId)}/attributes-detail`),
 
-  /** Modalidades de anúncio MLB (Free, Gold Especial, Gold Pro, Premium…). */
+  /** Modalidades de anúncio MLB (Grátis / Clássico / Premium — IDs internos: free / gold_special / gold_pro). */
   listMlListingTypes: () =>
     api<Array<{ id: string; name: string }>>('/creative/ml/listing-types'),
 

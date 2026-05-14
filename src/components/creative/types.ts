@@ -488,10 +488,15 @@ export interface CreativePublication {
   updated_at:                    string
 }
 
+// Nomes oficiais ML (interno → vitrine):
+//   gold_special → "Clássico" (12% taxa, 6x sem juros, sem destaque premium)
+//   gold_pro     → "Premium"  (16% taxa, 12x sem juros, máxima exposição)
+//   free         → "Grátis"   (sem custo de listagem, sem destaques)
+// IDs internos (gold_special/gold_pro) continuam os mesmos na API do ML.
 export const ML_LISTING_TYPE_OPTIONS: Array<{ value: MlListingType; label: string; description: string }> = [
-  { value: 'free',         label: 'Free',         description: 'Sem custo de listagem, sem destaques' },
-  { value: 'gold_special', label: 'Gold Especial', description: 'Pago, com destaques e mais visibilidade' },
-  { value: 'gold_pro',     label: 'Gold Pro',     description: 'Pago premium, máxima exposição' },
+  { value: 'free',         label: 'Grátis',   description: 'Sem custo de listagem, exposição reduzida (limite ~10 unidades)' },
+  { value: 'gold_special', label: 'Clássico', description: '12% de tarifa · 6x sem juros · boa exposição' },
+  { value: 'gold_pro',     label: 'Premium',  description: '16% de tarifa · 12x sem juros · máxima exposição' },
 ]
 
 export const ML_CONDITION_OPTIONS: Array<{ value: MlCondition; label: string }> = [
