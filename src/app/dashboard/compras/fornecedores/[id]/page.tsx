@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { useConfirm } from '@/components/ui/dialog-provider'
+import { IcarusIntegrationTab } from './IcarusIntegrationTab'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 
@@ -39,7 +40,7 @@ interface PriceTier { min_qty: number; unit_price: number }
 
 interface ProductOption { id: string; name: string; sku: string | null; photo_urls: string[] | null }
 
-type Tab = 'dados' | 'produtos' | 'documentos' | 'historico'
+type Tab = 'dados' | 'produtos' | 'integracao' | 'documentos' | 'historico'
 
 // ── icons ──────────────────────────────────────────────────────────────────────
 
@@ -305,7 +306,7 @@ export default function FornecedorDetailPage() {
 
       {/* tabs */}
       <div className="flex gap-1 mb-6" style={{ borderBottom: '1px solid #1a1a1f' }}>
-        {(['dados', 'produtos', 'documentos', 'historico'] as Tab[]).map(t => (
+        {(['dados', 'produtos', 'integracao', 'documentos', 'historico'] as Tab[]).map(t => (
           <button key={t} onClick={() => setTab(t)}
             className="px-4 py-2.5 text-sm font-medium capitalize transition-colors"
             style={{
@@ -313,7 +314,7 @@ export default function FornecedorDetailPage() {
               borderBottom: tab === t ? '2px solid #00E5FF' : '2px solid transparent',
               marginBottom: '-1px',
             }}>
-            {t === 'historico' ? 'Histórico' : t.charAt(0).toUpperCase() + t.slice(1)}
+            {t === 'historico' ? 'Histórico' : t === 'integracao' ? 'Integração' : t.charAt(0).toUpperCase() + t.slice(1)}
           </button>
         ))}
       </div>
@@ -475,6 +476,11 @@ export default function FornecedorDetailPage() {
             </div>
           )}
         </div>
+      )}
+
+      {/* ── TAB INTEGRAÇÃO (Icarus / Pennacorp) — Fase 1 sessão 2026-05-14 ── */}
+      {tab === 'integracao' && (
+        <IcarusIntegrationTab supplierId={supplier.id} />
       )}
 
       {/* ── TAB DOCUMENTOS ── */}
