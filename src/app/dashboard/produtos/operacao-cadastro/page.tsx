@@ -29,7 +29,10 @@ type IncompleteProduct = {
   sku:     string | null
   name:    string
   missing: string[]
+  stock:   number | null
 }
+
+type SortMode = 'stock_desc' | 'stock_asc' | 'name' | ''
 
 type CompletenessSummary = {
   total:             number
@@ -99,6 +102,18 @@ export default function OperacaoCadastroPage() {
   const [dispatching, setDispatching] = useState(false)
   const [dispatchResult, setDispatchResult] = useState<{ dispatched: number; skipped_existing: number; errors: Array<{ product_id: string; message: string }> } | null>(null)
 
+  // Filtros (2026-05-14) — gestor precisa priorizar quem tem estoque alto
+  const [stockMin, setStockMin] = useState('')
+  const [stockMax, setStockMax] = useState('')
+  const [search,   setSearch]   = useState('')
+  const [sort,     setSort]     = useState<SortMode>('stock_desc')
+  // Debounce inputs pra não martelar o backend
+  const [debounced, setDebounced] = useState({ stockMin: '', stockMax: '', search: '' })
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced({ stockMin, stockMax, search }), 400)
+    return () => clearTimeout(t)
+  }, [stockMin, stockMax, search])
+
   // ── load data ─────────────────────────────────────────────────────────────
 
   const load = useCallback(async () => {
@@ -107,8 +122,14 @@ export default function OperacaoCadastroPage() {
       const token = await getAuthToken()
       if (!token) throw new Error('Sessão expirou')
 
+      const qs = new URLSearchParams({ limit: '500', sample_size: '200' })
+      if (debounced.stockMin.trim() && Number.isFinite(Number(debounced.stockMin))) qs.set('stock_min', String(parseInt(debounced.stockMin, 10)))
+      if (debounced.stockMax.trim() && Number.isFinite(Number(debounced.stockMax))) qs.set('stock_max', String(parseInt(debounced.stockMax, 10)))
+      if (debounced.search.trim()) qs.set('search', debounced.search.trim())
+      if (sort) qs.set('sort', sort)
+
       const [sumRes, assignRes] = await Promise.all([
-        fetch(`${BACKEND}/products/completeness-summary?limit=500`, {
+        fetch(`${BACKEND}/products/completeness-summary?${qs}`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
         fetch(`${BACKEND}/products/operator-assignments?limit=200`, {
@@ -128,7 +149,7 @@ export default function OperacaoCadastroPage() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [debounced, sort])
 
   useEffect(() => { void load() }, [load])
 
@@ -258,13 +279,59 @@ export default function OperacaoCadastroPage() {
 
         {/* PENDING tab */}
         {tab === 'pending' && (
-          loading ? (
+          <>
+            {/* Filtros — sempre visíveis pra gestor refinar mesmo quando tem 0 pendentes
+                após filtro aplicado (mostra estado "vazio com filtro" decentemente) */}
+            <div className="mb-3 flex flex-wrap items-center gap-3 px-4 py-3 rounded-xl"
+              style={{ background: '#111114', border: '1px solid #27272a' }}>
+              <div className="flex-1 min-w-[200px] max-w-sm">
+                <input type="text" placeholder="Buscar nome, SKU ou marca…"
+                  value={search} onChange={e => setSearch(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg text-sm text-white placeholder-zinc-600 border outline-none transition-all focus:border-cyan-500/60"
+                  style={{ background: '#0a0a0c', borderColor: '#27272a' }} />
+              </div>
+              <div className="flex items-center gap-1.5 text-[11px] text-zinc-400">
+                <span className="font-medium">Estoque</span>
+                <input type="number" inputMode="numeric" placeholder="min"
+                  value={stockMin} onChange={e => setStockMin(e.target.value)}
+                  className="w-16 px-2 py-1.5 rounded-md text-[12px] text-white border outline-none focus:border-cyan-500/60 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  style={{ background: '#0a0a0c', borderColor: '#27272a' }} />
+                <span className="text-zinc-600">–</span>
+                <input type="number" inputMode="numeric" placeholder="max"
+                  value={stockMax} onChange={e => setStockMax(e.target.value)}
+                  className="w-16 px-2 py-1.5 rounded-md text-[12px] text-white border outline-none focus:border-cyan-500/60 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  style={{ background: '#0a0a0c', borderColor: '#27272a' }} />
+              </div>
+              <div className="flex items-center gap-1.5 text-[11px] text-zinc-400">
+                <span className="font-medium">Ordenar por</span>
+                <select value={sort} onChange={e => setSort(e.target.value as SortMode)}
+                  className="px-2 py-1.5 rounded-md text-[12px] text-white border outline-none cursor-pointer"
+                  style={{ background: '#0a0a0c', borderColor: '#27272a' }}>
+                  <option value="stock_desc">Estoque ↓ (maior primeiro)</option>
+                  <option value="stock_asc">Estoque ↑ (menor primeiro)</option>
+                  <option value="name">Nome A–Z</option>
+                  <option value="">Mais recentes</option>
+                </select>
+              </div>
+              {(stockMin || stockMax || search) && (
+                <button onClick={() => { setStockMin(''); setStockMax(''); setSearch('') }}
+                  className="text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors px-2 py-1.5">
+                  Limpar filtros
+                </button>
+              )}
+            </div>
+
+            {loading ? (
             <div className="text-center py-12 text-zinc-500">Carregando…</div>
           ) : !summary || summary.incomplete_count === 0 ? (
             <div className="text-center py-12 rounded-2xl" style={{ background: '#111114', border: '1px solid #27272a' }}>
-              <div className="text-5xl mb-3">🎉</div>
-              <div className="text-lg font-semibold">Nenhum produto pendente!</div>
-              <div className="text-sm text-zinc-400 mt-1">Todos os cadastros estão completos.</div>
+              <div className="text-5xl mb-3">{(stockMin || stockMax || search) ? '🔍' : '🎉'}</div>
+              <div className="text-lg font-semibold">
+                {(stockMin || stockMax || search) ? 'Nenhum produto bate com os filtros' : 'Nenhum produto pendente!'}
+              </div>
+              <div className="text-sm text-zinc-400 mt-1">
+                {(stockMin || stockMax || search) ? 'Ajuste os filtros acima ou limpe pra ver tudo.' : 'Todos os cadastros estão completos.'}
+              </div>
             </div>
           ) : (
             <>
@@ -316,12 +383,16 @@ export default function OperacaoCadastroPage() {
                       </th>
                       <th className="px-3 py-3 text-left">SKU</th>
                       <th className="px-3 py-3 text-left">Nome</th>
+                      <th className="px-3 py-3 text-right w-24">Estoque</th>
                       <th className="px-3 py-3 text-left">Campos faltando</th>
                       <th className="px-3 py-3 text-right w-32">Ação</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {summary.sample_incomplete.map(p => (
+                    {summary.sample_incomplete.map(p => {
+                      const stock = p.stock ?? 0
+                      const stockColor = stock === 0 ? '#71717a' : stock <= 5 ? '#facc15' : stock <= 20 ? '#a1a1aa' : '#34d399'
+                      return (
                       <tr key={p.id} className="border-t hover:bg-white/[0.02] transition-colors"
                         style={{ borderColor: '#27272a' }}>
                         <td className="px-3 py-2.5">
@@ -332,6 +403,11 @@ export default function OperacaoCadastroPage() {
                         </td>
                         <td className="px-3 py-2.5 font-mono text-[12px] text-zinc-300">{p.sku || '—'}</td>
                         <td className="px-3 py-2.5 max-w-xs truncate">{p.name}</td>
+                        <td className="px-3 py-2.5 text-right">
+                          <span className="text-[12px] font-semibold tabular-nums" style={{ color: stockColor }}>
+                            {p.stock == null ? '—' : stock.toLocaleString('pt-BR')}
+                          </span>
+                        </td>
                         <td className="px-3 py-2.5">
                           <div className="flex flex-wrap gap-1">
                             {p.missing.slice(0, 4).map(m => (
@@ -350,7 +426,8 @@ export default function OperacaoCadastroPage() {
                           </Link>
                         </td>
                       </tr>
-                    ))}
+                      )
+                    })}
                   </tbody>
                 </table>
                 {summary.incomplete_count > summary.sample_incomplete.length && (
@@ -361,7 +438,8 @@ export default function OperacaoCadastroPage() {
                 )}
               </div>
             </>
-          )
+          )}
+          </>
         )}
 
         {/* ASSIGNMENTS tab */}
