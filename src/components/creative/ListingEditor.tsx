@@ -141,11 +141,15 @@ export default function ListingEditor({ listing, onSaved, disabled }: Props) {
       {/* Sub-sprint C: banner de prontidão pra ML */}
       <PublishReadinessBanner listing={listing} technicalSheet={state.technical_sheet} />
 
-      <Field label="Título" value={state.title} onChange={v => update('title', v)} disabled={disabled} />
-      <Field label="Subtítulo" value={state.subtitle} onChange={v => update('subtitle', v)} disabled={disabled} placeholder="Opcional" />
+      <div data-seo-field="title">
+        <Field label="Título" value={state.title} onChange={v => update('title', v)} disabled={disabled} />
+      </div>
+      <div data-seo-field="subtitle">
+        <Field label="Subtítulo" value={state.subtitle} onChange={v => update('subtitle', v)} disabled={disabled} placeholder="Opcional" />
+      </div>
 
       {/* Description */}
-      <div>
+      <div data-seo-field="description">
         <Label>Descrição</Label>
         <textarea
           value={state.description}
@@ -157,21 +161,25 @@ export default function ListingEditor({ listing, onSaved, disabled }: Props) {
       </div>
 
       {/* Bullets */}
-      <ListField
-        label="Bullets"
-        items={state.bullets}
-        onChange={v => update('bullets', v)}
-        placeholder="✅ Ex: Material premium em ABS resistente"
-        disabled={disabled}
-      />
+      <div data-seo-field="bullets">
+        <ListField
+          label="Bullets"
+          items={state.bullets}
+          onChange={v => update('bullets', v)}
+          placeholder="✅ Ex: Material premium em ABS resistente"
+          disabled={disabled}
+        />
+      </div>
 
       {/* Technical sheet — ML-aware quando há categoria, fallback livre se não */}
-      <MlAttributesEditor
-        categoryMlId={listing.category_ml_id}
-        items={state.technical_sheet}
-        onChange={v => update('technical_sheet', v)}
-        disabled={disabled}
-      />
+      <div data-seo-field="attributes">
+        <MlAttributesEditor
+          categoryMlId={listing.category_ml_id}
+          items={state.technical_sheet}
+          onChange={v => update('technical_sheet', v)}
+          disabled={disabled}
+        />
+      </div>
 
       {/* Keywords */}
       <ListField

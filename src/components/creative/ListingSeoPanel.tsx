@@ -289,6 +289,25 @@ function classByScore(score: number, kind: 'text' | 'bg' | 'border' | 'bar'): st
        :                   'bg-red-400'
 }
 
+/**
+ * Helper pra navegar até um campo marcado com `data-seo-field`.
+ * Usar como `onJumpToField={scrollToSeoField}` no Panel.
+ * Procura no DOM atual, faz scrollIntoView smooth, e tenta focar o
+ * primeiro input/textarea/button dentro do bloco. No-op se não encontra
+ * (ex: campo "pictures" no editor, que vive na outra tela).
+ */
+export function scrollToSeoField(field: NonNullable<SeoIssue['fixesField']>): void {
+  if (typeof document === 'undefined') return
+  const el = document.querySelector(`[data-seo-field="${field}"]`)
+  if (!el) return
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  // Tenta focar elemento editável dentro (pequeno delay pra esperar o scroll)
+  setTimeout(() => {
+    const focusable = el.querySelector<HTMLElement>('input, textarea, select, [tabindex]:not([tabindex="-1"])')
+    focusable?.focus()
+  }, 300)
+}
+
 function severityClasses(severity: SeoIssueSeverity, kind: 'bg' | 'border'): string {
   if (severity === 'critical') return kind === 'bg' ? 'bg-red-500/5' : 'border-red-500/30'
   if (severity === 'high')     return kind === 'bg' ? 'bg-amber-500/5' : 'border-amber-500/30'

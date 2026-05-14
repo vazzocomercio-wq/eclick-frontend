@@ -9,7 +9,7 @@ import {
 } from 'lucide-react'
 import MLImageSelector from '@/components/creative/MLImageSelector'
 import MLAttributesForm from '@/components/creative/MLAttributesForm'
-import ListingSeoPanel from '@/components/creative/ListingSeoPanel'
+import ListingSeoPanel, { scrollToSeoField } from '@/components/creative/ListingSeoPanel'
 import { CreativeApi } from '@/components/creative/api'
 import {
   ML_LISTING_TYPE_OPTIONS, ML_CONDITION_OPTIONS,
@@ -211,6 +211,7 @@ export default function MLPublishPage() {
             variant="compact"
             picturesCount={imageIds.length}
             listingVersion={ctx.listing.version}
+            onJumpToField={scrollToSeoField}
           />
         </div>
 
@@ -242,13 +243,15 @@ export default function MLPublishPage() {
             </Section>
 
             {/* Images */}
-            <Section icon={<ImageIcon size={14} />} title="Imagens (1-10)">
-              <MLImageSelector
-                available={approved_images}
-                selected={imageIds}
-                onChange={setImageIds}
-              />
-            </Section>
+            <div data-seo-field="pictures">
+              <Section icon={<ImageIcon size={14} />} title="Imagens (1-10)">
+                <MLImageSelector
+                  available={approved_images}
+                  selected={imageIds}
+                  onChange={setImageIds}
+                />
+              </Section>
+            </div>
 
             {/* Video */}
             <Section icon={<Film size={14} />} title="Vídeo (opcional)">
@@ -290,6 +293,7 @@ export default function MLPublishPage() {
             </Section>
 
             {/* Category + Attributes */}
+            <div data-seo-field="attributes">
             <Section icon={<Layers size={14} />} title="Categoria & atributos">
               {!preview ? (
                 <p className="text-xs text-zinc-500">Aguardando preview…</p>
@@ -324,6 +328,7 @@ export default function MLPublishPage() {
                 </div>
               )}
             </Section>
+            </div>
 
             {/* Pricing */}
             <Section icon={<DollarSign size={14} />} title="Preço & estoque">

@@ -8,7 +8,7 @@ import {
 } from 'lucide-react'
 import ListingEditor from '@/components/creative/ListingEditor'
 import ListingPreview from '@/components/creative/ListingPreview'
-import ListingSeoPanel from '@/components/creative/ListingSeoPanel'
+import ListingSeoPanel, { scrollToSeoField } from '@/components/creative/ListingSeoPanel'
 import MarketplaceVariantTabs from '@/components/creative/MarketplaceVariantTabs'
 import VersionHistory from '@/components/creative/VersionHistory'
 import CreativeImageGenerationProgress from '@/app/dashboard/creative/_components/CreativeImageGenerationProgress'
@@ -351,6 +351,7 @@ export default function ListingDetailPage() {
                 variant="card"
                 listingVersion={listing.version}
                 picturesCount={images.filter(i => i.status === 'approved').length || undefined}
+                onJumpToField={scrollToSeoField}
               />
             </div>
           </div>
