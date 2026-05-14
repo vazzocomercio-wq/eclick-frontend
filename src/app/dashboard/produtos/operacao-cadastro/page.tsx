@@ -492,34 +492,51 @@ export default function OperacaoCadastroPage() {
         )}
 
         {/* Dispatch result */}
-        {dispatchResult && (
-          <div className="fixed bottom-6 right-6 z-50 max-w-md p-4 rounded-xl shadow-2xl"
-            style={{ background: '#111114', border: '1px solid rgba(52,211,153,0.3)' }}>
-            <div className="flex items-start gap-3">
-              <div className="text-2xl">✅</div>
-              <div className="flex-1">
-                <div className="font-semibold text-emerald-400">
-                  {dispatchResult.dispatched} card{dispatchResult.dispatched === 1 ? '' : 's'} criado{dispatchResult.dispatched === 1 ? '' : 's'} no Active
+        {dispatchResult && (() => {
+          const hasErrors    = dispatchResult.errors.length > 0
+          const hasSuccess   = dispatchResult.dispatched > 0
+          const borderColor  = hasErrors && !hasSuccess ? 'rgba(239,68,68,0.4)' : 'rgba(52,211,153,0.3)'
+          return (
+            <div className="fixed bottom-6 right-6 z-50 max-w-xl p-4 rounded-xl shadow-2xl"
+              style={{ background: '#111114', border: `1px solid ${borderColor}` }}>
+              <div className="flex items-start gap-3">
+                <div className="text-2xl shrink-0">{hasErrors && !hasSuccess ? '❌' : '✅'}</div>
+                <div className="flex-1 min-w-0">
+                  <div className={`font-semibold ${hasSuccess ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {dispatchResult.dispatched} card{dispatchResult.dispatched === 1 ? '' : 's'} criado{dispatchResult.dispatched === 1 ? '' : 's'} no Active
+                  </div>
+                  {dispatchResult.skipped_existing > 0 && (
+                    <div className="text-xs text-zinc-400 mt-0.5">
+                      {dispatchResult.skipped_existing} já tinha{dispatchResult.skipped_existing === 1 ? '' : 'm'} card aberto
+                    </div>
+                  )}
+                  {hasErrors && (
+                    <div className="mt-2 space-y-1">
+                      <div className="text-xs text-red-400 font-medium">
+                        {dispatchResult.errors.length} erro{dispatchResult.errors.length === 1 ? '' : 's'}:
+                      </div>
+                      <ul className="text-[11px] text-red-300/90 space-y-0.5 max-h-40 overflow-y-auto">
+                        {dispatchResult.errors.map((err, i) => (
+                          <li key={i} className="rounded bg-red-500/10 border border-red-500/20 px-2 py-1">
+                            <span className="font-mono text-[10px] text-red-400/70 block">
+                              {err.product_id.slice(0, 8)}…
+                            </span>
+                            <span className="break-words">{err.message}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
-                {dispatchResult.skipped_existing > 0 && (
-                  <div className="text-xs text-zinc-400 mt-0.5">
-                    {dispatchResult.skipped_existing} já tinha{dispatchResult.skipped_existing === 1 ? '' : 'm'} card aberto
-                  </div>
-                )}
-                {dispatchResult.errors.length > 0 && (
-                  <div className="text-xs text-red-400 mt-1">
-                    {dispatchResult.errors.length} erro{dispatchResult.errors.length === 1 ? '' : 's'}
-                  </div>
-                )}
+                <button onClick={() => setDispatchResult(null)} className="text-zinc-500 hover:text-zinc-300 shrink-0">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
               </div>
-              <button onClick={() => setDispatchResult(null)} className="text-zinc-500 hover:text-zinc-300">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
             </div>
-          </div>
-        )}
+          )
+        })()}
 
         {/* Dispatch modal */}
         {showDispatchModal && (
