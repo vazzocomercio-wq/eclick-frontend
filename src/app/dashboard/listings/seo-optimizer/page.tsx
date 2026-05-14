@@ -10,7 +10,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import {
   Search, Sparkles, Loader2, AlertCircle, CheckCircle2, Copy, ExternalLink,
-  Lock, AlertTriangle, Send, History, RotateCw,
+  Lock, AlertTriangle, Send, History, RotateCw, TrendingUp, Eye, Award, Activity,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import { useToast, ToastViewport } from '@/hooks/useToast'
@@ -86,6 +86,29 @@ interface HistoryItem {
   created_at:       string
 }
 
+interface FeedbackSummary {
+  total_optimizations:        number
+  total_applied:              number
+  total_with_metrics:         number
+  avg_score_before:           number | null
+  avg_score_after:            number | null
+  score_uplift_avg:           number | null
+  total_sold_delta_t7d:       number
+  total_sold_delta_t14d:      number
+  total_sold_delta_t30d:      number
+  total_visits_t7d:           number
+  top_winners: Array<{
+    optimization_id: string
+    mlb_id:          string
+    title:           string
+    score_before:    number | null
+    score_after:     number | null
+    sold_delta_t30d: number | null
+    applied_fields:  string[]
+    applied_at:      string
+  }>
+}
+
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 function extractMlbId(input: string): string | null {
@@ -110,6 +133,7 @@ export default function SeoOptimizerPage() {
   const [loading, setLoading]         = useState(false)
   const [error, setError]             = useState<string | null>(null)
   const [history, setHistory]         = useState<HistoryItem[]>([])
+  const [feedback, setFeedback]       = useState<FeedbackSummary | null>(null)
 
   async function getAuthHeaders(): Promise<HeadersInit> {
     const { data: { session } } = await supabase.auth.getSession()
@@ -125,7 +149,18 @@ export default function SeoOptimizerPage() {
     } catch (e) { /* silent */ }
   }
 
-  useEffect(() => { void loadHistory() }, [])
+  async function loadFeedback() {
+    try {
+      const headers = await getAuthHeaders()
+      const res = await fetch(`${BACKEND}/e-otimizer/feedback/summary`, { headers })
+      if (res.ok) setFeedback(await res.json())
+    } catch (e) { /* silent */ }
+  }
+
+  useEffect(() => {
+    void loadHistory()
+    void loadFeedback()
+  }, [])
 
   async function analyze() {
     setError(null)
@@ -165,6 +200,66 @@ export default function SeoOptimizerPage() {
             Anúncios com vendas têm título travado pelo ML — sistema gera sugestão pra clonar.
           </p>
         </header>
+
+        {/* Feedback Summary Cards */}
+        {feedback && feedback.total_applied > 0 && (
+          <section className="mb-6">
+            <h2 className="flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-zinc-500 mb-2">
+              <Activity size={12} /> ROI das otimizações aplicadas
+            </h2>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <StatCard
+                icon={<Sparkles size={14} />}
+                label="Otimizações aplicadas"
+                value={feedback.total_applied.toString()}
+                hint={`${feedback.total_with_metrics} com métricas capturadas`}
+                color="cyan"
+              />
+              <StatCard
+                icon={<Award size={14} />}
+                label="Uplift médio do score"
+                value={feedback.score_uplift_avg != null ? `+${feedback.score_uplift_avg}` : '—'}
+                hint={feedback.avg_score_before != null && feedback.avg_score_after != null
+                  ? `${feedback.avg_score_before} → ${feedback.avg_score_after}`
+                  : 'sem dados'}
+                color="emerald"
+              />
+              <StatCard
+                icon={<TrendingUp size={14} />}
+                label="Vendas T+30d (delta)"
+                value={`+${feedback.total_sold_delta_t30d}`}
+                hint={`T+7: +${feedback.total_sold_delta_t7d} · T+14: +${feedback.total_sold_delta_t14d}`}
+                color="emerald"
+              />
+              <StatCard
+                icon={<Eye size={14} />}
+                label="Visitas T+7d"
+                value={feedback.total_visits_t7d.toLocaleString('pt-BR')}
+                hint="acumulado dos anúncios otimizados"
+                color="cyan"
+              />
+            </div>
+            {feedback.top_winners.length > 0 && (
+              <div className="mt-3 rounded-xl border border-emerald-400/20 bg-emerald-400/5 p-3">
+                <h3 className="text-[11px] uppercase tracking-wider text-emerald-300/80 mb-2 flex items-center gap-1.5">
+                  <Award size={12} /> Top 5 que mais venderam após otimização
+                </h3>
+                <ul className="space-y-1">
+                  {feedback.top_winners.slice(0, 5).map(w => (
+                    <li key={w.optimization_id} className="flex items-center gap-2 text-[11px]">
+                      <span className="text-emerald-300 font-bold w-12 shrink-0">+{w.sold_delta_t30d ?? 0} vendas</span>
+                      <span className="font-mono text-zinc-500 w-32 shrink-0 truncate">{w.mlb_id}</span>
+                      <span className="text-zinc-300 truncate flex-1" title={w.title}>{w.title}</span>
+                      {w.score_before != null && w.score_after != null && (
+                        <span className="text-[10px] text-zinc-500 shrink-0">{w.score_before} → {w.score_after}</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </section>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
           {/* MAIN */}
@@ -217,6 +312,7 @@ export default function SeoOptimizerPage() {
                 onApplied={async () => {
                   toast({ message: 'Anúncio atualizado no ML.', tone: 'success' })
                   await loadHistory()
+                  await loadFeedback()
                 }}
               />
             )}
@@ -553,5 +649,29 @@ function PermBadge({ label, mode }: { label: string; mode: EditMode }) {
     <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] border ${cfg.cls}`}>
       {label ? `${label}: ` : ''}{cfg.label}
     </span>
+  )
+}
+
+function StatCard({ icon, label, value, hint, color }: {
+  icon:  React.ReactNode
+  label: string
+  value: string
+  hint?: string
+  color: 'cyan' | 'emerald' | 'amber'
+}) {
+  const colorMap = {
+    cyan:    'border-cyan-400/20 bg-cyan-400/5 text-cyan-300',
+    emerald: 'border-emerald-400/20 bg-emerald-400/5 text-emerald-300',
+    amber:   'border-amber-400/20 bg-amber-400/5 text-amber-300',
+  }
+  return (
+    <div className={`rounded-xl border p-3 ${colorMap[color]}`}>
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-[10px] uppercase tracking-wider opacity-70">{label}</span>
+        <span className="opacity-70">{icon}</span>
+      </div>
+      <div className="text-xl font-bold text-zinc-100">{value}</div>
+      {hint && <div className="text-[10px] text-zinc-500 mt-0.5">{hint}</div>}
+    </div>
   )
 }
