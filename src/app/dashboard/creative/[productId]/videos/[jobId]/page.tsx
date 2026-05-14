@@ -354,14 +354,25 @@ export default function VideoJobPage() {
                       <p className="text-[11px] uppercase tracking-wider text-cyan-300 mb-2">
                         ✨ Vídeo final ({masters.length})
                       </p>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {masters.map(v => (
-                          <CreativeVideoCard
-                            key={v.id}
-                            video={v}
-                            onChange={(next: CreativeVideo) => patchVideo(next)}
-                          />
-                        ))}
+                      {/* Limita largura do master pra caber no viewport.
+                          9:16 = max-w-xs (~320px → ~570px altura)
+                          1:1  = max-w-md (~448px)
+                          16:9 = max-w-2xl (~672px) */}
+                      <div className="flex flex-wrap gap-4 justify-start">
+                        {masters.map(v => {
+                          const maxW =
+                            v.aspect_ratio === '9:16' ? 'max-w-[min(320px,90vw)]' :
+                            v.aspect_ratio === '16:9' ? 'max-w-[min(680px,90vw)]' :
+                                                        'max-w-[min(480px,90vw)]'
+                          return (
+                            <div key={v.id} className={`w-full ${maxW}`}>
+                              <CreativeVideoCard
+                                video={v}
+                                onChange={(next: CreativeVideo) => patchVideo(next)}
+                              />
+                            </div>
+                          )
+                        })}
                       </div>
                     </div>
                   )}
