@@ -4,7 +4,7 @@ import { useMemo, useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { DataTable } from '@/components/data-table'
-import type { Column, RowAction, BulkAction, QuickFilter } from '@/components/data-table'
+import type { Column, RowAction, BulkAction, QuickFilter, SortState } from '@/components/data-table'
 import {
   Eye, Pause, Play, Copy, Trash2, Sparkles, Megaphone,
   Search as SearchIcon, FileDown,
@@ -14,7 +14,7 @@ import { todoToast, pushToast } from '@/hooks/useToast'
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 const PREFS_KEY = 'eclick.produtos.datatable.prefs'
 
-type QuickFilterValue = 'all' | 'active' | 'paused' | 'no_stock' | 'critical' | 'in_ads' | 'no_ads' | 'cadastro_pendente'
+type QuickFilterValue = 'all' | 'active' | 'paused' | 'no_stock' | 'critical' | 'stock_high' | 'in_ads' | 'no_ads' | 'cadastro_pendente'
 
 const QUICK_OPTIONS: { value: QuickFilterValue; label: string }[] = [
   { value: 'all',                label: 'Todos' },
@@ -22,6 +22,7 @@ const QUICK_OPTIONS: { value: QuickFilterValue; label: string }[] = [
   { value: 'paused',             label: 'Pausados' },
   { value: 'no_stock',           label: 'Sem estoque' },
   { value: 'critical',           label: 'Estoque crítico' },
+  { value: 'stock_high',         label: 'Estoque alto (>10)' },  // 2026-05-14: prioridade pra cadastro
   { value: 'cadastro_pendente',  label: 'Cadastro pendente' },  // F2/F3 (2026-05-14)
   { value: 'in_ads',             label: 'Em Ads' },
   { value: 'no_ads',             label: 'Sem Ads' },
@@ -108,7 +109,15 @@ export function ProdutosTable({
     const urlPerPage = Number(searchParams.get('per_page')) || saved.perPage
     const urlSearch  = searchParams.get('search')     ?? ''
     const urlQF      = (searchParams.get('quick_filter') ?? saved.quickFilter) as QuickFilterValue
-    return { page: urlPage, perPage: urlPerPage, search: urlSearch, quickFilter: urlQF }
+    const urlSortBy  = searchParams.get('sort_by')    ?? ''
+    const urlSortDir = (searchParams.get('sort_dir') as 'asc' | 'desc' | null) ?? null
+    const urlStockMin = searchParams.get('stock_min') ?? ''
+    const urlStockMax = searchParams.get('stock_max') ?? ''
+    return {
+      page: urlPage, perPage: urlPerPage, search: urlSearch, quickFilter: urlQF,
+      sort: (urlSortBy && urlSortDir) ? { key: urlSortBy, dir: urlSortDir } as SortState : null,
+      stockMin: urlStockMin, stockMax: urlStockMax,
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -116,6 +125,16 @@ export function ProdutosTable({
   const [perPage,     setPerPage]     = useState(initial.perPage)
   const [search,      setSearch]      = useState(initial.search)
   const [quickFilter, setQuickFilter] = useState<QuickFilterValue>(initial.quickFilter)
+  const [sort,        setSort]        = useState<SortState>(initial.sort)
+  const [stockMin,    setStockMin]    = useState(initial.stockMin)
+  const [stockMax,    setStockMax]    = useState(initial.stockMax)
+  // Debounce dos inputs de range — só dispara fetch 400ms após o user parar de digitar
+  const [debouncedStock, setDebouncedStock] = useState({ min: initial.stockMin, max: initial.stockMax })
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedStock({ min: stockMin, max: stockMax }), 400)
+    return () => clearTimeout(t)
+  }, [stockMin, stockMax])
+
   const [selected,    setSelected]    = useState<string[]>([])
 
   // ── Server-side fetch (quando products não foi passado) ───────────────────
@@ -136,6 +155,16 @@ export function ProdutosTable({
       const qs = new URLSearchParams({ page: String(page), per_page: String(perPage) })
       if (search.trim())          qs.set('search', search.trim())
       if (quickFilter !== 'all')  qs.set('quick_filter', quickFilter)
+      if (sort?.key && sort?.dir) {
+        qs.set('sort_by',  sort.key)
+        qs.set('sort_dir', sort.dir)
+      }
+      if (debouncedStock.min.trim() && Number.isFinite(Number(debouncedStock.min))) {
+        qs.set('stock_min', String(parseInt(debouncedStock.min, 10)))
+      }
+      if (debouncedStock.max.trim() && Number.isFinite(Number(debouncedStock.max))) {
+        qs.set('stock_max', String(parseInt(debouncedStock.max, 10)))
+      }
       const res = await fetch(`${BACKEND}/products?${qs}`, {
         headers: { Authorization: `Bearer ${session.access_token}` },
       })
@@ -146,7 +175,7 @@ export function ProdutosTable({
     } finally {
       if (seq === fetchSeq.current) setServerLoading(false)
     }
-  }, [isServerMode, supabase, page, perPage, search, quickFilter])
+  }, [isServerMode, supabase, page, perPage, search, quickFilter, sort, debouncedStock])
 
   useEffect(() => { void refetch() }, [refetch])
 
@@ -163,9 +192,15 @@ export function ProdutosTable({
     if (perPage !== 25)         qs.set('per_page',     String(perPage))
     if (search.trim())          qs.set('search',       search.trim())
     if (quickFilter !== 'all')  qs.set('quick_filter', quickFilter)
+    if (sort?.key && sort?.dir) {
+      qs.set('sort_by', sort.key)
+      qs.set('sort_dir', sort.dir)
+    }
+    if (debouncedStock.min.trim()) qs.set('stock_min', debouncedStock.min.trim())
+    if (debouncedStock.max.trim()) qs.set('stock_max', debouncedStock.max.trim())
     const next = qs.toString()
     router.replace(next ? `${pathname}?${next}` : pathname, { scroll: false })
-  }, [page, perPage, search, quickFilter, pathname, router])
+  }, [page, perPage, search, quickFilter, sort, debouncedStock, pathname, router])
 
   // ── Modo client-side: filtragem local (back-compat) ───────────────────────
   const clientFiltered = useMemo(() => {
@@ -336,17 +371,59 @@ export function ProdutosTable({
     onChange: v => { setQuickFilter(v as QuickFilterValue); setPage(1); setSelected([]) },
   }
 
+  // Filtros de range de estoque (2026-05-14) — usados pra priorizar
+  // cadastro de produtos com estoque alto primeiro.
+  const stockFilters = (
+    <div className="flex items-center gap-1.5 text-[11px] text-zinc-400">
+      <span className="font-medium">Estoque</span>
+      <input
+        type="number"
+        inputMode="numeric"
+        placeholder="min"
+        value={stockMin}
+        onChange={e => { setStockMin(e.target.value); setPage(1) }}
+        className="w-14 px-2 py-1 rounded-md text-[11px] text-white border outline-none transition-colors focus:border-cyan-500/60 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+        style={{ background: '#0c0c10', borderColor: '#27272a' }}
+        title="Estoque mínimo"
+      />
+      <span className="text-zinc-600">–</span>
+      <input
+        type="number"
+        inputMode="numeric"
+        placeholder="max"
+        value={stockMax}
+        onChange={e => { setStockMax(e.target.value); setPage(1) }}
+        className="w-14 px-2 py-1 rounded-md text-[11px] text-white border outline-none transition-colors focus:border-cyan-500/60 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+        style={{ background: '#0c0c10', borderColor: '#27272a' }}
+        title="Estoque máximo"
+      />
+      {(stockMin || stockMax) && (
+        <button
+          onClick={() => { setStockMin(''); setStockMax(''); setPage(1) }}
+          className="text-zinc-500 hover:text-zinc-300 transition-colors"
+          title="Limpar filtro de estoque">
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      )}
+    </div>
+  )
+
   return (
     <DataTable<ProdutoRow>
       title="Produtos (DataTable beta)"
       breadcrumb={['Catálogo']}
       quickFilter={quickFilterProp}
+      filters={stockFilters}
       columns={columns}
       data={paged}
       totalCount={total}
       loading={loading}
       getRowId={p => p.id}
       onRowClick={p => router.push(`/dashboard/produtos/${p.id}/editar`)}
+      sort={sort}
+      onSortChange={s => { setSort(s); setPage(1) }}
       pagination={{
         page, perPage,
         onPageChange:    setPage,
