@@ -89,6 +89,7 @@ const SECTIONS: NavSection[] = [
             label: 'Produtos', href: '/dashboard/produtos',
             subItems: [
               { label: 'Lista',                       href: '/dashboard/produtos' },
+              { label: 'Operação de Cadastro',        href: '/dashboard/produtos/operacao-cadastro' },
               { label: 'IA: Enriquecimento em massa', href: '/dashboard/produtos/ai-bulk' },
               { label: 'IA: Recomendações',           href: '/dashboard/produtos/recomendacoes-ia' },
             ],
