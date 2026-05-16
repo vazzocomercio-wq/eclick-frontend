@@ -8,7 +8,7 @@ import type {
   CreativeImageJob, CreativeImage,
   CreativeVideoJob, CreativeVideo, KlingModel, VideoDuration, VideoAspectRatio,
   MlPublishContext, MlPredictedCategory, MlRequiredAttribute, MlPreviewResponse,
-  MlListingType, MlCondition, CreativePublication, MlShippingCost,
+  MlListingType, MlCondition, CreativePublication, MlShippingCost, MlAccount,
   BriefingTemplate,
   CreativePromptTemplate, MatchedTemplate, TemplatePreviewResponse, TemplatePosition,
   CreativeReference,
@@ -561,10 +561,15 @@ export const CreativeApi = {
     category_id?:    string
     attributes?:     Array<{ id: string; value_name?: string; value_id?: string }>
     condition?:      MlCondition
+    seller_id?:      number
   }) =>
     api<CreativePublication>(`/creative/listings/${listingId}/ml-publish`, {
       method: 'POST', body: JSON.stringify(body),
     }),
+
+  /** Contas ML conectadas da organização — para escolher onde publicar. */
+  listMlAccounts: () =>
+    api<MlAccount[]>('/ml/connections'),
 
   /** Custo do frete grátis (vendedor) pra esse anúncio — dimensões + preço + tipo. */
   getListingShippingCost: (listingId: string, body: {

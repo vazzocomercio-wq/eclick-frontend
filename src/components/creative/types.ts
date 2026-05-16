@@ -463,12 +463,20 @@ export interface MlShippingCost {
   billableWeight: number
 }
 
+/** Conta ML conectada da organização (sem tokens). */
+export interface MlAccount {
+  seller_id:  number
+  nickname:   string | null
+  created_at: string
+}
+
 export interface CreativePublication {
   id:                            string
   organization_id:               string
   listing_id:                    string
   product_id:                    string
   user_id:                       string | null
+  seller_id:                     number | null
   marketplace:                   'mercado_livre' | 'shopee' | 'amazon' | 'magalu'
   status:                        'pending' | 'publishing' | 'published' | 'failed'
   idempotency_key:               string

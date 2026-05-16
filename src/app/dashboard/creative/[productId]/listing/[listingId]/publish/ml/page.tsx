@@ -6,6 +6,7 @@ import Link from 'next/link'
 import {
   ArrowLeft, Sparkles, Loader2, AlertCircle, CheckCircle2, RefreshCw,
   Image as ImageIcon, Film, Tag, DollarSign, Package, Eye, Layers, ExternalLink, Send, Lock, X, Calculator,
+  Check, Store,
 } from 'lucide-react'
 import MLImageSelector from '@/components/creative/MLImageSelector'
 import MLAttributesForm from '@/components/creative/MLAttributesForm'
@@ -17,7 +18,7 @@ import {
   ML_LISTING_TYPE_OPTIONS, ML_CONDITION_OPTIONS,
   type MlPublishContext, type MlPreviewResponse,
   type MlListingType, type MlCondition,
-  type CreativePublication,
+  type CreativePublication, type MlAccount,
 } from '@/components/creative/types'
 import { useAlert } from '@/components/ui/dialog-provider'
 
@@ -62,6 +63,12 @@ export default function MLPublishPage() {
   const [publishing, setPublishing]   = useState(false)
   const [publishError, setPublishError] = useState<string | null>(null)
 
+  // Contas ML — escolha de onde publicar (single ou todas)
+  const [accounts, setAccounts]               = useState<MlAccount[]>([])
+  const [selectedSellerIds, setSelectedSellerIds] = useState<number[]>([])
+  const accountName = (sellerId: number | null) =>
+    accounts.find(a => a.seller_id === sellerId)?.nickname ?? (sellerId != null ? String(sellerId) : null)
+
   useEffect(() => { void load() }, [listingId])
 
   async function refreshPublications() {
@@ -74,12 +81,17 @@ export default function MLPublishPage() {
   async function load() {
     setError(null); setLoading(true)
     try {
-      const [c, pubs] = await Promise.all([
+      const [c, pubs, accs] = await Promise.all([
         CreativeApi.getMlContext(listingId),
         CreativeApi.listListingPublications(listingId).catch(() => []),
+        CreativeApi.listMlAccounts().catch(() => [] as MlAccount[]),
       ])
       setCtx(c)
       setPublications(pubs)
+      // Conta mais antiga = principal — pré-selecionada por padrão.
+      const sortedAccs = [...accs].sort((a, b) => a.created_at.localeCompare(b.created_at))
+      setAccounts(sortedAccs)
+      if (sortedAccs.length > 0) setSelectedSellerIds([sortedAccs[0].seller_id])
       // Defaults
       setImageIds(c.approved_images.map(i => i.id).slice(0, 10))
       setVideoId(c.approved_videos[0]?.id ?? null)
@@ -96,29 +108,42 @@ export default function MLPublishPage() {
 
   async function publish() {
     if (!preview?.ready || !preview.publish_enabled) return
-    setPublishError(null); setPublishing(true)
-    try {
-      const idempotency_key = (typeof crypto !== 'undefined' && crypto.randomUUID)
-        ? crypto.randomUUID()
-        : `${Date.now()}-${Math.random().toString(36).slice(2)}`
-      const pub = await CreativeApi.publishMl(listingId, {
-        idempotency_key,
-        image_ids:    imageIds,
-        video_id:     videoId,
-        price:        Number(price) || 0,
-        stock:        Number(stock) || 0,
-        listing_type: listingType,
-        condition,
-        attributes:   attributes.filter(a => a.value_id || a.value_name),
-      })
-      setConfirmOpen(false)
-      // Atualiza histórico
-      setPublications(prev => [pub, ...prev.filter(p => p.id !== pub.id)])
-    } catch (e: unknown) {
-      setPublishError((e as Error).message)
-    } finally {
-      setPublishing(false)
+    if (selectedSellerIds.length === 0) {
+      setPublishError('Selecione ao menos uma conta do Mercado Livre.')
+      return
     }
+    setPublishError(null); setPublishing(true)
+    const newKey = () => (typeof crypto !== 'undefined' && crypto.randomUUID)
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`
+
+    // Publica em cada conta selecionada — uma publicação por conta.
+    const done: CreativePublication[] = []
+    const errs: string[] = []
+    for (const sellerId of selectedSellerIds) {
+      try {
+        const pub = await CreativeApi.publishMl(listingId, {
+          idempotency_key: newKey(),
+          seller_id:       sellerId,
+          image_ids:       imageIds,
+          video_id:        videoId,
+          price:           Number(price) || 0,
+          stock:           Number(stock) || 0,
+          listing_type:    listingType,
+          condition,
+          attributes:      attributes.filter(a => a.value_id || a.value_name),
+        })
+        done.push(pub)
+      } catch (e: unknown) {
+        errs.push(`${accountName(sellerId)}: ${(e as Error).message}`)
+      }
+    }
+    if (done.length > 0) {
+      setPublications(prev => [...done, ...prev.filter(p => !done.some(d => d.id === p.id))])
+    }
+    if (errs.length > 0) setPublishError(errs.join('\n'))
+    else setConfirmOpen(false)
+    setPublishing(false)
   }
 
   async function buildPreview() {
@@ -223,7 +248,7 @@ export default function MLPublishPage() {
             <h3 className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">Publicações desse anúncio</h3>
             <div className="space-y-1.5">
               {publications.slice(0, 5).map(p => (
-                <PublicationRow key={p.id} pub={p} />
+                <PublicationRow key={p.id} pub={p} accountName={accountName(p.seller_id)} />
               ))}
             </div>
           </div>
@@ -232,6 +257,57 @@ export default function MLPublishPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* LEFT: Form */}
           <div className="space-y-6">
+            {/* Conta(s) ML — onde o anúncio será publicado */}
+            <Section icon={<Store size={14} />} title="Conta(s) do Mercado Livre">
+              {accounts.length === 0 ? (
+                <p className="text-xs text-zinc-500">Nenhuma conta do Mercado Livre conectada.</p>
+              ) : (
+                <div className="space-y-1.5">
+                  {accounts.map(a => {
+                    const on = selectedSellerIds.includes(a.seller_id)
+                    return (
+                      <button
+                        key={a.seller_id}
+                        type="button"
+                        onClick={() => setSelectedSellerIds(prev =>
+                          on ? prev.filter(s => s !== a.seller_id) : [...prev, a.seller_id])}
+                        className={[
+                          'w-full flex items-center gap-2 px-3 py-2 rounded-lg border text-left transition-all',
+                          on ? 'border-cyan-400/40 bg-cyan-400/5' : 'border-zinc-800 bg-zinc-950 hover:border-zinc-700',
+                        ].join(' ')}
+                      >
+                        <span className={[
+                          'flex items-center justify-center w-4 h-4 rounded border shrink-0 transition-colors',
+                          on ? 'bg-cyan-400 border-cyan-400' : 'border-zinc-600',
+                        ].join(' ')}>
+                          {on && <Check size={11} className="text-black" />}
+                        </span>
+                        <span className="flex-1 min-w-0">
+                          <span className="block text-xs text-zinc-200 font-medium truncate">
+                            {a.nickname ?? `Conta ${a.seller_id}`}
+                          </span>
+                          <span className="block text-[10px] text-zinc-500 font-mono">{a.seller_id}</span>
+                        </span>
+                      </button>
+                    )
+                  })}
+                  {accounts.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedSellerIds(
+                        selectedSellerIds.length === accounts.length ? [] : accounts.map(a => a.seller_id))}
+                      className="text-[11px] text-cyan-400 hover:text-cyan-300"
+                    >
+                      {selectedSellerIds.length === accounts.length ? 'Limpar seleção' : 'Selecionar todas as contas'}
+                    </button>
+                  )}
+                  <p className="text-[10px] text-zinc-600">
+                    O anúncio é publicado em cada conta selecionada — uma publicação por conta.
+                  </p>
+                </div>
+              )}
+            </Section>
+
             {/* Title preview (read-only) */}
             <Section icon={<Tag size={14} />} title="Título do anúncio">
               <p className="text-xs text-zinc-300 px-3 py-2 rounded-lg bg-zinc-950 border border-zinc-800">
@@ -554,6 +630,14 @@ export default function MLPublishPage() {
               </div>
 
               <ul className="text-xs text-zinc-300 space-y-1">
+                <li>
+                  <span className="text-zinc-500">Conta(s):</span>{' '}
+                  <strong className="text-emerald-300">
+                    {selectedSellerIds.length === 0
+                      ? 'nenhuma selecionada'
+                      : selectedSellerIds.map(s => accountName(s)).join(', ')}
+                  </strong>
+                </li>
                 <li><span className="text-zinc-500">Título:</span> {ctx?.listing.title.slice(0, 60)}</li>
                 <li><span className="text-zinc-500">Categoria:</span> {preview.predicted_category.category_id ?? '—'}</li>
                 <li><span className="text-zinc-500">Imagens:</span> {imageIds.length}</li>
@@ -582,11 +666,13 @@ export default function MLPublishPage() {
                 className="px-3 py-1.5 rounded-lg text-zinc-400 hover:text-zinc-200 text-xs">
                 Cancelar
               </button>
-              <button onClick={publish} disabled={publishing}
+              <button onClick={publish} disabled={publishing || selectedSellerIds.length === 0}
                 style={{ ['--glow-color' as string]: '#34d399' }}
                 className="submit-glow flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-black text-xs font-semibold">
                 {publishing ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
-                Confirmar publicação
+                {selectedSellerIds.length > 1
+                  ? `Publicar em ${selectedSellerIds.length} contas`
+                  : 'Confirmar publicação'}
               </button>
             </div>
           </div>
@@ -598,7 +684,7 @@ export default function MLPublishPage() {
 
 // ── Sub-components ────────────────────────────────────────────────────────
 
-function PublicationRow({ pub: initial }: { pub: CreativePublication }) {
+function PublicationRow({ pub: initial, accountName }: { pub: CreativePublication; accountName: string | null }) {
   const [pub, setPub] = useState(initial)
   const [syncing, setSyncing] = useState(false)
   const [syncError, setSyncError] = useState<string | null>(null)
@@ -670,6 +756,11 @@ function PublicationRow({ pub: initial }: { pub: CreativePublication }) {
       <div className="flex items-center justify-between gap-2 text-xs">
         <div className="flex items-center gap-2 min-w-0 flex-wrap">
           <span className={`px-2 py-0.5 rounded-full text-[10px] border ${c.className}`}>{c.label}</span>
+          {accountName && (
+            <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] border border-zinc-700 bg-zinc-900 text-zinc-300">
+              <Store size={9} /> {accountName}
+            </span>
+          )}
           {pub.external_id && (
             <span className="font-mono text-cyan-300 text-[10px]">{pub.external_id}</span>
           )}
