@@ -234,7 +234,7 @@ export default function RegisterPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-2.5 rounded-lg text-black font-semibold text-sm transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
+              className="glow-rainbow w-full py-2.5 rounded-lg text-black font-semibold text-sm transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
               style={{ background: '#00E5FF', marginTop: '8px' }}
             >
               {loading ? 'Criando conta...' : 'Criar conta grátis'}

@@ -429,7 +429,7 @@ function ConfigTab({ getHeaders }: { getHeaders: () => Promise<Record<string, st
 
       <div className="flex justify-end">
         <button onClick={save} disabled={saving}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold transition-all disabled:opacity-60"
+          className="glow-rainbow flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold transition-all disabled:opacity-60"
           style={{ background: '#00E5FF', color: '#000' }}>
           <Save size={12} /> {saving ? 'Salvando…' : savedAt ? 'Salvo ✓' : 'Salvar'}
         </button>

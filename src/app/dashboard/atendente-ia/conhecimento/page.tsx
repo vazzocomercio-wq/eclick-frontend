@@ -267,7 +267,7 @@ export default function ConhecimentoPage() {
           </div>
           <div className="flex justify-end">
             <button onClick={saveItem} disabled={!title.trim() || !content.trim() || saving}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-colors disabled:opacity-40"
+              className="glow-rainbow flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-colors disabled:opacity-40"
               style={{ background: '#00E5FF', color: '#000' }}>
               {saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
               Salvar

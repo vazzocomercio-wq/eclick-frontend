@@ -838,7 +838,7 @@ export default function ModelosJornadasTab({ onToast }: Props) {
                 Cancelar
               </button>
               <button onClick={save} disabled={saving} type="button"
-                className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold rounded-lg disabled:opacity-50"
+                className="submit-glow flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold rounded-lg disabled:opacity-50"
                 style={{ background: 'rgba(0,229,255,0.08)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.30)' }}>
                 <Save size={11} /> {saving ? 'Salvando…' : 'Salvar'}
               </button>

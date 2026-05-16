@@ -669,7 +669,7 @@ function ProviderCard({
             </button>
           )}
           <button onClick={save} disabled={saving}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold disabled:opacity-60"
+            className="glow-rainbow flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold disabled:opacity-60"
             style={{ background: '#00E5FF', color: '#000' }}>
             <Save size={11} /> {saving ? 'Salvando…' : 'Salvar'}
           </button>
@@ -745,7 +745,7 @@ function RoutingTab({ getHeaders }: { getHeaders: () => Promise<Record<string, s
             <div className="flex items-center justify-between">
               <p className="text-[11px] font-bold uppercase tracking-widest text-zinc-400">{qt.toUpperCase()}</p>
               <button onClick={() => save(qt)}
-                className="flex items-center gap-1 text-[11px] px-3 py-1 rounded-lg font-semibold"
+                className="glow-rainbow flex items-center gap-1 text-[11px] px-3 py-1 rounded-lg font-semibold"
                 style={{ background: '#00E5FF', color: '#000' }}>
                 <Save size={10} /> Salvar
               </button>
@@ -1080,7 +1080,7 @@ function TemplatesTab({
 
       <div className="flex justify-end">
         <button onClick={save} disabled={saving}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold disabled:opacity-50"
+          className="glow-rainbow flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold disabled:opacity-50"
           style={{ background: '#00E5FF', color: '#000' }}>
           <Save size={14} /> {saving ? 'Salvando…' : 'Salvar template'}
         </button>

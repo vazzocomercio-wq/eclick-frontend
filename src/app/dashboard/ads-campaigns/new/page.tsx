@@ -263,7 +263,7 @@ export default function NewCampaignWizard() {
             <button
               onClick={() => setStep(2)}
               disabled={!picked}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan-400 hover:bg-cyan-300 disabled:opacity-40 disabled:cursor-not-allowed text-black text-sm font-medium"
+              className="glow-rainbow inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan-400 hover:bg-cyan-300 disabled:opacity-40 disabled:cursor-not-allowed text-black text-sm font-medium"
             >
               Próximo <ArrowRight size={14} />
             </button>
@@ -302,7 +302,7 @@ export default function NewCampaignWizard() {
             <button
               onClick={() => setStep(3)}
               disabled={!platform}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan-400 hover:bg-cyan-300 disabled:opacity-40 disabled:cursor-not-allowed text-black text-sm font-medium"
+              className="glow-rainbow inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan-400 hover:bg-cyan-300 disabled:opacity-40 disabled:cursor-not-allowed text-black text-sm font-medium"
             >
               Próximo <ArrowRight size={14} />
             </button>
@@ -353,7 +353,7 @@ export default function NewCampaignWizard() {
             <button
               onClick={generate}
               disabled={generating}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan-400 hover:bg-cyan-300 disabled:opacity-40 disabled:cursor-not-allowed text-black text-sm font-medium"
+              className="glow-rainbow inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan-400 hover:bg-cyan-300 disabled:opacity-40 disabled:cursor-not-allowed text-black text-sm font-medium"
             >
               {generating ? <><Loader2 size={14} className="animate-spin" /> Gerando…</> : <><Sparkles size={14} /> Gerar com IA</>}
             </button>

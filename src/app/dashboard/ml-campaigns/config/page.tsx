@@ -327,7 +327,7 @@ export default function ConfigPage() {
           {/* Save */}
           <div className="sticky bottom-4 flex items-center gap-2">
             <button onClick={save} disabled={saving}
-              className="px-4 py-2 rounded-lg text-sm font-semibold inline-flex items-center gap-1.5 disabled:opacity-50"
+              className="glow-rainbow px-4 py-2 rounded-lg text-sm font-semibold inline-flex items-center gap-1.5 disabled:opacity-50"
               style={{ background: '#22c55e', color: '#000' }}>
               {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
               Salvar configuração

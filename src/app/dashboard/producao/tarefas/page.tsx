@@ -319,7 +319,7 @@ function TaskModal({
             Cancelar
           </button>
           <button onClick={submit} disabled={saving}
-            className="flex-1 py-2 rounded-lg text-xs font-semibold transition-all disabled:opacity-60"
+            className="glow-rainbow flex-1 py-2 rounded-lg text-xs font-semibold transition-all disabled:opacity-60"
             style={{ background: '#00E5FF', color: '#000' }}>
             {saving ? 'Salvando…' : (initial ? 'Salvar' : 'Criar tarefa')}
           </button>

@@ -118,7 +118,7 @@ export default function ListingEditor({ listing, onSaved, disabled }: Props) {
             type="button"
             onClick={save}
             disabled={!dirty || saving || disabled}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-400 hover:bg-cyan-300 disabled:opacity-50 disabled:cursor-not-allowed text-black text-xs font-semibold transition-all"
+            className="glow-rainbow flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-400 hover:bg-cyan-300 disabled:opacity-50 disabled:cursor-not-allowed text-black text-xs font-semibold transition-all"
           >
             {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
             Salvar

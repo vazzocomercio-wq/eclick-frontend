@@ -225,7 +225,7 @@ export default function CampanhasPage() {
             <p className="text-zinc-500 text-sm mb-4">Crie sua primeira campanha pra disparar mensagens em massa.</p>
             <button
               onClick={() => { setEditing(null); setShowWizard(true) }}
-              className="px-4 py-2 rounded-lg text-sm font-semibold"
+              className="glow-rainbow px-4 py-2 rounded-lg text-sm font-semibold"
               style={{ background: '#00E5FF', color: '#08323b' }}
             >
               Criar campanha
@@ -981,7 +981,7 @@ function CampaignWizard({
             <button
               onClick={() => setStep(s => s + 1)}
               disabled={!canNext}
-              className="px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50"
+              className="glow-rainbow px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50"
               style={{ background: '#00E5FF', color: '#08323b' }}>
               Próximo
             </button>
@@ -989,7 +989,7 @@ function CampaignWizard({
             <button
               onClick={save}
               disabled={saving}
-              className="px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50"
+              className="glow-rainbow px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50"
               style={{ background: '#00E5FF', color: '#08323b' }}>
               {saving ? 'Salvando…' : (editing ? 'Salvar alterações' : 'Salvar como rascunho')}
             </button>

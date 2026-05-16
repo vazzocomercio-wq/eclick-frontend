@@ -333,7 +333,7 @@ function AddKeyModal({ provider, onClose, onSaved }: {
           <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm text-zinc-400"
             style={{ background: '#1e1e24' }}>Cancelar</button>
           <button onClick={save} disabled={!value.trim() || saving}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold disabled:opacity-40"
+            className="glow-rainbow flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold disabled:opacity-40"
             style={{ background: '#00E5FF', color: '#000' }}>
             {saving ? <Loader2 size={13} className="animate-spin" /> : <TestTube2 size={13} />}
             Salvar e testar

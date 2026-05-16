@@ -309,7 +309,7 @@ function TurnView({ turn, onConfirm }: { turn: ChatTurn; onConfirm: () => void }
               <div className="ml-2 flex items-center gap-2">
                 <button
                   onClick={onConfirm}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded bg-emerald-400 hover:bg-emerald-300 text-black text-xs font-medium"
+                  className="glow-rainbow inline-flex items-center gap-1.5 px-3 py-1.5 rounded bg-emerald-400 hover:bg-emerald-300 text-black text-xs font-medium"
                 >
                   <Check size={11} /> Confirmar e executar
                 </button>

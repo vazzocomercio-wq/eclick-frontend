@@ -197,7 +197,7 @@ export default function SocialContentDetailPage() {
               <button
                 onClick={publishNow}
                 disabled={acting}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#25D366] hover:bg-[#1da851] disabled:opacity-50 text-white text-xs font-medium"
+                className="submit-glow inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#25D366] hover:bg-[#1da851] disabled:opacity-50 text-white text-xs font-medium"
                 title="Dispara WhatsApp Broadcast imediatamente via Active"
               >
                 <Send size={12} /> Publicar agora
@@ -284,7 +284,7 @@ export default function SocialContentDetailPage() {
             <button
               onClick={saveJson}
               disabled={saving}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-400 hover:bg-cyan-300 disabled:opacity-50 text-black text-xs font-medium"
+              className="glow-rainbow inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-400 hover:bg-cyan-300 disabled:opacity-50 text-black text-xs font-medium"
             >
               {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
               Salvar

@@ -214,7 +214,7 @@ function AddKeyModal({ provider, onClose, onSaved }: {
             Cancelar
           </button>
           <button onClick={save} disabled={!value.trim() || saving}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-colors disabled:opacity-40"
+            className="glow-rainbow flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-colors disabled:opacity-40"
             style={{ background: '#00E5FF', color: '#000' }}>
             {saving ? <Loader2 size={13} className="animate-spin" /> : <TestTube2 size={13} />}
             Salvar e testar
@@ -1045,7 +1045,7 @@ function WhatsAppIntegCard({ onToast }: { onToast: (msg: string, t?: 'success' |
                 <button onClick={() => setStep('requirements')} className="flex-1 py-2 rounded-lg text-xs text-zinc-400 hover:text-white"
                   style={{ background: '#1e1e24', border: '1px solid #27272a' }}>← Voltar</button>
                 <button onClick={save} disabled={saving}
-                  className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold disabled:opacity-50"
+                  className="glow-rainbow flex-1 inline-flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold disabled:opacity-50"
                   style={{ background: '#25D366', color: '#000' }}>
                   {saving ? <Loader2 size={11} className="animate-spin" /> : <Save size={11} />}
                   Salvar e continuar
@@ -1449,7 +1449,7 @@ function EmailSetupModal({ existing, onClose, onSaved }: {
           {step === 'fill' && (
             <button onClick={save}
               disabled={!apiKey.trim() || !fromName.trim() || !fromAddress.trim() || saving}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold disabled:opacity-40"
+              className="glow-rainbow flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold disabled:opacity-40"
               style={{ background: '#00E5FF', color: '#000' }}>
               {saving ? <Loader2 size={13} className="animate-spin" /> : <TestTube2 size={13} />}
               Salvar e testar

@@ -236,7 +236,7 @@ export function SettingsModal({
             <button
               onClick={save}
               disabled={!dirty || saving}
-              className="px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50"
+              className="glow-rainbow px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50"
               style={{ background: '#00E5FF', color: '#08323b' }}
             >
               {saving ? 'Salvando…' : 'Salvar configurações'}

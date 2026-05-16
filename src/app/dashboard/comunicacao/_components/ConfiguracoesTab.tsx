@@ -374,7 +374,7 @@ export default function ConfiguracoesTab({ onToast }: Props) {
         )}
         <button type="button" onClick={save}
           disabled={!isDirty || saving}
-          className="flex items-center gap-1.5 px-4 py-2 text-[12px] font-semibold rounded-lg disabled:opacity-40 disabled:cursor-not-allowed"
+          className="submit-glow flex items-center gap-1.5 px-4 py-2 text-[12px] font-semibold rounded-lg disabled:opacity-40 disabled:cursor-not-allowed"
           style={{ background: 'rgba(0,229,255,0.08)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.30)' }}>
           <Save size={11} /> {saving ? 'Salvando…' : 'Salvar alterações'}
         </button>

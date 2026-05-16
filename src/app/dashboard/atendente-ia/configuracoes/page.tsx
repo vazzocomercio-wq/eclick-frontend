@@ -171,7 +171,7 @@ export default function ConfiguracoesAiPage() {
         {err     && <p className="text-[11px] text-red-400">{err}</p>}
         {savedOk && <p className="inline-flex items-center gap-1 text-[11px] text-green-400"><CheckCircle2 size={12}/> Salvo</p>}
         <button onClick={save} disabled={saving}
-          className="ml-auto inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all disabled:opacity-50"
+          className="glow-rainbow ml-auto inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all disabled:opacity-50"
           style={{ background: '#00E5FF', color: '#000' }}>
           {saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
           {saving ? 'Salvando…' : 'Salvar configurações'}

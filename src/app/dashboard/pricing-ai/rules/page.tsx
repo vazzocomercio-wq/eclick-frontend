@@ -160,7 +160,7 @@ export default function PricingAiRulesPage() {
         <button
           onClick={save}
           disabled={saving || Object.keys(draft).length === 0}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan-400 hover:bg-cyan-300 disabled:opacity-50 text-black text-sm font-medium shadow-lg"
+          className="glow-rainbow inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan-400 hover:bg-cyan-300 disabled:opacity-50 text-black text-sm font-medium shadow-lg"
         >
           {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
           Salvar alterações

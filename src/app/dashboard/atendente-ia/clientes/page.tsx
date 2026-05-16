@@ -367,7 +367,7 @@ function CustomerProfileModal({ customerId, onClose, onSaved, getHeaders }: {
             <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm text-zinc-400 hover:text-white"
               style={{ background: '#1e1e24', border: '1px solid #27272a' }}>Cancelar</button>
             <button onClick={save} disabled={saving || !profile}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold disabled:opacity-50"
+              className="glow-rainbow inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold disabled:opacity-50"
               style={{ background: '#00E5FF', color: '#000' }}>
               {saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
               Salvar

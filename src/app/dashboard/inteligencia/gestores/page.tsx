@@ -258,7 +258,7 @@ function ManagerFormModal({
           <button
             onClick={handleSave}
             disabled={!canSave || saving}
-            className="flex-1 py-2 rounded-lg text-xs font-semibold transition-all disabled:opacity-40"
+            className="submit-glow flex-1 py-2 rounded-lg text-xs font-semibold transition-all disabled:opacity-40"
             style={{ background: 'rgba(0,229,255,0.12)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.3)' }}>
             {saving ? 'Salvando…' : (isEdit ? 'Salvar alterações' : 'Criar gestor')}
           </button>

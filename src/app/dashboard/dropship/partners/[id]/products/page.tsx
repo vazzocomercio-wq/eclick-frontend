@@ -734,7 +734,7 @@ function EditProductModal({
           )}
           <div className="flex gap-2 ml-auto">
             <button onClick={() => !saving && onClose()} disabled={saving} className="px-4 py-2 text-sm rounded-lg text-zinc-400 hover:text-white" style={{ border: '1px solid #27272a' }}>Cancelar</button>
-            <button onClick={handleSave} disabled={saving} className="px-4 py-2 text-sm font-medium rounded-lg" style={{ background: '#00E5FF', color: '#09090b', opacity: saving ? 0.6 : 1 }}>
+            <button onClick={handleSave} disabled={saving} className="glow-rainbow px-4 py-2 text-sm font-medium rounded-lg" style={{ background: '#00E5FF', color: '#09090b', opacity: saving ? 0.6 : 1 }}>
               {saving ? 'Salvando...' : 'Salvar'}
             </button>
           </div>

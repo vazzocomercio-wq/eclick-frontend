@@ -152,7 +152,7 @@ export default function AdsCampaignDetail() {
             <button
               onClick={() => action(() => AdsCampaignsApi.publish(id))}
               disabled={acting}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-400 hover:bg-emerald-300 disabled:opacity-50 text-black text-xs font-medium"
+              className="submit-glow inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-400 hover:bg-emerald-300 disabled:opacity-50 text-black text-xs font-medium"
             >
               <Send size={12} /> Publicar
             </button>

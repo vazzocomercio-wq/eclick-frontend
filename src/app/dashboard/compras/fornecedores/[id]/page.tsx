@@ -332,7 +332,7 @@ export default function FornecedorDetailPage() {
               <div className="flex gap-2 items-center">
                 {saveMsg && <span className="text-xs text-emerald-400">{saveMsg}</span>}
                 <button onClick={() => { setEditMode(false); setEditData(supplier) }} className="text-xs text-zinc-500 hover:text-white px-3 py-1.5 rounded-lg" style={{ border: '1px solid #27272a' }}>Cancelar</button>
-                <button onClick={handleSaveDados} disabled={saving} className="text-xs font-medium px-3 py-1.5 rounded-lg" style={{ background: '#00E5FF', color: '#09090b', opacity: saving ? 0.6 : 1 }}>
+                <button onClick={handleSaveDados} disabled={saving} className="glow-rainbow text-xs font-medium px-3 py-1.5 rounded-lg" style={{ background: '#00E5FF', color: '#09090b', opacity: saving ? 0.6 : 1 }}>
                   {saving ? 'Salvando...' : 'Salvar'}
                 </button>
               </div>
@@ -663,7 +663,7 @@ export default function FornecedorDetailPage() {
                 <div><label className={lbl}>Notas</label><input value={docForm.notes} onChange={e => setDocForm(f => ({ ...f, notes: e.target.value }))} className={inp} /></div>
                 <div className="flex justify-end gap-2 pt-2">
                   <button type="button" onClick={() => setShowDocModal(false)} className="px-4 py-2 text-sm rounded-lg text-zinc-400" style={{ border: '1px solid #27272a' }}>Cancelar</button>
-                  <button type="submit" disabled={docSaving} className="px-4 py-2 text-sm font-medium rounded-lg" style={{ background: '#00E5FF', color: '#09090b' }}>
+                  <button type="submit" disabled={docSaving} className="glow-rainbow px-4 py-2 text-sm font-medium rounded-lg" style={{ background: '#00E5FF', color: '#09090b' }}>
                     {docSaving ? 'Salvando...' : 'Salvar'}
                   </button>
                 </div>

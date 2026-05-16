@@ -605,7 +605,7 @@ function ReceiveModal({ po, onConfirm, onClose }: {
           </button>
           <button disabled={saving}
             onClick={async () => { setSaving(true); await onConfirm(qtys); setSaving(false) }}
-            className="flex-1 py-2 rounded-lg text-sm font-semibold"
+            className="submit-glow flex-1 py-2 rounded-lg text-sm font-semibold"
             style={{ background:'rgba(34,197,94,0.15)', border:'1px solid rgba(34,197,94,0.3)', color:'#22c55e' }}>
             {saving ? 'Salvando…' : '✓ Confirmar'}
           </button>
@@ -812,7 +812,7 @@ function PoDrawer({ po, onClose, onRefresh }: { po: PO; onClose: () => void; onR
                 </div>
               ))}
               <button disabled={savingTrack} onClick={saveTracking}
-                className="w-full py-2 rounded-lg text-sm font-semibold mt-2"
+                className="submit-glow w-full py-2 rounded-lg text-sm font-semibold mt-2"
                 style={{ background:'rgba(0,229,255,0.1)', border:'1px solid rgba(0,229,255,0.2)', color:'#00E5FF' }}>
                 {savingTrack ? 'Salvando…' : 'Salvar rastreamento'}
               </button>
@@ -1132,7 +1132,7 @@ function NewPoModal({ suppliers, onClose, onCreated }: {
               <button
                 disabled={(step === 1 && !form.supplier_id) || (step === 2 && form.items.length === 0)}
                 onClick={() => setStep(s => s + 1)}
-                className="flex-1 py-2 rounded-lg text-sm font-semibold disabled:opacity-40"
+                className="submit-glow flex-1 py-2 rounded-lg text-sm font-semibold disabled:opacity-40"
                 style={{ background:'rgba(0,229,255,0.1)', border:'1px solid rgba(0,229,255,0.2)', color:'#00E5FF' }}>
                 Próximo →
               </button>
@@ -1144,7 +1144,7 @@ function NewPoModal({ suppliers, onClose, onCreated }: {
                 Salvar rascunho
               </button>
               <button disabled={saving} onClick={() => submit(false)}
-                className="flex-1 py-2 rounded-lg text-sm font-semibold"
+                className="submit-glow flex-1 py-2 rounded-lg text-sm font-semibold"
                 style={{ background:'rgba(0,229,255,0.12)', border:'1px solid rgba(0,229,255,0.25)', color:'#00E5FF' }}>
                 {saving ? 'Criando…' : 'Criar e enviar'}
               </button>

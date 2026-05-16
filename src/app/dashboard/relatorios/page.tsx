@@ -378,7 +378,7 @@ export default function RelatoriosPage() {
             )}
 
             <button onClick={generate} disabled={loading}
-              className="flex items-center justify-center gap-2 w-full py-3 rounded-xl text-sm font-semibold transition-all disabled:opacity-60"
+              className="glow-rainbow flex items-center justify-center gap-2 w-full py-3 rounded-xl text-sm font-semibold transition-all disabled:opacity-60"
               style={{ background: selectedDef.color, color: '#000' }}>
               {loading
                 ? <><Loader2 size={15} className="animate-spin" /> Gerando…</>

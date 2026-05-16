@@ -532,7 +532,7 @@ export default function EditarProdutoPage() {
 
             {/* Save active */}
             <button type="button" disabled={saving} onClick={() => save('active')}
-              className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold transition-all active:scale-[0.98] disabled:opacity-60"
+              className="glow-rainbow flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold transition-all active:scale-[0.98] disabled:opacity-60"
               style={{ background: '#00E5FF', color: '#000' }}>
               {saving
                 ? <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">

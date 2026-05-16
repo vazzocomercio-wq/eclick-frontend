@@ -198,7 +198,7 @@ function GoalForm({ orgId, onSaved, onClose }: { orgId: string; onSaved: () => v
             Cancelar
           </button>
           <button onClick={save} disabled={saving || !name || !target}
-            className="flex-1 py-2 rounded-lg text-sm font-semibold transition-all"
+            className="submit-glow flex-1 py-2 rounded-lg text-sm font-semibold transition-all"
             style={{ background: 'rgba(0,229,255,0.12)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.25)', opacity: (!name || !target) ? 0.4 : 1 }}>
             {saving ? 'Salvando…' : 'Salvar meta'}
           </button>
@@ -487,7 +487,7 @@ CREATE POLICY "org_goals" ON goals FOR ALL TO authenticated
             <p className="text-sm text-zinc-500 mt-1">Crie sua primeira meta para acompanhar o progresso.</p>
           </div>
           <button onClick={() => setShowForm(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold"
+            className="submit-glow flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold"
             style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.25)', color: '#00E5FF' }}>
             <Plus size={14} /> Criar meta
           </button>

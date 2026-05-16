@@ -288,7 +288,7 @@ function DealModal({ initial, defaultStage, onSave, onClose }: {
         <div className="flex gap-2 pt-1">
           <button onClick={onClose} className="flex-1 py-2 rounded-lg text-xs font-semibold text-zinc-400 border border-zinc-800">Cancelar</button>
           <button onClick={submit} disabled={saving}
-            className="flex-1 py-2 rounded-lg text-xs font-semibold transition-all disabled:opacity-60"
+            className="glow-rainbow flex-1 py-2 rounded-lg text-xs font-semibold transition-all disabled:opacity-60"
             style={{ background: '#00E5FF', color: '#000' }}>
             {saving ? 'Salvando…' : (initial ? 'Salvar' : 'Criar negócio')}
           </button>

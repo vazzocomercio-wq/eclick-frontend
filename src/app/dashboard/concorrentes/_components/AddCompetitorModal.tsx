@@ -559,7 +559,7 @@ export default function AddCompetitorModal({ orgId, competitorCounts, onClose, o
           <button
             onClick={handleSave}
             disabled={!canSave || saving}
-            className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
+            className="glow-rainbow flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
             style={{ background: '#00E5FF', color: '#000' }}>
             {saving
               ? <>

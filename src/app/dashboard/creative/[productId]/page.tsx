@@ -318,7 +318,7 @@ export default function ProductDetailPage() {
                   <button
                     type="button"
                     onClick={() => setImageModalOpen(true)}
-                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-cyan-400 hover:bg-cyan-300 text-black text-[11px] font-semibold transition-all shadow-[0_0_8px_rgba(0,229,255,0.25)]"
+                    className="glow-rainbow flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-cyan-400 hover:bg-cyan-300 text-black text-[11px] font-semibold transition-all shadow-[0_0_8px_rgba(0,229,255,0.25)]"
                   >
                     <Wand2 size={11} /> Gerar imagens
                   </button>
@@ -381,7 +381,7 @@ export default function ProductDetailPage() {
                   <button
                     type="button"
                     onClick={() => setVideoModalOpen(true)}
-                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-cyan-400 hover:bg-cyan-300 text-black text-[11px] font-semibold transition-all shadow-[0_0_8px_rgba(0,229,255,0.25)]"
+                    className="glow-rainbow flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-cyan-400 hover:bg-cyan-300 text-black text-[11px] font-semibold transition-all shadow-[0_0_8px_rgba(0,229,255,0.25)]"
                   >
                     <Wand2 size={11} /> Gerar vídeos
                   </button>
@@ -1005,7 +1005,7 @@ function CreateVideoJobModal({
             Cancelar
           </button>
           <button onClick={submit} disabled={creating || !briefingId}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-400 hover:bg-cyan-300 disabled:opacity-50 text-black text-xs font-semibold">
+            className="glow-rainbow flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-400 hover:bg-cyan-300 disabled:opacity-50 text-black text-xs font-semibold">
             {creating ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
             Iniciar geração
           </button>
@@ -1217,7 +1217,7 @@ function CreateImageJobModal({
           <button
             onClick={submit}
             disabled={creating || !briefingId}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-400 hover:bg-cyan-300 disabled:opacity-50 text-black text-xs font-semibold"
+            className="glow-rainbow flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-400 hover:bg-cyan-300 disabled:opacity-50 text-black text-xs font-semibold"
           >
             {creating ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
             Iniciar geração

@@ -238,7 +238,7 @@ export default function AutomationPage() {
                   }
                 }}
                 disabled={configModal.min <= 0 || configModal.max <= configModal.min || busy.has(configModal.row.ml_item_id)}
-                className="text-xs font-semibold px-3 py-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                className="glow-rainbow text-xs font-semibold px-3 py-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
                 style={{ background: '#00E5FF', color: '#0d0d10' }}>
                 {configModal.activating ? 'Ativar' : 'Salvar'}
               </button>

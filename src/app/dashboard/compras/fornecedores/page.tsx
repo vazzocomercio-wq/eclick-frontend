@@ -411,7 +411,7 @@ export default function FornecedoresPage() {
               {formErr && <p className="text-xs text-red-400 flex-1">{formErr}</p>}
               <div className="flex gap-2 ml-auto">
                 <button onClick={() => setShowModal(false)} className="px-4 py-2 text-sm rounded-lg text-zinc-400 hover:text-white transition-colors" style={{ border: '1px solid #27272a' }}>Cancelar</button>
-                <button onClick={handleCreate} disabled={saving} className="px-4 py-2 text-sm font-medium rounded-lg transition-colors" style={{ background: '#00E5FF', color: '#09090b', opacity: saving ? 0.6 : 1 }}>
+                <button onClick={handleCreate} disabled={saving} className="glow-rainbow px-4 py-2 text-sm font-medium rounded-lg transition-colors" style={{ background: '#00E5FF', color: '#09090b', opacity: saving ? 0.6 : 1 }}>
                   {saving ? 'Salvando...' : 'Salvar'}
                 </button>
               </div>

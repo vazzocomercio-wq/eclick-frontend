@@ -383,7 +383,7 @@ Cada bullet com 1 linha. Use ícone ✓ no início. Em português.`
 
             <div className="flex items-center gap-2">
               <button onClick={generate} disabled={loading || !aiReady}
-                className="flex items-center justify-center gap-2 flex-1 py-3 rounded-xl text-sm font-semibold transition-all disabled:opacity-50"
+                className="glow-rainbow flex items-center justify-center gap-2 flex-1 py-3 rounded-xl text-sm font-semibold transition-all disabled:opacity-50"
                 style={{ background: 'linear-gradient(135deg, #00E5FF, #7C3AED)', color: '#fff' }}>
                 {loading
                   ? <><Loader2 size={15} className="animate-spin" /> Gerando…</>

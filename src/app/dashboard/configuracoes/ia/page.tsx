@@ -296,7 +296,7 @@ function FeatureCard({
           </button>
         )}
         <button onClick={save} disabled={saving}
-          className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-[11px] font-semibold disabled:opacity-60"
+          className="glow-rainbow flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-[11px] font-semibold disabled:opacity-60"
           style={{ background: '#00E5FF', color: '#000' }}>
           <Save size={11} /> {saving ? 'Salvando…' : 'Salvar'}
         </button>

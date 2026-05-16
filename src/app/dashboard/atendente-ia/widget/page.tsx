@@ -108,7 +108,7 @@ export default function WidgetPage() {
           <p className="text-zinc-500 text-sm mt-1">Cole um snippet de JS no seu site e o chat aparece pronto.</p>
         </div>
         <button onClick={() => setCreateOpen(true)}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-colors"
+          className="glow-rainbow flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-colors"
           style={{ background: '#00E5FF', color: '#000' }}>
           <Plus size={15} /> Criar Widget
         </button>
@@ -125,7 +125,7 @@ export default function WidgetPage() {
             Você gera um snippet HTML e cola antes do <code className="text-zinc-400">{'</body>'}</code>.
           </p>
           <button onClick={() => setCreateOpen(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold"
+            className="glow-rainbow inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold"
             style={{ background: '#00E5FF', color: '#000' }}>
             <Plus size={14} /> Criar primeiro widget
           </button>
@@ -322,7 +322,7 @@ function CreateWidgetModal({ agents, onClose, onCreated }: { agents: Agent[]; on
           <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm text-zinc-400 hover:text-white transition-colors"
             style={{ background: '#1e1e24', border: '1px solid #27272a' }}>Cancelar</button>
           <button onClick={save} disabled={saving || !name.trim()}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-opacity disabled:opacity-50"
+            className="glow-rainbow inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-opacity disabled:opacity-50"
             style={{ background: '#00E5FF', color: '#000' }}>
             {saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
             {saving ? 'Criando…' : 'Criar widget'}

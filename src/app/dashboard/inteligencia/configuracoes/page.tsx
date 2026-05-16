@@ -344,7 +344,7 @@ export default function ConfiguracoesPage() {
             <span className="hidden sm:inline">Atualizar</span>
           </button>
           <button onClick={save} disabled={saving}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all disabled:opacity-40"
+            className="submit-glow flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all disabled:opacity-40"
             style={{ background: 'rgba(0,229,255,0.12)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.3)' }}>
             <Save size={13} />
             {saving ? 'Salvando…' : 'Salvar alterações'}
@@ -738,7 +738,7 @@ function RuleFormModal({
             Cancelar
           </button>
           <button onClick={submit} disabled={busy}
-            className="flex-1 py-2 rounded-lg text-xs font-semibold transition-all disabled:opacity-40"
+            className="submit-glow flex-1 py-2 rounded-lg text-xs font-semibold transition-all disabled:opacity-40"
             style={{ background: 'rgba(0,229,255,0.12)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.3)' }}>
             {busy ? 'Criando…' : 'Criar regra'}
           </button>

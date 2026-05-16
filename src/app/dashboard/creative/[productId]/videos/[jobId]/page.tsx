@@ -307,7 +307,7 @@ export default function VideoJobPage() {
                       type="button"
                       onClick={forceFinalize}
                       disabled={raisingLimit || forceFinalizing}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 text-amber-200 text-xs font-semibold transition-all disabled:opacity-50"
+                      className="submit-glow flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 text-amber-200 text-xs font-semibold transition-all disabled:opacity-50"
                       title="Concatena só as partes prontas e descarta o resto"
                     >
                       {forceFinalizing ? <Loader2 size={12} className="animate-spin" /> : <Scissors size={12} />}

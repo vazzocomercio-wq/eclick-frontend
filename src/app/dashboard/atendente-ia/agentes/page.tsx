@@ -412,12 +412,12 @@ function AgentWizard({ onClose, onSaved, editAgent }: {
           </button>
           {step < 4
             ? <button onClick={() => { if (step === 1 && !name.trim()) { setError('Nome é obrigatório'); return } setError(''); setStep(s => s + 1) }}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-colors"
+                className="glow-rainbow flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-colors"
                 style={{ background: '#00E5FF', color: '#000' }}>
                 Próximo <ChevronRight size={15} />
               </button>
             : <button onClick={save} disabled={saving}
-                className="flex items-center gap-1.5 px-5 py-2 rounded-xl text-sm font-semibold transition-colors disabled:opacity-50"
+                className="glow-rainbow flex items-center gap-1.5 px-5 py-2 rounded-xl text-sm font-semibold transition-colors disabled:opacity-50"
                 style={{ background: '#00E5FF', color: '#000' }}>
                 {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
                 {editAgent ? 'Salvar' : 'Criar Agente'}
@@ -712,7 +712,7 @@ export default function AgentesPage() {
           <Bot size={40} style={{ color: '#27272a' }} />
           <p className="text-zinc-500">Nenhum agente criado</p>
           <button onClick={() => { setEditAgent(undefined); setShowWizard(true) }}
-            className="px-4 py-2 rounded-xl text-sm font-medium transition-colors"
+            className="glow-rainbow px-4 py-2 rounded-xl text-sm font-medium transition-colors"
             style={{ background: '#1e1e24', color: '#a1a1aa' }}>
             Criar primeiro agente
           </button>

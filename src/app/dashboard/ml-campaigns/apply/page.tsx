@@ -266,7 +266,7 @@ export default function ApplyWizardPage() {
             <button onClick={() => setStep(1)} className="text-xs text-zinc-400 hover:text-zinc-200">← Voltar</button>
             <button onClick={apply}
               disabled={applying || (applyMode === 'safe' && invalidCount > 0) || validCount === 0}
-              className="px-4 py-2 rounded-lg text-sm font-semibold inline-flex items-center gap-1.5 disabled:opacity-50"
+              className="submit-glow px-4 py-2 rounded-lg text-sm font-semibold inline-flex items-center gap-1.5 disabled:opacity-50"
               style={{ background: '#22c55e', color: '#000' }}>
               {applying ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
               Aplicar {applyMode === 'best_effort' ? `${validCount} válidas` : `${validations.length} no ML`}

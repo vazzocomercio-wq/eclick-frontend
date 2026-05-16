@@ -81,7 +81,7 @@ export function ChurnRiskTab({ onToast }: { onToast: (m: string, type?: 'success
           )}
           <button
             onClick={reativacao}
-            className="px-4 py-2 rounded-lg text-sm font-semibold"
+            className="glow-rainbow px-4 py-2 rounded-lg text-sm font-semibold"
             style={{ background: '#f87171', color: '#1a0a0a' }}
           >Criar campanha de reativação</button>
         </div>

@@ -112,7 +112,7 @@ export default function CatalogLinkBanner({ creative, onChange }: Props) {
         type="button"
         onClick={saveToCatalog}
         disabled={!!busy}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-400 hover:bg-amber-300 disabled:opacity-50 text-black text-xs font-semibold"
+        className="glow-rainbow flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-400 hover:bg-amber-300 disabled:opacity-50 text-black text-xs font-semibold"
       >
         {busy === 'save' ? <Loader2 size={12} className="animate-spin" /> : <Link2 size={12} />}
         Salvar no catálogo

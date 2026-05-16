@@ -426,7 +426,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
           </button>
           {campaign.candidate_count > 0 && (
             <button onClick={generateRecommendations} disabled={generating}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all disabled:opacity-50"
+              className="glow-rainbow inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all disabled:opacity-50"
               style={{ background: '#00E5FF', color: '#000', border: '1px solid #00E5FF' }}>
               {generating ? <Loader2 size={12} className="animate-spin" /> : <Zap size={12} />}
               {generating ? 'Gerando…' : `Gerar Recomendações IA (${campaign.candidate_count})`}

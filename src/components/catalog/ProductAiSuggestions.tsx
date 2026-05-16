@@ -62,7 +62,7 @@ export default function ProductAiSuggestions({ product, onApplied }: Props) {
           type="button"
           onClick={() => apply({ all: true })}
           disabled={!!busy}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-400 hover:bg-amber-300 disabled:opacity-50 text-black text-xs font-semibold"
+          className="glow-rainbow flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-400 hover:bg-amber-300 disabled:opacity-50 text-black text-xs font-semibold"
         >
           {busy === 'all' ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
           Aplicar tudo

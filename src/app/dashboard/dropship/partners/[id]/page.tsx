@@ -259,7 +259,7 @@ export default function PartnerDetailPage() {
           <button
             onClick={handleSave}
             disabled={saving}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+            className="glow-rainbow flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
             style={{ background: '#00E5FF', color: '#09090b', opacity: saving ? 0.6 : 1 }}
           >
             <Save size={14} />

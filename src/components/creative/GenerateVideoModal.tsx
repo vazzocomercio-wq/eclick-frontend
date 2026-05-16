@@ -284,7 +284,7 @@ export default function GenerateVideoModal({
           <button
             onClick={submit}
             disabled={submitting || !selectedModel || loadingModels}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-cyan-400 hover:bg-cyan-300 disabled:opacity-50 text-black text-xs font-semibold"
+            className="glow-rainbow flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-cyan-400 hover:bg-cyan-300 disabled:opacity-50 text-black text-xs font-semibold"
           >
             {submitting ? <Loader2 size={12} className="animate-spin" /> : <Film size={12} />}
             Gerar vídeo de {duration}s

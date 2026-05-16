@@ -172,7 +172,7 @@ export default function PromptsLibrary({ briefing, onChange, defaultVideoCount =
           type="button"
           onClick={handleGenerate}
           disabled={generating}
-          className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-400 hover:bg-cyan-300 disabled:opacity-50 text-black font-semibold"
+          className="glow-rainbow ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-400 hover:bg-cyan-300 disabled:opacity-50 text-black font-semibold"
         >
           {generating ? <Loader2 size={11} className="animate-spin" /> : <RefreshCw size={11} />}
           {currentPrompts.length === 0 ? 'Gerar via IA' : 'Regenerar via IA'}
@@ -244,7 +244,7 @@ export default function PromptsLibrary({ briefing, onChange, defaultVideoCount =
             type="button"
             onClick={handleSave}
             disabled={saving}
-            className="flex items-center gap-1.5 px-3 py-1 rounded bg-cyan-400 hover:bg-cyan-300 disabled:opacity-50 text-black text-[11px] font-semibold"
+            className="glow-rainbow flex items-center gap-1.5 px-3 py-1 rounded bg-cyan-400 hover:bg-cyan-300 disabled:opacity-50 text-black text-[11px] font-semibold"
           >
             {saving ? <Loader2 size={10} className="animate-spin" /> : <Save size={10} />}
             Salvar

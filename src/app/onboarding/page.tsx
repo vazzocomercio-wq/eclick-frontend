@@ -295,7 +295,7 @@ export default function OnboardingPage() {
               <button
                 onClick={() => setStep(2)}
                 disabled={!canProceedStep1}
-                className="w-full mt-6 py-3 rounded-lg font-semibold text-sm transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="glow-rainbow w-full mt-6 py-3 rounded-lg font-semibold text-sm transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 style={{ background: '#00E5FF', color: '#000' }}
               >
                 Continuar
@@ -345,7 +345,7 @@ export default function OnboardingPage() {
               <button
                 onClick={handleFinish}
                 disabled={loading || platforms.length === 0}
-                className="w-full py-3 rounded-lg font-semibold text-sm transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="glow-rainbow w-full py-3 rounded-lg font-semibold text-sm transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 style={{ background: '#00E5FF', color: '#000' }}
               >
                 {loading ? (

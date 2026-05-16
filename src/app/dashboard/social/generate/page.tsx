@@ -320,7 +320,7 @@ export default function GenerateWizardPage() {
             <button
               onClick={() => setStep(2)}
               disabled={!canStep2}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan-400 hover:bg-cyan-300 disabled:opacity-40 disabled:cursor-not-allowed text-black text-sm font-medium"
+              className="glow-rainbow inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan-400 hover:bg-cyan-300 disabled:opacity-40 disabled:cursor-not-allowed text-black text-sm font-medium"
             >
               Próximo <ArrowRight size={14} />
             </button>
@@ -346,7 +346,7 @@ export default function GenerateWizardPage() {
             <button
               onClick={() => setStep(3)}
               disabled={!canStep3}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan-400 hover:bg-cyan-300 disabled:opacity-40 disabled:cursor-not-allowed text-black text-sm font-medium"
+              className="glow-rainbow inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan-400 hover:bg-cyan-300 disabled:opacity-40 disabled:cursor-not-allowed text-black text-sm font-medium"
             >
               Próximo <ArrowRight size={14} />
             </button>
@@ -411,7 +411,7 @@ export default function GenerateWizardPage() {
             <button
               onClick={generate}
               disabled={!canGen || generating}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan-400 hover:bg-cyan-300 disabled:opacity-40 disabled:cursor-not-allowed text-black text-sm font-medium"
+              className="glow-rainbow inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan-400 hover:bg-cyan-300 disabled:opacity-40 disabled:cursor-not-allowed text-black text-sm font-medium"
             >
               {generating ? <><Loader2 size={14} className="animate-spin" /> Gerando…</> : <><Sparkles size={14} /> Gerar conteúdo</>}
             </button>
