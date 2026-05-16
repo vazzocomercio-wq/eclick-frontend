@@ -395,6 +395,17 @@ export const CreativeApi = {
   getImageJob: (id: string) =>
     api<CreativeImageJob>(`/creative/image-jobs/${id}`),
 
+  /**
+   * Importa as fotos do produto do catálogo como imagens aprovadas do anúncio
+   * — usado quando o anúncio nasce do catálogo e o operador quer publicar sem
+   * gerar imagens com IA.
+   */
+  importCatalogImages: (productId: string, briefingId: string) =>
+    api<{ imported: number; skipped: string | null }>(
+      `/creative/products/${productId}/import-catalog-images`,
+      { method: 'POST', body: JSON.stringify({ briefing_id: briefingId }) },
+    ),
+
   listJobImages: (id: string) =>
     api<CreativeImage[]>(`/creative/image-jobs/${id}/images`),
 

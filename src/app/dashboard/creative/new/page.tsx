@@ -83,6 +83,9 @@ export default function CreativeNewPage() {
   /** Quando o anúncio nasce de um produto do catálogo, guarda o ID pra
    *  vincular (creative_products.product_id) no momento do createProduct. */
   const [catalogLinkId, setCatalogLinkId] = useState<string | null>(null)
+  /** Fotos do produto do catálogo. Se houver, no submit o anúncio importa
+   *  essas fotos como imagens aprovadas em vez de gerar com IA. */
+  const [catalogPhotos, setCatalogPhotos] = useState<string[]>([])
 
   // ── Step 2 ──
   const [product, setProduct]   = useState<CreativeProduct | null>(null)
@@ -150,6 +153,7 @@ export default function CreativeNewPage() {
           brand:    prefill.catalog.brand ?? '',
         })
         setCatalogLinkId(catalogProductId)
+        setCatalogPhotos(prefill.catalog.photo_urls)
 
         // Importa a 1ª foto do catálogo pro bucket do anúncio (best-effort —
         // se falhar, o operador sobe a imagem manualmente no Step 1).
@@ -288,14 +292,20 @@ export default function CreativeNewPage() {
       const desiredImageCount = Math.max(1, Math.min(20, briefing.image_count ?? 10))
       const maxCostUsd        = computeMaxCostUsd(desiredImageCount)
 
-      const [listingResult, imageJobResult] = await Promise.allSettled([
+      // Anúncio vindo do catálogo COM fotos → importa essas fotos como imagens
+      // aprovadas (operador publica sem gerar IA). Senão → gera imagens IA.
+      const useCatalogPhotos = catalogPhotos.length > 0
+
+      const [listingResult, imageResult] = await Promise.allSettled([
         CreativeApi.generateListing(product.id, briefingRow.id),
-        CreativeApi.createImageJob({
-          product_id:   product.id,
-          briefing_id:  briefingRow.id,
-          count:        desiredImageCount,
-          max_cost_usd: maxCostUsd,
-        }),
+        useCatalogPhotos
+          ? CreativeApi.importCatalogImages(product.id, briefingRow.id)
+          : CreativeApi.createImageJob({
+              product_id:   product.id,
+              briefing_id:  briefingRow.id,
+              count:        desiredImageCount,
+              max_cost_usd: maxCostUsd,
+            }),
       ])
 
       // Texto é blocker — se falhou, aborta tudo
@@ -306,14 +316,20 @@ export default function CreativeNewPage() {
         return
       }
 
-      const listing    = listingResult.value
-      const imageJobId = imageJobResult.status === 'fulfilled' ? imageJobResult.value.id : null
+      const listing = listingResult.value
+      // Job de imagem só existe quando geramos com IA — importação não tem
+      // polling (as imagens já entram aprovadas).
+      const imageJobId = !useCatalogPhotos && imageResult.status === 'fulfilled'
+        ? (imageResult.value as { id: string }).id
+        : null
 
       // Imagem é best-effort — warning, mas segue pro listing
-      if (imageJobResult.status === 'rejected') {
+      if (imageResult.status === 'rejected') {
         setWarning(
-          `Texto gerado, mas imagens falharam: ${(imageJobResult.reason as Error)?.message ?? 'erro'}. ` +
-          `Tente regenerar manualmente na próxima tela.`,
+          useCatalogPhotos
+            ? `Texto gerado, mas a importação das fotos do catálogo falhou: ${(imageResult.reason as Error)?.message ?? 'erro'}.`
+            : `Texto gerado, mas imagens falharam: ${(imageResult.reason as Error)?.message ?? 'erro'}. ` +
+              `Tente regenerar manualmente na próxima tela.`,
         )
       }
 
