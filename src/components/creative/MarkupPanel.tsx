@@ -41,6 +41,8 @@ interface MarkupPanelProps {
   onApplyPrice: (price: number) => void
   /** Anúncio — usado para buscar o custo de frete no ML. */
   listingId: string
+  /** Tipo de anúncio (free / gold_special / gold_pro) — o ML usa para aplicar o desconto de frete. */
+  listingType: string
   /** Dimensões da embalagem do produto, para pré-preencher os campos de frete. */
   initialDimensions?: Record<string, unknown>
 }
@@ -56,7 +58,7 @@ const dimStr = (d: Record<string, unknown> | undefined, key: string): string => 
 }
 
 export default function MarkupPanel({
-  defaultFeePercent, currentPrice, onApplyPrice, listingId, initialDimensions,
+  defaultFeePercent, currentPrice, onApplyPrice, listingId, listingType, initialDimensions,
 }: MarkupPanelProps) {
   const [targetMargin, setTargetMargin] = useState('')
   const [cost, setCost]                 = useState('')
@@ -81,6 +83,11 @@ export default function MarkupPanel({
   useEffect(() => {
     if (!feeTouched) setFeePct(String(defaultFeePercent))
   }, [defaultFeePercent, feeTouched])
+
+  // O custo de frete depende do tipo de anúncio — limpa ao trocar a modalidade.
+  useEffect(() => {
+    setShippingCost(0); setShippingMeta(null); setShippingError(null)
+  }, [listingType])
 
   const calc = useMemo(() => {
     const m     = num(targetMargin)
@@ -154,7 +161,8 @@ export default function MarkupPanel({
       for (let i = 0; i < 6; i++) {
         pricePromo = round2((cmv + ship) / denom)
         const res = await CreativeApi.getListingShippingCost(listingId, {
-          length_cm: L, width_cm: W, height_cm: H, weight_grams: wt, item_price: pricePromo,
+          length_cm: L, width_cm: W, height_cm: H, weight_grams: wt,
+          item_price: pricePromo, listing_type_id: listingType,
         })
         if (!res) {
           setShippingError('O Mercado Livre não retornou o custo de frete. Confira as medidas da embalagem.')
@@ -239,12 +247,17 @@ export default function MarkupPanel({
             )}
 
             {shippingMeta && !shippingError && (
-              <div className="flex items-center justify-between text-[11px]">
-                <span className="text-zinc-400">
-                  Frete por venda
-                  <span className="text-zinc-600"> · peso considerado {(shippingMeta.billableWeight / 1000).toFixed(2)} kg</span>
-                </span>
-                <span className="font-semibold text-zinc-100">{brl(shippingCost)}</span>
+              <div className="space-y-0.5">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="text-zinc-400">Frete por venda</span>
+                  <span className="font-semibold text-zinc-100">{brl(shippingCost)}</span>
+                </div>
+                <p className="text-[10px] text-zinc-600">
+                  Peso considerado {(shippingMeta.billableWeight / 1000).toFixed(2)} kg
+                  {shippingMeta.discountRate > 0 && (
+                    <> · de {brl(shippingMeta.grossCost)} com {Math.round(shippingMeta.discountRate * 100)}% de desconto Mercado Líder</>
+                  )}
+                </p>
               </div>
             )}
 

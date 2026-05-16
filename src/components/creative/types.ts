@@ -453,14 +453,14 @@ export interface MlPreviewResponse {
 }
 
 export interface MlShippingCost {
-  /** Custo do frete grátis pago pelo vendedor (R$), já com subsídio do ML descontado. */
+  /** Custo do frete grátis pago pelo vendedor (R$), já com o desconto de reputação aplicado. */
   sellerCost:     number
-  /** Custo de tabela bruto, antes do subsídio (R$). */
-  listCost:       number
+  /** Custo cheio de tabela, antes do desconto de reputação (R$). */
+  grossCost:      number
+  /** Fração do desconto de reputação aplicado pelo ML (0–1). Ex: 0.5 = 50% (Mercado Líder). */
+  discountRate:   number
   /** Peso considerado pelo ML (máx. real x volumétrico), em gramas. */
   billableWeight: number
-  /** Fração do subsídio de reputação do ML (0–1). */
-  discountRate:   number
 }
 
 export interface CreativePublication {

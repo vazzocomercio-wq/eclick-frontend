@@ -566,13 +566,14 @@ export const CreativeApi = {
       method: 'POST', body: JSON.stringify(body),
     }),
 
-  /** Custo do frete grátis (vendedor) pra esse anúncio — dimensões + preço. */
+  /** Custo do frete grátis (vendedor) pra esse anúncio — dimensões + preço + tipo. */
   getListingShippingCost: (listingId: string, body: {
-    length_cm:    number
-    width_cm:     number
-    height_cm:    number
-    weight_grams: number
-    item_price:   number
+    length_cm:       number
+    width_cm:        number
+    height_cm:       number
+    weight_grams:    number
+    item_price:      number
+    listing_type_id: string
   }) =>
     api<MlShippingCost | null>(`/creative/listings/${listingId}/shipping-cost`, {
       method: 'POST', body: JSON.stringify(body),
