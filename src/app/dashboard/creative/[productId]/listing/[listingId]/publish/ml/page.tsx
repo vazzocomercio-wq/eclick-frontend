@@ -503,7 +503,8 @@ export default function MLPublishPage() {
                     <button
                       type="button"
                       onClick={() => { setPublishError(null); setConfirmOpen(true) }}
-                      className="w-full flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-semibold shadow-[0_0_12px_rgba(74,222,128,0.25)] transition-all"
+                      style={{ ['--glow-color' as string]: '#34d399' }}
+                      className="submit-glow w-full flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-semibold"
                     >
                       <Send size={12} /> Publicar agora no ML (paused)
                     </button>
@@ -568,7 +569,8 @@ export default function MLPublishPage() {
                 Cancelar
               </button>
               <button onClick={publish} disabled={publishing}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-black text-xs font-semibold">
+                style={{ ['--glow-color' as string]: '#34d399' }}
+                className="submit-glow flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-black text-xs font-semibold">
                 {publishing ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
                 Confirmar publicação
               </button>

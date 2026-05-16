@@ -407,3 +407,53 @@ select option { background: #1c1c1f; }
   0%, 100% { box-shadow: 0 0 0 1px rgba(239,68,68,0.6); }
   50%      { box-shadow: 0 0 0 3px rgba(239,68,68,0.18), 0 0 0 1px rgba(239,68,68,0.85); }
 }
+
+/* ────────────────────────────────────────────────────────────
+   .submit-glow — efeito de destaque pra botões de ENVIO/PUBLICAÇÃO
+   (publicar anúncio, enviar pro marketplace). No hover: anel de glow
+   ao redor + leve lift. Sem pulso idle (decisão de produto).
+
+   Uso: adicionar a classe `submit-glow` num <button>. A cor do glow
+   vem da custom prop --glow-color (default cyan brand #00E5FF). Pra
+   um botão de outra cor (ex: emerald), sobrescrever inline:
+     style={{ ['--glow-color' as string]: '#34d399' }}
+
+   O ::before é o anel; fica atrás do botão via z-index negativo
+   dentro do stacking context criado por `isolation: isolate`.
+   ──────────────────────────────────────────────────────────── */
+.submit-glow {
+  position: relative;
+  isolation: isolate;
+  transition: transform .25s ease-in-out, box-shadow .25s ease-in-out;
+}
+.submit-glow::before {
+  content: '';
+  position: absolute;
+  inset: -5px;
+  border-radius: inherit;
+  border: 3px solid var(--glow-color, #00E5FF);
+  box-shadow: 0 0 32px color-mix(in srgb, var(--glow-color, #00E5FF) 60%, transparent);
+  opacity: 0;
+  z-index: -1;
+  pointer-events: none;
+  transition: opacity .25s ease-in-out;
+}
+.submit-glow:hover:not(:disabled),
+.submit-glow:focus-visible:not(:disabled) {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 22px color-mix(in srgb, var(--glow-color, #00E5FF) 38%, transparent);
+}
+.submit-glow:hover:not(:disabled)::before,
+.submit-glow:focus-visible:not(:disabled)::before {
+  opacity: 1;
+}
+.submit-glow:active:not(:disabled) {
+  transform: translateY(-1px);
+}
+.submit-glow:disabled::before { opacity: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .submit-glow { transition: none; }
+  .submit-glow:hover:not(:disabled),
+  .submit-glow:focus-visible:not(:disabled) { transform: none; }
+}
