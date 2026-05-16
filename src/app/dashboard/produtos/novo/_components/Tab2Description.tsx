@@ -6,6 +6,15 @@ const inp = 'w-full bg-[#1c1c1f] border border-[#3f3f46] text-white text-sm roun
 const lbl = 'block text-[13px] font-medium text-zinc-300 mb-1.5'
 const sec = 'text-[11px] font-semibold uppercase tracking-widest text-zinc-500 mb-4 pb-2 border-b border-[#1e1e24]'
 
+/** Corta o título para no máx. 60 caracteres sem quebrar palavra ao meio. */
+function trimTo60(t: string): string {
+  if (t.length <= 60) return t
+  let cut = t.slice(0, 60)
+  const lastSpace = cut.lastIndexOf(' ')
+  if (lastSpace > 40) cut = cut.slice(0, lastSpace)
+  return cut.trimEnd()
+}
+
 export default function Tab2Description({ data, set }: TabProps) {
   const mlLen = data.mlTitle.length
   const mlOver = mlLen > 60
@@ -35,9 +44,19 @@ export default function Tab2Description({ data, set }: TabProps) {
             style={mlOver ? { borderColor: '#f87171' } : {}}
           />
           {mlOver && (
-            <p className="text-[11px] text-red-400 mt-1">
-              O título do ML deve ter no máximo 60 caracteres.
-            </p>
+            <div className="flex items-center gap-2 mt-1.5">
+              <p className="text-[11px] text-red-400 flex-1">
+                O título do ML deve ter no máximo 60 caracteres ({mlLen - 60} a mais).
+              </p>
+              <button
+                type="button"
+                onClick={() => set('mlTitle', trimTo60(data.mlTitle))}
+                className="shrink-0 text-[11px] font-semibold px-2.5 py-1 rounded-md border transition-all active:scale-[0.97]"
+                style={{ background: 'rgba(0,229,255,0.1)', color: '#00E5FF', borderColor: 'rgba(0,229,255,0.3)' }}
+              >
+                Encurtar para 60
+              </button>
+            </div>
           )}
           <p className="text-[11px] text-zinc-600 mt-1">
             Inclua: produto + marca + modelo + características principais. Não use caps lock, pontuação ou termos promocionais.
