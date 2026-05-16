@@ -2,6 +2,7 @@
 
 import { useId, useMemo } from 'react'
 import type { TabProps, WholesaleLevel } from '../types'
+import { computeContributionMargin, estimateSaleFee } from '@/lib/margin'
 
 const inp = 'w-full bg-[#1c1c1f] border border-[#3f3f46] text-white text-sm rounded-lg px-3 py-2.5 outline-none transition-all placeholder-zinc-600 focus:border-[#00E5FF] focus:ring-1 focus:ring-[#00E5FF20]'
 const sel = `${inp} cursor-pointer`
@@ -39,16 +40,30 @@ const SALE_FORMATS = [
 export default function Tab5Sales({ data, set }: TabProps) {
   const uid = useId()
 
+  // Preview de margem — usa o motor canônico (lib/margin). No cadastro de
+  // produto novo não há frete conhecido (shipping = 0): é uma margem
+  // OTIMISTA, sem frete. A tarifa é estimada por tipo de anúncio — quando o
+  // produto for anunciado, o sistema usa a tarifa real da categoria.
   const previewMargem = useMemo(() => {
     const venda     = parseFloat(String(data.price        || '').replace(',', '.')) || 0
     const custo     = parseFloat(String(data.costPrice    || '').replace(',', '.')) || 0
     const taxPct    = parseFloat(String(data.taxPercentage || '').replace(',', '.')) || 0
-    const tarifaPct = data.mlListingType === 'premium' ? 0.16 : 0.115
-    const tarifa    = Math.round(venda * tarifaPct * 100) / 100
-    const imposto   = Math.round(venda * (taxPct / 100) * 100) / 100
-    const margem    = Math.round((venda - custo - tarifa - imposto) * 100) / 100
-    const margemPct = venda > 0 ? Math.round((margem / venda) * 10000) / 100 : 0
-    return { venda, custo, tarifa, tarifaPct: tarifaPct * 100, imposto, taxPct, margem, margemPct }
+    const tarifaPct = data.mlListingType === 'premium' ? 16 : 11.5
+    const tarifa    = estimateSaleFee(venda, tarifaPct, 0)
+    const r = computeContributionMargin({
+      price:         venda,
+      saleFee:       tarifa,
+      shipping:      0,
+      cost:          custo,
+      taxPercentage: taxPct,
+      taxOnFreight:  false,
+    })
+    return {
+      venda, custo, tarifa, tarifaPct, taxPct,
+      imposto:   r.taxAmount,
+      margem:    r.contributionMargin,
+      margemPct: r.contributionMarginPct,
+    }
   }, [data.price, data.costPrice, data.taxPercentage, data.mlListingType])
 
   function addWholesaleLevel() {
