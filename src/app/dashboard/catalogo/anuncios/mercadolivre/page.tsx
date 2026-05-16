@@ -51,7 +51,6 @@ type CreateResult = {
 type Counts = Record<string, number>
 type Toast  = { id: number; msg: string; type: 'success' | 'error' | 'info' }
 type Tab    = 'active' | 'paused' | 'closed' | 'under_review'
-type SType  = 'title' | 'sku' | 'mlb'
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -1035,7 +1034,6 @@ export default function MLAnunciosPage() {
   const [tab, setTab]     = useState<Tab>('active')
   const [page, setPage]   = useState(0)
   const [q, setQ]         = useState('')
-  const [stype, setStype] = useState<SType>('title')
   const [items, setItems] = useState<MListing[]>([])
   const [total, setTotal] = useState(0)
   const [counts, setCounts] = useState<Counts>({})
@@ -1120,21 +1118,13 @@ export default function MLAnunciosPage() {
         offset: String(currentPage * PAGE),
         limit: String(PAGE),
       })
-      if (query.trim() && stype === 'title') params.set('q', query.trim())
+      // Busca unificada — o backend resolve título / SKU / código MLB.
+      if (query.trim()) params.set('q', query.trim())
       if (selectedSellerId != null) params.set('seller_id', String(selectedSellerId))
       const res  = await fetch(`${BACKEND}/ml/listings?${params}`, { headers })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const body = await res.json()
-      let list: MListing[] = body.items ?? []
-
-      if (query.trim() && stype !== 'title') {
-        const lq = query.trim().toLowerCase()
-        list = list.filter(i =>
-          stype === 'mlb'
-            ? i.id.toLowerCase().includes(lq)
-            : (i.sku ?? '').toLowerCase().includes(lq)
-        )
-      }
+      const list: MListing[] = body.items ?? []
 
       setItems(list)
       setTotal(body.total ?? 0)
@@ -1144,7 +1134,7 @@ export default function MLAnunciosPage() {
     } finally {
       setLoading(false)
     }
-  }, [getHeaders, stype, selectedSellerId])
+  }, [getHeaders, selectedSellerId])
 
   // ── Initial + reactive loads ───────────────────────────────────────────
 
@@ -1519,19 +1509,12 @@ export default function MLAnunciosPage() {
 
       {/* ── Search bar ────────────────────────────────────────────── */}
       <div className="flex items-center gap-2 flex-wrap">
-        <select value={stype} onChange={e => setStype(e.target.value as SType)}
-          className="text-sm px-3 py-2 rounded-xl text-zinc-300 outline-none"
-          style={{ background: '#111114', border: '1px solid #27272a' }}>
-          <option value="title">Título</option>
-          <option value="sku">SKU</option>
-          <option value="mlb">MLB ID</option>
-        </select>
         <input
           value={q}
           onChange={e => setQ(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && handleSearch()}
-          placeholder="Buscar anúncio..."
-          className="text-sm px-4 py-2 rounded-xl text-zinc-200 placeholder-zinc-600 outline-none w-72"
+          placeholder="Buscar por título, SKU ou código MLB…"
+          className="text-sm px-4 py-2 rounded-xl text-zinc-200 placeholder-zinc-600 outline-none w-96 max-w-full"
           style={{ background: '#111114', border: '1px solid #27272a' }}
         />
         <button onClick={handleSearch}
