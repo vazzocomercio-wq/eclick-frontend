@@ -643,7 +643,8 @@ function PrimaryButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan-400 hover:bg-cyan-300 disabled:opacity-50 disabled:cursor-not-allowed text-black text-sm font-semibold transition-all"
+      style={{ ['--btn-bg' as string]: '#22d3ee' }}
+      className="glow-rainbow flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan-400 hover:bg-cyan-300 disabled:opacity-50 disabled:cursor-not-allowed text-black text-sm font-semibold transition-all"
     >
       {loading ? <Loader2 size={14} className="animate-spin" /> : null}
       {children}

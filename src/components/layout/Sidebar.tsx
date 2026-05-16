@@ -404,12 +404,12 @@ function NavGroupItem({ item, badges }: { item: NavItem; badges: Badges }) {
     <div>
       <button
         onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center gap-2.5 px-3 py-[7px] rounded-md text-[13px] font-medium transition-colors"
+        className="sidebar-nav-row w-full flex items-center gap-2.5 px-3 py-[7px] rounded-md text-[13px] font-medium transition-colors"
         style={{ color: anyActive ? '#fff' : '#a1a1aa', background: anyActive && !open ? 'rgba(0,229,255,0.05)' : 'transparent' }}
         onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.04)'; (e.currentTarget as HTMLElement).style.color = '#e4e4e7' }}
         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = anyActive && !open ? 'rgba(0,229,255,0.05)' : 'transparent'; (e.currentTarget as HTMLElement).style.color = anyActive ? '#fff' : '#a1a1aa' }}
       >
-        <span style={{ color: anyActive ? '#00E5FF' : 'inherit' }}>{item.icon}</span>
+        <span className="sidebar-icon" style={{ color: anyActive ? '#00E5FF' : 'inherit' }}>{item.icon}</span>
         <span className="flex-1 text-left">{item.label}</span>
         {parentBadgeTotal > 0 && <BadgePill count={parentBadgeTotal} />}
         <ChevronDown size={12} style={{ color: '#71717a', transform: open ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 150ms', flexShrink: 0 }} />
@@ -460,7 +460,7 @@ function NavLeafItem({ item, badges }: { item: NavItem; badges: Badges }) {
       style={{ opacity: 0.45, cursor: 'not-allowed' }}
       title="Em breve"
     >
-      <span style={{ color: '#71717a' }}>{item.icon}</span>
+      <span className="sidebar-icon" style={{ color: '#71717a' }}>{item.icon}</span>
       <span style={{ color: '#71717a', flex: 1 }}>{item.label}</span>
       <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded" style={{ background: '#27272a', color: '#52525b' }}>soon</span>
     </div>
@@ -477,13 +477,13 @@ function NavLeafItem({ item, badges }: { item: NavItem; badges: Badges }) {
   return (
     <Link
       href={item.href}
-      className="flex items-center gap-2.5 px-3 py-[7px] rounded-md text-[13px] font-medium transition-colors relative"
+      className="sidebar-nav-row flex items-center gap-2.5 px-3 py-[7px] rounded-md text-[13px] font-medium transition-colors relative"
       style={{ color: isActive ? '#fff' : '#a1a1aa', background: isActive ? 'rgba(0,229,255,0.09)' : 'transparent' }}
       onMouseEnter={e => { if (!isActive) { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.04)'; (e.currentTarget as HTMLElement).style.color = '#e4e4e7' } }}
       onMouseLeave={e => { if (!isActive) { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = '#a1a1aa' } }}
     >
       {isActive && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 rounded-full" style={{ background: '#00E5FF' }} />}
-      <span style={{ color: isActive ? '#00E5FF' : 'inherit' }}>{item.icon}</span>
+      <span className="sidebar-icon" style={{ color: isActive ? '#00E5FF' : 'inherit' }}>{item.icon}</span>
       <span className="flex-1">{item.label}</span>
       {badge != null && <BadgePill count={badge} color="#ef4444" />}
     </Link>

@@ -457,3 +457,90 @@ select option { background: #1c1c1f; }
   .submit-glow:hover:not(:disabled),
   .submit-glow:focus-visible:not(:disabled) { transform: none; }
 }
+
+/* ────────────────────────────────────────────────────────────
+   .glow-rainbow — borda arco-íris animada no hover. Pra botões de
+   ação (Salvar, Próximo, Avançar, Criar). O ::before é o gradiente
+   rainbow desfocado girando 24/7; só a opacidade liga no hover. O
+   ::after cobre o miolo com a cor do botão, deixando só a borda
+   brilhar.
+
+   Uso: classe `glow-rainbow` num <button> de background SÓLIDO.
+   A cor do miolo vem de --btn-bg (default: herda o bg do botão).
+   Pra garantir, setar inline: style={{ ['--btn-bg']: '#22d3ee' }}
+   ──────────────────────────────────────────────────────────── */
+.glow-rainbow {
+  position: relative;
+  z-index: 0;
+}
+.glow-rainbow::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  background: linear-gradient(45deg,
+    #ff0000, #ff7300, #fffb00, #48ff00,
+    #00ffd5, #002bff, #7a00ff, #ff00c8, #ff0000);
+  background-size: 400%;
+  filter: blur(6px);
+  opacity: 0;
+  z-index: -1;
+  transition: opacity .3s ease-in-out;
+  animation: glow-rainbow-spin 20s linear infinite;
+}
+.glow-rainbow::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--btn-bg, inherit);
+  z-index: -1;
+}
+.glow-rainbow:hover:not(:disabled)::before,
+.glow-rainbow:focus-visible:not(:disabled)::before {
+  opacity: 1;
+}
+@keyframes glow-rainbow-spin {
+  0%   { background-position: 0 0; }
+  50%  { background-position: 400% 0; }
+  100% { background-position: 0 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .glow-rainbow::before { animation: none; }
+}
+
+/* ────────────────────────────────────────────────────────────
+   .sidebar-icon + .sidebar-nav-row — efeito "fill" nos ícones do
+   menu lateral. Idle: ícone normal (sidebar limpa). Hover na linha:
+   um disco cyan cresce do centro pra trás do ícone.
+
+   Uso: `sidebar-nav-row` na linha (Link/button) + `sidebar-icon`
+   no <span> que envolve o ícone lucide.
+   ──────────────────────────────────────────────────────────── */
+.sidebar-icon {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+}
+.sidebar-icon::before {
+  content: '';
+  position: absolute;
+  inset: 50%;
+  border-radius: 50%;
+  background: rgba(0, 229, 255, 0.16);
+  transition: inset .25s ease;
+}
+.sidebar-icon > * {
+  position: relative;
+  z-index: 1;
+}
+.sidebar-nav-row:hover .sidebar-icon::before {
+  inset: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-icon::before { transition: none; }
+}
