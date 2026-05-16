@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import AccountSelector, { useMlAccount } from '@/components/ml/AccountSelector'
-import { fallbackFeeRate, computeContributionMargin } from '@/lib/margin'
+import { fallbackFeeRate, computeContributionMargin, round2 } from '@/lib/margin'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 
@@ -293,6 +293,11 @@ function MarginPanel({ price, saleFee, shipping, info, orgTaxPct, onSave }: {
     price, saleFee, shipping, cost,
     taxPercentage: taxPct, taxOnFreight: info.tax_on_freight,
   })
+  // Lucro bruto = preço − tarifa − frete (antes de custo e imposto).
+  const grossProfit    = round2(price - saleFee - shipping)
+  const grossProfitPct = price > 0 ? round2((grossProfit / price) * 100) : 0
+  // ROI sobre o custo — quanto a margem rende sobre o CMV investido.
+  const marginOverCost = cost > 0 ? round2((m.contributionMargin / cost) * 100) : null
 
   const dirty        = costDraft !== costInitial || taxDraft !== taxBaseline
   const taxInherited = info.tax_pct == null && orgTaxPct != null
@@ -316,8 +321,12 @@ function MarginPanel({ price, saleFee, shipping, info, orgTaxPct, onSave }: {
 
   return (
     <div className="w-full text-[11px] pt-2 mt-1 space-y-1.5" style={{ borderTop: '1px solid #1e1e24' }}>
-      <div className="flex items-center justify-between gap-1">
-        <span className="text-zinc-500">Custo</span>
+      <div className="flex justify-between text-zinc-500">
+        <span>Lucro bruto</span>
+        <span className="text-emerald-400/90">{brl(grossProfit)} · {grossProfitPct.toFixed(1)}%</span>
+      </div>
+      <div className="flex items-center justify-between gap-1 pt-1" style={{ borderTop: '1px dashed #1e1e24' }}>
+        <span className="text-zinc-500">Custo (CMV)</span>
         <div className="flex items-center gap-0.5">
           <span className="text-zinc-600">R$</span>
           <input value={costDraft} onChange={e => setCostDraft(e.target.value)}
@@ -338,11 +347,16 @@ function MarginPanel({ price, saleFee, shipping, info, orgTaxPct, onSave }: {
           <span className="text-zinc-600">%</span>
         </div>
       </div>
-      <div className="flex justify-between items-baseline pt-1" style={{ borderTop: '1px dashed #1e1e24' }}>
-        <span className="text-zinc-400 font-medium">Margem</span>
-        <span className="font-bold" style={{ color: marginColor }}>
-          {noCost ? 'sem custo' : `${brl(m.contributionMargin)} · ${m.contributionMarginPct.toFixed(1)}%`}
-        </span>
+      <div className="flex justify-between items-start pt-1" style={{ borderTop: '1px dashed #1e1e24' }}>
+        <span className="text-zinc-400 font-medium">Margem contrib.</span>
+        <div className="text-right">
+          <div className="font-bold" style={{ color: marginColor }}>
+            {noCost ? 'sem custo' : `${brl(m.contributionMargin)} · ${m.contributionMarginPct.toFixed(1)}%`}
+          </div>
+          {!noCost && marginOverCost != null && (
+            <div className="text-[10px] text-zinc-600">{marginOverCost.toFixed(1)}% do custo</div>
+          )}
+        </div>
       </div>
       {dirty && (
         <button onClick={save} disabled={saving}
