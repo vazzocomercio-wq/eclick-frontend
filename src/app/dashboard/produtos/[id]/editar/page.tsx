@@ -265,17 +265,20 @@ export default function EditarProdutoPage() {
   }
 
   // ── validation ─────────────────────────────────────────────────────────────
-  function validate(): string | null {
-    if (!form.name.trim())  return 'Nome do produto é obrigatório.'
-    if (!form.brand.trim()) return 'Marca é obrigatória.'
-    if (!form.mlTitle.trim()) return 'Título ML é obrigatório.'
-    if (form.mlTitle.length > 60) return 'Título ML deve ter no máximo 60 caracteres.'
-    if (!form.price.trim()) return 'Preço de venda é obrigatório.'
-    if (!form.stock.trim()) return 'Estoque é obrigatório.'
-    if (!form.weightKg.trim()) return 'Peso é obrigatório.'
+  // Retorna { msg, tab } — o `tab` leva o usuário direto pra aba do campo com
+  // erro (campo inválido numa aba que ele não está vendo gera confusão).
+  function validate(): { msg: string; tab: number } | null {
+    if (!form.name.trim())    return { msg: 'Nome do produto é obrigatório.', tab: 1 }
+    if (!form.brand.trim())   return { msg: 'Marca é obrigatória.', tab: 1 }
+    if (!form.mlTitle.trim()) return { msg: 'Título ML é obrigatório.', tab: 2 }
+    if (form.mlTitle.length > 60)
+      return { msg: `Título ML tem ${form.mlTitle.length} caracteres — o Mercado Livre aceita no máximo 60.`, tab: 2 }
+    if (!form.price.trim())   return { msg: 'Preço de venda é obrigatório.', tab: 5 }
+    if (!form.stock.trim())   return { msg: 'Estoque é obrigatório.', tab: 5 }
+    if (!form.weightKg.trim()) return { msg: 'Peso é obrigatório.', tab: 6 }
     if (!form.widthCm.trim() || !form.lengthCm.trim() || !form.heightCm.trim())
-      return 'Dimensões (L × C × A) são obrigatórias.'
-    if (form.platforms.length === 0) return 'Selecione ao menos uma plataforma.'
+      return { msg: 'Dimensões (L × C × A) são obrigatórias.', tab: 6 }
+    if (form.platforms.length === 0) return { msg: 'Selecione ao menos uma plataforma.', tab: 1 }
     return null
   }
 
@@ -354,7 +357,7 @@ export default function EditarProdutoPage() {
   async function save(status: 'draft' | 'active') {
     if (status === 'active') {
       const err = validate()
-      if (err) { toast(err, 'error'); return }
+      if (err) { setTab(err.tab); toast(err.msg, 'error'); return }
     }
 
     setSaving(true)
