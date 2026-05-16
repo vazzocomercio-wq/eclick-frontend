@@ -1621,6 +1621,7 @@ export default function ProdutosPage() {
         // fetch GET /products?page=&per_page=&search=&quick_filter=&...
         // com totais corretos do catálogo inteiro (não da página).
         <ProdutosTable
+          searchOverride={search}
           onRefresh={load}
           onToggleStatus={togglePauseActive}
           onDuplicate={handleDuplicate}

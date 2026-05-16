@@ -79,6 +79,7 @@ function loadPrefs(): { perPage: number; quickFilter: QuickFilterValue } {
 export function ProdutosTable({
   products: clientProducts,
   loading: clientLoading = false,
+  searchOverride,
   onRefresh,
   onToggleStatus,
   onDuplicate,
@@ -96,6 +97,10 @@ export function ProdutosTable({
   onDelete?:        (id: string) => Promise<void> | void
   onBulkPause?:     (ids: string[]) => Promise<void> | void
   onBulkDelete?:    (ids: string[]) => Promise<void> | void
+  /** Quando a página já tem um campo de busca próprio, passa o termo aqui:
+   * a tabela usa esse valor e NÃO renderiza busca duplicada. Evita o bug de
+   * dois campos de busca na table view (um deles morto). */
+  searchOverride?:  string
 }) {
   const router       = useRouter()
   const pathname     = usePathname()
@@ -123,8 +128,13 @@ export function ProdutosTable({
 
   const [page,        setPage]        = useState(initial.page)
   const [perPage,     setPerPage]     = useState(initial.perPage)
-  const [search,      setSearch]      = useState(initial.search)
+  const [internalSearch, setInternalSearch] = useState(initial.search)
   const [quickFilter, setQuickFilter] = useState<QuickFilterValue>(initial.quickFilter)
+
+  // Busca: quando a página passa `searchOverride`, ela é a fonte da verdade
+  // (campo único no topo). Senão, usa o campo próprio da tabela.
+  const searchControlled = searchOverride !== undefined
+  const search = searchControlled ? searchOverride : internalSearch
   const [sort,        setSort]        = useState<SortState>(initial.sort)
   const [stockMin,    setStockMin]    = useState(initial.stockMin)
   const [stockMax,    setStockMax]    = useState(initial.stockMax)
@@ -134,6 +144,13 @@ export function ProdutosTable({
     const t = setTimeout(() => setDebouncedStock({ min: stockMin, max: stockMax }), 400)
     return () => clearTimeout(t)
   }, [stockMin, stockMax])
+
+  // Busca externa mudou → volta pra página 1 (o refetch dispara sozinho via
+  // dep array do refetch, que inclui `search`).
+  useEffect(() => {
+    if (searchControlled) setPage(1)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchOverride])
 
   const [selected,    setSelected]    = useState<string[]>([])
 
@@ -429,10 +446,10 @@ export function ProdutosTable({
         onPageChange:    setPage,
         onPerPageChange: pp => { setPerPage(pp); setPage(1) },
       }}
-      search={{
-        value: search,
+      search={searchControlled ? undefined : {
+        value: internalSearch,
         placeholder: 'Buscar por nome, SKU ou marca…',
-        onChange: v => { setSearch(v); setPage(1) },
+        onChange: v => { setInternalSearch(v); setPage(1) },
       }}
       selection={{ mode: 'multi', selected, onChange: setSelected }}
       bulkActions={bulkActions}
