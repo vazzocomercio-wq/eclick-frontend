@@ -990,6 +990,7 @@ export default function ProdutosPage() {
   const [orgId, setOrgId]           = useState<string | null>(null)
   const [showMlImport, setShowMlImport] = useState(false)
   const [showBulkCost, setShowBulkCost] = useState(false)
+  const [showTaxConfig, setShowTaxConfig] = useState(false)
   const [mlConnected, setMlConnected]   = useState(false)
   const [stockMap, setStockMap]         = useState<Record<string, StockSummary>>({})
   // Filtros avançados (toggle do painel + 5+3 critérios)
@@ -1315,6 +1316,17 @@ export default function ProdutosPage() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-6h13M9 11V5h13M3 5h3M3 11h3M3 17h3" />
             </svg>
             Atualizar Custos
+          </button>
+          <button
+            onClick={() => setShowTaxConfig(true)}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium border transition-all hover:border-cyan-500/50 hover:text-cyan-400"
+            style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}
+            title="Cadastrar o imposto padrão da empresa pra cálculo de margem"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 7h6m-6 4h6m-6 4h4M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" />
+            </svg>
+            Imposto padrão
           </button>
           <Link href="/dashboard/produtos/importar"
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium border transition-all hover:border-cyan-500/50 hover:text-cyan-400"
@@ -1711,6 +1723,160 @@ export default function ProdutosPage() {
           onSaved={() => { load() }}
         />
       )}
+
+      {showTaxConfig && (
+        <TaxConfigModal
+          onClose={() => setShowTaxConfig(false)}
+          onSaved={() => { load() }}
+        />
+      )}
+    </div>
+  )
+}
+
+// ── Modal: imposto padrão da empresa ────────────────────────────────────────
+
+function TaxConfigModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+  const [pct, setPct]               = useState('')
+  const [onFreight, setOnFreight]   = useState(false)
+  const [apply, setApply]           = useState<'none' | 'only_empty' | 'all'>('only_empty')
+  const [loading, setLoading]       = useState(true)
+  const [saving, setSaving]         = useState(false)
+  const [error, setError]           = useState<string | null>(null)
+  const [result, setResult]         = useState<string | null>(null)
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const token = await getAuthToken()
+        if (!token) { setError('Não autenticado'); return }
+        const res = await fetch(`${BACKEND}/products/tax-config`, { headers: { Authorization: `Bearer ${token}` } })
+        if (res.ok) {
+          const d = await res.json() as { default_tax_percentage: number | null; default_tax_on_freight: boolean }
+          if (d.default_tax_percentage != null) setPct(String(d.default_tax_percentage))
+          setOnFreight(Boolean(d.default_tax_on_freight))
+        }
+      } catch { /* mantém vazio */ }
+      finally { setLoading(false) }
+    })()
+  }, [])
+
+  async function save() {
+    setError(null)
+    const num = Number(pct)
+    if (pct.trim() === '' || !Number.isFinite(num) || num < 0 || num > 100) {
+      setError('Informe um percentual válido (0 a 100).')
+      return
+    }
+    setSaving(true)
+    try {
+      const token = await getAuthToken()
+      if (!token) { setError('Não autenticado'); setSaving(false); return }
+      const res = await fetch(`${BACKEND}/products/tax-config`, {
+        method:  'PUT',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ tax_percentage: num, tax_on_freight: onFreight, apply }),
+      })
+      const body = await res.json().catch(() => ({})) as { products_updated?: number; message?: string }
+      if (!res.ok) throw new Error(body.message ?? `HTTP ${res.status}`)
+      setResult(
+        apply === 'none'
+          ? 'Imposto padrão salvo. Produtos sem imposto herdam esse valor no cálculo.'
+          : `Imposto padrão salvo · ${body.products_updated ?? 0} produto(s) atualizado(s).`,
+      )
+      onSaved()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Erro ao salvar')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }}>
+      <div className="w-full max-w-md rounded-2xl overflow-hidden"
+        style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid #1e1e24' }}>
+          <p className="text-white text-sm font-semibold">Imposto padrão da empresa</p>
+          <button onClick={onClose} className="text-zinc-500 hover:text-white transition-colors">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="px-5 py-8 text-zinc-500 text-sm">Carregando…</div>
+        ) : result ? (
+          <div className="px-5 py-6">
+            <p className="text-emerald-400 text-sm font-medium mb-4">{result}</p>
+            <button onClick={onClose}
+              className="w-full px-4 py-2 rounded-lg text-sm font-semibold"
+              style={{ background: '#00E5FF', color: '#000' }}>
+              Fechar
+            </button>
+          </div>
+        ) : (
+          <div className="px-5 py-4 space-y-4">
+            <p className="text-zinc-500 text-xs">
+              Esse percentual é usado no cálculo de margem dos produtos que não têm
+              imposto próprio cadastrado. Você pode sobrescrever produto a produto depois.
+            </p>
+
+            <div>
+              <label className="block text-[11px] uppercase tracking-wider text-zinc-500 mb-1.5">Imposto (%)</label>
+              <input
+                type="number" min={0} max={100} step="0.01"
+                value={pct}
+                onChange={e => setPct(e.target.value)}
+                placeholder="Ex: 8"
+                className="w-full px-3 py-2 rounded-lg text-sm text-white placeholder-zinc-600 outline-none border focus:border-cyan-400"
+                style={{ background: '#0d0d10', borderColor: '#27272a' }}
+              />
+            </div>
+
+            <label className="flex items-center gap-2 text-sm text-zinc-300 cursor-pointer">
+              <input type="checkbox" checked={onFreight} onChange={e => setOnFreight(e.target.checked)}
+                className="w-4 h-4 rounded accent-[#00E5FF]" />
+              Imposto incide também sobre o frete
+            </label>
+
+            <div>
+              <label className="block text-[11px] uppercase tracking-wider text-zinc-500 mb-1.5">Como aplicar</label>
+              <div className="space-y-1.5">
+                {([
+                  { v: 'only_empty', label: 'Aplicar só aos produtos sem imposto cadastrado' },
+                  { v: 'all',        label: 'Aplicar a todos os produtos (sobrescreve os existentes)' },
+                  { v: 'none',       label: 'Só salvar como padrão (não altera produtos)' },
+                ] as const).map(o => (
+                  <label key={o.v} className="flex items-start gap-2 text-[13px] text-zinc-300 cursor-pointer">
+                    <input type="radio" name="apply" checked={apply === o.v}
+                      onChange={() => setApply(o.v)}
+                      className="mt-0.5 w-3.5 h-3.5 accent-[#00E5FF]" />
+                    {o.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {error && <p className="text-red-400 text-xs">{error}</p>}
+
+            <div className="flex justify-end gap-2 pt-1">
+              <button onClick={onClose}
+                className="px-4 py-2 rounded-lg text-sm font-medium border"
+                style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>
+                Cancelar
+              </button>
+              <button onClick={save} disabled={saving}
+                className="px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-60"
+                style={{ background: '#00E5FF', color: '#000' }}>
+                {saving ? 'Salvando…' : 'Salvar'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
