@@ -4,6 +4,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { getSocket } from '@/lib/socket'
+import { computeContributionMargin } from '@/lib/margin'
 import {
   MoreHorizontal, Truck, Printer, Send, AlertOctagon, Megaphone, Ban,
   Headphones, BarChart2, Eye,
@@ -901,29 +902,42 @@ function OrderCard({
       setImpostoEdit(tp != null && tp !== 0 ? String(tp).replace('.', ',') : '')
       if (cp != null && cp > 0 && tp != null && tp > 0) setEditando(false)
       if (cp != null && cp > 0) {
-        const valorPago = order.total_amount || 0
-        const imposto   = valorPago * ((tp ?? 0) / 100)
-        const margem    = (order.lucro_bruto || 0) - custoTotalKit - imposto
-        const margemPct = valorPago > 0 ? Math.round((margem / valorPago) * 1000) / 10 : 0
-        setMargemOverride({ margem, margemPct })
+        // Motor canônico (lib/margin) — mesma fórmula do card de anúncios e
+        // da ingestão de pedidos no backend.
+        const m = computeContributionMargin({
+          price:         order.total_amount || 0,
+          saleFee:       order.tarifa_ml || 0,
+          shipping:      order.frete_vendedor || 0,
+          cost:          custoTotalKit,
+          taxPercentage: tp ?? 0,
+          taxOnFreight:  false,
+        })
+        setMargemOverride({ margem: m.contributionMargin, margemPct: m.contributionMarginPct })
       }
     }
   }, [vinculos]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function recalcularMargem(custoVal: string, impostoVal: string) {
-    const valorPago   = order.total_amount || 0
     const qty         = order.order_items[0]?.quantity ?? 1
     const custoUnit0  = parseFloat(custoVal.replace(',', '.')) || 0
+    // Custo do kit: 1º vínculo usa o valor sendo editado, os demais o custo
+    // cadastrado. Multiplica por quantity_per_unit × qtd do pedido.
     const custoKit    = vinculos.reduce((sum: number, v: VinculoItem, i: number) => {
       const cp  = i === 0 ? custoUnit0 : (v.product?.cost_price ?? 0)
       const qpu = Number(v.quantity_per_unit) || 1
       return sum + cp * qpu * qty
     }, 0)
     const impostoRate = parseFloat(impostoVal.replace(',', '.')) || 0
-    const imposto     = valorPago * (impostoRate / 100)
-    const margem      = (order.lucro_bruto || 0) - custoKit - imposto
-    const margemPct   = valorPago > 0 ? Math.round((margem / valorPago) * 1000) / 10 : 0
-    setMargemOverride({ margem, margemPct })
+    // Motor canônico (lib/margin) — fonte única da fórmula de margem.
+    const m = computeContributionMargin({
+      price:         order.total_amount || 0,
+      saleFee:       order.tarifa_ml || 0,
+      shipping:      order.frete_vendedor || 0,
+      cost:          custoKit,
+      taxPercentage: impostoRate,
+      taxOnFreight:  false,
+    })
+    setMargemOverride({ margem: m.contributionMargin, margemPct: m.contributionMarginPct })
   }
 
   async function handleSalvar() {
