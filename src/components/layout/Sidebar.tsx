@@ -256,7 +256,7 @@ const SECTIONS: NavSection[] = [
           { label: 'Produtos',     href: '/dashboard/creative' },
           { label: 'Templates',    href: '/dashboard/creative/templates' },
           { label: 'Referências',  href: '/dashboard/creative/references' },
-          { label: 'Novo produto', href: '/dashboard/creative/new' },
+          { label: 'Novo anúncio', href: '/dashboard/creative/new' },
         ],
       },
       { label: 'Biblioteca',       href: '/dashboard/producao/biblioteca', icon: <ImageIcon size={15} /> },

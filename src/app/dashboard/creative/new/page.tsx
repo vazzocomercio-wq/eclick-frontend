@@ -12,7 +12,7 @@ import BriefingConfigurator, {
   briefingSummary,
   type BriefingFormState,
 } from '@/components/creative/BriefingConfigurator'
-import { CreativeApi } from '@/components/creative/api'
+import { CreativeApi, uploadProductImage, getMyOrgId } from '@/components/creative/api'
 import type { CreativeProduct } from '@/components/creative/types'
 
 type Step = 1 | 2 | 3
@@ -64,6 +64,10 @@ export default function CreativeNewPage() {
   const searchParams = useSearchParams()
   // ?productId=X → continuar produto existente (pula direto pro step 3 Briefing)
   const presetProductId = searchParams.get('productId')
+  // ?catalogProductId=X → anúncio novo a partir de um produto do catálogo
+  // (deeplink da Operação de Cadastro). Resolve: já tem anúncio? redireciona.
+  // Senão, abre o Step 1 pré-preenchido com nome/categoria/marca/foto.
+  const catalogProductId = searchParams.get('catalogProductId')
 
   const [step, setStep] = useState<Step>(presetProductId ? 3 : 1)
   const [error, setError] = useState<string | null>(null)
@@ -71,10 +75,14 @@ export default function CreativeNewPage() {
   const [submitting, setSubmitting] = useState(false)
   const [phase, setPhase] = useState<Phase>('idle')
   const [loadingPreset, setLoadingPreset] = useState(!!presetProductId)
+  const [loadingCatalog, setLoadingCatalog] = useState(!!catalogProductId)
 
   // ── Step 1 ──
   const [upload, setUpload]     = useState<UploadResult | null>(null)
   const [basic, setBasic]       = useState<BasicForm>({ name: '', category: '', brand: '' })
+  /** Quando o anúncio nasce de um produto do catálogo, guarda o ID pra
+   *  vincular (creative_products.product_id) no momento do createProduct. */
+  const [catalogLinkId, setCatalogLinkId] = useState<string | null>(null)
 
   // ── Step 2 ──
   const [product, setProduct]   = useState<CreativeProduct | null>(null)
@@ -116,6 +124,65 @@ export default function CreativeNewPage() {
   }, [presetProductId])
 
   // ──────────────────────────────────────────────────────────────────────────
+  // Novo anúncio a partir de um produto do catálogo (deeplink de cadastro).
+  // - Já existe anúncio vinculado? → redireciona pro mais recente.
+  // - Senão → pré-preenche Step 1 (nome/categoria/marca) e importa a 1ª foto
+  //   do catálogo pro bucket do anúncio (operador pode trocar/subir outra).
+  // ──────────────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!catalogProductId) return
+    let cancelled = false
+    void (async () => {
+      try {
+        const prefill = await CreativeApi.getCatalogPrefill(catalogProductId)
+        if (cancelled) return
+
+        // Já tem anúncio pro produto — continua de onde parou
+        if (prefill.existing.length > 0) {
+          router.replace(`/dashboard/creative/${prefill.existing[0].id}?source=cadastro`)
+          return
+        }
+
+        // Pré-preenche dados básicos do catálogo
+        setBasic({
+          name:     prefill.catalog.name,
+          category: prefill.catalog.category ?? '',
+          brand:    prefill.catalog.brand ?? '',
+        })
+        setCatalogLinkId(catalogProductId)
+
+        // Importa a 1ª foto do catálogo pro bucket do anúncio (best-effort —
+        // se falhar, o operador sobe a imagem manualmente no Step 1).
+        const firstPhoto = prefill.catalog.photo_urls[0]
+        if (firstPhoto) {
+          try {
+            const orgId = await getMyOrgId()
+            if (orgId && !cancelled) {
+              const resp = await fetch(firstPhoto)
+              const blob = await resp.blob()
+              const file = new File([blob], 'catalogo.jpg', { type: blob.type || 'image/jpeg' })
+              const r = await uploadProductImage(orgId, file)
+              if (!cancelled) {
+                setUpload({ storage_path: r.storage_path, signed_url: r.signed_url, preview_url: r.signed_url })
+              }
+            }
+          } catch {
+            // foto opcional — segue sem ela
+          }
+        }
+      } catch (e: unknown) {
+        if (!cancelled) {
+          setError(`Não consegui carregar o produto do catálogo: ${(e as Error).message}`)
+        }
+      } finally {
+        if (!cancelled) setLoadingCatalog(false)
+      }
+    })()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [catalogProductId])
+
+  // ──────────────────────────────────────────────────────────────────────────
   // Step 1 → Step 2: cria produto + dispara análise IA em background
   // ──────────────────────────────────────────────────────────────────────────
   async function goStep1to2() {
@@ -132,6 +199,9 @@ export default function CreativeNewPage() {
         brand:                   basic.brand || undefined,
         main_image_url:          upload.signed_url,
         main_image_storage_path: upload.storage_path,
+        // Vínculo com o catálogo quando o anúncio nasce de um produto
+        // existente (deeplink da Operação de Cadastro).
+        product_id:              catalogLinkId ?? undefined,
       })
       setProduct(created)
       setStep(2)
@@ -282,7 +352,7 @@ export default function CreativeNewPage() {
           <div className="flex items-center gap-2 min-w-0">
             <Sparkles size={18} className="text-cyan-400 shrink-0" />
             <h1 className="text-lg font-semibold truncate">
-              {presetProductId ? 'Criar briefing' : 'Novo produto criativo'}
+              {presetProductId ? 'Criar briefing' : 'Novo anúncio'}
             </h1>
             {presetProductId && product?.name && (
               <span className="text-xs text-zinc-500 truncate">· {product.name}</span>
@@ -307,8 +377,15 @@ export default function CreativeNewPage() {
           </div>
         )}
 
+        {/* Loader enquanto resolve o produto do catálogo (?catalogProductId) */}
+        {loadingCatalog && (
+          <div className="mt-10 flex items-center justify-center gap-2 text-sm text-zinc-500">
+            <Loader2 size={14} className="animate-spin" /> Carregando produto do catálogo…
+          </div>
+        )}
+
         {/* Step 1 — Upload + Dados básicos */}
-        {step === 1 && (
+        {step === 1 && !loadingCatalog && (
           <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <h2 className="text-sm font-semibold text-zinc-300 mb-3">1. Imagem do produto</h2>

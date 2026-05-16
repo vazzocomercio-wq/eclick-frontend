@@ -179,6 +179,16 @@ export const CreativeApi = {
   getProduct: (id: string) =>
     api<CreativeProduct>(`/creative/products/${id}`),
 
+  /**
+   * Resolve o deeplink de cadastro: dado um produto do catálogo, retorna os
+   * anúncios já vinculados + dados básicos pra pré-preencher o Step 1.
+   */
+  getCatalogPrefill: (catalogProductId: string) =>
+    api<{
+      existing: Array<{ id: string; name: string; status: string }>
+      catalog:  { id: string; name: string; category: string | null; brand: string | null; photo_urls: string[] }
+    }>(`/creative/products/catalog-prefill/${catalogProductId}`),
+
   updateProduct: (id: string, body: Partial<CreateProductBody>) =>
     api<CreativeProduct>(`/creative/products/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
 

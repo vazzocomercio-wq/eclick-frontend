@@ -125,7 +125,7 @@ export default function CreativeListPage() {
             href="/dashboard/creative/new"
             className="flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan-400 hover:bg-cyan-300 text-black text-sm font-semibold transition-all shadow-[0_0_12px_rgba(0,229,255,0.25)]"
           >
-            <Plus size={14} /> Novo produto
+            <Plus size={14} /> Novo anúncio
           </Link>
         </header>
 
@@ -278,7 +278,7 @@ function EmptyState() {
       <div className="inline-flex p-4 rounded-2xl bg-zinc-900 border border-zinc-800 mb-4">
         <Sparkles size={28} className="text-cyan-400" />
       </div>
-      <h2 className="text-base font-semibold text-zinc-200">Nenhum produto criativo ainda</h2>
+      <h2 className="text-base font-semibold text-zinc-200">Nenhum anúncio ainda</h2>
       <p className="text-sm text-zinc-500 mt-1 max-w-sm mx-auto">
         Comece subindo a foto do seu primeiro produto. A IA cuida do resto.
       </p>
@@ -286,7 +286,7 @@ function EmptyState() {
         href="/dashboard/creative/new"
         className="inline-flex items-center gap-2 mt-5 px-4 py-2 rounded-lg bg-cyan-400 hover:bg-cyan-300 text-black text-sm font-semibold transition-all"
       >
-        <Plus size={14} /> Criar primeiro produto
+        <Plus size={14} /> Criar primeiro anúncio
       </Link>
     </div>
   )
