@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { BarChart, Bar, ResponsiveContainer, Tooltip } from 'recharts'
+import { fallbackFeeRate } from '@/lib/margin'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 
@@ -50,11 +51,6 @@ function relativeTime(iso: string): string {
   if (days === 0) return 'hoje'
   if (days === 1) return 'ontem'
   return `há ${days} dias`
-}
-
-function mlFeeRate(listingTypeId: string): number {
-  if (listingTypeId === 'gold_pro' || listingTypeId === 'gold_premium') return 0.16
-  return 0.115
 }
 
 function listingTypeMeta(type: string) {
@@ -178,7 +174,7 @@ function ListingRow({
   onAction: (id: string, action: string) => void
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
-  const feeRate  = mlFeeRate(item.listing_type_id)
+  const feeRate  = fallbackFeeRate(item.listing_type_id) / 100
   const fee      = item.price * feeRate
   const profit   = item.price - fee
   const margin   = ((profit / item.price) * 100).toFixed(1)

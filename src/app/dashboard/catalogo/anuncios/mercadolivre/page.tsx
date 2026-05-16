@@ -4,9 +4,9 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import AccountSelector, { useMlAccount } from '@/components/ml/AccountSelector'
+import { fallbackFeeRate } from '@/lib/margin'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
-const ML_FEE_DEFAULT = 0.115
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -39,6 +39,12 @@ type MListing = {
   date_created: string
   account_nickname: string | null
   account_seller_id: number | null
+  // Tarifa de venda ESTIMADA via listing_prices (categoria + tipo + preço).
+  // null quando o ML não resolveu (sem categoria, fora do ar) — cai no fallback.
+  estimated_sale_fee:           number | null
+  estimated_fee_pct:            number | null
+  estimated_fixed_fee:          number | null
+  estimated_free_shipping_cost: number | null
 }
 
 type CreateResult = {
@@ -69,10 +75,6 @@ function ago(iso: string) {
 function discountPct(original: number | null, current: number): number | null {
   if (!original || original <= current) return null
   return Math.round(((original - current) / original) * 100)
-}
-
-function feeRate(type: string) {
-  return type === 'gold_pro' || type === 'gold_premium' ? 0.16 : ML_FEE_DEFAULT
 }
 
 function typeBadge(listing_type_id: string, logistic_type: string | null, catalog_listing: boolean) {
@@ -290,7 +292,16 @@ function ListingCard({ item, selected, linked, stockInfo, onSelect, onCreateProd
     setStockState(ok ? 'success' : 'error')
     setTimeout(() => setStockState('idle'), 1200)
   }
-  const fee      = item.price * feeRate(item.listing_type_id)
+  // Tarifa de venda: usa a ESTIMATIVA real da categoria (% + custo fixo do
+  // listing_prices) quando o backend resolveu; senão cai no fallback grosso
+  // por tipo de anúncio.
+  const feeIsEstimated = item.estimated_sale_fee != null
+  const fee      = feeIsEstimated
+    ? item.estimated_sale_fee!
+    : item.price * fallbackFeeRate(item.listing_type_id) / 100
+  const feePct   = feeIsEstimated && item.estimated_fee_pct != null
+    ? item.estimated_fee_pct
+    : fallbackFeeRate(item.listing_type_id)
   const net      = item.price - fee
   const badges   = typeBadge(item.listing_type_id, item.logistic_type, item.catalog_listing)
   const isActive = item.status === 'active'
@@ -499,7 +510,11 @@ function ListingCard({ item, selected, linked, stockInfo, onSelect, onCreateProd
 
         <div className="w-full text-[11px] pt-2 space-y-1" style={{ borderTop: '1px solid #1e1e24' }}>
           <div className="flex justify-between text-zinc-600">
-            <span>Tarifa ML ({(feeRate(item.listing_type_id) * 100).toFixed(1)}%)</span>
+            <span title={feeIsEstimated
+              ? 'Tarifa real da categoria (listing_prices do ML)'
+              : 'Estimativa por tipo de anúncio — categoria não resolvida'}>
+              Tarifa ML ({feePct.toFixed(1)}%{feeIsEstimated ? '' : ' ~'})
+            </span>
             <span className="text-red-400/80">-{brl(fee)}</span>
           </div>
           <div className="flex justify-between text-zinc-600">
