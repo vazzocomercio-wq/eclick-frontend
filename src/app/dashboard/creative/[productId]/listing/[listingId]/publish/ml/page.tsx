@@ -5,12 +5,14 @@ import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import {
   ArrowLeft, Sparkles, Loader2, AlertCircle, CheckCircle2, RefreshCw,
-  Image as ImageIcon, Film, Tag, DollarSign, Package, Eye, Layers, ExternalLink, Send, Lock, X,
+  Image as ImageIcon, Film, Tag, DollarSign, Package, Eye, Layers, ExternalLink, Send, Lock, X, Calculator,
 } from 'lucide-react'
 import MLImageSelector from '@/components/creative/MLImageSelector'
 import MLAttributesForm from '@/components/creative/MLAttributesForm'
 import ListingSeoPanel, { scrollToSeoField } from '@/components/creative/ListingSeoPanel'
+import MarkupPanel from '@/components/creative/MarkupPanel'
 import { CreativeApi } from '@/components/creative/api'
+import { fallbackFeeRate } from '@/lib/margin'
 import {
   ML_LISTING_TYPE_OPTIONS, ML_CONDITION_OPTIONS,
   type MlPublishContext, type MlPreviewResponse,
@@ -329,6 +331,15 @@ export default function MLPublishPage() {
               )}
             </Section>
             </div>
+
+            {/* Markup / precificação — calcula o preço de venda pela margem alvo */}
+            <Section icon={<Calculator size={14} />} title="Markup / Precificação">
+              <MarkupPanel
+                defaultFeePercent={fallbackFeeRate(listingType)}
+                currentPrice={price}
+                onApplyPrice={p => setPrice(String(p))}
+              />
+            </Section>
 
             {/* Pricing */}
             <Section icon={<DollarSign size={14} />} title="Preço & estoque">
