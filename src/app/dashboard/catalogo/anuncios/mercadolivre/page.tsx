@@ -208,10 +208,9 @@ function SkeletonRow() {
 
 // ── Item action menu ───────────────────────────────────────────────────────
 
-function ItemMenu({ item, onClose, onCreateProduct, onFocusStock, hasLinkedStock }: {
+function ItemMenu({ item, onClose, onFocusStock, hasLinkedStock }: {
   item: MListing
   onClose: () => void
-  onCreateProduct: (id: string) => void
   onFocusStock?: () => void
   hasLinkedStock?: boolean
 }) {
@@ -229,31 +228,6 @@ function ItemMenu({ item, onClose, onCreateProduct, onFocusStock, hasLinkedStock
         className="flex items-center gap-2 px-4 py-2.5 text-sm text-zinc-300 hover:bg-zinc-800 transition-colors">
         <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
         Abrir no ML
-      </a>
-      <button
-        onClick={() => { onCreateProduct(item.id); onClose() }}
-        className="w-full text-left flex items-center gap-2 px-4 py-2.5 text-sm transition-colors"
-        style={{ color: '#00E5FF' }}
-        onMouseEnter={e => (e.currentTarget.style.background = 'rgba(0,229,255,0.07)')}
-        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-        <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-        </svg>
-        Criar Produto
-      </button>
-      <a
-        href={`/dashboard/listings/seo-optimizer?mlbId=${item.id}`}
-        onClick={onClose}
-        className="w-full text-left flex items-center gap-2 px-4 py-2.5 text-sm transition-colors"
-        style={{ color: '#00E5FF' }}
-        onMouseEnter={e => (e.currentTarget.style.background = 'rgba(0,229,255,0.07)')}
-        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-        title="Analisa o SEO desse anúncio e sugere melhorias respeitando travas do ML"
-      >
-        <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-        </svg>
-        Otimizar SEO IA
       </a>
       {hasLinkedStock && onFocusStock && (
         <button onClick={() => { onFocusStock(); onClose() }}
@@ -283,13 +257,14 @@ function ItemMenu({ item, onClose, onCreateProduct, onFocusStock, hasLinkedStock
 
 // ── Listing card ───────────────────────────────────────────────────────────
 
-function ListingCard({ item, selected, linked, stockInfo, onSelect, onCreateProduct, onUpdateStock }: {
+function ListingCard({ item, selected, linked, stockInfo, onSelect, onCreateProduct, onLinkProduct, onUpdateStock }: {
   item: MListing
   selected: boolean
   linked: boolean
   stockInfo?: { stock_id: string; product_id: string; quantity: number }
   onSelect: (id: string) => void
   onCreateProduct: (id: string) => void
+  onLinkProduct: () => void
   onUpdateStock: (listingId: string, stockId: string, newQty: number) => Promise<boolean>
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
@@ -533,6 +508,40 @@ function ListingCard({ item, selected, linked, stockInfo, onSelect, onCreateProd
           </div>
         </div>
 
+        {/* Ações principais — visíveis no card. Criar/Vincular só quando o
+            anúncio ainda não tem produto vinculado. SEO IA sempre. */}
+        <div className="w-full flex flex-col gap-1 mt-1">
+          {!linked && (
+            <>
+              <button onClick={() => onCreateProduct(item.id)}
+                className="w-full flex items-center justify-center gap-1.5 text-xs px-2 py-1.5 rounded-lg font-medium transition-colors"
+                style={{ background: 'rgba(0,229,255,0.08)', border: '1px solid rgba(0,229,255,0.25)', color: '#00E5FF' }}>
+                <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                </svg>
+                Criar produto
+              </button>
+              <button onClick={onLinkProduct}
+                className="w-full flex items-center justify-center gap-1.5 text-xs px-2 py-1.5 rounded-lg font-medium transition-colors hover:text-white"
+                style={{ background: '#1a1a1f', border: '1px solid #27272a', color: '#a1a1aa' }}>
+                <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 010 5.656l-3 3a4 4 0 01-5.656-5.656l1.5-1.5m6.656-1.828a4 4 0 010-5.656l3-3a4 4 0 015.656 5.656l-1.5 1.5" />
+                </svg>
+                Vincular produto
+              </button>
+            </>
+          )}
+          <a href={`/dashboard/listings/seo-optimizer?mlbId=${item.id}`}
+            className="w-full flex items-center justify-center gap-1.5 text-xs px-2 py-1.5 rounded-lg font-medium transition-colors"
+            style={{ background: 'rgba(0,229,255,0.08)', border: '1px solid rgba(0,229,255,0.25)', color: '#00E5FF' }}
+            title="Analisa o SEO desse anúncio e sugere melhorias respeitando travas do ML">
+            <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+            </svg>
+            Otimizar SEO IA
+          </a>
+        </div>
+
         <div className="relative mt-1">
           <button onClick={() => setMenuOpen(v => !v)}
             className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-colors hover:text-white"
@@ -546,7 +555,6 @@ function ListingCard({ item, selected, linked, stockInfo, onSelect, onCreateProd
             <ItemMenu
               item={item}
               onClose={() => setMenuOpen(false)}
-              onCreateProduct={onCreateProduct}
               hasLinkedStock={!!stockInfo}
               onFocusStock={() => { stockRef.current?.focus(); stockRef.current?.select() }}
             />
@@ -1049,10 +1057,12 @@ export default function MLAnunciosPage() {
   const [results, setResults]               = useState<CreateResult[] | null>(null)
   const [loadingCriacao, setLoadingCriacao] = useState(false)
   const [linkedIds, setLinkedIds]           = useState<Set<string>>(new Set())
-  // Link-to-product (bulk) state — modal abre com selecionados (filtrados pra
-  // só não-vinculados) e exige escolha de UM produto + qty_per_unit.
+  // Link-to-product state — modal abre com os anúncios-alvo (linkTargets) e
+  // exige escolha de UM produto + qty_per_unit. linkTargets é setado pelo
+  // bulk (selecionados não-vinculados) OU pelo botão de vínculo de 1 card.
   const [linkOpen, setLinkOpen]             = useState(false)
   const [linking, setLinking]               = useState(false)
+  const [linkTargets, setLinkTargets]       = useState<MListing[]>([])
   // Map listing_id -> stock info (filled from Supabase). Used to render the
   // inline stock input on each card and to compute the page-total KPI.
   const [stockMap, setStockMap]             = useState<Map<string, { stock_id: string; product_id: string; quantity: number }>>(new Map())
@@ -1385,18 +1395,25 @@ export default function MLAnunciosPage() {
       toast('Todos os selecionados já estão vinculados a algum produto.', 'info')
       return
     }
+    setLinkTargets(unlinkedSelected)
+    setLinkOpen(true)
+  }
+
+  /** Abre o modal de vínculo pra UM anúncio (botão do card). */
+  function openSingleLink(item: MListing) {
+    setLinkTargets([item])
     setLinkOpen(true)
   }
 
   async function handleBulkLink(productId: string, productLabel: string, qtyPerUnit: number) {
-    if (unlinkedSelected.length === 0) return
+    if (linkTargets.length === 0) return
     setLinking(true)
     try {
       const headers = await getHeaders()
       const payload = {
         product_id: productId,
         platform:   'mercadolivre',
-        items: unlinkedSelected.map(it => ({
+        items: linkTargets.map(it => ({
           listing_id:        it.id,
           quantity_per_unit: qtyPerUnit,
           // account_id armazena seller_id como text (multi-conta). Cada
@@ -1790,6 +1807,7 @@ export default function MLAnunciosPage() {
                 stockInfo={stockMap.get(item.id)}
                 onSelect={id => setSelected(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n })}
                 onCreateProduct={id => openCreateConfirm([id])}
+                onLinkProduct={() => openSingleLink(item)}
                 onUpdateStock={updateLinkedStock}
               />
             ))
@@ -1880,7 +1898,7 @@ export default function MLAnunciosPage() {
       {/* ── Link-to-product modal ─────────────────────────────────── */}
       {linkOpen && (
         <LinkToProductModal
-          selectedItems={unlinkedSelected}
+          selectedItems={linkTargets}
           linking={linking}
           onConfirm={handleBulkLink}
           onClose={() => { if (!linking) setLinkOpen(false) }}
