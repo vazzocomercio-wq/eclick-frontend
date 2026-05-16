@@ -8,7 +8,7 @@ import type {
   CreativeImageJob, CreativeImage,
   CreativeVideoJob, CreativeVideo, KlingModel, VideoDuration, VideoAspectRatio,
   MlPublishContext, MlPredictedCategory, MlRequiredAttribute, MlPreviewResponse,
-  MlListingType, MlCondition, CreativePublication,
+  MlListingType, MlCondition, CreativePublication, MlShippingCost,
   BriefingTemplate,
   CreativePromptTemplate, MatchedTemplate, TemplatePreviewResponse, TemplatePosition,
   CreativeReference,
@@ -563,6 +563,18 @@ export const CreativeApi = {
     condition?:      MlCondition
   }) =>
     api<CreativePublication>(`/creative/listings/${listingId}/ml-publish`, {
+      method: 'POST', body: JSON.stringify(body),
+    }),
+
+  /** Custo do frete grátis (vendedor) pra esse anúncio — dimensões + preço. */
+  getListingShippingCost: (listingId: string, body: {
+    length_cm:    number
+    width_cm:     number
+    height_cm:    number
+    weight_grams: number
+    item_price:   number
+  }) =>
+    api<MlShippingCost | null>(`/creative/listings/${listingId}/shipping-cost`, {
       method: 'POST', body: JSON.stringify(body),
     }),
 

@@ -7,21 +7,30 @@
  *   • custo de venda do marketplace / tarifa (%)
  *   • imposto (%)
  *   • reserva para campanhas de promoção (%)
+ *   • custo do frete grátis pago pelo vendedor (R$, opcional)
  *
  * O preço cheio é dimensionado para que, MESMO durante uma promoção do
  * tamanho da reserva, a margem de contribuição alvo se mantenha.
  *
  * Matemática (rates em decimal):
- *   precoPromo = CMV ÷ (1 − tarifa − imposto − margemAlvo)
+ *   precoPromo = (CMV + frete) ÷ (1 − tarifa − imposto − margemAlvo)
  *   precoVenda = precoPromo ÷ (1 − reservaPromo)
+ *
+ * O frete é o custo real que o ML cobra do vendedor pelo frete grátis —
+ * buscado via API por dimensões + peso + preço (o ML aplica internamente as
+ * regras de faixa de preço, incluindo o salto no valor mínimo de frete
+ * grátis). Como o frete depende do preço e o preço depende do frete, a busca
+ * itera até convergir.
  *
  * O resultado é reverificado pelo motor canônico `computeContributionMargin`
  * (@/lib/margin) — a margem exibida é sempre a do motor, não a de entrada.
  */
 
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowDownToLine, AlertCircle, Check } from 'lucide-react'
+import { ArrowDownToLine, AlertCircle, Check, Truck, Loader2 } from 'lucide-react'
 import { computeContributionMargin, estimateSaleFee, round2 } from '@/lib/margin'
+import { CreativeApi } from './api'
+import type { MlShippingCost } from './types'
 
 interface MarkupPanelProps {
   /** Tarifa % default do tipo de anúncio selecionado (escala 0–100). */
@@ -30,6 +39,10 @@ interface MarkupPanelProps {
   currentPrice?: string
   /** Aplica o preço calculado no campo de preço do anúncio. */
   onApplyPrice: (price: number) => void
+  /** Anúncio — usado para buscar o custo de frete no ML. */
+  listingId: string
+  /** Dimensões da embalagem do produto, para pré-preencher os campos de frete. */
+  initialDimensions?: Record<string, unknown>
 }
 
 const num = (s: string): number => {
@@ -37,14 +50,32 @@ const num = (s: string): number => {
   return Number.isFinite(n) && n >= 0 ? n : 0
 }
 const brl = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+const dimStr = (d: Record<string, unknown> | undefined, key: string): string => {
+  const v = d?.[key]
+  return v == null || v === '' ? '' : String(v)
+}
 
-export default function MarkupPanel({ defaultFeePercent, currentPrice, onApplyPrice }: MarkupPanelProps) {
+export default function MarkupPanel({
+  defaultFeePercent, currentPrice, onApplyPrice, listingId, initialDimensions,
+}: MarkupPanelProps) {
   const [targetMargin, setTargetMargin] = useState('')
   const [cost, setCost]                 = useState('')
   const [feePct, setFeePct]             = useState(String(defaultFeePercent))
   const [feeTouched, setFeeTouched]     = useState(false)
   const [taxPct, setTaxPct]             = useState('')
   const [promoPct, setPromoPct]         = useState('')
+
+  // Frete
+  const [sellerPaysShipping, setSellerPaysShipping] = useState(true)
+  const [largura, setLargura] = useState(() => dimStr(initialDimensions, 'largura'))
+  const [altura, setAltura]   = useState(() => dimStr(initialDimensions, 'altura'))
+  const [profund, setProfund] = useState(() => dimStr(initialDimensions, 'profundidade'))
+  const [peso, setPeso]       = useState(() => dimStr(initialDimensions, 'peso'))
+  const [shippingCost, setShippingCost]       = useState(0)
+  const [shippingMeta, setShippingMeta]       = useState<MlShippingCost | null>(null)
+  const [shippingFetchedFor, setShippingFetchedFor] = useState(0)
+  const [shippingLoading, setShippingLoading] = useState(false)
+  const [shippingError, setShippingError]     = useState<string | null>(null)
 
   // Resync da tarifa quando o tipo de anúncio muda — só se o usuário não editou.
   useEffect(() => {
@@ -57,6 +88,7 @@ export default function MarkupPanel({ defaultFeePercent, currentPrice, onApplyPr
     const f     = num(feePct)
     const t     = num(taxPct)
     const promo = num(promoPct)
+    const ship  = sellerPaysShipping ? round2(shippingCost) : 0
 
     if (m <= 0 || cmv <= 0) return { state: 'incomplete' as const }
     if (promo >= 100)       return { state: 'error' as const, msg: 'A reserva para promoção precisa ser menor que 100%.' }
@@ -69,13 +101,13 @@ export default function MarkupPanel({ defaultFeePercent, currentPrice, onApplyPr
       }
     }
 
-    const pricePromo = round2(cmv / denom)
+    const pricePromo = round2((cmv + ship) / denom)
     const priceFull  = round2(pricePromo / (1 - promo / 100))
 
     const verify = (price: number) => computeContributionMargin({
       price,
       saleFee:       estimateSaleFee(price, f, 0),
-      shipping:      0,
+      shipping:      ship,
       cost:          cmv,
       taxPercentage: t,
       taxOnFreight:  false,
@@ -83,16 +115,64 @@ export default function MarkupPanel({ defaultFeePercent, currentPrice, onApplyPr
 
     return {
       state: 'ok' as const,
-      cmv, promo,
+      cmv, promo, shipping: ship,
       pricePromo, priceFull,
       feePromo: estimateSaleFee(pricePromo, f, 0),
       atPromo:  verify(pricePromo),
       atFull:   verify(priceFull),
       markup:   round2(priceFull / cmv),
     }
-  }, [targetMargin, cost, feePct, taxPct, promoPct])
+  }, [targetMargin, cost, feePct, taxPct, promoPct, sellerPaysShipping, shippingCost])
 
   const applied = calc.state === 'ok' && num(currentPrice ?? '') === calc.priceFull
+  const shippingStale =
+    calc.state === 'ok' && sellerPaysShipping && shippingMeta != null &&
+    Math.abs(calc.pricePromo - shippingFetchedFor) > 0.5
+
+  /**
+   * Busca o custo de frete no ML. O custo depende da faixa de preço, então
+   * itera: estima o preço → consulta o frete → recalcula o preço → repete.
+   */
+  async function fetchShipping() {
+    const L = num(profund), W = num(largura), H = num(altura), wt = num(peso)
+    if (!L || !W || !H || !wt) {
+      setShippingError('Preencha largura, altura, profundidade e peso da embalagem.')
+      return
+    }
+    const m = num(targetMargin), cmv = num(cost), f = num(feePct), t = num(taxPct)
+    const denom = 1 - f / 100 - t / 100 - m / 100
+    if (m <= 0 || cmv <= 0 || denom <= 0) {
+      setShippingError('Preencha margem alvo e custo (CMV) antes de buscar o frete.')
+      return
+    }
+
+    setShippingLoading(true); setShippingError(null)
+    try {
+      let ship = 0
+      let meta: MlShippingCost | null = null
+      let pricePromo = 0
+      for (let i = 0; i < 6; i++) {
+        pricePromo = round2((cmv + ship) / denom)
+        const res = await CreativeApi.getListingShippingCost(listingId, {
+          length_cm: L, width_cm: W, height_cm: H, weight_grams: wt, item_price: pricePromo,
+        })
+        if (!res) {
+          setShippingError('O Mercado Livre não retornou o custo de frete. Confira as medidas da embalagem.')
+          return
+        }
+        meta = res
+        if (Math.abs(res.sellerCost - ship) < 0.01) { ship = res.sellerCost; break }
+        ship = res.sellerCost
+      }
+      setShippingCost(round2(ship))
+      setShippingMeta(meta)
+      setShippingFetchedFor(round2((cmv + round2(ship)) / denom))
+    } catch (e) {
+      setShippingError((e as Error).message)
+    } finally {
+      setShippingLoading(false)
+    }
+  }
 
   return (
     <div className="space-y-3">
@@ -108,6 +188,78 @@ export default function MarkupPanel({ defaultFeePercent, currentPrice, onApplyPr
         />
         <Field label="Imposto (%)" value={taxPct} onChange={setTaxPct} placeholder="8" />
         <Field label="Reserva para promoção (%)" value={promoPct} onChange={setPromoPct} placeholder="10" wide />
+      </div>
+
+      {/* Frete */}
+      <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-2.5 space-y-2.5">
+        <button
+          type="button"
+          onClick={() => setSellerPaysShipping(v => !v)}
+          className="flex items-center gap-2 w-full text-left"
+        >
+          <span className={[
+            'flex items-center justify-center w-4 h-4 rounded border transition-colors shrink-0',
+            sellerPaysShipping ? 'bg-cyan-400 border-cyan-400' : 'border-zinc-600',
+          ].join(' ')}>
+            {sellerPaysShipping && <Check size={11} className="text-black" />}
+          </span>
+          <Truck size={13} className="text-cyan-400 shrink-0" />
+          <span className="text-[11px] font-medium text-zinc-200">Frete grátis por conta do vendedor</span>
+        </button>
+
+        {sellerPaysShipping ? (
+          <>
+            <p className="text-[10px] text-zinc-600 leading-relaxed">
+              Acima do valor mínimo de frete grátis o custo é seu — ele entra na formação do preço.
+              O Mercado Livre calcula pelo tamanho e peso da embalagem.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <Field label="Largura (cm)"       value={largura} onChange={setLargura} placeholder="40" />
+              <Field label="Altura (cm)"        value={altura}  onChange={setAltura}  placeholder="10" />
+              <Field label="Profundidade (cm)"  value={profund} onChange={setProfund} placeholder="40" />
+              <Field label="Peso (g)"           value={peso}    onChange={setPeso}    placeholder="420" />
+            </div>
+
+            <button
+              type="button"
+              onClick={fetchShipping}
+              disabled={shippingLoading}
+              className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all border border-cyan-400/30 bg-cyan-400/10 text-cyan-300 hover:bg-cyan-400/20 disabled:opacity-60"
+            >
+              {shippingLoading
+                ? <><Loader2 size={12} className="animate-spin" /> Consultando o Mercado Livre…</>
+                : <><Truck size={12} /> {shippingMeta ? 'Recalcular frete' : 'Buscar custo de frete no ML'}</>}
+            </button>
+
+            {shippingError && (
+              <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-2 text-[10px] text-red-200 flex items-start gap-1.5">
+                <AlertCircle size={11} className="shrink-0 mt-0.5" />
+                <span>{shippingError}</span>
+              </div>
+            )}
+
+            {shippingMeta && !shippingError && (
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-zinc-400">
+                  Frete por venda
+                  <span className="text-zinc-600"> · peso considerado {(shippingMeta.billableWeight / 1000).toFixed(2)} kg</span>
+                </span>
+                <span className="font-semibold text-zinc-100">{brl(shippingCost)}</span>
+              </div>
+            )}
+
+            {shippingStale && (
+              <p className="text-[10px] text-amber-400 flex items-start gap-1">
+                <AlertCircle size={11} className="shrink-0 mt-0.5" />
+                O preço mudou desde o cálculo — clique em Recalcular frete para confirmar a faixa.
+              </p>
+            )}
+          </>
+        ) : (
+          <p className="text-[10px] text-zinc-600 leading-relaxed">
+            O comprador paga o frete — nenhum custo de frete entra na formação do preço.
+          </p>
+        )}
       </div>
 
       {calc.state === 'incomplete' && (
@@ -162,6 +314,9 @@ export default function MarkupPanel({ defaultFeePercent, currentPrice, onApplyPr
               <Row label="Preço durante a promoção" value={brl(calc.pricePromo)} />
               <Row label="− Custo de venda (marketplace)" value={`− ${brl(calc.feePromo)}`} muted />
               <Row label="− Imposto" value={`− ${brl(calc.atPromo.taxAmount)}`} muted />
+              {calc.shipping > 0 && (
+                <Row label="− Frete grátis (por conta do vendedor)" value={`− ${brl(calc.shipping)}`} muted />
+              )}
               <Row label="− Custo do produto (CMV)" value={`− ${brl(calc.cmv)}`} muted />
               <div className="border-t border-zinc-800 my-1" />
               <Row

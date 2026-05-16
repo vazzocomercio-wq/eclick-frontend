@@ -452,6 +452,17 @@ export interface MlPreviewResponse {
   ml_payload:          Record<string, unknown>
 }
 
+export interface MlShippingCost {
+  /** Custo do frete grátis pago pelo vendedor (R$), já com subsídio do ML descontado. */
+  sellerCost:     number
+  /** Custo de tabela bruto, antes do subsídio (R$). */
+  listCost:       number
+  /** Peso considerado pelo ML (máx. real x volumétrico), em gramas. */
+  billableWeight: number
+  /** Fração do subsídio de reputação do ML (0–1). */
+  discountRate:   number
+}
+
 export interface CreativePublication {
   id:                            string
   organization_id:               string

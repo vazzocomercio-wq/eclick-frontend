@@ -338,6 +338,8 @@ export default function MLPublishPage() {
                 defaultFeePercent={fallbackFeeRate(listingType)}
                 currentPrice={price}
                 onApplyPrice={p => setPrice(String(p))}
+                listingId={listingId}
+                initialDimensions={product.dimensions}
               />
             </Section>
 
