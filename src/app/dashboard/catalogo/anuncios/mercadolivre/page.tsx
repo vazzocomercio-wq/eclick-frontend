@@ -369,16 +369,19 @@ function MarginPanel({ price, saleFee, shipping, info, orgTaxPct, onSave }: {
   )
 }
 
-function ListingCard({ item, selected, linked, stockInfo, marginInfo, orgTaxPct, onSelect, onCreateProduct, onLinkProduct, onUpdateStock, onSaveMargin }: {
+function ListingCard({ item, selected, linked, stockInfo, marginInfo, orgTaxPct, matchedProduct, onSelect, onCreateProduct, onLinkProduct, onLinkToKnownProduct, onUpdateStock, onSaveMargin }: {
   item: MListing
   selected: boolean
   linked: boolean
   stockInfo?: { stock_id: string; product_id: string; quantity: number }
   marginInfo?: MarginInfo
   orgTaxPct: number | null
+  /** Produto-pai detectado por SKU (sem vínculo formal ainda). */
+  matchedProduct?: { id: string; name: string }
   onSelect: (id: string) => void
   onCreateProduct: (id: string) => void
   onLinkProduct: () => void
+  onLinkToKnownProduct: (product: { id: string; name: string }) => void
   onUpdateStock: (listingId: string, stockId: string, newQty: number) => Promise<boolean>
   onSaveMargin: (productId: string, patch: { cost: number | null; taxPct: number | null }) => Promise<boolean>
 }) {
@@ -654,29 +657,51 @@ function ListingCard({ item, selected, linked, stockInfo, marginInfo, orgTaxPct,
           />
         )}
 
-        {/* Ações principais — visíveis no card. Criar/Vincular só quando o
-            anúncio ainda não tem produto vinculado. SEO IA sempre. */}
+        {/* Ações principais. Distingue PRODUTO (pai do catálogo, base de
+            estoque) de ANÚNCIO (publicação no marketplace):
+            - sem vínculo + produto-pai existe por SKU → vincular ao pai
+              (NÃO oferece "Criar produto" — evitaria um pai duplicado)
+            - sem vínculo + sem produto-pai → "Criar produto"
+            - vinculado → botão "Vincular" inativo, mas visível */}
         <div className="w-full flex flex-col gap-1 mt-1">
-          {!linked && (
-            <>
-              <button onClick={() => onCreateProduct(item.id)}
-                className="w-full flex items-center justify-center gap-1.5 text-xs px-2 py-1.5 rounded-lg font-medium transition-colors"
-                style={{ background: 'rgba(0,229,255,0.08)', border: '1px solid rgba(0,229,255,0.25)', color: '#00E5FF' }}>
-                <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                </svg>
-                Criar produto
-              </button>
-              <button onClick={onLinkProduct}
-                className="w-full flex items-center justify-center gap-1.5 text-xs px-2 py-1.5 rounded-lg font-medium transition-colors hover:text-white"
-                style={{ background: '#1a1a1f', border: '1px solid #27272a', color: '#a1a1aa' }}>
-                <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 010 5.656l-3 3a4 4 0 01-5.656-5.656l1.5-1.5m6.656-1.828a4 4 0 010-5.656l3-3a4 4 0 015.656 5.656l-1.5 1.5" />
-                </svg>
-                Vincular produto
-              </button>
-            </>
+          {!linked && matchedProduct && (
+            <p className="text-[10px] text-zinc-500 leading-tight px-0.5">
+              Produto no catálogo: <span className="text-zinc-300">{matchedProduct.name}</span>
+            </p>
           )}
+          {!linked && !matchedProduct && (
+            <button onClick={() => onCreateProduct(item.id)}
+              className="w-full flex items-center justify-center gap-1.5 text-xs px-2 py-1.5 rounded-lg font-medium transition-colors"
+              style={{ background: 'rgba(0,229,255,0.08)', border: '1px solid rgba(0,229,255,0.25)', color: '#00E5FF' }}>
+              <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+              Criar produto
+            </button>
+          )}
+          {/* "Vincular produto" — sempre visível. Verde quando há ação;
+              inativo (cinza) quando o anúncio já tem produto. */}
+          <button
+            onClick={() => {
+              if (linked) return
+              if (matchedProduct) onLinkToKnownProduct(matchedProduct)
+              else onLinkProduct()
+            }}
+            disabled={linked}
+            title={linked
+              ? 'Anúncio já vinculado a um produto'
+              : matchedProduct
+                ? `Vincular ao produto: ${matchedProduct.name}`
+                : 'Vincular a um produto do catálogo'}
+            className="w-full flex items-center justify-center gap-1.5 text-xs px-2 py-1.5 rounded-lg font-medium transition-colors"
+            style={linked
+              ? { background: '#141417', border: '1px solid #27272a', color: '#52525b', cursor: 'default' }
+              : { background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.45)', color: '#4ade80' }}>
+            <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 010 5.656l-3 3a4 4 0 01-5.656-5.656l1.5-1.5m6.656-1.828a4 4 0 010-5.656l3-3a4 4 0 015.656 5.656l-1.5 1.5" />
+            </svg>
+            {linked ? 'Produto vinculado' : 'Vincular produto'}
+          </button>
           <a href={`/dashboard/listings/seo-optimizer?mlbId=${item.id}`}
             className="w-full flex items-center justify-center gap-1.5 text-xs px-2 py-1.5 rounded-lg font-medium transition-colors"
             style={{ background: 'rgba(0,229,255,0.08)', border: '1px solid rgba(0,229,255,0.25)', color: '#00E5FF' }}
@@ -1238,6 +1263,9 @@ export default function MLAnunciosPage() {
   }>>({})
   // Imposto padrão da org — fallback quando o produto não tem imposto próprio.
   const [orgTax, setOrgTax] = useState<{ pct: number | null; onFreight: boolean }>({ pct: null, onFreight: false })
+  // Produto do catálogo por SKU — detecta o produto-pai mesmo SEM vínculo
+  // formal, pra não oferecer "Criar produto" e gerar um pai duplicado.
+  const [productBySku, setProductBySku] = useState<Record<string, { id: string; name: string }>>({})
 
   const tid = useRef(0)
   const PAGE = 20
@@ -1382,8 +1410,9 @@ export default function MLAnunciosPage() {
   useEffect(() => {
     if (items.length === 0) return
     const ids = items.map(i => i.id)
+    const skus = [...new Set(items.map(i => i.sku).filter((s): s is string => !!s))]
     ;(async () => {
-      const [linkRes, campsRes] = await Promise.all([
+      const [linkRes, campsRes, prodRes] = await Promise.all([
         supabase
           .from('product_listings')
           .select('listing_id, product_id, product:products(cost_price, tax_percentage, tax_on_freight)')
@@ -1393,6 +1422,10 @@ export default function MLAnunciosPage() {
           .from('ml_ads_campaigns')
           .select('items')
           .eq('status', 'active'),
+        // Produto-pai por SKU — pra detectar anúncio cujo produto já existe.
+        skus.length > 0
+          ? supabase.from('products').select('id, name, sku').in('sku', skus)
+          : Promise.resolve({ data: [] as Array<{ id: string; name: string; sku: string }> }),
       ])
       type ProdRow = { cost_price: number | null; tax_percentage: number | null; tax_on_freight: boolean | null }
       type LinkRow = { listing_id: string; product_id: string; product: ProdRow | ProdRow[] | null }
@@ -1412,9 +1445,15 @@ export default function MLAnunciosPage() {
       for (const c of (campsRes.data ?? []) as Array<{ items: string[] | null }>) {
         for (const it of c.items ?? []) inCamps.add(it)
       }
+      // Indexa o produto-pai por SKU (1º produto encontrado por SKU).
+      const pbs: Record<string, { id: string; name: string }> = {}
+      for (const p of (prodRes.data ?? []) as Array<{ id: string; name: string; sku: string }>) {
+        if (p.sku && !pbs[p.sku]) pbs[p.sku] = { id: p.id, name: p.name }
+      }
       setCostMap(cm)
       setMarginMap(mm)
       setAdItems(inCamps)
+      setProductBySku(pbs)
     })()
   }, [items, supabase])
 
@@ -1638,6 +1677,42 @@ export default function MLAnunciosPage() {
       setLinkOpen(false)
       setSelected(new Set())
       // Refresh linked IDs + stock map pra badges atualizarem imediatamente
+      loadStockMap()
+    } catch (e: unknown) {
+      toast(e instanceof Error ? e.message : 'Erro ao vincular', 'error')
+    } finally {
+      setLinking(false)
+    }
+  }
+
+  /** Vincula 1 anúncio direto a um produto-pai já conhecido (detectado por
+   *  SKU) — sem abrir o picker. Evita criar produto-pai duplicado. */
+  async function linkToKnownProduct(item: MListing, product: { id: string; name: string }) {
+    setLinking(true)
+    try {
+      const headers = await getHeaders()
+      const res = await fetch(`${BACKEND}/products/vinculos/bulk`, {
+        method:  'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          product_id: product.id,
+          platform:   'mercadolivre',
+          items: [{
+            listing_id:        item.id,
+            quantity_per_unit: 1,
+            account_id:        item.account_seller_id != null ? String(item.account_seller_id) : null,
+            listing_title:     item.title ?? null,
+            listing_price:     item.price ?? null,
+            listing_thumbnail: item.thumbnail ?? null,
+            listing_permalink: item.permalink ?? null,
+          }],
+        }),
+      })
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { message?: string }
+        throw new Error(body.message ?? `HTTP ${res.status}`)
+      }
+      toast(`Anúncio vinculado a ${product.name}`, 'success')
       loadStockMap()
     } catch (e: unknown) {
       toast(e instanceof Error ? e.message : 'Erro ao vincular', 'error')
@@ -1999,9 +2074,11 @@ export default function MLAnunciosPage() {
                 stockInfo={stockMap.get(item.id)}
                 marginInfo={marginMap[item.id]}
                 orgTaxPct={orgTax.pct}
+                matchedProduct={item.sku ? productBySku[item.sku] : undefined}
                 onSelect={id => setSelected(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n })}
                 onCreateProduct={id => openCreateConfirm([id])}
                 onLinkProduct={() => openSingleLink(item)}
+                onLinkToKnownProduct={product => linkToKnownProduct(item, product)}
                 onUpdateStock={updateLinkedStock}
                 onSaveMargin={(productId, patch) => saveMargin(item.id, productId, patch)}
               />
