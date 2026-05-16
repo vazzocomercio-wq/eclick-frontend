@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import AccountSelector, { useMlAccount } from '@/components/ml/AccountSelector'
-import { fallbackFeeRate } from '@/lib/margin'
+import { fallbackFeeRate, computeContributionMargin } from '@/lib/margin'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 
@@ -259,15 +259,114 @@ function ItemMenu({ item, onClose, onFocusStock, hasLinkedStock }: {
 
 // ── Listing card ───────────────────────────────────────────────────────────
 
-function ListingCard({ item, selected, linked, stockInfo, onSelect, onCreateProduct, onLinkProduct, onUpdateStock }: {
+interface MarginInfo {
+  product_id:     string
+  cost:           number | null
+  tax_pct:        number | null
+  tax_on_freight: boolean
+}
+
+// ── Painel de margem do card ────────────────────────────────────────────────
+// Mostra custo + imposto editáveis e a margem de contribuição calculada pelo
+// motor canônico (lib/margin). Aparece só em anúncio com produto vinculado.
+
+function MarginPanel({ price, saleFee, shipping, info, orgTaxPct, onSave }: {
+  price:     number
+  saleFee:   number
+  shipping:  number
+  info:      MarginInfo
+  orgTaxPct: number | null
+  onSave:    (productId: string, patch: { cost: number | null; taxPct: number | null }) => Promise<boolean>
+}) {
+  const taxInitial  = info.tax_pct ?? orgTaxPct
+  const costInitial = info.cost != null ? String(info.cost) : ''
+  const taxBaseline = taxInitial != null ? String(taxInitial) : ''
+
+  const [costDraft, setCostDraft] = useState(costInitial)
+  const [taxDraft, setTaxDraft]   = useState(taxBaseline)
+  const [saving, setSaving]       = useState(false)
+
+  const cost   = parseFloat(costDraft.replace(',', '.')) || 0
+  const taxPct = parseFloat(taxDraft.replace(',', '.')) || 0
+
+  const m = computeContributionMargin({
+    price, saleFee, shipping, cost,
+    taxPercentage: taxPct, taxOnFreight: info.tax_on_freight,
+  })
+
+  const dirty        = costDraft !== costInitial || taxDraft !== taxBaseline
+  const taxInherited = info.tax_pct == null && orgTaxPct != null
+  const noCost       = costDraft.trim() === ''
+
+  async function save() {
+    setSaving(true)
+    await onSave(info.product_id, {
+      cost:   costDraft.trim() === '' ? null : cost,
+      taxPct: taxDraft.trim()  === '' ? null : taxPct,
+    })
+    setSaving(false)
+  }
+
+  const marginColor = noCost            ? '#71717a'
+                    : m.contributionMarginPct >= 15 ? '#4ade80'
+                    : m.contributionMarginPct >= 5  ? '#fbbf24'
+                    :                                 '#f87171'
+
+  const fieldStyle = { background: '#0d0d10', border: '1px solid #27272a' }
+
+  return (
+    <div className="w-full text-[11px] pt-2 mt-1 space-y-1.5" style={{ borderTop: '1px solid #1e1e24' }}>
+      <div className="flex items-center justify-between gap-1">
+        <span className="text-zinc-500">Custo</span>
+        <div className="flex items-center gap-0.5">
+          <span className="text-zinc-600">R$</span>
+          <input value={costDraft} onChange={e => setCostDraft(e.target.value)}
+            placeholder="0,00" inputMode="decimal"
+            className="w-16 text-right text-zinc-200 tabular-nums px-1.5 py-0.5 rounded outline-none focus:border-cyan-400"
+            style={fieldStyle} />
+        </div>
+      </div>
+      <div className="flex items-center justify-between gap-1">
+        <span className="text-zinc-500">
+          Imposto{taxInherited && <span className="text-zinc-600" title="Herdado do imposto padrão da empresa"> (padrão)</span>}
+        </span>
+        <div className="flex items-center gap-0.5">
+          <input value={taxDraft} onChange={e => setTaxDraft(e.target.value)}
+            placeholder="0" inputMode="decimal"
+            className="w-12 text-right text-zinc-200 tabular-nums px-1.5 py-0.5 rounded outline-none focus:border-cyan-400"
+            style={fieldStyle} />
+          <span className="text-zinc-600">%</span>
+        </div>
+      </div>
+      <div className="flex justify-between items-baseline pt-1" style={{ borderTop: '1px dashed #1e1e24' }}>
+        <span className="text-zinc-400 font-medium">Margem</span>
+        <span className="font-bold" style={{ color: marginColor }}>
+          {noCost ? 'sem custo' : `${brl(m.contributionMargin)} · ${m.contributionMarginPct.toFixed(1)}%`}
+        </span>
+      </div>
+      {dirty && (
+        <button onClick={save} disabled={saving}
+          className="w-full text-[10px] py-1 rounded-md font-semibold transition-opacity hover:opacity-90 disabled:opacity-60"
+          style={{ background: '#00E5FF', color: '#000' }}>
+          {saving ? 'Salvando…' : 'Salvar custo/imposto'}
+        </button>
+      )}
+    </div>
+  )
+}
+
+function ListingCard({ item, selected, linked, stockInfo, marginInfo, orgTaxPct, onSelect, onCreateProduct, onLinkProduct, onUpdateStock, onSaveMargin }: {
   item: MListing
   selected: boolean
   linked: boolean
   stockInfo?: { stock_id: string; product_id: string; quantity: number }
+  marginInfo?: MarginInfo
+  orgTaxPct: number | null
   onSelect: (id: string) => void
   onCreateProduct: (id: string) => void
   onLinkProduct: () => void
   onUpdateStock: (listingId: string, stockId: string, newQty: number) => Promise<boolean>
+  onSaveMargin: (productId: string, patch: { cost: number | null; taxPct: number | null }) => Promise<boolean>
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const stockRef = useRef<HTMLInputElement>(null)
@@ -519,9 +618,27 @@ function ListingCard({ item, selected, linked, stockInfo, onSelect, onCreateProd
           </div>
           <div className="flex justify-between text-zinc-600">
             <span>Frete vendedor</span>
-            <span>{item.free_shipping ? 'Incluso' : 'Comprador'}</span>
+            <span>
+              {item.free_shipping
+                ? (item.estimated_free_shipping_cost != null
+                    ? <span className="text-red-400/80">-{brl(item.estimated_free_shipping_cost)}</span>
+                    : 'Incluso')
+                : 'Comprador'}
+            </span>
           </div>
         </div>
+
+        {/* Painel de margem — só quando o anúncio tem produto vinculado. */}
+        {linked && marginInfo && (
+          <MarginPanel
+            price={item.price}
+            saleFee={fee}
+            shipping={item.free_shipping ? (item.estimated_free_shipping_cost ?? 0) : 0}
+            info={marginInfo}
+            orgTaxPct={orgTaxPct}
+            onSave={onSaveMargin}
+          />
+        )}
 
         {/* Ações principais — visíveis no card. Criar/Vincular só quando o
             anúncio ainda não tem produto vinculado. SEO IA sempre. */}
@@ -1098,6 +1215,15 @@ export default function MLAnunciosPage() {
   // Map listing_id → cost_price (vinculado e com cost cadastrado)
   const [costMap, setCostMap] = useState<Record<string, number | null>>({})
   const [adItems, setAdItems] = useState<Set<string>>(new Set())
+  // Dados do produto vinculado, por listing — pro painel de margem do card.
+  const [marginMap, setMarginMap] = useState<Record<string, {
+    product_id:   string
+    cost:         number | null
+    tax_pct:      number | null
+    tax_on_freight: boolean
+  }>>({})
+  // Imposto padrão da org — fallback quando o produto não tem imposto próprio.
+  const [orgTax, setOrgTax] = useState<{ pct: number | null; onFreight: boolean }>({ pct: null, onFreight: false })
 
   const tid = useRef(0)
   const PAGE = 20
@@ -1210,6 +1336,34 @@ export default function MLAnunciosPage() {
 
   useEffect(() => { loadStockMap() }, [loadStockMap])
 
+  // Imposto padrão da org — fallback do painel de margem quando o produto
+  // vinculado não tem imposto próprio cadastrado.
+  useEffect(() => {
+    void (async () => {
+      try {
+        const headers = await getHeaders()
+        const res = await fetch(`${BACKEND}/products/tax-config`, { headers })
+        if (res.ok) {
+          const d = await res.json() as { default_tax_percentage: number | null; default_tax_on_freight: boolean }
+          setOrgTax({ pct: d.default_tax_percentage, onFreight: Boolean(d.default_tax_on_freight) })
+        }
+      } catch { /* silencioso */ }
+    })()
+  }, [getHeaders])
+
+  /** Salva custo e imposto no produto vinculado (a partir do painel do card). */
+  async function saveMargin(listingId: string, productId: string, patch: { cost: number | null; taxPct: number | null }) {
+    const { error } = await supabase
+      .from('products')
+      .update({ cost_price: patch.cost, tax_percentage: patch.taxPct })
+      .eq('id', productId)
+    if (error) { toast('Falha ao salvar custo/imposto', 'error'); return false }
+    setMarginMap(m => ({ ...m, [listingId]: { ...m[listingId], cost: patch.cost, tax_pct: patch.taxPct } }))
+    setCostMap(c => ({ ...c, [listingId]: patch.cost }))
+    toast('Custo e imposto atualizados', 'success')
+    return true
+  }
+
   // Fetch cost_price por listing + campanhas ML Ads ativas (pra "sem custo" / "sem campanha")
   useEffect(() => {
     if (items.length === 0) return
@@ -1218,7 +1372,7 @@ export default function MLAnunciosPage() {
       const [linkRes, campsRes] = await Promise.all([
         supabase
           .from('product_listings')
-          .select('listing_id, product:products(cost_price)')
+          .select('listing_id, product_id, product:products(cost_price, tax_percentage, tax_on_freight)')
           .in('listing_id', ids)
           .eq('platform', 'mercadolivre'),
         supabase
@@ -1226,17 +1380,26 @@ export default function MLAnunciosPage() {
           .select('items')
           .eq('status', 'active'),
       ])
-      type LinkRow = { listing_id: string; product: { cost_price: number | null } | { cost_price: number | null }[] | null }
+      type ProdRow = { cost_price: number | null; tax_percentage: number | null; tax_on_freight: boolean | null }
+      type LinkRow = { listing_id: string; product_id: string; product: ProdRow | ProdRow[] | null }
       const cm: Record<string, number | null> = {}
+      const mm: Record<string, { product_id: string; cost: number | null; tax_pct: number | null; tax_on_freight: boolean }> = {}
       for (const r of (linkRes.data ?? []) as LinkRow[]) {
         const prod = Array.isArray(r.product) ? r.product[0] : r.product
         cm[r.listing_id] = prod?.cost_price ?? null
+        mm[r.listing_id] = {
+          product_id:     r.product_id,
+          cost:           prod?.cost_price ?? null,
+          tax_pct:        prod?.tax_percentage ?? null,
+          tax_on_freight: Boolean(prod?.tax_on_freight),
+        }
       }
       const inCamps = new Set<string>()
       for (const c of (campsRes.data ?? []) as Array<{ items: string[] | null }>) {
         for (const it of c.items ?? []) inCamps.add(it)
       }
       setCostMap(cm)
+      setMarginMap(mm)
       setAdItems(inCamps)
     })()
   }, [items, supabase])
@@ -1820,10 +1983,13 @@ export default function MLAnunciosPage() {
                 selected={selected.has(item.id)}
                 linked={linkedIds.has(item.id)}
                 stockInfo={stockMap.get(item.id)}
+                marginInfo={marginMap[item.id]}
+                orgTaxPct={orgTax.pct}
                 onSelect={id => setSelected(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n })}
                 onCreateProduct={id => openCreateConfirm([id])}
                 onLinkProduct={() => openSingleLink(item)}
                 onUpdateStock={updateLinkedStock}
+                onSaveMargin={(productId, patch) => saveMargin(item.id, productId, patch)}
               />
             ))
         }
