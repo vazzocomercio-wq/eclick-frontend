@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import AccountSelector, { useMlAccount } from '@/components/ml/AccountSelector'
-import { fallbackFeeRate, computeContributionMargin, round2 } from '@/lib/margin'
+import { fallbackFeeRate, computeContributionMargin, round2, estimateSaleFee } from '@/lib/margin'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 
@@ -47,14 +47,13 @@ type MListing = {
   estimated_free_shipping_cost: number | null
 }
 
-// Status real do catálogo (price_to_win do ML) — vem do Radar (radar_offers).
+// Status real do catálogo (price_to_win do ML) — buscado AO VIVO.
 type CatalogInfo = {
   item_id: string
-  price: number | null
-  price_to_win: number | null
   catalog_status: string | null
+  price_to_win: number | null
   catalog_winner_price: number | null
-  price_to_win_checked_at: string | null
+  current_price: number | null
 }
 
 type CreateResult = {
@@ -95,12 +94,15 @@ function typeBadge(listing_type_id: string, logistic_type: string | null, catalo
   else if (catalog_listing)
     badges.push({ label: 'Catálogo', bg: '#1a0e33', color: '#a78bfa', border: '#7c3aed2a' })
 
-  if (listing_type_id === 'gold_pro' || listing_type_id === 'gold_premium')
-    badges.push({ label: 'Premium', bg: '#0e2a33', color: '#00E5FF', border: '#00E5FF22' })
-  else if (listing_type_id === 'gold_special')
-    badges.push({ label: 'Ouro', bg: '#2a1e00', color: '#fbbf24', border: '#f59e0b22' })
-  else
-    badges.push({ label: 'Clássico', bg: '#1a1a1f', color: '#71717a', border: '#27272a' })
+  // Rótulos na linguagem atual do ML (alinhado com radar/_components/shared).
+  const TYPE_LABELS: Record<string, string> = {
+    gold_pro: 'Premium', gold_premium: 'Premium', gold_special: 'Clássico',
+    gold: 'Ouro', silver: 'Prata', bronze: 'Bronze', free: 'Grátis',
+  }
+  const isPremium = listing_type_id === 'gold_pro' || listing_type_id === 'gold_premium'
+  badges.push(isPremium
+    ? { label: 'Premium', bg: '#0e2a33', color: '#00E5FF', border: '#00E5FF22' }
+    : { label: TYPE_LABELS[listing_type_id] ?? 'Clássico', bg: '#1a1a1f', color: '#a1a1aa', border: '#27272a' })
 
   return badges
 }
@@ -280,13 +282,16 @@ interface MarginInfo {
 // Mostra custo + imposto editáveis e a margem de contribuição calculada pelo
 // motor canônico (lib/margin). Aparece só em anúncio com produto vinculado.
 
-function MarginPanel({ price, saleFee, shipping, info, orgTaxPct, onSave }: {
-  price:     number
-  saleFee:   number
-  shipping:  number
-  info:      MarginInfo
-  orgTaxPct: number | null
-  onSave:    (productId: string, patch: { cost: number | null; taxPct: number | null }) => Promise<boolean>
+function MarginPanel({ price, saleFee, shipping, info, orgTaxPct, priceToWin, feeAtWin, onSave }: {
+  price:      number
+  saleFee:    number
+  shipping:   number
+  info:       MarginInfo
+  orgTaxPct:  number | null
+  /** Preço pra ganhar o catálogo + tarifa estimada nesse preço. */
+  priceToWin: number | null
+  feeAtWin:   number | null
+  onSave:     (productId: string, patch: { cost: number | null; taxPct: number | null }) => Promise<boolean>
 }) {
   const taxInitial  = info.tax_pct ?? orgTaxPct
   const costInitial = info.cost != null ? String(info.cost) : ''
@@ -303,6 +308,13 @@ function MarginPanel({ price, saleFee, shipping, info, orgTaxPct, onSave }: {
     price, saleFee, shipping, cost,
     taxPercentage: taxPct, taxOnFreight: info.tax_on_freight,
   })
+  // Margem projetada SE o preço cair pro "preço pra ganhar" o catálogo.
+  const mWin = priceToWin != null && feeAtWin != null && priceToWin > 0 && priceToWin !== price
+    ? computeContributionMargin({
+        price: priceToWin, saleFee: feeAtWin, shipping, cost,
+        taxPercentage: taxPct, taxOnFreight: info.tax_on_freight,
+      })
+    : null
   // Lucro bruto = preço − tarifa − frete (antes de custo e imposto).
   const grossProfit    = round2(price - saleFee - shipping)
   const grossProfitPct = price > 0 ? round2((grossProfit / price) * 100) : 0
@@ -368,6 +380,20 @@ function MarginPanel({ price, saleFee, shipping, info, orgTaxPct, onSave }: {
           )}
         </div>
       </div>
+      {mWin && !noCost && (
+        <div className="flex justify-between items-start pt-1" style={{ borderTop: '1px dashed #1e1e24' }}>
+          <span className="text-zinc-500">
+            No preço pra ganhar
+            <span className="block tabular-nums" style={{ color: '#67e8f9' }}>{brl(priceToWin!)}</span>
+          </span>
+          <div className="text-right font-bold" style={{
+            color: mWin.contributionMarginPct >= 15 ? '#4ade80'
+                 : mWin.contributionMarginPct >= 5  ? '#fbbf24' : '#f87171',
+          }}>
+            {brl(mWin.contributionMargin)} · {mWin.contributionMarginPct.toFixed(1)}%
+          </div>
+        </div>
+      )}
       {dirty && (
         <button onClick={save} disabled={saving}
           className="w-full text-[10px] py-1 rounded-md font-semibold transition-opacity hover:opacity-90 disabled:opacity-60"
@@ -446,6 +472,13 @@ function ListingCard({ item, selected, linked, catalog, stockInfo, marginInfo, o
     ? item.estimated_fee_pct
     : fallbackFeeRate(item.listing_type_id)
   const net      = item.price - fee
+  // Tarifa estimada no "preço pra ganhar" do catálogo (tarifa escala com preço).
+  const ptwPrice = catalog?.price_to_win ?? null
+  const feeAtWin = ptwPrice != null
+    ? (feeIsEstimated && item.estimated_fee_pct != null
+        ? estimateSaleFee(ptwPrice, item.estimated_fee_pct, item.estimated_fixed_fee ?? 0)
+        : ptwPrice * fallbackFeeRate(item.listing_type_id) / 100)
+    : null
   const badges   = typeBadge(item.listing_type_id, item.logistic_type, item.catalog_listing)
   const isActive = item.status === 'active'
   const disc     = discountPct(item.original_price, item.price)
@@ -665,6 +698,12 @@ function ListingCard({ item, selected, linked, catalog, stockInfo, marginInfo, o
                   className="w-24 text-right text-white text-lg font-bold tabular-nums px-1.5 py-0.5 rounded outline-none"
                   style={{ background: '#0d0d10', border: '1px solid #00E5FF' }} />
               </div>
+              {catalog?.price_to_win != null && (
+                <button onClick={() => setPriceDraft(String(catalog.price_to_win))}
+                  className="text-[10px] hover:underline" style={{ color: '#67e8f9' }}>
+                  usar preço pra ganhar ({brl(catalog.price_to_win)})
+                </button>
+              )}
               <div className="flex gap-2">
                 <button onClick={() => setEditingPrice(false)}
                   className="text-[10px] text-zinc-500 hover:text-zinc-300">cancelar</button>
@@ -687,9 +726,12 @@ function ListingCard({ item, selected, linked, catalog, stockInfo, marginInfo, o
           )}
           <p className="text-emerald-400 text-xs font-semibold mt-0.5">Líquido: {brl(net)}</p>
           {catalog?.catalog_status && catalog.catalog_status !== 'winning' && catalog.price_to_win != null && (
-            <p className="text-[11px] font-semibold mt-1" style={{ color: '#67e8f9' }}>
-              Ganha o catálogo a {brl(catalog.price_to_win)}
-            </p>
+            <button
+              onClick={() => { setPriceDraft(String(catalog.price_to_win)); setEditingPrice(true) }}
+              className="text-[11px] font-semibold mt-1 hover:underline" style={{ color: '#67e8f9' }}
+              title="Abrir o ajuste de preço já com o preço pra ganhar">
+              Ganha o catálogo a {brl(catalog.price_to_win)} →
+            </button>
           )}
         </div>
 
@@ -722,6 +764,8 @@ function ListingCard({ item, selected, linked, catalog, stockInfo, marginInfo, o
             shipping={item.free_shipping ? (item.estimated_free_shipping_cost ?? 0) : 0}
             info={marginInfo}
             orgTaxPct={orgTaxPct}
+            priceToWin={ptwPrice}
+            feeAtWin={feeAtWin}
             onSave={onSaveMargin}
           />
         )}
@@ -1399,17 +1443,27 @@ export default function MLAnunciosPage() {
     }
   }, [getHeaders, selectedSellerId])
 
-  // ── Load status de catálogo (price_to_win, do Radar) ───────────────────
+  // ── Status de catálogo (price_to_win) — AO VIVO no ML ──────────────────
+  // Busca pros anúncios de catálogo da página atual. Não espera a coleta
+  // diária do Radar — mostra ganhando/perdendo + preço pra ganhar na hora.
 
   const loadCatalogStatus = useCallback(async () => {
     try {
+      const catalogItems = items
+        .filter(it => it.catalog_listing || it.catalog_product_id)
+        .map(it => ({ item_id: it.id, seller_id: it.account_seller_id ?? undefined }))
+      if (catalogItems.length === 0) { setCatalogMap(new Map()); return }
       const headers = await getHeaders()
-      const res = await fetch(`${BACKEND}/radar/catalog-status`, { headers })
+      const res = await fetch(`${BACKEND}/ml/listings/price-to-win`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: catalogItems }),
+      })
       if (!res.ok) return
       const rows: CatalogInfo[] = await res.json()
       setCatalogMap(new Map(rows.map(r => [r.item_id, r])))
     } catch { /* silent — status de catálogo é complementar */ }
-  }, [getHeaders])
+  }, [getHeaders, items])
 
   // ── Initial + reactive loads ───────────────────────────────────────────
 
