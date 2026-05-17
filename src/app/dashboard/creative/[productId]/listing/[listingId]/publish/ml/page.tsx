@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -62,6 +62,11 @@ export default function MLPublishPage() {
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [publishing, setPublishing]   = useState(false)
   const [publishError, setPublishError] = useState<string | null>(null)
+
+  // Atributos recomendados — preenchimento por IA
+  const [aiFilling, setAiFilling] = useState(false)
+  const [aiError, setAiError]     = useState<string | null>(null)
+  const aiFilledRef               = useRef(false)
 
   // Contas ML — escolha de onde publicar (single ou todas)
   const [accounts, setAccounts]               = useState<MlAccount[]>([])
@@ -145,6 +150,36 @@ export default function MLPublishPage() {
     else setConfirmOpen(false)
     setPublishing(false)
   }
+
+  /** Preenche os atributos da categoria via IA a partir do produto. */
+  async function fillWithAI() {
+    setAiError(null); setAiFilling(true)
+    try {
+      const catId = preview?.predicted_category.category_id ?? undefined
+      const suggestions = await CreativeApi.suggestMlAttributes(listingId, catId)
+      setAttributes(prev => {
+        const m = new Map(prev.map(v => [v.id, v]))
+        for (const s of suggestions) {
+          m.set(s.id, { id: s.id, value_id: s.value_id, value_name: s.value_name })
+        }
+        return [...m.values()]
+      })
+    } catch (e: unknown) {
+      setAiError((e as Error).message)
+    } finally {
+      setAiFilling(false)
+    }
+  }
+
+  // Preenchimento automático por IA — uma vez, quando o preview traz os
+  // atributos recomendados.
+  useEffect(() => {
+    if (aiFilledRef.current) return
+    if (!preview || preview.recommended_attributes.length === 0) return
+    aiFilledRef.current = true
+    void fillWithAI()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preview])
 
   async function buildPreview() {
     if (!ctx) return
@@ -407,6 +442,33 @@ export default function MLPublishPage() {
               )}
             </Section>
             </div>
+
+            {/* Atributos recomendados — preenchidos por IA, com "Não se aplica" */}
+            {preview && preview.recommended_attributes.length > 0 && (
+              <Section
+                icon={<Sparkles size={14} />}
+                title="Atributos recomendados"
+                actionLabel={aiFilling ? 'Preenchendo…' : 'Preencher com IA'}
+                onAction={aiFilling ? undefined : fillWithAI}
+                actionLoading={aiFilling}
+              >
+                <p className="text-[11px] text-zinc-500 mb-2.5">
+                  A IA preenche pelos dados do produto. O que ela não conseguir determinar fica
+                  como <span className="text-zinc-400">&quot;Não se aplica&quot;</span> — você pode ajustar qualquer campo.
+                </p>
+                {aiError && (
+                  <div className="mb-2.5 rounded-lg border border-red-500/30 bg-red-500/10 p-2 text-[11px] text-red-200 flex items-start gap-1.5">
+                    <AlertCircle size={11} className="shrink-0 mt-0.5" />{aiError}
+                  </div>
+                )}
+                <MLAttributesForm
+                  attributes={preview.recommended_attributes}
+                  values={attributes}
+                  onChange={setAttributes}
+                  allowNotApplicable
+                />
+              </Section>
+            )}
 
             {/* Markup / precificação — calcula o preço de venda pela margem alvo */}
             <Section icon={<Calculator size={14} />} title="Markup / Precificação">

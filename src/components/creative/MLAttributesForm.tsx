@@ -12,26 +12,25 @@ interface Props {
   attributes: MlRequiredAttribute[]
   values:     AttributeValue[]
   onChange:   (next: AttributeValue[]) => void
+  /** Mostra o toggle "Não se aplica" — só para atributos recomendados. */
+  allowNotApplicable?: boolean
 }
 
+/** value_id "-1" = "Não se aplica" (convenção do Mercado Livre). */
+const NOT_APPLICABLE = '-1'
+
 /**
- * Form dinâmico de atributos requeridos pela categoria do ML.
- * Renderiza por value_type:
- *   - list:        select com opções pré-definidas
- *   - boolean:     toggle
- *   - number/number_unit: input numérico
- *   - default:     text input
+ * Form dinâmico de atributos da categoria do ML.
+ * Renderiza por value_type (list/boolean/number/texto). Com
+ * `allowNotApplicable`, cada atributo ganha o toggle "Não se aplica".
  */
-export default function MLAttributesForm({ attributes, values, onChange }: Props) {
+export default function MLAttributesForm({ attributes, values, onChange, allowNotApplicable }: Props) {
   const map = new Map(values.map(v => [v.id, v]))
 
   function setValue(attrId: string, patch: Partial<AttributeValue>) {
     const existing = map.get(attrId)
-    const next = existing
-      ? { ...existing, ...patch }
-      : { id: attrId, ...patch }
-    const filtered = values.filter(v => v.id !== attrId)
-    onChange([...filtered, next])
+    const next = existing ? { ...existing, ...patch } : { id: attrId, ...patch }
+    onChange([...values.filter(v => v.id !== attrId), next])
   }
 
   function clearValue(attrId: string) {
@@ -41,7 +40,7 @@ export default function MLAttributesForm({ attributes, values, onChange }: Props
   if (attributes.length === 0) {
     return (
       <p className="text-xs text-zinc-500">
-        Sem atributos obrigatórios pra esta categoria. ✓
+        {allowNotApplicable ? 'Sem atributos recomendados pra esta categoria.' : 'Sem atributos obrigatórios pra esta categoria. ✓'}
       </p>
     )
   }
@@ -49,30 +48,52 @@ export default function MLAttributesForm({ attributes, values, onChange }: Props
   return (
     <div className="space-y-3">
       {attributes.map(attr => {
-        const v = map.get(attr.id)
-        const filled = !!(v?.value_id || v?.value_name)
+        const v      = map.get(attr.id)
+        const isNA   = v?.value_id === NOT_APPLICABLE
+        const filled = !!(v?.value_id || v?.value_name) && !isNA
         return (
           <div key={attr.id} className="space-y-1">
-            <div className="flex items-center justify-between">
-              <label className="text-[11px] font-medium text-zinc-300">
+            <div className="flex items-center justify-between gap-2">
+              <label className="text-[11px] font-medium text-zinc-300 min-w-0 truncate">
                 {attr.name}
-                <span className="text-red-400 ml-1">*</span>
+                {attr.required && <span className="text-red-400 ml-1">*</span>}
                 <span className="ml-1.5 font-mono text-[9px] text-zinc-600">{attr.id}</span>
               </label>
-              {filled && (
-                <button
-                  type="button"
-                  onClick={() => clearValue(attr.id)}
-                  className="text-[10px] text-zinc-500 hover:text-red-400"
-                >
-                  limpar
-                </button>
-              )}
+              <div className="flex items-center gap-2 shrink-0">
+                {filled && !allowNotApplicable && (
+                  <button
+                    type="button"
+                    onClick={() => clearValue(attr.id)}
+                    className="text-[10px] text-zinc-500 hover:text-red-400"
+                  >
+                    limpar
+                  </button>
+                )}
+                {allowNotApplicable && (
+                  <label className="flex items-center gap-1 text-[10px] text-zinc-500 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={isNA}
+                      onChange={e => e.target.checked
+                        ? setValue(attr.id, { value_id: NOT_APPLICABLE, value_name: undefined })
+                        : clearValue(attr.id)}
+                      className="accent-cyan-400"
+                    />
+                    Não se aplica
+                  </label>
+                )}
+              </div>
             </div>
 
-            {renderInput(attr, v, setValue)}
+            {isNA ? (
+              <div className="px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-[11px] text-zinc-600 italic">
+                Não se aplica
+              </div>
+            ) : (
+              renderInput(attr, v, setValue)
+            )}
 
-            {attr.hint && (
+            {attr.hint && !isNA && (
               <p className="text-[10px] text-zinc-500">{attr.hint}</p>
             )}
           </div>
@@ -87,8 +108,8 @@ function renderInput(
   current:  AttributeValue | undefined,
   setValue: (id: string, patch: Partial<AttributeValue>) => void,
 ): React.ReactNode {
-  // List → select
-  if (attr.value_type === 'list' && attr.values && attr.values.length > 0) {
+  // List / string com opções → select
+  if (attr.values && attr.values.length > 0) {
     return (
       <select
         value={current?.value_id ?? ''}

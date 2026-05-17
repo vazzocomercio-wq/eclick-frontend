@@ -9,6 +9,7 @@ import type {
   CreativeVideoJob, CreativeVideo, KlingModel, VideoDuration, VideoAspectRatio,
   MlPublishContext, MlPredictedCategory, MlRequiredAttribute, MlPreviewResponse,
   MlListingType, MlCondition, CreativePublication, MlShippingCost, MlAccount,
+  MlAttributeSuggestion,
   BriefingTemplate,
   CreativePromptTemplate, MatchedTemplate, TemplatePreviewResponse, TemplatePosition,
   CreativeReference,
@@ -570,6 +571,12 @@ export const CreativeApi = {
   /** Contas ML conectadas da organização — para escolher onde publicar. */
   listMlAccounts: () =>
     api<MlAccount[]>('/ml/connections'),
+
+  /** Preenche os atributos da categoria via IA a partir do produto. */
+  suggestMlAttributes: (listingId: string, categoryId?: string) =>
+    api<MlAttributeSuggestion[]>(`/creative/listings/${listingId}/ml-attributes/suggest`, {
+      method: 'POST', body: JSON.stringify({ category_id: categoryId }),
+    }),
 
   /** Custo do frete grátis (vendedor) pra esse anúncio — dimensões + preço + tipo. */
   getListingShippingCost: (listingId: string, body: {

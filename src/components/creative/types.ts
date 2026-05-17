@@ -449,7 +449,18 @@ export interface MlPreviewResponse {
   publish_enabled: boolean
   predicted_category:  MlPredictedCategory
   required_attributes: MlRequiredAttribute[]
+  /** Atributos recomendados (não-obrigatórios) — aceitam "não se aplica". */
+  recommended_attributes: MlRequiredAttribute[]
   ml_payload:          Record<string, unknown>
+}
+
+/** Sugestão de valor de atributo gerada pela IA. */
+export interface MlAttributeSuggestion {
+  id:             string
+  value_id?:      string
+  value_name?:    string
+  /** true quando a IA não conseguiu determinar — atributo marcado "não se aplica". */
+  not_applicable: boolean
 }
 
 export interface MlShippingCost {
