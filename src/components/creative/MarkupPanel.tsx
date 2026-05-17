@@ -47,6 +47,8 @@ interface MarkupPanelProps {
   listingType: string
   /** Dimensões da embalagem do produto, para pré-preencher os campos de frete. */
   initialDimensions?: Record<string, unknown>
+  /** Emite o preço de atacado calculado (ou null) — a publicação envia ao ML. */
+  onWholesaleChange?: (w: { price: number; minQty: number } | null) => void
 }
 
 const num = (s: string): number => {
@@ -61,6 +63,7 @@ const dimStr = (d: Record<string, unknown> | undefined, key: string): string => 
 
 export default function MarkupPanel({
   defaultFeePercent, currentPrice, onApplyPrice, listingId, listingType, initialDimensions,
+  onWholesaleChange,
 }: MarkupPanelProps) {
   const [targetMargin, setTargetMargin] = useState('')
   const [cost, setCost]                 = useState('')
@@ -148,6 +151,17 @@ export default function MarkupPanel({
   }, [targetMargin, cost, feePct, taxPct, promoPct, wholesalePct, wholesaleMinQty, sellerPaysShipping, shippingCost])
 
   const applied = calc.state === 'ok' && num(currentPrice ?? '') === calc.priceFull
+
+  // Emite o preço de atacado pro componente pai — a publicação envia ao ML.
+  // Só vale com quantidade mínima ≥ 2 (regra do ML).
+  useEffect(() => {
+    if (!onWholesaleChange) return
+    onWholesaleChange(
+      calc.state === 'ok' && calc.wholesale && calc.wholesale.minQty >= 2
+        ? { price: calc.wholesale.price, minQty: calc.wholesale.minQty }
+        : null,
+    )
+  }, [calc, onWholesaleChange])
   const shippingStale =
     calc.state === 'ok' && sellerPaysShipping && shippingMeta != null &&
     Math.abs(calc.pricePromo - shippingFetchedFor) > 0.5

@@ -63,6 +63,9 @@ export default function MLPublishPage() {
   const [publishing, setPublishing]   = useState(false)
   const [publishError, setPublishError] = useState<string | null>(null)
 
+  // Preço de atacado calculado no painel de markup — enviado ao ML pós-publicação.
+  const [wholesale, setWholesale] = useState<{ price: number; minQty: number } | null>(null)
+
   // Atributos recomendados — preenchimento por IA
   const [aiFilling, setAiFilling] = useState(false)
   const [aiError, setAiError]     = useState<string | null>(null)
@@ -133,15 +136,17 @@ export default function MLPublishPage() {
     for (const sellerId of selectedSellerIds) {
       try {
         const pub = await CreativeApi.publishMl(listingId, {
-          idempotency_key: newKey(),
-          seller_id:       sellerId,
-          image_ids:       imageIds,
-          video_id:        videoId,
-          price:           Number(price) || 0,
-          stock:           Number(stock) || 0,
-          listing_type:    listingType,
+          idempotency_key:   newKey(),
+          seller_id:         sellerId,
+          image_ids:         imageIds,
+          video_id:          videoId,
+          price:             Number(price) || 0,
+          stock:             Number(stock) || 0,
+          listing_type:      listingType,
           condition,
-          attributes:      attributes.filter(a => a.value_id || a.value_name),
+          attributes:        attributes.filter(a => a.value_id || a.value_name),
+          wholesale_price:   wholesale?.price,
+          wholesale_min_qty: wholesale?.minQty,
         })
         done.push(pub)
       } catch (e: unknown) {
@@ -496,6 +501,7 @@ export default function MLPublishPage() {
                 listingId={listingId}
                 listingType={listingType}
                 initialDimensions={product.dimensions}
+                onWholesaleChange={setWholesale}
               />
             </Section>
 

@@ -49,7 +49,9 @@ export default function MLAttributesForm({ attributes, values, onChange, allowNo
     <div className="space-y-3">
       {attributes.map(attr => {
         const v      = map.get(attr.id)
-        const isNA   = v?.value_id === NOT_APPLICABLE
+        // "não se aplica" só vale nos recomendados — num obrigatório com flag
+        // herdado (stale), renderiza o input normal pro usuário corrigir.
+        const isNA   = !!allowNotApplicable && v?.value_id === NOT_APPLICABLE
         const filled = !!(v?.value_id || v?.value_name) && !isNA
         return (
           <div key={attr.id} className="space-y-1">

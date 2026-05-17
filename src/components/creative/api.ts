@@ -566,9 +566,11 @@ export const CreativeApi = {
     stock:           number
     listing_type?:   MlListingType
     category_id?:    string
-    attributes?:     Array<{ id: string; value_name?: string; value_id?: string }>
-    condition?:      MlCondition
-    seller_id?:      number
+    attributes?:        Array<{ id: string; value_name?: string; value_id?: string }>
+    condition?:         MlCondition
+    seller_id?:         number
+    wholesale_price?:   number
+    wholesale_min_qty?: number
   }) =>
     api<CreativePublication>(`/creative/listings/${listingId}/ml-publish`, {
       method: 'POST', body: JSON.stringify(body),
