@@ -47,10 +47,14 @@ interface RadarProduct {
   price_delta_pct: number | null
   new_events: number
   market_demand: number | null
+  sku: string | null
+  thumbnail: string | null
+  price_to_win: number | null
+  catalog_status: string | null
 }
 
 type SortKey =
-  | 'title' | 'competitors' | 'min_price' | 'vazzo_has_lead'
+  | 'title' | 'competitors' | 'min_price' | 'catalog_status'
   | 'price_delta_pct' | 'new_events' | 'market_demand'
 
 const CARD = { background: '#111114', border: '1px solid #1a1a1f' }
@@ -234,7 +238,7 @@ export default function RadarPage() {
             <Th label="Produto" k="title" cur={sortKey} dir={sortDir} onSort={toggleSort} className="flex-1" />
             <Th label="Conc." k="competitors" cur={sortKey} dir={sortDir} onSort={toggleSort} className="w-14 justify-end" />
             <Th label="Menor preço" k="min_price" cur={sortKey} dir={sortDir} onSort={toggleSort} className="w-24 justify-end" />
-            <Th label="Ponta" k="vazzo_has_lead" cur={sortKey} dir={sortDir} onSort={toggleSort} className="w-24 justify-center" />
+            <Th label="Catálogo" k="catalog_status" cur={sortKey} dir={sortDir} onSort={toggleSort} className="w-28 justify-center" />
             <Th label="Δ preço" k="price_delta_pct" cur={sortKey} dir={sortDir} onSort={toggleSort} className="w-20 justify-end" />
             <Th label="Demanda" k="market_demand" cur={sortKey} dir={sortDir} onSort={toggleSort} className="w-20 justify-end" />
             <Th label="Eventos" k="new_events" cur={sortKey} dir={sortDir} onSort={toggleSort} className="w-16 justify-end" />
@@ -255,11 +259,21 @@ export default function RadarPage() {
               <Link key={p.id} href={`/dashboard/radar/${p.id}`}
                 className="flex items-center gap-3 px-4 py-2.5 hover:bg-zinc-900/50 transition-colors"
                 style={{ borderBottom: '1px solid #18181b' }}>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium truncate" style={{ color: '#fafafa' }}>
-                    {p.title ?? p.catalog_product_id}
-                  </p>
-                  <p className="text-[10px] truncate" style={{ color: '#52525b' }}>{p.catalog_product_id}</p>
+                <div className="flex-1 min-w-0 flex items-center gap-2.5">
+                  {p.thumbnail
+                    ? <img src={p.thumbnail} alt="" loading="lazy"
+                        className="h-9 w-9 rounded object-cover shrink-0"
+                        style={{ border: '1px solid #27272a' }} />
+                    : <div className="h-9 w-9 rounded shrink-0"
+                        style={{ background: '#1a1a1f', border: '1px solid #27272a' }} />}
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium truncate" style={{ color: '#fafafa' }}>
+                      {p.title ?? p.catalog_product_id}
+                    </p>
+                    <p className="text-[10px] truncate" style={{ color: '#52525b' }}>
+                      {p.sku ? `SKU ${p.sku} · ` : ''}{p.catalog_product_id}
+                    </p>
+                  </div>
                 </div>
                 <span className="w-14 text-right text-xs tabular-nums" style={{ color: '#a1a1aa' }}>
                   {p.competitors}
@@ -267,8 +281,9 @@ export default function RadarPage() {
                 <span className="w-24 text-right text-xs tabular-nums font-medium" style={{ color: '#fafafa' }}>
                   {brl(p.min_price)}
                 </span>
-                <span className="w-24 flex justify-center">
-                  <LeadPill hasLead={p.vazzo_has_lead} hasPrice={p.min_price != null} />
+                <span className="w-28 flex justify-center">
+                  <CatalogCell status={p.catalog_status} priceToWin={p.price_to_win}
+                    hasLeadFallback={p.vazzo_has_lead} hasPrice={p.min_price != null} />
                 </span>
                 <span className="w-20 text-right text-xs tabular-nums" style={{
                   color: p.price_delta_pct == null ? '#52525b'
@@ -299,7 +314,12 @@ export default function RadarPage() {
 
 function sortVal(p: RadarProduct, k: SortKey): string | number | null {
   if (k === 'title') return (p.title ?? p.catalog_product_id).toLowerCase()
-  if (k === 'vazzo_has_lead') return p.vazzo_has_lead ? 1 : 0
+  if (k === 'catalog_status') {
+    if (p.catalog_status === 'winning') return 3
+    if (p.catalog_status === 'sharing_first_place') return 2
+    if (p.catalog_status) return 1
+    return p.vazzo_has_lead ? 3 : 0 // fallback enquanto a coleta não rodou
+  }
   return p[k]
 }
 
@@ -321,14 +341,42 @@ function Kpi(props: {
   )
 }
 
-function LeadPill({ hasLead, hasPrice }: { hasLead: boolean; hasPrice: boolean }) {
-  if (!hasPrice) return <span className="text-xs" style={{ color: '#3f3f46' }}>—</span>
-  const c = hasLead
-    ? { bg: 'rgba(34,197,94,0.12)', text: '#4ade80', label: 'Ganhando' }
-    : { bg: 'rgba(239,68,68,0.12)', text: '#f87171', label: 'Perdendo' }
+/** Status real do catálogo (price_to_win do ML) + preço pra ganhar.
+ * Enquanto a coleta não rodou (catalog_status null), cai no heurístico de
+ * menor preço — mesmo rótulo, vira dado real na próxima coleta diária. */
+function CatalogCell({ status, priceToWin, hasLeadFallback, hasPrice }: {
+  status: string | null; priceToWin: number | null; hasLeadFallback: boolean; hasPrice: boolean
+}) {
+  let label: string
+  let bg: string
+  let text: string
+  let winning: boolean
+
+  if (status === 'winning') {
+    label = 'Ganhando'; bg = 'rgba(34,197,94,0.12)'; text = '#4ade80'; winning = true
+  } else if (status === 'sharing_first_place') {
+    label = 'Empatado'; bg = 'rgba(245,158,11,0.12)'; text = '#fbbf24'; winning = false
+  } else if (status) {
+    label = 'Perdendo'; bg = 'rgba(239,68,68,0.12)'; text = '#f87171'; winning = false
+  } else if (!hasPrice) {
+    return <span className="text-xs" style={{ color: '#3f3f46' }}>—</span>
+  } else {
+    winning = hasLeadFallback
+    label = winning ? 'Ganhando' : 'Perdendo'
+    bg = winning ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)'
+    text = winning ? '#4ade80' : '#f87171'
+  }
+
   return (
-    <span className="text-[10px] font-semibold rounded-full px-2 py-0.5"
-      style={{ background: c.bg, color: c.text }}>{c.label}</span>
+    <div className="flex flex-col items-center gap-0.5">
+      <span className="text-[10px] font-semibold rounded-full px-2 py-0.5"
+        style={{ background: bg, color: text }}>{label}</span>
+      {!winning && priceToWin != null && (
+        <span className="text-[9px] tabular-nums" style={{ color: '#67e8f9' }}>
+          → {brl(priceToWin)}
+        </span>
+      )}
+    </div>
   )
 }
 
