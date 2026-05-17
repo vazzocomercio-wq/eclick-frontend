@@ -41,7 +41,7 @@ export default function MLPublishPage() {
   const [videoId, setVideoId]     = useState<string | null>(null)
   const [price, setPrice]         = useState<string>('')
   const [stock, setStock]         = useState<string>('')
-  const [listingType, setListingType] = useState<MlListingType>('free')
+  const [listingType, setListingType] = useState<MlListingType>('gold_special')
   const [condition, setCondition] = useState<MlCondition>('new')
   const [attributes, setAttributes] = useState<AttributeValue[]>([])
 
