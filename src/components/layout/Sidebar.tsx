@@ -112,7 +112,7 @@ const SECTIONS: NavSection[] = [
               { label: 'Sincronizações',         href: '/dashboard/catalogo/estoque/sincronizacoes' },
             ],
           },
-          { label: 'Concorrentes', href: '/dashboard/concorrentes' },
+          { label: 'Radar',        href: '/dashboard/radar' },
           { label: 'Preços',       href: '/dashboard/precos' },
         ],
       },
