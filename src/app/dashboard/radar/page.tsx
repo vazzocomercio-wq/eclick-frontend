@@ -129,6 +129,11 @@ export default function RadarPage() {
             Inteligência de mercado · concorrência por produto de catálogo
           </p>
         </div>
+        <Link href="/dashboard/radar/concorrentes"
+          className="ml-auto self-center inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-colors hover:bg-white/[0.04]"
+          style={{ border: '1px solid #27272a', color: '#a1a1aa' }}>
+          <Users size={14} style={{ color: '#00E5FF' }} /> Concorrentes Vinculados
+        </Link>
       </div>
 
       {error && (
