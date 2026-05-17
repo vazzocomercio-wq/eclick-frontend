@@ -1512,7 +1512,12 @@ export default function DashboardPage() {
           <p className="text-[#22c55e] text-xs uppercase tracking-widest mb-3">
             Lucro Estimado — {PERIOD_LABEL[period]}
           </p>
-          {(summaryLoading || loading) ? (
+          {/* Skeleton só enquanto os dados QUE O LUCRO USA carregam
+              (periodOrders + financialSummary). Antes dependia do `loading`
+              global — o lote de 8 fetches do refresh() — e o card ficava
+              refém do endpoint mais lento da página (ex: relatório ML Ads),
+              sem relação com o cálculo de lucro. */}
+          {(summaryLoading || periodLoading) ? (
             <div className="space-y-3"><Skel h={40} className="w-2/3" /><Skel h={14} className="w-1/2" /></div>
           ) : (
             <>
