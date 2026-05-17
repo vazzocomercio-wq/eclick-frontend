@@ -8,9 +8,11 @@
  *   • imposto (%)
  *   • reserva para campanhas de promoção (%)
  *   • custo do frete grátis pago pelo vendedor (R$, opcional)
+ *   • desconto para preço de atacado / B2B (%, opcional)
  *
  * O preço cheio é dimensionado para que, MESMO durante uma promoção do
- * tamanho da reserva, a margem de contribuição alvo se mantenha.
+ * tamanho da reserva, a margem de contribuição alvo se mantenha. O preço de
+ * atacado é o preço de promoção menos o desconto de atacado.
  *
  * Matemática (rates em decimal):
  *   precoPromo = (CMV + frete) ÷ (1 − tarifa − imposto − margemAlvo)
@@ -66,6 +68,7 @@ export default function MarkupPanel({
   const [feeTouched, setFeeTouched]     = useState(false)
   const [taxPct, setTaxPct]             = useState('')
   const [promoPct, setPromoPct]         = useState('')
+  const [wholesalePct, setWholesalePct] = useState('')
 
   // Frete
   const [sellerPaysShipping, setSellerPaysShipping] = useState(true)
@@ -120,6 +123,16 @@ export default function MarkupPanel({
       taxOnFreight:  false,
     })
 
+    // Preço de atacado (B2B) — desconto SOBRE o preço de promoção. Por regra
+    // do ML, o preço de atacado tem que ser menor que o preço de promoção.
+    const whPct = num(wholesalePct)
+    const wholesale = whPct > 0 && whPct < 100
+      ? (() => {
+          const price = round2(pricePromo * (1 - whPct / 100))
+          return { price, discountPct: whPct, margin: verify(price) }
+        })()
+      : null
+
     return {
       state: 'ok' as const,
       cmv, promo, shipping: ship,
@@ -128,8 +141,9 @@ export default function MarkupPanel({
       atPromo:  verify(pricePromo),
       atFull:   verify(priceFull),
       markup:   round2(priceFull / cmv),
+      wholesale,
     }
-  }, [targetMargin, cost, feePct, taxPct, promoPct, sellerPaysShipping, shippingCost])
+  }, [targetMargin, cost, feePct, taxPct, promoPct, wholesalePct, sellerPaysShipping, shippingCost])
 
   const applied = calc.state === 'ok' && num(currentPrice ?? '') === calc.priceFull
   const shippingStale =
@@ -195,7 +209,8 @@ export default function MarkupPanel({
           placeholder="16"
         />
         <Field label="Imposto (%)" value={taxPct} onChange={setTaxPct} placeholder="8" />
-        <Field label="Reserva para promoção (%)" value={promoPct} onChange={setPromoPct} placeholder="10" wide />
+        <Field label="Reserva para promoção (%)" value={promoPct} onChange={setPromoPct} placeholder="10" />
+        <Field label="Desconto p/ preço de atacado (%)" value={wholesalePct} onChange={setWholesalePct} placeholder="10" />
       </div>
 
       {/* Frete */}
@@ -317,6 +332,36 @@ export default function MarkupPanel({
               </span>
             </div>
           </div>
+
+          {/* Preço de atacado (B2B) */}
+          {calc.wholesale && (
+            <div className="rounded-lg border border-violet-400/30 bg-violet-400/5 p-2.5 space-y-1">
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-zinc-400">
+                  Preço de atacado — B2B
+                  <span className="text-zinc-600"> · −{calc.wholesale.discountPct}% da promoção</span>
+                </span>
+                <span className="font-semibold text-violet-200">{brl(calc.wholesale.price)}</span>
+              </div>
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-zinc-500">Margem no atacado</span>
+                <span className={[
+                  'font-semibold',
+                  calc.wholesale.margin.contributionMargin >= 0 ? 'text-emerald-300' : 'text-red-400',
+                ].join(' ')}>
+                  {brl(calc.wholesale.margin.contributionMargin)} · {calc.wholesale.margin.contributionMarginPct}%
+                </span>
+              </div>
+              {calc.wholesale.margin.contributionMargin < 0 && (
+                <p className="text-[10px] text-red-400">
+                  ⚠ A esse desconto o atacado fica com margem negativa — você venderia no prejuízo.
+                </p>
+              )}
+              <p className="text-[10px] text-zinc-600">
+                É este o valor a enviar como preço de atacado no ML (preço por quantidade, comprador B2B).
+              </p>
+            </div>
+          )}
 
           {/* Breakdown */}
           <details className="rounded-lg border border-zinc-800 bg-zinc-950">
