@@ -47,6 +47,16 @@ type MListing = {
   estimated_free_shipping_cost: number | null
 }
 
+// Status real do catálogo (price_to_win do ML) — vem do Radar (radar_offers).
+type CatalogInfo = {
+  item_id: string
+  price: number | null
+  price_to_win: number | null
+  catalog_status: string | null
+  catalog_winner_price: number | null
+  price_to_win_checked_at: string | null
+}
+
 type CreateResult = {
   listing_id: string
   status: 'created' | 'skipped' | 'error'
@@ -369,10 +379,12 @@ function MarginPanel({ price, saleFee, shipping, info, orgTaxPct, onSave }: {
   )
 }
 
-function ListingCard({ item, selected, linked, stockInfo, marginInfo, orgTaxPct, matchedProduct, onSelect, onCreateProduct, onLinkProduct, onLinkToKnownProduct, onUpdateStock, onSaveMargin }: {
+function ListingCard({ item, selected, linked, catalog, stockInfo, marginInfo, orgTaxPct, matchedProduct, onSelect, onCreateProduct, onLinkProduct, onLinkToKnownProduct, onUpdateStock, onSaveMargin }: {
   item: MListing
   selected: boolean
   linked: boolean
+  /** Status real do catálogo (price_to_win do ML, via Radar). */
+  catalog?: CatalogInfo
   stockInfo?: { stock_id: string; product_id: string; quantity: number }
   marginInfo?: MarginInfo
   orgTaxPct: number | null
@@ -425,6 +437,11 @@ function ListingCard({ item, selected, linked, stockInfo, marginInfo, orgTaxPct,
   const hasPromo = (item.deal_ids?.length ?? 0) > 0 || (item.promotions?.length ?? 0) > 0
 
   const compStatus = (() => {
+    const s = catalog?.catalog_status
+    if (s === 'winning') return { label: '🏆 Ganhando', bg: '#0d1f17', color: '#4ade80', border: 'rgba(34,197,94,.2)' }
+    if (s === 'sharing_first_place') return { label: '🤝 Empatado', bg: '#1f1a00', color: '#fbbf24', border: 'rgba(251,191,36,.2)' }
+    if (s) return { label: '📉 Perdendo', bg: '#1f0d0d', color: '#f87171', border: 'rgba(248,113,113,.2)' }
+    // Fallback heurístico antigo enquanto a coleta do Radar não rodou.
     const t = item.catalog_listing_type_id?.toLowerCase() ?? ''
     if (t.includes('winning')) return { label: '🏆 Ganhando', bg: '#0d1f17', color: '#4ade80', border: 'rgba(34,197,94,.2)' }
     if (t.includes('losing'))  return { label: '📉 Perdendo', bg: '#1f0d0d', color: '#f87171', border: 'rgba(248,113,113,.2)' }
@@ -622,6 +639,11 @@ function ListingCard({ item, selected, linked, stockInfo, marginInfo, orgTaxPct,
           )}
           <p className="text-white text-xl font-bold leading-tight">{brl(item.price)}</p>
           <p className="text-emerald-400 text-xs font-semibold mt-0.5">Líquido: {brl(net)}</p>
+          {catalog?.catalog_status && catalog.catalog_status !== 'winning' && catalog.price_to_win != null && (
+            <p className="text-[11px] font-semibold mt-1" style={{ color: '#67e8f9' }}>
+              Ganha o catálogo a {brl(catalog.price_to_win)}
+            </p>
+          )}
         </div>
 
         <div className="w-full text-[11px] pt-2 space-y-1" style={{ borderTop: '1px solid #1e1e24' }}>
@@ -1214,6 +1236,7 @@ export default function MLAnunciosPage() {
   const [page, setPage]   = useState(0)
   const [q, setQ]         = useState('')
   const [items, setItems] = useState<MListing[]>([])
+  const [catalogMap, setCatalogMap] = useState<Map<string, CatalogInfo>>(new Map())
   const [total, setTotal] = useState(0)
   const [counts, setCounts] = useState<Counts>({})
   const [loading, setLoading]   = useState(true)
@@ -1329,9 +1352,22 @@ export default function MLAnunciosPage() {
     }
   }, [getHeaders, selectedSellerId])
 
+  // ── Load status de catálogo (price_to_win, do Radar) ───────────────────
+
+  const loadCatalogStatus = useCallback(async () => {
+    try {
+      const headers = await getHeaders()
+      const res = await fetch(`${BACKEND}/radar/catalog-status`, { headers })
+      if (!res.ok) return
+      const rows: CatalogInfo[] = await res.json()
+      setCatalogMap(new Map(rows.map(r => [r.item_id, r])))
+    } catch { /* silent — status de catálogo é complementar */ }
+  }, [getHeaders])
+
   // ── Initial + reactive loads ───────────────────────────────────────────
 
   useEffect(() => { loadCounts() }, [loadCounts])
+  useEffect(() => { loadCatalogStatus() }, [loadCatalogStatus])
   useEffect(() => { loadItems(tab, page, q) }, [tab, page, loadItems])
   // Quando troca de conta, volta pra página 0 e limpa seleção pra evitar
   // operar em IDs que sumiram do filtro atual.
@@ -2071,6 +2107,7 @@ export default function MLAnunciosPage() {
               <ListingCard key={item.id} item={item}
                 selected={selected.has(item.id)}
                 linked={linkedIds.has(item.id)}
+                catalog={catalogMap.get(item.id)}
                 stockInfo={stockMap.get(item.id)}
                 marginInfo={marginMap[item.id]}
                 orgTaxPct={orgTax.pct}
