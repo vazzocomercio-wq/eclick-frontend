@@ -94,6 +94,8 @@ export interface CreativeListing {
   description:              string
   bullets:                  string[]
   technical_sheet:          Record<string, string>
+  /** Fonte única dos atributos ML — id→value_id/value_name. value_id "-1" = não se aplica. */
+  ml_attributes:            Array<{ id: string; value_id?: string; value_name?: string }>
   keywords:                 string[]
   search_tags:              string[]
   suggested_category:       string | null

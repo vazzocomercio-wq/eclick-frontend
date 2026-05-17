@@ -69,6 +69,7 @@ export default function MarkupPanel({
   const [taxPct, setTaxPct]             = useState('')
   const [promoPct, setPromoPct]         = useState('')
   const [wholesalePct, setWholesalePct] = useState('')
+  const [wholesaleMinQty, setWholesaleMinQty] = useState('')
 
   // Frete
   const [sellerPaysShipping, setSellerPaysShipping] = useState(true)
@@ -126,10 +127,11 @@ export default function MarkupPanel({
     // Preço de atacado (B2B) — desconto SOBRE o preço de promoção. Por regra
     // do ML, o preço de atacado tem que ser menor que o preço de promoção.
     const whPct = num(wholesalePct)
+    const whQty = Math.floor(num(wholesaleMinQty))
     const wholesale = whPct > 0 && whPct < 100
       ? (() => {
           const price = round2(pricePromo * (1 - whPct / 100))
-          return { price, discountPct: whPct, margin: verify(price) }
+          return { price, discountPct: whPct, minQty: whQty, margin: verify(price) }
         })()
       : null
 
@@ -143,7 +145,7 @@ export default function MarkupPanel({
       markup:   round2(priceFull / cmv),
       wholesale,
     }
-  }, [targetMargin, cost, feePct, taxPct, promoPct, wholesalePct, sellerPaysShipping, shippingCost])
+  }, [targetMargin, cost, feePct, taxPct, promoPct, wholesalePct, wholesaleMinQty, sellerPaysShipping, shippingCost])
 
   const applied = calc.state === 'ok' && num(currentPrice ?? '') === calc.priceFull
   const shippingStale =
@@ -209,8 +211,9 @@ export default function MarkupPanel({
           placeholder="16"
         />
         <Field label="Imposto (%)" value={taxPct} onChange={setTaxPct} placeholder="8" />
-        <Field label="Reserva para promoção (%)" value={promoPct} onChange={setPromoPct} placeholder="10" />
+        <Field label="Reserva para promoção (%)" value={promoPct} onChange={setPromoPct} placeholder="10" wide />
         <Field label="Desconto p/ preço de atacado (%)" value={wholesalePct} onChange={setWholesalePct} placeholder="10" />
+        <Field label="Qtd. mínima p/ atacado (un)" value={wholesaleMinQty} onChange={setWholesaleMinQty} placeholder="2" />
       </div>
 
       {/* Frete */}
@@ -339,10 +342,18 @@ export default function MarkupPanel({
               <div className="flex items-center justify-between text-[11px]">
                 <span className="text-zinc-400">
                   Preço de atacado — B2B
-                  <span className="text-zinc-600"> · −{calc.wholesale.discountPct}% da promoção</span>
+                  <span className="text-zinc-600">
+                    {' · '}−{calc.wholesale.discountPct}% da promoção
+                    {calc.wholesale.minQty >= 2 && ` · a partir de ${calc.wholesale.minQty} un`}
+                  </span>
                 </span>
                 <span className="font-semibold text-violet-200">{brl(calc.wholesale.price)}</span>
               </div>
+              {calc.wholesale.minQty < 2 && (
+                <p className="text-[10px] text-amber-400">
+                  ⚠ Informe a quantidade mínima de compra — o Mercado Livre exige 2 ou mais unidades.
+                </p>
+              )}
               <div className="flex items-center justify-between text-[11px]">
                 <span className="text-zinc-500">Margem no atacado</span>
                 <span className={[
@@ -358,7 +369,8 @@ export default function MarkupPanel({
                 </p>
               )}
               <p className="text-[10px] text-zinc-600">
-                É este o valor a enviar como preço de atacado no ML (preço por quantidade, comprador B2B).
+                É este o valor a enviar como preço de atacado no ML (preço por quantidade, comprador B2B)
+                {calc.wholesale.minQty >= 2 && `, válido na compra de ${calc.wholesale.minQty} unidades ou mais`}.
               </p>
             </div>
           )}

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { Plus, X, Save, Loader2, AlertCircle, RefreshCw, ExternalLink, CheckCircle2, Sparkles } from 'lucide-react'
 import type { CreativeListing } from './types'
 import { CreativeApi } from './api'
-import MlAttributesEditor from './MlAttributesEditor'
+import MlAttributesPanel from './MlAttributesPanel'
 import SeoSourcesPanel from './SeoSourcesPanel'
 
 interface Props {
@@ -13,12 +13,14 @@ interface Props {
   disabled?: boolean
 }
 
+interface MlAttrValue { id: string; value_name?: string; value_id?: string }
+
 interface EditableState {
   title:                    string
   subtitle:                 string
   description:              string
   bullets:                  string[]
-  technical_sheet:          Array<{ key: string; value: string }>
+  ml_attributes:            MlAttrValue[]
   keywords:                 string[]
   search_tags:              string[]
   suggested_category:       string
@@ -32,7 +34,7 @@ function fromListing(l: CreativeListing): EditableState {
     subtitle:                 l.subtitle ?? '',
     description:              l.description,
     bullets:                  [...l.bullets],
-    technical_sheet:          Object.entries(l.technical_sheet ?? {}).map(([key, value]) => ({ key, value: String(value) })),
+    ml_attributes:            [...(l.ml_attributes ?? [])],
     keywords:                 [...(l.keywords ?? [])],
     search_tags:              [...(l.search_tags ?? [])],
     suggested_category:       l.suggested_category ?? '',
@@ -70,17 +72,12 @@ export default function ListingEditor({ listing, onSaved, disabled }: Props) {
     setSaving(true)
     setError(null)
     try {
-      const technical = Object.fromEntries(
-        state.technical_sheet
-          .filter(r => r.key.trim().length > 0)
-          .map(r => [r.key.trim(), r.value.trim()]),
-      )
       const next = await CreativeApi.updateListing(listing.id, {
         title:                    state.title,
         subtitle:                 state.subtitle,
         description:              state.description,
         bullets:                  state.bullets.filter(b => b.trim()),
-        technical_sheet:          technical,
+        ml_attributes:            state.ml_attributes,
         keywords:                 state.keywords.filter(k => k.trim()),
         search_tags:              state.search_tags.filter(t => t.trim()),
         suggested_category:       state.suggested_category,
@@ -139,7 +136,7 @@ export default function ListingEditor({ listing, onSaved, disabled }: Props) {
       )}
 
       {/* Sub-sprint C: banner de prontidão pra ML */}
-      <PublishReadinessBanner listing={listing} technicalSheet={state.technical_sheet} />
+      <PublishReadinessBanner listing={listing} mlAttributes={state.ml_attributes} />
 
       <div data-seo-field="title">
         <Field label="Título" value={state.title} onChange={v => update('title', v)} disabled={disabled} />
@@ -171,13 +168,15 @@ export default function ListingEditor({ listing, onSaved, disabled }: Props) {
         />
       </div>
 
-      {/* Technical sheet — ML-aware quando há categoria, fallback livre se não */}
+      {/* Atributos ML — fonte única (ml_attributes), com IA + "não se aplica" */}
       <div data-seo-field="attributes">
-        <MlAttributesEditor
-          categoryMlId={listing.category_ml_id}
-          items={state.technical_sheet}
-          onChange={v => update('technical_sheet', v)}
-          disabled={disabled}
+        <p className="text-[10px] uppercase tracking-wider text-zinc-500 mb-2">Atributos do anúncio</p>
+        <MlAttributesPanel
+          listingId={listing.id}
+          categoryId={listing.category_ml_id ?? null}
+          value={state.ml_attributes}
+          onChange={v => update('ml_attributes', v)}
+          autoFill
         />
       </div>
 
@@ -359,69 +358,6 @@ function ListField({
   )
 }
 
-function KeyValueEditor({
-  label, items, onChange, disabled,
-}: {
-  label:    string
-  items:    Array<{ key: string; value: string }>
-  onChange: (next: Array<{ key: string; value: string }>) => void
-  disabled?: boolean
-}) {
-  return (
-    <div>
-      <Label>{label}</Label>
-      <div className="space-y-1.5">
-        {items.map((row, i) => (
-          <div key={i} className="grid grid-cols-12 gap-2">
-            <input
-              type="text"
-              value={row.key}
-              onChange={e => {
-                const next = [...items]
-                next[i] = { ...row, key: e.target.value }
-                onChange(next)
-              }}
-              disabled={disabled}
-              placeholder="Campo"
-              className="col-span-5 bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-1.5 text-sm text-zinc-200 outline-none focus:border-cyan-400 placeholder:text-zinc-600"
-            />
-            <input
-              type="text"
-              value={row.value}
-              onChange={e => {
-                const next = [...items]
-                next[i] = { ...row, value: e.target.value }
-                onChange(next)
-              }}
-              disabled={disabled}
-              placeholder="Valor"
-              className="col-span-6 bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-1.5 text-sm text-zinc-200 outline-none focus:border-cyan-400 placeholder:text-zinc-600"
-            />
-            {!disabled && (
-              <button
-                type="button"
-                onClick={() => onChange(items.filter((_, j) => j !== i))}
-                className="col-span-1 rounded-lg bg-zinc-900 border border-zinc-800 hover:border-red-400/40 hover:text-red-400 text-zinc-500"
-              >
-                <X size={12} className="mx-auto" />
-              </button>
-            )}
-          </div>
-        ))}
-        {!disabled && (
-          <button
-            type="button"
-            onClick={() => onChange([...items, { key: '', value: '' }])}
-            className="w-full px-3 py-1.5 rounded-lg bg-zinc-900 border border-dashed border-zinc-800 hover:border-cyan-400/40 hover:text-cyan-400 text-zinc-500 text-xs flex items-center justify-center gap-1"
-          >
-            <Plus size={12} /> Adicionar campo
-          </button>
-        )}
-      </div>
-    </div>
-  )
-}
-
 function FaqEditor({
   items, onChange, disabled,
 }: {
@@ -596,10 +532,10 @@ function MlCategoryBadge({
 //   - alguns faltando: amber, "X campos obrigatórios faltam"
 
 function PublishReadinessBanner({
-  listing, technicalSheet,
+  listing, mlAttributes,
 }: {
-  listing:         CreativeListing
-  technicalSheet:  Array<{ key: string; value: string }>
+  listing:      CreativeListing
+  mlAttributes: Array<{ id: string; value_id?: string; value_name?: string }>
 }) {
   const categoryMlId = listing.category_ml_id
   const attrs = listing.attributes_ml_suggested ?? []
@@ -620,10 +556,12 @@ function PublishReadinessBanner({
   // só os RETORNADOS pelo predict_category são "sugeridos como importantes" —
   // tratamos todos como obrigatórios pra fins de status quick. A página de
   // publish faz a validação completa via /ml-preview.
-  const filled = (key: string) =>
-    technicalSheet.some(r => r.key.toLowerCase() === key.toLowerCase() && r.value.trim().length > 0)
+  // Resolvido = preenchido OU marcado "não se aplica" (value_id "-1").
+  const filled = (attrId: string) =>
+    mlAttributes.some(v => v.id === attrId
+      && ((v.value_id && v.value_id.length > 0) || (v.value_name && v.value_name.trim().length > 0)))
 
-  const missing = attrs.filter(a => !filled(a.name))
+  const missing = attrs.filter(a => !filled(a.id))
   const totalReq = attrs.length
   const ok = missing.length === 0 && totalReq > 0
   const publishHref = `/dashboard/creative/${listing.product_id}/listing/${listing.id}/publish/ml`

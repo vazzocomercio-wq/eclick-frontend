@@ -93,6 +93,9 @@ export default function MLPublishPage() {
       ])
       setCtx(c)
       setPublications(pubs)
+      // Atributos vêm do anúncio (fonte única ml_attributes) — editor e
+      // publicação compartilham o mesmo campo.
+      setAttributes((c.listing.ml_attributes ?? []) as AttributeValue[])
       // Conta mais antiga = principal — pré-selecionada por padrão.
       const sortedAccs = [...accs].sort((a, b) => a.created_at.localeCompare(b.created_at))
       setAccounts(sortedAccs)
@@ -118,6 +121,8 @@ export default function MLPublishPage() {
       return
     }
     setPublishError(null); setPublishing(true)
+    // Garante que os atributos ficam salvos no anúncio antes de publicar.
+    await CreativeApi.updateListing(listingId, { ml_attributes: attributes }).catch(() => {})
     const newKey = () => (typeof crypto !== 'undefined' && crypto.randomUUID)
       ? crypto.randomUUID()
       : `${Date.now()}-${Math.random().toString(36).slice(2)}`
@@ -171,15 +176,27 @@ export default function MLPublishPage() {
     }
   }
 
-  // Preenchimento automático por IA — uma vez, quando o preview traz os
-  // atributos recomendados.
+  // Preenchimento automático por IA — uma vez, só se o anúncio ainda não
+  // tem atributos salvos (senão usa o que veio do editor).
   useEffect(() => {
     if (aiFilledRef.current) return
     if (!preview || preview.recommended_attributes.length === 0) return
     aiFilledRef.current = true
-    void fillWithAI()
+    if (attributes.length === 0) void fillWithAI()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [preview])
+
+  // Auto-save dos atributos no anúncio (fonte única). Pula a carga inicial.
+  const attrSaveRef = useRef(false)
+  useEffect(() => {
+    if (!ctx) return
+    if (!attrSaveRef.current) { attrSaveRef.current = true; return }
+    const t = setTimeout(() => {
+      void CreativeApi.updateListing(listingId, { ml_attributes: attributes }).catch(() => {})
+    }, 1200)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attributes, ctx])
 
   async function buildPreview() {
     if (!ctx) return

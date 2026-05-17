@@ -321,6 +321,7 @@ export const CreativeApi = {
     description:              string
     bullets:                  string[]
     technical_sheet:          Record<string, string>
+    ml_attributes:            Array<{ id: string; value_name?: string; value_id?: string }>
     keywords:                 string[]
     search_tags:              string[]
     suggested_category:       string
@@ -537,6 +538,11 @@ export const CreativeApi = {
 
   getMlCategoryAttributes: (categoryId: string) =>
     api<MlRequiredAttribute[]>(`/creative/ml/categories/${encodeURIComponent(categoryId)}/attributes`),
+
+  /** Atributos da categoria separados em obrigatórios + recomendados. */
+  getMlCategoryAttributesSplit: (categoryId: string) =>
+    api<{ required: MlRequiredAttribute[]; recommended: MlRequiredAttribute[] }>(
+      `/creative/ml/categories/${encodeURIComponent(categoryId)}/attributes-split`),
 
   buildMlPreview: (listingId: string, body: {
     image_ids:     string[]
