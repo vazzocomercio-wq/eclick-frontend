@@ -30,6 +30,9 @@ interface Offer {
   is_lowest_price: boolean
   permalink: string | null
   seller: Seller | null
+  visits_30d: number
+  est_units_30d: number | null
+  est_revenue_30d: number | null
 }
 interface Internal {
   id: string
@@ -37,10 +40,19 @@ interface Internal {
   cost_price: number | null
   my_price: number | null
 }
+interface Calibration {
+  rate: number | null
+  basis: 'categoria' | 'organização' | 'indisponível'
+  confidence: 'ok' | 'low'
+  own_visits: number
+  own_units: number
+  calc_date: string | null
+}
 interface ProductResp {
   product: { id: string; catalog_product_id: string; title: string | null; category_id: string | null; status: string }
   offers: Offer[]
   internal: Internal | null
+  calibration: Calibration
 }
 interface SeriesResp {
   series: Array<{ item_id: string; is_own: boolean }>
@@ -177,6 +189,7 @@ export default function RadarDetailPage() {
               style={{ borderBottom: '1px solid #1a1a1f', color: '#52525b' }}>
               <span className="flex-1">Vendedor</span>
               <span className="w-24 text-right">Preço</span>
+              <span className="w-28 text-right">Demanda 30d</span>
               <span className="w-20 text-center">Frete</span>
               <span className="w-28 text-center">Logística</span>
               <span className="w-24 text-center">Tipo</span>
@@ -207,6 +220,20 @@ export default function RadarDetailPage() {
                   style={{ color: o.is_lowest_price ? '#4ade80' : '#fafafa' }}>
                   {brl(o.price)}{o.is_lowest_price && ' ▾'}
                 </span>
+                <span className="w-28 text-right">
+                  {o.est_units_30d == null ? (
+                    <span className="text-[10px]" style={{ color: '#52525b' }}>—</span>
+                  ) : (
+                    <>
+                      <span className="text-xs tabular-nums" style={{ color: '#a1a1aa' }}>
+                        ~{o.est_units_30d.toLocaleString('pt-BR')} un
+                      </span>
+                      <span className="block text-[9px] tabular-nums" style={{ color: '#52525b' }}>
+                        {o.visits_30d.toLocaleString('pt-BR')} visitas
+                      </span>
+                    </>
+                  )}
+                </span>
                 <span className="w-20 flex justify-center">
                   {o.free_shipping
                     ? <Truck size={13} style={{ color: '#4ade80' }} />
@@ -221,6 +248,46 @@ export default function RadarDetailPage() {
               </div>
             ))}
           </section>
+
+          {/* Transparência da conversão */}
+          <div className="rounded-xl p-4 mb-5" style={CARD}>
+            <h2 className="text-sm font-semibold mb-2" style={{ color: '#fafafa' }}>
+              Como a demanda é estimada
+            </h2>
+            {data.calibration.rate == null ? (
+              <p className="text-xs leading-relaxed" style={{ color: '#a1a1aa' }}>
+                Ainda não há conversão calibrada para a sua operação. A demanda estimada
+                aparece assim que o Radar acumular vendas e visitas próprias suficientes
+                (a coleta diária calibra isso automaticamente).
+              </p>
+            ) : (
+              <>
+                <p className="text-xs leading-relaxed" style={{ color: '#a1a1aa' }}>
+                  Demanda estimada = <span style={{ color: '#fafafa' }}>visitas coletadas do anúncio</span> ×{' '}
+                  <span style={{ color: '#fafafa' }}>conversão de {pct(data.calibration.rate)}</span>.
+                  A conversão vem das suas próprias vendas (unidades vendidas ÷ visitas, janela de 30 dias),
+                  calibrada por {data.calibration.basis}.
+                </p>
+                <div className="flex flex-wrap gap-x-8 gap-y-3 mt-3">
+                  <Metric label="Conversão usada" value={pct(data.calibration.rate)} />
+                  <Metric label="Base de cálculo"
+                    value={`${data.calibration.own_units.toLocaleString('pt-BR')} un · ${data.calibration.own_visits.toLocaleString('pt-BR')} visitas`} />
+                  <Metric label="Confiança"
+                    value={data.calibration.confidence === 'ok' ? 'Boa' : 'Baixa'}
+                    color={data.calibration.confidence === 'ok' ? '#4ade80' : '#fbbf24'} />
+                </div>
+                {data.calibration.confidence === 'low' && (
+                  <p className="text-[10px] mt-3" style={{ color: '#fbbf24' }}>
+                    Confiança baixa — ainda há poucos dados próprios. Trate a demanda como ordem de grandeza, não número exato.
+                  </p>
+                )}
+                <p className="text-[10px] mt-2" style={{ color: '#52525b' }}>
+                  Estimativa — não é a venda real do concorrente, dado que o Mercado Livre não expõe.
+                  {data.calibration.calc_date ? ` Conversão calibrada em ${data.calibration.calc_date}.` : ''}
+                </p>
+              </>
+            )}
+          </div>
 
           {/* Gráficos */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5">

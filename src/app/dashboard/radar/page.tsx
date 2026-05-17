@@ -14,6 +14,14 @@ interface Summary {
   competitors: number
   new_events: number
   products_losing_lead: number
+  market_demand_total: number
+  conversion: {
+    rate: number | null
+    confidence: 'ok' | 'low'
+    own_visits: number
+    own_units: number
+    calc_date: string | null
+  }
 }
 
 interface RadarEvent {
@@ -38,9 +46,12 @@ interface RadarProduct {
   vazzo_has_lead: boolean
   price_delta_pct: number | null
   new_events: number
+  market_demand: number | null
 }
 
-type SortKey = 'title' | 'competitors' | 'min_price' | 'vazzo_has_lead' | 'price_delta_pct' | 'new_events'
+type SortKey =
+  | 'title' | 'competitors' | 'min_price' | 'vazzo_has_lead'
+  | 'price_delta_pct' | 'new_events' | 'market_demand'
 
 const CARD = { background: '#111114', border: '1px solid #1a1a1f' }
 
@@ -138,6 +149,16 @@ export default function RadarPage() {
           icon={<TrendingDown size={15} />} accent="#f59e0b" />
       </div>
 
+      {summary?.conversion && (
+        <p className="text-[11px] mb-5 -mt-1" style={{
+          color: summary.conversion.confidence === 'low' ? '#fbbf24' : '#52525b',
+        }}>
+          {summary.conversion.rate == null
+            ? 'Demanda estimada: conversão ainda não calibrada — será medida na próxima coleta diária.'
+            : `Demanda estimada (un./mês) = visitas × conversão calibrada de ${(summary.conversion.rate * 100).toFixed(1).replace('.', ',')}% · base: ${summary.conversion.own_visits} visitas / ${summary.conversion.own_units} vendas suas (30d)${summary.conversion.confidence === 'low' ? ' · amostra pequena, estimativa aproximada' : ''}`}
+        </p>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* O que mudou */}
         <section className="rounded-xl overflow-hidden" style={CARD}>
@@ -210,6 +231,7 @@ export default function RadarPage() {
             <Th label="Menor preço" k="min_price" cur={sortKey} dir={sortDir} onSort={toggleSort} className="w-24 justify-end" />
             <Th label="Ponta" k="vazzo_has_lead" cur={sortKey} dir={sortDir} onSort={toggleSort} className="w-24 justify-center" />
             <Th label="Δ preço" k="price_delta_pct" cur={sortKey} dir={sortDir} onSort={toggleSort} className="w-20 justify-end" />
+            <Th label="Demanda" k="market_demand" cur={sortKey} dir={sortDir} onSort={toggleSort} className="w-20 justify-end" />
             <Th label="Eventos" k="new_events" cur={sortKey} dir={sortDir} onSort={toggleSort} className="w-16 justify-end" />
             <span className="w-4" />
           </div>
@@ -248,6 +270,9 @@ export default function RadarPage() {
                     : p.price_delta_pct < 0 ? '#22c55e' : p.price_delta_pct > 0 ? '#f87171' : '#71717a',
                 }}>
                   {pct(p.price_delta_pct)}
+                </span>
+                <span className="w-20 text-right text-xs tabular-nums" style={{ color: '#a1a1aa' }}>
+                  {p.market_demand == null ? '—' : `~${p.market_demand.toLocaleString('pt-BR')}`}
                 </span>
                 <span className="w-16 flex justify-end">
                   {p.new_events > 0 ? (
