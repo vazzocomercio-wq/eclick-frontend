@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState, type MouseEvent, type ReactNode } from 'react'
 import Link from 'next/link'
 import {
   Radar, Boxes, Users, Activity, TrendingDown, ArrowUpDown, Search, ChevronRight,
@@ -51,6 +51,7 @@ interface RadarProduct {
   thumbnail: string | null
   price_to_win: number | null
   catalog_status: string | null
+  vazzo_item_id: string | null
 }
 
 type SortKey =
@@ -70,30 +71,28 @@ export default function RadarPage() {
   const [search, setSearch] = useState('')
   const [sortKey, setSortKey] = useState<SortKey>('new_events')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+  const [adjust, setAdjust] = useState<RadarProduct | null>(null)
 
-  useEffect(() => {
-    let alive = true
-    ;(async () => {
-      setLoading(true)
-      setError(null)
-      try {
-        const [s, e, p] = await Promise.all([
-          api<Summary>('/radar/summary'),
-          api<RadarEvent[]>('/radar/events?limit=40'),
-          api<RadarProduct[]>('/radar/products'),
-        ])
-        if (!alive) return
-        setSummary(s)
-        setEvents(e)
-        setProducts(p)
-      } catch (err) {
-        if (alive) setError(err instanceof Error ? err.message : 'Falha ao carregar o Radar')
-      } finally {
-        if (alive) setLoading(false)
-      }
-    })()
-    return () => { alive = false }
+  const load = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const [s, e, p] = await Promise.all([
+        api<Summary>('/radar/summary'),
+        api<RadarEvent[]>('/radar/events?limit=40'),
+        api<RadarProduct[]>('/radar/products'),
+      ])
+      setSummary(s)
+      setEvents(e)
+      setProducts(p)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Falha ao carregar o Radar')
+    } finally {
+      setLoading(false)
+    }
   }, [])
+
+  useEffect(() => { void load() }, [load])
 
   const visible = useMemo(() => {
     let rows = products
@@ -283,7 +282,10 @@ export default function RadarPage() {
                 </span>
                 <span className="w-28 flex justify-center">
                   <CatalogCell status={p.catalog_status} priceToWin={p.price_to_win}
-                    hasLeadFallback={p.vazzo_has_lead} hasPrice={p.min_price != null} />
+                    hasLeadFallback={p.vazzo_has_lead} hasPrice={p.min_price != null}
+                    onAdjust={p.vazzo_item_id
+                      ? (e) => { e.preventDefault(); e.stopPropagation(); setAdjust(p) }
+                      : undefined} />
                 </span>
                 <span className="w-20 text-right text-xs tabular-nums" style={{
                   color: p.price_delta_pct == null ? '#52525b'
@@ -307,6 +309,89 @@ export default function RadarPage() {
             ))}
           </div>
         </section>
+      </div>
+
+      {adjust && (
+        <PriceAdjustModal product={adjust}
+          onClose={() => setAdjust(null)}
+          onSaved={() => { setAdjust(null); void load() }} />
+      )}
+    </div>
+  )
+}
+
+function PriceAdjustModal({ product, onClose, onSaved }: {
+  product: RadarProduct; onClose: () => void; onSaved: () => void
+}) {
+  const suggested = product.price_to_win ?? product.vazzo_price
+  const [price, setPrice] = useState(suggested != null ? String(suggested) : '')
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  const submit = async () => {
+    const n = Number(price.replace(',', '.'))
+    if (!Number.isFinite(n) || n <= 0) { setErr('Informe um preço válido.'); return }
+    setErr(null)
+    setSaving(true)
+    try {
+      await api(`/ml/listings/${product.vazzo_item_id}/price`, {
+        method: 'PATCH',
+        body: JSON.stringify({ price: n }),
+      })
+      onSaved()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Falha ao ajustar o preço')
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: 'rgba(0,0,0,0.7)' }} onClick={onClose}>
+      <div className="w-full max-w-sm rounded-xl p-5" style={CARD} onClick={e => e.stopPropagation()}>
+        <h2 className="text-sm font-semibold mb-1" style={{ color: '#fafafa' }}>
+          Ajustar preço no Mercado Livre
+        </h2>
+        <p className="text-xs mb-4 truncate" style={{ color: '#71717a' }}>
+          {product.title ?? product.catalog_product_id}
+        </p>
+        <div className="flex gap-6 mb-3">
+          <div>
+            <p className="text-[10px]" style={{ color: '#71717a' }}>Seu preço atual</p>
+            <p className="text-sm font-semibold tabular-nums" style={{ color: '#fafafa' }}>
+              {brl(product.vazzo_price)}
+            </p>
+          </div>
+          {product.price_to_win != null && (
+            <div>
+              <p className="text-[10px]" style={{ color: '#71717a' }}>Preço pra ganhar</p>
+              <p className="text-sm font-semibold tabular-nums" style={{ color: '#67e8f9' }}>
+                {brl(product.price_to_win)}
+              </p>
+            </div>
+          )}
+        </div>
+        <label className="text-[11px] block mb-1" style={{ color: '#a1a1aa' }}>Novo preço (R$)</label>
+        <input value={price} onChange={e => setPrice(e.target.value)} inputMode="decimal" autoFocus
+          className="w-full rounded-lg px-3 py-2 text-sm tabular-nums outline-none mb-3"
+          style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }} />
+        <p className="text-[10px] mb-3" style={{ color: '#fbbf24' }}>
+          ⚠ Isto altera o preço do seu anúncio no Mercado Livre de verdade.
+        </p>
+        {err && (
+          <div className="rounded-lg p-2.5 text-xs mb-3" style={{
+            background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)',
+          }}>{err}</div>
+        )}
+        <div className="flex gap-2">
+          <button onClick={onClose} className="flex-1 rounded-lg py-2 text-xs font-medium"
+            style={{ border: '1px solid #27272a', color: '#a1a1aa' }}>Cancelar</button>
+          <button onClick={submit} disabled={saving}
+            className="flex-1 rounded-lg py-2 text-xs font-medium transition-opacity disabled:opacity-50"
+            style={{ background: '#00E5FF', color: '#09090b' }}>
+            {saving ? 'Aplicando…' : 'Confirmar no ML'}
+          </button>
+        </div>
       </div>
     </div>
   )
@@ -344,8 +429,9 @@ function Kpi(props: {
 /** Status real do catálogo (price_to_win do ML) + preço pra ganhar.
  * Enquanto a coleta não rodou (catalog_status null), cai no heurístico de
  * menor preço — mesmo rótulo, vira dado real na próxima coleta diária. */
-function CatalogCell({ status, priceToWin, hasLeadFallback, hasPrice }: {
+function CatalogCell({ status, priceToWin, hasLeadFallback, hasPrice, onAdjust }: {
   status: string | null; priceToWin: number | null; hasLeadFallback: boolean; hasPrice: boolean
+  onAdjust?: (e: MouseEvent) => void
 }) {
   let label: string
   let bg: string
@@ -371,11 +457,16 @@ function CatalogCell({ status, priceToWin, hasLeadFallback, hasPrice }: {
     <div className="flex flex-col items-center gap-0.5">
       <span className="text-[10px] font-semibold rounded-full px-2 py-0.5"
         style={{ background: bg, color: text }}>{label}</span>
-      {!winning && priceToWin != null && (
+      {onAdjust ? (
+        <button onClick={onAdjust} className="text-[9px] tabular-nums hover:underline"
+          style={{ color: '#67e8f9' }}>
+          {!winning && priceToWin != null ? `→ ${brl(priceToWin)}` : 'ajustar preço'}
+        </button>
+      ) : (!winning && priceToWin != null && (
         <span className="text-[9px] tabular-nums" style={{ color: '#67e8f9' }}>
           → {brl(priceToWin)}
         </span>
-      )}
+      ))}
     </div>
   )
 }

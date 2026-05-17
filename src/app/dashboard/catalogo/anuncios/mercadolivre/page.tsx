@@ -379,7 +379,7 @@ function MarginPanel({ price, saleFee, shipping, info, orgTaxPct, onSave }: {
   )
 }
 
-function ListingCard({ item, selected, linked, catalog, stockInfo, marginInfo, orgTaxPct, matchedProduct, onSelect, onCreateProduct, onLinkProduct, onLinkToKnownProduct, onUpdateStock, onSaveMargin }: {
+function ListingCard({ item, selected, linked, catalog, stockInfo, marginInfo, orgTaxPct, matchedProduct, onSelect, onCreateProduct, onLinkProduct, onLinkToKnownProduct, onUpdateStock, onAdjustPrice, onSaveMargin }: {
   item: MListing
   selected: boolean
   linked: boolean
@@ -395,12 +395,16 @@ function ListingCard({ item, selected, linked, catalog, stockInfo, marginInfo, o
   onLinkProduct: () => void
   onLinkToKnownProduct: (product: { id: string; name: string }) => void
   onUpdateStock: (listingId: string, stockId: string, newQty: number) => Promise<boolean>
+  onAdjustPrice: (listingId: string, sellerId: number | null, newPrice: number) => Promise<boolean>
   onSaveMargin: (productId: string, patch: { cost: number | null; taxPct: number | null }) => Promise<boolean>
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const stockRef = useRef<HTMLInputElement>(null)
   const [stockDraft,  setStockDraft]  = useState<string>(stockInfo ? String(stockInfo.quantity) : '')
   const [stockState,  setStockState]  = useState<'idle' | 'saving' | 'success' | 'error'>('idle')
+  const [editingPrice, setEditingPrice] = useState(false)
+  const [priceDraft,   setPriceDraft]   = useState('')
+  const [priceSaving,  setPriceSaving]  = useState(false)
 
   // Keep input in sync when the parent's stockInfo changes (after save/refresh)
   useEffect(() => {
@@ -419,6 +423,17 @@ function ListingCard({ item, selected, linked, catalog, stockInfo, marginInfo, o
     const ok = await onUpdateStock(item.id, stockInfo.stock_id, next)
     setStockState(ok ? 'success' : 'error')
     setTimeout(() => setStockState('idle'), 1200)
+  }
+
+  async function commitPrice() {
+    const n = parseFloat(priceDraft.replace(',', '.'))
+    if (!isFinite(n) || n <= 0) { setEditingPrice(false); return }
+    if (n === item.price) { setEditingPrice(false); return }
+    if (!confirm(`Mudar o preço de ${item.id} de ${brl(item.price)} para ${brl(n)} no Mercado Livre?`)) return
+    setPriceSaving(true)
+    const ok = await onAdjustPrice(item.id, item.account_seller_id, n)
+    setPriceSaving(false)
+    if (ok) setEditingPrice(false)
   }
   // Tarifa de venda: usa a ESTIMATIVA real da categoria (% + custo fixo do
   // listing_prices) quando o backend resolveu; senão cai no fallback grosso
@@ -637,7 +652,39 @@ function ListingCard({ item, selected, linked, catalog, stockInfo, marginInfo, o
               <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ background: '#0d1f17', color: '#4ade80' }}>-{disc}%</span>
             </div>
           )}
-          <p className="text-white text-xl font-bold leading-tight">{brl(item.price)}</p>
+          {editingPrice ? (
+            <div className="flex flex-col items-end gap-1">
+              <div className="flex items-center gap-1">
+                <span className="text-zinc-500 text-sm">R$</span>
+                <input value={priceDraft} onChange={e => setPriceDraft(e.target.value)}
+                  inputMode="decimal" autoFocus
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') commitPrice()
+                    if (e.key === 'Escape') setEditingPrice(false)
+                  }}
+                  className="w-24 text-right text-white text-lg font-bold tabular-nums px-1.5 py-0.5 rounded outline-none"
+                  style={{ background: '#0d0d10', border: '1px solid #00E5FF' }} />
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => setEditingPrice(false)}
+                  className="text-[10px] text-zinc-500 hover:text-zinc-300">cancelar</button>
+                <button onClick={commitPrice} disabled={priceSaving}
+                  className="text-[10px] font-semibold text-cyan-400 hover:text-cyan-300 disabled:opacity-50">
+                  {priceSaving ? 'aplicando…' : 'aplicar no ML'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button onClick={() => { setPriceDraft(String(item.price)); setEditingPrice(true) }}
+              className="group flex items-center gap-1.5 justify-end w-full"
+              title="Ajustar preço no Mercado Livre">
+              <p className="text-white text-xl font-bold leading-tight">{brl(item.price)}</p>
+              <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+                className="text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+            </button>
+          )}
           <p className="text-emerald-400 text-xs font-semibold mt-0.5">Líquido: {brl(net)}</p>
           {catalog?.catalog_status && catalog.catalog_status !== 'winning' && catalog.price_to_win != null && (
             <p className="text-[11px] font-semibold mt-1" style={{ color: '#67e8f9' }}>
@@ -1560,6 +1607,30 @@ export default function MLAnunciosPage() {
     }
   }, [getHeaders])
 
+  // Ajusta o preço de um anúncio NO MERCADO LIVRE (escrita real). seller_id
+  // vem do anúncio (multi-conta) pra o backend usar o token da conta dona.
+  const adjustListingPrice = useCallback(async (listingId: string, sellerId: number | null, newPrice: number): Promise<boolean> => {
+    try {
+      const headers = await getHeaders()
+      const res = await fetch(`${BACKEND}/ml/listings/${listingId}/price`, {
+        method: 'PATCH',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ price: newPrice, seller_id: sellerId ?? undefined }),
+      })
+      if (!res.ok) {
+        const b = await res.json().catch(() => ({}))
+        toast(b.message ?? 'Erro ao ajustar preço', 'error')
+        return false
+      }
+      setItems(prev => prev.map(it => (it.id === listingId ? { ...it, price: newPrice } : it)))
+      toast('Preço atualizado no Mercado Livre', 'success')
+      return true
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Erro ao ajustar preço', 'error')
+      return false
+    }
+  }, [getHeaders])
+
   function handleTabChange(t: Tab) { setTab(t); setPage(0); setSelected(new Set()) }
   function handleSearch() { setPage(0); loadItems(tab, 0, q) }
 
@@ -2117,6 +2188,7 @@ export default function MLAnunciosPage() {
                 onLinkProduct={() => openSingleLink(item)}
                 onLinkToKnownProduct={product => linkToKnownProduct(item, product)}
                 onUpdateStock={updateLinkedStock}
+                onAdjustPrice={adjustListingPrice}
                 onSaveMargin={(productId, patch) => saveMargin(item.id, productId, patch)}
               />
             ))
