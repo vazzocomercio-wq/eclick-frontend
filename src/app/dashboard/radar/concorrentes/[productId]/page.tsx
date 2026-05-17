@@ -8,7 +8,7 @@ import {
 } from 'recharts'
 import { ArrowLeft, Plus, Sparkles, Pencil, Trash2, Pause, Play, X } from 'lucide-react'
 import { api } from '../../_components/api'
-import { brl, severityOf } from '../../_components/shared'
+import { brl, severityOf, secureImg } from '../../_components/shared'
 
 interface SeriesPoint { date: string; price: number | null; visits: number }
 interface Movement { kind: string; severity: string; label: string }
@@ -110,7 +110,7 @@ export default function ComparacaoPage() {
           <div className="flex items-start justify-between gap-4 mb-1">
             <div className="flex items-center gap-3 min-w-0">
               {data.product.image
-                ? <img src={data.product.image} alt="" loading="lazy"
+                ? <img src={secureImg(data.product.image)} alt="" loading="lazy"
                     className="h-11 w-11 rounded-lg object-cover shrink-0"
                     style={{ border: '1px solid #27272a' }} />
                 : <div className="h-11 w-11 rounded-lg shrink-0"

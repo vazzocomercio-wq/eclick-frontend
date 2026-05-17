@@ -431,6 +431,7 @@ function ListingCard({ item, selected, linked, catalog, stockInfo, marginInfo, o
   const [editingPrice, setEditingPrice] = useState(false)
   const [priceDraft,   setPriceDraft]   = useState('')
   const [priceSaving,  setPriceSaving]  = useState(false)
+  const [confirmPrice, setConfirmPrice] = useState<number | null>(null)
 
   // Keep input in sync when the parent's stockInfo changes (after save/refresh)
   useEffect(() => {
@@ -451,14 +452,19 @@ function ListingCard({ item, selected, linked, catalog, stockInfo, marginInfo, o
     setTimeout(() => setStockState('idle'), 1200)
   }
 
-  async function commitPrice() {
+  function commitPrice() {
     const n = parseFloat(priceDraft.replace(',', '.'))
     if (!isFinite(n) || n <= 0) { setEditingPrice(false); return }
     if (n === item.price) { setEditingPrice(false); return }
-    if (!confirm(`Mudar o preço de ${item.id} de ${brl(item.price)} para ${brl(n)} no Mercado Livre?`)) return
+    setConfirmPrice(n) // abre o modal de confirmação in-app
+  }
+
+  async function doApplyPrice() {
+    if (confirmPrice == null) return
     setPriceSaving(true)
-    const ok = await onAdjustPrice(item.id, item.account_seller_id, n)
+    const ok = await onAdjustPrice(item.id, item.account_seller_id, confirmPrice)
     setPriceSaving(false)
+    setConfirmPrice(null)
     if (ok) setEditingPrice(false)
   }
   // Tarifa de venda: usa a ESTIMATIVA real da categoria (% + custo fixo do
@@ -506,6 +512,43 @@ function ListingCard({ item, selected, linked, catalog, stockInfo, marginInfo, o
   return (
     <div className="flex gap-3 p-4 rounded-xl transition-colors"
       style={{ background: '#0f0f12', border: `1px solid ${selected ? '#00E5FF33' : '#1a1a1f'}` }}>
+
+      {/* Confirmação de mudança de preço (modal in-app, substitui o confirm() nativo) */}
+      {confirmPrice != null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.7)' }} onClick={() => setConfirmPrice(null)}>
+          <div className="w-full max-w-sm rounded-xl p-5"
+            style={{ background: '#111114', border: '1px solid #1a1a1f' }}
+            onClick={e => e.stopPropagation()}>
+            <h2 className="text-sm font-semibold mb-1" style={{ color: '#fafafa' }}>
+              Confirmar mudança de preço
+            </h2>
+            <p className="text-xs mb-4 truncate" style={{ color: '#71717a' }}>{item.id}</p>
+            <div className="flex items-center justify-center gap-3 mb-3">
+              <span className="text-sm tabular-nums line-through" style={{ color: '#71717a' }}>
+                {brl(item.price)}
+              </span>
+              <span style={{ color: '#52525b' }}>→</span>
+              <span className="text-xl font-bold tabular-nums" style={{ color: '#00E5FF' }}>
+                {brl(confirmPrice)}
+              </span>
+            </div>
+            <p className="text-[10px] mb-4 text-center" style={{ color: '#fbbf24' }}>
+              ⚠ Isto altera o preço do seu anúncio no Mercado Livre de verdade.
+            </p>
+            <div className="flex gap-2">
+              <button onClick={() => setConfirmPrice(null)}
+                className="flex-1 rounded-lg py-2 text-xs font-medium"
+                style={{ border: '1px solid #27272a', color: '#a1a1aa' }}>Cancelar</button>
+              <button onClick={doApplyPrice} disabled={priceSaving}
+                className="flex-1 rounded-lg py-2 text-xs font-medium transition-opacity disabled:opacity-50"
+                style={{ background: '#00E5FF', color: '#09090b' }}>
+                {priceSaving ? 'Aplicando…' : 'Confirmar no ML'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Checkbox */}
       <div className="pt-0.5 shrink-0">

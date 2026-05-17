@@ -42,6 +42,13 @@ export function eventLabel(t: string | null | undefined): string {
   return EVENT_LABELS[t ?? ''] ?? (t ?? 'Evento')
 }
 
+/** Força https em URL de imagem — o mlstatic serve http, que o navegador
+ * bloqueia como conteúdo misto numa página https. */
+export function secureImg(url: string | null | undefined): string | undefined {
+  if (!url) return undefined
+  return url.replace(/^http:\/\//i, 'https://')
+}
+
 /** logistic_type do ML → rótulo amigável (linguagem do Mercado Livre). */
 const LOGISTIC_LABELS: Record<string, string> = {
   fulfillment: 'Full',

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, Plus, Users, ChevronRight, X, Search } from 'lucide-react'
 import { api } from '../_components/api'
+import { secureImg } from '../_components/shared'
 
 interface MonitoredProduct {
   product_id: string
@@ -98,7 +99,7 @@ export default function ConcorrentesPage() {
               className="flex items-center gap-3 px-4 py-3.5 hover:bg-white/[0.02] transition-colors"
               style={{ borderTop: i > 0 ? '1px solid #18181b' : undefined }}>
               {p.image
-                ? <img src={p.image} alt="" loading="lazy"
+                ? <img src={secureImg(p.image)} alt="" loading="lazy"
                     className="h-10 w-10 rounded object-cover shrink-0"
                     style={{ border: '1px solid #27272a' }} />
                 : <div className="h-10 w-10 rounded shrink-0"
@@ -204,7 +205,7 @@ function LinkModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => v
                   <button key={h.id} onClick={() => { setPicked(h); setHits([]) }}
                     className="flex items-center gap-2 w-full text-left px-3 py-2 hover:bg-white/[0.04]">
                     {h.photo_urls?.[0]
-                      ? <img src={h.photo_urls[0]} alt="" loading="lazy"
+                      ? <img src={secureImg(h.photo_urls[0])} alt="" loading="lazy"
                           className="h-8 w-8 rounded object-cover shrink-0"
                           style={{ border: '1px solid #27272a' }} />
                       : <div className="h-8 w-8 rounded shrink-0"

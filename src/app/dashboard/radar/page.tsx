@@ -6,7 +6,7 @@ import {
   Radar, Boxes, Users, Activity, TrendingDown, ArrowUpDown, Search, ChevronRight,
 } from 'lucide-react'
 import { api } from './_components/api'
-import { brl, pct, severityOf, eventLabel, relativeTime } from './_components/shared'
+import { brl, pct, severityOf, eventLabel, relativeTime, secureImg } from './_components/shared'
 
 interface Summary {
   products_monitored: number
@@ -260,7 +260,7 @@ export default function RadarPage() {
                 style={{ borderBottom: '1px solid #18181b' }}>
                 <div className="flex-1 min-w-0 flex items-center gap-2.5">
                   {p.thumbnail
-                    ? <img src={p.thumbnail} alt="" loading="lazy"
+                    ? <img src={secureImg(p.thumbnail)} alt="" loading="lazy"
                         className="h-9 w-9 rounded object-cover shrink-0"
                         style={{ border: '1px solid #27272a' }} />
                     : <div className="h-9 w-9 rounded shrink-0"
