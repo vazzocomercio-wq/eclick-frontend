@@ -1528,12 +1528,7 @@ export default function MLAnunciosPage() {
     try {
       const freeItems = items
         .filter(it => it.free_shipping)
-        .map(it => ({
-          item_id: it.id,
-          seller_id: it.account_seller_id ?? undefined,
-          price: it.price,
-          listing_type_id: it.listing_type_id,
-        }))
+        .map(it => ({ item_id: it.id, seller_id: it.account_seller_id ?? undefined }))
       if (freeItems.length === 0) { setFreightMap(new Map()); return }
       const headers = await getHeaders()
       const res = await fetch(`${BACKEND}/ml/listings/shipping-cost`, {
