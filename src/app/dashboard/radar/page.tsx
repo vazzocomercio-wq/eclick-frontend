@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { api } from './_components/api'
 import { brl, pct, severityOf, eventLabel, relativeTime, secureImg } from './_components/shared'
+import { computeContributionMargin } from '@/lib/margin'
 
 interface Summary {
   products_monitored: number
@@ -57,6 +58,19 @@ interface RadarProduct {
 type SortKey =
   | 'title' | 'competitors' | 'min_price' | 'catalog_status'
   | 'price_delta_pct' | 'new_events' | 'market_demand'
+
+interface PriceContext {
+  has_listing: boolean
+  item_id: string | null
+  current_price: number | null
+  price_to_win: number | null
+  catalog_status: string | null
+  cost: number | null
+  tax_pct: number | null
+  fee_pct: number | null
+  fixed_fee: number | null
+  shipping_cost: number | null
+}
 
 const CARD = { background: '#111114', border: '1px solid #1a1a1f' }
 
@@ -323,10 +337,49 @@ export default function RadarPage() {
 function PriceAdjustModal({ product, onClose, onSaved }: {
   product: RadarProduct; onClose: () => void; onSaved: () => void
 }) {
-  const suggested = product.price_to_win ?? product.vazzo_price
-  const [price, setPrice] = useState(suggested != null ? String(suggested) : '')
+  const [ctx, setCtx] = useState<PriceContext | null>(null)
+  const [price, setPrice] = useState(
+    product.price_to_win != null ? String(product.price_to_win)
+      : product.vazzo_price != null ? String(product.vazzo_price) : '',
+  )
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+
+  // Puxa custo, tarifa, frete e preço pra ganhar pra calcular a margem.
+  useEffect(() => {
+    let alive = true
+    ;(async () => {
+      try {
+        const c = await api<PriceContext>(`/radar/products/${product.id}/price-context`)
+        if (!alive) return
+        setCtx(c)
+        if (c.price_to_win != null && product.price_to_win == null) setPrice(String(c.price_to_win))
+      } catch { /* segue sem o contexto detalhado */ }
+    })()
+    return () => { alive = false }
+  }, [product.id, product.price_to_win])
+
+  /** Margem de contribuição (%) num dado preço, com os custos puxados. */
+  const marginAt = (p: number | null | undefined): number | null => {
+    if (p == null || p <= 0 || !ctx || ctx.cost == null) return null
+    const fee = ctx.fee_pct != null ? p * ctx.fee_pct / 100 + (ctx.fixed_fee ?? 0) : 0
+    const m = computeContributionMargin({
+      price: p, saleFee: fee, shipping: ctx.shipping_cost ?? 0,
+      cost: ctx.cost, taxPercentage: ctx.tax_pct ?? 0, taxOnFreight: false,
+    })
+    return m.contributionMarginPct
+  }
+  const marginColor = (m: number | null): string =>
+    m == null ? '#71717a' : m >= 15 ? '#4ade80' : m >= 5 ? '#fbbf24' : '#f87171'
+  const fmtPct = (m: number | null): string =>
+    m == null ? '—' : `${m.toFixed(1).replace('.', ',')}%`
+
+  const currentPrice = ctx?.current_price ?? product.vazzo_price
+  const ptw = ctx?.price_to_win ?? product.price_to_win
+  const newNum = Number(price.replace(',', '.'))
+  const mCur = marginAt(currentPrice)
+  const mPtw = marginAt(ptw)
+  const mNew = marginAt(Number.isFinite(newNum) ? newNum : null)
 
   const submit = async () => {
     const n = Number(price.replace(',', '.'))
@@ -355,26 +408,54 @@ function PriceAdjustModal({ product, onClose, onSaved }: {
         <p className="text-xs mb-4 truncate" style={{ color: '#71717a' }}>
           {product.title ?? product.catalog_product_id}
         </p>
-        <div className="flex gap-6 mb-3">
-          <div>
-            <p className="text-[10px]" style={{ color: '#71717a' }}>Seu preço atual</p>
-            <p className="text-sm font-semibold tabular-nums" style={{ color: '#fafafa' }}>
-              {brl(product.vazzo_price)}
+
+        <div className="grid grid-cols-2 gap-2 mb-3">
+          <div className="rounded-lg p-2.5" style={{ background: '#0a0a0e', border: '1px solid #27272a' }}>
+            <p className="text-[10px]" style={{ color: '#71717a' }}>Preço atual</p>
+            <p className="text-sm font-semibold tabular-nums" style={{ color: '#fafafa' }}>{brl(currentPrice)}</p>
+            <p className="text-[10px] tabular-nums mt-0.5" style={{ color: marginColor(mCur) }}>
+              margem {fmtPct(mCur)}
             </p>
           </div>
-          {product.price_to_win != null && (
-            <div>
-              <p className="text-[10px]" style={{ color: '#71717a' }}>Preço pra ganhar</p>
-              <p className="text-sm font-semibold tabular-nums" style={{ color: '#67e8f9' }}>
-                {brl(product.price_to_win)}
-              </p>
+          <div className="rounded-lg p-2.5"
+            style={{ background: 'rgba(0,229,255,0.06)', border: '1px solid rgba(0,229,255,0.2)' }}>
+            <div className="flex items-center justify-between">
+              <p className="text-[10px]" style={{ color: '#67e8f9' }}>Preço pra ganhar</p>
+              {ptw != null && (
+                <button onClick={() => setPrice(String(ptw))}
+                  className="text-[9px] hover:underline" style={{ color: '#67e8f9' }}>usar</button>
+              )}
             </div>
-          )}
+            <p className="text-sm font-semibold tabular-nums" style={{ color: '#67e8f9' }}>
+              {ptw != null ? brl(ptw) : '—'}
+            </p>
+            <p className="text-[10px] tabular-nums mt-0.5" style={{ color: marginColor(mPtw) }}>
+              margem {fmtPct(mPtw)}
+            </p>
+          </div>
         </div>
+
         <label className="text-[11px] block mb-1" style={{ color: '#a1a1aa' }}>Novo preço (R$)</label>
         <input value={price} onChange={e => setPrice(e.target.value)} inputMode="decimal" autoFocus
-          className="w-full rounded-lg px-3 py-2 text-sm tabular-nums outline-none mb-3"
+          className="w-full rounded-lg px-3 py-2 text-sm tabular-nums outline-none"
           style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }} />
+        <p className="text-[11px] mt-1.5 mb-3 tabular-nums font-medium" style={{ color: marginColor(mNew) }}>
+          {mNew != null
+            ? `Margem nesse preço: ${fmtPct(mNew)}`
+            : (ctx && ctx.cost == null
+                ? 'Cadastre o custo do produto pra ver a margem.'
+                : 'Margem nesse preço: —')}
+        </p>
+
+        {ctx && ctx.cost != null && (
+          <p className="text-[10px] mb-3" style={{ color: '#52525b' }}>
+            Custo {brl(ctx.cost)}
+            {ctx.fee_pct != null ? ` · Tarifa ML ~${ctx.fee_pct.toFixed(1).replace('.', ',')}%` : ''}
+            {ctx.shipping_cost != null ? ` · Frete ${brl(ctx.shipping_cost)}` : ''}
+            {(ctx.tax_pct ?? 0) > 0 ? ` · Imposto ${ctx.tax_pct}%` : ''}
+          </p>
+        )}
+
         <p className="text-[10px] mb-3" style={{ color: '#fbbf24' }}>
           ⚠ Isto altera o preço do seu anúncio no Mercado Livre de verdade.
         </p>
