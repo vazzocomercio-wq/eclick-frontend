@@ -8,6 +8,10 @@ import { fallbackFeeRate, computeContributionMargin, round2, estimateSaleFee } f
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 
+/** Regra ML: frete grátis só é custo do vendedor a partir de R$79 —
+ *  abaixo disso o comprador paga e o frete não entra na margem. */
+const FREE_SHIPPING_MIN = 79
+
 // ── Types ──────────────────────────────────────────────────────────────────
 
 type MListing = {
@@ -304,19 +308,22 @@ function MarginPanel({ price, saleFee, shipping, info, orgTaxPct, priceToWin, fe
   const cost   = parseFloat(costDraft.replace(',', '.')) || 0
   const taxPct = parseFloat(taxDraft.replace(',', '.')) || 0
 
+  // Regra ML: o frete só é custo do vendedor a partir de R$79 — abaixo
+  // disso o comprador paga, então não entra na margem.
+  const shipAt = (p: number): number => (p >= FREE_SHIPPING_MIN ? shipping : 0)
   const m = computeContributionMargin({
-    price, saleFee, shipping, cost,
+    price, saleFee, shipping: shipAt(price), cost,
     taxPercentage: taxPct, taxOnFreight: info.tax_on_freight,
   })
   // Margem projetada SE o preço cair pro "preço pra ganhar" o catálogo.
   const mWin = priceToWin != null && feeAtWin != null && priceToWin > 0 && priceToWin !== price
     ? computeContributionMargin({
-        price: priceToWin, saleFee: feeAtWin, shipping, cost,
+        price: priceToWin, saleFee: feeAtWin, shipping: shipAt(priceToWin), cost,
         taxPercentage: taxPct, taxOnFreight: info.tax_on_freight,
       })
     : null
   // Lucro bruto = preço − tarifa − frete (antes de custo e imposto).
-  const grossProfit    = round2(price - saleFee - shipping)
+  const grossProfit    = round2(price - saleFee - shipAt(price))
   const grossProfitPct = price > 0 ? round2((grossProfit / price) * 100) : 0
   // ROI sobre o custo — quanto a margem rende sobre o CMV investido.
   const marginOverCost = cost > 0 ? round2((m.contributionMargin / cost) * 100) : null
@@ -815,11 +822,11 @@ function ListingCard({ item, selected, linked, catalog, realShippingCost, stockI
           <div className="flex justify-between text-zinc-600">
             <span>Frete vendedor</span>
             <span>
-              {item.free_shipping
+              {item.free_shipping && item.price >= FREE_SHIPPING_MIN
                 ? (effShipping > 0
                     ? <span className="text-red-400/80">-{brl(effShipping)}</span>
                     : 'Incluso')
-                : 'Comprador'}
+                : <span title="Abaixo de R$79 o frete é por conta do comprador">Comprador</span>}
             </span>
           </div>
         </div>

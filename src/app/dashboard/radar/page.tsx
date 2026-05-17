@@ -74,6 +74,10 @@ interface PriceContext {
 
 const CARD = { background: '#111114', border: '1px solid #1a1a1f' }
 
+/** Regra ML: frete grátis só é obrigatório (custo do vendedor) a partir
+ *  de R$79. Abaixo disso o comprador paga — o vendedor não arca com frete. */
+const FREE_SHIPPING_MIN = 79
+
 export default function RadarPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -359,12 +363,15 @@ function PriceAdjustModal({ product, onClose, onSaved }: {
     return () => { alive = false }
   }, [product.id, product.price_to_win])
 
-  /** Margem de contribuição (%) num dado preço, com os custos puxados. */
+  /** Margem de contribuição (%) num dado preço, com os custos puxados.
+   *  Regra ML: abaixo de R$79 o frete é do comprador — o vendedor não
+   *  arca com ele, então some do cálculo da margem. */
   const marginAt = (p: number | null | undefined): number | null => {
     if (p == null || p <= 0 || !ctx || ctx.cost == null) return null
     const fee = ctx.fee_pct != null ? p * ctx.fee_pct / 100 + (ctx.fixed_fee ?? 0) : 0
+    const shipping = p >= FREE_SHIPPING_MIN ? (ctx.shipping_cost ?? 0) : 0
     const m = computeContributionMargin({
-      price: p, saleFee: fee, shipping: ctx.shipping_cost ?? 0,
+      price: p, saleFee: fee, shipping,
       cost: ctx.cost, taxPercentage: ctx.tax_pct ?? 0, taxOnFreight: false,
     })
     return m.contributionMarginPct
@@ -451,7 +458,9 @@ function PriceAdjustModal({ product, onClose, onSaved }: {
           <p className="text-[10px] mb-3" style={{ color: '#52525b' }}>
             Custo {brl(ctx.cost)}
             {ctx.fee_pct != null ? ` · Tarifa ML ~${ctx.fee_pct.toFixed(1).replace('.', ',')}%` : ''}
-            {ctx.shipping_cost != null ? ` · Frete ${brl(ctx.shipping_cost)}` : ''}
+            {Number.isFinite(newNum) && newNum < FREE_SHIPPING_MIN
+              ? ' · Frete: comprador paga (abaixo de R$ 79)'
+              : ctx.shipping_cost != null ? ` · Frete ${brl(ctx.shipping_cost)}` : ''}
             {(ctx.tax_pct ?? 0) > 0 ? ` · Imposto ${ctx.tax_pct}%` : ''}
           </p>
         )}
