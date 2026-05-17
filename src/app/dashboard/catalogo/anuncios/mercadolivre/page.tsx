@@ -343,6 +343,22 @@ function MarginPanel({ price, saleFee, shipping, info, orgTaxPct, priceToWin, fe
 
   return (
     <div className="w-full text-[11px] pt-2 mt-1 space-y-1.5" style={{ borderTop: '1px solid #1e1e24' }}>
+      {/* Margem no preço pra ganhar — logo abaixo do "Ganha o catálogo a R$". */}
+      {mWin && !noCost && (
+        <div className="flex justify-between items-start gap-2 rounded-md px-2 py-1.5"
+          style={{ background: 'rgba(0,229,255,0.06)', border: '1px solid rgba(0,229,255,0.15)' }}>
+          <span className="text-zinc-400">
+            Margem no preço pra ganhar
+            <span className="block tabular-nums" style={{ color: '#67e8f9' }}>{brl(priceToWin!)}</span>
+          </span>
+          <div className="text-right font-bold" style={{
+            color: mWin.contributionMarginPct >= 15 ? '#4ade80'
+                 : mWin.contributionMarginPct >= 5  ? '#fbbf24' : '#f87171',
+          }}>
+            {brl(mWin.contributionMargin)} · {mWin.contributionMarginPct.toFixed(1)}%
+          </div>
+        </div>
+      )}
       <div className="flex justify-between text-zinc-500">
         <span>Lucro bruto</span>
         <span className="text-emerald-400/90">{brl(grossProfit)} · {grossProfitPct.toFixed(1)}%</span>
@@ -380,20 +396,6 @@ function MarginPanel({ price, saleFee, shipping, info, orgTaxPct, priceToWin, fe
           )}
         </div>
       </div>
-      {mWin && !noCost && (
-        <div className="flex justify-between items-start pt-1" style={{ borderTop: '1px dashed #1e1e24' }}>
-          <span className="text-zinc-500">
-            No preço pra ganhar
-            <span className="block tabular-nums" style={{ color: '#67e8f9' }}>{brl(priceToWin!)}</span>
-          </span>
-          <div className="text-right font-bold" style={{
-            color: mWin.contributionMarginPct >= 15 ? '#4ade80'
-                 : mWin.contributionMarginPct >= 5  ? '#fbbf24' : '#f87171',
-          }}>
-            {brl(mWin.contributionMargin)} · {mWin.contributionMarginPct.toFixed(1)}%
-          </div>
-        </div>
-      )}
       {dirty && (
         <button onClick={save} disabled={saving}
           className="w-full text-[10px] py-1 rounded-md font-semibold transition-opacity hover:opacity-90 disabled:opacity-60"
@@ -405,12 +407,14 @@ function MarginPanel({ price, saleFee, shipping, info, orgTaxPct, priceToWin, fe
   )
 }
 
-function ListingCard({ item, selected, linked, catalog, stockInfo, marginInfo, orgTaxPct, matchedProduct, onSelect, onCreateProduct, onLinkProduct, onLinkToKnownProduct, onUpdateStock, onAdjustPrice, onSaveMargin }: {
+function ListingCard({ item, selected, linked, catalog, realShippingCost, stockInfo, marginInfo, orgTaxPct, matchedProduct, onSelect, onCreateProduct, onLinkProduct, onLinkToKnownProduct, onUpdateStock, onAdjustPrice, onSaveMargin }: {
   item: MListing
   selected: boolean
   linked: boolean
   /** Status real do catálogo (price_to_win do ML, via Radar). */
   catalog?: CatalogInfo
+  /** Custo real do frete grátis (via /ml/listings/shipping-cost). */
+  realShippingCost?: number
   stockInfo?: { stock_id: string; product_id: string; quantity: number }
   marginInfo?: MarginInfo
   orgTaxPct: number | null
@@ -478,6 +482,11 @@ function ListingCard({ item, selected, linked, catalog, stockInfo, marginInfo, o
     ? item.estimated_fee_pct
     : fallbackFeeRate(item.listing_type_id)
   const net      = item.price - fee
+  // Frete grátis: custo REAL (shipping-cost) quando disponível; senão a
+  // estimativa antiga; 0 quando o comprador paga.
+  const effShipping = item.free_shipping
+    ? (realShippingCost ?? item.estimated_free_shipping_cost ?? 0)
+    : 0
   // Tarifa estimada no "preço pra ganhar" do catálogo (tarifa escala com preço).
   const ptwPrice = catalog?.price_to_win ?? null
   const feeAtWin = ptwPrice != null
@@ -720,7 +729,7 @@ function ListingCard({ item, selected, linked, catalog, stockInfo, marginInfo, o
       </div>
 
       {/* Price card */}
-      <div className="shrink-0 w-44 flex flex-col items-end gap-1.5">
+      <div className="shrink-0 w-52 flex flex-col items-end gap-1.5">
         <div className="text-right">
           {disc && item.original_price && (
             <div className="flex items-center gap-1.5 justify-end">
@@ -778,6 +787,22 @@ function ListingCard({ item, selected, linked, catalog, stockInfo, marginInfo, o
           )}
         </div>
 
+        {/* Painel de margem — logo após o preço/"ganha o catálogo". Só quando
+            o anúncio tem produto vinculado. */}
+        {linked && marginInfo && (
+          <MarginPanel
+            price={item.price}
+            saleFee={fee}
+            shipping={effShipping}
+            info={marginInfo}
+            orgTaxPct={orgTaxPct}
+            priceToWin={ptwPrice}
+            feeAtWin={feeAtWin}
+            onSave={onSaveMargin}
+          />
+        )}
+
+        {/* Detalhamento de custos */}
         <div className="w-full text-[11px] pt-2 space-y-1" style={{ borderTop: '1px solid #1e1e24' }}>
           <div className="flex justify-between text-zinc-600">
             <span title={feeIsEstimated
@@ -791,27 +816,13 @@ function ListingCard({ item, selected, linked, catalog, stockInfo, marginInfo, o
             <span>Frete vendedor</span>
             <span>
               {item.free_shipping
-                ? (item.estimated_free_shipping_cost != null
-                    ? <span className="text-red-400/80">-{brl(item.estimated_free_shipping_cost)}</span>
+                ? (effShipping > 0
+                    ? <span className="text-red-400/80">-{brl(effShipping)}</span>
                     : 'Incluso')
                 : 'Comprador'}
             </span>
           </div>
         </div>
-
-        {/* Painel de margem — só quando o anúncio tem produto vinculado. */}
-        {linked && marginInfo && (
-          <MarginPanel
-            price={item.price}
-            saleFee={fee}
-            shipping={item.free_shipping ? (item.estimated_free_shipping_cost ?? 0) : 0}
-            info={marginInfo}
-            orgTaxPct={orgTaxPct}
-            priceToWin={ptwPrice}
-            feeAtWin={feeAtWin}
-            onSave={onSaveMargin}
-          />
-        )}
 
         {/* Ações principais. Distingue PRODUTO (pai do catálogo, base de
             estoque) de ANÚNCIO (publicação no marketplace):
@@ -1371,6 +1382,7 @@ export default function MLAnunciosPage() {
   const [q, setQ]         = useState('')
   const [items, setItems] = useState<MListing[]>([])
   const [catalogMap, setCatalogMap] = useState<Map<string, CatalogInfo>>(new Map())
+  const [freightMap, setFreightMap] = useState<Map<string, number>>(new Map())
   const [total, setTotal] = useState(0)
   const [counts, setCounts] = useState<Counts>({})
   const [loading, setLoading]   = useState(true)
@@ -1508,10 +1520,40 @@ export default function MLAnunciosPage() {
     } catch { /* silent — status de catálogo é complementar */ }
   }, [getHeaders, items])
 
+  // ── Custo real do frete grátis — AO VIVO no ML ─────────────────────────
+  // A API listing_prices não devolve isso; aqui pega o custo de verdade pra
+  // a margem refletir o frete. Anúncio sem vínculo/dimensões degrada.
+
+  const loadShippingCost = useCallback(async () => {
+    try {
+      const freeItems = items
+        .filter(it => it.free_shipping)
+        .map(it => ({
+          item_id: it.id,
+          seller_id: it.account_seller_id ?? undefined,
+          price: it.price,
+          listing_type_id: it.listing_type_id,
+        }))
+      if (freeItems.length === 0) { setFreightMap(new Map()); return }
+      const headers = await getHeaders()
+      const res = await fetch(`${BACKEND}/ml/listings/shipping-cost`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: freeItems }),
+      })
+      if (!res.ok) return
+      const rows: Array<{ item_id: string; free_shipping_cost: number | null }> = await res.json()
+      const m = new Map<string, number>()
+      for (const r of rows) if (r.free_shipping_cost != null) m.set(r.item_id, r.free_shipping_cost)
+      setFreightMap(m)
+    } catch { /* silent — frete real é complementar */ }
+  }, [getHeaders, items])
+
   // ── Initial + reactive loads ───────────────────────────────────────────
 
   useEffect(() => { loadCounts() }, [loadCounts])
   useEffect(() => { loadCatalogStatus() }, [loadCatalogStatus])
+  useEffect(() => { loadShippingCost() }, [loadShippingCost])
   useEffect(() => { loadItems(tab, page, q) }, [tab, page, loadItems])
   // Quando troca de conta, volta pra página 0 e limpa seleção pra evitar
   // operar em IDs que sumiram do filtro atual.
@@ -2276,6 +2318,7 @@ export default function MLAnunciosPage() {
                 selected={selected.has(item.id)}
                 linked={linkedIds.has(item.id)}
                 catalog={catalogMap.get(item.id)}
+                realShippingCost={freightMap.get(item.id)}
                 stockInfo={stockMap.get(item.id)}
                 marginInfo={marginMap[item.id]}
                 orgTaxPct={orgTax.pct}
