@@ -42,6 +42,37 @@ export function eventLabel(t: string | null | undefined): string {
   return EVENT_LABELS[t ?? ''] ?? (t ?? 'Evento')
 }
 
+/** logistic_type do ML → rótulo amigável (linguagem do Mercado Livre). */
+const LOGISTIC_LABELS: Record<string, string> = {
+  fulfillment: 'Full',
+  self_service: 'Flex',
+  cross_docking: 'Coleta',
+  xd_drop_off: 'Agência',
+  drop_off: 'Agência',
+  default: 'Padrão',
+  custom: 'Padrão',
+  not_specified: '—',
+}
+export function logisticLabel(t: string | null | undefined): string {
+  if (!t) return '—'
+  return LOGISTIC_LABELS[t] ?? t
+}
+
+/** listing_type_id do ML → rótulo amigável (Clássico / Premium / etc). */
+const LISTING_TYPE_LABELS: Record<string, string> = {
+  gold_pro: 'Premium',
+  gold_premium: 'Premium',
+  gold_special: 'Clássico',
+  gold: 'Ouro',
+  silver: 'Prata',
+  bronze: 'Bronze',
+  free: 'Grátis',
+}
+export function listingTypeLabel(t: string | null | undefined): string {
+  if (!t) return '—'
+  return LISTING_TYPE_LABELS[t] ?? t
+}
+
 /** Reputação ML "5_green" → cor do termômetro. */
 export function reputationColor(level: string | null | undefined): string {
   if (!level) return '#52525b'

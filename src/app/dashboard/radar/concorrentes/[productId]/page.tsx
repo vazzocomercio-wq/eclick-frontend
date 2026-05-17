@@ -31,7 +31,7 @@ interface Competitor {
   movements: Movement[]
 }
 interface Comparison {
-  product: { id: string; name: string | null; sku: string | null; category_id: string | null; cost_price: number | null; my_price: number | null }
+  product: { id: string; name: string | null; sku: string | null; image: string | null; category_id: string | null; cost_price: number | null; my_price: number | null }
   conversion: { rate: number | null; basis: string; confidence: string; calc_date: string | null }
   our_side: { item_ids: string[]; min_price: number | null; visits_30d: number; real_units_30d: number; series: SeriesPoint[] }
   competitors: Competitor[]
@@ -108,9 +108,17 @@ export default function ComparacaoPage() {
       {!loading && data && (
         <>
           <div className="flex items-start justify-between gap-4 mb-1">
-            <h1 className="text-xl font-bold" style={{ color: '#fafafa' }}>
-              {data.product.name ?? data.product.id}
-            </h1>
+            <div className="flex items-center gap-3 min-w-0">
+              {data.product.image
+                ? <img src={data.product.image} alt="" loading="lazy"
+                    className="h-11 w-11 rounded-lg object-cover shrink-0"
+                    style={{ border: '1px solid #27272a' }} />
+                : <div className="h-11 w-11 rounded-lg shrink-0"
+                    style={{ background: '#1a1a1f', border: '1px solid #27272a' }} />}
+              <h1 className="text-xl font-bold truncate" style={{ color: '#fafafa' }}>
+                {data.product.name ?? data.product.id}
+              </h1>
+            </div>
             <button onClick={() => setAddOpen(true)}
               className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium shrink-0"
               style={{ background: '#00E5FF', color: '#09090b' }}>

@@ -9,6 +9,7 @@ interface MonitoredProduct {
   product_id: string
   name: string | null
   sku: string | null
+  image: string | null
   category_id: string | null
   competitor_count: number
   active_count: number
@@ -17,6 +18,7 @@ interface ProductHit {
   id: string
   name: string | null
   sku: string | null
+  photo_urls: string[] | null
 }
 
 const CARD = { background: '#111114', border: '1px solid #1a1a1f' }
@@ -95,6 +97,12 @@ export default function ConcorrentesPage() {
             <Link key={p.product_id} href={`/dashboard/radar/concorrentes/${p.product_id}`}
               className="flex items-center gap-3 px-4 py-3.5 hover:bg-white/[0.02] transition-colors"
               style={{ borderTop: i > 0 ? '1px solid #18181b' : undefined }}>
+              {p.image
+                ? <img src={p.image} alt="" loading="lazy"
+                    className="h-10 w-10 rounded object-cover shrink-0"
+                    style={{ border: '1px solid #27272a' }} />
+                : <div className="h-10 w-10 rounded shrink-0"
+                    style={{ background: '#1a1a1f', border: '1px solid #27272a' }} />}
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium truncate" style={{ color: '#fafafa' }}>
                   {p.name ?? p.product_id}
@@ -194,10 +202,17 @@ function LinkModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => v
                 style={{ background: '#18181b', border: '1px solid #27272a' }}>
                 {hits.map(h => (
                   <button key={h.id} onClick={() => { setPicked(h); setHits([]) }}
-                    className="block w-full text-left px-3 py-2 text-xs hover:bg-white/[0.04]"
-                    style={{ color: '#e4e4e7' }}>
-                    {h.name ?? h.id}
-                    {h.sku && <span style={{ color: '#52525b' }}> · {h.sku}</span>}
+                    className="flex items-center gap-2 w-full text-left px-3 py-2 hover:bg-white/[0.04]">
+                    {h.photo_urls?.[0]
+                      ? <img src={h.photo_urls[0]} alt="" loading="lazy"
+                          className="h-8 w-8 rounded object-cover shrink-0"
+                          style={{ border: '1px solid #27272a' }} />
+                      : <div className="h-8 w-8 rounded shrink-0"
+                          style={{ background: '#1a1a1f', border: '1px solid #27272a' }} />}
+                    <span className="min-w-0 flex-1 truncate text-xs" style={{ color: '#e4e4e7' }}>
+                      {h.name ?? h.id}
+                      {h.sku && <span style={{ color: '#52525b' }}> · {h.sku}</span>}
+                    </span>
                   </button>
                 ))}
               </div>

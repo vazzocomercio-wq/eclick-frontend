@@ -10,6 +10,7 @@ import { ArrowLeft, Truck, Activity } from 'lucide-react'
 import { api } from '../_components/api'
 import {
   brl, pct, severityOf, eventLabel, relativeTime, reputationColor,
+  logisticLabel, listingTypeLabel,
 } from '../_components/shared'
 
 interface Seller {
@@ -240,10 +241,10 @@ export default function RadarDetailPage() {
                     : <span className="text-[10px]" style={{ color: '#52525b' }}>—</span>}
                 </span>
                 <span className="w-28 text-center text-[10px]" style={{ color: '#a1a1aa' }}>
-                  {o.logistic_type ?? '—'}
+                  {logisticLabel(o.logistic_type)}
                 </span>
                 <span className="w-24 text-center text-[10px]" style={{ color: '#71717a' }}>
-                  {o.listing_type ?? '—'}
+                  {listingTypeLabel(o.listing_type)}
                 </span>
               </div>
             ))}
