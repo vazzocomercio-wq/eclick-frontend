@@ -12,7 +12,7 @@ import {
   Megaphone, ShoppingCart, TrendingUp, Settings, UserCog,
   Plug, Database, ChevronDown, Bot, Inbox, BookOpen,
   GraduationCap, LineChart, Shield, Users2, TrendingDown,
-  Zap, Map as MapIcon, Bell, Wand2, Layers, Store, Link2, Calendar, FileText, Eye,
+  Zap, Map as MapIcon, Bell, Wand2, Layers, Store, Palette, Link2, Calendar, FileText, Eye,
   RotateCcw, CreditCard, Scale, Trophy, AlertTriangle as AlertTriangleIcon, Sparkles as SparklesIcon,
 } from 'lucide-react'
 
@@ -249,6 +249,7 @@ const SECTIONS: NavSection[] = [
       { label: 'Kits & Combos',    href: '/dashboard/kits',          icon: <Package size={15} /> },
       { label: 'Coleções',         href: '/dashboard/collections',   icon: <Layers size={15} /> },
       { label: 'Copiloto da Loja', href: '/dashboard/store-copilot', icon: <Bot size={15} /> },
+      { label: 'Designer da Loja', href: '/dashboard/store/designer', icon: <Palette size={15} /> },
       { label: 'Config da Loja',   href: '/dashboard/store/config',  icon: <Store size={15} /> },
       {
         label: 'IA Criativo', href: '/dashboard/creative', icon: <Wand2 size={15} />,

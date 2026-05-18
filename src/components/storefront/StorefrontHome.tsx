@@ -352,17 +352,19 @@ export function WhatsAppButton({ store, message }: { store: StorefrontStore; mes
 
 /* -------------------------------------------------------------- composer */
 
-export function StorefrontHome({ design, store, products, slug }: {
+export function StorefrontHome({ design, store, products, slug, embedded = false }: {
   design: StorefrontDesign
   store: StorefrontStore
   products: StorefrontProduct[]
   slug: string
+  /** Quando true (preview no dashboard): sem altura de viewport e sem botao fixo. */
+  embedded?: boolean
 }) {
   const ctx = buildCtx(design.theme)
   const { colors } = design.theme
 
   return (
-    <div style={{ background: colors.background, color: colors.text, fontFamily: ctx.fontB, minHeight: '100vh' }}>
+    <div style={{ background: colors.background, color: colors.text, fontFamily: ctx.fontB, minHeight: embedded ? undefined : '100vh' }}>
       {design.sections.map((section, i) => {
         switch (section.type) {
           case 'header':
@@ -382,7 +384,7 @@ export function StorefrontHome({ design, store, products, slug }: {
             return null
         }
       })}
-      <WhatsAppButton store={store} />
+      {!embedded && <WhatsAppButton store={store} />}
     </div>
   )
 }
