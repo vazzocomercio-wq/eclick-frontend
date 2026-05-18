@@ -1877,6 +1877,7 @@ function TaxConfigModal({ onClose, onSaved }: { onClose: () => void; onSaved: ()
   const [saving, setSaving]         = useState(false)
   const [error, setError]           = useState<string | null>(null)
   const [result, setResult]         = useState<string | null>(null)
+  const [confirming, setConfirming] = useState(false)
 
   useEffect(() => {
     void (async () => {
@@ -1894,13 +1895,23 @@ function TaxConfigModal({ onClose, onSaved }: { onClose: () => void; onSaved: ()
     })()
   }, [])
 
-  async function save() {
+  /** Valida e decide o fluxo — aplicar a todos exige confirmacao antes de gravar. */
+  function save() {
     setError(null)
     const num = Number(pct)
     if (pct.trim() === '' || !Number.isFinite(num) || num < 0 || num > 100) {
       setError('Informe um percentual válido (0 a 100).')
       return
     }
+    if (apply === 'all') { setConfirming(true); return }
+    void doSave()
+  }
+
+  /** Grava o imposto padrao e aplica aos produtos conforme a opcao escolhida. */
+  async function doSave() {
+    setConfirming(false)
+    setError(null)
+    const num = Number(pct)
     setSaving(true)
     try {
       const token = await getAuthToken()
@@ -1949,6 +1960,34 @@ function TaxConfigModal({ onClose, onSaved }: { onClose: () => void; onSaved: ()
               style={{ background: '#00E5FF', color: '#000' }}>
               Fechar
             </button>
+          </div>
+        ) : confirming ? (
+          <div className="px-5 py-5 space-y-4">
+            <div className="rounded-lg p-3.5"
+              style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)' }}>
+              <p className="text-amber-300 text-sm font-semibold mb-1">Aplicar a todos os produtos?</p>
+              <p className="text-zinc-300 text-xs leading-relaxed">
+                Isso vai gravar <strong className="text-white">{pct}%</strong> de imposto em
+                {' '}<strong className="text-white">todos os produtos do catálogo</strong>,
+                {' '}sobrescrevendo os valores de imposto já cadastrados. A ação é definitiva
+                {' '}e não tem desfazer.
+              </p>
+            </div>
+
+            {error && <p className="text-red-400 text-xs">{error}</p>}
+
+            <div className="flex justify-end gap-2 pt-1">
+              <button onClick={() => setConfirming(false)} disabled={saving}
+                className="px-4 py-2 rounded-lg text-sm font-medium border disabled:opacity-60"
+                style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>
+                Voltar
+              </button>
+              <button onClick={() => void doSave()} disabled={saving}
+                className="px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-60"
+                style={{ background: '#f59e0b', color: '#111' }}>
+                {saving ? 'Aplicando…' : 'Confirmar e aplicar'}
+              </button>
+            </div>
           </div>
         ) : (
           <div className="px-5 py-4 space-y-4">
@@ -2004,7 +2043,7 @@ function TaxConfigModal({ onClose, onSaved }: { onClose: () => void; onSaved: ()
               <button onClick={save} disabled={saving}
                 className="glow-rainbow px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-60"
                 style={{ background: '#00E5FF', color: '#000' }}>
-                {saving ? 'Salvando…' : 'Salvar'}
+                {saving ? 'Salvando…' : apply === 'all' ? 'Continuar' : 'Salvar'}
               </button>
             </div>
           </div>
