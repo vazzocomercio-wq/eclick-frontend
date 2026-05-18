@@ -6,6 +6,7 @@ import {
   CheckCircle2, XCircle, Clock, RefreshCw, Plug, Zap,
   Key, Eye, EyeOff, Plus, Trash2, TestTube2, Loader2,
   X, ExternalLink, AlertCircle, Bot, MessageCircle, BarChart2, Save, Check, Settings, Mail,
+  Palette, Camera,
 } from 'lucide-react'
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid,
@@ -97,6 +98,7 @@ interface AIProviderDef {
   helpUrl: string
   helpLabel: string
   helpText: string
+  icon?: React.ReactNode
 }
 
 const AI_PROVIDERS_DEF: AIProviderDef[] = [
@@ -115,6 +117,16 @@ const AI_PROVIDERS_DEF: AIProviderDef[] = [
     helpText: 'Platform OpenAI → API Keys → Create new secret key',
   },
 ]
+
+// Serviço de screenshot — usado pela inspiração por URL do Designer da Loja.
+const SCREENSHOTONE_DEF: AIProviderDef = {
+  id: 'screenshotone', name: 'ScreenshotOne', keyName: 'SCREENSHOTONE_API_KEY',
+  placeholder: 'sua access key do ScreenshotOne',
+  helpUrl: 'https://screenshotone.com',
+  helpLabel: 'screenshotone.com',
+  helpText: 'ScreenshotOne → Dashboard → copie a Access key. Habilita a inspiração por URL no Designer da Loja.',
+  icon: <Camera size={15} style={{ color: '#00E5FF' }} />,
+}
 
 function AddKeyModal({ provider, onClose, onSaved }: {
   provider: AIProviderDef
@@ -255,7 +267,7 @@ function AIProviderCard({ def, cred, usage, onAdd, onTest, onRemove, testing }: 
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
             style={{ background: '#1e1e24' }}>
-            <Bot size={15} style={{ color: '#00E5FF' }} />
+            {def.icon ?? <Bot size={15} style={{ color: '#00E5FF' }} />}
           </div>
           <div>
             <p className="text-xs font-semibold text-zinc-200">{def.name}</p>
@@ -468,6 +480,87 @@ function Section({ id, title, subtitle, icon, children }: {
   )
 }
 
+// ── Canva integration card (OAuth) ────────────────────────────────────────────
+
+function CanvaCard({ getHeaders, onToast }: {
+  getHeaders: () => Promise<{ Authorization: string }>
+  onToast: (m: string, t?: 'success' | 'error') => void
+}) {
+  const [status, setStatus] = useState<{ connected: boolean; configured: boolean } | null>(null)
+  const [connecting, setConnecting] = useState(false)
+
+  useEffect(() => {
+    let alive = true
+    void (async () => {
+      try {
+        const headers = await getHeaders()
+        const res = await fetch(`${BACKEND}/canva/oauth/status`, { headers })
+        const s = res.ok ? await res.json() : { connected: false, configured: false }
+        if (alive) setStatus(s)
+      } catch {
+        if (alive) setStatus({ connected: false, configured: false })
+      }
+    })()
+    return () => { alive = false }
+  }, [getHeaders])
+
+  async function connect() {
+    setConnecting(true)
+    try {
+      const headers = await getHeaders()
+      const res = await fetch(
+        `${BACKEND}/canva/oauth/start?redirect_to=/dashboard/configuracoes/integracoes`,
+        { headers },
+      )
+      if (res.ok) {
+        const { authorize_url } = await res.json()
+        window.location.href = authorize_url
+      } else {
+        onToast('Não foi possível iniciar a conexão com o Canva', 'error')
+      }
+    } catch (e) {
+      onToast(`Erro: ${(e as Error).message}`, 'error')
+    } finally {
+      setConnecting(false)
+    }
+  }
+
+  const integStatus: IntegStatus = !status ? 'disconnected'
+    : !status.configured ? 'not_connected'
+    : status.connected ? 'connected'
+    : 'disconnected'
+
+  return (
+    <div className="rounded-2xl p-4 space-y-3"
+      style={{ background: '#111114', border: `1px solid ${status?.connected ? 'rgba(74,222,128,0.15)' : '#1e1e24'}` }}>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: '#1e1e24' }}>
+            <Palette size={15} style={{ color: '#00E5FF' }} />
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-zinc-200">Canva</p>
+            <p className="text-[10px] text-zinc-600 mt-0.5">Designs do Canva como inspiração da loja</p>
+          </div>
+        </div>
+        <StatusBadge status={integStatus} />
+      </div>
+      {status && !status.configured ? (
+        <p className="px-3 py-2 rounded-xl text-[11px] text-zinc-500" style={{ background: '#0d0d10' }}>
+          Integração Canva não configurada pelo administrador da plataforma.
+        </p>
+      ) : (
+        <button onClick={connect} disabled={connecting || !status}
+          className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold transition-colors disabled:opacity-50"
+          style={{ background: 'rgba(0,229,255,0.1)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.25)' }}>
+          {connecting ? <Loader2 size={12} className="animate-spin" /> : <Plug size={12} />}
+          {status?.connected ? 'Reconectar Canva' : 'Conectar Canva'}
+        </button>
+      )}
+    </div>
+  )
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function IntegracoesPage() {
@@ -603,6 +696,7 @@ export default function IntegracoesPage() {
       <div className="flex flex-wrap gap-2 sticky top-0 z-30 -mx-6 px-6 py-3" style={{ background: 'rgba(9,9,11,0.85)', backdropFilter: 'blur(8px)', borderBottom: '1px solid #1e1e24' }}>
         {[
           { href: '#ia',           label: 'IA',           emoji: '🤖' },
+          { href: '#loja',         label: 'Loja',         emoji: '🛍️' },
           { href: '#marketplaces', label: 'Marketplaces', emoji: '🏪' },
           { href: '#mensageiros',  label: 'Mensageiros',  emoji: '💬' },
           { href: '#email',        label: 'Email',        emoji: '📧' },
@@ -658,6 +752,19 @@ export default function IntegracoesPage() {
           </ResponsiveContainer>
         </div>
       )}
+
+      {/* ── Loja & Serviços ──────────────────────────────────────────────── */}
+      <Section id="loja" title="Loja & Serviços" subtitle="Integrações usadas pelo Designer da Loja Própria — inspiração visual e por design." icon={<Palette size={13} />}>
+        <CanvaCard getHeaders={getHeaders} onToast={showToast} />
+        <AIProviderCard
+          def={SCREENSHOTONE_DEF}
+          cred={credByProvider('screenshotone')}
+          onAdd={() => setAddingFor(SCREENSHOTONE_DEF)}
+          onTest={() => { const c = credByProvider('screenshotone'); if (c) testCredential(c.id) }}
+          onRemove={() => { const c = credByProvider('screenshotone'); if (c) removeCredential(c.id, SCREENSHOTONE_DEF.name) }}
+          testing={testingId === credByProvider('screenshotone')?.id}
+        />
+      </Section>
 
       {/* ── Marketplaces ─────────────────────────────────────────────────── */}
       <Section id="marketplaces" title="Marketplaces" subtitle="Conecte suas contas de marketplace para sincronizar estoque, preços e pedidos automaticamente." icon={<Zap size={13} />}>
