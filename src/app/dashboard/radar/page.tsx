@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useMemo, useState, type MouseEvent, type ReactNode } from 'react'
 import Link from 'next/link'
 import {
-  Radar, Boxes, Users, Activity, TrendingDown, ArrowUpDown, Search, ChevronRight,
+  Boxes, Users, Activity, TrendingDown, ArrowUpDown, Search, ChevronRight,
 } from 'lucide-react'
+import { AnimatedRadarIcon } from '@/components/AnimatedRadarIcon'
 import { api } from './_components/api'
 import { brl, pct, severityOf, eventLabel, relativeTime, secureImg } from './_components/shared'
 import { computeContributionMargin } from '@/lib/margin'
@@ -142,7 +143,7 @@ export default function RadarPage() {
       <div className="flex items-start gap-3 mb-6">
         <div className="flex h-11 w-11 items-center justify-center rounded-xl shrink-0"
           style={{ background: 'rgba(0,229,255,0.10)', border: '1px solid rgba(0,229,255,0.25)' }}>
-          <Radar size={22} style={{ color: '#00E5FF' }} />
+          <AnimatedRadarIcon size={22} />
         </div>
         <div>
           <h1 className="text-2xl font-bold" style={{ color: '#fafafa' }}>e-Click Radar IA</h1>
