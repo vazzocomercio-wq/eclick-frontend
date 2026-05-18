@@ -321,7 +321,7 @@ export default function FornecedorDetailPage() {
 
       {/* ── TAB DADOS ── */}
       {tab === 'dados' && (
-        <div className="max-w-2xl space-y-4">
+        <div className="max-w-5xl space-y-4">
           <div className="flex items-center justify-between">
             <p className="text-sm text-zinc-400">Informações do fornecedor</p>
             {!editMode ? (
@@ -419,7 +419,7 @@ export default function FornecedorDetailPage() {
 
       {/* ── TAB PRODUTOS ── */}
       {tab === 'produtos' && (
-        <div>
+        <div className="max-w-5xl">
           <div className="flex items-center justify-between mb-4">
             <p className="text-sm text-zinc-400">{supplier.supplier_products.length} produto(s) vinculado(s)</p>
             <button onClick={() => setShowLinkModal(true)} className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg" style={{ background: '#00E5FF', color: '#09090b' }}>
@@ -485,7 +485,7 @@ export default function FornecedorDetailPage() {
 
       {/* ── TAB DOCUMENTOS ── */}
       {tab === 'documentos' && (
-        <div>
+        <div className="max-w-5xl">
           <div className="flex items-center justify-between mb-4">
             <p className="text-sm text-zinc-400">{supplier.supplier_documents.length} documento(s)</p>
             <button onClick={() => setShowDocModal(true)} className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg" style={{ background: '#00E5FF', color: '#09090b' }}>
@@ -521,7 +521,7 @@ export default function FornecedorDetailPage() {
 
       {/* ── TAB HISTÓRICO ── */}
       {tab === 'historico' && (
-        <div className="max-w-lg space-y-4">
+        <div className="max-w-5xl space-y-4">
           <div className="grid grid-cols-2 gap-3">
             {[
               { label: 'Total de Pedidos', value: supplier.total_orders_count ?? 0 },
