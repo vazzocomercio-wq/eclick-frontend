@@ -491,6 +491,7 @@ function CatalogPanel({ supplierId, onSynced }: { supplierId: string; onSynced: 
   const [summary, setSummary] = useState<CatalogSummary | null>(null)
   const [total,   setTotal]   = useState(0)
   const [offset,  setOffset]  = useState(0)
+  const [pageSize,setPageSize]= useState(PAGE)
   const [filter,  setFilter]  = useState<'all' | 'pending' | 'synced'>('all')
   const [search,  setSearch]  = useState('')
   const [applied, setApplied] = useState('')
@@ -508,7 +509,7 @@ function CatalogPanel({ supplierId, onSynced }: { supplierId: string; onSynced: 
   const loadItems = useCallback(async () => {
     setLoading(true); setErr(null)
     try {
-      const qs = new URLSearchParams({ limit: String(PAGE), offset: String(offset) })
+      const qs = new URLSearchParams({ limit: String(pageSize), offset: String(offset) })
       if (filter !== 'all') qs.set('status', filter)
       if (applied) qs.set('search', applied)
       const r = await api<{ items: CatalogItem[]; total: number }>(`${base}/catalog?${qs.toString()}`)
@@ -519,7 +520,7 @@ function CatalogPanel({ supplierId, onSynced }: { supplierId: string; onSynced: 
     } finally {
       setLoading(false)
     }
-  }, [base, offset, filter, applied])
+  }, [base, offset, pageSize, filter, applied])
 
   useEffect(() => { void loadItems() }, [loadItems])
   useEffect(() => { void loadSummary() }, [loadSummary])
@@ -579,6 +580,7 @@ function CatalogPanel({ supplierId, onSynced }: { supplierId: string; onSynced: 
 
   const changeFilter = (f: 'all' | 'pending' | 'synced') => { setFilter(f); setOffset(0) }
   const applySearch = () => { setApplied(search.trim()); setOffset(0) }
+  const changePageSize = (n: number) => { setPageSize(n); setOffset(0) }
 
   const toggle = (id: string) => setSelected(s => {
     const n = new Set(s)
@@ -595,7 +597,7 @@ function CatalogPanel({ supplierId, onSynced }: { supplierId: string; onSynced: 
   })
 
   const from = total === 0 ? 0 : offset + 1
-  const to = Math.min(offset + PAGE, total)
+  const to = Math.min(offset + pageSize, total)
 
   return (
     <div className="rounded-xl p-5" style={{ background: '#111114', border: '1px solid #27272a' }}>
@@ -724,11 +726,12 @@ function CatalogPanel({ supplierId, onSynced }: { supplierId: string; onSynced: 
               {syncing ? 'Sincronizando…' : `Sincronizar ${selected.size} selecionado(s)`}
             </button>
           )}
-          <button onClick={() => setOffset(o => Math.max(0, o - PAGE))} disabled={offset === 0}
+          <PageSizeSelect value={pageSize} onChange={changePageSize} />
+          <button onClick={() => setOffset(o => Math.max(0, o - pageSize))} disabled={offset === 0}
             className="p-1.5 rounded-lg border disabled:opacity-30" style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>
             <ChevronLeft size={14} />
           </button>
-          <button onClick={() => setOffset(o => o + PAGE)} disabled={to >= total}
+          <button onClick={() => setOffset(o => o + pageSize)} disabled={to >= total}
             className="p-1.5 rounded-lg border disabled:opacity-30" style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>
             <ChevronRight size={14} />
           </button>
@@ -744,6 +747,11 @@ function LinkedProductsPanel({ supplierId, refreshKey }: { supplierId: string; r
   const base = `/suppliers/${supplierId}/integrations/icarus`
   const [rows,    setRows]    = useState<LinkedProduct[]>([])
   const [edits,   setEdits]   = useState<Record<string, { type: string; value: string }>>({})
+  const [total,   setTotal]   = useState(0)
+  const [offset,  setOffset]  = useState(0)
+  const [pageSize,setPageSize]= useState(PAGE)
+  const [search,  setSearch]  = useState('')
+  const [applied, setApplied] = useState('')
   const [loading, setLoading] = useState(false)
   const [savingId,setSavingId]= useState<string | null>(null)
   const [err,     setErr]     = useState<string | null>(null)
@@ -751,18 +759,21 @@ function LinkedProductsPanel({ supplierId, refreshKey }: { supplierId: string; r
   const load = useCallback(async () => {
     setLoading(true); setErr(null)
     try {
-      const data = await api<LinkedProduct[]>(`${base}/products`)
-      setRows(data)
-      setEdits(Object.fromEntries(data.map(r => [r.id, {
+      const qs = new URLSearchParams({ limit: String(pageSize), offset: String(offset) })
+      if (applied) qs.set('search', applied)
+      const data = await api<{ items: LinkedProduct[]; total: number }>(`${base}/products?${qs.toString()}`)
+      setRows(data.items)
+      setTotal(data.total)
+      setEdits(Object.fromEntries(data.items.map(r => [r.id, {
         type:  r.cost_adjustment_type ?? '',
         value: r.cost_adjustment_value != null ? String(r.cost_adjustment_value) : '',
       }])))
     } catch (e) {
-      setErr((e as Error).message)
+      setErr(friendlyError(e))
     } finally {
       setLoading(false)
     }
-  }, [base])
+  }, [base, pageSize, offset, applied])
 
   useEffect(() => { void load() }, [load, refreshKey])
 
@@ -799,16 +810,40 @@ function LinkedProductsPanel({ supplierId, refreshKey }: { supplierId: string; r
     }
   }
 
+  const applySearch = () => { setApplied(search.trim()); setOffset(0) }
+  const changePageSize = (n: number) => { setPageSize(n); setOffset(0) }
+  const from = total === 0 ? 0 : offset + 1
+  const to = Math.min(offset + pageSize, total)
+
   return (
     <div className="rounded-xl p-5" style={{ background: '#111114', border: '1px solid #27272a' }}>
       <div className="flex items-center gap-2 mb-1">
         <Package size={15} className="text-zinc-500" />
         <h4 className="text-sm font-semibold">Produtos vinculados</h4>
-        <span className="text-xs text-zinc-600">({rows.length})</span>
+        <span className="text-xs text-zinc-600">({total.toLocaleString('pt-BR')})</span>
       </div>
       <p className="text-xs text-zinc-500 mb-4">
         Custo = preço da Cinderella menos o ajuste. Sem ajuste próprio, usa o desconto geral.
       </p>
+
+      <div className="flex items-center gap-1 mb-3">
+        <div className="relative">
+          <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-600" />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') applySearch() }}
+            placeholder="Buscar por nome…"
+            className="w-56 pl-8 pr-3 py-1.5 rounded-lg text-xs border outline-none focus:border-cyan-500/60"
+            style={{ background: '#0a0a0c', borderColor: '#27272a', color: '#e4e4e7' }}
+          />
+        </div>
+        <button onClick={applySearch}
+          className="px-3 py-1.5 rounded-lg text-[12px] font-medium border transition-all hover:border-cyan-500/40"
+          style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>
+          Buscar
+        </button>
+      </div>
 
       {err && <div className="mb-3 text-xs text-red-400">{err}</div>}
 
@@ -816,7 +851,9 @@ function LinkedProductsPanel({ supplierId, refreshKey }: { supplierId: string; r
 
       {!loading && rows.length === 0 && (
         <div className="text-xs text-zinc-600 py-6 text-center">
-          Nenhum produto vinculado ainda — sincronize itens no catálogo acima.
+          {applied
+            ? 'Nenhum produto encontrado para a busca.'
+            : 'Nenhum produto vinculado ainda — sincronize itens no catálogo acima.'}
         </div>
       )}
 
@@ -883,6 +920,25 @@ function LinkedProductsPanel({ supplierId, refreshKey }: { supplierId: string; r
           </table>
         </div>
       )}
+
+      {!loading && total > 0 && (
+        <div className="flex items-center justify-between gap-3 mt-3">
+          <div className="text-xs text-zinc-600">
+            {`${from}–${to} de ${total.toLocaleString('pt-BR')}`}
+          </div>
+          <div className="flex items-center gap-2">
+            <PageSizeSelect value={pageSize} onChange={changePageSize} />
+            <button onClick={() => setOffset(o => Math.max(0, o - pageSize))} disabled={offset === 0}
+              className="p-1.5 rounded-lg border disabled:opacity-30" style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>
+              <ChevronLeft size={14} />
+            </button>
+            <button onClick={() => setOffset(o => o + pageSize)} disabled={to >= total}
+              className="p-1.5 rounded-lg border disabled:opacity-30" style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>
+              <ChevronRight size={14} />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -923,6 +979,19 @@ function SegBtn({ active, onClick, children }: { active: boolean; onClick: () =>
         : { background: 'transparent', borderColor: '#3f3f46', color: '#a1a1aa' }}>
       {children}
     </button>
+  )
+}
+
+/** Seletor de itens por página — 10 / 20 / 50 / 100. */
+function PageSizeSelect({ value, onChange }: { value: number; onChange: (n: number) => void }) {
+  return (
+    <select
+      value={value}
+      onChange={e => onChange(Number(e.target.value))}
+      className="px-2 py-1.5 rounded-lg text-[11px] border outline-none focus:border-cyan-500/60"
+      style={{ background: '#0a0a0c', borderColor: '#3f3f46', color: '#a1a1aa' }}>
+      {[10, 20, 50, 100].map(n => <option key={n} value={n}>{n} por página</option>)}
+    </select>
   )
 }
 
