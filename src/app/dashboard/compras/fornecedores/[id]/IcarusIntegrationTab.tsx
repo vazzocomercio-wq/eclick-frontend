@@ -527,12 +527,31 @@ function CatalogPanel({ supplierId, onSynced }: { supplierId: string; onSynced: 
   const pull = async () => {
     setPulling(true); setErr(null); setMsg(null)
     try {
-      const r = await api<{ pulled: number }>(`${base}/catalog/pull`, { method: 'POST' })
-      setMsg(`${r.pulled.toLocaleString('pt-BR')} produtos no catálogo do Pennacorp.`)
+      // Snapshot do estado antes de disparar — serve pra detectar o fim do pull.
+      const before = await api<{ updated_at?: string }>(base)
+      const baseline = before?.updated_at ?? ''
+      // O pull roda em segundo plano no servidor; aqui a gente acompanha.
+      await api(`${base}/catalog/pull`, { method: 'POST' })
+      const deadline = Date.now() + 6 * 60 * 1000
+      let done = false
+      while (Date.now() < deadline) {
+        await new Promise(r => setTimeout(r, 4000))
+        const st = await api<{ updated_at?: string; last_sync_status?: string | null; last_sync_error?: string | null; total_synced?: number }>(base)
+        if (st?.updated_at && st.updated_at !== baseline) {
+          done = true
+          if (st.last_sync_status === 'failed') {
+            setErr(st.last_sync_error || 'Falha ao puxar o catálogo.')
+          } else {
+            setMsg(`${(st.total_synced ?? 0).toLocaleString('pt-BR')} produtos no catálogo do Pennacorp.`)
+          }
+          break
+        }
+      }
+      if (!done) setErr('O puxar catálogo está demorando mais que o esperado. Recarregue a página em alguns minutos.')
       setOffset(0)
       await Promise.all([loadItems(), loadSummary()])
     } catch (e) {
-      setErr((e as Error).message)
+      setErr(friendlyError(e))
     } finally {
       setPulling(false)
     }
