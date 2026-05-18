@@ -60,6 +60,13 @@ type CatalogInfo = {
   current_price: number | null
 }
 
+// Teto do catálogo: preço do concorrente mais barato no mesmo catálogo — via Radar.
+type CeilingInfo = {
+  item_id: string
+  runner_up_price: number | null
+  runner_up_seller: string | null
+}
+
 type CreateResult = {
   listing_id: string
   status: 'created' | 'skipped' | 'error'
@@ -286,7 +293,7 @@ interface MarginInfo {
 // Mostra custo + imposto editáveis e a margem de contribuição calculada pelo
 // motor canônico (lib/margin). Aparece só em anúncio com produto vinculado.
 
-function MarginPanel({ price, saleFee, shipping, info, orgTaxPct, priceToWin, feeAtWin, onSave }: {
+function MarginPanel({ price, saleFee, shipping, info, orgTaxPct, priceToWin, feeAtWin, ceilingPrice, feeAtCeiling, onSave }: {
   price:      number
   saleFee:    number
   shipping:   number
@@ -295,6 +302,9 @@ function MarginPanel({ price, saleFee, shipping, info, orgTaxPct, priceToWin, fe
   /** Preço pra ganhar o catálogo + tarifa estimada nesse preço. */
   priceToWin: number | null
   feeAtWin:   number | null
+  /** Teto do catálogo (quando ganhando) + tarifa estimada nesse preço. */
+  ceilingPrice: number | null
+  feeAtCeiling: number | null
   onSave:     (productId: string, patch: { cost: number | null; taxPct: number | null }) => Promise<boolean>
 }) {
   const taxInitial  = info.tax_pct ?? orgTaxPct
@@ -319,6 +329,13 @@ function MarginPanel({ price, saleFee, shipping, info, orgTaxPct, priceToWin, fe
   const mWin = priceToWin != null && feeAtWin != null && priceToWin > 0 && priceToWin !== price
     ? computeContributionMargin({
         price: priceToWin, saleFee: feeAtWin, shipping: shipAt(priceToWin), cost,
+        taxPercentage: taxPct, taxOnFreight: info.tax_on_freight,
+      })
+    : null
+  // Margem projetada SE o preço subir até o teto do catálogo (ganhando).
+  const mCeiling = ceilingPrice != null && feeAtCeiling != null && ceilingPrice > 0 && ceilingPrice !== price
+    ? computeContributionMargin({
+        price: ceilingPrice, saleFee: feeAtCeiling, shipping: shipAt(ceilingPrice), cost,
         taxPercentage: taxPct, taxOnFreight: info.tax_on_freight,
       })
     : null
@@ -363,6 +380,22 @@ function MarginPanel({ price, saleFee, shipping, info, orgTaxPct, priceToWin, fe
                  : mWin.contributionMarginPct >= 5  ? '#fbbf24' : '#f87171',
           }}>
             {brl(mWin.contributionMargin)} · {mWin.contributionMarginPct.toFixed(1)}%
+          </div>
+        </div>
+      )}
+      {/* Margem no teto do catálogo — quando o anúncio está ganhando. */}
+      {mCeiling && !noCost && (
+        <div className="flex justify-between items-start gap-2 rounded-md px-2 py-1.5"
+          style={{ background: 'rgba(74,222,128,0.06)', border: '1px solid rgba(74,222,128,0.15)' }}>
+          <span className="text-zinc-400">
+            Margem no teto do catálogo
+            <span className="block tabular-nums" style={{ color: '#4ade80' }}>{brl(ceilingPrice!)}</span>
+          </span>
+          <div className="text-right font-bold" style={{
+            color: mCeiling.contributionMarginPct >= 15 ? '#4ade80'
+                 : mCeiling.contributionMarginPct >= 5  ? '#fbbf24' : '#f87171',
+          }}>
+            {brl(mCeiling.contributionMargin)} · {mCeiling.contributionMarginPct.toFixed(1)}%
           </div>
         </div>
       )}
@@ -414,12 +447,14 @@ function MarginPanel({ price, saleFee, shipping, info, orgTaxPct, priceToWin, fe
   )
 }
 
-function ListingCard({ item, selected, linked, catalog, realShippingCost, stockInfo, marginInfo, orgTaxPct, matchedProduct, onSelect, onCreateProduct, onLinkProduct, onLinkToKnownProduct, onUpdateStock, onAdjustPrice, onSaveMargin }: {
+function ListingCard({ item, selected, linked, catalog, ceiling, realShippingCost, stockInfo, marginInfo, orgTaxPct, matchedProduct, onSelect, onCreateProduct, onLinkProduct, onLinkToKnownProduct, onUpdateStock, onAdjustPrice, onSaveMargin }: {
   item: MListing
   selected: boolean
   linked: boolean
   /** Status real do catálogo (price_to_win do ML, via Radar). */
   catalog?: CatalogInfo
+  /** Teto do catálogo — concorrente mais barato (via Radar). */
+  ceiling?: CeilingInfo
   /** Custo real do frete grátis (via /ml/listings/shipping-cost). */
   realShippingCost?: number
   stockInfo?: { stock_id: string; product_id: string; quantity: number }
@@ -500,6 +535,16 @@ function ListingCard({ item, selected, linked, catalog, realShippingCost, stockI
     ? (feeIsEstimated && item.estimated_fee_pct != null
         ? estimateSaleFee(ptwPrice, item.estimated_fee_pct, item.estimated_fixed_fee ?? 0)
         : ptwPrice * fallbackFeeRate(item.listing_type_id) / 100)
+    : null
+  // Teto do catálogo: ganhando, até onde dá pra subir o preço sem perder a
+  // ponta — concorrente mais barato − R$ 0,01.
+  const winningCatalog = catalog?.catalog_status === 'winning'
+  const runnerUpPrice  = ceiling?.runner_up_price ?? null
+  const tetoPrice = winningCatalog && runnerUpPrice != null ? round2(runnerUpPrice - 0.01) : null
+  const feeAtCeiling = tetoPrice != null
+    ? (feeIsEstimated && item.estimated_fee_pct != null
+        ? estimateSaleFee(tetoPrice, item.estimated_fee_pct, item.estimated_fixed_fee ?? 0)
+        : tetoPrice * fallbackFeeRate(item.listing_type_id) / 100)
     : null
   const badges   = typeBadge(item.listing_type_id, item.logistic_type, item.catalog_listing)
   const isActive = item.status === 'active'
@@ -792,6 +837,14 @@ function ListingCard({ item, selected, linked, catalog, realShippingCost, stockI
               Ganha o catálogo a {brl(catalog.price_to_win)} →
             </button>
           )}
+          {winningCatalog && tetoPrice != null && (
+            <button
+              onClick={() => { setPriceDraft(String(tetoPrice)); setEditingPrice(true) }}
+              className="text-[11px] font-semibold mt-1 hover:underline" style={{ color: '#4ade80' }}
+              title={`Teto do catálogo${ceiling?.runner_up_seller ? ` — concorrente mais barato: ${ceiling.runner_up_seller}` : ''}. Suba até aqui e siga ganhando.`}>
+              Teto do catálogo: {brl(tetoPrice)} →
+            </button>
+          )}
         </div>
 
         {/* Painel de margem — logo após o preço/"ganha o catálogo". Só quando
@@ -805,6 +858,8 @@ function ListingCard({ item, selected, linked, catalog, realShippingCost, stockI
             orgTaxPct={orgTaxPct}
             priceToWin={ptwPrice}
             feeAtWin={feeAtWin}
+            ceilingPrice={tetoPrice}
+            feeAtCeiling={feeAtCeiling}
             onSave={onSaveMargin}
           />
         )}
@@ -1389,6 +1444,7 @@ export default function MLAnunciosPage() {
   const [q, setQ]         = useState('')
   const [items, setItems] = useState<MListing[]>([])
   const [catalogMap, setCatalogMap] = useState<Map<string, CatalogInfo>>(new Map())
+  const [ceilingMap, setCeilingMap] = useState<Map<string, CeilingInfo>>(new Map())
   const [freightMap, setFreightMap] = useState<Map<string, number>>(new Map())
   const [total, setTotal] = useState(0)
   const [counts, setCounts] = useState<Counts>({})
@@ -1527,6 +1583,27 @@ export default function MLAnunciosPage() {
     } catch { /* silent — status de catálogo é complementar */ }
   }, [getHeaders, items])
 
+  // ── Teto do catálogo — concorrente mais barato (via Radar) ─────────────
+  // Quando o anúncio está ganhando, mostra até onde dá pra subir o preço.
+
+  const loadCatalogCeiling = useCallback(async () => {
+    try {
+      const ids = items
+        .filter(it => it.catalog_listing || it.catalog_product_id)
+        .map(it => it.id)
+      if (ids.length === 0) { setCeilingMap(new Map()); return }
+      const headers = await getHeaders()
+      const res = await fetch(`${BACKEND}/radar/catalog-ceiling`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ item_ids: ids }),
+      })
+      if (!res.ok) return
+      const rows: CeilingInfo[] = await res.json()
+      setCeilingMap(new Map(rows.map(r => [r.item_id, r])))
+    } catch { /* silent — teto é complementar */ }
+  }, [getHeaders, items])
+
   // ── Custo real do frete grátis — AO VIVO no ML ─────────────────────────
   // A API listing_prices não devolve isso; aqui pega o custo de verdade pra
   // a margem refletir o frete. Anúncio sem vínculo/dimensões degrada.
@@ -1555,6 +1632,7 @@ export default function MLAnunciosPage() {
 
   useEffect(() => { loadCounts() }, [loadCounts])
   useEffect(() => { loadCatalogStatus() }, [loadCatalogStatus])
+  useEffect(() => { loadCatalogCeiling() }, [loadCatalogCeiling])
   useEffect(() => { loadShippingCost() }, [loadShippingCost])
   useEffect(() => { loadItems(tab, page, q) }, [tab, page, loadItems])
   // Quando troca de conta, volta pra página 0 e limpa seleção pra evitar
@@ -2320,6 +2398,7 @@ export default function MLAnunciosPage() {
                 selected={selected.has(item.id)}
                 linked={linkedIds.has(item.id)}
                 catalog={catalogMap.get(item.id)}
+                ceiling={ceilingMap.get(item.id)}
                 realShippingCost={freightMap.get(item.id)}
                 stockInfo={stockMap.get(item.id)}
                 marginInfo={marginMap[item.id]}

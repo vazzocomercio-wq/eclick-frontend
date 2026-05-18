@@ -584,13 +584,14 @@ function CatalogCell({ status, priceToWin, hasLeadFallback, hasPrice, runnerUpPr
     text = winning ? '#4ade80' : '#f87171'
   }
 
-  // Folga (quando ganhando): quanto dá pra subir até quase o preço do
-  // concorrente mais barato e seguir na ponta do catálogo.
-  const folga = winning && runnerUpPrice != null && vazzoPrice != null && runnerUpPrice > vazzoPrice
-    ? runnerUpPrice - vazzoPrice
+  // Teto do catálogo (quando ganhando): até onde dá pra subir o preço sem
+  // perder a ponta — concorrente mais barato − R$ 0,01.
+  const teto = winning && runnerUpPrice != null ? round2(runnerUpPrice - 0.01) : null
+  const folga = teto != null && vazzoPrice != null && teto > vazzoPrice
+    ? round2(teto - vazzoPrice)
     : null
-  const folgaTitle = folga != null
-    ? `Pode subir o preço em até ${brl(folga)} e seguir ganhando o catálogo`
+  const tetoTitle = teto != null
+    ? `Teto do catálogo: dá pra subir até ${brl(teto)}${folga != null ? ` — folga de ${brl(folga)}` : ''} e seguir ganhando`
     : undefined
 
   return (
@@ -598,16 +599,16 @@ function CatalogCell({ status, priceToWin, hasLeadFallback, hasPrice, runnerUpPr
       <span className="text-[10px] font-semibold rounded-full px-2 py-0.5"
         style={{ background: bg, color: text }}>{label}</span>
       {onAdjust ? (
-        <button onClick={onAdjust} title={folgaTitle}
+        <button onClick={onAdjust} title={tetoTitle}
           className="text-[9px] tabular-nums hover:underline"
-          style={{ color: folga != null ? '#4ade80' : '#67e8f9' }}>
+          style={{ color: teto != null ? '#4ade80' : '#67e8f9' }}>
           {!winning && priceToWin != null ? `→ ${brl(priceToWin)}`
-            : folga != null ? `↑ ${brl(folga)}`
+            : teto != null ? `teto ${brl(teto)}`
             : 'ajustar preço'}
         </button>
-      ) : folga != null ? (
-        <span className="text-[9px] tabular-nums" style={{ color: '#4ade80' }} title={folgaTitle}>
-          ↑ {brl(folga)}
+      ) : teto != null ? (
+        <span className="text-[9px] tabular-nums" style={{ color: '#4ade80' }} title={tetoTitle}>
+          teto {brl(teto)}
         </span>
       ) : (!winning && priceToWin != null && (
         <span className="text-[9px] tabular-nums" style={{ color: '#67e8f9' }}>
