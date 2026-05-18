@@ -237,20 +237,8 @@ const SECTIONS: NavSection[] = [
       { label: 'Tarefas',          href: '/dashboard/producao/tarefas',    icon: <CheckSquare size={15} /> },
       { label: 'Conteúdo com IA',  href: '/dashboard/producao/conteudo',   icon: <Sparkles size={15} /> },
       { label: 'Conteúdo Social',  href: '/dashboard/social',              icon: <Megaphone size={15} /> },
-      {
-        label: 'Social Shop', href: '/dashboard/social-commerce', icon: <ShoppingBag size={15} />,
-        children: [
-          { label: 'Instagram / Facebook', href: '/dashboard/social-commerce/instagram' },
-        ],
-      },
-      { label: 'Ads Hub (IA)',     href: '/dashboard/ads-campaigns', icon: <Megaphone size={15} /> },
-      { label: 'Preços (IA)',      href: '/dashboard/pricing-ai',    icon: <DollarSign size={15} /> },
-      { label: 'Automação (IA)',   href: '/dashboard/automation',    icon: <Zap size={15} /> },
-      { label: 'Kits & Combos',    href: '/dashboard/kits',          icon: <Package size={15} /> },
-      { label: 'Coleções',         href: '/dashboard/collections',   icon: <Layers size={15} /> },
-      { label: 'Copiloto da Loja', href: '/dashboard/store-copilot', icon: <Bot size={15} /> },
-      { label: 'Designer da Loja', href: '/dashboard/store/designer', icon: <Palette size={15} /> },
-      { label: 'Config da Loja',   href: '/dashboard/store/config',  icon: <Store size={15} /> },
+      { label: 'Ads Hub (IA)',     href: '/dashboard/ads-campaigns',       icon: <Megaphone size={15} /> },
+      { label: 'Preços (IA)',      href: '/dashboard/pricing-ai',          icon: <DollarSign size={15} /> },
       {
         label: 'IA Criativo', href: '/dashboard/creative', icon: <Wand2 size={15} />,
         children: [
@@ -261,6 +249,24 @@ const SECTIONS: NavSection[] = [
         ],
       },
       { label: 'Biblioteca',       href: '/dashboard/producao/biblioteca', icon: <ImageIcon size={15} /> },
+    ],
+  },
+  {
+    key: 'loja',
+    label: 'LOJA',
+    items: [
+      { label: 'Config da Loja',   href: '/dashboard/store/config',   icon: <Store size={15} /> },
+      { label: 'Designer da Loja', href: '/dashboard/store/designer', icon: <Palette size={15} /> },
+      { label: 'Copiloto da Loja', href: '/dashboard/store-copilot',  icon: <Bot size={15} /> },
+      { label: 'Coleções',         href: '/dashboard/collections',    icon: <Layers size={15} /> },
+      { label: 'Kits & Combos',    href: '/dashboard/kits',           icon: <Package size={15} /> },
+      { label: 'Automação (IA)',   href: '/dashboard/automation',     icon: <Zap size={15} /> },
+      {
+        label: 'Social Shop', href: '/dashboard/social-commerce', icon: <ShoppingBag size={15} />,
+        children: [
+          { label: 'Instagram / Facebook', href: '/dashboard/social-commerce/instagram' },
+        ],
+      },
     ],
   },
   {
@@ -327,6 +333,7 @@ const SECTION_DEFAULT_OPEN: Record<string, boolean> = {
   dropship:        false,
   crm:             false,
   producao:        false,
+  loja:            false,
   'atendente-ia':  false,
   ads:             false,
   inteligencia:    false,
