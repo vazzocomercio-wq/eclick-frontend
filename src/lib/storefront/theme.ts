@@ -1,25 +1,54 @@
 import type { DesignTheme, FontPair, Radius, Density } from './types'
 
 /**
- * Pares de fonte curados. Fase 1 usa stacks web-safe (zero risco de
- * carregamento); fontes premium via next/font ficam pra uma proxima passada.
+ * Pares de fonte curados — Google Fonts reais carregados sob demanda.
+ * Cada par tem heading + body (CSS font-family), as familias Google pra
+ * montar o <link> e um rotulo pro editor.
  */
-export const FONT_PAIRS: Record<FontPair, { heading: string; body: string }> = {
+export interface FontPairDef {
+  label:   string
+  heading: string
+  body:    string
+  /** Familias no formato do parametro `family` do Google Fonts css2. */
+  google:  string[]
+}
+
+export const FONT_PAIRS: Record<FontPair, FontPairDef> = {
   elegant: {
-    heading: "'Georgia', 'Times New Roman', serif",
-    body:    "'Georgia', 'Times New Roman', serif",
+    label:   'Elegante',
+    heading: "'Playfair Display', Georgia, serif",
+    body:    "'Lora', Georgia, serif",
+    google:  ['Playfair+Display:wght@600;700', 'Lora:wght@400;500'],
   },
   modern: {
-    heading: "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
-    body:    "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
+    label:   'Moderna',
+    heading: "'Space Grotesk', system-ui, sans-serif",
+    body:    "'Inter', system-ui, sans-serif",
+    google:  ['Space+Grotesk:wght@500;700', 'Inter:wght@400;500'],
   },
   bold: {
-    heading: "'Arial Black', 'Helvetica Neue', Arial, sans-serif",
-    body:    "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
+    label:   'Marcante',
+    heading: "'Archivo Black', 'Arial Black', sans-serif",
+    body:    "'Inter', system-ui, sans-serif",
+    google:  ['Archivo+Black', 'Inter:wght@400;600'],
   },
   classic: {
-    heading: "'Times New Roman', Georgia, serif",
-    body:    "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
+    label:   'Clássica',
+    heading: "'Libre Baskerville', Georgia, serif",
+    body:    "'Inter', system-ui, sans-serif",
+    google:  ['Libre+Baskerville:wght@700', 'Inter:wght@400;500'],
+  },
+  editorial: {
+    label:   'Editorial',
+    heading: "'DM Serif Display', Georgia, serif",
+    body:    "'Inter', system-ui, sans-serif",
+    google:  ['DM+Serif+Display', 'Inter:wght@400;500'],
+  },
+  playful: {
+    label:   'Descontraída',
+    heading: "'Poppins', system-ui, sans-serif",
+    body:    "'Nunito Sans', system-ui, sans-serif",
+    google:  ['Poppins:wght@600;700', 'Nunito+Sans:wght@400;600'],
   },
 }
 
@@ -41,7 +70,15 @@ export function density(theme: DesignTheme): { gap: number; sectionY: number } {
 }
 
 export function fonts(theme: DesignTheme): { heading: string; body: string } {
-  return FONT_PAIRS[theme.fontPair] ?? FONT_PAIRS.modern
+  const def = FONT_PAIRS[theme.fontPair] ?? FONT_PAIRS.modern
+  return { heading: def.heading, body: def.body }
+}
+
+/** URL do Google Fonts css2 pras familias do par de fonte do tema. */
+export function googleFontsHref(theme: DesignTheme): string {
+  const def = FONT_PAIRS[theme.fontPair] ?? FONT_PAIRS.modern
+  const families = def.google.map(f => `family=${f}`).join('&')
+  return `https://fonts.googleapis.com/css2?${families}&display=swap`
 }
 
 /** Mistura um hex com transparencia: '#00E5FF' + 0.1 -> '#00E5FF1a'. */

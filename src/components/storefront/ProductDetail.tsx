@@ -7,7 +7,7 @@
 
 import Link from 'next/link'
 import type { StorefrontDesign } from '@/lib/storefront/types'
-import { fonts, radiusPx, alpha } from '@/lib/storefront/theme'
+import { fonts, radiusPx, alpha, googleFontsHref } from '@/lib/storefront/theme'
 import { formatBRL, whatsappLink } from '@/lib/storefront/data'
 import type { StorefrontStore, StorefrontProductDetail } from '@/lib/storefront/data'
 import { ProductGallery } from './ProductGallery'
@@ -86,6 +86,8 @@ export function ProductDetail({ design, store, product, slug }: {
 
   return (
     <div style={{ background: colors.background, color: colors.text, fontFamily: fontB, minHeight: '100vh' }}>
+      {/* eslint-disable-next-line @next/next/no-page-custom-font */}
+      <link rel="stylesheet" href={googleFontsHref(theme)} />
       {/* Header */}
       <header className="px-4 sm:px-8 py-5" style={{ borderBottom: `1px solid ${colors.border}` }}>
         <Link href={`/loja/${slug}`} className="max-w-6xl mx-auto flex items-center gap-3">

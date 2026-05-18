@@ -7,7 +7,7 @@
  */
 
 export type ThemeMode = 'dark' | 'light'
-export type FontPair  = 'elegant' | 'modern' | 'bold' | 'classic'
+export type FontPair  = 'elegant' | 'modern' | 'bold' | 'classic' | 'editorial' | 'playful'
 export type Radius    = 'none' | 'sm' | 'md' | 'lg'
 export type Density   = 'compact' | 'cozy' | 'spacious'
 

@@ -8,7 +8,7 @@
 
 import Link from 'next/link'
 import type { StorefrontDesign, Section, DesignTheme } from '@/lib/storefront/types'
-import { fonts, radiusPx, density, alpha } from '@/lib/storefront/theme'
+import { fonts, radiusPx, density, alpha, googleFontsHref } from '@/lib/storefront/theme'
 import { formatBRL, whatsappLink } from '@/lib/storefront/data'
 import type { StorefrontStore, StorefrontProduct } from '@/lib/storefront/data'
 
@@ -365,6 +365,8 @@ export function StorefrontHome({ design, store, products, slug, embedded = false
 
   return (
     <div style={{ background: colors.background, color: colors.text, fontFamily: ctx.fontB, minHeight: embedded ? undefined : '100vh' }}>
+      {/* eslint-disable-next-line @next/next/no-page-custom-font */}
+      <link rel="stylesheet" href={googleFontsHref(design.theme)} />
       {design.sections.map((section, i) => {
         switch (section.type) {
           case 'header':
