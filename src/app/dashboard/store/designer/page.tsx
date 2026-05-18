@@ -13,7 +13,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import {
   Palette, Loader2, AlertCircle, Wand2, ExternalLink, Check, Store,
-  Sparkles, SlidersHorizontal, Save,
+  Sparkles, SlidersHorizontal, Save, ImagePlus, X,
 } from 'lucide-react'
 import { StorefrontHome } from '@/components/storefront/StorefrontHome'
 import { STOREFRONT_TEMPLATES, DEFAULT_DESIGN } from '@/lib/storefront/templates'
@@ -77,6 +77,33 @@ function reorderSections(s: Section[]): Section[] {
   return [...s].sort((a, b) => SECTION_ORDER.indexOf(a.type) - SECTION_ORDER.indexOf(b.type))
 }
 
+/** Lê um arquivo de imagem, reduz pra no máx. 1280px e devolve um data URI JPEG. */
+function downscaleImage(file: File, maxDim = 1280, quality = 0.82): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onerror = () => reject(new Error('Não foi possível ler o arquivo.'))
+    reader.onload = () => {
+      const img = new window.Image()
+      img.onerror = () => reject(new Error('Arquivo de imagem inválido.'))
+      img.onload = () => {
+        let { width, height } = img
+        const scale = Math.min(1, maxDim / Math.max(width, height))
+        width = Math.round(width * scale)
+        height = Math.round(height * scale)
+        const canvas = document.createElement('canvas')
+        canvas.width = width
+        canvas.height = height
+        const ctx = canvas.getContext('2d')
+        if (!ctx) { reject(new Error('Não foi possível processar a imagem.')); return }
+        ctx.drawImage(img, 0, 0, width, height)
+        resolve(canvas.toDataURL('image/jpeg', quality))
+      }
+      img.src = reader.result as string
+    }
+    reader.readAsDataURL(file)
+  })
+}
+
 function defaultSection(type: Section['type']): Section {
   switch (type) {
     case 'hero':   return { type: 'hero', variant: 'gradient', headline: 'Bem-vindo à loja', subheadline: 'Conheça os nossos produtos.', ctaLabel: 'Ver produtos' }
@@ -126,6 +153,7 @@ export default function StoreDesignerPage() {
   const [savingEdit, setSavingEdit] = useState(false)
   const [dirty, setDirty]           = useState(false)
   const [stash, setStash] = useState<Partial<Record<string, Section>>>({})
+  const [refImage, setRefImage] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
@@ -146,19 +174,50 @@ export default function StoreDesignerPage() {
 
   useEffect(() => { void load() }, [load])
 
+  async function onPickImage(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      setError('Selecione um arquivo de imagem.')
+      return
+    }
+    try {
+      setRefImage(await downscaleImage(file))
+      setError(null)
+    } catch (err) {
+      setError((err as Error).message)
+    }
+  }
+
   async function generate() {
-    if (prompt.trim().length < 3) {
-      setError('Descreva como você quer a loja (algumas palavras já bastam).')
+    if (!refImage && prompt.trim().length < 3) {
+      setError('Descreva a loja ou anexe uma imagem de referência.')
       return
     }
     setGenerating(true); setError(null); setNotice(null)
     try {
-      const res = await api<{ design: StorefrontDesign }>('/store/config/design/generate', {
-        method: 'POST',
-        body: JSON.stringify({ prompt: prompt.trim(), inspirationId: selectedTpl ?? undefined }),
-      })
+      let res: { design: StorefrontDesign }
+      if (refImage) {
+        const comma = refImage.indexOf(',')
+        res = await api('/store/config/design/generate-from-image', {
+          method: 'POST',
+          body: JSON.stringify({
+            imageBase64:   comma >= 0 ? refImage.slice(comma + 1) : refImage,
+            imageMimeType: 'image/jpeg',
+            prompt:        prompt.trim() || undefined,
+          }),
+        })
+      } else {
+        res = await api('/store/config/design/generate', {
+          method: 'POST',
+          body: JSON.stringify({ prompt: prompt.trim(), inspirationId: selectedTpl ?? undefined }),
+        })
+      }
       setDesign(res.design); setDirty(false)
-      setNotice('Design gerado pela IA e aplicado à sua loja.')
+      setNotice(refImage
+        ? 'Design gerado a partir da imagem de referência.'
+        : 'Design gerado pela IA e aplicado à sua loja.')
     } catch (e) {
       setError((e as Error).message)
     } finally {
@@ -332,17 +391,41 @@ export default function StoreDesignerPage() {
                 <h2 className="text-xs uppercase tracking-wider text-zinc-300 flex items-center gap-1.5">
                   <Wand2 size={12} className="text-cyan-400" /> Gerar com IA
                 </h2>
+
+                <div className="space-y-1.5">
+                  <p className="text-[11px] text-zinc-500">Inspiração visual (opcional)</p>
+                  {refImage ? (
+                    <div className="relative">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={refImage} alt="Imagem de referência"
+                        className="w-full h-32 object-cover rounded-lg border border-zinc-800" />
+                      <button onClick={() => setRefImage(null)} aria-label="Remover imagem"
+                        className="absolute top-1.5 right-1.5 p-1 rounded-md bg-black/70 text-zinc-200 hover:text-white">
+                        <X size={13} />
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="flex flex-col items-center justify-center gap-1 h-24 rounded-lg border border-dashed border-zinc-700 hover:border-cyan-400/50 cursor-pointer text-zinc-500 hover:text-cyan-300 transition-colors">
+                      <ImagePlus size={18} />
+                      <span className="text-[11px]">Subir print de uma loja de referência</span>
+                      <input type="file" accept="image/*" onChange={onPickImage} className="hidden" />
+                    </label>
+                  )}
+                </div>
+
                 <p className="text-[11px] text-zinc-500 leading-snug">
-                  Descreva o estilo, as cores e a sensação que você quer.
-                  {selectedTpl ? ' O modelo selecionado serve de ponto de partida.' : ' Sem modelo, a IA cria do zero.'}
+                  {refImage
+                    ? 'A IA vai analisar a imagem e criar a loja no mesmo estilo. O texto abaixo é um ajuste opcional.'
+                    : 'Descreva o estilo, as cores e a sensação que você quer.'}
+                  {!refImage && (selectedTpl ? ' O modelo selecionado serve de ponto de partida.' : ' Sem modelo, a IA cria do zero.')}
                 </p>
                 <textarea value={prompt} onChange={e => setPrompt(e.target.value)} rows={4}
                   placeholder="Ex.: loja de joias elegante, fundo escuro, detalhes em dourado, sensação sofisticada"
                   className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-200 outline-none focus:border-cyan-400/60 resize-none" />
-                <button onClick={generate} disabled={busy || prompt.trim().length < 3}
+                <button onClick={generate} disabled={busy || (!refImage && prompt.trim().length < 3)}
                   className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-cyan-400 hover:bg-cyan-300 text-black text-sm font-semibold disabled:opacity-40">
                   {generating ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
-                  {generating ? 'Desenhando sua loja…' : 'Gerar design com IA'}
+                  {generating ? 'Desenhando sua loja…' : refImage ? 'Gerar a partir da imagem' : 'Gerar design com IA'}
                 </button>
                 {generating && (
                   <p className="text-[11px] text-zinc-500 text-center">A IA está montando o visual — pode levar alguns segundos.</p>
