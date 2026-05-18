@@ -396,7 +396,7 @@ export default function StoreDesignerPage() {
         </div>
       )}
 
-      <div className="grid lg:grid-cols-[minmax(0,390px)_1fr] gap-5">
+      <div className="grid lg:grid-cols-[minmax(0,390px)_minmax(0,1fr)] gap-5">
         {/* ───────────── Controls ───────────── */}
         <div className="space-y-4">
           {/* Tabs */}
@@ -660,7 +660,7 @@ export default function StoreDesignerPage() {
               A loja está como <span className="font-medium">{config.status}</span> — ative em Config da Loja para publicá-la.
             </p>
           )}
-          <div className="rounded-lg border border-zinc-800 overflow-hidden bg-zinc-950 h-[640px] overflow-y-auto">
+          <div className="rounded-lg border border-zinc-800 overflow-x-hidden bg-zinc-950 h-[640px] overflow-y-auto">
             <div className="pointer-events-none">
               <StorefrontHome embedded design={design} store={storeForPreview}
                 products={products} slug={config.store_slug} />
