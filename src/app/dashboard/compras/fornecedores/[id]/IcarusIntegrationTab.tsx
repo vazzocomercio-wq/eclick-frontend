@@ -833,7 +833,7 @@ function LinkedProductsPanel({ supplierId, refreshKey }: { supplierId: string; r
             value={search}
             onChange={e => setSearch(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') applySearch() }}
-            placeholder="Buscar por nome…"
+            placeholder="Buscar por nome ou SKU…"
             className="w-56 pl-8 pr-3 py-1.5 rounded-lg text-xs border outline-none focus:border-cyan-500/60"
             style={{ background: '#0a0a0c', borderColor: '#27272a', color: '#e4e4e7' }}
           />
