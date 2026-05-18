@@ -8,7 +8,7 @@ import {
 import { AnimatedRadarIcon } from '@/components/AnimatedRadarIcon'
 import { api } from './_components/api'
 import { brl, pct, severityOf, eventLabel, relativeTime, secureImg } from './_components/shared'
-import { computeContributionMargin } from '@/lib/margin'
+import { computeContributionMargin, round2 } from '@/lib/margin'
 
 interface Summary {
   products_monitored: number
@@ -45,6 +45,7 @@ interface RadarProduct {
   total_offers: number
   min_price: number | null
   vazzo_price: number | null
+  runner_up_price: number | null
   vazzo_has_lead: boolean
   price_delta_pct: number | null
   new_events: number
@@ -71,6 +72,8 @@ interface PriceContext {
   fee_pct: number | null
   fixed_fee: number | null
   shipping_cost: number | null
+  runner_up_price: number | null
+  runner_up_seller: string | null
 }
 
 const CARD = { background: '#111114', border: '1px solid #1a1a1f' }
@@ -299,6 +302,7 @@ export default function RadarPage() {
                 <span className="w-28 flex justify-center">
                   <CatalogCell status={p.catalog_status} priceToWin={p.price_to_win}
                     hasLeadFallback={p.vazzo_has_lead} hasPrice={p.min_price != null}
+                    runnerUpPrice={p.runner_up_price} vazzoPrice={p.vazzo_price}
                     onAdjust={p.vazzo_item_id
                       ? (e) => { e.preventDefault(); e.stopPropagation(); setAdjust(p) }
                       : undefined} />
@@ -386,6 +390,14 @@ function PriceAdjustModal({ product, onClose, onSaved }: {
   const mPtw = marginAt(ptw)
   const mNew = marginAt(Number.isFinite(newNum) ? newNum : null)
 
+  // Ganhando o catálogo? → mostra o "teto" (até onde dá pra subir sem perder
+  // a ponta) em vez do "preço pra ganhar". Teto = concorrente mais barato − 1¢.
+  const status = ctx?.catalog_status ?? product.catalog_status
+  const winning = status === 'winning' || (status == null && product.vazzo_has_lead)
+  const runnerUp = ctx?.runner_up_price ?? product.runner_up_price ?? null
+  const teto = runnerUp != null ? round2(runnerUp - 0.01) : null
+  const mTeto = marginAt(teto)
+
   const submit = async () => {
     const n = Number(price.replace(',', '.'))
     if (!Number.isFinite(n) || n <= 0) { setErr('Informe um preço válido.'); return }
@@ -422,23 +434,53 @@ function PriceAdjustModal({ product, onClose, onSaved }: {
               margem {fmtPct(mCur)}
             </p>
           </div>
-          <div className="rounded-lg p-2.5"
-            style={{ background: 'rgba(0,229,255,0.06)', border: '1px solid rgba(0,229,255,0.2)' }}>
-            <div className="flex items-center justify-between">
-              <p className="text-[10px]" style={{ color: '#67e8f9' }}>Preço pra ganhar</p>
-              {ptw != null && (
-                <button onClick={() => setPrice(String(ptw))}
-                  className="text-[9px] hover:underline" style={{ color: '#67e8f9' }}>usar</button>
-              )}
+          {winning ? (
+            <div className="rounded-lg p-2.5"
+              style={{ background: 'rgba(74,222,128,0.06)', border: '1px solid rgba(74,222,128,0.2)' }}>
+              <div className="flex items-center justify-between">
+                <p className="text-[10px]" style={{ color: '#4ade80' }}>Teto do catálogo</p>
+                {teto != null && (
+                  <button onClick={() => setPrice(String(teto))}
+                    className="text-[9px] hover:underline" style={{ color: '#4ade80' }}>usar</button>
+                )}
+              </div>
+              <p className="text-sm font-semibold tabular-nums" style={{ color: '#4ade80' }}>
+                {teto != null ? brl(teto) : 'Livre'}
+              </p>
+              <p className="text-[10px] tabular-nums mt-0.5"
+                style={{ color: teto != null ? marginColor(mTeto) : '#52525b' }}>
+                {teto != null ? `margem ${fmtPct(mTeto)}` : 'sem concorrentes'}
+              </p>
             </div>
-            <p className="text-sm font-semibold tabular-nums" style={{ color: '#67e8f9' }}>
-              {ptw != null ? brl(ptw) : '—'}
-            </p>
-            <p className="text-[10px] tabular-nums mt-0.5" style={{ color: marginColor(mPtw) }}>
-              margem {fmtPct(mPtw)}
-            </p>
-          </div>
+          ) : (
+            <div className="rounded-lg p-2.5"
+              style={{ background: 'rgba(0,229,255,0.06)', border: '1px solid rgba(0,229,255,0.2)' }}>
+              <div className="flex items-center justify-between">
+                <p className="text-[10px]" style={{ color: '#67e8f9' }}>Preço pra ganhar</p>
+                {ptw != null && (
+                  <button onClick={() => setPrice(String(ptw))}
+                    className="text-[9px] hover:underline" style={{ color: '#67e8f9' }}>usar</button>
+                )}
+              </div>
+              <p className="text-sm font-semibold tabular-nums" style={{ color: '#67e8f9' }}>
+                {ptw != null ? brl(ptw) : '—'}
+              </p>
+              <p className="text-[10px] tabular-nums mt-0.5" style={{ color: marginColor(mPtw) }}>
+                margem {fmtPct(mPtw)}
+              </p>
+            </div>
+          )}
         </div>
+
+        {winning && runnerUp != null && (
+          <p className="text-[11px] mb-3" style={{ color: '#71717a' }}>
+            Concorrente mais barato{ctx?.runner_up_seller ? ` (${ctx.runner_up_seller})` : ''}:{' '}
+            <span className="tabular-nums" style={{ color: '#a1a1aa' }}>{brl(runnerUp)}</span>.
+            Você pode subir até{' '}
+            <span className="tabular-nums font-medium" style={{ color: '#4ade80' }}>{brl(teto)}</span>{' '}
+            e seguir ganhando o catálogo.
+          </p>
+        )}
 
         <label className="text-[11px] block mb-1" style={{ color: '#a1a1aa' }}>Novo preço (R$)</label>
         <input value={price} onChange={e => setPrice(e.target.value)} inputMode="decimal" autoFocus
@@ -517,8 +559,9 @@ function Kpi(props: {
 /** Status real do catálogo (price_to_win do ML) + preço pra ganhar.
  * Enquanto a coleta não rodou (catalog_status null), cai no heurístico de
  * menor preço — mesmo rótulo, vira dado real na próxima coleta diária. */
-function CatalogCell({ status, priceToWin, hasLeadFallback, hasPrice, onAdjust }: {
+function CatalogCell({ status, priceToWin, hasLeadFallback, hasPrice, runnerUpPrice, vazzoPrice, onAdjust }: {
   status: string | null; priceToWin: number | null; hasLeadFallback: boolean; hasPrice: boolean
+  runnerUpPrice?: number | null; vazzoPrice?: number | null
   onAdjust?: (e: MouseEvent) => void
 }) {
   let label: string
@@ -541,15 +584,31 @@ function CatalogCell({ status, priceToWin, hasLeadFallback, hasPrice, onAdjust }
     text = winning ? '#4ade80' : '#f87171'
   }
 
+  // Folga (quando ganhando): quanto dá pra subir até quase o preço do
+  // concorrente mais barato e seguir na ponta do catálogo.
+  const folga = winning && runnerUpPrice != null && vazzoPrice != null && runnerUpPrice > vazzoPrice
+    ? runnerUpPrice - vazzoPrice
+    : null
+  const folgaTitle = folga != null
+    ? `Pode subir o preço em até ${brl(folga)} e seguir ganhando o catálogo`
+    : undefined
+
   return (
     <div className="flex flex-col items-center gap-0.5">
       <span className="text-[10px] font-semibold rounded-full px-2 py-0.5"
         style={{ background: bg, color: text }}>{label}</span>
       {onAdjust ? (
-        <button onClick={onAdjust} className="text-[9px] tabular-nums hover:underline"
-          style={{ color: '#67e8f9' }}>
-          {!winning && priceToWin != null ? `→ ${brl(priceToWin)}` : 'ajustar preço'}
+        <button onClick={onAdjust} title={folgaTitle}
+          className="text-[9px] tabular-nums hover:underline"
+          style={{ color: folga != null ? '#4ade80' : '#67e8f9' }}>
+          {!winning && priceToWin != null ? `→ ${brl(priceToWin)}`
+            : folga != null ? `↑ ${brl(folga)}`
+            : 'ajustar preço'}
         </button>
+      ) : folga != null ? (
+        <span className="text-[9px] tabular-nums" style={{ color: '#4ade80' }} title={folgaTitle}>
+          ↑ {brl(folga)}
+        </span>
       ) : (!winning && priceToWin != null && (
         <span className="text-[9px] tabular-nums" style={{ color: '#67e8f9' }}>
           → {brl(priceToWin)}
