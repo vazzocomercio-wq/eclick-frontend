@@ -1,4 +1,4 @@
-import type { DesignTheme, FontPair, Radius, Density } from './types'
+import type { DesignTheme, DesignEffects, FontPair, Radius, Density } from './types'
 
 /**
  * Pares de fonte curados — Google Fonts reais carregados sob demanda.
@@ -86,4 +86,45 @@ export function alpha(hex: string, a: number): string {
   const clamped = Math.max(0, Math.min(1, a))
   const hh = Math.round(clamped * 255).toString(16).padStart(2, '0')
   return `${hex}${hh}`
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Premium (v2) — tokens e helpers das secoes ricas / efeitos globais.
+// ─────────────────────────────────────────────────────────────────────
+
+/** Escolhe #111 ou #fff conforme o contraste com a cor de fundo dada. */
+export function bestContrast(hex: string): string {
+  const m = /^#?([0-9a-fA-F]{6})$/.exec(hex.trim())
+  if (!m) return '#ffffff'
+  const n = parseInt(m[1], 16)
+  const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255
+  const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+  return lum > 0.6 ? '#111111' : '#ffffff'
+}
+
+/** Fundo escuro pra banners premium (announcement, marquee). */
+export function darkColor(theme: DesignTheme): string {
+  return theme.colors.dark ?? (theme.mode === 'dark' ? theme.colors.surface : '#111111')
+}
+
+/** Cor do texto-watermark gigante ao fundo das secoes premium. */
+export function watermarkColor(theme: DesignTheme): string {
+  return theme.colors.watermark ?? alpha(theme.colors.text, 0.05)
+}
+
+/** Cor do texto sobre a cor primaria (ex.: dentro de botoes). */
+export function onAccentColor(theme: DesignTheme): string {
+  return theme.colors.onAccent ?? bestContrast(theme.colors.primary)
+}
+
+const DEFAULT_EFFECTS: DesignEffects = {
+  scrollReveal:  true,
+  watermarks:    true,
+  parallaxTilt:  true,
+  hoverRollover: true,
+}
+
+/** Efeitos globais do tema — v1 nao define, cai no padrao premium. */
+export function effects(theme: DesignTheme): DesignEffects {
+  return theme.effects ?? DEFAULT_EFFECTS
 }

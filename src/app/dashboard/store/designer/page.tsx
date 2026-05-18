@@ -53,7 +53,11 @@ const PLACEHOLDER_PRODUCTS: StorefrontProduct[] = [
 ]
 
 const SECTION_ORDER = ['header', 'hero', 'collections', 'productGrid', 'about', 'footer']
-const COLOR_FIELDS: Array<{ key: keyof DesignColors; label: string }> = [
+/** Chaves de cor obrigatorias — as opcionais (premium) ficam fora do editor. */
+type ColorKey = {
+  [K in keyof DesignColors]-?: undefined extends DesignColors[K] ? never : K
+}[keyof DesignColors]
+const COLOR_FIELDS: Array<{ key: ColorKey; label: string }> = [
   { key: 'background', label: 'Fundo' },
   { key: 'surface',    label: 'Superfície' },
   { key: 'primary',    label: 'Destaque' },
