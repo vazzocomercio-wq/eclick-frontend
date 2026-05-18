@@ -7,32 +7,16 @@
  */
 
 import Link from 'next/link'
-import type { StorefrontDesign, Section, DesignTheme } from '@/lib/storefront/types'
-import { fonts, radiusPx, density, alpha, googleFontsHref } from '@/lib/storefront/theme'
+import type { StorefrontDesign, Section } from '@/lib/storefront/types'
+import { alpha, googleFontsHref } from '@/lib/storefront/theme'
 import { formatBRL, whatsappLink } from '@/lib/storefront/data'
 import type { StorefrontStore, StorefrontProduct } from '@/lib/storefront/data'
-
-interface RenderCtx {
-  theme:   DesignTheme
-  fontH:   string
-  fontB:   string
-  radius:  number
-  gap:     number
-  padY:    number
-}
-
-function buildCtx(theme: DesignTheme): RenderCtx {
-  const f = fonts(theme)
-  const d = density(theme)
-  return {
-    theme,
-    fontH:  f.heading,
-    fontB:  f.body,
-    radius: radiusPx(theme),
-    gap:    d.gap,
-    padY:   d.sectionY,
-  }
-}
+import { buildCtx, type RenderCtx } from './renderCtx'
+import { AnnouncementBar } from './premium/AnnouncementBar'
+import { SiteHeader } from './premium/SiteHeader'
+import { HeroPortrait } from './premium/HeroPortrait'
+import { ProductShowcase } from './premium/ProductShowcase'
+import { Marquee } from './premium/Marquee'
 
 /* ---------------------------------------------------------------- Header */
 
@@ -360,8 +344,13 @@ export function StorefrontHome({ design, store, products, slug, embedded = false
   /** Quando true (preview no dashboard): sem altura de viewport e sem botao fixo. */
   embedded?: boolean
 }) {
-  const ctx = buildCtx(design.theme)
+  const ctx = buildCtx(design.theme, embedded)
   const { colors } = design.theme
+
+  // Primeira secao de produtos recebe o ancora #produtos (alvo dos CTAs).
+  const firstProductIdx = design.sections.findIndex(
+    s => s.type === 'productGrid' || s.type === 'productShowcase',
+  )
 
   return (
     <div style={{ background: colors.background, color: colors.text, fontFamily: ctx.fontB, minHeight: embedded ? undefined : '100vh' }}>
@@ -369,6 +358,7 @@ export function StorefrontHome({ design, store, products, slug, embedded = false
       <link rel="stylesheet" href={googleFontsHref(design.theme)} />
       {design.sections.map((section, i) => {
         switch (section.type) {
+          // ── v1 ────────────────────────────────────────────────────
           case 'header':
             return <Header key={i} store={store} section={section} ctx={ctx} />
           case 'hero':
@@ -380,9 +370,27 @@ export function StorefrontHome({ design, store, products, slug, embedded = false
           case 'footer':
             return <Footer key={i} store={store} section={section} ctx={ctx} />
           case 'collections':
-            // Fase 2: requer endpoint publico de listagem de colecoes.
+            // Requer endpoint publico de listagem de colecoes (fase futura).
             return null
+          // ── v2 premium ────────────────────────────────────────────
+          case 'announcementBar':
+            return <AnnouncementBar key={i} section={section} ctx={ctx} />
+          case 'siteHeader':
+            return <SiteHeader key={i} store={store} section={section} ctx={ctx} />
+          case 'heroPortrait':
+            return <HeroPortrait key={i} section={section} ctx={ctx} />
+          case 'productShowcase':
+            return (
+              <ProductShowcase
+                key={i} section={section} products={products} slug={slug} ctx={ctx}
+                anchorId={i === firstProductIdx ? 'produtos' : undefined}
+              />
+            )
+          case 'marquee':
+            return <Marquee key={i} section={section} ctx={ctx} />
           default:
+            // Demais secoes premium (E3): imageHotspot, categoryGrid,
+            // tiltBanner, fullBanner, editorialSplit, siteFooter.
             return null
         }
       })}

@@ -1,0 +1,116 @@
+/**
+ * Cabecalho rico (v2) — logo, navegacao, icones de busca/carrinho.
+ * Sticky opcional; navegacao colapsa em menu hamburguer no mobile.
+ *
+ * Os icones de busca e carrinho sao visuais nesta fase — a busca e o
+ * carrinho transacional entram em fases posteriores.
+ */
+
+import type { Section } from '@/lib/storefront/types'
+import type { StorefrontStore } from '@/lib/storefront/data'
+import type { RenderCtx } from '../renderCtx'
+import { MobileNav } from './MobileNav'
+
+function SearchIcon({ color }: { color: string }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color}
+      strokeWidth={1.7} strokeLinecap="round" aria-hidden>
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-3.6-3.6" />
+    </svg>
+  )
+}
+
+function CartIcon({ color }: { color: string }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color}
+      strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M6 2 3 6v13a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
+      <path d="M3 6h18" />
+      <path d="M16 10a4 4 0 0 1-8 0" />
+    </svg>
+  )
+}
+
+export function SiteHeader({ store, section, ctx }: {
+  store: StorefrontStore
+  section: Extract<Section, { type: 'siteHeader' }>
+  ctx: RenderCtx
+}) {
+  const { colors } = ctx.theme
+  const sticky = section.sticky && !ctx.embedded
+  const centered = section.variant === 'centered'
+
+  const brand = (
+    <div className="flex items-center gap-2.5 shrink-0">
+      {store.logo_url && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={store.logo_url}
+          alt={store.store_name}
+          className="h-9 w-9 sm:h-10 sm:w-10 rounded-md object-contain"
+          style={{ background: '#fff', padding: 3 }}
+        />
+      )}
+      <span
+        className="text-base sm:text-xl font-bold truncate tracking-tight"
+        style={{ color: colors.text, fontFamily: ctx.fontH }}
+      >
+        {store.store_name}
+      </span>
+    </div>
+  )
+
+  const navLinks = (extra: string) => (
+    <nav className={`items-center gap-6 ${extra}`}>
+      {section.nav.map(n => (
+        <a
+          key={`${n.href}-${n.label}`}
+          href={n.href}
+          className="text-sm transition-opacity hover:opacity-70"
+          style={{ color: colors.text }}
+        >
+          {n.label}
+        </a>
+      ))}
+    </nav>
+  )
+
+  const icons = (
+    <div className="flex items-center gap-3 sm:gap-4">
+      {section.showSearch && <span aria-hidden><SearchIcon color={colors.text} /></span>}
+      {section.showCart && <span aria-hidden><CartIcon color={colors.text} /></span>}
+      <MobileNav nav={section.nav} color={colors.text} surface={colors.background} border={colors.border} />
+    </div>
+  )
+
+  return (
+    <header
+      className={sticky ? 'sticky top-0 z-30' : ''}
+      style={{
+        background: colors.background,
+        borderBottom: `1px solid ${colors.border}`,
+      }}
+    >
+      <div className="relative max-w-6xl mx-auto px-4 sm:px-8">
+        {centered ? (
+          <div className="py-3 sm:py-4">
+            <div className="flex items-center justify-between md:justify-center">
+              {brand}
+              <div className="md:absolute md:right-4 md:top-1/2 md:-translate-y-1/2">
+                {icons}
+              </div>
+            </div>
+            {section.nav.length > 0 && navLinks('hidden md:flex justify-center mt-3')}
+          </div>
+        ) : (
+          <div className="flex items-center gap-4 h-16">
+            {brand}
+            {navLinks('hidden md:flex flex-1 justify-center')}
+            <div className="ml-auto md:ml-0">{icons}</div>
+          </div>
+        )}
+      </div>
+    </header>
+  )
+}
