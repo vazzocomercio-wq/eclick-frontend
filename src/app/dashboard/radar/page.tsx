@@ -141,10 +141,7 @@ export default function RadarPage() {
     <div className="px-6 py-6 max-w-[1400px] mx-auto">
       {/* Header */}
       <div className="flex items-start gap-3 mb-6">
-        <div className="flex h-11 w-11 items-center justify-center rounded-xl shrink-0"
-          style={{ background: 'rgba(0,229,255,0.10)', border: '1px solid rgba(0,229,255,0.25)' }}>
-          <AnimatedRadarIcon size={22} />
-        </div>
+        <AnimatedRadarIcon size={44} className="shrink-0" />
         <div>
           <h1 className="text-2xl font-bold" style={{ color: '#fafafa' }}>e-Click Radar IA</h1>
           <p className="text-sm mt-0.5" style={{ color: '#71717a' }}>
