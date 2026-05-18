@@ -44,6 +44,7 @@ type Product = {
   ml_free_shipping: boolean | null
   ml_flex: boolean | null
   ml_listing_id: string | null
+  storefront_visible: boolean | null
 }
 
 // ── constants ─────────────────────────────────────────────────────────────────
@@ -633,6 +634,11 @@ function TableRow({
                 style={{ background: m.bg, color: m.fg }}>{m.abbr}</span>
             )
           })}
+          {/* Loja Propria — produto enviado pra vitrine (storefront_visible) */}
+          {product.storefront_visible && (
+            <span className="text-[9px] font-black w-5 h-5 rounded flex items-center justify-center shrink-0"
+              style={{ background: '#00E5FF', color: '#111' }} title="Na Loja Própria">LJ</span>
+          )}
         </div>
         {/* Listing type */}
         {product.ml_listing_type && (
@@ -1240,6 +1246,8 @@ export default function ProdutosPage() {
       msg += ` · ${r.skipped} pulado${r.skipped === 1 ? '' : 's'} (sem nome ou preço)`
     }
     pushToast({ tone: 'success', message: msg })
+    // Recarrega pra os badges "LJ" refletirem o novo estado da vitrine.
+    void load()
   }
 
   // ── filter ───────────────────────────────────────────────────────────────────
