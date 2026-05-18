@@ -9,40 +9,27 @@ import Link from 'next/link'
 import type { StorefrontDesign } from '@/lib/storefront/types'
 import { fonts, radiusPx, alpha, googleFontsHref } from '@/lib/storefront/theme'
 import { formatBRL, whatsappLink } from '@/lib/storefront/data'
-import type { StorefrontStore, StorefrontProductDetail } from '@/lib/storefront/data'
+import type { StorefrontStore, StorefrontProductDetail, StorefrontProduct } from '@/lib/storefront/data'
+import { attributeRows, conditionLabel } from '@/lib/storefront/product'
 import { ProductGallery } from './ProductGallery'
 import { WhatsAppButton } from './StorefrontHome'
+import { PremiumProductDetail } from './PremiumProductDetail'
 
-const CONDITION_LABELS: Record<string, string> = { new: 'Novo', used: 'Usado', refurbished: 'Recondicionado' }
-
-function attributeRows(attributes: unknown): Array<{ label: string; value: string }> {
-  if (Array.isArray(attributes)) {
-    return attributes
-      .map(a => {
-        if (a && typeof a === 'object') {
-          const o = a as Record<string, unknown>
-          const label = String(o.name ?? o.id ?? '').trim()
-          const value = String(o.value_name ?? o.value ?? '').trim()
-          if (label && value) return { label, value }
-        }
-        return null
-      })
-      .filter((x): x is { label: string; value: string } => x !== null)
-  }
-  if (attributes && typeof attributes === 'object') {
-    return Object.entries(attributes as Record<string, unknown>)
-      .filter(([, v]) => v != null && v !== '')
-      .map(([k, v]) => ({ label: k, value: String(v) }))
-  }
-  return []
-}
-
-export function ProductDetail({ design, store, product, slug }: {
+export function ProductDetail({ design, store, product, slug, related = [] }: {
   design: StorefrontDesign
   store: StorefrontStore
   product: StorefrontProductDetail
   slug: string
+  related?: StorefrontProduct[]
 }) {
+  if (design.version === 2) {
+    return (
+      <PremiumProductDetail
+        design={design} store={store} product={product} slug={slug} related={related}
+      />
+    )
+  }
+
   const { theme, product: pd } = design
   const { colors } = theme
   const fontH = fonts(theme).heading
@@ -57,7 +44,7 @@ export function ProductDetail({ design, store, product, slug }: {
     ''
   const bullets = (product.bullets ?? []).filter(b => typeof b === 'string' && b.trim())
   const attrs = pd.showAttributes ? attributeRows(product.attributes) : []
-  const condition = product.condition ? CONDITION_LABELS[product.condition] ?? product.condition : null
+  const condition = conditionLabel(product.condition)
   const outOfStock = typeof product.stock === 'number' && product.stock <= 0
 
   const sideLayout = pd.gallery === 'side'

@@ -7,7 +7,7 @@
 
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
-import { getProduct } from '@/lib/storefront/data'
+import { getProduct, getProducts } from '@/lib/storefront/data'
 import { ProductDetail } from '@/components/storefront/ProductDetail'
 import { DEFAULT_DESIGN } from '@/lib/storefront/templates'
 
@@ -27,10 +27,21 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function ProductPage({ params }: Props) {
   const { slug, id } = await params
-  const data = await getProduct(slug, id)
+  const [data, related] = await Promise.all([
+    getProduct(slug, id),
+    getProducts(slug, 12),
+  ])
   if (!data || data.store.status !== 'active') notFound()
 
   const design = data.store.design ?? DEFAULT_DESIGN
 
-  return <ProductDetail design={design} store={data.store} product={data.product} slug={slug} />
+  return (
+    <ProductDetail
+      design={design}
+      store={data.store}
+      product={data.product}
+      slug={slug}
+      related={related}
+    />
+  )
 }
