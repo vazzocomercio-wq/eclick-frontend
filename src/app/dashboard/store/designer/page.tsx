@@ -154,6 +154,7 @@ export default function StoreDesignerPage() {
   const [dirty, setDirty]           = useState(false)
   const [stash, setStash] = useState<Partial<Record<string, Section>>>({})
   const [refImage, setRefImage] = useState<string | null>(null)
+  const [refUrl, setRefUrl] = useState('')
   const [generatingImage, setGeneratingImage] = useState(false)
   const [imageHint, setImageHint] = useState('')
   const [canvaStatus, setCanvaStatus] = useState<{ connected: boolean; configured: boolean } | null>(null)
@@ -200,8 +201,9 @@ export default function StoreDesignerPage() {
   }
 
   async function generate() {
-    if (!refImage && prompt.trim().length < 3) {
-      setError('Descreva a loja ou anexe uma imagem de referência.')
+    const url = refUrl.trim()
+    if (!refImage && !url && prompt.trim().length < 3) {
+      setError('Descreva a loja, anexe uma imagem ou cole o link de um site de referência.')
       return
     }
     setGenerating(true); setError(null); setNotice(null)
@@ -217,6 +219,11 @@ export default function StoreDesignerPage() {
             prompt:        prompt.trim() || undefined,
           }),
         })
+      } else if (url) {
+        res = await api('/store/config/design/generate-from-url', {
+          method: 'POST',
+          body: JSON.stringify({ url, prompt: prompt.trim() || undefined }),
+        })
       } else {
         res = await api('/store/config/design/generate', {
           method: 'POST',
@@ -226,7 +233,9 @@ export default function StoreDesignerPage() {
       setDesign(res.design); setDirty(false)
       setNotice(refImage
         ? 'Design gerado a partir da imagem de referência.'
-        : 'Design gerado pela IA e aplicado à sua loja.')
+        : url
+          ? 'Design gerado a partir do site de referência.'
+          : 'Design gerado pela IA e aplicado à sua loja.')
     } catch (e) {
       setError((e as Error).message)
     } finally {
@@ -490,21 +499,32 @@ export default function StoreDesignerPage() {
                       <input type="file" accept="image/*" onChange={onPickImage} className="hidden" />
                     </label>
                   )}
+                  <input value={refUrl} onChange={e => setRefUrl(e.target.value)}
+                    placeholder="ou cole o link de um site de referência (https://…)"
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-1.5 text-xs text-zinc-200 outline-none focus:border-cyan-400/60" />
                 </div>
 
                 <p className="text-[11px] text-zinc-500 leading-snug">
                   {refImage
                     ? 'A IA vai analisar a imagem e criar a loja no mesmo estilo. O texto abaixo é um ajuste opcional.'
-                    : 'Descreva o estilo, as cores e a sensação que você quer.'}
-                  {!refImage && (selectedTpl ? ' O modelo selecionado serve de ponto de partida.' : ' Sem modelo, a IA cria do zero.')}
+                    : refUrl.trim()
+                      ? 'A IA vai capturar o site, analisar o design e criar a loja no mesmo estilo. O texto abaixo é um ajuste opcional.'
+                      : 'Descreva o estilo, as cores e a sensação que você quer.'}
+                  {!refImage && !refUrl.trim() && (selectedTpl ? ' O modelo selecionado serve de ponto de partida.' : ' Sem modelo, a IA cria do zero.')}
                 </p>
                 <textarea value={prompt} onChange={e => setPrompt(e.target.value)} rows={4}
                   placeholder="Ex.: loja de joias elegante, fundo escuro, detalhes em dourado, sensação sofisticada"
                   className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-200 outline-none focus:border-cyan-400/60 resize-none" />
-                <button onClick={generate} disabled={busy || (!refImage && prompt.trim().length < 3)}
+                <button onClick={generate} disabled={busy || (!refImage && !refUrl.trim() && prompt.trim().length < 3)}
                   className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-cyan-400 hover:bg-cyan-300 text-black text-sm font-semibold disabled:opacity-40">
                   {generating ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
-                  {generating ? 'Desenhando sua loja…' : refImage ? 'Gerar a partir da imagem' : 'Gerar design com IA'}
+                  {generating
+                    ? 'Desenhando sua loja…'
+                    : refImage
+                      ? 'Gerar a partir da imagem'
+                      : refUrl.trim()
+                        ? 'Gerar a partir do site'
+                        : 'Gerar design com IA'}
                 </button>
                 {generating && (
                   <p className="text-[11px] text-zinc-500 text-center">A IA está montando o visual — pode levar alguns segundos.</p>
