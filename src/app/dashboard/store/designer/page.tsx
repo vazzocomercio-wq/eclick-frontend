@@ -13,7 +13,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import {
   Palette, Loader2, AlertCircle, Wand2, ExternalLink, Check, Store,
-  Sparkles, SlidersHorizontal, Save, ImagePlus, X, Image as ImageIcon,
+  Sparkles, SlidersHorizontal, Save, ImagePlus, X, Image as ImageIcon, LayoutTemplate,
 } from 'lucide-react'
 import { StorefrontHome } from '@/components/storefront/StorefrontHome'
 import { STOREFRONT_TEMPLATES, DEFAULT_DESIGN } from '@/lib/storefront/templates'
@@ -156,6 +156,11 @@ export default function StoreDesignerPage() {
   const [refImage, setRefImage] = useState<string | null>(null)
   const [generatingImage, setGeneratingImage] = useState(false)
   const [imageHint, setImageHint] = useState('')
+  const [canvaStatus, setCanvaStatus] = useState<{ connected: boolean; configured: boolean } | null>(null)
+  const [canvaDesigns, setCanvaDesigns] = useState<Array<{ id: string; title: string; thumbnailUrl: string | null }> | null>(null)
+  const [canvaLoading, setCanvaLoading] = useState(false)
+  const [canvaQuery, setCanvaQuery] = useState('')
+  const [genCanvaId, setGenCanvaId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
@@ -167,6 +172,8 @@ export default function StoreDesignerPage() {
         const real = await getProducts(c.store_slug, 8)
         setProducts(real.length >= 3 ? real : PLACEHOLDER_PRODUCTS)
       }
+      const cv = await api<{ connected: boolean; configured: boolean }>('/canva/oauth/status').catch(() => null)
+      setCanvaStatus(cv ?? { connected: false, configured: false })
     } catch (e) {
       setError((e as Error).message)
     } finally {
@@ -285,6 +292,49 @@ export default function StoreDesignerPage() {
     setDirty(true)
   }
 
+  async function connectCanva() {
+    setError(null)
+    try {
+      const res = await api<{ authorize_url: string }>(
+        '/canva/oauth/start?redirect_to=/dashboard/store/designer',
+      )
+      window.location.href = res.authorize_url
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
+
+  async function searchCanvaDesigns() {
+    setCanvaLoading(true); setError(null)
+    try {
+      const q = canvaQuery.trim()
+      const designs = await api<Array<{ id: string; title: string; thumbnailUrl: string | null }>>(
+        `/store/config/design/canva/designs${q ? `?query=${encodeURIComponent(q)}` : ''}`,
+      )
+      setCanvaDesigns(designs)
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setCanvaLoading(false)
+    }
+  }
+
+  async function generateFromCanva(designId: string) {
+    setGenCanvaId(designId); setError(null); setNotice(null)
+    try {
+      const res = await api<{ design: StorefrontDesign }>('/store/config/design/canva/generate', {
+        method: 'POST',
+        body: JSON.stringify({ designId, prompt: prompt.trim() || undefined }),
+      })
+      setDesign(res.design); setDirty(false)
+      setNotice('Design gerado a partir do seu design do Canva.')
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setGenCanvaId(null)
+    }
+  }
+
   // ── editor mutators (preview ao vivo; só persiste em "Salvar ajustes") ──
   function patchTheme(partial: Partial<StorefrontDesign['theme']>) {
     setDesign(d => ({ ...d, theme: { ...d.theme, ...partial } }))
@@ -346,7 +396,7 @@ export default function StoreDesignerPage() {
     status:                  config.status,
     design,
   }
-  const busy = generating || applying || savingEdit || generatingImage
+  const busy = generating || applying || savingEdit || generatingImage || genCanvaId !== null
   const heroImg = design.sections.find((s): s is HeroSection => s.type === 'hero')?.imageUrl ?? null
 
   return (
@@ -458,6 +508,67 @@ export default function StoreDesignerPage() {
                 </button>
                 {generating && (
                   <p className="text-[11px] text-zinc-500 text-center">A IA está montando o visual — pode levar alguns segundos.</p>
+                )}
+              </div>
+
+              <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-4 space-y-3">
+                <h2 className="text-xs uppercase tracking-wider text-zinc-300 flex items-center gap-1.5">
+                  <LayoutTemplate size={12} className="text-cyan-400" /> Inspiração do Canva
+                </h2>
+                {!canvaStatus ? (
+                  <p className="text-[11px] text-zinc-600">Verificando…</p>
+                ) : !canvaStatus.configured ? (
+                  <p className="text-[11px] text-zinc-500 leading-snug">
+                    A integração com o Canva não está configurada. Fale com o administrador da plataforma.
+                  </p>
+                ) : !canvaStatus.connected ? (
+                  <>
+                    <p className="text-[11px] text-zinc-500 leading-snug">
+                      Conecte o Canva para usar um design da sua conta como inspiração visual.
+                    </p>
+                    <button onClick={connectCanva} disabled={busy}
+                      className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-zinc-700 hover:border-cyan-400/50 hover:text-cyan-300 text-zinc-300 text-sm disabled:opacity-40">
+                      <LayoutTemplate size={14} /> Conectar Canva
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex gap-1.5">
+                      <input value={canvaQuery} onChange={e => setCanvaQuery(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') void searchCanvaDesigns() }}
+                        placeholder="Buscar nos seus designs…"
+                        className="flex-1 bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 outline-none focus:border-cyan-400/60" />
+                      <button onClick={searchCanvaDesigns} disabled={canvaLoading || busy}
+                        className="px-3 py-1.5 rounded-lg border border-zinc-700 hover:border-cyan-400/50 text-zinc-300 text-xs disabled:opacity-40">
+                        {canvaLoading ? <Loader2 size={13} className="animate-spin" /> : 'Buscar'}
+                      </button>
+                    </div>
+                    {canvaDesigns && (canvaDesigns.length === 0 ? (
+                      <p className="text-[11px] text-zinc-500">Nenhum design encontrado.</p>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto">
+                        {canvaDesigns.map(d => (
+                          <button key={d.id} onClick={() => generateFromCanva(d.id)} disabled={busy}
+                            className="text-left rounded-lg border border-zinc-800 hover:border-cyan-400/50 overflow-hidden disabled:opacity-50 transition-colors">
+                            <div className="aspect-video bg-zinc-950 flex items-center justify-center overflow-hidden">
+                              {genCanvaId === d.id ? (
+                                <Loader2 size={16} className="animate-spin text-cyan-400" />
+                              ) : d.thumbnailUrl ? (
+                                /* eslint-disable-next-line @next/next/no-img-element */
+                                <img src={d.thumbnailUrl} alt={d.title} className="w-full h-full object-cover" />
+                              ) : (
+                                <LayoutTemplate size={16} className="text-zinc-700" />
+                              )}
+                            </div>
+                            <p className="text-[10px] text-zinc-400 px-2 py-1 truncate">{d.title}</p>
+                          </button>
+                        ))}
+                      </div>
+                    ))}
+                    <p className="text-[10px] text-zinc-600">
+                      Clique num design — a IA usa ele como referência e gera a loja no mesmo estilo.
+                    </p>
+                  </>
                 )}
               </div>
             </>
