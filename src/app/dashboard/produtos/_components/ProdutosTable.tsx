@@ -7,7 +7,7 @@ import { DataTable } from '@/components/data-table'
 import type { Column, RowAction, BulkAction, QuickFilter, SortState } from '@/components/data-table'
 import {
   Eye, Pause, Play, Copy, Trash2, Sparkles, Megaphone,
-  Search as SearchIcon, FileDown,
+  Search as SearchIcon, FileDown, Store,
 } from 'lucide-react'
 import { todoToast, pushToast } from '@/hooks/useToast'
 
@@ -86,6 +86,7 @@ export function ProdutosTable({
   onDelete,
   onBulkPause,
   onBulkDelete,
+  onBulkStorefront,
 }: {
   /** Quando passado, modo client-side (filtra/pagina o array localmente).
    * Quando undefined, modo server-side: fetch GET /products?... */
@@ -95,8 +96,9 @@ export function ProdutosTable({
   onToggleStatus?:  (id: string, next: 'active' | 'paused') => Promise<void> | void
   onDuplicate?:     (id: string) => Promise<void> | void
   onDelete?:        (id: string) => Promise<void> | void
-  onBulkPause?:     (ids: string[]) => Promise<void> | void
-  onBulkDelete?:    (ids: string[]) => Promise<void> | void
+  onBulkPause?:      (ids: string[]) => Promise<void> | void
+  onBulkDelete?:     (ids: string[]) => Promise<void> | void
+  onBulkStorefront?: (ids: string[], visible: boolean) => Promise<void> | void
   /** Quando a página já tem um campo de busca próprio, passa o termo aqui:
    * a tabela usa esse valor e NÃO renderiza busca duplicada. Evita o bug de
    * dois campos de busca na table view (um deles morto). */
@@ -347,6 +349,24 @@ export function ProdutosTable({
         pushToast({ tone: 'success', message: `✓ ${rows.length} produto${rows.length === 1 ? '' : 's'} exportado${rows.length === 1 ? '' : 's'}` })
       },
     })
+    if (onBulkStorefront) {
+      acts.push({
+        key: 'storefront-add', label: 'Enviar para a loja', icon: <Store size={11} />,
+        onClick: rows => {
+          if (rows.length === 0) return
+          void onBulkStorefront(rows.map(r => r.id), true)
+          setSelected([])
+        },
+      })
+      acts.push({
+        key: 'storefront-remove', label: 'Tirar da loja', icon: <Store size={11} />,
+        onClick: rows => {
+          if (rows.length === 0) return
+          void onBulkStorefront(rows.map(r => r.id), false)
+          setSelected([])
+        },
+      })
+    }
     if (onBulkDelete) acts.push({
       key: 'delete-bulk', label: 'Excluir', icon: <Trash2 size={11} />, tone: 'danger',
       onClick: rows => {
@@ -356,7 +376,7 @@ export function ProdutosTable({
       },
     })
     return acts
-  }, [onBulkPause, onBulkDelete])
+  }, [onBulkPause, onBulkDelete, onBulkStorefront])
 
   const rowActions = useMemo(() => (p: ProdutoRow): RowAction<ProdutoRow>[] => {
     const acts: RowAction<ProdutoRow>[] = [

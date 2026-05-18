@@ -60,6 +60,8 @@ export default function MLPublishPage() {
   // Publications
   const [publications, setPublications] = useState<CreativePublication[]>([])
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [storefrontAlready, setStorefrontAlready] = useState(false)
+  const [alsoStorefront, setAlsoStorefront]       = useState(true)
   const [publishing, setPublishing]   = useState(false)
   const [publishError, setPublishError] = useState<string | null>(null)
 
@@ -89,13 +91,16 @@ export default function MLPublishPage() {
   async function load() {
     setError(null); setLoading(true)
     try {
-      const [c, pubs, accs] = await Promise.all([
+      const [c, pubs, accs, sf] = await Promise.all([
         CreativeApi.getMlContext(listingId),
         CreativeApi.listListingPublications(listingId).catch(() => []),
         CreativeApi.listMlAccounts().catch(() => [] as MlAccount[]),
+        CreativeApi.getProductStorefront(productId).catch(() => false),
       ])
       setCtx(c)
       setPublications(pubs)
+      setStorefrontAlready(sf)
+      setAlsoStorefront(!sf)
       // Atributos vêm do anúncio (fonte única ml_attributes) — editor e
       // publicação compartilham o mesmo campo.
       setAttributes((c.listing.ml_attributes ?? []) as AttributeValue[])
@@ -155,6 +160,11 @@ export default function MLPublishPage() {
     }
     if (done.length > 0) {
       setPublications(prev => [...done, ...prev.filter(p => !done.some(d => d.id === p.id))])
+      // Loja Propria — se marcado e ainda nao estiver na loja, envia tambem.
+      if (alsoStorefront && !storefrontAlready) {
+        await CreativeApi.setProductStorefront(productId, true).catch(() => {})
+        setStorefrontAlready(true)
+      }
     }
     if (errs.length > 0) setPublishError(errs.join('\n'))
     else setConfirmOpen(false)
@@ -730,6 +740,21 @@ export default function MLPublishPage() {
                 <li><span className="text-zinc-500">Estoque:</span> {Number(stock) || 0} un</li>
                 <li><span className="text-zinc-500">Modalidade:</span> {listingType}</li>
               </ul>
+
+              {storefrontAlready ? (
+                <p className="rounded-lg bg-cyan-500/5 border border-cyan-500/25 p-3 text-xs text-cyan-200">
+                  ✓ Este produto já está na sua loja própria.
+                </p>
+              ) : (
+                <label className="flex items-start gap-2 rounded-lg bg-cyan-500/5 border border-cyan-500/25 p-3 text-xs cursor-pointer">
+                  <input type="checkbox" checked={alsoStorefront}
+                    onChange={e => setAlsoStorefront(e.target.checked)}
+                    className="w-4 h-4 accent-cyan-400 shrink-0 mt-0.5" />
+                  <span className="text-zinc-300">
+                    Enviar este produto também para a <strong className="text-cyan-300">loja própria</strong> (vitrine /loja).
+                  </span>
+                </label>
+              )}
 
               {videoId && (
                 <p className="text-[11px] text-amber-300">

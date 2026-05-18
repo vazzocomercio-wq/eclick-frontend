@@ -580,6 +580,17 @@ export const CreativeApi = {
   listMlAccounts: () =>
     api<MlAccount[]>('/ml/connections'),
 
+  /** Loja Propria — true se o produto ja esta na vitrine /loja. */
+  getProductStorefront: (productId: string) =>
+    api<{ storefront_visible?: boolean }>(`/products/${productId}`)
+      .then(p => p.storefront_visible === true),
+
+  /** Loja Propria — envia (ou remove) o produto da vitrine /loja. */
+  setProductStorefront: (productId: string, visible: boolean) =>
+    api<{ updated: number; skipped: number }>('/products/storefront-visibility', {
+      method: 'POST', body: JSON.stringify({ productIds: [productId], visible }),
+    }),
+
   /** Preenche os atributos da categoria via IA a partir do produto. */
   suggestMlAttributes: (listingId: string, categoryId?: string) =>
     api<MlAttributeSuggestion[]>(`/creative/listings/${listingId}/ml-attributes/suggest`, {

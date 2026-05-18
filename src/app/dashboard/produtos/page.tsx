@@ -90,16 +90,31 @@ function ActiveChip({ label, onRemove }: { label: string; onRemove: () => void }
 // ── bulk action bar ────────────────────────────────────────────────────────────
 
 function BulkBar({
-  count, onClear, onPause, onDelete,
+  count, onClear, onPause, onDelete, onStorefront,
 }: {
   count: number; onClear: () => void
   onPause: () => void; onDelete: () => void
+  onStorefront: (visible: boolean) => void
 }) {
   return (
     <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl mb-3 text-sm"
       style={{ background: 'rgba(0,229,255,0.07)', border: '1px solid rgba(0,229,255,0.2)' }}>
       <span className="font-semibold" style={{ color: '#00E5FF' }}>{count} selecionado{count !== 1 ? 's' : ''}</span>
-      <div className="flex gap-2 ml-2">
+      <div className="flex gap-2 ml-2 flex-wrap">
+        <button onClick={() => onStorefront(true)}
+          className="px-3 py-1 rounded-lg text-[12px] font-medium border transition-all"
+          style={{ borderColor: 'rgba(0,229,255,0.35)', color: '#00E5FF' }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = '#00E5FF' }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(0,229,255,0.35)' }}>
+          Enviar para a loja
+        </button>
+        <button onClick={() => onStorefront(false)}
+          className="px-3 py-1 rounded-lg text-[12px] font-medium border transition-all"
+          style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = '#71717a'; e.currentTarget.style.color = '#d4d4d8' }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = '#3f3f46'; e.currentTarget.style.color = '#a1a1aa' }}>
+          Tirar da loja
+        </button>
         <button onClick={onPause}
           className="px-3 py-1 rounded-lg text-[12px] font-medium border transition-all"
           style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}
@@ -1201,6 +1216,32 @@ export default function ProdutosPage() {
     pushToast({ tone: 'success', message: `${ids.length} produto${ids.length === 1 ? '' : 's'} excluído${ids.length === 1 ? '' : 's'}` })
   }
 
+  /** Loja Propria — envia/remove produtos selecionados da vitrine /loja/[slug]. */
+  async function bulkSetStorefront(ids: string[], visible: boolean) {
+    if (ids.length === 0) return
+    const token = await getAuthToken()
+    if (!token) return
+    const res = await fetch(`${BACKEND}/products/storefront-visibility`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ productIds: ids, visible }),
+    })
+    if (!res.ok) {
+      pushToast({ tone: 'error', message: 'Erro ao atualizar a vitrine da loja' })
+      return
+    }
+    const r = await res.json() as { updated: number; skipped: number }
+    setSelected(prev => { const n = new Set(prev); ids.forEach(i => n.delete(i)); return n })
+    const plural = r.updated === 1 ? '' : 's'
+    let msg = visible
+      ? `${r.updated} produto${plural} enviado${plural} para a loja`
+      : `${r.updated} produto${plural} removido${plural} da loja`
+    if (visible && r.skipped > 0) {
+      msg += ` · ${r.skipped} pulado${r.skipped === 1 ? '' : 's'} (sem nome ou preço)`
+    }
+    pushToast({ tone: 'success', message: msg })
+  }
+
   // ── filter ───────────────────────────────────────────────────────────────────
 
   const filtered = products.filter(p => {
@@ -1573,7 +1614,8 @@ export default function ProdutosPage() {
       {selected.size > 0 && view !== 'table' && (
         <BulkBar count={selected.size} onClear={() => setSelected(new Set())}
           onPause={() => bulkPause([...selected])}
-          onDelete={() => bulkDelete([...selected])} />
+          onDelete={() => bulkDelete([...selected])}
+          onStorefront={v => bulkSetStorefront([...selected], v)} />
       )}
 
       {/* Error */}
@@ -1640,6 +1682,7 @@ export default function ProdutosPage() {
           onDelete={handleDelete}
           onBulkPause={bulkPause}
           onBulkDelete={bulkDelete}
+          onBulkStorefront={bulkSetStorefront}
         />
       )}
 
