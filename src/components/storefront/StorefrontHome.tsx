@@ -17,6 +17,12 @@ import { SiteHeader } from './premium/SiteHeader'
 import { HeroPortrait } from './premium/HeroPortrait'
 import { ProductShowcase } from './premium/ProductShowcase'
 import { Marquee } from './premium/Marquee'
+import { CategoryGrid } from './premium/CategoryGrid'
+import { EditorialSplit } from './premium/EditorialSplit'
+import { TiltBanner } from './premium/TiltBanner'
+import { FullBanner } from './premium/FullBanner'
+import { ImageHotspot } from './premium/ImageHotspot'
+import { SiteFooter } from './premium/SiteFooter'
 
 /* ---------------------------------------------------------------- Header */
 
@@ -388,9 +394,19 @@ export function StorefrontHome({ design, store, products, slug, embedded = false
             )
           case 'marquee':
             return <Marquee key={i} section={section} ctx={ctx} />
+          case 'categoryGrid':
+            return <CategoryGrid key={i} section={section} ctx={ctx} />
+          case 'editorialSplit':
+            return <EditorialSplit key={i} section={section} ctx={ctx} />
+          case 'tiltBanner':
+            return <TiltBanner key={i} section={section} ctx={ctx} />
+          case 'fullBanner':
+            return <FullBanner key={i} section={section} ctx={ctx} />
+          case 'imageHotspot':
+            return <ImageHotspot key={i} section={section} slug={slug} ctx={ctx} />
+          case 'siteFooter':
+            return <SiteFooter key={i} store={store} section={section} ctx={ctx} />
           default:
-            // Demais secoes premium (E3): imageHotspot, categoryGrid,
-            // tiltBanner, fullBanner, editorialSplit, siteFooter.
             return null
         }
       })}
