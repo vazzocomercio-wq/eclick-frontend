@@ -6,9 +6,10 @@
  * os blocos sao mobile-first (testados em celular / tablet / desktop).
  */
 
+import type { ReactNode } from 'react'
 import Link from 'next/link'
 import type { StorefrontDesign, Section } from '@/lib/storefront/types'
-import { alpha, googleFontsHref } from '@/lib/storefront/theme'
+import { alpha, googleFontsHref, effects } from '@/lib/storefront/theme'
 import { formatBRL, whatsappLink } from '@/lib/storefront/data'
 import type { StorefrontStore, StorefrontProduct } from '@/lib/storefront/data'
 import { buildCtx, type RenderCtx } from './renderCtx'
@@ -23,6 +24,7 @@ import { TiltBanner } from './premium/TiltBanner'
 import { FullBanner } from './premium/FullBanner'
 import { ImageHotspot } from './premium/ImageHotspot'
 import { SiteFooter } from './premium/SiteFooter'
+import { Reveal } from './premium/Reveal'
 
 /* ---------------------------------------------------------------- Header */
 
@@ -358,57 +360,70 @@ export function StorefrontHome({ design, store, products, slug, embedded = false
     s => s.type === 'productGrid' || s.type === 'productShowcase',
   )
 
+  // Efeito de revelar secoes ao entrar na viewport (off no preview embutido).
+  const reveal = effects(design.theme).scrollReveal && !embedded
+
+  const renderSection = (section: Section, i: number): ReactNode => {
+    switch (section.type) {
+      // ── v1 ──────────────────────────────────────────────────────
+      case 'header':
+        return <Header key={i} store={store} section={section} ctx={ctx} />
+      case 'hero':
+        return <Hero key={i} section={section} ctx={ctx} />
+      case 'productGrid':
+        return <ProductGrid key={i} section={section} products={products} slug={slug} ctx={ctx} />
+      case 'about':
+        return <About key={i} section={section} ctx={ctx} />
+      case 'footer':
+        return <Footer key={i} store={store} section={section} ctx={ctx} />
+      case 'collections':
+        // Requer endpoint publico de listagem de colecoes (fase futura).
+        return null
+      // ── v2 premium ────────────────────────────────────────────────
+      case 'announcementBar':
+        return <AnnouncementBar key={i} section={section} ctx={ctx} />
+      case 'siteHeader':
+        return <SiteHeader key={i} store={store} section={section} ctx={ctx} />
+      case 'heroPortrait':
+        return <HeroPortrait key={i} section={section} ctx={ctx} />
+      case 'productShowcase':
+        return (
+          <ProductShowcase
+            key={i} section={section} products={products} slug={slug} ctx={ctx}
+            anchorId={i === firstProductIdx ? 'produtos' : undefined}
+          />
+        )
+      case 'marquee':
+        return <Marquee key={i} section={section} ctx={ctx} />
+      case 'categoryGrid':
+        return <CategoryGrid key={i} section={section} ctx={ctx} />
+      case 'editorialSplit':
+        return <EditorialSplit key={i} section={section} ctx={ctx} />
+      case 'tiltBanner':
+        return <TiltBanner key={i} section={section} ctx={ctx} />
+      case 'fullBanner':
+        return <FullBanner key={i} section={section} ctx={ctx} />
+      case 'imageHotspot':
+        return <ImageHotspot key={i} section={section} slug={slug} ctx={ctx} />
+      case 'siteFooter':
+        return <SiteFooter key={i} store={store} section={section} ctx={ctx} />
+      default:
+        return null
+    }
+  }
+
   return (
     <div style={{ background: colors.background, color: colors.text, fontFamily: ctx.fontB, minHeight: embedded ? undefined : '100vh' }}>
       {/* eslint-disable-next-line @next/next/no-page-custom-font */}
       <link rel="stylesheet" href={googleFontsHref(design.theme)} />
       {design.sections.map((section, i) => {
-        switch (section.type) {
-          // ── v1 ────────────────────────────────────────────────────
-          case 'header':
-            return <Header key={i} store={store} section={section} ctx={ctx} />
-          case 'hero':
-            return <Hero key={i} section={section} ctx={ctx} />
-          case 'productGrid':
-            return <ProductGrid key={i} section={section} products={products} slug={slug} ctx={ctx} />
-          case 'about':
-            return <About key={i} section={section} ctx={ctx} />
-          case 'footer':
-            return <Footer key={i} store={store} section={section} ctx={ctx} />
-          case 'collections':
-            // Requer endpoint publico de listagem de colecoes (fase futura).
-            return null
-          // ── v2 premium ────────────────────────────────────────────
-          case 'announcementBar':
-            return <AnnouncementBar key={i} section={section} ctx={ctx} />
-          case 'siteHeader':
-            return <SiteHeader key={i} store={store} section={section} ctx={ctx} />
-          case 'heroPortrait':
-            return <HeroPortrait key={i} section={section} ctx={ctx} />
-          case 'productShowcase':
-            return (
-              <ProductShowcase
-                key={i} section={section} products={products} slug={slug} ctx={ctx}
-                anchorId={i === firstProductIdx ? 'produtos' : undefined}
-              />
-            )
-          case 'marquee':
-            return <Marquee key={i} section={section} ctx={ctx} />
-          case 'categoryGrid':
-            return <CategoryGrid key={i} section={section} ctx={ctx} />
-          case 'editorialSplit':
-            return <EditorialSplit key={i} section={section} ctx={ctx} />
-          case 'tiltBanner':
-            return <TiltBanner key={i} section={section} ctx={ctx} />
-          case 'fullBanner':
-            return <FullBanner key={i} section={section} ctx={ctx} />
-          case 'imageHotspot':
-            return <ImageHotspot key={i} section={section} slug={slug} ctx={ctx} />
-          case 'siteFooter':
-            return <SiteFooter key={i} store={store} section={section} ctx={ctx} />
-          default:
-            return null
-        }
+        const node = renderSection(section, i)
+        if (!node) return null
+        const chrome =
+          section.type === 'header' ||
+          section.type === 'siteHeader' ||
+          section.type === 'announcementBar'
+        return reveal && !chrome ? <Reveal key={i}>{node}</Reveal> : node
       })}
       {!embedded && <WhatsAppButton store={store} />}
     </div>

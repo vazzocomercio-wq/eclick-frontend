@@ -6,6 +6,7 @@
 import Link from 'next/link'
 import { formatBRL } from '@/lib/storefront/data'
 import type { StorefrontProduct } from '@/lib/storefront/data'
+import { effects } from '@/lib/storefront/theme'
 import type { RenderCtx } from '../renderCtx'
 
 export function PremiumProductCard({ product, slug, ctx, carousel = false }: {
@@ -15,6 +16,7 @@ export function PremiumProductCard({ product, slug, ctx, carousel = false }: {
   carousel?: boolean
 }) {
   const { colors } = ctx.theme
+  const rollover = effects(ctx.theme).hoverRollover && (product.photo_urls?.length ?? 0) > 1
 
   return (
     <Link
@@ -22,7 +24,7 @@ export function PremiumProductCard({ product, slug, ctx, carousel = false }: {
       className={`group block ${carousel ? 'w-[210px] sm:w-[250px] shrink-0 snap-start' : ''}`}
     >
       <div
-        className="overflow-hidden"
+        className="relative overflow-hidden"
         style={{
           aspectRatio: '3 / 4',
           background: '#fff',
@@ -41,6 +43,15 @@ export function PremiumProductCard({ product, slug, ctx, carousel = false }: {
           <div className="w-full h-full flex items-center justify-center text-xs text-zinc-400">
             sem foto
           </div>
+        )}
+        {rollover && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={product.photo_urls![1]}
+            alt=""
+            aria-hidden
+            className="absolute inset-0 w-full h-full object-cover opacity-0 transition-opacity duration-500 group-hover:opacity-100"
+          />
         )}
       </div>
       <div className="pt-3">

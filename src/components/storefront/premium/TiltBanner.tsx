@@ -8,17 +8,20 @@ import { effects, watermarkColor } from '@/lib/storefront/theme'
 import type { RenderCtx } from '../renderCtx'
 import { Watermark } from './Watermark'
 import { StoreImage } from './StoreImage'
+import { ParallaxLayer } from './ParallaxLayer'
 
 export function TiltBanner({ section, ctx }: {
   section: Extract<Section, { type: 'tiltBanner' }>
   ctx: RenderCtx
 }) {
-  const showWm = effects(ctx.theme).watermarks && !!section.watermark
+  const fx = effects(ctx.theme)
+  const showWm = fx.watermarks && !!section.watermark
+  const img = <StoreImage src={section.imageUrl} alt={section.headline ?? ''} ctx={ctx} />
 
   return (
     <section className="relative overflow-hidden my-8 sm:my-12">
       <div className="relative h-[260px] sm:h-[420px]">
-        <StoreImage src={section.imageUrl} alt={section.headline ?? ''} ctx={ctx} />
+        {fx.parallaxTilt ? <ParallaxLayer>{img}</ParallaxLayer> : img}
         <div
           className="absolute inset-0"
           style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.55), rgba(0,0,0,0.1))' }}
