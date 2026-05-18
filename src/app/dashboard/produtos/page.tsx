@@ -1028,6 +1028,9 @@ export default function ProdutosPage() {
     singlePlatform: false, // anunciado em apenas 1 plataforma (oportunidade de expandir)
   })
   const [productMeta, setProductMeta] = useState<Record<string, ProductMeta>>({})
+  // Paginacao da lista (client-side) — tamanho de pagina selecionavel.
+  const [perPage, setPerPage] = useState(50)
+  const [pageNum, setPageNum] = useState(0)
   const confirm = useConfirm()
 
   const load = useCallback(async () => {
@@ -1070,6 +1073,11 @@ export default function ProdutosPage() {
   }, [products])
 
   useEffect(() => { load() }, [load])
+
+  // Volta pra primeira pagina quando busca, filtros ou tamanho de pagina mudam.
+  useEffect(() => {
+    setPageNum(0)
+  }, [search, filterStatus, filterStock, filterPlatforms, filterPriceMin, filterPriceMax, filterFlags, perPage])
 
   // Fetch supplementary data pros filtros avançados — competitors, listings,
   // cost_price. Tudo via Supabase direto (RLS em cima de organization_id).
@@ -1292,6 +1300,11 @@ export default function ProdutosPage() {
 
     return true
   })
+
+  // Paginacao client-side da lista filtrada.
+  const totalPages = Math.max(1, Math.ceil(filtered.length / perPage))
+  const page = Math.min(pageNum, totalPages - 1)
+  const paged = filtered.slice(page * perPage, page * perPage + perPage)
 
   // Contadores pra mostrar ao lado de cada chip de filtro (quantos passariam SE
   // só esse filtro estivesse ativo). Calculados apenas em produtos que já
@@ -1717,7 +1730,7 @@ export default function ProdutosPage() {
               <tbody>
                 {loading
                   ? <TableSkeleton />
-                  : filtered.map(p => (
+                  : paged.map(p => (
                       <TableRow key={p.id} product={p}
                         selected={selected.has(p.id)}
                         onSelect={handleSelect}
@@ -1737,7 +1750,7 @@ export default function ProdutosPage() {
       {/* ── GRID VIEW ── */}
       {view === 'grid' && filtered.length > 0 && !loading && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filtered.map(p => (
+          {paged.map(p => (
             <ProductCard key={p.id} product={p}
               onDelete={handleDelete}
               onStatusChange={handleStatusChange}
@@ -1761,6 +1774,16 @@ export default function ProdutosPage() {
         </div>
       )}
 
+      {(view === 'list' || view === 'grid') && !loading && filtered.length > 0 && (
+        <Pagination
+          total={filtered.length}
+          page={page}
+          perPage={perPage}
+          onPage={setPageNum}
+          onPerPage={setPerPage}
+        />
+      )}
+
       {showMlImport && (
         <MlImportModal
           onClose={() => setShowMlImport(false)}
@@ -1781,6 +1804,65 @@ export default function ProdutosPage() {
           onSaved={() => { load() }}
         />
       )}
+    </div>
+  )
+}
+
+// ── Paginação ───────────────────────────────────────────────────────────────
+
+function PageBtn({ disabled, onClick, label, aria }: {
+  disabled: boolean; onClick: () => void; label: string; aria: string
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={aria}
+      className="w-7 h-7 rounded-lg flex items-center justify-center text-sm transition-colors disabled:opacity-30 disabled:cursor-not-allowed enabled:hover:border-zinc-500"
+      style={{ background: '#111114', border: '1px solid #1e1e24', color: '#e4e4e7' }}
+    >
+      {label}
+    </button>
+  )
+}
+
+function Pagination({ total, page, perPage, onPage, onPerPage }: {
+  total:     number
+  page:      number   // 0-indexed
+  perPage:   number
+  onPage:    (p: number) => void
+  onPerPage: (n: number) => void
+}) {
+  const totalPages = Math.max(1, Math.ceil(total / perPage))
+  const from = total === 0 ? 0 : page * perPage + 1
+  const to   = Math.min(total, (page + 1) * perPage)
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 mt-4 px-1">
+      <div className="flex items-center gap-2 text-xs" style={{ color: '#a1a1aa' }}>
+        <span>Mostrar</span>
+        <select
+          value={perPage}
+          onChange={e => onPerPage(Number(e.target.value))}
+          aria-label="Itens por página"
+          className="rounded-lg px-2 py-1.5 text-xs outline-none cursor-pointer"
+          style={{ background: '#111114', border: '1px solid #1e1e24', color: '#e4e4e7' }}
+        >
+          {[10, 20, 50, 100].map(n => <option key={n} value={n}>{n}</option>)}
+        </select>
+        <span>por página</span>
+      </div>
+      <div className="flex items-center gap-3 text-xs" style={{ color: '#a1a1aa' }}>
+        <span>{from}–{to} de {total}</span>
+        <div className="flex items-center gap-1">
+          <PageBtn disabled={page <= 0} onClick={() => onPage(0)} label="«" aria="Primeira página" />
+          <PageBtn disabled={page <= 0} onClick={() => onPage(page - 1)} label="‹" aria="Página anterior" />
+          <span className="px-2 tabular-nums" style={{ color: '#e4e4e7' }}>{page + 1} / {totalPages}</span>
+          <PageBtn disabled={page >= totalPages - 1} onClick={() => onPage(page + 1)} label="›" aria="Próxima página" />
+          <PageBtn disabled={page >= totalPages - 1} onClick={() => onPage(totalPages - 1)} label="»" aria="Última página" />
+        </div>
+      </div>
     </div>
   )
 }
