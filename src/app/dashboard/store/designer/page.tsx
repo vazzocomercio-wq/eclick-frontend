@@ -23,6 +23,7 @@ import type {
 } from '@/lib/storefront/types'
 import type { StorefrontStore, StorefrontProduct } from '@/lib/storefront/data'
 import { getProducts } from '@/lib/storefront/data'
+import { PremiumEditor } from './_components/PremiumEditor'
 
 const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'https://eclick-backend-production-2a87.up.railway.app'
 
@@ -651,20 +652,24 @@ export default function StoreDesignerPage() {
                 </div>
               </div>
 
-              <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-4 space-y-3">
-                <h2 className="text-xs uppercase tracking-wider text-zinc-300">Blocos da página</h2>
-                <p className="text-[11px] text-zinc-500">Cabeçalho e grade de produtos são fixos.</p>
-                {TOGGLEABLE.map(b => {
-                  const on = design.sections.some(s => s.type === b.type)
-                  return (
-                    <label key={b.type} className="flex items-center justify-between gap-2 cursor-pointer">
-                      <span className="text-sm text-zinc-300">{b.label}</span>
-                      <input type="checkbox" checked={on} onChange={() => toggleSection(b.type)}
-                        className="w-4 h-4 accent-cyan-400" />
-                    </label>
-                  )
-                })}
-              </div>
+              {design.version === 2 ? (
+                <PremiumEditor design={design} onChange={d => { setDesign(d); setDirty(true) }} />
+              ) : (
+                <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-4 space-y-3">
+                  <h2 className="text-xs uppercase tracking-wider text-zinc-300">Blocos da página</h2>
+                  <p className="text-[11px] text-zinc-500">Cabeçalho e grade de produtos são fixos.</p>
+                  {TOGGLEABLE.map(b => {
+                    const on = design.sections.some(s => s.type === b.type)
+                    return (
+                      <label key={b.type} className="flex items-center justify-between gap-2 cursor-pointer">
+                        <span className="text-sm text-zinc-300">{b.label}</span>
+                        <input type="checkbox" checked={on} onChange={() => toggleSection(b.type)}
+                          className="w-4 h-4 accent-cyan-400" />
+                      </label>
+                    )
+                  })}
+                </div>
+              )}
 
               <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-4 space-y-3">
                 <h2 className="text-xs uppercase tracking-wider text-zinc-300 flex items-center gap-1.5">
