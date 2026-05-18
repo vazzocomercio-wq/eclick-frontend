@@ -1,9 +1,8 @@
 /**
- * Receita de design da Loja Própria.
+ * Receita de design da Loja Própria — Tema Premium.
  *
- * Documento estruturado que descreve o visual e o layout da vitrine.
- * v1 = esquema simples (Fases 1-9). v2 = Tema Premium (estilo editorial/
- * Renovate) — seções ricas com efeitos. O renderizador trata os dois.
+ * Documento estruturado que descreve o visual e o layout da vitrine:
+ * tema, efeitos globais e a lista ordenada de seções ricas.
  */
 
 export type ThemeMode = 'dark' | 'light'
@@ -26,7 +25,7 @@ export interface DesignColors {
   onAccent?:  string
 }
 
-/** Premium — efeitos globais ligáveis. v1 ignora (campo opcional). */
+/** Efeitos globais ligáveis da vitrine. */
 export interface DesignEffects {
   scrollReveal:  boolean  // fade + slide-up das seções ao entrar na viewport
   watermarks:    boolean  // texto gigante de marca ao fundo das seções
@@ -40,55 +39,12 @@ export interface DesignTheme {
   fontPair: FontPair
   radius:   Radius
   density:  Density
-  /** Premium — efeitos globais (opcional; v1 não preenche). */
+  /** Efeitos globais (opcional — cai no padrão quando ausente). */
   effects?: DesignEffects
 }
 
 // ─────────────────────────────────────────────────────────────────────
-// v1 — seções simples (Fases 1-9). Mantidas por compatibilidade.
-// ─────────────────────────────────────────────────────────────────────
-
-export interface HeaderSection {
-  type:    'header'
-  variant: 'minimal' | 'centered' | 'overlay'
-}
-
-export interface HeroSection {
-  type:        'hero'
-  variant:     'gradient' | 'image' | 'split'
-  headline:    string
-  subheadline: string
-  ctaLabel:    string
-  imageUrl?:   string | null
-}
-
-export interface CollectionsSection {
-  type:    'collections'
-  variant: 'strip' | 'grid'
-  title:   string
-}
-
-export interface ProductGridSection {
-  type:    'productGrid'
-  variant: 'compact' | 'elevated' | 'editorial'
-  title:   string
-  columns: { mobile: number; tablet: number; desktop: number }
-}
-
-export interface AboutSection {
-  type:    'about'
-  variant: 'simple' | 'banner'
-  title:   string
-  body:    string
-}
-
-export interface FooterSection {
-  type:    'footer'
-  variant: 'minimal' | 'full'
-}
-
-// ─────────────────────────────────────────────────────────────────────
-// v2 — Tema Premium (estilo editorial/Renovate). Seções ricas.
+// Seções do Tema Premium (estilo editorial/Renovate).
 // ─────────────────────────────────────────────────────────────────────
 
 /** Faixa superior com mensagem + countdown opcional. */
@@ -194,14 +150,6 @@ export interface SiteFooterSection {
 }
 
 export type Section =
-  // v1
-  | HeaderSection
-  | HeroSection
-  | CollectionsSection
-  | ProductGridSection
-  | AboutSection
-  | FooterSection
-  // v2 premium
   | AnnouncementBarSection
   | SiteHeaderSection
   | HeroPortraitSection
@@ -223,8 +171,8 @@ export interface ProductPageDesign {
 }
 
 export interface StorefrontDesign {
-  /** 1 = esquema simples; 2 = Tema Premium. */
-  version:  1 | 2
+  /** Sempre 2 — versão do esquema da receita de design. */
+  version:  2
   theme:    DesignTheme
   sections: Section[]
   product:  ProductPageDesign

@@ -19,7 +19,7 @@ import { StorefrontHome } from '@/components/storefront/StorefrontHome'
 import { STOREFRONT_TEMPLATES, DEFAULT_DESIGN } from '@/lib/storefront/templates'
 import { FONT_PAIRS } from '@/lib/storefront/theme'
 import type {
-  StorefrontDesign, Section, HeroSection, DesignColors, FontPair, Radius, Density, ThemeMode,
+  StorefrontDesign, DesignColors, FontPair, Radius, Density, ThemeMode,
 } from '@/lib/storefront/types'
 import type { StorefrontStore, StorefrontProduct } from '@/lib/storefront/data'
 import { getProducts } from '@/lib/storefront/data'
@@ -53,8 +53,7 @@ const PLACEHOLDER_PRODUCTS: StorefrontProduct[] = [
   { id: 'ph-6', name: 'Produto recomendado', price: 199.0, photo_urls: null, category: 'Categoria', ai_score: null, ai_short_description: null },
 ]
 
-const SECTION_ORDER = ['header', 'hero', 'collections', 'productGrid', 'about', 'footer']
-/** Chaves de cor obrigatorias — as opcionais (premium) ficam fora do editor. */
+/** Chaves de cor obrigatorias — as opcionais (premium) ficam no PremiumEditor. */
 type ColorKey = {
   [K in keyof DesignColors]-?: undefined extends DesignColors[K] ? never : K
 }[keyof DesignColors]
@@ -72,15 +71,6 @@ const RADIUS_OPTS:  Array<{ v: Radius;  label: string }> = [
 const DENSITY_OPTS: Array<{ v: Density; label: string }> = [
   { v: 'compact', label: 'Compacto' }, { v: 'cozy', label: 'Confortável' }, { v: 'spacious', label: 'Espaçoso' },
 ]
-const TOGGLEABLE: Array<{ type: Section['type']; label: string }> = [
-  { type: 'hero', label: 'Banner principal' },
-  { type: 'about', label: 'Bloco "sobre a loja"' },
-  { type: 'footer', label: 'Rodapé' },
-]
-
-function reorderSections(s: Section[]): Section[] {
-  return [...s].sort((a, b) => SECTION_ORDER.indexOf(a.type) - SECTION_ORDER.indexOf(b.type))
-}
 
 /** Lê um arquivo de imagem, reduz pra no máx. 1280px e devolve um data URI JPEG. */
 function downscaleImage(file: File, maxDim = 1280, quality = 0.82): Promise<string> {
@@ -107,15 +97,6 @@ function downscaleImage(file: File, maxDim = 1280, quality = 0.82): Promise<stri
     }
     reader.readAsDataURL(file)
   })
-}
-
-function defaultSection(type: Section['type']): Section {
-  switch (type) {
-    case 'hero':   return { type: 'hero', variant: 'gradient', headline: 'Bem-vindo à loja', subheadline: 'Conheça os nossos produtos.', ctaLabel: 'Ver produtos' }
-    case 'about':  return { type: 'about', variant: 'simple', title: 'Sobre a loja', body: 'Conheça mais sobre a nossa loja.' }
-    case 'footer': return { type: 'footer', variant: 'minimal' }
-    default:       return { type: 'header', variant: 'minimal' }
-  }
 }
 
 async function token(): Promise<string | null> {
@@ -157,7 +138,6 @@ export default function StoreDesignerPage() {
   const [applying, setApplying]     = useState(false)
   const [savingEdit, setSavingEdit] = useState(false)
   const [dirty, setDirty]           = useState(false)
-  const [stash, setStash] = useState<Partial<Record<string, Section>>>({})
   const [refImage, setRefImage] = useState<string | null>(null)
   const [refUrl, setRefUrl] = useState('')
   const [generatingImage, setGeneratingImage] = useState(false)
@@ -296,16 +276,6 @@ export default function StoreDesignerPage() {
     }
   }
 
-  function removeHeroImage() {
-    setDesign(d => ({
-      ...d,
-      sections: d.sections.map(s =>
-        s.type === 'hero' ? ({ ...s, variant: 'gradient', imageUrl: null } as HeroSection) : s,
-      ),
-    }))
-    setDirty(true)
-  }
-
   async function connectCanva() {
     setError(null)
     try {
@@ -358,16 +328,8 @@ export default function StoreDesignerPage() {
     setDesign(d => ({ ...d, theme: { ...d.theme, colors: { ...d.theme.colors, [key]: value } } }))
     setDirty(true)
   }
-  function toggleSection(type: Section['type']) {
-    const has = design.sections.some(s => s.type === type)
-    if (has) {
-      const removed = design.sections.find(s => s.type === type)
-      if (removed) setStash(st => ({ ...st, [type]: removed }))
-      setDesign(d => ({ ...d, sections: d.sections.filter(s => s.type !== type) }))
-    } else {
-      const restored = stash[type] ?? defaultSection(type)
-      setDesign(d => ({ ...d, sections: reorderSections([...d.sections, restored]) }))
-    }
+  function patchDesign(d: StorefrontDesign) {
+    setDesign(d)
     setDirty(true)
   }
 
@@ -411,7 +373,6 @@ export default function StoreDesignerPage() {
     design,
   }
   const busy = generating || applying || savingEdit || generatingImage || genCanvaId !== null
-  const heroImg = design.sections.find((s): s is HeroSection => s.type === 'hero')?.imageUrl ?? null
 
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-5">
@@ -652,51 +613,22 @@ export default function StoreDesignerPage() {
                 </div>
               </div>
 
-              {design.version === 2 ? (
-                <PremiumEditor design={design} onChange={d => { setDesign(d); setDirty(true) }} />
-              ) : (
-                <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-4 space-y-3">
-                  <h2 className="text-xs uppercase tracking-wider text-zinc-300">Blocos da página</h2>
-                  <p className="text-[11px] text-zinc-500">Cabeçalho e grade de produtos são fixos.</p>
-                  {TOGGLEABLE.map(b => {
-                    const on = design.sections.some(s => s.type === b.type)
-                    return (
-                      <label key={b.type} className="flex items-center justify-between gap-2 cursor-pointer">
-                        <span className="text-sm text-zinc-300">{b.label}</span>
-                        <input type="checkbox" checked={on} onChange={() => toggleSection(b.type)}
-                          className="w-4 h-4 accent-cyan-400" />
-                      </label>
-                    )
-                  })}
-                </div>
-              )}
+              <PremiumEditor design={design} onChange={patchDesign} />
 
               <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-4 space-y-3">
                 <h2 className="text-xs uppercase tracking-wider text-zinc-300 flex items-center gap-1.5">
                   <ImageIcon size={12} className="text-cyan-400" /> Imagem do banner
                 </h2>
-                {heroImg ? (
-                  <div className="relative">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={heroImg} alt="Banner da loja"
-                      className="w-full h-28 object-cover rounded-lg border border-zinc-800" />
-                    <button onClick={removeHeroImage} aria-label="Remover imagem do banner"
-                      className="absolute top-1.5 right-1.5 p-1 rounded-md bg-black/70 text-zinc-200 hover:text-white">
-                      <X size={13} />
-                    </button>
-                  </div>
-                ) : (
-                  <p className="text-[11px] text-zinc-500">
-                    O banner usa fundo de cor. Gere uma imagem com IA para deixá-lo mais rico.
-                  </p>
-                )}
+                <p className="text-[11px] text-zinc-500">
+                  Gere com IA uma imagem para o destaque da loja, combinando com o estilo do design.
+                </p>
                 <input value={imageHint} onChange={e => setImageHint(e.target.value)}
                   placeholder="O que mostrar (opcional): ex. produtos numa sala aconchegante"
                   className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-1.5 text-xs text-zinc-200 outline-none focus:border-cyan-400/60" />
                 <button onClick={generateHeroImage} disabled={busy}
                   className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-zinc-700 hover:border-cyan-400/50 hover:text-cyan-300 text-zinc-300 text-sm disabled:opacity-40 disabled:hover:border-zinc-700 disabled:hover:text-zinc-300">
                   {generatingImage ? <Loader2 size={14} className="animate-spin" /> : <ImagePlus size={14} />}
-                  {generatingImage ? 'Gerando imagem…' : heroImg ? 'Gerar outra imagem' : 'Gerar imagem do banner (IA)'}
+                  {generatingImage ? 'Gerando imagem…' : 'Gerar imagem do banner (IA)'}
                 </button>
                 {generatingImage && (
                   <p className="text-[11px] text-zinc-500 text-center">Pode levar até meio minuto.</p>

@@ -8,7 +8,7 @@
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { getProduct, getProducts } from '@/lib/storefront/data'
-import { ProductDetail } from '@/components/storefront/ProductDetail'
+import { PremiumProductDetail } from '@/components/storefront/PremiumProductDetail'
 import { DEFAULT_DESIGN } from '@/lib/storefront/templates'
 
 interface Props {
@@ -36,7 +36,7 @@ export default async function ProductPage({ params }: Props) {
   const design = data.store.design ?? DEFAULT_DESIGN
 
   return (
-    <ProductDetail
+    <PremiumProductDetail
       design={design}
       store={data.store}
       product={data.product}

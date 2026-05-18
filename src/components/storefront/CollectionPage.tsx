@@ -43,20 +43,7 @@ export function CollectionPage({ design, store, products, slug, initialCategory 
       <link rel="stylesheet" href={googleFontsHref(design.theme)} />
 
       {announce && <AnnouncementBar section={announce} ctx={ctx} />}
-      {header ? (
-        <SiteHeader store={store} section={header} ctx={ctx} />
-      ) : (
-        <header
-          className="px-4 sm:px-8 py-5"
-          style={{ borderBottom: `1px solid ${colors.border}`, background: colors.background }}
-        >
-          <div className="max-w-6xl mx-auto">
-            <span className="text-base sm:text-xl font-bold" style={{ color: colors.text, fontFamily: ctx.fontH }}>
-              {store.store_name}
-            </span>
-          </div>
-        </header>
-      )}
+      {header && <SiteHeader store={store} section={header} ctx={ctx} />}
 
       <main className="max-w-6xl mx-auto px-4 sm:px-8 py-6 sm:py-10">
         <Link
@@ -77,16 +64,7 @@ export function CollectionPage({ design, store, products, slug, initialCategory 
         <CatalogGrid products={products} slug={slug} ctx={ctx} initialCategory={initialCategory} />
       </main>
 
-      {footer ? (
-        <SiteFooter store={store} section={footer} ctx={ctx} />
-      ) : (
-        <footer
-          className="px-4 sm:px-8 py-8 text-center text-xs"
-          style={{ borderTop: `1px solid ${colors.border}`, background: colors.surface, color: colors.textMuted }}
-        >
-          Powered by <span style={{ color: colors.primary }}>e-Click</span>
-        </footer>
-      )}
+      {footer && <SiteFooter store={store} section={footer} ctx={ctx} />}
 
       <WhatsAppButton store={store} />
     </div>
