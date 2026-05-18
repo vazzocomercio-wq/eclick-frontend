@@ -33,7 +33,7 @@ interface SupplierProduct {
 }
 
 interface SupplierDocument {
-  id: string; document_type: string | null; file_name: string; file_url: string; notes: string | null; created_at: string
+  id: string; document_type: string | null; title: string; file_url: string; notes: string | null; created_at: string
 }
 
 interface PriceTier { min_qty: number; unit_price: number }
@@ -105,7 +105,7 @@ export default function FornecedorDetailPage() {
 
   // doc modal
   const [showDocModal, setShowDocModal]       = useState(false)
-  const [docForm, setDocForm]                 = useState({ document_type: '', file_name: '', file_url: '', notes: '' })
+  const [docForm, setDocForm]                 = useState({ document_type: '', title: '', file_url: '', notes: '' })
   const [docSaving, setDocSaving]             = useState(false)
 
   // edit mode for dados tab
@@ -241,7 +241,7 @@ export default function FornecedorDetailPage() {
 
   async function handleAddDoc(e: React.FormEvent) {
     e.preventDefault()
-    if (!docForm.file_name || !docForm.file_url) return
+    if (!docForm.title || !docForm.file_url) return
     setDocSaving(true)
     try {
       const headers = await getHeaders()
@@ -251,7 +251,7 @@ export default function FornecedorDetailPage() {
       })
       if (!res.ok) throw new Error()
       setShowDocModal(false)
-      setDocForm({ document_type: '', file_name: '', file_url: '', notes: '' })
+      setDocForm({ document_type: '', title: '', file_url: '', notes: '' })
       await load()
     } catch { /* ignore */ }
     finally { setDocSaving(false) }
@@ -503,7 +503,7 @@ export default function FornecedorDetailPage() {
                 <div key={doc.id} className="rounded-xl p-4 flex items-center gap-4" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
                   <Icon d={I.file} size={20} />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-white">{doc.file_name}</p>
+                    <p className="text-sm font-medium text-white">{doc.title}</p>
                     {doc.document_type && <p className="text-xs text-zinc-500">{doc.document_type}</p>}
                     {doc.notes && <p className="text-xs text-zinc-600">{doc.notes}</p>}
                   </div>
@@ -657,7 +657,7 @@ export default function FornecedorDetailPage() {
                 <button onClick={() => setShowDocModal(false)} className="text-zinc-500 hover:text-white"><Icon d={I.x} size={18} /></button>
               </div>
               <form onSubmit={handleAddDoc} className="space-y-3">
-                <div><label className={lbl}>Nome do Arquivo *</label><input value={docForm.file_name} onChange={e => setDocForm(f => ({ ...f, file_name: e.target.value }))} className={inp} placeholder="contrato.pdf" /></div>
+                <div><label className={lbl}>Nome do Arquivo *</label><input value={docForm.title} onChange={e => setDocForm(f => ({ ...f, title: e.target.value }))} className={inp} placeholder="contrato.pdf" /></div>
                 <div><label className={lbl}>URL do Arquivo *</label><input value={docForm.file_url} onChange={e => setDocForm(f => ({ ...f, file_url: e.target.value }))} className={inp} placeholder="https://..." /></div>
                 <div><label className={lbl}>Tipo</label><input value={docForm.document_type} onChange={e => setDocForm(f => ({ ...f, document_type: e.target.value }))} className={inp} placeholder="Contrato, Certificado, NF..." /></div>
                 <div><label className={lbl}>Notas</label><input value={docForm.notes} onChange={e => setDocForm(f => ({ ...f, notes: e.target.value }))} className={inp} /></div>
