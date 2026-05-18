@@ -99,6 +99,15 @@ function fmtBrl(n: number | null | undefined): string {
   return Number(n).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
+/** Converte erro técnico (incluindo página HTML de erro) numa mensagem curta e legível. */
+function friendlyError(e: unknown): string {
+  const raw = e instanceof Error ? e.message : String(e ?? 'Erro desconhecido')
+  if (/<(?:!doctype|html)[\s>]/i.test(raw)) {
+    return 'O servidor da Pennacorp respondeu uma página de erro em vez da API. Verifique o token e deixe o campo "URL base" em branco.'
+  }
+  return raw.length > 220 ? raw.slice(0, 220) + '…' : raw
+}
+
 // ── componente principal ─────────────────────────────────────────────────
 
 export function IcarusIntegrationTab({ supplierId }: { supplierId: string }) {
@@ -120,9 +129,12 @@ export function IcarusIntegrationTab({ supplierId }: { supplierId: string }) {
       const res = await fetch(`${BACKEND}/suppliers/${supplierId}/integrations/icarus`, {
         headers: { Authorization: `Bearer ${t}` },
       })
-      setStatus(res.ok ? await res.json() : null)
+      if (!res.ok) { setStatus(null); return }
+      // Corpo pode vir vazio quando ainda não há integração — não dá pra json() direto.
+      const raw = await res.text()
+      setStatus(raw ? JSON.parse(raw) : null)
     } catch (e) {
-      setError((e as Error).message)
+      setError(friendlyError(e))
       setStatus(null)
     }
   }, [supplierId])
@@ -150,7 +162,7 @@ export function IcarusIntegrationTab({ supplierId }: { supplierId: string }) {
       setStatus(body as IntegrationStatus)
       setAccessToken(''); setBaseUrl(''); setNotes('')
     } catch (e) {
-      setError((e as Error).message)
+      setError(friendlyError(e))
     } finally {
       setBusy(false)
     }
@@ -169,7 +181,7 @@ export function IcarusIntegrationTab({ supplierId }: { supplierId: string }) {
         ? { ok: true,  message: `Conectado em ${body.base_url}. Token gerado: ${body.request_token_preview}` }
         : { ok: false, message: body.error || `HTTP ${res.status}` })
     } catch (e) {
-      setTestRes({ ok: false, message: (e as Error).message })
+      setTestRes({ ok: false, message: friendlyError(e) })
     } finally {
       setBusy(false)
     }
