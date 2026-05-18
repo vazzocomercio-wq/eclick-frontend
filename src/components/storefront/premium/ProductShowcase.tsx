@@ -42,12 +42,21 @@ export function ProductShowcase({ section, products, slug, ctx, anchorId }: {
     >
       {showWm && <Watermark text={section.watermark!} color={watermarkColor(ctx.theme)} />}
       <div className="relative z-10 max-w-6xl mx-auto px-4 sm:px-8">
-        <h2
-          className="text-2xl sm:text-3xl font-bold mb-6 sm:mb-8"
-          style={{ color: colors.text, fontFamily: ctx.fontH }}
-        >
-          {section.title}
-        </h2>
+        <div className="flex items-end justify-between gap-4 mb-6 sm:mb-8">
+          <h2
+            className="text-2xl sm:text-3xl font-bold"
+            style={{ color: colors.text, fontFamily: ctx.fontH }}
+          >
+            {section.title}
+          </h2>
+          <a
+            href={`/loja/${slug}/produtos`}
+            className="text-sm whitespace-nowrap hover:underline shrink-0"
+            style={{ color: colors.primary }}
+          >
+            Ver tudo
+          </a>
+        </div>
 
         {products.length === 0 ? (
           <div
