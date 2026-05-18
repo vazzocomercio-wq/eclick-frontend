@@ -1,11 +1,11 @@
 'use client'
 
 /**
- * Designer da Loja (Loja Própria — Fases 3 + 4).
+ * Designer da Loja (Loja Própria — Fases 3 a 6).
  *
- * Aba "Gerar": modelos de inspiração + prompt → IA monta a receita.
- * Aba "Ajustar": editor manual de tema (cores, fonte, cantos, densidade)
- * e blocos. Preview ao vivo ao lado. Consome os endpoints da Fase 2.
+ * Aba "Gerar": modelos de inspiração, prompt e upload de imagem → IA.
+ * Aba "Ajustar": editor manual de tema, blocos e banner (imagem por IA).
+ * Preview ao vivo ao lado. Consome os endpoints da Fase 2/5/6.
  */
 
 import { useEffect, useState, useCallback } from 'react'
@@ -13,13 +13,13 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import {
   Palette, Loader2, AlertCircle, Wand2, ExternalLink, Check, Store,
-  Sparkles, SlidersHorizontal, Save, ImagePlus, X,
+  Sparkles, SlidersHorizontal, Save, ImagePlus, X, Image as ImageIcon,
 } from 'lucide-react'
 import { StorefrontHome } from '@/components/storefront/StorefrontHome'
 import { STOREFRONT_TEMPLATES, DEFAULT_DESIGN } from '@/lib/storefront/templates'
 import { FONT_PAIRS } from '@/lib/storefront/theme'
 import type {
-  StorefrontDesign, Section, DesignColors, FontPair, Radius, Density, ThemeMode,
+  StorefrontDesign, Section, HeroSection, DesignColors, FontPair, Radius, Density, ThemeMode,
 } from '@/lib/storefront/types'
 import type { StorefrontStore, StorefrontProduct } from '@/lib/storefront/data'
 import { getProducts } from '@/lib/storefront/data'
@@ -154,6 +154,8 @@ export default function StoreDesignerPage() {
   const [dirty, setDirty]           = useState(false)
   const [stash, setStash] = useState<Partial<Record<string, Section>>>({})
   const [refImage, setRefImage] = useState<string | null>(null)
+  const [generatingImage, setGeneratingImage] = useState(false)
+  const [imageHint, setImageHint] = useState('')
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
@@ -257,6 +259,32 @@ export default function StoreDesignerPage() {
     }
   }
 
+  async function generateHeroImage() {
+    setGeneratingImage(true); setError(null); setNotice(null)
+    try {
+      const res = await api<{ design: StorefrontDesign }>('/store/config/design/hero-image', {
+        method: 'POST',
+        body: JSON.stringify({ prompt: imageHint.trim() || undefined }),
+      })
+      setDesign(res.design); setDirty(false)
+      setNotice('Imagem do banner gerada e aplicada à sua loja.')
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setGeneratingImage(false)
+    }
+  }
+
+  function removeHeroImage() {
+    setDesign(d => ({
+      ...d,
+      sections: d.sections.map(s =>
+        s.type === 'hero' ? ({ ...s, variant: 'gradient', imageUrl: null } as HeroSection) : s,
+      ),
+    }))
+    setDirty(true)
+  }
+
   // ── editor mutators (preview ao vivo; só persiste em "Salvar ajustes") ──
   function patchTheme(partial: Partial<StorefrontDesign['theme']>) {
     setDesign(d => ({ ...d, theme: { ...d.theme, ...partial } }))
@@ -318,7 +346,8 @@ export default function StoreDesignerPage() {
     status:                  config.status,
     design,
   }
-  const busy = generating || applying || savingEdit
+  const busy = generating || applying || savingEdit || generatingImage
+  const heroImg = design.sections.find((s): s is HeroSection => s.type === 'hero')?.imageUrl ?? null
 
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-5">
@@ -500,6 +529,38 @@ export default function StoreDesignerPage() {
                     </label>
                   )
                 })}
+              </div>
+
+              <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-4 space-y-3">
+                <h2 className="text-xs uppercase tracking-wider text-zinc-300 flex items-center gap-1.5">
+                  <ImageIcon size={12} className="text-cyan-400" /> Imagem do banner
+                </h2>
+                {heroImg ? (
+                  <div className="relative">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={heroImg} alt="Banner da loja"
+                      className="w-full h-28 object-cover rounded-lg border border-zinc-800" />
+                    <button onClick={removeHeroImage} aria-label="Remover imagem do banner"
+                      className="absolute top-1.5 right-1.5 p-1 rounded-md bg-black/70 text-zinc-200 hover:text-white">
+                      <X size={13} />
+                    </button>
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-zinc-500">
+                    O banner usa fundo de cor. Gere uma imagem com IA para deixá-lo mais rico.
+                  </p>
+                )}
+                <input value={imageHint} onChange={e => setImageHint(e.target.value)}
+                  placeholder="O que mostrar (opcional): ex. produtos numa sala aconchegante"
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-1.5 text-xs text-zinc-200 outline-none focus:border-cyan-400/60" />
+                <button onClick={generateHeroImage} disabled={busy}
+                  className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-zinc-700 hover:border-cyan-400/50 hover:text-cyan-300 text-zinc-300 text-sm disabled:opacity-40 disabled:hover:border-zinc-700 disabled:hover:text-zinc-300">
+                  {generatingImage ? <Loader2 size={14} className="animate-spin" /> : <ImagePlus size={14} />}
+                  {generatingImage ? 'Gerando imagem…' : heroImg ? 'Gerar outra imagem' : 'Gerar imagem do banner (IA)'}
+                </button>
+                {generatingImage && (
+                  <p className="text-[11px] text-zinc-500 text-center">Pode levar até meio minuto.</p>
+                )}
               </div>
 
               <button onClick={saveEdits} disabled={busy || !dirty}
