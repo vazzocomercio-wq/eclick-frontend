@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase'
 import { AlertTriangle, Package, TrendingDown, CheckCircle2, XCircle, RefreshCw, ChevronDown, ChevronUp, X } from 'lucide-react'
 
-const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
+const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -310,6 +310,192 @@ function AutoPauseToggle({ row, onSaved }: { row: StockRow; onSaved: () => void 
   )
 }
 
+// ── Stock detail drawer ───────────────────────────────────────────────────────
+
+type FullStock = {
+  physical: number; virtual: number; reserved: number
+  safety: number; available: number; total_platform: number
+  no_stock_record?: boolean
+  distributions: Array<{
+    id: string; channel: string; distribution_mode: string | null
+    percentage: number | null; fixed_quantity: number | null
+    virtual_markup: number | null; min_quantity: number | null
+    is_active: boolean; last_published_qty: number | null; last_synced_at: string | null
+  }>
+}
+
+type Movement = {
+  id: string; movement_type: string; quantity: number; balance_after: number
+  reference_type: string | null; reference_id: string | null
+  notes: string | null; created_at: string
+}
+
+const MOV_CFG: Record<string, { label: string; color: string; sign: '+' | '-' | '' }> = {
+  sale:          { label: 'Venda',            color: '#f87171', sign: '-' },
+  sale_reversal: { label: 'Estorno de venda', color: '#4ade80', sign: '+' },
+  in:            { label: 'Entrada',          color: '#4ade80', sign: '+' },
+  out:           { label: 'Saída',            color: '#f87171', sign: '-' },
+  adjustment:    { label: 'Ajuste',           color: '#00E5FF', sign: ''  },
+}
+
+function fmtDateTime(iso: string) {
+  return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+}
+
+function ChainLine({ label, value, sign = '', muted = false }: {
+  label: string; value: number; sign?: '+' | '-' | ''; muted?: boolean
+}) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-xs" style={{ color: muted ? '#71717a' : '#d4d4d8' }}>{label}</span>
+      <span className="text-sm tabular-nums" style={{ color: muted ? '#71717a' : '#e4e4e7' }}>{sign}{value}</span>
+    </div>
+  )
+}
+
+function StockDetailDrawer({ row, onClose }: { row: StockRow; onClose: () => void }) {
+  const [full, setFull]       = useState<FullStock | null>(null)
+  const [moves, setMoves]     = useState<Movement[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let alive = true
+    ;(async () => {
+      setLoading(true)
+      try {
+        const token = await getToken()
+        const h = { Authorization: `Bearer ${token}` }
+        const [f, m] = await Promise.all([
+          fetch(`${BACKEND}/stock/${row.product.id}/full`, { headers: h }),
+          fetch(`${BACKEND}/stock/${row.product.id}/movements`, { headers: h }),
+        ])
+        if (!alive) return
+        if (f.ok) setFull(await f.json())
+        if (m.ok) setMoves(await m.json())
+      } finally {
+        if (alive) setLoading(false)
+      }
+    })()
+    return () => { alive = false }
+  }, [row.product.id])
+
+  const channelLabel = (c: string) =>
+    c === 'mercadolivre' ? 'Mercado Livre' : c === 'shopee' ? 'Shopee' : c === 'loja' ? 'Loja própria' : c
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={onClose}>
+      <div className="w-full max-w-md h-full overflow-y-auto" style={{ background: '#0d0d10', borderLeft: '1px solid #2e2e33' }}
+        onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
+        <div className="sticky top-0 z-10 flex items-start justify-between gap-3 px-5 py-4"
+          style={{ background: '#0d0d10', borderBottom: '1px solid #1e1e24' }}>
+          <div className="min-w-0">
+            <h3 className="text-white font-semibold text-sm truncate">{row.product.name}</h3>
+            {row.product.sku && <p className="text-zinc-600 text-[11px] font-mono mt-0.5">{row.product.sku}</p>}
+          </div>
+          <button onClick={onClose} className="text-zinc-500 hover:text-white transition-colors shrink-0">
+            <X size={18} />
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="p-5 space-y-3">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="h-12 rounded-lg animate-pulse" style={{ background: '#1a1a1f' }} />
+            ))}
+          </div>
+        ) : (
+          <div className="p-5 space-y-6">
+
+            {/* Cadeia do estoque */}
+            <section>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-600 mb-2">Cadeia do estoque</p>
+              <div className="rounded-xl p-4 space-y-2" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+                <ChainLine label="Físico (armazém)"     value={full?.physical ?? 0} />
+                <ChainLine label="Virtual (majoração)"  value={full?.virtual ?? 0}  sign="+" muted />
+                <ChainLine label="Reservado"            value={full?.reserved ?? 0} sign="-" muted />
+                <ChainLine label="Segurança"            value={full?.safety ?? 0}   sign="-" muted />
+                <div className="h-px my-1" style={{ background: '#2e2e33' }} />
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-zinc-300">Disponível pra venda</span>
+                  <span className="text-xl font-black tabular-nums" style={{ color: '#00E5FF' }}>{full?.available ?? 0}</span>
+                </div>
+              </div>
+              {full?.no_stock_record && (
+                <p className="text-[10px] text-amber-400 mt-1.5">Produto sem registro de estoque cadastrado.</p>
+              )}
+            </section>
+
+            {/* Distribuição por canal */}
+            <section>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-600 mb-2">Distribuição por canal</p>
+              {full && full.distributions.length > 0 ? (
+                <div className="space-y-1.5">
+                  {full.distributions.map(d => (
+                    <div key={d.id} className="flex items-center justify-between rounded-lg px-3 py-2"
+                      style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+                      <div>
+                        <p className="text-xs text-zinc-200">{channelLabel(d.channel)}</p>
+                        <p className="text-[10px] text-zinc-600">
+                          {d.distribution_mode === 'fixed' ? `Fixo ${d.fixed_quantity ?? 0}`
+                            : d.distribution_mode === 'auto' ? `Auto ${d.percentage ?? 0}%`
+                            : `${d.percentage ?? 100}%`}
+                          {d.virtual_markup ? ` · +${d.virtual_markup} virtual` : ''}
+                          {!d.is_active ? ' · inativo' : ''}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-bold tabular-nums text-zinc-200">{d.last_published_qty ?? 0}</p>
+                        <p className="text-[9px] text-zinc-600">{d.last_synced_at ? fmtDateTime(d.last_synced_at) : 'nunca'}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-lg px-3 py-2.5 text-[11px] text-zinc-500"
+                  style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+                  Sem configuração de distribuição — o disponível é publicado integral em cada canal vinculado.
+                </div>
+              )}
+            </section>
+
+            {/* Histórico de movimentos */}
+            <section>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-600 mb-2">Histórico de movimentos</p>
+              {moves.length === 0 ? (
+                <div className="rounded-lg px-3 py-2.5 text-[11px] text-zinc-500"
+                  style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+                  Nenhum movimento registrado.
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  {moves.map(m => {
+                    const cfg = MOV_CFG[m.movement_type] ?? { label: m.movement_type, color: '#a1a1aa', sign: '' as const }
+                    return (
+                      <div key={m.id} className="flex items-center gap-3 rounded-lg px-3 py-2"
+                        style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[11px] font-semibold" style={{ color: cfg.color }}>{cfg.label}</p>
+                          <p className="text-[10px] text-zinc-600 truncate">{m.notes ?? '—'}</p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-xs font-bold tabular-nums" style={{ color: cfg.color }}>{cfg.sign}{m.quantity}</p>
+                          <p className="text-[9px] text-zinc-600">→ {m.balance_after} · {fmtDateTime(m.created_at)}</p>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </section>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 type FilterKey = 'all' | 'zero' | 'critical' | 'low' | 'ok'
@@ -324,6 +510,7 @@ export default function EstoquePage() {
   const [sortKey, setSortKey]   = useState<SortKey>('name')
   const [sortAsc, setSortAsc]   = useState(true)
   const [adjusting, setAdjusting] = useState<StockRow | null>(null)
+  const [detail, setDetail]       = useState<StockRow | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -542,7 +729,9 @@ export default function EstoquePage() {
 
                           {/* Produto */}
                           <td className="px-3 py-2.5" style={{ maxWidth: 280 }}>
-                            <div className="flex items-center gap-2.5">
+                            <button onClick={() => setDetail(row)}
+                              className="flex items-center gap-2.5 text-left w-full group"
+                              title="Ver detalhe do estoque">
                               <div className="w-8 h-8 rounded-lg shrink-0 overflow-hidden flex items-center justify-center"
                                 style={{ background: '#1c1c1f', border: '1px solid #2e2e33' }}>
                                 {thumb
@@ -551,10 +740,10 @@ export default function EstoquePage() {
                                 }
                               </div>
                               <div className="min-w-0">
-                                <p className="text-[12px] text-zinc-200 font-medium truncate">{row.product.name}</p>
+                                <p className="text-[12px] text-zinc-200 font-medium truncate group-hover:text-cyan-400 transition-colors">{row.product.name}</p>
                                 {row.product.sku && <p className="text-[10px] text-zinc-600 font-mono">{row.product.sku}</p>}
                               </div>
-                            </div>
+                            </button>
                           </td>
 
                           {/* Físico */}
@@ -630,6 +819,11 @@ export default function EstoquePage() {
           onClose={() => setAdjusting(null)}
           onDone={() => { setAdjusting(null); load() }}
         />
+      )}
+
+      {/* Detail drawer */}
+      {detail && (
+        <StockDetailDrawer row={detail} onClose={() => setDetail(null)} />
       )}
     </div>
   )
