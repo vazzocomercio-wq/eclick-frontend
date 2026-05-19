@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import {
   Store, Loader2, Save, AlertCircle, Globe, Palette, Search,
-  Share2, Check, ExternalLink, Settings, CreditCard,
+  Share2, Check, ExternalLink, Settings, CreditCard, FileText, Plus, Trash2,
 } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
@@ -41,6 +41,7 @@ interface StoreConfig {
   whatsapp_number: string | null
   ai_seller_widget_enabled: boolean
   social_links: Record<string, string>
+  pages: Record<string, { title: string; content: string }>
   payments_enabled: boolean
   status: 'setup' | 'active' | 'paused' | 'suspended'
 }
@@ -356,6 +357,15 @@ export default function StoreConfigPage() {
         />
       </Section>
 
+      {/* Paginas extras */}
+      <Section title="Páginas extras" icon={<FileText size={12} className="text-cyan-400" />}>
+        <PagesEditor
+          value={(getVal('pages') as Record<string, { title: string; content: string }> | undefined) ?? config.pages ?? {}}
+          onChange={v => setVal('pages', v)}
+          slug={config.store_slug}
+        />
+      </Section>
+
       {/* Payments */}
       <Section title="Pagamento online" icon={<CreditCard size={12} className="text-cyan-400" />}>
         <Field label="Habilitar checkout com cartão / Pix">
@@ -449,6 +459,77 @@ function SocialLinksEditor({ value, onChange, t }: {
               className="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 outline-none focus:border-cyan-400/60 font-mono" />
           </div>
         ))}
+      </div>
+    </div>
+  )
+}
+
+function PagesEditor({ value, onChange, slug }: {
+  value:    Record<string, { title: string; content: string }>
+  onChange: (v: Record<string, { title: string; content: string }>) => void
+  slug:     string
+}) {
+  const entries = Object.entries(value)
+  const [newSlug, setNewSlug] = useState('')
+
+  function update(pageSlug: string, patch: Partial<{ title: string; content: string }>) {
+    onChange({ ...value, [pageSlug]: { ...value[pageSlug], ...patch } })
+  }
+  function remove(pageSlug: string) {
+    const next = { ...value }
+    delete next[pageSlug]
+    onChange(next)
+  }
+  function add() {
+    const s = newSlug.trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '')
+    if (!s || value[s]) return
+    onChange({ ...value, [s]: { title: '', content: '' } })
+    setNewSlug('')
+  }
+
+  return (
+    <div className="space-y-3">
+      <p className="text-[11px] text-zinc-500 leading-snug">
+        Crie páginas customizadas (sobre, contato, política de troca, FAQ). O endereço fica em
+        <code className="text-cyan-300 mx-1">/loja/{slug}/p/&lt;endereço&gt;</code>.
+      </p>
+
+      {entries.length === 0 && (
+        <p className="text-[10px] text-zinc-600 italic">Nenhuma página criada ainda.</p>
+      )}
+
+      {entries.map(([pageSlug, page]) => (
+        <div key={pageSlug} className="rounded border border-zinc-800/70 bg-zinc-950/30 p-3 space-y-2">
+          <div className="flex items-center gap-2">
+            <code className="text-[10px] text-cyan-300 flex-1 font-mono truncate">/p/{pageSlug}</code>
+            <a href={`/loja/${slug}/p/${pageSlug}`} target="_blank" rel="noopener noreferrer"
+              className="text-[10px] text-zinc-500 hover:text-cyan-300">
+              <ExternalLink size={11} />
+            </a>
+            <button type="button" onClick={() => remove(pageSlug)}
+              className="p-1 text-zinc-500 hover:text-red-400" aria-label="Remover">
+              <Trash2 size={12} />
+            </button>
+          </div>
+          <input value={page.title} onChange={e => update(pageSlug, { title: e.target.value })}
+            placeholder="Título da página (ex: Sobre nós)"
+            className="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 outline-none focus:border-cyan-400/60" />
+          <textarea value={page.content} onChange={e => update(pageSlug, { content: e.target.value })}
+            rows={5}
+            placeholder="Conteúdo (texto livre — quebras de linha são preservadas)…"
+            className="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 outline-none focus:border-cyan-400/60 resize-y leading-relaxed" />
+        </div>
+      ))}
+
+      <div className="flex gap-1.5 items-center pt-1">
+        <input value={newSlug} onChange={e => setNewSlug(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); add() } }}
+          placeholder="Endereço (ex: sobre, contato, troca-e-devolucao)"
+          className="flex-1 bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 outline-none focus:border-cyan-400/60 font-mono" />
+        <button type="button" onClick={add} disabled={!newSlug.trim()}
+          className="px-3 py-1.5 rounded border border-zinc-700 hover:border-cyan-400/50 text-zinc-300 hover:text-cyan-300 text-xs disabled:opacity-40 inline-flex items-center gap-1">
+          <Plus size={11} /> Criar
+        </button>
       </div>
     </div>
   )

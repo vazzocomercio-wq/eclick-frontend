@@ -27,6 +27,9 @@ export interface StorefrontStore {
    *  de produto oferecem "Finalizar compra" (redirect pra /checkout) ao
    *  inves de so "Finalizar pelo WhatsApp". */
   payments_enabled?:       boolean
+  /** Paginas customizadas (sobre/contato/politica/etc). Chave = slug
+   *  publico (`/loja/[slug]/p/[pageSlug]`). NULL/ausente = sem pagina. */
+  pages?:                  Record<string, { title: string; content: string }> | null
 }
 
 export interface StorefrontProduct {
