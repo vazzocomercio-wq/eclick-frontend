@@ -9,7 +9,8 @@
  */
 
 import { useState } from 'react'
-import { X, ShoppingBag, Plus, Minus, Trash2 } from 'lucide-react'
+import Link from 'next/link'
+import { X, ShoppingBag, Plus, Minus, Trash2, CreditCard } from 'lucide-react'
 import { useCart } from '@/lib/storefront/cart'
 import { formatBRL } from '@/lib/storefront/data'
 import type { StorefrontStore } from '@/lib/storefront/data'
@@ -151,20 +152,42 @@ export function CartButton({ store, slug, ctx }: {
                     {formatBRL(cart.subtotal)}
                   </span>
                 </div>
-                <p className="text-[11px]" style={{ color: colors.textMuted }}>
-                  Pagamento e frete combinados pelo WhatsApp.
-                </p>
-                {link ? (
-                  <a href={link} target="_blank" rel="noopener noreferrer"
-                    className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 font-semibold text-sm transition-transform hover:scale-[1.02]"
-                    style={{ background: '#25D366', color: '#fff', borderRadius: ctx.radius }}>
-                    Finalizar pelo WhatsApp
-                  </a>
+
+                {store.payments_enabled ? (
+                  <>
+                    <Link href={`/loja/${slug}/checkout`}
+                      onClick={() => setOpen(false)}
+                      className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 font-semibold text-sm transition-transform hover:scale-[1.02]"
+                      style={{ background: colors.primary, color: onAccentColor(ctx.theme), borderRadius: ctx.radius }}>
+                      <CreditCard size={16} /> Finalizar compra
+                    </Link>
+                    {link && (
+                      <a href={link} target="_blank" rel="noopener noreferrer"
+                        className="w-full inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm transition-opacity hover:opacity-80"
+                        style={{ border: `1px solid ${colors.border}`, color: colors.text, borderRadius: ctx.radius }}>
+                        Combinar pelo WhatsApp
+                      </a>
+                    )}
+                  </>
                 ) : (
-                  <p className="text-xs text-center" style={{ color: colors.textMuted }}>
-                    Adicione o WhatsApp da loja em Configurações para finalizar.
-                  </p>
+                  <>
+                    <p className="text-[11px]" style={{ color: colors.textMuted }}>
+                      Pagamento e frete combinados pelo WhatsApp.
+                    </p>
+                    {link ? (
+                      <a href={link} target="_blank" rel="noopener noreferrer"
+                        className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 font-semibold text-sm transition-transform hover:scale-[1.02]"
+                        style={{ background: '#25D366', color: '#fff', borderRadius: ctx.radius }}>
+                        Finalizar pelo WhatsApp
+                      </a>
+                    ) : (
+                      <p className="text-xs text-center" style={{ color: colors.textMuted }}>
+                        Adicione o WhatsApp da loja em Configurações para finalizar.
+                      </p>
+                    )}
+                  </>
                 )}
+
                 <button type="button" onClick={() => cart.clear()}
                   className="w-full text-xs py-2 transition-opacity hover:opacity-70"
                   style={{ color: colors.textMuted }}>

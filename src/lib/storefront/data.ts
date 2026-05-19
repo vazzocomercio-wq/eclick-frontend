@@ -23,6 +23,10 @@ export interface StorefrontStore {
   seo_description:         string | null
   status:                  'setup' | 'active' | 'paused' | 'suspended'
   design:                  StorefrontDesign | null
+  /** Pagamento online habilitado — quando true, o CartButton e a pagina
+   *  de produto oferecem "Finalizar compra" (redirect pra /checkout) ao
+   *  inves de so "Finalizar pelo WhatsApp". */
+  payments_enabled?:       boolean
 }
 
 export interface StorefrontProduct {

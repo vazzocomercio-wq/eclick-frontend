@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import {
   Store, Loader2, Save, AlertCircle, Globe, Palette, Search,
-  Share2, Check, ExternalLink, Settings,
+  Share2, Check, ExternalLink, Settings, CreditCard,
 } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
@@ -41,6 +41,7 @@ interface StoreConfig {
   whatsapp_number: string | null
   ai_seller_widget_enabled: boolean
   social_links: Record<string, string>
+  payments_enabled: boolean
   status: 'setup' | 'active' | 'paused' | 'suspended'
 }
 
@@ -355,6 +356,23 @@ export default function StoreConfigPage() {
         />
       </Section>
 
+      {/* Payments */}
+      <Section title="Pagamento online" icon={<CreditCard size={12} className="text-cyan-400" />}>
+        <Field label="Habilitar checkout com cartão / Pix">
+          <input type="checkbox"
+            checked={Boolean(getVal('payments_enabled') ?? config.payments_enabled)}
+            onChange={e => setVal('payments_enabled', e.target.checked)}
+            className="w-4 h-4 accent-cyan-400" />
+        </Field>
+        <p className="text-[11px] text-zinc-500 -mt-2 leading-snug">
+          Quando ativado, o botão &ldquo;Finalizar compra&rdquo; do carrinho leva pra
+          tela de pagamento integrada (Mercado Pago + Stripe). Configure pelo menos
+          uma das chaves abaixo.
+        </p>
+
+        <PaymentCredentialsEditor />
+      </Section>
+
       {/* Save */}
       <div className="sticky bottom-4 flex justify-between items-center bg-zinc-950/95 p-2 rounded-lg border border-zinc-800">
         <a href={`/loja/${config.store_slug}`} target="_blank" rel="noopener noreferrer" className="text-xs text-cyan-400 hover:underline flex items-center gap-1">
@@ -432,6 +450,83 @@ function SocialLinksEditor({ value, onChange, t }: {
           </div>
         ))}
       </div>
+    </div>
+  )
+}
+
+function PaymentCredentialsEditor() {
+  const [mp, setMp] = useState('')
+  const [stripeKey, setStripeKey] = useState('')
+  const [stripeHook, setStripeHook] = useState('')
+  const [saving, setSaving] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+  const [err, setErr] = useState<string | null>(null)
+
+  async function save(provider: string, key_name: string, key_value: string, label: string) {
+    if (!key_value.trim()) return
+    setSaving(label); setErr(null); setNotice(null)
+    try {
+      await api('/credentials', {
+        method: 'POST',
+        body: JSON.stringify({ provider, key_name, key_value: key_value.trim() }),
+      })
+      setNotice(`${label} salva ✓`)
+      // Limpa o input por seguranca (a chave fica no DB criptografada)
+      if (provider === 'mercadopago') setMp('')
+      if (key_name === 'STRIPE_SECRET_KEY') setStripeKey('')
+      if (key_name === 'STRIPE_WEBHOOK_SECRET') setStripeHook('')
+    } catch (e) {
+      setErr(`${label}: ${(e as Error).message}`)
+    } finally {
+      setSaving(null)
+    }
+  }
+
+  return (
+    <div className="space-y-3 pt-1">
+      <div className="rounded border border-zinc-800/70 bg-zinc-950/30 p-3 space-y-2">
+        <p className="text-xs font-semibold text-zinc-200">Mercado Pago</p>
+        <p className="text-[10px] text-zinc-500">Access token (APP_USR-… ou TEST-…). Pegue em mercadopago.com.br/developers.</p>
+        <div className="flex gap-2">
+          <input type="password" value={mp} onChange={e => setMp(e.target.value)}
+            placeholder="APP_USR-..."
+            className="flex-1 bg-zinc-950 border border-zinc-800 rounded px-3 py-1.5 text-xs text-zinc-200 outline-none focus:border-cyan-400/60 font-mono" />
+          <button onClick={() => save('mercadopago', 'MP_ACCESS_TOKEN', mp, 'MP token')}
+            disabled={!mp.trim() || saving !== null}
+            className="px-3 py-1.5 rounded border border-zinc-700 hover:border-cyan-400/50 text-zinc-300 hover:text-cyan-300 text-xs disabled:opacity-40">
+            {saving === 'MP token' ? <Loader2 size={12} className="animate-spin" /> : 'Salvar'}
+          </button>
+        </div>
+      </div>
+
+      <div className="rounded border border-zinc-800/70 bg-zinc-950/30 p-3 space-y-2">
+        <p className="text-xs font-semibold text-zinc-200">Stripe</p>
+        <p className="text-[10px] text-zinc-500">Secret key (sk_live_… ou sk_test_…). Pegue em dashboard.stripe.com/apikeys.</p>
+        <div className="flex gap-2">
+          <input type="password" value={stripeKey} onChange={e => setStripeKey(e.target.value)}
+            placeholder="sk_live_..."
+            className="flex-1 bg-zinc-950 border border-zinc-800 rounded px-3 py-1.5 text-xs text-zinc-200 outline-none focus:border-cyan-400/60 font-mono" />
+          <button onClick={() => save('stripe', 'STRIPE_SECRET_KEY', stripeKey, 'Stripe secret')}
+            disabled={!stripeKey.trim() || saving !== null}
+            className="px-3 py-1.5 rounded border border-zinc-700 hover:border-cyan-400/50 text-zinc-300 hover:text-cyan-300 text-xs disabled:opacity-40">
+            {saving === 'Stripe secret' ? <Loader2 size={12} className="animate-spin" /> : 'Salvar'}
+          </button>
+        </div>
+        <p className="text-[10px] text-zinc-500 mt-1">Webhook secret (whsec_…) — necessário pra validar callbacks.</p>
+        <div className="flex gap-2">
+          <input type="password" value={stripeHook} onChange={e => setStripeHook(e.target.value)}
+            placeholder="whsec_..."
+            className="flex-1 bg-zinc-950 border border-zinc-800 rounded px-3 py-1.5 text-xs text-zinc-200 outline-none focus:border-cyan-400/60 font-mono" />
+          <button onClick={() => save('stripe', 'STRIPE_WEBHOOK_SECRET', stripeHook, 'Stripe webhook')}
+            disabled={!stripeHook.trim() || saving !== null}
+            className="px-3 py-1.5 rounded border border-zinc-700 hover:border-cyan-400/50 text-zinc-300 hover:text-cyan-300 text-xs disabled:opacity-40">
+            {saving === 'Stripe webhook' ? <Loader2 size={12} className="animate-spin" /> : 'Salvar'}
+          </button>
+        </div>
+      </div>
+
+      {notice && <p className="text-[11px] text-emerald-300">✓ {notice}</p>}
+      {err    && <p className="text-[11px] text-red-300">⚠ {err}</p>}
     </div>
   )
 }
