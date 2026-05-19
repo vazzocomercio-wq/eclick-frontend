@@ -1,0 +1,41 @@
+{
+  "language": {
+    "label": "Language"
+  },
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "confirm": "Confirm",
+    "close": "Close",
+    "back": "Back",
+    "next": "Next",
+    "search": "Search",
+    "filter": "Filter",
+    "loading": "Loading...",
+    "saving": "Saving...",
+    "noData": "No data found",
+    "yes": "Yes",
+    "no": "No"
+  },
+  "header": {
+    "live": "Live",
+    "search": "Search",
+    "myProfile": "My profile",
+    "settings": "Settings",
+    "signOut": "Sign out",
+    "panel": "Panel",
+    "routes": {
+      "dashboard": "Overview",
+      "produtos": "Products",
+      "concorrentes": "Competitors",
+      "precos": "Pricing",
+      "estoque": "Inventory",
+      "ads": "Ads",
+      "crm": "CRM",
+      "configuracoes": "Settings"
+    }
+  }
+}

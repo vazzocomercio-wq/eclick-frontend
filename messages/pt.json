@@ -1,0 +1,41 @@
+{
+  "language": {
+    "label": "Idioma"
+  },
+  "common": {
+    "save": "Salvar",
+    "cancel": "Cancelar",
+    "delete": "Excluir",
+    "edit": "Editar",
+    "create": "Criar",
+    "confirm": "Confirmar",
+    "close": "Fechar",
+    "back": "Voltar",
+    "next": "Avançar",
+    "search": "Buscar",
+    "filter": "Filtrar",
+    "loading": "Carregando...",
+    "saving": "Salvando...",
+    "noData": "Nenhum dado encontrado",
+    "yes": "Sim",
+    "no": "Não"
+  },
+  "header": {
+    "live": "Ao vivo",
+    "search": "Buscar",
+    "myProfile": "Meu perfil",
+    "settings": "Configurações",
+    "signOut": "Sair da conta",
+    "panel": "Painel",
+    "routes": {
+      "dashboard": "Visão Geral",
+      "produtos": "Produtos",
+      "concorrentes": "Concorrentes",
+      "precos": "Preços",
+      "estoque": "Estoque",
+      "ads": "Ads",
+      "crm": "CRM",
+      "configuracoes": "Configurações"
+    }
+  }
+}
