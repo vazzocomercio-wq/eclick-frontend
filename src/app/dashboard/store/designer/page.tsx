@@ -8,7 +8,8 @@
  * Preview ao vivo ao lado. Consome os endpoints da Fase 2/5/6.
  */
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import {
@@ -44,32 +45,33 @@ interface StoreConfigAdmin {
   design:                  StorefrontDesign | null
 }
 
-const PLACEHOLDER_PRODUCTS: StorefrontProduct[] = [
-  { id: 'ph-1', name: 'Produto de exemplo', price: 129.9, photo_urls: null, category: 'Categoria', ai_score: null, ai_short_description: null },
-  { id: 'ph-2', name: 'Produto em destaque', price: 249.0, photo_urls: null, category: 'Categoria', ai_score: null, ai_short_description: null },
-  { id: 'ph-3', name: 'Produto popular', price: 89.9, photo_urls: null, category: 'Categoria', ai_score: null, ai_short_description: null },
-  { id: 'ph-4', name: 'Produto premium', price: 399.0, photo_urls: null, category: 'Categoria', ai_score: null, ai_short_description: null },
-  { id: 'ph-5', name: 'Produto novo', price: 159.9, photo_urls: null, category: 'Categoria', ai_score: null, ai_short_description: null },
-  { id: 'ph-6', name: 'Produto recomendado', price: 199.0, photo_urls: null, category: 'Categoria', ai_score: null, ai_short_description: null },
+/** Itens placeholder do preview — preço/id fixos; nome via tradução. */
+const PLACEHOLDER_ITEMS: Array<{ id: string; nameKey: string; price: number }> = [
+  { id: 'ph-1', nameKey: 'phExample',     price: 129.9 },
+  { id: 'ph-2', nameKey: 'phFeatured',    price: 249.0 },
+  { id: 'ph-3', nameKey: 'phPopular',     price: 89.9 },
+  { id: 'ph-4', nameKey: 'phPremium',     price: 399.0 },
+  { id: 'ph-5', nameKey: 'phNew',         price: 159.9 },
+  { id: 'ph-6', nameKey: 'phRecommended', price: 199.0 },
 ]
 
 /** Chaves de cor obrigatorias — as opcionais (premium) ficam no PremiumEditor. */
 type ColorKey = {
   [K in keyof DesignColors]-?: undefined extends DesignColors[K] ? never : K
 }[keyof DesignColors]
-const COLOR_FIELDS: Array<{ key: ColorKey; label: string }> = [
-  { key: 'background', label: 'Fundo' },
-  { key: 'surface',    label: 'Superfície' },
-  { key: 'primary',    label: 'Destaque' },
-  { key: 'text',       label: 'Texto' },
-  { key: 'textMuted',  label: 'Texto suave' },
-  { key: 'border',     label: 'Bordas' },
+const COLOR_FIELDS: Array<{ key: ColorKey; labelKey: string }> = [
+  { key: 'background', labelKey: 'colorBackground' },
+  { key: 'surface',    labelKey: 'colorSurface' },
+  { key: 'primary',    labelKey: 'colorPrimary' },
+  { key: 'text',       labelKey: 'colorText' },
+  { key: 'textMuted',  labelKey: 'colorTextMuted' },
+  { key: 'border',     labelKey: 'colorBorder' },
 ]
-const RADIUS_OPTS:  Array<{ v: Radius;  label: string }> = [
-  { v: 'none', label: 'Reto' }, { v: 'sm', label: 'Suave' }, { v: 'md', label: 'Médio' }, { v: 'lg', label: 'Arredondado' },
+const RADIUS_OPTS:  Array<{ v: Radius;  labelKey: string }> = [
+  { v: 'none', labelKey: 'radiusNone' }, { v: 'sm', labelKey: 'radiusSm' }, { v: 'md', labelKey: 'radiusMd' }, { v: 'lg', labelKey: 'radiusLg' },
 ]
-const DENSITY_OPTS: Array<{ v: Density; label: string }> = [
-  { v: 'compact', label: 'Compacto' }, { v: 'cozy', label: 'Confortável' }, { v: 'spacious', label: 'Espaçoso' },
+const DENSITY_OPTS: Array<{ v: Density; labelKey: string }> = [
+  { v: 'compact', labelKey: 'densityCompact' }, { v: 'cozy', labelKey: 'densityCozy' }, { v: 'spacious', labelKey: 'densitySpacious' },
 ]
 
 /** Lê um arquivo de imagem, reduz pra no máx. 1280px e devolve um data URI JPEG. */
@@ -125,6 +127,19 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export default function StoreDesignerPage() {
+  const t = useTranslations('store.designer')
+  const placeholderProducts = useMemo<StorefrontProduct[]>(
+    () => PLACEHOLDER_ITEMS.map(it => ({
+      id: it.id,
+      name: t(`placeholders.${it.nameKey}`),
+      price: it.price,
+      photo_urls: null,
+      category: t('placeholders.category'),
+      ai_score: null,
+      ai_short_description: null,
+    })),
+    [t],
+  )
   const [config, setConfig]   = useState<StoreConfigAdmin | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError]     = useState<string | null>(null)
@@ -133,7 +148,7 @@ export default function StoreDesignerPage() {
   const [tab, setTab]         = useState<'gerar' | 'ajustar'>('gerar')
   const [prompt, setPrompt]   = useState('')
   const [selectedTpl, setSelectedTpl] = useState<string | null>(null)
-  const [products, setProducts]   = useState<StorefrontProduct[]>(PLACEHOLDER_PRODUCTS)
+  const [products, setProducts]   = useState<StorefrontProduct[]>([])
   const [generating, setGenerating] = useState(false)
   const [applying, setApplying]     = useState(false)
   const [savingEdit, setSavingEdit] = useState(false)
@@ -156,7 +171,7 @@ export default function StoreDesignerPage() {
       if (c?.design) setDesign(c.design)
       if (c?.store_slug) {
         const real = await getProducts(c.store_slug, 8)
-        setProducts(real.length >= 3 ? real : PLACEHOLDER_PRODUCTS)
+        setProducts(real.length >= 3 ? real : [])
       }
       const cv = await api<{ connected: boolean; configured: boolean }>('/canva/oauth/status').catch(() => null)
       setCanvaStatus(cv ?? { connected: false, configured: false })
@@ -174,7 +189,7 @@ export default function StoreDesignerPage() {
     e.target.value = ''
     if (!file) return
     if (!file.type.startsWith('image/')) {
-      setError('Selecione um arquivo de imagem.')
+      setError(t('errorPickImage'))
       return
     }
     try {
@@ -188,7 +203,7 @@ export default function StoreDesignerPage() {
   async function generate() {
     const url = refUrl.trim()
     if (!refImage && !url && prompt.trim().length < 3) {
-      setError('Descreva a loja, anexe uma imagem ou cole o link de um site de referência.')
+      setError(t('errorGenerateInput'))
       return
     }
     setGenerating(true); setError(null); setNotice(null)
@@ -217,10 +232,10 @@ export default function StoreDesignerPage() {
       }
       setDesign(res.design); setDirty(false)
       setNotice(refImage
-        ? 'Design gerado a partir da imagem de referência.'
+        ? t('noticeFromImage')
         : url
-          ? 'Design gerado a partir do site de referência.'
-          : 'Design gerado pela IA e aplicado à sua loja.')
+          ? t('noticeFromUrl')
+          : t('noticeFromAi'))
     } catch (e) {
       setError((e as Error).message)
     } finally {
@@ -229,7 +244,7 @@ export default function StoreDesignerPage() {
   }
 
   async function applyTemplate() {
-    const tpl = STOREFRONT_TEMPLATES.find(t => t.id === selectedTpl)
+    const tpl = STOREFRONT_TEMPLATES.find(tt => tt.id === selectedTpl)
     if (!tpl) return
     setApplying(true); setError(null); setNotice(null)
     try {
@@ -237,7 +252,7 @@ export default function StoreDesignerPage() {
         method: 'PUT', body: JSON.stringify({ design: tpl.design }),
       })
       setDesign(res.design); setDirty(false)
-      setNotice(`Modelo "${tpl.label}" aplicado à sua loja.`)
+      setNotice(t('noticeTemplateApplied', { label: tpl.label }))
     } catch (e) {
       setError((e as Error).message)
     } finally {
@@ -252,7 +267,7 @@ export default function StoreDesignerPage() {
         method: 'PUT', body: JSON.stringify({ design }),
       })
       setDesign(res.design); setDirty(false)
-      setNotice('Ajustes salvos e aplicados à sua loja.')
+      setNotice(t('noticeEditsSaved'))
     } catch (e) {
       setError((e as Error).message)
     } finally {
@@ -268,7 +283,7 @@ export default function StoreDesignerPage() {
         body: JSON.stringify({ prompt: imageHint.trim() || undefined }),
       })
       setDesign(res.design); setDirty(false)
-      setNotice('Imagem do banner gerada e aplicada à sua loja.')
+      setNotice(t('noticeHeroImage'))
     } catch (e) {
       setError((e as Error).message)
     } finally {
@@ -311,7 +326,7 @@ export default function StoreDesignerPage() {
         body: JSON.stringify({ designId, prompt: prompt.trim() || undefined }),
       })
       setDesign(res.design); setDirty(false)
-      setNotice('Design gerado a partir do seu design do Canva.')
+      setNotice(t('noticeFromCanva'))
     } catch (e) {
       setError((e as Error).message)
     } finally {
@@ -335,22 +350,22 @@ export default function StoreDesignerPage() {
 
   if (loading) return (
     <div className="p-6 flex items-center gap-2 text-zinc-500 text-sm">
-      <Loader2 size={14} className="animate-spin" /> carregando…
+      <Loader2 size={14} className="animate-spin" /> {t('loading')}
     </div>
   )
 
   if (!config) return (
     <div className="p-4 sm:p-6 max-w-md mx-auto space-y-4">
       <h1 className="text-xl font-bold text-zinc-100 flex items-center gap-2">
-        <Palette size={20} className="text-cyan-400" /> Designer da Loja
+        <Palette size={20} className="text-cyan-400" /> {t('title')}
       </h1>
       <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-4 space-y-3">
         <p className="text-sm text-zinc-400">
-          Você ainda não configurou sua loja. Crie a configuração primeiro para poder desenhá-la.
+          {t('noConfigText')}
         </p>
         <Link href="/dashboard/store/config"
           className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan-400 hover:bg-cyan-300 text-black text-sm font-medium">
-          <Store size={14} /> Ir para Config da Loja
+          <Store size={14} /> {t('goToStoreConfig')}
         </Link>
       </div>
     </div>
@@ -378,10 +393,10 @@ export default function StoreDesignerPage() {
     <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-5">
       <div>
         <h1 className="text-xl sm:text-2xl font-bold text-zinc-100 flex items-center gap-2">
-          <Palette size={20} className="text-cyan-400" /> Designer da Loja
+          <Palette size={20} className="text-cyan-400" /> {t('title')}
         </h1>
         <p className="text-xs text-zinc-500 mt-1">
-          Gere o visual com IA ou ajuste cada detalhe à mão — o resultado aparece ao lado em tempo real.
+          {t('subtitle')}
         </p>
       </div>
 
@@ -401,27 +416,27 @@ export default function StoreDesignerPage() {
         <div className="space-y-4">
           {/* Tabs */}
           <div className="flex gap-1 p-1 rounded-lg border border-zinc-800 bg-zinc-900/40">
-            <TabBtn active={tab === 'gerar'}   onClick={() => setTab('gerar')}   icon={<Wand2 size={13} />}>Gerar com IA</TabBtn>
-            <TabBtn active={tab === 'ajustar'} onClick={() => setTab('ajustar')} icon={<SlidersHorizontal size={13} />}>Ajustar à mão</TabBtn>
+            <TabBtn active={tab === 'gerar'}   onClick={() => setTab('gerar')}   icon={<Wand2 size={13} />}>{t('tabGenerate')}</TabBtn>
+            <TabBtn active={tab === 'ajustar'} onClick={() => setTab('ajustar')} icon={<SlidersHorizontal size={13} />}>{t('tabAdjust')}</TabBtn>
           </div>
 
           {tab === 'gerar' ? (
             <>
               <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-4 space-y-3">
                 <h2 className="text-xs uppercase tracking-wider text-zinc-300 flex items-center gap-1.5">
-                  <Sparkles size={12} className="text-cyan-400" /> Modelos de inspiração
+                  <Sparkles size={12} className="text-cyan-400" /> {t('inspirationTemplates')}
                 </h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-2">
-                  {STOREFRONT_TEMPLATES.map(t => {
-                    const active = selectedTpl === t.id
-                    const swatch = Object.values(t.design.theme.colors)
+                  {STOREFRONT_TEMPLATES.map(tpl => {
+                    const active = selectedTpl === tpl.id
+                    const swatch = Object.values(tpl.design.theme.colors)
                     return (
-                      <button key={t.id} onClick={() => setSelectedTpl(active ? null : t.id)}
+                      <button key={tpl.id} onClick={() => setSelectedTpl(active ? null : tpl.id)}
                         className={`text-left rounded-lg border p-3 transition-colors ${
                           active ? 'border-cyan-400/70 bg-cyan-400/5' : 'border-zinc-800 hover:border-zinc-700 bg-zinc-950/40'
                         }`}>
                         <div className="flex items-center justify-between gap-2">
-                          <span className="text-sm font-medium text-zinc-100">{t.label}</span>
+                          <span className="text-sm font-medium text-zinc-100">{tpl.label}</span>
                           {active && <Check size={14} className="text-cyan-400 shrink-0" />}
                         </div>
                         <div className="flex gap-1 mt-2">
@@ -429,7 +444,7 @@ export default function StoreDesignerPage() {
                             <span key={i} className="h-4 w-4 rounded-sm border border-black/30" style={{ background: c }} />
                           ))}
                         </div>
-                        <p className="text-[11px] text-zinc-500 mt-2 leading-snug">{t.description}</p>
+                        <p className="text-[11px] text-zinc-500 mt-2 leading-snug">{tpl.description}</p>
                       </button>
                     )
                   })}
@@ -437,23 +452,23 @@ export default function StoreDesignerPage() {
                 <button onClick={applyTemplate} disabled={!selectedTpl || busy}
                   className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-zinc-700 hover:border-cyan-400/50 hover:text-cyan-300 text-zinc-300 text-sm disabled:opacity-40 disabled:hover:border-zinc-700 disabled:hover:text-zinc-300">
                   {applying ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
-                  Aplicar modelo selecionado
+                  {t('applySelectedTemplate')}
                 </button>
               </div>
 
               <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-4 space-y-3">
                 <h2 className="text-xs uppercase tracking-wider text-zinc-300 flex items-center gap-1.5">
-                  <Wand2 size={12} className="text-cyan-400" /> Gerar com IA
+                  <Wand2 size={12} className="text-cyan-400" /> {t('generateWithAi')}
                 </h2>
 
                 <div className="space-y-1.5">
-                  <p className="text-[11px] text-zinc-500">Inspiração visual (opcional)</p>
+                  <p className="text-[11px] text-zinc-500">{t('visualInspiration')}</p>
                   {refImage ? (
                     <div className="relative">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={refImage} alt="Imagem de referência"
+                      <img src={refImage} alt={t('refImageAlt')}
                         className="w-full h-32 object-cover rounded-lg border border-zinc-800" />
-                      <button onClick={() => setRefImage(null)} aria-label="Remover imagem"
+                      <button onClick={() => setRefImage(null)} aria-label={t('removeImage')}
                         className="absolute top-1.5 right-1.5 p-1 rounded-md bg-black/70 text-zinc-200 hover:text-white">
                         <X size={13} />
                       </button>
@@ -461,60 +476,60 @@ export default function StoreDesignerPage() {
                   ) : (
                     <label className="flex flex-col items-center justify-center gap-1 h-24 rounded-lg border border-dashed border-zinc-700 hover:border-cyan-400/50 cursor-pointer text-zinc-500 hover:text-cyan-300 transition-colors">
                       <ImagePlus size={18} />
-                      <span className="text-[11px]">Subir print de uma loja de referência</span>
+                      <span className="text-[11px]">{t('uploadStorePrint')}</span>
                       <input type="file" accept="image/*" onChange={onPickImage} className="hidden" />
                     </label>
                   )}
                   <input value={refUrl} onChange={e => setRefUrl(e.target.value)}
-                    placeholder="ou cole o link de um site de referência (https://…)"
+                    placeholder={t('refUrlPlaceholder')}
                     className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-1.5 text-xs text-zinc-200 outline-none focus:border-cyan-400/60" />
                 </div>
 
                 <p className="text-[11px] text-zinc-500 leading-snug">
                   {refImage
-                    ? 'A IA vai analisar a imagem e criar a loja no mesmo estilo. O texto abaixo é um ajuste opcional.'
+                    ? t('hintImage')
                     : refUrl.trim()
-                      ? 'A IA vai capturar o site, analisar o design e criar a loja no mesmo estilo. O texto abaixo é um ajuste opcional.'
-                      : 'Descreva o estilo, as cores e a sensação que você quer.'}
-                  {!refImage && !refUrl.trim() && (selectedTpl ? ' O modelo selecionado serve de ponto de partida.' : ' Sem modelo, a IA cria do zero.')}
+                      ? t('hintUrl')
+                      : t('hintPrompt')}
+                  {!refImage && !refUrl.trim() && (selectedTpl ? ` ${t('hintWithTemplate')}` : ` ${t('hintNoTemplate')}`)}
                 </p>
                 <textarea value={prompt} onChange={e => setPrompt(e.target.value)} rows={4}
-                  placeholder="Ex.: loja de joias elegante, fundo escuro, detalhes em dourado, sensação sofisticada"
+                  placeholder={t('promptPlaceholder')}
                   className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-200 outline-none focus:border-cyan-400/60 resize-none" />
                 <button onClick={generate} disabled={busy || (!refImage && !refUrl.trim() && prompt.trim().length < 3)}
                   className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-cyan-400 hover:bg-cyan-300 text-black text-sm font-semibold disabled:opacity-40">
                   {generating ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
                   {generating
-                    ? 'Desenhando sua loja…'
+                    ? t('btnDesigning')
                     : refImage
-                      ? 'Gerar a partir da imagem'
+                      ? t('btnGenerateFromImage')
                       : refUrl.trim()
-                        ? 'Gerar a partir do site'
-                        : 'Gerar design com IA'}
+                        ? t('btnGenerateFromUrl')
+                        : t('btnGenerateAi')}
                 </button>
                 {generating && (
-                  <p className="text-[11px] text-zinc-500 text-center">A IA está montando o visual — pode levar alguns segundos.</p>
+                  <p className="text-[11px] text-zinc-500 text-center">{t('generatingNote')}</p>
                 )}
               </div>
 
               <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-4 space-y-3">
                 <h2 className="text-xs uppercase tracking-wider text-zinc-300 flex items-center gap-1.5">
-                  <LayoutTemplate size={12} className="text-cyan-400" /> Inspiração do Canva
+                  <LayoutTemplate size={12} className="text-cyan-400" /> {t('canvaInspiration')}
                 </h2>
                 {!canvaStatus ? (
-                  <p className="text-[11px] text-zinc-600">Verificando…</p>
+                  <p className="text-[11px] text-zinc-600">{t('canvaChecking')}</p>
                 ) : !canvaStatus.configured ? (
                   <p className="text-[11px] text-zinc-500 leading-snug">
-                    A integração com o Canva não está configurada. Fale com o administrador da plataforma.
+                    {t('canvaNotConfigured')}
                   </p>
                 ) : !canvaStatus.connected ? (
                   <>
                     <p className="text-[11px] text-zinc-500 leading-snug">
-                      Conecte o Canva para usar um design da sua conta como inspiração visual.
+                      {t('canvaConnectHint')}
                     </p>
                     <button onClick={connectCanva} disabled={busy}
                       className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-zinc-700 hover:border-cyan-400/50 hover:text-cyan-300 text-zinc-300 text-sm disabled:opacity-40">
-                      <LayoutTemplate size={14} /> Conectar Canva
+                      <LayoutTemplate size={14} /> {t('canvaConnect')}
                     </button>
                   </>
                 ) : (
@@ -522,15 +537,15 @@ export default function StoreDesignerPage() {
                     <div className="flex gap-1.5">
                       <input value={canvaQuery} onChange={e => setCanvaQuery(e.target.value)}
                         onKeyDown={e => { if (e.key === 'Enter') void searchCanvaDesigns() }}
-                        placeholder="Buscar nos seus designs…"
+                        placeholder={t('canvaSearchPlaceholder')}
                         className="flex-1 bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 outline-none focus:border-cyan-400/60" />
                       <button onClick={searchCanvaDesigns} disabled={canvaLoading || busy}
                         className="px-3 py-1.5 rounded-lg border border-zinc-700 hover:border-cyan-400/50 text-zinc-300 text-xs disabled:opacity-40">
-                        {canvaLoading ? <Loader2 size={13} className="animate-spin" /> : 'Buscar'}
+                        {canvaLoading ? <Loader2 size={13} className="animate-spin" /> : t('canvaSearch')}
                       </button>
                     </div>
                     {canvaDesigns && (canvaDesigns.length === 0 ? (
-                      <p className="text-[11px] text-zinc-500">Nenhum design encontrado.</p>
+                      <p className="text-[11px] text-zinc-500">{t('canvaNoDesigns')}</p>
                     ) : (
                       <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto">
                         {canvaDesigns.map(d => (
@@ -552,7 +567,7 @@ export default function StoreDesignerPage() {
                       </div>
                     ))}
                     <p className="text-[10px] text-zinc-600">
-                      Clique num design — a IA usa ele como referência e gera a loja no mesmo estilo.
+                      {t('canvaClickHint')}
                     </p>
                   </>
                 )}
@@ -562,22 +577,22 @@ export default function StoreDesignerPage() {
             <>
               {/* ── Editor manual ── */}
               <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-4 space-y-4">
-                <h2 className="text-xs uppercase tracking-wider text-zinc-300">Tema</h2>
+                <h2 className="text-xs uppercase tracking-wider text-zinc-300">{t('theme')}</h2>
 
                 <div className="space-y-1.5">
-                  <p className="text-xs text-zinc-400">Modo</p>
+                  <p className="text-xs text-zinc-400">{t('mode')}</p>
                   <Segmented<ThemeMode>
                     value={design.theme.mode}
-                    opts={[{ v: 'dark', label: 'Escuro' }, { v: 'light', label: 'Claro' }]}
+                    opts={[{ v: 'dark', label: t('modeDark') }, { v: 'light', label: t('modeLight') }]}
                     onChange={v => patchTheme({ mode: v })}
                   />
                 </div>
 
                 <div className="space-y-1.5">
-                  <p className="text-xs text-zinc-400">Cores</p>
+                  <p className="text-xs text-zinc-400">{t('colors')}</p>
                   <div className="grid grid-cols-2 gap-2">
                     {COLOR_FIELDS.map(f => (
-                      <ColorRow key={f.key} label={f.label}
+                      <ColorRow key={f.key} label={t(f.labelKey)}
                         value={design.theme.colors[f.key]}
                         onChange={v => patchColor(f.key, v)} />
                     ))}
@@ -585,7 +600,7 @@ export default function StoreDesignerPage() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <p className="text-xs text-zinc-400">Fonte</p>
+                  <p className="text-xs text-zinc-400">{t('font')}</p>
                   <div className="grid grid-cols-2 gap-1.5">
                     {(Object.keys(FONT_PAIRS) as FontPair[]).map(fp => (
                       <button key={fp} onClick={() => patchTheme({ fontPair: fp })}
@@ -601,44 +616,68 @@ export default function StoreDesignerPage() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <p className="text-xs text-zinc-400">Cantos</p>
-                  <Segmented<Radius> value={design.theme.radius} opts={RADIUS_OPTS}
+                  <p className="text-xs text-zinc-400">{t('corners')}</p>
+                  <Segmented<Radius> value={design.theme.radius}
+                    opts={RADIUS_OPTS.map(o => ({ v: o.v, label: t(o.labelKey) }))}
                     onChange={v => patchTheme({ radius: v })} />
                 </div>
 
                 <div className="space-y-1.5">
-                  <p className="text-xs text-zinc-400">Densidade</p>
-                  <Segmented<Density> value={design.theme.density} opts={DENSITY_OPTS}
+                  <p className="text-xs text-zinc-400">{t('density')}</p>
+                  <Segmented<Density> value={design.theme.density}
+                    opts={DENSITY_OPTS.map(o => ({ v: o.v, label: t(o.labelKey) }))}
                     onChange={v => patchTheme({ density: v })} />
                 </div>
               </div>
 
-              <PremiumEditor design={design} onChange={patchDesign} />
+              <PremiumEditor
+                design={design}
+                onChange={patchDesign}
+                onUploadImage={async (b64, mime) => {
+                  const res = await api<{ url: string }>('/store/config/design/upload-asset', {
+                    method: 'POST',
+                    body: JSON.stringify({ imageBase64: b64, imageMimeType: mime }),
+                  })
+                  return res.url
+                }}
+                onGenerateSectionImage={async (sectionIndex, slot, p) => {
+                  const res = await api<{ design: StorefrontDesign; url: string }>(
+                    '/store/config/design/section-image',
+                    {
+                      method: 'POST',
+                      body: JSON.stringify({ sectionIndex, slot, prompt: p }),
+                    },
+                  )
+                  setDesign(res.design); setDirty(false)
+                  return res.url
+                }}
+                downscale={downscaleImage}
+              />
 
               <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-4 space-y-3">
                 <h2 className="text-xs uppercase tracking-wider text-zinc-300 flex items-center gap-1.5">
-                  <ImageIcon size={12} className="text-cyan-400" /> Imagem do banner
+                  <ImageIcon size={12} className="text-cyan-400" /> {t('bannerImage')}
                 </h2>
                 <p className="text-[11px] text-zinc-500">
-                  Gere com IA uma imagem para o destaque da loja, combinando com o estilo do design.
+                  {t('bannerImageHint')}
                 </p>
                 <input value={imageHint} onChange={e => setImageHint(e.target.value)}
-                  placeholder="O que mostrar (opcional): ex. produtos numa sala aconchegante"
+                  placeholder={t('bannerImagePlaceholder')}
                   className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-1.5 text-xs text-zinc-200 outline-none focus:border-cyan-400/60" />
                 <button onClick={generateHeroImage} disabled={busy}
                   className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-zinc-700 hover:border-cyan-400/50 hover:text-cyan-300 text-zinc-300 text-sm disabled:opacity-40 disabled:hover:border-zinc-700 disabled:hover:text-zinc-300">
                   {generatingImage ? <Loader2 size={14} className="animate-spin" /> : <ImagePlus size={14} />}
-                  {generatingImage ? 'Gerando imagem…' : 'Gerar imagem do banner (IA)'}
+                  {generatingImage ? t('bannerGenerating') : t('bannerGenerate')}
                 </button>
                 {generatingImage && (
-                  <p className="text-[11px] text-zinc-500 text-center">Pode levar até meio minuto.</p>
+                  <p className="text-[11px] text-zinc-500 text-center">{t('bannerGeneratingNote')}</p>
                 )}
               </div>
 
               <button onClick={saveEdits} disabled={busy || !dirty}
                 className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-cyan-400 hover:bg-cyan-300 text-black text-sm font-semibold disabled:opacity-40">
                 {savingEdit ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                {dirty ? 'Salvar ajustes' : 'Tudo salvo'}
+                {dirty ? t('saveEdits') : t('allSaved')}
               </button>
             </>
           )}
@@ -648,26 +687,29 @@ export default function StoreDesignerPage() {
         <div className="space-y-2">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <p className="text-xs uppercase tracking-wider text-zinc-400">
-              Pré-visualização {dirty && <span className="text-amber-300 normal-case">· alterações não salvas</span>}
+              {t('preview')} {dirty && <span className="text-amber-300 normal-case">{t('unsavedChanges')}</span>}
             </p>
             <a href={`/loja/${config.store_slug}`} target="_blank" rel="noopener noreferrer"
               className="text-xs text-cyan-400 hover:underline flex items-center gap-1">
-              Abrir loja real <ExternalLink size={10} />
+              {t('openRealStore')} <ExternalLink size={10} />
             </a>
           </div>
           {config.status !== 'active' && (
             <p className="text-[11px] text-amber-300/90">
-              A loja está como <span className="font-medium">{config.status}</span> — ative em Config da Loja para publicá-la.
+              {t.rich('statusWarning', {
+                status: config.status,
+                b: (chunks) => <span className="font-medium">{chunks}</span>,
+              })}
             </p>
           )}
           <div className="rounded-lg border border-zinc-800 overflow-x-hidden bg-zinc-950 h-[640px] overflow-y-auto">
             <div className="pointer-events-none">
               <StorefrontHome embedded design={design} store={storeForPreview}
-                products={products} slug={config.store_slug} />
+                products={products.length ? products : placeholderProducts} slug={config.store_slug} />
             </div>
           </div>
           <p className="text-[11px] text-zinc-600">
-            Preview com produtos de exemplo quando a loja ainda não tem produtos publicados.
+            {t('previewNote')}
           </p>
         </div>
       </div>

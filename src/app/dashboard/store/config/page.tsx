@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import {
   Store, Loader2, Save, AlertCircle, Globe, Palette, Search,
@@ -71,6 +72,7 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export default function StoreConfigPage() {
+  const t = useTranslations('store.config')
   const [config, setConfig] = useState<StoreConfig | null>(null)
   const [draft, setDraft]   = useState<Partial<StoreConfig>>({})
   const [loading, setLoading] = useState(true)
@@ -145,8 +147,8 @@ export default function StoreConfigPage() {
       const r = await api<{ verified: boolean; reason?: string; expected_target?: string }>(
         '/store/config/verify-domain', { method: 'POST' },
       )
-      if (r.verified) alert(`Domínio verificado! CNAME aponta corretamente pra ${r.expected_target}`)
-      else alert(`Não verificado: ${r.reason}\n\nConfigure CNAME apontando pra ${r.expected_target}`)
+      if (r.verified) alert(t('domainVerifiedAlert', { target: r.expected_target ?? '' }))
+      else alert(t('domainNotVerifiedAlert', { reason: r.reason ?? '', target: r.expected_target ?? '' }))
       await load()
     } catch (e) {
       setError((e as Error).message)
@@ -157,7 +159,7 @@ export default function StoreConfigPage() {
 
   if (loading) return (
     <div className="p-6 flex items-center gap-2 text-zinc-500 text-sm">
-      <Loader2 size={14} className="animate-spin" /> carregando…
+      <Loader2 size={14} className="animate-spin" /> {t('loading')}
     </div>
   )
 
@@ -165,15 +167,15 @@ export default function StoreConfigPage() {
     <div className="p-4 sm:p-6 space-y-4 max-w-md mx-auto">
       <h1 className="text-xl font-bold text-zinc-100 flex items-center gap-2">
         <Store size={20} className="text-cyan-400" />
-        Configurar sua Loja
+        {t('setupTitle')}
       </h1>
       <p className="text-xs text-zinc-500">
-        Sua loja ainda não foi configurada. Defina um nome pra começar.
+        {t('setupHint')}
       </p>
       <input
         value={createName}
         onChange={e => setCreateName(e.target.value)}
-        placeholder="Nome da loja"
+        placeholder={t('storeNamePlaceholder')}
         className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2 text-sm text-zinc-200 outline-none focus:border-cyan-400/60"
       />
       <button
@@ -182,7 +184,7 @@ export default function StoreConfigPage() {
         className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan-400 hover:bg-cyan-300 disabled:opacity-50 text-black text-sm font-medium"
       >
         {creating ? <Loader2 size={14} className="animate-spin" /> : <Store size={14} />}
-        Criar configuração
+        {t('createConfig')}
       </button>
       {error && <p className="text-xs text-red-300">⚠ {error}</p>}
     </div>
@@ -195,10 +197,10 @@ export default function StoreConfigPage() {
       <div>
         <h1 className="text-xl sm:text-2xl font-bold text-zinc-100 flex items-center gap-2">
           <Store size={20} className="text-cyan-400" />
-          Configuração da Loja
+          {t('title')}
         </h1>
         <p className="text-xs text-zinc-500 mt-1">
-          Identidade visual, domínio, SEO, integrações. White-label completo.
+          {t('subtitle')}
         </p>
       </div>
 
@@ -211,14 +213,14 @@ export default function StoreConfigPage() {
       {/* Status banner */}
       <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3 flex items-center justify-between flex-wrap gap-3">
         <div>
-          <p className="text-xs text-zinc-400">URL da loja:</p>
+          <p className="text-xs text-zinc-400">{t('storeUrl')}</p>
           <p className="text-sm text-cyan-300 font-mono">/loja/{config.store_slug}</p>
           {config.custom_domain && (
             <p className="text-[11px] text-zinc-500 mt-1">
-              Domínio: <span className="font-mono text-zinc-300">{config.custom_domain}</span>
+              {t('domainLabel')} <span className="font-mono text-zinc-300">{config.custom_domain}</span>
               {config.domain_verified
-                ? <span className="ml-2 text-emerald-300">✓ verificado</span>
-                : <span className="ml-2 text-amber-300">⚠ não verificado</span>}
+                ? <span className="ml-2 text-emerald-300">{t('verified')}</span>
+                : <span className="ml-2 text-amber-300">{t('notVerified')}</span>}
             </p>
           )}
         </div>
@@ -227,35 +229,35 @@ export default function StoreConfigPage() {
           onChange={e => setVal('status', e.target.value as StoreConfig['status'])}
           className="bg-zinc-950 border border-zinc-800 rounded px-2 py-1.5 text-xs text-zinc-200 outline-none"
         >
-          <option value="setup">Em configuração</option>
-          <option value="active">Ativa (público)</option>
-          <option value="paused">Pausada</option>
+          <option value="setup">{t('statusSetup')}</option>
+          <option value="active">{t('statusActive')}</option>
+          <option value="paused">{t('statusPaused')}</option>
         </select>
       </div>
 
       {/* Identity */}
-      <Section title="Identidade" icon={<Store size={12} className="text-cyan-400" />}>
-        <Field label="Nome da loja">
+      <Section title={t('sectionIdentity')} icon={<Store size={12} className="text-cyan-400" />}>
+        <Field label={t('fieldStoreName')}>
           <input value={String(getVal('store_name') ?? '')} onChange={e => setVal('store_name', e.target.value)}
                  className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-1.5 text-sm text-zinc-200 outline-none focus:border-cyan-400/60" />
         </Field>
-        <Field label="Slug (URL)">
+        <Field label={t('fieldSlug')}>
           <input value={String(getVal('store_slug') ?? '')} onChange={e => setVal('store_slug', e.target.value)}
                  className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-1.5 text-sm text-zinc-200 outline-none focus:border-cyan-400/60 font-mono" />
         </Field>
-        <Field label="Descrição curta">
+        <Field label={t('fieldShortDescription')}>
           <textarea value={String(getVal('store_description') ?? '')} onChange={e => setVal('store_description', e.target.value)}
                     rows={2} className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-1.5 text-sm text-zinc-200 outline-none focus:border-cyan-400/60 resize-none" />
         </Field>
-        <Field label="Logo URL">
+        <Field label={t('fieldLogoUrl')}>
           <input value={String(getVal('logo_url') ?? '')} onChange={e => setVal('logo_url', e.target.value)} placeholder="https://..."
                  className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-1.5 text-sm text-zinc-200 outline-none focus:border-cyan-400/60" />
         </Field>
       </Section>
 
       {/* Domain */}
-      <Section title="Domínio custom" icon={<Globe size={12} className="text-cyan-400" />}>
-        <Field label="Domínio">
+      <Section title={t('sectionDomain')} icon={<Globe size={12} className="text-cyan-400" />}>
+        <Field label={t('fieldDomain')}>
           <input
             value={String(getVal('custom_domain') ?? '')}
             onChange={e => setVal('custom_domain', e.target.value)}
@@ -270,19 +272,19 @@ export default function StoreConfigPage() {
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-800 hover:border-cyan-400/40 text-zinc-300 hover:text-cyan-300 text-xs"
           >
             {verifying ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
-            Verificar DNS
+            {t('verifyDns')}
           </button>
         )}
         <p className="text-[10px] text-zinc-500">
-          Configure CNAME apontando pra <code className="text-cyan-300">storefront.eclick.app.br</code> e clique em "Verificar DNS".
+          {t.rich('dnsHint', { code: (chunks) => <code className="text-cyan-300">{chunks}</code> })}
         </p>
       </Section>
 
       {/* Theme */}
-      <Section title="Tema visual" icon={<Palette size={12} className="text-cyan-400" />}>
+      <Section title={t('sectionTheme')} icon={<Palette size={12} className="text-cyan-400" />}>
         {presets && (
           <div>
-            <p className="text-[10px] uppercase tracking-wider text-zinc-500 mb-2">Presets</p>
+            <p className="text-[10px] uppercase tracking-wider text-zinc-500 mb-2">{t('presets')}</p>
             <div className="flex flex-wrap gap-2">
               {Object.entries(presets).map(([k, p]) => (
                 <button
@@ -303,55 +305,60 @@ export default function StoreConfigPage() {
         )}
 
         <div className="grid grid-cols-3 gap-2">
-          <ColorField label="Primária" value={theme.primary_color ?? '#00E5FF'}
+          <ColorField label={t('colorPrimary')} value={theme.primary_color ?? '#00E5FF'}
             onChange={v => setVal('theme', { ...theme, primary_color: v })} />
-          <ColorField label="Secundária" value={theme.secondary_color ?? '#09090B'}
+          <ColorField label={t('colorSecondary')} value={theme.secondary_color ?? '#09090B'}
             onChange={v => setVal('theme', { ...theme, secondary_color: v })} />
-          <ColorField label="Accent" value={theme.accent_color ?? '#22C55E'}
+          <ColorField label={t('colorAccent')} value={theme.accent_color ?? '#22C55E'}
             onChange={v => setVal('theme', { ...theme, accent_color: v })} />
         </div>
       </Section>
 
       {/* SEO */}
-      <Section title="SEO" icon={<Search size={12} className="text-cyan-400" />}>
-        <Field label="Título SEO (max 60)">
+      <Section title={t('sectionSeo')} icon={<Search size={12} className="text-cyan-400" />}>
+        <Field label={t('fieldSeoTitle')}>
           <input value={String(getVal('seo_title') ?? '')} onChange={e => setVal('seo_title', e.target.value)}
                  maxLength={60} className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-1.5 text-sm text-zinc-200 outline-none focus:border-cyan-400/60" />
         </Field>
-        <Field label="Descrição SEO (max 160)">
+        <Field label={t('fieldSeoDescription')}>
           <textarea value={String(getVal('seo_description') ?? '')} onChange={e => setVal('seo_description', e.target.value)}
                     maxLength={160} rows={2} className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-1.5 text-sm text-zinc-200 outline-none focus:border-cyan-400/60 resize-none" />
         </Field>
-        <Field label="Google Analytics ID">
+        <Field label={t('fieldGoogleAnalytics')}>
           <input value={String(getVal('google_analytics_id') ?? '')} onChange={e => setVal('google_analytics_id', e.target.value)}
                  placeholder="G-XXXXXXXX" className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-1.5 text-sm text-zinc-200 outline-none focus:border-cyan-400/60 font-mono" />
         </Field>
-        <Field label="Meta Pixel ID">
+        <Field label={t('fieldMetaPixel')}>
           <input value={String(getVal('meta_pixel_id') ?? '')} onChange={e => setVal('meta_pixel_id', e.target.value)}
                  placeholder="123456789" className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-1.5 text-sm text-zinc-200 outline-none focus:border-cyan-400/60 font-mono" />
         </Field>
       </Section>
 
       {/* Widgets + Social */}
-      <Section title="Widgets & Social" icon={<Share2 size={12} className="text-cyan-400" />}>
-        <Field label="Widget WhatsApp">
+      <Section title={t('sectionWidgets')} icon={<Share2 size={12} className="text-cyan-400" />}>
+        <Field label={t('fieldWhatsappWidget')}>
           <input type="checkbox" checked={Boolean(getVal('whatsapp_widget_enabled'))}
                  onChange={e => setVal('whatsapp_widget_enabled', e.target.checked)} className="w-4 h-4 accent-cyan-400" />
         </Field>
-        <Field label="Número WhatsApp">
+        <Field label={t('fieldWhatsappNumber')}>
           <input value={String(getVal('whatsapp_number') ?? '')} onChange={e => setVal('whatsapp_number', e.target.value)}
                  placeholder="+55..." className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-1.5 text-sm text-zinc-200 outline-none focus:border-cyan-400/60 font-mono" />
         </Field>
-        <Field label="Widget Vendedor IA">
+        <Field label={t('fieldAiSellerWidget')}>
           <input type="checkbox" checked={Boolean(getVal('ai_seller_widget_enabled'))}
                  onChange={e => setVal('ai_seller_widget_enabled', e.target.checked)} className="w-4 h-4 accent-cyan-400" />
         </Field>
+        <SocialLinksEditor
+          value={(getVal('social_links') as Record<string, string> | undefined) ?? config.social_links ?? {}}
+          onChange={v => setVal('social_links', v)}
+          t={t}
+        />
       </Section>
 
       {/* Save */}
       <div className="sticky bottom-4 flex justify-between items-center bg-zinc-950/95 p-2 rounded-lg border border-zinc-800">
         <a href={`/loja/${config.store_slug}`} target="_blank" rel="noopener noreferrer" className="text-xs text-cyan-400 hover:underline flex items-center gap-1">
-          Ver loja pública <ExternalLink size={10} />
+          {t('viewPublicStore')} <ExternalLink size={10} />
         </a>
         <button
           onClick={save}
@@ -359,7 +366,7 @@ export default function StoreConfigPage() {
           className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan-400 hover:bg-cyan-300 disabled:opacity-50 text-black text-sm font-medium"
         >
           {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-          Salvar
+          {t('save')}
         </button>
       </div>
     </div>
@@ -382,6 +389,49 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     <div className="space-y-1">
       <p className="text-xs text-zinc-300">{label}</p>
       <div>{children}</div>
+    </div>
+  )
+}
+
+const SOCIAL_PLATFORMS = [
+  { id: 'instagram', label: 'Instagram',  placeholder: 'https://instagram.com/sua_loja' },
+  { id: 'facebook',  label: 'Facebook',   placeholder: 'https://facebook.com/sua_loja' },
+  { id: 'tiktok',    label: 'TikTok',     placeholder: 'https://tiktok.com/@sua_loja' },
+  { id: 'youtube',   label: 'YouTube',    placeholder: 'https://youtube.com/@sua_loja' },
+  { id: 'twitter',   label: 'X (Twitter)', placeholder: 'https://x.com/sua_loja' },
+  { id: 'pinterest', label: 'Pinterest',  placeholder: 'https://pinterest.com/sua_loja' },
+]
+
+function SocialLinksEditor({ value, onChange, t }: {
+  value:    Record<string, string>
+  onChange: (v: Record<string, string>) => void
+  t:        ReturnType<typeof useTranslations>
+}) {
+  const entries = SOCIAL_PLATFORMS.map(p => ({
+    ...p,
+    url: value[p.id] ?? '',
+  }))
+
+  function update(id: string, url: string) {
+    const next = { ...value }
+    if (url.trim()) next[id] = url.trim()
+    else delete next[id]
+    onChange(next)
+  }
+
+  return (
+    <div className="space-y-2 pt-1">
+      <p className="text-xs text-zinc-300">{t('socialLinksTitle')}</p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        {entries.map(e => (
+          <div key={e.id} className="space-y-0.5">
+            <p className="text-[10px] text-zinc-500">{e.label}</p>
+            <input value={e.url} onChange={ev => update(e.id, ev.target.value)}
+              placeholder={e.placeholder}
+              className="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 outline-none focus:border-cyan-400/60 font-mono" />
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
