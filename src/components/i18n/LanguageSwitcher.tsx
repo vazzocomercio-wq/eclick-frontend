@@ -5,14 +5,12 @@
  * server action e atualiza a árvore de server components.
  */
 import { useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
 import { useLocale } from 'next-intl'
 import { setLocale } from '@/i18n/locale-actions'
 import { locales, localeFlags, localeNames, type Locale } from '@/i18n/locales'
 
 export default function LanguageSwitcher() {
   const current = useLocale() as Locale
-  const router = useRouter()
   const [open, setOpen] = useState(false)
   const [pending, startTransition] = useTransition()
 
@@ -21,7 +19,10 @@ export default function LanguageSwitcher() {
     if (loc === current) return
     startTransition(async () => {
       await setLocale(loc)
-      router.refresh()
+      // Reload completo: troca de idioma é rara e o reload garante que
+      // TODOS os componentes recarreguem o catálogo do novo idioma.
+      // Um router.refresh() "leve" deixava partes da tela com as chaves.
+      window.location.reload()
     })
   }
 
