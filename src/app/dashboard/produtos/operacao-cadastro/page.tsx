@@ -597,11 +597,13 @@ type ActiveAgent    = { member_id: string; user_id: string; display_name: string
 type ActivePipeline = { id: string; name: string; is_default: boolean; description: string | null; template_key: string | null }
 type ActiveStage    = { id: string; pipeline_id: string; name: string; position: number; color: string | null; is_won: boolean; is_lost: boolean }
 
-function DispatchModal({ count, onClose, onConfirm, loading }: {
+function DispatchModal({ count, onClose, onConfirm, loading, mode = 'cadastro' }: {
   count:     number
   onClose:   () => void
   onConfirm: (config: DispatchConfig) => Promise<void> | void
   loading:   boolean
+  /** 'cadastro' = completar cadastro · 'publish' = funil de Anúncios */
+  mode?:     'cadastro' | 'publish'
 }) {
   const t = useTranslations('produtos')
   const [operator, setOperator] = useState('')
@@ -640,10 +642,16 @@ function DispatchModal({ count, onClose, onConfirm, loading }: {
         setAgents(agentsData)
         setPipelines(pipelinesData)
 
-        // Auto-seleciona: pipeline com template_key='operacao_cadastro' OU is_default OU 1º
-        const preferred = pipelinesData.find(p => p.template_key === 'operacao_cadastro')
-                       ?? pipelinesData.find(p => p.is_default)
-                       ?? pipelinesData[0]
+        // Auto-seleciona o pipeline conforme o modo:
+        //  - publish  → funil cujo nome casa /anúncio/i (funil de Anúncios)
+        //  - cadastro → pipeline com template_key='operacao_cadastro'
+        const preferred = mode === 'publish'
+          ? (pipelinesData.find(p => /an[úu]ncio/i.test(p.name))
+             ?? pipelinesData.find(p => p.is_default)
+             ?? pipelinesData[0])
+          : (pipelinesData.find(p => p.template_key === 'operacao_cadastro')
+             ?? pipelinesData.find(p => p.is_default)
+             ?? pipelinesData[0])
         if (preferred) setPipeline(preferred.id)
       } catch (e) {
         if (!cancelled) setConfigError((e as Error).message)
@@ -652,7 +660,7 @@ function DispatchModal({ count, onClose, onConfirm, loading }: {
       }
     })()
     return () => { cancelled = true }
-  }, [t])
+  }, [t, mode])
 
   // Fetch stages sempre que pipeline muda
   useEffect(() => {
@@ -689,9 +697,15 @@ function DispatchModal({ count, onClose, onConfirm, loading }: {
         style={{ background: '#0d0d10', border: '1px solid #27272a' }}
         onClick={e => e.stopPropagation()}>
         <div className="mb-4">
-          <h2 className="text-lg font-bold">{t('ops.modal.title', { count })}</h2>
+          <h2 className="text-lg font-bold">
+            {mode === 'publish'
+              ? `Despachar ${count} produto${count > 1 ? 's' : ''} pra anunciar`
+              : t('ops.modal.title', { count })}
+          </h2>
           <p className="text-xs text-zinc-500 mt-1">
-            {t('ops.modal.subtitle')}
+            {mode === 'publish'
+              ? 'Cria um card no funil de Anúncios do Active por produto — o operador cria/vincula o anúncio.'
+              : t('ops.modal.subtitle')}
           </p>
         </div>
 
@@ -803,7 +817,9 @@ function DispatchModal({ count, onClose, onConfirm, loading }: {
             disabled={!canSubmit || loading}
             className="px-4 py-2 rounded-lg text-sm font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed"
             style={{ background: 'linear-gradient(135deg, #00E5FF 0%, #0091EA 100%)', color: '#000' }}>
-            {loading ? t('ops.modal.dispatching') : t('ops.modal.dispatchBtn', { count })}
+            {loading
+              ? (mode === 'publish' ? 'Despachando…' : t('ops.modal.dispatching'))
+              : (mode === 'publish' ? `Despachar ${count} →` : t('ops.modal.dispatchBtn', { count }))}
           </button>
         </div>
       </div>
@@ -882,6 +898,12 @@ function CoverageTab() {
     return () => clearTimeout(tm)
   }, [search, stockMin, stockMax])
 
+  // Seleção + despacho pro funil de Anúncios
+  const [selected, setSelected]       = useState<Set<string>>(new Set())
+  const [showModal, setShowModal]     = useState(false)
+  const [dispatching, setDispatching] = useState(false)
+  const [result, setResult]           = useState<{ dispatched: number; errors: Array<{ product_id: string; message: string }> } | null>(null)
+
   const load = useCallback(async () => {
     setLoading(true)
     try {
@@ -915,12 +937,67 @@ function CoverageTab() {
 
   const hasFilters = !!(search || stockMin || stockMax || coverage !== 'all' || onlyComplete)
 
+  function toggleAll() {
+    const ids = data?.sample.map(p => p.id) ?? []
+    setSelected(prev => (prev.size === ids.length && ids.length > 0) ? new Set() : new Set(ids))
+  }
+  function toggleOne(id: string) {
+    setSelected(prev => {
+      const n = new Set(prev)
+      if (n.has(id)) n.delete(id); else n.add(id)
+      return n
+    })
+  }
+
+  async function handleDispatch(config: DispatchConfig) {
+    if (selected.size === 0) return
+    setDispatching(true)
+    setResult(null)
+    try {
+      const token = await getAuthToken()
+      if (!token) throw new Error('Sessão expirada — recarregue a página')
+      const res = await fetch(`${BACKEND}/products/dispatch-to-publish`, {
+        method:  'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          product_ids:      [...selected],
+          operator_user_id: config.operator_user_id,
+          pipeline_id:      config.pipeline_id,
+          stage_id:         config.stage_id,
+          due_date:         config.due_date ? new Date(config.due_date + 'T18:00:00').toISOString() : undefined,
+          task_priority:    config.priority,
+          notes:            config.notes || undefined,
+        }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(body?.message || `HTTP ${res.status}`)
+      setResult({ dispatched: body.dispatched ?? 0, errors: body.errors ?? [] })
+      setSelected(new Set())
+      void load()
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setDispatching(false)
+    }
+  }
+
   return (
     <>
       {error && (
         <div className="mb-3 px-4 py-3 rounded-xl text-sm border"
           style={{ background: '#1a0a0a', borderColor: 'rgba(248,113,113,0.3)', color: '#f87171' }}>
           {error}
+        </div>
+      )}
+
+      {result && (
+        <div className="mb-3 px-4 py-3 rounded-xl text-sm border flex items-center gap-2"
+          style={{ background: '#0d140d', borderColor: 'rgba(52,211,153,0.3)', color: '#34d399' }}>
+          <span>✅ {result.dispatched} card(s) criado(s) no funil de Anúncios do Active.</span>
+          {result.errors.length > 0 && (
+            <span className="text-red-400">{result.errors.length} com erro.</span>
+          )}
+          <button onClick={() => setResult(null)} className="ml-auto text-zinc-500 hover:text-zinc-300 text-xs">fechar</button>
         </div>
       )}
 
@@ -997,6 +1074,20 @@ function CoverageTab() {
         )}
       </div>
 
+      {selected.size > 0 && (
+        <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl mb-3 text-sm"
+          style={{ background: 'rgba(0,229,255,0.07)', border: '1px solid rgba(0,229,255,0.2)' }}>
+          <span className="font-semibold text-cyan-400">{selected.size} produto(s) selecionado(s)</span>
+          <button onClick={() => setShowModal(true)}
+            className="ml-auto px-3 py-1.5 rounded-lg text-[12px] font-semibold"
+            style={{ background: '#00E5FF', color: '#000' }}>
+            Despachar pra anunciar →
+          </button>
+          <button onClick={() => setSelected(new Set())}
+            className="text-zinc-500 hover:text-zinc-300 text-xs">Limpar</button>
+        </div>
+      )}
+
       {loading ? (
         <div className="text-center py-12 text-zinc-500">Carregando cobertura…</div>
       ) : !data || data.sample.length === 0 ? (
@@ -1014,6 +1105,12 @@ function CoverageTab() {
           <table className="w-full text-sm">
             <thead style={{ background: '#0d0d10' }}>
               <tr className="text-[11px] text-zinc-500 uppercase tracking-wider">
+                <th className="px-3 py-3 text-left w-10">
+                  <input type="checkbox"
+                    checked={data.sample.length > 0 && selected.size === data.sample.length}
+                    onChange={toggleAll}
+                    className="w-4 h-4 cursor-pointer accent-cyan-400" />
+                </th>
                 <th className="px-3 py-3 text-left">SKU</th>
                 <th className="px-3 py-3 text-left">Nome</th>
                 <th className="px-3 py-3 text-right w-24">Estoque</th>
@@ -1030,6 +1127,12 @@ function CoverageTab() {
                 return (
                   <tr key={p.id} className="border-t hover:bg-white/[0.02] transition-colors"
                     style={{ borderColor: '#27272a' }}>
+                    <td className="px-3 py-2.5">
+                      <input type="checkbox"
+                        checked={selected.has(p.id)}
+                        onChange={() => toggleOne(p.id)}
+                        className="w-4 h-4 cursor-pointer accent-cyan-400" />
+                    </td>
                     <td className="px-3 py-2.5 font-mono text-[12px] text-zinc-300">{p.sku || '—'}</td>
                     <td className="px-3 py-2.5 max-w-xs truncate">{p.name}</td>
                     <td className="px-3 py-2.5 text-right">
@@ -1085,6 +1188,19 @@ function CoverageTab() {
             Exibindo {data.sample.length} de {data.summary.sem_anuncio + data.summary.parcial} produto(s) sem cobertura total
           </div>
         </div>
+      )}
+
+      {showModal && (
+        <DispatchModal
+          mode="publish"
+          count={selected.size}
+          loading={dispatching}
+          onClose={() => setShowModal(false)}
+          onConfirm={async (config) => {
+            setShowModal(false)
+            await handleDispatch(config)
+          }}
+        />
       )}
     </>
   )
