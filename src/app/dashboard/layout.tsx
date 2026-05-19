@@ -6,6 +6,7 @@ import Header from '@/components/layout/Header'
 import { DialogProvider } from '@/components/ui/dialog-provider'
 import FloatingCopilot from '@/components/copilot/FloatingCopilot'
 import AlertToastListener from '@/components/intelligence/AlertToastListener'
+import { isPlatformAdmin } from '@/lib/modules'
 
 export default async function DashboardLayout({
   children,
@@ -55,7 +56,7 @@ export default async function DashboardLayout({
         className="flex h-screen overflow-hidden"
         style={{ background: 'var(--background)', color: 'var(--text)' }}
       >
-        <Sidebar enabledModules={enabledModules} />
+        <Sidebar enabledModules={enabledModules} platformAdmin={isPlatformAdmin(user.email)} />
 
         <div className="flex flex-col flex-1 overflow-hidden">
           <Header

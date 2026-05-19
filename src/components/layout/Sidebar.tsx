@@ -15,6 +15,7 @@ import {
   Zap, Map as MapIcon, Bell, Wand2, Layers, Store, Palette, Link2, Calendar, FileText, Eye,
   RotateCcw, CreditCard, Scale, Trophy, AlertTriangle as AlertTriangleIcon, Sparkles as SparklesIcon,
 } from 'lucide-react'
+import { CORE_MODULES } from '@/lib/modules'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 
@@ -335,13 +336,20 @@ const SECTIONS: NavSection[] = [
   },
 ]
 
-/** Módulos sempre visíveis — não dependem de enabled_modules. */
-const CORE_MODULES = ['visaogeral', 'configuracoes']
+/** Seção do painel de gestão — só renderiza pra admin da plataforma e-Click. */
+const ADMIN_SECTION: NavSection = {
+  key: 'admin',
+  label: 'GESTÃO E-CLICK',
+  items: [
+    { label: 'Clientes', href: '/dashboard/admin', icon: <Building2 size={15} /> },
+  ],
+}
 
 const SECTION_DEFAULT_OPEN: Record<string, boolean> = {
   visaogeral:      true,
   active:          true,
   marketplace:     true,
+  admin:           true,
   compras:         false,
   dropship:        false,
   crm:             false,
@@ -571,7 +579,10 @@ function SidebarSection({ section, open, onToggle, badges, first }: {
 
 // ── Sidebar ───────────────────────────────────────────────────────────────────
 
-export default function Sidebar({ enabledModules = null }: { enabledModules?: string[] | null }) {
+export default function Sidebar({ enabledModules = null, platformAdmin = false }: {
+  enabledModules?: string[] | null
+  platformAdmin?:  boolean
+}) {
   const pathname                        = usePathname()
   const [badges, setBadges]             = useState<Badges>({})
   const [collapsed, setCollapsed]       = useState(false)
@@ -673,9 +684,11 @@ export default function Sidebar({ enabledModules = null }: { enabledModules?: st
 
   // Módulos liberados pra esta organização (núcleo sempre visível).
   // enabledModules null = todos liberados (orgs sem config, ex.: Vazzo).
-  const sections = enabledModules == null
+  const visible = enabledModules == null
     ? SECTIONS
     : SECTIONS.filter(s => CORE_MODULES.includes(s.key) || enabledModules.includes(s.key))
+  // Painel de gestão só aparece pra equipe e-Click.
+  const sections = platformAdmin ? [...visible, ADMIN_SECTION] : visible
 
   return (
     <aside
