@@ -2,14 +2,15 @@
  * Cabecalho rico (v2) — logo, navegacao, icones de busca/carrinho.
  * Sticky opcional; navegacao colapsa em menu hamburguer no mobile.
  *
- * Os icones de busca e carrinho sao visuais nesta fase — a busca e o
- * carrinho transacional entram em fases posteriores.
+ * Busca segue visual nesta fase. Carrinho ja e funcional: CartButton e
+ * client component com badge + drawer, consome useCart (localStorage).
  */
 
 import type { Section } from '@/lib/storefront/types'
 import type { StorefrontStore } from '@/lib/storefront/data'
 import type { RenderCtx } from '../renderCtx'
 import { MobileNav } from './MobileNav'
+import { CartButton } from './CartButton'
 
 function SearchIcon({ color }: { color: string }) {
   return (
@@ -21,21 +22,12 @@ function SearchIcon({ color }: { color: string }) {
   )
 }
 
-function CartIcon({ color }: { color: string }) {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color}
-      strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M6 2 3 6v13a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
-      <path d="M3 6h18" />
-      <path d="M16 10a4 4 0 0 1-8 0" />
-    </svg>
-  )
-}
-
-export function SiteHeader({ store, section, ctx }: {
+export function SiteHeader({ store, section, ctx, slug }: {
   store: StorefrontStore
   section: Extract<Section, { type: 'siteHeader' }>
   ctx: RenderCtx
+  /** Slug da loja — necessario pro CartButton (carrinho por loja). */
+  slug?: string
 }) {
   const { colors } = ctx.theme
   const sticky = section.sticky && !ctx.embedded
@@ -79,7 +71,7 @@ export function SiteHeader({ store, section, ctx }: {
   const icons = (
     <div className="flex items-center gap-3 sm:gap-4">
       {section.showSearch && <span aria-hidden><SearchIcon color={colors.text} /></span>}
-      {section.showCart && <span aria-hidden><CartIcon color={colors.text} /></span>}
+      {section.showCart && slug && <CartButton store={store} slug={slug} ctx={ctx} />}
       <MobileNav nav={section.nav} color={colors.text} surface={colors.background} border={colors.border} />
     </div>
   )

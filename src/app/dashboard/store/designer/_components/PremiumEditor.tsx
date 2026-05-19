@@ -311,7 +311,63 @@ export function PremiumEditor({
           </select>
         </div>
       </div>
+
+      {/* ── Configuração da página de produto ── */}
+      <ProductPageConfig
+        product={design.product}
+        onChange={p => onChange({ ...design, product: p })}
+      />
     </AssetContext.Provider>
+  )
+}
+
+function ProductPageConfig({ product, onChange }: {
+  product:  StorefrontDesign['product']
+  onChange: (p: StorefrontDesign['product']) => void
+}) {
+  return (
+    <div className={CARD}>
+      <h2 className="text-xs uppercase tracking-wider text-zinc-300">Página de produto</h2>
+
+      <div className="space-y-1">
+        <p className="text-[10px] text-zinc-500">Botão principal</p>
+        <div className="flex gap-1">
+          {(['whatsapp', 'cart'] as const).map(v => (
+            <button key={v} type="button" onClick={() => onChange({ ...product, ctaMode: v })}
+              className={`flex-1 px-2 py-1.5 rounded text-[11px] border transition-colors ${
+                product.ctaMode === v ? 'border-cyan-400/70 bg-cyan-400/5 text-cyan-300'
+                  : 'border-zinc-800 hover:border-zinc-700 text-zinc-300'
+              }`}>
+              {v === 'whatsapp' ? 'Comprar pelo WhatsApp' : 'Adicionar ao carrinho'}
+            </button>
+          ))}
+        </div>
+        <p className="text-[10px] text-zinc-600">
+          {product.ctaMode === 'cart'
+            ? 'Carrinho aparece no cabeçalho. Checkout abre WhatsApp com a lista do pedido.'
+            : 'CTA único: clique vai direto pro WhatsApp com a mensagem do produto.'}
+        </p>
+      </div>
+
+      <div className="space-y-1">
+        <p className="text-[10px] text-zinc-500">Galeria</p>
+        <div className="flex gap-1">
+          {(['side', 'top'] as const).map(v => (
+            <button key={v} type="button" onClick={() => onChange({ ...product, gallery: v })}
+              className={`flex-1 px-2 py-1.5 rounded text-[11px] border transition-colors ${
+                product.gallery === v ? 'border-cyan-400/70 bg-cyan-400/5 text-cyan-300'
+                  : 'border-zinc-800 hover:border-zinc-700 text-zinc-300'
+              }`}>
+              {v === 'side' ? 'Ao lado (desktop)' : 'No topo'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <Pill label="Mostrar ficha técnica (atributos)"
+        checked={product.showAttributes}
+        onChange={v => onChange({ ...product, showAttributes: v })} />
+    </div>
   )
 }
 

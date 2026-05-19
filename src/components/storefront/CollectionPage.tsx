@@ -43,7 +43,7 @@ export function CollectionPage({ design, store, products, slug, initialCategory 
       <link rel="stylesheet" href={googleFontsHref(design.theme)} />
 
       {announce && <AnnouncementBar section={announce} ctx={ctx} />}
-      {header && <SiteHeader store={store} section={header} ctx={ctx} />}
+      {header && <SiteHeader store={store} section={header} ctx={ctx} slug={slug} />}
 
       <main className="max-w-6xl mx-auto px-4 sm:px-8 py-6 sm:py-10">
         <Link

@@ -19,6 +19,7 @@ import { AnnouncementBar } from './premium/AnnouncementBar'
 import { SiteHeader } from './premium/SiteHeader'
 import { SiteFooter } from './premium/SiteFooter'
 import { ShowcaseCarousel } from './premium/ShowcaseCarousel'
+import { AddToCartButton } from './premium/AddToCartButton'
 
 export function PremiumProductDetail({ design, store, product, slug, related }: {
   design: StorefrontDesign
@@ -53,7 +54,19 @@ export function PremiumProductDetail({ design, store, product, slug, related }: 
   const ctaMessage = `Olá! Tenho interesse no produto "${product.name}" (${formatBRL(product.price)}).`
   const relatedProducts = related.filter(p => p.id !== product.id).slice(0, 12)
 
-  const cta = pd.ctaMode === 'whatsapp' && store.whatsapp_number ? (
+  const cta = pd.ctaMode === 'cart' ? (
+    <AddToCartButton
+      slug={slug}
+      ctx={ctx}
+      product={{
+        productId: product.id,
+        name:      product.name,
+        price:     product.price,
+        imageUrl:  images[0] ?? undefined,
+      }}
+      disabled={outOfStock}
+    />
+  ) : store.whatsapp_number ? (
     <a
       href={whatsappLink(store.whatsapp_number, ctaMessage)}
       target="_blank"
@@ -68,7 +81,7 @@ export function PremiumProductDetail({ design, store, product, slug, related }: 
       className="inline-flex items-center justify-center w-full sm:w-auto px-8 py-3.5 font-semibold text-sm"
       style={{ background: colors.surface, color: colors.textMuted, borderRadius: ctx.radius, border: `1px solid ${colors.border}` }}
     >
-      Carrinho em breve
+      Em breve
     </span>
   )
 
@@ -78,7 +91,7 @@ export function PremiumProductDetail({ design, store, product, slug, related }: 
       <link rel="stylesheet" href={googleFontsHref(design.theme)} />
 
       {announce && <AnnouncementBar section={announce} ctx={ctx} />}
-      {header && <SiteHeader store={store} section={header} ctx={ctx} />}
+      {header && <SiteHeader store={store} section={header} ctx={ctx} slug={slug} />}
 
       <main className="max-w-6xl mx-auto px-4 sm:px-8 py-6 sm:py-10">
         <Link

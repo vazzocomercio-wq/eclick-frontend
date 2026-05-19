@@ -68,7 +68,7 @@ export function StorefrontHome({ design, store, products, slug, embedded = false
       case 'announcementBar':
         return <AnnouncementBar key={i} section={section} ctx={ctx} />
       case 'siteHeader':
-        return <SiteHeader key={i} store={store} section={section} ctx={ctx} />
+        return <SiteHeader key={i} store={store} section={section} ctx={ctx} slug={slug} />
       case 'heroPortrait':
         return <HeroPortrait key={i} section={section} ctx={ctx} />
       case 'productShowcase':
