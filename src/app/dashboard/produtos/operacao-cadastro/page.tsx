@@ -100,7 +100,7 @@ export default function OperacaoCadastroPage() {
   const [error, setError] = useState<string | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [showDispatchModal, setShowDispatchModal] = useState(false)
-  const [tab, setTab] = useState<'pending' | 'assignments'>('pending')
+  const [tab, setTab] = useState<'pending' | 'assignments' | 'coverage'>('pending')
   const [dispatching, setDispatching] = useState(false)
   const [dispatchResult, setDispatchResult] = useState<{ dispatched: number; skipped_existing: number; errors: Array<{ product_id: string; message: string }> } | null>(null)
 
@@ -276,6 +276,8 @@ export default function OperacaoCadastroPage() {
             label={t('ops.tab.pending')} count={summary?.incomplete_count ?? 0} />
           <TabBtn active={tab === 'assignments'} onClick={() => setTab('assignments')}
             label={t('ops.tab.dispatched')} count={assignments.filter(a => a.status !== 'completed').length} />
+          <TabBtn active={tab === 'coverage'} onClick={() => setTab('coverage')}
+            label="Sem anúncio" count={0} />
         </div>
 
         {/* PENDING tab */}
@@ -491,6 +493,9 @@ export default function OperacaoCadastroPage() {
             </div>
           )
         )}
+
+        {/* COVERAGE tab — produtos sem anúncio / cobertura parcial */}
+        {tab === 'coverage' && <CoverageTab />}
 
         {/* Dispatch result */}
         {dispatchResult && (() => {
@@ -812,6 +817,285 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
       <label className="block text-[11px] text-zinc-400 uppercase tracking-wider mb-1">{label}</label>
       {children}
       {hint && <div className="text-[10px] text-zinc-600 mt-1">{hint}</div>}
+    </div>
+  )
+}
+
+// ── Aba "Sem anúncio" — cobertura multi-canal × multi-conta ───────────────────
+
+type CoverageDestino = { key: string; channel: string; accountId: string | null; label: string }
+
+type CoverageProduct = {
+  id:                string
+  sku:               string | null
+  name:              string
+  stock:             number | null
+  cadastro_completo: boolean
+  na_loja:           boolean
+  covered:           string[]
+  missing:           string[]
+  status:            'sem_anuncio' | 'parcial' | 'completo'
+}
+
+type CoverageData = {
+  destinos: CoverageDestino[]
+  summary:  {
+    total:                         number
+    sem_anuncio:                   number
+    parcial:                       number
+    completo:                      number
+    cadastro_completo_sem_anuncio: number
+  }
+  sample: CoverageProduct[]
+}
+
+const CHANNEL_LABEL: Record<string, string> = {
+  mercadolivre: 'ML', shopee: 'Shopee', amazon: 'Amazon', magalu: 'Magalu',
+}
+
+function destinoLabel(d: CoverageDestino): string {
+  const ch = CHANNEL_LABEL[d.channel] ?? d.channel
+  return `${ch} · ${d.label}`
+}
+
+const COV_STATUS: Record<CoverageProduct['status'], { label: string; bg: string; color: string }> = {
+  sem_anuncio: { label: 'Sem anúncio', bg: 'rgba(248,113,113,0.12)', color: '#f87171' },
+  parcial:     { label: 'Parcial',     bg: 'rgba(245,158,11,0.12)',  color: '#f59e0b' },
+  completo:    { label: 'Completo',    bg: 'rgba(52,211,153,0.12)',  color: '#34d399' },
+}
+
+function CoverageTab() {
+  const [data, setData]       = useState<CoverageData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError]     = useState<string | null>(null)
+
+  const [search, setSearch]             = useState('')
+  const [stockMin, setStockMin]         = useState('')
+  const [stockMax, setStockMax]         = useState('')
+  const [coverage, setCoverage]         = useState<'all' | 'sem' | 'parcial'>('all')
+  const [onlyComplete, setOnlyComplete] = useState(false)
+  const [sort, setSort]                 = useState<'stock_desc' | 'stock_asc' | 'name'>('stock_desc')
+
+  const [debounced, setDebounced] = useState({ search: '', stockMin: '', stockMax: '' })
+  useEffect(() => {
+    const tm = setTimeout(() => setDebounced({ search, stockMin, stockMax }), 400)
+    return () => clearTimeout(tm)
+  }, [search, stockMin, stockMax])
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const token = await getAuthToken()
+      if (!token) throw new Error('Sessão expirada — recarregue a página')
+      const qs = new URLSearchParams({ sample_size: '300', sort })
+      if (coverage !== 'all') qs.set('coverage', coverage)
+      if (onlyComplete) qs.set('only_complete', 'true')
+      if (debounced.search.trim()) qs.set('search', debounced.search.trim())
+      if (debounced.stockMin.trim() && Number.isFinite(Number(debounced.stockMin))) {
+        qs.set('stock_min', String(parseInt(debounced.stockMin, 10)))
+      }
+      if (debounced.stockMax.trim() && Number.isFinite(Number(debounced.stockMax))) {
+        qs.set('stock_max', String(parseInt(debounced.stockMax, 10)))
+      }
+      const res  = await fetch(`${BACKEND}/products/listing-coverage?${qs}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const body = await res.json().catch(() => null)
+      if (!res.ok) throw new Error(body?.message || `HTTP ${res.status}`)
+      setData(body as CoverageData)
+      setError(null)
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setLoading(false)
+    }
+  }, [debounced, coverage, onlyComplete, sort])
+
+  useEffect(() => { void load() }, [load])
+
+  const hasFilters = !!(search || stockMin || stockMax || coverage !== 'all' || onlyComplete)
+
+  return (
+    <>
+      {error && (
+        <div className="mb-3 px-4 py-3 rounded-xl text-sm border"
+          style={{ background: '#1a0a0a', borderColor: 'rgba(248,113,113,0.3)', color: '#f87171' }}>
+          {error}
+        </div>
+      )}
+
+      {/* Resumo */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+        <CovCard label="Sem anúncio nenhum" value={data?.summary.sem_anuncio ?? 0} color="#f87171" />
+        <CovCard label="Cobertura parcial" value={data?.summary.parcial ?? 0} color="#f59e0b" />
+        <CovCard label="Prontos p/ anunciar" value={data?.summary.cadastro_completo_sem_anuncio ?? 0} color="#67e8f9"
+          hint="cadastro completo, mas sem anúncio" />
+        <CovCard label="Anunciados em todos" value={data?.summary.completo ?? 0} color="#34d399" />
+      </div>
+
+      {/* Destinos da org */}
+      {data && (
+        <div className="mb-3 px-4 py-2.5 rounded-xl text-[11px]"
+          style={{ background: '#111114', border: '1px solid #27272a' }}>
+          <span className="text-zinc-500 uppercase tracking-wider mr-2">Destinos conectados:</span>
+          {data.destinos.length === 0 ? (
+            <span className="text-amber-400">nenhum marketplace conectado — conecte uma conta pra ver a cobertura</span>
+          ) : (
+            data.destinos.map(d => (
+              <span key={d.key} className="inline-block mr-2 text-zinc-300">{destinoLabel(d)}</span>
+            ))
+          )}
+          <span className="text-zinc-600 ml-1">· Loja própria (informativo)</span>
+        </div>
+      )}
+
+      {/* Filtros */}
+      <div className="mb-3 flex flex-wrap items-center gap-3 px-4 py-3 rounded-xl"
+        style={{ background: '#111114', border: '1px solid #27272a' }}>
+        <div className="flex-1 min-w-[200px] max-w-sm">
+          <input type="text" placeholder="Buscar nome ou SKU…"
+            value={search} onChange={e => setSearch(e.target.value)}
+            className="w-full px-3 py-2 rounded-lg text-sm text-white placeholder-zinc-600 border outline-none transition-all focus:border-cyan-500/60"
+            style={{ background: '#0a0a0c', borderColor: '#27272a' }} />
+        </div>
+        <div className="flex items-center gap-1.5 text-[11px] text-zinc-400">
+          <span className="font-medium">Estoque</span>
+          <input type="number" inputMode="numeric" placeholder="min"
+            value={stockMin} onChange={e => setStockMin(e.target.value)}
+            className="w-16 px-2 py-1.5 rounded-md text-[12px] text-white border outline-none focus:border-cyan-500/60 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+            style={{ background: '#0a0a0c', borderColor: '#27272a' }} />
+          <span className="text-zinc-600">–</span>
+          <input type="number" inputMode="numeric" placeholder="max"
+            value={stockMax} onChange={e => setStockMax(e.target.value)}
+            className="w-16 px-2 py-1.5 rounded-md text-[12px] text-white border outline-none focus:border-cyan-500/60 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+            style={{ background: '#0a0a0c', borderColor: '#27272a' }} />
+        </div>
+        <select value={coverage} onChange={e => setCoverage(e.target.value as 'all' | 'sem' | 'parcial')}
+          className="px-2 py-1.5 rounded-md text-[12px] text-white border outline-none cursor-pointer"
+          style={{ background: '#0a0a0c', borderColor: '#27272a' }}>
+          <option value="all">Sem anúncio + parcial</option>
+          <option value="sem">Só sem anúncio nenhum</option>
+          <option value="parcial">Só cobertura parcial</option>
+        </select>
+        <select value={sort} onChange={e => setSort(e.target.value as 'stock_desc' | 'stock_asc' | 'name')}
+          className="px-2 py-1.5 rounded-md text-[12px] text-white border outline-none cursor-pointer"
+          style={{ background: '#0a0a0c', borderColor: '#27272a' }}>
+          <option value="stock_desc">Estoque ↓ (maior primeiro)</option>
+          <option value="stock_asc">Estoque ↑ (menor primeiro)</option>
+          <option value="name">Nome (A-Z)</option>
+        </select>
+        <label className="flex items-center gap-1.5 text-[11px] text-zinc-400 cursor-pointer">
+          <input type="checkbox" checked={onlyComplete} onChange={e => setOnlyComplete(e.target.checked)}
+            className="w-3.5 h-3.5 cursor-pointer accent-cyan-400" />
+          Só cadastro completo
+        </label>
+        {hasFilters && (
+          <button onClick={() => { setSearch(''); setStockMin(''); setStockMax(''); setCoverage('all'); setOnlyComplete(false) }}
+            className="text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors px-2 py-1.5">
+            Limpar filtros
+          </button>
+        )}
+      </div>
+
+      {loading ? (
+        <div className="text-center py-12 text-zinc-500">Carregando cobertura…</div>
+      ) : !data || data.sample.length === 0 ? (
+        <div className="text-center py-12 rounded-2xl" style={{ background: '#111114', border: '1px solid #27272a' }}>
+          <div className="text-5xl mb-3">{hasFilters ? '🔍' : '🎉'}</div>
+          <div className="text-lg font-semibold">
+            {hasFilters ? 'Nenhum produto com esse filtro' : 'Tudo anunciado'}
+          </div>
+          <div className="text-sm text-zinc-400 mt-1">
+            {hasFilters ? 'Ajuste os filtros acima.' : 'Todos os produtos estão anunciados em todos os destinos conectados.'}
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-2xl overflow-hidden" style={{ background: '#111114', border: '1px solid #27272a' }}>
+          <table className="w-full text-sm">
+            <thead style={{ background: '#0d0d10' }}>
+              <tr className="text-[11px] text-zinc-500 uppercase tracking-wider">
+                <th className="px-3 py-3 text-left">SKU</th>
+                <th className="px-3 py-3 text-left">Nome</th>
+                <th className="px-3 py-3 text-right w-24">Estoque</th>
+                <th className="px-3 py-3 text-left w-32">Cadastro</th>
+                <th className="px-3 py-3 text-left">Cobertura de anúncios</th>
+                <th className="px-3 py-3 text-right w-28">Ação</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.sample.map(p => {
+                const stock = p.stock ?? 0
+                const stockColor = stock === 0 ? '#71717a' : stock <= 5 ? '#facc15' : stock <= 20 ? '#a1a1aa' : '#34d399'
+                const st = COV_STATUS[p.status]
+                return (
+                  <tr key={p.id} className="border-t hover:bg-white/[0.02] transition-colors"
+                    style={{ borderColor: '#27272a' }}>
+                    <td className="px-3 py-2.5 font-mono text-[12px] text-zinc-300">{p.sku || '—'}</td>
+                    <td className="px-3 py-2.5 max-w-xs truncate">{p.name}</td>
+                    <td className="px-3 py-2.5 text-right">
+                      <span className="text-[12px] font-semibold tabular-nums" style={{ color: stockColor }}>
+                        {p.stock == null ? '—' : stock.toLocaleString('pt-BR')}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium"
+                        style={p.cadastro_completo
+                          ? { background: 'rgba(52,211,153,0.12)', color: '#34d399' }
+                          : { background: 'rgba(245,158,11,0.12)', color: '#f59e0b' }}>
+                        {p.cadastro_completo ? '✓ Completo' : 'Incompleto'}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <div className="flex flex-wrap items-center gap-1">
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold mr-1"
+                          style={{ background: st.bg, color: st.color }}>{st.label}</span>
+                        {(data.destinos).map(d => {
+                          const ok = p.covered.includes(d.key)
+                          return (
+                            <span key={d.key} title={destinoLabel(d)}
+                              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium"
+                              style={ok
+                                ? { background: 'rgba(52,211,153,0.12)', color: '#34d399' }
+                                : { background: 'rgba(248,113,113,0.1)', color: '#f87171' }}>
+                              {ok ? '✓' : '✗'} {destinoLabel(d)}
+                            </span>
+                          )
+                        })}
+                        <span title="Loja própria (informativo)"
+                          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px]"
+                          style={p.na_loja
+                            ? { background: 'rgba(52,211,153,0.12)', color: '#34d399' }
+                            : { background: '#1a1a1f', color: '#52525b' }}>
+                          {p.na_loja ? '✓' : '·'} Loja
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-3 py-2.5 text-right">
+                      <Link href={`/dashboard/produtos/${p.id}/editar`}
+                        className="text-[11px] text-cyan-400 hover:text-cyan-300">
+                        Abrir →
+                      </Link>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+          <div className="px-4 py-3 text-center text-xs text-zinc-500" style={{ borderTop: '1px solid #27272a' }}>
+            Exibindo {data.sample.length} de {data.summary.sem_anuncio + data.summary.parcial} produto(s) sem cobertura total
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
+function CovCard({ label, value, color, hint }: { label: string; value: number; color: string; hint?: string }) {
+  return (
+    <div className="p-4 rounded-xl" style={{ background: '#111114', border: '1px solid #27272a' }}>
+      <div className="text-[10px] text-zinc-500 uppercase tracking-wider">{label}</div>
+      <div className="text-2xl font-bold mt-1" style={{ color }}>{value.toLocaleString('pt-BR')}</div>
+      {hint && <div className="text-[10px] text-zinc-600 mt-0.5">{hint}</div>}
     </div>
   )
 }
