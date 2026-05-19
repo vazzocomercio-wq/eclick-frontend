@@ -3,6 +3,7 @@
 import { Suspense, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 
 function EyeIcon({ open }: { open: boolean }) {
@@ -33,6 +34,7 @@ function GoogleIcon() {
 }
 
 function LoginContent() {
+  const t = useTranslations('auth')
   const router = useRouter()
   const searchParams = useSearchParams()
   const urlError = searchParams.get('error')
@@ -53,7 +55,7 @@ function LoginContent() {
     const { error } = await supabase.auth.signInWithPassword({ email, password })
 
     if (error) {
-      setError('Email ou senha incorretos. Tente novamente.')
+      setError(t('errors.invalidCredentials'))
       setLoading(false)
       return
     }
@@ -82,7 +84,7 @@ function LoginContent() {
 
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
-          <img src="/logo.png" alt="e-Click Inteligência Comercial" style={{ width: '220px', marginBottom: '8px', mixBlendMode: 'screen' as const }} />
+          <img src="/logo.png" alt={t('logoAlt')} style={{ width: '220px', marginBottom: '8px', mixBlendMode: 'screen' as const }} />
         </div>
 
         {/* Card */}
@@ -91,8 +93,8 @@ function LoginContent() {
           style={{ background: '#111113' }}
         >
           <div className="mb-6">
-            <h1 className="text-white text-2xl font-semibold">Bem-vindo de volta</h1>
-            <p className="text-zinc-400 text-sm mt-1">Entre na sua conta para continuar</p>
+            <h1 className="text-white text-2xl font-semibold">{t('login.title')}</h1>
+            <p className="text-zinc-400 text-sm mt-1">{t('login.subtitle')}</p>
           </div>
 
           {error && (
@@ -104,13 +106,13 @@ function LoginContent() {
           <form onSubmit={handleEmailLogin} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-zinc-300 mb-1.5">
-                Email
+                {t('emailLabel')}
               </label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="seu@email.com"
+                placeholder={t('emailPlaceholder')}
                 required
                 autoComplete="email"
                 className="w-full px-3.5 py-2.5 rounded-lg text-white text-sm placeholder-zinc-600 border border-zinc-700 outline-none transition-all"
@@ -122,9 +124,9 @@ function LoginContent() {
 
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="text-sm font-medium text-zinc-300">Senha</label>
+                <label className="text-sm font-medium text-zinc-300">{t('passwordLabel')}</label>
                 <Link href="/forgot-password" className="text-xs font-medium" style={{ color: '#00E5FF' }}>
-                  Esqueceu a senha?
+                  {t('login.forgotPasswordLink')}
                 </Link>
               </div>
               <div className="relative">
@@ -157,13 +159,13 @@ function LoginContent() {
               className="w-full py-2.5 rounded-lg text-black font-semibold text-sm transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
               style={{ background: '#00E5FF', marginTop: '8px' }}
             >
-              {loading ? 'Entrando...' : 'Entrar'}
+              {loading ? t('login.submitting') : t('login.submit')}
             </button>
           </form>
 
           <div className="flex items-center gap-3 my-5">
             <div className="flex-1 h-px bg-zinc-800" />
-            <span className="text-zinc-500 text-xs">ou continue com</span>
+            <span className="text-zinc-500 text-xs">{t('login.orContinueWith')}</span>
             <div className="flex-1 h-px bg-zinc-800" />
           </div>
 
@@ -174,13 +176,13 @@ function LoginContent() {
             style={{ background: 'transparent' }}
           >
             <GoogleIcon />
-            {googleLoading ? 'Redirecionando...' : 'Entrar com Google'}
+            {googleLoading ? t('login.googleRedirecting') : t('login.googleSubmit')}
           </button>
 
           <p className="text-center text-sm text-zinc-400 mt-6">
-            Não tem uma conta?{' '}
+            {t('login.noAccount')}{' '}
             <Link href="/register" className="font-semibold hover:underline" style={{ color: '#00E5FF' }}>
-              Cadastre-se grátis
+              {t('login.registerLink')}
             </Link>
           </p>
         </div>

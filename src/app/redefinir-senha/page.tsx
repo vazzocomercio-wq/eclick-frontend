@@ -10,6 +10,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 
 function EyeIcon({ open }: { open: boolean }) {
@@ -28,6 +29,7 @@ function EyeIcon({ open }: { open: boolean }) {
 type Phase = 'verifying' | 'ready' | 'invalid'
 
 export default function RedefinirSenhaPage() {
+  const t = useTranslations('auth')
   const router = useRouter()
   const [phase, setPhase]       = useState<Phase>('verifying')
   const [password, setPassword] = useState('')
@@ -73,11 +75,11 @@ export default function RedefinirSenhaPage() {
     e.preventDefault()
     setError(null)
     if (password.length < 8) {
-      setError('A senha precisa ter pelo menos 8 caracteres.')
+      setError(t('errors.passwordTooShort8'))
       return
     }
     if (password !== confirm) {
-      setError('As senhas não conferem.')
+      setError(t('errors.passwordsMismatch'))
       return
     }
     setLoading(true)
@@ -85,7 +87,7 @@ export default function RedefinirSenhaPage() {
     const { error } = await supabase.auth.updateUser({ password })
     setLoading(false)
     if (error) {
-      setError('Não foi possível redefinir. O link pode ter expirado — peça um novo.')
+      setError(t('errors.resetFailed'))
       return
     }
     setDone(true)
@@ -100,36 +102,36 @@ export default function RedefinirSenhaPage() {
       <div className="w-full max-w-md">
         <div className="flex flex-col items-center mb-8">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.png" alt="e-Click Inteligência Comercial"
+          <img src="/logo.png" alt={t('logoAlt')}
             style={{ width: '220px', marginBottom: '8px', mixBlendMode: 'screen' as const }} />
         </div>
 
         <div className="rounded-2xl border border-zinc-800 p-8" style={{ background: '#111113' }}>
           {done ? (
             <div className="text-center space-y-3">
-              <h1 className="text-white text-2xl font-semibold">Senha redefinida</h1>
-              <p className="text-zinc-400 text-sm">Tudo certo — redirecionando você para o painel…</p>
+              <h1 className="text-white text-2xl font-semibold">{t('reset.doneTitle')}</h1>
+              <p className="text-zinc-400 text-sm">{t('reset.doneMessage')}</p>
             </div>
           ) : phase === 'verifying' ? (
             <div className="text-center space-y-3 py-4">
-              <h1 className="text-white text-2xl font-semibold">Validando o link…</h1>
-              <p className="text-zinc-400 text-sm">Um instante.</p>
+              <h1 className="text-white text-2xl font-semibold">{t('reset.verifyingTitle')}</h1>
+              <p className="text-zinc-400 text-sm">{t('reset.verifyingMessage')}</p>
             </div>
           ) : phase === 'invalid' ? (
             <div className="text-center space-y-3">
-              <h1 className="text-white text-2xl font-semibold">Link inválido ou expirado</h1>
+              <h1 className="text-white text-2xl font-semibold">{t('reset.invalidTitle')}</h1>
               <p className="text-zinc-400 text-sm">
-                Este link de redefinição não é mais válido. Peça um novo na tela de acesso.
+                {t('reset.invalidMessage')}
               </p>
               <Link href="/forgot-password" className="inline-block mt-2 text-sm font-semibold" style={{ color: '#00E5FF' }}>
-                Pedir novo link
+                {t('reset.requestNewLink')}
               </Link>
             </div>
           ) : (
             <>
               <div className="mb-6">
-                <h1 className="text-white text-2xl font-semibold">Criar nova senha</h1>
-                <p className="text-zinc-400 text-sm mt-1">Escolha uma senha com pelo menos 8 caracteres.</p>
+                <h1 className="text-white text-2xl font-semibold">{t('reset.title')}</h1>
+                <p className="text-zinc-400 text-sm mt-1">{t('reset.subtitle')}</p>
               </div>
 
               {error && (
@@ -141,7 +143,7 @@ export default function RedefinirSenhaPage() {
 
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-zinc-300 mb-1.5">Nova senha</label>
+                  <label className="block text-sm font-medium text-zinc-300 mb-1.5">{t('reset.newPasswordLabel')}</label>
                   <div className="relative">
                     <input
                       type={show ? 'text' : 'password'}
@@ -167,7 +169,7 @@ export default function RedefinirSenhaPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-zinc-300 mb-1.5">Confirmar nova senha</label>
+                  <label className="block text-sm font-medium text-zinc-300 mb-1.5">{t('reset.confirmNewPasswordLabel')}</label>
                   <input
                     type={show ? 'text' : 'password'}
                     value={confirm}
@@ -188,13 +190,13 @@ export default function RedefinirSenhaPage() {
                   className="w-full py-2.5 rounded-lg text-black font-semibold text-sm transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
                   style={{ background: '#00E5FF', marginTop: '8px' }}
                 >
-                  {loading ? 'Salvando...' : 'Redefinir senha'}
+                  {loading ? t('reset.submitting') : t('reset.submit')}
                 </button>
               </form>
 
               <p className="text-center text-sm text-zinc-400 mt-6">
                 <Link href="/login" className="font-semibold hover:underline" style={{ color: '#00E5FF' }}>
-                  Voltar para o login
+                  {t('reset.backToLogin')}
                 </Link>
               </p>
             </>

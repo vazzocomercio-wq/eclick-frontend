@@ -8,9 +8,11 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 
 export default function ForgotPasswordPage() {
+  const t = useTranslations('auth')
   const [email, setEmail]     = useState('')
   const [loading, setLoading] = useState(false)
   const [sent, setSent]       = useState(false)
@@ -26,7 +28,7 @@ export default function ForgotPasswordPage() {
     })
     setLoading(false)
     if (error) {
-      setError('Não foi possível enviar o e-mail agora. Tente novamente.')
+      setError(t('errors.resetEmailFailed'))
       return
     }
     setSent(true)
@@ -40,28 +42,30 @@ export default function ForgotPasswordPage() {
       <div className="w-full max-w-md">
         <div className="flex flex-col items-center mb-8">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.png" alt="e-Click Inteligência Comercial"
+          <img src="/logo.png" alt={t('logoAlt')}
             style={{ width: '220px', marginBottom: '8px', mixBlendMode: 'screen' as const }} />
         </div>
 
         <div className="rounded-2xl border border-zinc-800 p-8" style={{ background: '#111113' }}>
           {sent ? (
             <div className="text-center space-y-3">
-              <h1 className="text-white text-2xl font-semibold">Verifique seu e-mail</h1>
+              <h1 className="text-white text-2xl font-semibold">{t('forgot.sentTitle')}</h1>
               <p className="text-zinc-400 text-sm">
-                Se houver uma conta para <span className="text-zinc-200">{email}</span>,
-                enviamos um link pra redefinir a senha. Confira também o spam.
+                {t.rich('forgot.sentMessage', {
+                  email,
+                  highlight: (chunks) => <span className="text-zinc-200">{chunks}</span>,
+                })}
               </p>
               <Link href="/login" className="inline-block mt-2 text-sm font-semibold" style={{ color: '#00E5FF' }}>
-                Voltar para o login
+                {t('forgot.backToLogin')}
               </Link>
             </div>
           ) : (
             <>
               <div className="mb-6">
-                <h1 className="text-white text-2xl font-semibold">Esqueceu a senha?</h1>
+                <h1 className="text-white text-2xl font-semibold">{t('forgot.title')}</h1>
                 <p className="text-zinc-400 text-sm mt-1">
-                  Informe seu e-mail e enviamos um link pra criar uma nova senha.
+                  {t('forgot.subtitle')}
                 </p>
               </div>
 
@@ -74,12 +78,12 @@ export default function ForgotPasswordPage() {
 
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-zinc-300 mb-1.5">Email</label>
+                  <label className="block text-sm font-medium text-zinc-300 mb-1.5">{t('emailLabel')}</label>
                   <input
                     type="email"
                     value={email}
                     onChange={e => setEmail(e.target.value)}
-                    placeholder="seu@email.com"
+                    placeholder={t('emailPlaceholder')}
                     required
                     autoComplete="email"
                     className="w-full px-3.5 py-2.5 rounded-lg text-white text-sm placeholder-zinc-600 border border-zinc-700 outline-none transition-all"
@@ -95,14 +99,14 @@ export default function ForgotPasswordPage() {
                   className="w-full py-2.5 rounded-lg text-black font-semibold text-sm transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
                   style={{ background: '#00E5FF', marginTop: '8px' }}
                 >
-                  {loading ? 'Enviando...' : 'Enviar link de redefinição'}
+                  {loading ? t('forgot.submitting') : t('forgot.submit')}
                 </button>
               </form>
 
               <p className="text-center text-sm text-zinc-400 mt-6">
-                Lembrou a senha?{' '}
+                {t('forgot.rememberedPassword')}{' '}
                 <Link href="/login" className="font-semibold hover:underline" style={{ color: '#00E5FF' }}>
-                  Voltar para o login
+                  {t('forgot.backToLogin')}
                 </Link>
               </p>
             </>

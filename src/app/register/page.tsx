@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 
 function EyeIcon({ open }: { open: boolean }) {
@@ -22,6 +23,7 @@ function EyeIcon({ open }: { open: boolean }) {
 }
 
 export default function RegisterPage() {
+  const t = useTranslations('auth')
   const router = useRouter()
 
   const [name, setName] = useState('')
@@ -48,12 +50,12 @@ export default function RegisterPage() {
     setError(null)
 
     if (password.length < 6) {
-      setError('A senha deve ter pelo menos 6 caracteres.')
+      setError(t('errors.passwordTooShort6'))
       return
     }
 
     if (password !== confirmPassword) {
-      setError('As senhas não coincidem.')
+      setError(t('errors.passwordsMismatch'))
       return
     }
 
@@ -71,14 +73,14 @@ export default function RegisterPage() {
 
     if (error) {
       setError(error.message === 'User already registered'
-        ? 'Este email já está cadastrado. Faça login.'
-        : 'Erro ao criar conta. Tente novamente.')
+        ? t('errors.emailAlreadyRegistered')
+        : t('errors.registerFailed'))
       setLoading(false)
       return
     }
 
     if (data.user && !data.session) {
-      setSuccess('Conta criada! Verifique seu email para confirmar o cadastro.')
+      setSuccess(t('register.successMessage'))
       setLoading(false)
       return
     }
@@ -95,7 +97,7 @@ export default function RegisterPage() {
       >
         <div className="w-full max-w-md">
           <div className="flex flex-col items-center mb-8">
-            <img src="/logo.png" alt="e-Click Inteligência Comercial" style={{ width: '220px', marginBottom: '8px', mixBlendMode: 'screen' as const }} />
+            <img src="/logo.png" alt={t('logoAlt')} style={{ width: '220px', marginBottom: '8px', mixBlendMode: 'screen' as const }} />
           </div>
           <div className="rounded-2xl border border-zinc-800 p-8 text-center" style={{ background: '#111113' }}>
             <div
@@ -106,14 +108,14 @@ export default function RegisterPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
               </svg>
             </div>
-            <h2 className="text-white text-xl font-semibold mb-2">Verifique seu email</h2>
+            <h2 className="text-white text-xl font-semibold mb-2">{t('register.successTitle')}</h2>
             <p className="text-zinc-400 text-sm mb-6">{success}</p>
             <Link
               href="/login"
               className="inline-block px-6 py-2.5 rounded-lg text-black text-sm font-semibold transition-all hover:opacity-90"
               style={{ background: '#00E5FF' }}
             >
-              Ir para o Login
+              {t('register.goToLogin')}
             </Link>
           </div>
         </div>
@@ -130,14 +132,14 @@ export default function RegisterPage() {
 
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
-          <img src="/logo.png" alt="e-Click Inteligência Comercial" style={{ width: '220px', marginBottom: '8px', mixBlendMode: 'screen' as const }} />
+          <img src="/logo.png" alt={t('logoAlt')} style={{ width: '220px', marginBottom: '8px', mixBlendMode: 'screen' as const }} />
         </div>
 
         {/* Card */}
         <div className="rounded-2xl border border-zinc-800 p-8" style={{ background: '#111113' }}>
           <div className="mb-6">
-            <h1 className="text-white text-2xl font-semibold">Criar conta</h1>
-            <p className="text-zinc-400 text-sm mt-1">Comece a usar a plataforma gratuitamente</p>
+            <h1 className="text-white text-2xl font-semibold">{t('register.title')}</h1>
+            <p className="text-zinc-400 text-sm mt-1">{t('register.subtitle')}</p>
           </div>
 
           {error && (
@@ -148,12 +150,12 @@ export default function RegisterPage() {
 
           <form onSubmit={handleRegister} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-zinc-300 mb-1.5">Nome completo</label>
+              <label className="block text-sm font-medium text-zinc-300 mb-1.5">{t('register.fullNameLabel')}</label>
               <input
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Seu nome"
+                placeholder={t('register.fullNamePlaceholder')}
                 required
                 autoComplete="name"
                 className="w-full px-3.5 py-2.5 rounded-lg text-white text-sm placeholder-zinc-600 border border-zinc-700 outline-none transition-all"
@@ -164,12 +166,12 @@ export default function RegisterPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-zinc-300 mb-1.5">Email</label>
+              <label className="block text-sm font-medium text-zinc-300 mb-1.5">{t('emailLabel')}</label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="seu@email.com"
+                placeholder={t('emailPlaceholder')}
                 required
                 autoComplete="email"
                 className="w-full px-3.5 py-2.5 rounded-lg text-white text-sm placeholder-zinc-600 border border-zinc-700 outline-none transition-all"
@@ -180,13 +182,13 @@ export default function RegisterPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-zinc-300 mb-1.5">Senha</label>
+              <label className="block text-sm font-medium text-zinc-300 mb-1.5">{t('passwordLabel')}</label>
               <div className="relative">
                 <input
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Mínimo 6 caracteres"
+                  placeholder={t('register.passwordPlaceholder')}
                   required
                   autoComplete="new-password"
                   className="w-full px-3.5 py-2.5 pr-10 rounded-lg text-white text-sm placeholder-zinc-600 border border-zinc-700 outline-none transition-all"
@@ -206,13 +208,13 @@ export default function RegisterPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-zinc-300 mb-1.5">Confirmar senha</label>
+              <label className="block text-sm font-medium text-zinc-300 mb-1.5">{t('register.confirmPasswordLabel')}</label>
               <div className="relative">
                 <input
                   type={showConfirm ? 'text' : 'password'}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Repita a senha"
+                  placeholder={t('register.confirmPasswordPlaceholder')}
                   required
                   autoComplete="new-password"
                   className="w-full px-3.5 py-2.5 pr-10 rounded-lg text-white text-sm placeholder-zinc-600 border border-zinc-700 outline-none transition-all"
@@ -237,14 +239,14 @@ export default function RegisterPage() {
               className="glow-rainbow w-full py-2.5 rounded-lg text-black font-semibold text-sm transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
               style={{ background: '#00E5FF', marginTop: '8px' }}
             >
-              {loading ? 'Criando conta...' : 'Criar conta grátis'}
+              {loading ? t('register.submitting') : t('register.submit')}
             </button>
           </form>
 
           <p className="text-center text-sm text-zinc-400 mt-6">
-            Já tem uma conta?{' '}
+            {t('register.hasAccount')}{' '}
             <Link href="/login" className="font-semibold hover:underline" style={{ color: '#00E5FF' }}>
-              Fazer login
+              {t('register.loginLink')}
             </Link>
           </p>
         </div>

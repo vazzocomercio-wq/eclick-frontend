@@ -4,6 +4,7 @@ import React from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState, useEffect, useRef } from 'react'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import {
   Home, Radio, BarChart3, Package, ShoppingBag, MessageCircle,
@@ -24,10 +25,10 @@ const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 type BadgeKey = 'atendimento-perguntas' | 'atendimento-reclamacoes' | 'vinculos' | 'compras-criticos' | 'pricing-critical'
 type Badges = Partial<Record<BadgeKey, number>>
 
-type SubItem = { label: string; href: string }
+type SubItem = { labelKey: string; href: string }
 
 type NavChild = {
-  label: string
+  labelKey: string
   href: string
   soon?: boolean
   badgeKey?: BadgeKey
@@ -35,7 +36,7 @@ type NavChild = {
 }
 
 type NavItem = {
-  label: string
+  labelKey: string
   href: string
   icon: React.ReactNode
   soon?: boolean
@@ -48,7 +49,7 @@ type NavItem = {
 
 type NavSection = {
   key: string
-  label: string
+  labelKey: string
   items: NavItem[]
 }
 
@@ -57,281 +58,281 @@ type NavSection = {
 const SECTIONS: NavSection[] = [
   {
     key: 'visaogeral',
-    label: 'VISÃO GERAL',
+    labelKey: 'sections.visaogeral',
     items: [
-      { label: 'Dashboard',           href: '/dashboard',               icon: <Home size={15} />,      exact: true },
+      { labelKey: 'items.dashboard',          href: '/dashboard',               icon: <Home size={15} />,      exact: true },
       {
-        label: 'Executive Dashboard', href: '/dashboard/executive',     icon: <LineChart size={15} />,
+        labelKey: 'items.executiveDashboard', href: '/dashboard/executive',     icon: <LineChart size={15} />,
         children: [
-          { label: 'Visão geral',  href: '/dashboard/executive' },
-          { label: 'Reputação ML', href: '/dashboard/executive/reputation' },
-          { label: 'Logística',    href: '/dashboard/executive/logistics' },
-          { label: 'Visitas + conversão', href: '/dashboard/executive/visits' },
-          { label: 'Ads (visibility)',    href: '/dashboard/executive/ads' },
+          { labelKey: 'items.executiveOverview', href: '/dashboard/executive' },
+          { labelKey: 'items.executiveReputation', href: '/dashboard/executive/reputation' },
+          { labelKey: 'items.executiveLogistics',  href: '/dashboard/executive/logistics' },
+          { labelKey: 'items.executiveVisits',     href: '/dashboard/executive/visits' },
+          { labelKey: 'items.executiveAds',        href: '/dashboard/executive/ads' },
         ],
       },
-      { label: 'Vendas ao Vivo',      href: '/dashboard/vendas-ao-vivo', icon: <Radio size={15} /> },
+      { labelKey: 'items.vendasAoVivo',       href: '/dashboard/vendas-ao-vivo', icon: <Radio size={15} /> },
     ],
   },
   {
     key: 'active',
-    label: 'ACTIVE',
+    labelKey: 'sections.active',
     items: [
-      { label: 'Abrir o Active', href: 'https://active.eclick.app.br', icon: <MessageCircle size={15} />, external: true },
+      { labelKey: 'items.abrirActive', href: 'https://active.eclick.app.br', icon: <MessageCircle size={15} />, external: true },
     ],
   },
   {
     key: 'marketplace',
-    label: 'MARKETPLACE',
+    labelKey: 'sections.marketplace',
     items: [
       {
-        label: 'Comercial', href: '/dashboard/comercial', icon: <BarChart3 size={15} />,
+        labelKey: 'items.comercial', href: '/dashboard/comercial', icon: <BarChart3 size={15} />,
         children: [
-          { label: 'Vendas', href: '/dashboard/vendas' },
-          { label: 'Metas',  href: '/dashboard/metas' },
-          { label: 'Canais', href: '/dashboard/canais' },
+          { labelKey: 'items.vendas', href: '/dashboard/vendas' },
+          { labelKey: 'items.metas',  href: '/dashboard/metas' },
+          { labelKey: 'items.canais', href: '/dashboard/canais' },
         ],
       },
       {
-        label: 'Catálogo', href: '/dashboard/catalogo', icon: <Package size={15} />,
+        labelKey: 'items.catalogo', href: '/dashboard/catalogo', icon: <Package size={15} />,
         children: [
           {
-            label: 'Produtos', href: '/dashboard/produtos',
+            labelKey: 'items.produtos', href: '/dashboard/produtos',
             subItems: [
-              { label: 'Lista',                       href: '/dashboard/produtos' },
-              { label: 'Operação de Cadastro',        href: '/dashboard/produtos/operacao-cadastro' },
-              { label: 'IA: Enriquecimento em massa', href: '/dashboard/produtos/ai-bulk' },
-              { label: 'IA: Recomendações',           href: '/dashboard/produtos/recomendacoes-ia' },
+              { labelKey: 'items.produtosLista',          href: '/dashboard/produtos' },
+              { labelKey: 'items.produtosOperacao',       href: '/dashboard/produtos/operacao-cadastro' },
+              { labelKey: 'items.produtosAiBulk',         href: '/dashboard/produtos/ai-bulk' },
+              { labelKey: 'items.produtosRecomendacoes',  href: '/dashboard/produtos/recomendacoes-ia' },
             ],
           },
           {
-            label: 'Anúncios', href: '/dashboard/catalogo/anuncios',
+            labelKey: 'items.anuncios', href: '/dashboard/catalogo/anuncios',
             subItems: [
-              { label: 'Mercado Livre', href: '/dashboard/catalogo/anuncios/mercadolivre' },
-              { label: 'Shopee',        href: '/dashboard/catalogo/anuncios/shopee' },
-              { label: 'Amazon',        href: '/dashboard/catalogo/anuncios/amazon' },
-              { label: 'Magalu',        href: '/dashboard/catalogo/anuncios/magalu' },
+              { labelKey: 'items.anunciosMercadoLivre', href: '/dashboard/catalogo/anuncios/mercadolivre' },
+              { labelKey: 'items.anunciosShopee',       href: '/dashboard/catalogo/anuncios/shopee' },
+              { labelKey: 'items.anunciosAmazon',       href: '/dashboard/catalogo/anuncios/amazon' },
+              { labelKey: 'items.anunciosMagalu',       href: '/dashboard/catalogo/anuncios/magalu' },
             ],
           },
-          { label: 'Vínculos',     href: '/dashboard/catalogo/vinculos',  badgeKey: 'vinculos' as BadgeKey },
+          { labelKey: 'items.vinculos',  href: '/dashboard/catalogo/vinculos',  badgeKey: 'vinculos' as BadgeKey },
           {
-            label: 'Estoque', href: '/dashboard/catalogo/estoque',
+            labelKey: 'items.estoque', href: '/dashboard/catalogo/estoque',
             subItems: [
-              { label: 'Visão Geral',           href: '/dashboard/catalogo/estoque' },
-              { label: 'Distribuição por Canal', href: '/dashboard/catalogo/vinculos' },
-              { label: 'Sincronizações',         href: '/dashboard/catalogo/estoque/sincronizacoes' },
+              { labelKey: 'items.estoqueVisaoGeral',    href: '/dashboard/catalogo/estoque' },
+              { labelKey: 'items.estoqueDistribuicao',  href: '/dashboard/catalogo/vinculos' },
+              { labelKey: 'items.estoqueSincronizacoes', href: '/dashboard/catalogo/estoque/sincronizacoes' },
             ],
           },
-          { label: 'Radar',        href: '/dashboard/radar' },
-          { label: 'Preços',       href: '/dashboard/precos' },
+          { labelKey: 'items.radar',        href: '/dashboard/radar' },
+          { labelKey: 'items.precos',       href: '/dashboard/precos' },
         ],
       },
       {
-        label: 'Precificação', href: '/dashboard/pricing/analise', icon: <TrendingDown size={15} />,
+        labelKey: 'items.precificacao', href: '/dashboard/pricing/analise', icon: <TrendingDown size={15} />,
         children: [
-          { label: 'Configuração', href: '/dashboard/pricing/configuracao' },
-          { label: 'Análise',      href: '/dashboard/pricing/analise',  badgeKey: 'pricing-critical' as BadgeKey },
-          { label: 'Chat IA',      href: '/dashboard/pricing/chat' },
+          { labelKey: 'items.precificacaoConfig',  href: '/dashboard/pricing/configuracao' },
+          { labelKey: 'items.precificacaoAnalise', href: '/dashboard/pricing/analise',  badgeKey: 'pricing-critical' as BadgeKey },
+          { labelKey: 'items.precificacaoChat',    href: '/dashboard/pricing/chat' },
         ],
       },
       {
-        label: 'Quality Center IA', href: '/dashboard/ml-quality', icon: <Shield size={15} />,
+        labelKey: 'items.qualityCenter', href: '/dashboard/ml-quality', icon: <Shield size={15} />,
         children: [
-          { label: 'Diagnóstico',  href: '/dashboard/ml-quality' },
-          { label: 'Anúncios',     href: '/dashboard/ml-quality/items' },
-          { label: 'Quick wins',   href: '/dashboard/ml-quality/quick-wins' },
-          { label: 'Penalizados',  href: '/dashboard/ml-quality/penalties' },
+          { labelKey: 'items.qualityDiagnostico', href: '/dashboard/ml-quality' },
+          { labelKey: 'items.qualityAnuncios',    href: '/dashboard/ml-quality/items' },
+          { labelKey: 'items.qualityQuickWins',   href: '/dashboard/ml-quality/quick-wins' },
+          { labelKey: 'items.qualityPenalizados', href: '/dashboard/ml-quality/penalties' },
         ],
       },
       {
-        label: 'Campaign Center IA', href: '/dashboard/ml-campaigns', icon: <Megaphone size={15} />,
+        labelKey: 'items.campaignCenter', href: '/dashboard/ml-campaigns', icon: <Megaphone size={15} />,
         children: [
-          { label: 'Dashboard',         href: '/dashboard/ml-campaigns' },
-          { label: 'Campanhas',         href: '/dashboard/ml-campaigns/list' },
-          { label: 'Recomendações IA',  href: '/dashboard/ml-campaigns/recommendations' },
-          { label: 'Fila do gestor',    href: '/dashboard/ml-campaigns/manager-queue' },
-          { label: 'Alertas WhatsApp',  href: '/dashboard/ml-campaigns/alerts' },
-          { label: 'Aplicar em lote',   href: '/dashboard/ml-campaigns/apply' },
-          { label: 'Encerrando',        href: '/dashboard/ml-campaigns/deadlines' },
-          { label: 'Health check',      href: '/dashboard/ml-campaigns/health' },
-          { label: 'Analytics',         href: '/dashboard/ml-campaigns/analytics' },
-          { label: 'Auditoria',         href: '/dashboard/ml-campaigns/audit' },
-          { label: 'Configuração',      href: '/dashboard/ml-campaigns/config' },
+          { labelKey: 'items.campaignDashboard',        href: '/dashboard/ml-campaigns' },
+          { labelKey: 'items.campaignList',             href: '/dashboard/ml-campaigns/list' },
+          { labelKey: 'items.campaignRecommendations',  href: '/dashboard/ml-campaigns/recommendations' },
+          { labelKey: 'items.campaignManagerQueue',     href: '/dashboard/ml-campaigns/manager-queue' },
+          { labelKey: 'items.campaignAlerts',           href: '/dashboard/ml-campaigns/alerts' },
+          { labelKey: 'items.campaignApply',            href: '/dashboard/ml-campaigns/apply' },
+          { labelKey: 'items.campaignDeadlines',        href: '/dashboard/ml-campaigns/deadlines' },
+          { labelKey: 'items.campaignHealth',           href: '/dashboard/ml-campaigns/health' },
+          { labelKey: 'items.campaignAnalytics',        href: '/dashboard/ml-campaigns/analytics' },
+          { labelKey: 'items.campaignAudit',            href: '/dashboard/ml-campaigns/audit' },
+          { labelKey: 'items.campaignConfig',           href: '/dashboard/ml-campaigns/config' },
         ],
       },
       {
-        label: 'Listing Center IA', href: '/dashboard/listings', icon: <CheckSquare size={15} />,
+        labelKey: 'items.listingCenter', href: '/dashboard/listings', icon: <CheckSquare size={15} />,
         children: [
-          { label: 'Tarefas',         href: '/dashboard/listings' },
-          { label: 'Sem estoque',     href: '/dashboard/listings?type=OUT_OF_STOCK' },
-          { label: 'Pausados',        href: '/dashboard/listings?type=INACTIVE_PAUSED' },
-          { label: 'Pricing IA',      href: '/dashboard/listings/pricing' },
-          { label: 'Automação preço', href: '/dashboard/listings/pricing/automation' },
-          { label: 'Perdendo Buy Box', href: '/dashboard/listings?type=LOSING_BUY_BOX' },
-          { label: 'Catálogo',        href: '/dashboard/listings?type=CATALOG_ELIGIBLE' },
-          { label: 'Fiscal (NF-e)',   href: '/dashboard/listings/fiscal' },
-          { label: 'Política & motivos', href: '/dashboard/listings/policy' },
-          { label: 'Health Score',    href: '/dashboard/listings/scores' },
-          { label: 'Ações em massa',  href: '/dashboard/listings/bulk' },
+          { labelKey: 'items.listingTarefas',     href: '/dashboard/listings' },
+          { labelKey: 'items.listingSemEstoque',  href: '/dashboard/listings?type=OUT_OF_STOCK' },
+          { labelKey: 'items.listingPausados',    href: '/dashboard/listings?type=INACTIVE_PAUSED' },
+          { labelKey: 'items.listingPricingIa',   href: '/dashboard/listings/pricing' },
+          { labelKey: 'items.listingAutomacao',   href: '/dashboard/listings/pricing/automation' },
+          { labelKey: 'items.listingBuyBox',      href: '/dashboard/listings?type=LOSING_BUY_BOX' },
+          { labelKey: 'items.listingCatalogo',    href: '/dashboard/listings?type=CATALOG_ELIGIBLE' },
+          { labelKey: 'items.listingFiscal',      href: '/dashboard/listings/fiscal' },
+          { labelKey: 'items.listingPolitica',    href: '/dashboard/listings/policy' },
+          { labelKey: 'items.listingHealthScore', href: '/dashboard/listings/scores' },
+          { labelKey: 'items.listingAcoesMassa',  href: '/dashboard/listings/bulk' },
         ],
       },
-      { label: 'Pedidos', href: '/dashboard/pedidos', icon: <ShoppingBag size={15} /> },
+      { labelKey: 'items.pedidos', href: '/dashboard/pedidos', icon: <ShoppingBag size={15} /> },
       {
-        label: 'Atendimento', href: '/dashboard/atendimento', icon: <MessageCircle size={15} />,
+        labelKey: 'items.atendimento', href: '/dashboard/atendimento', icon: <MessageCircle size={15} />,
         children: [
-          { label: 'Perguntas',   href: '/dashboard/atendimento/perguntas',   badgeKey: 'atendimento-perguntas' as BadgeKey },
-          { label: 'Pós-venda IA', href: '/dashboard/ml-postsale' },
-          { label: 'Reclamações', href: '/dashboard/atendimento/reclamacoes', badgeKey: 'atendimento-reclamacoes' as BadgeKey },
-          { label: 'Mensagens',   href: '/dashboard/atendimento/mensagens' },
+          { labelKey: 'items.atendimentoPerguntas',   href: '/dashboard/atendimento/perguntas',   badgeKey: 'atendimento-perguntas' as BadgeKey },
+          { labelKey: 'items.atendimentoPosVenda',    href: '/dashboard/ml-postsale' },
+          { labelKey: 'items.atendimentoReclamacoes', href: '/dashboard/atendimento/reclamacoes', badgeKey: 'atendimento-reclamacoes' as BadgeKey },
+          { labelKey: 'items.atendimentoMensagens',   href: '/dashboard/atendimento/mensagens' },
         ],
       },
-      { label: 'Logística',  href: '/dashboard/logistica',  icon: <Truck size={15} /> },
+      { labelKey: 'items.logistica',  href: '/dashboard/logistica',  icon: <Truck size={15} /> },
       {
-        label: 'Financeiro', href: '/dashboard/financeiro', icon: <DollarSign size={15} />,
+        labelKey: 'items.financeiro', href: '/dashboard/financeiro', icon: <DollarSign size={15} />,
         children: [
-          { label: 'Resumo Financeiro', href: '/dashboard/financeiro/resumo' },
-          { label: 'Contas a Pagar',   href: '/dashboard/financeiro/contas-a-pagar' },
-          { label: 'Fluxo de Caixa',   href: '/dashboard/financeiro/fluxo' },
-          { label: 'DRE',              href: '/dashboard/financeiro/dre' },
+          { labelKey: 'items.financeiroResumo',      href: '/dashboard/financeiro/resumo' },
+          { labelKey: 'items.financeiroContasPagar', href: '/dashboard/financeiro/contas-a-pagar' },
+          { labelKey: 'items.financeiroFluxo',       href: '/dashboard/financeiro/fluxo' },
+          { labelKey: 'items.financeiroDre',         href: '/dashboard/financeiro/dre' },
         ],
       },
     ],
   },
   {
     key: 'compras',
-    label: 'COMPRAS',
+    labelKey: 'sections.compras',
     items: [
-      { label: 'Inteligência', href: '/dashboard/compras/inteligencia', icon: <Brain size={15} />,    badgeKey: 'compras-criticos' as BadgeKey },
-      { label: 'Fornecedores', href: '/dashboard/compras/fornecedores', icon: <Building2 size={15} /> },
-      { label: 'Importações',  href: '/dashboard/compras/importacoes',  icon: <Ship size={15} /> },
+      { labelKey: 'items.comprasInteligencia', href: '/dashboard/compras/inteligencia', icon: <Brain size={15} />,    badgeKey: 'compras-criticos' as BadgeKey },
+      { labelKey: 'items.comprasFornecedores', href: '/dashboard/compras/fornecedores', icon: <Building2 size={15} /> },
+      { labelKey: 'items.comprasImportacoes',  href: '/dashboard/compras/importacoes',  icon: <Ship size={15} /> },
     ],
   },
   {
     key: 'dropship',
-    label: 'DROPSHIP',
+    labelKey: 'sections.dropship',
     items: [
-      { label: 'Visão Geral',    href: '/dashboard/dropship',                   icon: <Truck size={15} /> },
-      { label: 'Parceiros',      href: '/dashboard/dropship/partners',          icon: <Building2 size={15} /> },
-      { label: 'Pedidos',        href: '/dashboard/dropship/orders',            icon: <ShoppingCart size={15} /> },
-      { label: 'Vendas Hoje',    href: '/dashboard/dropship/orders/today',      icon: <Calendar size={15} /> },
-      { label: 'OCs',            href: '/dashboard/dropship/oc',                icon: <FileText size={15} /> },
-      { label: 'Prévia OC',      href: '/dashboard/dropship/oc/preview',        icon: <Eye size={15} /> },
-      { label: 'Devoluções',     href: '/dashboard/dropship/returns',           icon: <RotateCcw size={15} /> },
-      { label: 'Créditos',       href: '/dashboard/dropship/credits',           icon: <CreditCard size={15} /> },
-      { label: 'Disputas',       href: '/dashboard/dropship/disputes',          icon: <Scale size={15} /> },
-      { label: 'Scores',         href: '/dashboard/dropship/scores',            icon: <Trophy size={15} /> },
-      { label: 'Divergências',   href: '/dashboard/dropship/divergences',       icon: <AlertTriangleIcon size={15} /> },
-      { label: 'Copiloto IA',    href: '/dashboard/dropship/copilot',           icon: <SparklesIcon size={15} /> },
-      { label: 'Vínculo Contas', href: '/dashboard/dropship/account-suppliers', icon: <Link2 size={15} /> },
+      { labelKey: 'items.dropshipVisaoGeral',  href: '/dashboard/dropship',                   icon: <Truck size={15} /> },
+      { labelKey: 'items.dropshipParceiros',   href: '/dashboard/dropship/partners',          icon: <Building2 size={15} /> },
+      { labelKey: 'items.dropshipPedidos',     href: '/dashboard/dropship/orders',            icon: <ShoppingCart size={15} /> },
+      { labelKey: 'items.dropshipVendasHoje',  href: '/dashboard/dropship/orders/today',      icon: <Calendar size={15} /> },
+      { labelKey: 'items.dropshipOcs',         href: '/dashboard/dropship/oc',                icon: <FileText size={15} /> },
+      { labelKey: 'items.dropshipPreviaOc',    href: '/dashboard/dropship/oc/preview',        icon: <Eye size={15} /> },
+      { labelKey: 'items.dropshipDevolucoes',  href: '/dashboard/dropship/returns',           icon: <RotateCcw size={15} /> },
+      { labelKey: 'items.dropshipCreditos',    href: '/dashboard/dropship/credits',           icon: <CreditCard size={15} /> },
+      { labelKey: 'items.dropshipDisputas',    href: '/dashboard/dropship/disputes',          icon: <Scale size={15} /> },
+      { labelKey: 'items.dropshipScores',      href: '/dashboard/dropship/scores',            icon: <Trophy size={15} /> },
+      { labelKey: 'items.dropshipDivergencias', href: '/dashboard/dropship/divergences',      icon: <AlertTriangleIcon size={15} /> },
+      { labelKey: 'items.dropshipCopiloto',    href: '/dashboard/dropship/copilot',           icon: <SparklesIcon size={15} /> },
+      { labelKey: 'items.dropshipVinculoContas', href: '/dashboard/dropship/account-suppliers', icon: <Link2 size={15} /> },
     ],
   },
   {
     key: 'crm',
-    label: 'CRM',
+    labelKey: 'sections.crm',
     items: [
-      { label: 'Clientes',    href: '/dashboard/crm/clientes',  icon: <Users size={15} /> },
-      { label: 'Customer Hub', href: '/dashboard/crm/customer-hub', icon: <Users2 size={15} /> },
-      { label: 'Pipeline',    href: '/dashboard/crm/pipeline',  icon: <Target size={15} /> },
-      { label: 'Pós-venda',   href: '/dashboard/crm/pos-venda', icon: <Heart size={15} /> },
-      { label: 'Enriquecimento de Dados', href: '/dashboard/enriquecimento', icon: <Database size={15} /> },
-      { label: 'Mensageria',  href: '/dashboard/messaging',     icon: <MessageSquare size={15} /> },
-      { label: 'Campanhas',   href: '/dashboard/campanhas',     icon: <Megaphone size={15} /> },
-      { label: 'Comunicação', href: '/dashboard/comunicacao',   icon: <Zap size={15} /> },
-      { label: 'WhatsApp',    href: '/dashboard/crm/whatsapp',  icon: <MessageSquare size={15} />, soon: true },
+      { labelKey: 'items.crmClientes',    href: '/dashboard/crm/clientes',  icon: <Users size={15} /> },
+      { labelKey: 'items.crmCustomerHub', href: '/dashboard/crm/customer-hub', icon: <Users2 size={15} /> },
+      { labelKey: 'items.crmPipeline',    href: '/dashboard/crm/pipeline',  icon: <Target size={15} /> },
+      { labelKey: 'items.crmPosVenda',    href: '/dashboard/crm/pos-venda', icon: <Heart size={15} /> },
+      { labelKey: 'items.crmEnriquecimento', href: '/dashboard/enriquecimento', icon: <Database size={15} /> },
+      { labelKey: 'items.crmMensageria',  href: '/dashboard/messaging',     icon: <MessageSquare size={15} /> },
+      { labelKey: 'items.crmCampanhas',   href: '/dashboard/campanhas',     icon: <Megaphone size={15} /> },
+      { labelKey: 'items.crmComunicacao', href: '/dashboard/comunicacao',   icon: <Zap size={15} /> },
+      { labelKey: 'items.crmWhatsapp',    href: '/dashboard/crm/whatsapp',  icon: <MessageSquare size={15} />, soon: true },
     ],
   },
   {
     key: 'producao',
-    label: 'PRODUÇÃO',
+    labelKey: 'sections.producao',
     items: [
-      { label: 'Tarefas',          href: '/dashboard/producao/tarefas',    icon: <CheckSquare size={15} /> },
-      { label: 'Conteúdo com IA',  href: '/dashboard/producao/conteudo',   icon: <Sparkles size={15} /> },
-      { label: 'Conteúdo Social',  href: '/dashboard/social',              icon: <Megaphone size={15} /> },
-      { label: 'Ads Hub (IA)',     href: '/dashboard/ads-campaigns',       icon: <Megaphone size={15} /> },
-      { label: 'Preços (IA)',      href: '/dashboard/pricing-ai',          icon: <DollarSign size={15} /> },
+      { labelKey: 'items.producaoTarefas',   href: '/dashboard/producao/tarefas',    icon: <CheckSquare size={15} /> },
+      { labelKey: 'items.producaoConteudoIa', href: '/dashboard/producao/conteudo',  icon: <Sparkles size={15} /> },
+      { labelKey: 'items.producaoConteudoSocial', href: '/dashboard/social',         icon: <Megaphone size={15} /> },
+      { labelKey: 'items.producaoAdsHub',     href: '/dashboard/ads-campaigns',       icon: <Megaphone size={15} /> },
+      { labelKey: 'items.producaoPrecosIa',   href: '/dashboard/pricing-ai',          icon: <DollarSign size={15} /> },
       {
-        label: 'IA Criativo', href: '/dashboard/creative', icon: <Wand2 size={15} />,
+        labelKey: 'items.iaCriativo', href: '/dashboard/creative', icon: <Wand2 size={15} />,
         children: [
-          { label: 'Produtos',     href: '/dashboard/creative' },
-          { label: 'Templates',    href: '/dashboard/creative/templates' },
-          { label: 'Referências',  href: '/dashboard/creative/references' },
-          { label: 'Novo anúncio', href: '/dashboard/creative/new' },
+          { labelKey: 'items.creativeProdutos',    href: '/dashboard/creative' },
+          { labelKey: 'items.creativeTemplates',   href: '/dashboard/creative/templates' },
+          { labelKey: 'items.creativeReferencias', href: '/dashboard/creative/references' },
+          { labelKey: 'items.creativeNovoAnuncio', href: '/dashboard/creative/new' },
         ],
       },
-      { label: 'Biblioteca',       href: '/dashboard/producao/biblioteca', icon: <ImageIcon size={15} /> },
+      { labelKey: 'items.producaoBiblioteca', href: '/dashboard/producao/biblioteca', icon: <ImageIcon size={15} /> },
     ],
   },
   {
     key: 'loja',
-    label: 'LOJA',
+    labelKey: 'sections.loja',
     items: [
-      { label: 'Config da Loja',   href: '/dashboard/store/config',   icon: <Store size={15} /> },
-      { label: 'Designer da Loja', href: '/dashboard/store/designer', icon: <Palette size={15} /> },
-      { label: 'Copiloto da Loja', href: '/dashboard/store-copilot',  icon: <Bot size={15} /> },
-      { label: 'Coleções',         href: '/dashboard/collections',    icon: <Layers size={15} /> },
-      { label: 'Kits & Combos',    href: '/dashboard/kits',           icon: <Package size={15} /> },
-      { label: 'Automação (IA)',   href: '/dashboard/automation',     icon: <Zap size={15} /> },
+      { labelKey: 'items.lojaConfig',    href: '/dashboard/store/config',   icon: <Store size={15} /> },
+      { labelKey: 'items.lojaDesigner',  href: '/dashboard/store/designer', icon: <Palette size={15} /> },
+      { labelKey: 'items.lojaCopiloto',  href: '/dashboard/store-copilot',  icon: <Bot size={15} /> },
+      { labelKey: 'items.lojaColecoes',  href: '/dashboard/collections',    icon: <Layers size={15} /> },
+      { labelKey: 'items.lojaKits',      href: '/dashboard/kits',           icon: <Package size={15} /> },
+      { labelKey: 'items.lojaAutomacao', href: '/dashboard/automation',     icon: <Zap size={15} /> },
       {
-        label: 'Social Shop', href: '/dashboard/social-commerce', icon: <ShoppingBag size={15} />,
+        labelKey: 'items.socialShop', href: '/dashboard/social-commerce', icon: <ShoppingBag size={15} />,
         children: [
-          { label: 'Instagram / Facebook', href: '/dashboard/social-commerce/instagram' },
+          { labelKey: 'items.socialShopInstagram', href: '/dashboard/social-commerce/instagram' },
         ],
       },
     ],
   },
   {
     key: 'atendente-ia',
-    label: 'ATENDENTE IA',
+    labelKey: 'sections.atendenteIa',
     items: [
-      { label: 'Agentes',          href: '/dashboard/atendente-ia/agentes',       icon: <Bot size={15} /> },
-      { label: 'Conversas',        href: '/dashboard/atendente-ia/conversas',     icon: <Inbox size={15} /> },
-      { label: 'Conhecimento',     href: '/dashboard/atendente-ia/conhecimento',  icon: <BookOpen size={15} /> },
-      { label: 'Treinamento',      href: '/dashboard/atendente-ia/treinamento',   icon: <GraduationCap size={15} /> },
-      { label: 'Analytics',        href: '/dashboard/atendente-ia/analytics',     icon: <LineChart size={15} /> },
-      { label: 'Widget',           href: '/dashboard/atendente-ia/widget',        icon: <MessageSquare size={15} /> },
-      { label: 'Clientes',         href: '/dashboard/atendente-ia/clientes',      icon: <Users size={15} /> },
-      { label: 'Configurações',    href: '/dashboard/atendente-ia/configuracoes', icon: <Settings size={15} /> },
+      { labelKey: 'items.atendenteAgentes',       href: '/dashboard/atendente-ia/agentes',       icon: <Bot size={15} /> },
+      { labelKey: 'items.atendenteConversas',     href: '/dashboard/atendente-ia/conversas',     icon: <Inbox size={15} /> },
+      { labelKey: 'items.atendenteConhecimento',  href: '/dashboard/atendente-ia/conhecimento',  icon: <BookOpen size={15} /> },
+      { labelKey: 'items.atendenteTreinamento',   href: '/dashboard/atendente-ia/treinamento',   icon: <GraduationCap size={15} /> },
+      { labelKey: 'items.atendenteAnalytics',     href: '/dashboard/atendente-ia/analytics',     icon: <LineChart size={15} /> },
+      { labelKey: 'items.atendenteWidget',        href: '/dashboard/atendente-ia/widget',        icon: <MessageSquare size={15} /> },
+      { labelKey: 'items.atendenteClientes',      href: '/dashboard/atendente-ia/clientes',      icon: <Users size={15} /> },
+      { labelKey: 'items.atendenteConfiguracoes', href: '/dashboard/atendente-ia/configuracoes', icon: <Settings size={15} /> },
     ],
   },
   {
     key: 'ads',
-    label: 'ADS',
+    labelKey: 'sections.ads',
     items: [
-      { label: 'ML Ads',       href: '/dashboard/ads/mercadolivre', icon: <Megaphone size={15} /> },
-      { label: 'Inteligência', href: '/dashboard/ads/inteligencia', icon: <Sparkles size={15} /> },
-      { label: 'Shopee Ads',   href: '/dashboard/ads/shopee',       icon: <ShoppingCart size={15} />, soon: true },
-      { label: 'Performance',  href: '/dashboard/ads/performance',  icon: <TrendingUp size={15} /> },
+      { labelKey: 'items.adsMlAds',        href: '/dashboard/ads/mercadolivre', icon: <Megaphone size={15} /> },
+      { labelKey: 'items.adsInteligencia', href: '/dashboard/ads/inteligencia', icon: <Sparkles size={15} /> },
+      { labelKey: 'items.adsShopee',       href: '/dashboard/ads/shopee',       icon: <ShoppingCart size={15} />, soon: true },
+      { labelKey: 'items.adsPerformance',  href: '/dashboard/ads/performance',  icon: <TrendingUp size={15} /> },
     ],
   },
   {
     key: 'projeto',
-    label: 'PROJETO',
+    labelKey: 'sections.projeto',
     items: [
-      { label: 'Roadmap', href: '/dashboard/roadmap', icon: <MapIcon size={15} /> },
+      { labelKey: 'items.roadmap', href: '/dashboard/roadmap', icon: <MapIcon size={15} /> },
     ],
   },
   {
     key: 'inteligencia',
-    label: 'INTELIGÊNCIA',
+    labelKey: 'sections.inteligencia',
     items: [
-      { label: 'Alertas',       href: '/dashboard/inteligencia/alertas',       icon: <Bell size={15} /> },
-      { label: 'Mercado Livre', href: '/dashboard/inteligencia/ml',            icon: <Sparkles size={15} /> },
-      { label: 'Gestores',      href: '/dashboard/inteligencia/gestores',      icon: <Users size={15} /> },
-      { label: 'Relatórios',    href: '/dashboard/inteligencia/relatorios',    icon: <LineChart size={15} /> },
-      { label: 'Configurações', href: '/dashboard/inteligencia/configuracoes', icon: <Settings size={15} /> },
+      { labelKey: 'items.inteligenciaAlertas',       href: '/dashboard/inteligencia/alertas',       icon: <Bell size={15} /> },
+      { labelKey: 'items.inteligenciaMercadoLivre',  href: '/dashboard/inteligencia/ml',            icon: <Sparkles size={15} /> },
+      { labelKey: 'items.inteligenciaGestores',      href: '/dashboard/inteligencia/gestores',      icon: <Users size={15} /> },
+      { labelKey: 'items.inteligenciaRelatorios',    href: '/dashboard/inteligencia/relatorios',    icon: <LineChart size={15} /> },
+      { labelKey: 'items.inteligenciaConfiguracoes', href: '/dashboard/inteligencia/configuracoes', icon: <Settings size={15} /> },
     ],
   },
   {
     key: 'configuracoes',
-    label: 'CONFIGURAÇÕES',
+    labelKey: 'sections.configuracoes',
     items: [
-      { label: 'Geral',                href: '/dashboard/configuracoes',             icon: <Settings size={15} />, exact: true },
-      { label: 'Preferências',         href: '/dashboard/configuracoes/preferencias',icon: <Shield size={15} /> },
-      { label: 'Equipe',               href: '/dashboard/configuracoes/equipe',      icon: <UserCog size={15} /> },
-      { label: 'Integrações',          href: '/dashboard/configuracoes/integracoes', icon: <Plug size={15} /> },
-      { label: 'Rotas WhatsApp',       href: '/dashboard/configuracoes/whatsapp-rotas', icon: <MessageSquare size={15} /> },
-      { label: 'IA',                   href: '/dashboard/configuracoes/ia',          icon: <Sparkles size={15} /> },
-      { label: 'Agregador',            href: '/dashboard/configuracoes/aggregator',  icon: <Database size={15} /> },
+      { labelKey: 'items.configGeral',         href: '/dashboard/configuracoes',             icon: <Settings size={15} />, exact: true },
+      { labelKey: 'items.configPreferencias',  href: '/dashboard/configuracoes/preferencias',icon: <Shield size={15} /> },
+      { labelKey: 'items.configEquipe',        href: '/dashboard/configuracoes/equipe',      icon: <UserCog size={15} /> },
+      { labelKey: 'items.configIntegracoes',   href: '/dashboard/configuracoes/integracoes', icon: <Plug size={15} /> },
+      { labelKey: 'items.configWhatsappRotas', href: '/dashboard/configuracoes/whatsapp-rotas', icon: <MessageSquare size={15} /> },
+      { labelKey: 'items.configIa',            href: '/dashboard/configuracoes/ia',          icon: <Sparkles size={15} /> },
+      { labelKey: 'items.configAgregador',     href: '/dashboard/configuracoes/aggregator',  icon: <Database size={15} /> },
     ],
   },
 ]
@@ -339,9 +340,9 @@ const SECTIONS: NavSection[] = [
 /** Seção do painel de gestão — só renderiza pra admin da plataforma e-Click. */
 const ADMIN_SECTION: NavSection = {
   key: 'admin',
-  label: 'GESTÃO E-CLICK',
+  labelKey: 'sections.admin',
   items: [
-    { label: 'Clientes', href: '/dashboard/admin', icon: <Building2 size={15} /> },
+    { labelKey: 'items.adminClientes', href: '/dashboard/admin', icon: <Building2 size={15} /> },
   ],
 }
 
@@ -375,6 +376,7 @@ function BadgePill({ count, color = '#f87171' }: { count: number; color?: string
 // ── Sub-group (e.g. Anúncios) ─────────────────────────────────────────────────
 
 function NavSubGroup({ child }: { child: NavChild }) {
+  const t = useTranslations('nav')
   const pathname = usePathname()
   const anyActive = (child.subItems ?? []).some(s => pathname.startsWith(s.href))
   const [open, setOpen] = useState(anyActive)
@@ -388,7 +390,7 @@ function NavSubGroup({ child }: { child: NavChild }) {
         onMouseEnter={e => { if (!anyActive) (e.currentTarget as HTMLElement).style.color = '#e4e4e7' }}
         onMouseLeave={e => { if (!anyActive) (e.currentTarget as HTMLElement).style.color = '#a1a1aa' }}
       >
-        <span>{child.label}</span>
+        <span>{t(child.labelKey)}</span>
         <ChevronDown size={10} style={{ color: '#71717a', transform: open ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 150ms' }} />
       </button>
       {open && (
@@ -402,7 +404,7 @@ function NavSubGroup({ child }: { child: NavChild }) {
                 onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.color = '#e4e4e7' }}
                 onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.color = '#a1a1aa' }}
               >
-                {s.label}
+                {t(s.labelKey)}
               </Link>
             )
           })}
@@ -415,6 +417,7 @@ function NavSubGroup({ child }: { child: NavChild }) {
 // ── Group item (toggle with children) ────────────────────────────────────────
 
 function NavGroupItem({ item, badges }: { item: NavItem; badges: Badges }) {
+  const t = useTranslations('nav')
   const pathname = usePathname()
   const children = item.children ?? []
 
@@ -439,7 +442,7 @@ function NavGroupItem({ item, badges }: { item: NavItem; badges: Badges }) {
         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = anyActive && !open ? 'rgba(0,229,255,0.05)' : 'transparent'; (e.currentTarget as HTMLElement).style.color = anyActive ? '#fff' : '#a1a1aa' }}
       >
         <span className="sidebar-icon" style={{ color: anyActive ? '#00E5FF' : 'inherit' }}>{item.icon}</span>
-        <span className="flex-1 text-left">{item.label}</span>
+        <span className="flex-1 text-left">{t(item.labelKey)}</span>
         {parentBadgeTotal > 0 && <BadgePill count={parentBadgeTotal} />}
         <ChevronDown size={12} style={{ color: '#71717a', transform: open ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 150ms', flexShrink: 0 }} />
       </button>
@@ -452,10 +455,10 @@ function NavGroupItem({ item, badges }: { item: NavItem; badges: Badges }) {
               <div key={child.href}
                 className="flex items-center gap-1 px-2 py-1.5 rounded-md text-[12px] font-medium"
                 style={{ opacity: 0.45, cursor: 'not-allowed' }}
-                title="Em breve"
+                title={t('misc.comingSoon')}
               >
-                <span className="flex-1" style={{ color: '#71717a' }}>{child.label}</span>
-                <span className="text-[9px] px-1 py-0.5 rounded" style={{ background: '#27272a', color: '#52525b' }}>soon</span>
+                <span className="flex-1" style={{ color: '#71717a' }}>{t(child.labelKey)}</span>
+                <span className="text-[9px] px-1 py-0.5 rounded" style={{ background: '#27272a', color: '#52525b' }}>{t('misc.soonBadge')}</span>
               </div>
             )
             const active = pathname.startsWith(child.href)
@@ -467,7 +470,7 @@ function NavGroupItem({ item, badges }: { item: NavItem; badges: Badges }) {
                 onMouseEnter={e => { if (!active) { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.04)'; (e.currentTarget as HTMLElement).style.color = '#e4e4e7' } }}
                 onMouseLeave={e => { if (!active) { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = '#a1a1aa' } }}
               >
-                <span className="flex-1">{child.label}</span>
+                <span className="flex-1">{t(child.labelKey)}</span>
                 {badge != null && <BadgePill count={badge} />}
               </Link>
             )
@@ -481,17 +484,18 @@ function NavGroupItem({ item, badges }: { item: NavItem; badges: Badges }) {
 // ── Leaf item ─────────────────────────────────────────────────────────────────
 
 function NavLeafItem({ item, badges }: { item: NavItem; badges: Badges }) {
+  const t = useTranslations('nav')
   const pathname = usePathname()
 
   if (item.soon) return (
     <div
       className="flex items-center gap-2.5 px-3 py-[7px] rounded-md text-[13px] font-medium"
       style={{ opacity: 0.45, cursor: 'not-allowed' }}
-      title="Em breve"
+      title={t('misc.comingSoon')}
     >
       <span className="sidebar-icon" style={{ color: '#71717a' }}>{item.icon}</span>
-      <span style={{ color: '#71717a', flex: 1 }}>{item.label}</span>
-      <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded" style={{ background: '#27272a', color: '#52525b' }}>soon</span>
+      <span style={{ color: '#71717a', flex: 1 }}>{t(item.labelKey)}</span>
+      <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded" style={{ background: '#27272a', color: '#52525b' }}>{t('misc.soonBadge')}</span>
     </div>
   )
 
@@ -506,7 +510,7 @@ function NavLeafItem({ item, badges }: { item: NavItem; badges: Badges }) {
       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = '#a1a1aa' }}
     >
       <span className="sidebar-icon">{item.icon}</span>
-      <span className="flex-1">{item.label}</span>
+      <span className="flex-1">{t(item.labelKey)}</span>
       <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
         strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"
         style={{ color: '#52525b' }} aria-hidden>
@@ -533,7 +537,7 @@ function NavLeafItem({ item, badges }: { item: NavItem; badges: Badges }) {
     >
       {isActive && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 rounded-full" style={{ background: '#00E5FF' }} />}
       <span className="sidebar-icon" style={{ color: isActive ? '#00E5FF' : 'inherit' }}>{item.icon}</span>
-      <span className="flex-1">{item.label}</span>
+      <span className="flex-1">{t(item.labelKey)}</span>
       {badge != null && <BadgePill count={badge} color="#ef4444" />}
     </Link>
   )
@@ -551,6 +555,7 @@ function NavItemRow({ item, badges }: { item: NavItem; badges: Badges }) {
 function SidebarSection({ section, open, onToggle, badges, first }: {
   section: NavSection; open: boolean; onToggle: () => void; badges: Badges; first?: boolean
 }) {
+  const t = useTranslations('nav')
   return (
     <div className={first ? '' : 'mt-1'}>
       {!first && <div style={{ borderTop: '1px solid var(--border)', margin: '6px 0 4px' }} />}
@@ -559,7 +564,7 @@ function SidebarSection({ section, open, onToggle, badges, first }: {
         className="w-full flex items-center justify-between px-3 py-1"
       >
         <span className="text-[9px] font-bold uppercase tracking-[0.12em]" style={{ color: '#71717a' }}>
-          {section.label}
+          {t(section.labelKey)}
         </span>
         <ChevronDown
           size={10}
@@ -583,6 +588,7 @@ export default function Sidebar({ enabledModules = null, platformAdmin = false }
   enabledModules?: string[] | null
   platformAdmin?:  boolean
 }) {
+  const t                               = useTranslations('nav')
   const pathname                        = usePathname()
   const [badges, setBadges]             = useState<Badges>({})
   const [collapsed, setCollapsed]       = useState(false)
@@ -712,7 +718,7 @@ export default function Sidebar({ enabledModules = null, platformAdmin = false }
         }}
       >
         {collapsed ? (
-          <button onClick={toggleCollapsed} title="Expandir menu"
+          <button onClick={toggleCollapsed} title={t('misc.expandMenu')}
             className="flex items-center justify-center w-10 h-10 rounded-xl transition-colors"
             style={{ background: 'transparent' }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--hover-bg)' }}
@@ -736,7 +742,7 @@ export default function Sidebar({ enabledModules = null, platformAdmin = false }
               style={{ color: '#71717a', flexShrink: 0 }}
               onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#a1a1aa'; (e.currentTarget as HTMLElement).style.background = 'var(--hover-bg)' }}
               onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = '#71717a'; (e.currentTarget as HTMLElement).style.background = 'transparent' }}
-              title="Recolher menu"
+              title={t('misc.collapseMenu')}
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M11 19l-7-7 7-7M19 19l-7-7 7-7" />
@@ -782,13 +788,13 @@ export default function Sidebar({ enabledModules = null, platformAdmin = false }
                 const cEnter = (e: React.MouseEvent<HTMLElement>) => { if (!isActive) { e.currentTarget.style.background = 'var(--hover-bg)'; e.currentTarget.style.color = '#a1a1aa' } }
                 const cLeave = (e: React.MouseEvent<HTMLElement>) => { if (!isActive) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#52525b' } }
                 if (item.external) return (
-                  <a key={item.href} href={item.href} target="_blank" rel="noopener noreferrer" title={item.label}
+                  <a key={item.href} href={item.href} target="_blank" rel="noopener noreferrer" title={t(item.labelKey)}
                     className={cCls} style={cStyle} onMouseEnter={cEnter} onMouseLeave={cLeave}>
                     {bigIcon}
                   </a>
                 )
                 return (
-                  <Link key={item.href} href={item.href} title={item.label}
+                  <Link key={item.href} href={item.href} title={t(item.labelKey)}
                     className={cCls} style={cStyle} onMouseEnter={cEnter} onMouseLeave={cLeave}>
                     {bigIcon}
                   </Link>

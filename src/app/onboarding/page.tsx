@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 
 // ─── api call ──────────────────────────────────────────────────────────────
@@ -10,14 +11,14 @@ async function createOrganization(payload: {
   name: string
   slug: string
   platforms: string[]
-}): Promise<{ orgId: string } | { error: string }> {
+}): Promise<{ orgId: string } | { error: string | null }> {
   const res = await fetch('/api/onboarding', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   })
   const json = await res.json()
-  if (!res.ok) return { error: json.error ?? 'Erro desconhecido.' }
+  if (!res.ok) return { error: json.error ?? null }
   return { orgId: json.orgId }
 }
 
@@ -45,9 +46,10 @@ const PLATFORMS = [
 // ─── sub-components ────────────────────────────────────────────────────────
 
 function StepBar({ current }: { current: number }) {
+  const t = useTranslations('auth')
   const steps = [
-    { n: 1, label: 'Sua loja' },
-    { n: 2, label: 'Plataformas' },
+    { n: 1, label: t('onboarding.step1Label') },
+    { n: 2, label: t('onboarding.step2Label') },
   ]
   return (
     <div className="flex items-start gap-0 mb-8 w-full max-w-xs mx-auto">
@@ -142,6 +144,7 @@ function PlatformCard({
 // ─── main page ─────────────────────────────────────────────────────────────
 
 export default function OnboardingPage() {
+  const t = useTranslations('auth')
   const router = useRouter()
 
   const [userId, setUserId]     = useState<string | null>(null)
@@ -186,7 +189,7 @@ export default function OnboardingPage() {
   async function handleFinish() {
     if (!userId) return
     if (platforms.length === 0) {
-      setError('Selecione pelo menos uma plataforma para continuar.')
+      setError(t('onboarding.errorNoPlatform'))
       return
     }
 
@@ -200,7 +203,7 @@ export default function OnboardingPage() {
     })
 
     if ('error' in result) {
-      setError(result.error)
+      setError(result.error ?? t('errors.unknown'))
       setLoading(false)
       return
     }
@@ -222,7 +225,7 @@ export default function OnboardingPage() {
         <div className="flex justify-center mb-8">
           <img
             src="/logo.png"
-            alt="e-Click Inteligência Comercial"
+            alt={t('logoAlt')}
             style={{ width: '180px', mixBlendMode: 'screen' as const }}
           />
         </div>
@@ -240,22 +243,22 @@ export default function OnboardingPage() {
           {step === 1 && (
             <div>
               <div className="mb-6">
-                <h1 className="text-white text-xl font-semibold">Como se chama sua loja?</h1>
+                <h1 className="text-white text-xl font-semibold">{t('onboarding.step1Title')}</h1>
                 <p className="text-zinc-400 text-sm mt-1">
-                  Esse nome identifica sua conta no e-Click.
+                  {t('onboarding.step1Subtitle')}
                 </p>
               </div>
 
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-zinc-300 mb-1.5">
-                    Nome da loja / empresa
+                    {t('onboarding.storeNameLabel')}
                   </label>
                   <input
                     type="text"
                     value={storeName}
                     onChange={e => setStoreName(e.target.value)}
-                    placeholder="Ex: Minha Loja Oficial"
+                    placeholder={t('onboarding.storeNamePlaceholder')}
                     autoFocus
                     maxLength={80}
                     className="w-full px-4 py-3 rounded-lg text-white text-sm placeholder-zinc-600 border border-zinc-700 outline-none transition-all"
@@ -273,7 +276,7 @@ export default function OnboardingPage() {
                     style={{ background: 'rgba(0,229,255,0.05)', border: '1px solid rgba(0,229,255,0.12)' }}
                   >
                     <p className="text-[11px] font-medium text-zinc-500 mb-1 uppercase tracking-widest">
-                      Identificador
+                      {t('onboarding.identifierLabel')}
                     </p>
                     <div className="flex items-center gap-2">
                       <span className="text-zinc-500 text-xs">eclick.io/</span>
@@ -298,7 +301,7 @@ export default function OnboardingPage() {
                 className="glow-rainbow w-full mt-6 py-3 rounded-lg font-semibold text-sm transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 style={{ background: '#00E5FF', color: '#000' }}
               >
-                Continuar
+                {t('onboarding.continue')}
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
                 </svg>
@@ -310,9 +313,9 @@ export default function OnboardingPage() {
           {step === 2 && (
             <div>
               <div className="mb-6">
-                <h1 className="text-white text-xl font-semibold">Onde você vende?</h1>
+                <h1 className="text-white text-xl font-semibold">{t('onboarding.step2Title')}</h1>
                 <p className="text-zinc-400 text-sm mt-1">
-                  Selecione as plataformas que você usa. Pode adicionar mais depois.
+                  {t('onboarding.step2Subtitle')}
                 </p>
               </div>
 
@@ -338,7 +341,7 @@ export default function OnboardingPage() {
 
               {platforms.length > 0 && (
                 <p className="text-center text-xs text-zinc-500 mb-4">
-                  {platforms.length} plataforma{platforms.length > 1 ? 's' : ''} selecionada{platforms.length > 1 ? 's' : ''}
+                  {t('onboarding.platformsSelected', { count: platforms.length })}
                 </p>
               )}
 
@@ -354,11 +357,11 @@ export default function OnboardingPage() {
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
                     </svg>
-                    Criando sua conta…
+                    {t('onboarding.submitting')}
                   </>
                 ) : (
                   <>
-                    Criar minha conta
+                    {t('onboarding.submit')}
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/>
                     </svg>
@@ -374,7 +377,7 @@ export default function OnboardingPage() {
                 onMouseEnter={e => (e.currentTarget.style.color = '#a1a1aa')}
                 onMouseLeave={e => (e.currentTarget.style.color = '#71717a')}
               >
-                ← Voltar
+                {t('onboarding.back')}
               </button>
             </div>
           )}
@@ -382,7 +385,7 @@ export default function OnboardingPage() {
 
         {/* Footer */}
         <p className="text-center text-zinc-600 text-xs mt-6">
-          Você pode editar essas informações depois em Configurações.
+          {t('onboarding.footer')}
         </p>
       </div>
     </div>
