@@ -39,3 +39,54 @@ export const PLATFORM_ADMIN_EMAILS = ['vazzocomercio@gmail.com']
 export function isPlatformAdmin(email: string | null | undefined): boolean {
   return !!email && PLATFORM_ADMIN_EMAILS.includes(email.toLowerCase())
 }
+
+/**
+ * Prefixos de rota → chave de módulo. Espelha as seções do Sidebar.
+ * Só os módulos gateáveis entram aqui — rotas de núcleo (visaogeral,
+ * configuracoes) ficam de fora e nunca são bloqueadas.
+ */
+const ROUTE_MODULES: ReadonlyArray<readonly [string, string]> = [
+  // marketplace
+  ['/dashboard/comercial', 'marketplace'], ['/dashboard/vendas', 'marketplace'],
+  ['/dashboard/metas', 'marketplace'], ['/dashboard/canais', 'marketplace'],
+  ['/dashboard/catalogo', 'marketplace'], ['/dashboard/produtos', 'marketplace'],
+  ['/dashboard/precos', 'marketplace'], ['/dashboard/pricing', 'marketplace'],
+  ['/dashboard/ml-quality', 'marketplace'], ['/dashboard/ml-campaigns', 'marketplace'],
+  ['/dashboard/listings', 'marketplace'], ['/dashboard/pedidos', 'marketplace'],
+  ['/dashboard/atendimento', 'marketplace'], ['/dashboard/ml-postsale', 'marketplace'],
+  ['/dashboard/logistica', 'marketplace'], ['/dashboard/financeiro', 'marketplace'],
+  ['/dashboard/radar', 'marketplace'],
+  // compras / dropship
+  ['/dashboard/compras', 'compras'],
+  ['/dashboard/dropship', 'dropship'],
+  // crm
+  ['/dashboard/crm', 'crm'], ['/dashboard/enriquecimento', 'crm'],
+  ['/dashboard/messaging', 'crm'], ['/dashboard/campanhas', 'crm'],
+  ['/dashboard/comunicacao', 'crm'],
+  // producao
+  ['/dashboard/producao', 'producao'], ['/dashboard/social', 'producao'],
+  ['/dashboard/ads-campaigns', 'producao'], ['/dashboard/pricing-ai', 'producao'],
+  ['/dashboard/creative', 'producao'],
+  // loja
+  ['/dashboard/store', 'loja'], ['/dashboard/store-copilot', 'loja'],
+  ['/dashboard/collections', 'loja'], ['/dashboard/kits', 'loja'],
+  ['/dashboard/automation', 'loja'], ['/dashboard/social-commerce', 'loja'],
+  // demais
+  ['/dashboard/atendente-ia', 'atendente-ia'],
+  ['/dashboard/ads', 'ads'],
+  ['/dashboard/roadmap', 'projeto'],
+  ['/dashboard/inteligencia', 'inteligencia'],
+  ['/dashboard/admin', 'admin'],
+]
+
+/**
+ * Qual módulo cobre este pathname. Casa por segmento exato (`/x` ou
+ * `/x/...`), nunca por prefixo parcial. null = rota de núcleo ou não
+ * mapeada — nesses casos não há bloqueio.
+ */
+export function moduleForPath(pathname: string): string | null {
+  for (const [prefix, mod] of ROUTE_MODULES) {
+    if (pathname === prefix || pathname.startsWith(prefix + '/')) return mod
+  }
+  return null
+}

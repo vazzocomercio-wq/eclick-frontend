@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { moduleForPath, CORE_MODULES } from '@/lib/modules'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'https://eclick-backend-production-2a87.up.railway.app'
 
@@ -126,6 +127,28 @@ export async function middleware(request: NextRequest) {
     const url = request.nextUrl.clone()
     url.pathname = '/dashboard'
     return NextResponse.redirect(url)
+  }
+
+  // Gating de módulos — bloqueia rota de módulo que a org não tem liberado.
+  if (user && pathname.startsWith('/dashboard/')) {
+    const mod = moduleForPath(pathname)
+    if (mod && !CORE_MODULES.includes(mod)) {
+      const { data: m } = await supabase
+        .from('organization_members')
+        .select('organizations(enabled_modules)')
+        .eq('user_id', user.id)
+        .limit(1)
+        .maybeSingle()
+      const orgRel = (m as { organizations?: unknown } | null)?.organizations
+      const orgRow = Array.isArray(orgRel) ? orgRel[0] : orgRel
+      const enabled =
+        (orgRow as { enabled_modules?: string[] | null } | null | undefined)?.enabled_modules ?? null
+      if (enabled != null && !enabled.includes(mod)) {
+        const url = request.nextUrl.clone()
+        url.pathname = '/dashboard'
+        return NextResponse.redirect(url)
+      }
+    }
   }
 
   return supabaseResponse
