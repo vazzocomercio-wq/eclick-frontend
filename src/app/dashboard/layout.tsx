@@ -36,12 +36,18 @@ export default async function DashboardLayout({
 
   const { data: membership } = await supabase
     .from('organization_members')
-    .select('organization_id')
+    .select('organization_id, organizations(enabled_modules)')
     .eq('user_id', user.id)
     .limit(1)
     .maybeSingle()
 
   if (!membership) redirect('/onboarding')
+
+  // Módulos liberados pra esta organização (null = todos — orgs sem config).
+  const orgRel = (membership as { organizations?: unknown }).organizations
+  const orgRow = Array.isArray(orgRel) ? orgRel[0] : orgRel
+  const enabledModules =
+    (orgRow as { enabled_modules?: string[] | null } | null | undefined)?.enabled_modules ?? null
 
   return (
     <DialogProvider>
@@ -49,7 +55,7 @@ export default async function DashboardLayout({
         className="flex h-screen overflow-hidden"
         style={{ background: 'var(--background)', color: 'var(--text)' }}
       >
-        <Sidebar />
+        <Sidebar enabledModules={enabledModules} />
 
         <div className="flex flex-col flex-1 overflow-hidden">
           <Header

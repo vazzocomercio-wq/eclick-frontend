@@ -39,6 +39,8 @@ type NavItem = {
   icon: React.ReactNode
   soon?: boolean
   exact?: boolean
+  /** Link pra fora do SaaS (ex.: o Active) — abre em nova aba. */
+  external?: boolean
   badgeKey?: BadgeKey
   children?: NavChild[]
 }
@@ -68,6 +70,13 @@ const SECTIONS: NavSection[] = [
         ],
       },
       { label: 'Vendas ao Vivo',      href: '/dashboard/vendas-ao-vivo', icon: <Radio size={15} /> },
+    ],
+  },
+  {
+    key: 'active',
+    label: 'ACTIVE',
+    items: [
+      { label: 'Abrir o Active', href: 'https://active.eclick.app.br', icon: <MessageCircle size={15} />, external: true },
     ],
   },
   {
@@ -326,8 +335,12 @@ const SECTIONS: NavSection[] = [
   },
 ]
 
+/** Módulos sempre visíveis — não dependem de enabled_modules. */
+const CORE_MODULES = ['visaogeral', 'configuracoes']
+
 const SECTION_DEFAULT_OPEN: Record<string, boolean> = {
   visaogeral:      true,
+  active:          true,
   marketplace:     true,
   compras:         false,
   dropship:        false,
@@ -474,6 +487,26 @@ function NavLeafItem({ item, badges }: { item: NavItem; badges: Badges }) {
     </div>
   )
 
+  if (item.external) return (
+    <a
+      href={item.href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="sidebar-nav-row flex items-center gap-2.5 px-3 py-[7px] rounded-md text-[13px] font-medium transition-colors"
+      style={{ color: '#a1a1aa' }}
+      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.04)'; (e.currentTarget as HTMLElement).style.color = '#e4e4e7' }}
+      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = '#a1a1aa' }}
+    >
+      <span className="sidebar-icon">{item.icon}</span>
+      <span className="flex-1">{item.label}</span>
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"
+        style={{ color: '#52525b' }} aria-hidden>
+        <path d="M7 17 17 7M9 7h8v8" />
+      </svg>
+    </a>
+  )
+
   const isActive = item.exact
     ? pathname === item.href
     : item.href === '/dashboard'
@@ -538,7 +571,7 @@ function SidebarSection({ section, open, onToggle, badges, first }: {
 
 // ── Sidebar ───────────────────────────────────────────────────────────────────
 
-export default function Sidebar() {
+export default function Sidebar({ enabledModules = null }: { enabledModules?: string[] | null }) {
   const pathname                        = usePathname()
   const [badges, setBadges]             = useState<Badges>({})
   const [collapsed, setCollapsed]       = useState(false)
@@ -638,6 +671,12 @@ export default function Sidebar() {
     return () => { mounted.current = false; clearInterval(id) }
   }, [])
 
+  // Módulos liberados pra esta organização (núcleo sempre visível).
+  // enabledModules null = todos liberados (orgs sem config, ex.: Vazzo).
+  const sections = enabledModules == null
+    ? SECTIONS
+    : SECTIONS.filter(s => CORE_MODULES.includes(s.key) || enabledModules.includes(s.key))
+
   return (
     <aside
       className="hidden md:flex flex-col h-screen shrink-0 overflow-hidden"
@@ -697,7 +736,7 @@ export default function Sidebar() {
       {/* Navigation — expanded */}
       {!collapsed && (
         <nav className="flex-1 px-2 py-2 overflow-y-auto no-scrollbar">
-          {SECTIONS.map((section, i) => (
+          {sections.map((section, i) => (
             <SidebarSection
               key={section.key}
               section={section}
@@ -713,7 +752,7 @@ export default function Sidebar() {
       {/* Navigation — collapsed (icons only) */}
       {collapsed && (
         <nav className="flex-1 py-2 overflow-y-auto no-scrollbar flex flex-col items-center gap-0.5">
-          {SECTIONS.map((section, si) => (
+          {sections.map((section, si) => (
             <div key={section.key} className="w-full flex flex-col items-center">
               {si > 0 && <div style={{ borderTop: '1px solid var(--border)', width: '70%', margin: '4px 0' }} />}
               {section.items.map(item => {
@@ -725,13 +764,19 @@ export default function Sidebar() {
                 const bigIcon = React.isValidElement(item.icon)
                   ? React.cloneElement(item.icon as React.ReactElement<{ size?: number }>, { size: 22 })
                   : item.icon
+                const cCls = 'flex items-center justify-center w-10 h-10 rounded-xl transition-colors'
+                const cStyle = { color: isActive ? '#00E5FF' : '#52525b', background: isActive ? 'rgba(0,229,255,0.09)' : 'transparent' }
+                const cEnter = (e: React.MouseEvent<HTMLElement>) => { if (!isActive) { e.currentTarget.style.background = 'var(--hover-bg)'; e.currentTarget.style.color = '#a1a1aa' } }
+                const cLeave = (e: React.MouseEvent<HTMLElement>) => { if (!isActive) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#52525b' } }
+                if (item.external) return (
+                  <a key={item.href} href={item.href} target="_blank" rel="noopener noreferrer" title={item.label}
+                    className={cCls} style={cStyle} onMouseEnter={cEnter} onMouseLeave={cLeave}>
+                    {bigIcon}
+                  </a>
+                )
                 return (
                   <Link key={item.href} href={item.href} title={item.label}
-                    className="flex items-center justify-center w-10 h-10 rounded-xl transition-colors"
-                    style={{ color: isActive ? '#00E5FF' : '#52525b', background: isActive ? 'rgba(0,229,255,0.09)' : 'transparent' }}
-                    onMouseEnter={e => { if (!isActive) { (e.currentTarget as HTMLElement).style.background = 'var(--hover-bg)'; (e.currentTarget as HTMLElement).style.color = '#a1a1aa' } }}
-                    onMouseLeave={e => { if (!isActive) { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = '#52525b' } }}
-                  >
+                    className={cCls} style={cStyle} onMouseEnter={cEnter} onMouseLeave={cLeave}>
                     {bigIcon}
                   </Link>
                 )
