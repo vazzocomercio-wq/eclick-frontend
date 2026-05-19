@@ -54,7 +54,30 @@ export function PremiumProductDetail({ design, store, product, slug, related }: 
   const ctaMessage = `Olá! Tenho interesse no produto "${product.name}" (${formatBRL(product.price)}).`
   const relatedProducts = related.filter(p => p.id !== product.id).slice(0, 12)
 
-  const cta = pd.ctaMode === 'cart' ? (
+  const cta = outOfStock ? (
+    <div className="space-y-2">
+      <span
+        className="inline-flex items-center justify-center w-full sm:w-auto px-8 py-3.5 font-semibold text-sm cursor-not-allowed"
+        style={{
+          background: alpha(colors.textMuted, 0.1), color: colors.textMuted,
+          borderRadius: ctx.radius, border: `1px solid ${colors.border}`,
+        }}
+      >
+        Produto esgotado
+      </span>
+      {store.whatsapp_number && (
+        <a
+          href={whatsappLink(store.whatsapp_number, `Olá! Vi que o produto "${product.name}" está esgotado. Posso ser avisado quando voltar?`)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="block text-xs underline transition-opacity hover:opacity-70"
+          style={{ color: colors.textMuted }}
+        >
+          Quer ser avisado quando voltar? Chame no WhatsApp →
+        </a>
+      )}
+    </div>
+  ) : pd.ctaMode === 'cart' ? (
     <AddToCartButton
       slug={slug}
       ctx={ctx}
@@ -64,7 +87,6 @@ export function PremiumProductDetail({ design, store, product, slug, related }: 
         price:     product.price,
         imageUrl:  images[0] ?? undefined,
       }}
-      disabled={outOfStock}
     />
   ) : store.whatsapp_number ? (
     <a
@@ -141,12 +163,6 @@ export function PremiumProductDetail({ design, store, product, slug, related }: 
             >
               {formatBRL(product.price)}
             </p>
-            {outOfStock && (
-              <p className="mt-1 text-xs" style={{ color: colors.textMuted }}>
-                Indisponível no momento
-              </p>
-            )}
-
             <div className="mt-6">{cta}</div>
 
             {description && (

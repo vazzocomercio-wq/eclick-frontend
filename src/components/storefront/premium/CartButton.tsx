@@ -8,7 +8,7 @@
  * wa.me preenchido com o resumo do pedido.
  */
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { X, ShoppingBag, Plus, Minus, Trash2, CreditCard } from 'lucide-react'
 import { useCart } from '@/lib/storefront/cart'
@@ -27,6 +27,19 @@ export function CartButton({ store, slug, ctx }: {
   const { colors } = ctx.theme
 
   const link = cart.checkoutLink(store.store_name, store.whatsapp_number)
+
+  // Polimento: ESC fecha o drawer + trava scroll do body quando aberto
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    window.addEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prev
+    }
+  }, [open])
 
   return (
     <>
