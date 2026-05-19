@@ -861,6 +861,15 @@ type CoverageData = {
     parcial:                       number
     completo:                      number
     cadastro_completo_sem_anuncio: number
+    per_destino: Array<{
+      key:       string
+      channel:   string
+      accountId: string | null
+      label:     string
+      coberto:   number
+      faltam:    number
+    }>
+    loja: { coberto: number; faltam: number }
   }
   sample: CoverageProduct[]
 }
@@ -1001,28 +1010,77 @@ function CoverageTab() {
         </div>
       )}
 
-      {/* Resumo */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-        <CovCard label="Sem anúncio nenhum" value={data?.summary.sem_anuncio ?? 0} color="#f87171" />
-        <CovCard label="Cobertura parcial" value={data?.summary.parcial ?? 0} color="#f59e0b" />
-        <CovCard label="Prontos p/ anunciar" value={data?.summary.cadastro_completo_sem_anuncio ?? 0} color="#67e8f9"
-          hint="cadastro completo, mas sem anúncio" />
-        <CovCard label="Anunciados em todos" value={data?.summary.completo ?? 0} color="#34d399" />
+      {/* Resumo de funil — números agregados */}
+      <div className="mb-3 px-4 py-3 rounded-xl flex flex-wrap items-center gap-x-5 gap-y-2"
+        style={{ background: '#111114', border: '1px solid #27272a' }}>
+        <Stat label="Total"               value={data?.summary.total ?? 0}                          color="#e4e4e7" />
+        <Stat label="Sem anúncio nenhum"  value={data?.summary.sem_anuncio ?? 0}                    color="#f87171" />
+        <Stat label="Cobertura parcial"   value={data?.summary.parcial ?? 0}                        color="#f59e0b" />
+        <Stat label="Em todos destinos"   value={data?.summary.completo ?? 0}                       color="#34d399" />
+        <Stat label="Prontos p/ anunciar" value={data?.summary.cadastro_completo_sem_anuncio ?? 0}  color="#67e8f9"
+          hint="cadastro completo, sem anúncio" />
       </div>
 
-      {/* Destinos da org */}
+      {/* Cobertura por destino — quantos produtos anunciados em cada conta/loja */}
       {data && (
-        <div className="mb-3 px-4 py-2.5 rounded-xl text-[11px]"
-          style={{ background: '#111114', border: '1px solid #27272a' }}>
-          <span className="text-zinc-500 uppercase tracking-wider mr-2">Destinos conectados:</span>
+        <div className="mb-3 rounded-xl overflow-hidden" style={{ background: '#111114', border: '1px solid #27272a' }}>
+          <div className="px-4 py-2.5" style={{ background: '#0d0d10', borderBottom: '1px solid #27272a' }}>
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+              Cobertura por destino
+            </span>
+          </div>
           {data.destinos.length === 0 ? (
-            <span className="text-amber-400">nenhum marketplace conectado — conecte uma conta pra ver a cobertura</span>
+            <div className="px-4 py-4 text-[12px] text-amber-400">
+              Nenhum marketplace conectado — conecte uma conta em Configurações pra ver a cobertura por destino.
+            </div>
           ) : (
-            data.destinos.map(d => (
-              <span key={d.key} className="inline-block mr-2 text-zinc-300">{destinoLabel(d)}</span>
-            ))
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-[11px] text-zinc-500 uppercase tracking-wider">
+                  <th className="px-4 py-2 text-left">Destino</th>
+                  <th className="px-4 py-2 text-right">Anunciados</th>
+                  <th className="px-4 py-2 text-right">Faltam</th>
+                  <th className="px-4 py-2 text-right w-40">Cobertura</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.summary.per_destino.map(d => {
+                  const total = data.summary.total
+                  const pct = total > 0 ? (d.coberto / total * 100) : 0
+                  return (
+                    <tr key={d.key} className="border-t" style={{ borderColor: '#27272a' }}>
+                      <td className="px-4 py-2.5">
+                        <span className="text-xs text-zinc-200">{(CHANNEL_LABEL[d.channel] ?? d.channel) + ' · ' + d.label}</span>
+                      </td>
+                      <td className="px-4 py-2.5 text-right tabular-nums font-semibold" style={{ color: '#67e8f9' }}>
+                        {d.coberto.toLocaleString('pt-BR')}
+                      </td>
+                      <td className="px-4 py-2.5 text-right tabular-nums text-zinc-500">
+                        {d.faltam.toLocaleString('pt-BR')}
+                      </td>
+                      <td className="px-4 py-2.5 text-right">
+                        <CoverageBar pct={pct} />
+                      </td>
+                    </tr>
+                  )
+                })}
+                <tr className="border-t" style={{ borderColor: '#27272a', background: 'rgba(255,255,255,0.015)' }}>
+                  <td className="px-4 py-2.5">
+                    <span className="text-xs text-zinc-400">Loja própria <span className="text-zinc-600 text-[10px]">(informativo)</span></span>
+                  </td>
+                  <td className="px-4 py-2.5 text-right tabular-nums font-semibold text-emerald-400">
+                    {(data.summary.loja?.coberto ?? 0).toLocaleString('pt-BR')}
+                  </td>
+                  <td className="px-4 py-2.5 text-right tabular-nums text-zinc-500">
+                    {(data.summary.loja?.faltam ?? 0).toLocaleString('pt-BR')}
+                  </td>
+                  <td className="px-4 py-2.5 text-right">
+                    <CoverageBar pct={data.summary.total > 0 ? ((data.summary.loja?.coberto ?? 0) / data.summary.total * 100) : 0} muted />
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           )}
-          <span className="text-zinc-600 ml-1">· Loja própria (informativo)</span>
         </div>
       )}
 
@@ -1206,12 +1264,25 @@ function CoverageTab() {
   )
 }
 
-function CovCard({ label, value, color, hint }: { label: string; value: number; color: string; hint?: string }) {
+function Stat({ label, value, color, hint }: { label: string; value: number; color: string; hint?: string }) {
   return (
-    <div className="p-4 rounded-xl" style={{ background: '#111114', border: '1px solid #27272a' }}>
-      <div className="text-[10px] text-zinc-500 uppercase tracking-wider">{label}</div>
-      <div className="text-2xl font-bold mt-1" style={{ color }}>{value.toLocaleString('pt-BR')}</div>
-      {hint && <div className="text-[10px] text-zinc-600 mt-0.5">{hint}</div>}
+    <div className="flex items-baseline gap-1.5">
+      <span className="text-[10px] text-zinc-500 uppercase tracking-wider">{label}</span>
+      <span className="text-lg font-bold tabular-nums" style={{ color }}>{value.toLocaleString('pt-BR')}</span>
+      {hint && <span className="text-[9px] text-zinc-600">· {hint}</span>}
+    </div>
+  )
+}
+
+function CoverageBar({ pct, muted }: { pct: number; muted?: boolean }) {
+  const p = Math.max(0, Math.min(100, pct))
+  const color = muted ? '#3f3f46' : p < 10 ? '#f87171' : p < 50 ? '#f59e0b' : '#34d399'
+  return (
+    <div className="inline-flex items-center gap-2 w-36">
+      <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: '#1a1a1f' }}>
+        <div style={{ width: `${p}%`, height: '100%', background: color, transition: 'width 0.3s' }} />
+      </div>
+      <span className="text-[10px] tabular-nums shrink-0" style={{ color: muted ? '#71717a' : color }}>{p.toFixed(1)}%</span>
     </div>
   )
 }
