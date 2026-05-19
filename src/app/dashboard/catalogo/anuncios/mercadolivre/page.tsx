@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useTranslations } from 'next-intl'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import AccountSelector, { useMlAccount } from '@/components/ml/AccountSelector'
@@ -83,13 +84,15 @@ type Tab    = 'active' | 'paused' | 'closed' | 'under_review'
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 const num = (v: number) => v.toLocaleString('pt-BR')
 
-function ago(iso: string) {
+type TFn = (key: string, values?: Record<string, string | number | Date>) => string
+
+function ago(iso: string, t: TFn) {
   const ms = Date.now() - new Date(iso).getTime()
   const h  = Math.floor(ms / 3600000)
-  if (h < 1)  return 'agora'
-  if (h < 24) return `${h}h atrás`
+  if (h < 1)  return t('ml.ago.now')
+  if (h < 24) return t('ml.ago.hours', { h })
   const d = Math.floor(h / 24)
-  return d === 1 ? 'ontem' : `${d}d atrás`
+  return d === 1 ? t('ml.ago.yesterday') : t('ml.ago.days', { d })
 }
 
 function discountPct(original: number | null, current: number): number | null {
@@ -97,23 +100,23 @@ function discountPct(original: number | null, current: number): number | null {
   return Math.round(((original - current) / original) * 100)
 }
 
-function typeBadge(listing_type_id: string, logistic_type: string | null, catalog_listing: boolean) {
+function typeBadge(listing_type_id: string, logistic_type: string | null, catalog_listing: boolean, t: TFn) {
   const badges: { label: string; bg: string; color: string; border: string }[] = []
 
   if (logistic_type === 'fulfillment')
     badges.push({ label: 'FULL', bg: '#0a1f2e', color: '#00E5FF', border: '#00E5FF2a' })
   else if (catalog_listing)
-    badges.push({ label: 'Catálogo', bg: '#1a0e33', color: '#a78bfa', border: '#7c3aed2a' })
+    badges.push({ label: t('ml.typeLabel.catalog'), bg: '#1a0e33', color: '#a78bfa', border: '#7c3aed2a' })
 
   // Rótulos na linguagem atual do ML (alinhado com radar/_components/shared).
-  const TYPE_LABELS: Record<string, string> = {
-    gold_pro: 'Premium', gold_premium: 'Premium', gold_special: 'Clássico',
-    gold: 'Ouro', silver: 'Prata', bronze: 'Bronze', free: 'Grátis',
+  const TYPE_LABEL_KEY: Record<string, string> = {
+    gold_pro: 'premium', gold_premium: 'premium', gold_special: 'classic',
+    gold: 'gold', silver: 'silver', bronze: 'bronze', free: 'free',
   }
   const isPremium = listing_type_id === 'gold_pro' || listing_type_id === 'gold_premium'
   badges.push(isPremium
-    ? { label: 'Premium', bg: '#0e2a33', color: '#00E5FF', border: '#00E5FF22' }
-    : { label: TYPE_LABELS[listing_type_id] ?? 'Clássico', bg: '#1a1a1f', color: '#a1a1aa', border: '#27272a' })
+    ? { label: t('ml.typeLabel.premium'), bg: '#0e2a33', color: '#00E5FF', border: '#00E5FF22' }
+    : { label: t(`ml.typeLabel.${TYPE_LABEL_KEY[listing_type_id] ?? 'classic'}`), bg: '#1a1a1f', color: '#a1a1aa', border: '#27272a' })
 
   return badges
 }
@@ -172,10 +175,11 @@ function SemiGauge({ score, label, sub }: { score: number | null; label: string;
 // ── Copy button ────────────────────────────────────────────────────────────
 
 function Copy({ text }: { text: string }) {
+  const t = useTranslations('catalogo')
   const [ok, setOk] = useState(false)
   return (
     <button onClick={() => { navigator.clipboard.writeText(text); setOk(true); setTimeout(() => setOk(false), 1500) }}
-      className="ml-1 opacity-40 hover:opacity-100 transition-opacity" title="Copiar">
+      className="ml-1 opacity-40 hover:opacity-100 transition-opacity" title={t('ml.copy')}>
       {ok
         ? <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
         : <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></svg>
@@ -239,6 +243,7 @@ function ItemMenu({ item, onClose, onFocusStock, hasLinkedStock }: {
   onFocusStock?: () => void
   hasLinkedStock?: boolean
 }) {
+  const t = useTranslations('catalogo')
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const h = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) onClose() }
@@ -252,7 +257,7 @@ function ItemMenu({ item, onClose, onFocusStock, hasLinkedStock }: {
       <a href={item.permalink} target="_blank" rel="noopener noreferrer"
         className="flex items-center gap-2 px-4 py-2.5 text-sm text-zinc-300 hover:bg-zinc-800 transition-colors">
         <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-        Abrir no ML
+        {t('ml.menu.openInMl')}
       </a>
       {hasLinkedStock && onFocusStock && (
         <button onClick={() => { onFocusStock(); onClose() }}
@@ -260,12 +265,12 @@ function ItemMenu({ item, onClose, onFocusStock, hasLinkedStock }: {
           <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
           </svg>
-          Atualizar estoque
+          {t('ml.menu.updateStock')}
         </button>
       )}
       {[
-        { label: 'Ver visitas', key: 'visits' },
-        { label: item.status === 'active' ? 'Pausar anúncio' : 'Ativar anúncio', key: 'toggle' },
+        { label: t('ml.menu.viewVisits'), key: 'visits' },
+        { label: item.status === 'active' ? t('ml.menu.pauseListing') : t('ml.menu.activateListing'), key: 'toggle' },
       ].map(a => (
         <button key={a.key} onClick={onClose}
           className="w-full text-left flex items-center gap-2 px-4 py-2.5 text-sm text-zinc-300 hover:bg-zinc-800 transition-colors">
@@ -274,7 +279,7 @@ function ItemMenu({ item, onClose, onFocusStock, hasLinkedStock }: {
       ))}
       <button onClick={() => { navigator.clipboard.writeText(item.id); onClose() }}
         className="w-full text-left flex items-center gap-2 px-4 py-2.5 text-sm text-zinc-300 hover:bg-zinc-800 transition-colors">
-        Copiar MLB ID
+        {t('ml.menu.copyMlbId')}
       </button>
     </div>
   )
@@ -307,6 +312,7 @@ function MarginPanel({ price, saleFee, shipping, info, orgTaxPct, priceToWin, fe
   feeAtCeiling: number | null
   onSave:     (productId: string, patch: { cost: number | null; taxPct: number | null }) => Promise<boolean>
 }) {
+  const t = useTranslations('catalogo')
   const taxInitial  = info.tax_pct ?? orgTaxPct
   const costInitial = info.cost != null ? String(info.cost) : ''
   const taxBaseline = taxInitial != null ? String(taxInitial) : ''
@@ -372,7 +378,7 @@ function MarginPanel({ price, saleFee, shipping, info, orgTaxPct, priceToWin, fe
         <div className="flex justify-between items-start gap-2 rounded-md px-2 py-1.5"
           style={{ background: 'rgba(0,229,255,0.06)', border: '1px solid rgba(0,229,255,0.15)' }}>
           <span className="text-zinc-400">
-            Margem no preço pra ganhar
+            {t('ml.margin.atWinPrice')}
             <span className="block tabular-nums" style={{ color: '#67e8f9' }}>{brl(priceToWin!)}</span>
           </span>
           <div className="text-right font-bold" style={{
@@ -388,7 +394,7 @@ function MarginPanel({ price, saleFee, shipping, info, orgTaxPct, priceToWin, fe
         <div className="flex justify-between items-start gap-2 rounded-md px-2 py-1.5"
           style={{ background: 'rgba(74,222,128,0.06)', border: '1px solid rgba(74,222,128,0.15)' }}>
           <span className="text-zinc-400">
-            Margem no teto do catálogo
+            {t('ml.margin.atCeiling')}
             <span className="block tabular-nums" style={{ color: '#4ade80' }}>{brl(ceilingPrice!)}</span>
           </span>
           <div className="text-right font-bold" style={{
@@ -400,11 +406,11 @@ function MarginPanel({ price, saleFee, shipping, info, orgTaxPct, priceToWin, fe
         </div>
       )}
       <div className="flex justify-between text-zinc-500">
-        <span>Lucro bruto</span>
+        <span>{t('ml.margin.grossProfit')}</span>
         <span className="text-emerald-400/90">{brl(grossProfit)} · {grossProfitPct.toFixed(1)}%</span>
       </div>
       <div className="flex items-center justify-between gap-1 pt-1" style={{ borderTop: '1px dashed #1e1e24' }}>
-        <span className="text-zinc-500">Custo (CMV)</span>
+        <span className="text-zinc-500">{t('ml.margin.cost')}</span>
         <div className="flex items-center gap-0.5">
           <span className="text-zinc-600">R$</span>
           <input value={costDraft} onChange={e => setCostDraft(e.target.value)}
@@ -415,7 +421,7 @@ function MarginPanel({ price, saleFee, shipping, info, orgTaxPct, priceToWin, fe
       </div>
       <div className="flex items-center justify-between gap-1">
         <span className="text-zinc-500">
-          Imposto{taxInherited && <span className="text-zinc-600" title="Herdado do imposto padrão da empresa"> (padrão)</span>}
+          {t('ml.margin.tax')}{taxInherited && <span className="text-zinc-600" title={t('ml.margin.taxInheritedTooltip')}> {t('ml.margin.taxDefaultSuffix')}</span>}
         </span>
         <div className="flex items-center gap-0.5">
           <input value={taxDraft} onChange={e => setTaxDraft(e.target.value)}
@@ -426,13 +432,13 @@ function MarginPanel({ price, saleFee, shipping, info, orgTaxPct, priceToWin, fe
         </div>
       </div>
       <div className="flex justify-between items-start pt-1" style={{ borderTop: '1px dashed #1e1e24' }}>
-        <span className="text-zinc-400 font-medium">Margem contrib.</span>
+        <span className="text-zinc-400 font-medium">{t('ml.margin.contributionMargin')}</span>
         <div className="text-right">
           <div className="font-bold" style={{ color: marginColor }}>
-            {noCost ? 'sem custo' : `${brl(m.contributionMargin)} · ${m.contributionMarginPct.toFixed(1)}%`}
+            {noCost ? t('ml.margin.noCost') : `${brl(m.contributionMargin)} · ${m.contributionMarginPct.toFixed(1)}%`}
           </div>
           {!noCost && marginOverCost != null && (
-            <div className="text-[10px] text-zinc-600">{marginOverCost.toFixed(1)}% do custo</div>
+            <div className="text-[10px] text-zinc-600">{t('ml.margin.percentOfCost', { pct: marginOverCost.toFixed(1) })}</div>
           )}
         </div>
       </div>
@@ -440,14 +446,14 @@ function MarginPanel({ price, saleFee, shipping, info, orgTaxPct, priceToWin, fe
         <button onClick={save} disabled={saving}
           className="w-full text-[10px] py-1 rounded-md font-semibold transition-opacity hover:opacity-90 disabled:opacity-60"
           style={{ background: '#00E5FF', color: '#000' }}>
-          {saving ? 'Salvando…' : 'Salvar custo/imposto'}
+          {saving ? t('ml.margin.saving') : t('ml.margin.saveCostTax')}
         </button>
       )}
     </div>
   )
 }
 
-function ListingCard({ item, selected, linked, catalog, ceiling, realShippingCost, stockInfo, marginInfo, orgTaxPct, matchedProduct, onSelect, onCreateProduct, onLinkProduct, onLinkToKnownProduct, onUpdateStock, onAdjustPrice, onSaveMargin }: {
+function ListingCard({ item, selected, linked, catalog, ceiling, realShippingCost, stockInfo, marginInfo, orgTaxPct, matchedProduct, onSelect, onCreateProduct, onLinkProduct, onLinkToKnownProduct, onUnlink, onUpdateStock, onAdjustPrice, onSaveMargin }: {
   item: MListing
   selected: boolean
   linked: boolean
@@ -466,10 +472,12 @@ function ListingCard({ item, selected, linked, catalog, ceiling, realShippingCos
   onCreateProduct: (id: string) => void
   onLinkProduct: () => void
   onLinkToKnownProduct: (product: { id: string; name: string }) => void
+  onUnlink: () => void
   onUpdateStock: (listingId: string, stockId: string, newQty: number) => Promise<boolean>
   onAdjustPrice: (listingId: string, sellerId: number | null, newPrice: number) => Promise<boolean>
   onSaveMargin: (productId: string, patch: { cost: number | null; taxPct: number | null }) => Promise<boolean>
 }) {
+  const t = useTranslations('catalogo')
   const [menuOpen, setMenuOpen] = useState(false)
   const stockRef = useRef<HTMLInputElement>(null)
   const [stockDraft,  setStockDraft]  = useState<string>(stockInfo ? String(stockInfo.quantity) : '')
@@ -546,28 +554,28 @@ function ListingCard({ item, selected, linked, catalog, ceiling, realShippingCos
         ? estimateSaleFee(tetoPrice, item.estimated_fee_pct, item.estimated_fixed_fee ?? 0)
         : tetoPrice * fallbackFeeRate(item.listing_type_id) / 100)
     : null
-  const badges   = typeBadge(item.listing_type_id, item.logistic_type, item.catalog_listing)
+  const badges   = typeBadge(item.listing_type_id, item.logistic_type, item.catalog_listing, t)
   const isActive = item.status === 'active'
   const disc     = discountPct(item.original_price, item.price)
   const hasPromo = (item.deal_ids?.length ?? 0) > 0 || (item.promotions?.length ?? 0) > 0
 
   const compStatus = (() => {
     const s = catalog?.catalog_status
-    if (s === 'winning') return { label: '🏆 Ganhando', bg: '#0d1f17', color: '#4ade80', border: 'rgba(34,197,94,.2)' }
-    if (s === 'sharing_first_place') return { label: '🤝 Empatado', bg: '#1f1a00', color: '#fbbf24', border: 'rgba(251,191,36,.2)' }
-    if (s) return { label: '📉 Perdendo', bg: '#1f0d0d', color: '#f87171', border: 'rgba(248,113,113,.2)' }
+    if (s === 'winning') return { label: '🏆 ' + t('ml.compStatus.winning'), bg: '#0d1f17', color: '#4ade80', border: 'rgba(34,197,94,.2)' }
+    if (s === 'sharing_first_place') return { label: '🤝 ' + t('ml.compStatus.tied'), bg: '#1f1a00', color: '#fbbf24', border: 'rgba(251,191,36,.2)' }
+    if (s) return { label: '📉 ' + t('ml.compStatus.losing'), bg: '#1f0d0d', color: '#f87171', border: 'rgba(248,113,113,.2)' }
     // Fallback heurístico antigo enquanto a coleta do Radar não rodou.
-    const t = item.catalog_listing_type_id?.toLowerCase() ?? ''
-    if (t.includes('winning')) return { label: '🏆 Ganhando', bg: '#0d1f17', color: '#4ade80', border: 'rgba(34,197,94,.2)' }
-    if (t.includes('losing'))  return { label: '📉 Perdendo', bg: '#1f0d0d', color: '#f87171', border: 'rgba(248,113,113,.2)' }
+    const ct = item.catalog_listing_type_id?.toLowerCase() ?? ''
+    if (ct.includes('winning')) return { label: '🏆 ' + t('ml.compStatus.winning'), bg: '#0d1f17', color: '#4ade80', border: 'rgba(34,197,94,.2)' }
+    if (ct.includes('losing'))  return { label: '📉 ' + t('ml.compStatus.losing'), bg: '#1f0d0d', color: '#f87171', border: 'rgba(248,113,113,.2)' }
     return null
   })()
 
   const shippingLabel = (() => {
     if (item.logistic_type === 'fulfillment') return { text: 'Flex', bg: '#0e2a33', color: '#00E5FF', border: '#00E5FF22' }
-    if (item.logistic_type === 'drop_off' || item.logistic_type === 'xd_drop_off') return { text: 'Coleta', bg: '#1a1a1f', color: '#71717a', border: '#27272a' }
+    if (item.logistic_type === 'drop_off' || item.logistic_type === 'xd_drop_off') return { text: t('ml.shipping.dropOff'), bg: '#1a1a1f', color: '#71717a', border: '#27272a' }
     if (item.free_shipping) return null
-    return { text: 'Comprador paga frete', bg: '#1a1a1f', color: '#52525b', border: '#1e1e24' }
+    return { text: t('ml.shipping.buyerPays'), bg: '#1a1a1f', color: '#52525b', border: '#1e1e24' }
   })()
 
   return (
@@ -582,7 +590,7 @@ function ListingCard({ item, selected, linked, catalog, ceiling, realShippingCos
             style={{ background: '#111114', border: '1px solid #1a1a1f' }}
             onClick={e => e.stopPropagation()}>
             <h2 className="text-sm font-semibold mb-1" style={{ color: '#fafafa' }}>
-              Confirmar mudança de preço
+              {t('ml.priceModal.title')}
             </h2>
             <p className="text-xs mb-4 truncate" style={{ color: '#71717a' }}>{item.id}</p>
             <div className="flex items-center justify-center gap-3 mb-3">
@@ -595,16 +603,16 @@ function ListingCard({ item, selected, linked, catalog, ceiling, realShippingCos
               </span>
             </div>
             <p className="text-[10px] mb-4 text-center" style={{ color: '#fbbf24' }}>
-              ⚠ Isto altera o preço do seu anúncio no Mercado Livre de verdade.
+              {t('ml.priceModal.warning')}
             </p>
             <div className="flex gap-2">
               <button onClick={() => setConfirmPrice(null)}
                 className="flex-1 rounded-lg py-2 text-xs font-medium"
-                style={{ border: '1px solid #27272a', color: '#a1a1aa' }}>Cancelar</button>
+                style={{ border: '1px solid #27272a', color: '#a1a1aa' }}>{t('ml.priceModal.cancel')}</button>
               <button onClick={doApplyPrice} disabled={priceSaving}
                 className="flex-1 rounded-lg py-2 text-xs font-medium transition-opacity disabled:opacity-50"
                 style={{ background: '#00E5FF', color: '#09090b' }}>
-                {priceSaving ? 'Aplicando…' : 'Confirmar no ML'}
+                {priceSaving ? t('ml.priceModal.applying') : t('ml.priceModal.confirmInMl')}
               </button>
             </div>
           </div>
@@ -649,7 +657,7 @@ function ListingCard({ item, selected, linked, catalog, ceiling, realShippingCos
           <span className="flex items-center gap-1 text-[10px] font-medium"
             style={{ color: isActive ? '#4ade80' : '#f87171' }}>
             <span className="w-1.5 h-1.5 rounded-full" style={{ background: isActive ? '#22c55e' : '#ef4444' }} />
-            {isActive ? 'Ativo' : item.status === 'paused' ? 'Pausado' : item.status === 'closed' ? 'Finalizado' : 'Em revisão'}
+            {isActive ? t('ml.status.active') : item.status === 'paused' ? t('ml.status.paused') : item.status === 'closed' ? t('ml.status.closed') : t('ml.status.underReview')}
           </span>
           {compStatus && (
             <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
@@ -660,13 +668,13 @@ function ListingCard({ item, selected, linked, catalog, ceiling, realShippingCos
           {hasPromo && (
             <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
               style={{ background: '#2a1500', color: '#fb923c', border: '1px solid rgba(251,146,60,.2)' }}>
-              {(item.deal_ids?.length ?? 0) + (item.promotions?.length ?? 0)} Promoção
+              {t('ml.promoBadge', { count: (item.deal_ids?.length ?? 0) + (item.promotions?.length ?? 0) })}
             </span>
           )}
           {linked && (
             <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-1"
               style={{ background: 'rgba(0,229,255,0.08)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.2)' }}>
-              📦 Produto vinculado
+              📦 {t('ml.linkedProductBadge')}
             </span>
           )}
         </div>
@@ -691,20 +699,20 @@ function ListingCard({ item, selected, linked, catalog, ceiling, realShippingCos
           )}
           {item.catalog_product_id && (
             <span className="flex items-center">
-              Cat: <span className="font-mono ml-1 text-zinc-400">{item.catalog_product_id}</span>
+              {t('ml.catLabel')} <span className="font-mono ml-1 text-zinc-400">{item.catalog_product_id}</span>
               <Copy text={item.catalog_product_id} />
             </span>
           )}
         </div>
 
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs mb-2">
-          <span className="text-zinc-500">Disp: <span className="text-zinc-200 font-semibold">{num(item.available_quantity)}</span></span>
-          <span className="text-zinc-500">Vendidos: <span className="text-zinc-200 font-semibold">{num(item.sold_quantity)}</span></span>
+          <span className="text-zinc-500">{t('ml.available')} <span className="text-zinc-200 font-semibold">{num(item.available_quantity)}</span></span>
+          <span className="text-zinc-500">{t('ml.sold')} <span className="text-zinc-200 font-semibold">{num(item.sold_quantity)}</span></span>
           <span className="text-zinc-600">📷 {item.pictures_count}</span>
 
           {/* Inline editable stock — visible affordance even at rest */}
           <span className="inline-flex items-center gap-1.5 text-zinc-500">
-            Estoque:
+            {t('ml.stockLabel')}
             <input
               ref={stockRef}
               type="number"
@@ -721,7 +729,7 @@ function ListingCard({ item, selected, linked, catalog, ceiling, realShippingCos
                 }
               }}
               disabled={!stockInfo || stockState === 'saving'}
-              title={stockInfo ? '' : 'Vincule um produto para editar o estoque'}
+              title={stockInfo ? '' : t('ml.stockDisabledTooltip')}
               className="w-[70px] text-zinc-200 font-semibold tabular-nums text-xs px-2 py-1 rounded outline-none transition-colors disabled:cursor-not-allowed disabled:text-zinc-700"
               style={{
                 background: '#0d0d10',
@@ -737,18 +745,18 @@ function ListingCard({ item, selected, linked, catalog, ceiling, realShippingCos
             />
           </span>
 
-          <span className="text-zinc-600">Atualizado {ago(item.last_updated)}</span>
+          <span className="text-zinc-600">{t('ml.updated', { time: ago(item.last_updated, t) })}</span>
           {item.has_variations && (
-            <span className="text-cyan-500 font-medium cursor-pointer hover:text-cyan-300 text-xs">Ver variações</span>
+            <span className="text-cyan-500 font-medium cursor-pointer hover:text-cyan-300 text-xs">{t('ml.viewVariations')}</span>
           )}
         </div>
 
         {(item.health_score != null || item.health_status != null) && (
           <div className="flex items-start gap-3 mt-2 pt-2" style={{ borderTop: '1px solid #1e1e24' }}>
-            <SemiGauge score={item.health_score} label="Qualidade"
-              sub={item.health_reasons.length > 0 ? `${item.health_reasons.length} ponto${item.health_reasons.length > 1 ? 's' : ''}` : undefined} />
-            <SemiGauge score={null} label="Experiência"
-              sub={item.health_status === 'good' ? 'Ótima' : item.health_status === 'with_issues' ? 'Com problemas' : item.health_status === 'bad' ? 'Crítica' : undefined} />
+            <SemiGauge score={item.health_score} label={t('ml.gauge.quality')}
+              sub={item.health_reasons.length > 0 ? t('ml.gauge.points', { count: item.health_reasons.length }) : undefined} />
+            <SemiGauge score={null} label={t('ml.gauge.experience')}
+              sub={item.health_status === 'good' ? t('ml.gauge.great') : item.health_status === 'with_issues' ? t('ml.gauge.withIssues') : item.health_status === 'bad' ? t('ml.gauge.critical') : undefined} />
           </div>
         )}
 
@@ -756,7 +764,7 @@ function ListingCard({ item, selected, linked, catalog, ceiling, realShippingCos
           {item.free_shipping && (
             <span className="text-[10px] px-2 py-0.5 rounded-full font-medium"
               style={{ background: '#0d1f17', border: '1px solid rgba(34,197,94,.2)', color: '#4ade80' }}>
-              Frete grátis
+              {t('ml.freeShipping')}
             </span>
           )}
           {shippingLabel && (
@@ -768,13 +776,13 @@ function ListingCard({ item, selected, linked, catalog, ceiling, realShippingCos
           {item.tags.includes('good_seller') && (
             <span className="text-[10px] px-2 py-0.5 rounded-full"
               style={{ background: '#0e2a33', border: '1px solid #00E5FF1a', color: '#67e8f9' }}>
-              Bom vendedor
+              {t('ml.goodSeller')}
             </span>
           )}
           {item.tags.includes('dragged_bids_and_visits') && (
             <span className="text-[10px] px-2 py-0.5 rounded-full"
               style={{ background: '#1f1a00', border: '1px solid #fbbf2422', color: '#fbbf24' }}>
-              Destaque
+              {t('ml.highlighted')}
             </span>
           )}
         </div>
@@ -805,22 +813,22 @@ function ListingCard({ item, selected, linked, catalog, ceiling, realShippingCos
               {catalog?.price_to_win != null && (
                 <button onClick={() => setPriceDraft(String(catalog.price_to_win))}
                   className="text-[10px] hover:underline" style={{ color: '#67e8f9' }}>
-                  usar preço pra ganhar ({brl(catalog.price_to_win)})
+                  {t('ml.useWinPrice', { price: brl(catalog.price_to_win) })}
                 </button>
               )}
               <div className="flex gap-2">
                 <button onClick={() => setEditingPrice(false)}
-                  className="text-[10px] text-zinc-500 hover:text-zinc-300">cancelar</button>
+                  className="text-[10px] text-zinc-500 hover:text-zinc-300">{t('ml.cancelLower')}</button>
                 <button onClick={commitPrice} disabled={priceSaving}
                   className="text-[10px] font-semibold text-cyan-400 hover:text-cyan-300 disabled:opacity-50">
-                  {priceSaving ? 'aplicando…' : 'aplicar no ML'}
+                  {priceSaving ? t('ml.applyingLower') : t('ml.applyInMl')}
                 </button>
               </div>
             </div>
           ) : (
             <button onClick={() => { setPriceDraft(String(item.price)); setEditingPrice(true) }}
               className="group flex items-center gap-1.5 justify-end w-full"
-              title="Ajustar preço no Mercado Livre">
+              title={t('ml.adjustPriceTooltip')}>
               <p className="text-white text-xl font-bold leading-tight">{brl(item.price)}</p>
               <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
                 className="text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -828,21 +836,21 @@ function ListingCard({ item, selected, linked, catalog, ceiling, realShippingCos
               </svg>
             </button>
           )}
-          <p className="text-emerald-400 text-xs font-semibold mt-0.5">Líquido: {brl(net)}</p>
+          <p className="text-emerald-400 text-xs font-semibold mt-0.5">{t('ml.net')} {brl(net)}</p>
           {catalog?.catalog_status && catalog.catalog_status !== 'winning' && catalog.price_to_win != null && (
             <button
               onClick={() => { setPriceDraft(String(catalog.price_to_win)); setEditingPrice(true) }}
               className="text-[11px] font-semibold mt-1 hover:underline" style={{ color: '#67e8f9' }}
-              title="Abrir o ajuste de preço já com o preço pra ganhar">
-              Ganha o catálogo a {brl(catalog.price_to_win)} →
+              title={t('ml.winCatalogTooltip')}>
+              {t('ml.winCatalogAt', { price: brl(catalog.price_to_win) })} →
             </button>
           )}
           {winningCatalog && tetoPrice != null && (
             <button
               onClick={() => { setPriceDraft(String(tetoPrice)); setEditingPrice(true) }}
               className="text-[11px] font-semibold mt-1 hover:underline" style={{ color: '#4ade80' }}
-              title={`Teto do catálogo${ceiling?.runner_up_seller ? ` — concorrente mais barato: ${ceiling.runner_up_seller}` : ''}. Suba até aqui e siga ganhando.`}>
-              Teto do catálogo: {brl(tetoPrice)} →
+              title={ceiling?.runner_up_seller ? t('ml.ceilingTooltipWithSeller', { seller: ceiling.runner_up_seller }) : t('ml.ceilingTooltip')}>
+              {t('ml.catalogCeiling', { price: brl(tetoPrice) })} →
             </button>
           )}
         </div>
@@ -868,20 +876,20 @@ function ListingCard({ item, selected, linked, catalog, ceiling, realShippingCos
         <div className="w-full text-[11px] pt-2 space-y-1" style={{ borderTop: '1px solid #1e1e24' }}>
           <div className="flex justify-between text-zinc-600">
             <span title={feeIsEstimated
-              ? 'Tarifa real da categoria (listing_prices do ML)'
-              : 'Estimativa por tipo de anúncio — categoria não resolvida'}>
-              Tarifa ML ({feePct.toFixed(1)}%{feeIsEstimated ? '' : ' ~'})
+              ? t('ml.feeRealTooltip')
+              : t('ml.feeEstimateTooltip')}>
+              {t('ml.mlFee', { pct: feePct.toFixed(1) })}{feeIsEstimated ? '' : ' ~'})
             </span>
             <span className="text-red-400/80">-{brl(fee)}</span>
           </div>
           <div className="flex justify-between text-zinc-600">
-            <span>Frete vendedor</span>
+            <span>{t('ml.sellerShipping')}</span>
             <span>
               {item.free_shipping && item.price >= FREE_SHIPPING_MIN
                 ? (effShipping > 0
                     ? <span className="text-red-400/80">-{brl(effShipping)}</span>
-                    : 'Incluso')
-                : <span title="Abaixo de R$79 o frete é por conta do comprador">Comprador</span>}
+                    : t('ml.included'))
+                : <span title={t('ml.buyerPaysTooltip')}>{t('ml.buyer')}</span>}
             </span>
           </div>
         </div>
@@ -895,7 +903,7 @@ function ListingCard({ item, selected, linked, catalog, ceiling, realShippingCos
         <div className="w-full flex flex-col gap-1 mt-1">
           {!linked && matchedProduct && (
             <p className="text-[10px] text-zinc-500 leading-tight px-0.5">
-              Produto no catálogo: <span className="text-zinc-300">{matchedProduct.name}</span>
+              {t('ml.catalogProduct')} <span className="text-zinc-300">{matchedProduct.name}</span>
             </p>
           )}
           {!linked && !matchedProduct && (
@@ -905,40 +913,47 @@ function ListingCard({ item, selected, linked, catalog, ceiling, realShippingCos
               <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
               </svg>
-              Criar produto
+              {t('ml.createProduct')}
             </button>
           )}
-          {/* "Vincular produto" — sempre visível. Verde quando há ação;
-              inativo (cinza) quando o anúncio já tem produto. */}
-          <button
-            onClick={() => {
-              if (linked) return
-              if (matchedProduct) onLinkToKnownProduct(matchedProduct)
-              else onLinkProduct()
-            }}
-            disabled={linked}
-            title={linked
-              ? 'Anúncio já vinculado a um produto'
-              : matchedProduct
-                ? `Vincular ao produto: ${matchedProduct.name}`
-                : 'Vincular a um produto do catálogo'}
-            className="w-full flex items-center justify-center gap-1.5 text-xs px-2 py-1.5 rounded-lg font-medium transition-colors"
-            style={linked
-              ? { background: '#141417', border: '1px solid #27272a', color: '#52525b', cursor: 'default' }
-              : { background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.45)', color: '#4ade80' }}>
-            <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 010 5.656l-3 3a4 4 0 01-5.656-5.656l1.5-1.5m6.656-1.828a4 4 0 010-5.656l3-3a4 4 0 015.656 5.656l-1.5 1.5" />
-            </svg>
-            {linked ? 'Produto vinculado' : 'Vincular produto'}
-          </button>
+          {/* Vínculo: "Vincular produto" quando livre (verde); "Desvincular
+              produto" quando já vinculado (âmbar) — libera pra vincular a outro. */}
+          {linked ? (
+            <button
+              onClick={onUnlink}
+              title={t('ml.unlinkTooltip')}
+              className="w-full flex items-center justify-center gap-1.5 text-xs px-2 py-1.5 rounded-lg font-medium transition-colors"
+              style={{ background: 'rgba(251,146,60,0.1)', border: '1px solid rgba(251,146,60,0.4)', color: '#fb923c' }}>
+              <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0M9 15l-1.5 1.5a4 4 0 01-5.656-5.656L3.5 13M15 9l1.5-1.5a4 4 0 015.656 5.656L20.5 11M4 4l16 16" />
+              </svg>
+              {t('ml.unlinkProduct')}
+            </button>
+          ) : (
+            <button
+              onClick={() => {
+                if (matchedProduct) onLinkToKnownProduct(matchedProduct)
+                else onLinkProduct()
+              }}
+              title={matchedProduct
+                ? t('ml.linkToProductTooltip', { name: matchedProduct.name })
+                : t('ml.linkToCatalogTooltip')}
+              className="w-full flex items-center justify-center gap-1.5 text-xs px-2 py-1.5 rounded-lg font-medium transition-colors"
+              style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.45)', color: '#4ade80' }}>
+              <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 010 5.656l-3 3a4 4 0 01-5.656-5.656l1.5-1.5m6.656-1.828a4 4 0 010-5.656l3-3a4 4 0 015.656 5.656l-1.5 1.5" />
+              </svg>
+              {t('ml.linkProduct')}
+            </button>
+          )}
           <a href={`/dashboard/listings/seo-optimizer?mlbId=${item.id}`}
             className="w-full flex items-center justify-center gap-1.5 text-xs px-2 py-1.5 rounded-lg font-medium transition-colors"
             style={{ background: 'rgba(0,229,255,0.08)', border: '1px solid rgba(0,229,255,0.25)', color: '#00E5FF' }}
-            title="Analisa o SEO desse anúncio e sugere melhorias respeitando travas do ML">
+            title={t('ml.seoTooltip')}>
             <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
             </svg>
-            Otimizar SEO IA
+            {t('ml.optimizeSeo')}
           </a>
         </div>
 
@@ -946,7 +961,7 @@ function ListingCard({ item, selected, linked, catalog, ceiling, realShippingCos
           <button onClick={() => setMenuOpen(v => !v)}
             className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-colors hover:text-white"
             style={{ background: '#1a1a1f', border: '1px solid #27272a', color: '#a1a1aa' }}>
-            Ações
+            {t('ml.actions')}
             <svg width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
             </svg>
@@ -976,6 +991,7 @@ function ConfirmCreateModal({
   onConfirm: () => void
   onClose: () => void
 }) {
+  const t = useTranslations('catalogo')
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
       style={{ background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }}>
@@ -986,8 +1002,8 @@ function ConfirmCreateModal({
         <div className="flex items-center justify-between px-5 py-4 shrink-0"
           style={{ borderBottom: '1px solid #1e1e24' }}>
           <div>
-            <p className="text-white text-sm font-semibold">Criar Produtos a partir de Anúncios</p>
-            <p className="text-zinc-500 text-xs mt-0.5">{count} anúncio{count > 1 ? 's' : ''} selecionado{count > 1 ? 's' : ''}</p>
+            <p className="text-white text-sm font-semibold">{t('ml.createModal.title')}</p>
+            <p className="text-zinc-500 text-xs mt-0.5">{t('ml.createModal.selectedCount', { count })}</p>
           </div>
           <button onClick={onClose} className="text-zinc-500 hover:text-white transition-colors">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
@@ -1014,7 +1030,7 @@ function ConfirmCreateModal({
             </div>
           )) : (
             <div className="px-5 py-4 text-zinc-500 text-sm">
-              {count} anúncio{count > 1 ? 's' : ''} selecionado{count > 1 ? 's' : ''}
+              {t('ml.createModal.selectedCount', { count })}
             </div>
           )}
         </div>
@@ -1022,7 +1038,7 @@ function ConfirmCreateModal({
         {/* Notice */}
         <div className="px-5 py-3 shrink-0" style={{ borderTop: '1px solid #1e1e24', background: 'rgba(0,229,255,0.04)' }}>
           <p className="text-[11px]" style={{ color: '#71717a' }}>
-            ℹ️ Os produtos serão criados com os dados disponíveis do Mercado Livre. Você poderá editar custo e imposto depois.
+            {t('ml.createModal.notice')}
           </p>
         </div>
 
@@ -1032,7 +1048,7 @@ function ConfirmCreateModal({
           <button onClick={onClose} disabled={creating}
             className="px-4 py-2 rounded-lg text-sm font-medium border transition-all disabled:opacity-50"
             style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>
-            Cancelar
+            {t('ml.createModal.cancel')}
           </button>
           <button onClick={onConfirm} disabled={creating}
             className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold transition-all active:scale-[0.98] disabled:opacity-60"
@@ -1043,7 +1059,7 @@ function ConfirmCreateModal({
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
               </svg>
             )}
-            {creating ? 'Criando…' : `Confirmar e Criar ${count} Produto${count > 1 ? 's' : ''} →`}
+            {creating ? t('ml.createModal.creating') : t('ml.createModal.confirmCreate', { count }) + ' →'}
           </button>
         </div>
       </div>
@@ -1060,6 +1076,7 @@ function ResultModal({
   loading: boolean
   onClose: () => void
 }) {
+  const t = useTranslations('catalogo')
   const router  = useRouter()
   const created = results.filter(r => r.status === 'created').length
   const skipped = results.filter(r => r.status === 'skipped').length
@@ -1073,12 +1090,12 @@ function ResultModal({
 
         {/* Header */}
         <div className="px-5 py-4 shrink-0" style={{ borderBottom: '1px solid #1e1e24' }}>
-          <p className="text-white text-sm font-semibold">Resultado da criação</p>
+          <p className="text-white text-sm font-semibold">{t('ml.resultModal.title')}</p>
           {!loading && results.length > 0 && (
             <div className="flex gap-4 mt-2">
-              {created > 0 && <span className="text-[11px] font-semibold" style={{ color: '#4ade80' }}>✅ {created} criado{created > 1 ? 's' : ''}</span>}
-              {skipped > 0 && <span className="text-[11px] font-semibold" style={{ color: '#f59e0b' }}>⚠️ {skipped} ignorado{skipped > 1 ? 's' : ''}</span>}
-              {errors  > 0 && <span className="text-[11px] font-semibold" style={{ color: '#f87171' }}>❌ {errors} erro{errors > 1 ? 's' : ''}</span>}
+              {created > 0 && <span className="text-[11px] font-semibold" style={{ color: '#4ade80' }}>✅ {t('ml.resultModal.createdCount', { count: created })}</span>}
+              {skipped > 0 && <span className="text-[11px] font-semibold" style={{ color: '#f59e0b' }}>⚠️ {t('ml.resultModal.skippedCount', { count: skipped })}</span>}
+              {errors  > 0 && <span className="text-[11px] font-semibold" style={{ color: '#f87171' }}>❌ {t('ml.resultModal.errorCount', { count: errors })}</span>}
             </div>
           )}
         </div>
@@ -1091,10 +1108,10 @@ function ResultModal({
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
               </svg>
-              <span className="text-sm">Criando produtos...</span>
+              <span className="text-sm">{t('ml.resultModal.creatingProducts')}</span>
             </div>
           ) : results.length === 0 ? (
-            <p className="text-zinc-500 text-sm px-5 py-8">Nenhum resultado.</p>
+            <p className="text-zinc-500 text-sm px-5 py-8">{t('ml.resultModal.noResults')}</p>
           ) : (
             <div className="divide-y" style={{ borderColor: '#1e1e24' }}>
               {results.map(r => {
@@ -1106,9 +1123,9 @@ function ResultModal({
                     <div className="min-w-0">
                       <p className="text-[12px] font-mono font-semibold" style={{ color }}>{r.listing_id}</p>
                       <p className="text-zinc-500 text-[11px] mt-0.5">
-                        {r.status === 'created' ? 'Produto criado com sucesso'
-                          : r.status === 'skipped' ? (r.reason ?? 'Ignorado')
-                          : (r.reason ?? 'Erro ao criar')}
+                        {r.status === 'created' ? t('ml.resultModal.createdOk')
+                          : r.status === 'skipped' ? (r.reason ?? t('ml.resultModal.skipped'))
+                          : (r.reason ?? t('ml.resultModal.createError'))}
                       </p>
                     </div>
                   </div>
@@ -1124,13 +1141,13 @@ function ResultModal({
           <button onClick={onClose} disabled={loading}
             className="px-4 py-2 rounded-lg text-sm font-medium border transition-all disabled:opacity-40"
             style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>
-            Fechar
+            {t('ml.resultModal.close')}
           </button>
           {!loading && created > 0 && (
             <button onClick={() => router.push('/dashboard/produtos')}
               className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold transition-all"
               style={{ background: '#00E5FF', color: '#000' }}>
-              Ver Produtos Criados →
+              {t('ml.resultModal.viewCreated')} →
             </button>
           )}
         </div>
@@ -1167,6 +1184,7 @@ function LinkToProductModal({
   onConfirm: (productId: string, productLabel: string, qtyPerUnit: number) => void
   onClose: () => void
 }) {
+  const t = useTranslations('catalogo')
   const supabase = useMemo(() => createClient(), [])
   const [search, setSearch] = useState('')
   const [products, setProducts] = useState<ProductOption[]>([])
@@ -1179,7 +1197,7 @@ function LinkToProductModal({
     const term = search.trim()
     let cancelled = false
     setSearching(true)
-    const t = setTimeout(async () => {
+    const timer = setTimeout(async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let query: any = supabase
         .from('products')
@@ -1192,7 +1210,7 @@ function LinkToProductModal({
       setProducts((data ?? []) as ProductOption[])
       setSearching(false)
     }, 220)
-    return () => { cancelled = true; clearTimeout(t) }
+    return () => { cancelled = true; clearTimeout(timer) }
   }, [search, supabase])
 
   // Agrupa selecionados por conta pra exibir breakdown multi-conta
@@ -1200,11 +1218,11 @@ function LinkToProductModal({
     const m = new Map<string, { nickname: string; sellerId: number | null; items: MListing[] }>()
     for (const it of selectedItems) {
       const key = it.account_nickname ?? `seller-${it.account_seller_id ?? 'unknown'}`
-      if (!m.has(key)) m.set(key, { nickname: it.account_nickname ?? 'Conta sem nickname', sellerId: it.account_seller_id, items: [] })
+      if (!m.has(key)) m.set(key, { nickname: it.account_nickname ?? t('ml.linkModal.unnamedAccount'), sellerId: it.account_seller_id, items: [] })
       m.get(key)!.items.push(it)
     }
     return [...m.values()]
-  }, [selectedItems])
+  }, [selectedItems, t])
 
   const count = selectedItems.length
 
@@ -1218,10 +1236,10 @@ function LinkToProductModal({
         <div className="flex items-center justify-between px-5 py-4 shrink-0"
           style={{ borderBottom: '1px solid #1e1e24' }}>
           <div>
-            <p className="text-white text-sm font-semibold">Vincular Anúncios a um Produto</p>
+            <p className="text-white text-sm font-semibold">{t('ml.linkModal.title')}</p>
             <p className="text-zinc-500 text-xs mt-0.5">
-              {count} anúncio{count > 1 ? 's' : ''} selecionado{count > 1 ? 's' : ''}
-              {byAccount.length > 1 && ` · ${byAccount.length} contas`}
+              {t('ml.linkModal.selectedCount', { count })}
+              {byAccount.length > 1 && ` · ${t('ml.linkModal.accountsCount', { count: byAccount.length })}`}
             </p>
           </div>
           <button onClick={onClose} disabled={linking}
@@ -1236,7 +1254,7 @@ function LinkToProductModal({
         {byAccount.length > 1 && (
           <div className="px-5 py-2 shrink-0" style={{ background: 'rgba(0,229,255,0.04)', borderBottom: '1px solid #1e1e24' }}>
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[10px] uppercase tracking-wider text-zinc-500">Multi-conta:</span>
+              <span className="text-[10px] uppercase tracking-wider text-zinc-500">{t('ml.linkModal.multiAccount')}</span>
               {byAccount.map((g, idx) => {
                 const palette = accountPalette(g.sellerId)
                 return (
@@ -1258,7 +1276,7 @@ function LinkToProductModal({
             autoFocus
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Buscar produto por nome ou SKU…"
+            placeholder={t('ml.linkModal.searchPlaceholder')}
             className="w-full px-4 py-2 rounded-lg text-sm outline-none"
             style={{ background: '#09090b', border: '1px solid #27272a', color: '#fafafa' }}
             disabled={linking}
@@ -1268,9 +1286,9 @@ function LinkToProductModal({
         {/* Product list */}
         <div className="flex-1 overflow-y-auto" style={{ minHeight: 120 }}>
           {searching && products.length === 0 ? (
-            <p className="text-zinc-500 text-sm px-5 py-6">Buscando produtos…</p>
+            <p className="text-zinc-500 text-sm px-5 py-6">{t('ml.linkModal.searching')}</p>
           ) : products.length === 0 ? (
-            <p className="text-zinc-500 text-sm px-5 py-6">Nenhum produto encontrado.</p>
+            <p className="text-zinc-500 text-sm px-5 py-6">{t('ml.linkModal.noProducts')}</p>
           ) : (
             <div className="divide-y" style={{ borderColor: '#1e1e24' }}>
               {products.map(p => {
@@ -1299,14 +1317,14 @@ function LinkToProductModal({
                     <div className="flex-1 min-w-0">
                       <p className="text-zinc-100 text-xs font-medium truncate">{p.name}</p>
                       <p className="text-zinc-500 text-[10px] mt-0.5">
-                        {p.sku ? `SKU: ${p.sku}` : 'sem SKU'}
-                        {p.cost_price != null && ` · custo ${brl(Number(p.cost_price))}`}
+                        {p.sku ? `SKU: ${p.sku}` : t('ml.linkModal.noSku')}
+                        {p.cost_price != null && ` · ${t('ml.linkModal.costLabel', { value: brl(Number(p.cost_price)) })}`}
                       </p>
                     </div>
                     {isPicked && (
                       <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded"
                         style={{ background: 'rgba(0,229,255,0.15)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.4)' }}>
-                        Selecionado
+                        {t('ml.linkModal.selected')}
                       </span>
                     )}
                   </button>
@@ -1320,13 +1338,16 @@ function LinkToProductModal({
         {picked && (
           <div className="px-5 py-3 shrink-0" style={{ borderTop: '1px solid #1e1e24', background: '#0c0c0f' }}>
             <p className="text-zinc-300 text-xs">
-              <span className="text-zinc-500">Vincular </span>
-              <span className="text-cyan-300 font-semibold">{count} anúncio{count > 1 ? 's' : ''}</span>
-              <span className="text-zinc-500"> ao produto </span>
-              <span className="text-white font-semibold">{picked.name}</span>
+              {t.rich('ml.linkModal.linkSummary', {
+                count,
+                name: picked.name,
+                listings: (chunks) => <span className="text-cyan-300 font-semibold">{chunks}</span>,
+                prod: (chunks) => <span className="text-white font-semibold">{chunks}</span>,
+                muted: (chunks) => <span className="text-zinc-500">{chunks}</span>,
+              })}
             </p>
             <div className="flex items-center gap-2 mt-2">
-              <label className="text-[11px] text-zinc-500">Qtd por unidade:</label>
+              <label className="text-[11px] text-zinc-500">{t('ml.linkModal.qtyPerUnit')}</label>
               <input
                 type="number"
                 min={1}
@@ -1337,7 +1358,7 @@ function LinkToProductModal({
                 style={{ background: '#09090b', border: '1px solid #27272a', color: '#fafafa' }}
               />
               <span className="text-[10px] text-zinc-600">
-                (kits: quantos do produto = 1 unidade do anúncio)
+                {t('ml.linkModal.qtyHint')}
               </span>
             </div>
           </div>
@@ -1349,7 +1370,7 @@ function LinkToProductModal({
           <button onClick={onClose} disabled={linking}
             className="px-4 py-2 rounded-lg text-sm font-medium border transition-all disabled:opacity-50"
             style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>
-            Cancelar
+            {t('ml.linkModal.cancel')}
           </button>
           <button
             onClick={() => picked && onConfirm(picked.id, picked.name, Number(qtyPerUnit) || 1)}
@@ -1362,7 +1383,7 @@ function LinkToProductModal({
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
               </svg>
             )}
-            {linking ? 'Vinculando…' : `Vincular ${count} →`}
+            {linking ? t('ml.linkModal.linking') : `${t('ml.linkModal.linkBtn', { count })} →`}
           </button>
         </div>
       </div>
@@ -1375,6 +1396,7 @@ function LinkToProductModal({
 function Pagination({ page, total, size, onChange }: {
   page: number; total: number; size: number; onChange: (p: number) => void
 }) {
+  const t = useTranslations('catalogo')
   const last = Math.max(0, Math.ceil(total / size) - 1)
   if (last === 0) return null
 
@@ -1397,7 +1419,7 @@ function Pagination({ page, total, size, onChange }: {
 
   return (
     <div className="flex items-center justify-between pt-5">
-      <p className="text-zinc-600 text-xs">{num(total)} anúncio{total !== 1 ? 's' : ''}</p>
+      <p className="text-zinc-600 text-xs">{t('ml.listingCount', { count: total })}</p>
       <div className="flex items-center gap-1">
         {btn('«', 0, page === 0)}
         {btn('‹', page - 1, page === 0)}
@@ -1420,12 +1442,13 @@ function Pagination({ page, total, size, onChange }: {
 // ── Active filter chip (filtros avançados ML) ────────────────────────────────
 
 function ChipML({ label, onRemove }: { label: string; onRemove: () => void }) {
+  const t = useTranslations('catalogo')
   return (
     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border"
       style={{ background: 'rgba(0,229,255,0.06)', borderColor: 'rgba(0,229,255,0.25)', color: '#67e8f9' }}>
       {label}
       <button onClick={onRemove} className="hover:text-white transition-colors -mr-0.5"
-        aria-label={`Remover filtro ${label}`}>
+        aria-label={t('ml.removeFilter', { label })}>
         <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
         </svg>
@@ -1437,6 +1460,7 @@ function ChipML({ label, onRemove }: { label: string; onRemove: () => void }) {
 // ── Page ───────────────────────────────────────────────────────────────────
 
 export default function MLAnunciosPage() {
+  const t = useTranslations('catalogo')
   const supabase = useMemo(() => createClient(), [])
 
   const [tab, setTab]     = useState<Tab>('active')
@@ -1469,6 +1493,8 @@ export default function MLAnunciosPage() {
   // Map listing_id -> stock info (filled from Supabase). Used to render the
   // inline stock input on each card and to compute the page-total KPI.
   const [stockMap, setStockMap]             = useState<Map<string, { stock_id: string; product_id: string; quantity: number }>>(new Map())
+  // listing_id → dados do vínculo, pro botão "Desvincular".
+  const [linkMap, setLinkMap]               = useState<Map<string, { vinculoId: string; productId: string; productName: string }>>(new Map())
 
   // Filtros avançados
   const [advOpen, setAdvOpen]                 = useState(false)
@@ -1512,9 +1538,9 @@ export default function MLAnunciosPage() {
 
   const getHeaders = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session?.access_token) throw new Error('Não autenticado')
+    if (!session?.access_token) throw new Error(t('ml.notAuthenticated'))
     return { Authorization: `Bearer ${session.access_token}` }
-  }, [supabase])
+  }, [supabase, t])
 
   // Conta ML selecionada (multi-conta). `selected=null` = todas as contas.
   // O hook tem custom event que dispara re-render quando o dropdown muda,
@@ -1554,12 +1580,12 @@ export default function MLAnunciosPage() {
       setItems(list)
       setTotal(body.total ?? 0)
     } catch (e: unknown) {
-      toast(e instanceof Error ? e.message : 'Erro ao carregar anúncios', 'error')
+      toast(e instanceof Error ? e.message : t('ml.loadError'), 'error')
       setItems([])
     } finally {
       setLoading(false)
     }
-  }, [getHeaders, selectedSellerId])
+  }, [getHeaders, selectedSellerId, t])
 
   // ── Status de catálogo (price_to_win) — AO VIVO no ML ──────────────────
   // Busca pros anúncios de catálogo da página atual. Não espera a coleta
@@ -1644,15 +1670,17 @@ export default function MLAnunciosPage() {
   // Done in a single Supabase round-trip to avoid duplicate network cost.
   const loadStockMap = useCallback(async () => {
     type Row = {
+      id: string
       listing_id: string
       product_id: string
       products: {
+        name: string | null
         product_stock: Array<{ id: string; quantity: number; platform: string | null }> | null
       } | null
     }
     const { data, error } = await supabase
       .from('product_listings')
-      .select('listing_id, product_id, products(product_stock(id, quantity, platform))')
+      .select('id, listing_id, product_id, products(name, product_stock(id, quantity, platform))')
       .eq('platform', 'mercadolivre')
       .eq('is_active', true)
 
@@ -1660,9 +1688,15 @@ export default function MLAnunciosPage() {
 
     const ids = new Set<string>()
     const map = new Map<string, { stock_id: string; product_id: string; quantity: number }>()
+    const links = new Map<string, { vinculoId: string; productId: string; productName: string }>()
     for (const r of data as unknown as Row[]) {
       if (!r.listing_id) continue
       ids.add(r.listing_id)
+      links.set(r.listing_id, {
+        vinculoId:   r.id,
+        productId:   r.product_id,
+        productName: r.products?.name ?? '',
+      })
       // Use the "shared" stock row (platform IS NULL) — what the rest of the
       // app treats as the canonical product_stock for an SKU.
       const shared = r.products?.product_stock?.find(s => s.platform === null)
@@ -1676,6 +1710,7 @@ export default function MLAnunciosPage() {
     }
     setLinkedIds(ids)
     setStockMap(map)
+    setLinkMap(links)
   }, [supabase])
 
   useEffect(() => { loadStockMap() }, [loadStockMap])
@@ -1701,10 +1736,10 @@ export default function MLAnunciosPage() {
       .from('products')
       .update({ cost_price: patch.cost, tax_percentage: patch.taxPct })
       .eq('id', productId)
-    if (error) { toast('Falha ao salvar custo/imposto', 'error'); return false }
+    if (error) { toast(t('ml.toast.saveCostTaxFailed'), 'error'); return false }
     setMarginMap(m => ({ ...m, [listingId]: { ...m[listingId], cost: patch.cost, tax_pct: patch.taxPct } }))
     setCostMap(c => ({ ...c, [listingId]: patch.cost }))
-    toast('Custo e imposto atualizados', 'success')
+    toast(t('ml.toast.costTaxUpdated'), 'success')
     return true
   }
 
@@ -1838,17 +1873,17 @@ export default function MLAnunciosPage() {
       })
       if (!res.ok) {
         const b = await res.json().catch(() => ({}))
-        toast(b.message ?? 'Erro ao ajustar preço', 'error')
+        toast(b.message ?? t('ml.toast.priceAdjustError'), 'error')
         return false
       }
       setItems(prev => prev.map(it => (it.id === listingId ? { ...it, price: newPrice } : it)))
-      toast('Preço atualizado no Mercado Livre', 'success')
+      toast(t('ml.toast.priceUpdated'), 'success')
       return true
     } catch (e) {
-      toast(e instanceof Error ? e.message : 'Erro ao ajustar preço', 'error')
+      toast(e instanceof Error ? e.message : t('ml.toast.priceAdjustError'), 'error')
       return false
     }
-  }, [getHeaders])
+  }, [getHeaders, t])
 
   function handleTabChange(t: Tab) { setTab(t); setPage(0); setSelected(new Set()) }
   function handleSearch() { setPage(0); loadItems(tab, 0, q) }
@@ -1862,11 +1897,11 @@ export default function MLAnunciosPage() {
       const res = await fetch(`${BACKEND}/ml/my-items`, { headers })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const body = await res.json()
-      toast(`${body.items?.length ?? 0} anúncios encontrados no ML`, 'success')
+      toast(t('ml.toast.listingsFound', { count: body.items?.length ?? 0 }), 'success')
       loadItems(tab, page, q)
       loadCounts()
     } catch (e: unknown) {
-      toast(e instanceof Error ? e.message : 'Erro ao sincronizar', 'error')
+      toast(e instanceof Error ? e.message : t('ml.toast.syncError'), 'error')
     } finally {
       setSyncing(false)
     }
@@ -1922,13 +1957,13 @@ export default function MLAnunciosPage() {
       setSelected(new Set())
       const created = r.filter(x => x.status === 'created').length
       if (created > 0) {
-        toast(`${created} produto${created > 1 ? 's' : ''} criado${created > 1 ? 's' : ''}!`, 'success')
+        toast(t('ml.toast.productsCreated', { count: created }), 'success')
         // Refresh linked IDs + stock map so the badge AND the inline stock
         // input appear immediately on freshly-created products
         loadStockMap()
       }
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Erro ao criar produtos'
+      const msg = e instanceof Error ? e.message : t('ml.toast.createProductsError')
       setResults([{ listing_id: pendingIds[0] ?? '?', status: 'error', reason: msg }])
       toast(msg, 'error')
     } finally {
@@ -1949,7 +1984,7 @@ export default function MLAnunciosPage() {
 
   function openLinkModal() {
     if (unlinkedSelected.length === 0) {
-      toast('Todos os selecionados já estão vinculados a algum produto.', 'info')
+      toast(t('ml.toast.allAlreadyLinked'), 'info')
       return
     }
     setLinkTargets(unlinkedSelected)
@@ -1994,9 +2029,9 @@ export default function MLAnunciosPage() {
       const skipped = body.skipped ?? 0
       const errors  = body.errors  ?? 0
       const partsTxt: string[] = []
-      if (created > 0) partsTxt.push(`${created} vinculado${created > 1 ? 's' : ''}`)
-      if (skipped > 0) partsTxt.push(`${skipped} já existia${skipped > 1 ? 'm' : ''}`)
-      if (errors  > 0) partsTxt.push(`${errors} erro${errors > 1 ? 's' : ''}`)
+      if (created > 0) partsTxt.push(t('ml.toast.bulkLinked', { count: created }))
+      if (skipped > 0) partsTxt.push(t('ml.toast.bulkExisted', { count: skipped }))
+      if (errors  > 0) partsTxt.push(t('ml.toast.bulkErrors', { count: errors }))
       const msg = `${partsTxt.join(' · ')} → ${productLabel}`
       toast(msg, errors > 0 ? 'error' : 'success')
 
@@ -2005,7 +2040,7 @@ export default function MLAnunciosPage() {
       // Refresh linked IDs + stock map pra badges atualizarem imediatamente
       loadStockMap()
     } catch (e: unknown) {
-      toast(e instanceof Error ? e.message : 'Erro ao vincular', 'error')
+      toast(e instanceof Error ? e.message : t('ml.toast.linkError'), 'error')
     } finally {
       setLinking(false)
     }
@@ -2038,12 +2073,38 @@ export default function MLAnunciosPage() {
         const body = (await res.json().catch(() => ({}))) as { message?: string }
         throw new Error(body.message ?? `HTTP ${res.status}`)
       }
-      toast(`Anúncio vinculado a ${product.name}`, 'success')
+      toast(t('ml.toast.linkedToProduct', { name: product.name }), 'success')
       loadStockMap()
     } catch (e: unknown) {
-      toast(e instanceof Error ? e.message : 'Erro ao vincular', 'error')
+      toast(e instanceof Error ? e.message : t('ml.toast.linkError'), 'error')
     } finally {
       setLinking(false)
+    }
+  }
+
+  /** Desvincula um anúncio do produto — apaga o vínculo em product_listings.
+   *  Depois o anúncio fica livre pra ser vinculado a outro produto. */
+  async function unlinkListing(item: MListing) {
+    const info = linkMap.get(item.id)
+    if (!info) return
+    const ok = window.confirm(
+      t('ml.unlinkConfirm', { name: info.productName || t('ml.unlinkConfirmFallback') }),
+    )
+    if (!ok) return
+    try {
+      const headers = await getHeaders()
+      const res = await fetch(`${BACKEND}/products/vinculos/${info.vinculoId}`, {
+        method:  'DELETE',
+        headers,
+      })
+      if (!res.ok && res.status !== 204) {
+        const body = (await res.json().catch(() => ({}))) as { message?: string }
+        throw new Error(body.message ?? `HTTP ${res.status}`)
+      }
+      toast(t('ml.toast.unlinked'), 'success')
+      loadStockMap()
+    } catch (e: unknown) {
+      toast(e instanceof Error ? e.message : t('ml.toast.unlinkError'), 'error')
     }
   }
 
@@ -2060,10 +2121,10 @@ export default function MLAnunciosPage() {
   // ── Tabs config ───────────────────────────────────────────────────────
 
   const TABS: { key: Tab; label: string }[] = [
-    { key: 'active',       label: 'Ativos' },
-    { key: 'paused',       label: 'Pausados' },
-    { key: 'closed',       label: 'Finalizados' },
-    { key: 'under_review', label: 'Em revisão' },
+    { key: 'active',       label: t('ml.tab.active') },
+    { key: 'paused',       label: t('ml.tab.paused') },
+    { key: 'closed',       label: t('ml.tab.closed') },
+    { key: 'under_review', label: t('ml.tab.underReview') },
   ]
 
   // Pending items objects for confirm modal
@@ -2080,14 +2141,14 @@ export default function MLAnunciosPage() {
           com o select e não roubar atenção visual. */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
-          <p className="text-zinc-500 text-xs font-medium tracking-widest uppercase mb-1">Catálogo · Anúncios</p>
+          <p className="text-zinc-500 text-xs font-medium tracking-widest uppercase mb-1">{t('ml.eyebrow')}</p>
           <h1 className="text-white text-2xl font-semibold">Mercado Livre</h1>
         </div>
         <div className="flex items-center gap-3">
           {/* Multi-conta: filtra anúncios pela conta selecionada (default
               = todas). Quando há 1 só conta, vira read-only. localStorage
               persiste seleção entre páginas. */}
-          <AccountSelector compact label="Conta" hideWhenEmpty />
+          <AccountSelector compact label={t('ml.account')} hideWhenEmpty />
           <button onClick={handleSync} disabled={syncing}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
             style={{ background: syncing ? '#0e2a33' : '#00E5FF', color: syncing ? '#00E5FF' : '#000',
@@ -2096,7 +2157,7 @@ export default function MLAnunciosPage() {
               style={{ animation: syncing ? 'spin 1s linear infinite' : undefined }}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
-            {syncing ? 'Sincronizando…' : 'Sincronizar ML'}
+            {syncing ? t('ml.syncing') : t('ml.syncMl')}
           </button>
         </div>
       </div>
@@ -2104,10 +2165,10 @@ export default function MLAnunciosPage() {
       {/* ── KPIs ──────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Anúncios ativos',   value: num(counts.active  ?? 0), sub: 'publicados',       color: '#22c55e' },
-          { label: 'Anúncios pausados', value: num(counts.paused  ?? 0), sub: 'fora do ar',       color: '#f87171' },
-          { label: 'Em revisão',        value: num(counts.under_review ?? 0), sub: 'aguardando',  color: '#fbbf24' },
-          { label: 'Estoque (pág.)',    value: num(stockTotal),            sub: 'itens disponíveis', color: '#00E5FF' },
+          { label: t('ml.kpi.activeListings'), value: num(counts.active  ?? 0), sub: t('ml.kpi.published'),     color: '#22c55e' },
+          { label: t('ml.kpi.pausedListings'), value: num(counts.paused  ?? 0), sub: t('ml.kpi.offline'),       color: '#f87171' },
+          { label: t('ml.kpi.underReview'),    value: num(counts.under_review ?? 0), sub: t('ml.kpi.waiting'), color: '#fbbf24' },
+          { label: t('ml.kpi.stockPage'),      value: num(stockTotal),          sub: t('ml.kpi.availableItems'), color: '#00E5FF' },
         ].map(kpi => (
           <div key={kpi.label} className="rounded-2xl p-5" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
             <p className="text-zinc-500 text-xs mb-2">{kpi.label}</p>
@@ -2123,19 +2184,19 @@ export default function MLAnunciosPage() {
           value={q}
           onChange={e => setQ(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && handleSearch()}
-          placeholder="Buscar por título, SKU ou código MLB…"
+          placeholder={t('ml.searchPlaceholder')}
           className="text-sm px-4 py-2 rounded-xl text-zinc-200 placeholder-zinc-600 outline-none w-96 max-w-full"
           style={{ background: '#111114', border: '1px solid #27272a' }}
         />
         <button onClick={handleSearch}
           className="text-sm px-5 py-2 rounded-xl font-semibold transition-opacity hover:opacity-90"
           style={{ background: '#00E5FF', color: '#000' }}>
-          Buscar
+          {t('ml.search')}
         </button>
         {q && (
           <button onClick={() => { setQ(''); loadItems(tab, 0, '') }}
             className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors px-2">
-            Limpar
+            {t('ml.clear')}
           </button>
         )}
       </div>
@@ -2177,7 +2238,7 @@ export default function MLAnunciosPage() {
           <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
           </svg>
-          Filtros avançados
+          {t('ml.advancedFilters')}
           {advCount > 0 && <span className="text-[10px] font-bold px-1.5 rounded-full" style={{ background: '#00E5FF', color: '#000' }}>{advCount}</span>}
           <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
             style={{ transform: advOpen ? 'rotate(180deg)' : undefined, transition: 'transform .2s', opacity: 0.7, marginLeft: 2 }}>
@@ -2190,13 +2251,13 @@ export default function MLAnunciosPage() {
             style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
             {/* Tipo de listagem */}
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2">Tipo de listagem</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2">{t('ml.filter.listingType')}</p>
               <div className="flex flex-wrap gap-1">
                 {([
-                  { v: 'all',     label: 'Todos' },
-                  { v: 'premium', label: 'Premium' },
-                  { v: 'gold',    label: 'Ouro' },
-                  { v: 'classic', label: 'Clássico' },
+                  { v: 'all',     label: t('ml.filter.all') },
+                  { v: 'premium', label: t('ml.typeLabel.premium') },
+                  { v: 'gold',    label: t('ml.typeLabel.gold') },
+                  { v: 'classic', label: t('ml.typeLabel.classic') },
                 ] as const).map(o => (
                   <button key={o.v} onClick={() => setFilterListingType(o.v)}
                     className="px-2 py-1 rounded-md text-[11px] font-medium border transition-all"
@@ -2213,14 +2274,14 @@ export default function MLAnunciosPage() {
 
             {/* Logística */}
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2">Logística</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2">{t('ml.filter.logistics')}</p>
               <div className="flex flex-wrap gap-1">
                 {([
-                  { v: 'all',           label: 'Todos' },
-                  { v: 'fulfillment',   label: 'Full' },
-                  { v: 'cross_docking', label: 'Coleta' },
-                  { v: 'self_service',  label: 'Self' },
-                  { v: 'drop_off',      label: 'Agência' },
+                  { v: 'all',           label: t('ml.filter.all') },
+                  { v: 'fulfillment',   label: t('ml.filter.full') },
+                  { v: 'cross_docking', label: t('ml.filter.pickup') },
+                  { v: 'self_service',  label: t('ml.filter.self') },
+                  { v: 'drop_off',      label: t('ml.filter.agency') },
                 ] as const).map(o => (
                   <button key={o.v} onClick={() => setFilterLogistic(o.v)}
                     className="px-2 py-1 rounded-md text-[11px] font-medium border transition-all"
@@ -2237,11 +2298,11 @@ export default function MLAnunciosPage() {
 
             {/* Atributos */}
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2">Atributos</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2">{t('ml.filter.attributes')}</p>
               <div className="flex flex-col gap-1">
                 {([
-                  { k: 'promo',     label: 'Em promoção',       count: flagCounts.promo,     accent: '#22c55e' },
-                  { k: 'badHealth', label: 'Saúde com problemas', count: flagCounts.badHealth, accent: '#f87171' },
+                  { k: 'promo',     label: t('ml.filter.onPromo'),     count: flagCounts.promo,     accent: '#22c55e' },
+                  { k: 'badHealth', label: t('ml.filter.badHealth'),   count: flagCounts.badHealth, accent: '#f87171' },
                 ] as const).map(o => {
                   const active = filterFlags[o.k]
                   return (
@@ -2269,14 +2330,14 @@ export default function MLAnunciosPage() {
 
             {/* Saneamento */}
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2">Saneamento</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2">{t('ml.filter.sanitation')}</p>
               <div className="flex flex-col gap-1">
                 {([
-                  { k: 'noLink',          label: 'Sem vínculo',      count: flagCounts.noLink,          accent: '#f59e0b' },
-                  { k: 'noCost',          label: 'Sem custo',        count: flagCounts.noCost,          accent: '#f59e0b' },
-                  { k: 'noPhoto',         label: 'Sem foto',         count: flagCounts.noPhoto,         accent: '#f59e0b' },
-                  { k: 'zeroStockActive', label: 'Estoque 0 + ativo', count: flagCounts.zeroStockActive, accent: '#f87171' },
-                  { k: 'noCampaign',      label: 'Sem campanha',     count: flagCounts.noCampaign,      accent: '#f59e0b' },
+                  { k: 'noLink',          label: t('ml.filter.noLink'),          count: flagCounts.noLink,          accent: '#f59e0b' },
+                  { k: 'noCost',          label: t('ml.filter.noCost'),          count: flagCounts.noCost,          accent: '#f59e0b' },
+                  { k: 'noPhoto',         label: t('ml.filter.noPhoto'),         count: flagCounts.noPhoto,         accent: '#f59e0b' },
+                  { k: 'zeroStockActive', label: t('ml.filter.zeroStockActive'), count: flagCounts.zeroStockActive, accent: '#f87171' },
+                  { k: 'noCampaign',      label: t('ml.filter.noCampaign'),      count: flagCounts.noCampaign,      accent: '#f59e0b' },
                 ] as const).map(o => {
                   const active = filterFlags[o.k]
                   return (
@@ -2306,26 +2367,26 @@ export default function MLAnunciosPage() {
 
         {advCount > 0 && (
           <div className="mb-3 flex flex-wrap items-center gap-1.5 text-[11px]">
-            <span className="text-zinc-500 font-medium">Ativos:</span>
+            <span className="text-zinc-500 font-medium">{t('ml.activeFilters')}</span>
             {filterListingType !== 'all' && (
-              <ChipML label={`Tipo: ${({ premium: 'Premium', gold: 'Ouro', classic: 'Clássico' } as const)[filterListingType]}`} onRemove={() => setFilterListingType('all')} />
+              <ChipML label={t('ml.chipType', { value: t(`ml.typeLabel.${filterListingType}`) })} onRemove={() => setFilterListingType('all')} />
             )}
             {filterLogistic !== 'all' && (
-              <ChipML label={`Logística: ${({ fulfillment: 'Full', cross_docking: 'Coleta', self_service: 'Self', drop_off: 'Agência' } as const)[filterLogistic]}`} onRemove={() => setFilterLogistic('all')} />
+              <ChipML label={t('ml.chipLogistics', { value: t(`ml.filter.${({ fulfillment: 'full', cross_docking: 'pickup', self_service: 'self', drop_off: 'agency' } as const)[filterLogistic]}`) })} onRemove={() => setFilterLogistic('all')} />
             )}
-            {filterFlags.promo           && <ChipML label="Em promoção"        onRemove={() => setFilterFlags(p => ({ ...p, promo: false }))} />}
-            {filterFlags.badHealth       && <ChipML label="Saúde com problemas" onRemove={() => setFilterFlags(p => ({ ...p, badHealth: false }))} />}
-            {filterFlags.noLink          && <ChipML label="Sem vínculo"        onRemove={() => setFilterFlags(p => ({ ...p, noLink: false }))} />}
-            {filterFlags.noCost          && <ChipML label="Sem custo"          onRemove={() => setFilterFlags(p => ({ ...p, noCost: false }))} />}
-            {filterFlags.noPhoto         && <ChipML label="Sem foto"           onRemove={() => setFilterFlags(p => ({ ...p, noPhoto: false }))} />}
-            {filterFlags.zeroStockActive && <ChipML label="Estoque 0 + ativo"  onRemove={() => setFilterFlags(p => ({ ...p, zeroStockActive: false }))} />}
-            {filterFlags.noCampaign      && <ChipML label="Sem campanha"       onRemove={() => setFilterFlags(p => ({ ...p, noCampaign: false }))} />}
+            {filterFlags.promo           && <ChipML label={t('ml.filter.onPromo')}     onRemove={() => setFilterFlags(p => ({ ...p, promo: false }))} />}
+            {filterFlags.badHealth       && <ChipML label={t('ml.filter.badHealth')}   onRemove={() => setFilterFlags(p => ({ ...p, badHealth: false }))} />}
+            {filterFlags.noLink          && <ChipML label={t('ml.filter.noLink')}      onRemove={() => setFilterFlags(p => ({ ...p, noLink: false }))} />}
+            {filterFlags.noCost          && <ChipML label={t('ml.filter.noCost')}      onRemove={() => setFilterFlags(p => ({ ...p, noCost: false }))} />}
+            {filterFlags.noPhoto         && <ChipML label={t('ml.filter.noPhoto')}     onRemove={() => setFilterFlags(p => ({ ...p, noPhoto: false }))} />}
+            {filterFlags.zeroStockActive && <ChipML label={t('ml.filter.zeroStockActive')} onRemove={() => setFilterFlags(p => ({ ...p, zeroStockActive: false }))} />}
+            {filterFlags.noCampaign      && <ChipML label={t('ml.filter.noCampaign')}  onRemove={() => setFilterFlags(p => ({ ...p, noCampaign: false }))} />}
             <button onClick={clearAdv}
               className="ml-1 px-2 py-0.5 text-[10px] font-medium rounded transition-colors"
               style={{ color: '#71717a' }}
               onMouseEnter={e => { e.currentTarget.style.color = '#f87171' }}
               onMouseLeave={e => { e.currentTarget.style.color = '#71717a' }}>
-              Limpar tudo
+              {t('ml.clearAll')}
             </button>
           </div>
         )}
@@ -2338,8 +2399,8 @@ export default function MLAnunciosPage() {
             className="w-4 h-4 rounded accent-cyan-400 cursor-pointer" />
           <span className="text-zinc-500 text-xs">
             {selected.size > 0
-              ? `${selected.size} selecionado${selected.size > 1 ? 's' : ''}`
-              : `${num(displayedItems.length)} anúncio${displayedItems.length !== 1 ? 's' : ''}${advCount > 0 ? ' (filtrados)' : ' nesta página'}`}
+              ? t('ml.selectedCount', { count: selected.size })
+              : (advCount > 0 ? t('ml.listingsFiltered', { count: displayedItems.length }) : t('ml.listingsThisPage', { count: displayedItems.length }))}
           </span>
           {selected.size > 0 && (
             <>
@@ -2347,11 +2408,11 @@ export default function MLAnunciosPage() {
                 onClick={openLinkModal}
                 className="ml-2 flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-semibold transition-all"
                 style={{ background: 'rgba(167,139,250,0.1)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.25)' }}
-                title={unlinkedSelected.length === 0 ? 'Todos os selecionados já estão vinculados' : `Vincular ${unlinkedSelected.length} não-vinculado(s) a um produto`}>
+                title={unlinkedSelected.length === 0 ? t('ml.allLinkedTooltip') : t('ml.linkUnlinkedTooltip', { count: unlinkedSelected.length })}>
                 <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
                 </svg>
-                Vincular a produto
+                {t('ml.linkToProduct')}
                 {unlinkedSelected.length > 0 && unlinkedSelected.length !== selected.size && (
                   <span className="ml-1 text-[10px] opacity-70">({unlinkedSelected.length})</span>
                 )}
@@ -2363,7 +2424,7 @@ export default function MLAnunciosPage() {
                 <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                 </svg>
-                Criar Produtos
+                {t('ml.createProducts')}
               </button>
             </>
           )}
@@ -2381,15 +2442,15 @@ export default function MLAnunciosPage() {
                   className="mb-4 opacity-25">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                 </svg>
-                <p className="text-sm font-medium text-zinc-500 mb-1">Nenhum anúncio encontrado</p>
-                <p className="text-xs mb-5">Sincronize com o Mercado Livre para importar seus anúncios</p>
+                <p className="text-sm font-medium text-zinc-500 mb-1">{t('ml.emptyTitle')}</p>
+                <p className="text-xs mb-5">{t('ml.emptyHint')}</p>
                 <button onClick={handleSync} disabled={syncing}
                   className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-colors"
                   style={{ background: '#00E5FF', color: '#000' }}>
                   <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                   </svg>
-                  Sincronizar ML
+                  {t('ml.syncMl')}
                 </button>
               </div>
             )
@@ -2408,6 +2469,7 @@ export default function MLAnunciosPage() {
                 onCreateProduct={id => openCreateConfirm([id])}
                 onLinkProduct={() => openSingleLink(item)}
                 onLinkToKnownProduct={product => linkToKnownProduct(item, product)}
+                onUnlink={() => unlinkListing(item)}
                 onUpdateStock={updateLinkedStock}
                 onAdjustPrice={adjustListingPrice}
                 onSaveMargin={(productId, patch) => saveMargin(item.id, productId, patch)}
@@ -2437,7 +2499,7 @@ export default function MLAnunciosPage() {
               style={{ background: '#00E5FF', color: '#000' }}>
               {selected.size}
             </span>
-            anúncio{selected.size > 1 ? 's' : ''} selecionado{selected.size > 1 ? 's' : ''}
+            {t('ml.listingsSelected', { count: selected.size })}
           </span>
           <div className="flex items-center gap-3">
             <button
@@ -2445,11 +2507,11 @@ export default function MLAnunciosPage() {
               disabled={unlinkedSelected.length === 0}
               className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
               style={{ background: 'rgba(167,139,250,0.15)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.35)' }}
-              title={unlinkedSelected.length === 0 ? 'Todos os selecionados já estão vinculados' : `Vincular ${unlinkedSelected.length} a um produto`}>
+              title={unlinkedSelected.length === 0 ? t('ml.allLinkedTooltip') : t('ml.linkCountTooltip', { count: unlinkedSelected.length })}>
               <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
               </svg>
-              Vincular a produto
+              {t('ml.linkToProduct')}
               {unlinkedSelected.length > 0 && unlinkedSelected.length !== selected.size && (
                 <span className="text-[11px] opacity-80">({unlinkedSelected.length})</span>
               )}
@@ -2465,13 +2527,13 @@ export default function MLAnunciosPage() {
               <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
               </svg>
-              Criar Produtos
+              {t('ml.createProducts')}
             </button>
             <button
               onClick={() => setSelected(new Set())}
               className="px-4 py-2.5 rounded-xl text-sm font-medium border transition-all"
               style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>
-              Cancelar
+              {t('ml.cancel')}
             </button>
           </div>
         </div>
