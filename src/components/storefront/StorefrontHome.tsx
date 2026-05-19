@@ -23,6 +23,7 @@ import { FullBanner } from './premium/FullBanner'
 import { ImageHotspot } from './premium/ImageHotspot'
 import { SiteFooter } from './premium/SiteFooter'
 import { Reveal } from './premium/Reveal'
+import { WhatsAppFloater } from './premium/WhatsAppFloater'
 
 /* -------------------------------------------------------- WhatsApp button */
 
@@ -107,7 +108,7 @@ export function StorefrontHome({ design, store, products, slug, embedded = false
         const chrome = section.type === 'siteHeader' || section.type === 'announcementBar'
         return reveal && !chrome ? <Reveal key={i}>{node}</Reveal> : node
       })}
-      {!embedded && <WhatsAppButton store={store} />}
+      {!embedded && <WhatsAppFloater store={store} />}
     </div>
   )
 }

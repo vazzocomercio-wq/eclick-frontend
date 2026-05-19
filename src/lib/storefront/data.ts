@@ -30,6 +30,10 @@ export interface StorefrontStore {
   /** Paginas customizadas (sobre/contato/politica/etc). Chave = slug
    *  publico (`/loja/[slug]/p/[pageSlug]`). NULL/ausente = sem pagina. */
   pages?:                  Record<string, { title: string; content: string }> | null
+  /** Quando a org tem catalogo do WhatsApp Business vinculado, o
+   *  backend devolve este bloco — o widget da loja oferece "Ver
+   *  catalogo no WhatsApp" alem de "Conversar". */
+  whatsapp_catalog?:       { enabled: boolean; phone: string | null; link: string | null } | null
 }
 
 export interface StorefrontProduct {
