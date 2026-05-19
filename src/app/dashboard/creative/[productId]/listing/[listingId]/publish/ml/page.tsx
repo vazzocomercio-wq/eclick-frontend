@@ -44,6 +44,7 @@ export default function MLPublishPage() {
   const [listingType, setListingType] = useState<MlListingType>('gold_special')
   const [condition, setCondition] = useState<MlCondition>('new')
   const [attributes, setAttributes] = useState<AttributeValue[]>([])
+  const [title, setTitle]         = useState<string>('')
 
   // Carrega listing types da API ML no mount
   useEffect(() => {
@@ -98,6 +99,7 @@ export default function MLPublishPage() {
         CreativeApi.getProductStorefront(productId).catch(() => false),
       ])
       setCtx(c)
+      setTitle(c.listing.title ?? '')
       setPublications(pubs)
       setStorefrontAlready(sf)
       setAlsoStorefront(!sf)
@@ -212,6 +214,20 @@ export default function MLPublishPage() {
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attributes, ctx])
+
+  // Auto-save do título no anúncio + re-preview (recalcula a pendência de
+  // tamanho). Pula a carga inicial.
+  const titleSaveRef = useRef(false)
+  useEffect(() => {
+    if (!ctx) return
+    if (!titleSaveRef.current) { titleSaveRef.current = true; return }
+    const t = setTimeout(async () => {
+      await CreativeApi.updateListing(listingId, { title }).catch(() => {})
+      void buildPreview()
+    }, 1000)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [title, ctx])
 
   async function buildPreview() {
     if (!ctx) return
@@ -375,16 +391,19 @@ export default function MLPublishPage() {
               )}
             </Section>
 
-            {/* Title preview (read-only) */}
+            {/* Title — editável */}
             <Section icon={<Tag size={14} />} title="Título do anúncio">
-              <p className="text-xs text-zinc-300 px-3 py-2 rounded-lg bg-zinc-950 border border-zinc-800">
-                {listing.title}
+              <input
+                value={title}
+                onChange={e => setTitle(e.target.value)}
+                placeholder="Título do anúncio"
+                className="w-full text-xs text-zinc-100 px-3 py-2 rounded-lg bg-zinc-950 border border-zinc-800 outline-none focus:border-cyan-500/60"
+              />
+              <p className={`text-[10px] mt-1 ${title.length > 60 ? 'text-amber-400' : 'text-zinc-500'}`}>
+                {title.length > 60
+                  ? `⚠️ ${title.length} chars — ML aceita máx 60. Será truncado.`
+                  : `${title.length}/60 caracteres`}
               </p>
-              {listing.title.length > 60 && (
-                <p className="text-[10px] text-amber-400 mt-1">
-                  ⚠️ {listing.title.length} chars — ML aceita máx 60. Será truncado.
-                </p>
-              )}
             </Section>
 
             {/* Images */}
@@ -733,7 +752,7 @@ export default function MLPublishPage() {
                       : selectedSellerIds.map(s => accountName(s)).join(', ')}
                   </strong>
                 </li>
-                <li><span className="text-zinc-500">Título:</span> {ctx?.listing.title.slice(0, 60)}</li>
+                <li><span className="text-zinc-500">Título:</span> {title.slice(0, 60)}</li>
                 <li><span className="text-zinc-500">Categoria:</span> {preview.predicted_category.category_id ?? '—'}</li>
                 <li><span className="text-zinc-500">Imagens:</span> {imageIds.length}</li>
                 <li><span className="text-zinc-500">Preço:</span> R$ {(Number(price) || 0).toFixed(2)}</li>
