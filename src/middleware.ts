@@ -110,6 +110,8 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/login') ||
     pathname.startsWith('/register') ||
     pathname.startsWith('/auth') ||
+    pathname.startsWith('/forgot-password') ||
+    pathname.startsWith('/redefinir-senha') ||
     pathname.startsWith('/loja') ||
     pathname.startsWith('/lb') ||
     pathname.startsWith('/p/')
