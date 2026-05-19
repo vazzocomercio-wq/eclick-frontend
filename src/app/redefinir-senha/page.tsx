@@ -1,11 +1,13 @@
 'use client'
 
 /**
- * Recuperação de senha — passo 2: o usuário chega aqui com uma sessão de
- * recuperação (via /auth/callback) e define a nova senha.
+ * Recuperação de senha — passo 2: o usuário chega aqui por um link de
+ * recuperação. A página valida o token (token_hash via verifyOtp, ou
+ * code via exchangeCodeForSession, ou sessão já detectada no hash) e aí
+ * libera o formulário pra definir a nova senha.
  */
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
@@ -23,14 +25,49 @@ function EyeIcon({ open }: { open: boolean }) {
   )
 }
 
+type Phase = 'verifying' | 'ready' | 'invalid'
+
 export default function RedefinirSenhaPage() {
   const router = useRouter()
+  const [phase, setPhase]       = useState<Phase>('verifying')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm]   = useState('')
   const [show, setShow]         = useState(false)
   const [loading, setLoading]   = useState(false)
   const [done, setDone]         = useState(false)
   const [error, setError]       = useState<string | null>(null)
+
+  // Valida o link de recuperação ao montar.
+  useEffect(() => {
+    void (async () => {
+      const supabase = createClient()
+      const params = new URLSearchParams(window.location.search)
+      const tokenHash = params.get('token_hash')
+      const type      = params.get('type')
+      const code      = params.get('code')
+      const urlErr    = params.get('error_description') || params.get('error')
+
+      if (urlErr) { setPhase('invalid'); return }
+
+      if (tokenHash && type) {
+        const { error } = await supabase.auth.verifyOtp({
+          token_hash: tokenHash,
+          type: type as 'recovery',
+        })
+        setPhase(error ? 'invalid' : 'ready')
+        return
+      }
+      if (code) {
+        const { error } = await supabase.auth.exchangeCodeForSession(code)
+        setPhase(error ? 'invalid' : 'ready')
+        return
+      }
+      // Sem token na URL — confia numa sessão já estabelecida (link com
+      // hash auto-detectado pelo cliente, ou usuário já logado).
+      const { data } = await supabase.auth.getSession()
+      setPhase(data.session ? 'ready' : 'invalid')
+    })()
+  }, [])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -72,6 +109,21 @@ export default function RedefinirSenhaPage() {
             <div className="text-center space-y-3">
               <h1 className="text-white text-2xl font-semibold">Senha redefinida</h1>
               <p className="text-zinc-400 text-sm">Tudo certo — redirecionando você para o painel…</p>
+            </div>
+          ) : phase === 'verifying' ? (
+            <div className="text-center space-y-3 py-4">
+              <h1 className="text-white text-2xl font-semibold">Validando o link…</h1>
+              <p className="text-zinc-400 text-sm">Um instante.</p>
+            </div>
+          ) : phase === 'invalid' ? (
+            <div className="text-center space-y-3">
+              <h1 className="text-white text-2xl font-semibold">Link inválido ou expirado</h1>
+              <p className="text-zinc-400 text-sm">
+                Este link de redefinição não é mais válido. Peça um novo na tela de acesso.
+              </p>
+              <Link href="/forgot-password" className="inline-block mt-2 text-sm font-semibold" style={{ color: '#00E5FF' }}>
+                Pedir novo link
+              </Link>
             </div>
           ) : (
             <>
