@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { DataTable } from '@/components/data-table'
 import type { Column, RowAction, BulkAction, QuickFilter } from '@/components/data-table'
 import {
@@ -54,38 +55,32 @@ export type PedidoRow = {
 const brl = (v: number | null | undefined) =>
   v == null ? '—' : v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
+type Translator = ReturnType<typeof useTranslations>
+
 // ── Status badges (ML order.status + shipping.status combinados) ───────────────
-type StatusMeta = { label: string; color: string; bg: string }
+type StatusMeta = { labelKey: string; color: string; bg: string }
 
 function statusMeta(o: PedidoRow): StatusMeta {
   // Cancelamento / mediação têm prioridade visual
-  if (o.status === 'cancelled')      return { label: 'Cancelado',  color: '#f87171', bg: 'rgba(248,113,113,0.10)' }
+  if (o.status === 'cancelled')      return { labelKey: 'cancelled',  color: '#f87171', bg: 'rgba(248,113,113,0.10)' }
   if (o.mediations && o.mediations.length > 0)
-                                      return { label: 'Reclamação', color: '#fb923c', bg: 'rgba(251,146,60,0.10)' }
+                                      return { labelKey: 'claim', color: '#fb923c', bg: 'rgba(251,146,60,0.10)' }
   const ss = o.shipping?.status
-  if (ss === 'delivered')             return { label: 'Entregue',   color: '#10b981', bg: 'rgba(16,185,129,0.12)' }
+  if (ss === 'delivered')             return { labelKey: 'delivered',   color: '#10b981', bg: 'rgba(16,185,129,0.12)' }
   if (ss === 'shipped' || ss === 'in_transit' || ss === 'handling')
-                                      return { label: 'A caminho',  color: '#60a5fa', bg: 'rgba(96,165,250,0.10)' }
+                                      return { labelKey: 'onTheWay',  color: '#60a5fa', bg: 'rgba(96,165,250,0.10)' }
   if (ss === 'ready_to_ship' || ss === 'pending')
-                                      return { label: 'Enviado',    color: '#3b82f6', bg: 'rgba(59,130,246,0.10)' }
+                                      return { labelKey: 'shipped',    color: '#3b82f6', bg: 'rgba(59,130,246,0.10)' }
   if (o.status === 'paid' || o.status === 'partially_paid')
-                                      return { label: 'Pago',       color: '#4ade80', bg: 'rgba(74,222,128,0.10)' }
+                                      return { labelKey: 'paid',       color: '#4ade80', bg: 'rgba(74,222,128,0.10)' }
   if (o.status === 'payment_required' || o.status === 'payment_in_process')
-                                      return { label: 'Pgto. pend.', color: '#facc15', bg: 'rgba(250,204,21,0.10)' }
-  return { label: o.status ?? '—',     color: '#a1a1aa', bg: 'rgba(161,161,170,0.10)' }
+                                      return { labelKey: 'paymentPending', color: '#facc15', bg: 'rgba(250,204,21,0.10)' }
+  return { labelKey: '',     color: '#a1a1aa', bg: 'rgba(161,161,170,0.10)' }
 }
 
 type QuickFilterValue = 'all' | 'paid' | 'shipped' | 'in_transit' | 'delivered' | 'cancelled' | 'mediation'
 
-const QUICK_OPTIONS: { value: QuickFilterValue; label: string }[] = [
-  { value: 'all',         label: 'Todos' },
-  { value: 'paid',        label: 'Pago' },
-  { value: 'shipped',     label: 'Enviado' },
-  { value: 'in_transit',  label: 'A caminho' },
-  { value: 'delivered',   label: 'Entregue' },
-  { value: 'cancelled',   label: 'Cancelado' },
-  { value: 'mediation',   label: 'Reclamação' },
-]
+const QUICK_VALUES: QuickFilterValue[] = ['all', 'paid', 'shipped', 'in_transit', 'delivered', 'cancelled', 'mediation']
 
 function applyQuickFilter(o: PedidoRow, qf: QuickFilterValue): boolean {
   switch (qf) {
@@ -151,6 +146,7 @@ export function PedidosTable({
     onChange: (v: string) => void
   }
 }) {
+  const t = useTranslations('pedidos')
   // Pagination: usa controlled props quando supplied (server-side via parent),
   // senão fallback pra state interno (client-side).
   const [internalPage,    setInternalPage]    = useState(1)
@@ -201,11 +197,11 @@ export function PedidosTable({
 
   const columns: Column<PedidoRow>[] = useMemo(() => [
     {
-      key: 'date', label: 'Data', width: '64px',
+      key: 'date', label: t('table.colDate'), width: '64px',
       render: o => <span className="text-[11px] text-zinc-400 tabular-nums">{fmtDate(o.date_closed ?? o.date_created)}</span>,
     },
     {
-      key: 'cliente', label: 'Cliente',
+      key: 'cliente', label: t('table.colClient'),
       render: o => (
         <div className="min-w-0">
           <p className="text-zinc-100 text-xs font-medium truncate max-w-[200px]">{clientName(o)}</p>
@@ -216,7 +212,7 @@ export function PedidosTable({
       ),
     },
     {
-      key: 'produto', label: 'Produto',
+      key: 'produto', label: t('table.colProduct'),
       render: o => {
         const item = o.order_items[0]
         const more = o.order_items.length - 1
@@ -231,7 +227,7 @@ export function PedidosTable({
               </p>
               <p className="text-[10px] text-zinc-600 font-mono">
                 {item?.seller_sku ?? '—'}{item && item.quantity > 1 ? ` · ${item.quantity}u` : ''}
-                {more > 0 ? ` · +${more} item${more > 1 ? 's' : ''}` : ''}
+                {more > 0 ? ` · ${t('table.moreItems', { count: more })}` : ''}
               </p>
             </div>
           </div>
@@ -239,7 +235,7 @@ export function PedidosTable({
       },
     },
     {
-      key: 'marketplace', label: 'MP', width: '50px',
+      key: 'marketplace', label: t('table.colMp'), width: '50px',
       render: () => (
         // /pedidos hoje é ML-only (sync via /orders/search). Quando Shopee/
         // Amazon entrarem, ler de o.platform/o.source na PedidoRow.
@@ -247,35 +243,35 @@ export function PedidosTable({
       ),
     },
     {
-      key: 'status', label: 'Status',
+      key: 'status', label: t('table.colStatus'),
       render: o => {
         const m = statusMeta(o)
         return (
           <span className="text-[10px] font-semibold px-2 py-0.5 rounded"
-            style={{ color: m.color, background: m.bg }}>{m.label}</span>
+            style={{ color: m.color, background: m.bg }}>{m.labelKey ? t(`tableStatus.${m.labelKey}`) : (o.status ?? '—')}</span>
         )
       },
     },
     {
-      key: 'total', label: 'Total', align: 'right', sortable: true,
+      key: 'total', label: t('table.colTotal'), align: 'right', sortable: true,
       render: o => <span className="text-xs font-semibold tabular-nums" style={{ color: '#00E5FF' }}>{brl(o.total_amount)}</span>,
     },
     {
-      key: 'lucro', label: 'Lucro', align: 'right', sortable: true,
+      key: 'lucro', label: t('table.colProfit'), align: 'right', sortable: true,
       render: o => {
         const v = o.lucro_bruto
         const color = v == null ? '#52525b' : v > 0 ? '#4ade80' : v < 0 ? '#f87171' : '#a1a1aa'
         return <span className="text-xs font-semibold tabular-nums" style={{ color }}>{brl(v)}</span>
       },
     },
-  ], [])
+  ], [t])
 
   // ── Mark problem dialog state ─────────────────────────────────────────────
   const [problemDialog, setProblemDialog] = useState<{ ids: string[]; rows: PedidoRow[] } | null>(null)
 
   const bulkActions: BulkAction<PedidoRow>[] = useMemo(() => [
     {
-      key: 'export-fretes', label: 'Exportar fretes CSV', icon: <FileDown size={11} />,
+      key: 'export-fretes', label: t('table.bulkExportCsv'), icon: <FileDown size={11} />,
       onClick: rows => {
         if (rows.length === 0) return
         const cols = ['order_id','cliente','cpf','cep','cidade','uf','logistica','status_envio','prazo_envio']
@@ -301,39 +297,39 @@ export function PedidosTable({
         const a    = document.createElement('a'); a.href = url
         a.download = `fretes-${new Date().toISOString().slice(0,10)}.csv`
         a.click(); URL.revokeObjectURL(url)
-        pushToast({ tone: 'success', message: `✓ ${rows.length} pedido${rows.length === 1 ? '' : 's'} exportado${rows.length === 1 ? '' : 's'}` })
+        pushToast({ tone: 'success', message: t('table.exportedCount', { count: rows.length }) })
       },
     },
     ...(onBulkMarkProblem ? [{
-      key: 'mark-problem', label: 'Marcar problema', icon: <AlertOctagon size={11} />, tone: 'warn' as const,
+      key: 'mark-problem', label: t('table.bulkMarkProblem'), icon: <AlertOctagon size={11} />, tone: 'warn' as const,
       onClick: (rows: PedidoRow[]) => {
         // Abre dialog — caller envia ao confirmar
         setProblemDialog({ ids: rows.map(r => String(r.order_id)), rows })
       },
     }] : []),
     {
-      key: 'reprint-labels', label: 'Reimprimir etiquetas', icon: <Printer size={11} />,
-      onClick: rows => todoToast(`Reimpressão em lote (${rows.length} etiquetas)`),
+      key: 'reprint-labels', label: t('table.bulkReprintLabels'), icon: <Printer size={11} />,
+      onClick: rows => todoToast(t('table.todoReprintBatch', { count: rows.length })),
     },
-  ], [onBulkMarkProblem])
+  ], [onBulkMarkProblem, t])
 
   const rowActions = useMemo(() => (o: PedidoRow): RowAction<PedidoRow>[] => [
-    { key: 'view',     label: 'Ver detalhes',         icon: <Eye          size={12} />,
-      onClick: () => { onViewDetails ? onViewDetails(o) : todoToast('Drawer de detalhes do pedido') } },
-    { key: 'tracking', label: 'Acompanhar rastreio',  icon: <Truck        size={12} />,
-      onClick: () => todoToast('Timeline Correios') },
-    { key: 'wa',       label: 'Disparar WhatsApp',    icon: <Send         size={12} />,
-      onClick: () => todoToast('Mensagem WhatsApp ao comprador') },
-    { key: 'problem',  label: 'Marcar problema',      icon: <AlertOctagon size={12} />, tone: 'warn',
-      onClick: () => todoToast('Marcação de reclamação') },
-    { key: 'label',    label: 'Reimprimir etiqueta',  icon: <Printer      size={12} />,
-      onClick: () => todoToast('Reimpressão de etiqueta') },
-  ], [onViewDetails])
+    { key: 'view',     label: t('table.rowViewDetails'),         icon: <Eye          size={12} />,
+      onClick: () => { onViewDetails ? onViewDetails(o) : todoToast(t('table.todoDetailDrawer')) } },
+    { key: 'tracking', label: t('actions.trackShipment'),  icon: <Truck        size={12} />,
+      onClick: () => todoToast(t('table.todoTrackingTimeline')) },
+    { key: 'wa',       label: t('actions.sendWhatsApp'),    icon: <Send         size={12} />,
+      onClick: () => todoToast(t('actions.todoWhatsApp')) },
+    { key: 'problem',  label: t('actions.markProblem'),      icon: <AlertOctagon size={12} />, tone: 'warn',
+      onClick: () => todoToast(t('actions.todoMarkProblem')) },
+    { key: 'label',    label: t('actions.reprintLabel'),  icon: <Printer      size={12} />,
+      onClick: () => todoToast(t('actions.todoReprintLabel')) },
+  ], [onViewDetails, t])
 
   const quickFilterProp: QuickFilter = {
-    label:    'Filtro',
+    label:    t('table.filterLabel'),
     value:    quickFilter,
-    options:  QUICK_OPTIONS,
+    options:  QUICK_VALUES.map(v => ({ value: v, label: t(`table.quick.${v}`) })),
     onChange: v => { setQuickFilter(v as QuickFilterValue); setPage(1); setSelected([]) },
   }
 
@@ -351,8 +347,8 @@ export function PedidosTable({
       />
     )}
     <DataTable<PedidoRow>
-      title="Pedidos (DataTable beta)"
-      breadcrumb={['Marketplace']}
+      title={t('table.title')}
+      breadcrumb={[t('table.breadcrumb')]}
       quickFilter={quickFilterProp}
       columns={columns}
       data={paged}
@@ -367,7 +363,7 @@ export function PedidosTable({
       }}
       search={{
         value: search,
-        placeholder: 'Buscar por order ID, cliente, @nickname, produto ou SKU…',
+        placeholder: t('table.searchPlaceholder'),
         onChange: v => { setSearch(v); setPage(1) },
       }}
       selection={{ mode: 'multi', selected, onChange: setSelected }}
@@ -375,14 +371,14 @@ export function PedidosTable({
       rowActions={rowActions}
       emptyState={{
         icon: <SearchIcon size={20} />,
-        title: 'Nenhum pedido encontrado',
-        description: search ? 'Tente outra busca.' : 'Nenhum pedido nessa categoria no momento.',
+        title: t('table.emptyTitle'),
+        description: search ? t('table.emptySearch') : t('table.emptyCategory'),
       }}
       headerExtras={onRefresh && (
         <button onClick={onRefresh}
           className="text-[11px] px-3 py-2 rounded-xl font-semibold transition-colors"
           style={{ background: '#111114', color: '#a1a1aa', border: '1px solid #27272a' }}>
-          Atualizar
+          {t('table.refresh')}
         </button>
       )}
     />
@@ -401,6 +397,7 @@ function MarkProblemDialog({
   onCancel:  () => void
   onConfirm: (note: string, severity: 'low' | 'medium' | 'high' | 'critical') => void | Promise<void>
 }) {
+  const t = useTranslations('pedidos')
   const [note,     setNote]     = useState('')
   const [severity, setSeverity] = useState<'low' | 'medium' | 'high' | 'critical'>('medium')
   const [busy,     setBusy]     = useState(false)
@@ -413,20 +410,20 @@ function MarkProblemDialog({
         className="w-full max-w-md rounded-2xl flex flex-col"
         style={{ background: '#0c0c10', border: '1px solid #1e1e24', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
         <header className="px-4 py-3" style={{ borderBottom: '1px solid #1e1e24' }}>
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Marcar problema em lote</p>
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">{t('markProblem.title')}</p>
           <h3 className="text-sm font-semibold text-zinc-100 mt-0.5">
-            {count} pedido{count === 1 ? '' : 's'} selecionado{count === 1 ? '' : 's'}
+            {t('markProblem.selectedCount', { count })}
           </h3>
         </header>
         <div className="px-4 py-3 space-y-3">
           <div>
-            <label className="text-[11px] font-medium text-zinc-400 block mb-1">Severidade</label>
+            <label className="text-[11px] font-medium text-zinc-400 block mb-1">{t('markProblem.severityLabel')}</label>
             <div className="grid grid-cols-2 gap-1.5">
               {([
-                { v: 'low',      label: 'Baixa',    color: '#a1a1aa' },
-                { v: 'medium',   label: 'Média',    color: '#facc15' },
-                { v: 'high',     label: 'Alta',     color: '#fb923c' },
-                { v: 'critical', label: 'Crítica',  color: '#f87171' },
+                { v: 'low',      label: t('severity.low'),      color: '#a1a1aa' },
+                { v: 'medium',   label: t('severity.medium'),   color: '#facc15' },
+                { v: 'high',     label: t('severity.high'),     color: '#fb923c' },
+                { v: 'critical', label: t('severity.critical'), color: '#f87171' },
               ] as const).map(opt => (
                 <button key={opt.v} onClick={() => setSeverity(opt.v)}
                   className="flex-1 text-[11px] font-semibold px-2 py-1.5 rounded-lg transition-colors"
@@ -441,10 +438,10 @@ function MarkProblemDialog({
             </div>
           </div>
           <div>
-            <label className="text-[11px] font-medium text-zinc-400 block mb-1">Motivo</label>
+            <label className="text-[11px] font-medium text-zinc-400 block mb-1">{t('markProblem.reasonLabel')}</label>
             <textarea value={note} onChange={e => setNote(e.target.value)}
               rows={4}
-              placeholder="Ex: produto avariado pelo Correios, cliente reclamou, etc."
+              placeholder={t('markProblem.reasonPlaceholder')}
               className="w-full px-3 py-2 text-[12px] rounded-lg bg-[#0c0c10] border border-[#27272a] text-zinc-200 outline-none focus:border-[#facc15] resize-none" />
           </div>
         </div>
@@ -453,7 +450,7 @@ function MarkProblemDialog({
           <button onClick={onCancel} disabled={busy}
             className="text-[11px] px-3 py-1.5 rounded-lg font-semibold transition-colors disabled:opacity-50"
             style={{ background: '#1a1a1f', color: '#a1a1aa', border: '1px solid #27272a' }}>
-            Cancelar
+            {t('markProblem.cancel')}
           </button>
           <button
             onClick={async () => {
@@ -464,7 +461,7 @@ function MarkProblemDialog({
             disabled={!note.trim() || busy}
             className="text-[11px] px-4 py-1.5 rounded-lg font-semibold transition-colors disabled:opacity-50"
             style={{ background: '#f59e0b', color: '#000' }}>
-            {busy ? 'Marcando…' : 'Confirmar'}
+            {busy ? t('markProblem.confirming') : t('markProblem.confirm')}
           </button>
         </footer>
       </div>

@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState, type MouseEvent, type ReactNode } from 'react'
+import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import {
   Boxes, Users, Activity, TrendingDown, ArrowUpDown, Search, ChevronRight,
@@ -83,6 +84,7 @@ const CARD = { background: '#111114', border: '1px solid #1a1a1f' }
 const FREE_SHIPPING_MIN = 79
 
 export default function RadarPage() {
+  const t = useTranslations('radar')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [summary, setSummary] = useState<Summary | null>(null)
@@ -108,11 +110,11 @@ export default function RadarPage() {
       setEvents(e)
       setProducts(p)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Falha ao carregar o Radar')
+      setError(err instanceof Error ? err.message : t('errorLoadRadar'))
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [t])
 
   useEffect(() => { void load() }, [load])
 
@@ -148,13 +150,13 @@ export default function RadarPage() {
         <div>
           <h1 className="text-2xl font-bold" style={{ color: '#fafafa' }}>e-Click Radar IA</h1>
           <p className="text-sm mt-0.5" style={{ color: '#71717a' }}>
-            Inteligência de mercado · concorrência por produto de catálogo
+            {t('headerSubtitle')}
           </p>
         </div>
         <Link href="/dashboard/radar/concorrentes"
           className="ml-auto self-center inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-colors hover:bg-white/[0.04]"
           style={{ border: '1px solid #27272a', color: '#a1a1aa' }}>
-          <Users size={14} style={{ color: '#00E5FF' }} /> Concorrentes Vinculados
+          <Users size={14} style={{ color: '#00E5FF' }} /> {t('linkedCompetitors')}
         </Link>
       </div>
 
@@ -166,13 +168,13 @@ export default function RadarPage() {
 
       {/* KPI strip */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-        <Kpi label="Produtos monitorados" value={summary?.products_monitored} loading={loading}
+        <Kpi label={t('kpiMonitored')} value={summary?.products_monitored} loading={loading}
           icon={<Boxes size={15} />} accent="#00E5FF" />
-        <Kpi label="Concorrentes" value={summary?.competitors} loading={loading}
+        <Kpi label={t('kpiCompetitors')} value={summary?.competitors} loading={loading}
           icon={<Users size={15} />} accent="#a1a1aa" />
-        <Kpi label="Eventos novos" value={summary?.new_events} loading={loading}
+        <Kpi label={t('kpiNewEvents')} value={summary?.new_events} loading={loading}
           icon={<Activity size={15} />} accent="#00E5FF" />
-        <Kpi label="Perdendo a ponta" value={summary?.products_losing_lead} loading={loading}
+        <Kpi label={t('kpiLosingLead')} value={summary?.products_losing_lead} loading={loading}
           icon={<TrendingDown size={15} />} accent="#f59e0b" />
       </div>
 
@@ -181,8 +183,12 @@ export default function RadarPage() {
           color: summary.conversion.confidence === 'low' ? '#fbbf24' : '#52525b',
         }}>
           {summary.conversion.rate == null
-            ? 'Demanda estimada: conversão ainda não calibrada — será medida na próxima coleta diária.'
-            : `Demanda estimada (un./mês) = visitas × conversão calibrada de ${(summary.conversion.rate * 100).toFixed(1).replace('.', ',')}% · base: ${summary.conversion.own_visits} visitas / ${summary.conversion.own_units} vendas suas (30d)${summary.conversion.confidence === 'low' ? ' · amostra pequena, estimativa aproximada' : ''}`}
+            ? t('conversionNotCalibrated')
+            : t('conversionCalibrated', {
+                rate: (summary.conversion.rate * 100).toFixed(1).replace('.', ','),
+                visits: summary.conversion.own_visits,
+                units: summary.conversion.own_units,
+              }) + (summary.conversion.confidence === 'low' ? t('conversionSmallSample') : '')}
         </p>
       )}
 
@@ -191,7 +197,7 @@ export default function RadarPage() {
         <section className="rounded-xl overflow-hidden" style={CARD}>
           <div className="px-4 py-3 flex items-center gap-2" style={{ borderBottom: '1px solid #1a1a1f' }}>
             <Activity size={15} style={{ color: '#00E5FF' }} />
-            <h2 className="text-sm font-semibold" style={{ color: '#fafafa' }}>O que mudou</h2>
+            <h2 className="text-sm font-semibold" style={{ color: '#fafafa' }}>{t('whatChanged')}</h2>
           </div>
           <div className="max-h-[420px] overflow-y-auto">
             {loading && <div className="p-4 space-y-2">
@@ -200,9 +206,9 @@ export default function RadarPage() {
             {!loading && events.length === 0 && (
               <div className="p-8 text-center">
                 <Activity size={26} className="mx-auto mb-2" style={{ color: '#3f3f46' }} />
-                <p className="text-sm" style={{ color: '#a1a1aa' }}>Nenhuma mudança recente</p>
+                <p className="text-sm" style={{ color: '#a1a1aa' }}>{t('noRecentChanges')}</p>
                 <p className="text-xs mt-1" style={{ color: '#52525b' }}>
-                  A coleta roda diariamente — os eventos aparecem aqui.
+                  {t('collectionRunsDaily')}
                 </p>
               </div>
             )}
@@ -217,7 +223,7 @@ export default function RadarPage() {
                       {eventLabel(ev.event_type)}
                     </p>
                     <p className="text-[11px] truncate" style={{ color: '#71717a' }}>
-                      {ev.catalog?.title ?? 'Produto de catálogo'}
+                      {ev.catalog?.title ?? t('catalogProduct')}
                     </p>
                   </div>
                   <span className="text-[10px] shrink-0" style={{ color: '#52525b' }}>
@@ -233,33 +239,33 @@ export default function RadarPage() {
         <section className="lg:col-span-2 rounded-xl overflow-hidden" style={CARD}>
           <div className="px-4 py-3 flex items-center gap-3 flex-wrap" style={{ borderBottom: '1px solid #1a1a1f' }}>
             <h2 className="text-sm font-semibold mr-auto" style={{ color: '#fafafa' }}>
-              Produtos monitorados {!loading && <span style={{ color: '#52525b' }}>· {visible.length}</span>}
+              {t('monitoredProducts')} {!loading && <span style={{ color: '#52525b' }}>· {visible.length}</span>}
             </h2>
             <div className="flex items-center gap-1.5 rounded-lg px-2 py-1"
               style={{ background: '#09090b', border: '1px solid #27272a' }}>
               <Search size={13} style={{ color: '#52525b' }} />
-              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar produto…"
+              <input value={search} onChange={e => setSearch(e.target.value)} placeholder={t('searchProduct')}
                 className="bg-transparent text-xs outline-none w-40" style={{ color: '#fafafa' }} />
             </div>
             <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as typeof statusFilter)}
               className="text-xs rounded-lg px-2 py-1.5 outline-none"
               style={{ background: '#09090b', border: '1px solid #27272a', color: '#a1a1aa' }}>
-              <option value="all">Todos</option>
-              <option value="ativo">Ativos</option>
-              <option value="pausado">Pausados</option>
+              <option value="all">{t('statusAll')}</option>
+              <option value="ativo">{t('statusActive')}</option>
+              <option value="pausado">{t('statusPaused')}</option>
             </select>
           </div>
 
           {/* header */}
           <div className="flex items-center gap-3 px-4 py-2 text-[10px] uppercase tracking-wide"
             style={{ borderBottom: '1px solid #1a1a1f', color: '#52525b' }}>
-            <Th label="Produto" k="title" cur={sortKey} dir={sortDir} onSort={toggleSort} className="flex-1" />
-            <Th label="Conc." k="competitors" cur={sortKey} dir={sortDir} onSort={toggleSort} className="w-14 justify-end" />
-            <Th label="Menor preço" k="min_price" cur={sortKey} dir={sortDir} onSort={toggleSort} className="w-24 justify-end" />
-            <Th label="Catálogo" k="catalog_status" cur={sortKey} dir={sortDir} onSort={toggleSort} className="w-28 justify-center" />
-            <Th label="Δ preço" k="price_delta_pct" cur={sortKey} dir={sortDir} onSort={toggleSort} className="w-20 justify-end" />
-            <Th label="Demanda" k="market_demand" cur={sortKey} dir={sortDir} onSort={toggleSort} className="w-20 justify-end" />
-            <Th label="Eventos" k="new_events" cur={sortKey} dir={sortDir} onSort={toggleSort} className="w-16 justify-end" />
+            <Th label={t('colProduct')} k="title" cur={sortKey} dir={sortDir} onSort={toggleSort} className="flex-1" />
+            <Th label={t('colComp')} k="competitors" cur={sortKey} dir={sortDir} onSort={toggleSort} className="w-14 justify-end" />
+            <Th label={t('colMinPrice')} k="min_price" cur={sortKey} dir={sortDir} onSort={toggleSort} className="w-24 justify-end" />
+            <Th label={t('colCatalog')} k="catalog_status" cur={sortKey} dir={sortDir} onSort={toggleSort} className="w-28 justify-center" />
+            <Th label={t('colPriceDelta')} k="price_delta_pct" cur={sortKey} dir={sortDir} onSort={toggleSort} className="w-20 justify-end" />
+            <Th label={t('colDemand')} k="market_demand" cur={sortKey} dir={sortDir} onSort={toggleSort} className="w-20 justify-end" />
+            <Th label={t('colEvents')} k="new_events" cur={sortKey} dir={sortDir} onSort={toggleSort} className="w-16 justify-end" />
             <span className="w-4" />
           </div>
 
@@ -270,7 +276,7 @@ export default function RadarPage() {
             {!loading && visible.length === 0 && (
               <div className="p-10 text-center">
                 <Boxes size={28} className="mx-auto mb-2" style={{ color: '#3f3f46' }} />
-                <p className="text-sm" style={{ color: '#a1a1aa' }}>Nenhum produto no filtro atual</p>
+                <p className="text-sm" style={{ color: '#a1a1aa' }}>{t('noProductsInFilter')}</p>
               </div>
             )}
             {!loading && visible.map(p => (
@@ -289,7 +295,7 @@ export default function RadarPage() {
                       {p.title ?? p.catalog_product_id}
                     </p>
                     <p className="text-[10px] truncate" style={{ color: '#52525b' }}>
-                      {p.sku ? `SKU ${p.sku} · ` : ''}{p.catalog_product_id}
+                      {p.sku ? `${t('skuLabel', { sku: p.sku })} · ` : ''}{p.catalog_product_id}
                     </p>
                   </div>
                 </div>
@@ -343,6 +349,7 @@ export default function RadarPage() {
 function PriceAdjustModal({ product, onClose, onSaved }: {
   product: RadarProduct; onClose: () => void; onSaved: () => void
 }) {
+  const t = useTranslations('radar')
   const [ctx, setCtx] = useState<PriceContext | null>(null)
   const [price, setPrice] = useState(
     product.price_to_win != null ? String(product.price_to_win)
@@ -400,7 +407,7 @@ function PriceAdjustModal({ product, onClose, onSaved }: {
 
   const submit = async () => {
     const n = Number(price.replace(',', '.'))
-    if (!Number.isFinite(n) || n <= 0) { setErr('Informe um preço válido.'); return }
+    if (!Number.isFinite(n) || n <= 0) { setErr(t('enterValidPrice')); return }
     setErr(null)
     setSaving(true)
     try {
@@ -410,7 +417,7 @@ function PriceAdjustModal({ product, onClose, onSaved }: {
       })
       onSaved()
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Falha ao ajustar o preço')
+      setErr(e instanceof Error ? e.message : t('errorAdjustPrice'))
       setSaving(false)
     }
   }
@@ -420,7 +427,7 @@ function PriceAdjustModal({ product, onClose, onSaved }: {
       style={{ background: 'rgba(0,0,0,0.7)' }} onClick={onClose}>
       <div className="w-full max-w-sm rounded-xl p-5" style={CARD} onClick={e => e.stopPropagation()}>
         <h2 className="text-sm font-semibold mb-1" style={{ color: '#fafafa' }}>
-          Ajustar preço no Mercado Livre
+          {t('adjustPriceMl')}
         </h2>
         <p className="text-xs mb-4 truncate" style={{ color: '#71717a' }}>
           {product.title ?? product.catalog_product_id}
@@ -428,45 +435,45 @@ function PriceAdjustModal({ product, onClose, onSaved }: {
 
         <div className="grid grid-cols-2 gap-2 mb-3">
           <div className="rounded-lg p-2.5" style={{ background: '#0a0a0e', border: '1px solid #27272a' }}>
-            <p className="text-[10px]" style={{ color: '#71717a' }}>Preço atual</p>
+            <p className="text-[10px]" style={{ color: '#71717a' }}>{t('currentPrice')}</p>
             <p className="text-sm font-semibold tabular-nums" style={{ color: '#fafafa' }}>{brl(currentPrice)}</p>
             <p className="text-[10px] tabular-nums mt-0.5" style={{ color: marginColor(mCur) }}>
-              margem {fmtPct(mCur)}
+              {t('marginValue', { value: fmtPct(mCur) })}
             </p>
           </div>
           {winning ? (
             <div className="rounded-lg p-2.5"
               style={{ background: 'rgba(74,222,128,0.06)', border: '1px solid rgba(74,222,128,0.2)' }}>
               <div className="flex items-center justify-between">
-                <p className="text-[10px]" style={{ color: '#4ade80' }}>Teto do catálogo</p>
+                <p className="text-[10px]" style={{ color: '#4ade80' }}>{t('catalogCeiling')}</p>
                 {teto != null && (
                   <button onClick={() => setPrice(String(teto))}
-                    className="text-[9px] hover:underline" style={{ color: '#4ade80' }}>usar</button>
+                    className="text-[9px] hover:underline" style={{ color: '#4ade80' }}>{t('use')}</button>
                 )}
               </div>
               <p className="text-sm font-semibold tabular-nums" style={{ color: '#4ade80' }}>
-                {teto != null ? brl(teto) : 'Livre'}
+                {teto != null ? brl(teto) : t('free')}
               </p>
               <p className="text-[10px] tabular-nums mt-0.5"
                 style={{ color: teto != null ? marginColor(mTeto) : '#52525b' }}>
-                {teto != null ? `margem ${fmtPct(mTeto)}` : 'sem concorrentes'}
+                {teto != null ? t('marginValue', { value: fmtPct(mTeto) }) : t('noCompetitors')}
               </p>
             </div>
           ) : (
             <div className="rounded-lg p-2.5"
               style={{ background: 'rgba(0,229,255,0.06)', border: '1px solid rgba(0,229,255,0.2)' }}>
               <div className="flex items-center justify-between">
-                <p className="text-[10px]" style={{ color: '#67e8f9' }}>Preço pra ganhar</p>
+                <p className="text-[10px]" style={{ color: '#67e8f9' }}>{t('priceToWin')}</p>
                 {ptw != null && (
                   <button onClick={() => setPrice(String(ptw))}
-                    className="text-[9px] hover:underline" style={{ color: '#67e8f9' }}>usar</button>
+                    className="text-[9px] hover:underline" style={{ color: '#67e8f9' }}>{t('use')}</button>
                 )}
               </div>
               <p className="text-sm font-semibold tabular-nums" style={{ color: '#67e8f9' }}>
                 {ptw != null ? brl(ptw) : '—'}
               </p>
               <p className="text-[10px] tabular-nums mt-0.5" style={{ color: marginColor(mPtw) }}>
-                margem {fmtPct(mPtw)}
+                {t('marginValue', { value: fmtPct(mPtw) })}
               </p>
             </div>
           )}
@@ -474,39 +481,41 @@ function PriceAdjustModal({ product, onClose, onSaved }: {
 
         {winning && runnerUp != null && (
           <p className="text-[11px] mb-3" style={{ color: '#71717a' }}>
-            Concorrente mais barato{ctx?.runner_up_seller ? ` (${ctx.runner_up_seller})` : ''}:{' '}
-            <span className="tabular-nums" style={{ color: '#a1a1aa' }}>{brl(runnerUp)}</span>.
-            Você pode subir até{' '}
-            <span className="tabular-nums font-medium" style={{ color: '#4ade80' }}>{brl(teto)}</span>{' '}
-            e seguir ganhando o catálogo.
+            {t.rich('cheapestCompetitorHint', {
+              seller: ctx?.runner_up_seller ? ` (${ctx.runner_up_seller})` : '',
+              price: brl(runnerUp),
+              ceiling: brl(teto),
+              priceVal: (chunks) => <span className="tabular-nums" style={{ color: '#a1a1aa' }}>{chunks}</span>,
+              ceilingVal: (chunks) => <span className="tabular-nums font-medium" style={{ color: '#4ade80' }}>{chunks}</span>,
+            })}
           </p>
         )}
 
-        <label className="text-[11px] block mb-1" style={{ color: '#a1a1aa' }}>Novo preço (R$)</label>
+        <label className="text-[11px] block mb-1" style={{ color: '#a1a1aa' }}>{t('newPrice')}</label>
         <input value={price} onChange={e => setPrice(e.target.value)} inputMode="decimal" autoFocus
           className="w-full rounded-lg px-3 py-2 text-sm tabular-nums outline-none"
           style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }} />
         <p className="text-[11px] mt-1.5 mb-3 tabular-nums font-medium" style={{ color: marginColor(mNew) }}>
           {mNew != null
-            ? `Margem nesse preço: ${fmtPct(mNew)}`
+            ? t('marginAtPrice', { value: fmtPct(mNew) })
             : (ctx && ctx.cost == null
-                ? 'Cadastre o custo do produto pra ver a margem.'
-                : 'Margem nesse preço: —')}
+                ? t('registerCostForMargin')
+                : t('marginAtPrice', { value: '—' }))}
         </p>
 
         {ctx && ctx.cost != null && (
           <p className="text-[10px] mb-3" style={{ color: '#52525b' }}>
-            Custo {brl(ctx.cost)}
-            {ctx.fee_pct != null ? ` · Tarifa ML ~${ctx.fee_pct.toFixed(1).replace('.', ',')}%` : ''}
+            {t('costLabel', { value: brl(ctx.cost) })}
+            {ctx.fee_pct != null ? ` · ${t('mlFeeLabel', { value: ctx.fee_pct.toFixed(1).replace('.', ',') })}` : ''}
             {Number.isFinite(newNum) && newNum < FREE_SHIPPING_MIN
-              ? ' · Frete: comprador paga (abaixo de R$ 79)'
-              : ctx.shipping_cost != null ? ` · Frete ${brl(ctx.shipping_cost)}` : ''}
-            {(ctx.tax_pct ?? 0) > 0 ? ` · Imposto ${ctx.tax_pct}%` : ''}
+              ? ` · ${t('shippingBuyerPays')}`
+              : ctx.shipping_cost != null ? ` · ${t('shippingLabel', { value: brl(ctx.shipping_cost) })}` : ''}
+            {(ctx.tax_pct ?? 0) > 0 ? ` · ${t('taxLabel', { value: ctx.tax_pct ?? 0 })}` : ''}
           </p>
         )}
 
         <p className="text-[10px] mb-3" style={{ color: '#fbbf24' }}>
-          ⚠ Isto altera o preço do seu anúncio no Mercado Livre de verdade.
+          {t('warnRealPriceChange')}
         </p>
         {err && (
           <div className="rounded-lg p-2.5 text-xs mb-3" style={{
@@ -515,11 +524,11 @@ function PriceAdjustModal({ product, onClose, onSaved }: {
         )}
         <div className="flex gap-2">
           <button onClick={onClose} className="flex-1 rounded-lg py-2 text-xs font-medium"
-            style={{ border: '1px solid #27272a', color: '#a1a1aa' }}>Cancelar</button>
+            style={{ border: '1px solid #27272a', color: '#a1a1aa' }}>{t('cancel')}</button>
           <button onClick={submit} disabled={saving}
             className="flex-1 rounded-lg py-2 text-xs font-medium transition-opacity disabled:opacity-50"
             style={{ background: '#00E5FF', color: '#09090b' }}>
-            {saving ? 'Aplicando…' : 'Confirmar no ML'}
+            {saving ? t('applying') : t('confirmOnMl')}
           </button>
         </div>
       </div>
@@ -564,22 +573,23 @@ function CatalogCell({ status, priceToWin, hasLeadFallback, hasPrice, runnerUpPr
   runnerUpPrice?: number | null; vazzoPrice?: number | null
   onAdjust?: (e: MouseEvent) => void
 }) {
+  const t = useTranslations('radar')
   let label: string
   let bg: string
   let text: string
   let winning: boolean
 
   if (status === 'winning') {
-    label = 'Ganhando'; bg = 'rgba(34,197,94,0.12)'; text = '#4ade80'; winning = true
+    label = t('catalogWinning'); bg = 'rgba(34,197,94,0.12)'; text = '#4ade80'; winning = true
   } else if (status === 'sharing_first_place') {
-    label = 'Empatado'; bg = 'rgba(245,158,11,0.12)'; text = '#fbbf24'; winning = false
+    label = t('catalogTied'); bg = 'rgba(245,158,11,0.12)'; text = '#fbbf24'; winning = false
   } else if (status) {
-    label = 'Perdendo'; bg = 'rgba(239,68,68,0.12)'; text = '#f87171'; winning = false
+    label = t('catalogLosing'); bg = 'rgba(239,68,68,0.12)'; text = '#f87171'; winning = false
   } else if (!hasPrice) {
     return <span className="text-xs" style={{ color: '#3f3f46' }}>—</span>
   } else {
     winning = hasLeadFallback
-    label = winning ? 'Ganhando' : 'Perdendo'
+    label = winning ? t('catalogWinning') : t('catalogLosing')
     bg = winning ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)'
     text = winning ? '#4ade80' : '#f87171'
   }
@@ -591,7 +601,9 @@ function CatalogCell({ status, priceToWin, hasLeadFallback, hasPrice, runnerUpPr
     ? round2(teto - vazzoPrice)
     : null
   const tetoTitle = teto != null
-    ? `Teto do catálogo: dá pra subir até ${brl(teto)}${folga != null ? ` — folga de ${brl(folga)}` : ''} e seguir ganhando`
+    ? (folga != null
+        ? t('catalogCeilingTitleWithSlack', { ceiling: brl(teto), slack: brl(folga) })
+        : t('catalogCeilingTitle', { ceiling: brl(teto) }))
     : undefined
 
   return (
@@ -603,12 +615,12 @@ function CatalogCell({ status, priceToWin, hasLeadFallback, hasPrice, runnerUpPr
           className="text-[9px] tabular-nums hover:underline"
           style={{ color: teto != null ? '#4ade80' : '#67e8f9' }}>
           {!winning && priceToWin != null ? `→ ${brl(priceToWin)}`
-            : teto != null ? `teto ${brl(teto)}`
-            : 'ajustar preço'}
+            : teto != null ? t('ceilingShort', { value: brl(teto) })
+            : t('adjustPrice')}
         </button>
       ) : teto != null ? (
         <span className="text-[9px] tabular-nums" style={{ color: '#4ade80' }} title={tetoTitle}>
-          teto {brl(teto)}
+          {t('ceilingShort', { value: brl(teto) })}
         </span>
       ) : (!winning && priceToWin != null && (
         <span className="text-[9px] tabular-nums" style={{ color: '#67e8f9' }}>

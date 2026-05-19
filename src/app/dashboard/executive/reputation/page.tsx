@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import {
   RefreshCw, ShieldCheck, AlertTriangle, AlertCircle, TrendingDown, TrendingUp,
@@ -52,33 +53,31 @@ const LIMIT  = { claims: 0.01, cancellations: 0.005, late: 0.06 }
 // Thresholds amber (alerta — perto do limite)
 const AMBER  = { claims: 0.008, cancellations: 0.004, late: 0.05 }
 
-const LEVEL_DETAILS: Record<string, { label: string; sub: string; bg: string; text: string; border: string }> = {
-  '5_green':       { label: 'Mercado Líder Platinum', sub: 'O mais alto nível',     bg: 'rgba(34,197,94,0.12)',  text: '#22c55e', border: 'rgba(34,197,94,0.40)' },
-  '4_light_green': { label: 'Mercado Líder Gold',     sub: 'Nível premium',         bg: 'rgba(132,204,22,0.12)', text: '#84cc16', border: 'rgba(132,204,22,0.40)' },
-  '3_yellow':      { label: 'Mercado Líder',          sub: 'Reconhecido',           bg: 'rgba(234,179,8,0.12)',  text: '#eab308', border: 'rgba(234,179,8,0.40)' },
-  '2_orange':      { label: 'Sem nível',              sub: 'Não é Mercado Líder',   bg: 'rgba(249,115,22,0.12)', text: '#f97316', border: 'rgba(249,115,22,0.40)' },
-  '1_red':         { label: 'Reputação vermelha',     sub: 'Risco de bloqueio',     bg: 'rgba(239,68,68,0.12)',  text: '#ef4444', border: 'rgba(239,68,68,0.40)' },
-  '0_red':         { label: 'Sem reputação',          sub: 'Vendas insuficientes',  bg: 'rgba(113,113,122,0.12)', text: '#a1a1aa', border: 'rgba(113,113,122,0.30)' },
+type Translator = ReturnType<typeof useTranslations>
+
+const LEVEL_DETAILS: Record<string, { labelKey: string; bg: string; text: string; border: string }> = {
+  '5_green':       { labelKey: 'levelPlatinum', bg: 'rgba(34,197,94,0.12)',  text: '#22c55e', border: 'rgba(34,197,94,0.40)' },
+  '4_light_green': { labelKey: 'levelGold',     bg: 'rgba(132,204,22,0.12)', text: '#84cc16', border: 'rgba(132,204,22,0.40)' },
+  '3_yellow':      { labelKey: 'levelLeader',   bg: 'rgba(234,179,8,0.12)',  text: '#eab308', border: 'rgba(234,179,8,0.40)' },
+  '2_orange':      { labelKey: 'levelNone',     bg: 'rgba(249,115,22,0.12)', text: '#f97316', border: 'rgba(249,115,22,0.40)' },
+  '1_red':         { labelKey: 'levelRed',      bg: 'rgba(239,68,68,0.12)',  text: '#ef4444', border: 'rgba(239,68,68,0.40)' },
+  '0_red':         { labelKey: 'levelNoRep',    bg: 'rgba(113,113,122,0.12)', text: '#a1a1aa', border: 'rgba(113,113,122,0.30)' },
 }
 
-const RISK_LABEL: Record<string, string> = {
-  claims_above_0_8:        'Reclamações acima de 0,8%',
-  cancellations_above_0_4: 'Cancelamentos acima de 0,4%',
-  late_handling_above_5:   'Atrasos de envio acima de 5%',
-}
+const RISK_KEYS = ['claims_above_0_8', 'cancellations_above_0_4', 'late_handling_above_5'] as const
 
 const pct  = (v: number | null) => v == null ? '—' : `${(v * 100).toFixed(2)}%`
 const num  = (v: number | null | undefined) => v == null ? '—' : v.toLocaleString('pt-BR')
 const dateBr = (iso: string) =>
   new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
 
-function timeSince(iso: string): string {
+function timeSince(iso: string, t: Translator): string {
   const diff = Date.now() - new Date(iso).getTime()
   const m = Math.round(diff / 60_000)
-  if (m < 1)  return 'agora'
-  if (m < 60) return `há ${m}m`
+  if (m < 1)  return t('timeNow')
+  if (m < 60) return t('timeMinutesAgo', { m })
   const h = Math.round(m / 60)
-  return h < 24 ? `há ${h}h` : `há ${Math.round(h / 24)}d`
+  return h < 24 ? t('timeHoursAgo', { h }) : t('timeDaysAgo', { d: Math.round(h / 24) })
 }
 
 function metricStatus(value: number | null, amber: number, limit: number): 'good' | 'warning' | 'critical' | 'unknown' {
@@ -95,18 +94,18 @@ const STATUS_COLOR = {
   unknown:  { text: '#71717a', bg: 'rgba(255,255,255,0.02)', border: 'rgba(255,255,255,0.10)' },
 }
 
-function TrendIndicator({ trend }: { trend: Trend }) {
+function TrendIndicator({ trend, t }: { trend: Trend; t: Translator }) {
   if (trend === 'improving')
-    return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#22c55e' }}><TrendingUp size={12} /> melhorando</span>
+    return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#22c55e' }}><TrendingUp size={12} /> {t('trendImproving')}</span>
   if (trend === 'degrading')
-    return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#ef4444' }}><TrendingDown size={12} /> piorando</span>
+    return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#ef4444' }}><TrendingDown size={12} /> {t('trendDegrading')}</span>
   if (trend === 'stable')
-    return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#a1a1aa' }}><Minus size={12} /> estável</span>
-  return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#71717a' }}><Minus size={12} /> sem histórico</span>
+    return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#a1a1aa' }}><Minus size={12} /> {t('trendStable')}</span>
+  return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#71717a' }}><Minus size={12} /> {t('trendNoHistory')}</span>
 }
 
 function MetricCard({
-  title, value, limit, amber, count, period, trend,
+  title, value, limit, amber, count, period, trend, t,
 }: {
   title: string
   value: number | null
@@ -115,6 +114,7 @@ function MetricCard({
   count: number | null
   period: string
   trend: Trend
+  t: Translator
 }) {
   const status = metricStatus(value, amber, limit)
   const palette = STATUS_COLOR[status]
@@ -142,11 +142,11 @@ function MetricCard({
           {pct(value)}
         </div>
         <div style={{ fontSize: 11, color: '#71717a' }}>
-          limite ML {limitPct}
+          {t('repMlLimit', { limit: limitPct })}
         </div>
       </div>
       <div style={{ fontSize: 12, color: '#a1a1aa', marginBottom: 12 }}>
-        {num(count)} ocorrências · {period || 'últimos 60 dias'}
+        {t('repOccurrences', { count: num(count), period: period || t('repLast60Days') })}
       </div>
       {/* Barra de progresso até o limite ML */}
       <div style={{
@@ -159,23 +159,24 @@ function MetricCard({
         }} />
       </div>
       <div style={{ fontSize: 11 }}>
-        <TrendIndicator trend={trend} />
+        <TrendIndicator trend={trend} t={t} />
       </div>
     </div>
   )
 }
 
 /** Mini sparkline SVG das últimas N taxas (claims OR cancellations OR late). */
-function MiniSparkline({ values, color, height = 40, width = 200 }: {
+function MiniSparkline({ values, color, t, height = 40, width = 200 }: {
   values: Array<number | null>
   color:  string
+  t:      Translator
   height?: number
   width?:  number
 }) {
   const valid = values.filter((v): v is number => v != null)
   if (valid.length < 2) {
     return <div style={{ height, width, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: '#52525b' }}>
-      Histórico insuficiente
+      {t('repInsufficientHistory')}
     </div>
   }
   const max = Math.max(...valid)
@@ -194,6 +195,7 @@ function MiniSparkline({ values, color, height = 40, width = 200 }: {
 }
 
 export default function ReputationPage() {
+  const t = useTranslations('executive')
   const supabase = useMemo(() => createClient(), [])
   const [snapshots, setSnapshots] = useState<ReputationCurrent[]>([])
   const [selected,  setSelected]  = useState<number | null>(null)
@@ -203,9 +205,9 @@ export default function ReputationPage() {
 
   const getHeaders = useCallback(async (): Promise<Record<string, string>> => {
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session?.access_token) throw new Error('Não autenticado')
+    if (!session?.access_token) throw new Error(t('notAuthenticated'))
     return { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' }
-  }, [supabase])
+  }, [supabase, t])
 
   const loadCurrent = useCallback(async () => {
     setLoading(true)
@@ -277,13 +279,13 @@ export default function ReputationPage() {
       }}>
         <div>
           <h1 style={{ fontSize: 24, fontWeight: 600, margin: 0, color: '#fafafa' }}>
-            Reputação Mercado Livre
+            {t('reputationTitle')}
           </h1>
           <div style={{ fontSize: 13, color: '#71717a', marginTop: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
             <Activity size={12} />
             {current
-              ? <>Atualizado {timeSince(current.last_synced_at)} · sync 1×/hora</>
-              : <>Carregando…</>}
+              ? <>{t('reputationUpdatedMeta', { since: timeSince(current.last_synced_at, t) })}</>
+              : <>{t('loading')}</>}
           </div>
         </div>
         <button
@@ -299,7 +301,7 @@ export default function ReputationPage() {
           }}
         >
           <RefreshCw size={14} style={{ animation: syncing ? 'spin 1s linear infinite' : undefined }} />
-          {syncing ? 'Sincronizando…' : 'Sincronizar agora'}
+          {syncing ? t('reputationSyncing') : t('reputationSyncNow')}
         </button>
       </div>
 
@@ -318,7 +320,7 @@ export default function ReputationPage() {
                 cursor: 'pointer', fontWeight: 500,
               }}
             >
-              {s.nickname ?? `Conta ${s.seller_id}`}
+              {s.nickname ?? t('accountFallback', { id: s.seller_id })}
               {s.is_at_risk && <AlertTriangle size={11} style={{ marginLeft: 6, color: '#f59e0b' }} />}
             </button>
           ))}
@@ -326,7 +328,7 @@ export default function ReputationPage() {
       )}
 
       {loading && !current && (
-        <div style={{ textAlign: 'center', padding: 40, color: '#71717a' }}>Carregando…</div>
+        <div style={{ textAlign: 'center', padding: 40, color: '#71717a' }}>{t('loading')}</div>
       )}
 
       {current && (
@@ -342,11 +344,11 @@ export default function ReputationPage() {
               <AlertTriangle size={20} color="#f59e0b" style={{ flexShrink: 0, marginTop: 2 }} />
               <div>
                 <div style={{ fontSize: 14, fontWeight: 600, color: '#f59e0b', marginBottom: 4 }}>
-                  Atenção: métricas perto do limite Mercado Líder
+                  {t('repRiskAlertTitle')}
                 </div>
                 <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: '#e4e4e7' }}>
                   {current.risk_reasons.map(r => (
-                    <li key={r}>{RISK_LABEL[r] ?? r}</li>
+                    <li key={r}>{(RISK_KEYS as readonly string[]).includes(r) ? t(`riskLabels.${r}`) : r}</li>
                   ))}
                 </ul>
               </div>
@@ -366,25 +368,25 @@ export default function ReputationPage() {
                 <Award size={48} color={levelInfo.text} />
                 <div>
                   <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: '#a1a1aa', marginBottom: 4 }}>
-                    Nível atual
+                    {t('repCurrentLevel')}
                   </div>
                   <div style={{ fontSize: 22, fontWeight: 600, color: levelInfo.text, lineHeight: 1.1 }}>
-                    {levelInfo.label}
+                    {t(`levels.${levelInfo.labelKey}`)}
                   </div>
                   <div style={{ fontSize: 13, color: '#a1a1aa', marginTop: 4 }}>
-                    {levelInfo.sub}{current.power_seller_status ? ` · ${current.power_seller_status}` : ''}
+                    {t(`levelSubs.${levelInfo.labelKey}`)}{current.power_seller_status ? ` · ${current.power_seller_status}` : ''}
                   </div>
                 </div>
               </div>
               <div style={{ textAlign: 'right' }}>
                 <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6, color: '#71717a', marginBottom: 4 }}>
-                  Transações (histórico)
+                  {t('repTransactionsHistory')}
                 </div>
                 <div style={{ fontSize: 24, fontWeight: 500, color: '#e4e4e7' }}>
                   {num(current.completed_transactions)}
                 </div>
                 <div style={{ fontSize: 11, color: '#71717a', marginTop: 2 }}>
-                  {num(current.total_transactions)} total · {num(current.cancelled_transactions)} canceladas
+                  {t('repTransactionsBreakdown', { total: num(current.total_transactions), cancelled: num(current.cancelled_transactions) })}
                 </div>
               </div>
             </div>
@@ -392,7 +394,7 @@ export default function ReputationPage() {
 
           {/* Métricas — 3 cards */}
           <h2 style={{ fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.8, color: '#a1a1aa', marginBottom: 12 }}>
-            Métricas (últimos 60 dias)
+            {t('repMetricsTitle')}
           </h2>
           <div style={{
             display: 'grid',
@@ -400,37 +402,40 @@ export default function ReputationPage() {
             gap: 12, marginBottom: 28,
           }}>
             <MetricCard
-              title="Reclamações (claims)"
+              title={t('repMetricClaims')}
               value={current.claims_rate}
               limit={LIMIT.claims}
               amber={AMBER.claims}
               count={current.claims_count}
-              period="60 dias"
+              period={t('repPeriod60d')}
               trend={current.trend}
+              t={t}
             />
             <MetricCard
-              title="Cancelamentos"
+              title={t('repMetricCancellations')}
               value={current.cancellations_rate}
               limit={LIMIT.cancellations}
               amber={AMBER.cancellations}
               count={current.cancellations_count}
-              period="60 dias"
+              period={t('repPeriod60d')}
               trend={current.trend}
+              t={t}
             />
             <MetricCard
-              title="Atrasos de envio"
+              title={t('repMetricLateShipments')}
               value={current.delayed_handling_rate}
               limit={LIMIT.late}
               amber={AMBER.late}
               count={current.delayed_handling_count}
-              period="60 dias"
+              period={t('repPeriod60d')}
               trend={current.trend}
+              t={t}
             />
           </div>
 
           {/* Histórico — sparklines + tabela */}
           <h2 style={{ fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.8, color: '#a1a1aa', marginBottom: 12 }}>
-            Evolução ({history.length || 0} snapshots · até 90 dias)
+            {t('repEvolutionTitle', { count: history.length || 0 })}
           </h2>
           {history.length === 0 ? (
             <div style={{
@@ -438,8 +443,7 @@ export default function ReputationPage() {
               border: '1px dashed rgba(255,255,255,0.10)',
               borderRadius: 12, padding: 20, color: '#71717a', fontSize: 13,
             }}>
-              Sem histórico ainda. A primeira sincronização foi {timeSince(current.last_synced_at)} — o gráfico
-              ganha pontos conforme o cron horário rodar.
+              {t('repNoHistoryYet', { since: timeSince(current.last_synced_at, t) })}
             </div>
           ) : (
             <div style={{
@@ -449,21 +453,21 @@ export default function ReputationPage() {
             }}>
               <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: '16px 18px' }}>
                 <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6, color: '#a1a1aa', marginBottom: 12 }}>
-                  Reclamações
+                  {t('repSparkClaims')}
                 </div>
-                <MiniSparkline values={sparkHistory.map(h => h.claims_rate)} color="#ef4444" />
+                <MiniSparkline values={sparkHistory.map(h => h.claims_rate)} color="#ef4444" t={t} />
               </div>
               <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: '16px 18px' }}>
                 <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6, color: '#a1a1aa', marginBottom: 12 }}>
-                  Cancelamentos
+                  {t('repSparkCancellations')}
                 </div>
-                <MiniSparkline values={sparkHistory.map(h => h.cancellations_rate)} color="#f59e0b" />
+                <MiniSparkline values={sparkHistory.map(h => h.cancellations_rate)} color="#f59e0b" t={t} />
               </div>
               <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: '16px 18px' }}>
                 <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6, color: '#a1a1aa', marginBottom: 12 }}>
-                  Atrasos de envio
+                  {t('repSparkLateShipments')}
                 </div>
-                <MiniSparkline values={sparkHistory.map(h => h.delayed_handling_rate)} color="#eab308" />
+                <MiniSparkline values={sparkHistory.map(h => h.delayed_handling_rate)} color="#eab308" t={t} />
               </div>
             </div>
           )}
@@ -472,7 +476,7 @@ export default function ReputationPage() {
           {(current.positive_ratings != null || current.negative_ratings != null) && (
             <>
               <h2 style={{ fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.8, color: '#a1a1aa', marginBottom: 12 }}>
-                Avaliações dos compradores
+                {t('repBuyerRatings')}
               </h2>
               <div style={{
                 background: 'rgba(255,255,255,0.02)',
@@ -481,19 +485,19 @@ export default function ReputationPage() {
                 display: 'flex', gap: 32, flexWrap: 'wrap',
               }}>
                 <div>
-                  <div style={{ fontSize: 11, color: '#71717a', marginBottom: 4 }}>Positivas</div>
+                  <div style={{ fontSize: 11, color: '#71717a', marginBottom: 4 }}>{t('repRatingPositive')}</div>
                   <div style={{ fontSize: 20, fontWeight: 500, color: '#22c55e' }}>
                     {current.positive_ratings != null ? `${(current.positive_ratings * 100).toFixed(0)}%` : '—'}
                   </div>
                 </div>
                 <div>
-                  <div style={{ fontSize: 11, color: '#71717a', marginBottom: 4 }}>Neutras</div>
+                  <div style={{ fontSize: 11, color: '#71717a', marginBottom: 4 }}>{t('repRatingNeutral')}</div>
                   <div style={{ fontSize: 20, fontWeight: 500, color: '#a1a1aa' }}>
                     {current.neutral_ratings != null ? `${(current.neutral_ratings * 100).toFixed(0)}%` : '—'}
                   </div>
                 </div>
                 <div>
-                  <div style={{ fontSize: 11, color: '#71717a', marginBottom: 4 }}>Negativas</div>
+                  <div style={{ fontSize: 11, color: '#71717a', marginBottom: 4 }}>{t('repRatingNegative')}</div>
                   <div style={{ fontSize: 20, fontWeight: 500, color: '#ef4444' }}>
                     {current.negative_ratings != null ? `${(current.negative_ratings * 100).toFixed(0)}%` : '—'}
                   </div>

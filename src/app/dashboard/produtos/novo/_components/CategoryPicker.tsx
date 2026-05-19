@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { useTranslations } from 'next-intl'
 
 interface MlCat { id: string; name: string }
 interface Level  { options: MlCat[]; selected: string }
@@ -18,6 +19,7 @@ export default function CategoryPicker({
   value: string
   onChange: (id: string) => void
 }) {
+  const t = useTranslations('produtos')
   const [levels, setLevels]   = useState<Level[]>([])
   const [path, setPath]       = useState<MlCat[]>([])
   const [loading, setLoading] = useState(false)
@@ -33,12 +35,12 @@ export default function CategoryPicker({
         if (Array.isArray(cats)) {
           setLevels([{ options: cats as MlCat[], selected: '' }])
         } else {
-          setError('Não foi possível carregar as categorias. Tente novamente mais tarde.')
+          setError(t('category.loadErrorRetry'))
         }
       })
-      .catch(() => setError('Não foi possível carregar as categorias. Verifique a conexão.'))
+      .catch(() => setError(t('category.loadErrorConnection')))
       .finally(() => setLoading(false))
-  }, [])
+  }, [t])
 
   // When top-level loads and an existing value is set, reconstruct the cascade
   useEffect(() => {
@@ -150,7 +152,7 @@ export default function CategoryPicker({
               </span>
             </span>
           ))}
-          {loading && <span className="text-zinc-500 ml-1 animate-pulse text-[11px]">carregando...</span>}
+          {loading && <span className="text-zinc-500 ml-1 animate-pulse text-[11px]">{t('category.loading')}</span>}
         </div>
       )}
 
@@ -164,7 +166,7 @@ export default function CategoryPicker({
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
           </svg>
-          Carregando categorias do Mercado Livre…
+          {t('category.loadingFromMl')}
         </div>
       )}
 
@@ -172,9 +174,9 @@ export default function CategoryPicker({
       {levels.map((level, i) => (
         <div key={i}>
           <label className={lbl}>
-            {i === 0 ? 'Categoria' : 'Subcategoria'}
+            {i === 0 ? t('category.category') : t('category.subcategory')}
             {loading && i === levels.length - 1 && level.selected && (
-              <span className="text-zinc-600 text-[11px] ml-2">buscando subcategorias…</span>
+              <span className="text-zinc-600 text-[11px] ml-2">{t('category.loadingSubcategories')}</span>
             )}
           </label>
           <select
@@ -183,7 +185,7 @@ export default function CategoryPicker({
             onChange={e => { void handleSelect(i, e.target.value) }}
             style={{ background: '#1c1c1f' }}
           >
-            <option value="">Selecione…</option>
+            <option value="">{t('category.selectOption')}</option>
             {level.options.map(cat => (
               <option key={cat.id} value={cat.id}>{cat.name}</option>
             ))}

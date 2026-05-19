@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import {
   User, Building2, Copy, CheckCircle2, LogOut, ShieldCheck,
@@ -22,6 +23,7 @@ function fmtDate(s?: string) {
 }
 
 function CopyButton({ text }: { text: string }) {
+  const t = useTranslations('configuracoes')
   const [copied, setCopied] = useState(false)
   function copy() {
     navigator.clipboard.writeText(text).catch(() => {})
@@ -29,7 +31,7 @@ function CopyButton({ text }: { text: string }) {
     setTimeout(() => setCopied(false), 1500)
   }
   return (
-    <button onClick={copy} className="p-1 rounded transition-colors" title="Copiar">
+    <button onClick={copy} className="p-1 rounded transition-colors" title={t('geral.copy')}>
       {copied
         ? <CheckCircle2 size={12} className="text-green-400" />
         : <Copy size={12} className="text-zinc-600 hover:text-zinc-300" />
@@ -52,16 +54,12 @@ function InfoRow({ label, value, copy }: { label: string; value: string; copy?: 
   )
 }
 
-const ROLE_LABEL: Record<string, string> = {
-  owner:  'Proprietário',
-  admin:  'Administrador',
-  member: 'Membro',
-  viewer: 'Visualizador',
-}
+const ROLE_KEYS = ['owner', 'admin', 'member', 'viewer']
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function ConfiguracoesGeralPage() {
+  const t = useTranslations('configuracoes')
   const [email,   setEmail]   = useState('')
   const [name,    setName]    = useState('')
   const [userId,  setUserId]  = useState('')
@@ -94,29 +92,29 @@ export default function ConfiguracoesGeralPage() {
     <div className="p-6 space-y-7 min-h-full" style={{ background: 'var(--background)' }}>
 
       <div>
-        <p className="text-zinc-500 text-xs">Configurações</p>
-        <h2 className="text-white text-lg font-semibold mt-0.5">Geral</h2>
-        <p className="text-zinc-500 text-xs mt-1">Informações da sua conta e organização.</p>
+        <p className="text-zinc-500 text-xs">{t('geral.breadcrumb')}</p>
+        <h2 className="text-white text-lg font-semibold mt-0.5">{t('geral.title')}</h2>
+        <p className="text-zinc-500 text-xs mt-1">{t('geral.subtitle')}</p>
       </div>
 
       {/* User */}
       <div className="rounded-2xl p-5 space-y-1" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
         <div className="flex items-center gap-2 mb-3">
           <User size={13} className="text-zinc-500" />
-          <h3 className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">Perfil</h3>
+          <h3 className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">{t('geral.profile')}</h3>
         </div>
         {loading ? (
-          <p className="text-xs text-zinc-600">Carregando…</p>
+          <p className="text-xs text-zinc-600">{t('geral.loading')}</p>
         ) : (
           <>
-            <InfoRow label="Nome"     value={name || '—'} />
-            <InfoRow label="Email"    value={email || '—'} />
-            <InfoRow label="User ID"  value={userId} copy />
+            <InfoRow label={t('geral.name')}     value={name || '—'} />
+            <InfoRow label={t('geral.email')}    value={email || '—'} />
+            <InfoRow label={t('geral.userId')}  value={userId} copy />
             {member && (
-              <InfoRow label="Função" value={ROLE_LABEL[member.role] ?? member.role} />
+              <InfoRow label={t('geral.role')} value={ROLE_KEYS.includes(member.role) ? t(`roles.${member.role}` as 'roles.owner') : member.role} />
             )}
             {member && (
-              <InfoRow label="Membro desde" value={fmtDate(member.created_at)} />
+              <InfoRow label={t('geral.memberSince')} value={fmtDate(member.created_at)} />
             )}
           </>
         )}
@@ -127,10 +125,10 @@ export default function ConfiguracoesGeralPage() {
         <div className="rounded-2xl p-5 space-y-1" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
           <div className="flex items-center gap-2 mb-3">
             <Building2 size={13} className="text-zinc-500" />
-            <h3 className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">Organização</h3>
+            <h3 className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">{t('geral.organization')}</h3>
           </div>
-          <InfoRow label="Org ID"    value={member.organization_id} copy />
-          <InfoRow label="Plano"     value="Pro" />
+          <InfoRow label={t('geral.orgId')}    value={member.organization_id} copy />
+          <InfoRow label={t('geral.plan')}     value="Pro" />
         </div>
       )}
 
@@ -138,11 +136,10 @@ export default function ConfiguracoesGeralPage() {
       <div className="rounded-2xl p-5 space-y-3" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
         <div className="flex items-center gap-2">
           <ShieldCheck size={13} className="text-zinc-500" />
-          <h3 className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">Segurança</h3>
+          <h3 className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">{t('geral.security')}</h3>
         </div>
         <p className="text-[11px] text-zinc-500">
-          Autenticação gerenciada via <strong className="text-zinc-300">Supabase Auth</strong>.
-          Altere sua senha diretamente pelo link de redefinição enviado por e-mail.
+          {t.rich('geral.securityNote', { strong: (chunks) => <strong className="text-zinc-300">{chunks}</strong> })}
         </p>
         <div className="flex flex-wrap gap-2">
           <button
@@ -152,20 +149,20 @@ export default function ConfiguracoesGeralPage() {
             onMouseEnter={e => (e.currentTarget.style.background = 'rgba(248,113,113,0.15)')}
             onMouseLeave={e => (e.currentTarget.style.background = 'rgba(248,113,113,0.08)')}>
             <LogOut size={12} />
-            Sair da conta
+            {t('geral.signOut')}
           </button>
         </div>
       </div>
 
       {/* Quick links to other settings */}
       <div className="rounded-2xl p-5 space-y-3" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
-        <h3 className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">Outras configurações</h3>
+        <h3 className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">{t('geral.otherSettings')}</h3>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           {[
-            { label: 'Equipe',      href: '/dashboard/configuracoes/equipe' },
-            { label: 'Integrações', href: '/dashboard/configuracoes/integracoes' },
-            { label: 'Agregador',   href: '/dashboard/configuracoes/aggregator' },
-            { label: 'IA',          href: '/dashboard/configuracoes/ia' },
+            { label: t('geral.linkTeam'),         href: '/dashboard/configuracoes/equipe' },
+            { label: t('geral.linkIntegrations'), href: '/dashboard/configuracoes/integracoes' },
+            { label: t('geral.linkAggregator'),   href: '/dashboard/configuracoes/aggregator' },
+            { label: t('geral.linkAi'),           href: '/dashboard/configuracoes/ia' },
           ].map(l => (
             <a key={l.href} href={l.href}
               className="flex items-center justify-center py-2.5 rounded-xl text-xs font-semibold transition-all text-center"

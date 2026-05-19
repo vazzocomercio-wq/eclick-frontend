@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import { getSocket } from '@/lib/socket'
 import {
@@ -70,14 +71,16 @@ interface DashboardSnapshot {
   next_refresh_at:                    string | null
 }
 
-const LEVEL_BADGE: Record<string, { label: string; color: string; bg: string; border: string }> = {
-  '5_green':       { label: 'Mercado Líder Platinum', color: '#22c55e', bg: 'rgba(34,197,94,0.08)',  border: 'rgba(34,197,94,0.30)' },
-  '4_light_green': { label: 'Mercado Líder Gold',     color: '#84cc16', bg: 'rgba(132,204,22,0.08)', border: 'rgba(132,204,22,0.30)' },
-  '3_yellow':      { label: 'Mercado Líder',          color: '#eab308', bg: 'rgba(234,179,8,0.08)',  border: 'rgba(234,179,8,0.30)' },
-  '2_orange':      { label: 'Sem nível',              color: '#f97316', bg: 'rgba(249,115,22,0.08)', border: 'rgba(249,115,22,0.30)' },
-  '1_red':         { label: 'Reputação vermelha',     color: '#ef4444', bg: 'rgba(239,68,68,0.08)',  border: 'rgba(239,68,68,0.30)' },
-  '0_red':         { label: 'Sem reputação',          color: '#a1a1aa', bg: 'rgba(113,113,122,0.08)', border: 'rgba(113,113,122,0.25)' },
-  unknown:         { label: 'Sem dado',                color: '#71717a', bg: 'rgba(255,255,255,0.015)', border: 'rgba(255,255,255,0.10)' },
+type Translator = ReturnType<typeof useTranslations>
+
+const LEVEL_BADGE: Record<string, { labelKey: string; color: string; bg: string; border: string }> = {
+  '5_green':       { labelKey: 'levelPlatinum',  color: '#22c55e', bg: 'rgba(34,197,94,0.08)',  border: 'rgba(34,197,94,0.30)' },
+  '4_light_green': { labelKey: 'levelGold',      color: '#84cc16', bg: 'rgba(132,204,22,0.08)', border: 'rgba(132,204,22,0.30)' },
+  '3_yellow':      { labelKey: 'levelLeader',    color: '#eab308', bg: 'rgba(234,179,8,0.08)',  border: 'rgba(234,179,8,0.30)' },
+  '2_orange':      { labelKey: 'levelNone',      color: '#f97316', bg: 'rgba(249,115,22,0.08)', border: 'rgba(249,115,22,0.30)' },
+  '1_red':         { labelKey: 'levelRed',       color: '#ef4444', bg: 'rgba(239,68,68,0.08)',  border: 'rgba(239,68,68,0.30)' },
+  '0_red':         { labelKey: 'levelNoRep',     color: '#a1a1aa', bg: 'rgba(113,113,122,0.08)', border: 'rgba(113,113,122,0.25)' },
+  unknown:         { labelKey: 'levelUnknown',   color: '#71717a', bg: 'rgba(255,255,255,0.015)', border: 'rgba(255,255,255,0.10)' },
 }
 
 const brl = (v: number) =>
@@ -86,21 +89,21 @@ const brlPrecise = (v: number) =>
   v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 const num = (v: number) => v.toLocaleString('pt-BR')
 
-function timeSince(iso: string): string {
+function timeSince(iso: string, t: Translator): string {
   const diff = Date.now() - new Date(iso).getTime()
   const m = Math.round(diff / 60_000)
-  if (m < 1)  return 'agora'
-  if (m < 60) return `há ${m}m`
+  if (m < 1)  return t('timeNow')
+  if (m < 60) return t('timeMinutesAgo', { m })
   const h = Math.round(m / 60)
-  return h < 24 ? `há ${h}h` : `há ${Math.round(h / 24)}d`
+  return h < 24 ? t('timeHoursAgo', { h }) : t('timeDaysAgo', { d: Math.round(h / 24) })
 }
 
-function timeUntil(iso: string | null): string {
+function timeUntil(iso: string | null, t: Translator): string {
   if (!iso) return '—'
   const diff = new Date(iso).getTime() - Date.now()
-  if (diff <= 0) return 'a qualquer momento'
+  if (diff <= 0) return t('timeAnyMoment')
   const m = Math.max(1, Math.round(diff / 60_000))
-  return `${m}m`
+  return t('timeInMinutes', { m })
 }
 
 /** Wrapper de card. Variantes semânticas por cor de borda + glow sutil. */
@@ -167,12 +170,13 @@ function KpiCard({
 
 /** Card placeholder pra campos E2/E3/E4 ainda não cobertos. */
 function CoverageAlertCard({
-  label, sprintHint, nextRefresh, icon: Icon,
+  label, sprintHint, nextRefresh, icon: Icon, t,
 }: {
   label: string
   sprintHint: string
   nextRefresh: string | null
   icon: typeof Package
+  t: Translator
 }) {
   return (
     <div
@@ -190,16 +194,17 @@ function CoverageAlertCard({
         </span>
       </div>
       <div style={{ fontSize: 16, fontWeight: 500, color: '#71717a', lineHeight: 1.2 }}>
-        Sem dado
+        {t('noData')}
       </div>
       <div style={{ fontSize: 11, color: '#52525b', marginTop: 6, lineHeight: 1.4 }}>
-        {sprintHint} · próximo sync em {timeUntil(nextRefresh)}
+        {t('coverageNextSync', { hint: sprintHint, until: timeUntil(nextRefresh, t) })}
       </div>
     </div>
   )
 }
 
 export default function ExecutiveDashboardPage() {
+  const t = useTranslations('executive')
   const supabase = useMemo(() => createClient(), [])
   const [snapshots, setSnapshots] = useState<DashboardSnapshot[]>([])
   const [loading,   setLoading]   = useState(true)
@@ -208,9 +213,9 @@ export default function ExecutiveDashboardPage() {
 
   const getHeaders = useCallback(async (): Promise<Record<string, string>> => {
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session?.access_token) throw new Error('Não autenticado')
+    if (!session?.access_token) throw new Error(t('notAuthenticated'))
     return { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' }
-  }, [supabase])
+  }, [supabase, t])
 
   const load = useCallback(async (fresh?: 'sales' | 'all') => {
     setLoading(true)
@@ -351,13 +356,13 @@ export default function ExecutiveDashboardPage() {
       }}>
         <div>
           <h1 style={{ fontSize: 24, fontWeight: 600, margin: 0, color: '#fafafa' }}>
-            Executive Dashboard
+            {t('title')}
           </h1>
           <div style={{ fontSize: 13, color: '#71717a', marginTop: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
             <Activity size={12} />
             {newestRefresh
-              ? <>Atualizado {timeSince(newestRefresh)} · próximo sync em {timeUntil(nextRefresh)}</>
-              : <>Sem cache ainda — primeira sincronização em andamento</>
+              ? <>{t('updatedNextSync', { since: timeSince(newestRefresh, t), until: timeUntil(nextRefresh, t) })}</>
+              : <>{t('noCacheYet')}</>
             }
           </div>
         </div>
@@ -374,19 +379,19 @@ export default function ExecutiveDashboardPage() {
           }}
         >
           <RefreshCw size={14} style={{ animation: refreshing ? 'spin 1s linear infinite' : undefined }} />
-          {refreshing ? 'Atualizando…' : 'Atualizar agora'}
+          {refreshing ? t('refreshing') : t('refreshNow')}
         </button>
       </div>
 
       {loading && !aggregate && (
-        <div style={{ textAlign: 'center', padding: 40, color: '#71717a' }}>Carregando…</div>
+        <div style={{ textAlign: 'center', padding: 40, color: '#71717a' }}>{t('loading')}</div>
       )}
 
       {/* Vendas (linha destaque) */}
       {aggregate && (
         <>
           <h2 style={{ fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.8, color: '#a1a1aa', marginTop: 0, marginBottom: 12 }}>
-            Vendas em tempo real
+            {t('sectionRealtimeSales')}
           </h2>
           <div style={{
             display: 'grid',
@@ -395,36 +400,36 @@ export default function ExecutiveDashboardPage() {
           }}>
             <KpiCard
               icon={TrendingUp} tone="brand"
-              label="Vendas hoje"
+              label={t('kpiSalesToday')}
               value={num(aggregate.sales_today_count)}
               hint={brl(aggregate.sales_today_gmv)}
             />
             <KpiCard
               icon={BarChart3} tone="brand"
-              label="GMV últimos 7 dias"
+              label={t('kpiGmv7d')}
               value={brl(aggregate.sales_7d_gmv)}
-              hint={`${num(aggregate.sales_7d_count)} pedidos · ${num(aggregate.sales_7d_units)} unidades`}
+              hint={t('kpiGmv7dHint', { orders: num(aggregate.sales_7d_count), units: num(aggregate.sales_7d_units) })}
             />
             <KpiCard
               icon={ShoppingCart} tone="positive"
-              label="Anúncios ativos"
+              label={t('kpiActiveListings')}
               value={num(aggregate.total_active_listings)}
-              hint={snapshots.length > 1 ? `${snapshots.length} contas conectadas` : undefined}
+              hint={snapshots.length > 1 ? t('kpiConnectedAccounts', { count: snapshots.length }) : undefined}
             />
             <KpiCard
               icon={Sparkles} tone="attention"
-              label="Recomendações alto-impacto"
+              label={t('kpiHighImpactRecs')}
               value={num(aggregate.high_impact_recommendations_count)}
               hint={aggregate.high_impact_total_estimated_brl > 0
-                ? `${brlPrecise(aggregate.high_impact_total_estimated_brl)} em jogo`
-                : 'sem cálculo de impacto disponível'}
+                ? t('kpiHighImpactValue', { value: brlPrecise(aggregate.high_impact_total_estimated_brl) })
+                : t('kpiNoImpactCalc')}
               onClick={() => { window.location.href = '/dashboard/listings?severity=high' }}
             />
           </div>
 
           {/* Qualidade + Campanhas */}
           <h2 style={{ fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.8, color: '#a1a1aa', marginBottom: 12 }}>
-            Saúde da operação
+            {t('sectionOpHealth')}
           </h2>
           <div style={{
             display: 'grid',
@@ -434,40 +439,40 @@ export default function ExecutiveDashboardPage() {
             <KpiCard
               icon={AlertCircle}
               tone={aggregate.listings_quality_low > 0 ? 'attention' : 'positive'}
-              label="Qualidade baixa (F7)"
+              label={t('kpiLowQuality')}
               value={num(aggregate.listings_quality_low)}
-              hint={`${num(aggregate.listings_incomplete_specs)} com specs incompletos`}
+              hint={t('kpiIncompleteSpecs', { count: num(aggregate.listings_incomplete_specs) })}
               onClick={() => { window.location.href = '/dashboard/listings?type=QUALITY_LOW' }}
             />
             <KpiCard
               icon={AlertCircle}
               tone={aggregate.listings_with_penalty > 0 ? 'critical' : 'positive'}
-              label="Anúncios com penalização"
+              label={t('kpiPenalizedListings')}
               value={num(aggregate.listings_with_penalty)}
-              hint={aggregate.listings_with_penalty > 0 ? 'corrigir antes de perder visibilidade' : 'sem penalizações ativas'}
+              hint={aggregate.listings_with_penalty > 0 ? t('kpiPenalizedHint') : t('kpiNoPenalty')}
             />
             <KpiCard
               icon={Tag} tone="brand"
-              label="Campanhas ativas (F8)"
+              label={t('kpiActiveCampaigns')}
               value={num(aggregate.active_campaigns)}
               hint={aggregate.campaigns_ending_today > 0
-                ? `${aggregate.campaigns_ending_today} termina hoje`
-                : `${aggregate.campaign_recommendations_pending} recomendações pendentes`}
+                ? t('kpiCampaignsEndingToday', { count: aggregate.campaigns_ending_today })
+                : t('kpiCampaignsRecsPending', { count: aggregate.campaign_recommendations_pending })}
               onClick={() => { window.location.href = '/dashboard/ml-campaigns' }}
             />
             <KpiCard
               icon={Sparkles}
               tone={aggregate.campaign_high_opportunities > 0 ? 'attention' : 'neutral'}
-              label="Oportunidades de campanha"
+              label={t('kpiCampaignOpportunities')}
               value={num(aggregate.campaign_high_opportunities)}
-              hint="score ≥ 80 — adesão recomendada"
+              hint={t('kpiCampaignOppHint')}
               onClick={() => { window.location.href = '/dashboard/ml-campaigns?recommended=high' }}
             />
           </div>
 
           {/* Reputação (E2) — gauge resumido por conta com link pra detalhes */}
           <h2 style={{ fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.8, color: '#a1a1aa', marginBottom: 12 }}>
-            Reputação Mercado Livre
+            {t('sectionReputation')}
           </h2>
           <div style={{
             display: 'grid',
@@ -478,9 +483,9 @@ export default function ExecutiveDashboardPage() {
               const hasData = s.reputation_level_id != null
               if (!hasData) {
                 return (
-                  <CoverageAlertCard key={s.seller_id} icon={Activity}
-                    label={`Reputação · ${s.nickname ?? `Conta ${s.seller_id}`}`}
-                    sprintHint="Aguardando 1ª sync" nextRefresh={nextRefresh} />
+                  <CoverageAlertCard key={s.seller_id} icon={Activity} t={t}
+                    label={t('reputationAccountLabel', { account: s.nickname ?? t('accountFallback', { id: s.seller_id }) })}
+                    sprintHint={t('awaitingFirstSync')} nextRefresh={nextRefresh} />
                 )
               }
               const lvl = LEVEL_BADGE[s.reputation_level_id ?? ''] ?? LEVEL_BADGE.unknown
@@ -498,18 +503,18 @@ export default function ExecutiveDashboardPage() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                     <Activity size={14} color={lvl.color} />
                     <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6, color: '#a1a1aa' }}>
-                      {s.nickname ?? `Conta ${s.seller_id}`}
+                      {s.nickname ?? t('accountFallback', { id: s.seller_id })}
                     </span>
                   </div>
                   <div style={{ fontSize: 16, fontWeight: 600, color: lvl.color, lineHeight: 1.1 }}>
-                    {lvl.label}
+                    {t(`levels.${lvl.labelKey}`)}
                   </div>
                   <div style={{ fontSize: 11, color: '#a1a1aa', marginTop: 8, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                     {s.reputation_complaints_pct != null && (
-                      <span>Reclamações {(s.reputation_complaints_pct * 100).toFixed(2)}%</span>
+                      <span>{t('repComplaints', { pct: (s.reputation_complaints_pct * 100).toFixed(2) })}</span>
                     )}
                     {s.reputation_late_shipments_pct != null && (
-                      <span>Atrasos {(s.reputation_late_shipments_pct * 100).toFixed(2)}%</span>
+                      <span>{t('repDelays', { pct: (s.reputation_late_shipments_pct * 100).toFixed(2) })}</span>
                     )}
                   </div>
                 </div>
@@ -519,7 +524,7 @@ export default function ExecutiveDashboardPage() {
 
           {/* Logística (E3) — operação do dia + Flex eligível */}
           <h2 style={{ fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.8, color: '#a1a1aa', marginBottom: 12 }}>
-            Logística
+            {t('sectionLogistics')}
           </h2>
           <div style={{
             display: 'grid',
@@ -529,32 +534,32 @@ export default function ExecutiveDashboardPage() {
             <KpiCard
               icon={Package}
               tone={(aggregate.shipments_to_dispatch_today ?? 0) > 0 ? 'attention' : 'positive'}
-              label="Pra despachar hoje"
+              label={t('kpiToDispatchToday')}
               value={num(aggregate.shipments_to_dispatch_today ?? 0)}
-              hint={(aggregate.shipments_to_dispatch_today ?? 0) > 0 ? 'envios prontos para envio' : 'sem pendências'}
+              hint={(aggregate.shipments_to_dispatch_today ?? 0) > 0 ? t('kpiShipmentsReady') : t('kpiNoPending')}
               onClick={() => { window.location.href = '/dashboard/executive/logistics' }}
             />
             <KpiCard
               icon={Activity}
               tone={(aggregate.shipments_late ?? 0) > 0 ? 'critical' : 'positive'}
-              label="Atrasos abertos"
+              label={t('kpiOpenDelays')}
               value={num(aggregate.shipments_late ?? 0)}
-              hint={(aggregate.shipments_late ?? 0) > 0 ? 'afeta reputação' : 'sem atrasos'}
+              hint={(aggregate.shipments_late ?? 0) > 0 ? t('kpiAffectsReputation') : t('kpiNoDelays')}
               onClick={() => { window.location.href = '/dashboard/executive/logistics' }}
             />
             <KpiCard
               icon={Sparkles}
               tone={(aggregate.flex_active_listings ?? 0) > 0 ? 'positive' : 'neutral'}
-              label="Items elegíveis pra Flex"
+              label={t('kpiFlexEligibleItems')}
               value={num(aggregate.flex_active_listings ?? 0)}
-              hint="entrega rápida (Mercado Envios Flex)"
+              hint={t('kpiFlexFastDelivery')}
               onClick={() => { window.location.href = '/dashboard/executive/logistics' }}
             />
           </div>
 
           {/* Ads · 7d (E5) — org-level, 1 card só */}
           <h2 style={{ fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.8, color: '#a1a1aa', marginBottom: 12 }}>
-            Ads · 7d
+            {t('sectionAds7d')}
           </h2>
           {(aggregate.ads_spend_7d ?? 0) === 0 && (aggregate.ads_campaigns_active ?? 0) === 0 ? (
             <div style={{
@@ -565,8 +570,8 @@ export default function ExecutiveDashboardPage() {
               display: 'flex', alignItems: 'center', gap: 10,
             }}>
               <Activity size={14} color="#f59e0b" />
-              Conecte Product Ads pra ver mais dados ·{' '}
-              <a href="/dashboard/executive/ads" style={{ color: '#00E5FF', textDecoration: 'none' }}>detalhes</a>
+              {t('connectProductAds')} ·{' '}
+              <a href="/dashboard/executive/ads" style={{ color: '#00E5FF', textDecoration: 'none' }}>{t('detailsLink')}</a>
             </div>
           ) : (
             <div style={{
@@ -576,19 +581,19 @@ export default function ExecutiveDashboardPage() {
             }}>
               <KpiCard
                 icon={Activity} tone="critical"
-                label="Gasto em ads"
+                label={t('kpiAdsSpend')}
                 value={brl(aggregate.ads_spend_7d ?? 0)}
-                hint={(aggregate.ads_campaigns_active ?? 0) + ' campanhas ativas'}
+                hint={t('kpiAdsActiveCampaigns', { count: aggregate.ads_campaigns_active ?? 0 })}
                 onClick={() => { window.location.href = '/dashboard/executive/ads' }}
               />
               <KpiCard
                 icon={Activity} tone="positive"
-                label="Receita gerada"
+                label={t('kpiAdsRevenue')}
                 value={brl(aggregate.ads_revenue_7d ?? 0)}
                 hint={
                   aggregate.ads_roas_7d != null
-                    ? `ROAS ${aggregate.ads_roas_7d.toFixed(2)}x`
-                    : 'sem retorno calculado'
+                    ? t('kpiAdsRoas', { roas: aggregate.ads_roas_7d.toFixed(2) })
+                    : t('kpiAdsNoReturn')
                 }
                 onClick={() => { window.location.href = '/dashboard/executive/ads' }}
               />
@@ -599,19 +604,19 @@ export default function ExecutiveDashboardPage() {
                   aggregate.ads_acos_7d <= 0.15 ? 'positive' :
                   aggregate.ads_acos_7d <= 0.30 ? 'attention' : 'critical'
                 }
-                label="ACOS"
+                label={t('kpiAcos')}
                 value={aggregate.ads_acos_7d == null ? '—' : `${(aggregate.ads_acos_7d * 100).toFixed(1)}%`}
-                hint="gasto / receita"
+                hint={t('kpiAcosHint')}
                 onClick={() => { window.location.href = '/dashboard/executive/ads' }}
               />
               <KpiCard
                 icon={Activity}
                 tone={(aggregate.ads_campaigns_losing_money ?? 0) > 0 ? 'critical' : 'positive'}
-                label="Campanhas perdendo $"
+                label={t('kpiCampaignsLosingMoney')}
                 value={num(aggregate.ads_campaigns_losing_money ?? 0)}
                 hint={(aggregate.ads_campaigns_losing_money ?? 0) > 0
-                  ? 'ACOS acima do limite'
-                  : 'todas saudáveis'}
+                  ? t('kpiAcosOverLimit')
+                  : t('kpiAllHealthy')}
                 onClick={() => { window.location.href = '/dashboard/executive/ads' }}
               />
             </div>
@@ -619,7 +624,7 @@ export default function ExecutiveDashboardPage() {
 
           {/* Visitas + conversão (E4) */}
           <h2 style={{ fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.8, color: '#a1a1aa', marginBottom: 12 }}>
-            Visitas + Conversão
+            {t('sectionVisitsConversion')}
           </h2>
           <div style={{
             display: 'grid',
@@ -630,9 +635,9 @@ export default function ExecutiveDashboardPage() {
               const hasVisits = s.visits_7d != null
               if (!hasVisits) {
                 return (
-                  <CoverageAlertCard key={s.seller_id} icon={BarChart3}
-                    label={`Visitas · ${s.nickname ?? `Conta ${s.seller_id}`}`}
-                    sprintHint="Aguardando 1ª sync" nextRefresh={nextRefresh} />
+                  <CoverageAlertCard key={s.seller_id} icon={BarChart3} t={t}
+                    label={t('visitsAccountLabel', { account: s.nickname ?? t('accountFallback', { id: s.seller_id }) })}
+                    sprintHint={t('awaitingFirstSync')} nextRefresh={nextRefresh} />
                 )
               }
               const conv = s.conversion_rate_pct
@@ -655,16 +660,16 @@ export default function ExecutiveDashboardPage() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                     <BarChart3 size={14} color="#00E5FF" />
                     <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6, color: '#a1a1aa' }}>
-                      {s.nickname ?? `Conta ${s.seller_id}`}
+                      {s.nickname ?? t('accountFallback', { id: s.seller_id })}
                     </span>
                   </div>
                   <div style={{ fontSize: 22, fontWeight: 600, color: '#00E5FF', lineHeight: 1.1 }}>
                     {(s.visits_7d ?? 0).toLocaleString('pt-BR')}
-                    <span style={{ fontSize: 11, color: '#71717a', fontWeight: 400, marginLeft: 6 }}>visitas/7d</span>
+                    <span style={{ fontSize: 11, color: '#71717a', fontWeight: 400, marginLeft: 6 }}>{t('visitsPerWeekUnit')}</span>
                   </div>
                   <div style={{ fontSize: 11, color: '#a1a1aa', marginTop: 8, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                     <span>
-                      Conv:{' '}
+                      {t('convLabel')}{' '}
                       <strong style={{
                         color: tone === 'positive' ? '#22c55e' : tone === 'attention' ? '#f59e0b' : tone === 'critical' ? '#ef4444' : '#71717a',
                       }}>
@@ -673,7 +678,7 @@ export default function ExecutiveDashboardPage() {
                     </span>
                     {s.visits_7d_change_pct != null && (
                       <span style={{ color: s.visits_7d_change_pct >= 0 ? '#22c55e' : '#ef4444' }}>
-                        {s.visits_7d_change_pct > 0 ? '+' : ''}{s.visits_7d_change_pct.toFixed(1)}% vs 7 dias anteriores
+                        {s.visits_7d_change_pct > 0 ? '+' : ''}{t('changeVsPrev7d', { pct: s.visits_7d_change_pct.toFixed(1) })}
                       </span>
                     )}
                   </div>
@@ -687,7 +692,7 @@ export default function ExecutiveDashboardPage() {
             fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.8,
             color: '#a1a1aa', marginBottom: 12, marginTop: 4,
           }}>
-            F11 Fase 2 — Oportunidades de logística e tráfego
+            {t('sectionF11Phase2')}
           </h2>
           <div style={{
             display: 'grid',
@@ -703,7 +708,7 @@ export default function ExecutiveDashboardPage() {
           {snapshots.length > 1 && (
             <>
               <h2 style={{ fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.8, color: '#a1a1aa', marginBottom: 12 }}>
-                Por conta
+                {t('sectionByAccount')}
               </h2>
               <div style={{
                 display: 'grid',
@@ -719,22 +724,22 @@ export default function ExecutiveDashboardPage() {
                     }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       <div style={{ fontSize: 14, fontWeight: 600, color: '#e4e4e7' }}>
-                        {s.nickname ?? `Conta ${s.seller_id}`}
+                        {s.nickname ?? t('accountFallback', { id: s.seller_id })}
                       </div>
                       <ChevronRight size={14} color="#52525b" />
                     </div>
                     <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 14, fontSize: 12 }}>
                       <span style={{ color: '#a1a1aa' }}>
-                        Hoje: <strong style={{ color: '#00E5FF' }}>{num(s.sales_today_count)}</strong> · {brl(s.sales_today_gmv)}
+                        {t('byAccountToday')} <strong style={{ color: '#00E5FF' }}>{num(s.sales_today_count)}</strong> · {brl(s.sales_today_gmv)}
                       </span>
                       <span style={{ color: '#a1a1aa' }}>
-                        7d: <strong style={{ color: '#22c55e' }}>{brl(s.sales_7d_gmv)}</strong>
+                        {t('byAccount7d')} <strong style={{ color: '#22c55e' }}>{brl(s.sales_7d_gmv)}</strong>
                       </span>
                       <span style={{ color: '#a1a1aa' }}>
-                        Anúncios: <strong style={{ color: '#e4e4e7' }}>{num(s.total_active_listings)}</strong>
+                        {t('byAccountListings')} <strong style={{ color: '#e4e4e7' }}>{num(s.total_active_listings)}</strong>
                       </span>
                       <span style={{ color: '#a1a1aa' }}>
-                        Qualidade baixa: <strong style={{ color: s.listings_quality_low > 0 ? '#f59e0b' : '#22c55e' }}>{num(s.listings_quality_low)}</strong>
+                        {t('byAccountLowQuality')} <strong style={{ color: s.listings_quality_low > 0 ? '#f59e0b' : '#22c55e' }}>{num(s.listings_quality_low)}</strong>
                       </span>
                     </div>
                   </div>

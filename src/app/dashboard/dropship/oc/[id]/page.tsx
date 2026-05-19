@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { useTranslations } from 'next-intl'
 import * as XLSX from 'xlsx'
 import { createClient } from '@/lib/supabase'
 import { useConfirm, usePrompt } from '@/components/ui/dialog-provider'
@@ -76,6 +77,7 @@ interface OCDetail {
 }
 
 export default function OCDetailPage() {
+  const t = useTranslations('dropship.ocDetail')
   const params = useParams()
   const router = useRouter()
   const id = params.id as string
@@ -92,9 +94,9 @@ export default function OCDetailPage() {
 
   const getHeaders = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session?.access_token) throw new Error('Não autenticado')
+    if (!session?.access_token) throw new Error(t('errors.notAuthenticated'))
     return { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' }
-  }, [supabase])
+  }, [supabase, t])
 
   const load = useCallback(async () => {
     setLoading(true); setErr('')
@@ -104,19 +106,19 @@ export default function OCDetailPage() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       setOc(await res.json())
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Erro ao carregar')
+      setErr(e instanceof Error ? e.message : t('errors.loadFailed'))
     } finally { setLoading(false) }
-  }, [getHeaders, id])
+  }, [getHeaders, id, t])
 
   useEffect(() => { load() }, [load])
 
   async function handleCancel() {
     const reason = await prompt({
-      title: 'Cancelar OC',
-      message: 'Os pedidos voltam pra fila e podem entrar na próxima OC. Por que está cancelando?',
-      placeholder: 'Ex: Custos errados — vou regerar amanhã',
+      title: t('cancelPrompt.title'),
+      message: t('cancelPrompt.message'),
+      placeholder: t('cancelPrompt.placeholder'),
       multiline: true,
-      confirmLabel: 'Cancelar OC',
+      confirmLabel: t('cancelPrompt.confirm'),
       variant: 'danger',
     })
     if (!reason?.trim()) return
@@ -129,7 +131,7 @@ export default function OCDetailPage() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       router.push('/dashboard/dropship/oc')
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Erro ao cancelar')
+      setErr(e instanceof Error ? e.message : t('errors.cancelFailed'))
     } finally { setCancelling(false) }
   }
 
@@ -143,17 +145,17 @@ export default function OCDetailPage() {
         const setup = await setupRes.json()
         if (!setup.has_email_config) {
           const ok = await confirm({
-            title: 'E-mail não configurado',
-            message: 'Você ainda não configurou provider de e-mail (Resend/SendGrid). O parceiro NÃO vai receber por e-mail. Configure em Configurações > Integrações antes. Deseja seguir mesmo assim (só cria o link, sem disparar)?',
-            confirmLabel: 'Seguir sem email',
+            title: t('emailNotConfigured.title'),
+            message: t('emailNotConfigured.message'),
+            confirmLabel: t('emailNotConfigured.confirm'),
             variant: 'warning',
           })
           if (!ok) return
         } else {
           const ok = await confirm({
-            title: `Enviar OC ${oc.oc_number}?`,
-            message: `Vai disparar e-mail${setup.has_whatsapp_config ? ' + WhatsApp' : ''} ao parceiro com link de aprovação válido por 72h.`,
-            confirmLabel: 'Enviar',
+            title: t('sendConfirm.title', { ocNumber: oc.oc_number }),
+            message: setup.has_whatsapp_config ? t('sendConfirm.messageWithWhatsapp') : t('sendConfirm.message'),
+            confirmLabel: t('sendConfirm.confirm'),
           })
           if (!ok) return
         }
@@ -172,7 +174,7 @@ export default function OCDetailPage() {
       setSendResult(r)
       await load()
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Erro ao enviar')
+      setErr(e instanceof Error ? e.message : t('errors.sendFailed'))
     } finally { setSending(false) }
   }
 
@@ -180,44 +182,44 @@ export default function OCDetailPage() {
     if (!oc) return
     // 1. Aba "OC" — cabeçalho da ordem
     const summary = [
-      ['ORDEM DE COMPRA DROPSHIP'],
+      [t('excel.title')],
       [],
-      ['Número', oc.oc_number],
-      ['Parceiro', oc.suppliers?.name ?? '—'],
-      ['CNPJ', oc.suppliers?.tax_id ?? '—'],
-      ['Razão Social', oc.suppliers?.legal_name ?? '—'],
+      [t('excel.number'), oc.oc_number],
+      [t('excel.partner'), oc.suppliers?.name ?? '—'],
+      [t('excel.taxId'), oc.suppliers?.tax_id ?? '—'],
+      [t('excel.legalName'), oc.suppliers?.legal_name ?? '—'],
       [],
-      ['Marketplace', oc.marketplace],
-      ['Conta', oc.marketplace_account_label ?? '—'],
+      [t('excel.marketplace'), oc.marketplace],
+      [t('excel.account'), oc.marketplace_account_label ?? '—'],
       [],
-      ['Data Referência', fmtDate(oc.reference_date)],
-      ['Geração', fmtDateTime(oc.generation_date)],
-      ['Vencimento', fmtDate(oc.due_date)],
-      ['Prazo Pagamento', oc.suppliers?.payment_terms ? `${oc.suppliers.payment_terms} dias` : '—'],
-      ['Método Pagamento', oc.suppliers?.payment_method ?? '—'],
+      [t('excel.refDate'), fmtDate(oc.reference_date)],
+      [t('excel.generation'), fmtDateTime(oc.generation_date)],
+      [t('excel.dueDate'), fmtDate(oc.due_date)],
+      [t('excel.paymentTerms'), oc.suppliers?.payment_terms ? t('excel.daysValue', { days: oc.suppliers.payment_terms }) : '—'],
+      [t('excel.paymentMethod'), oc.suppliers?.payment_method ?? '—'],
       [],
-      ['Itens', oc.items_count],
-      ['Unidades', oc.units_count],
-      ['Bruto', oc.gross_total],
-      ['Devoluções', -oc.return_credits],
-      ['Cancelamentos', -oc.cancellation_credits],
-      ['Garantias', -oc.warranty_credits],
-      ['Divergências', -oc.divergence_credits],
-      ['Outros', -oc.other_credits],
-      ['Total Créditos', -oc.total_credits],
-      ['LÍQUIDO', oc.net_total],
+      [t('excel.items'), oc.items_count],
+      [t('excel.units'), oc.units_count],
+      [t('excel.gross'), oc.gross_total],
+      [t('excel.returns'), -oc.return_credits],
+      [t('excel.cancellations'), -oc.cancellation_credits],
+      [t('excel.warranties'), -oc.warranty_credits],
+      [t('excel.divergences'), -oc.divergence_credits],
+      [t('excel.other'), -oc.other_credits],
+      [t('excel.totalCredits'), -oc.total_credits],
+      [t('excel.net'), oc.net_total],
       [],
-      ['Status', oc.status],
+      [t('excel.status'), oc.status],
     ]
     const summarySheet = XLSX.utils.aoa_to_sheet(summary)
     summarySheet['!cols'] = [{ wch: 25 }, { wch: 50 }]
 
     // 2. Aba "Itens" — tabela de produtos
     const itemHeaders = [
-      'SKU Parceiro', 'Master SKU', 'Produto', 'Variação',
-      'Marketplace', 'Pedido ML', 'Pack ID',
-      'Qtd', 'Custo Unit.', 'Embalagem', 'Manuseio', 'Total Linha',
-      'Data Venda', 'Data Envio', 'Status',
+      t('excel.colPartnerSku'), t('excel.colMasterSku'), t('excel.colProduct'), t('excel.colVariation'),
+      t('excel.colMarketplace'), t('excel.colMlOrder'), t('excel.colPackId'),
+      t('excel.colQty'), t('excel.colUnitCost'), t('excel.colPackaging'), t('excel.colHandling'), t('excel.colLineTotal'),
+      t('excel.colSaleDate'), t('excel.colShipDate'), t('excel.colStatus'),
     ]
     const itemRows = oc.items.map(it => [
       it.partner_sku,
@@ -246,21 +248,21 @@ export default function OCDetailPage() {
 
     // Compose workbook
     const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, summarySheet, 'OC')
-    XLSX.utils.book_append_sheet(wb, itemsSheet, 'Itens')
+    XLSX.utils.book_append_sheet(wb, summarySheet, t('excel.sheetOc'))
+    XLSX.utils.book_append_sheet(wb, itemsSheet, t('excel.sheetItems'))
 
     XLSX.writeFile(wb, `${oc.oc_number}.xlsx`)
   }
 
-  if (loading) return <div className="min-h-screen p-6 text-zinc-500" style={{ background: 'var(--background)' }}>Carregando...</div>
+  if (loading) return <div className="min-h-screen p-6 text-zinc-500" style={{ background: 'var(--background)' }}>{t('loading')}</div>
   if (!oc) {
     return (
       <div className="min-h-screen p-6" style={{ background: 'var(--background)', color: '#fff' }}>
         <div className="rounded-lg p-3 text-sm" style={{
           background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)',
         }}>
-          OC não encontrada. {err && `(${err})`}{' '}
-          <Link href="/dashboard/dropship/oc" style={{ color: '#00E5FF' }}>Voltar à lista</Link>
+          {t('notFound')} {err && `(${err})`}{' '}
+          <Link href="/dashboard/dropship/oc" style={{ color: '#00E5FF' }}>{t('backToList')}</Link>
         </div>
       </div>
     )
@@ -288,7 +290,7 @@ export default function OCDetailPage() {
             onClick={downloadExcel}
             className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors hover:bg-[#1a1a1f]"
             style={{ border: '1px solid #27272a', color: '#a1a1aa' }}
-            title="Download XLSX"
+            title={t('downloadXlsx')}
           >
             <Download size={14} />
             Excel
@@ -299,10 +301,10 @@ export default function OCDetailPage() {
               disabled={sending}
               className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg"
               style={{ background: '#00E5FF', color: '#09090b', opacity: sending ? 0.6 : 1 }}
-              title="Enviar e-mail + WhatsApp ao parceiro com link de aprovação"
+              title={t('sendTooltip')}
             >
               <Send size={14} />
-              {sending ? 'Enviando...' : oc.status === 'generated' ? 'Enviar Parceiro' : 'Reenviar'}
+              {sending ? t('sending') : oc.status === 'generated' ? t('sendToPartner') : t('resend')}
             </button>
           )}
           <button
@@ -316,12 +318,12 @@ export default function OCDetailPage() {
                 window.open(url, '_blank')
                 setTimeout(() => URL.revokeObjectURL(url), 60_000)
               } catch (e) {
-                setErr(e instanceof Error ? e.message : 'Erro ao gerar PDF')
+                setErr(e instanceof Error ? e.message : t('errors.pdfFailed'))
               }
             }}
             className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors hover:bg-[#1a1a1f]"
             style={{ border: '1px solid #27272a', color: '#a1a1aa' }}
-            title="Visualizar PDF"
+            title={t('viewPdf')}
           >
             <FileText size={14} />
             PDF
@@ -334,7 +336,7 @@ export default function OCDetailPage() {
               style={{ border: '1px solid rgba(248,113,113,0.3)', color: '#f87171' }}
             >
               <Ban size={14} />
-              {cancelling ? 'Cancelando...' : 'Cancelar OC'}
+              {cancelling ? t('cancelling') : t('cancelOc')}
             </button>
           )}
         </div>
@@ -356,19 +358,19 @@ export default function OCDetailPage() {
         }}>
           <div className="flex items-center gap-2">
             <CheckCircle2 size={16} style={{ color: '#22c55e' }} />
-            <p className="text-sm font-medium text-white">Notificação enviada ao parceiro</p>
+            <p className="text-sm font-medium text-white">{t('notificationSent')}</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-zinc-400">
-            <p><Mail size={11} className="inline mr-1" />E-mail: <span className="text-zinc-200">{sendResult.email_status}</span></p>
+            <p><Mail size={11} className="inline mr-1" />{t('emailLabel')}: <span className="text-zinc-200">{sendResult.email_status}</span></p>
             <p><MessageSquare size={11} className="inline mr-1" />WhatsApp: <span className="text-zinc-200">{sendResult.whatsapp_status}</span></p>
           </div>
           <p className="text-xs text-zinc-500 pt-1">
-            Link do portal:{' '}
+            {t('portalLink')}:{' '}
             <button
               onClick={() => navigator.clipboard.writeText(sendResult.portal_url)}
               className="font-mono"
               style={{ color: '#00E5FF' }}
-              title="Copiar link"
+              title={t('copyLink')}
             >
               {sendResult.portal_url}
             </button>
@@ -383,9 +385,9 @@ export default function OCDetailPage() {
         }}>
           <Send size={14} style={{ color: '#60a5fa' }} />
           <p className="text-zinc-300">
-            Enviada ao parceiro em <strong>{fmtDateTime(oc.sent_to_partner_at)}</strong>
-            {oc.partner_viewed_at && <> · visualizada em <strong>{fmtDateTime(oc.partner_viewed_at)}</strong></>}
-            {oc.partner_approved_at && <> · aprovada em <strong style={{ color: '#22c55e' }}>{fmtDateTime(oc.partner_approved_at)}</strong></>}
+            {t.rich('sentInfo.sent', { date: fmtDateTime(oc.sent_to_partner_at), strong: (chunks) => <strong>{chunks}</strong> })}
+            {oc.partner_viewed_at && <> {t.rich('sentInfo.viewed', { date: fmtDateTime(oc.partner_viewed_at), strong: (chunks) => <strong>{chunks}</strong> })}</>}
+            {oc.partner_approved_at && <> {t.rich('sentInfo.approved', { date: fmtDateTime(oc.partner_approved_at), strong: (chunks) => <strong style={{ color: '#22c55e' }}>{chunks}</strong> })}</>}
           </p>
         </div>
       )}
@@ -393,20 +395,20 @@ export default function OCDetailPage() {
       {/* status + datas */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
         <div className="rounded-xl p-4" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
-          <p className="text-xs text-zinc-500 mb-2">Status</p>
-          <OCStatusPill status={oc.status} />
+          <p className="text-xs text-zinc-500 mb-2">{t('status')}</p>
+          <OCStatusPill status={oc.status} t={t} />
         </div>
         <div className="rounded-xl p-4" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
           <p className="text-xs text-zinc-500 mb-1 flex items-center gap-1">
             <Calendar size={11} />
-            Data referência
+            {t('referenceDate')}
           </p>
           <p className="text-base font-semibold text-white">{fmtDate(oc.reference_date)}</p>
         </div>
         <div className="rounded-xl p-4" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
           <p className="text-xs text-zinc-500 mb-1 flex items-center gap-1">
             <Calendar size={11} />
-            Vencimento
+            {t('dueDate')}
           </p>
           <p className="text-base font-semibold text-white">{fmtDate(oc.due_date)}</p>
         </div>
@@ -414,11 +416,11 @@ export default function OCDetailPage() {
 
       {/* totais */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-        <Kpi label="Itens" value={oc.items_count} />
-        <Kpi label="Unidades" value={oc.units_count} />
-        <Kpi label="Bruto" value={fmtBrl(oc.gross_total)} />
+        <Kpi label={t('kpi.items')} value={oc.items_count} />
+        <Kpi label={t('kpi.units')} value={oc.units_count} />
+        <Kpi label={t('kpi.gross')} value={fmtBrl(oc.gross_total)} />
         <Kpi
-          label="Líquido"
+          label={t('kpi.net')}
           value={fmtBrl(oc.net_total)}
           accent="#00E5FF"
         />
@@ -427,13 +429,13 @@ export default function OCDetailPage() {
       {/* breakdown créditos (se houver) */}
       {oc.total_credits > 0 && (
         <div className="rounded-xl p-4 mb-6" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
-          <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">Créditos aplicados</p>
+          <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">{t('creditsApplied')}</p>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
-            <CreditLine label="Devoluções" value={oc.return_credits} />
-            <CreditLine label="Cancelamentos" value={oc.cancellation_credits} />
-            <CreditLine label="Garantias" value={oc.warranty_credits} />
-            <CreditLine label="Divergências" value={oc.divergence_credits} />
-            <CreditLine label="Outros" value={oc.other_credits} />
+            <CreditLine label={t('credits.returns')} value={oc.return_credits} />
+            <CreditLine label={t('credits.cancellations')} value={oc.cancellation_credits} />
+            <CreditLine label={t('credits.warranties')} value={oc.warranty_credits} />
+            <CreditLine label={t('credits.divergences')} value={oc.divergence_credits} />
+            <CreditLine label={t('credits.other')} value={oc.other_credits} />
           </div>
         </div>
       )}
@@ -442,34 +444,34 @@ export default function OCDetailPage() {
       <div className="rounded-xl p-4 mb-6" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
         <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3 flex items-center gap-2">
           <Building2 size={12} />
-          Dados do Parceiro
+          {t('partnerData')}
         </p>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-          <Field label="Razão Social" value={oc.suppliers?.legal_name ?? '—'} />
-          <Field label="CNPJ" value={oc.suppliers?.tax_id ?? '—'} />
-          <Field label="E-mail" value={oc.suppliers?.contact_email ?? '—'} />
-          <Field label="Telefone" value={oc.suppliers?.contact_phone ?? '—'} />
-          <Field label="Prazo pgto" value={oc.suppliers?.payment_terms ? `${oc.suppliers.payment_terms} dias` : '—'} />
-          <Field label="Método" value={oc.suppliers?.payment_method ?? '—'} />
+          <Field label={t('partner.legalName')} value={oc.suppliers?.legal_name ?? '—'} />
+          <Field label={t('partner.taxId')} value={oc.suppliers?.tax_id ?? '—'} />
+          <Field label={t('partner.email')} value={oc.suppliers?.contact_email ?? '—'} />
+          <Field label={t('partner.phone')} value={oc.suppliers?.contact_phone ?? '—'} />
+          <Field label={t('partner.paymentTerms')} value={oc.suppliers?.payment_terms ? t('daysValue', { days: oc.suppliers.payment_terms }) : '—'} />
+          <Field label={t('partner.method')} value={oc.suppliers?.payment_method ?? '—'} />
         </div>
       </div>
 
       {/* items */}
       <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-3">
-        Itens ({oc.items.length})
+        {t('itemsHeading', { count: oc.items.length })}
       </h2>
       <div className="rounded-xl overflow-x-auto" style={{ border: '1px solid #1a1a1f' }}>
         <table className="w-full text-sm">
           <thead>
             <tr style={{ background: '#111114', borderBottom: '1px solid #1a1a1f' }}>
-              {['Produto', 'SKU Parceiro', 'Pedido ML', 'Qtd', 'Custo', 'Embal.', 'Manuseio', 'Total Linha', 'Status'].map(h => (
-                <th key={h} className="text-left px-4 py-3 text-xs font-medium text-zinc-500">{h}</th>
+              {[t('table.product'), t('table.partnerSku'), t('table.mlOrder'), t('table.qty'), t('table.cost'), t('table.packaging'), t('table.handling'), t('table.lineTotal'), t('table.status')].map((h, i) => (
+                <th key={i} className="text-left px-4 py-3 text-xs font-medium text-zinc-500">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {oc.items.length === 0 ? (
-              <tr><td colSpan={9} className="px-4 py-12 text-center text-zinc-500 text-sm">Sem itens nessa OC</td></tr>
+              <tr><td colSpan={9} className="px-4 py-12 text-center text-zinc-500 text-sm">{t('noItems')}</td></tr>
             ) : oc.items.map(it => (
               <tr key={it.id} style={{ borderBottom: '1px solid #1a1a1f' }}>
                 <td className="px-4 py-3">
@@ -492,7 +494,7 @@ export default function OCDetailPage() {
                 <td className="px-4 py-3 text-zinc-500 text-xs">{it.packaging_cost > 0 ? fmtBrl(it.packaging_cost) : '—'}</td>
                 <td className="px-4 py-3 text-zinc-500 text-xs">{it.handling_cost > 0 ? fmtBrl(it.handling_cost) : '—'}</td>
                 <td className="px-4 py-3 font-semibold text-white text-xs">{fmtBrl(it.line_total)}</td>
-                <td className="px-4 py-3"><ItemStatusPill status={it.status} /></td>
+                <td className="px-4 py-3"><ItemStatusPill status={it.status} t={t} /></td>
               </tr>
             ))}
           </tbody>
@@ -502,7 +504,7 @@ export default function OCDetailPage() {
       {/* notas */}
       {oc.notes && (
         <div className="mt-6 rounded-xl p-4" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
-          <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">Notas</p>
+          <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">{t('notes')}</p>
           <p className="text-sm text-zinc-300">{oc.notes}</p>
         </div>
       )}
@@ -510,11 +512,10 @@ export default function OCDetailPage() {
       {/* placeholder portal/envio */}
       <div className="mt-6 rounded-xl p-4 flex items-center gap-3" style={{ background: 'rgba(252,211,77,0.05)', border: '1px solid rgba(252,211,77,0.2)' }}>
         <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: 'rgba(252,211,77,0.10)', color: '#fcd34d', border: '1px solid rgba(252,211,77,0.3)' }}>
-          Em breve
+          {t('comingSoon')}
         </span>
         <p className="text-sm text-zinc-300">
-          Portal do parceiro com aprovação por token + envio automático de e-mail/WhatsApp + PDF
-          chegam no Sprint 6. Por enquanto use o download Excel acima pra enviar manualmente.
+          {t('comingSoonText')}
         </p>
       </div>
     </div>
@@ -565,42 +566,42 @@ function Field({ label, value }: { label: string; value: string }) {
   )
 }
 
-function OCStatusPill({ status }: { status: string }) {
-  const c: Record<string, { bg: string; fg: string; label: string }> = {
-    draft:               { bg: 'rgba(113,113,122,0.10)', fg: '#a1a1aa', label: 'Prévia' },
-    preview_locked:      { bg: 'rgba(252,211,77,0.10)',  fg: '#fcd34d', label: 'Trancada' },
-    generated:           { bg: 'rgba(0,229,255,0.10)',   fg: '#00E5FF', label: 'Gerada' },
-    sent:                { bg: 'rgba(96,165,250,0.10)',  fg: '#60a5fa', label: 'Enviada' },
-    viewed:              { bg: 'rgba(96,165,250,0.10)',  fg: '#60a5fa', label: 'Visualizada' },
-    approved:            { bg: 'rgba(34,197,94,0.10)',   fg: '#22c55e', label: 'Aprovada' },
-    approved_with_notes: { bg: 'rgba(252,211,77,0.10)',  fg: '#fcd34d', label: 'Aprov. c/ notas' },
-    rejected:            { bg: 'rgba(248,113,113,0.10)', fg: '#f87171', label: 'Rejeitada' },
-    in_payable:          { bg: 'rgba(96,165,250,0.10)',  fg: '#60a5fa', label: 'A pagar' },
-    paid:                { bg: 'rgba(34,197,94,0.10)',   fg: '#22c55e', label: 'Paga' },
-    cancelled:           { bg: 'rgba(113,113,122,0.10)', fg: '#71717a', label: 'Cancelada' },
+function OCStatusPill({ status, t }: { status: string; t: ReturnType<typeof useTranslations> }) {
+  const c: Record<string, { bg: string; fg: string; key: string }> = {
+    draft:               { bg: 'rgba(113,113,122,0.10)', fg: '#a1a1aa', key: 'statusPill.draft' },
+    preview_locked:      { bg: 'rgba(252,211,77,0.10)',  fg: '#fcd34d', key: 'statusPill.previewLocked' },
+    generated:           { bg: 'rgba(0,229,255,0.10)',   fg: '#00E5FF', key: 'statusPill.generated' },
+    sent:                { bg: 'rgba(96,165,250,0.10)',  fg: '#60a5fa', key: 'statusPill.sent' },
+    viewed:              { bg: 'rgba(96,165,250,0.10)',  fg: '#60a5fa', key: 'statusPill.viewed' },
+    approved:            { bg: 'rgba(34,197,94,0.10)',   fg: '#22c55e', key: 'statusPill.approved' },
+    approved_with_notes: { bg: 'rgba(252,211,77,0.10)',  fg: '#fcd34d', key: 'statusPill.approvedWithNotes' },
+    rejected:            { bg: 'rgba(248,113,113,0.10)', fg: '#f87171', key: 'statusPill.rejected' },
+    in_payable:          { bg: 'rgba(96,165,250,0.10)',  fg: '#60a5fa', key: 'statusPill.inPayable' },
+    paid:                { bg: 'rgba(34,197,94,0.10)',   fg: '#22c55e', key: 'statusPill.paid' },
+    cancelled:           { bg: 'rgba(113,113,122,0.10)', fg: '#71717a', key: 'statusPill.cancelled' },
   }
-  const x = c[status] ?? { bg: 'rgba(113,113,122,0.10)', fg: '#a1a1aa', label: status }
+  const x = c[status]
   return (
     <span className="inline-block px-3 py-1 rounded-full text-sm font-medium"
-      style={{ background: x.bg, color: x.fg, border: `1px solid ${x.fg}33` }}>
-      {x.label}
+      style={{ background: x?.bg ?? 'rgba(113,113,122,0.10)', color: x?.fg ?? '#a1a1aa', border: `1px solid ${x?.fg ?? '#a1a1aa'}33` }}>
+      {x ? t(x.key) : status}
     </span>
   )
 }
 
-function ItemStatusPill({ status }: { status: string }) {
-  const c: Record<string, { bg: string; fg: string; label: string }> = {
-    included:       { bg: 'rgba(34,197,94,0.10)',   fg: '#22c55e', label: 'Incluído' },
-    pending_credit: { bg: 'rgba(252,211,77,0.10)',  fg: '#fcd34d', label: 'Aguard. crédito' },
-    credited:       { bg: 'rgba(96,165,250,0.10)',  fg: '#60a5fa', label: 'Creditado' },
-    disputed:       { bg: 'rgba(248,113,113,0.10)', fg: '#f87171', label: 'Em disputa' },
-    excluded:       { bg: 'rgba(113,113,122,0.10)', fg: '#71717a', label: 'Excluído' },
+function ItemStatusPill({ status, t }: { status: string; t: ReturnType<typeof useTranslations> }) {
+  const c: Record<string, { bg: string; fg: string; key: string }> = {
+    included:       { bg: 'rgba(34,197,94,0.10)',   fg: '#22c55e', key: 'itemStatus.included' },
+    pending_credit: { bg: 'rgba(252,211,77,0.10)',  fg: '#fcd34d', key: 'itemStatus.pendingCredit' },
+    credited:       { bg: 'rgba(96,165,250,0.10)',  fg: '#60a5fa', key: 'itemStatus.credited' },
+    disputed:       { bg: 'rgba(248,113,113,0.10)', fg: '#f87171', key: 'itemStatus.disputed' },
+    excluded:       { bg: 'rgba(113,113,122,0.10)', fg: '#71717a', key: 'itemStatus.excluded' },
   }
   const x = c[status] ?? c.included
   return (
     <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium"
       style={{ background: x.bg, color: x.fg, border: `1px solid ${x.fg}33` }}>
-      {x.label}
+      {t(x.key)}
     </span>
   )
 }

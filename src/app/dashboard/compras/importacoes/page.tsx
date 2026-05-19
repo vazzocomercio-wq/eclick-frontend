@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import {
   Ship, Package, Clock, AlertTriangle, CheckCircle, Plus, ChevronRight,
@@ -43,10 +44,16 @@ interface PO {
 const STATUSES = ['draft','pending','ordered','in_production','in_transit','customs','received'] as const
 const KANBAN_STATUSES = ['draft','pending','ordered','in_production','in_transit','customs','cancelled'] as const
 
-const STATUS_LABELS: Record<string, string> = {
-  draft:'Rascunho', pending:'Pendente', ordered:'Pedido',
-  in_production:'Em Produção', in_transit:'Em Trânsito',
-  customs:'Desembaraço', received:'Recebido', cancelled:'Cancelado',
+type TFn = ReturnType<typeof useTranslations>
+
+const STATUS_LABEL_KEYS: Record<string, string> = {
+  draft:'status.draft', pending:'status.pending', ordered:'status.ordered',
+  in_production:'status.inProduction', in_transit:'status.inTransit',
+  customs:'status.customs', received:'status.received', cancelled:'status.cancelled',
+}
+
+function statusLabel(s: string, t: TFn): string {
+  return STATUS_LABEL_KEYS[s] ? t(STATUS_LABEL_KEYS[s]) : s
 }
 const STATUS_COLORS: Record<string, string> = {
   draft:'#6b7280', pending:'#f59e0b', ordered:'#3b82f6',
@@ -140,25 +147,26 @@ function KpiCard({ icon, label, value, sub, color = '#00E5FF' }: {
 
 // ── Status Badge ──────────────────────────────────────────────────────────────
 
-function StatusBadge({ status }: { status: string }) {
+function StatusBadge({ status, t }: { status: string; t: TFn }) {
   const c = STATUS_COLORS[status] ?? '#6b7280'
   return (
     <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full"
       style={{ background: c + '22', color: c, border: `1px solid ${c}33` }}>
-      {STATUS_ICONS[status]}{STATUS_LABELS[status] ?? status}
+      {STATUS_ICONS[status]}{statusLabel(status, t)}
     </span>
   )
 }
 
 // ── PO Card ───────────────────────────────────────────────────────────────────
 
-function PoCard({ po, onAdvance, onDetails, onCancel, dragHandleProps, isDragOverlay }: {
+function PoCard({ po, onAdvance, onDetails, onCancel, dragHandleProps, isDragOverlay, t }: {
   po: PO
   onAdvance: (po: PO) => void
   onDetails: (po: PO) => void
   onCancel?: (po: PO) => void
   dragHandleProps?: Record<string, unknown>
   isDragOverlay?: boolean
+  t: TFn
 }) {
   const [confirming, setConfirming] = useState(false)
   const confirmTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
@@ -216,14 +224,14 @@ function PoCard({ po, onAdvance, onDetails, onCancel, dragHandleProps, isDragOve
           {po.suppliers?.name ?? '—'}
         </p>
         <p className="text-[11px] mb-2" style={{ color:'#a1a1aa' }}>
-          {po.purchase_order_items.length} produto{po.purchase_order_items.length !== 1 ? 's' : ''} · {fmtBRL(po.total_cost)}
+          {t('productsCount', { count: po.purchase_order_items.length })} · {fmtBRL(po.total_cost)}
         </p>
 
         {po.expected_arrival_date && (
           <div className="mb-2">
             <p className="text-[10px]" style={{ color:'#a1a1aa' }}>📅 {fmtDate(po.expected_arrival_date)}</p>
             <p className={`text-[11px] font-semibold ${urg.pulse ? 'animate-pulse' : ''}`} style={{ color: urg.color }}>
-              ⏱ {days === null ? '—' : days < 0 ? `${Math.abs(days)}d atrasado` : `${days}d restantes`}
+              ⏱ {days === null ? '—' : days < 0 ? t('daysLate', { days: Math.abs(days) }) : t('daysRemaining', { days })}
             </p>
           </div>
         )}
@@ -237,19 +245,19 @@ function PoCard({ po, onAdvance, onDetails, onCancel, dragHandleProps, isDragOve
                   ? { background:'rgba(34,197,94,0.15)', border:'1px solid rgba(34,197,94,0.3)', color:'#22c55e' }
                   : { background:'rgba(0,229,255,0.08)', border:'1px solid rgba(0,229,255,0.18)', color:'#00E5FF' }
                 }>
-                {confirming ? <><Check size={11}/> Confirmar?</> : <>Avançar <ChevronRight size={11}/></>}
+                {confirming ? <><Check size={11}/> {t('confirmQuestion')}</> : <>{t('advance')} <ChevronRight size={11}/></>}
               </button>
             )}
             <button onClick={() => onDetails(po)}
               className="flex-1 py-1.5 rounded-md text-[11px] font-medium"
               style={{ background:'#1e1e24', border:'1px solid #27272a', color:'#71717a' }}>
-              Detalhes
+              {t('details')}
             </button>
             {onCancel && po.status !== 'received' && (
               <button onClick={() => onCancel(po)}
                 className="py-1.5 px-2 rounded-md text-[11px]"
                 style={{ background:'rgba(239,68,68,0.08)', border:'1px solid rgba(239,68,68,0.15)', color:'#ef4444' }}
-                title="Cancelar PO">
+                title={t('cancelPo')}>
                 <X size={11}/>
               </button>
             )}
@@ -262,8 +270,8 @@ function PoCard({ po, onAdvance, onDetails, onCancel, dragHandleProps, isDragOve
 
 // ── Draggable Card wrapper ────────────────────────────────────────────────────
 
-function DraggablePoCard({ po, onAdvance, onDetails, onCancel }: {
-  po: PO; onAdvance: (po: PO) => void; onDetails: (po: PO) => void; onCancel: (po: PO) => void
+function DraggablePoCard({ po, onAdvance, onDetails, onCancel, t }: {
+  po: PO; onAdvance: (po: PO) => void; onDetails: (po: PO) => void; onCancel: (po: PO) => void; t: TFn
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: po.id,
@@ -278,6 +286,7 @@ function DraggablePoCard({ po, onAdvance, onDetails, onCancel }: {
         onDetails={onDetails}
         onCancel={onCancel}
         dragHandleProps={{ ...attributes, ...listeners }}
+        t={t}
       />
     </div>
   )
@@ -285,12 +294,13 @@ function DraggablePoCard({ po, onAdvance, onDetails, onCancel }: {
 
 // ── Droppable Column ──────────────────────────────────────────────────────────
 
-function DroppableColumn({ status, children, count, total, isCancel }: {
+function DroppableColumn({ status, children, count, total, isCancel, t }: {
   status: string
   children: React.ReactNode
   count: number
   total: number
   isCancel?: boolean
+  t: TFn
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: status })
   const c = STATUS_COLORS[status]
@@ -307,7 +317,7 @@ function DroppableColumn({ status, children, count, total, isCancel }: {
       {/* Column header */}
       <div className="px-3 py-2.5 flex items-center gap-2 shrink-0" style={{ borderBottom:'1px solid #1a1a1f' }}>
         <span style={{ color: c }}>{STATUS_ICONS[status]}</span>
-        <span className="text-[12px] font-semibold flex-1 truncate" style={{ color:'#e4e4e7' }}>{STATUS_LABELS[status]}</span>
+        <span className="text-[12px] font-semibold flex-1 truncate" style={{ color:'#e4e4e7' }}>{statusLabel(status, t)}</span>
         {count > 0 && (
           <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0"
             style={{ background: c + '22', color: c }}>
@@ -336,12 +346,13 @@ function DroppableColumn({ status, children, count, total, isCancel }: {
 
 // ── Kanban View ───────────────────────────────────────────────────────────────
 
-function KanbanView({ pos, onAdvance, onDetails, onCancel, onDrop }: {
+function KanbanView({ pos, onAdvance, onDetails, onCancel, onDrop, t }: {
   pos: PO[]
   onAdvance: (po: PO) => void
   onDetails: (po: PO) => void
   onCancel: (po: PO) => void
   onDrop: (poId: string, newStatus: string) => void
+  t: TFn
 }) {
   const [draggingPo, setDraggingPo] = useState<PO | null>(null)
 
@@ -371,9 +382,9 @@ function KanbanView({ pos, onAdvance, onDetails, onCancel, onDrop }: {
           const col   = pos.filter(p => p.status === status)
           const total = col.reduce((s, p) => s + p.total_cost, 0)
           return (
-            <DroppableColumn key={status} status={status} count={col.length} total={total} isCancel={status === 'cancelled'}>
+            <DroppableColumn key={status} status={status} count={col.length} total={total} isCancel={status === 'cancelled'} t={t}>
               {col.map(p => (
-                <DraggablePoCard key={p.id} po={p} onAdvance={onAdvance} onDetails={onDetails} onCancel={onCancel} />
+                <DraggablePoCard key={p.id} po={p} onAdvance={onAdvance} onDetails={onDetails} onCancel={onCancel} t={t} />
               ))}
             </DroppableColumn>
           )
@@ -383,7 +394,7 @@ function KanbanView({ pos, onAdvance, onDetails, onCancel, onDrop }: {
       <DragOverlay dropAnimation={null}>
         {draggingPo && (
           <div style={{ width: 290, rotate: '2deg' }}>
-            <PoCard po={draggingPo} onAdvance={() => {}} onDetails={() => {}} isDragOverlay />
+            <PoCard po={draggingPo} onAdvance={() => {}} onDetails={() => {}} isDragOverlay t={t} />
           </div>
         )}
       </DragOverlay>
@@ -393,7 +404,7 @@ function KanbanView({ pos, onAdvance, onDetails, onCancel, onDrop }: {
 
 // ── Timeline View (SVG Gantt) ─────────────────────────────────────────────────
 
-function TimelineView({ pos }: { pos: PO[] }) {
+function TimelineView({ pos, t }: { pos: PO[]; t: TFn }) {
   const active = pos.filter(p =>
     p.ordered_at && p.expected_arrival_date &&
     !['received','cancelled','draft'].includes(p.status)
@@ -401,7 +412,7 @@ function TimelineView({ pos }: { pos: PO[] }) {
 
   if (active.length === 0) return (
     <div className="rounded-xl flex items-center justify-center h-48" style={{ background:'#111114', border:'1px solid #1a1a1f', color:'#52525b' }}>
-      <p className="text-sm">Nenhuma PO ativa com datas definidas</p>
+      <p className="text-sm">{t('timeline.empty')}</p>
     </div>
   )
 
@@ -427,7 +438,7 @@ function TimelineView({ pos }: { pos: PO[] }) {
   return (
     <div className="rounded-xl overflow-hidden" style={{ background:'#111114', border:'1px solid #1a1a1f' }}>
       <div className="px-4 py-2.5 text-sm font-semibold" style={{ color:'#e4e4e7', borderBottom:'1px solid #1a1a1f' }}>
-        Cronograma — próximos 6 meses
+        {t('timeline.title')}
       </div>
       <div className="overflow-x-auto">
         <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} style={{ display:'block' }}>
@@ -438,7 +449,7 @@ function TimelineView({ pos }: { pos: PO[] }) {
             </g>
           ))}
           <line x1={todayX} y1={PAD_T - 10} x2={todayX} y2={H - PAD_B} stroke="#00E5FF" strokeWidth={1.5} strokeDasharray="4 3" />
-          <text x={todayX + 3} y={PAD_T - 2} fontSize={9} fill="#00E5FF">Hoje</text>
+          <text x={todayX + 3} y={PAD_T - 2} fontSize={9} fill="#00E5FF">{t('timeline.today')}</text>
           {active.map((po, i) => {
             const y = PAD_T + i * ROW_H
             const s = new Date(po.ordered_at!)
@@ -474,7 +485,7 @@ function TimelineView({ pos }: { pos: PO[] }) {
 
 // ── Lista View ────────────────────────────────────────────────────────────────
 
-function ListaView({ pos, onDetails }: { pos: PO[]; onDetails: (po: PO) => void }) {
+function ListaView({ pos, onDetails, t }: { pos: PO[]; onDetails: (po: PO) => void; t: TFn }) {
   const [sortKey, setSortKey] = useState('created_at')
   const [sortAsc, setSortAsc] = useState(false)
 
@@ -506,15 +517,15 @@ function ListaView({ pos, onDetails }: { pos: PO[]; onDetails: (po: PO) => void 
         <table className="w-full" style={{ minWidth: 860 }}>
           <thead>
             <tr style={{ borderBottom:'1px solid #1a1a1f' }}>
-              <Th label="PO" k="po_number" />
-              <Th label="Fornecedor" k="supplier_id" />
-              <Th label="Status" k="status" />
-              <th className="px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider" style={{ color:'#52525b', background:'#0e0e11' }}>Produtos</th>
-              <Th label="Valor" k="total_cost" />
-              <Th label="Criado" k="created_at" />
-              <Th label="Chegada" k="expected_arrival_date" />
-              <th className="px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider" style={{ color:'#52525b', background:'#0e0e11' }}>Dias</th>
-              <th className="px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider" style={{ color:'#52525b', background:'#0e0e11' }}>Ações</th>
+              <Th label={t('list.po')} k="po_number" />
+              <Th label={t('list.supplier')} k="supplier_id" />
+              <Th label={t('list.status')} k="status" />
+              <th className="px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider" style={{ color:'#52525b', background:'#0e0e11' }}>{t('list.products')}</th>
+              <Th label={t('list.value')} k="total_cost" />
+              <Th label={t('list.created')} k="created_at" />
+              <Th label={t('list.arrival')} k="expected_arrival_date" />
+              <th className="px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider" style={{ color:'#52525b', background:'#0e0e11' }}>{t('list.days')}</th>
+              <th className="px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider" style={{ color:'#52525b', background:'#0e0e11' }}>{t('list.actions')}</th>
             </tr>
           </thead>
           <tbody>
@@ -531,19 +542,19 @@ function ListaView({ pos, onDetails }: { pos: PO[]; onDetails: (po: PO) => void 
                       {countryFlag(po.suppliers?.country)} {po.suppliers?.name ?? '—'}
                     </p>
                   </td>
-                  <td className="px-3 py-2.5"><StatusBadge status={po.status} /></td>
-                  <td className="px-3 py-2.5 text-[12px]" style={{ color:'#a1a1aa' }}>{po.purchase_order_items.length} itens</td>
+                  <td className="px-3 py-2.5"><StatusBadge status={po.status} t={t} /></td>
+                  <td className="px-3 py-2.5 text-[12px]" style={{ color:'#a1a1aa' }}>{t('itemsCount', { count: po.purchase_order_items.length })}</td>
                   <td className="px-3 py-2.5 text-[12px] font-medium" style={{ color:'#e4e4e7' }}>{fmtBRL(po.total_cost)}</td>
                   <td className="px-3 py-2.5 text-[12px]" style={{ color:'#a1a1aa' }}>{fmtDate(po.created_at)}</td>
                   <td className="px-3 py-2.5 text-[12px]" style={{ color:'#a1a1aa' }}>{fmtDate(po.expected_arrival_date)}</td>
                   <td className="px-3 py-2.5 text-[12px] font-semibold" style={{ color: urg.color }}>
-                    {days === null ? '—' : days < 0 ? `${Math.abs(days)}d atrasado` : `${days}d`}
+                    {days === null ? '—' : days < 0 ? t('daysLate', { days: Math.abs(days) }) : `${days}d`}
                   </td>
                   <td className="px-3 py-2.5">
                     <button onClick={() => onDetails(po)}
                       className="text-[11px] px-2 py-1 rounded-md"
                       style={{ background:'#18181b', border:'1px solid #27272a', color:'#71717a' }}>
-                      Ver
+                      {t('viewButton')}
                     </button>
                   </td>
                 </tr>
@@ -551,7 +562,7 @@ function ListaView({ pos, onDetails }: { pos: PO[]; onDetails: (po: PO) => void 
             })}
             {sorted.length === 0 && (
               <tr><td colSpan={9} className="px-4 py-10 text-center text-sm" style={{ color:'#a1a1aa' }}>
-                Nenhuma ordem de compra encontrada
+                {t('list.empty')}
               </td></tr>
             )}
           </tbody>
@@ -563,8 +574,8 @@ function ListaView({ pos, onDetails }: { pos: PO[]; onDetails: (po: PO) => void 
 
 // ── Receive Modal ─────────────────────────────────────────────────────────────
 
-function ReceiveModal({ po, onConfirm, onClose }: {
-  po: PO; onConfirm: (qtys: Record<string, number>) => Promise<void>; onClose: () => void
+function ReceiveModal({ po, onConfirm, onClose, t }: {
+  po: PO; onConfirm: (qtys: Record<string, number>) => Promise<void>; onClose: () => void; t: TFn
 }) {
   const [qtys, setQtys] = useState<Record<string, number>>(
     () => Object.fromEntries(po.purchase_order_items.map(it => [it.id, it.quantity]))
@@ -575,7 +586,7 @@ function ReceiveModal({ po, onConfirm, onClose }: {
     <div className="fixed inset-0 flex items-center justify-center z-50" style={{ background:'rgba(0,0,0,0.7)' }}>
       <div className="rounded-xl w-full max-w-lg mx-4" style={{ background:'#111114', border:'1px solid #1a1a1f' }}>
         <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom:'1px solid #1a1a1f' }}>
-          <p className="text-[13px] font-semibold" style={{ color:'#e4e4e7' }}>Confirmar recebimento — {po.po_number}</p>
+          <p className="text-[13px] font-semibold" style={{ color:'#e4e4e7' }}>{t('receiveModal.title', { poNumber: po.po_number })}</p>
           <button onClick={onClose} style={{ color:'#a1a1aa' }}><X size={18} /></button>
         </div>
         <div className="px-5 py-4 space-y-3 max-h-80 overflow-y-auto">
@@ -586,10 +597,10 @@ function ReceiveModal({ po, onConfirm, onClose }: {
                 : <div className="w-9 h-9 rounded shrink-0" style={{ background:'#1e1e24' }} />}
               <div className="flex-1 min-w-0">
                 <p className="text-[12px] font-medium truncate" style={{ color:'#e4e4e7' }}>{it.products?.name ?? it.product_id}</p>
-                <p className="text-[10px]" style={{ color:'#a1a1aa' }}>Pedido: {it.quantity} un</p>
+                <p className="text-[10px]" style={{ color:'#a1a1aa' }}>{t('receiveModal.ordered', { qty: it.quantity })}</p>
               </div>
               <div className="flex flex-col items-end gap-0.5 shrink-0">
-                <label className="text-[10px]" style={{ color:'#a1a1aa' }}>Recebido</label>
+                <label className="text-[10px]" style={{ color:'#a1a1aa' }}>{t('receiveModal.received')}</label>
                 <input type="number" min={0} max={it.quantity} value={qtys[it.id] ?? it.quantity}
                   onChange={e => setQtys(q => ({ ...q, [it.id]: Number(e.target.value) }))}
                   className="w-20 text-center text-[12px] rounded-md"
@@ -601,13 +612,13 @@ function ReceiveModal({ po, onConfirm, onClose }: {
         <div className="flex gap-2 px-5 py-4" style={{ borderTop:'1px solid #1a1a1f' }}>
           <button onClick={onClose} className="flex-1 py-2 rounded-lg text-sm"
             style={{ background:'#18181b', border:'1px solid #27272a', color:'#71717a' }}>
-            Cancelar
+            {t('cancel')}
           </button>
           <button disabled={saving}
             onClick={async () => { setSaving(true); await onConfirm(qtys); setSaving(false) }}
             className="submit-glow flex-1 py-2 rounded-lg text-sm font-semibold"
             style={{ background:'rgba(34,197,94,0.15)', border:'1px solid rgba(34,197,94,0.3)', color:'#22c55e' }}>
-            {saving ? 'Salvando…' : '✓ Confirmar'}
+            {saving ? t('saving') : t('receiveModal.confirm')}
           </button>
         </div>
       </div>
@@ -617,8 +628,8 @@ function ReceiveModal({ po, onConfirm, onClose }: {
 
 // ── Cancel Confirm Modal ──────────────────────────────────────────────────────
 
-function CancelModal({ po, onConfirm, onClose }: {
-  po: PO; onConfirm: () => Promise<void>; onClose: () => void
+function CancelModal({ po, onConfirm, onClose, t }: {
+  po: PO; onConfirm: () => Promise<void>; onClose: () => void; t: TFn
 }) {
   const [saving, setSaving] = useState(false)
   return (
@@ -628,19 +639,19 @@ function CancelModal({ po, onConfirm, onClose }: {
           <div className="w-10 h-10 rounded-full flex items-center justify-center mx-auto mb-3" style={{ background:'rgba(239,68,68,0.12)' }}>
             <Ban size={18} color="#ef4444" />
           </div>
-          <p className="text-[14px] font-semibold mb-1" style={{ color:'#e4e4e7' }}>Cancelar {po.po_number}?</p>
-          <p className="text-[12px]" style={{ color:'#71717a' }}>Esta ação não pode ser desfeita facilmente.</p>
+          <p className="text-[14px] font-semibold mb-1" style={{ color:'#e4e4e7' }}>{t('cancelModal.title', { poNumber: po.po_number })}</p>
+          <p className="text-[12px]" style={{ color:'#71717a' }}>{t('cancelModal.warning')}</p>
         </div>
         <div className="flex gap-2 px-5 pb-5">
           <button onClick={onClose} className="flex-1 py-2 rounded-lg text-sm"
             style={{ background:'#18181b', border:'1px solid #27272a', color:'#71717a' }}>
-            Manter
+            {t('cancelModal.keep')}
           </button>
           <button disabled={saving}
             onClick={async () => { setSaving(true); await onConfirm(); setSaving(false) }}
             className="flex-1 py-2 rounded-lg text-sm font-semibold"
             style={{ background:'rgba(239,68,68,0.12)', border:'1px solid rgba(239,68,68,0.25)', color:'#ef4444' }}>
-            {saving ? 'Cancelando…' : 'Sim, cancelar'}
+            {saving ? t('cancelModal.cancelling') : t('cancelModal.confirm')}
           </button>
         </div>
       </div>
@@ -650,7 +661,7 @@ function CancelModal({ po, onConfirm, onClose }: {
 
 // ── PO Drawer ─────────────────────────────────────────────────────────────────
 
-function PoDrawer({ po, onClose, onRefresh }: { po: PO; onClose: () => void; onRefresh: () => void }) {
+function PoDrawer({ po, onClose, onRefresh, t }: { po: PO; onClose: () => void; onRefresh: () => void; t: TFn }) {
   const [visible, setVisible] = useState(false)
   const [tab, setTab] = useState<'resumo'|'itens'|'rastreamento'|'financeiro'>('resumo')
   const [tracking, setTracking] = useState({
@@ -684,10 +695,10 @@ function PoDrawer({ po, onClose, onRefresh }: { po: PO; onClose: () => void; onR
   const currentIdx = kanbanStatuses.indexOf(po.status as Exclude<typeof STATUSES[number], 'received'>)
 
   const tabs = [
-    { key: 'resumo',        label: 'Resumo' },
-    { key: 'itens',         label: 'Itens' },
-    { key: 'rastreamento',  label: 'Rastreamento' },
-    { key: 'financeiro',    label: 'Financeiro' },
+    { key: 'resumo',        label: t('drawer.tabSummary') },
+    { key: 'itens',         label: t('drawer.tabItems') },
+    { key: 'rastreamento',  label: t('drawer.tabTracking') },
+    { key: 'financeiro',    label: t('drawer.tabFinance') },
   ] as const
 
   const inputStyle: React.CSSProperties = { background:'#18181b', border:'1px solid #27272a', borderRadius:8, color:'#e4e4e7', fontSize:13, padding:'8px 12px', outline:'none', width:'100%' }
@@ -703,7 +714,7 @@ function PoDrawer({ po, onClose, onRefresh }: { po: PO; onClose: () => void; onR
             <p className="text-[11px]" style={{ color:'#a1a1aa' }}>{countryFlag(po.suppliers?.country)} {po.suppliers?.name}</p>
           </div>
           <div className="flex items-center gap-2">
-            <StatusBadge status={po.status} />
+            <StatusBadge status={po.status} t={t} />
             <button onClick={onClose} style={{ color:'#a1a1aa' }}><X size={18} /></button>
           </div>
         </div>
@@ -722,7 +733,7 @@ function PoDrawer({ po, onClose, onRefresh }: { po: PO; onClose: () => void; onR
           {tab === 'resumo' && (
             <div className="space-y-4">
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider mb-3" style={{ color:'#a1a1aa' }}>Progresso</p>
+                <p className="text-[11px] font-semibold uppercase tracking-wider mb-3" style={{ color:'#a1a1aa' }}>{t('drawer.progress')}</p>
                 <div className="flex items-center">
                   {kanbanStatuses.map((s, i) => {
                     const done = i <= currentIdx
@@ -735,7 +746,7 @@ function PoDrawer({ po, onClose, onRefresh }: { po: PO; onClose: () => void; onR
                             {done && <div className="w-1.5 h-1.5 rounded-full" style={{ background: c }} />}
                           </div>
                           <span className="text-[8px] text-center leading-tight" style={{ color: done ? c : '#3f3f46', maxWidth:36 }}>
-                            {STATUS_LABELS[s]}
+                            {statusLabel(s, t)}
                           </span>
                         </div>
                         {i < kanbanStatuses.length - 1 && (
@@ -749,12 +760,12 @@ function PoDrawer({ po, onClose, onRefresh }: { po: PO; onClose: () => void; onR
 
               <div className="grid grid-cols-2 gap-2">
                 {[
-                  { label:'Fornecedor',    value: po.suppliers?.name ?? '—' },
-                  { label:'País',          value: `${countryFlag(po.suppliers?.country)} ${po.suppliers?.country ?? '—'}` },
-                  { label:'Incoterm',      value: po.incoterm ?? '—' },
-                  { label:'Moeda',         value: `${po.currency} ×${po.exchange_rate}` },
-                  { label:'Chegada prev.', value: fmtDate(po.expected_arrival_date) },
-                  { label:'Pedido em',     value: fmtDate(po.ordered_at) },
+                  { label: t('drawer.supplier'),    value: po.suppliers?.name ?? '—' },
+                  { label: t('drawer.country'),     value: `${countryFlag(po.suppliers?.country)} ${po.suppliers?.country ?? '—'}` },
+                  { label: t('drawer.incoterm'),    value: po.incoterm ?? '—' },
+                  { label: t('drawer.currency'),    value: `${po.currency} ×${po.exchange_rate}` },
+                  { label: t('drawer.expectedArrival'), value: fmtDate(po.expected_arrival_date) },
+                  { label: t('drawer.orderedAt'),   value: fmtDate(po.ordered_at) },
                 ].map(({ label, value }) => (
                   <div key={label} className="rounded-lg p-3" style={{ background:'#0e0e11', border:'1px solid #1a1a1f' }}>
                     <p className="text-[10px] mb-1" style={{ color:'#a1a1aa' }}>{label}</p>
@@ -765,7 +776,7 @@ function PoDrawer({ po, onClose, onRefresh }: { po: PO; onClose: () => void; onR
 
               {po.notes && (
                 <div className="rounded-lg p-3" style={{ background:'#0e0e11', border:'1px solid #1a1a1f' }}>
-                  <p className="text-[10px] mb-1" style={{ color:'#a1a1aa' }}>Notas</p>
+                  <p className="text-[10px] mb-1" style={{ color:'#a1a1aa' }}>{t('drawer.notes')}</p>
                   <p className="text-[12px]" style={{ color:'#a1a1aa' }}>{po.notes}</p>
                 </div>
               )}
@@ -787,7 +798,7 @@ function PoDrawer({ po, onClose, onRefresh }: { po: PO; onClose: () => void; onR
                     </p>
                   </div>
                   <div className="text-right shrink-0">
-                    <p className="text-[10px]" style={{ color:'#a1a1aa' }}>Recebido</p>
+                    <p className="text-[10px]" style={{ color:'#a1a1aa' }}>{t('receiveModal.received')}</p>
                     <p className="text-[13px] font-bold" style={{ color: it.quantity_received >= it.quantity ? '#22c55e' : '#f59e0b' }}>
                       {it.quantity_received}/{it.quantity}
                     </p>
@@ -800,21 +811,21 @@ function PoDrawer({ po, onClose, onRefresh }: { po: PO; onClose: () => void; onR
           {tab === 'rastreamento' && (
             <div className="space-y-3">
               {([
-                ['tracking_number', 'Nº Rastreamento', 'Ex: MSKU1234567'],
-                ['carrier',         'Transportadora',  'Ex: Maersk, MSC'],
-                ['container_number','Container',        'Ex: MSCU1234567'],
+                ['tracking_number', t('drawer.trackingNumber'), 'Ex: MSKU1234567'],
+                ['carrier',         t('drawer.carrier'),        'Ex: Maersk, MSC'],
+                ['container_number',t('drawer.container'),       'Ex: MSCU1234567'],
                 ['bl_number',       'BL Number',        'Ex: MAEU1234567'],
               ] as const).map(([key, label, ph]) => (
                 <div key={key}>
                   <label className="block text-[11px] mb-1.5" style={{ color:'#a1a1aa' }}>{label}</label>
-                  <input value={tracking[key]} onChange={e => setTracking(t => ({ ...t, [key]: e.target.value }))}
+                  <input value={tracking[key]} onChange={e => setTracking(prev => ({ ...prev, [key]: e.target.value }))}
                     placeholder={ph} style={inputStyle} />
                 </div>
               ))}
               <button disabled={savingTrack} onClick={saveTracking}
                 className="submit-glow w-full py-2 rounded-lg text-sm font-semibold mt-2"
                 style={{ background:'rgba(0,229,255,0.1)', border:'1px solid rgba(0,229,255,0.2)', color:'#00E5FF' }}>
-                {savingTrack ? 'Salvando…' : 'Salvar rastreamento'}
+                {savingTrack ? t('saving') : t('drawer.saveTracking')}
               </button>
             </div>
           )}
@@ -822,12 +833,12 @@ function PoDrawer({ po, onClose, onRefresh }: { po: PO; onClose: () => void; onR
           {tab === 'financeiro' && (
             <div className="space-y-0">
               {[
-                { label:'Subtotal produtos', value: fmtBRL(po.subtotal), hi: false },
-                { label:'Frete',             value: fmtBRL(po.freight_cost ?? 0), hi: false },
-                { label:'Outros custos',     value: fmtBRL(po.other_costs ?? 0), hi: false },
-                { label:'Total',             value: fmtBRL(po.total_cost), hi: true },
-                ...(po.currency !== 'BRL' ? [{ label:`Em ${po.currency}`, value: `${(po.total_cost / po.exchange_rate).toLocaleString('pt-BR',{maximumFractionDigits:2})} ${po.currency}`, hi: false }] : []),
-                { label:'Taxa de câmbio',    value: po.currency !== 'BRL' ? `1 ${po.currency} = R$ ${po.exchange_rate}` : 'BRL', hi: false },
+                { label: t('drawer.subtotalProducts'), value: fmtBRL(po.subtotal), hi: false },
+                { label: t('drawer.freight'),          value: fmtBRL(po.freight_cost ?? 0), hi: false },
+                { label: t('drawer.otherCosts'),       value: fmtBRL(po.other_costs ?? 0), hi: false },
+                { label: t('drawer.total'),            value: fmtBRL(po.total_cost), hi: true },
+                ...(po.currency !== 'BRL' ? [{ label: t('drawer.inCurrency', { currency: po.currency }), value: `${(po.total_cost / po.exchange_rate).toLocaleString('pt-BR',{maximumFractionDigits:2})} ${po.currency}`, hi: false }] : []),
+                { label: t('drawer.exchangeRate'),     value: po.currency !== 'BRL' ? `1 ${po.currency} = R$ ${po.exchange_rate}` : 'BRL', hi: false },
               ].map(({ label, value, hi }) => (
                 <div key={label} className="flex items-center justify-between py-2.5" style={{ borderBottom:'1px solid #1e1e24' }}>
                   <span className="text-[12px]" style={{ color: hi ? '#e4e4e7' : '#71717a' }}>{label}</span>
@@ -851,8 +862,8 @@ interface NewPOState {
   items: Array<{ product_id: string; name: string; sku: string; photo?: string; quantity: number; unit_cost: number }>
 }
 
-function NewPoModal({ suppliers, onClose, onCreated }: {
-  suppliers: Supplier[]; onClose: () => void; onCreated: () => void
+function NewPoModal({ suppliers, onClose, onCreated, t }: {
+  suppliers: Supplier[]; onClose: () => void; onCreated: () => void; t: TFn
 }) {
   const [step, setStep]                     = useState(1)
   const [saving, setSaving]                 = useState(false)
@@ -944,8 +955,8 @@ function NewPoModal({ suppliers, onClose, onCreated }: {
       <div className="rounded-xl w-full" style={{ maxWidth:540, background:'#111114', border:'1px solid #1a1a1f', maxHeight:'90vh', overflowY:'auto' }}>
         <div className="flex items-center justify-between px-5 py-4 sticky top-0" style={{ borderBottom:'1px solid #1a1a1f', background:'#111114' }}>
           <div>
-            <p className="text-[14px] font-bold" style={{ color:'#e4e4e7' }}>Nova Ordem de Compra</p>
-            <p className="text-[11px]" style={{ color:'#a1a1aa' }}>Etapa {step} de 3 — {['Fornecedor','Produtos','Revisão'][step-1]}</p>
+            <p className="text-[14px] font-bold" style={{ color:'#e4e4e7' }}>{t('newPo.title')}</p>
+            <p className="text-[11px]" style={{ color:'#a1a1aa' }}>{t('newPo.step', { step, name: [t('newPo.stepSupplier'), t('newPo.stepProducts'), t('newPo.stepReview')][step-1] })}</p>
           </div>
           <button onClick={onClose} style={{ color:'#a1a1aa' }}><X size={18} /></button>
         </div>
@@ -965,9 +976,9 @@ function NewPoModal({ suppliers, onClose, onCreated }: {
         <div className="px-5 pb-5 space-y-4">
           {step === 1 && <>
             <div>
-              <label className="block text-[11px] mb-1.5" style={{ color:'#a1a1aa' }}>Fornecedor</label>
+              <label className="block text-[11px] mb-1.5" style={{ color:'#a1a1aa' }}>{t('newPo.supplier')}</label>
               <input value={supplierSearch} onChange={e => setSupplierSearch(e.target.value)}
-                placeholder="Buscar fornecedor por nome…" style={iStyle} />
+                placeholder={t('newPo.supplierSearchPlaceholder')} style={iStyle} />
               {filteredSuppliers.length > 0 && supplierSearch && (
                 <div className="mt-1 rounded-lg overflow-hidden" style={{ border:'1px solid #27272a', background:'#18181b', maxHeight:160, overflowY:'auto' }}>
                   {filteredSuppliers.slice(0,5).map(s => (
@@ -978,7 +989,7 @@ function NewPoModal({ suppliers, onClose, onCreated }: {
                       onMouseEnter={e => (e.currentTarget.style.background='rgba(255,255,255,0.04)')}
                       onMouseLeave={e => (e.currentTarget.style.background='transparent')}>
                       {countryFlag(s.country)} {s.name}
-                      {s.lead_time_days && <span style={{ color:'#a1a1aa', fontSize:10, marginLeft:6 }}>{s.lead_time_days}d lead</span>}
+                      {s.lead_time_days && <span style={{ color:'#a1a1aa', fontSize:10, marginLeft:6 }}>{t('newPo.leadDays', { days: s.lead_time_days })}</span>}
                     </button>
                   ))}
                 </div>
@@ -987,23 +998,23 @@ function NewPoModal({ suppliers, onClose, onCreated }: {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-[11px] mb-1.5" style={{ color:'#a1a1aa' }}>Data estimada de chegada</label>
+                <label className="block text-[11px] mb-1.5" style={{ color:'#a1a1aa' }}>{t('newPo.estimatedArrival')}</label>
                 <input type="date" value={form.expected_arrival_date} onChange={e => setForm(f => ({ ...f, expected_arrival_date: e.target.value }))} style={iStyle} />
               </div>
               <div>
-                <label className="block text-[11px] mb-1.5" style={{ color:'#a1a1aa' }}>Incoterm</label>
+                <label className="block text-[11px] mb-1.5" style={{ color:'#a1a1aa' }}>{t('newPo.incoterm')}</label>
                 <select value={form.incoterm} onChange={e => setForm(f => ({ ...f, incoterm: e.target.value }))} style={sStyle}>
                   {INCOTERMS.map(i => <option key={i}>{i}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-[11px] mb-1.5" style={{ color:'#a1a1aa' }}>Moeda</label>
+                <label className="block text-[11px] mb-1.5" style={{ color:'#a1a1aa' }}>{t('newPo.currency')}</label>
                 <select value={form.currency} onChange={e => setForm(f => ({ ...f, currency: e.target.value }))} style={sStyle}>
                   {CURRENCIES.map(c => <option key={c}>{c}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-[11px] mb-1.5" style={{ color:'#a1a1aa' }}>Taxa de câmbio</label>
+                <label className="block text-[11px] mb-1.5" style={{ color:'#a1a1aa' }}>{t('newPo.exchangeRate')}</label>
                 <input type="number" step="0.01" value={form.exchange_rate} onChange={e => setForm(f => ({ ...f, exchange_rate: Number(e.target.value) }))} style={iStyle} />
               </div>
             </div>
@@ -1011,9 +1022,9 @@ function NewPoModal({ suppliers, onClose, onCreated }: {
 
           {step === 2 && <>
             <div className="relative">
-              <label className="block text-[11px] mb-1.5" style={{ color:'#a1a1aa' }}>Adicionar produto</label>
+              <label className="block text-[11px] mb-1.5" style={{ color:'#a1a1aa' }}>{t('newPo.addProduct')}</label>
               <input value={productSearch} onChange={e => setProductSearch(e.target.value)}
-                placeholder="Buscar por nome ou SKU…" style={iStyle} />
+                placeholder={t('newPo.productSearchPlaceholder')} style={iStyle} />
               {productResults.length > 0 && (
                 <div className="absolute top-full mt-1 w-full rounded-lg overflow-hidden z-10" style={{ border:'1px solid #27272a', background:'#18181b' }}>
                   {productResults.map(p => (
@@ -1066,22 +1077,22 @@ function NewPoModal({ suppliers, onClose, onCreated }: {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-[11px] mb-1.5" style={{ color:'#a1a1aa' }}>Frete estimado</label>
+                <label className="block text-[11px] mb-1.5" style={{ color:'#a1a1aa' }}>{t('newPo.estimatedFreight')}</label>
                 <input type="number" min={0} value={form.freight_cost} onChange={e => setForm(f => ({ ...f, freight_cost: e.target.value }))} style={iStyle} />
               </div>
               <div>
-                <label className="block text-[11px] mb-1.5" style={{ color:'#a1a1aa' }}>Outros custos</label>
+                <label className="block text-[11px] mb-1.5" style={{ color:'#a1a1aa' }}>{t('newPo.otherCosts')}</label>
                 <input type="number" min={0} value={form.other_costs} onChange={e => setForm(f => ({ ...f, other_costs: e.target.value }))} style={iStyle} />
               </div>
             </div>
 
             <div className="rounded-lg p-3" style={{ background:'rgba(0,229,255,0.05)', border:'1px solid rgba(0,229,255,0.12)' }}>
               <div className="flex justify-between text-[12px] mb-1">
-                <span style={{ color:'#a1a1aa' }}>Subtotal</span>
+                <span style={{ color:'#a1a1aa' }}>{t('newPo.subtotal')}</span>
                 <span style={{ color:'#a1a1aa' }}>{fmtBRL(subtotal)}</span>
               </div>
               <div className="flex justify-between text-[13px] font-bold">
-                <span style={{ color:'#e4e4e7' }}>Total estimado</span>
+                <span style={{ color:'#e4e4e7' }}>{t('newPo.estimatedTotal')}</span>
                 <span style={{ color:'#00E5FF' }}>{fmtBRL(total)}</span>
               </div>
               {form.currency !== 'BRL' && form.exchange_rate > 0 && (
@@ -1095,12 +1106,12 @@ function NewPoModal({ suppliers, onClose, onCreated }: {
           {step === 3 && <>
             <div className="rounded-lg p-3 space-y-2" style={{ background:'#0e0e11', border:'1px solid #1a1a1f' }}>
               {[
-                { label:'Fornecedor',     value: selectedSupplier?.name ?? '—' },
-                { label:'Chegada prev.',  value: form.expected_arrival_date ? fmtDate(form.expected_arrival_date) : '—' },
-                { label:'Incoterm',       value: form.incoterm },
-                { label:'Moeda',          value: `${form.currency} ×${form.exchange_rate}` },
-                { label:'Itens',          value: `${form.items.length} produtos` },
-                { label:'Total',          value: fmtBRL(total) },
+                { label: t('newPo.supplier'),         value: selectedSupplier?.name ?? '—' },
+                { label: t('drawer.expectedArrival'), value: form.expected_arrival_date ? fmtDate(form.expected_arrival_date) : '—' },
+                { label: t('newPo.incoterm'),         value: form.incoterm },
+                { label: t('newPo.currency'),         value: `${form.currency} ×${form.exchange_rate}` },
+                { label: t('newPo.itemsLabel'),       value: t('newPo.productsCount', { count: form.items.length }) },
+                { label: t('drawer.total'),           value: fmtBRL(total) },
               ].map(({ label, value }) => (
                 <div key={label} className="flex justify-between text-[12px]">
                   <span style={{ color:'#a1a1aa' }}>{label}</span>
@@ -1109,14 +1120,14 @@ function NewPoModal({ suppliers, onClose, onCreated }: {
               ))}
             </div>
             <div>
-              <label className="block text-[11px] mb-1.5" style={{ color:'#a1a1aa' }}>Notas para fornecedor</label>
+              <label className="block text-[11px] mb-1.5" style={{ color:'#a1a1aa' }}>{t('newPo.supplierNotes')}</label>
               <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-                rows={2} style={{ ...iStyle, resize:'none' }} placeholder="Instruções de embalagem, prazo…" />
+                rows={2} style={{ ...iStyle, resize:'none' }} placeholder={t('newPo.supplierNotesPlaceholder')} />
             </div>
             <div>
-              <label className="block text-[11px] mb-1.5" style={{ color:'#a1a1aa' }}>Notas internas</label>
+              <label className="block text-[11px] mb-1.5" style={{ color:'#a1a1aa' }}>{t('newPo.internalNotes')}</label>
               <textarea value={form.internal_notes} onChange={e => setForm(f => ({ ...f, internal_notes: e.target.value }))}
-                rows={2} style={{ ...iStyle, resize:'none' }} placeholder="Observações da equipe" />
+                rows={2} style={{ ...iStyle, resize:'none' }} placeholder={t('newPo.internalNotesPlaceholder')} />
             </div>
           </>}
 
@@ -1125,7 +1136,7 @@ function NewPoModal({ suppliers, onClose, onCreated }: {
               <button onClick={() => setStep(s => s - 1)}
                 className="px-4 py-2 rounded-lg text-sm"
                 style={{ background:'#18181b', border:'1px solid #27272a', color:'#71717a' }}>
-                ← Voltar
+                {t('newPo.back')}
               </button>
             )}
             {step < 3 && (
@@ -1134,19 +1145,19 @@ function NewPoModal({ suppliers, onClose, onCreated }: {
                 onClick={() => setStep(s => s + 1)}
                 className="submit-glow flex-1 py-2 rounded-lg text-sm font-semibold disabled:opacity-40"
                 style={{ background:'rgba(0,229,255,0.1)', border:'1px solid rgba(0,229,255,0.2)', color:'#00E5FF' }}>
-                Próximo →
+                {t('newPo.next')}
               </button>
             )}
             {step === 3 && <>
               <button disabled={saving} onClick={() => submit(true)}
                 className="flex-1 py-2 rounded-lg text-sm"
                 style={{ background:'#18181b', border:'1px solid #27272a', color:'#a1a1aa' }}>
-                Salvar rascunho
+                {t('newPo.saveDraft')}
               </button>
               <button disabled={saving} onClick={() => submit(false)}
                 className="submit-glow flex-1 py-2 rounded-lg text-sm font-semibold"
                 style={{ background:'rgba(0,229,255,0.12)', border:'1px solid rgba(0,229,255,0.25)', color:'#00E5FF' }}>
-                {saving ? 'Criando…' : 'Criar e enviar'}
+                {saving ? t('newPo.creating') : t('newPo.createAndSend')}
               </button>
             </>}
           </div>
@@ -1159,6 +1170,7 @@ function NewPoModal({ suppliers, onClose, onCreated }: {
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function ImportacoesPage() {
+  const t = useTranslations('compras.importacoes')
   const [pos, setPos]             = useState<PO[]>([])
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [loading, setLoading]     = useState(true)
@@ -1201,7 +1213,7 @@ export default function ImportacoesPage() {
     await fetch(`${BACKEND}/purchase-orders/${po.id}/status`, {
       method:'PATCH', headers:{...h,'Content-Type':'application/json'}, body: JSON.stringify({ status: next }),
     })
-    showToast(`${po.po_number} → ${STATUS_LABELS[next]}`)
+    showToast(`${po.po_number} → ${statusLabel(next, t)}`)
     await fetchPos()
   }
 
@@ -1214,7 +1226,7 @@ export default function ImportacoesPage() {
     await fetch(`${BACKEND}/purchase-orders/${poId}/status`, {
       method:'PATCH', headers:{...h,'Content-Type':'application/json'}, body: JSON.stringify({ status: newStatus }),
     })
-    showToast(`${po.po_number} → ${STATUS_LABELS[newStatus]}`)
+    showToast(`${po.po_number} → ${statusLabel(newStatus, t)}`)
     await fetchPos()
   }
 
@@ -1228,7 +1240,7 @@ export default function ImportacoesPage() {
     await fetch(`${BACKEND}/purchase-orders/${cancelPo.id}/status`, {
       method:'PATCH', headers:{...h,'Content-Type':'application/json'}, body: JSON.stringify({ status: 'cancelled' }),
     })
-    showToast(`${cancelPo.po_number} cancelada`, 'error')
+    showToast(t('toast.cancelled', { poNumber: cancelPo.po_number }), 'error')
     setCancelPo(null)
     await fetchPos()
   }
@@ -1244,7 +1256,7 @@ export default function ImportacoesPage() {
     await fetch(`${BACKEND}/purchase-orders/${po.id}/status`, {
       method:'PATCH', headers:{...h,'Content-Type':'application/json'}, body: JSON.stringify({ status:'received' }),
     })
-    showToast(`${po.po_number} recebida com sucesso! 🎉`)
+    showToast(t('toast.received', { poNumber: po.po_number }))
     setReceivePo(null)
     await fetchPos()
   }
@@ -1261,10 +1273,10 @@ export default function ImportacoesPage() {
           definido em src/app/globals.css (thin, dark, hover cyan). */}
 
       {/* Overlays */}
-      {showNew    && <NewPoModal suppliers={suppliers} onClose={() => setShowNew(false)} onCreated={() => { setShowNew(false); fetchPos() }} />}
-      {receivePo  && <ReceiveModal po={receivePo} onClose={() => setReceivePo(null)} onConfirm={qtys => handleReceive(receivePo, qtys)} />}
-      {cancelPo   && <CancelModal po={cancelPo} onClose={() => setCancelPo(null)} onConfirm={confirmCancel} />}
-      {drawerPo   && <PoDrawer po={drawerPo} onClose={() => setDrawerPo(null)} onRefresh={fetchPos} />}
+      {showNew    && <NewPoModal suppliers={suppliers} onClose={() => setShowNew(false)} onCreated={() => { setShowNew(false); fetchPos() }} t={t} />}
+      {receivePo  && <ReceiveModal po={receivePo} onClose={() => setReceivePo(null)} onConfirm={qtys => handleReceive(receivePo, qtys)} t={t} />}
+      {cancelPo   && <CancelModal po={cancelPo} onClose={() => setCancelPo(null)} onConfirm={confirmCancel} t={t} />}
+      {drawerPo   && <PoDrawer po={drawerPo} onClose={() => setDrawerPo(null)} onRefresh={fetchPos} t={t} />}
       {toast      && <Toast message={toast.message} type={toast.type} onDone={() => setToast(null)} />}
 
       <div className="flex flex-col h-full overflow-hidden" style={{ background:'#09090b', padding:'16px 20px 0' }}>
@@ -1274,16 +1286,16 @@ export default function ImportacoesPage() {
           <div>
             <div className="flex items-center gap-2.5 mb-0.5">
               <Ship size={18} color="#00E5FF" />
-              <h1 className="text-[15px] font-bold" style={{ color:'#e4e4e7' }}>Importações</h1>
+              <h1 className="text-[15px] font-bold" style={{ color:'#e4e4e7' }}>{t('title')}</h1>
             </div>
             <p className="text-[11px]" style={{ color:'#71717a' }}>
-              {active.length} POs ativas{loading ? ' · carregando…' : ''}
+              {t('activePosCount', { count: active.length })}{loading ? ` · ${t('loadingSuffix')}` : ''}
             </p>
           </div>
           <button onClick={() => setShowNew(true)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold"
             style={{ background:'rgba(0,229,255,0.12)', border:'1px solid rgba(0,229,255,0.25)', color:'#00E5FF' }}>
-            <Plus size={13}/> Nova PO
+            <Plus size={13}/> {t('newPoButton')}
           </button>
         </div>
 
@@ -1292,30 +1304,30 @@ export default function ImportacoesPage() {
           <div className="flex items-center gap-2 rounded-lg px-3 py-2 mb-2 text-[12px] shrink-0"
             style={{ background:'rgba(239,68,68,0.08)', border:'1px solid rgba(239,68,68,0.18)', color:'#ef4444' }}>
             <AlertTriangle size={13}/>
-            {overdue.length} PO{overdue.length > 1 ? 's' : ''} atrasada{overdue.length > 1 ? 's' : ''} — verifique imediatamente
+            {t('overdueAlert', { count: overdue.length })}
           </div>
         )}
         {upcoming.length > 0 && (
           <div className="flex items-center gap-2 rounded-lg px-3 py-2 mb-2 text-[12px] shrink-0"
             style={{ background:'rgba(245,158,11,0.06)', border:'1px solid rgba(245,158,11,0.18)', color:'#f59e0b' }}>
             <Clock size={13}/>
-            {upcoming.length} PO{upcoming.length > 1 ? 's' : ''} chegam nos próximos 15 dias
+            {t('upcomingAlert', { count: upcoming.length })}
           </div>
         )}
 
         {/* KPIs — compact single row */}
         <div className="grid grid-cols-4 gap-2 mb-3 shrink-0">
-          <KpiCard icon={<Ship size={14}/>}         label="POs ativas"          value={String(active.length)}   sub="não recebidas"            color="#00E5FF" />
-          <KpiCard icon={<Truck size={14}/>}         label="Capital em trânsito" value={fmtBRL(capitalTransit)} sub={`${inTransit.length} POs`} color="#06b6d4" />
-          <KpiCard icon={<Clock size={14}/>}         label="Chegam em 15 dias"   value={String(upcoming.length)} sub="próximos 15 dias"          color="#f59e0b" />
-          <KpiCard icon={<AlertTriangle size={14}/>} label="Atrasadas"           value={String(overdue.length)}  sub="passou da data"           color={overdue.length > 0 ? '#ef4444' : '#6b7280'} />
+          <KpiCard icon={<Ship size={14}/>}         label={t('kpi.activePos')}        value={String(active.length)}   sub={t('kpi.notReceived')}     color="#00E5FF" />
+          <KpiCard icon={<Truck size={14}/>}         label={t('kpi.capitalInTransit')} value={fmtBRL(capitalTransit)} sub={t('kpi.posCount', { count: inTransit.length })} color="#06b6d4" />
+          <KpiCard icon={<Clock size={14}/>}         label={t('kpi.arrivingIn15')}     value={String(upcoming.length)} sub={t('kpi.next15Days')}      color="#f59e0b" />
+          <KpiCard icon={<AlertTriangle size={14}/>} label={t('kpi.overdue')}          value={String(overdue.length)}  sub={t('kpi.pastDate')}        color={overdue.length > 0 ? '#ef4444' : '#6b7280'} />
         </div>
 
         {/* View toggle — pill style */}
         <div className="flex items-center mb-3 shrink-0">
           <div className="flex rounded-full p-0.5" style={{ background:'#111114', border:'1px solid #1a1a1f' }}>
-            {([['kanban','Kanban'],['timeline','Timeline'],['lista','Lista']] as const).map(([v,label]) => (
-              <button key={v} onClick={() => setView(v)}
+            {([['kanban', t('view.kanban')],['timeline', t('view.timeline')],['lista', t('view.list')]] as const).map(([v,label]) => (
+              <button key={v} onClick={() => setView(v as 'kanban'|'timeline'|'lista')}
                 className="px-3 py-1 text-[11px] font-medium rounded-full transition-all"
                 style={{
                   background: view === v ? 'rgba(0,229,255,0.15)' : 'transparent',
@@ -1330,9 +1342,9 @@ export default function ImportacoesPage() {
 
         {/* Content — flex-1 fills remaining height */}
         <div className="flex-1 min-h-0 pb-4">
-          {view === 'kanban'   && <KanbanView   pos={pos} onAdvance={handleAdvance} onDetails={setDrawerPo} onCancel={handleCancel} onDrop={handleDrop} />}
-          {view === 'timeline' && <div className="overflow-y-auto h-full kanban-scroll"><TimelineView pos={pos} /></div>}
-          {view === 'lista'    && <div className="overflow-y-auto h-full kanban-scroll"><ListaView    pos={pos} onDetails={setDrawerPo} /></div>}
+          {view === 'kanban'   && <KanbanView   pos={pos} onAdvance={handleAdvance} onDetails={setDrawerPo} onCancel={handleCancel} onDrop={handleDrop} t={t} />}
+          {view === 'timeline' && <div className="overflow-y-auto h-full kanban-scroll"><TimelineView pos={pos} t={t} /></div>}
+          {view === 'lista'    && <div className="overflow-y-auto h-full kanban-scroll"><ListaView    pos={pos} onDetails={setDrawerPo} t={t} /></div>}
         </div>
       </div>
     </>

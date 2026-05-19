@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import Link from 'next/link'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import {
   ArrowLeft, AlertCircle, Plus, X, RotateCcw, CheckCircle2,
@@ -10,7 +11,7 @@ import {
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 
-type ReturnType =
+type ReturnKind =
   | 'cancellation' | 'return_buyer_regret' | 'return_defective'
   | 'return_wrong_item' | 'return_damaged' | 'return_not_delivered'
   | 'return_incomplete' | 'warranty_claim' | 'reclamation_refund'
@@ -28,7 +29,7 @@ interface DropshipReturn {
   marketplace: string
   ml_order_id: string | null
   shopee_order_id: string | null
-  return_type: ReturnType
+  return_type: ReturnKind
   source: string
   return_amount: number
   return_quantity: number
@@ -53,6 +54,7 @@ interface SupplierOption {
 }
 
 export default function ReturnsPage() {
+  const t = useTranslations('dropship.returns')
   const supabase = useMemo(() => createClient(), [])
 
   const [returns, setReturns] = useState<DropshipReturn[]>([])
@@ -67,9 +69,9 @@ export default function ReturnsPage() {
 
   const getHeaders = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session?.access_token) throw new Error('Não autenticado')
+    if (!session?.access_token) throw new Error(t('errors.notAuthenticated'))
     return { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' }
-  }, [supabase])
+  }, [supabase, t])
 
   const load = useCallback(async () => {
     setLoading(true); setErr('')
@@ -88,10 +90,10 @@ export default function ReturnsPage() {
       setReturns(await rRes.json())
       if (pRes.ok) setPartners(await pRes.json())
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Erro ao carregar')
+      setErr(e instanceof Error ? e.message : t('errors.loadFailed'))
       setReturns([])
     } finally { setLoading(false) }
-  }, [getHeaders, filterStatus, search])
+  }, [getHeaders, filterStatus, search, t])
 
   useEffect(() => { load() }, [load])
 
@@ -116,9 +118,9 @@ export default function ReturnsPage() {
             <ArrowLeft size={18} />
           </Link>
           <div>
-            <h1 className="text-xl font-semibold text-white">Devoluções</h1>
+            <h1 className="text-xl font-semibold text-white">{t('title')}</h1>
             <p className="text-sm text-zinc-500 mt-0.5">
-              Cancelamentos, garantias e reclamações que geram crédito do parceiro
+              {t('subtitle')}
             </p>
           </div>
         </div>
@@ -129,7 +131,7 @@ export default function ReturnsPage() {
           style={{ background: '#00E5FF', color: '#09090b', opacity: partners.length === 0 ? 0.5 : 1 }}
         >
           <Plus size={15} />
-          Nova Devolução
+          {t('newReturn')}
         </button>
       </div>
 
@@ -144,10 +146,10 @@ export default function ReturnsPage() {
 
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-        <Kpi label="Total" value={total} />
-        <Kpi label="Em aberto" value={opened} accent={opened > 0 ? '#fcd34d' : undefined} />
-        <Kpi label="Aguardando crédito" value={creditPending} accent={creditPending > 0 ? '#60a5fa' : undefined} />
-        <Kpi label="Creditado no mês" value={fmtBrl(totalCreditedThisMonth)} accent="#22c55e" />
+        <Kpi label={t('kpi.total')} value={total} />
+        <Kpi label={t('kpi.open')} value={opened} accent={opened > 0 ? '#fcd34d' : undefined} />
+        <Kpi label={t('kpi.awaitingCredit')} value={creditPending} accent={creditPending > 0 ? '#60a5fa' : undefined} />
+        <Kpi label={t('kpi.creditedThisMonth')} value={fmtBrl(totalCreditedThisMonth)} accent="#22c55e" />
       </div>
 
       {/* filters */}
@@ -163,7 +165,7 @@ export default function ReturnsPage() {
                 color: filterStatus === s ? '#09090b' : '#a1a1aa',
               }}
             >
-              {filterLabel(s)}
+              {filterLabel(s, t)}
             </button>
           ))}
         </div>
@@ -173,7 +175,7 @@ export default function ReturnsPage() {
           </span>
           <input
             value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="Buscar pedido ML/Shopee..."
+            placeholder={t('searchPlaceholder')}
             className="w-full pl-8 pr-3 py-2 text-sm rounded-lg outline-none"
             style={{ background: '#111114', border: '1px solid #27272a', color: '#fff' }}
           />
@@ -185,22 +187,24 @@ export default function ReturnsPage() {
         <table className="w-full text-sm">
           <thead>
             <tr style={{ background: '#111114', borderBottom: '1px solid #1a1a1f' }}>
-              {['Aberta em', 'Parceiro', 'Pedido', 'Tipo', 'Qtd', 'Valor', 'Responsabilidade', 'Status', 'Crédito', ''].map(h => (
-                <th key={h} className="text-left px-4 py-3 text-xs font-medium text-zinc-500">{h}</th>
+              {[t('table.openedAt'), t('table.partner'), t('table.order'), t('table.type'), t('table.qty'), t('table.value'), t('table.responsibility'), t('table.status'), t('table.credit'), ''].map((h, i) => (
+                <th key={i} className="text-left px-4 py-3 text-xs font-medium text-zinc-500">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={10} className="px-4 py-12 text-center text-zinc-500 text-sm">Carregando...</td></tr>
+              <tr><td colSpan={10} className="px-4 py-12 text-center text-zinc-500 text-sm">{t('loading')}</td></tr>
             ) : returns.length === 0 ? (
               <tr>
                 <td colSpan={10} className="px-4 py-12 text-center text-zinc-500 text-sm">
                   <RotateCcw size={28} className="mx-auto mb-2 text-zinc-700" />
-                  Nenhuma devolução nesse filtro.
+                  {t('emptyFilter')}
                   {partners.length === 0 && (
                     <p className="text-xs mt-2">
-                      Cadastre um <Link href="/dashboard/dropship/partners" style={{ color: '#00E5FF' }}>parceiro</Link> primeiro.
+                      {t.rich('needPartner', {
+                        link: (chunks) => <Link href="/dashboard/dropship/partners" style={{ color: '#00E5FF' }}>{chunks}</Link>,
+                      })}
                     </p>
                   )}
                 </td>
@@ -212,16 +216,16 @@ export default function ReturnsPage() {
                 <td className="px-4 py-3 font-mono text-xs text-zinc-400">
                   {r.ml_order_id ?? r.shopee_order_id ?? '—'}
                 </td>
-                <td className="px-4 py-3"><ReturnTypePill type={r.return_type} /></td>
+                <td className="px-4 py-3"><ReturnTypePill type={r.return_type} t={t} /></td>
                 <td className="px-4 py-3 text-zinc-300">{r.return_quantity}</td>
                 <td className="px-4 py-3 text-zinc-300 text-xs">{fmtBrl(r.return_amount)}</td>
-                <td className="px-4 py-3"><ResponsibilityPill resp={r.responsibility} /></td>
-                <td className="px-4 py-3"><ReturnStatusPill status={r.status} /></td>
+                <td className="px-4 py-3"><ResponsibilityPill resp={r.responsibility} t={t} /></td>
+                <td className="px-4 py-3"><ReturnStatusPill status={r.status} t={t} /></td>
                 <td className="px-4 py-3 text-xs">
                   {r.credit_amount && r.credit_amount > 0 ? (
                     <div>
                       <p style={{ color: '#22c55e' }}>{fmtBrl(r.credit_amount)}</p>
-                      {r.credit_strategy && <p className="text-zinc-500" style={{ fontSize: '10px' }}>{strategyLabel(r.credit_strategy)}</p>}
+                      {r.credit_strategy && <p className="text-zinc-500" style={{ fontSize: '10px' }}>{strategyLabel(r.credit_strategy, t)}</p>}
                     </div>
                   ) : (
                     <span className="text-zinc-600">—</span>
@@ -233,14 +237,14 @@ export default function ReturnsPage() {
                       <button
                         onClick={() => { setActionId(r.id); setActionMode('approve') }}
                         className="text-zinc-500 hover:text-green-400"
-                        title="Aprovar (gera crédito)"
+                        title={t('approveTooltip')}
                       >
                         <CheckCircle2 size={14} />
                       </button>
                       <button
                         onClick={() => { setActionId(r.id); setActionMode('reject') }}
                         className="text-zinc-500 hover:text-red-400"
-                        title="Rejeitar"
+                        title={t('reject')}
                       >
                         <XCircle size={14} />
                       </button>
@@ -258,6 +262,7 @@ export default function ReturnsPage() {
         <NewReturnModal
           partners={partners}
           getHeaders={getHeaders}
+          t={t}
           onClose={() => setShowNew(false)}
           onCreated={() => { setShowNew(false); load() }}
         />
@@ -269,6 +274,7 @@ export default function ReturnsPage() {
           returnId={actionId}
           mode={actionMode}
           getHeaders={getHeaders}
+          t={t}
           onClose={() => { setActionId(null); setActionMode(null) }}
           onDone={() => { setActionId(null); setActionMode(null); load() }}
         />
@@ -279,18 +285,21 @@ export default function ReturnsPage() {
 
 // ── Modals ─────────────────────────────────────────────────────────────────────
 
+type TFn = ReturnType<typeof useTranslations>
+
 function NewReturnModal({
-  partners, getHeaders, onClose, onCreated,
+  partners, getHeaders, t, onClose, onCreated,
 }: {
   partners: SupplierOption[]
   getHeaders: () => Promise<Record<string, string>>
+  t: TFn
   onClose: () => void
   onCreated: () => void
 }) {
   const [supplierId, setSupplierId] = useState('')
   const [identificationId, setIdentificationId] = useState('')
   const [marketplace, setMarketplace] = useState<'mercado_livre' | 'shopee' | 'amazon' | 'magalu'>('mercado_livre')
-  const [returnType, setReturnType] = useState<ReturnType>('return_defective')
+  const [returnType, setReturnType] = useState<ReturnKind>('return_defective')
   const [returnAmount, setReturnAmount] = useState('')
   const [returnQuantity, setReturnQuantity] = useState('1')
   const [responsibility, setResponsibility] = useState<Responsibility>('partner')
@@ -301,9 +310,9 @@ function NewReturnModal({
   const [err, setErr] = useState('')
 
   async function submit() {
-    if (!supplierId) { setErr('Parceiro obrigatório'); return }
-    if (!returnAmount || Number(returnAmount) < 0) { setErr('Valor inválido'); return }
-    if (!returnQuantity || Number(returnQuantity) <= 0) { setErr('Quantidade inválida'); return }
+    if (!supplierId) { setErr(t('errors.partnerRequired')); return }
+    if (!returnAmount || Number(returnAmount) < 0) { setErr(t('errors.invalidValue')); return }
+    if (!returnQuantity || Number(returnQuantity) <= 0) { setErr(t('errors.invalidQuantity')); return }
     setSaving(true); setErr('')
     try {
       const headers = await getHeaders()
@@ -329,7 +338,7 @@ function NewReturnModal({
       }
       onCreated()
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Erro ao salvar')
+      setErr(e instanceof Error ? e.message : t('errors.saveFailed'))
     } finally { setSaving(false) }
   }
 
@@ -337,11 +346,11 @@ function NewReturnModal({
   const lbl = 'block text-xs text-zinc-400 mb-1'
 
   return (
-    <Modal title="Nova Devolução" onClose={() => !saving && onClose()}>
+    <Modal title={t('newModal.title')} onClose={() => !saving && onClose()}>
       <div>
-        <label className={lbl}>Parceiro *</label>
+        <label className={lbl}>{t('newModal.partner')}</label>
         <select value={supplierId} onChange={e => setSupplierId(e.target.value)} className={inp}>
-          <option value="">— Selecione —</option>
+          <option value="">{t('selectPlaceholder')}</option>
           {partners.map(p => (
             <option key={p.supplier_id} value={p.supplier_id}>{p.suppliers?.name ?? p.supplier_id}</option>
           ))}
@@ -350,7 +359,7 @@ function NewReturnModal({
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className={lbl}>Marketplace *</label>
+          <label className={lbl}>{t('newModal.marketplace')}</label>
           <select value={marketplace} onChange={e => setMarketplace(e.target.value as typeof marketplace)} className={inp}>
             <option value="mercado_livre">Mercado Livre</option>
             <option value="shopee">Shopee</option>
@@ -359,81 +368,81 @@ function NewReturnModal({
           </select>
         </div>
         <div>
-          <label className={lbl}>Pedido ID</label>
+          <label className={lbl}>{t('newModal.orderId')}</label>
           <input value={mlOrderId} onChange={e => setMlOrderId(e.target.value)} className={inp} placeholder="ex: 2000016160896694" />
         </div>
       </div>
 
       <div>
-        <label className={lbl}>Tipo de devolução *</label>
+        <label className={lbl}>{t('newModal.returnType')}</label>
         <select value={returnType} onChange={e => {
-          setReturnType(e.target.value as ReturnType)
+          setReturnType(e.target.value as ReturnKind)
           // Auto-set responsibility default
           if (e.target.value === 'return_buyer_regret') setResponsibility('buyer')
           else setResponsibility('partner')
         }} className={inp}>
-          <option value="cancellation">Cancelamento</option>
-          <option value="return_buyer_regret">Arrependimento do comprador</option>
-          <option value="return_defective">Produto com defeito</option>
-          <option value="return_wrong_item">Item errado enviado</option>
-          <option value="return_damaged">Avariado no transporte</option>
-          <option value="return_not_delivered">Não entregue</option>
-          <option value="return_incomplete">Item incompleto</option>
-          <option value="warranty_claim">Garantia</option>
-          <option value="reclamation_refund">Reclamação com reembolso</option>
-          <option value="chargeback">Chargeback</option>
-          <option value="partner_negotiated">Desconto negociado</option>
+          <option value="cancellation">{t('typeOption.cancellation')}</option>
+          <option value="return_buyer_regret">{t('typeOption.buyerRegret')}</option>
+          <option value="return_defective">{t('typeOption.defective')}</option>
+          <option value="return_wrong_item">{t('typeOption.wrongItem')}</option>
+          <option value="return_damaged">{t('typeOption.damaged')}</option>
+          <option value="return_not_delivered">{t('typeOption.notDelivered')}</option>
+          <option value="return_incomplete">{t('typeOption.incomplete')}</option>
+          <option value="warranty_claim">{t('typeOption.warranty')}</option>
+          <option value="reclamation_refund">{t('typeOption.refund')}</option>
+          <option value="chargeback">{t('typeOption.chargeback')}</option>
+          <option value="partner_negotiated">{t('typeOption.negotiated')}</option>
         </select>
       </div>
 
       <div className="grid grid-cols-3 gap-3">
         <div>
-          <label className={lbl}>Quantidade *</label>
+          <label className={lbl}>{t('newModal.quantity')}</label>
           <input type="number" min="1" value={returnQuantity} onChange={e => setReturnQuantity(e.target.value)} className={inp} />
         </div>
         <div className="col-span-2">
-          <label className={lbl}>Valor (R$) *</label>
-          <input type="number" step="0.01" min="0" value={returnAmount} onChange={e => setReturnAmount(e.target.value)} className={inp} placeholder="Custo do item × quantidade" />
+          <label className={lbl}>{t('newModal.value')}</label>
+          <input type="number" step="0.01" min="0" value={returnAmount} onChange={e => setReturnAmount(e.target.value)} className={inp} placeholder={t('newModal.valuePlaceholder')} />
         </div>
       </div>
 
       <div>
-        <label className={lbl}>Responsabilidade</label>
+        <label className={lbl}>{t('newModal.responsibility')}</label>
         <select value={responsibility} onChange={e => setResponsibility(e.target.value as Responsibility)} className={inp}>
-          <option value="partner">Parceiro (gera crédito)</option>
-          <option value="seller">Seller (você absorve)</option>
-          <option value="shared">Dividido (50/50)</option>
-          <option value="buyer">Comprador (arrependimento)</option>
-          <option value="undefined">Indefinido</option>
+          <option value="partner">{t('respOption.partnerCredit')}</option>
+          <option value="seller">{t('respOption.sellerAbsorb')}</option>
+          <option value="shared">{t('respOption.shared')}</option>
+          <option value="buyer">{t('respOption.buyer')}</option>
+          <option value="undefined">{t('respOption.undefined')}</option>
         </select>
         <p className="text-xs text-zinc-500 mt-1">
-          Apenas &quot;parceiro&quot; ou &quot;dividido&quot; geram crédito ao aprovar
+          {t('newModal.responsibilityHint')}
         </p>
       </div>
 
       <div>
-        <label className={lbl}>Reclamação do comprador (opcional)</label>
+        <label className={lbl}>{t('newModal.buyerComplaint')}</label>
         <textarea value={buyerComplaint} onChange={e => setBuyerComplaint(e.target.value)} rows={2} className={inp + ' resize-none'} />
       </div>
 
       <div>
-        <label className={lbl}>Notas internas (opcional)</label>
+        <label className={lbl}>{t('newModal.internalNotes')}</label>
         <textarea value={internalNotes} onChange={e => setInternalNotes(e.target.value)} rows={2} className={inp + ' resize-none'} />
       </div>
 
       <div>
-        <label className={lbl}>ID da identificação dropship (opcional)</label>
-        <input value={identificationId} onChange={e => setIdentificationId(e.target.value)} className={inp} placeholder="UUID da dropship_order_identifications" />
+        <label className={lbl}>{t('newModal.identificationId')}</label>
+        <input value={identificationId} onChange={e => setIdentificationId(e.target.value)} className={inp} placeholder={t('newModal.identificationIdPlaceholder')} />
         <p className="text-xs text-zinc-500 mt-1">
-          Se vincular a um pedido dropship existente, o sistema identifica automaticamente a OC original
+          {t('newModal.identificationIdHint')}
         </p>
       </div>
 
       {err && <ErrBox msg={err} />}
       <div className="flex gap-2 justify-end pt-2">
-        <button onClick={() => !saving && onClose()} disabled={saving} className="px-4 py-2 text-sm rounded-lg text-zinc-400 hover:text-white" style={{ border: '1px solid #27272a' }}>Cancelar</button>
+        <button onClick={() => !saving && onClose()} disabled={saving} className="px-4 py-2 text-sm rounded-lg text-zinc-400 hover:text-white" style={{ border: '1px solid #27272a' }}>{t('cancel')}</button>
         <button onClick={submit} disabled={saving} className="px-5 py-2 text-sm font-semibold rounded-lg" style={{ background: '#00E5FF', color: '#09090b', opacity: saving ? 0.6 : 1 }}>
-          {saving ? 'Salvando...' : 'Criar Devolução'}
+          {saving ? t('saving') : t('createReturn')}
         </button>
       </div>
     </Modal>
@@ -441,11 +450,12 @@ function NewReturnModal({
 }
 
 function ActionModal({
-  returnId, mode, getHeaders, onClose, onDone,
+  returnId, mode, getHeaders, t, onClose, onDone,
 }: {
   returnId: string
   mode: 'approve' | 'reject'
   getHeaders: () => Promise<Record<string, string>>
+  t: TFn
   onClose: () => void
   onDone: () => void
 }) {
@@ -457,7 +467,7 @@ function ActionModal({
   const [result, setResult] = useState<{ scenario: string; amount: number } | null>(null)
 
   async function submit() {
-    if (mode === 'reject' && !reason.trim()) { setErr('Motivo obrigatório'); return }
+    if (mode === 'reject' && !reason.trim()) { setErr(t('errors.reasonRequired')); return }
     setSaving(true); setErr('')
     try {
       const headers = await getHeaders()
@@ -480,7 +490,7 @@ function ActionModal({
         onDone()
       }
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Erro')
+      setErr(e instanceof Error ? e.message : t('errors.generic'))
     } finally { setSaving(false) }
   }
 
@@ -488,7 +498,7 @@ function ActionModal({
 
   return (
     <Modal
-      title={mode === 'approve' ? 'Aprovar Devolução' : 'Rejeitar Devolução'}
+      title={mode === 'approve' ? t('actionModal.approveTitle') : t('actionModal.rejectTitle')}
       onClose={() => !saving && onClose()}
     >
       {result ? (
@@ -497,10 +507,10 @@ function ActionModal({
         }}>
           <p className="text-sm font-medium text-white flex items-center gap-2">
             <CheckCircle2 size={16} style={{ color: '#22c55e' }} />
-            Aprovado · cenário <strong>{strategyLabel(result.scenario)}</strong>
+            {t.rich('actionModal.approvedScenario', { scenario: strategyLabel(result.scenario, t), strong: (chunks) => <strong>{chunks}</strong> })}
           </p>
           {result.amount > 0 && (
-            <p className="text-xs text-zinc-300">Crédito gerado: <strong>{fmtBrl(result.amount)}</strong></p>
+            <p className="text-xs text-zinc-300">{t.rich('actionModal.creditGenerated', { amount: fmtBrl(result.amount), strong: (chunks) => <strong>{chunks}</strong> })}</p>
           )}
         </div>
       ) : mode === 'approve' ? (
@@ -510,21 +520,20 @@ function ActionModal({
           }}>
             <AlertTriangle size={14} className="mt-0.5 shrink-0" style={{ color: '#00E5FF' }} />
             <span className="text-zinc-300">
-              Sistema vai identificar automaticamente o cenário (mesma OC não paga / OC paga / disputa)
-              e gerar crédito conforme régua.
+              {t('actionModal.approveHint')}
             </span>
           </div>
           <div>
-            <label className="block text-xs text-zinc-400 mb-1">Responsabilidade</label>
+            <label className="block text-xs text-zinc-400 mb-1">{t('newModal.responsibility')}</label>
             <select value={responsibility} onChange={e => setResponsibility(e.target.value as Responsibility)} className={inp}>
-              <option value="partner">Parceiro (100% crédito)</option>
-              <option value="shared">Dividido (50/50)</option>
-              <option value="seller">Seller (sem crédito)</option>
-              <option value="buyer">Comprador (sem crédito)</option>
+              <option value="partner">{t('approveResp.partner')}</option>
+              <option value="shared">{t('approveResp.shared')}</option>
+              <option value="seller">{t('approveResp.seller')}</option>
+              <option value="buyer">{t('approveResp.buyer')}</option>
             </select>
           </div>
           <div>
-            <label className="block text-xs text-zinc-400 mb-1">Notas (opcional)</label>
+            <label className="block text-xs text-zinc-400 mb-1">{t('actionModal.notes')}</label>
             <textarea value={resolutionNotes} onChange={e => setResolutionNotes(e.target.value)} rows={2} className={inp + ' resize-none'} />
           </div>
         </>
@@ -534,18 +543,18 @@ function ActionModal({
             background: 'rgba(252,211,77,0.10)', color: '#fcd34d', border: '1px solid rgba(252,211,77,0.3)',
           }}>
             <AlertTriangle size={14} className="mt-0.5 shrink-0" />
-            <span>Rejeitar marca como &quot;rejected&quot; sem gerar crédito (ex: comprador errado, fora do prazo, etc.)</span>
+            <span>{t('actionModal.rejectHint')}</span>
           </div>
           <div>
-            <label className="block text-xs text-zinc-400 mb-1">Motivo *</label>
-            <textarea value={reason} onChange={e => setReason(e.target.value)} rows={3} className={inp + ' resize-none'} placeholder="Ex: Comprador abriu reclamação fora do prazo de 7 dias" />
+            <label className="block text-xs text-zinc-400 mb-1">{t('actionModal.reason')}</label>
+            <textarea value={reason} onChange={e => setReason(e.target.value)} rows={3} className={inp + ' resize-none'} placeholder={t('actionModal.reasonPlaceholder')} />
           </div>
         </>
       )}
       {err && <ErrBox msg={err} />}
       {!result && (
         <div className="flex gap-2 justify-end pt-2">
-          <button onClick={() => !saving && onClose()} disabled={saving} className="px-4 py-2 text-sm rounded-lg text-zinc-400 hover:text-white" style={{ border: '1px solid #27272a' }}>Cancelar</button>
+          <button onClick={() => !saving && onClose()} disabled={saving} className="px-4 py-2 text-sm rounded-lg text-zinc-400 hover:text-white" style={{ border: '1px solid #27272a' }}>{t('cancel')}</button>
           <button
             onClick={submit}
             disabled={saving}
@@ -555,7 +564,7 @@ function ActionModal({
               color: '#fff', opacity: saving ? 0.6 : 1,
             }}
           >
-            {saving ? 'Processando...' : mode === 'approve' ? 'Aprovar' : 'Rejeitar'}
+            {saving ? t('actionModal.processing') : mode === 'approve' ? t('approve') : t('reject')}
           </button>
         </div>
       )}
@@ -594,64 +603,64 @@ function Kpi({ label, value, accent }: { label: string; value: string | number; 
   )
 }
 
-function ReturnTypePill({ type }: { type: ReturnType }) {
-  const m: Record<ReturnType, string> = {
-    cancellation: 'Cancel.',
-    return_buyer_regret: 'Arrep.',
-    return_defective: 'Defeito',
-    return_wrong_item: 'Item errado',
-    return_damaged: 'Avariado',
-    return_not_delivered: 'Não entreg.',
-    return_incomplete: 'Incompleto',
-    warranty_claim: 'Garantia',
-    reclamation_refund: 'Reembolso',
-    chargeback: 'Chargeback',
-    partner_negotiated: 'Negociado',
+function ReturnTypePill({ type, t }: { type: ReturnKind; t: TFn }) {
+  const keys: Record<ReturnKind, string> = {
+    cancellation: 'typePill.cancellation',
+    return_buyer_regret: 'typePill.buyerRegret',
+    return_defective: 'typePill.defective',
+    return_wrong_item: 'typePill.wrongItem',
+    return_damaged: 'typePill.damaged',
+    return_not_delivered: 'typePill.notDelivered',
+    return_incomplete: 'typePill.incomplete',
+    warranty_claim: 'typePill.warranty',
+    reclamation_refund: 'typePill.refund',
+    chargeback: 'typePill.chargeback',
+    partner_negotiated: 'typePill.negotiated',
   }
   return (
     <span className="inline-block px-2 py-0.5 rounded-full text-xs"
       style={{ background: 'rgba(113,113,122,0.10)', color: '#a1a1aa', border: '1px solid #27272a' }}>
-      {m[type]}
+      {t(keys[type])}
     </span>
   )
 }
 
-function ResponsibilityPill({ resp }: { resp: Responsibility | null }) {
+function ResponsibilityPill({ resp, t }: { resp: Responsibility | null; t: TFn }) {
   if (!resp) return <span className="text-zinc-600 text-xs">—</span>
-  const c: Record<Responsibility, { bg: string; fg: string; label: string }> = {
-    partner:   { bg: 'rgba(248,113,113,0.10)', fg: '#f87171', label: 'Parceiro' },
-    seller:    { bg: 'rgba(96,165,250,0.10)',  fg: '#60a5fa', label: 'Seller' },
-    shared:    { bg: 'rgba(252,211,77,0.10)',  fg: '#fcd34d', label: '50/50' },
-    buyer:     { bg: 'rgba(34,197,94,0.10)',   fg: '#22c55e', label: 'Comprador' },
-    undefined: { bg: 'rgba(113,113,122,0.10)', fg: '#71717a', label: 'Indef.' },
+  const c: Record<Responsibility, { bg: string; fg: string; key: string }> = {
+    partner:   { bg: 'rgba(248,113,113,0.10)', fg: '#f87171', key: 'respPill.partner' },
+    seller:    { bg: 'rgba(96,165,250,0.10)',  fg: '#60a5fa', key: 'respPill.seller' },
+    shared:    { bg: 'rgba(252,211,77,0.10)',  fg: '#fcd34d', key: 'respPill.shared' },
+    buyer:     { bg: 'rgba(34,197,94,0.10)',   fg: '#22c55e', key: 'respPill.buyer' },
+    undefined: { bg: 'rgba(113,113,122,0.10)', fg: '#71717a', key: 'respPill.undefined' },
   }
   const x = c[resp]
   return (
     <span className="inline-block px-2 py-0.5 rounded-full text-xs"
       style={{ background: x.bg, color: x.fg, border: `1px solid ${x.fg}33` }}>
-      {x.label}
+      {t(x.key)}
     </span>
   )
 }
 
-function ReturnStatusPill({ status }: { status: ReturnStatus }) {
-  const c: Record<ReturnStatus, { bg: string; fg: string; label: string }> = {
-    opened:           { bg: 'rgba(252,211,77,0.10)',  fg: '#fcd34d', label: 'Aberta' },
-    in_transit_back:  { bg: 'rgba(96,165,250,0.10)',  fg: '#60a5fa', label: 'Em trânsito' },
-    received:         { bg: 'rgba(96,165,250,0.10)',  fg: '#60a5fa', label: 'Recebido' },
-    analyzed:         { bg: 'rgba(0,229,255,0.10)',   fg: '#00E5FF', label: 'Analisado' },
-    approved:         { bg: 'rgba(34,197,94,0.10)',   fg: '#22c55e', label: 'Aprovada' },
-    credit_pending:   { bg: 'rgba(0,229,255,0.10)',   fg: '#00E5FF', label: 'Crédito pendente' },
-    credit_applied:   { bg: 'rgba(34,197,94,0.10)',   fg: '#22c55e', label: 'Crédito aplicado' },
-    disputed:         { bg: 'rgba(248,113,113,0.10)', fg: '#f87171', label: 'Em disputa' },
-    rejected:         { bg: 'rgba(113,113,122,0.10)', fg: '#71717a', label: 'Rejeitada' },
-    closed:           { bg: 'rgba(113,113,122,0.10)', fg: '#71717a', label: 'Fechada' },
+function ReturnStatusPill({ status, t }: { status: ReturnStatus; t: TFn }) {
+  const c: Record<ReturnStatus, { bg: string; fg: string; key: string }> = {
+    opened:           { bg: 'rgba(252,211,77,0.10)',  fg: '#fcd34d', key: 'statusPill.opened' },
+    in_transit_back:  { bg: 'rgba(96,165,250,0.10)',  fg: '#60a5fa', key: 'statusPill.inTransit' },
+    received:         { bg: 'rgba(96,165,250,0.10)',  fg: '#60a5fa', key: 'statusPill.received' },
+    analyzed:         { bg: 'rgba(0,229,255,0.10)',   fg: '#00E5FF', key: 'statusPill.analyzed' },
+    approved:         { bg: 'rgba(34,197,94,0.10)',   fg: '#22c55e', key: 'statusPill.approved' },
+    credit_pending:   { bg: 'rgba(0,229,255,0.10)',   fg: '#00E5FF', key: 'statusPill.creditPending' },
+    credit_applied:   { bg: 'rgba(34,197,94,0.10)',   fg: '#22c55e', key: 'statusPill.creditApplied' },
+    disputed:         { bg: 'rgba(248,113,113,0.10)', fg: '#f87171', key: 'statusPill.disputed' },
+    rejected:         { bg: 'rgba(113,113,122,0.10)', fg: '#71717a', key: 'statusPill.rejected' },
+    closed:           { bg: 'rgba(113,113,122,0.10)', fg: '#71717a', key: 'statusPill.closed' },
   }
   const x = c[status]
   return (
     <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap"
       style={{ background: x.bg, color: x.fg, border: `1px solid ${x.fg}33` }}>
-      {x.label}
+      {t(x.key)}
     </span>
   )
 }
@@ -669,25 +678,25 @@ function ErrBox({ msg }: { msg: string }) {
 
 // ── helpers ────────────────────────────────────────────────────────────────────
 
-function filterLabel(s: string): string {
-  return s === 'open_all' ? 'Em aberto'
-    : s === 'opened' ? 'Abertas'
-    : s === 'approved' ? 'Aprovadas'
-    : s === 'credit_pending' ? 'Aguard. crédito'
-    : s === 'credit_applied' ? 'Creditadas'
-    : s === 'disputed' ? 'Disputas'
-    : s === 'rejected' ? 'Rejeitadas'
-    : 'Todas'
+function filterLabel(s: string, t: TFn): string {
+  return s === 'open_all' ? t('filter.openAll')
+    : s === 'opened' ? t('filter.opened')
+    : s === 'approved' ? t('filter.approved')
+    : s === 'credit_pending' ? t('filter.creditPending')
+    : s === 'credit_applied' ? t('filter.creditApplied')
+    : s === 'disputed' ? t('filter.disputed')
+    : s === 'rejected' ? t('filter.rejected')
+    : t('filter.all')
 }
 
-function strategyLabel(s: string): string {
-  const m: Record<string, string> = {
-    same_oc_unpaid: 'mesma OC não paga',
-    same_oc_approved_unpaid: 'crédito na OC',
-    next_oc_credit: 'próxima OC',
-    pending_dispute: 'em disputa',
+function strategyLabel(s: string, t: TFn): string {
+  const keys: Record<string, string> = {
+    same_oc_unpaid: 'strategy.sameOcUnpaid',
+    same_oc_approved_unpaid: 'strategy.creditInOc',
+    next_oc_credit: 'strategy.nextOc',
+    pending_dispute: 'strategy.inDispute',
   }
-  return m[s] ?? s
+  return keys[s] ? t(keys[s]) : s
 }
 
 function fmtBrl(v: number) {

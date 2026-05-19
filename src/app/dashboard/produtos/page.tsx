@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
@@ -56,10 +57,10 @@ const PM: Record<string, { abbr: string; bg: string; fg: string }> = {
   magalu:       { abbr: 'MG', bg: '#0086FF', fg: '#fff' },
 }
 
-const SM = {
-  active: { label: 'Ativo',    bg: 'rgba(52,211,153,0.12)',  color: '#34d399' },
-  draft:  { label: 'Rascunho', bg: 'rgba(245,158,11,0.12)',  color: '#f59e0b' },
-  paused: { label: 'Pausado',  bg: 'rgba(113,113,122,0.15)', color: '#71717a' },
+const SM: Record<string, { bg: string; color: string }> = {
+  active: { bg: 'rgba(52,211,153,0.12)',  color: '#34d399' },
+  draft:  { bg: 'rgba(245,158,11,0.12)',  color: '#f59e0b' },
+  paused: { bg: 'rgba(113,113,122,0.15)', color: '#71717a' },
 }
 
 function brl(v: number | null) {
@@ -74,12 +75,13 @@ function shortId(id: string) {
 // ── active filter chip (compartilhado pelos filtros avançados) ────────────────
 
 function ActiveChip({ label, onRemove }: { label: string; onRemove: () => void }) {
+  const t = useTranslations('produtos')
   return (
     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border"
       style={{ background: 'rgba(0,229,255,0.06)', borderColor: 'rgba(0,229,255,0.25)', color: '#67e8f9' }}>
       {label}
       <button onClick={onRemove} className="hover:text-white transition-colors -mr-0.5"
-        aria-label={`Remover filtro ${label}`}>
+        aria-label={t('page.removeFilter', { label })}>
         <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
         </svg>
@@ -97,38 +99,39 @@ function BulkBar({
   onPause: () => void; onDelete: () => void
   onStorefront: (visible: boolean) => void
 }) {
+  const t = useTranslations('produtos')
   return (
     <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl mb-3 text-sm"
       style={{ background: 'rgba(0,229,255,0.07)', border: '1px solid rgba(0,229,255,0.2)' }}>
-      <span className="font-semibold" style={{ color: '#00E5FF' }}>{count} selecionado{count !== 1 ? 's' : ''}</span>
+      <span className="font-semibold" style={{ color: '#00E5FF' }}>{t('page.selectedCount', { count })}</span>
       <div className="flex gap-2 ml-2 flex-wrap">
         <button onClick={() => onStorefront(true)}
           className="px-3 py-1 rounded-lg text-[12px] font-medium border transition-all"
           style={{ borderColor: 'rgba(0,229,255,0.35)', color: '#00E5FF' }}
           onMouseEnter={e => { e.currentTarget.style.borderColor = '#00E5FF' }}
           onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(0,229,255,0.35)' }}>
-          Enviar para a loja
+          {t('page.sendToStore')}
         </button>
         <button onClick={() => onStorefront(false)}
           className="px-3 py-1 rounded-lg text-[12px] font-medium border transition-all"
           style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}
           onMouseEnter={e => { e.currentTarget.style.borderColor = '#71717a'; e.currentTarget.style.color = '#d4d4d8' }}
           onMouseLeave={e => { e.currentTarget.style.borderColor = '#3f3f46'; e.currentTarget.style.color = '#a1a1aa' }}>
-          Tirar da loja
+          {t('page.removeFromStore')}
         </button>
         <button onClick={onPause}
           className="px-3 py-1 rounded-lg text-[12px] font-medium border transition-all"
           style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}
           onMouseEnter={e => { e.currentTarget.style.borderColor = '#f59e0b'; e.currentTarget.style.color = '#f59e0b' }}
           onMouseLeave={e => { e.currentTarget.style.borderColor = '#3f3f46'; e.currentTarget.style.color = '#a1a1aa' }}>
-          Pausar
+          {t('page.pause')}
         </button>
         <button onClick={onDelete}
           className="px-3 py-1 rounded-lg text-[12px] font-medium border transition-all"
           style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}
           onMouseEnter={e => { e.currentTarget.style.borderColor = '#f87171'; e.currentTarget.style.color = '#f87171' }}
           onMouseLeave={e => { e.currentTarget.style.borderColor = '#3f3f46'; e.currentTarget.style.color = '#a1a1aa' }}>
-          Excluir
+          {t('page.delete')}
         </button>
       </div>
       <button onClick={onClear} className="ml-auto text-zinc-500 hover:text-zinc-300 transition-colors">
@@ -147,6 +150,7 @@ function BulkBar({
 const TOOLS_PANEL_PREFS_KEY = 'eclick.produtos.tools-panel.collapsed'
 
 function ProdutosToolsPanel({ products }: { products: Product[] }) {
+  const t = useTranslations('produtos')
   const router = useRouter()
   // Padrão: fechado. Lembra preferência via localStorage (sessão 2026-05-14
   // — antes abria aberto e sobrepunha o header de actions do /produtos).
@@ -213,7 +217,7 @@ function ProdutosToolsPanel({ products }: { products: Product[] }) {
       a.download = `catalogo-${new Date().toISOString().slice(0,10)}.csv`
       a.click()
       URL.revokeObjectURL(url)
-      todoToast(`✓ ${products.length} produtos exportados`)
+      todoToast('✓ ' + t('page.productsExported', { count: products.length }))
     } finally {
       setTimeout(() => setExporting(false), 300)
     }
@@ -226,7 +230,7 @@ function ProdutosToolsPanel({ products }: { products: Product[] }) {
     return (
       <button onClick={() => setCollapsed(false)}
         className="fixed top-1/2 -translate-y-1/2 right-0 z-30 group transition-all hover:right-0.5 hidden lg:flex"
-        title="Abrir painel do catálogo">
+        title={t('page.openCatalogPanel')}>
         <div
           className="flex flex-col items-center justify-center gap-2 py-4 px-1.5 rounded-l-xl"
           style={{
@@ -245,7 +249,7 @@ function ProdutosToolsPanel({ products }: { products: Product[] }) {
           <span
             className="text-[10px] font-bold uppercase tracking-widest text-zinc-300 group-hover:text-cyan-400 transition-colors"
             style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>
-            Catálogo
+            {t('page.catalog')}
           </span>
           {/* Badge pra cadastro pendente se houver — chama atenção */}
           {pendentes != null && pendentes > 0 && (
@@ -265,37 +269,37 @@ function ProdutosToolsPanel({ products }: { products: Product[] }) {
       style={{ background: '#111114', border: '1px solid #1e1e24', boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}>
       <header className="flex items-center justify-between px-3 py-2"
         style={{ borderBottom: '1px solid #1e1e24' }}>
-        <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Catálogo</span>
+        <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">{t('page.catalog')}</span>
         <button onClick={() => setCollapsed(true)}
           className="p-1 rounded hover:bg-zinc-800/70 text-zinc-500 hover:text-zinc-300"
-          title="Recolher">▶</button>
+          title={t('page.collapse')}>▶</button>
       </header>
       <div className="px-3 py-2.5 space-y-1.5">
-        <KpiRow label="Ativos"          value={ativos.toLocaleString('pt-BR')}      color="#34d399" />
-        <KpiRow label="Sem estoque"     value={semEstoque.toLocaleString('pt-BR')}  color="#f87171" />
-        <KpiRow label="Estoque crítico" value={critico.toLocaleString('pt-BR')}     color="#facc15" />
-        <KpiRow label="Sem Ads"         value={typeof semAds === 'number' ? semAds.toLocaleString('pt-BR') : semAds} color="#a1a1aa" />
+        <KpiRow label={t('page.kpi.active')}        value={ativos.toLocaleString('pt-BR')}      color="#34d399" />
+        <KpiRow label={t('page.kpi.noStock')}       value={semEstoque.toLocaleString('pt-BR')}  color="#f87171" />
+        <KpiRow label={t('page.kpi.criticalStock')} value={critico.toLocaleString('pt-BR')}     color="#facc15" />
+        <KpiRow label={t('page.kpi.noAds')}         value={typeof semAds === 'number' ? semAds.toLocaleString('pt-BR') : semAds} color="#a1a1aa" />
         {pendentes != null && pendentes > 0 && (
           <button
             onClick={() => router.push('/dashboard/produtos?quick_filter=cadastro_pendente')}
             className="w-full -mx-3 px-3 py-1.5 flex items-center justify-between text-[11px] transition-colors hover:bg-amber-500/5 group"
-            title="Filtrar produtos com cadastro pendente"
+            title={t('page.filterPendingTooltip')}
             style={{ borderTop: '1px solid #1e1e24' }}>
-            <span className="text-zinc-400 group-hover:text-amber-300 transition-colors">Cadastro pendente</span>
+            <span className="text-zinc-400 group-hover:text-amber-300 transition-colors">{t('page.kpi.pending')}</span>
             <span className="font-bold text-amber-400">{pendentes.toLocaleString('pt-BR')} →</span>
           </button>
         )}
       </div>
       <div className="px-3 py-2"
         style={{ borderTop: '1px solid #1e1e24' }}>
-        <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Ferramentas</span>
+        <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">{t('page.tools')}</span>
       </div>
       <div className="px-3 pb-3 space-y-2">
         <PulsingButton
           onClick={exportCsv}
           loading={exporting}
           icon={<span className="text-[11px]">📊</span>}
-          label="Exportar catálogo"
+          label={t('page.exportCatalog')}
           badge={products.length}
           variant="emerald"
           className="w-full justify-center"
@@ -304,22 +308,22 @@ function ProdutosToolsPanel({ products }: { products: Product[] }) {
         <Link href="/dashboard/produtos/importar"
           className="block w-full text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-colors text-center hover:border-cyan-500/40 hover:text-cyan-400"
           style={{ background: '#0c0c10', color: '#a1a1aa', border: '1px solid #27272a' }}>
-          📤 Importar planilha
+          📤 {t('page.importSheet')}
         </Link>
         <Link href="/dashboard/produtos/operacao-cadastro"
           className="block w-full text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-colors text-center hover:border-amber-500/40 hover:text-amber-400"
           style={{ background: '#0c0c10', color: '#a1a1aa', border: '1px solid #27272a' }}>
-          📋 Operação cadastro
+          📋 {t('page.opsRegistration')}
         </Link>
         <Link href="/dashboard/produtos/ai-bulk"
           className="block w-full text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-colors text-center hover:border-cyan-500/40 hover:text-cyan-400"
           style={{ background: '#0c0c10', color: '#a1a1aa', border: '1px solid #27272a' }}>
-          🤖 Enriquecer SEO em lote
+          🤖 {t('page.bulkSeoEnrich')}
         </Link>
         <Link href="/dashboard/inteligencia/ml"
           className="block w-full text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-colors text-center hover:border-purple-500/40 hover:text-purple-400"
           style={{ background: '#0c0c10', color: '#a1a1aa', border: '1px solid #27272a' }}>
-          🕵️ Analisar mercado
+          🕵️ {t('page.analyzeMarket')}
         </Link>
       </div>
     </aside>
@@ -338,6 +342,7 @@ function KpiRow({ label, value, color }: { label: string; value: string; color: 
 function RowMenu({ onEdit, onDuplicate, onDelete }: {
   onEdit: () => void; onDuplicate: () => void; onDelete: () => void
 }) {
+  const t = useTranslations('produtos')
   const [open, setOpen] = useState(false)
   // placement: 'bottom' = abre pra baixo do botão (default).
   //            'top'    = abre pra cima (quando não há espaço abaixo).
@@ -395,16 +400,16 @@ function RowMenu({ onEdit, onDuplicate, onDelete }: {
 
   type Item = { label: string; tone?: 'danger'; onClick: () => void }
   const items: Item[] = [
-    { label: 'Editar',                onClick: onEdit },
-    { label: 'Editar preço inline',   onClick: () => todoToast('Edição inline de preço') },
-    { label: 'Editar custo inline',   onClick: () => todoToast('Edição inline de custo') },
-    { label: 'Atualizar estoque',     onClick: () => todoToast('Atualização de estoque') },
-    { label: 'Adicionar a campanha Ads', onClick: () => todoToast('Vínculo com campanha Ads') },
-    { label: 'Gerar conteúdo com IA', onClick: () => todoToast('IA — título / descrição / fotos / atributos') },
-    { label: 'Analisar concorrentes', onClick: () => todoToast('Drawer de concorrentes ML') },
-    { label: 'Marcar para repor',     onClick: () => todoToast('Bridge → módulo Compras') },
-    { label: 'Duplicar (outro marketplace)', onClick: onDuplicate },
-    { label: 'Excluir',               tone: 'danger', onClick: onDelete },
+    { label: t('rowMenu.edit'),             onClick: onEdit },
+    { label: t('rowMenu.editPriceInline'), onClick: () => todoToast(t('rowMenu.editPriceInlineTodo')) },
+    { label: t('rowMenu.editCostInline'),  onClick: () => todoToast(t('rowMenu.editCostInlineTodo')) },
+    { label: t('rowMenu.updateStock'),     onClick: () => todoToast(t('rowMenu.updateStockTodo')) },
+    { label: t('rowMenu.addToAds'),        onClick: () => todoToast(t('rowMenu.addToAdsTodo')) },
+    { label: t('rowMenu.generateAi'),      onClick: () => todoToast(t('rowMenu.generateAiTodo')) },
+    { label: t('rowMenu.analyzeCompetitors'), onClick: () => todoToast(t('rowMenu.analyzeCompetitorsTodo')) },
+    { label: t('rowMenu.markRestock'),     onClick: () => todoToast(t('rowMenu.markRestockTodo')) },
+    { label: t('rowMenu.duplicate'),       onClick: onDuplicate },
+    { label: t('rowMenu.delete'),          tone: 'danger', onClick: onDelete },
   ]
 
   return (
@@ -479,11 +484,13 @@ function TableRow({
   onDuplicate: (id: string) => void
   stockInfo?: StockSummary
 }) {
+  const t = useTranslations('produtos')
   const router = useRouter()
   const [hover, setHover] = useState(false)
   const [toggling, setToggling] = useState(false)
   const cover = product.photo_urls?.[0] ?? null
   const status = SM[product.status] ?? SM.draft
+  const statusLabel = t(`page.status.${product.status in SM ? product.status : 'draft'}`)
   const wLevels = product.wholesale_levels ?? []
 
   async function toggleStatus() {
@@ -526,7 +533,7 @@ function TableRow({
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       onClick={handleRowClick}
-      title="Clique pra editar o produto"
+      title={t('page.clickToEdit')}
     >
       {/* Checkbox */}
       <td className="pl-4 pr-2 py-3 w-10" onClick={e => e.stopPropagation()}>
@@ -576,28 +583,28 @@ function TableRow({
             {product.ml_listing_id && (
               <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full mt-1"
                 style={{ background: 'rgba(0,229,255,0.08)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.2)' }}>
-                🔗 ML Vinculado
+                🔗 {t('page.mlLinked')}
               </span>
             )}
             <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
               <p className="text-zinc-500 text-[11px]">
-                Estoque: <span className={product.stock === 0 ? 'text-red-400' : 'text-zinc-400'}>
+                {t('page.stockLabel')} <span className={product.stock === 0 ? 'text-red-400' : 'text-zinc-400'}>
                   {stockInfo && stockInfo.virtual_quantity > 0
                     ? `${(product.stock ?? 0).toLocaleString('pt-BR')} + ${stockInfo.virtual_quantity.toLocaleString('pt-BR')} = ${((product.stock ?? 0) + stockInfo.virtual_quantity).toLocaleString('pt-BR')}`
-                    : `${product.stock ?? 0}`} u.
+                    : `${product.stock ?? 0}`} {t('page.unitsShort')}
                 </span>
               </p>
               {stockInfo?.auto_pause_enabled && (
                 <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full"
                   style={{ background: 'rgba(251,191,36,0.1)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.2)' }}>
-                  ⏸ Auto-pausa
+                  ⏸ {t('page.autoPause')}
                 </span>
               )}
               {stockInfo?.auto_pause_enabled &&
                (product.stock ?? 0) + (stockInfo.virtual_quantity ?? 0) <= (stockInfo.min_stock_to_pause ?? 0) && (
                 <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full"
                   style={{ background: 'rgba(248,113,113,0.1)', color: '#f87171', border: '1px solid rgba(248,113,113,0.2)' }}>
-                  ⚠ Pausar agora
+                  ⚠ {t('page.pauseNow')}
                 </span>
               )}
             </div>
@@ -611,13 +618,13 @@ function TableRow({
         {product.wholesale_enabled && wLevels.length > 0 && (
           <>
             <p className="text-zinc-500 text-[11px] mt-0.5">
-              em atacado a{' '}
-              <span style={{ color: '#34d399' }}>
-                R$ {wLevels[0].price}
-              </span>
+              {t.rich('page.wholesaleAt', {
+                price: wLevels[0].price,
+                v: (chunks) => <span style={{ color: '#34d399' }}>{chunks}</span>,
+              })}
             </p>
             <p className="text-[10px] mt-0.5" style={{ color: '#a1a1aa' }}>
-              Com {wLevels.length} preço{wLevels.length !== 1 ? 's' : ''} de atacado
+              {t('page.wholesalePricesCount', { count: wLevels.length })}
             </p>
           </>
         )}
@@ -637,25 +644,25 @@ function TableRow({
           {/* Loja Propria — produto enviado pra vitrine (storefront_visible) */}
           {product.storefront_visible && (
             <span className="text-[9px] font-black w-5 h-5 rounded flex items-center justify-center shrink-0"
-              style={{ background: '#00E5FF', color: '#111' }} title="Na Loja Própria">LJ</span>
+              style={{ background: '#00E5FF', color: '#111' }} title={t('page.inOwnStore')}>LJ</span>
           )}
         </div>
         {/* Listing type */}
         {product.ml_listing_type && (
           <p className="text-[11px]" style={{ color: product.ml_listing_type === 'premium' ? '#a78bfa' : '#71717a' }}>
-            {product.ml_listing_type === 'premium' ? '★ Premium' : 'Clássico'} · {product.ml_listing_type === 'premium' ? '16%' : '11%'}
+            {product.ml_listing_type === 'premium' ? '★ ' + t('page.premium') : t('page.classic')} · {product.ml_listing_type === 'premium' ? '16%' : '11%'}
           </p>
         )}
         {/* Shipping */}
         <div className="flex flex-wrap gap-x-2 mt-1">
           {product.ml_free_shipping && (
-            <span className="text-[10px]" style={{ color: '#34d399' }}>Frete grátis</span>
+            <span className="text-[10px]" style={{ color: '#34d399' }}>{t('page.freeShipping')}</span>
           )}
           {!product.ml_free_shipping && (
-            <span className="text-[10px] text-zinc-600">Frete por conta do comprador</span>
+            <span className="text-[10px] text-zinc-600">{t('page.buyerShipping')}</span>
           )}
           {product.ml_flex && (
-            <span className="text-[10px]" style={{ color: '#00E5FF' }}>Envios Flex</span>
+            <span className="text-[10px]" style={{ color: '#00E5FF' }}>{t('page.mlFlex')}</span>
           )}
         </div>
       </td>
@@ -664,9 +671,9 @@ function TableRow({
       <td className="px-3 py-3 w-36">
         <div className="space-y-1">
           {[
-            { label: 'Visitas 7d', value: '—' },
-            { label: 'Vendas 7d', value: '—' },
-            { label: 'Conversão', value: '—' },
+            { label: t('page.metricVisits7d'), value: '—' },
+            { label: t('page.metricSales7d'), value: '—' },
+            { label: t('page.metricConversion'), value: '—' },
           ].map(m => (
             <div key={m.label} className="flex items-center justify-between">
               <span className="text-[10px] text-zinc-600">{m.label}</span>
@@ -681,7 +688,7 @@ function TableRow({
         <div className="flex flex-col items-start gap-2">
           <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full"
             style={{ background: status.bg, color: status.color }}>
-            {status.label}
+            {statusLabel}
           </span>
           {product.status !== 'draft' && (
             <button onClick={toggleStatus} disabled={toggling}
@@ -691,7 +698,7 @@ function TableRow({
                 color: product.status === 'active' ? '#71717a' : '#34d399',
                 background: 'transparent',
               }}>
-              {toggling ? '…' : product.status === 'active' ? 'Pausar' : 'Ativar'}
+              {toggling ? '…' : product.status === 'active' ? t('page.pause') : t('page.activate')}
             </button>
           )}
         </div>
@@ -747,10 +754,12 @@ function ProductCard({ product, onDelete, onStatusChange, onDuplicate }: {
   onStatusChange: (id: string, s: Product['status']) => void
   onDuplicate: (id: string) => void
 }) {
+  const t = useTranslations('produtos')
   const router = useRouter()
   const [toggling, setToggling] = useState(false)
   const cover = product.photo_urls?.[0] ?? null
   const status = SM[product.status] ?? SM.draft
+  const statusLabel = t(`page.status.${product.status in SM ? product.status : 'draft'}`)
 
   async function toggleStatus() {
     if (product.status === 'draft') return
@@ -783,7 +792,7 @@ function ProductCard({ product, onDelete, onStatusChange, onDuplicate }: {
             </div>
         }
         <span className="absolute top-3 left-3 text-[10px] font-semibold px-2 py-0.5 rounded-full"
-          style={{ background: status.bg, color: status.color }}>{status.label}</span>
+          style={{ background: status.bg, color: status.color }}>{statusLabel}</span>
         <div className="absolute top-3 right-3 flex gap-1">
           {(product.platforms ?? []).map(p => {
             const m = PM[p]; if (!m) return null
@@ -805,13 +814,13 @@ function ProductCard({ product, onDelete, onStatusChange, onDuplicate }: {
         {product.ml_listing_id && (
           <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full"
             style={{ background: 'rgba(0,229,255,0.08)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.2)' }}>
-            🔗 ML Vinculado
+            🔗 {t('page.mlLinked')}
           </span>
         )}
         <div className="flex items-end justify-between mt-auto">
           <div>
             <p className="font-bold text-base leading-tight" style={{ color: '#00E5FF' }}>{brl(product.price)}</p>
-            <p className="text-zinc-600 text-[11px] mt-0.5">{product.stock ?? 0} em estoque</p>
+            <p className="text-zinc-600 text-[11px] mt-0.5">{t('page.inStock', { count: product.stock ?? 0 })}</p>
           </div>
           {product.brand && <span className="text-[11px] text-zinc-500 px-2 py-1 rounded-lg" style={{ background: 'rgba(255,255,255,0.04)' }}>{product.brand}</span>}
         </div>
@@ -822,13 +831,13 @@ function ProductCard({ product, onDelete, onStatusChange, onDuplicate }: {
           style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}
           onMouseEnter={e => { e.currentTarget.style.borderColor = '#00E5FF'; e.currentTarget.style.color = '#00E5FF' }}
           onMouseLeave={e => { e.currentTarget.style.borderColor = '#3f3f46'; e.currentTarget.style.color = '#a1a1aa' }}>
-          Editar
+          {t('page.edit')}
         </button>
         {product.status !== 'draft' && (
           <button onClick={toggleStatus} disabled={toggling}
             className="px-3 py-2 rounded-lg text-[12px] font-medium border transition-all"
             style={{ borderColor: '#3f3f46', color: '#71717a' }}>
-            {toggling ? '…' : product.status === 'active' ? 'Pausar' : 'Ativar'}
+            {toggling ? '…' : product.status === 'active' ? t('page.pause') : t('page.activate')}
           </button>
         )}
         <RowMenu
@@ -854,6 +863,7 @@ type MlItem = {
 }
 
 function MlImportModal({ onClose, onImported }: { onClose: () => void; onImported: () => void }) {
+  const t = useTranslations('produtos')
   const [items, setItems] = useState<MlItem[]>([])
   const [loading, setLoading] = useState(true)
   const [importing, setImporting] = useState<Set<string>>(new Set())
@@ -863,16 +873,16 @@ function MlImportModal({ onClose, onImported }: { onClose: () => void; onImporte
   useEffect(() => {
     ;(async () => {
       const token = await getAuthToken()
-      if (!token) { setError('Sessão expirada.'); setLoading(false); return }
+      if (!token) { setError(t('mlImport.sessionExpired')); setLoading(false); return }
       const res = await fetch(`${BACKEND}/ml/items?limit=50`, {
         headers: { Authorization: `Bearer ${token}` },
       })
-      if (!res.ok) { setError('Falha ao carregar anúncios do ML.'); setLoading(false); return }
+      if (!res.ok) { setError(t('mlImport.loadError')); setLoading(false); return }
       const { items: data } = await res.json()
       setItems(data ?? [])
       setLoading(false)
     })()
-  }, [])
+  }, [t])
 
   async function handleImport(mlItemId: string) {
     setImporting(prev => new Set(prev).add(mlItemId))
@@ -902,8 +912,8 @@ function MlImportModal({ onClose, onImported }: { onClose: () => void; onImporte
             <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold"
               style={{ background: '#ffe600', color: '#333' }}>ML</div>
             <div>
-              <p className="text-white text-sm font-semibold">Importar do Mercado Livre</p>
-              <p className="text-zinc-500 text-xs">Selecione os anúncios para importar ao catálogo</p>
+              <p className="text-white text-sm font-semibold">{t('mlImport.title')}</p>
+              <p className="text-zinc-500 text-xs">{t('mlImport.subtitle')}</p>
             </div>
           </div>
           <button onClick={onClose} className="text-zinc-500 hover:text-white transition-colors">
@@ -929,14 +939,14 @@ function MlImportModal({ onClose, onImported }: { onClose: () => void; onImporte
               style={{ background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.2)', color: '#f87171' }}>
               {error}
               {error.includes('conectar') || error.includes('ML') ? (
-                <Link href="/dashboard/integracoes" className="ml-2 underline" onClick={onClose}>Conectar conta</Link>
+                <Link href="/dashboard/integracoes" className="ml-2 underline" onClick={onClose}>{t('mlImport.connectAccount')}</Link>
               ) : null}
             </div>
           )}
 
           {!loading && !error && items.length === 0 && (
             <div className="flex flex-col items-center justify-center py-16">
-              <p className="text-zinc-400 text-sm">Nenhum anúncio encontrado na sua conta ML.</p>
+              <p className="text-zinc-400 text-sm">{t('mlImport.noListings')}</p>
             </div>
           )}
 
@@ -955,8 +965,8 @@ function MlImportModal({ onClose, onImported }: { onClose: () => void; onImporte
                         <span className="text-[12px] font-bold" style={{ color: '#00E5FF' }}>
                           {item.price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                         </span>
-                        <span className="text-[11px] text-zinc-500">{item.available_quantity} em estoque</span>
-                        <span className="text-[11px] text-zinc-600">{item.sold_quantity} vendidos</span>
+                        <span className="text-[11px] text-zinc-500">{t('page.inStock', { count: item.available_quantity })}</span>
+                        <span className="text-[11px] text-zinc-600">{t('mlImport.soldCount', { count: item.sold_quantity })}</span>
                       </div>
                     </div>
                     <button
@@ -969,7 +979,7 @@ function MlImportModal({ onClose, onImported }: { onClose: () => void; onImporte
                           ? { background: 'rgba(0,229,255,0.08)', color: '#00E5FF' }
                           : { background: '#00E5FF', color: '#000' }
                       }>
-                      {done ? '✓ Importado' : busy ? 'Importando…' : 'Importar'}
+                      {done ? '✓ ' + t('mlImport.imported') : busy ? t('mlImport.importing') : t('mlImport.import')}
                     </button>
                   </div>
                 )
@@ -1001,6 +1011,7 @@ type ProductMeta = {
 }
 
 export default function ProdutosPage() {
+  const t = useTranslations('produtos')
   const [products, setProducts]     = useState<Product[]>([])
   const [loading, setLoading]       = useState(true)
   const [error, setError]           = useState<string | null>(null)
@@ -1037,7 +1048,7 @@ export default function ProdutosPage() {
     setLoading(true); setError(null)
     try {
       const token = await getAuthToken()
-      if (!token) { setError('Não autenticado'); setLoading(false); return }
+      if (!token) { setError(t('page.notAuthenticated')); setLoading(false); return }
       const res = await fetch(`${BACKEND}/products`, {
         headers: { Authorization: `Bearer ${token}` },
       })
@@ -1045,11 +1056,11 @@ export default function ProdutosPage() {
       const data = await res.json()
       setProducts(Array.isArray(data) ? data : [])
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Erro ao carregar produtos')
+      setError(e instanceof Error ? e.message : t('page.loadError'))
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [t])
 
   // Fetch product_stock for virtual qty badges
   useEffect(() => {
@@ -1166,12 +1177,12 @@ export default function ProdutosPage() {
         body: JSON.stringify({ status: next }),
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      pushToast({ tone: 'success', message: `✓ Anúncio ${next === 'paused' ? 'pausado' : 'ativado'}` })
+      pushToast({ tone: 'success', message: '✓ ' + (next === 'paused' ? t('page.toastPaused') : t('page.toastActivated')) })
     } catch {
       if (prev) setProducts(ps => ps.map(p => p.id === id ? { ...p, status: prev } : p))
-      pushToast({ tone: 'error', message: `Falha ao ${next === 'paused' ? 'pausar' : 'ativar'} anúncio` })
+      pushToast({ tone: 'error', message: next === 'paused' ? t('page.toastPauseFailed') : t('page.toastActivateFailed') })
     }
-  }, [products])
+  }, [products, t])
 
   async function handleDelete(id: string) {
     const token = await getAuthToken()
@@ -1192,7 +1203,7 @@ export default function ProdutosPage() {
     const { id: _id, created_at: _ca, ...rest } = source as Product & { [key: string]: unknown }
     const { data } = await supabase
       .from('products')
-      .insert({ ...rest, name: `${source.name} (cópia)`, status: 'draft', organization_id: orgId })
+      .insert({ ...rest, name: t('page.copyName', { name: source.name }), status: 'draft', organization_id: orgId })
       .select()
       .single()
     if (data) setProducts(prev => [data as Product, ...prev])
@@ -1206,7 +1217,7 @@ export default function ProdutosPage() {
     await supabase.from('products').update({ status: 'paused' }).in('id', ids)
     setProducts(prev => prev.map(p => ids.includes(p.id) ? { ...p, status: 'paused' } : p))
     setSelected(prev => { const n = new Set(prev); ids.forEach(i => n.delete(i)); return n })
-    pushToast({ tone: 'success', message: `✓ ${ids.length} produto${ids.length === 1 ? '' : 's'} pausado${ids.length === 1 ? '' : 's'}` })
+    pushToast({ tone: 'success', message: '✓ ' + t('page.toastBulkPaused', { count: ids.length }) })
   }
 
   async function bulkDelete(ids: string[]) {
@@ -1214,9 +1225,9 @@ export default function ProdutosPage() {
     const token = await getAuthToken()
     if (!token) return
     const ok = await confirm({
-      title:        'Excluir produtos',
-      message:      `Excluir ${ids.length} produto${ids.length === 1 ? '' : 's'}? Esta ação não pode ser desfeita.`,
-      confirmLabel: 'Excluir',
+      title:        t('page.deleteProductsTitle'),
+      message:      t('page.deleteProductsMessage', { count: ids.length }),
+      confirmLabel: t('page.delete'),
       variant:      'danger',
     })
     if (!ok) return
@@ -1227,7 +1238,7 @@ export default function ProdutosPage() {
     })
     setProducts(prev => prev.filter(p => !ids.includes(p.id)))
     setSelected(prev => { const n = new Set(prev); ids.forEach(i => n.delete(i)); return n })
-    pushToast({ tone: 'success', message: `${ids.length} produto${ids.length === 1 ? '' : 's'} excluído${ids.length === 1 ? '' : 's'}` })
+    pushToast({ tone: 'success', message: t('page.toastBulkDeleted', { count: ids.length }) })
   }
 
   /** Loja Propria — envia/remove produtos selecionados da vitrine /loja/[slug]. */
@@ -1241,17 +1252,16 @@ export default function ProdutosPage() {
       body: JSON.stringify({ productIds: ids, visible }),
     })
     if (!res.ok) {
-      pushToast({ tone: 'error', message: 'Erro ao atualizar a vitrine da loja' })
+      pushToast({ tone: 'error', message: t('page.storefrontError') })
       return
     }
     const r = await res.json() as { updated: number; skipped: number }
     setSelected(prev => { const n = new Set(prev); ids.forEach(i => n.delete(i)); return n })
-    const plural = r.updated === 1 ? '' : 's'
     let msg = visible
-      ? `${r.updated} produto${plural} enviado${plural} para a loja`
-      : `${r.updated} produto${plural} removido${plural} da loja`
+      ? t('page.toastSentToStore', { count: r.updated })
+      : t('page.toastRemovedFromStore', { count: r.updated })
     if (visible && r.skipped > 0) {
-      msg += ` · ${r.skipped} pulado${r.skipped === 1 ? '' : 's'} (sem nome ou preço)`
+      msg += ` · ${t('page.toastSkippedNoData', { count: r.skipped })}`
     }
     pushToast({ tone: 'success', message: msg })
     // Recarrega pra os badges "LJ" refletirem o novo estado da vitrine.
@@ -1353,9 +1363,9 @@ export default function ProdutosPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-5">
         <div>
-          <h2 className="text-white text-lg font-semibold">Produtos</h2>
+          <h2 className="text-white text-lg font-semibold">{t('page.title')}</h2>
           <p className="text-zinc-500 text-sm mt-0.5">
-            {loading ? 'Carregando…' : `${products.length} produto${products.length !== 1 ? 's' : ''} no catálogo`}
+            {loading ? t('page.loading') : t('page.catalogCount', { count: products.length })}
           </p>
         </div>
         <div className="flex items-center gap-1.5">
@@ -1365,48 +1375,48 @@ export default function ProdutosPage() {
               className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-semibold border transition-all active:scale-[0.98]"
               style={{ borderColor: '#ffe600', color: '#ffe600', background: 'rgba(255,230,0,0.06)' }}>
               <span className="text-[8px] font-black w-3 h-3 rounded-sm flex items-center justify-center leading-none" style={{ background: '#ffe600', color: '#333' }}>ML</span>
-              Importar do ML
+              {t('page.importFromMl')}
             </button>
           )}
           <button
             onClick={() => setShowBulkCost(true)}
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-semibold border transition-all active:scale-[0.98]"
             style={{ borderColor: 'rgba(34,197,94,0.4)', color: '#4ADE80', background: 'rgba(34,197,94,0.06)' }}
-            title="Importar planilha XLSX/CSV pra atualizar custos e impostos em massa"
+            title={t('page.updateCostsTooltip')}
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-6h13M9 11V5h13M3 5h3M3 11h3M3 17h3" />
             </svg>
-            Atualizar Custos
+            {t('page.updateCosts')}
           </button>
           <button
             onClick={() => setShowTaxConfig(true)}
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium border transition-all hover:border-cyan-500/50 hover:text-cyan-400"
             style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}
-            title="Cadastrar o imposto padrão da empresa pra cálculo de margem"
+            title={t('page.defaultTaxTooltip')}
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 7h6m-6 4h6m-6 4h4M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" />
             </svg>
-            Imposto padrão
+            {t('page.defaultTax')}
           </button>
           <Link href="/dashboard/produtos/importar"
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium border transition-all hover:border-cyan-500/50 hover:text-cyan-400"
             style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}
-            title="Subir planilha CSV/XLSX">
+            title={t('page.importSheetTooltip')}>
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
             </svg>
-            Importar planilha
+            {t('page.importSheet')}
           </Link>
           <Link href="/dashboard/produtos/operacao-cadastro"
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium border transition-all hover:border-amber-500/50 hover:text-amber-400"
             style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}
-            title="Cadastros pendentes + despacho pro operador">
+            title={t('page.opsRegistrationTooltip')}>
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
             </svg>
-            Operação cadastro
+            {t('page.opsRegistration')}
           </Link>
           <Link href="/dashboard/produtos/novo"
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-semibold transition-all active:scale-[0.98]"
@@ -1414,7 +1424,7 @@ export default function ProdutosPage() {
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
             </svg>
-            Novo Produto
+            {t('page.newProduct')}
           </Link>
         </div>
       </div>
@@ -1427,7 +1437,7 @@ export default function ProdutosPage() {
             fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
-          <input type="text" placeholder="Buscar nome, SKU, marca…"
+          <input type="text" placeholder={t('page.searchPlaceholder')}
             value={search} onChange={e => setSearch(e.target.value)}
             className="w-full pl-9 pr-4 py-2 rounded-lg text-sm text-white placeholder-zinc-600 border border-[#3f3f46] outline-none transition-all focus:border-[#00E5FF]"
             style={{ background: '#111114' }} />
@@ -1436,7 +1446,7 @@ export default function ProdutosPage() {
         {/* Status filters */}
         <div className="flex gap-1.5">
           {(['all', 'active', 'draft', 'paused'] as const).map(s => {
-            const labels = { all: 'Todos', active: 'Ativos', draft: 'Rascunhos', paused: 'Pausados' }
+            const labels = { all: t('page.filterAll'), active: t('page.filterActive'), draft: t('page.filterDrafts'), paused: t('page.filterPaused') }
             const active = filterStatus === s
             const count = s === 'all' ? products.length : products.filter(p => p.status === s).length
             return (
@@ -1465,7 +1475,7 @@ export default function ProdutosPage() {
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
           </svg>
-          Filtros
+          {t('page.filters')}
           {advCount > 0 && <span className="text-[10px] font-bold px-1.5 rounded-full" style={{ background: '#00E5FF', color: '#000' }}>{advCount}</span>}
         </button>
 
@@ -1497,13 +1507,13 @@ export default function ProdutosPage() {
           style={{ background: '#0c0c0f', border: '1px solid #1e1e24' }}>
           {/* Estoque */}
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2">Estoque</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2">{t('page.adv.stock')}</p>
             <div className="flex flex-wrap gap-1">
               {([
-                { v: 'all',      label: 'Todos' },
-                { v: 'zero',     label: 'Zerado' },
-                { v: 'critical', label: 'Crítico (≤5)' },
-                { v: 'normal',   label: 'Normal (>5)' },
+                { v: 'all',      label: t('page.adv.stockAll') },
+                { v: 'zero',     label: t('page.adv.stockZero') },
+                { v: 'critical', label: t('page.adv.stockCritical') },
+                { v: 'normal',   label: t('page.adv.stockNormal') },
               ] as const).map(o => (
                 <button key={o.v} onClick={() => setFilterStock(o.v)}
                   className="px-2 py-1 rounded-md text-[11px] font-medium border transition-all"
@@ -1520,10 +1530,10 @@ export default function ProdutosPage() {
 
           {/* Plataformas */}
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2">Plataformas</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2">{t('page.adv.platforms')}</p>
             <div className="flex flex-wrap gap-1">
               {availablePlatforms.length === 0 ? (
-                <span className="text-[11px] text-zinc-600">Nenhuma vinculada</span>
+                <span className="text-[11px] text-zinc-600">{t('page.adv.noPlatformLinked')}</span>
               ) : availablePlatforms.map(plat => {
                 const meta = PM[plat]
                 const active = filterPlatforms.has(plat)
@@ -1549,15 +1559,15 @@ export default function ProdutosPage() {
 
           {/* Preço range */}
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2">Preço (R$)</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2">{t('page.adv.price')}</p>
             <div className="flex items-center gap-1.5">
-              <input type="number" min="0" placeholder="Min"
+              <input type="number" min="0" placeholder={t('page.adv.priceMin')}
                 value={filterPriceMin}
                 onChange={e => setFilterPriceMin(e.target.value)}
                 className="w-full px-2 py-1.5 rounded-md text-[11px] text-white placeholder-zinc-600 border outline-none focus:border-[#00E5FF]"
                 style={{ background: '#070709', borderColor: '#27272a' }} />
               <span className="text-zinc-600 text-[11px]">—</span>
-              <input type="number" min="0" placeholder="Máx"
+              <input type="number" min="0" placeholder={t('page.adv.priceMax')}
                 value={filterPriceMax}
                 onChange={e => setFilterPriceMax(e.target.value)}
                 className="w-full px-2 py-1.5 rounded-md text-[11px] text-white placeholder-zinc-600 border outline-none focus:border-[#00E5FF]"
@@ -1567,14 +1577,14 @@ export default function ProdutosPage() {
 
           {/* Saneamento de dados */}
           <div className="md:col-span-2 lg:col-span-1">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2">Saneamento</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2">{t('page.adv.sanitation')}</p>
             <div className="flex flex-col gap-1">
               {([
-                { k: 'noCompetitors',  label: 'Sem concorrentes',          count: counts.noCompetitors },
-                { k: 'noListings',     label: 'Sem vínculo (marketplace)', count: counts.noListings },
-                { k: 'noCost',         label: 'Sem custo cadastrado',      count: counts.noCost },
-                { k: 'noPhoto',        label: 'Sem foto',                  count: counts.noPhoto },
-                { k: 'singlePlatform', label: 'Em 1 só plataforma',        count: counts.singlePlatform },
+                { k: 'noCompetitors',  label: t('page.adv.noCompetitors'),  count: counts.noCompetitors },
+                { k: 'noListings',     label: t('page.adv.noListings'),     count: counts.noListings },
+                { k: 'noCost',         label: t('page.adv.noCost'),         count: counts.noCost },
+                { k: 'noPhoto',        label: t('page.adv.noPhoto'),        count: counts.noPhoto },
+                { k: 'singlePlatform', label: t('page.adv.singlePlatform'), count: counts.singlePlatform },
               ] as const).map(o => {
                 const active = filterFlags[o.k]
                 return (
@@ -1605,9 +1615,9 @@ export default function ProdutosPage() {
       {/* Active filters chip bar — só renderiza quando há algo */}
       {advCount > 0 && (
         <div className="mb-4 flex flex-wrap items-center gap-1.5 text-[11px]">
-          <span className="text-zinc-500 font-medium">Ativos:</span>
+          <span className="text-zinc-500 font-medium">{t('page.activeFilters')}</span>
           {filterStock !== 'all' && (
-            <ActiveChip label={`Estoque: ${({ zero: 'Zerado', critical: 'Crítico', normal: 'Normal' } as const)[filterStock]}`} onRemove={() => setFilterStock('all')} />
+            <ActiveChip label={t('page.chipStock', { value: t(`page.adv.stock${filterStock === 'zero' ? 'ZeroChip' : filterStock === 'critical' ? 'CriticalChip' : 'NormalChip'}`) })} onRemove={() => setFilterStock('all')} />
           )}
           {[...filterPlatforms].map(plat => (
             <ActiveChip key={plat} label={PM[plat]?.abbr ?? plat} onRemove={() => setFilterPlatforms(prev => { const n = new Set(prev); n.delete(plat); return n })} />
@@ -1615,17 +1625,17 @@ export default function ProdutosPage() {
           {(filterPriceMin || filterPriceMax) && (
             <ActiveChip label={`R$ ${filterPriceMin || '0'} — ${filterPriceMax || '∞'}`} onRemove={() => { setFilterPriceMin(''); setFilterPriceMax('') }} />
           )}
-          {filterFlags.noCompetitors  && <ActiveChip label="Sem concorrentes"  onRemove={() => setFilterFlags(p => ({ ...p, noCompetitors: false }))} />}
-          {filterFlags.noListings     && <ActiveChip label="Sem vínculo"        onRemove={() => setFilterFlags(p => ({ ...p, noListings: false }))} />}
-          {filterFlags.noCost         && <ActiveChip label="Sem custo"          onRemove={() => setFilterFlags(p => ({ ...p, noCost: false }))} />}
-          {filterFlags.noPhoto        && <ActiveChip label="Sem foto"           onRemove={() => setFilterFlags(p => ({ ...p, noPhoto: false }))} />}
-          {filterFlags.singlePlatform && <ActiveChip label="1 só plataforma"    onRemove={() => setFilterFlags(p => ({ ...p, singlePlatform: false }))} />}
+          {filterFlags.noCompetitors  && <ActiveChip label={t('page.adv.noCompetitors')} onRemove={() => setFilterFlags(p => ({ ...p, noCompetitors: false }))} />}
+          {filterFlags.noListings     && <ActiveChip label={t('page.chipNoLink')}        onRemove={() => setFilterFlags(p => ({ ...p, noListings: false }))} />}
+          {filterFlags.noCost         && <ActiveChip label={t('page.chipNoCost')}        onRemove={() => setFilterFlags(p => ({ ...p, noCost: false }))} />}
+          {filterFlags.noPhoto        && <ActiveChip label={t('page.adv.noPhoto')}       onRemove={() => setFilterFlags(p => ({ ...p, noPhoto: false }))} />}
+          {filterFlags.singlePlatform && <ActiveChip label={t('page.chipSinglePlatform')} onRemove={() => setFilterFlags(p => ({ ...p, singlePlatform: false }))} />}
           <button onClick={clearAdv}
             className="ml-1 px-2 py-0.5 text-[10px] font-medium rounded transition-colors"
             style={{ color: '#71717a' }}
             onMouseEnter={e => { e.currentTarget.style.color = '#f87171' }}
             onMouseLeave={e => { e.currentTarget.style.color = '#71717a' }}>
-            Limpar tudo
+            {t('page.clearAll')}
           </button>
         </div>
       )}
@@ -1643,7 +1653,7 @@ export default function ProdutosPage() {
       {error && (
         <div className="mb-4 px-4 py-3 rounded-xl border text-sm"
           style={{ background: 'rgba(248,113,113,0.08)', borderColor: 'rgba(248,113,113,0.2)', color: '#f87171' }}>
-          {error} <button onClick={load} className="ml-2 underline">Tentar novamente</button>
+          {error} <button onClick={load} className="ml-2 underline">{t('page.tryAgain')}</button>
         </div>
       )}
 
@@ -1657,9 +1667,9 @@ export default function ProdutosPage() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
             </svg>
           </div>
-          <p className="text-white font-semibold text-base mb-1">Nenhum produto cadastrado</p>
+          <p className="text-white font-semibold text-base mb-1">{t('page.emptyTitle')}</p>
           <p className="text-zinc-500 text-sm mb-6 text-center max-w-xs">
-            Adicione produtos ao seu catálogo para começar a monitorar preços e concorrentes.
+            {t('page.emptyDesc')}
           </p>
           <Link href="/dashboard/produtos/novo"
             className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold transition-all active:scale-[0.98]"
@@ -1667,7 +1677,7 @@ export default function ProdutosPage() {
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
             </svg>
-            Cadastrar primeiro produto
+            {t('page.registerFirst')}
           </Link>
         </div>
       )}
@@ -1676,10 +1686,13 @@ export default function ProdutosPage() {
       {!loading && products.length > 0 && filtered.length === 0 && (
         <div className="rounded-2xl border flex flex-col items-center justify-center py-14"
           style={{ background: '#111114', borderColor: '#1e1e24' }}>
-          <p className="text-zinc-400 text-sm">Nenhum produto encontrado para <strong className="text-white">&quot;{search}&quot;</strong></p>
+          <p className="text-zinc-400 text-sm">{t.rich('page.noResults', {
+            query: search,
+            b: (chunks) => <strong className="text-white">{chunks}</strong>,
+          })}</p>
           <button onClick={() => { setSearch(''); setFilter('all'); clearAdv() }}
             className="mt-3 text-[12px] font-medium" style={{ color: '#00E5FF' }}>
-            Limpar filtros
+            {t('page.clearFilters')}
           </button>
         </div>
       )}
@@ -1719,8 +1732,8 @@ export default function ProdutosPage() {
                       onChange={() => handleSelectAll(allFilteredIds)}
                       className="w-4 h-4 rounded cursor-pointer accent-[#00E5FF]" />
                   </th>
-                  {['ANÚNCIO', 'PREÇO', 'PLATAFORMAS', 'MÉTRICAS', 'STATUS', ''].map(h => (
-                    <th key={h} className="px-3 py-3 text-left text-[10px] font-semibold uppercase tracking-widest"
+                  {[t('page.colListing'), t('page.colPrice'), t('page.colPlatforms'), t('page.colMetrics'), t('page.colStatus'), ''].map((h, i) => (
+                    <th key={i} className="px-3 py-3 text-left text-[10px] font-semibold uppercase tracking-widest"
                       style={{ color: '#a1a1aa' }}>
                       {h}
                     </th>
@@ -1834,6 +1847,7 @@ function Pagination({ total, page, perPage, onPage, onPerPage }: {
   onPage:    (p: number) => void
   onPerPage: (n: number) => void
 }) {
+  const t = useTranslations('produtos')
   const totalPages = Math.max(1, Math.ceil(total / perPage))
   const from = total === 0 ? 0 : page * perPage + 1
   const to   = Math.min(total, (page + 1) * perPage)
@@ -1841,26 +1855,26 @@ function Pagination({ total, page, perPage, onPage, onPerPage }: {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 mt-4 px-1">
       <div className="flex items-center gap-2 text-xs" style={{ color: '#a1a1aa' }}>
-        <span>Mostrar</span>
+        <span>{t('page.pagination.show')}</span>
         <select
           value={perPage}
           onChange={e => onPerPage(Number(e.target.value))}
-          aria-label="Itens por página"
+          aria-label={t('page.pagination.itemsPerPage')}
           className="rounded-lg px-2 py-1.5 text-xs outline-none cursor-pointer"
           style={{ background: '#111114', border: '1px solid #1e1e24', color: '#e4e4e7' }}
         >
           {[10, 20, 50, 100].map(n => <option key={n} value={n}>{n}</option>)}
         </select>
-        <span>por página</span>
+        <span>{t('page.pagination.perPage')}</span>
       </div>
       <div className="flex items-center gap-3 text-xs" style={{ color: '#a1a1aa' }}>
-        <span>{from}–{to} de {total}</span>
+        <span>{t('page.pagination.range', { from, to, total })}</span>
         <div className="flex items-center gap-1">
-          <PageBtn disabled={page <= 0} onClick={() => onPage(0)} label="«" aria="Primeira página" />
-          <PageBtn disabled={page <= 0} onClick={() => onPage(page - 1)} label="‹" aria="Página anterior" />
+          <PageBtn disabled={page <= 0} onClick={() => onPage(0)} label="«" aria={t('page.pagination.first')} />
+          <PageBtn disabled={page <= 0} onClick={() => onPage(page - 1)} label="‹" aria={t('page.pagination.previous')} />
           <span className="px-2 tabular-nums" style={{ color: '#e4e4e7' }}>{page + 1} / {totalPages}</span>
-          <PageBtn disabled={page >= totalPages - 1} onClick={() => onPage(page + 1)} label="›" aria="Próxima página" />
-          <PageBtn disabled={page >= totalPages - 1} onClick={() => onPage(totalPages - 1)} label="»" aria="Última página" />
+          <PageBtn disabled={page >= totalPages - 1} onClick={() => onPage(page + 1)} label="›" aria={t('page.pagination.next')} />
+          <PageBtn disabled={page >= totalPages - 1} onClick={() => onPage(totalPages - 1)} label="»" aria={t('page.pagination.last')} />
         </div>
       </div>
     </div>
@@ -1870,6 +1884,7 @@ function Pagination({ total, page, perPage, onPage, onPerPage }: {
 // ── Modal: imposto padrão da empresa ────────────────────────────────────────
 
 function TaxConfigModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+  const t = useTranslations('produtos')
   const [pct, setPct]               = useState('')
   const [onFreight, setOnFreight]   = useState(false)
   const [apply, setApply]           = useState<'none' | 'only_empty' | 'all'>('only_empty')
@@ -1883,7 +1898,7 @@ function TaxConfigModal({ onClose, onSaved }: { onClose: () => void; onSaved: ()
     void (async () => {
       try {
         const token = await getAuthToken()
-        if (!token) { setError('Não autenticado'); return }
+        if (!token) { setError(t('tax.notAuthenticated')); return }
         const res = await fetch(`${BACKEND}/products/tax-config`, { headers: { Authorization: `Bearer ${token}` } })
         if (res.ok) {
           const d = await res.json() as { default_tax_percentage: number | null; default_tax_on_freight: boolean }
@@ -1893,14 +1908,14 @@ function TaxConfigModal({ onClose, onSaved }: { onClose: () => void; onSaved: ()
       } catch { /* mantém vazio */ }
       finally { setLoading(false) }
     })()
-  }, [])
+  }, [t])
 
   /** Valida e decide o fluxo — aplicar a todos exige confirmacao antes de gravar. */
   function save() {
     setError(null)
     const num = Number(pct)
     if (pct.trim() === '' || !Number.isFinite(num) || num < 0 || num > 100) {
-      setError('Informe um percentual válido (0 a 100).')
+      setError(t('tax.invalidPercent'))
       return
     }
     if (apply === 'all') { setConfirming(true); return }
@@ -1915,7 +1930,7 @@ function TaxConfigModal({ onClose, onSaved }: { onClose: () => void; onSaved: ()
     setSaving(true)
     try {
       const token = await getAuthToken()
-      if (!token) { setError('Não autenticado'); setSaving(false); return }
+      if (!token) { setError(t('tax.notAuthenticated')); setSaving(false); return }
       const res = await fetch(`${BACKEND}/products/tax-config`, {
         method:  'PUT',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -1925,12 +1940,12 @@ function TaxConfigModal({ onClose, onSaved }: { onClose: () => void; onSaved: ()
       if (!res.ok) throw new Error(body.message ?? `HTTP ${res.status}`)
       setResult(
         apply === 'none'
-          ? 'Imposto padrão salvo. Produtos sem imposto herdam esse valor no cálculo.'
-          : `Imposto padrão salvo · ${body.products_updated ?? 0} produto(s) atualizado(s).`,
+          ? t('tax.resultNone')
+          : t('tax.resultApplied', { count: body.products_updated ?? 0 }),
       )
       onSaved()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Erro ao salvar')
+      setError(e instanceof Error ? e.message : t('tax.saveError'))
     } finally {
       setSaving(false)
     }
@@ -1942,7 +1957,7 @@ function TaxConfigModal({ onClose, onSaved }: { onClose: () => void; onSaved: ()
       <div className="w-full max-w-md rounded-2xl overflow-hidden"
         style={{ background: '#111114', border: '1px solid #1e1e24' }}>
         <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid #1e1e24' }}>
-          <p className="text-white text-sm font-semibold">Imposto padrão da empresa</p>
+          <p className="text-white text-sm font-semibold">{t('tax.title')}</p>
           <button onClick={onClose} className="text-zinc-500 hover:text-white transition-colors">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -1951,26 +1966,26 @@ function TaxConfigModal({ onClose, onSaved }: { onClose: () => void; onSaved: ()
         </div>
 
         {loading ? (
-          <div className="px-5 py-8 text-zinc-500 text-sm">Carregando…</div>
+          <div className="px-5 py-8 text-zinc-500 text-sm">{t('tax.loading')}</div>
         ) : result ? (
           <div className="px-5 py-6">
             <p className="text-emerald-400 text-sm font-medium mb-4">{result}</p>
             <button onClick={onClose}
               className="w-full px-4 py-2 rounded-lg text-sm font-semibold"
               style={{ background: '#00E5FF', color: '#000' }}>
-              Fechar
+              {t('tax.close')}
             </button>
           </div>
         ) : confirming ? (
           <div className="px-5 py-5 space-y-4">
             <div className="rounded-lg p-3.5"
               style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)' }}>
-              <p className="text-amber-300 text-sm font-semibold mb-1">Aplicar a todos os produtos?</p>
+              <p className="text-amber-300 text-sm font-semibold mb-1">{t('tax.applyAllTitle')}</p>
               <p className="text-zinc-300 text-xs leading-relaxed">
-                Isso vai gravar <strong className="text-white">{pct}%</strong> de imposto em
-                {' '}<strong className="text-white">todos os produtos do catálogo</strong>,
-                {' '}sobrescrevendo os valores de imposto já cadastrados. A ação é definitiva
-                {' '}e não tem desfazer.
+                {t.rich('tax.applyAllWarning', {
+                  pct,
+                  b: (chunks) => <strong className="text-white">{chunks}</strong>,
+                })}
               </p>
             </div>
 
@@ -1980,29 +1995,28 @@ function TaxConfigModal({ onClose, onSaved }: { onClose: () => void; onSaved: ()
               <button onClick={() => setConfirming(false)} disabled={saving}
                 className="px-4 py-2 rounded-lg text-sm font-medium border disabled:opacity-60"
                 style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>
-                Voltar
+                {t('tax.back')}
               </button>
               <button onClick={() => void doSave()} disabled={saving}
                 className="px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-60"
                 style={{ background: '#f59e0b', color: '#111' }}>
-                {saving ? 'Aplicando…' : 'Confirmar e aplicar'}
+                {saving ? t('tax.applying') : t('tax.confirmApply')}
               </button>
             </div>
           </div>
         ) : (
           <div className="px-5 py-4 space-y-4">
             <p className="text-zinc-500 text-xs">
-              Esse percentual é usado no cálculo de margem dos produtos que não têm
-              imposto próprio cadastrado. Você pode sobrescrever produto a produto depois.
+              {t('tax.description')}
             </p>
 
             <div>
-              <label className="block text-[11px] uppercase tracking-wider text-zinc-500 mb-1.5">Imposto (%)</label>
+              <label className="block text-[11px] uppercase tracking-wider text-zinc-500 mb-1.5">{t('tax.taxLabel')}</label>
               <input
                 type="number" min={0} max={100} step="0.01"
                 value={pct}
                 onChange={e => setPct(e.target.value)}
-                placeholder="Ex: 8"
+                placeholder={t('tax.taxPlaceholder')}
                 className="w-full px-3 py-2 rounded-lg text-sm text-white placeholder-zinc-600 outline-none border focus:border-cyan-400"
                 style={{ background: '#0d0d10', borderColor: '#27272a' }}
               />
@@ -2011,16 +2025,16 @@ function TaxConfigModal({ onClose, onSaved }: { onClose: () => void; onSaved: ()
             <label className="flex items-center gap-2 text-sm text-zinc-300 cursor-pointer">
               <input type="checkbox" checked={onFreight} onChange={e => setOnFreight(e.target.checked)}
                 className="w-4 h-4 rounded accent-[#00E5FF]" />
-              Imposto incide também sobre o frete
+              {t('tax.onFreight')}
             </label>
 
             <div>
-              <label className="block text-[11px] uppercase tracking-wider text-zinc-500 mb-1.5">Como aplicar</label>
+              <label className="block text-[11px] uppercase tracking-wider text-zinc-500 mb-1.5">{t('tax.howToApply')}</label>
               <div className="space-y-1.5">
                 {([
-                  { v: 'only_empty', label: 'Aplicar só aos produtos sem imposto cadastrado' },
-                  { v: 'all',        label: 'Aplicar a todos os produtos (sobrescreve os existentes)' },
-                  { v: 'none',       label: 'Só salvar como padrão (não altera produtos)' },
+                  { v: 'only_empty', label: t('tax.applyOnlyEmpty') },
+                  { v: 'all',        label: t('tax.applyAll') },
+                  { v: 'none',       label: t('tax.applyNone') },
                 ] as const).map(o => (
                   <label key={o.v} className="flex items-start gap-2 text-[13px] text-zinc-300 cursor-pointer">
                     <input type="radio" name="apply" checked={apply === o.v}
@@ -2038,12 +2052,12 @@ function TaxConfigModal({ onClose, onSaved }: { onClose: () => void; onSaved: ()
               <button onClick={onClose}
                 className="px-4 py-2 rounded-lg text-sm font-medium border"
                 style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>
-                Cancelar
+                {t('tax.cancel')}
               </button>
               <button onClick={save} disabled={saving}
                 className="glow-rainbow px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-60"
                 style={{ background: '#00E5FF', color: '#000' }}>
-                {saving ? 'Salvando…' : apply === 'all' ? 'Continuar' : 'Salvar'}
+                {saving ? t('tax.saving') : apply === 'all' ? t('tax.continue') : t('tax.save')}
               </button>
             </div>
           </div>

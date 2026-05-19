@@ -1,6 +1,7 @@
 'use client'
 
 import { useId } from 'react'
+import { useTranslations } from 'next-intl'
 import type { TabProps, Variation } from '../types'
 
 const inp = 'w-full bg-[#1c1c1f] border border-[#3f3f46] text-white text-sm rounded-lg px-3 py-2 outline-none transition-all placeholder-zinc-600 focus:border-[#00E5FF] focus:ring-1 focus:ring-[#00E5FF20]'
@@ -20,7 +21,17 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
 }
 
 export default function Tab4Variations({ data, set }: TabProps) {
+  const t = useTranslations('produtos')
   const uid = useId()
+  const VARIATION_TYPE_LABEL: Record<string, string> = {
+    'Cor': t('tab4.varType.color'),
+    'Voltagem': t('tab4.varType.voltage'),
+    'Tamanho': t('tab4.varType.size'),
+    'Modelo': t('tab4.varType.model'),
+    'Capacidade': t('tab4.varType.capacity'),
+    'Material': t('tab4.varType.material'),
+    'Estilo': t('tab4.varType.style'),
+  }
 
   function addVariation() {
     const v: Variation = {
@@ -42,13 +53,13 @@ export default function Tab4Variations({ data, set }: TabProps) {
     <div className="space-y-8">
       {/* Toggle */}
       <section>
-        <p className={sec}>Variações do produto</p>
+        <p className={sec}>{t('tab4.section')}</p>
         <div className="flex items-center justify-between p-4 rounded-xl border"
           style={{ background: '#1c1c1f', borderColor: '#3f3f46' }}>
           <div>
-            <p className="text-white text-sm font-medium">Produto com variações</p>
+            <p className="text-white text-sm font-medium">{t('tab4.hasVariations')}</p>
             <p className="text-zinc-500 text-[12px] mt-0.5">
-              Ative se o produto tem cores, tamanhos, voltagens ou modelos diferentes
+              {t('tab4.hasVariationsSub')}
             </p>
           </div>
           <Toggle checked={data.hasVariations} onChange={v => {
@@ -61,22 +72,22 @@ export default function Tab4Variations({ data, set }: TabProps) {
       {/* Variation table */}
       {data.hasVariations && (
         <section>
-          <p className={sec}>Tabela de variações</p>
+          <p className={sec}>{t('tab4.tableSection')}</p>
 
           {data.variations.length === 0 ? (
             <p className="text-zinc-500 text-sm text-center py-6">
-              Nenhuma variação adicionada. Clique em &quot;Adicionar variação&quot; abaixo.
+              {t('tab4.emptyTable')}
             </p>
           ) : (
             <div className="rounded-xl border overflow-hidden" style={{ borderColor: '#1e1e24' }}>
               {/* Table header */}
               <div className="grid gap-2 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-widest text-zinc-500"
                 style={{ gridTemplateColumns: '140px 1fr 110px 90px 130px 36px', background: '#0c0c0f', borderBottom: '1px solid #1e1e24' }}>
-                <span>Tipo</span>
-                <span>Valor</span>
-                <span>Preço (R$)</span>
-                <span>Estoque</span>
-                <span>SKU variação</span>
+                <span>{t('tab4.col.type')}</span>
+                <span>{t('tab4.col.value')}</span>
+                <span>{t('tab4.col.price')}</span>
+                <span>{t('tab4.col.stock')}</span>
+                <span>{t('tab4.col.sku')}</span>
                 <span />
               </div>
               {/* Rows */}
@@ -90,9 +101,9 @@ export default function Tab4Variations({ data, set }: TabProps) {
                   }}>
                   <select className={inp} value={v.type} onChange={e => updateVariation(v.id, 'type', e.target.value)}
                     style={{ background: '#1c1c1f' }}>
-                    {VARIATION_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                    {VARIATION_TYPES.map(vt => <option key={vt} value={vt}>{VARIATION_TYPE_LABEL[vt] ?? vt}</option>)}
                   </select>
-                  <input type="text" className={inp} placeholder="Ex: Vermelho" value={v.value}
+                  <input type="text" className={inp} placeholder={t('tab4.valuePlaceholder')} value={v.value}
                     onChange={e => updateVariation(v.id, 'value', e.target.value)} />
                   <input type="text" className={inp} placeholder="0,00" value={v.price}
                     onChange={e => updateVariation(v.id, 'price', e.target.value)} />
@@ -120,13 +131,13 @@ export default function Tab4Variations({ data, set }: TabProps) {
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
             </svg>
-            Adicionar variação
+            {t('tab4.addVariation')}
           </button>
 
           {data.hasVariations && data.variations.length > 0 && (
             <div className="mt-4 px-4 py-3 rounded-lg text-[12px]"
               style={{ background: 'rgba(0,229,255,0.05)', border: '1px solid rgba(0,229,255,0.12)', color: '#71717a' }}>
-              <span style={{ color: '#00E5FF' }}>Dica:</span> O preço e estoque da aba Vendas serão usados como padrão quando não preenchidos aqui.
+              <span style={{ color: '#00E5FF' }}>{t('tab4.tipLabel')}</span> {t('tab4.tipText')}
             </div>
           )}
         </section>

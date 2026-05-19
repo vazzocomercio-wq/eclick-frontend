@@ -1,5 +1,6 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
 import {
   PricingSignal, SEVERITY_META, SIGNAL_TYPE_META,
   fmtCurrency, fmtRelativeTime, confidenceColor,
@@ -14,6 +15,7 @@ export function SignalCard({
   onAction:  (action: 'approve' | 'dismiss') => Promise<void> | void
   onOpen:    () => void
 }) {
+  const t        = useTranslations('pricing')
   const sev      = SEVERITY_META[signal.severity]
   const typeMeta = SIGNAL_TYPE_META[signal.signal_type]
   const cur      = signal.current_price
@@ -49,7 +51,7 @@ export function SignalCard({
       {/* Price row */}
       {cur != null && sug != null && (
         <div className="mt-3 flex items-center gap-3 flex-wrap text-sm">
-          <span className="text-zinc-400">Preço:</span>
+          <span className="text-zinc-400">{t('priceLabel')}</span>
           <span className="text-zinc-300 font-mono">{fmtCurrency(cur)}</span>
           <span className="text-zinc-500">→</span>
           <span className="font-semibold font-mono" style={{ color: typeMeta.color }}>{fmtCurrency(sug)}</span>
@@ -60,7 +62,7 @@ export function SignalCard({
           )}
           {signal.current_margin_pct != null && (
             <span className="ml-auto text-xs text-zinc-400">
-              Margem atual: <span className="text-zinc-300 font-mono">{signal.current_margin_pct.toFixed(1)}%</span>
+              {t('currentMargin')} <span className="text-zinc-300 font-mono">{signal.current_margin_pct.toFixed(1)}%</span>
             </span>
           )}
         </div>
@@ -68,7 +70,7 @@ export function SignalCard({
 
       {/* Confidence bar */}
       <div className="mt-3 flex items-center gap-3">
-        <span className="text-zinc-500 text-xs whitespace-nowrap">Confiança:</span>
+        <span className="text-zinc-500 text-xs whitespace-nowrap">{t('confidenceLabel')}</span>
         <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: '#27272a' }}>
           <div className="h-full transition-all" style={{
             width:      `${signal.confidence_score}%`,
@@ -87,21 +89,21 @@ export function SignalCard({
           className="px-3 py-1.5 rounded-lg text-xs font-semibold"
           style={{ background: '#34d399', color: '#08323b' }}
         >
-          ✓ Aprovar
+          ✓ {t('approve')}
         </button>
         <button
           onClick={() => onAction('dismiss')}
           className="px-3 py-1.5 rounded-lg text-xs font-medium border"
           style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}
         >
-          ✗ Dispensar
+          ✗ {t('dismiss')}
         </button>
         <button
           onClick={onOpen}
           className="ml-auto px-3 py-1.5 rounded-lg text-xs font-medium border"
           style={{ borderColor: '#00E5FF', color: '#00E5FF' }}
         >
-          Ver mais →
+          {t('seeMore')} →
         </button>
       </div>
     </div>

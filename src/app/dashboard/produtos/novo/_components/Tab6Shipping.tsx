@@ -1,5 +1,6 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
 import type { TabProps } from '../types'
 
 const inp = 'w-full bg-[#1c1c1f] border border-[#3f3f46] text-white text-sm rounded-lg px-3 py-2.5 outline-none transition-all placeholder-zinc-600 focus:border-[#00E5FF] focus:ring-1 focus:ring-[#00E5FF20]'
@@ -36,15 +37,16 @@ function Toggle({
 }
 
 export default function Tab6Shipping({ data, set }: TabProps) {
+  const t = useTranslations('produtos')
   return (
     <div className="space-y-8">
 
       {/* Weight & dimensions */}
       <section>
-        <p className={sec}>Peso e dimensões</p>
+        <p className={sec}>{t('tab6.weightSection')}</p>
         <div className="grid grid-cols-2 gap-4">
           <div className="col-span-2 md:col-span-1">
-            <label className={lbl}>Peso <span className="text-red-400">*</span></label>
+            <label className={lbl}>{t('tab6.weight')} <span className="text-red-400">*</span></label>
             <div className="relative">
               <input type="number" className={inp} placeholder="0.500" step="0.001" min={0}
                 value={data.weightKg} onChange={e => set('weightKg', e.target.value)}
@@ -54,7 +56,7 @@ export default function Tab6Shipping({ data, set }: TabProps) {
           </div>
           <div />
           <div>
-            <label className={lbl}>Largura <span className="text-red-400">*</span></label>
+            <label className={lbl}>{t('tab6.width')} <span className="text-red-400">*</span></label>
             <div className="relative">
               <input type="number" className={inp} placeholder="0" min={0}
                 value={data.widthCm} onChange={e => set('widthCm', e.target.value)}
@@ -63,7 +65,7 @@ export default function Tab6Shipping({ data, set }: TabProps) {
             </div>
           </div>
           <div>
-            <label className={lbl}>Comprimento <span className="text-red-400">*</span></label>
+            <label className={lbl}>{t('tab6.length')} <span className="text-red-400">*</span></label>
             <div className="relative">
               <input type="number" className={inp} placeholder="0" min={0}
                 value={data.lengthCm} onChange={e => set('lengthCm', e.target.value)}
@@ -72,7 +74,7 @@ export default function Tab6Shipping({ data, set }: TabProps) {
             </div>
           </div>
           <div>
-            <label className={lbl}>Altura <span className="text-red-400">*</span></label>
+            <label className={lbl}>{t('tab6.height')} <span className="text-red-400">*</span></label>
             <div className="relative">
               <input type="number" className={inp} placeholder="0" min={0}
                 value={data.heightCm} onChange={e => set('heightCm', e.target.value)}
@@ -86,7 +88,7 @@ export default function Tab6Shipping({ data, set }: TabProps) {
         {data.widthCm && data.lengthCm && data.heightCm && (
           <div className="mt-3 px-4 py-2.5 rounded-lg text-[12px]"
             style={{ background: 'rgba(0,229,255,0.04)', border: '1px solid rgba(0,229,255,0.1)', color: '#71717a' }}>
-            Volume: <span style={{ color: '#00E5FF' }}>
+            {t('tab6.volume')} <span style={{ color: '#00E5FF' }}>
               {(parseFloat(data.widthCm) * parseFloat(data.lengthCm) * parseFloat(data.heightCm) / 1000).toFixed(2)} L
             </span>
             {' '}·{' '}
@@ -97,30 +99,30 @@ export default function Tab6Shipping({ data, set }: TabProps) {
 
       {/* Mercado Livre */}
       <section>
-        <p className={sec}>Opções Mercado Livre</p>
+        <p className={sec}>{t('tab6.mlSection')}</p>
         <div className="space-y-3">
           <Toggle checked={data.mlFreeShipping} onChange={v => set('mlFreeShipping', v)}
-            label="Frete grátis (ML)" badge="ML"
-            sub="Você absorve o custo de envio. Aumenta visibilidade no ranking." />
+            label={t('tab6.mlFreeShipping')} badge="ML"
+            sub={t('tab6.mlFreeShippingSub')} />
           <Toggle checked={data.mlFlex} onChange={v => set('mlFlex', v)}
-            label="Envios Flex" badge="ML"
-            sub="Entrega no mesmo dia para compradores próximos. Requer habilitação no ML." />
+            label={t('tab6.mlFlex')} badge="ML"
+            sub={t('tab6.mlFlexSub')} />
         </div>
       </section>
 
       {/* Shopee */}
       <section>
-        <p className={sec}>Canais Shopee</p>
+        <p className={sec}>{t('tab6.shopeeSection')}</p>
         <div className="space-y-3">
           <Toggle checked={data.shopeeXpress} onChange={v => set('shopeeXpress', v)}
-            label="Shopee Xpress" badge="até 30kg"
-            sub="Transportadora oficial da Shopee. Recomendado para a maioria dos produtos." />
+            label="Shopee Xpress" badge={t('tab6.upTo30kg')}
+            sub={t('tab6.shopeeXpressSub')} />
           <Toggle checked={data.shopeeQuickDelivery} onChange={v => set('shopeeQuickDelivery', v)}
-            label="Entrega Rápida" badge="até 10kg"
-            sub="Entrega expressa para compradores da mesma cidade." />
+            label={t('tab6.quickDelivery')} badge={t('tab6.upTo10kg')}
+            sub={t('tab6.quickDeliverySub')} />
           <Toggle checked={data.shopeePickup} onChange={v => set('shopeePickup', v)}
-            label="Retirada pelo Comprador" badge="até 30kg"
-            sub="O comprador retira pessoalmente no seu endereço." />
+            label={t('tab6.buyerPickup')} badge={t('tab6.upTo30kg')}
+            sub={t('tab6.buyerPickupSub')} />
         </div>
       </section>
     </div>

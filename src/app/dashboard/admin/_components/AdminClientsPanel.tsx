@@ -7,6 +7,7 @@
  */
 
 import { useEffect, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { Loader2, Check, AlertCircle, Building2 } from 'lucide-react'
 import { GATEABLE_MODULES } from '@/lib/modules'
 
@@ -20,6 +21,7 @@ interface Org {
 const ALL_KEYS = GATEABLE_MODULES.map(m => m.key)
 
 export function AdminClientsPanel() {
+  const t = useTranslations('admin')
   const [orgs, setOrgs]       = useState<Org[]>([])
   const [draft, setDraft]     = useState<Record<string, Set<string>>>({})
   const [loading, setLoading] = useState(true)
@@ -32,7 +34,7 @@ export function AdminClientsPanel() {
       try {
         const res = await fetch('/api/admin/orgs')
         const body = await res.json().catch(() => ({}))
-        if (!res.ok) throw new Error(body.error ?? `Erro ${res.status}`)
+        if (!res.ok) throw new Error(body.error ?? t('errorWithCode', { code: res.status }))
         const list: Org[] = body.orgs ?? []
         setOrgs(list)
         const d: Record<string, Set<string>> = {}
@@ -42,11 +44,12 @@ export function AdminClientsPanel() {
         }
         setDraft(d)
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Erro ao carregar')
+        setError(e instanceof Error ? e.message : t('loadError'))
       } finally {
         setLoading(false)
       }
     })()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   function toggle(orgId: string, key: string) {
@@ -69,11 +72,11 @@ export function AdminClientsPanel() {
         body:    JSON.stringify({ orgId, enabledModules }),
       })
       const body = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(body.error ?? `Erro ${res.status}`)
+      if (!res.ok) throw new Error(body.error ?? t('errorWithCode', { code: res.status }))
       setOrgs(prev => prev.map(o => o.id === orgId ? { ...o, enabled_modules: enabledModules } : o))
       setSavedId(orgId)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Erro ao salvar')
+      setError(e instanceof Error ? e.message : t('saveError'))
     } finally {
       setSavingId(null)
     }
@@ -83,11 +86,10 @@ export function AdminClientsPanel() {
     <div className="space-y-5">
       <div>
         <h1 className="text-xl sm:text-2xl font-bold text-zinc-100 flex items-center gap-2">
-          <Building2 size={20} className="text-cyan-400" /> Gestão de clientes
+          <Building2 size={20} className="text-cyan-400" /> {t('heading')}
         </h1>
         <p className="text-xs text-zinc-500 mt-1">
-          Libere ou bloqueie os módulos de cada cliente. Visão Geral e Configurações
-          são sempre liberados.
+          {t('description')}
         </p>
       </div>
 
@@ -99,10 +101,10 @@ export function AdminClientsPanel() {
 
       {loading ? (
         <div className="flex items-center gap-2 text-zinc-500 text-sm">
-          <Loader2 size={14} className="animate-spin" /> carregando…
+          <Loader2 size={14} className="animate-spin" /> {t('loading')}
         </div>
       ) : orgs.length === 0 ? (
-        <p className="text-sm text-zinc-500">Nenhuma organização encontrada.</p>
+        <p className="text-sm text-zinc-500">{t('noOrgs')}</p>
       ) : (
         <div className="space-y-4">
           {orgs.map(org => {
@@ -121,10 +123,10 @@ export function AdminClientsPanel() {
                     style={{ background: '#00E5FF', color: '#000' }}
                   >
                     {savingId === org.id
-                      ? <><Loader2 size={13} className="animate-spin" /> Salvando…</>
+                      ? <><Loader2 size={13} className="animate-spin" /> {t('saving')}</>
                       : savedId === org.id
-                        ? <><Check size={13} /> Salvo</>
-                        : 'Salvar'}
+                        ? <><Check size={13} /> {t('saved')}</>
+                        : t('save')}
                   </button>
                 </div>
 

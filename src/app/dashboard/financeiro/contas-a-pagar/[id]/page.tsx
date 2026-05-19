@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
@@ -38,7 +39,10 @@ interface Payable {
   suppliers: { id: string; name: string; legal_name: string | null; tax_id: string | null } | null
 }
 
+type Translator = ReturnType<typeof useTranslations>
+
 export default function PayableDetailPage() {
+  const t = useTranslations('financeiro')
   const params = useParams()
   const router = useRouter()
   const id = params.id as string
@@ -53,9 +57,9 @@ export default function PayableDetailPage() {
 
   const getHeaders = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session?.access_token) throw new Error('Não autenticado')
+    if (!session?.access_token) throw new Error(t('payables.notAuthenticated'))
     return { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' }
-  }, [supabase])
+  }, [supabase, t])
 
   const load = useCallback(async () => {
     setLoading(true); setErr('')
@@ -65,19 +69,19 @@ export default function PayableDetailPage() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       setPayable(await res.json())
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Erro ao carregar')
+      setErr(e instanceof Error ? e.message : t('payables.loadError'))
     } finally { setLoading(false) }
-  }, [getHeaders, id])
+  }, [getHeaders, id, t])
 
   useEffect(() => { load() }, [load])
 
   async function handleCancel() {
     const reason = await prompt({
-      title: 'Cancelar conta a pagar',
-      message: 'Marca como cancelada (não vai mais ser cobrada). Por que está cancelando?',
-      placeholder: 'Ex: Pago em dinheiro fora do sistema · Duplicada',
+      title: t('payableDetail.cancelDialogTitle'),
+      message: t('payableDetail.cancelDialogMessage'),
+      placeholder: t('payableDetail.cancelDialogPlaceholder'),
       multiline: true,
-      confirmLabel: 'Cancelar conta',
+      confirmLabel: t('payableDetail.cancelDialogConfirm'),
       variant: 'danger',
     })
     if (!reason?.trim()) return
@@ -90,19 +94,19 @@ export default function PayableDetailPage() {
       if (!res.ok && res.status !== 204) throw new Error(`HTTP ${res.status}`)
       router.push('/dashboard/financeiro/contas-a-pagar')
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Erro ao cancelar')
+      setErr(e instanceof Error ? e.message : t('payableDetail.cancelError'))
     } finally { setCancelling(false) }
   }
 
-  if (loading) return <div className="min-h-screen p-6 text-zinc-500" style={{ background: 'var(--background)' }}>Carregando...</div>
+  if (loading) return <div className="min-h-screen p-6 text-zinc-500" style={{ background: 'var(--background)' }}>{t('payables.loadingRow')}</div>
   if (!payable) {
     return (
       <div className="min-h-screen p-6" style={{ background: 'var(--background)', color: '#fff' }}>
         <div className="rounded-lg p-3 text-sm" style={{
           background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)',
         }}>
-          Conta não encontrada. {err && `(${err})`}{' '}
-          <Link href="/dashboard/financeiro/contas-a-pagar" style={{ color: '#00E5FF' }}>Voltar</Link>
+          {t('payableDetail.notFound')} {err && `(${err})`}{' '}
+          <Link href="/dashboard/financeiro/contas-a-pagar" style={{ color: '#00E5FF' }}>{t('payableDetail.back')}</Link>
         </div>
       </div>
     )
@@ -133,7 +137,7 @@ export default function PayableDetailPage() {
               style={{ border: '1px solid #27272a', color: '#a1a1aa' }}
             >
               <ExternalLink size={14} />
-              Ver OC
+              {t('payableDetail.viewOc')}
             </Link>
           )}
           {canCancel && (
@@ -144,7 +148,7 @@ export default function PayableDetailPage() {
               style={{ border: '1px solid rgba(248,113,113,0.3)', color: '#f87171' }}
             >
               <Ban size={14} />
-              Cancelar
+              {t('payableDetail.cancel')}
             </button>
           )}
           {canPay && (
@@ -154,7 +158,7 @@ export default function PayableDetailPage() {
               style={{ background: '#22c55e', color: '#fff' }}
             >
               <DollarSign size={14} />
-              Pagar
+              {t('payableDetail.pay')}
             </button>
           )}
         </div>
@@ -176,11 +180,11 @@ export default function PayableDetailPage() {
           <CheckCircle2 size={20} style={{ color: '#22c55e' }} />
           <div className="flex-1">
             <p className="text-sm font-medium text-white">
-              Paga em {fmtDateTime(payable.paid_at)}
+              {t('payableDetail.paidOn', { date: fmtDateTime(payable.paid_at) })}
             </p>
             <p className="text-xs text-zinc-400">
               {payable.payment_method?.toUpperCase()} · {fmtBrl(payable.paid_amount)}
-              {payable.payment_reference && ` · Ref: ${payable.payment_reference}`}
+              {payable.payment_reference && ` · ${t('payableDetail.refLabel', { ref: payable.payment_reference })}`}
             </p>
           </div>
           {payable.payment_proof_url && (
@@ -192,7 +196,7 @@ export default function PayableDetailPage() {
               style={{ border: '1px solid rgba(34,197,94,0.3)', color: '#22c55e' }}
             >
               <FileText size={12} className="inline mr-1" />
-              Comprovante
+              {t('payableDetail.proof')}
             </a>
           )}
         </div>
@@ -200,15 +204,15 @@ export default function PayableDetailPage() {
 
       {/* Resumo */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-6">
-        <Kpi label="Valor total" value={fmtBrl(payable.amount)} />
-        <Kpi label="Pago" value={fmtBrl(payable.paid_amount)} accent="#22c55e" />
+        <Kpi label={t('payableDetail.kpiTotalAmount')} value={fmtBrl(payable.amount)} />
+        <Kpi label={t('payableDetail.kpiPaid')} value={fmtBrl(payable.paid_amount)} accent="#22c55e" />
         <Kpi
-          label="Restante"
+          label={t('payableDetail.kpiRemaining')}
           value={fmtBrl(payable.remaining_amount)}
           accent={payable.remaining_amount > 0 ? '#fcd34d' : '#71717a'}
         />
         <Kpi
-          label="Vencimento"
+          label={t('payableDetail.kpiDueDate')}
           value={fmtDate(payable.due_date)}
           accent={payable.status === 'overdue' ? '#f87171' : undefined}
         />
@@ -218,15 +222,15 @@ export default function PayableDetailPage() {
       <div className="rounded-xl p-4 mb-6" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
         <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3 flex items-center gap-2">
           <Building2 size={12} />
-          Beneficiário
+          {t('payableDetail.beneficiarySection')}
         </p>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
-          <Field label="Nome" value={payable.beneficiary_name} />
-          <Field label="Documento" value={payable.beneficiary_doc ?? '—'} />
-          <Field label="Razão social" value={payable.suppliers?.legal_name ?? '—'} />
-          {payable.category && <Field label="Categoria" value={payable.category} />}
-          {payable.cost_center && <Field label="Centro de custo" value={payable.cost_center} />}
-          <Field label="Origem" value={sourceLabel(payable.source_type)} />
+          <Field label={t('payableDetail.fieldName')} value={payable.beneficiary_name} />
+          <Field label={t('payableDetail.fieldDocument')} value={payable.beneficiary_doc ?? '—'} />
+          <Field label={t('payableDetail.fieldLegalName')} value={payable.suppliers?.legal_name ?? '—'} />
+          {payable.category && <Field label={t('payableDetail.fieldCategory')} value={payable.category} />}
+          {payable.cost_center && <Field label={t('payableDetail.fieldCostCenter')} value={payable.cost_center} />}
+          <Field label={t('payableDetail.fieldSource')} value={sourceLabel(payable.source_type, t)} />
         </div>
       </div>
 
@@ -234,19 +238,19 @@ export default function PayableDetailPage() {
       <div className="rounded-xl p-4 mb-6" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
         <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3 flex items-center gap-2">
           <Calendar size={12} />
-          Datas
+          {t('payableDetail.datesSection')}
         </p>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
-          <Field label="Emissão" value={fmtDate(payable.issue_date)} />
-          <Field label="Vencimento" value={fmtDate(payable.due_date)} />
-          <Field label="Criada em" value={fmtDateTime(payable.created_at)} />
+          <Field label={t('payableDetail.fieldIssueDate')} value={fmtDate(payable.issue_date)} />
+          <Field label={t('payableDetail.fieldDueDate')} value={fmtDate(payable.due_date)} />
+          <Field label={t('payableDetail.fieldCreatedAt')} value={fmtDateTime(payable.created_at)} />
         </div>
       </div>
 
       {/* Notas */}
       {payable.notes && (
         <div className="rounded-xl p-4" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
-          <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">Observações</p>
+          <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">{t('payableDetail.notesSection')}</p>
           <p className="text-sm text-zinc-300 whitespace-pre-wrap">{payable.notes}</p>
         </div>
       )}
@@ -258,6 +262,7 @@ export default function PayableDetailPage() {
           getHeaders={getHeaders}
           onClose={() => setShowPay(false)}
           onPaid={() => { setShowPay(false); load() }}
+          t={t}
         />
       )}
     </div>
@@ -267,12 +272,13 @@ export default function PayableDetailPage() {
 // ── Pay Modal ──────────────────────────────────────────────────────────────────
 
 function PayModal({
-  payable, getHeaders, onClose, onPaid,
+  payable, getHeaders, onClose, onPaid, t,
 }: {
   payable: Payable
   getHeaders: () => Promise<Record<string, string>>
   onClose: () => void
   onPaid: () => void
+  t: Translator
 }) {
   const [paidAmount, setPaidAmount] = useState(String(payable.remaining_amount))
   const [paymentMethod, setPaymentMethod] = useState<string>('pix')
@@ -285,12 +291,12 @@ function PayModal({
 
   async function submit() {
     const amt = Number(paidAmount)
-    if (!amt || amt <= 0) { setErr('Valor inválido'); return }
+    if (!amt || amt <= 0) { setErr(t('payModal.invalidAmount')); return }
     if (amt > payable.remaining_amount + 0.001) {
-      setErr(`Valor maior que restante (${fmtBrl(payable.remaining_amount)})`)
+      setErr(t('payModal.amountTooHigh', { remaining: fmtBrl(payable.remaining_amount) }))
       return
     }
-    if (!paymentMethod) { setErr('Método obrigatório'); return }
+    if (!paymentMethod) { setErr(t('payModal.methodRequired')); return }
     setSaving(true); setErr('')
     try {
       const headers = await getHeaders()
@@ -311,7 +317,7 @@ function PayModal({
       }
       onPaid()
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Erro ao pagar')
+      setErr(e instanceof Error ? e.message : t('payModal.payError'))
     } finally { setSaving(false) }
   }
 
@@ -326,16 +332,16 @@ function PayModal({
           style={{ background: '#111114', border: '1px solid rgba(34,197,94,0.3)' }}>
           <div className="flex items-center gap-2">
             <DollarSign size={18} style={{ color: '#22c55e' }} />
-            <h2 className="text-lg font-semibold text-white">Registrar Pagamento</h2>
+            <h2 className="text-lg font-semibold text-white">{t('payModal.title')}</h2>
           </div>
 
           <div className="rounded-lg p-3 text-xs" style={{ background: '#0f0f12', border: '1px solid #1e1e24' }}>
             <p className="text-zinc-400">{payable.beneficiary_name}</p>
-            <p className="text-zinc-500 mt-0.5">Restante: <strong className="text-white">{fmtBrl(payable.remaining_amount)}</strong></p>
+            <p className="text-zinc-500 mt-0.5">{t('payModal.remainingLabel')} <strong className="text-white">{fmtBrl(payable.remaining_amount)}</strong></p>
           </div>
 
           <div>
-            <label className={lbl}>Valor pago (R$) *</label>
+            <label className={lbl}>{t('payModal.amountLabel')}</label>
             <input
               type="number" step="0.01" min="0.01" max={payable.remaining_amount}
               value={paidAmount} onChange={e => setPaidAmount(e.target.value)}
@@ -346,38 +352,38 @@ function PayModal({
                 onClick={() => setPaidAmount(String(payable.remaining_amount))}
                 className="text-xs" style={{ color: '#00E5FF' }}
               >
-                Pagar total
+                {t('payModal.payFull')}
               </button>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className={lbl}>Método *</label>
+              <label className={lbl}>{t('payModal.methodLabel')}</label>
               <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)} className={inp}>
-                <option value="pix">PIX</option>
-                <option value="boleto">Boleto</option>
-                <option value="transfer">Transferência</option>
-                <option value="check">Cheque</option>
-                <option value="cash">Dinheiro</option>
-                <option value="credit_card">Cartão crédito</option>
-                <option value="debit_card">Cartão débito</option>
-                <option value="other">Outro</option>
+                <option value="pix">{t('payModal.method.pix')}</option>
+                <option value="boleto">{t('payModal.method.boleto')}</option>
+                <option value="transfer">{t('payModal.method.transfer')}</option>
+                <option value="check">{t('payModal.method.check')}</option>
+                <option value="cash">{t('payModal.method.cash')}</option>
+                <option value="credit_card">{t('payModal.method.creditCard')}</option>
+                <option value="debit_card">{t('payModal.method.debitCard')}</option>
+                <option value="other">{t('payModal.method.other')}</option>
               </select>
             </div>
             <div>
-              <label className={lbl}>Data/hora</label>
+              <label className={lbl}>{t('payModal.dateTimeLabel')}</label>
               <input type="datetime-local" value={paidAt} onChange={e => setPaidAt(e.target.value)} className={inp} />
             </div>
           </div>
 
           <div>
-            <label className={lbl}>Referência (ID PIX, n° boleto, etc.)</label>
+            <label className={lbl}>{t('payModal.referenceLabel')}</label>
             <input value={paymentReference} onChange={e => setPaymentReference(e.target.value)} className={inp} />
           </div>
 
           <div>
-            <label className={lbl}>URL do comprovante (opcional)</label>
+            <label className={lbl}>{t('payModal.proofUrlLabel')}</label>
             <input
               type="url"
               value={paymentProofUrl}
@@ -385,11 +391,11 @@ function PayModal({
               className={inp}
               placeholder="https://..."
             />
-            <p className="text-xs text-zinc-500 mt-1">Faça upload do comprovante em outro lugar e cole o link aqui</p>
+            <p className="text-xs text-zinc-500 mt-1">{t('payModal.proofUrlHint')}</p>
           </div>
 
           <div>
-            <label className={lbl}>Notas (opcional)</label>
+            <label className={lbl}>{t('payModal.notesLabel')}</label>
             <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} className={inp + ' resize-none'} />
           </div>
 
@@ -400,9 +406,9 @@ function PayModal({
           )}
 
           <div className="flex gap-2 justify-end pt-2">
-            <button onClick={() => !saving && onClose()} disabled={saving} className="px-4 py-2 text-sm rounded-lg text-zinc-400 hover:text-white" style={{ border: '1px solid #27272a' }}>Cancelar</button>
+            <button onClick={() => !saving && onClose()} disabled={saving} className="px-4 py-2 text-sm rounded-lg text-zinc-400 hover:text-white" style={{ border: '1px solid #27272a' }}>{t('payModal.cancel')}</button>
             <button onClick={submit} disabled={saving} className="px-5 py-2 text-sm font-semibold rounded-lg" style={{ background: '#22c55e', color: '#fff', opacity: saving ? 0.6 : 1 }}>
-              {saving ? 'Registrando...' : 'Confirmar Pagamento'}
+              {saving ? t('payModal.submitting') : t('payModal.submit')}
             </button>
           </div>
         </div>
@@ -433,13 +439,10 @@ function Field({ label, value }: { label: string; value: string }) {
 
 // ── helpers ────────────────────────────────────────────────────────────────────
 
-function sourceLabel(t: string): string {
-  const m: Record<string, string> = {
-    dropship_oc: 'OC Dropship', purchase_order: 'Importação', manual: 'Manual',
-    service: 'Serviço', rent: 'Aluguel', tax: 'Imposto', salary: 'Folha',
-    utility: 'Utilities', other: 'Outro',
-  }
-  return m[t] ?? t
+const SOURCE_KEYS = ['dropship_oc', 'purchase_order', 'manual', 'service', 'rent', 'tax', 'salary', 'utility', 'other'] as const
+
+function sourceLabel(source: string, t: Translator): string {
+  return (SOURCE_KEYS as readonly string[]).includes(source) ? t(`payables.source.${source}`) : source
 }
 
 function fmtBrl(v: number) {

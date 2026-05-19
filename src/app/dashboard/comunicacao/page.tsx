@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useTranslations } from 'next-intl'
 import PedidosEmCursoTab    from './_components/PedidosEmCursoTab'
 import ModelosJornadasTab   from './_components/ModelosJornadasTab'
 import TemplatesTab         from './_components/TemplatesTab'
@@ -8,21 +9,22 @@ import ConfiguracoesTab     from './_components/ConfiguracoesTab'
 
 type TabKey = 'pedidos' | 'jornadas' | 'templates' | 'configuracoes'
 
-const TABS: { key: TabKey; label: string }[] = [
-  { key: 'pedidos',       label: 'Pedidos em curso' },
-  { key: 'jornadas',      label: 'Modelos de jornada' },
-  { key: 'templates',     label: 'Templates' },
-  { key: 'configuracoes', label: 'Configurações' },
-]
-
 type Toast = { id: number; msg: string; type: 'success' | 'error' }
 
 /** Shell de /dashboard/comunicacao. Padrão visual = /dashboard/messaging
  * (tabs cyan, header com border-bottom, container max-w-5xl). Conteúdo
  * de cada aba virá nas Fases 3.3 (Templates) e 3.4 (demais). */
 export default function ComunicacaoPage() {
+  const t = useTranslations('comunicacao')
   const [tab, setTab]       = useState<TabKey>('pedidos')
   const [toasts, setToasts] = useState<Toast[]>([])
+
+  const TABS: { key: TabKey; label: string }[] = [
+    { key: 'pedidos',       label: t('tabs.pedidos') },
+    { key: 'jornadas',      label: t('tabs.jornadas') },
+    { key: 'templates',     label: t('tabs.templates') },
+    { key: 'configuracoes', label: t('tabs.configuracoes') },
+  ]
 
   // Infra de toast — TemplatesTab consome via prop; demais abas (3.4) idem.
   function pushToast(msg: string, type: Toast['type'] = 'success') {
@@ -35,9 +37,9 @@ export default function ComunicacaoPage() {
     <div className="flex flex-col h-full" style={{ background: 'var(--background)' }}>
       {/* Header */}
       <div className="shrink-0 px-6 pt-6 pb-2" style={{ borderBottom: '1px solid #1e1e24' }}>
-        <h1 className="text-white text-lg font-semibold">Comunicação</h1>
+        <h1 className="text-white text-lg font-semibold">{t('title')}</h1>
         <p className="text-zinc-500 text-sm mt-0.5">
-          Comunicação automatizada pós-venda. WhatsApp ativo.
+          {t('subtitle')}
         </p>
 
         {/* Tabs */}

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
@@ -40,14 +41,14 @@ function fmtDate(iso: string) {
   })
 }
 
-function relTime(iso: string) {
+function relTime(iso: string, t: (key: string, values?: Record<string, string | number | Date>) => string) {
   const diff = Date.now() - new Date(iso).getTime()
   const m = Math.floor(diff / 60000)
-  if (m < 1) return 'agora'
-  if (m < 60) return `${m}m atrás`
+  if (m < 1) return t('relTime.now')
+  if (m < 60) return t('relTime.minutes', { m })
   const h = Math.floor(m / 60)
-  if (h < 24) return `${h}h atrás`
-  return `${Math.floor(h / 24)}d atrás`
+  if (h < 24) return t('relTime.hours', { h })
+  return t('relTime.days', { d: Math.floor(h / 24) })
 }
 
 // ── KPI Card ──────────────────────────────────────────────────────────────────
@@ -64,17 +65,19 @@ function KpiCard({ label, value, color, sub }: { label: string; value: string | 
 
 // ── Status Badge ──────────────────────────────────────────────────────────────
 
-const STATUS_STYLE: Record<string, { label: string; color: string; bg: string }> = {
-  success:   { label: 'Sucesso',    color: '#4ade80', bg: 'rgba(74,222,128,0.1)'  },
-  error:     { label: 'Erro',       color: '#f87171', bg: 'rgba(248,113,113,0.1)' },
-  ignored:   { label: 'Ignorado',   color: '#a1a1aa', bg: 'rgba(161,161,170,0.1)' },
-  divergent: { label: 'Divergente', color: '#fbbf24', bg: 'rgba(251,191,36,0.1)'  },
+const STATUS_STYLE: Record<string, { color: string; bg: string }> = {
+  success:   { color: '#4ade80', bg: 'rgba(74,222,128,0.1)'  },
+  error:     { color: '#f87171', bg: 'rgba(248,113,113,0.1)' },
+  ignored:   { color: '#a1a1aa', bg: 'rgba(161,161,170,0.1)' },
+  divergent: { color: '#fbbf24', bg: 'rgba(251,191,36,0.1)'  },
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function SincronizacoesPage() {
+  const t = useTranslations('catalogo')
   const supabase = useMemo(() => createClient(), [])
+  const statusLabel = (s: string) => t(`syncs.status.${s}`)
 
   const [logs,      setLogs]      = useState<SyncLog[]>([])
   const [summary,   setSummary]   = useState<Summary | null>(null)
@@ -87,9 +90,9 @@ export default function SincronizacoesPage() {
 
   const getHeaders = useCallback(async (): Promise<Record<string, string>> => {
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session?.access_token) throw new Error('Não autenticado')
+    if (!session?.access_token) throw new Error(t('syncs.notAuthenticated'))
     return { Authorization: `Bearer ${session.access_token}` }
-  }, [supabase])
+  }, [supabase, t])
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -133,10 +136,10 @@ export default function SincronizacoesPage() {
       const res = await fetch(`${BACKEND}/stock/sync-all`, { method: 'POST', headers })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.message ?? `HTTP ${res.status}`)
-      setSyncMsg(data.message ?? `${data.success ?? 0} produto(s) sincronizados`)
+      setSyncMsg(data.message ?? t('syncs.syncedCount', { count: data.success ?? 0 }))
       await loadData()
     } catch (e: unknown) {
-      setSyncMsg(e instanceof Error ? e.message : 'Erro ao sincronizar')
+      setSyncMsg(e instanceof Error ? e.message : t('syncs.syncError'))
     } finally { setSyncing(false) }
   }
 
@@ -155,9 +158,9 @@ export default function SincronizacoesPage() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-zinc-500 text-xs font-medium tracking-widest uppercase mb-1">Estoque</p>
-          <h1 className="text-white text-2xl font-semibold">Sincronizações</h1>
-          <p className="text-zinc-500 text-sm mt-1">Histórico de sincronizações de estoque com plataformas</p>
+          <p className="text-zinc-500 text-xs font-medium tracking-widest uppercase mb-1">{t('syncs.eyebrow')}</p>
+          <h1 className="text-white text-2xl font-semibold">{t('syncs.title')}</h1>
+          <p className="text-zinc-500 text-sm mt-1">{t('syncs.subtitle')}</p>
         </div>
         <button onClick={handleSyncAll} disabled={syncing}
           className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all disabled:opacity-50 shrink-0"
@@ -168,14 +171,14 @@ export default function SincronizacoesPage() {
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
               </svg>
-              Sincronizando…
+              {t('syncs.syncing')}
             </>
           ) : (
             <>
               <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
-              Sincronizar Tudo
+              {t('syncs.syncAll')}
             </>
           )}
         </button>
@@ -190,12 +193,12 @@ export default function SincronizacoesPage() {
 
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-        <KpiCard label="Total"    value={summary?.total ?? 0}    color="#e4e4e7" />
-        <KpiCard label="Sucesso"  value={summary?.success ?? 0}  color="#4ade80" />
-        <KpiCard label="Erros"    value={summary?.error ?? 0}    color={summary?.error ? '#f87171' : '#71717a'} />
-        <KpiCard label="Ignorados" value={summary?.ignored ?? 0} color="#a1a1aa" />
-        <KpiCard label="Taxa de sucesso" value={`${successRate}%`} color={successRate >= 90 ? '#4ade80' : successRate >= 70 ? '#fbbf24' : '#f87171'}
-          sub={summary?.last_sync ? `Última: ${relTime(summary.last_sync)}` : 'Sem dados'} />
+        <KpiCard label={t('syncs.kpi.total')}    value={summary?.total ?? 0}    color="#e4e4e7" />
+        <KpiCard label={t('syncs.kpi.success')}  value={summary?.success ?? 0}  color="#4ade80" />
+        <KpiCard label={t('syncs.kpi.errors')}   value={summary?.error ?? 0}    color={summary?.error ? '#f87171' : '#71717a'} />
+        <KpiCard label={t('syncs.kpi.ignored')}  value={summary?.ignored ?? 0} color="#a1a1aa" />
+        <KpiCard label={t('syncs.kpi.successRate')} value={`${successRate}%`} color={successRate >= 90 ? '#4ade80' : successRate >= 70 ? '#fbbf24' : '#f87171'}
+          sub={summary?.last_sync ? t('syncs.kpi.lastSync', { time: relTime(summary.last_sync, t) }) : t('syncs.kpi.noData')} />
       </div>
 
       {/* Filters */}
@@ -203,7 +206,7 @@ export default function SincronizacoesPage() {
         <div className="flex items-center gap-1 p-1 rounded-xl" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
           {['', 'success', 'error', 'ignored', 'divergent'].map(s => (
             <button key={s} onClick={() => setStatus(s)} {...filterBtn(status === s)}>
-              {s === '' ? 'Todos' : STATUS_STYLE[s]?.label ?? s}
+              {s === '' ? t('syncs.filter.all') : statusLabel(s)}
             </button>
           ))}
         </div>
@@ -211,7 +214,7 @@ export default function SincronizacoesPage() {
         <div className="flex items-center gap-1 p-1 rounded-xl" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
           {['', 'mercadolivre', 'shopee'].map(c => (
             <button key={c} onClick={() => setChannel(c)} {...filterBtn(channel === c)}>
-              {c === '' ? 'Canal' : c === 'mercadolivre' ? 'ML' : c}
+              {c === '' ? t('syncs.filter.channel') : c === 'mercadolivre' ? 'ML' : c}
             </button>
           ))}
         </div>
@@ -219,10 +222,10 @@ export default function SincronizacoesPage() {
         <select value={since} onChange={e => setSince(e.target.value)}
           className="text-xs px-3 py-2 rounded-xl outline-none"
           style={{ background: '#111114', border: '1px solid #1a1a1f', color: '#a1a1aa' }}>
-          <option value="">Todo o período</option>
-          <option value={new Date(Date.now() - 3600000).toISOString()}>Última hora</option>
-          <option value={new Date(Date.now() - 86400000).toISOString()}>Últimas 24h</option>
-          <option value={new Date(Date.now() - 604800000).toISOString()}>Última semana</option>
+          <option value="">{t('syncs.filter.allTime')}</option>
+          <option value={new Date(Date.now() - 3600000).toISOString()}>{t('syncs.filter.lastHour')}</option>
+          <option value={new Date(Date.now() - 86400000).toISOString()}>{t('syncs.filter.last24h')}</option>
+          <option value={new Date(Date.now() - 604800000).toISOString()}>{t('syncs.filter.lastWeek')}</option>
         </select>
 
         <button onClick={loadData}
@@ -231,10 +234,10 @@ export default function SincronizacoesPage() {
           <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
           </svg>
-          Atualizar
+          {t('syncs.refresh')}
         </button>
 
-        <span className="text-[11px] text-zinc-600 ml-auto">{logs.length} registros</span>
+        <span className="text-[11px] text-zinc-600 ml-auto">{t('syncs.recordCount', { count: logs.length })}</span>
       </div>
 
       {/* Table */}
@@ -243,13 +246,13 @@ export default function SincronizacoesPage() {
           <table className="w-full text-[12px]">
             <thead>
               <tr style={{ borderBottom: '1px solid #1a1a1f', background: '#0c0c10' }}>
-                <th className="text-left px-4 py-3 text-zinc-500 font-medium">Status</th>
-                <th className="text-left px-4 py-3 text-zinc-500 font-medium">Canal</th>
-                <th className="text-left px-4 py-3 text-zinc-500 font-medium">Produto</th>
-                <th className="text-right px-4 py-3 text-zinc-500 font-medium">Qtd enviada</th>
-                <th className="text-right px-4 py-3 text-zinc-500 font-medium">Duração</th>
-                <th className="text-left px-4 py-3 text-zinc-500 font-medium">Motivo/Erro</th>
-                <th className="text-right px-4 py-3 text-zinc-500 font-medium">Data</th>
+                <th className="text-left px-4 py-3 text-zinc-500 font-medium">{t('syncs.col.status')}</th>
+                <th className="text-left px-4 py-3 text-zinc-500 font-medium">{t('syncs.col.channel')}</th>
+                <th className="text-left px-4 py-3 text-zinc-500 font-medium">{t('syncs.col.product')}</th>
+                <th className="text-right px-4 py-3 text-zinc-500 font-medium">{t('syncs.col.sentQty')}</th>
+                <th className="text-right px-4 py-3 text-zinc-500 font-medium">{t('syncs.col.duration')}</th>
+                <th className="text-left px-4 py-3 text-zinc-500 font-medium">{t('syncs.col.reasonError')}</th>
+                <th className="text-right px-4 py-3 text-zinc-500 font-medium">{t('syncs.col.date')}</th>
               </tr>
             </thead>
             <tbody>
@@ -266,19 +269,20 @@ export default function SincronizacoesPage() {
               ) : logs.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-4 py-16 text-center text-zinc-600">
-                    Nenhuma sincronização encontrada
+                    {t('syncs.empty')}
                   </td>
                 </tr>
               ) : (
                 logs.map(log => {
-                  const ss = STATUS_STYLE[log.status] ?? { label: log.status, color: '#71717a', bg: 'rgba(113,113,122,0.1)' }
+                  const ss = STATUS_STYLE[log.status] ?? { color: '#71717a', bg: 'rgba(113,113,122,0.1)' }
+                  const ssLabel = STATUS_STYLE[log.status] ? statusLabel(log.status) : log.status
                   return (
                     <tr key={log.id} style={{ borderBottom: '1px solid #0f0f12' }}
                       className="hover:bg-white/[0.02] transition-colors">
                       <td className="px-4 py-3">
                         <span className="px-2 py-0.5 rounded text-[11px] font-semibold"
                           style={{ color: ss.color, background: ss.bg }}>
-                          {ss.label}
+                          {ssLabel}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-zinc-300 font-mono">
@@ -323,7 +327,7 @@ export default function SincronizacoesPage() {
                         )}
                       </td>
                       <td className="px-4 py-3 text-right text-zinc-500 whitespace-nowrap">
-                        <span title={fmtDate(log.created_at)}>{relTime(log.created_at)}</span>
+                        <span title={fmtDate(log.created_at)}>{relTime(log.created_at, t)}</span>
                       </td>
                     </tr>
                   )

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import { createPortal } from 'react-dom'
 import { createClient } from '@/lib/supabase'
 import Link from 'next/link'
@@ -77,21 +78,22 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
 
 // ── Status pill ──────────────────────────────────────────────────────────────
 
-const STATUS_COLORS: Record<CampaignStatus, { fg: string; bg: string; label: string }> = {
-  draft:     { fg: '#a1a1aa', bg: 'rgba(161,161,170,0.10)', label: 'Rascunho' },
-  scheduled: { fg: '#fbbf24', bg: 'rgba(251,191,36,0.10)',  label: 'Agendada' },
-  running:   { fg: '#34d399', bg: 'rgba(52,211,153,0.10)',  label: 'Em andamento' },
-  paused:    { fg: '#fb7185', bg: 'rgba(251,113,133,0.10)', label: 'Pausada' },
-  completed: { fg: '#00E5FF', bg: 'rgba(0,229,255,0.08)',   label: 'Concluída' },
-  cancelled: { fg: '#71717a', bg: 'rgba(113,113,122,0.10)', label: 'Cancelada' },
+const STATUS_COLORS: Record<CampaignStatus, { fg: string; bg: string }> = {
+  draft:     { fg: '#a1a1aa', bg: 'rgba(161,161,170,0.10)' },
+  scheduled: { fg: '#fbbf24', bg: 'rgba(251,191,36,0.10)' },
+  running:   { fg: '#34d399', bg: 'rgba(52,211,153,0.10)' },
+  paused:    { fg: '#fb7185', bg: 'rgba(251,113,133,0.10)' },
+  completed: { fg: '#00E5FF', bg: 'rgba(0,229,255,0.08)' },
+  cancelled: { fg: '#71717a', bg: 'rgba(113,113,122,0.10)' },
 }
 
 function StatusPill({ s }: { s: CampaignStatus }) {
+  const t = useTranslations('campanhas')
   const c = STATUS_COLORS[s]
   return (
     <span className="text-[11px] font-medium px-2 py-0.5 rounded-full"
       style={{ color: c.fg, background: c.bg, border: `1px solid ${c.fg}33` }}>
-      {c.label}
+      {t(`status.${s}`)}
     </span>
   )
 }
@@ -99,6 +101,7 @@ function StatusPill({ s }: { s: CampaignStatus }) {
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function CampanhasPage() {
+  const t = useTranslations('campanhas')
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
   const [loading,   setLoading]   = useState(true)
   const [error,     setError]     = useState<string | null>(null)
@@ -130,15 +133,15 @@ export default function CampanhasPage() {
 
   async function handleLaunch(c: Campaign) {
     const ok = await confirm({
-      title:        'Lançar campanha',
-      message:      `Lançar campanha "${c.name}"? Os disparos serão agendados imediatamente.`,
-      confirmLabel: 'Lançar',
+      title:        t('confirm.launchTitle'),
+      message:      t('confirm.launchMessage', { name: c.name }),
+      confirmLabel: t('confirm.launch'),
       variant:      'default',
     })
     if (!ok) return
     try {
       const res = await api<{ targets: number; first_at: string | null }>(`/campaigns/${c.id}/launch`, { method: 'POST' })
-      pushToast(`Lançada — ${res.targets} alvos agendados`, 'success')
+      pushToast(t('toast.launched', { count: res.targets }), 'success')
       await load()
     } catch (e) {
       pushToast((e as Error).message, 'error')
@@ -148,7 +151,7 @@ export default function CampanhasPage() {
   async function handlePause(c: Campaign) {
     try {
       await api(`/campaigns/${c.id}/pause`, { method: 'POST' })
-      pushToast('Campanha pausada', 'success')
+      pushToast(t('toast.paused'), 'success')
       await load()
     } catch (e) {
       pushToast((e as Error).message, 'error')
@@ -158,7 +161,7 @@ export default function CampanhasPage() {
   async function handleResume(c: Campaign) {
     try {
       await api(`/campaigns/${c.id}/resume`, { method: 'POST' })
-      pushToast('Campanha retomada', 'success')
+      pushToast(t('toast.resumed'), 'success')
       await load()
     } catch (e) {
       pushToast((e as Error).message, 'error')
@@ -167,15 +170,15 @@ export default function CampanhasPage() {
 
   async function handleDelete(c: Campaign) {
     const ok = await confirm({
-      title:        'Deletar campanha',
-      message:      `Deletar campanha "${c.name}"? Os targets também serão removidos.`,
-      confirmLabel: 'Deletar',
+      title:        t('confirm.deleteTitle'),
+      message:      t('confirm.deleteMessage', { name: c.name }),
+      confirmLabel: t('confirm.delete'),
       variant:      'danger',
     })
     if (!ok) return
     try {
       await api(`/campaigns/${c.id}`, { method: 'DELETE' })
-      pushToast('Deletada', 'success')
+      pushToast(t('toast.deleted'), 'success')
       await load()
     } catch (e) {
       pushToast((e as Error).message, 'error')
@@ -190,10 +193,10 @@ export default function CampanhasPage() {
           <div>
             <h1 className="text-white text-lg font-semibold flex items-center gap-2">
               <Megaphone size={18} style={{ color: '#00E5FF' }} />
-              Campanhas
+              {t('title')}
             </h1>
             <p className="text-zinc-500 text-sm mt-0.5">
-              Disparo em massa com agendamento, A/B test e anti-detecção (jitter + rate limit + daily cap).
+              {t('subtitle')}
             </p>
           </div>
           <button
@@ -202,7 +205,7 @@ export default function CampanhasPage() {
             style={{ background: '#00E5FF', color: '#08323b' }}
           >
             <Plus size={14} />
-            Nova campanha
+            {t('newCampaign')}
           </button>
         </div>
       </div>
@@ -216,19 +219,19 @@ export default function CampanhasPage() {
           </div>
         )}
         {loading ? (
-          <div className="text-zinc-500 text-sm">Carregando…</div>
+          <div className="text-zinc-500 text-sm">{t('loading')}</div>
         ) : campaigns.length === 0 ? (
           <div className="rounded-2xl px-8 py-16 text-center"
             style={{ background: '#111114', border: '1px dashed #27272a' }}>
             <Megaphone size={32} className="mx-auto mb-3" style={{ color: '#52525b' }} />
-            <p className="text-white font-medium mb-1">Nenhuma campanha ainda</p>
-            <p className="text-zinc-500 text-sm mb-4">Crie sua primeira campanha pra disparar mensagens em massa.</p>
+            <p className="text-white font-medium mb-1">{t('emptyTitle')}</p>
+            <p className="text-zinc-500 text-sm mb-4">{t('emptyDescription')}</p>
             <button
               onClick={() => { setEditing(null); setShowWizard(true) }}
               className="glow-rainbow px-4 py-2 rounded-lg text-sm font-semibold"
               style={{ background: '#00E5FF', color: '#08323b' }}
             >
-              Criar campanha
+              {t('createCampaign')}
             </button>
           </div>
         ) : (
@@ -287,6 +290,7 @@ function CampaignCard({
   onEdit: () => void
   onDelete: () => void
 }) {
+  const t = useTranslations('campanhas')
   const sentPct  = c.total_targets > 0 ? Math.round((c.total_sent / c.total_targets) * 100) : 0
   const failedPct = c.total_targets > 0 ? Math.round((c.total_failed / c.total_targets) * 100) : 0
 
@@ -298,7 +302,7 @@ function CampaignCard({
           <p className="text-white font-semibold truncate">{c.name}</p>
           <p className="text-zinc-500 text-xs mt-0.5">
             {c.channel === 'whatsapp' ? 'WhatsApp' : c.channel} ·{' '}
-            {c.segment_type === 'all' ? 'Todos' : c.segment_type === 'vip' ? 'VIP' : c.segment_type === 'with_cpf' ? 'Com CPF' : 'Custom'}
+            {c.segment_type === 'all' ? t('segmentTypes.all') : c.segment_type === 'vip' ? t('segmentTypes.vip') : c.segment_type === 'with_cpf' ? t('segmentTypes.withCpf') : t('segmentTypes.custom')}
             {c.ab_enabled ? ' · A/B' : ''}
           </p>
         </div>
@@ -308,21 +312,21 @@ function CampaignCard({
       {c.total_targets > 0 && (
         <div>
           <div className="flex justify-between text-[11px] text-zinc-500 mb-1">
-            <span>{c.total_sent}/{c.total_targets} enviados</span>
+            <span>{t('sentProgress', { sent: c.total_sent, total: c.total_targets })}</span>
             <span>{sentPct}%</span>
           </div>
           <div className="h-1.5 rounded-full overflow-hidden" style={{ background: '#1e1e24' }}>
             <div className="h-full" style={{ width: `${sentPct}%`, background: '#34d399' }} />
           </div>
           {failedPct > 0 && (
-            <p className="text-[11px] mt-1" style={{ color: '#f87171' }}>{c.total_failed} falhas</p>
+            <p className="text-[11px] mt-1" style={{ color: '#f87171' }}>{t('failuresCount', { count: c.total_failed })}</p>
           )}
         </div>
       )}
 
       {c.scheduled_at && (
         <p className="text-[11px] text-zinc-500">
-          Início: {new Date(c.scheduled_at).toLocaleString('pt-BR')}
+          {t('startsAt', { date: new Date(c.scheduled_at).toLocaleString('pt-BR') })}
         </p>
       )}
 
@@ -332,17 +336,17 @@ function CampaignCard({
             <button onClick={onLaunch}
               className="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1"
               style={{ background: '#00E5FF', color: '#08323b' }}>
-              <Play size={12} /> Lançar
+              <Play size={12} /> {t('launch')}
             </button>
             <button onClick={onEdit}
               className="px-3 py-1.5 rounded-lg text-xs font-medium border"
               style={{ borderColor: '#3f3f46', color: '#e4e4e7' }}>
-              Editar
+              {t('edit')}
             </button>
             <button onClick={onDelete}
               className="px-2 py-1.5 rounded-lg text-xs font-medium"
               style={{ color: '#f87171' }}
-              title="Deletar">
+              title={t('delete')}>
               <Trash2 size={12} />
             </button>
           </>
@@ -351,21 +355,21 @@ function CampaignCard({
           <button onClick={onPause}
             className="px-3 py-1.5 rounded-lg text-xs font-medium border flex items-center gap-1"
             style={{ borderColor: '#fb7185', color: '#fb7185' }}>
-            <Pause size={12} /> Pausar
+            <Pause size={12} /> {t('pause')}
           </button>
         )}
         {c.status === 'paused' && (
           <button onClick={onResume}
             className="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1"
             style={{ background: '#34d399', color: '#053b2f' }}>
-            <Play size={12} /> Retomar
+            <Play size={12} /> {t('resume')}
           </button>
         )}
         {c.status !== 'running' && c.status !== 'draft' && (
           <button onClick={onDelete}
             className="px-2 py-1.5 rounded-lg text-xs font-medium ml-auto"
             style={{ color: '#f87171' }}
-            title="Deletar">
+            title={t('delete')}>
             <Trash2 size={12} />
           </button>
         )}
@@ -434,6 +438,7 @@ function CampaignWizard({
   onSaved: () => void
   onError: (msg: string) => void
 }) {
+  const t = useTranslations('campanhas')
   const [step, setStep] = useState(1)
   const [state, setState] = useState<WizardState>(() => {
     if (!editing) return DEFAULT_STATE
@@ -504,7 +509,7 @@ function CampaignWizard({
   /** Batch 1.13 — gera 3 variações DOR/SOLUÇÃO/BENEFÍCIO. Não preenche
    * direto; mostra cards pra user escolher qual usar. */
   async function generateMessageText() {
-    if (!state.product) return onError('Selecione um produto primeiro')
+    if (!state.product) return onError(t('errors.selectProduct'))
     setGeneratingText(true)
     setTextVariations([])
     try {
@@ -513,7 +518,7 @@ function CampaignWizard({
         body: JSON.stringify({
           product:  state.product,
           tone:     state.tone,
-          goal:     state.objective || 'engajar e converter',
+          goal:     state.objective || t('defaultGoal'),
           platform: 'whatsapp',
         }),
       })
@@ -525,7 +530,7 @@ function CampaignWizard({
   }
 
   async function generateAi(forB = false) {
-    if (!state.objective) return onError('Descreva o objetivo da campanha primeiro')
+    if (!state.objective) return onError(t('errors.describeObjective'))
     setGenerating(true)
     try {
       const res = await api<{ variants: Array<{ title: string; body: string }> }>(
@@ -563,7 +568,7 @@ function CampaignWizard({
       const tpl = await api<MessagingTemplate>('/messaging/templates', {
         method: 'POST',
         body: JSON.stringify({
-          name:          `${state.name || 'Campanha'} — variante ${label}`,
+          name:          t('templateName', { campaign: state.name || t('campaignFallback'), label }),
           channel:       'whatsapp',
           trigger_event: 'manual',
           message_body:  body,
@@ -572,13 +577,13 @@ function CampaignWizard({
       })
       return tpl.id
     } catch (e) {
-      onError(`Falha ao criar template ${label}: ${(e as Error).message}`)
+      onError(t('errors.templateCreateFailed', { label, error: (e as Error).message }))
       return null
     }
   }
 
   async function save() {
-    if (!state.name) return onError('Nome obrigatório')
+    if (!state.name) return onError(t('errors.nameRequired'))
     setSaving(true)
     try {
       const tplA = await ensureTemplateId('A', state.template_a_body, state.template_a_id)
@@ -616,7 +621,7 @@ function CampaignWizard({
     setSaving(false)
   }
 
-  const stepLabels = ['Conteúdo', 'Audiência', 'Agendamento', 'A/B test']
+  const stepLabels = [t('steps.content'), t('steps.audience'), t('steps.scheduling'), t('steps.abTest')]
   const canNext = useMemo(() => {
     if (step === 1) return state.name.trim().length > 0 && (state.template_a_id || state.template_a_body.trim().length > 0)
     if (step === 2) return reach === null || reach > 0
@@ -634,8 +639,8 @@ function CampaignWizard({
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid #1e1e24' }}>
           <div>
-            <p className="text-white font-semibold">{editing ? 'Editar campanha' : 'Nova campanha'}</p>
-            <p className="text-zinc-500 text-xs mt-0.5">Passo {step} de 4 — {stepLabels[step - 1]}</p>
+            <p className="text-white font-semibold">{editing ? t('wizard.editTitle') : t('wizard.newTitle')}</p>
+            <p className="text-zinc-500 text-xs mt-0.5">{t('wizard.stepIndicator', { step, label: stepLabels[step - 1] })}</p>
           </div>
           <button onClick={onClose} className="text-zinc-400 hover:text-white"><X size={18} /></button>
         </div>
@@ -660,14 +665,14 @@ function CampaignWizard({
             <div className="grid lg:grid-cols-5 gap-5">
               {/* ── Coluna esquerda — configuração (60%) ─────────────────────── */}
               <div className="lg:col-span-3 space-y-4">
-                <Field label="Nome da campanha">
+                <Field label={t('fields.campaignName')}>
                   <input className="cm-input" value={state.name} onChange={e => patch({ name: e.target.value })}
-                    placeholder="Ex: Black Friday 2026 — abandonadores" />
+                    placeholder={t('fields.campaignNamePlaceholder')} />
                 </Field>
 
                 {/* Card Produto */}
                 <div className="rounded-xl p-4 space-y-3" style={{ background: '#0a0a0e', border: '1px solid #1e1e24' }}>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Produto</p>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">{t('product')}</p>
                   <SmartProductInput value={state.product} onChange={p => patch({ product: p })} />
 
                   {state.product && (
@@ -677,18 +682,18 @@ function CampaignWizard({
                         onClick={() => setAiCardOpen(true)}
                         className="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5"
                         style={{ background: 'rgba(0,229,255,0.10)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.3)' }}>
-                        <Sparkles size={12} /> Gerar capa IA
+                        <Sparkles size={12} /> {t('generateCover')}
                       </button>
 
                       {state.capa_storage_url && (
                         <div className="flex items-center gap-2 ml-1">
-                          <img src={state.capa_storage_url} alt="capa aprovada"
+                          <img src={state.capa_storage_url} alt={t('coverAlt')}
                             className="w-[80px] h-[80px] rounded-lg object-cover bg-zinc-800 border border-zinc-700" />
                           <button
                             type="button"
                             onClick={() => setAiCardOpen(true)}
                             className="text-xs px-2 py-1 rounded border border-zinc-800 text-zinc-300 hover:border-zinc-700 flex items-center gap-1">
-                            <ImageIcon size={11} /> Trocar capa
+                            <ImageIcon size={11} /> {t('changeCover')}
                           </button>
                         </div>
                       )}
@@ -698,70 +703,70 @@ function CampaignWizard({
 
                 {/* Card Conteúdo */}
                 <div className="rounded-xl p-4 space-y-3" style={{ background: '#0a0a0e', border: '1px solid #1e1e24' }}>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Conteúdo da mensagem</p>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">{t('messageContent')}</p>
 
-                  <Field label="Tom da mensagem">
+                  <Field label={t('fields.messageTone')}>
                     <select className="cm-input" value={state.tone} onChange={e => patch({ tone: e.target.value as 'amigavel'|'profissional'|'urgente' })}>
-                      <option value="amigavel">Amigável</option>
-                      <option value="profissional">Profissional</option>
-                      <option value="urgente">Urgente</option>
+                      <option value="amigavel">{t('tones.amigavel')}</option>
+                      <option value="profissional">{t('tones.profissional')}</option>
+                      <option value="urgente">{t('tones.urgente')}</option>
                     </select>
                   </Field>
 
-                  <Field label="Objetivo (pra IA gerar a mensagem)">
+                  <Field label={t('fields.objective')}>
                     <textarea className="cm-input font-mono text-xs" rows={2} value={state.objective}
                       onChange={e => patch({ objective: e.target.value })}
-                      placeholder="Ex: Reativar clientes que abandonaram o carrinho nos últimos 7 dias" />
+                      placeholder={t('fields.objectivePlaceholder')} />
                   </Field>
 
-                  <Field label="Template existente (opcional)">
+                  <Field label={t('fields.existingTemplate')}>
                     <select className="cm-input" value={state.template_a_id ?? ''}
                       onChange={e => patch({ template_a_id: e.target.value || null, template_a_body: e.target.value ? '' : state.template_a_body })}>
-                      <option value="">— criar novo template a partir do texto abaixo —</option>
-                      {templates.filter(t => t.is_active && t.channel === 'whatsapp').map(t => (
-                        <option key={t.id} value={t.id}>{t.name}</option>
+                      <option value="">{t('fields.createNewTemplate')}</option>
+                      {templates.filter(tpl => tpl.is_active && tpl.channel === 'whatsapp').map(tpl => (
+                        <option key={tpl.id} value={tpl.id}>{tpl.name}</option>
                       ))}
                     </select>
                   </Field>
 
                   {!state.template_a_id && (
-                    <Field label="Mensagem (variante A)">
+                    <Field label={t('fields.messageA')}>
                       <AiOverrideRow value={aiOverride} fallback={defaultAi} onChange={setAiOverride} />
                       <div className="flex gap-2 mb-2 mt-2 flex-wrap">
                         <button onClick={() => generateAi(false)} disabled={generating || !state.objective}
                           className="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 disabled:opacity-50"
                           style={{ background: 'rgba(0,229,255,0.10)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.3)' }}>
                           <Sparkles size={12} />
-                          {generating ? 'Gerando…' : 'Gerar mensagem com IA'}
+                          {generating ? t('generating') : t('generateMessageAi')}
                         </button>
                         <button
                           onClick={generateMessageText}
                           disabled={generatingText || !state.product}
-                          title={!state.product ? 'Selecione um produto primeiro' : ''}
+                          title={!state.product ? t('errors.selectProduct') : ''}
                           className="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                           style={{ background: 'rgba(168,85,247,0.10)', color: '#c084fc', border: '1px solid rgba(168,85,247,0.3)' }}>
                           <Sparkles size={12} />
-                          {generatingText ? 'Gerando 3 variações…' : '3 variações com IA'}
+                          {generatingText ? t('generating3') : t('threeVariations')}
                         </button>
                       </div>
                       <textarea className="cm-input font-mono text-xs" rows={5} value={state.template_a_body}
                         onChange={e => patch({ template_a_body: e.target.value })}
-                        placeholder="Olá {{nome}}! Vim te lembrar que..." />
+                        placeholder={t('fields.messageAPlaceholder')} />
 
                       {textVariations.length > 0 && (
                         <div className="mt-3 space-y-2">
-                          <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Variações geradas — DOR / SOLUÇÃO / BENEFÍCIO</p>
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">{t('variationsGenerated')}</p>
                           {textVariations.map((v, i) => (
                             <div key={i} className="rounded-lg p-3 space-y-2"
                               style={{ background: 'rgba(168,85,247,0.05)', border: '1px solid rgba(168,85,247,0.2)' }}>
                               <div className="flex items-start justify-between gap-2">
-                                <span className="text-[10px] font-bold uppercase tracking-widest text-purple-300">Variação {i + 1}</span>
+                                <span className="text-[10px] font-bold uppercase tracking-widest text-purple-300">{t('variationN', { n: i + 1 })}</span>
                                 <button
                                   type="button"
                                   onClick={() => { patch({ template_a_body: v }); setTextVariations([]) }}
                                   className="text-[10px] px-2 py-1 rounded font-semibold flex items-center gap-1"
                                   style={{ background: '#a855f7', color: '#000' }}>
-                                  Usar este
+                                  {t('useThis')}
                                 </button>
                               </div>
                               <p className="text-xs text-zinc-200 whitespace-pre-wrap">{v}</p>
@@ -771,7 +776,7 @@ function CampaignWizard({
                             type="button"
                             onClick={() => setTextVariations([])}
                             className="text-[10px] text-zinc-500 hover:text-zinc-300">
-                            Fechar variações
+                            {t('closeVariations')}
                           </button>
                         </div>
                       )}
@@ -799,13 +804,13 @@ function CampaignWizard({
 
           {step === 2 && (
             <>
-              <Field label="Segmento">
+              <Field label={t('fields.segment')}>
                 <div className="grid grid-cols-2 gap-2">
                   {([
-                    { k: 'all',      label: 'Todos com WhatsApp' },
-                    { k: 'with_cpf', label: 'Com CPF validado' },
-                    { k: 'vip',      label: 'VIP' },
-                    { k: 'custom',   label: 'Filtro customizado' },
+                    { k: 'all',      label: t('segments.all') },
+                    { k: 'with_cpf', label: t('segments.withCpf') },
+                    { k: 'vip',      label: t('segments.vip') },
+                    { k: 'custom',   label: t('segments.custom') },
                   ] as const).map(s => (
                     <button key={s.k} onClick={() => patch({ segment_type: s.k })}
                       className="px-3 py-2 rounded-lg text-xs font-medium border text-left"
@@ -821,20 +826,20 @@ function CampaignWizard({
               {state.segment_type === 'custom' && (
                 <div className="rounded-lg p-3 space-y-2"
                   style={{ background: '#0a0a0e', border: '1px solid #27272a' }}>
-                  <p className="text-zinc-400 text-xs font-medium">Filtros (todos AND)</p>
-                  <Field label="Tags (separadas por vírgula)">
+                  <p className="text-zinc-400 text-xs font-medium">{t('filtersAnd')}</p>
+                  <Field label={t('fields.tags')}>
                     <input className="cm-input"
                       value={Array.isArray(state.segment_filters.tags) ? (state.segment_filters.tags as string[]).join(', ') : ''}
                       onChange={e => patch({ segment_filters: { ...state.segment_filters, tags: e.target.value.split(',').map(s => s.trim()).filter(Boolean) } })}
-                      placeholder="vip, frequente" />
+                      placeholder={t('fields.tagsPlaceholder')} />
                   </Field>
                   <div className="grid grid-cols-2 gap-2">
-                    <Field label="Compras min (R$)">
+                    <Field label={t('fields.minPurchases')}>
                       <input type="number" className="cm-input"
                         value={(state.segment_filters.min_purchases as number | undefined) ?? ''}
                         onChange={e => patch({ segment_filters: { ...state.segment_filters, min_purchases: e.target.value ? Number(e.target.value) : undefined } })} />
                     </Field>
-                    <Field label="Compras max (R$)">
+                    <Field label={t('fields.maxPurchases')}>
                       <input type="number" className="cm-input"
                         value={(state.segment_filters.max_purchases as number | undefined) ?? ''}
                         onChange={e => patch({ segment_filters: { ...state.segment_filters, max_purchases: e.target.value ? Number(e.target.value) : undefined } })} />
@@ -846,16 +851,16 @@ function CampaignWizard({
               <div className="rounded-lg px-4 py-3 flex items-center justify-between"
                 style={{ background: '#0a0a0e', border: '1px solid #27272a' }}>
                 <div>
-                  <p className="text-zinc-400 text-xs">Audiência estimada</p>
+                  <p className="text-zinc-400 text-xs">{t('estimatedReach')}</p>
                   <p className="text-2xl font-bold text-white mt-0.5">
                     {reachLoad ? '…' : reach === null ? '?' : reach}
-                    <span className="text-sm text-zinc-500 ml-2 font-normal">cliente{reach === 1 ? '' : 's'}</span>
+                    <span className="text-sm text-zinc-500 ml-2 font-normal">{t('customersSuffix', { count: reach ?? 0 })}</span>
                   </p>
                 </div>
                 <button onClick={refreshReach} disabled={reachLoad}
                   className="px-3 py-1.5 rounded-lg text-xs font-medium border"
                   style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>
-                  Recalcular
+                  {t('recalculate')}
                 </button>
               </div>
             </>
@@ -863,7 +868,7 @@ function CampaignWizard({
 
           {step === 3 && (
             <>
-              <Field label="Início agendado (vazio = imediato após lançar)">
+              <Field label={t('fields.scheduledStart')}>
                 <input type="datetime-local" className="cm-input"
                   value={state.scheduled_at}
                   onChange={e => patch({ scheduled_at: e.target.value })} />
@@ -871,11 +876,11 @@ function CampaignWizard({
 
               <div className="rounded-lg p-3 space-y-3"
                 style={{ background: '#0a0a0e', border: '1px solid #27272a' }}>
-                <p className="text-zinc-400 text-xs font-medium">Anti-detecção</p>
+                <p className="text-zinc-400 text-xs font-medium">{t('antiDetection')}</p>
 
                 <div>
                   <div className="flex justify-between text-xs mb-1">
-                    <span className="text-zinc-400">Intervalo entre disparos</span>
+                    <span className="text-zinc-400">{t('intervalBetween')}</span>
                     <span className="text-white font-mono">{state.interval_seconds}s</span>
                   </div>
                   <input type="range" min={15} max={600} step={5} className="w-full"
@@ -885,7 +890,7 @@ function CampaignWizard({
 
                 <div>
                   <div className="flex justify-between text-xs mb-1">
-                    <span className="text-zinc-400">Variação aleatória (jitter)</span>
+                    <span className="text-zinc-400">{t('jitter')}</span>
                     <span className="text-white font-mono">±{state.interval_jitter}s</span>
                   </div>
                   <input type="range" min={0} max={120} step={5} className="w-full"
@@ -895,8 +900,8 @@ function CampaignWizard({
 
                 <div>
                   <div className="flex justify-between text-xs mb-1">
-                    <span className="text-zinc-400">Limite diário</span>
-                    <span className="text-white font-mono">{state.daily_limit} msgs/dia</span>
+                    <span className="text-zinc-400">{t('dailyLimit')}</span>
+                    <span className="text-white font-mono">{t('msgsPerDay', { count: state.daily_limit })}</span>
                   </div>
                   <input type="range" min={50} max={2000} step={50} className="w-full"
                     value={state.daily_limit}
@@ -904,8 +909,7 @@ function CampaignWizard({
                 </div>
 
                 <p className="text-[11px]" style={{ color: '#71717a' }}>
-                  Com {state.interval_seconds}s ± {state.interval_jitter}s entre disparos, o WhatsApp não detecta padrão.
-                  Cap de {state.daily_limit}/dia evita ban.
+                  {t('antiDetectionHint', { interval: state.interval_seconds, jitter: state.interval_jitter, cap: state.daily_limit })}
                 </p>
               </div>
             </>
@@ -918,8 +922,8 @@ function CampaignWizard({
                   onChange={e => patch({ ab_enabled: e.target.checked })}
                   className="w-4 h-4" />
                 <div>
-                  <p className="text-white text-sm font-medium">Ativar A/B test</p>
-                  <p className="text-zinc-500 text-xs">Divide a audiência entre 2 variantes pra comparar performance</p>
+                  <p className="text-white text-sm font-medium">{t('enableAbTest')}</p>
+                  <p className="text-zinc-500 text-xs">{t('abTestDesc')}</p>
                 </div>
               </label>
 
@@ -928,38 +932,38 @@ function CampaignWizard({
                   <div className="rounded-lg p-3"
                     style={{ background: '#0a0a0e', border: '1px solid #27272a' }}>
                     <div className="flex justify-between text-xs mb-1">
-                      <span className="text-zinc-400">Variante A: {state.ab_split_pct}%</span>
-                      <span className="text-zinc-400">Variante B: {100 - state.ab_split_pct}%</span>
+                      <span className="text-zinc-400">{t('variantA', { pct: state.ab_split_pct })}</span>
+                      <span className="text-zinc-400">{t('variantB', { pct: 100 - state.ab_split_pct })}</span>
                     </div>
                     <input type="range" min={10} max={90} step={5} className="w-full"
                       value={state.ab_split_pct}
                       onChange={e => patch({ ab_split_pct: Number(e.target.value) })} />
                   </div>
 
-                  <Field label="Template B (existente — opcional)">
+                  <Field label={t('fields.templateB')}>
                     <select className="cm-input" value={state.template_b_id ?? ''}
                       onChange={e => patch({ template_b_id: e.target.value || null, template_b_body: e.target.value ? '' : state.template_b_body })}>
-                      <option value="">— criar novo template a partir do texto abaixo —</option>
-                      {templates.filter(t => t.is_active && t.channel === 'whatsapp').map(t => (
-                        <option key={t.id} value={t.id}>{t.name}</option>
+                      <option value="">{t('fields.createNewTemplate')}</option>
+                      {templates.filter(tpl => tpl.is_active && tpl.channel === 'whatsapp').map(tpl => (
+                        <option key={tpl.id} value={tpl.id}>{tpl.name}</option>
                       ))}
                     </select>
                   </Field>
 
                   {!state.template_b_id && (
-                    <Field label="Mensagem (variante B)">
+                    <Field label={t('fields.messageB')}>
                       <AiOverrideRow value={aiOverride} fallback={defaultAi} onChange={setAiOverride} />
                       <div className="flex gap-2 mb-2 mt-2">
                         <button onClick={() => generateAi(true)} disabled={generating || !state.objective}
                           className="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 disabled:opacity-50"
                           style={{ background: 'rgba(0,229,255,0.10)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.3)' }}>
                           <Sparkles size={12} />
-                          {generating ? 'Gerando…' : 'Gerar variante B'}
+                          {generating ? t('generating') : t('generateVariantB')}
                         </button>
                       </div>
                       <textarea className="cm-input font-mono text-xs" rows={5} value={state.template_b_body}
                         onChange={e => patch({ template_b_body: e.target.value })}
-                        placeholder="Versão alternativa da mensagem..." />
+                        placeholder={t('fields.messageBPlaceholder')} />
                     </Field>
                   )}
                 </>
@@ -975,7 +979,7 @@ function CampaignWizard({
             disabled={step === 1}
             className="px-4 py-2 rounded-lg text-sm font-medium border disabled:opacity-30"
             style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>
-            Voltar
+            {t('back')}
           </button>
           {step < 4 ? (
             <button
@@ -983,7 +987,7 @@ function CampaignWizard({
               disabled={!canNext}
               className="glow-rainbow px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50"
               style={{ background: '#00E5FF', color: '#08323b' }}>
-              Próximo
+              {t('next')}
             </button>
           ) : (
             <button
@@ -991,7 +995,7 @@ function CampaignWizard({
               disabled={saving}
               className="glow-rainbow px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50"
               style={{ background: '#00E5FF', color: '#08323b' }}>
-              {saving ? 'Salvando…' : (editing ? 'Salvar alterações' : 'Salvar como rascunho')}
+              {saving ? t('saving') : (editing ? t('saveChanges') : t('saveDraft'))}
             </button>
           )}
         </div>
@@ -1053,13 +1057,14 @@ function AiOverrideRow({
   fallback: { provider: 'anthropic' | 'openai'; model: string } | null
   onChange: (v: { provider: 'anthropic' | 'openai'; model: string } | null) => void
 }) {
+  const t = useTranslations('campanhas')
   const effective = value ?? fallback
   const currentModel = effective?.model ?? ''
   const currentLabel = AI_MODELS.find(m => m.id === currentModel)?.label ?? currentModel
 
   return (
     <div className="flex items-center gap-2 text-[11px]" style={{ color: '#71717a' }}>
-      <span>Usar:</span>
+      <span>{t('aiUse')}</span>
       <select
         value={currentModel}
         onChange={e => {
@@ -1081,7 +1086,7 @@ function AiOverrideRow({
       <Link href="/dashboard/configuracoes/ia"
         className="flex items-center gap-1 hover:underline"
         style={{ color: '#00E5FF' }}>
-        <SettingsIcon size={10} /> Configurar padrão
+        <SettingsIcon size={10} /> {t('configureDefault')}
       </Link>
     </div>
   )

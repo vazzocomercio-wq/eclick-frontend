@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import { useConfirm } from '@/components/ui/dialog-provider'
 import { IcarusIntegrationTab } from './IcarusIntegrationTab'
@@ -82,6 +83,7 @@ function fmtDate(d: string | null) {
 // ── main page ──────────────────────────────────────────────────────────────────
 
 export default function FornecedorDetailPage() {
+  const t = useTranslations('compras.fornecedorDetail')
   const params = useParams()
   const router = useRouter()
   const id     = params.id as string
@@ -115,22 +117,22 @@ export default function FornecedorDetailPage() {
 
   const getHeaders = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session?.access_token) throw new Error('Não autenticado')
+    if (!session?.access_token) throw new Error(t('errors.notAuthenticated'))
     return { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' }
-  }, [supabase])
+  }, [supabase, t])
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
       const headers = await getHeaders()
       const res = await fetch(`${BACKEND}/suppliers/${id}`, { headers })
-      if (!res.ok) throw new Error('Não encontrado')
+      if (!res.ok) throw new Error(t('errors.notFound'))
       const data = await res.json()
       setSupplier(data)
       setEditData(data)
     } catch { router.push('/dashboard/compras/fornecedores') }
     finally { setLoading(false) }
-  }, [getHeaders, id, router])
+  }, [getHeaders, id, router, t])
 
   useEffect(() => { load() }, [load])
 
@@ -171,17 +173,17 @@ export default function FornecedorDetailPage() {
       const updated = await res.json()
       setSupplier(s => s ? { ...s, ...updated } : s)
       setEditMode(false)
-      setSaveMsg('Salvo!')
+      setSaveMsg(t('saved'))
       setTimeout(() => setSaveMsg(''), 2000)
-    } catch (e: unknown) { setSaveMsg(e instanceof Error ? e.message : 'Erro') }
+    } catch (e: unknown) { setSaveMsg(e instanceof Error ? e.message : t('errors.generic')) }
     finally { setSaving(false) }
   }
 
   async function handleDeactivate() {
     const ok = await confirm({
-      title:        'Desativar fornecedor',
-      message:      'Desativar este fornecedor?',
-      confirmLabel: 'Desativar',
+      title:        t('deactivateConfirm.title'),
+      message:      t('deactivateConfirm.message'),
+      confirmLabel: t('deactivateConfirm.confirm'),
       variant:      'danger',
     })
     if (!ok) return
@@ -192,7 +194,7 @@ export default function FornecedorDetailPage() {
 
   async function handleLinkProduct(e: React.FormEvent) {
     e.preventDefault()
-    if (!selectedProd) { setLinkErr('Selecione um produto'); return }
+    if (!selectedProd) { setLinkErr(t('errors.selectProduct')); return }
     setLinkSaving(true); setLinkErr('')
     try {
       const headers = await getHeaders()
@@ -213,15 +215,15 @@ export default function FornecedorDetailPage() {
       setShowLinkModal(false)
       setSelectedProd(null); setProdSearch(''); setLinkForm({ lead_time_days: '', safety_days: '', unit_cost: '', currency: 'BRL', moq: '', is_preferred: false, supplier_sku: '', notes: '' }); setPriceTiers([])
       await load()
-    } catch (e: unknown) { setLinkErr(e instanceof Error ? e.message : 'Erro') }
+    } catch (e: unknown) { setLinkErr(e instanceof Error ? e.message : t('errors.generic')) }
     finally { setLinkSaving(false) }
   }
 
   async function handleUnlink(productId: string) {
     const ok = await confirm({
-      title:        'Remover vínculo',
-      message:      'Remover vínculo?',
-      confirmLabel: 'Remover',
+      title:        t('unlinkConfirm.title'),
+      message:      t('unlinkConfirm.message'),
+      confirmLabel: t('unlinkConfirm.confirm'),
       variant:      'danger',
     })
     if (!ok) return
@@ -259,9 +261,9 @@ export default function FornecedorDetailPage() {
 
   async function handleRemoveDoc(docId: string) {
     const ok = await confirm({
-      title:        'Remover documento',
-      message:      'Remover documento?',
-      confirmLabel: 'Remover',
+      title:        t('removeDocConfirm.title'),
+      message:      t('removeDocConfirm.message'),
+      confirmLabel: t('removeDocConfirm.confirm'),
       variant:      'danger',
     })
     if (!ok) return
@@ -272,7 +274,7 @@ export default function FornecedorDetailPage() {
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--background)' }}>
-      <p className="text-zinc-500 text-sm">Carregando...</p>
+      <p className="text-zinc-500 text-sm">{t('loading')}</p>
     </div>
   )
 
@@ -291,30 +293,30 @@ export default function FornecedorDetailPage() {
               <h1 className="text-xl font-semibold text-white">{supplier.name}</h1>
               <span className="px-2 py-0.5 rounded-full text-xs font-medium"
                 style={{ background: supplier.is_active ? 'rgba(34,197,94,0.1)' : 'rgba(113,113,122,0.1)', color: supplier.is_active ? '#22c55e' : '#71717a' }}>
-                {supplier.is_active ? 'Ativo' : 'Inativo'}
+                {supplier.is_active ? t('active') : t('inactive')}
               </span>
             </div>
-            <p className="text-sm text-zinc-500">{supplier.supplier_type === 'importado' ? 'Importado' : 'Nacional'} · {supplier.country} · {supplier.currency}</p>
+            <p className="text-sm text-zinc-500">{supplier.supplier_type === 'importado' ? t('type.imported') : t('type.national')} · {supplier.country} · {supplier.currency}</p>
           </div>
         </div>
         <div className="flex gap-2">
           <button onClick={handleDeactivate} className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg text-zinc-400 hover:text-red-400 transition-colors" style={{ border: '1px solid #27272a' }}>
-            <Icon d={I.trash} size={13} /> Desativar
+            <Icon d={I.trash} size={13} /> {t('deactivate')}
           </button>
         </div>
       </div>
 
       {/* tabs */}
       <div className="flex gap-1 mb-6" style={{ borderBottom: '1px solid #1a1a1f' }}>
-        {(['dados', 'produtos', 'integracao', 'documentos', 'historico'] as Tab[]).map(t => (
-          <button key={t} onClick={() => setTab(t)}
-            className="px-4 py-2.5 text-sm font-medium capitalize transition-colors"
+        {(['dados', 'produtos', 'integracao', 'documentos', 'historico'] as Tab[]).map(tabKey => (
+          <button key={tabKey} onClick={() => setTab(tabKey)}
+            className="px-4 py-2.5 text-sm font-medium transition-colors"
             style={{
-              color: tab === t ? '#fff' : '#71717a',
-              borderBottom: tab === t ? '2px solid #00E5FF' : '2px solid transparent',
+              color: tab === tabKey ? '#fff' : '#71717a',
+              borderBottom: tab === tabKey ? '2px solid #00E5FF' : '2px solid transparent',
               marginBottom: '-1px',
             }}>
-            {t === 'historico' ? 'Histórico' : t === 'integracao' ? 'Integração' : t.charAt(0).toUpperCase() + t.slice(1)}
+            {t(`tab.${tabKey}`)}
           </button>
         ))}
       </div>
@@ -323,17 +325,17 @@ export default function FornecedorDetailPage() {
       {tab === 'dados' && (
         <div className="max-w-5xl space-y-4">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-zinc-400">Informações do fornecedor</p>
+            <p className="text-sm text-zinc-400">{t('supplierInfo')}</p>
             {!editMode ? (
               <button onClick={() => setEditMode(true)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg transition-colors" style={{ border: '1px solid #27272a', color: '#71717a' }}>
-                <Icon d={I.edit} size={13} /> Editar
+                <Icon d={I.edit} size={13} /> {t('edit')}
               </button>
             ) : (
               <div className="flex gap-2 items-center">
                 {saveMsg && <span className="text-xs text-emerald-400">{saveMsg}</span>}
-                <button onClick={() => { setEditMode(false); setEditData(supplier) }} className="text-xs text-zinc-500 hover:text-white px-3 py-1.5 rounded-lg" style={{ border: '1px solid #27272a' }}>Cancelar</button>
+                <button onClick={() => { setEditMode(false); setEditData(supplier) }} className="text-xs text-zinc-500 hover:text-white px-3 py-1.5 rounded-lg" style={{ border: '1px solid #27272a' }}>{t('cancel')}</button>
                 <button onClick={handleSaveDados} disabled={saving} className="glow-rainbow text-xs font-medium px-3 py-1.5 rounded-lg" style={{ background: '#00E5FF', color: '#09090b', opacity: saving ? 0.6 : 1 }}>
-                  {saving ? 'Salvando...' : 'Salvar'}
+                  {saving ? t('saving') : t('save')}
                 </button>
               </div>
             )}
@@ -341,18 +343,18 @@ export default function FornecedorDetailPage() {
 
           {/* dados básicos */}
           <div className="rounded-xl p-4 space-y-3" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
-            <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Dados Básicos</p>
+            <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">{t('section.basicData')}</p>
             <div className="grid grid-cols-2 gap-3">
-              <div><label className={lbl}>Nome</label>
+              <div><label className={lbl}>{t('field.name')}</label>
                 {editMode ? <input value={editData.name ?? ''} onChange={e => setEditData(d => ({ ...d, name: e.target.value }))} className={inp} /> : <p className="text-sm text-white">{supplier.name}</p>}
               </div>
-              <div><label className={lbl}>Razão Social</label>
+              <div><label className={lbl}>{t('field.legalName')}</label>
                 {editMode ? <input value={editData.legal_name ?? ''} onChange={e => setEditData(d => ({ ...d, legal_name: e.target.value }))} className={inp} /> : <p className="text-sm text-zinc-300">{supplier.legal_name || '—'}</p>}
               </div>
-              <div><label className={lbl}>CNPJ / Tax ID</label>
+              <div><label className={lbl}>{t('field.taxId')}</label>
                 {editMode ? <input value={editData.tax_id ?? ''} onChange={e => setEditData(d => ({ ...d, tax_id: e.target.value }))} className={inp} /> : <p className="text-sm text-zinc-300">{supplier.tax_id || '—'}</p>}
               </div>
-              <div><label className={lbl}>País</label>
+              <div><label className={lbl}>{t('field.country')}</label>
                 {editMode ? <input value={editData.country ?? ''} onChange={e => setEditData(d => ({ ...d, country: e.target.value }))} className={inp} /> : <p className="text-sm text-zinc-300">{supplier.country}</p>}
               </div>
             </div>
@@ -360,9 +362,9 @@ export default function FornecedorDetailPage() {
 
           {/* contato */}
           <div className="rounded-xl p-4 space-y-3" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
-            <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Contato</p>
+            <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">{t('section.contact')}</p>
             <div className="grid grid-cols-2 gap-3">
-              {[['contact_name', 'Nome'], ['contact_email', 'E-mail'], ['contact_phone', 'Telefone'], ['contact_whatsapp', 'WhatsApp']].map(([k, l]) => (
+              {[['contact_name', t('field.contactName')], ['contact_email', t('field.email')], ['contact_phone', t('field.phone')], ['contact_whatsapp', 'WhatsApp']].map(([k, l]) => (
                 <div key={k}><label className={lbl}>{l}</label>
                   {editMode ? <input value={(editData as Record<string, unknown>)[k] as string ?? ''} onChange={e => setEditData(d => ({ ...d, [k]: e.target.value }))} className={inp} /> : <p className="text-sm text-zinc-300">{(supplier as unknown as Record<string, string | null>)[k] || '—'}</p>}
                 </div>
@@ -372,25 +374,25 @@ export default function FornecedorDetailPage() {
 
           {/* logistica */}
           <div className="rounded-xl p-4 space-y-3" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
-            <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Logística & Pagamento</p>
+            <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">{t('section.logisticsPayment')}</p>
             <div className="grid grid-cols-2 gap-3">
-              <div><label className={lbl}>Lead Time (dias)</label>
+              <div><label className={lbl}>{t('field.leadTime')}</label>
                 {editMode ? <input type="number" value={editData.default_lead_time_days ?? ''} onChange={e => setEditData(d => ({ ...d, default_lead_time_days: e.target.value ? Number(e.target.value) : null }))} className={inp} /> : <p className="text-sm text-zinc-300">{supplier.default_lead_time_days ?? '—'}</p>}
               </div>
-              <div><label className={lbl}>Safety Stock (dias)</label>
+              <div><label className={lbl}>{t('field.safetyStock')}</label>
                 {editMode ? <input type="number" value={editData.default_safety_days ?? ''} onChange={e => setEditData(d => ({ ...d, default_safety_days: e.target.value ? Number(e.target.value) : null }))} className={inp} /> : <p className="text-sm text-zinc-300">{supplier.default_safety_days ?? '—'}</p>}
               </div>
-              <div><label className={lbl}>Prazo Pagamento</label>
+              <div><label className={lbl}>{t('field.paymentTerms')}</label>
                 {editMode ? <input value={editData.payment_terms ?? ''} onChange={e => setEditData(d => ({ ...d, payment_terms: e.target.value }))} className={inp} /> : <p className="text-sm text-zinc-300">{supplier.payment_terms || '—'}</p>}
               </div>
-              <div><label className={lbl}>Forma Pagamento</label>
+              <div><label className={lbl}>{t('field.paymentMethod')}</label>
                 {editMode ? <input value={editData.payment_method ?? ''} onChange={e => setEditData(d => ({ ...d, payment_method: e.target.value }))} className={inp} /> : <p className="text-sm text-zinc-300">{supplier.payment_method || '—'}</p>}
               </div>
               {supplier.supplier_type === 'importado' && <>
-                <div><label className={lbl}>Porto de Origem</label>
+                <div><label className={lbl}>{t('field.portOfOrigin')}</label>
                   {editMode ? <input value={editData.port_of_origin ?? ''} onChange={e => setEditData(d => ({ ...d, port_of_origin: e.target.value }))} className={inp} /> : <p className="text-sm text-zinc-300">{supplier.port_of_origin || '—'}</p>}
                 </div>
-                <div><label className={lbl}>Agente Despacho</label>
+                <div><label className={lbl}>{t('field.customsAgent')}</label>
                   {editMode ? <input value={editData.customs_agent ?? ''} onChange={e => setEditData(d => ({ ...d, customs_agent: e.target.value }))} className={inp} /> : <p className="text-sm text-zinc-300">{supplier.customs_agent || '—'}</p>}
                 </div>
               </>}
@@ -398,16 +400,16 @@ export default function FornecedorDetailPage() {
             {editMode ? (
               <div className="flex items-center gap-2">
                 <input type="checkbox" id="fi" checked={editData.freight_included ?? false} onChange={e => setEditData(d => ({ ...d, freight_included: e.target.checked }))} className="w-4 h-4 accent-[#00E5FF]" />
-                <label htmlFor="fi" className="text-sm text-zinc-400 cursor-pointer">Frete incluso</label>
+                <label htmlFor="fi" className="text-sm text-zinc-400 cursor-pointer">{t('field.freightIncluded')}</label>
               </div>
             ) : (
-              <p className="text-xs text-zinc-500">Frete incluso: <span className="text-zinc-300">{supplier.freight_included ? 'Sim' : 'Não'}</span></p>
+              <p className="text-xs text-zinc-500">{t('field.freightIncluded')}: <span className="text-zinc-300">{supplier.freight_included ? t('yes') : t('no')}</span></p>
             )}
           </div>
 
           {/* notas */}
           <div className="rounded-xl p-4" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
-            <label className={lbl}>Observações</label>
+            <label className={lbl}>{t('field.notes')}</label>
             {editMode ? (
               <textarea value={editData.notes ?? ''} onChange={e => setEditData(d => ({ ...d, notes: e.target.value }))} rows={3} className={inp + ' resize-none'} />
             ) : (
@@ -421,17 +423,17 @@ export default function FornecedorDetailPage() {
       {tab === 'produtos' && (
         <div className="max-w-5xl">
           <div className="flex items-center justify-between mb-4">
-            <p className="text-sm text-zinc-400">{supplier.supplier_products.length} produto(s) vinculado(s)</p>
+            <p className="text-sm text-zinc-400">{t('linkedProductsCount', { count: supplier.supplier_products.length })}</p>
             <button onClick={() => setShowLinkModal(true)} className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg" style={{ background: '#00E5FF', color: '#09090b' }}>
-              <Icon d={I.plus} size={14} /> Vincular Produto
+              <Icon d={I.plus} size={14} /> {t('linkProduct')}
             </button>
           </div>
 
           {supplier.supplier_products.length === 0 ? (
             <div className="rounded-xl p-12 text-center" style={{ border: '1px dashed #27272a' }}>
               <Icon d={I.package} size={32} />
-              <p className="text-zinc-500 text-sm mt-3">Nenhum produto vinculado ainda.</p>
-              <button onClick={() => setShowLinkModal(true)} className="mt-3 text-sm" style={{ color: '#00E5FF' }}>+ Vincular primeiro produto</button>
+              <p className="text-zinc-500 text-sm mt-3">{t('noLinkedProducts')}</p>
+              <button onClick={() => setShowLinkModal(true)} className="mt-3 text-sm" style={{ color: '#00E5FF' }}>{t('linkFirstProduct')}</button>
             </div>
           ) : (
             <div className="space-y-2">
@@ -447,24 +449,24 @@ export default function FornecedorDetailPage() {
                   )}
                   {/* info */}
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-white truncate">{sp.products?.name ?? 'Produto desvinculado'}</p>
-                    <p className="text-xs text-zinc-500">SKU: {sp.products?.sku ?? '—'}{sp.supplier_sku ? ` · SKU Fornecedor: ${sp.supplier_sku}` : ''}</p>
+                    <p className="text-sm font-medium text-white truncate">{sp.products?.name ?? t('unlinkedProduct')}</p>
+                    <p className="text-xs text-zinc-500">SKU: {sp.products?.sku ?? '—'}{sp.supplier_sku ? ` · ${t('supplierSkuLabel')}: ${sp.supplier_sku}` : ''}</p>
                   </div>
                   {/* stats */}
                   <div className="flex items-center gap-6 shrink-0">
                     <div className="text-center">
-                      <p className="text-xs text-zinc-500">Lead Time</p>
+                      <p className="text-xs text-zinc-500">{t('field.leadTimeShort')}</p>
                       <p className="text-sm font-medium text-white">{sp.lead_time_days != null ? `${sp.lead_time_days}d` : '—'}</p>
                     </div>
                     <div className="text-center">
-                      <p className="text-xs text-zinc-500">Custo Unit.</p>
+                      <p className="text-xs text-zinc-500">{t('field.unitCost')}</p>
                       <p className="text-sm font-medium text-white">{sp.unit_cost != null ? `${sp.currency ?? ''} ${sp.unit_cost.toFixed(2)}` : '—'}</p>
                     </div>
                     <div className="text-center">
                       <p className="text-xs text-zinc-500">MOQ</p>
                       <p className="text-sm font-medium text-white">{sp.moq ?? '—'}</p>
                     </div>
-                    <button onClick={() => handleTogglePreferred(sp)} title="Preferido" className="transition-colors" style={{ color: sp.is_preferred ? '#f59e0b' : '#3f3f46' }}>
+                    <button onClick={() => handleTogglePreferred(sp)} title={t('preferred')} className="transition-colors" style={{ color: sp.is_preferred ? '#f59e0b' : '#3f3f46' }}>
                       <Icon d={I.star} size={18} />
                     </button>
                     <button onClick={() => handleUnlink(sp.product_id)} className="text-zinc-600 hover:text-red-400 transition-colors">
@@ -487,15 +489,15 @@ export default function FornecedorDetailPage() {
       {tab === 'documentos' && (
         <div className="max-w-5xl">
           <div className="flex items-center justify-between mb-4">
-            <p className="text-sm text-zinc-400">{supplier.supplier_documents.length} documento(s)</p>
+            <p className="text-sm text-zinc-400">{t('documentsCount', { count: supplier.supplier_documents.length })}</p>
             <button onClick={() => setShowDocModal(true)} className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg" style={{ background: '#00E5FF', color: '#09090b' }}>
-              <Icon d={I.plus} size={14} /> Adicionar Documento
+              <Icon d={I.plus} size={14} /> {t('addDocument')}
             </button>
           </div>
           {supplier.supplier_documents.length === 0 ? (
             <div className="rounded-xl p-12 text-center" style={{ border: '1px dashed #27272a' }}>
               <Icon d={I.file} size={32} />
-              <p className="text-zinc-500 text-sm mt-3">Nenhum documento cadastrado.</p>
+              <p className="text-zinc-500 text-sm mt-3">{t('noDocuments')}</p>
             </div>
           ) : (
             <div className="space-y-2">
@@ -508,7 +510,7 @@ export default function FornecedorDetailPage() {
                     {doc.notes && <p className="text-xs text-zinc-600">{doc.notes}</p>}
                   </div>
                   <p className="text-xs text-zinc-500 shrink-0">{fmtDate(doc.created_at)}</p>
-                  <a href={doc.file_url} target="_blank" rel="noreferrer" className="text-xs shrink-0" style={{ color: '#00E5FF' }}>Abrir →</a>
+                  <a href={doc.file_url} target="_blank" rel="noreferrer" className="text-xs shrink-0" style={{ color: '#00E5FF' }}>{t('open')}</a>
                   <button onClick={() => handleRemoveDoc(doc.id)} className="text-zinc-600 hover:text-red-400 transition-colors">
                     <Icon d={I.trash} size={15} />
                   </button>
@@ -524,10 +526,10 @@ export default function FornecedorDetailPage() {
         <div className="max-w-5xl space-y-4">
           <div className="grid grid-cols-2 gap-3">
             {[
-              { label: 'Total de Pedidos', value: supplier.total_orders_count ?? 0 },
-              { label: 'Valor Total Comprado', value: fmtBrl(supplier.total_ordered_value_brl) },
-              { label: 'On-Time Delivery', value: supplier.on_time_delivery_rate != null ? `${supplier.on_time_delivery_rate.toFixed(1)}%` : '—' },
-              { label: 'Última Compra', value: fmtDate(supplier.last_order_at) },
+              { label: t('history.totalOrders'), value: supplier.total_orders_count ?? 0 },
+              { label: t('history.totalPurchased'), value: fmtBrl(supplier.total_ordered_value_brl) },
+              { label: t('history.onTimeDelivery'), value: supplier.on_time_delivery_rate != null ? `${supplier.on_time_delivery_rate.toFixed(1)}%` : '—' },
+              { label: t('history.lastPurchase'), value: fmtDate(supplier.last_order_at) },
             ].map(({ label, value }) => (
               <div key={label} className="rounded-xl p-4" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
                 <p className="text-xs text-zinc-500 mb-1">{label}</p>
@@ -539,7 +541,7 @@ export default function FornecedorDetailPage() {
             <div className="rounded-xl p-4 flex items-center gap-3" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
               <Icon d={I.star} size={24} />
               <div>
-                <p className="text-xs text-zinc-500">Rating</p>
+                <p className="text-xs text-zinc-500">{t('history.rating')}</p>
                 <p className="text-2xl font-semibold text-white">{supplier.rating.toFixed(1)}</p>
               </div>
             </div>
@@ -553,13 +555,13 @@ export default function FornecedorDetailPage() {
           <div className="fixed inset-0 z-40 bg-black/60" onClick={() => setShowLinkModal(false)} />
           <div className="fixed right-0 top-0 h-full z-50 w-full max-w-lg flex flex-col overflow-hidden" style={{ background: '#111114', borderLeft: '1px solid #1e1e24' }}>
             <div className="flex items-center justify-between px-6 py-4 shrink-0" style={{ borderBottom: '1px solid #1e1e24' }}>
-              <h2 className="text-white font-semibold">Vincular Produto</h2>
+              <h2 className="text-white font-semibold">{t('linkProduct')}</h2>
               <button onClick={() => setShowLinkModal(false)} className="text-zinc-500 hover:text-white"><Icon d={I.x} size={18} /></button>
             </div>
             <form onSubmit={handleLinkProduct} className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
               {/* busca produto */}
               <div>
-                <label className={lbl}>Produto *</label>
+                <label className={lbl}>{t('linkModal.product')}</label>
                 {selectedProd ? (
                   <div className="flex items-center gap-2 p-2 rounded-lg" style={{ background: '#0f0f12', border: '1px solid #00E5FF' }}>
                     <span className="flex-1 text-sm text-white">{selectedProd.name}</span>
@@ -570,7 +572,7 @@ export default function FornecedorDetailPage() {
                   <div className="relative">
                     <input
                       value={prodSearch} onChange={e => setProdSearch(e.target.value)}
-                      placeholder="Buscar por nome ou SKU..."
+                      placeholder={t('linkModal.searchPlaceholder')}
                       className={inp}
                     />
                     {prodOptions.length > 0 && (
@@ -592,53 +594,53 @@ export default function FornecedorDetailPage() {
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <div><label className={lbl}>Lead Time (dias)</label><input type="number" value={linkForm.lead_time_days} onChange={e => setLinkForm(f => ({ ...f, lead_time_days: e.target.value }))} className={inp} placeholder="30" /></div>
-                <div><label className={lbl}>Safety Days</label><input type="number" value={linkForm.safety_days} onChange={e => setLinkForm(f => ({ ...f, safety_days: e.target.value }))} className={inp} placeholder="7" /></div>
-                <div><label className={lbl}>Custo Unitário</label><input type="number" step="0.01" value={linkForm.unit_cost} onChange={e => setLinkForm(f => ({ ...f, unit_cost: e.target.value }))} className={inp} placeholder="0.00" /></div>
-                <div><label className={lbl}>Moeda</label>
+                <div><label className={lbl}>{t('linkModal.leadTime')}</label><input type="number" value={linkForm.lead_time_days} onChange={e => setLinkForm(f => ({ ...f, lead_time_days: e.target.value }))} className={inp} placeholder="30" /></div>
+                <div><label className={lbl}>{t('linkModal.safetyDays')}</label><input type="number" value={linkForm.safety_days} onChange={e => setLinkForm(f => ({ ...f, safety_days: e.target.value }))} className={inp} placeholder="7" /></div>
+                <div><label className={lbl}>{t('linkModal.unitCost')}</label><input type="number" step="0.01" value={linkForm.unit_cost} onChange={e => setLinkForm(f => ({ ...f, unit_cost: e.target.value }))} className={inp} placeholder="0.00" /></div>
+                <div><label className={lbl}>{t('linkModal.currency')}</label>
                   <select value={linkForm.currency} onChange={e => setLinkForm(f => ({ ...f, currency: e.target.value }))} className={inp}>
                     {['BRL','USD','EUR','CNY'].map(c => <option key={c}>{c}</option>)}
                   </select>
                 </div>
                 <div><label className={lbl}>MOQ</label><input type="number" value={linkForm.moq} onChange={e => setLinkForm(f => ({ ...f, moq: e.target.value }))} className={inp} placeholder="1" /></div>
-                <div><label className={lbl}>SKU do Fornecedor</label><input value={linkForm.supplier_sku} onChange={e => setLinkForm(f => ({ ...f, supplier_sku: e.target.value }))} className={inp} /></div>
+                <div><label className={lbl}>{t('linkModal.supplierSku')}</label><input value={linkForm.supplier_sku} onChange={e => setLinkForm(f => ({ ...f, supplier_sku: e.target.value }))} className={inp} /></div>
               </div>
 
               <div className="flex items-center gap-2">
                 <input type="checkbox" id="pref" checked={linkForm.is_preferred} onChange={e => setLinkForm(f => ({ ...f, is_preferred: e.target.checked }))} className="w-4 h-4 accent-[#00E5FF]" />
-                <label htmlFor="pref" className="text-sm text-zinc-400 cursor-pointer">Fornecedor preferido para este produto</label>
+                <label htmlFor="pref" className="text-sm text-zinc-400 cursor-pointer">{t('linkModal.preferredSupplier')}</label>
               </div>
 
               {/* faixas de preço */}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <label className={lbl}>Faixas de Preço</label>
-                  <button type="button" onClick={() => setPriceTiers(t => [...t, { min_qty: 1, unit_price: 0 }])} className="text-xs" style={{ color: '#00E5FF' }}>+ Adicionar faixa</button>
+                  <label className={lbl}>{t('linkModal.priceTiers')}</label>
+                  <button type="button" onClick={() => setPriceTiers(prev => [...prev, { min_qty: 1, unit_price: 0 }])} className="text-xs" style={{ color: '#00E5FF' }}>{t('linkModal.addTier')}</button>
                 </div>
                 {priceTiers.length > 0 && (
                   <div className="space-y-2">
                     <div className="grid grid-cols-3 gap-2 text-xs text-zinc-500 px-1">
-                      <span>Qtd mínima</span><span>Preço unitário</span><span />
+                      <span>{t('linkModal.minQty')}</span><span>{t('linkModal.unitPrice')}</span><span />
                     </div>
                     {priceTiers.map((tier, i) => (
                       <div key={i} className="grid grid-cols-3 gap-2 items-center">
-                        <input type="number" value={tier.min_qty} onChange={e => setPriceTiers(t => t.map((x, j) => j === i ? { ...x, min_qty: Number(e.target.value) } : x))} className={inp} />
-                        <input type="number" step="0.01" value={tier.unit_price} onChange={e => setPriceTiers(t => t.map((x, j) => j === i ? { ...x, unit_price: Number(e.target.value) } : x))} className={inp} />
-                        <button type="button" onClick={() => setPriceTiers(t => t.filter((_, j) => j !== i))} className="text-zinc-600 hover:text-red-400 transition-colors"><Icon d={I.x} size={14} /></button>
+                        <input type="number" value={tier.min_qty} onChange={e => setPriceTiers(prev => prev.map((x, j) => j === i ? { ...x, min_qty: Number(e.target.value) } : x))} className={inp} />
+                        <input type="number" step="0.01" value={tier.unit_price} onChange={e => setPriceTiers(prev => prev.map((x, j) => j === i ? { ...x, unit_price: Number(e.target.value) } : x))} className={inp} />
+                        <button type="button" onClick={() => setPriceTiers(prev => prev.filter((_, j) => j !== i))} className="text-zinc-600 hover:text-red-400 transition-colors"><Icon d={I.x} size={14} /></button>
                       </div>
                     ))}
                   </div>
                 )}
               </div>
 
-              <div><label className={lbl}>Notas</label><textarea value={linkForm.notes} onChange={e => setLinkForm(f => ({ ...f, notes: e.target.value }))} rows={2} className={inp + ' resize-none'} /></div>
+              <div><label className={lbl}>{t('linkModal.notes')}</label><textarea value={linkForm.notes} onChange={e => setLinkForm(f => ({ ...f, notes: e.target.value }))} rows={2} className={inp + ' resize-none'} /></div>
             </form>
             <div className="shrink-0 px-6 py-4 flex items-center justify-between gap-3" style={{ borderTop: '1px solid #1e1e24' }}>
               {linkErr && <p className="text-xs text-red-400 flex-1">{linkErr}</p>}
               <div className="flex gap-2 ml-auto">
-                <button type="button" onClick={() => setShowLinkModal(false)} className="px-4 py-2 text-sm rounded-lg text-zinc-400" style={{ border: '1px solid #27272a' }}>Cancelar</button>
+                <button type="button" onClick={() => setShowLinkModal(false)} className="px-4 py-2 text-sm rounded-lg text-zinc-400" style={{ border: '1px solid #27272a' }}>{t('cancel')}</button>
                 <button type="button" onClick={handleLinkProduct} disabled={linkSaving} className="px-4 py-2 text-sm font-medium rounded-lg" style={{ background: '#00E5FF', color: '#09090b', opacity: linkSaving ? 0.6 : 1 }}>
-                  {linkSaving ? 'Vinculando...' : 'Vincular'}
+                  {linkSaving ? t('linking') : t('link')}
                 </button>
               </div>
             </div>
@@ -653,18 +655,18 @@ export default function FornecedorDetailPage() {
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div className="w-full max-w-md rounded-xl p-6 space-y-4" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
               <div className="flex items-center justify-between">
-                <h2 className="text-white font-semibold">Adicionar Documento</h2>
+                <h2 className="text-white font-semibold">{t('addDocument')}</h2>
                 <button onClick={() => setShowDocModal(false)} className="text-zinc-500 hover:text-white"><Icon d={I.x} size={18} /></button>
               </div>
               <form onSubmit={handleAddDoc} className="space-y-3">
-                <div><label className={lbl}>Nome do Arquivo *</label><input value={docForm.title} onChange={e => setDocForm(f => ({ ...f, title: e.target.value }))} className={inp} placeholder="contrato.pdf" /></div>
-                <div><label className={lbl}>URL do Arquivo *</label><input value={docForm.file_url} onChange={e => setDocForm(f => ({ ...f, file_url: e.target.value }))} className={inp} placeholder="https://..." /></div>
-                <div><label className={lbl}>Tipo</label><input value={docForm.document_type} onChange={e => setDocForm(f => ({ ...f, document_type: e.target.value }))} className={inp} placeholder="Contrato, Certificado, NF..." /></div>
-                <div><label className={lbl}>Notas</label><input value={docForm.notes} onChange={e => setDocForm(f => ({ ...f, notes: e.target.value }))} className={inp} /></div>
+                <div><label className={lbl}>{t('docModal.fileName')}</label><input value={docForm.title} onChange={e => setDocForm(f => ({ ...f, title: e.target.value }))} className={inp} placeholder="contrato.pdf" /></div>
+                <div><label className={lbl}>{t('docModal.fileUrl')}</label><input value={docForm.file_url} onChange={e => setDocForm(f => ({ ...f, file_url: e.target.value }))} className={inp} placeholder="https://..." /></div>
+                <div><label className={lbl}>{t('docModal.type')}</label><input value={docForm.document_type} onChange={e => setDocForm(f => ({ ...f, document_type: e.target.value }))} className={inp} placeholder={t('docModal.typePlaceholder')} /></div>
+                <div><label className={lbl}>{t('docModal.notes')}</label><input value={docForm.notes} onChange={e => setDocForm(f => ({ ...f, notes: e.target.value }))} className={inp} /></div>
                 <div className="flex justify-end gap-2 pt-2">
-                  <button type="button" onClick={() => setShowDocModal(false)} className="px-4 py-2 text-sm rounded-lg text-zinc-400" style={{ border: '1px solid #27272a' }}>Cancelar</button>
+                  <button type="button" onClick={() => setShowDocModal(false)} className="px-4 py-2 text-sm rounded-lg text-zinc-400" style={{ border: '1px solid #27272a' }}>{t('cancel')}</button>
                   <button type="submit" disabled={docSaving} className="glow-rainbow px-4 py-2 text-sm font-medium rounded-lg" style={{ background: '#00E5FF', color: '#09090b' }}>
-                    {docSaving ? 'Salvando...' : 'Salvar'}
+                    {docSaving ? t('saving') : t('save')}
                   </button>
                 </div>
               </form>

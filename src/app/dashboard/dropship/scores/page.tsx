@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import Link from 'next/link'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import { useConfirm } from '@/components/ui/dialog-provider'
 import {
@@ -25,15 +26,16 @@ interface ScoreEntry {
   suppliers: { id: string; name: string } | null
 }
 
-const DIMENSION_LABELS: Record<string, string> = {
-  stock_accuracy: 'Acurácia de estoque',
-  ship_lead_compliance: 'Cumprimento de prazo',
-  divergence_rate: 'Baixa divergência',
-  return_rate: 'Baixa devolução',
-  approval_speed: 'Velocidade de aprovação',
+const DIMENSION_KEYS: Record<string, string> = {
+  stock_accuracy: 'dimension.stockAccuracy',
+  ship_lead_compliance: 'dimension.shipLeadCompliance',
+  divergence_rate: 'dimension.divergenceRate',
+  return_rate: 'dimension.returnRate',
+  approval_speed: 'dimension.approvalSpeed',
 }
 
 export default function ScoresPage() {
+  const t = useTranslations('dropship.scores')
   const supabase = useMemo(() => createClient(), [])
 
   const [scores, setScores] = useState<ScoreEntry[]>([])
@@ -45,9 +47,9 @@ export default function ScoresPage() {
 
   const getHeaders = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session?.access_token) throw new Error('Não autenticado')
+    if (!session?.access_token) throw new Error(t('errors.notAuthenticated'))
     return { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' }
-  }, [supabase])
+  }, [supabase, t])
 
   const load = useCallback(async () => {
     setLoading(true); setErr('')
@@ -57,17 +59,17 @@ export default function ScoresPage() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       setScores(await res.json())
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Erro ao carregar')
+      setErr(e instanceof Error ? e.message : t('errors.loadFailed'))
     } finally { setLoading(false) }
-  }, [getHeaders])
+  }, [getHeaders, t])
 
   useEffect(() => { load() }, [load])
 
   async function recalculate() {
     const ok = await confirm({
-      title: 'Recalcular scores',
-      message: 'Vai processar TODOS os parceiros ativos. Pode levar alguns segundos.',
-      confirmLabel: 'Recalcular',
+      title: t('recalcConfirm.title'),
+      message: t('recalcConfirm.message'),
+      confirmLabel: t('recalcConfirm.confirm'),
     })
     if (!ok) return
     setRecalculating(true); setErr('')
@@ -77,7 +79,7 @@ export default function ScoresPage() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       await load()
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Erro ao recalcular')
+      setErr(e instanceof Error ? e.message : t('errors.recalcFailed'))
     } finally { setRecalculating(false) }
   }
 
@@ -95,9 +97,9 @@ export default function ScoresPage() {
             <ArrowLeft size={18} />
           </Link>
           <div>
-            <h1 className="text-xl font-semibold text-white">Score dos Parceiros</h1>
+            <h1 className="text-xl font-semibold text-white">{t('title')}</h1>
             <p className="text-sm text-zinc-500 mt-0.5">
-              Performance v1: 5 dimensões × 20 pontos = 100. Recalculado mensalmente (cron 1º do mês).
+              {t('subtitle')}
             </p>
           </div>
         </div>
@@ -108,7 +110,7 @@ export default function ScoresPage() {
           style={{ border: '1px solid #27272a', color: '#a1a1aa' }}
         >
           <RefreshCw size={14} className={recalculating ? 'animate-spin' : ''} />
-          {recalculating ? 'Calculando...' : 'Recalcular agora'}
+          {recalculating ? t('calculating') : t('recalcNow')}
         </button>
       </div>
 
@@ -123,23 +125,23 @@ export default function ScoresPage() {
 
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-        <Kpi label="Parceiros pontuados" value={total} />
-        <Kpi label="Score médio" value={loading ? '…' : avgScore} accent={getScoreColor(avgScore)} />
-        <Kpi label="Top score" value={loading ? '…' : top} accent="#22c55e" icon={<Trophy size={14} />} />
-        <Kpi label="Em risco (<60)" value={loading ? '…' : atRisk} accent={atRisk > 0 ? '#f87171' : '#22c55e'} />
+        <Kpi label={t('kpi.scoredPartners')} value={total} />
+        <Kpi label={t('kpi.avgScore')} value={loading ? '…' : avgScore} accent={getScoreColor(avgScore)} />
+        <Kpi label={t('kpi.topScore')} value={loading ? '…' : top} accent="#22c55e" icon={<Trophy size={14} />} />
+        <Kpi label={t('kpi.atRisk')} value={loading ? '…' : atRisk} accent={atRisk > 0 ? '#f87171' : '#22c55e'} />
       </div>
 
       {/* Ranking */}
-      <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-3">Ranking</h2>
+      <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-3">{t('ranking')}</h2>
       {loading ? (
         <div className="rounded-xl p-12 text-center text-zinc-500 text-sm" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
-          Carregando...
+          {t('loading')}
         </div>
       ) : scores.length === 0 ? (
         <div className="rounded-xl p-12 text-center text-zinc-500 text-sm" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
           <Award size={28} className="mx-auto mb-2 text-zinc-700" />
-          Nenhum score calculado ainda.
-          <p className="text-xs mt-1">Clique em &quot;Recalcular agora&quot; pra rodar o cálculo do mês atual.</p>
+          {t('empty')}
+          <p className="text-xs mt-1">{t('emptyHint')}</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -150,6 +152,7 @@ export default function ScoresPage() {
               rank={idx + 1}
               expanded={expandedId === s.id}
               onToggle={() => setExpandedId(expandedId === s.id ? null : s.id)}
+              t={t}
             />
           ))}
         </div>
@@ -159,12 +162,13 @@ export default function ScoresPage() {
 }
 
 function ScoreCard({
-  score, rank, expanded, onToggle,
+  score, rank, expanded, onToggle, t,
 }: {
   score: ScoreEntry
   rank: number
   expanded: boolean
   onToggle: () => void
+  t: ReturnType<typeof useTranslations>
 }) {
   const color = getScoreColor(score.total_score)
   const change = score.score_change
@@ -209,10 +213,10 @@ function ScoreCard({
         <div className="px-5 pb-5 space-y-4 border-t" style={{ borderColor: '#1a1a1f' }}>
           {/* Breakdown */}
           <div className="pt-4">
-            <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">Breakdown</p>
+            <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">{t('breakdown')}</p>
             <div className="space-y-2">
               {Object.entries(score.score_breakdown).map(([key, value]) => (
-                <DimensionBar key={key} label={DIMENSION_LABELS[key] ?? key} value={value} max={20} />
+                <DimensionBar key={key} label={DIMENSION_KEYS[key] ? t(DIMENSION_KEYS[key]) : key} value={value} max={20} />
               ))}
             </div>
           </div>
@@ -220,7 +224,7 @@ function ScoreCard({
           {/* Insights */}
           {score.insights.length > 0 && (
             <div>
-              <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">Insights</p>
+              <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">{t('insights')}</p>
               <div className="space-y-1.5">
                 {score.insights.map((ins, idx) => (
                   <div

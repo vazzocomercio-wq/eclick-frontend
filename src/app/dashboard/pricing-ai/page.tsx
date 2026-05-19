@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import {
   DollarSign, TrendingUp, TrendingDown, Minus, Loader2, Sparkles,
@@ -13,14 +14,7 @@ import {
   type PricingSuggestionStatus,
 } from '@/components/pricing-ai/pricingAiApi'
 
-const STATUS_LABEL: Record<PricingSuggestionStatus, string> = {
-  pending:      'Pendente',
-  approved:     'Aprovada',
-  applied:      'Aplicada',
-  auto_applied: 'Auto-aplicada',
-  rejected:     'Rejeitada',
-  expired:      'Expirada',
-}
+const STATUS_KEYS: PricingSuggestionStatus[] = ['pending', 'applied', 'auto_applied', 'approved', 'rejected', 'expired']
 const STATUS_COLOR: Record<PricingSuggestionStatus, string> = {
   pending:      '#f59e0b',
   approved:     '#22c55e',
@@ -31,6 +25,7 @@ const STATUS_COLOR: Record<PricingSuggestionStatus, string> = {
 }
 
 export default function PricingAiHomePage() {
+  const t = useTranslations('pricingAi')
   const [items, setItems]         = useState<PricingSuggestion[] | null>(null)
   const [dash, setDash]           = useState<PricingDashboard | null>(null)
   const [loading, setLoading]     = useState(true)
@@ -69,7 +64,7 @@ export default function PricingAiHomePage() {
     setAnalyzing(true); setError(null)
     try {
       const r = await PricingAiApi.analyzeAll({ max_items: 30 })
-      alert(`Análise concluída: ${r.analyzed} sucessos, ${r.failed} falhas, custo $${r.cost_usd.toFixed(4)}`)
+      alert(t('analyzeDone', { analyzed: r.analyzed, failed: r.failed, cost: r.cost_usd.toFixed(4) }))
       await refresh()
     } catch (e) {
       setError((e as Error).message)
@@ -80,10 +75,10 @@ export default function PricingAiHomePage() {
 
   async function approveBatch() {
     if (batch.length === 0) return
-    if (!confirm(`Aprovar ${batch.length} sugestão${batch.length > 1 ? 'ões' : ''}? Os preços serão atualizados nos produtos.`)) return
+    if (!confirm(t('confirmApproveBatch', { count: batch.length }))) return
     try {
       const r = await PricingAiApi.approveBatch(batch)
-      alert(`${r.approved} aprovadas · ${r.failed} falharam`)
+      alert(t('approveBatchResult', { approved: r.approved, failed: r.failed }))
       setBatch([])
       await refresh()
     } catch (e) {
@@ -97,10 +92,10 @@ export default function PricingAiHomePage() {
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-zinc-100 flex items-center gap-2">
             <DollarSign size={20} className="text-cyan-400" />
-            Precificação Inteligente
+            {t('title')}
           </h1>
           <p className="text-xs text-zinc-500 mt-1">
-            A IA propõe, você aprova. Sugestões baseadas em margem, concorrência, estoque e vendas.
+            {t('subtitle')}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -108,7 +103,7 @@ export default function PricingAiHomePage() {
             href="/dashboard/pricing-ai/rules"
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-zinc-800 hover:border-zinc-700 text-zinc-300 text-xs"
           >
-            <Settings size={12} /> Regras
+            <Settings size={12} /> {t('rules')}
           </Link>
           <button
             onClick={analyzeAll}
@@ -116,7 +111,7 @@ export default function PricingAiHomePage() {
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-cyan-400 hover:bg-cyan-300 disabled:opacity-50 text-black text-xs font-medium"
           >
             {analyzing ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
-            Analisar agora
+            {t('analyzeNow')}
           </button>
         </div>
       </div>
@@ -130,11 +125,11 @@ export default function PricingAiHomePage() {
       {/* Dashboard */}
       {dash && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <DashCard label="Pendentes" value={dash.pending_count} icon={<AlertCircle size={14} className="text-amber-400" />} />
-          <DashCard label="Aplicadas" value={dash.applied_count} icon={<CheckCircle2 size={14} className="text-emerald-400" />} />
-          <DashCard label="Auto-aplicadas" value={dash.auto_applied_count} icon={<Zap size={14} className="text-purple-400" />} />
+          <DashCard label={t('dashPending')} value={dash.pending_count} icon={<AlertCircle size={14} className="text-amber-400" />} />
+          <DashCard label={t('dashApplied')} value={dash.applied_count} icon={<CheckCircle2 size={14} className="text-emerald-400" />} />
+          <DashCard label={t('dashAutoApplied')} value={dash.auto_applied_count} icon={<Zap size={14} className="text-purple-400" />} />
           <DashCard
-            label="Mudança média"
+            label={t('dashAvgChange')}
             value={dash.avg_change_pct != null ? `${dash.avg_change_pct.toFixed(1)}%` : '—'}
             icon={<TrendingUp size={14} className="text-cyan-400" />}
           />
@@ -148,7 +143,7 @@ export default function PricingAiHomePage() {
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Buscar por product_id…"
+            placeholder={t('searchPlaceholder')}
             className="flex-1 bg-transparent py-2 text-sm text-zinc-200 outline-none placeholder:text-zinc-600"
           />
         </div>
@@ -157,16 +152,16 @@ export default function PricingAiHomePage() {
           onChange={e => setFilterStatus(e.target.value as PricingSuggestionStatus | '')}
           className="bg-zinc-950 border border-zinc-800 rounded px-2 py-2 text-xs text-zinc-200 outline-none focus:border-cyan-400/60"
         >
-          <option value="">Todos status</option>
-          {(['pending','applied','auto_applied','approved','rejected','expired'] as const).map(s => (
-            <option key={s} value={s}>{STATUS_LABEL[s]}</option>
+          <option value="">{t('allStatuses')}</option>
+          {STATUS_KEYS.map(s => (
+            <option key={s} value={s}>{t(`status_${s}`)}</option>
           ))}
         </select>
         <button
           onClick={refresh}
           disabled={loading}
           className="p-2 rounded border border-zinc-800 hover:border-zinc-700 text-zinc-400 disabled:opacity-50"
-          title="Atualizar"
+          title={t('refresh')}
         >
           <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
         </button>
@@ -175,7 +170,7 @@ export default function PricingAiHomePage() {
             onClick={approveBatch}
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-400 hover:bg-emerald-300 text-black text-xs font-medium"
           >
-            <Check size={12} /> Aprovar {batch.length} selecionadas
+            <Check size={12} /> {t('approveSelected', { count: batch.length })}
           </button>
         )}
       </div>
@@ -183,15 +178,15 @@ export default function PricingAiHomePage() {
       {/* List */}
       {loading && (
         <div className="flex items-center gap-2 text-zinc-500 text-sm">
-          <Loader2 size={14} className="animate-spin" /> carregando…
+          <Loader2 size={14} className="animate-spin" /> {t('loading')}
         </div>
       )}
 
       {!loading && filtered.length === 0 && (
         <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-8 text-center space-y-2">
           <Sparkles size={28} className="mx-auto text-cyan-400 opacity-60" />
-          <p className="text-sm text-zinc-300">Nenhuma sugestão {filterStatus === 'pending' ? 'pendente' : ''} ainda.</p>
-          <p className="text-xs text-zinc-500">Clique em "Analisar agora" pra a IA gerar sugestões pros seus produtos.</p>
+          <p className="text-sm text-zinc-300">{filterStatus === 'pending' ? t('emptyPending') : t('empty')}</p>
+          <p className="text-xs text-zinc-500">{t('emptyHint')}</p>
         </div>
       )}
 
@@ -235,6 +230,7 @@ function SuggestionRow({
   onToggle: () => void
   onChanged: () => void
 }) {
+  const t = useTranslations('pricingAi')
   const [busy, setBusy] = useState(false)
   const [showScenarios, setShowScenarios] = useState(false)
 
@@ -249,7 +245,7 @@ function SuggestionRow({
   }
 
   async function reject() {
-    const reason = prompt('Motivo da rejeição (opcional):') ?? undefined
+    const reason = prompt(t('rejectReasonPrompt')) ?? undefined
     setBusy(true)
     try { await PricingAiApi.reject(s.id, reason); onChanged() } catch (e) { alert((e as Error).message) }
     finally { setBusy(false) }
@@ -283,10 +279,10 @@ function SuggestionRow({
                 background:  `${STATUS_COLOR[s.status]}10`,
                 color:       STATUS_COLOR[s.status],
               }}
-            >{STATUS_LABEL[s.status]}</span>
+            >{t(`status_${s.status}`)}</span>
             <span className="text-[10px] font-mono text-zinc-500">{s.product_id.slice(0, 8)}…</span>
             {analysis.confidence != null && (
-              <span className="text-[10px] text-cyan-300">conf {(analysis.confidence as number * 100).toFixed(0)}%</span>
+              <span className="text-[10px] text-cyan-300">{t('confidenceShort', { value: (analysis.confidence as number * 100).toFixed(0) })}</span>
             )}
           </div>
 
@@ -312,15 +308,15 @@ function SuggestionRow({
               onClick={() => setShowScenarios(!showScenarios)}
               className="text-[10px] text-cyan-400 hover:text-cyan-300 mt-1"
             >
-              {showScenarios ? '−' : '+'} ver 3 cenários
+              {showScenarios ? '−' : '+'} {t('seeScenarios')}
             </button>
           )}
 
           {showScenarios && scenarios && (
             <div className="grid grid-cols-3 gap-2 mt-2">
-              <ScenarioCard label="Conservador" sc={scenarios.conservative} accent="#71717a" />
-              <ScenarioCard label="Ótimo" sc={scenarios.optimal} accent="#00E5FF" />
-              <ScenarioCard label="Agressivo" sc={scenarios.aggressive} accent="#a855f7" />
+              <ScenarioCard label={t('scenarioConservative')} sc={scenarios.conservative} accent="#71717a" />
+              <ScenarioCard label={t('scenarioOptimal')} sc={scenarios.optimal} accent="#00E5FF" />
+              <ScenarioCard label={t('scenarioAggressive')} sc={scenarios.aggressive} accent="#a855f7" />
             </div>
           )}
         </div>
@@ -332,14 +328,14 @@ function SuggestionRow({
               disabled={busy}
               className="inline-flex items-center gap-1 px-2 py-1 rounded bg-emerald-400 hover:bg-emerald-300 disabled:opacity-50 text-black text-xs"
             >
-              <Check size={11} /> Aprovar
+              <Check size={11} /> {t('approve')}
             </button>
             <button
               onClick={reject}
               disabled={busy}
               className="inline-flex items-center gap-1 px-2 py-1 rounded border border-zinc-700 hover:border-red-400/40 text-zinc-400 hover:text-red-300 text-xs disabled:opacity-50"
             >
-              <X size={11} /> Rejeitar
+              <X size={11} /> {t('reject')}
             </button>
           </div>
         )}
@@ -351,11 +347,12 @@ function SuggestionRow({
 type ScenarioInline = { price: number; expected_margin: number; expected_sales_change: string }
 
 function ScenarioCard({ label, sc, accent }: { label: string; sc: ScenarioInline; accent: string }) {
+  const t = useTranslations('pricingAi')
   return (
     <div className="rounded border border-zinc-800 bg-zinc-950/40 p-2 space-y-1">
       <p className="text-[9px] uppercase tracking-wider" style={{ color: accent }}>{label}</p>
       <p className="text-sm font-medium text-zinc-200">R$ {Number(sc.price).toFixed(2)}</p>
-      <p className="text-[10px] text-zinc-500">margem {sc.expected_margin}%</p>
+      <p className="text-[10px] text-zinc-500">{t('marginValue', { value: sc.expected_margin })}</p>
       <p className="text-[10px] text-zinc-500">{sc.expected_sales_change}</p>
     </div>
   )

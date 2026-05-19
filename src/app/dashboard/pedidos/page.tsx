@@ -2,6 +2,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import { getSocket } from '@/lib/socket'
 import { computeContributionMargin } from '@/lib/margin'
@@ -134,6 +135,8 @@ type Toast  = { id: number; msg: string; type: 'success' | 'error' | 'info' }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+type Translator = ReturnType<typeof useTranslations>
+
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
 function maskDoc(v: string | null, type: string | null): string | null {
@@ -186,7 +189,7 @@ function orderDateTime(iso: string) {
 
 // ── Order actions menu (kebab) ────────────────────────────────────────────────
 
-function OrderActionsMenu({ order }: { order: MOrder }) {
+function OrderActionsMenu({ order, t }: { order: MOrder; t: Translator }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement | null>(null)
   useEffect(() => {
@@ -200,16 +203,16 @@ function OrderActionsMenu({ order }: { order: MOrder }) {
   const trackingUrl = order.shipping?.id ? `https://www.mercadolibre.com.br/envios/${order.shipping?.id}` : null
 
   const items: Array<{ key: string; label: string; icon: React.ReactNode; tone?: string; onClick: () => void }> = [
-    { key: 'rastreio',  label: 'Acompanhar rastreio',     icon: <Truck size={12} />,
-      onClick: () => { trackingUrl ? window.open(trackingUrl, '_blank') : todoToast('Rastreio sem ID de envio') } },
-    { key: 'etiqueta',  label: 'Reimprimir etiqueta',     icon: <Printer size={12} />,    onClick: () => todoToast('Reimpressão de etiqueta') },
-    { key: 'wa',        label: 'Disparar WhatsApp',       icon: <Send size={12} />,       onClick: () => todoToast('Mensagem WhatsApp ao comprador') },
-    { key: 'problema',  label: 'Marcar problema',         icon: <AlertOctagon size={12} />, tone: 'warn',  onClick: () => todoToast('Marcação de reclamação') },
-    { key: 'posvenda',  label: 'Iniciar pós-venda',       icon: <Megaphone size={12} />,  onClick: () => todoToast('Campanha pós-venda') },
-    { key: 'cancelar',  label: 'Cancelar / reembolsar',   icon: <Ban size={12} />,  tone: 'danger', onClick: () => todoToast('Cancelamento ML') },
-    { key: 'sac',       label: 'Vincular ao SAC',         icon: <Headphones size={12} />, onClick: () => todoToast('Bridge SAC ↔ Atendente IA') },
-    { key: 'margem',    label: 'Análise de margem',       icon: <BarChart2 size={12} />,  onClick: () => todoToast('Drill-down de margem') },
-    { key: 'detalhes',  label: 'Ver detalhes (ML)',       icon: <Eye size={12} />,
+    { key: 'rastreio',  label: t('actions.trackShipment'),     icon: <Truck size={12} />,
+      onClick: () => { trackingUrl ? window.open(trackingUrl, '_blank') : todoToast(t('actions.todoTrackNoId')) } },
+    { key: 'etiqueta',  label: t('actions.reprintLabel'),     icon: <Printer size={12} />,    onClick: () => todoToast(t('actions.todoReprintLabel')) },
+    { key: 'wa',        label: t('actions.sendWhatsApp'),       icon: <Send size={12} />,       onClick: () => todoToast(t('actions.todoWhatsApp')) },
+    { key: 'problema',  label: t('actions.markProblem'),         icon: <AlertOctagon size={12} />, tone: 'warn',  onClick: () => todoToast(t('actions.todoMarkProblem')) },
+    { key: 'posvenda',  label: t('actions.startPostSale'),       icon: <Megaphone size={12} />,  onClick: () => todoToast(t('actions.todoPostSale')) },
+    { key: 'cancelar',  label: t('actions.cancelRefund'),   icon: <Ban size={12} />,  tone: 'danger', onClick: () => todoToast(t('actions.todoCancel')) },
+    { key: 'sac',       label: t('actions.linkSac'),         icon: <Headphones size={12} />, onClick: () => todoToast(t('actions.todoSac')) },
+    { key: 'margem',    label: t('actions.marginAnalysis'),       icon: <BarChart2 size={12} />,  onClick: () => todoToast(t('actions.todoMargin')) },
+    { key: 'detalhes',  label: t('actions.viewDetailsMl'),       icon: <Eye size={12} />,
       onClick: () => window.open(`https://www.mercadolibre.com.br/orders/${order.order_id}`, '_blank') },
   ]
 
@@ -217,7 +220,7 @@ function OrderActionsMenu({ order }: { order: MOrder }) {
     <div className="relative" ref={ref}>
       <button onClick={() => setOpen(o => !o)}
         className="p-1.5 rounded-md hover:bg-zinc-800/80 text-zinc-400 hover:text-zinc-200 transition-colors"
-        title="Ações">
+        title={t('actions.menuTitle')}>
         <MoreHorizontal size={14} />
       </button>
       {open && (
@@ -243,11 +246,11 @@ function OrderActionsMenu({ order }: { order: MOrder }) {
   )
 }
 
-function deadlineInfo(deadline: string | null) {
+function deadlineInfo(deadline: string | null, t: Translator) {
   if (!deadline) return null
   const ms = new Date(deadline).getTime() - Date.now()
   const h  = ms / 3600000
-  if (h < 0)  return { label: 'Atrasado!',         color: '#ef4444', bg: '#2d0a0a' }
+  if (h < 0)  return { label: t('deadlineLate'),    color: '#ef4444', bg: '#2d0a0a' }
   if (h < 4)  return { label: `${Math.ceil(h)}h`,  color: '#ef4444', bg: '#2d0a0a' }
   if (h < 24) return { label: `${Math.floor(h)}h`, color: '#f97316', bg: '#2a1500' }
   return       { label: `${Math.floor(h / 24)}d`,  color: '#fbbf24', bg: '#2a1e00' }
@@ -290,53 +293,50 @@ function classifyOrder(o: MOrder): TabKey {
   return 'abertas'
 }
 
-const LOGISTIC: Record<string, { text: string; color: string; bg: string }> = {
-  fulfillment:   { text: 'FULL',   color: '#00E5FF', bg: '#0a1f2e' },
-  drop_off:      { text: 'Coleta', color: '#71717a', bg: '#1a1a1f' },
-  xd_drop_off:   { text: 'XD',     color: '#a78bfa', bg: '#1a0e33' },
-  self_service:  { text: 'Flex',   color: '#fb923c', bg: '#2a1500' },
+const LOGISTIC: Record<string, { color: string; bg: string }> = {
+  fulfillment:   { color: '#00E5FF', bg: '#0a1f2e' },
+  drop_off:      { color: '#71717a', bg: '#1a1a1f' },
+  xd_drop_off:   { color: '#a78bfa', bg: '#1a0e33' },
+  self_service:  { color: '#fb923c', bg: '#2a1500' },
 }
 
 const PAY_ICON: Record<string, string> = {
   credit_card: '💳', debit_card: '💳', account_money: '🏦', ticket: '🎟️', pix: '⚡',
 }
 
-const PAY_LABEL: Record<string, string> = {
-  credit_card: 'Cartão crédito', debit_card: 'Cartão débito',
-  account_money: 'Saldo ML', ticket: 'Boleto', pix: 'PIX',
+const PAY_LABEL_KEYS = ['credit_card', 'debit_card', 'account_money', 'ticket', 'pix'] as const
+
+const PAY_STATUS: Record<string, { color: string }> = {
+  approved:   { color: '#22c55e' },
+  pending:    { color: '#f59e0b' },
+  rejected:   { color: '#ef4444' },
+  cancelled:  { color: '#ef4444' },
+  in_process: { color: '#f59e0b' },
+  refunded:   { color: '#a78bfa' },
 }
 
-const PAY_STATUS: Record<string, { label: string; color: string }> = {
-  approved:   { label: 'Aprovado',     color: '#22c55e' },
-  pending:    { label: 'Pendente',     color: '#f59e0b' },
-  rejected:   { label: 'Rejeitado',   color: '#ef4444' },
-  cancelled:  { label: 'Cancelado',   color: '#ef4444' },
-  in_process: { label: 'Processando', color: '#f59e0b' },
-  refunded:   { label: 'Reembolsado', color: '#a78bfa' },
+const SHIPPING_STATUS_MAP: Record<string, { color: string }> = {
+  pending:       { color: '#f59e0b' },
+  handling:      { color: '#f59e0b' },
+  ready_to_ship: { color: '#00E5FF' },
+  shipped:       { color: '#3b82f6' },
+  in_transit:    { color: '#3b82f6' },
+  delivered:     { color: '#22c55e' },
+  not_delivered: { color: '#ef4444' },
+  cancelled:     { color: '#ef4444' },
+  returned:      { color: '#f59e0b' },
 }
 
-const SHIPPING_STATUS_MAP: Record<string, { label: string; color: string }> = {
-  pending:       { label: 'Aguardando envio', color: '#f59e0b' },
-  handling:      { label: 'Em preparação',    color: '#f59e0b' },
-  ready_to_ship: { label: 'Pronto p/ envio',  color: '#00E5FF' },
-  shipped:       { label: 'Despachado',       color: '#3b82f6' },
-  in_transit:    { label: 'Em trânsito',      color: '#3b82f6' },
-  delivered:     { label: 'Entregue',         color: '#22c55e' },
-  not_delivered: { label: 'Não entregue',     color: '#ef4444' },
-  cancelled:     { label: 'Cancelado',        color: '#ef4444' },
-  returned:      { label: 'Devolvido',        color: '#f59e0b' },
-}
-
-const ORDER_STATUS_MAP: Record<string, { label: string; color: string }> = {
-  confirmed:           { label: 'Confirmado',         color: '#00E5FF' },
-  payment_required:    { label: 'Aguarda pgto.',       color: '#f59e0b' },
-  payment_in_process:  { label: 'Pgto. processando',  color: '#f59e0b' },
-  paid:                { label: 'Pago',                color: '#22c55e' },
-  shipped:             { label: 'Enviado',             color: '#3b82f6' },
-  delivered:           { label: 'Entregue',            color: '#22c55e' },
-  cancelled:           { label: 'Cancelado',           color: '#ef4444' },
-  invalid:             { label: 'Inválido',            color: '#ef4444' },
-  pending:             { label: 'Pendente',            color: '#6b7280' },
+const ORDER_STATUS_MAP: Record<string, { color: string }> = {
+  confirmed:           { color: '#00E5FF' },
+  payment_required:    { color: '#f59e0b' },
+  payment_in_process:  { color: '#f59e0b' },
+  paid:                { color: '#22c55e' },
+  shipped:             { color: '#3b82f6' },
+  delivered:           { color: '#22c55e' },
+  cancelled:           { color: '#ef4444' },
+  invalid:             { color: '#ef4444' },
+  pending:             { color: '#6b7280' },
 }
 
 // ── Mini bar chart ────────────────────────────────────────────────────────────
@@ -491,7 +491,7 @@ type CreateResult = {
 function VincularModal({
   listingId, listingTitle, thumbnail, sellerSku, candidates,
   allOrders, vinculosPorListing,
-  onSave, onClose, onToast,
+  onSave, onClose, onToast, t,
 }: {
   listingId:           string
   listingTitle:        string
@@ -503,6 +503,7 @@ function VincularModal({
   onSave:              (productId: string, listings: Array<{ listing_id: string; listing_title: string; thumbnail: string | null }>) => Promise<{ created: number; failed: number; errors: string[] }>
   onClose:             () => void
   onToast:             (msg: string, type: Toast['type']) => void
+  t:                   Translator
 }) {
   // Pré-seleciona o primeiro produto candidato
   const [pickedProductId, setPickedProductId] = useState<string>(
@@ -524,14 +525,14 @@ function VincularModal({
         seen.add(lid)
         out.push({
           listing_id: lid,
-          title:      oi.title ?? `Anúncio ${lid}`,
+          title:      oi.title ?? t('vinc.listingFallback', { id: lid }),
           thumbnail:  oi.thumbnail ?? null,
           isLinked:   (vinculosPorListing[lid] ?? []).length > 0,
         })
       }
     }
     return out
-  }, [allOrders, listingId, sellerSku, vinculosPorListing])
+  }, [allOrders, listingId, sellerSku, vinculosPorListing, t])
 
   // Pré-seleciona o anúncio clicado + os outros com mesmo SKU não-vinculados
   const [pickedListingIds, setPickedListingIds] = useState<Set<string>>(() => {
@@ -566,17 +567,17 @@ function VincularModal({
         .filter(l => pickedListingIds.has(l.listing_id) && !l.isLinked)
         .map(l => ({ listing_id: l.listing_id, listing_title: l.title, thumbnail: l.thumbnail }))
       if (toLink.length === 0) {
-        onToast('Nenhum anúncio novo selecionado pra vincular', 'info')
+        onToast(t('vinc.noNewSelected'), 'info')
         setSaving(false)
         return
       }
       const r = await onSave(pickedProductId, toLink)
       const picked = candidates.find(c => c.id === pickedProductId)
       if (r.failed === 0) {
-        onToast(`✓ ${r.created} ${r.created === 1 ? 'anúncio vinculado' : 'anúncios vinculados'} a "${picked?.name ?? ''}"`, 'success')
+        onToast(t('vinc.linkSuccess', { count: r.created, name: picked?.name ?? '' }), 'success')
         onClose()
       } else {
-        onToast(`${r.created} sucessos · ${r.failed} falhas. ${r.errors[0] ?? ''}`, 'error')
+        onToast(t('vinc.linkPartial', { created: r.created, failed: r.failed, error: r.errors[0] ?? '' }), 'error')
       }
     } finally {
       setSaving(false)
@@ -594,9 +595,9 @@ function VincularModal({
         {/* Header */}
         <div className="px-5 py-4 border-b border-zinc-800 flex items-start justify-between gap-3">
           <div>
-            <h2 className="text-zinc-100 text-base font-semibold">Vincular Anúncio ao Produto</h2>
+            <h2 className="text-zinc-100 text-base font-semibold">{t('vinc.title')}</h2>
             <p className="text-[11px] text-zinc-500 mt-0.5">
-              SKU de origem: <span className="font-mono text-cyan-300">{sellerSku}</span>
+              {t('vinc.sourceSku')} <span className="font-mono text-cyan-300">{sellerSku}</span>
             </p>
           </div>
           <button
@@ -609,7 +610,7 @@ function VincularModal({
           {/* Section: Produto */}
           <section>
             <p className="text-[10px] uppercase tracking-wider text-zinc-500 mb-2">
-              Produto do catálogo {candidates.length > 1 && `(${candidates.length} candidatos)`}
+              {t('vinc.catalogProduct')} {candidates.length > 1 && t('vinc.candidatesCount', { count: candidates.length })}
             </p>
             <div className="space-y-1.5">
               {candidates.map(p => (
@@ -632,7 +633,7 @@ function VincularModal({
                   />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm text-zinc-200 truncate">{p.name}</p>
-                    <p className="text-[10px] text-zinc-500 font-mono">SKU {p.sku}</p>
+                    <p className="text-[10px] text-zinc-500 font-mono">{t('vinc.skuLabel', { sku: p.sku })}</p>
                   </div>
                 </label>
               ))}
@@ -643,10 +644,10 @@ function VincularModal({
           <section>
             <div className="flex items-center justify-between mb-2">
               <p className="text-[10px] uppercase tracking-wider text-zinc-500">
-                Anúncios com este SKU ({allSelectableListings.length})
+                {t('vinc.listingsWithSku', { count: allSelectableListings.length })}
               </p>
               <p className="text-[10px] text-zinc-600">
-                Marque quais conectar a este produto.
+                {t('vinc.checkToConnect')}
               </p>
             </div>
             <div className="space-y-1.5">
@@ -681,12 +682,12 @@ function VincularModal({
                       <div className="flex items-center gap-1.5">
                         {l.isOrigin && (
                           <span className="text-[9px] uppercase font-mono text-cyan-300 bg-cyan-400/10 border border-cyan-400/30 rounded px-1 py-0.5">
-                            origem
+                            {t('vinc.tagOrigin')}
                           </span>
                         )}
                         {l.isLinked && (
                           <span className="text-[9px] uppercase font-mono text-zinc-500 bg-zinc-900 border border-zinc-700 rounded px-1 py-0.5">
-                            já vinculado
+                            {t('vinc.tagLinked')}
                           </span>
                         )}
                         <p className="text-xs text-zinc-200 truncate">{l.title}</p>
@@ -704,15 +705,15 @@ function VincularModal({
         <div className="px-5 py-3 border-t border-zinc-800 flex items-center justify-between gap-3">
           <p className="text-[11px] text-zinc-500">
             {newCount > 0
-              ? `${newCount} ${newCount === 1 ? 'anúncio será vinculado' : 'anúncios serão vinculados'}`
-              : 'Selecione ao menos 1 anúncio não-vinculado'}
+              ? t('vinc.willLinkCount', { count: newCount })
+              : t('vinc.selectAtLeastOne')}
           </p>
           <div className="flex gap-2">
             <button
               onClick={onClose}
               className="px-3 py-1.5 rounded text-xs text-zinc-300 border border-zinc-800 hover:border-zinc-700"
             >
-              Cancelar
+              {t('vinc.cancel')}
             </button>
             <button
               onClick={handleSave}
@@ -729,7 +730,7 @@ function VincularModal({
                   <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
                 </svg>
               )}
-              {saving ? 'Vinculando…' : 'Vincular'}
+              {saving ? t('vinc.linking') : t('vinc.link')}
             </button>
           </div>
         </div>
@@ -743,18 +744,19 @@ function VincularModal({
  *  HIDDEN → anúncio já vinculado (não polui a UI quando não há ação)
  *  Click → abre modal pra user revisar candidatos e confirmar vínculo. */
 function VincularButton({
-  hasExistingLink, skuMatchProducts, onClick,
+  hasExistingLink, skuMatchProducts, onClick, t,
 }: {
   hasExistingLink:    boolean
   skuMatchProducts:   Array<{ id: string; name: string; sku: string }>
   onClick:            () => void
+  t:                  Translator
 }) {
   if (hasExistingLink) return null
 
   const canLink = skuMatchProducts.length > 0
   const tooltip = canLink
-    ? `${skuMatchProducts.length} produto${skuMatchProducts.length > 1 ? 's' : ''} no catálogo com este SKU. Click pra escolher.`
-    : 'Sem produto no catálogo com mesmo SKU. Use "Criar Produto" pra criar um novo.'
+    ? t('vinc.tooltipCanLink', { count: skuMatchProducts.length })
+    : t('vinc.tooltipNoMatch')
 
   return (
     <button
@@ -772,7 +774,7 @@ function VincularButton({
       <svg width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
       </svg>
-      Vincular{canLink && skuMatchProducts.length > 1 ? ` (${skuMatchProducts.length})` : ''}
+      {t('vinc.link')}{canLink && skuMatchProducts.length > 1 ? ` (${skuMatchProducts.length})` : ''}
     </button>
   )
 }
@@ -780,7 +782,7 @@ function VincularButton({
 function OrderCard({
   order, itemId, vinculos, sellerSku, skuMatchProducts,
   onSalvar, onCriarProduto, onOpenVincularModal,
-  onToast, getHeaders, onOpenDetail,
+  onToast, getHeaders, onOpenDetail, t,
 }: {
   order: MOrder
   itemId: string | null
@@ -799,6 +801,7 @@ function OrderCard({
   onToast: (msg: string, type: Toast['type']) => void
   getHeaders: () => Promise<Record<string, string>>
   onOpenDetail: (externalOrderId: string) => void
+  t: Translator
 }) {
   const [buyerOverride, setBuyerOverride] = useState<MOrder['buyer'] | null>(null)
   const [refetching, setRefetching] = useState(false)
@@ -833,7 +836,7 @@ function OrderCard({
           }
         | null
       if (!res.ok || !body?.ok || !body.buyer) {
-        onToast(body?.message ?? 'Falha ao buscar dados do comprador', 'error')
+        onToast(body?.message ?? t('card.fetchBuyerFail'), 'error')
       } else {
         setBuyerOverride({
           ...liveBuyer,
@@ -848,15 +851,15 @@ function OrderCard({
           phone:              body.buyer.phone,
           billing_fetched_at: new Date().toISOString(),
         })
-        if (body.buyer.doc_number) onToast(`✓ CPF/CNPJ encontrado: ${maskDoc(body.buyer.doc_number, body.buyer.doc_type) ?? ''}`, 'success')
-        else                       onToast('ML respondeu sem CPF (LGPD) — use enriquecimento via Direct Data', 'info')
+        if (body.buyer.doc_number) onToast(t('card.docFound', { doc: maskDoc(body.buyer.doc_number, body.buyer.doc_type) ?? '' }), 'success')
+        else                       onToast(t('card.noDocLgpd'), 'info')
       }
     } catch {
-      onToast('Erro de rede ao buscar dados', 'error')
+      onToast(t('card.networkError'), 'error')
     } finally {
       setRefetching(false)
     }
-  }, [refetching, getHeaders, order.order_id, onToast, liveBuyer])
+  }, [refetching, getHeaders, order.order_id, onToast, liveBuyer, t])
 
   const [expanded,    setExpanded]    = useState(false)
 
@@ -950,7 +953,7 @@ function OrderCard({
       setEditando(false)
       recalcularMargem(custoEdit, impostoEdit)
     } catch {
-      onToast('Erro ao salvar', 'error')
+      onToast(t('card.saveError'), 'error')
     } finally {
       setSalvando(false)
     }
@@ -961,8 +964,11 @@ function OrderCard({
   const ini       = initials(order)
   const buyer     = buyerDisplay(order)
   const lt        = order.shipping?.logistic_type
-  const lbadge    = LOGISTIC[lt ?? ''] ?? { text: lt ?? 'Normal', color: '#52525b', bg: '#111114' }
-  const deadline  = deadlineInfo(order.shipping?.posting_deadline)
+  const lbadgeMeta = LOGISTIC[lt ?? '']
+  const lbadge    = lbadgeMeta
+    ? { text: t(`logistic.${lt}`), color: lbadgeMeta.color, bg: lbadgeMeta.bg }
+    : { text: lt ?? t('logistic.normal'), color: '#52525b', bg: '#111114' }
+  const deadline  = deadlineInfo(order.shipping?.posting_deadline, t)
   const estDel    = order.shipping?.estimated_delivery_date
     ? new Date(order.shipping?.estimated_delivery_date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
     : null
@@ -979,7 +985,7 @@ function OrderCard({
       {/* Kebab — top-right, sem o botão detalhe (movido pra rodapé do
           card, ao lado do link "Venda #X" — UI-1.1). */}
       <div className="absolute top-2 right-2 z-10">
-        <OrderActionsMenu order={order} />
+        <OrderActionsMenu order={order} t={t} />
       </div>
       <div className="grid gap-0" style={{ gridTemplateColumns: '200px 1fr 210px' }}>
 
@@ -999,11 +1005,12 @@ function OrderCard({
                 const ss = order.shipping?.status
                 const si = ss ? SHIPPING_STATUS_MAP[ss] : ORDER_STATUS_MAP[order.status]
                 if (!si) return null
+                const label = ss ? t(`shippingStatus.${ss}`) : t(`orderStatus.${order.status}`)
                 return (
                   <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
                     style={{ color: si.color, background: `${si.color}18`, border: `1px solid ${si.color}33` }}>
                     <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: si.color }} />
-                    {si.label}
+                    {label}
                   </span>
                 )
               })()}
@@ -1017,6 +1024,7 @@ function OrderCard({
               <VincularButton
                 hasExistingLink={vinculos.length > 0}
                 skuMatchProducts={skuMatchProducts}
+                t={t}
                 onClick={() => onOpenVincularModal({
                   listingId:    itemId,
                   listingTitle: item?.title ?? `Anúncio ${itemId}`,
@@ -1030,25 +1038,25 @@ function OrderCard({
               <a href={`https://www.mercadolivre.com.br/vendas/${order.order_id}`} target="_blank"
                 rel="noopener noreferrer"
                 className="text-[10px] font-mono text-cyan-400 hover:text-cyan-300 transition-colors">
-                Venda #{order.order_id}
+                {t('card.saleNumber', { id: order.order_id })}
               </a>
               <button
                 onClick={() => onOpenDetail(String(order.order_id))}
-                title="Ver detalhe completo (Cliente + Comunicação)"
+                title={t('card.viewFullDetailTitle')}
                 className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-md transition-colors hover:bg-[rgba(0,229,255,0.08)]"
                 style={{ background: 'transparent', border: '1px solid #00E5FF', color: '#00E5FF' }}>
                 <Eye size={11} />
-                Ver detalhe
+                {t('card.viewDetail')}
               </button>
             </div>
             {(order as unknown as { pack_id?: number | string | null }).pack_id && (
               <p className="text-[10px] font-mono text-zinc-500">
-                Carrinho #{(order as unknown as { pack_id: number | string }).pack_id}
+                {t('card.cartNumber', { id: (order as unknown as { pack_id: number | string }).pack_id })}
               </p>
             )}
             {order.shipping?.receiver_address?.zip_code && (
               <p className="text-[10px] text-zinc-500">
-                CEP {order.shipping?.receiver_address?.zip_code}
+                {t('card.zipLabel')} {order.shipping?.receiver_address?.zip_code}
                 {order.shipping?.receiver_address?.city ? ` · ${order.shipping?.receiver_address?.city}` : ''}
               </p>
             )}
@@ -1093,14 +1101,14 @@ function OrderCard({
                   {vars && <p className="text-[10px] text-zinc-500 mt-0.5 line-clamp-1">{vars}</p>}
                   {(item as unknown as { available_quantity?: number | null }).available_quantity != null && (
                     <p className="text-[10px] text-zinc-600 mt-0.5">
-                      {(item as unknown as { available_quantity: number }).available_quantity} disponíveis após esta venda
+                      {t('card.availableAfterSale', { count: (item as unknown as { available_quantity: number }).available_quantity })}
                     </p>
                   )}
                 </div>
               </div>
 
               {moreItems > 0 && (
-                <p className="text-[10px] text-zinc-600">+{moreItems} produto{moreItems > 1 ? 's' : ''}</p>
+                <p className="text-[10px] text-zinc-600">{t('card.moreProducts', { count: moreItems })}</p>
               )}
 
               <div className="flex flex-wrap items-center gap-1.5">
@@ -1110,36 +1118,36 @@ function OrderCard({
                 {isKit && (
                   <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
                     style={{ background: 'rgba(167,139,250,0.12)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.25)' }}>
-                    Kit {vinculos.length} itens
+                    {t('card.kitBadge', { count: vinculos.length })}
                   </span>
                 )}
                 {deadline && (
                   <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
                     style={{ background: deadline.bg, color: deadline.color }}>
-                    ⏱ Limite: {deadline.label}
+                    {t('card.deadlineBadge', { label: deadline.label })}
                   </span>
                 )}
                 {estDel && (
                   <span className="text-[10px] text-zinc-500">
-                    Entrega: <span className="text-zinc-300">{estDel}</span>
+                    {t('card.deliveryLabel')} <span className="text-zinc-300">{estDel}</span>
                   </span>
                 )}
                 {(order as unknown as { coupon?: { amount?: number } | null }).coupon?.amount != null && (
                   <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
                     style={{ background: 'rgba(245,158,11,0.12)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.25)' }}>
-                    🎟️ Cupom -{brl((order as unknown as { coupon: { amount: number } }).coupon.amount)}
+                    {t('card.couponBadge', { value: brl((order as unknown as { coupon: { amount: number } }).coupon.amount) })}
                   </span>
                 )}
                 {(order as unknown as { context?: { channel?: string; flows?: string[] } | null }).context?.flows?.includes('publicidade') && (
                   <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
                     style={{ background: 'rgba(168,85,247,0.12)', color: '#a855f7', border: '1px solid rgba(168,85,247,0.25)' }}>
-                    📣 Publicidade
+                    {t('card.advertisingBadge')}
                   </span>
                 )}
               </div>
 
               <div className="flex flex-wrap gap-1.5 mt-auto pt-1">
-                {[{ label: 'Etiqueta', icon: '🖨️' }, { label: 'NF-e', icon: '📄' }].map(b => (
+                {[{ label: t('card.btnLabel'), icon: '🖨️' }, { label: t('card.btnInvoice'), icon: '📄' }].map(b => (
                   <button key={b.label}
                     className="text-[10px] px-2.5 py-1 rounded-lg flex items-center gap-1 transition-colors hover:bg-zinc-800"
                     style={{ background: '#1a1a1f', color: '#71717a', border: '1px solid #27272a' }}>
@@ -1153,38 +1161,38 @@ function OrderCard({
 
         {/* ── Financial ── */}
         <div className="p-4 pr-5 flex flex-col gap-0.5">
-          <FinRow icon={payIcon} label="Valor pago"     value={brl(order.total_amount)}
-            tooltip={`Valor pago pelo comprador (produtos + frete)\n* ID pgto: ${order.payments?.[0]?.id ?? '—'}\n* Modo: ${order.payments?.[0]?.payment_type ?? '—'}`} />
+          <FinRow icon={payIcon} label={t('card.finPaidAmount')}     value={brl(order.total_amount)}
+            tooltip={t('card.finPaidTooltip', { id: order.payments?.[0]?.id ?? '—', mode: order.payments?.[0]?.payment_type ?? '—' })} />
 
           {/* Reembolso ML do frete — só renderiza se houve */}
           {(order.shipping_breakdown?.ml_refund ?? 0) > 0 && (
-            <FinRow icon="🔄" label="Reembolso ML frete"
+            <FinRow icon="🔄" label={t('card.finMlShippingRefund')}
               value={brl(order.shipping_breakdown!.ml_refund)} color="#4ade80"
-              tooltip="Valor reembolsado pelo Mercado Livre pra esse tipo de frete" />
+              tooltip={t('card.finMlShippingRefundTooltip')} />
           )}
 
-          <FinRow icon="🏪" label="Tarifa ML"           value={`-${brl(order.tarifa_ml)}`} color="#f87171"
-            tooltip={`Tarifa do ML: ${brl(order.tarifa_ml)} (~${order.total_amount > 0 ? Math.round((order.tarifa_ml / order.total_amount) * 1000) / 10 : 0}%)`} />
+          <FinRow icon="🏪" label={t('card.finMlFee')}           value={`-${brl(order.tarifa_ml)}`} color="#f87171"
+            tooltip={t('card.finMlFeeTooltip', { value: brl(order.tarifa_ml), pct: order.total_amount > 0 ? Math.round((order.tarifa_ml / order.total_amount) * 1000) / 10 : 0 })} />
 
-          <FinRow icon="🚚" label="Frete vendedor"
+          <FinRow icon="🚚" label={t('card.finSellerShipping')}
             value={order.frete_vendedor ? `-${brl(order.frete_vendedor)}` : brl(0)} color={order.frete_vendedor > 0 ? '#f87171' : '#71717a'}
-            tooltip={`Frete Comprador: ${brl(order.shipping_breakdown?.buyer_paid ?? order.frete_comprador ?? 0)}\nReembolso ML: ${brl(order.shipping_breakdown?.ml_refund ?? 0)}\nFrete Vendedor: ${brl(order.frete_vendedor)}`} />
+            tooltip={t('card.finSellerShippingTooltip', { buyer: brl(order.shipping_breakdown?.buyer_paid ?? order.frete_comprador ?? 0), refund: brl(order.shipping_breakdown?.ml_refund ?? 0), seller: brl(order.frete_vendedor) })} />
           <div className="border-t my-1.5" style={{ borderColor: '#1e1e24' }} />
-          <FinRow icon="💰" label="Lucro bruto"
+          <FinRow icon="💰" label={t('card.finGrossProfit')}
             value={
               order.total_amount > 0
                 ? `${brl(order.lucro_bruto)} (${((order.lucro_bruto / order.total_amount) * 100).toFixed(1)}%)`
                 : brl(order.lucro_bruto)
             }
             color={order.lucro_bruto >= 0 ? '#4ade80' : '#f87171'}
-            tooltip={`Lucro Bruto da Venda — ${order.total_amount > 0 ? ((order.lucro_bruto / order.total_amount) * 100).toFixed(2) : 0}% do valor do anúncio\n(valor − tarifa − frete vendedor)`} />
+            tooltip={t('card.finGrossProfitTooltip', { pct: order.total_amount > 0 ? ((order.lucro_bruto / order.total_amount) * 100).toFixed(2) : 0 })} />
           {/* Custo / Imposto — 3 estados: vinculado | sem produto (criar) | sem item_id */}
           {vinculos.length > 0 ? (
             <>
               {/* Custo row */}
               <div className="flex items-center justify-between gap-1 py-0.5">
                 <span className="text-xs shrink-0">📦</span>
-                <span className="flex-1 text-xs text-zinc-500 leading-tight">{isKit ? 'Custo kit' : 'Custo (CMV)'}</span>
+                <span className="flex-1 text-xs text-zinc-500 leading-tight">{isKit ? t('card.costKit') : t('card.costCmv')}</span>
                 {editando ? (
                   <div className="shrink-0">
                     <div className="flex items-center gap-1">
@@ -1202,12 +1210,12 @@ function OrderCard({
                     </div>
                     {isKit && (
                       <p className="text-[10px] text-violet-500 text-right mt-0.5">
-                        {isKit ? `1º produto do kit` : ''}
+                        {t('card.kitFirstProduct')}
                       </p>
                     )}
                     {!isKit && quantidade > 1 && custoEdit && (
                       <p className="text-xs text-zinc-600 text-right mt-0.5">
-                        Total: {brl((parseFloat(custoEdit.replace(',', '.')) || 0) * quantidade)}
+                        {t('card.costTotal', { value: brl((parseFloat(custoEdit.replace(',', '.')) || 0) * quantidade) })}
                       </p>
                     )}
                   </div>
@@ -1217,7 +1225,7 @@ function OrderCard({
                       <>
                         <div className="text-xs font-semibold tabular-nums text-zinc-200">{brl(custoTotalKit)}</div>
                         {isKit && (
-                          <div className="text-[10px] text-violet-500">{vinculos.length} produtos</div>
+                          <div className="text-[10px] text-violet-500">{t('card.productsCount', { count: vinculos.length })}</div>
                         )}
                         {!isKit && quantidade > 1 && (
                           <div className="text-xs text-zinc-600">{quantidade} × {brl(firstVincProd?.cost_price ?? 0)}</div>
@@ -1232,7 +1240,7 @@ function OrderCard({
               {/* Imposto row */}
               <div className="flex items-center justify-between gap-1 py-0.5">
                 <span className="text-xs shrink-0">⚖️</span>
-                <span className="flex-1 text-xs text-zinc-500 leading-tight">Imposto</span>
+                <span className="flex-1 text-xs text-zinc-500 leading-tight">{t('card.tax')}</span>
                 {editando ? (
                   <div className="flex items-center gap-1 shrink-0">
                     <input
@@ -1255,7 +1263,7 @@ function OrderCard({
                           {brl(order.total_amount * (firstVincProd.tax_percentage / 100))}
                         </div>
                         <div className="text-xs text-zinc-600">
-                          {firstVincProd.tax_percentage}% de {brl(order.total_amount)}
+                          {t('card.taxPctOf', { pct: firstVincProd.tax_percentage, value: brl(order.total_amount) })}
                         </div>
                       </>
                     ) : (
@@ -1279,7 +1287,7 @@ function OrderCard({
                       }}
                       className="text-[10px] px-2 py-0.5 rounded transition-colors hover:text-zinc-300"
                       style={{ color: '#a1a1aa' }}>
-                      Cancelar
+                      {t('card.cancel')}
                     </button>
                   )}
                   <button
@@ -1298,7 +1306,7 @@ function OrderCard({
                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                       </svg>
                     )}
-                    {salvando ? 'Salvando…' : 'Salvar'}
+                    {salvando ? t('card.saving') : t('card.save')}
                   </button>
                 </div>
               ) : (
@@ -1316,7 +1324,7 @@ function OrderCard({
                     <svg width="9" height="9" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                     </svg>
-                    Alterar
+                    {t('card.change')}
                   </button>
                 </div>
               )}
@@ -1325,7 +1333,7 @@ function OrderCard({
             <>
               <div className="flex items-center justify-between gap-2 py-0.5">
                 <span className="text-xs shrink-0">📦</span>
-                <span className="flex-1 text-xs text-zinc-500 leading-tight">Custo (CMV)</span>
+                <span className="flex-1 text-xs text-zinc-500 leading-tight">{t('card.costCmv')}</span>
                 <button
                   type="button"
                   disabled={criando}
@@ -1346,26 +1354,26 @@ function OrderCard({
                       <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                     </svg>
                   )}
-                  {criando ? 'Criando…' : 'Criar Produto'}
+                  {criando ? t('card.creating') : t('card.createProduct')}
                 </button>
               </div>
               <div className="flex items-center justify-between gap-2 py-0.5">
                 <span className="text-xs shrink-0">⚖️</span>
-                <span className="flex-1 text-xs text-zinc-500 leading-tight">Imposto</span>
+                <span className="flex-1 text-xs text-zinc-500 leading-tight">{t('card.tax')}</span>
                 <span className="text-[11px] text-zinc-700">—</span>
               </div>
-              <p className="text-[10px] text-zinc-700 text-right mt-0.5">Anúncio não vinculado a produto</p>
+              <p className="text-[10px] text-zinc-700 text-right mt-0.5">{t('card.listingNotLinked')}</p>
             </>
           ) : (
             <>
               <div className="flex items-center justify-between gap-2 py-0.5">
                 <span className="text-xs shrink-0">📦</span>
-                <span className="flex-1 text-xs text-zinc-500 leading-tight">Custo (CMV)</span>
+                <span className="flex-1 text-xs text-zinc-500 leading-tight">{t('card.costCmv')}</span>
                 <span className="text-[11px] text-zinc-700">—</span>
               </div>
               <div className="flex items-center justify-between gap-2 py-0.5">
                 <span className="text-xs shrink-0">⚖️</span>
-                <span className="flex-1 text-xs text-zinc-500 leading-tight">Imposto</span>
+                <span className="flex-1 text-xs text-zinc-500 leading-tight">{t('card.tax')}</span>
                 <span className="text-[11px] text-zinc-700">—</span>
               </div>
             </>
@@ -1384,11 +1392,11 @@ function OrderCard({
               : null
             return (
               <Tip text={cm != null
-                ? `Margem de Contribuição da Venda\n${cm.margemPct}% do valor do anúncio${pctSobreCusto != null ? `\n${pctSobreCusto.toFixed(2)}% do valor do custo` : ''}`
-                : 'Configure custo no produto para ver a margem'}>
+                ? t('card.marginTooltip', { pct: cm.margemPct }) + (pctSobreCusto != null ? `\n${t('card.marginTooltipCost', { pct: pctSobreCusto.toFixed(2) })}` : '')
+                : t('card.marginConfigCost')}>
                 <div className="flex items-center justify-between gap-2 py-0.5 cursor-default">
                   <span className="text-sm">🟢</span>
-                  <span className="flex-1 text-xs font-semibold text-zinc-300 leading-tight">Margem contrib.</span>
+                  <span className="flex-1 text-xs font-semibold text-zinc-300 leading-tight">{t('card.contributionMargin')}</span>
                   {cm != null
                     ? <div className="flex flex-col items-end">
                         <span className="text-sm font-bold tabular-nums" style={{ color: mc }}>
@@ -1397,7 +1405,7 @@ function OrderCard({
                         </span>
                         {pctSobreCusto != null && (
                           <span className="text-[10px] text-zinc-500 tabular-nums">
-                            {pctSobreCusto.toFixed(1)}% do custo
+                            {t('card.pctOfCost', { pct: pctSobreCusto.toFixed(1) })}
                           </span>
                         )}
                       </div>
@@ -1408,7 +1416,7 @@ function OrderCard({
             )
           })()}
           {payment?.installments > 1 && (
-            <p className="text-[9px] text-zinc-600 mt-1 text-right">{payment.installments}x no cartão</p>
+            <p className="text-[9px] text-zinc-600 mt-1 text-right">{t('card.installments', { count: payment.installments })}</p>
           )}
         </div>
       </div>
@@ -1421,7 +1429,7 @@ function OrderCard({
           style={{ transform: expanded ? 'rotate(180deg)' : undefined, transition: 'transform .2s' }}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
         </svg>
-        {expanded ? 'Menos detalhes' : 'Mais detalhes'}
+        {expanded ? t('card.lessDetails') : t('card.moreDetails')}
       </button>
 
       {expanded && (
@@ -1431,7 +1439,7 @@ function OrderCard({
             {/* Comprador */}
             <div className="p-3 rounded-xl space-y-1.5" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
               <div className="flex items-center justify-between mb-2 gap-2">
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Comprador</p>
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">{t('card.buyerSection')}</p>
                 <div className="flex items-center gap-1.5">
                   {/* Botão "📥 Buscar dados" só quando billing nunca foi tentado.
                       Se já tentou e voltou sem CPF (ML 404 / LGPD), nada de
@@ -1441,14 +1449,14 @@ function OrderCard({
                       aria-busy={refetching || undefined}
                       className={`text-[10px] font-semibold px-2 py-0.5 rounded-md transition-opacity disabled:opacity-50 ${pulseClass(refetching)}`}
                       style={{ background: 'rgba(250,204,21,0.10)', color: '#facc15', border: '1px solid rgba(250,204,21,0.30)' }}>
-                      📥 Buscar dados de faturamento
+                      {t('card.fetchBillingData')}
                     </button>
                   )}
                   {liveBuyer.billing_fetched_at && (
                     <button onClick={refetchBilling} disabled={refetching}
                       aria-busy={refetching || undefined}
                       className={`text-[10px] text-zinc-500 hover:text-zinc-300 disabled:opacity-50 px-1.5 ${pulseClass(refetching)}`}
-                      title="Re-consultar billing_info">
+                      title={t('card.requeryBilling')}>
                       ↻
                     </button>
                   )}
@@ -1461,7 +1469,7 @@ function OrderCard({
               {liveBuyer.billing_fetched_at && !liveBuyer.doc_number && (
                 <div className="rounded-md px-2 py-1.5 mb-1 text-[10px] leading-snug"
                   style={{ background: 'rgba(96,165,250,0.08)', border: '1px solid rgba(96,165,250,0.25)', color: '#93c5fd' }}>
-                  ⓘ ML não retornou CPF para este pedido (404 ou LGPD). Use o enriquecimento via Direct Data com o cliente em <span className="font-mono">/clientes</span>.
+                  {t.rich('card.noDocBanner', { mono: (chunks) => <span className="font-mono">{chunks}</span> })}
                 </div>
               )}
 
@@ -1472,15 +1480,15 @@ function OrderCard({
                 <>
                   <div className="space-y-1.5 animate-pulse">
                     <div className="flex items-start gap-1.5">
-                      <span className="text-[11px] text-zinc-600 w-14 shrink-0">Nome</span>
+                      <span className="text-[11px] text-zinc-600 w-14 shrink-0">{t('card.fieldName')}</span>
                       <div className="h-3 rounded w-32" style={{ background: '#1a1a1f' }} />
                     </div>
                     <div className="flex items-start gap-1.5">
-                      <span className="text-[11px] text-zinc-600 w-14 shrink-0">CPF</span>
+                      <span className="text-[11px] text-zinc-600 w-14 shrink-0">{t('card.fieldCpf')}</span>
                       <div className="h-3 rounded w-28" style={{ background: '#1a1a1f' }} />
                     </div>
                     <div className="flex items-start gap-1.5">
-                      <span className="text-[11px] text-zinc-600 w-14 shrink-0">End. fiscal</span>
+                      <span className="text-[11px] text-zinc-600 w-14 shrink-0">{t('card.fieldFiscalAddress')}</span>
                       <div className="space-y-1 flex-1">
                         <div className="h-3 rounded w-40" style={{ background: '#1a1a1f' }} />
                         <div className="h-3 rounded w-24" style={{ background: '#1a1a1f' }} />
@@ -1492,7 +1500,7 @@ function OrderCard({
 
               {!(refetching && !liveBuyer.doc_number && !liveBuyer.full_name) && (liveBuyer.full_name || liveBuyer.first_name || liveBuyer.last_name) && (
                 <div className="flex items-start gap-1.5">
-                  <span className="text-[11px] text-zinc-600 w-14 shrink-0">Nome</span>
+                  <span className="text-[11px] text-zinc-600 w-14 shrink-0">{t('card.fieldName')}</span>
                   <span className="text-[11px] text-zinc-200 font-medium leading-tight">
                     {liveBuyer.full_name ?? [liveBuyer.first_name, liveBuyer.last_name].filter(Boolean).join(' ')}
                   </span>
@@ -1502,7 +1510,7 @@ function OrderCard({
               {liveBuyer.doc_number && (
                 <div className="flex items-start gap-1.5">
                   <span className="text-[11px] text-zinc-600 w-14 shrink-0">
-                    {String(liveBuyer.doc_type ?? '').toUpperCase().includes('CNPJ') ? 'CNPJ' : 'CPF'}
+                    {String(liveBuyer.doc_type ?? '').toUpperCase().includes('CNPJ') ? t('card.fieldCnpj') : t('card.fieldCpf')}
                   </span>
                   <span className="text-[11px] font-mono" style={{ color: '#4ade80' }}>
                     {maskDoc(liveBuyer.doc_number, liveBuyer.doc_type)}
@@ -1517,11 +1525,11 @@ function OrderCard({
                 const lin2 = [a.neighborhood?.name, cityName, a.state?.name].filter(Boolean).join(' · ')
                 return (
                   <div className="flex items-start gap-1.5">
-                    <span className="text-[11px] text-zinc-600 w-14 shrink-0">End. fiscal</span>
+                    <span className="text-[11px] text-zinc-600 w-14 shrink-0">{t('card.fieldFiscalAddress')}</span>
                     <div className="text-[11px] text-zinc-300 leading-tight">
                       {lin && <p>{lin}{a.comment ? `, ${a.comment}` : ''}</p>}
                       {lin2 && <p className="text-zinc-500">{lin2}</p>}
-                      {a.zip_code && <p className="text-zinc-600 font-mono">CEP {a.zip_code}</p>}
+                      {a.zip_code && <p className="text-zinc-600 font-mono">{t('card.zipLabel')} {a.zip_code}</p>}
                     </div>
                   </div>
                 )
@@ -1530,80 +1538,79 @@ function OrderCard({
               {liveBuyer.email
                 ? (
                   <div className="flex items-start gap-1.5">
-                    <span className="text-[11px] text-zinc-600 w-14 shrink-0">Email</span>
+                    <span className="text-[11px] text-zinc-600 w-14 shrink-0">{t('card.fieldEmail')}</span>
                     <span className="text-[11px] text-zinc-300 break-all">{liveBuyer.email}</span>
                   </div>
                 )
                 : liveBuyer.doc_number ? (
                   <div className="flex items-start gap-1.5"
-                    title="ML não fornece email via API (LGPD). Use o enriquecimento via Direct Data com o CPF.">
-                    <span className="text-[11px] text-zinc-600 w-14 shrink-0">Email</span>
-                    <span className="text-[11px] text-zinc-700">— (vem do enriquecimento)</span>
+                    title={t('card.emailLgpdTitle')}>
+                    <span className="text-[11px] text-zinc-600 w-14 shrink-0">{t('card.fieldEmail')}</span>
+                    <span className="text-[11px] text-zinc-700">{t('card.emailFromEnrichment')}</span>
                   </div>
                 ) : null}
 
               {liveBuyer.phone && (
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[11px] text-zinc-600 w-14 shrink-0">Telefone</span>
+                  <span className="text-[11px] text-zinc-600 w-14 shrink-0">{t('card.fieldPhone')}</span>
                   <span className="text-[11px] text-zinc-300 font-mono">{fmtPhone(liveBuyer.phone)}</span>
                 </div>
               )}
 
               {!(refetching && !liveBuyer.doc_number && !liveBuyer.full_name) && liveBuyer.nickname && (
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[11px] text-zinc-600 w-14 shrink-0">@usuário</span>
+                  <span className="text-[11px] text-zinc-600 w-14 shrink-0">{t('card.fieldUser')}</span>
                   <span className="text-[11px] text-zinc-300 font-mono">@{liveBuyer.nickname}</span>
                 </div>
               )}
 
               {!(refetching && !liveBuyer.doc_number && !liveBuyer.full_name) && liveBuyer.id && (
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[11px] text-zinc-600 w-14 shrink-0">ID</span>
+                  <span className="text-[11px] text-zinc-600 w-14 shrink-0">{t('card.fieldId')}</span>
                   <span className="text-[11px] text-zinc-600 font-mono">{liveBuyer.id}</span>
                 </div>
               )}
 
               {!liveBuyer.doc_number && liveBuyer.billing_fetched_at && (
                 <p className="text-[10px] text-zinc-600 mt-2 leading-tight">
-                  ⓘ ML não liberou CPF/email para este pedido (LGPD).
-                  Use o enriquecimento via Direct Data com o CPF para resolver telefones/emails completos.
+                  {t('card.lgpdNote')}
                 </p>
               )}
             </div>
 
             {/* Pagamento */}
             <div className="p-3 rounded-xl space-y-1.5" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-2">Pagamento</p>
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-2">{t('card.paymentSection')}</p>
               {order.payments?.length === 0
-                ? <span className="text-[11px] text-zinc-700">Nenhum pagamento</span>
+                ? <span className="text-[11px] text-zinc-700">{t('card.noPayment')}</span>
                 : order.payments?.map((pay, i) => {
                     const ps = PAY_STATUS[pay.status]
                     return (
                       <div key={pay.id}>
                         {order.payments?.length > 1 && (
-                          <p className="text-[10px] text-zinc-600 mb-1">Pgto. {i + 1}</p>
+                          <p className="text-[10px] text-zinc-600 mb-1">{t('card.paymentNumber', { n: i + 1 })}</p>
                         )}
                         <div className="space-y-1">
                           <div className="flex items-center gap-1.5">
-                            <span className="text-[11px] text-zinc-600 w-14 shrink-0">Tipo</span>
+                            <span className="text-[11px] text-zinc-600 w-14 shrink-0">{t('card.fieldType')}</span>
                             <span className="text-[11px] text-zinc-300">
-                              {PAY_ICON[pay.payment_type] ?? '💳'} {PAY_LABEL[pay.payment_type] ?? pay.payment_type}
+                              {PAY_ICON[pay.payment_type] ?? '💳'} {(PAY_LABEL_KEYS as readonly string[]).includes(pay.payment_type) ? t(`payLabel.${pay.payment_type}`) : pay.payment_type}
                             </span>
                           </div>
                           <div className="flex items-center gap-1.5">
-                            <span className="text-[11px] text-zinc-600 w-14 shrink-0">Status</span>
+                            <span className="text-[11px] text-zinc-600 w-14 shrink-0">{t('card.fieldStatus')}</span>
                             <span className="text-[11px] font-semibold" style={{ color: ps?.color ?? '#71717a' }}>
-                              {ps?.label ?? pay.status}
+                              {ps ? t(`payStatus.${pay.status}`) : pay.status}
                             </span>
                           </div>
                           {pay.installments > 1 && (
                             <div className="flex items-center gap-1.5">
-                              <span className="text-[11px] text-zinc-600 w-14 shrink-0">Parcelas</span>
+                              <span className="text-[11px] text-zinc-600 w-14 shrink-0">{t('card.fieldInstallments')}</span>
                               <span className="text-[11px] text-zinc-300">{pay.installments}x</span>
                             </div>
                           )}
                           <div className="flex items-center gap-1.5">
-                            <span className="text-[11px] text-zinc-600 w-14 shrink-0">Valor</span>
+                            <span className="text-[11px] text-zinc-600 w-14 shrink-0">{t('card.fieldValue')}</span>
                             <span className="text-[11px] font-semibold text-zinc-200 tabular-nums">{brl(pay.total_paid_amount)}</span>
                           </div>
                         </div>
@@ -1618,11 +1625,11 @@ function OrderCard({
 
             {/* Endereço */}
             <div className="p-3 rounded-xl space-y-1.5" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-2">Endereço de entrega</p>
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-2">{t('card.deliveryAddressSection')}</p>
               {order.shipping?.receiver_address?.street_name ? (
                 <>
                   <div className="flex items-start gap-1.5">
-                    <span className="text-[11px] text-zinc-600 w-14 shrink-0">Rua</span>
+                    <span className="text-[11px] text-zinc-600 w-14 shrink-0">{t('card.fieldStreet')}</span>
                     <span className="text-[11px] text-zinc-200 leading-tight">
                       {order.shipping?.receiver_address?.street_name}
                       {order.shipping?.receiver_address?.street_number ? `, ${order.shipping?.receiver_address?.street_number}` : ''}
@@ -1630,19 +1637,19 @@ function OrderCard({
                   </div>
                   {order.shipping?.receiver_address?.complement && (
                     <div className="flex items-start gap-1.5">
-                      <span className="text-[11px] text-zinc-600 w-14 shrink-0">Compl.</span>
+                      <span className="text-[11px] text-zinc-600 w-14 shrink-0">{t('card.fieldComplement')}</span>
                       <span className="text-[11px] text-zinc-300">{order.shipping?.receiver_address?.complement}</span>
                     </div>
                   )}
                   {order.shipping?.receiver_address?.neighborhood && (
                     <div className="flex items-start gap-1.5">
-                      <span className="text-[11px] text-zinc-600 w-14 shrink-0">Bairro</span>
+                      <span className="text-[11px] text-zinc-600 w-14 shrink-0">{t('card.fieldNeighborhood')}</span>
                       <span className="text-[11px] text-zinc-300">{order.shipping?.receiver_address?.neighborhood}</span>
                     </div>
                   )}
                   {order.shipping?.receiver_address?.city && (
                     <div className="flex items-start gap-1.5">
-                      <span className="text-[11px] text-zinc-600 w-14 shrink-0">Cidade</span>
+                      <span className="text-[11px] text-zinc-600 w-14 shrink-0">{t('card.fieldCity')}</span>
                       <span className="text-[11px] text-zinc-300">
                         {order.shipping?.receiver_address?.city}
                         {order.shipping?.receiver_address?.state ? ` / ${order.shipping?.receiver_address?.state}` : ''}
@@ -1651,28 +1658,28 @@ function OrderCard({
                   )}
                   {order.shipping?.receiver_address?.zip_code && (
                     <div className="flex items-center gap-1.5">
-                      <span className="text-[11px] text-zinc-600 w-14 shrink-0">CEP</span>
+                      <span className="text-[11px] text-zinc-600 w-14 shrink-0">{t('card.zipLabel')}</span>
                       <span className="text-[11px] text-zinc-300 font-mono">{order.shipping?.receiver_address?.zip_code}</span>
                     </div>
                   )}
                   {order.shipping?.receiver_address?.address_line && (
                     <div className="flex items-start gap-1.5">
-                      <span className="text-[11px] text-zinc-600 w-14 shrink-0">Linha</span>
+                      <span className="text-[11px] text-zinc-600 w-14 shrink-0">{t('card.fieldLine')}</span>
                       <span className="text-[11px] text-zinc-500 italic">{order.shipping?.receiver_address?.address_line}</span>
                     </div>
                   )}
                 </>
               ) : (
-                <span className="text-[11px] text-zinc-700">Endereço não disponível</span>
+                <span className="text-[11px] text-zinc-700">{t('card.addressNotAvailable')}</span>
               )}
             </div>
 
             {/* Envio */}
             <div className="p-3 rounded-xl space-y-1.5" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-2">Envio</p>
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-2">{t('card.shippingSection')}</p>
               {order.shipping?.id && (
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[11px] text-zinc-600 w-20 shrink-0">ID Envio</span>
+                  <span className="text-[11px] text-zinc-600 w-20 shrink-0">{t('card.fieldShipmentId')}</span>
                   <a href={`https://www.mercadolivre.com.br/envios/${order.shipping?.id}`}
                     target="_blank" rel="noopener noreferrer"
                     className="text-[11px] font-mono text-cyan-500 hover:text-cyan-300 transition-colors">
@@ -1682,55 +1689,55 @@ function OrderCard({
               )}
               {order.shipping?.logistic_type && (
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[11px] text-zinc-600 w-20 shrink-0">Logística</span>
+                  <span className="text-[11px] text-zinc-600 w-20 shrink-0">{t('card.fieldLogistics')}</span>
                   <span className="text-[11px] font-semibold"
                     style={{ color: (LOGISTIC[order.shipping?.logistic_type] ?? { color: '#71717a' }).color }}>
-                    {(LOGISTIC[order.shipping?.logistic_type] ?? { text: order.shipping?.logistic_type }).text}
+                    {LOGISTIC[order.shipping?.logistic_type] ? t(`logistic.${order.shipping?.logistic_type}`) : order.shipping?.logistic_type}
                   </span>
                 </div>
               )}
               {order.shipping?.status && (
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[11px] text-zinc-600 w-20 shrink-0">Status</span>
+                  <span className="text-[11px] text-zinc-600 w-20 shrink-0">{t('card.fieldStatus')}</span>
                   <span className="text-[11px] font-semibold"
                     style={{ color: (SHIPPING_STATUS_MAP[order.shipping?.status] ?? { color: '#71717a' }).color }}>
-                    {(SHIPPING_STATUS_MAP[order.shipping?.status] ?? { label: order.shipping?.status }).label}
+                    {SHIPPING_STATUS_MAP[order.shipping?.status] ? t(`shippingStatus.${order.shipping?.status}`) : order.shipping?.status}
                   </span>
                 </div>
               )}
               {order.shipping?.substatus && (
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[11px] text-zinc-600 w-20 shrink-0">Substatus</span>
+                  <span className="text-[11px] text-zinc-600 w-20 shrink-0">{t('card.fieldSubstatus')}</span>
                   <span className="text-[11px] text-zinc-400">{order.shipping?.substatus}</span>
                 </div>
               )}
               {order.shipping?.date_created && (
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[11px] text-zinc-600 w-20 shrink-0">Criado em</span>
+                  <span className="text-[11px] text-zinc-600 w-20 shrink-0">{t('card.fieldCreatedAt')}</span>
                   <span className="text-[11px] text-zinc-400">{fmtDate(order.shipping?.date_created)}</span>
                 </div>
               )}
               {order.shipping?.posting_deadline && (
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[11px] text-zinc-600 w-20 shrink-0">Pr. postagem</span>
+                  <span className="text-[11px] text-zinc-600 w-20 shrink-0">{t('card.fieldPostingDeadline')}</span>
                   <span className="text-[11px] text-zinc-400">{fmtDate(order.shipping?.posting_deadline)}</span>
                 </div>
               )}
               {order.shipping?.estimated_delivery_date && (
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[11px] text-zinc-600 w-20 shrink-0">Prev. entrega</span>
+                  <span className="text-[11px] text-zinc-600 w-20 shrink-0">{t('card.fieldEstDelivery')}</span>
                   <span className="text-[11px] text-zinc-400">{fmtDate(order.shipping?.estimated_delivery_date)}</span>
                 </div>
               )}
               {(order.shipping as unknown as { receiver_name?: string | null })?.receiver_name && (
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[11px] text-zinc-600 w-20 shrink-0">Quem recebe</span>
+                  <span className="text-[11px] text-zinc-600 w-20 shrink-0">{t('card.fieldReceiver')}</span>
                   <span className="text-[11px] text-zinc-400">{(order.shipping as unknown as { receiver_name: string }).receiver_name}</span>
                 </div>
               )}
               {(order.shipping as unknown as { tracking_number?: string | null })?.tracking_number && (
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[11px] text-zinc-600 w-20 shrink-0">Rastreio</span>
+                  <span className="text-[11px] text-zinc-600 w-20 shrink-0">{t('card.fieldTracking')}</span>
                   <span className="text-[11px] font-mono text-cyan-500">
                     {(order.shipping as unknown as { tracking_number: string }).tracking_number}
                   </span>
@@ -1738,7 +1745,7 @@ function OrderCard({
               )}
               {(order.shipping as unknown as { delivery_type?: string | null })?.delivery_type && (
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[11px] text-zinc-600 w-20 shrink-0">Tipo entrega</span>
+                  <span className="text-[11px] text-zinc-600 w-20 shrink-0">{t('card.fieldDeliveryType')}</span>
                   <span className="text-[11px] text-zinc-400">
                     {(order.shipping as unknown as { delivery_type: string }).delivery_type}
                   </span>
@@ -1750,7 +1757,7 @@ function OrderCard({
           {/* Itens do pedido (apenas se múltiplos) */}
           {order.order_items.length > 1 && (
             <div className="p-3 rounded-xl" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-2">Itens do pedido</p>
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-2">{t('card.orderItemsSection')}</p>
               <div className="space-y-1.5">
                 {order.order_items.map((it, i) => (
                   <div key={i} className="flex items-center gap-2">
@@ -1812,10 +1819,11 @@ function Pagination({ page, total, size, onChange }: {
 
 // ── Manual Sale Modal ─────────────────────────────────────────────────────────
 
-function ManualSaleModal({ onClose, onSaved, getHeaders }: {
+function ManualSaleModal({ onClose, onSaved, getHeaders, t }: {
   onClose:    () => void
   onSaved:    () => void
   getHeaders: () => Promise<Record<string, string>>
+  t:          Translator
 }) {
   const [form, setForm] = useState({
     platform: 'manual', product_title: '', sku: '', quantity: '1',
@@ -1829,7 +1837,7 @@ function ManualSaleModal({ onClose, onSaved, getHeaders }: {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!form.product_title.trim() || !form.buyer_name.trim() || !form.sale_price) {
-      setError('Preencha: produto, comprador e preço de venda.')
+      setError(t('manual.fillRequired'))
       return
     }
     setSaving(true); setError(null)
@@ -1855,7 +1863,7 @@ function ManualSaleModal({ onClose, onSaved, getHeaders }: {
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       onSaved()
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Erro ao salvar')
+      setError(e instanceof Error ? e.message : t('manual.saveError'))
     } finally { setSaving(false) }
   }
 
@@ -1868,7 +1876,7 @@ function ManualSaleModal({ onClose, onSaved, getHeaders }: {
       <div className="w-full max-w-xl rounded-2xl overflow-hidden max-h-[90vh] flex flex-col"
         style={{ background: '#111114', border: '1px solid #27272a' }}>
         <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid #1e1e24' }}>
-          <h2 className="text-white text-base font-semibold">Nova Venda Manual</h2>
+          <h2 className="text-white text-base font-semibold">{t('manual.title')}</h2>
           <button onClick={onClose} className="text-zinc-500 hover:text-white transition-colors">
             <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -1879,63 +1887,63 @@ function ManualSaleModal({ onClose, onSaved, getHeaders }: {
         <form onSubmit={handleSubmit} className="overflow-y-auto">
           <div className="px-6 py-5 grid grid-cols-2 gap-4">
             <div className="col-span-2">
-              <label className={lbl}>Plataforma</label>
+              <label className={lbl}>{t('manual.platform')}</label>
               <select value={form.platform} onChange={e => set('platform', e.target.value)} className={inp} style={sty}>
-                {[['ml','Mercado Livre'],['shopee','Shopee'],['whatsapp','WhatsApp'],['loja_fisica','Loja Física'],['outro','Outro']].map(([v,l]) => (
+                {[['ml','Mercado Livre'],['shopee','Shopee'],['whatsapp','WhatsApp'],['loja_fisica',t('manual.platformPhysicalStore')],['outro',t('manual.platformOther')]].map(([v,l]) => (
                   <option key={v} value={v}>{l}</option>
                 ))}
               </select>
             </div>
             <div className="col-span-2">
-              <label className={lbl}>Produto *</label>
+              <label className={lbl}>{t('manual.product')}</label>
               <input value={form.product_title} onChange={e => set('product_title', e.target.value)}
-                placeholder="Nome do produto" className={inp} style={sty} />
+                placeholder={t('manual.productPlaceholder')} className={inp} style={sty} />
             </div>
             <div>
-              <label className={lbl}>SKU</label>
-              <input value={form.sku} onChange={e => set('sku', e.target.value)} placeholder="SKU" className={inp} style={sty} />
+              <label className={lbl}>{t('manual.sku')}</label>
+              <input value={form.sku} onChange={e => set('sku', e.target.value)} placeholder={t('manual.sku')} className={inp} style={sty} />
             </div>
             <div>
-              <label className={lbl}>Quantidade</label>
+              <label className={lbl}>{t('manual.quantity')}</label>
               <input type="number" min="1" value={form.quantity} onChange={e => set('quantity', e.target.value)} className={inp} style={sty} />
             </div>
             <div>
-              <label className={lbl}>Preço de venda (R$) *</label>
+              <label className={lbl}>{t('manual.salePrice')}</label>
               <input type="number" step="0.01" value={form.sale_price} onChange={e => set('sale_price', e.target.value)}
                 placeholder="0,00" className={inp} style={sty} />
             </div>
             <div>
-              <label className={lbl}>Custo do produto (R$)</label>
+              <label className={lbl}>{t('manual.costPrice')}</label>
               <input type="number" step="0.01" value={form.cost_price} onChange={e => set('cost_price', e.target.value)}
                 placeholder="0,00" className={inp} style={sty} />
             </div>
             <div className="col-span-2">
-              <label className={lbl}>Nome do comprador *</label>
+              <label className={lbl}>{t('manual.buyerName')}</label>
               <input value={form.buyer_name} onChange={e => set('buyer_name', e.target.value)}
-                placeholder="Nome completo" className={inp} style={sty} />
+                placeholder={t('manual.buyerNamePlaceholder')} className={inp} style={sty} />
             </div>
             <div>
-              <label className={lbl}>Telefone</label>
+              <label className={lbl}>{t('manual.phone')}</label>
               <input value={form.buyer_phone} onChange={e => set('buyer_phone', e.target.value)}
                 placeholder="(11) 99999-9999" className={inp} style={sty} />
             </div>
             <div>
-              <label className={lbl}>Forma de pagamento</label>
+              <label className={lbl}>{t('manual.paymentMethod')}</label>
               <select value={form.payment_method} onChange={e => set('payment_method', e.target.value)} className={inp} style={sty}>
-                {[['pix','PIX'],['credit_card','Cartão de crédito'],['debit_card','Cartão de débito'],['cash','Dinheiro'],['boleto','Boleto']].map(([v,l]) => (
+                {[['pix',t('manual.payPix')],['credit_card',t('manual.payCreditCard')],['debit_card',t('manual.payDebitCard')],['cash',t('manual.payCash')],['boleto',t('manual.payBoleto')]].map(([v,l]) => (
                   <option key={v} value={v}>{l}</option>
                 ))}
               </select>
             </div>
             <div className="col-span-2">
-              <label className={lbl}>Endereço de entrega</label>
+              <label className={lbl}>{t('manual.deliveryAddress')}</label>
               <input value={form.shipping_address} onChange={e => set('shipping_address', e.target.value)}
-                placeholder="Rua, número, cidade, CEP" className={inp} style={sty} />
+                placeholder={t('manual.deliveryAddressPlaceholder')} className={inp} style={sty} />
             </div>
             <div className="col-span-2">
-              <label className={lbl}>Observações</label>
+              <label className={lbl}>{t('manual.notes')}</label>
               <textarea value={form.notes} onChange={e => set('notes', e.target.value)}
-                rows={2} placeholder="Anotações internas..." className={`${inp} resize-none`} style={sty} />
+                rows={2} placeholder={t('manual.notesPlaceholder')} className={`${inp} resize-none`} style={sty} />
             </div>
           </div>
 
@@ -1947,12 +1955,12 @@ function ManualSaleModal({ onClose, onSaved, getHeaders }: {
             <button type="button" onClick={onClose}
               className="px-4 py-2 rounded-lg text-sm text-zinc-400 hover:text-white transition-colors"
               style={{ background: '#1a1a1f', border: '1px solid #27272a' }}>
-              Cancelar
+              {t('manual.cancel')}
             </button>
             <button type="submit" disabled={saving}
               className="px-5 py-2 rounded-lg text-sm font-semibold transition-opacity disabled:opacity-50"
               style={{ background: '#00E5FF', color: '#000' }}>
-              {saving ? 'Salvando…' : 'Registrar Venda'}
+              {saving ? t('manual.saving') : t('manual.submit')}
             </button>
           </div>
         </form>
@@ -1963,26 +1971,20 @@ function ManualSaleModal({ onClose, onSaved, getHeaders }: {
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 
-const TABS: { key: TabKey; label: string }[] = [
-  { key: 'abertas',       label: 'Abertas'        },
-  { key: 'em_preparacao', label: 'Em Preparação'  },
-  { key: 'despachadas',   label: 'Despachadas'    },
-  { key: 'pgto_pendente', label: 'Pgto. Pendente' },
-  { key: 'flex',          label: 'Flex'           },
-  { key: 'encerradas',    label: 'Encerradas'     },
-  { key: 'mediacao',      label: 'Mediação'       },
-  { key: 'canceladas',    label: 'Canceladas'     },
+const TAB_KEYS: TabKey[] = [
+  'abertas', 'em_preparacao', 'despachadas', 'pgto_pendente',
+  'flex', 'encerradas', 'mediacao', 'canceladas',
 ]
 
 // ── Active filter chip (filtros avançados de pedidos) ────────────────────────
 
-function ChipPed({ label, onRemove }: { label: string; onRemove: () => void }) {
+function ChipPed({ label, onRemove, t }: { label: string; onRemove: () => void; t: Translator }) {
   return (
     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border"
       style={{ background: 'rgba(0,229,255,0.06)', borderColor: 'rgba(0,229,255,0.25)', color: '#67e8f9' }}>
       {label}
       <button onClick={onRemove} className="hover:text-white transition-colors -mr-0.5"
-        aria-label={`Remover filtro ${label}`}>
+        aria-label={t('filters.removeChip', { label })}>
         <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
         </svg>
@@ -1994,6 +1996,7 @@ function ChipPed({ label, onRemove }: { label: string; onRemove: () => void }) {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function PedidosPage() {
+  const t = useTranslations('pedidos')
   const supabase = useMemo(() => createClient(), [])
 
   const [kpis,       setKpis]       = useState<KpiData | null>(null)
@@ -2086,9 +2089,9 @@ export default function PedidosPage() {
 
   const getHeaders = useCallback(async (): Promise<Record<string, string>> => {
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session?.access_token) throw new Error('Não autenticado')
+    if (!session?.access_token) throw new Error(t('notAuthenticated'))
     return { Authorization: `Bearer ${session.access_token}` }
-  }, [supabase])
+  }, [supabase, t])
 
   const loadKpis = useCallback(async () => {
     setKpiLoad(true)
@@ -2131,12 +2134,12 @@ export default function PedidosPage() {
         body: JSON.stringify({ days: 7 }),
       })
       const body = await res.json().catch(() => null) as { runId?: string; message?: string } | null
-      if (!res.ok || !body?.runId) toast(body?.message ?? 'Falha ao sincronizar', 'error')
-      else toast(`✓ Sync de 7 dias iniciado (runId ${body.runId.slice(0, 8)}…)`, 'success')
+      if (!res.ok || !body?.runId) toast(body?.message ?? t('toast.syncFail'), 'error')
+      else toast(t('toast.syncStarted', { runId: body.runId.slice(0, 8) }), 'success')
       setTimeout(loadPending, 30_000)
-    } catch { toast('Erro de rede ao sincronizar', 'error') }
+    } catch { toast(t('toast.syncNetworkError'), 'error') }
     finally { setSyncing(false) }
-  }, [syncing, getHeaders, loadPending])
+  }, [syncing, getHeaders, loadPending, t])
 
   const loadOrders = useCallback(async (currentPage: number, query: string, currentTab: TabKey | null) => {
     setLoading(true)
@@ -2161,10 +2164,10 @@ export default function PedidosPage() {
       setLastUpdate(new Date())
       setMinsSince(0)
     } catch (e: unknown) {
-      toast(e instanceof Error ? e.message : 'Erro ao carregar pedidos', 'error')
+      toast(e instanceof Error ? e.message : t('toast.loadOrdersError'), 'error')
       setOrders([])
     } finally { setLoading(false) }
-  }, [getHeaders, pageSize])
+  }, [getHeaders, pageSize, t])
 
   // Busca todos os vínculos uma vez — matching feito localmente em memória
   useEffect(() => {
@@ -2326,8 +2329,8 @@ export default function PedidosPage() {
       }
       return next
     })
-    toast('Valores salvos!', 'success')
-  }, [getHeaders])
+    toast(t('toast.valuesSaved'), 'success')
+  }, [getHeaders, t])
 
   const criarProduto = useCallback(async (itemId: string) => {
     try {
@@ -2350,10 +2353,10 @@ export default function PedidosPage() {
       const errored = results.find(r => r.status === 'error')
       if (!created && !skipped) {
         const reason = errored?.reason ?? results[0]?.reason ?? (data as { message?: string }).message ?? `HTTP ${res.status}`
-        toast(`Erro ao criar produto: ${reason}`, 'error')
+        toast(t('toast.createProductError', { reason }), 'error')
         return
       }
-      toast(created ? 'Produto criado e vinculado!' : 'Produto já existe no catálogo', created ? 'success' : 'info')
+      toast(created ? t('toast.productCreated') : t('toast.productExists'), created ? 'success' : 'info')
 
       // Atualiza vinculos local pra habilitar campos CMV/Imposto sem F5
       const { data: allVinculos } = await supabase
@@ -2373,9 +2376,9 @@ export default function PedidosPage() {
         setVinculosPorListing(map)
       }
     } catch (e) {
-      toast(`Erro ao criar produto: ${(e as Error).message}`, 'error')
+      toast(t('toast.createProductError', { reason: (e as Error).message }), 'error')
     }
-  }, [getHeaders, supabase])
+  }, [getHeaders, supabase, t])
 
   useEffect(() => { pageRef.current = page }, [page])
   useEffect(() => { qRef.current = q      }, [q])
@@ -2688,29 +2691,29 @@ export default function PedidosPage() {
 
       {/* Header consolidado (UI-1.1) — título + ações + linha "atualizado" + KPIs hoje. */}
       <div>
-        <p className="text-zinc-500 text-xs font-medium tracking-widest uppercase mb-1">Dashboard · Vendas</p>
+        <p className="text-zinc-500 text-xs font-medium tracking-widest uppercase mb-1">{t('breadcrumb')}</p>
         <div className="flex items-start justify-between gap-4 flex-wrap">
-          <h1 className="text-white text-3xl font-semibold">Pedidos</h1>
+          <h1 className="text-white text-3xl font-semibold">{t('title')}</h1>
           <div className="flex items-center gap-2">
             <AccountSelector compact hideWhenEmpty />
             <PulsingButton
               onClick={sync}
               loading={syncing}
               icon={<Truck size={11} />}
-              label="Sincronizar"
+              label={t('syncButton')}
               badge={billingPending && billingPending > 0 ? billingPending : undefined}
               variant="cyan"
             />
-            <button onClick={() => todoToast('Exportar relatório de pedidos')}
+            <button onClick={() => todoToast(t('toast.exportReport'))}
               className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-colors"
               style={{ background: '#18181b', color: 'var(--text)', border: '1px solid #27272a' }}>
-              <BarChart2 size={12} /> Relatório
+              <BarChart2 size={12} /> {t('reportButton')}
             </button>
           </div>
         </div>
         <p className="text-xs text-zinc-600 mt-1">
-          {minsSince === 0 ? 'Atualizado agora' : `Atualizado há ${minsSince}min`}
-          {' · '}atualiza a cada 2min
+          {minsSince === 0 ? t('updatedNow') : t('updatedAgo', { mins: minsSince })}
+          {' · '}{t('updatesEvery2min')}
         </p>
 
         {/* KPI strip — uma linha, separadores · entre KPIs. */}
@@ -2718,26 +2721,26 @@ export default function PedidosPage() {
           style={{ borderTop: '1px solid #1a1a1f' }}>
           <span>
             <span className="font-bold tabular-nums" style={{ color: '#00E5FF' }}>{brl(todayRev)}</span>
-            <span className="ml-1.5">vendas hoje</span>
+            <span className="ml-1.5">{t('kpi.salesToday')}</span>
           </span>
           <span className="text-zinc-700">·</span>
           <span>
             <span className="font-bold tabular-nums text-zinc-100">{num(todayCount)}</span>
-            <span className="ml-1.5">pedidos hoje</span>
+            <span className="ml-1.5">{t('kpi.ordersToday')}</span>
           </span>
           <span className="text-zinc-700">·</span>
           <span>
             <span className="font-bold tabular-nums" style={{ color: pendentesEnvio > 0 ? '#fbbf24' : '#a1a1aa' }}>
               {num(pendentesEnvio)}
             </span>
-            <span className="ml-1.5">pendentes envio</span>
+            <span className="ml-1.5">{t('kpi.pendingShipment')}</span>
           </span>
           <span className="text-zinc-700">·</span>
           <span>
             <span className="font-bold tabular-nums" style={{ color: emTransito > 0 ? '#a78bfa' : '#a1a1aa' }}>
               {num(emTransito)}
             </span>
-            <span className="ml-1.5">em trânsito</span>
+            <span className="ml-1.5">{t('kpi.inTransit')}</span>
           </span>
           {todayCancelados > 0 && (
             <>
@@ -2746,7 +2749,7 @@ export default function PedidosPage() {
                 <span className="font-bold tabular-nums" style={{ color: '#f87171' }}>
                   {num(todayCancelados)}
                 </span>
-                <span className="ml-1.5 text-red-300/80">cancelad{todayCancelados === 1 ? 'a' : 'as'} hoje</span>
+                <span className="ml-1.5 text-red-300/80">{t('kpi.cancelledToday', { count: todayCancelados })}</span>
               </span>
             </>
           )}
@@ -2760,10 +2763,10 @@ export default function PedidosPage() {
               <div key={i} className="h-24 rounded-2xl animate-pulse" style={{ background: '#111114' }} />
             ))
           : <>
-              <KpiCard label="Vendas mês passado"   value={num(prev?.count   ?? 0)} sub="aprovadas"    data={prev?.by_day ?? []} valueKey="count"   color="#71717a" />
-              <KpiCard label="Vendas mês atual"     value={num(cur?.count    ?? 0)} sub="aprovadas"    data={cur?.by_day  ?? []} valueKey="count"   color="#00E5FF" />
-              <KpiCard label="Faturamento anterior" value={brl(prev?.revenue ?? 0)} sub="mês passado"  data={prev?.by_day ?? []} valueKey="revenue" color="#71717a" />
-              <KpiCard label="Faturamento atual"    value={brl(cur?.revenue  ?? 0)} sub="mês corrente" data={cur?.by_day  ?? []} valueKey="revenue" color="#22c55e" />
+              <KpiCard label={t('kpiCard.lastMonthSales')}   value={num(prev?.count   ?? 0)} sub={t('kpiCard.approved')}    data={prev?.by_day ?? []} valueKey="count"   color="#71717a" />
+              <KpiCard label={t('kpiCard.currentMonthSales')}     value={num(cur?.count    ?? 0)} sub={t('kpiCard.approved')}    data={cur?.by_day  ?? []} valueKey="count"   color="#00E5FF" />
+              <KpiCard label={t('kpiCard.lastMonthRevenue')} value={brl(prev?.revenue ?? 0)} sub={t('kpiCard.lastMonth')}  data={prev?.by_day ?? []} valueKey="revenue" color="#71717a" />
+              <KpiCard label={t('kpiCard.currentMonthRevenue')}    value={brl(cur?.revenue  ?? 0)} sub={t('kpiCard.currentMonth')} data={cur?.by_day  ?? []} valueKey="revenue" color="#22c55e" />
             </>
         }
       </div>
@@ -2773,18 +2776,18 @@ export default function PedidosPage() {
         <div className="flex items-center gap-2">
           <input value={q} onChange={e => setQ(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && (setPage(0), loadOrders(0, q, tab))}
-            placeholder="Buscar por comprador, produto..."
+            placeholder={t('searchPlaceholder')}
             className="text-sm px-4 py-2 rounded-xl text-zinc-200 placeholder-zinc-600 outline-none w-72"
             style={{ background: '#111114', border: '1px solid #27272a' }} />
           <button onClick={() => { setPage(0); loadOrders(0, q, tab) }}
             className="text-sm px-5 py-2 rounded-xl font-semibold hover:opacity-90 transition-opacity"
             style={{ background: '#00E5FF', color: '#000' }}>
-            Buscar
+            {t('searchButton')}
           </button>
           {q && (
             <button onClick={() => { setQ(''); loadOrders(0, '', tab) }}
               className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors px-2">
-              Limpar
+              {t('clearButton')}
             </button>
           )}
         </div>
@@ -2799,7 +2802,7 @@ export default function PedidosPage() {
             <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
             </svg>
-            Filtros
+            {t('filtersButton')}
             {advCount > 0 && <span className="text-[10px] font-bold px-1.5 rounded-full" style={{ background: '#00E5FF', color: '#000' }}>{advCount}</span>}
           </button>
           <button onClick={() => setModal(true)}
@@ -2808,7 +2811,7 @@ export default function PedidosPage() {
             <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
             </svg>
-            Nova Venda Manual
+            {t('newManualSale')}
           </button>
         </div>
       </div>
@@ -2819,10 +2822,10 @@ export default function PedidosPage() {
           style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
           {/* UF destino */}
           <div className="md:col-span-2">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2">UF destino</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2">{t('filters.destinationState')}</p>
             <div className="flex flex-wrap gap-1">
               {availableUFs.length === 0 ? (
-                <span className="text-[11px] text-zinc-600">Sem dado de UF nos pedidos da aba</span>
+                <span className="text-[11px] text-zinc-600">{t('filters.noStateData')}</span>
               ) : availableUFs.map(uf => {
                 const active = filterUFs.has(uf)
                 return (
@@ -2843,13 +2846,13 @@ export default function PedidosPage() {
 
           {/* Período + Valor */}
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2">Período</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2">{t('filters.period')}</p>
             <div className="flex flex-wrap gap-1">
               {([
-                { v: 'all',   label: 'Todos' },
-                { v: 'today', label: 'Hoje' },
-                { v: '7d',    label: '7 dias' },
-                { v: '30d',   label: '30 dias' },
+                { v: 'all',   label: t('filters.periodAll') },
+                { v: 'today', label: t('filters.periodToday') },
+                { v: '7d',    label: t('filters.period7d') },
+                { v: '30d',   label: t('filters.period30d') },
               ] as const).map(o => (
                 <button key={o.v} onClick={() => setFilterPeriod(o.v)}
                   className="px-2 py-1 rounded-md text-[11px] font-medium border transition-all"
@@ -2862,14 +2865,14 @@ export default function PedidosPage() {
                 </button>
               ))}
             </div>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2 mt-3">Valor (R$)</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2 mt-3">{t('filters.value')}</p>
             <div className="flex items-center gap-1.5">
-              <input type="number" min="0" placeholder="Min"
+              <input type="number" min="0" placeholder={t('filters.min')}
                 value={filterValueMin} onChange={e => setFilterValueMin(e.target.value)}
                 className="w-full px-2 py-1.5 rounded-md text-[11px] text-white placeholder-zinc-600 border outline-none focus:border-[#00E5FF]"
                 style={{ background: '#070709', borderColor: '#27272a' }} />
               <span className="text-zinc-600 text-[11px]">—</span>
-              <input type="number" min="0" placeholder="Máx"
+              <input type="number" min="0" placeholder={t('filters.max')}
                 value={filterValueMax} onChange={e => setFilterValueMax(e.target.value)}
                 className="w-full px-2 py-1.5 rounded-md text-[11px] text-white placeholder-zinc-600 border outline-none focus:border-[#00E5FF]"
                 style={{ background: '#070709', borderColor: '#27272a' }} />
@@ -2878,14 +2881,14 @@ export default function PedidosPage() {
 
           {/* Saneamento */}
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2">Saneamento</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2">{t('filters.sanitization')}</p>
             <div className="flex flex-col gap-1">
               {([
-                { k: 'noLink',     label: 'Sem vínculo',          count: flagCounts.noLink,     accent: '#f59e0b' },
-                { k: 'noCost',     label: 'Sem custo',            count: flagCounts.noCost,     accent: '#f59e0b' },
-                { k: 'noCampaign', label: 'Sem campanha ativa',   count: flagCounts.noCampaign, accent: '#f59e0b' },
-                { k: 'noTracking', label: 'Sem rastreio',         count: flagCounts.noTracking, accent: '#f87171' },
-                { k: 'recurring',  label: 'Cliente recorrente',   count: flagCounts.recurring,  accent: '#22c55e' },
+                { k: 'noLink',     label: t('filters.flagNoLink'),     count: flagCounts.noLink,     accent: '#f59e0b' },
+                { k: 'noCost',     label: t('filters.flagNoCost'),     count: flagCounts.noCost,     accent: '#f59e0b' },
+                { k: 'noCampaign', label: t('filters.flagNoCampaign'), count: flagCounts.noCampaign, accent: '#f59e0b' },
+                { k: 'noTracking', label: t('filters.flagNoTracking'), count: flagCounts.noTracking, accent: '#f87171' },
+                { k: 'recurring',  label: t('filters.flagRecurring'),  count: flagCounts.recurring,  accent: '#22c55e' },
               ] as const).map(o => {
                 const active = filterFlags[o.k]
                 return (
@@ -2916,27 +2919,27 @@ export default function PedidosPage() {
       {/* Active chips */}
       {advCount > 0 && (
         <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-          <span className="text-zinc-500 font-medium">Ativos:</span>
+          <span className="text-zinc-500 font-medium">{t('filters.activeLabel')}</span>
           {[...filterUFs].map(uf => (
-            <ChipPed key={uf} label={uf} onRemove={() => setFilterUFs(prev => { const n = new Set(prev); n.delete(uf); return n })} />
+            <ChipPed key={uf} label={uf} t={t} onRemove={() => setFilterUFs(prev => { const n = new Set(prev); n.delete(uf); return n })} />
           ))}
           {filterPeriod !== 'all' && (
-            <ChipPed label={`Período: ${({ today: 'Hoje', '7d': '7 dias', '30d': '30 dias' } as const)[filterPeriod]}`} onRemove={() => setFilterPeriod('all')} />
+            <ChipPed t={t} label={t('filters.chipPeriod', { period: ({ today: t('filters.periodToday'), '7d': t('filters.period7d'), '30d': t('filters.period30d') } as const)[filterPeriod] })} onRemove={() => setFilterPeriod('all')} />
           )}
           {(filterValueMin || filterValueMax) && (
-            <ChipPed label={`R$ ${filterValueMin || '0'} — ${filterValueMax || '∞'}`} onRemove={() => { setFilterValueMin(''); setFilterValueMax('') }} />
+            <ChipPed t={t} label={`R$ ${filterValueMin || '0'} — ${filterValueMax || '∞'}`} onRemove={() => { setFilterValueMin(''); setFilterValueMax('') }} />
           )}
-          {filterFlags.noLink     && <ChipPed label="Sem vínculo"         onRemove={() => setFilterFlags(p => ({ ...p, noLink: false }))} />}
-          {filterFlags.noCost     && <ChipPed label="Sem custo"           onRemove={() => setFilterFlags(p => ({ ...p, noCost: false }))} />}
-          {filterFlags.noCampaign && <ChipPed label="Sem campanha"        onRemove={() => setFilterFlags(p => ({ ...p, noCampaign: false }))} />}
-          {filterFlags.noTracking && <ChipPed label="Sem rastreio"        onRemove={() => setFilterFlags(p => ({ ...p, noTracking: false }))} />}
-          {filterFlags.recurring  && <ChipPed label="Cliente recorrente"  onRemove={() => setFilterFlags(p => ({ ...p, recurring: false }))} />}
+          {filterFlags.noLink     && <ChipPed t={t} label={t('filters.flagNoLink')}     onRemove={() => setFilterFlags(p => ({ ...p, noLink: false }))} />}
+          {filterFlags.noCost     && <ChipPed t={t} label={t('filters.flagNoCost')}     onRemove={() => setFilterFlags(p => ({ ...p, noCost: false }))} />}
+          {filterFlags.noCampaign && <ChipPed t={t} label={t('filters.chipNoCampaign')} onRemove={() => setFilterFlags(p => ({ ...p, noCampaign: false }))} />}
+          {filterFlags.noTracking && <ChipPed t={t} label={t('filters.flagNoTracking')} onRemove={() => setFilterFlags(p => ({ ...p, noTracking: false }))} />}
+          {filterFlags.recurring  && <ChipPed t={t} label={t('filters.flagRecurring')}  onRemove={() => setFilterFlags(p => ({ ...p, recurring: false }))} />}
           <button onClick={clearAdv}
             className="ml-1 px-2 py-0.5 text-[10px] font-medium rounded transition-colors"
             style={{ color: '#71717a' }}
             onMouseEnter={e => { e.currentTarget.style.color = '#f87171' }}
             onMouseLeave={e => { e.currentTarget.style.color = '#71717a' }}>
-            Limpar tudo
+            {t('filters.clearAll')}
           </button>
         </div>
       )}
@@ -2946,29 +2949,29 @@ export default function PedidosPage() {
         <div className="mb-3 px-3 py-2 rounded-lg flex items-center justify-between gap-3 flex-wrap"
           style={{ background: 'rgba(0,229,255,0.06)', border: '1px solid rgba(0,229,255,0.25)' }}>
           <span className="text-[11px] text-cyan-300">
-            ⓘ Mostrando pedidos de <strong>todas as abas</strong> (filtro de saneamento ativo). Trocar de aba volta ao modo normal.
+            {t.rich('crossTabBanner', { strong: (chunks) => <strong>{chunks}</strong> })}
           </span>
           <button onClick={() => setCrossTabMode(false)}
             className="text-[10px] text-zinc-400 hover:text-cyan-300 underline">
-            Voltar pra aba {tab}
+            {t('backToTab', { tab: t(`tabs.${tab}`) })}
           </button>
         </div>
       )}
 
       {/* Tabs */}
       <div className="flex gap-1 overflow-x-auto no-scrollbar" style={{ borderBottom: '1px solid #1a1a1f' }}>
-        {TABS.map(t => {
+        {TAB_KEYS.map(tk => {
           // serverTabCounts (vindo do backend) é a fonte canônica — conta
           // todos os pedidos na DB. tabCounts (local) só vê a página atual,
           // então não bate quando filtro server-side está ativo.
-          const count  = serverTabCounts?.[t.key] ?? tabCounts[t.key] ?? 0
-          const active = tab === t.key
+          const count  = serverTabCounts?.[tk] ?? tabCounts[tk] ?? 0
+          const active = tab === tk
           return (
-            <button key={t.key}
-              onClick={() => { setTab(t.key); if (crossTabMode) setCrossTabMode(false) }}
+            <button key={tk}
+              onClick={() => { setTab(tk); if (crossTabMode) setCrossTabMode(false) }}
               className="px-4 py-2.5 text-sm font-medium transition-colors relative shrink-0"
               style={active && !crossTabMode ? { color: '#00E5FF', borderBottom: '2px solid #00E5FF', marginBottom: -1 } : { color: '#a1a1aa' }}>
-              {t.label}
+              {t(`tabs.${tk}`)}
               {count > 0 && (
                 <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full"
                   style={active ? { background: '#00E5FF1a', color: '#00E5FF' } : { background: '#1a1a1f', color: '#3f3f46' }}>
@@ -2983,7 +2986,7 @@ export default function PedidosPage() {
       {/* Order list */}
       {/* View toggle (cards default | table beta — Sprint B bloco 1) */}
       <div className="flex items-center justify-end mb-2 gap-1 px-1">
-        <span className="text-[10px] uppercase tracking-widest text-zinc-600 mr-1">View</span>
+        <span className="text-[10px] uppercase tracking-widest text-zinc-600 mr-1">{t('viewLabel')}</span>
         {([
           { v: 'cards', path: 'M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM14 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zM14 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z' },
           { v: 'table', path: 'M3 5h18M3 10h18M3 15h18M5 5v14M19 5v14' },
@@ -3033,12 +3036,12 @@ export default function PedidosPage() {
               })
               const body = await res.json().catch(() => null) as { marked?: number; message?: string } | null
               if (!res.ok || typeof body?.marked !== 'number') {
-                toast(body?.message ?? 'Falha ao marcar problema', 'error')
+                toast(body?.message ?? t('toast.markProblemFail'), 'error')
               } else {
-                const sevLabel = ({ low: 'baixa', medium: 'média', high: 'alta', critical: 'crítica' } as const)[severity]
-                toast(`${body.marked} pedido${body.marked === 1 ? '' : 's'} marcado${body.marked === 1 ? '' : 's'} (severidade ${sevLabel})`, 'success')
+                const sevLabel = t(`severity.${severity}`)
+                toast(t('toast.markProblemSuccess', { count: body.marked, severity: sevLabel }), 'success')
               }
-            } catch { toast('Erro de rede', 'error') }
+            } catch { toast(t('toast.networkError'), 'error') }
           }}
         />
       )}
@@ -3055,9 +3058,9 @@ export default function PedidosPage() {
                     className="mb-4 opacity-25">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                   </svg>
-                  <p className="text-sm font-medium text-zinc-500 mb-1">Nenhum pedido nesta aba</p>
+                  <p className="text-sm font-medium text-zinc-500 mb-1">{t('emptyTitle')}</p>
                   <p className="text-xs text-zinc-600">
-                    {tab === 'abertas' ? 'Sem pedidos abertos no momento' : `Sem pedidos "${TABS.find(t => t.key === tab)?.label}"`}
+                    {tab === 'abertas' ? t('emptyOpen') : t('emptyTab', { tab: t(`tabs.${tab}`) })}
                   </p>
                 </div>
               )
@@ -3086,6 +3089,7 @@ export default function PedidosPage() {
                       onToast={toast}
                       getHeaders={getHeaders}
                       onOpenDetail={setOpenOrderId}
+                      t={t}
                     />
                   )
                 })
@@ -3097,7 +3101,7 @@ export default function PedidosPage() {
       {!loading && (
         <div className="flex items-center justify-between flex-wrap gap-3 pt-5">
           <div className="flex items-center gap-2">
-            <span className="text-zinc-500 text-xs">Mostrar</span>
+            <span className="text-zinc-500 text-xs">{t('pagination.show')}</span>
             <select
               value={pageSize}
               onChange={e => setPageSize(Number(e.target.value))}
@@ -3107,7 +3111,7 @@ export default function PedidosPage() {
                 <option key={n} value={n}>{n}</option>
               ))}
             </select>
-            <span className="text-zinc-500 text-xs">por página</span>
+            <span className="text-zinc-500 text-xs">{t('pagination.perPage')}</span>
           </div>
           <Pagination page={page} total={total} size={pageSize}
             onChange={p => { setPage(p); window.scrollTo({ top: 0, behavior: 'smooth' }) }} />
@@ -3118,8 +3122,9 @@ export default function PedidosPage() {
       {modal && (
         <ManualSaleModal
           onClose={() => setModal(false)}
-          onSaved={() => { setModal(false); toast('Venda registrada com sucesso!', 'success') }}
+          onSaved={() => { setModal(false); toast(t('toast.saleRegistered'), 'success') }}
           getHeaders={getHeaders}
+          t={t}
         />
       )}
 
@@ -3136,6 +3141,7 @@ export default function PedidosPage() {
           onSave={vincularPorSku}
           onClose={() => setVincularModal(null)}
           onToast={toast}
+          t={t}
         />
       )}
 

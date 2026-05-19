@@ -14,6 +14,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import { RefreshCw, Check, Search, Package, ChevronLeft, ChevronRight } from 'lucide-react'
 
@@ -77,9 +78,11 @@ async function token(): Promise<string | null> {
   return data.session?.access_token ?? null
 }
 
+const SESSION_EXPIRED = '__session_expired__'
+
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const t = await token()
-  if (!t) throw new Error('Sessão expirou — recarregue a página')
+  if (!t) throw new Error(SESSION_EXPIRED)
   const res = await fetch(`${BACKEND}${path}`, {
     ...init,
     headers: { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
@@ -89,8 +92,8 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   return body as T
 }
 
-function fmtDate(iso: string | null): string {
-  if (!iso) return 'nunca'
+function fmtDate(iso: string | null, neverLabel: string): string {
+  if (!iso) return neverLabel
   return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 
@@ -100,17 +103,21 @@ function fmtBrl(n: number | null | undefined): string {
 }
 
 /** Converte erro técnico (incluindo página HTML de erro) numa mensagem curta e legível. */
-function friendlyError(e: unknown): string {
-  const raw = e instanceof Error ? e.message : String(e ?? 'Erro desconhecido')
+function friendlyError(e: unknown, t: TFn): string {
+  const raw = e instanceof Error ? e.message : String(e ?? t('errors.unknown'))
+  if (raw === SESSION_EXPIRED) return t('errors.sessionExpired')
   if (/<(?:!doctype|html)[\s>]/i.test(raw)) {
-    return 'O servidor da Pennacorp respondeu uma página de erro em vez da API. Verifique o token e deixe o campo "URL base" em branco.'
+    return t('errors.htmlResponse')
   }
   return raw.length > 220 ? raw.slice(0, 220) + '…' : raw
 }
 
 // ── componente principal ─────────────────────────────────────────────────
 
+type TFn = ReturnType<typeof useTranslations>
+
 export function IcarusIntegrationTab({ supplierId }: { supplierId: string }) {
+  const t = useTranslations('compras.icarus')
   const [status,  setStatus]  = useState<IntegrationStatus | null | undefined>(undefined)
   const [error,   setError]   = useState<string | null>(null)
   const [busy,    setBusy]    = useState(false)
@@ -123,33 +130,33 @@ export function IcarusIntegrationTab({ supplierId }: { supplierId: string }) {
 
   const load = useCallback(async () => {
     setError(null)
-    const t = await token()
-    if (!t) return
+    const tok = await token()
+    if (!tok) return
     try {
       const res = await fetch(`${BACKEND}/suppliers/${supplierId}/integrations/icarus`, {
-        headers: { Authorization: `Bearer ${t}` },
+        headers: { Authorization: `Bearer ${tok}` },
       })
       if (!res.ok) { setStatus(null); return }
       // Corpo pode vir vazio quando ainda não há integração — não dá pra json() direto.
       const raw = await res.text()
       setStatus(raw ? JSON.parse(raw) : null)
     } catch (e) {
-      setError(friendlyError(e))
+      setError(friendlyError(e, t))
       setStatus(null)
     }
-  }, [supplierId])
+  }, [supplierId, t])
 
   useEffect(() => { void load() }, [load])
 
   const handleConnect = useCallback(async () => {
-    if (!accessToken.trim()) { setError('Cole o access token recebido da Pennacorp.'); return }
+    if (!accessToken.trim()) { setError(t('errors.pasteToken')); return }
     setBusy(true); setError(null)
     try {
-      const t = await token()
-      if (!t) throw new Error('Sessão expirou')
+      const tok = await token()
+      if (!tok) throw new Error(SESSION_EXPIRED)
       const res = await fetch(`${BACKEND}/suppliers/${supplierId}/integrations/icarus`, {
         method:  'POST',
-        headers: { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' },
+        headers: { Authorization: `Bearer ${tok}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           access_token:        accessToken.trim(),
           base_url:            baseUrl.trim() || undefined,
@@ -162,48 +169,48 @@ export function IcarusIntegrationTab({ supplierId }: { supplierId: string }) {
       setStatus(body as IntegrationStatus)
       setAccessToken(''); setBaseUrl(''); setNotes('')
     } catch (e) {
-      setError(friendlyError(e))
+      setError(friendlyError(e, t))
     } finally {
       setBusy(false)
     }
-  }, [accessToken, baseUrl, ecommOnly, notes, supplierId])
+  }, [accessToken, baseUrl, ecommOnly, notes, supplierId, t])
 
   const handleTest = useCallback(async () => {
     setBusy(true); setTestRes(null)
     try {
-      const t = await token()
-      if (!t) throw new Error('Sessão expirou')
+      const tok = await token()
+      if (!tok) throw new Error(SESSION_EXPIRED)
       const res = await fetch(`${BACKEND}/suppliers/${supplierId}/integrations/icarus/test`, {
-        method: 'POST', headers: { Authorization: `Bearer ${t}` },
+        method: 'POST', headers: { Authorization: `Bearer ${tok}` },
       })
       const body = await res.json().catch(() => ({}))
       setTestRes(body.ok
-        ? { ok: true,  message: `Conectado em ${body.base_url}. Token gerado: ${body.request_token_preview}` }
+        ? { ok: true,  message: t('testSuccess', { baseUrl: body.base_url, token: body.request_token_preview }) }
         : { ok: false, message: body.error || `HTTP ${res.status}` })
     } catch (e) {
-      setTestRes({ ok: false, message: friendlyError(e) })
+      setTestRes({ ok: false, message: friendlyError(e, t) })
     } finally {
       setBusy(false)
     }
-  }, [supplierId])
+  }, [supplierId, t])
 
   const handleDisconnect = useCallback(async () => {
-    if (!confirm('Desconectar Icarus? O token será desativado mas o histórico de sync fica salvo.')) return
+    if (!confirm(t('disconnectConfirm'))) return
     setBusy(true)
     try {
-      const t = await token()
-      if (!t) throw new Error('Sessão expirou')
+      const tok = await token()
+      if (!tok) throw new Error(SESSION_EXPIRED)
       await fetch(`${BACKEND}/suppliers/${supplierId}/integrations/icarus`, {
-        method: 'DELETE', headers: { Authorization: `Bearer ${t}` },
+        method: 'DELETE', headers: { Authorization: `Bearer ${tok}` },
       })
       await load()
     } finally {
       setBusy(false)
     }
-  }, [supplierId, load])
+  }, [supplierId, load, t])
 
   if (status === undefined) {
-    return <div className="text-sm text-zinc-500">Carregando…</div>
+    return <div className="text-sm text-zinc-500">{t('loading')}</div>
   }
 
   const isConnected = status && status.is_active
@@ -211,9 +218,12 @@ export function IcarusIntegrationTab({ supplierId }: { supplierId: string }) {
   return (
     <div className="max-w-5xl space-y-5">
       <div>
-        <h3 className="text-base font-semibold mb-1">Integração com Icarus (Pennacorp)</h3>
+        <h3 className="text-base font-semibold mb-1">{t('title')}</h3>
         <p className="text-sm text-zinc-500">
-          Sincroniza catálogo e estoque do fornecedor. O <span className="text-cyan-400">preço de venda dele</span> menos o seu desconto vira o seu <span className="text-emerald-400">custo</span>.
+          {t.rich('subtitle', {
+            sale: (chunks) => <span className="text-cyan-400">{chunks}</span>,
+            cost: (chunks) => <span className="text-emerald-400">{chunks}</span>,
+          })}
         </p>
       </div>
 
@@ -232,6 +242,7 @@ export function IcarusIntegrationTab({ supplierId }: { supplierId: string }) {
           notes={notes} setNotes={setNotes}
           busy={busy}
           onSubmit={handleConnect}
+          t={t}
         />
       ) : (
         <ConnectedView
@@ -242,18 +253,19 @@ export function IcarusIntegrationTab({ supplierId }: { supplierId: string }) {
           onTest={handleTest}
           onDisconnect={handleDisconnect}
           onReconnect={() => setStatus(null)}
+          t={t}
         />
       )}
 
       <details className="rounded-lg" style={{ background: '#0a0a0c', border: '1px solid #27272a' }}>
         <summary className="cursor-pointer px-4 py-3 text-xs font-medium text-zinc-400 select-none">
-          Como conseguir o access token?
+          {t('howToGetToken')}
         </summary>
         <div className="px-4 pb-4 pt-1 text-xs text-zinc-500 space-y-2">
-          <p>O fornecedor precisa solicitar formalmente à Pennacorp via <span className="text-zinc-300">Pedido de Utilização da API</span>.</p>
-          <p>Doc oficial: <a className="text-cyan-400 hover:text-cyan-300" href="https://www.pennacorp.com.br/mobile/api/public/apidoc/index.html" target="_blank" rel="noopener noreferrer">pennacorp.com.br/mobile/api/public/apidoc</a></p>
-          <p>Contato Pennacorp: karoline@pennacorp.com.br</p>
-          <p className="text-zinc-600">Endpoints usados: <code>/generate</code>, <code>/produtos</code>, <code>/estoque_v2</code>.</p>
+          <p>{t.rich('tokenHelp.request', { highlight: (chunks) => <span className="text-zinc-300">{chunks}</span> })}</p>
+          <p>{t('tokenHelp.officialDoc')}: <a className="text-cyan-400 hover:text-cyan-300" href="https://www.pennacorp.com.br/mobile/api/public/apidoc/index.html" target="_blank" rel="noopener noreferrer">pennacorp.com.br/mobile/api/public/apidoc</a></p>
+          <p>{t('tokenHelp.contact')}: karoline@pennacorp.com.br</p>
+          <p className="text-zinc-600">{t.rich('tokenHelp.endpoints', { code: (chunks) => <code>{chunks}</code> })}</p>
         </div>
       </details>
     </div>
@@ -263,7 +275,7 @@ export function IcarusIntegrationTab({ supplierId }: { supplierId: string }) {
 // ── form de conexão ──────────────────────────────────────────────────────
 
 function ConnectForm({
-  accessToken, setAccessToken, baseUrl, setBaseUrl, ecommOnly, setEcommOnly, notes, setNotes, busy, onSubmit,
+  accessToken, setAccessToken, baseUrl, setBaseUrl, ecommOnly, setEcommOnly, notes, setNotes, busy, onSubmit, t,
 }: {
   accessToken: string; setAccessToken: (v: string) => void
   baseUrl: string; setBaseUrl: (v: string) => void
@@ -271,21 +283,22 @@ function ConnectForm({
   notes: string; setNotes: (v: string) => void
   busy: boolean
   onSubmit: () => void
+  t: TFn
 }) {
   return (
     <div className="rounded-xl p-5 space-y-4" style={{ background: '#111114', border: '1px solid #27272a' }}>
-      <Field label="Access Token *" hint="Cole o token recebido da Pennacorp">
+      <Field label={t('form.accessToken')} hint={t('form.accessTokenHint')}>
         <textarea
           value={accessToken}
           onChange={e => setAccessToken(e.target.value)}
           rows={3}
-          placeholder="Cole aqui o access_token longo gerado pela Pennacorp…"
+          placeholder={t('form.accessTokenPlaceholder')}
           className="w-full px-3 py-2 rounded-lg text-xs font-mono border outline-none focus:border-cyan-500/60 resize-none"
           style={{ background: '#0a0a0c', borderColor: '#27272a', color: '#e4e4e7' }}
         />
       </Field>
 
-      <Field label="URL base (opcional)" hint="Deixe vazio se o fornecedor usa o ambiente padrão Pennacorp">
+      <Field label={t('form.baseUrl')} hint={t('form.baseUrlHint')}>
         <input
           type="text"
           value={baseUrl}
@@ -299,15 +312,15 @@ function ConnectForm({
       <label className="flex items-center gap-2 cursor-pointer">
         <input type="checkbox" checked={ecommOnly} onChange={e => setEcommOnly(e.target.checked)}
           className="w-4 h-4 accent-cyan-400" />
-        <span className="text-sm text-zinc-300">Sincronizar apenas produtos ativos no e-commerce do fornecedor</span>
+        <span className="text-sm text-zinc-300">{t('form.ecommOnly')}</span>
       </label>
 
-      <Field label="Anotações (opcional)">
+      <Field label={t('form.notes')}>
         <input
           type="text"
           value={notes}
           onChange={e => setNotes(e.target.value)}
-          placeholder="Ex: contato técnico, observações sobre o token…"
+          placeholder={t('form.notesPlaceholder')}
           className="w-full px-3 py-2 rounded-lg text-sm border outline-none focus:border-cyan-500/60"
           style={{ background: '#0a0a0c', borderColor: '#27272a', color: '#e4e4e7' }}
         />
@@ -317,7 +330,7 @@ function ConnectForm({
         <button onClick={onSubmit} disabled={busy || !accessToken.trim()}
           className="px-4 py-2 rounded-lg text-sm font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed"
           style={{ background: 'linear-gradient(135deg, #00E5FF 0%, #0091EA 100%)', color: '#000' }}>
-          {busy ? 'Validando token…' : 'Conectar Icarus'}
+          {busy ? t('form.validating') : t('form.connect')}
         </button>
       </div>
     </div>
@@ -327,7 +340,7 @@ function ConnectForm({
 // ── view conectado ───────────────────────────────────────────────────────
 
 function ConnectedView({
-  status, supplierId, busy, testRes, onTest, onDisconnect, onReconnect,
+  status, supplierId, busy, testRes, onTest, onDisconnect, onReconnect, t,
 }: {
   status: IntegrationStatus
   supplierId: string
@@ -336,6 +349,7 @@ function ConnectedView({
   onTest: () => void
   onDisconnect: () => void
   onReconnect: () => void
+  t: TFn
 }) {
   // refreshKey: incrementado após sincronizar / mudar desconto → recarrega os produtos vinculados
   const [refreshKey, setRefreshKey] = useState(0)
@@ -346,21 +360,21 @@ function ConnectedView({
       <div className="rounded-xl p-5" style={{ background: '#111114', border: '1px solid rgba(52,211,153,0.25)' }}>
         <div className="flex items-center gap-3 mb-3">
           <div className="w-2.5 h-2.5 rounded-full" style={{ background: '#34d399', boxShadow: '0 0 8px rgba(52,211,153,0.6)' }} />
-          <span className="text-base font-semibold text-emerald-400">Conectado</span>
-          <span className="text-xs text-zinc-500">desde {fmtDate(status.created_at)}</span>
+          <span className="text-base font-semibold text-emerald-400">{t('connected')}</span>
+          <span className="text-xs text-zinc-500">{t('connectedSince', { date: fmtDate(status.created_at, t('never')) })}</span>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4 text-sm">
-          <StatCard label="Última sync" value={status.last_synced_at ? fmtDate(status.last_synced_at) : 'nunca'} />
-          <StatCard label="Status última sync" value={status.last_sync_status ?? '—'}
+          <StatCard label={t('stat.lastSync')} value={status.last_synced_at ? fmtDate(status.last_synced_at, t('never')) : t('never')} />
+          <StatCard label={t('stat.lastSyncStatus')} value={status.last_sync_status ?? '—'}
             color={status.last_sync_status === 'success' ? 'emerald' : status.last_sync_status === 'failed' ? 'red' : 'amber'} />
-          <StatCard label="Itens no catálogo" value={status.total_synced.toLocaleString('pt-BR')} />
+          <StatCard label={t('stat.catalogItems')} value={status.total_synced.toLocaleString('pt-BR')} />
         </div>
 
         {status.last_sync_error && (
           <div className="mb-4 px-3 py-2 rounded-lg text-xs"
             style={{ background: '#1a0a0a', border: '1px solid rgba(248,113,113,0.3)', color: '#f87171' }}>
-            <span className="font-medium">Erro último sync:</span> {status.last_sync_error}
+            <span className="font-medium">{t('lastSyncError')}:</span> {status.last_sync_error}
           </div>
         )}
 
@@ -368,17 +382,17 @@ function ConnectedView({
           <button onClick={onTest} disabled={busy}
             className="px-3 py-1.5 rounded-lg text-[12px] font-medium border transition-all hover:border-cyan-500/40 hover:text-cyan-400 disabled:opacity-40"
             style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>
-            {busy ? 'Testando…' : 'Testar conexão'}
+            {busy ? t('testing') : t('testConnection')}
           </button>
           <button onClick={onReconnect} disabled={busy}
             className="px-3 py-1.5 rounded-lg text-[12px] font-medium border transition-all hover:border-amber-500/40 hover:text-amber-400 disabled:opacity-40"
             style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>
-            Atualizar token
+            {t('updateToken')}
           </button>
           <button onClick={onDisconnect} disabled={busy}
             className="ml-auto px-3 py-1.5 rounded-lg text-[12px] font-medium border transition-all hover:border-red-500/40 hover:text-red-400 disabled:opacity-40"
             style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>
-            Desconectar
+            {t('disconnect')}
           </button>
         </div>
 
@@ -394,16 +408,16 @@ function ConnectedView({
         )}
       </div>
 
-      <DiscountPanel supplierId={supplierId} onSaved={bump} />
-      <CatalogPanel supplierId={supplierId} onSynced={bump} />
-      <LinkedProductsPanel supplierId={supplierId} refreshKey={refreshKey} />
+      <DiscountPanel supplierId={supplierId} onSaved={bump} t={t} />
+      <CatalogPanel supplierId={supplierId} onSynced={bump} t={t} />
+      <LinkedProductsPanel supplierId={supplierId} refreshKey={refreshKey} t={t} />
     </div>
   )
 }
 
 // ── desconto geral ───────────────────────────────────────────────────────
 
-function DiscountPanel({ supplierId, onSaved }: { supplierId: string; onSaved: () => void }) {
+function DiscountPanel({ supplierId, onSaved, t }: { supplierId: string; onSaved: () => void; t: TFn }) {
   const base = `/suppliers/${supplierId}/integrations/icarus`
   const [type,   setType]   = useState<DiscountType | null>(null)
   const [value,  setValue]  = useState('')
@@ -428,7 +442,7 @@ function DiscountPanel({ supplierId, onSaved }: { supplierId: string; onSaved: (
         method: 'PUT',
         body: JSON.stringify({ type, value: type ? Number(value) || 0 : 0 }),
       })
-      setMsg(`Desconto salvo — ${r.recomputed} custo(s) recalculado(s).`)
+      setMsg(t('discount.saved', { count: r.recomputed }))
       onSaved()
     } catch (e) {
       setErr((e as Error).message)
@@ -439,25 +453,25 @@ function DiscountPanel({ supplierId, onSaved }: { supplierId: string; onSaved: (
 
   return (
     <div className="rounded-xl p-5" style={{ background: '#111114', border: '1px solid #27272a' }}>
-      <h4 className="text-sm font-semibold mb-1">Desconto geral da Cinderella</h4>
+      <h4 className="text-sm font-semibold mb-1">{t('discount.title')}</h4>
       <p className="text-xs text-zinc-500 mb-4">
-        Aplica a todos os produtos sincronizados que não têm um ajuste próprio.
+        {t('discount.subtitle')}
       </p>
 
       <div className="flex flex-wrap items-end gap-3">
         <div>
-          <label className="block text-[11px] text-zinc-400 uppercase tracking-wider mb-1">Tipo</label>
+          <label className="block text-[11px] text-zinc-400 uppercase tracking-wider mb-1">{t('discount.type')}</label>
           <div className="flex gap-1">
-            <SegBtn active={type === null}     onClick={() => setType(null)}>Sem desconto</SegBtn>
-            <SegBtn active={type === 'percent'} onClick={() => setType('percent')}>Percentual %</SegBtn>
-            <SegBtn active={type === 'fixed'}   onClick={() => setType('fixed')}>Valor fixo R$</SegBtn>
+            <SegBtn active={type === null}     onClick={() => setType(null)}>{t('discount.none')}</SegBtn>
+            <SegBtn active={type === 'percent'} onClick={() => setType('percent')}>{t('discount.percent')}</SegBtn>
+            <SegBtn active={type === 'fixed'}   onClick={() => setType('fixed')}>{t('discount.fixed')}</SegBtn>
           </div>
         </div>
 
         {type && (
           <div>
             <label className="block text-[11px] text-zinc-400 uppercase tracking-wider mb-1">
-              {type === 'percent' ? 'Percentual (%)' : 'Valor (R$)'}
+              {type === 'percent' ? t('discount.percentValue') : t('discount.amountValue')}
             </label>
             <input
               type="number" min={0} step="0.01"
@@ -473,7 +487,7 @@ function DiscountPanel({ supplierId, onSaved }: { supplierId: string; onSaved: (
         <button onClick={save} disabled={saving}
           className="px-4 py-2 rounded-lg text-sm font-semibold transition-all disabled:opacity-40"
           style={{ background: 'linear-gradient(135deg, #00E5FF 0%, #0091EA 100%)', color: '#000' }}>
-          {saving ? 'Salvando…' : 'Salvar desconto'}
+          {saving ? t('saving') : t('discount.save')}
         </button>
       </div>
 
@@ -485,7 +499,7 @@ function DiscountPanel({ supplierId, onSaved }: { supplierId: string; onSaved: (
 
 // ── sincronização do catálogo ────────────────────────────────────────────
 
-function CatalogPanel({ supplierId, onSynced }: { supplierId: string; onSynced: () => void }) {
+function CatalogPanel({ supplierId, onSynced, t }: { supplierId: string; onSynced: () => void; t: TFn }) {
   const base = `/suppliers/${supplierId}/integrations/icarus`
   const [items,   setItems]   = useState<CatalogItem[]>([])
   const [summary, setSummary] = useState<CatalogSummary | null>(null)
@@ -541,18 +555,18 @@ function CatalogPanel({ supplierId, onSynced }: { supplierId: string; onSynced: 
         if (st?.updated_at && st.updated_at !== baseline) {
           done = true
           if (st.last_sync_status === 'failed') {
-            setErr(st.last_sync_error || 'Falha ao puxar o catálogo.')
+            setErr(st.last_sync_error || t('catalog.pullFailed'))
           } else {
-            setMsg(`${(st.total_synced ?? 0).toLocaleString('pt-BR')} produtos no catálogo do Pennacorp.`)
+            setMsg(t('catalog.pullDone', { count: (st.total_synced ?? 0).toLocaleString('pt-BR') }))
           }
           break
         }
       }
-      if (!done) setErr('O puxar catálogo está demorando mais que o esperado. Recarregue a página em alguns minutos.')
+      if (!done) setErr(t('catalog.pullSlow'))
       setOffset(0)
       await Promise.all([loadItems(), loadSummary()])
     } catch (e) {
-      setErr(friendlyError(e))
+      setErr(friendlyError(e, t))
     } finally {
       setPulling(false)
     }
@@ -566,8 +580,8 @@ function CatalogPanel({ supplierId, onSynced }: { supplierId: string; onSynced: 
         `${base}/catalog/sync`,
         { method: 'POST', body: JSON.stringify({ catalog_item_ids: [...selected] }) },
       )
-      setMsg(`${r.synced} sincronizado(s): ${r.linked_existing} vinculado(s), ${r.created_products} criado(s)`
-        + (r.failed ? `, ${r.failed} com falha.` : '.'))
+      setMsg(t('catalog.syncResult', { synced: r.synced, linked: r.linked_existing, created: r.created_products })
+        + (r.failed ? t('catalog.syncFailedSuffix', { failed: r.failed }) : '.'))
       setSelected(new Set())
       await Promise.all([loadItems(), loadSummary()])
       onSynced()
@@ -602,32 +616,32 @@ function CatalogPanel({ supplierId, onSynced }: { supplierId: string; onSynced: 
   return (
     <div className="rounded-xl p-5" style={{ background: '#111114', border: '1px solid #27272a' }}>
       <div className="flex items-center justify-between gap-3 mb-1">
-        <h4 className="text-sm font-semibold">Sincronização do catálogo</h4>
+        <h4 className="text-sm font-semibold">{t('catalog.title')}</h4>
         <button onClick={pull} disabled={pulling}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium border transition-all hover:border-cyan-500/40 hover:text-cyan-400 disabled:opacity-40"
           style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>
           <RefreshCw size={13} className={pulling ? 'animate-spin' : ''} />
-          {pulling ? 'Puxando…' : 'Puxar catálogo'}
+          {pulling ? t('catalog.pulling') : t('catalog.pull')}
         </button>
       </div>
       <p className="text-xs text-zinc-500 mb-4">
-        Puxa o catálogo do Pennacorp e mostra o que já está sincronizado. Selecione e sincronize só o que interessa.
+        {t('catalog.subtitle')}
       </p>
 
       {summary && (
         <div className="flex flex-wrap gap-2 mb-4">
-          <SummaryChip label="No catálogo" value={summary.total} color="#a1a1aa" />
-          <SummaryChip label="Sincronizados" value={summary.synced} color="#34d399" />
-          <SummaryChip label="Disponíveis" value={summary.available} color="#00E5FF" />
-          <SummaryChip label="Sem cadastro" value={summary.new} color="#71717a" />
+          <SummaryChip label={t('catalog.chip.total')} value={summary.total} color="#a1a1aa" />
+          <SummaryChip label={t('catalog.chip.synced')} value={summary.synced} color="#34d399" />
+          <SummaryChip label={t('catalog.chip.available')} value={summary.available} color="#00E5FF" />
+          <SummaryChip label={t('catalog.chip.new')} value={summary.new} color="#71717a" />
         </div>
       )}
 
       <div className="flex flex-wrap items-center gap-2 mb-3">
         <div className="flex gap-1">
-          <SegBtn active={filter === 'all'}     onClick={() => changeFilter('all')}>Todos</SegBtn>
-          <SegBtn active={filter === 'pending'} onClick={() => changeFilter('pending')}>Não sincronizados</SegBtn>
-          <SegBtn active={filter === 'synced'}  onClick={() => changeFilter('synced')}>Sincronizados</SegBtn>
+          <SegBtn active={filter === 'all'}     onClick={() => changeFilter('all')}>{t('catalog.filterAll')}</SegBtn>
+          <SegBtn active={filter === 'pending'} onClick={() => changeFilter('pending')}>{t('catalog.filterPending')}</SegBtn>
+          <SegBtn active={filter === 'synced'}  onClick={() => changeFilter('synced')}>{t('catalog.filterSynced')}</SegBtn>
         </div>
         <div className="flex items-center gap-1 ml-auto">
           <div className="relative">
@@ -636,7 +650,7 @@ function CatalogPanel({ supplierId, onSynced }: { supplierId: string; onSynced: 
               value={search}
               onChange={e => setSearch(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') applySearch() }}
-              placeholder="Buscar código ou nome…"
+              placeholder={t('catalog.searchPlaceholder')}
               className="w-56 pl-8 pr-3 py-1.5 rounded-lg text-xs border outline-none focus:border-cyan-500/60"
               style={{ background: '#0a0a0c', borderColor: '#27272a', color: '#e4e4e7' }}
             />
@@ -644,7 +658,7 @@ function CatalogPanel({ supplierId, onSynced }: { supplierId: string; onSynced: 
           <button onClick={applySearch}
             className="px-3 py-1.5 rounded-lg text-[12px] font-medium border transition-all hover:border-cyan-500/40"
             style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>
-            Buscar
+            {t('search')}
           </button>
         </div>
       </div>
@@ -660,20 +674,20 @@ function CatalogPanel({ supplierId, onSynced }: { supplierId: string; onSynced: 
                 <input type="checkbox" checked={allSelected} onChange={toggleAll}
                   disabled={selectable.length === 0} className="w-3.5 h-3.5 accent-cyan-400" />
               </th>
-              <th className="text-left px-2 py-2 font-medium">Produto</th>
-              <th className="text-left px-2 py-2 font-medium">Família</th>
-              <th className="text-right px-2 py-2 font-medium">Preço Cinderella</th>
-              <th className="text-right px-2 py-2 font-medium">Estoque</th>
-              <th className="text-left px-3 py-2 font-medium">Status</th>
+              <th className="text-left px-2 py-2 font-medium">{t('catalog.colProduct')}</th>
+              <th className="text-left px-2 py-2 font-medium">{t('catalog.colFamily')}</th>
+              <th className="text-right px-2 py-2 font-medium">{t('catalog.colPrice')}</th>
+              <th className="text-right px-2 py-2 font-medium">{t('catalog.colStock')}</th>
+              <th className="text-left px-3 py-2 font-medium">{t('catalog.colStatus')}</th>
             </tr>
           </thead>
           <tbody>
             {loading && (
-              <tr><td colSpan={6} className="px-3 py-8 text-center text-zinc-600">Carregando…</td></tr>
+              <tr><td colSpan={6} className="px-3 py-8 text-center text-zinc-600">{t('loading')}</td></tr>
             )}
             {!loading && items.length === 0 && (
               <tr><td colSpan={6} className="px-3 py-8 text-center text-zinc-600">
-                Catálogo vazio — clique em <span className="text-zinc-400">Puxar catálogo</span> pra carregar do Pennacorp.
+                {t.rich('catalog.empty', { highlight: (chunks) => <span className="text-zinc-400">{chunks}</span> })}
               </td></tr>
             )}
             {!loading && items.map(it => {
@@ -702,10 +716,10 @@ function CatalogPanel({ supplierId, onSynced }: { supplierId: string; onSynced: 
                   <td className="px-2 py-2 text-zinc-500">{it.family ?? '—'}</td>
                   <td className="px-2 py-2 text-right tabular-nums text-zinc-300">
                     {fmtBrl(it.gross_price)}
-                    {it.promo_active && <span className="ml-1 text-[9px] text-amber-400">promo</span>}
+                    {it.promo_active && <span className="ml-1 text-[9px] text-amber-400">{t('catalog.promo')}</span>}
                   </td>
                   <td className="px-2 py-2 text-right tabular-nums text-zinc-400">{it.stock}</td>
-                  <td className="px-3 py-2"><StatusBadge status={it.display_status} /></td>
+                  <td className="px-3 py-2"><StatusBadge status={it.display_status} t={t} /></td>
                 </tr>
               )
             })}
@@ -715,7 +729,7 @@ function CatalogPanel({ supplierId, onSynced }: { supplierId: string; onSynced: 
 
       <div className="flex items-center justify-between gap-3 mt-3">
         <div className="text-xs text-zinc-600">
-          {total > 0 ? `${from}–${to} de ${total.toLocaleString('pt-BR')}` : 'Nenhum item'}
+          {total > 0 ? t('pagination.range', { from, to, total: total.toLocaleString('pt-BR') }) : t('pagination.noItems')}
         </div>
         <div className="flex items-center gap-2">
           {selected.size > 0 && (
@@ -723,10 +737,10 @@ function CatalogPanel({ supplierId, onSynced }: { supplierId: string; onSynced: 
               className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-[12px] font-semibold transition-all disabled:opacity-40"
               style={{ background: 'linear-gradient(135deg, #00E5FF 0%, #0091EA 100%)', color: '#000' }}>
               <Check size={13} />
-              {syncing ? 'Sincronizando…' : `Sincronizar ${selected.size} selecionado(s)`}
+              {syncing ? t('catalog.syncing') : t('catalog.syncSelected', { count: selected.size })}
             </button>
           )}
-          <PageSizeSelect value={pageSize} onChange={changePageSize} />
+          <PageSizeSelect value={pageSize} onChange={changePageSize} t={t} />
           <button onClick={() => setOffset(o => Math.max(0, o - pageSize))} disabled={offset === 0}
             className="p-1.5 rounded-lg border disabled:opacity-30" style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>
             <ChevronLeft size={14} />
@@ -743,7 +757,7 @@ function CatalogPanel({ supplierId, onSynced }: { supplierId: string; onSynced: 
 
 // ── produtos vinculados (ajuste por produto) ─────────────────────────────
 
-function LinkedProductsPanel({ supplierId, refreshKey }: { supplierId: string; refreshKey: number }) {
+function LinkedProductsPanel({ supplierId, refreshKey, t }: { supplierId: string; refreshKey: number; t: TFn }) {
   const base = `/suppliers/${supplierId}/integrations/icarus`
   const [rows,    setRows]    = useState<LinkedProduct[]>([])
   const [edits,   setEdits]   = useState<Record<string, { type: string; value: string }>>({})
@@ -769,11 +783,11 @@ function LinkedProductsPanel({ supplierId, refreshKey }: { supplierId: string; r
         value: r.cost_adjustment_value != null ? String(r.cost_adjustment_value) : '',
       }])))
     } catch (e) {
-      setErr(friendlyError(e))
+      setErr(friendlyError(e, t))
     } finally {
       setLoading(false)
     }
-  }, [base, pageSize, offset, applied])
+  }, [base, pageSize, offset, applied, t])
 
   useEffect(() => { void load() }, [load, refreshKey])
 
@@ -819,11 +833,11 @@ function LinkedProductsPanel({ supplierId, refreshKey }: { supplierId: string; r
     <div className="rounded-xl p-5" style={{ background: '#111114', border: '1px solid #27272a' }}>
       <div className="flex items-center gap-2 mb-1">
         <Package size={15} className="text-zinc-500" />
-        <h4 className="text-sm font-semibold">Produtos vinculados</h4>
+        <h4 className="text-sm font-semibold">{t('linked.title')}</h4>
         <span className="text-xs text-zinc-600">({total.toLocaleString('pt-BR')})</span>
       </div>
       <p className="text-xs text-zinc-500 mb-4">
-        Custo = preço da Cinderella menos o ajuste. Sem ajuste próprio, usa o desconto geral.
+        {t('linked.subtitle')}
       </p>
 
       <div className="flex items-center gap-1 mb-3">
@@ -833,7 +847,7 @@ function LinkedProductsPanel({ supplierId, refreshKey }: { supplierId: string; r
             value={search}
             onChange={e => setSearch(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') applySearch() }}
-            placeholder="Buscar por nome ou SKU…"
+            placeholder={t('linked.searchPlaceholder')}
             className="w-56 pl-8 pr-3 py-1.5 rounded-lg text-xs border outline-none focus:border-cyan-500/60"
             style={{ background: '#0a0a0c', borderColor: '#27272a', color: '#e4e4e7' }}
           />
@@ -841,19 +855,19 @@ function LinkedProductsPanel({ supplierId, refreshKey }: { supplierId: string; r
         <button onClick={applySearch}
           className="px-3 py-1.5 rounded-lg text-[12px] font-medium border transition-all hover:border-cyan-500/40"
           style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>
-          Buscar
+          {t('search')}
         </button>
       </div>
 
       {err && <div className="mb-3 text-xs text-red-400">{err}</div>}
 
-      {loading && <div className="text-xs text-zinc-600 py-4 text-center">Carregando…</div>}
+      {loading && <div className="text-xs text-zinc-600 py-4 text-center">{t('loading')}</div>}
 
       {!loading && rows.length === 0 && (
         <div className="text-xs text-zinc-600 py-6 text-center">
           {applied
-            ? 'Nenhum produto encontrado para a busca.'
-            : 'Nenhum produto vinculado ainda — sincronize itens no catálogo acima.'}
+            ? t('linked.noResults')
+            : t('linked.empty')}
         </div>
       )}
 
@@ -862,10 +876,10 @@ function LinkedProductsPanel({ supplierId, refreshKey }: { supplierId: string; r
           <table className="w-full text-xs">
             <thead>
               <tr style={{ background: '#0a0a0c', color: '#71717a' }}>
-                <th className="text-left px-3 py-2 font-medium">Produto</th>
-                <th className="text-right px-2 py-2 font-medium">Preço Cinderella</th>
-                <th className="text-left px-2 py-2 font-medium">Ajuste</th>
-                <th className="text-right px-2 py-2 font-medium">Custo líquido</th>
+                <th className="text-left px-3 py-2 font-medium">{t('linked.colProduct')}</th>
+                <th className="text-right px-2 py-2 font-medium">{t('linked.colPrice')}</th>
+                <th className="text-left px-2 py-2 font-medium">{t('linked.colAdjustment')}</th>
+                <th className="text-right px-2 py-2 font-medium">{t('linked.colNetCost')}</th>
                 <th className="w-20 px-2 py-2" />
               </tr>
             </thead>
@@ -887,10 +901,10 @@ function LinkedProductsPanel({ supplierId, refreshKey }: { supplierId: string; r
                           onChange={ev => setEdits(m => ({ ...m, [r.id]: { ...e, type: ev.target.value } }))}
                           className="px-2 py-1 rounded border outline-none focus:border-cyan-500/60 text-[11px]"
                           style={{ background: '#0a0a0c', borderColor: '#27272a', color: '#e4e4e7' }}>
-                          <option value="">Desconto geral</option>
-                          <option value="percent">Percentual %</option>
-                          <option value="fixed">Valor fixo R$</option>
-                          <option value="override">Preço manual R$</option>
+                          <option value="">{t('linked.adjustGeneral')}</option>
+                          <option value="percent">{t('discount.percent')}</option>
+                          <option value="fixed">{t('discount.fixed')}</option>
+                          <option value="override">{t('linked.adjustOverride')}</option>
                         </select>
                         {e.type && (
                           <input
@@ -909,7 +923,7 @@ function LinkedProductsPanel({ supplierId, refreshKey }: { supplierId: string; r
                         <button onClick={() => save(r)} disabled={savingId === r.id}
                           className="px-2.5 py-1 rounded text-[11px] font-semibold transition-all disabled:opacity-40"
                           style={{ background: '#00E5FF', color: '#000' }}>
-                          {savingId === r.id ? '…' : 'Salvar'}
+                          {savingId === r.id ? '…' : t('save')}
                         </button>
                       )}
                     </td>
@@ -924,10 +938,10 @@ function LinkedProductsPanel({ supplierId, refreshKey }: { supplierId: string; r
       {!loading && total > 0 && (
         <div className="flex items-center justify-between gap-3 mt-3">
           <div className="text-xs text-zinc-600">
-            {`${from}–${to} de ${total.toLocaleString('pt-BR')}`}
+            {t('pagination.range', { from, to, total: total.toLocaleString('pt-BR') })}
           </div>
           <div className="flex items-center gap-2">
-            <PageSizeSelect value={pageSize} onChange={changePageSize} />
+            <PageSizeSelect value={pageSize} onChange={changePageSize} t={t} />
             <button onClick={() => setOffset(o => Math.max(0, o - pageSize))} disabled={offset === 0}
               className="p-1.5 rounded-lg border disabled:opacity-30" style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>
               <ChevronLeft size={14} />
@@ -945,18 +959,18 @@ function LinkedProductsPanel({ supplierId, refreshKey }: { supplierId: string; r
 
 // ── pequenos componentes ─────────────────────────────────────────────────
 
-function StatusBadge({ status }: { status: 'synced' | 'available' | 'new' }) {
+function StatusBadge({ status, t }: { status: 'synced' | 'available' | 'new'; t: TFn }) {
   const map = {
-    synced:    { label: 'Sincronizado', color: '#34d399' },
-    available: { label: 'Disponível',   color: '#00E5FF' },
-    new:       { label: 'Sem cadastro', color: '#71717a' },
+    synced:    { key: 'badge.synced',    color: '#34d399' },
+    available: { key: 'badge.available', color: '#00E5FF' },
+    new:       { key: 'badge.new',       color: '#71717a' },
   } as const
   const s = map[status]
   return (
     <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium"
       style={{ background: `${s.color}1a`, color: s.color, border: `1px solid ${s.color}40` }}>
       <span className="w-1.5 h-1.5 rounded-full" style={{ background: s.color }} />
-      {s.label}
+      {t(s.key)}
     </span>
   )
 }
@@ -983,14 +997,14 @@ function SegBtn({ active, onClick, children }: { active: boolean; onClick: () =>
 }
 
 /** Seletor de itens por página — 10 / 20 / 50 / 100. */
-function PageSizeSelect({ value, onChange }: { value: number; onChange: (n: number) => void }) {
+function PageSizeSelect({ value, onChange, t }: { value: number; onChange: (n: number) => void; t: TFn }) {
   return (
     <select
       value={value}
       onChange={e => onChange(Number(e.target.value))}
       className="px-2 py-1.5 rounded-lg text-[11px] border outline-none focus:border-cyan-500/60"
       style={{ background: '#0a0a0c', borderColor: '#3f3f46', color: '#a1a1aa' }}>
-      {[10, 20, 50, 100].map(n => <option key={n} value={n}>{n} por página</option>)}
+      {[10, 20, 50, 100].map(n => <option key={n} value={n}>{t('perPage', { n })}</option>)}
     </select>
   )
 }

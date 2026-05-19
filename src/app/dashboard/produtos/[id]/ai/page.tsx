@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -14,6 +15,7 @@ import ProductSocialAnalyticsCard from '@/components/products-analytics/ProductS
 import { CatalogApi, type CatalogProductLight, SCORE_PART_LABELS, CATALOG_STATUS_LABELS } from '@/components/catalog/catalogApi'
 
 export default function ProductAiEnrichmentPage() {
+  const t = useTranslations('produtos')
   const params = useParams<{ id: string }>()
   const productId = params.id
 
@@ -47,7 +49,7 @@ export default function ProductAiEnrichmentPage() {
     if (!product) return
     const next = !landingPublished
     if (next && !product.ai_enriched_at) {
-      if (!confirm('Este produto ainda não foi enriquecido. A landing page vai ficar incompleta. Publicar mesmo assim?')) return
+      if (!confirm(t('ai.publishNotEnrichedConfirm'))) return
     }
     setLandingBusy(true)
     try {
@@ -91,10 +93,10 @@ export default function ProductAiEnrichmentPage() {
     return (
       <div className="min-h-screen bg-zinc-950 text-zinc-100 px-4 py-6">
         <Link href="/dashboard/produtos" className="inline-flex items-center gap-2 text-zinc-400 hover:text-zinc-100 mb-4">
-          <ArrowLeft size={14} /> Voltar
+          <ArrowLeft size={14} /> {t('ai.back')}
         </Link>
         <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
-          {error ?? 'Produto não encontrado'}
+          {error ?? t('ai.notFound')}
         </div>
       </div>
     )
@@ -119,7 +121,7 @@ export default function ProductAiEnrichmentPage() {
                 <Sparkles size={14} className="text-cyan-400" />
                 <h1 className="text-base font-semibold truncate" title={product.name}>{product.name}</h1>
               </div>
-              <p className="text-[11px] text-zinc-500">Enriquecimento AI · {product.sku ?? 'sem SKU'}</p>
+              <p className="text-[11px] text-zinc-500">{t('ai.eyebrow')} · {product.sku ?? t('ai.noSku')}</p>
             </div>
           </div>
 
@@ -131,10 +133,10 @@ export default function ProductAiEnrichmentPage() {
               onClick={recompute}
               disabled={recomputing}
               className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-400 hover:text-zinc-200 text-[11px] disabled:opacity-50"
-              title="Recalcula score sem chamar IA (gratis)"
+              title={t('ai.recomputeTooltip')}
             >
               {recomputing ? <Loader2 size={11} className="animate-spin" /> : <RefreshCw size={11} />}
-              recalcular
+              {t('ai.recompute')}
             </button>
           </div>
         </header>
@@ -151,7 +153,7 @@ export default function ProductAiEnrichmentPage() {
         {(Object.keys(product.channel_titles ?? {}).length > 0 || Object.keys(product.channel_descriptions ?? {}).length > 0) && (
           <div className="rounded-xl border border-cyan-400/20 bg-cyan-400/[0.03] p-4 mb-6">
             <h2 className="flex items-center gap-2 text-sm font-semibold text-cyan-100 mb-3">
-              <Layers size={14} /> Preview multicanal
+              <Layers size={14} /> {t('ai.multichannelPreview')}
             </h2>
             <ChannelTabs
               titles={product.channel_titles ?? {}}
@@ -162,7 +164,7 @@ export default function ProductAiEnrichmentPage() {
 
         {/* Score breakdown card */}
         <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-4 mb-6">
-          <h2 className="text-xs font-semibold text-zinc-300 uppercase tracking-wider mb-3">Componentes do score</h2>
+          <h2 className="text-xs font-semibold text-zinc-300 uppercase tracking-wider mb-3">{t('ai.scoreComponents')}</h2>
           {breakdown ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
               {(Object.keys(SCORE_PART_LABELS) as Array<keyof typeof SCORE_PART_LABELS>).map(key => {
@@ -189,7 +191,7 @@ export default function ProductAiEnrichmentPage() {
               })}
             </div>
           ) : (
-            <p className="text-[11px] text-zinc-500">Score ainda não calculado. Clique &quot;recalcular&quot; pra computar agora.</p>
+            <p className="text-[11px] text-zinc-500">{t('ai.scoreNotComputed')}</p>
           )}
         </div>
 
@@ -197,15 +199,14 @@ export default function ProductAiEnrichmentPage() {
         <div className="rounded-xl border border-cyan-400/30 bg-gradient-to-br from-cyan-400/[0.04] to-zinc-900/50 p-4 mb-6">
           <div className="flex items-start justify-between gap-3 flex-wrap">
             <div className="min-w-0 flex-1">
-              <h2 className="text-sm font-semibold text-cyan-100 mb-1">Enriquecimento AI</h2>
+              <h2 className="text-sm font-semibold text-cyan-100 mb-1">{t('ai.enrichmentTitle')}</h2>
               <p className="text-[11px] text-zinc-400">
-                Sonnet lê os dados do produto e gera 9 campos: descrição curta/longa,
-                keywords, público-alvo, casos de uso, prós/contras, SEO, sazonalidade.
+                {t('ai.enrichmentDesc')}
               </p>
               {enriched && (
                 <p className="text-[10px] text-zinc-500 mt-1">
-                  Última execução: {new Date(product.ai_enriched_at!).toLocaleString('pt-BR')}
-                  {' · '}custo total: ${Number(product.ai_enrichment_cost_usd).toFixed(4)}
+                  {t('ai.lastRun', { date: new Date(product.ai_enriched_at!).toLocaleString('pt-BR') })}
+                  {' · '}{t('ai.totalCost', { cost: Number(product.ai_enrichment_cost_usd).toFixed(4) })}
                   {product.ai_enrichment_version && ` · ${product.ai_enrichment_version}`}
                 </p>
               )}
@@ -217,7 +218,7 @@ export default function ProductAiEnrichmentPage() {
               className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-cyan-400 hover:bg-cyan-300 disabled:opacity-50 text-black text-sm font-semibold shadow-[0_0_12px_rgba(0,229,255,0.25)] transition-all"
             >
               {(enriching || product.ai_enrichment_pending) ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
-              {enriched ? 'Re-enriquecer' : 'Enriquecer com IA'}
+              {enriched ? t('ai.reEnrich') : t('ai.enrichWithAi')}
             </button>
           </div>
           {enrichErr && (
@@ -236,17 +237,17 @@ export default function ProductAiEnrichmentPage() {
             <div className="min-w-0 flex-1">
               <h2 className={`flex items-center gap-2 text-sm font-semibold mb-1 ${landingPublished ? 'text-emerald-300' : 'text-zinc-200'}`}>
                 {landingPublished ? <Globe size={14} /> : <GlobeLock size={14} />}
-                Landing page pública
+                {t('ai.publicLanding')}
                 {landingPublished && (
                   <span className="ml-2 px-2 py-0.5 rounded-full text-[10px] bg-emerald-400/20 text-emerald-200 border border-emerald-400/30">
-                    PUBLICADA
+                    {t('ai.published')}
                   </span>
                 )}
               </h2>
               <p className="text-[11px] text-zinc-400">
                 {landingPublished
-                  ? `Página acessível em /p/${productId.slice(0, 8)}… · ${landingViews} visualizações`
-                  : 'Quando ativado, gera uma landing page pública (sem auth) com os campos enriquecidos pela IA.'}
+                  ? t('ai.landingAccessible', { slug: productId.slice(0, 8), views: landingViews })
+                  : t('ai.landingDesc')}
               </p>
               {landingPublished && (
                 <a
@@ -255,7 +256,7 @@ export default function ProductAiEnrichmentPage() {
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 mt-2 text-[11px] text-emerald-300 hover:text-emerald-100"
                 >
-                  <ExternalLink size={11} /> abrir em nova aba
+                  <ExternalLink size={11} /> {t('ai.openNewTab')}
                 </a>
               )}
             </div>
@@ -273,7 +274,7 @@ export default function ProductAiEnrichmentPage() {
               {landingBusy
                 ? <Loader2 size={12} className="animate-spin" />
                 : landingPublished ? <GlobeLock size={12} /> : <Globe size={12} />}
-              {landingPublished ? 'Despublicar' : 'Publicar landing'}
+              {landingPublished ? t('ai.unpublish') : t('ai.publishLanding')}
             </button>
           </div>
         </div>
@@ -283,62 +284,62 @@ export default function ProductAiEnrichmentPage() {
           <div className="space-y-3">
             <FieldCard
               icon={<FileText size={12} />}
-              title="Descrição curta"
-              hint="Pra cards/preview (até 100 chars)"
+              title={t('ai.field.shortDesc')}
+              hint={t('ai.field.shortDescHint')}
               value={product.ai_short_description}
             />
             <FieldCard
               icon={<FileText size={12} />}
-              title="Descrição longa"
-              hint="Pra body de anúncio (200-500 chars)"
+              title={t('ai.field.longDesc')}
+              hint={t('ai.field.longDescHint')}
               value={product.ai_long_description}
               multiline
             />
             <ChipFieldCard
               icon={<Tag size={12} />}
-              title="Keywords"
-              hint="Busca interna do site (8-15 termos)"
+              title={t('ai.field.keywords')}
+              hint={t('ai.field.keywordsHint')}
               items={product.ai_keywords}
               tone="cyan"
             />
             <FieldCard
               icon={<Users size={12} />}
-              title="Público-alvo"
-              hint="Quem compra"
+              title={t('ai.field.targetAudience')}
+              hint={t('ai.field.targetAudienceHint')}
               value={product.ai_target_audience}
             />
             <ChipFieldCard
               icon={<Lightbulb size={12} />}
-              title="Casos de uso"
-              hint="Cenários concretos onde o produto é usado"
+              title={t('ai.field.useCases')}
+              hint={t('ai.field.useCasesHint')}
               items={product.ai_use_cases}
               tone="amber"
             />
             <ChipFieldCard
               icon={<ThumbsUp size={12} />}
-              title="Prós"
-              hint="Pontos fortes do produto"
+              title={t('ai.field.pros')}
+              hint={t('ai.field.prosHint')}
               items={product.ai_pros}
               tone="emerald"
             />
             <ChipFieldCard
               icon={<ThumbsDown size={12} />}
-              title="Contras / quando NÃO comprar"
-              hint="Honestidade reduz devolução"
+              title={t('ai.field.cons')}
+              hint={t('ai.field.consHint')}
               items={product.ai_cons}
               tone="red"
             />
             <ChipFieldCard
               icon={<Search size={12} />}
-              title="SEO keywords"
-              hint="Pra Google/marketplace (long-tail OK)"
+              title={t('ai.field.seoKeywords')}
+              hint={t('ai.field.seoKeywordsHint')}
               items={product.ai_seo_keywords}
               tone="violet"
             />
             <FieldCard
               icon={<Calendar size={12} />}
-              title="Sazonalidade"
-              hint="Quando vende mais"
+              title={t('ai.field.seasonality')}
+              hint={t('ai.field.seasonalityHint')}
               value={product.ai_seasonality_hint}
             />
 
@@ -346,8 +347,8 @@ export default function ProductAiEnrichmentPage() {
             {product.differentials.length > 0 && (
               <ChipFieldCard
                 icon={<Sparkles size={12} />}
-                title="Diferenciais comerciais"
-                hint="USPs vs concorrente (≠ pros = benefícios)"
+                title={t('ai.field.differentials')}
+                hint={t('ai.field.differentialsHint')}
                 items={product.differentials}
                 tone="cyan"
               />
@@ -356,8 +357,8 @@ export default function ProductAiEnrichmentPage() {
               <div className="rounded-lg border border-zinc-800 bg-zinc-900/30 p-3">
                 <header className="flex items-center gap-2 mb-2">
                   <span className="text-cyan-400"><FileText size={12} /></span>
-                  <h3 className="text-xs font-semibold text-zinc-200 uppercase tracking-wider">Ficha técnica</h3>
-                  <span className="text-[10px] text-zinc-600">— {Object.keys(product.technical_sheet).length} campos</span>
+                  <h3 className="text-xs font-semibold text-zinc-200 uppercase tracking-wider">{t('ai.field.techSheet')}</h3>
+                  <span className="text-[10px] text-zinc-600">— {t('ai.fieldsCount', { count: Object.keys(product.technical_sheet).length })}</span>
                 </header>
                 <div className="rounded border border-zinc-800 overflow-hidden">
                   <table className="w-full text-xs">
@@ -378,7 +379,7 @@ export default function ProductAiEnrichmentPage() {
                 <header className="flex items-center gap-2 mb-2">
                   <span className="text-cyan-400"><FileText size={12} /></span>
                   <h3 className="text-xs font-semibold text-zinc-200 uppercase tracking-wider">FAQ</h3>
-                  <span className="text-[10px] text-zinc-600">— {product.faq.length} perguntas</span>
+                  <span className="text-[10px] text-zinc-600">— {t('ai.questionsCount', { count: product.faq.length })}</span>
                 </header>
                 <div className="space-y-1.5">
                   {product.faq.map((f, i) => (
@@ -393,8 +394,8 @@ export default function ProductAiEnrichmentPage() {
             {product.tags.length > 0 && (
               <ChipFieldCard
                 icon={<Tag size={12} />}
-                title="Tags"
-                hint="Categorização interna (≠ keywords)"
+                title={t('ai.field.tags')}
+                hint={t('ai.field.tagsHint')}
                 items={product.tags}
                 tone="violet"
               />
@@ -403,9 +404,9 @@ export default function ProductAiEnrichmentPage() {
         ) : (
           <div className="rounded-2xl border-2 border-dashed border-zinc-800 bg-zinc-900/30 p-12 text-center">
             <Wand2 size={28} className="text-zinc-600 mx-auto mb-3" />
-            <h3 className="text-sm font-semibold text-zinc-300">Sem enriquecimento ainda</h3>
+            <h3 className="text-sm font-semibold text-zinc-300">{t('ai.notEnrichedTitle')}</h3>
             <p className="text-xs text-zinc-500 mt-1 max-w-md mx-auto">
-              Use o botão &quot;Enriquecer com IA&quot; acima. Custo médio: ~$0.01-0.03 por produto.
+              {t('ai.notEnrichedHint')}
             </p>
           </div>
         )}
@@ -435,12 +436,13 @@ function CatalogStatusBadge({ status }: { status: CatalogProductLight['catalog_s
 }
 
 function ChannelTabs({ titles, descriptions }: { titles: Record<string, string>; descriptions: Record<string, string> }) {
+  const t = useTranslations('produtos')
   const ALL_CHANNELS: Array<{ key: string; label: string; emoji: string; titleLimit: number }> = [
     { key: 'mercado_livre', label: 'Mercado Livre', emoji: '🟡', titleLimit: 60 },
     { key: 'shopee',        label: 'Shopee',        emoji: '🟠', titleLimit: 120 },
     { key: 'amazon',        label: 'Amazon',        emoji: '🟧', titleLimit: 200 },
     { key: 'magalu',        label: 'Magalu',        emoji: '🔵', titleLimit: 150 },
-    { key: 'loja_propria',  label: 'Loja própria',  emoji: '🏪', titleLimit: 200 },
+    { key: 'loja_propria',  label: t('ai.ownStore'), emoji: '🏪', titleLimit: 200 },
   ]
   const available = ALL_CHANNELS.filter(c => titles[c.key] || descriptions[c.key])
   const [active, setActive] = useState(available[0]?.key ?? '')
@@ -474,7 +476,7 @@ function ChannelTabs({ titles, descriptions }: { titles: Record<string, string>;
           {title && (
             <div>
               <div className="flex items-center justify-between mb-1">
-                <p className="text-[10px] uppercase tracking-wider text-zinc-500">Título</p>
+                <p className="text-[10px] uppercase tracking-wider text-zinc-500">{t('ai.titleLabel')}</p>
                 <p className={`text-[10px] font-mono ${title.length > current.titleLimit ? 'text-red-400' : 'text-zinc-500'}`}>
                   {title.length}/{current.titleLimit}
                 </p>
@@ -486,7 +488,7 @@ function ChannelTabs({ titles, descriptions }: { titles: Record<string, string>;
           )}
           {description && (
             <div>
-              <p className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1">Descrição</p>
+              <p className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1">{t('ai.descriptionLabel')}</p>
               <p className="text-xs text-zinc-300 px-3 py-2 rounded-lg bg-zinc-950 border border-zinc-800 whitespace-pre-line leading-relaxed max-h-48 overflow-y-auto">
                 {description}
               </p>
@@ -501,6 +503,7 @@ function ChannelTabs({ titles, descriptions }: { titles: Record<string, string>;
 function FieldCard({
   icon, title, hint, value, multiline,
 }: { icon: React.ReactNode; title: string; hint?: string; value: string | null; multiline?: boolean }) {
+  const t = useTranslations('produtos')
   return (
     <div className="rounded-lg border border-zinc-800 bg-zinc-900/30 p-3">
       <header className="flex items-center gap-2 mb-1.5">
@@ -513,7 +516,7 @@ function FieldCard({
           {value}
         </p>
       ) : (
-        <p className="text-[11px] text-zinc-600 italic">— vazio —</p>
+        <p className="text-[11px] text-zinc-600 italic">{t('ai.empty')}</p>
       )}
     </div>
   )
@@ -528,6 +531,7 @@ function ChipFieldCard({
   items: string[]
   tone: 'cyan' | 'amber' | 'emerald' | 'red' | 'violet'
 }) {
+  const t = useTranslations('produtos')
   const tones: Record<string, { border: string; bg: string; text: string }> = {
     cyan:    { border: 'border-cyan-400/30',    bg: 'bg-cyan-400/10',    text: 'text-cyan-200' },
     amber:   { border: 'border-amber-400/30',   bg: 'bg-amber-400/10',   text: 'text-amber-200' },
@@ -545,7 +549,7 @@ function ChipFieldCard({
         <span className="ml-auto text-[10px] text-zinc-500">{items.length}</span>
       </header>
       {items.length === 0 ? (
-        <p className="text-[11px] text-zinc-600 italic">— vazio —</p>
+        <p className="text-[11px] text-zinc-600 italic">{t('ai.empty')}</p>
       ) : (
         <div className="flex flex-wrap gap-1">
           {items.map((item, i) => (

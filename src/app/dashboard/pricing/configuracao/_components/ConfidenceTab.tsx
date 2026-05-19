@@ -1,15 +1,16 @@
 'use client'
 
 import { useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import { ConfidenceRules } from './types'
 
-const PENALTY_LABELS: Record<keyof ConfidenceRules['penalties'], string> = {
-  no_cost_data:           'Custo não cadastrado',
-  no_sales_history:       'Sem histórico de vendas',
-  no_competitor_data:     'Sem dados de concorrente',
-  new_product_under_30d:  'Produto novo (< 30 dias)',
-  stale_data_over_48h:    'Dados desatualizados (> 48h)',
-}
+const PENALTY_KEYS: Array<keyof ConfidenceRules['penalties']> = [
+  'no_cost_data',
+  'no_sales_history',
+  'no_competitor_data',
+  'new_product_under_30d',
+  'stale_data_over_48h',
+]
 
 /** Aba 5 — Confiança Mínima. 2 thresholds principais + 5 penalidades
  * editáveis + visualizador de score que demonstra como penalidades
@@ -21,6 +22,7 @@ export function ConfidenceTab({
   isDirty:  (path: string) => boolean
   setField: (path: string, value: unknown) => void
 }) {
+  const t = useTranslations('pricing')
   // Score example: produto com 2 penalidades (custo + histórico)
   const exampleScore = useMemo(() => {
     const total = (rules.penalties?.no_cost_data ?? 0) + (rules.penalties?.no_sales_history ?? 0)
@@ -31,20 +33,20 @@ export function ConfidenceTab({
     <div className="space-y-6">
       {/* Thresholds principais */}
       <section>
-        <p className="text-zinc-300 text-sm font-semibold mb-3">Thresholds principais</p>
+        <p className="text-zinc-300 text-sm font-semibold mb-3">{t('mainThresholds')}</p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <ThresholdCard
-            label="Confiança mínima para ação automática"
+            label={t('minForAutoAction')}
             value={rules.min_for_auto_action}
-            helper="Abaixo disso, só sugere — nunca age sozinha."
+            helper={t('minForAutoActionHelp')}
             color="#34d399"
             dirty={isDirty('confidence_rules.min_for_auto_action')}
             onChange={(v) => setField('confidence_rules.min_for_auto_action', v)}
           />
           <ThresholdCard
-            label="Confiança mínima para sugestão"
+            label={t('minForSuggestion')}
             value={rules.min_for_suggestion}
-            helper="Abaixo disso, ignora completamente — nem aparece."
+            helper={t('minForSuggestionHelp')}
             color="#fbbf24"
             dirty={isDirty('confidence_rules.min_for_suggestion')}
             onChange={(v) => setField('confidence_rules.min_for_suggestion', v)}
@@ -54,15 +56,15 @@ export function ConfidenceTab({
 
       {/* Penalidades */}
       <section>
-        <p className="text-zinc-300 text-sm font-semibold mb-1">Penalidades</p>
-        <p className="text-zinc-500 text-xs mb-3">Quanto cada situação reduz do score base de 100%. Penalidades acumulam.</p>
+        <p className="text-zinc-300 text-sm font-semibold mb-1">{t('penaltiesTitle')}</p>
+        <p className="text-zinc-500 text-xs mb-3">{t('penaltiesHint')}</p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {(Object.keys(PENALTY_LABELS) as Array<keyof typeof PENALTY_LABELS>).map(key => {
+          {PENALTY_KEYS.map(key => {
             const path = `confidence_rules.penalties.${key}`
             return (
               <PenaltyCard
                 key={key}
-                label={PENALTY_LABELS[key]}
+                label={t(`penalty_${key}`)}
                 value={rules.penalties[key] ?? 0}
                 dirty={isDirty(path)}
                 onChange={(v) => setField(path, v)}
@@ -74,26 +76,28 @@ export function ConfidenceTab({
 
       {/* Visualizador de score */}
       <section>
-        <p className="text-zinc-300 text-sm font-semibold mb-1">Exemplo de cálculo</p>
-        <p className="text-zinc-500 text-xs mb-3">Produto hipotético com 2 penalidades: <span className="text-zinc-300">custo não cadastrado + sem histórico</span>.</p>
+        <p className="text-zinc-300 text-sm font-semibold mb-1">{t('calcExample')}</p>
+        <p className="text-zinc-500 text-xs mb-3">{t.rich('calcExampleHint', {
+          em: (chunks) => <span className="text-zinc-300">{chunks}</span>,
+        })}</p>
         <div className="rounded-2xl p-5" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
           <ScoreBar
             score={exampleScore}
             autoMin={rules.min_for_auto_action}
             sugMin={rules.min_for_suggestion}
             penalties={[
-              { label: 'Sem custo', value: rules.penalties.no_cost_data ?? 0,        color: '#f87171' },
-              { label: 'Sem histórico', value: rules.penalties.no_sales_history ?? 0, color: '#fb923c' },
+              { label: t('penaltyNoCostShort'), value: rules.penalties.no_cost_data ?? 0,        color: '#f87171' },
+              { label: t('penaltyNoHistoryShort'), value: rules.penalties.no_sales_history ?? 0, color: '#fb923c' },
             ]}
           />
           <p className="text-zinc-400 text-xs mt-4 leading-relaxed">
-            Score final: <span className="text-white font-semibold">{exampleScore.toFixed(0)}%</span>
+            {t('finalScoreLabel')} <span className="text-white font-semibold">{exampleScore.toFixed(0)}%</span>
             {' — '}
             {exampleScore >= rules.min_for_auto_action
-              ? <span className="text-emerald-400">passa para ação automática.</span>
+              ? <span className="text-emerald-400">{t('scorePassesAuto')}</span>
               : exampleScore >= rules.min_for_suggestion
-                ? <span className="text-amber-400">apenas sugere, não age.</span>
-                : <span className="text-red-400">ignorado completamente.</span>}
+                ? <span className="text-amber-400">{t('scoreSuggestsOnly')}</span>
+                : <span className="text-red-400">{t('scoreIgnored')}</span>}
           </p>
         </div>
       </section>
@@ -181,6 +185,7 @@ function ScoreBar({
   sugMin:    number
   penalties: Array<{ label: string; value: number; color: string }>
 }) {
+  const t = useTranslations('pricing')
   return (
     <div>
       <div className="relative h-8 rounded-lg overflow-hidden" style={{ background: '#0a0a0e' }}>
@@ -203,8 +208,8 @@ function ScoreBar({
       </div>
       <div className="flex justify-between mt-2 text-[10px] text-zinc-500">
         <span>0%</span>
-        <span style={{ color: '#fbbf24' }}>Sugestão {sugMin}%</span>
-        <span style={{ color: '#34d399' }}>Auto {autoMin}%</span>
+        <span style={{ color: '#fbbf24' }}>{t('scoreSuggestionMark', { value: sugMin })}</span>
+        <span style={{ color: '#34d399' }}>{t('scoreAutoMark', { value: autoMin })}</span>
         <span>100%</span>
       </div>
 

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import { useConfirm } from '@/components/ui/dialog-provider'
 import { Plus, X, Search, ArrowLeft, Edit2, Archive, AlertCircle, History, Package, Upload } from 'lucide-react'
@@ -66,6 +67,7 @@ interface CostHistoryEntry {
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function PartnerProductsPage() {
+  const t = useTranslations('dropship.partnerProducts')
   const params = useParams()
   const profileId = params.id as string
   const supabase = useMemo(() => createClient(), [])
@@ -84,9 +86,9 @@ export default function PartnerProductsPage() {
 
   const getHeaders = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session?.access_token) throw new Error('Não autenticado')
+    if (!session?.access_token) throw new Error(t('errors.notAuthenticated'))
     return { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' }
-  }, [supabase])
+  }, [supabase, t])
 
   const load = useCallback(async () => {
     setLoading(true); setPageErr('')
@@ -94,7 +96,7 @@ export default function PartnerProductsPage() {
       const headers = await getHeaders()
       // 1. Buscar partner profile pra resolver supplier_id
       const pRes = await fetch(`${BACKEND}/dropship/partners/${profileId}`, { headers })
-      if (!pRes.ok) throw new Error(`Parceiro HTTP ${pRes.status}`)
+      if (!pRes.ok) throw new Error(`${t('errors.partnerHttp')} ${pRes.status}`)
       const pData = await pRes.json()
       setPartner(pData)
       const supplierId = pData.supplier_id as string
@@ -104,13 +106,13 @@ export default function PartnerProductsPage() {
       if (filterStatus !== 'all') params.set('status', filterStatus)
       if (search.trim()) params.set('q', search.trim())
       const ppRes = await fetch(`${BACKEND}/dropship/partner-products?${params}`, { headers })
-      if (!ppRes.ok) throw new Error(`Catálogo HTTP ${ppRes.status}`)
+      if (!ppRes.ok) throw new Error(`${t('errors.catalogHttp')} ${ppRes.status}`)
       setItems(await ppRes.json())
     } catch (e) {
-      setPageErr(e instanceof Error ? e.message : 'Erro ao carregar')
+      setPageErr(e instanceof Error ? e.message : t('errors.loadFailed'))
       setItems([])
     } finally { setLoading(false) }
-  }, [getHeaders, profileId, filterStatus, search])
+  }, [getHeaders, profileId, filterStatus, search, t])
 
   useEffect(() => { load() }, [load])
 
@@ -129,9 +131,9 @@ export default function PartnerProductsPage() {
             <ArrowLeft size={18} />
           </Link>
           <div>
-            <h1 className="text-xl font-semibold text-white">Catálogo Dropship</h1>
+            <h1 className="text-xl font-semibold text-white">{t('title')}</h1>
             <p className="text-sm text-zinc-500 mt-0.5">
-              {partner?.suppliers?.name ?? 'Carregando...'} · {total} SKUs
+              {partner?.suppliers?.name ?? t('loading')} · {t('skusCount', { count: total })}
             </p>
           </div>
         </div>
@@ -142,7 +144,7 @@ export default function PartnerProductsPage() {
             style={{ border: '1px solid #27272a', color: '#a1a1aa' }}
           >
             <Upload size={14} />
-            Importar Planilha
+            {t('importSpreadsheet')}
           </Link>
           <button
             onClick={() => setShowAdd(true)}
@@ -151,7 +153,7 @@ export default function PartnerProductsPage() {
             style={{ background: '#00E5FF', color: '#09090b', opacity: partner ? 1 : 0.5 }}
           >
             <Plus size={15} />
-            Adicionar Produto
+            {t('addProduct')}
           </button>
         </div>
       </div>
@@ -167,10 +169,10 @@ export default function PartnerProductsPage() {
 
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-        <Kpi label="Total SKUs" value={total} />
-        <Kpi label="Ativos" value={active} />
-        <Kpi label="Sem Estoque" value={oos} accent={oos > 0 ? '#f87171' : undefined} />
-        <Kpi label="Valor Estoque" value={fmtBrl(stockValue)} />
+        <Kpi label={t('kpi.totalSkus')} value={total} />
+        <Kpi label={t('kpi.active')} value={active} />
+        <Kpi label={t('kpi.outOfStock')} value={oos} accent={oos > 0 ? '#f87171' : undefined} />
+        <Kpi label={t('kpi.stockValue')} value={fmtBrl(stockValue)} />
       </div>
 
       {/* filters */}
@@ -186,7 +188,7 @@ export default function PartnerProductsPage() {
                 color: filterStatus === s ? '#09090b' : '#a1a1aa',
               }}
             >
-              {statusLabel(s)}
+              {statusLabel(s, t)}
             </button>
           ))}
         </div>
@@ -196,7 +198,7 @@ export default function PartnerProductsPage() {
           </span>
           <input
             value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="Buscar SKU do parceiro..."
+            placeholder={t('searchPlaceholder')}
             className="w-full pl-8 pr-3 py-2 text-sm rounded-lg outline-none"
             style={{ background: '#111114', border: '1px solid #27272a', color: '#fff' }}
           />
@@ -208,19 +210,19 @@ export default function PartnerProductsPage() {
         <table className="w-full text-sm">
           <thead>
             <tr style={{ background: '#111114', borderBottom: '1px solid #1a1a1f' }}>
-              {['Produto', 'SKU Parceiro', 'Master SKU', 'Custo', 'Estoque', 'Disponível', 'Status', ''].map(h => (
-                <th key={h} className="text-left px-4 py-3 text-xs font-medium text-zinc-500">{h}</th>
+              {[t('table.product'), t('table.partnerSku'), t('table.masterSku'), t('table.cost'), t('table.stock'), t('table.available'), t('table.status'), ''].map((h, i) => (
+                <th key={i} className="text-left px-4 py-3 text-xs font-medium text-zinc-500">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={8} className="px-4 py-12 text-center text-zinc-500 text-sm">Carregando...</td></tr>
+              <tr><td colSpan={8} className="px-4 py-12 text-center text-zinc-500 text-sm">{t('loading')}</td></tr>
             ) : items.length === 0 ? (
               <tr>
                 <td colSpan={8} className="px-4 py-12 text-center text-zinc-500 text-sm">
-                  Nenhum produto vinculado ainda.{' '}
-                  <button onClick={() => setShowAdd(true)} style={{ color: '#00E5FF' }}>Adicionar o primeiro</button>
+                  {t('empty')}{' '}
+                  <button onClick={() => setShowAdd(true)} style={{ color: '#00E5FF' }}>{t('addFirst')}</button>
                 </td>
               </tr>
             ) : items.map(p => (
@@ -251,20 +253,20 @@ export default function PartnerProductsPage() {
                     {p.partner_available}
                   </span>
                 </td>
-                <td className="px-4 py-3"><DropshipStatusPill status={p.dropship_status} /></td>
+                <td className="px-4 py-3"><DropshipStatusPill status={p.dropship_status} t={t} /></td>
                 <td className="px-4 py-3 text-right">
                   <div className="flex items-center justify-end gap-2">
                     <button
                       onClick={() => setShowHistory(p.id)}
                       className="text-zinc-500 hover:text-white transition-colors"
-                      title="Histórico de custo"
+                      title={t('costHistory')}
                     >
                       <History size={14} />
                     </button>
                     <button
                       onClick={() => setEditing(p)}
                       className="text-zinc-500 hover:text-white transition-colors"
-                      title="Editar"
+                      title={t('edit')}
                     >
                       <Edit2 size={14} />
                     </button>
@@ -282,6 +284,7 @@ export default function PartnerProductsPage() {
           partnerSupplierId={partner.supplier_id}
           getHeaders={getHeaders}
           supabase={supabase}
+          t={t}
           onClose={() => setShowAdd(false)}
           onCreated={() => { setShowAdd(false); load() }}
         />
@@ -292,6 +295,7 @@ export default function PartnerProductsPage() {
         <EditProductModal
           partnerProduct={editing}
           getHeaders={getHeaders}
+          t={t}
           onClose={() => setEditing(null)}
           onUpdated={() => { setEditing(null); load() }}
         />
@@ -302,6 +306,7 @@ export default function PartnerProductsPage() {
         <CostHistoryModal
           partnerProductId={showHistory}
           getHeaders={getHeaders}
+          t={t}
           onClose={() => setShowHistory(null)}
         />
       )}
@@ -311,16 +316,20 @@ export default function PartnerProductsPage() {
 
 // ── Add Product Modal ──────────────────────────────────────────────────────────
 
+type TFn = ReturnType<typeof useTranslations>
+
 function AddProductModal({
   partnerSupplierId,
   getHeaders,
   supabase,
+  t,
   onClose,
   onCreated,
 }: {
   partnerSupplierId: string
   getHeaders: () => Promise<Record<string, string>>
   supabase: ReturnType<typeof createClient>
+  t: TFn
   onClose: () => void
   onCreated: () => void
 }) {
@@ -362,9 +371,9 @@ function AddProductModal({
   }, [search, supabase])
 
   async function handleSave() {
-    if (!selected) { setErr('Selecione um produto'); return }
-    if (!supplierSku.trim()) { setErr('SKU do parceiro é obrigatório'); return }
-    if (!unitCost || Number(unitCost) < 0) { setErr('Custo inválido'); return }
+    if (!selected) { setErr(t('errors.selectProduct')); return }
+    if (!supplierSku.trim()) { setErr(t('errors.skuRequired')); return }
+    if (!unitCost || Number(unitCost) < 0) { setErr(t('errors.invalidCost')); return }
     setSaving(true); setErr('')
     try {
       const headers = await getHeaders()
@@ -389,7 +398,7 @@ function AddProductModal({
       }
       onCreated()
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Erro ao salvar')
+      setErr(e instanceof Error ? e.message : t('errors.saveFailed'))
     } finally { setSaving(false) }
   }
 
@@ -404,7 +413,7 @@ function AddProductModal({
         <div className="flex items-center justify-between px-6 py-4 shrink-0" style={{ borderBottom: '1px solid #1e1e24' }}>
           <div className="flex items-center gap-2">
             <Package size={18} style={{ color: '#00E5FF' }} />
-            <h2 className="text-white font-semibold">Adicionar Produto Dropship</h2>
+            <h2 className="text-white font-semibold">{t('addModal.title')}</h2>
           </div>
           <button onClick={() => !saving && onClose()} className="text-zinc-500 hover:text-white">
             <X size={18} />
@@ -416,25 +425,25 @@ function AddProductModal({
           {!selected ? (
             <>
               <div>
-                <label className={lbl}>Produto do catálogo *</label>
+                <label className={lbl}>{t('addModal.catalogProduct')}</label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500"><Search size={14} /></span>
                   <input
                     value={search} onChange={e => setSearch(e.target.value)}
-                    placeholder="Buscar por nome ou SKU..."
+                    placeholder={t('addModal.searchPlaceholder')}
                     className={inp + ' pl-9'}
                     autoFocus
                   />
                 </div>
-                <p className="text-xs text-zinc-500 mt-1">Mín. 2 caracteres</p>
+                <p className="text-xs text-zinc-500 mt-1">{t('addModal.minChars')}</p>
               </div>
 
               <div className="rounded-lg overflow-hidden" style={{ border: '1px solid #1e1e24' }}>
                 {searching ? (
-                  <div className="px-4 py-6 text-center text-zinc-500 text-xs">Buscando...</div>
+                  <div className="px-4 py-6 text-center text-zinc-500 text-xs">{t('addModal.searching')}</div>
                 ) : productOptions.length === 0 ? (
                   <div className="px-4 py-6 text-center text-zinc-500 text-xs">
-                    {search.length < 2 ? 'Digite pra buscar' : 'Nenhum produto encontrado'}
+                    {search.length < 2 ? t('addModal.typeToSearch') : t('addModal.noProductFound')}
                   </div>
                 ) : (
                   productOptions.map(p => (
@@ -480,41 +489,41 @@ function AddProductModal({
                   <p className="text-xs text-zinc-500">SKU: {selected.sku ?? '—'}</p>
                 </div>
                 <button onClick={() => setSelected(null)} className="text-xs" style={{ color: '#00E5FF' }}>
-                  Trocar
+                  {t('addModal.change')}
                 </button>
               </div>
 
               <div>
-                <label className={lbl}>SKU no parceiro *</label>
+                <label className={lbl}>{t('addModal.partnerSku')}</label>
                 <input value={supplierSku} onChange={e => setSupplierSku(e.target.value)} className={inp} placeholder="Ex: ABC-123" />
               </div>
               <div>
-                <label className={lbl}>Master SKU (opcional)</label>
-                <input value={masterSku} onChange={e => setMasterSku(e.target.value)} className={inp} placeholder="Identidade independente do parceiro" />
+                <label className={lbl}>{t('addModal.masterSku')}</label>
+                <input value={masterSku} onChange={e => setMasterSku(e.target.value)} className={inp} placeholder={t('addModal.masterSkuPlaceholder')} />
               </div>
 
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className={lbl}>Custo unit. (R$) *</label>
+                  <label className={lbl}>{t('addModal.unitCost')}</label>
                   <input type="number" step="0.01" min="0" value={unitCost} onChange={e => setUnitCost(e.target.value)} className={inp} />
                 </div>
                 <div>
-                  <label className={lbl}>Embalagem (R$)</label>
+                  <label className={lbl}>{t('addModal.packaging')}</label>
                   <input type="number" step="0.01" min="0" value={packagingCost} onChange={e => setPackagingCost(e.target.value)} className={inp} />
                 </div>
                 <div>
-                  <label className={lbl}>Manuseio (R$)</label>
+                  <label className={lbl}>{t('addModal.handling')}</label>
                   <input type="number" step="0.01" min="0" value={handlingCost} onChange={e => setHandlingCost(e.target.value)} className={inp} />
                 </div>
               </div>
 
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className={lbl}>Estoque</label>
+                  <label className={lbl}>{t('addModal.stock')}</label>
                   <input type="number" min="0" value={stock} onChange={e => setStock(e.target.value)} className={inp} />
                 </div>
                 <div>
-                  <label className={lbl}>Lead time (dias)</label>
+                  <label className={lbl}>{t('addModal.leadTime')}</label>
                   <input type="number" min="0" value={leadTime} onChange={e => setLeadTime(e.target.value)} className={inp} placeholder="1" />
                 </div>
                 <div>
@@ -533,9 +542,9 @@ function AddProductModal({
             }}>{err}</div>
           )}
           <div className="flex gap-2 ml-auto">
-            <button onClick={() => !saving && onClose()} disabled={saving} className="px-4 py-2 text-sm rounded-lg text-zinc-400 hover:text-white" style={{ border: '1px solid #27272a' }}>Cancelar</button>
+            <button onClick={() => !saving && onClose()} disabled={saving} className="px-4 py-2 text-sm rounded-lg text-zinc-400 hover:text-white" style={{ border: '1px solid #27272a' }}>{t('cancel')}</button>
             <button onClick={handleSave} disabled={saving || !selected} className="px-4 py-2 text-sm font-medium rounded-lg" style={{ background: '#00E5FF', color: '#09090b', opacity: (saving || !selected) ? 0.6 : 1 }}>
-              {saving ? 'Salvando...' : 'Adicionar'}
+              {saving ? t('saving') : t('add')}
             </button>
           </div>
         </div>
@@ -549,11 +558,13 @@ function AddProductModal({
 function EditProductModal({
   partnerProduct: pp,
   getHeaders,
+  t,
   onClose,
   onUpdated,
 }: {
   partnerProduct: PartnerProduct
   getHeaders: () => Promise<Record<string, string>>
+  t: TFn
   onClose: () => void
   onUpdated: () => void
 }) {
@@ -605,15 +616,15 @@ function EditProductModal({
       }
       onUpdated()
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Erro ao salvar')
+      setErr(e instanceof Error ? e.message : t('errors.saveFailed'))
     } finally { setSaving(false) }
   }
 
   async function handleArchive() {
     const ok = await confirm({
-      title: 'Arquivar produto?',
-      message: 'Marca como descontinuado. Pode ser reativado depois mudando o status pra ativo.',
-      confirmLabel: 'Arquivar',
+      title: t('archiveProduct.title'),
+      message: t('archiveProduct.message'),
+      confirmLabel: t('archiveProduct.confirm'),
       variant: 'warning',
     })
     if (!ok) return
@@ -624,7 +635,7 @@ function EditProductModal({
       if (!res.ok && res.status !== 204) throw new Error(`HTTP ${res.status}`)
       onUpdated()
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Erro ao arquivar')
+      setErr(e instanceof Error ? e.message : t('errors.archiveFailed'))
     } finally { setArchiving(false) }
   }
 
@@ -639,7 +650,7 @@ function EditProductModal({
         <div className="flex items-center justify-between px-6 py-4 shrink-0" style={{ borderBottom: '1px solid #1e1e24' }}>
           <div className="flex items-center gap-2 min-w-0">
             <Edit2 size={18} style={{ color: '#00E5FF' }} />
-            <h2 className="text-white font-semibold truncate">{pp.products?.name ?? 'Editar Produto'}</h2>
+            <h2 className="text-white font-semibold truncate">{pp.products?.name ?? t('editModal.title')}</h2>
           </div>
           <button onClick={() => !saving && onClose()} className="text-zinc-500 hover:text-white shrink-0">
             <X size={18} />
@@ -649,49 +660,49 @@ function EditProductModal({
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className={lbl}>SKU parceiro *</label>
+              <label className={lbl}>{t('editModal.partnerSku')}</label>
               <input value={supplierSku} onChange={e => setSupplierSku(e.target.value)} className={inp} />
             </div>
             <div>
-              <label className={lbl}>Master SKU</label>
+              <label className={lbl}>{t('editModal.masterSku')}</label>
               <input value={masterSku} onChange={e => setMasterSku(e.target.value)} className={inp} />
             </div>
           </div>
 
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className={lbl}>Custo unit. (R$)</label>
+              <label className={lbl}>{t('editModal.unitCost')}</label>
               <input type="number" step="0.01" min="0" value={unitCost} onChange={e => setUnitCost(e.target.value)} className={inp} />
             </div>
             <div>
-              <label className={lbl}>Embalagem</label>
+              <label className={lbl}>{t('editModal.packaging')}</label>
               <input type="number" step="0.01" min="0" value={packagingCost} onChange={e => setPackagingCost(e.target.value)} className={inp} />
             </div>
             <div>
-              <label className={lbl}>Manuseio</label>
+              <label className={lbl}>{t('editModal.handling')}</label>
               <input type="number" step="0.01" min="0" value={handlingCost} onChange={e => setHandlingCost(e.target.value)} className={inp} />
             </div>
           </div>
 
           {costChanged && (
             <div>
-              <label className={lbl}>Motivo da mudança de custo</label>
-              <input value={changeReason} onChange={e => setChangeReason(e.target.value)} className={inp} placeholder="Ex: Reajuste do parceiro em maio" />
-              <p className="text-xs text-zinc-500 mt-1">Vai pro histórico de custos pra auditoria</p>
+              <label className={lbl}>{t('editModal.costChangeReason')}</label>
+              <input value={changeReason} onChange={e => setChangeReason(e.target.value)} className={inp} placeholder={t('editModal.costChangeReasonPlaceholder')} />
+              <p className="text-xs text-zinc-500 mt-1">{t('editModal.costChangeReasonHint')}</p>
             </div>
           )}
 
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className={lbl}>Estoque</label>
+              <label className={lbl}>{t('editModal.stock')}</label>
               <input type="number" min="0" value={stock} onChange={e => setStock(e.target.value)} className={inp} />
             </div>
             <div>
-              <label className={lbl}>Reservado</label>
+              <label className={lbl}>{t('editModal.reserved')}</label>
               <input type="number" min="0" value={reserved} onChange={e => setReserved(e.target.value)} className={inp} />
             </div>
             <div>
-              <label className={lbl}>Disponível</label>
+              <label className={lbl}>{t('editModal.available')}</label>
               <div className={inp} style={{ color: '#a1a1aa', cursor: 'not-allowed', background: '#0a0a0e' }}>
                 {Number(stock) - Number(reserved)}
               </div>
@@ -700,7 +711,7 @@ function EditProductModal({
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className={lbl}>Lead time (dias)</label>
+              <label className={lbl}>{t('editModal.leadTime')}</label>
               <input type="number" min="0" value={leadTime} onChange={e => setLeadTime(e.target.value)} className={inp} />
             </div>
             <div>
@@ -710,13 +721,13 @@ function EditProductModal({
           </div>
 
           <div>
-            <label className={lbl}>Status</label>
+            <label className={lbl}>{t('editModal.status')}</label>
             <select value={status} onChange={e => setStatus(e.target.value as PartnerProduct['dropship_status'])} className={inp}>
-              <option value="active">Ativo</option>
-              <option value="paused">Pausado</option>
-              <option value="unavailable">Indisponível</option>
-              <option value="discontinued">Descontinuado</option>
-              <option value="pending_validation">Aguardando validação</option>
+              <option value="active">{t('statusOption.active')}</option>
+              <option value="paused">{t('statusOption.paused')}</option>
+              <option value="unavailable">{t('statusOption.unavailable')}</option>
+              <option value="discontinued">{t('statusOption.discontinued')}</option>
+              <option value="pending_validation">{t('statusOption.pendingValidation')}</option>
             </select>
           </div>
         </div>
@@ -729,13 +740,13 @@ function EditProductModal({
           ) : (
             <button onClick={handleArchive} disabled={archiving} className="flex items-center gap-1 text-xs text-zinc-500 hover:text-red-400">
               <Archive size={12} />
-              {archiving ? 'Arquivando...' : 'Arquivar'}
+              {archiving ? t('archiving') : t('archive')}
             </button>
           )}
           <div className="flex gap-2 ml-auto">
-            <button onClick={() => !saving && onClose()} disabled={saving} className="px-4 py-2 text-sm rounded-lg text-zinc-400 hover:text-white" style={{ border: '1px solid #27272a' }}>Cancelar</button>
+            <button onClick={() => !saving && onClose()} disabled={saving} className="px-4 py-2 text-sm rounded-lg text-zinc-400 hover:text-white" style={{ border: '1px solid #27272a' }}>{t('cancel')}</button>
             <button onClick={handleSave} disabled={saving} className="glow-rainbow px-4 py-2 text-sm font-medium rounded-lg" style={{ background: '#00E5FF', color: '#09090b', opacity: saving ? 0.6 : 1 }}>
-              {saving ? 'Salvando...' : 'Salvar'}
+              {saving ? t('saving') : t('save')}
             </button>
           </div>
         </div>
@@ -749,10 +760,12 @@ function EditProductModal({
 function CostHistoryModal({
   partnerProductId,
   getHeaders,
+  t,
   onClose,
 }: {
   partnerProductId: string
   getHeaders: () => Promise<Record<string, string>>
+  t: TFn
   onClose: () => void
 }) {
   const [history, setHistory] = useState<CostHistoryEntry[]>([])
@@ -776,7 +789,7 @@ function CostHistoryModal({
         <div className="flex items-center justify-between px-6 py-4 shrink-0" style={{ borderBottom: '1px solid #1e1e24' }}>
           <div className="flex items-center gap-2">
             <History size={18} style={{ color: '#00E5FF' }} />
-            <h2 className="text-white font-semibold">Histórico de Custos</h2>
+            <h2 className="text-white font-semibold">{t('historyModal.title')}</h2>
           </div>
           <button onClick={onClose} className="text-zinc-500 hover:text-white">
             <X size={18} />
@@ -785,9 +798,9 @@ function CostHistoryModal({
 
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-2">
           {loading ? (
-            <p className="text-zinc-500 text-sm">Carregando...</p>
+            <p className="text-zinc-500 text-sm">{t('loading')}</p>
           ) : history.length === 0 ? (
-            <p className="text-zinc-500 text-sm">Nenhum registro.</p>
+            <p className="text-zinc-500 text-sm">{t('historyModal.empty')}</p>
           ) : history.map((h, idx) => (
             <div key={h.id} className="rounded-lg p-3 space-y-1" style={{
               background: idx === 0 ? 'rgba(0,229,255,0.05)' : '#0f0f12',
@@ -798,7 +811,7 @@ function CostHistoryModal({
                 {idx === 0 && (
                   <span className="text-xs px-2 py-0.5 rounded-full" style={{
                     background: 'rgba(0,229,255,0.10)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.3)',
-                  }}>Vigente</span>
+                  }}>{t('historyModal.current')}</span>
                 )}
               </div>
               <p className="text-xs text-zinc-500">
@@ -806,15 +819,15 @@ function CostHistoryModal({
                 {h.effective_until && ` → ${fmtDateTime(h.effective_until)}`}
               </p>
               <p className="text-xs text-zinc-400">
-                Custo: {fmtBrl(h.cost_value)}
-                {h.cost_packaging > 0 && ` · Embal: ${fmtBrl(h.cost_packaging)}`}
-                {h.cost_handling > 0 && ` · Manuseio: ${fmtBrl(h.cost_handling)}`}
+                {t('historyModal.cost')}: {fmtBrl(h.cost_value)}
+                {h.cost_packaging > 0 && ` · ${t('historyModal.packagingShort')}: ${fmtBrl(h.cost_packaging)}`}
+                {h.cost_handling > 0 && ` · ${t('historyModal.handlingShort')}: ${fmtBrl(h.cost_handling)}`}
               </p>
               {h.change_reason && (
                 <p className="text-xs text-zinc-500 italic">{h.change_reason}</p>
               )}
               {h.change_source && (
-                <p className="text-xs text-zinc-600">Fonte: {h.change_source}</p>
+                <p className="text-xs text-zinc-600">{t('historyModal.source')}: {h.change_source}</p>
               )}
             </div>
           ))}
@@ -835,29 +848,29 @@ function Kpi({ label, value, accent }: { label: string; value: string | number; 
   )
 }
 
-function DropshipStatusPill({ status }: { status: PartnerProduct['dropship_status'] }) {
-  const c: Record<string, { bg: string; fg: string; label: string }> = {
-    active:             { bg: 'rgba(34,197,94,0.10)',   fg: '#22c55e', label: 'Ativo' },
-    paused:             { bg: 'rgba(252,211,77,0.10)',  fg: '#fcd34d', label: 'Pausado' },
-    unavailable:        { bg: 'rgba(248,113,113,0.10)', fg: '#f87171', label: 'Indisponível' },
-    discontinued:       { bg: 'rgba(113,113,122,0.10)', fg: '#71717a', label: 'Descontinuado' },
-    pending_validation: { bg: 'rgba(0,229,255,0.10)',   fg: '#00E5FF', label: 'Validação' },
+function DropshipStatusPill({ status, t }: { status: PartnerProduct['dropship_status']; t: TFn }) {
+  const c: Record<string, { bg: string; fg: string; key: string }> = {
+    active:             { bg: 'rgba(34,197,94,0.10)',   fg: '#22c55e', key: 'statusPill.active' },
+    paused:             { bg: 'rgba(252,211,77,0.10)',  fg: '#fcd34d', key: 'statusPill.paused' },
+    unavailable:        { bg: 'rgba(248,113,113,0.10)', fg: '#f87171', key: 'statusPill.unavailable' },
+    discontinued:       { bg: 'rgba(113,113,122,0.10)', fg: '#71717a', key: 'statusPill.discontinued' },
+    pending_validation: { bg: 'rgba(0,229,255,0.10)',   fg: '#00E5FF', key: 'statusPill.validation' },
   }
   const x = c[status] ?? c.discontinued
   return (
     <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium"
       style={{ background: x.bg, color: x.fg, border: `1px solid ${x.fg}33` }}>
-      {x.label}
+      {t(x.key)}
     </span>
   )
 }
 
-function statusLabel(s: string): string {
-  return s === 'all' ? 'Todos'
-    : s === 'active' ? 'Ativos'
-    : s === 'paused' ? 'Pausados'
-    : s === 'unavailable' ? 'Indispon.'
-    : s === 'discontinued' ? 'Descont.'
+function statusLabel(s: string, t: TFn): string {
+  return s === 'all' ? t('filter.all')
+    : s === 'active' ? t('filter.active')
+    : s === 'paused' ? t('filter.paused')
+    : s === 'unavailable' ? t('filter.unavailable')
+    : s === 'discontinued' ? t('filter.discontinued')
     : s
 }
 

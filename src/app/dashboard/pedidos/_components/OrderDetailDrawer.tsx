@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
+import { useTranslations } from 'next-intl'
 import { createPortal } from 'react-dom'
 import {
   X, RefreshCw, ExternalLink, Send as SendIcon, CheckCircle2, Eye,
@@ -89,16 +90,18 @@ function fmtDateTime(s: string | null): string {
   })
 }
 
-function ago(iso: string | null): string {
+type Translator = ReturnType<typeof useTranslations>
+
+function ago(iso: string | null, t: Translator): string {
   if (!iso) return ''
   const diffMin = Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
-  if (diffMin < 1)  return 'agora'
-  if (diffMin < 60) return `há ${diffMin}min`
+  if (diffMin < 1)  return t('drawer.agoNow')
+  if (diffMin < 60) return t('drawer.agoMinutes', { m: diffMin })
   const h = Math.floor(diffMin / 60)
-  if (h < 24) return `há ${h}h`
+  if (h < 24) return t('drawer.agoHours', { h })
   const d = Math.floor(h / 24)
-  if (d < 30) return `há ${d}d`
-  return `há ${Math.floor(d / 30)}m`
+  if (d < 30) return t('drawer.agoDays', { d })
+  return t('drawer.agoMonths', { m: Math.floor(d / 30) })
 }
 
 function fmtCpfMasked(c: string | null): string {
@@ -121,38 +124,39 @@ function fmtBRL(n: number | null): string {
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
-const OCJ_BADGES: Record<string, { fg: string; label: string }> = {
-  pending:            { fg: '#fbbf24', label: 'Pendente' },
-  active:             { fg: '#22c55e', label: 'Ativa' },
-  blocked_consent:    { fg: '#f97316', label: 'Sem consentimento' },
-  blocked_no_contact: { fg: '#ef4444', label: 'Sem contato' },
-  paused:             { fg: '#fbbf24', label: 'Pausada' },
-  stopped:            { fg: '#f87171', label: 'Parada' },
-  completed:          { fg: '#00E5FF', label: 'Concluída' },
-  failed:             { fg: '#dc2626', label: 'Falhou' },
+const OCJ_BADGES: Record<string, { fg: string }> = {
+  pending:            { fg: '#fbbf24' },
+  active:             { fg: '#22c55e' },
+  blocked_consent:    { fg: '#f97316' },
+  blocked_no_contact: { fg: '#ef4444' },
+  paused:             { fg: '#fbbf24' },
+  stopped:            { fg: '#f87171' },
+  completed:          { fg: '#00E5FF' },
+  failed:             { fg: '#dc2626' },
 }
 
-const PAYMENT_BADGES: Record<string, { fg: string; label: string }> = {
-  approved:    { fg: '#22c55e', label: 'Aprovado' },
-  pending:     { fg: '#fbbf24', label: 'Pendente' },
-  in_process:  { fg: '#fbbf24', label: 'Processando' },
-  cancelled:   { fg: '#ef4444', label: 'Cancelado' },
-  refunded:    { fg: '#a1a1aa', label: 'Reembolsado' },
-  rejected:    { fg: '#ef4444', label: 'Rejeitado' },
+const PAYMENT_BADGES: Record<string, { fg: string }> = {
+  approved:    { fg: '#22c55e' },
+  pending:     { fg: '#fbbf24' },
+  in_process:  { fg: '#fbbf24' },
+  cancelled:   { fg: '#ef4444' },
+  refunded:    { fg: '#a1a1aa' },
+  rejected:    { fg: '#ef4444' },
 }
 
-const SHIPPING_BADGES: Record<string, { fg: string; label: string }> = {
-  pending:        { fg: '#fbbf24', label: 'Pendente' },
-  ready_to_ship:  { fg: '#00E5FF', label: 'Pronto p/ enviar' },
-  shipped:        { fg: '#00E5FF', label: 'Enviado' },
-  delivered:      { fg: '#22c55e', label: 'Entregue' },
-  cancelled:      { fg: '#ef4444', label: 'Cancelado' },
-  not_delivered:  { fg: '#ef4444', label: 'Não entregue' },
+const SHIPPING_BADGES: Record<string, { fg: string }> = {
+  pending:        { fg: '#fbbf24' },
+  ready_to_ship:  { fg: '#00E5FF' },
+  shipped:        { fg: '#00E5FF' },
+  delivered:      { fg: '#22c55e' },
+  cancelled:      { fg: '#ef4444' },
+  not_delivered:  { fg: '#ef4444' },
 }
 
-function badge(map: Record<string, { fg: string; label: string }>, key: string | null) {
+function badge(map: Record<string, { fg: string }>, key: string | null, prefix: string, t: Translator) {
   if (!key) return null
-  return map[key] ?? { fg: '#a1a1aa', label: key }
+  const meta = map[key]
+  return { fg: meta?.fg ?? '#a1a1aa', label: meta ? t(`drawer.${prefix}.${key}`) : key }
 }
 
 function StatusIcon({ status }: { status: string }) {
@@ -167,18 +171,16 @@ function StatusIcon({ status }: { status: string }) {
   }
 }
 
-function statusLabel(s: string): string {
-  return ({ sent: 'enviado', delivered: 'entregue', read: 'lida', failed: 'falhou', pending: 'pendente' } as Record<string, string>)[s] ?? s
+const MSG_STATUS_KEYS = ['sent', 'delivered', 'read', 'failed', 'pending'] as const
+const TRIGGER_KEYS = ['immediate', 'status_change_ml', 'time_offset', 'delay'] as const
+
+function statusLabel(s: string, t: Translator): string {
+  return (MSG_STATUS_KEYS as readonly string[]).includes(s) ? t(`drawer.msgStatus.${s}`) : s
 }
 
-function triggerLabel(t: string | null): string {
-  if (!t) return 'sem gatilho'
-  return ({
-    immediate:        'imediato',
-    status_change_ml: 'quando ML mudar status',
-    time_offset:      'após delay',
-    delay:            'após delay',
-  } as Record<string, string>)[t] ?? t
+function triggerLabel(trigger: string | null, t: Translator): string {
+  if (!trigger) return t('drawer.triggerNone')
+  return (TRIGGER_KEYS as readonly string[]).includes(trigger) ? t(`drawer.trigger.${trigger}`) : trigger
 }
 
 // ── Skeleton (loading) ─────────────────────────────────────────────────
@@ -210,6 +212,7 @@ export interface OrderDetailDrawerProps {
  * Pedido (resumo) e Cliente (unificado). Read-only — edição continua
  * no OrderCard inline do modo cards view. */
 export function OrderDetailDrawer({ externalOrderId, onClose, getHeaders }: OrderDetailDrawerProps) {
+  const t = useTranslations('pedidos')
   const [data,    setData]    = useState<FullDetail | null>(null)
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState<string | null>(null) // 'not_found' | mensagem livre
@@ -317,10 +320,10 @@ export function OrderDetailDrawer({ externalOrderId, onClose, getHeaders }: Orde
       if (m.step != null) messagesByStep.set(m.step, m)
     }
   }
-  const ocjB     = communication ? badge(OCJ_BADGES, communication.ocj_state) : null
-  const payB     = order        ? badge(PAYMENT_BADGES,  order.payment_status)  : null
-  const shipB    = order        ? badge(SHIPPING_BADGES, order.shipping_status) : null
-  const headerTitle = order ? `Pedido #${order.external_order_id}` : (externalOrderId ? `Pedido #${externalOrderId}` : 'Pedido')
+  const ocjB     = communication ? badge(OCJ_BADGES, communication.ocj_state, 'ocj', t) : null
+  const payB     = order        ? badge(PAYMENT_BADGES,  order.payment_status, 'payment', t)  : null
+  const shipB    = order        ? badge(SHIPPING_BADGES, order.shipping_status, 'shipping', t) : null
+  const headerTitle = order ? t('drawer.orderTitle', { id: order.external_order_id }) : (externalOrderId ? t('drawer.orderTitle', { id: externalOrderId }) : t('drawer.orderFallback'))
 
   return createPortal(
     <div className="fixed inset-0 z-50">
@@ -377,20 +380,20 @@ export function OrderDetailDrawer({ externalOrderId, onClose, getHeaders }: Orde
               )}
             </div>
             <div className="flex items-center gap-1 shrink-0">
-              <button onClick={load} disabled={loading} aria-label="Recarregar"
+              <button onClick={load} disabled={loading} aria-label={t('drawer.reload')}
                 className="p-1.5 rounded-md transition-colors disabled:opacity-40"
                 style={{ color: '#a1a1aa' }}
                 onMouseOver={e => (e.currentTarget.style.color = '#00E5FF')}
                 onMouseOut={e => (e.currentTarget.style.color = '#a1a1aa')}
-                title="Recarregar">
+                title={t('drawer.reload')}>
                 <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
               </button>
-              <button ref={closeBtnRef} onClick={onClose} aria-label="Fechar (Esc)"
+              <button ref={closeBtnRef} onClick={onClose} aria-label={t('drawer.closeEsc')}
                 className="p-1.5 rounded-md transition-colors"
                 style={{ color: '#a1a1aa' }}
                 onMouseOver={e => (e.currentTarget.style.color = '#fff')}
                 onMouseOut={e => (e.currentTarget.style.color = '#a1a1aa')}
-                title="Fechar (Esc)">
+                title={t('drawer.closeEsc')}>
                 <X size={16} />
               </button>
             </div>
@@ -407,16 +410,16 @@ export function OrderDetailDrawer({ externalOrderId, onClose, getHeaders }: Orde
 
           {!loading && error === 'not_found' && (
             <div className="rounded-xl p-5" style={{ background: '#1a0a0a', border: '1px solid rgba(248,113,113,0.3)' }}>
-              <p className="text-sm text-zinc-100 font-medium">Pedido não encontrado</p>
-              <p className="text-xs text-zinc-500 mt-1">O pedido pode ter sido removido ou nunca foi sincronizado.</p>
+              <p className="text-sm text-zinc-100 font-medium">{t('drawer.notFoundTitle')}</p>
+              <p className="text-xs text-zinc-500 mt-1">{t('drawer.notFoundDesc')}</p>
             </div>
           )}
 
           {!loading && error && error !== 'not_found' && (
             <div className="rounded-xl p-5" style={{ background: '#1a0a0a', border: '1px solid rgba(248,113,113,0.3)' }}>
-              <p className="text-sm" style={{ color: '#f87171' }}>Falha ao carregar: {error}</p>
+              <p className="text-sm" style={{ color: '#f87171' }}>{t('drawer.loadFailed', { error })}</p>
               <button onClick={load} className="mt-2 text-xs underline" style={{ color: '#f87171' }}>
-                Tentar novamente
+                {t('drawer.retry')}
               </button>
             </div>
           )}
@@ -434,7 +437,7 @@ export function OrderDetailDrawer({ externalOrderId, onClose, getHeaders }: Orde
                   }}
                 >
                   <h2 className="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest mb-1">
-                    Status do pedido
+                    {t('drawer.orderStatusSection')}
                   </h2>
                   <OrderStatusTimeline
                     paymentStatus={order.payment_status}
@@ -447,23 +450,22 @@ export function OrderDetailDrawer({ externalOrderId, onClose, getHeaders }: Orde
               {/* ── 📨 Comunicação ─────────────────────────── */}
               <section>
                 <h2 className="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
-                  <MessageCircle size={11} style={{ color: '#00E5FF' }} /> Comunicação
+                  <MessageCircle size={11} style={{ color: '#00E5FF' }} /> {t('drawer.communicationSection')}
                 </h2>
 
                 {!communication ? (
                   <div className="rounded-xl p-5" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
-                    <p className="text-sm text-zinc-500">Sem jornada de comunicação ativa.</p>
+                    <p className="text-sm text-zinc-500">{t('drawer.noJourney')}</p>
                     <p className="text-xs text-zinc-600 mt-1">
-                      {customer ? 'OCJ é criado pelo CC-1 quando o cliente é enriquecido.'
-                                : 'Aguardando unificação do cliente via CPF.'}
+                      {customer ? t('drawer.ocjCreatedHint') : t('drawer.awaitingUnification')}
                     </p>
                   </div>
                 ) : (
                   <div className="rounded-xl p-5 space-y-3" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
                     <div>
-                      <p className="text-sm text-zinc-100 font-medium truncate">{communication.journey_name ?? 'Jornada'}</p>
+                      <p className="text-sm text-zinc-100 font-medium truncate">{communication.journey_name ?? t('drawer.journeyFallback')}</p>
                       <p className="text-xs text-zinc-500 mt-0.5">
-                        Progresso: <span className="text-zinc-200 font-mono">
+                        {t('drawer.progressLabel')} <span className="text-zinc-200 font-mono">
                           {communication.current_step ?? 0} / {communication.total_steps ?? '—'}
                         </span>
                       </p>
@@ -489,7 +491,7 @@ export function OrderDetailDrawer({ externalOrderId, onClose, getHeaders }: Orde
                     {communication.ocj_last_error && (
                       <div className="rounded p-2 text-[11px]"
                         style={{ background: 'rgba(220,38,38,0.08)', color: '#fca5a5', border: '1px solid rgba(220,38,38,0.3)' }}>
-                        <span className="font-semibold">Último erro:</span> {communication.ocj_last_error}
+                        <span className="font-semibold">{t('drawer.lastErrorLabel')}</span> {communication.ocj_last_error}
                       </div>
                     )}
 
@@ -517,15 +519,15 @@ export function OrderDetailDrawer({ externalOrderId, onClose, getHeaders }: Orde
                             <div className="min-w-0">
                               <div className="flex items-center gap-1.5">
                                 <p className="text-xs text-zinc-100 font-medium truncate">
-                                  {s.template_name ?? '(sem template)'}
+                                  {s.template_name ?? t('drawer.noTemplate')}
                                   {msg && <span className="text-zinc-500 font-normal"> ({msg.channel})</span>}
                                 </p>
                                 {msg && <StatusIcon status={msg.status} />}
                               </div>
                               <p className="text-[10px] text-zinc-500 mt-0.5">
                                 {msg
-                                  ? <>{statusLabel(msg.status)}{sentAt && ` · ${ago(sentAt)}`}</>
-                                  : <>— aguardando trigger: {triggerLabel(s.trigger)}</>}
+                                  ? <>{statusLabel(msg.status, t)}{sentAt && ` · ${ago(sentAt, t)}`}</>
+                                  : <>{t('drawer.awaitingTrigger', { trigger: triggerLabel(s.trigger, t) })}</>}
                               </p>
                               {msg?.message_preview && (
                                 <p className="text-[11px] text-zinc-400 mt-1 italic line-clamp-2">
@@ -534,7 +536,7 @@ export function OrderDetailDrawer({ externalOrderId, onClose, getHeaders }: Orde
                               )}
                               {msg?.error && (
                                 <p className="text-[10px] mt-1" style={{ color: '#fca5a5' }}>
-                                  Erro: {msg.error}
+                                  {t('drawer.errorLabel', { error: msg.error })}
                                 </p>
                               )}
                             </div>
@@ -550,7 +552,7 @@ export function OrderDetailDrawer({ externalOrderId, onClose, getHeaders }: Orde
               {order && (
                 <section>
                   <h2 className="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
-                    <Package size={11} style={{ color: '#00E5FF' }} /> Pedido
+                    <Package size={11} style={{ color: '#00E5FF' }} /> {t('drawer.orderSection')}
                   </h2>
                   <div className="rounded-xl p-5 space-y-2" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
                     <div>
@@ -560,12 +562,12 @@ export function OrderDetailDrawer({ externalOrderId, onClose, getHeaders }: Orde
                     <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[11px] pt-2"
                       style={{ borderTop: '1px solid #1a1a1f' }}>
                       <div>
-                        <p className="text-zinc-500">Vendido em</p>
+                        <p className="text-zinc-500">{t('drawer.fieldSoldOn')}</p>
                         <p className="text-zinc-200">{fmtDateTime(order.sold_at)}</p>
-                        {order.sold_at && <p className="text-zinc-600 text-[10px]">{ago(order.sold_at)}</p>}
+                        {order.sold_at && <p className="text-zinc-600 text-[10px]">{ago(order.sold_at, t)}</p>}
                       </div>
                       <div>
-                        <p className="text-zinc-500">Pagamento</p>
+                        <p className="text-zinc-500">{t('drawer.fieldPayment')}</p>
                         {payB ? (
                           <span className="inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded"
                             style={{ background: `${payB.fg}1a`, color: payB.fg, border: `1px solid ${payB.fg}33` }}>
@@ -574,7 +576,7 @@ export function OrderDetailDrawer({ externalOrderId, onClose, getHeaders }: Orde
                         ) : <p className="text-zinc-500">—</p>}
                       </div>
                       <div>
-                        <p className="text-zinc-500">Entrega</p>
+                        <p className="text-zinc-500">{t('drawer.fieldDelivery')}</p>
                         {shipB ? (
                           <span className="inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded"
                             style={{ background: `${shipB.fg}1a`, color: shipB.fg, border: `1px solid ${shipB.fg}33` }}>
@@ -583,7 +585,7 @@ export function OrderDetailDrawer({ externalOrderId, onClose, getHeaders }: Orde
                         ) : <p className="text-zinc-500">—</p>}
                       </div>
                       <div>
-                        <p className="text-zinc-500">Rastreio</p>
+                        <p className="text-zinc-500">{t('drawer.fieldTracking')}</p>
                         <p className="text-zinc-200 font-mono text-[10px]">{order.shipping_id ?? '—'}</p>
                       </div>
                     </div>
@@ -594,46 +596,46 @@ export function OrderDetailDrawer({ externalOrderId, onClose, getHeaders }: Orde
               {/* ── 👤 Cliente ─────────────────────────────── */}
               <section>
                 <h2 className="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
-                  <UserIcon size={11} style={{ color: '#00E5FF' }} /> Cliente
+                  <UserIcon size={11} style={{ color: '#00E5FF' }} /> {t('drawer.customerSection')}
                 </h2>
                 {!customer ? (
                   <div className="rounded-xl p-5" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
-                    <p className="text-sm text-zinc-500">Cliente ainda não unificado.</p>
-                    <p className="text-xs text-zinc-600 mt-1">A unificação ocorre via CPF após o enrichment.</p>
+                    <p className="text-sm text-zinc-500">{t('drawer.customerNotUnified')}</p>
+                    <p className="text-xs text-zinc-600 mt-1">{t('drawer.unificationHint')}</p>
                   </div>
                 ) : (
                   <div className="rounded-xl p-5 space-y-2" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
                     <p className="text-sm text-zinc-100 font-medium">{customer.display_name ?? '—'}</p>
                     <div className="text-[11px] space-y-1">
                       <p>
-                        <span className="text-zinc-500">CPF: </span>
+                        <span className="text-zinc-500">{t('drawer.customerCpf')} </span>
                         <span className="text-zinc-200 font-mono">{fmtCpfMasked(customer.cpf)}</span>
                       </p>
                       <p className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-zinc-500">WhatsApp: </span>
+                        <span className="text-zinc-500">{t('drawer.customerWhatsApp')} </span>
                         <span className="text-zinc-200 font-mono">{fmtPhone(customer.phone)}</span>
                         {customer.phone && (
                           customer.validated_whatsapp === true ? (
                             <span className="inline-flex items-center gap-0.5 text-[10px]" style={{ color: '#22c55e' }}>
-                              <ShieldCheck size={11} /> WhatsApp válido
+                              <ShieldCheck size={11} /> {t('drawer.whatsAppValid')}
                             </span>
                           ) : customer.validated_whatsapp === false ? (
                             <span className="inline-flex items-center gap-0.5 text-[10px]" style={{ color: '#ef4444' }}>
-                              <ShieldOff size={11} /> não é WhatsApp
+                              <ShieldOff size={11} /> {t('drawer.whatsAppInvalid')}
                             </span>
                           ) : (
                             <span className="inline-flex items-center gap-0.5 text-[10px]" style={{ color: '#71717a' }}>
-                              <ShieldQuestion size={11} /> validação pendente
+                              <ShieldQuestion size={11} /> {t('drawer.whatsAppPending')}
                             </span>
                           )
                         )}
                       </p>
                       <p>
-                        <span className="text-zinc-500">Email: </span>
+                        <span className="text-zinc-500">{t('drawer.customerEmail')} </span>
                         <span className="text-zinc-200 truncate">{customer.email ?? '—'}</span>
                       </p>
                       <p>
-                        <span className="text-zinc-500">Localização: </span>
+                        <span className="text-zinc-500">{t('drawer.customerLocation')} </span>
                         <span className="text-zinc-200">
                           {customer.city || customer.state
                             ? `${customer.city ?? ''}${customer.city && customer.state ? ', ' : ''}${customer.state ?? ''}`
@@ -641,21 +643,21 @@ export function OrderDetailDrawer({ externalOrderId, onClose, getHeaders }: Orde
                         </span>
                       </p>
                       <p>
-                        <span className="text-zinc-500">Enriquecimento: </span>
+                        <span className="text-zinc-500">{t('drawer.customerEnrichment')} </span>
                         <span className="text-zinc-200">
                           {customer.enrichment_status ?? '—'}
                           {customer.enrichment_quality && <span className="text-zinc-500"> · {customer.enrichment_quality}</span>}
                           {customer.enrichment_provider && <span className="text-zinc-500"> · {customer.enrichment_provider}</span>}
                         </span>
                         {customer.enriched_at && (
-                          <span className="text-zinc-600 ml-1">{ago(customer.enriched_at)}</span>
+                          <span className="text-zinc-600 ml-1">{ago(customer.enriched_at, t)}</span>
                         )}
                       </p>
                     </div>
                     <a href={`/dashboard/crm/clientes/${customer.id}`}
                       className="inline-flex items-center gap-1 text-[11px] mt-2"
                       style={{ color: '#00E5FF' }}>
-                      Ver perfil completo <ArrowRight size={11} />
+                      {t('drawer.viewFullProfile')} <ArrowRight size={11} />
                     </a>
                   </div>
                 )}
@@ -672,14 +674,14 @@ export function OrderDetailDrawer({ externalOrderId, onClose, getHeaders }: Orde
               target="_blank" rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md transition-colors"
               style={{ background: '#0c0c10', border: '1px solid #1a1a1f', color: '#00E5FF' }}>
-              Ver no ML <ExternalLink size={11} />
+              {t('drawer.viewOnMl')} <ExternalLink size={11} />
             </a>
           ) : <span />}
           <button disabled
             className="text-xs px-3 py-1.5 rounded-md cursor-not-allowed"
             style={{ background: '#0c0c10', border: '1px solid #1a1a1f', color: '#52525b' }}
-            title="Em breve">
-            Reenviar última
+            title={t('drawer.comingSoon')}>
+            {t('drawer.resendLast')}
           </button>
         </footer>
       </aside>

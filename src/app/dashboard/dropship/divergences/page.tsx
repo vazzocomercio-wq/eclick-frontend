@@ -2,11 +2,12 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import Link from 'next/link'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import { usePrompt } from '@/components/ui/dialog-provider'
 import {
-  ArrowLeft, AlertCircle, Search, RefreshCw, AlertTriangle, CheckCircle2,
-  EyeOff, X, Lightbulb,
+  ArrowLeft, AlertCircle, RefreshCw, AlertTriangle, CheckCircle2,
+  EyeOff, Lightbulb,
 } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
@@ -40,6 +41,7 @@ interface Divergence {
 }
 
 export default function DivergencesPage() {
+  const t = useTranslations('dropship.divergences')
   const supabase = useMemo(() => createClient(), [])
 
   const [divergences, setDivergences] = useState<Divergence[]>([])
@@ -52,9 +54,9 @@ export default function DivergencesPage() {
 
   const getHeaders = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session?.access_token) throw new Error('Não autenticado')
+    if (!session?.access_token) throw new Error(t('errors.notAuthenticated'))
     return { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' }
-  }, [supabase])
+  }, [supabase, t])
 
   const load = useCallback(async () => {
     setLoading(true); setErr('')
@@ -68,9 +70,9 @@ export default function DivergencesPage() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       setDivergences(await res.json())
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Erro ao carregar')
+      setErr(e instanceof Error ? e.message : t('errors.loadFailed'))
     } finally { setLoading(false) }
-  }, [getHeaders, filterStatus, filterSeverity])
+  }, [getHeaders, filterStatus, filterSeverity, t])
 
   useEffect(() => { load() }, [load])
 
@@ -81,10 +83,10 @@ export default function DivergencesPage() {
       const res = await fetch(`${BACKEND}/dropship/divergences/scan`, { method: 'POST', headers })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const r = await res.json()
-      if (r.detected === 0) setErr('Nenhuma divergência nova detectada')
+      if (r.detected === 0) setErr(t('noNewDivergences'))
       else await load()
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Erro ao escanear')
+      setErr(e instanceof Error ? e.message : t('errors.scanFailed'))
     } finally { setScanning(false) }
   }
 
@@ -92,21 +94,21 @@ export default function DivergencesPage() {
     let body: Record<string, string> = {}
     if (mode === 'resolve') {
       const notes = await prompt({
-        title: 'Resolver divergência',
-        message: 'Descreva como foi resolvida (vai pro registro de auditoria).',
-        placeholder: 'Ex: Parceiro confirmou envio às 16h após contato',
+        title: t('resolvePrompt.title'),
+        message: t('resolvePrompt.message'),
+        placeholder: t('resolvePrompt.placeholder'),
         multiline: true,
-        confirmLabel: 'Resolver',
+        confirmLabel: t('resolvePrompt.confirm'),
       })
       if (!notes?.trim()) return
       body = { notes }
     } else if (mode === 'ignore') {
       const reason = await prompt({
-        title: 'Ignorar divergência',
-        message: 'Por que esta divergência pode ser ignorada?',
-        placeholder: 'Ex: Falso positivo — pedido cancelado pelo comprador',
+        title: t('ignorePrompt.title'),
+        message: t('ignorePrompt.message'),
+        placeholder: t('ignorePrompt.placeholder'),
         multiline: true,
-        confirmLabel: 'Ignorar',
+        confirmLabel: t('ignorePrompt.confirm'),
         variant: 'warning',
       })
       if (!reason?.trim()) return
@@ -121,7 +123,7 @@ export default function DivergencesPage() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       await load()
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Erro')
+      setErr(e instanceof Error ? e.message : t('errors.generic'))
     }
   }
 
@@ -138,9 +140,9 @@ export default function DivergencesPage() {
             <ArrowLeft size={18} />
           </Link>
           <div>
-            <h1 className="text-xl font-semibold text-white">Divergências</h1>
+            <h1 className="text-xl font-semibold text-white">{t('title')}</h1>
             <p className="text-sm text-zinc-500 mt-0.5">
-              Detecção automática @02h diário · 3 regras v1 (atraso envio, mapeamento, preço &lt; custo)
+              {t('subtitle')}
             </p>
           </div>
         </div>
@@ -151,7 +153,7 @@ export default function DivergencesPage() {
           style={{ border: '1px solid #27272a', color: '#a1a1aa' }}
         >
           <RefreshCw size={14} className={scanning ? 'animate-spin' : ''} />
-          {scanning ? 'Escaneando...' : 'Escanear agora'}
+          {scanning ? t('scanning') : t('scanNow')}
         </button>
       </div>
 
@@ -165,9 +167,9 @@ export default function DivergencesPage() {
       )}
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
-        <Kpi label="Total" value={total} />
-        <Kpi label="Em aberto" value={open} accent={open > 0 ? '#fcd34d' : undefined} />
-        <Kpi label="Críticas" value={critical} accent={critical > 0 ? '#f87171' : '#22c55e'} />
+        <Kpi label={t('kpi.total')} value={total} />
+        <Kpi label={t('kpi.open')} value={open} accent={open > 0 ? '#fcd34d' : undefined} />
+        <Kpi label={t('kpi.critical')} value={critical} accent={critical > 0 ? '#f87171' : '#22c55e'} />
       </div>
 
       <div className="flex items-center gap-3 mb-4 flex-wrap">
@@ -182,7 +184,7 @@ export default function DivergencesPage() {
                 color: filterStatus === s ? '#09090b' : '#a1a1aa',
               }}
             >
-              {filterLabel(s)}
+              {filterLabel(s, t)}
             </button>
           ))}
         </div>
@@ -197,7 +199,7 @@ export default function DivergencesPage() {
                 color: filterSeverity === s ? '#09090b' : '#a1a1aa',
               }}
             >
-              {s === 'all' ? 'Todas' : severityLabel(s)}
+              {s === 'all' ? t('severityFilter.all') : severityLabel(s, t)}
             </button>
           ))}
         </div>
@@ -206,27 +208,30 @@ export default function DivergencesPage() {
       <div className="space-y-2">
         {loading ? (
           <div className="rounded-xl p-12 text-center text-zinc-500 text-sm" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
-            Carregando...
+            {t('loading')}
           </div>
         ) : divergences.length === 0 ? (
           <div className="rounded-xl p-12 text-center text-zinc-500 text-sm" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
             <CheckCircle2 size={28} className="mx-auto mb-2" style={{ color: '#22c55e' }} />
-            <p>Sem divergências nesse filtro</p>
-            <p className="text-xs mt-1">Tudo certo. Ou talvez não rodou scan ainda — clique em &quot;Escanear agora&quot;.</p>
+            <p>{t('empty.title')}</p>
+            <p className="text-xs mt-1">{t('empty.hint')}</p>
           </div>
         ) : divergences.map(d => (
-          <DivergenceCard key={d.id} divergence={d} onAction={action} />
+          <DivergenceCard key={d.id} divergence={d} onAction={action} t={t} />
         ))}
       </div>
     </div>
   )
 }
 
+type TFn = ReturnType<typeof useTranslations>
+
 function DivergenceCard({
-  divergence: d, onAction,
+  divergence: d, onAction, t,
 }: {
   divergence: Divergence
   onAction: (id: string, mode: 'acknowledge' | 'resolve' | 'ignore') => void
+  t: TFn
 }) {
   const c = severityColor(d.severity)
   const isOpen = ['open', 'acknowledged', 'investigating'].includes(d.status)
@@ -243,10 +248,10 @@ function DivergenceCard({
           <div className="flex items-center gap-2 mb-1 flex-wrap">
             <span className="text-xs px-2 py-0.5 rounded-full font-medium"
               style={{ background: `${c}1A`, color: c, border: `1px solid ${c}33` }}>
-              {severityLabel(d.severity)}
+              {severityLabel(d.severity, t)}
             </span>
-            <DivergenceTypePill type={d.divergence_type} />
-            <DivergenceStatusPill status={d.status} />
+            <DivergenceTypePill type={d.divergence_type} t={t} />
+            <DivergenceStatusPill status={d.status} t={t} />
             <span className="text-xs text-zinc-500">{d.suppliers?.name ?? '—'}</span>
           </div>
           <p className="text-sm text-white mb-1">{d.description}</p>
@@ -258,9 +263,9 @@ function DivergenceCard({
           )}
           {d.expected_value != null && d.actual_value != null && (
             <p className="text-xs text-zinc-500 mt-1">
-              Esperado: <span className="text-zinc-300">{d.expected_value}</span>
+              {t('expected')}: <span className="text-zinc-300">{d.expected_value}</span>
               {' · '}
-              Real: <span style={{ color: c }}>{d.actual_value}</span>
+              {t('actual')}: <span style={{ color: c }}>{d.actual_value}</span>
               {d.difference_pct != null && <span> ({d.difference_pct > 0 ? '+' : ''}{d.difference_pct}%)</span>}
             </p>
           )}
@@ -277,7 +282,7 @@ function DivergenceCard({
               <button
                 onClick={() => onAction(d.id, 'acknowledge')}
                 className="text-zinc-500 hover:text-cyan-400 p-1"
-                title="Reconhecer"
+                title={t('acknowledge')}
               >
                 <CheckCircle2 size={14} />
               </button>
@@ -285,14 +290,14 @@ function DivergenceCard({
             <button
               onClick={() => onAction(d.id, 'resolve')}
               className="text-zinc-500 hover:text-green-400 p-1"
-              title="Resolver"
+              title={t('resolve')}
             >
               <CheckCircle2 size={14} />
             </button>
             <button
               onClick={() => onAction(d.id, 'ignore')}
               className="text-zinc-500 hover:text-yellow-400 p-1"
-              title="Ignorar"
+              title={t('ignore')}
             >
               <EyeOff size={14} />
             </button>
@@ -312,39 +317,39 @@ function Kpi({ label, value, accent }: { label: string; value: string | number; 
   )
 }
 
-function DivergenceTypePill({ type }: { type: DivergenceType }) {
-  const m: Record<DivergenceType, string> = {
-    cost_change_uninformed: 'Custo s/aviso',
-    cost_at_oc_different: 'Custo na OC',
-    stock_inconsistency: 'Estoque',
-    shipment_delay: 'Atraso envio',
-    no_shipment_confirmation: 'Sem confirm.',
-    return_amount_mismatch: 'Devolução',
-    duplicate_oc_item: 'Item duplicado',
-    missing_partner_product: 'Sem mapeam.',
-    price_below_cost: 'Preço<custo',
+function DivergenceTypePill({ type, t }: { type: DivergenceType; t: TFn }) {
+  const keys: Record<DivergenceType, string> = {
+    cost_change_uninformed: 'typePill.costChangeUninformed',
+    cost_at_oc_different: 'typePill.costAtOc',
+    stock_inconsistency: 'typePill.stock',
+    shipment_delay: 'typePill.shipmentDelay',
+    no_shipment_confirmation: 'typePill.noConfirmation',
+    return_amount_mismatch: 'typePill.return',
+    duplicate_oc_item: 'typePill.duplicateItem',
+    missing_partner_product: 'typePill.noMapping',
+    price_below_cost: 'typePill.priceBelowCost',
   }
   return (
     <span className="text-xs px-2 py-0.5 rounded-full"
       style={{ background: 'rgba(113,113,122,0.10)', color: '#a1a1aa', border: '1px solid #27272a' }}>
-      {m[type]}
+      {t(keys[type])}
     </span>
   )
 }
 
-function DivergenceStatusPill({ status }: { status: Divergence['status'] }) {
-  const c: Record<Divergence['status'], { bg: string; fg: string; label: string }> = {
-    open:          { bg: 'rgba(248,113,113,0.10)', fg: '#f87171', label: 'Aberta' },
-    acknowledged:  { bg: 'rgba(252,211,77,0.10)',  fg: '#fcd34d', label: 'Reconhec.' },
-    investigating: { bg: 'rgba(0,229,255,0.10)',   fg: '#00E5FF', label: 'Investig.' },
-    resolved:      { bg: 'rgba(34,197,94,0.10)',   fg: '#22c55e', label: 'Resolvida' },
-    ignored:       { bg: 'rgba(113,113,122,0.10)', fg: '#71717a', label: 'Ignorada' },
+function DivergenceStatusPill({ status, t }: { status: Divergence['status']; t: TFn }) {
+  const c: Record<Divergence['status'], { bg: string; fg: string; key: string }> = {
+    open:          { bg: 'rgba(248,113,113,0.10)', fg: '#f87171', key: 'statusPill.open' },
+    acknowledged:  { bg: 'rgba(252,211,77,0.10)',  fg: '#fcd34d', key: 'statusPill.acknowledged' },
+    investigating: { bg: 'rgba(0,229,255,0.10)',   fg: '#00E5FF', key: 'statusPill.investigating' },
+    resolved:      { bg: 'rgba(34,197,94,0.10)',   fg: '#22c55e', key: 'statusPill.resolved' },
+    ignored:       { bg: 'rgba(113,113,122,0.10)', fg: '#71717a', key: 'statusPill.ignored' },
   }
   const x = c[status]
   return (
     <span className="text-xs px-2 py-0.5 rounded-full font-medium"
       style={{ background: x.bg, color: x.fg, border: `1px solid ${x.fg}33` }}>
-      {x.label}
+      {t(x.key)}
     </span>
   )
 }
@@ -353,17 +358,17 @@ function severityColor(s: Severity): string {
   return s === 'critical' ? '#f87171' : s === 'high' ? '#fb923c' : s === 'medium' ? '#fcd34d' : '#a1a1aa'
 }
 
-function severityLabel(s: Severity): string {
-  return s === 'critical' ? 'Crítica' : s === 'high' ? 'Alta' : s === 'medium' ? 'Média' : 'Baixa'
+function severityLabel(s: Severity, t: TFn): string {
+  return s === 'critical' ? t('severity.critical') : s === 'high' ? t('severity.high') : s === 'medium' ? t('severity.medium') : t('severity.low')
 }
 
-function filterLabel(s: string): string {
-  return s === 'open_all' ? 'Em aberto'
-    : s === 'open' ? 'Abertas'
-    : s === 'acknowledged' ? 'Reconhecidas'
-    : s === 'resolved' ? 'Resolvidas'
-    : s === 'ignored' ? 'Ignoradas'
-    : 'Todas'
+function filterLabel(s: string, t: TFn): string {
+  return s === 'open_all' ? t('filter.openAll')
+    : s === 'open' ? t('filter.open')
+    : s === 'acknowledged' ? t('filter.acknowledged')
+    : s === 'resolved' ? t('filter.resolved')
+    : s === 'ignored' ? t('filter.ignored')
+    : t('filter.all')
 }
 
 function fmtDateTime(d: string) {

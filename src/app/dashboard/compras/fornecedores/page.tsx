@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
@@ -114,6 +115,7 @@ function KpiCard({ label, value, sub }: { label: string; value: string | number;
 // ── main page ──────────────────────────────────────────────────────────────────
 
 export default function FornecedoresPage() {
+  const t = useTranslations('compras.fornecedores')
   const router = useRouter()
   const supabase = useMemo(() => createClient(), [])
 
@@ -128,9 +130,9 @@ export default function FornecedoresPage() {
 
   const getHeaders = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session?.access_token) throw new Error('Não autenticado')
+    if (!session?.access_token) throw new Error(t('errors.notAuthenticated'))
     return { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' }
-  }, [supabase])
+  }, [supabase, t])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -156,7 +158,7 @@ export default function FornecedoresPage() {
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
-    if (!form.name.trim()) { setFormErr('Nome obrigatório'); return }
+    if (!form.name.trim()) { setFormErr(t('errors.nameRequired')); return }
     setSaving(true); setFormErr('')
     try {
       const headers = await getHeaders()
@@ -184,7 +186,7 @@ export default function FornecedoresPage() {
       setForm(EMPTY_FORM)
       router.push(`/dashboard/compras/fornecedores/${created.id}`)
     } catch (err: unknown) {
-      setFormErr(err instanceof Error ? err.message : 'Erro ao salvar')
+      setFormErr(err instanceof Error ? err.message : t('errors.saveFailed'))
     } finally { setSaving(false) }
   }
 
@@ -196,8 +198,8 @@ export default function FornecedoresPage() {
       {/* header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-semibold text-white">Fornecedores</h1>
-          <p className="text-sm text-zinc-500 mt-0.5">Gerencie seus fornecedores nacionais e importados</p>
+          <h1 className="text-xl font-semibold text-white">{t('title')}</h1>
+          <p className="text-sm text-zinc-500 mt-0.5">{t('subtitle')}</p>
         </div>
         <button
           onClick={() => { setShowModal(true); setForm(EMPTY_FORM); setFormErr('') }}
@@ -205,29 +207,29 @@ export default function FornecedoresPage() {
           style={{ background: '#00E5FF', color: '#09090b' }}
         >
           <Icon d={ICONS.plus} size={15} />
-          Novo Fornecedor
+          {t('newSupplier')}
         </button>
       </div>
 
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-        <KpiCard label="Total" value={total} />
-        <KpiCard label="Nacionais" value={nacionais} />
-        <KpiCard label="Importados" value={importados} />
-        <KpiCard label="Sem produto" value={semProd} sub="sem vínculo" />
+        <KpiCard label={t('kpi.total')} value={total} />
+        <KpiCard label={t('kpi.national')} value={nacionais} />
+        <KpiCard label={t('kpi.imported')} value={importados} />
+        <KpiCard label={t('kpi.noProduct')} value={semProd} sub={t('kpi.noLink')} />
       </div>
 
       {/* filters */}
       <div className="flex items-center gap-3 mb-4 flex-wrap">
         <div className="flex rounded-lg overflow-hidden" style={{ border: '1px solid #27272a' }}>
-          {(['all', 'nacional', 'importado'] as const).map(t => (
-            <button key={t} onClick={() => setFilterType(t)}
+          {(['all', 'nacional', 'importado'] as const).map(ft => (
+            <button key={ft} onClick={() => setFilterType(ft)}
               className="px-3 py-1.5 text-xs font-medium transition-colors"
               style={{
-                background: filterType === t ? '#00E5FF' : 'transparent',
-                color: filterType === t ? '#09090b' : '#a1a1aa',
+                background: filterType === ft ? '#00E5FF' : 'transparent',
+                color: filterType === ft ? '#09090b' : '#a1a1aa',
               }}>
-              {t === 'all' ? 'Todos' : t === 'nacional' ? 'Nacional' : 'Importado'}
+              {ft === 'all' ? t('filter.all') : ft === 'nacional' ? t('filter.national') : t('filter.imported')}
             </button>
           ))}
         </div>
@@ -237,7 +239,7 @@ export default function FornecedoresPage() {
           </span>
           <input
             value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="Buscar fornecedor..."
+            placeholder={t('searchPlaceholder')}
             className="w-full pl-8 pr-3 py-2 text-sm rounded-lg outline-none"
             style={{ background: '#111114', border: '1px solid #27272a', color: '#fff' }}
           />
@@ -249,18 +251,18 @@ export default function FornecedoresPage() {
         <table className="w-full text-sm">
           <thead>
             <tr style={{ background: '#111114', borderBottom: '1px solid #1a1a1f' }}>
-              {['Nome', 'País / Tipo', 'Produtos', 'Lead Time', 'Última Compra', 'Rating', 'Status', ''].map(h => (
-                <th key={h} className="text-left px-4 py-3 text-xs font-medium text-zinc-500">{h}</th>
+              {[t('table.name'), t('table.countryType'), t('table.products'), t('table.leadTime'), t('table.lastPurchase'), t('table.rating'), t('table.status'), ''].map((h, i) => (
+                <th key={i} className="text-left px-4 py-3 text-xs font-medium text-zinc-500">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={8} className="px-4 py-12 text-center text-zinc-500 text-sm">Carregando...</td></tr>
+              <tr><td colSpan={8} className="px-4 py-12 text-center text-zinc-500 text-sm">{t('loading')}</td></tr>
             ) : suppliers.length === 0 ? (
               <tr><td colSpan={8} className="px-4 py-12 text-center text-zinc-500 text-sm">
-                Nenhum fornecedor encontrado.{' '}
-                <button onClick={() => setShowModal(true)} style={{ color: '#00E5FF' }}>Cadastrar o primeiro</button>
+                {t('empty')}{' '}
+                <button onClick={() => setShowModal(true)} style={{ color: '#00E5FF' }}>{t('registerFirst')}</button>
               </td></tr>
             ) : suppliers.map(s => (
               <tr
@@ -280,14 +282,14 @@ export default function FornecedoresPage() {
                     <Icon d={s.supplier_type === 'importado' ? ICONS.globe : ICONS.truck} size={14} />
                     <div>
                       <p className="text-zinc-300">{s.country}</p>
-                      <p className="text-xs text-zinc-500 capitalize">{s.supplier_type}</p>
+                      <p className="text-xs text-zinc-500">{s.supplier_type === 'importado' ? t('type.imported') : t('type.national')}</p>
                     </div>
                   </div>
                 </td>
                 <td className="px-4 py-3">
                   <span className="px-2 py-0.5 rounded-full text-xs"
                     style={{ background: productCount(s) > 0 ? 'rgba(0,229,255,0.1)' : 'rgba(113,113,122,0.1)', color: productCount(s) > 0 ? '#00E5FF' : '#71717a' }}>
-                    {productCount(s)} produto{productCount(s) !== 1 ? 's' : ''}
+                    {t('productsCount', { count: productCount(s) })}
                   </span>
                 </td>
                 <td className="px-4 py-3 text-zinc-300">
@@ -305,11 +307,11 @@ export default function FornecedoresPage() {
                 <td className="px-4 py-3">
                   <span className="px-2 py-0.5 rounded-full text-xs font-medium"
                     style={{ background: s.is_active ? 'rgba(34,197,94,0.1)' : 'rgba(113,113,122,0.1)', color: s.is_active ? '#22c55e' : '#71717a' }}>
-                    {s.is_active ? 'Ativo' : 'Inativo'}
+                    {s.is_active ? t('active') : t('inactive')}
                   </span>
                 </td>
                 <td className="px-4 py-3">
-                  <span className="text-xs" style={{ color: '#00E5FF' }}>Ver →</span>
+                  <span className="text-xs" style={{ color: '#00E5FF' }}>{t('view')}</span>
                 </td>
               </tr>
             ))}
@@ -324,7 +326,7 @@ export default function FornecedoresPage() {
           <div className="fixed right-0 top-0 h-full z-50 w-full max-w-lg flex flex-col overflow-hidden"
             style={{ background: '#111114', borderLeft: '1px solid #1e1e24' }}>
             <div className="flex items-center justify-between px-6 py-4 shrink-0" style={{ borderBottom: '1px solid #1e1e24' }}>
-              <h2 className="text-white font-semibold">Novo Fornecedor</h2>
+              <h2 className="text-white font-semibold">{t('newSupplier')}</h2>
               <button onClick={() => setShowModal(false)} className="text-zinc-500 hover:text-white">
                 <Icon d={ICONS.x} size={18} />
               </button>
@@ -333,86 +335,86 @@ export default function FornecedoresPage() {
             <form onSubmit={handleCreate} className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
               {/* obrigatórios */}
               <div className="rounded-lg p-4 space-y-3" style={{ background: '#0f0f12', border: '1px solid #1e1e24' }}>
-                <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Dados Básicos</p>
+                <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">{t('section.basicData')}</p>
                 <div>
-                  <label className={label}>Nome *</label>
-                  <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className={inp} placeholder="Ex: Fornecedor ABC" />
+                  <label className={label}>{t('form.name')}</label>
+                  <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className={inp} placeholder={t('form.namePlaceholder')} />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className={label}>Tipo *</label>
+                    <label className={label}>{t('form.type')}</label>
                     <select value={form.supplier_type} onChange={e => setForm(f => ({ ...f, supplier_type: e.target.value as 'nacional' | 'importado', currency: e.target.value === 'importado' ? 'USD' : 'BRL', country: e.target.value === 'importado' ? '' : 'Brasil' }))} className={inp}>
-                      <option value="nacional">Nacional</option>
-                      <option value="importado">Importado</option>
+                      <option value="nacional">{t('type.national')}</option>
+                      <option value="importado">{t('type.imported')}</option>
                     </select>
                   </div>
                   <div>
-                    <label className={label}>País *</label>
+                    <label className={label}>{t('form.country')}</label>
                     <input value={form.country} onChange={e => setForm(f => ({ ...f, country: e.target.value }))} className={inp} placeholder="Brasil" />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className={label}>Moeda *</label>
+                    <label className={label}>{t('form.currency')}</label>
                     <select value={form.currency} onChange={e => setForm(f => ({ ...f, currency: e.target.value }))} className={inp}>
                       {['BRL','USD','EUR','CNY','JPY','GBP'].map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
                   </div>
                   <div>
-                    <label className={label}>CNPJ / Tax ID</label>
+                    <label className={label}>{t('form.taxId')}</label>
                     <input value={form.tax_id} onChange={e => setForm(f => ({ ...f, tax_id: e.target.value }))} className={inp} placeholder="00.000.000/0001-00" />
                   </div>
                 </div>
                 <div>
-                  <label className={label}>Razão Social</label>
-                  <input value={form.legal_name} onChange={e => setForm(f => ({ ...f, legal_name: e.target.value }))} className={inp} placeholder="Razão social completa" />
+                  <label className={label}>{t('form.legalName')}</label>
+                  <input value={form.legal_name} onChange={e => setForm(f => ({ ...f, legal_name: e.target.value }))} className={inp} placeholder={t('form.legalNamePlaceholder')} />
                 </div>
               </div>
 
               {/* contato */}
               <div className="rounded-lg p-4 space-y-3" style={{ background: '#0f0f12', border: '1px solid #1e1e24' }}>
-                <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Contato</p>
+                <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">{t('section.contact')}</p>
                 <div className="grid grid-cols-2 gap-3">
-                  <div><label className={label}>Nome do Contato</label><input value={form.contact_name} onChange={e => setForm(f => ({ ...f, contact_name: e.target.value }))} className={inp} /></div>
-                  <div><label className={label}>E-mail</label><input type="email" value={form.contact_email} onChange={e => setForm(f => ({ ...f, contact_email: e.target.value }))} className={inp} /></div>
-                  <div><label className={label}>Telefone</label><input value={form.contact_phone} onChange={e => setForm(f => ({ ...f, contact_phone: e.target.value }))} className={inp} /></div>
-                  <div><label className={label}>WhatsApp</label><input value={form.contact_whatsapp} onChange={e => setForm(f => ({ ...f, contact_whatsapp: e.target.value }))} className={inp} /></div>
+                  <div><label className={label}>{t('form.contactName')}</label><input value={form.contact_name} onChange={e => setForm(f => ({ ...f, contact_name: e.target.value }))} className={inp} /></div>
+                  <div><label className={label}>{t('form.contactEmail')}</label><input type="email" value={form.contact_email} onChange={e => setForm(f => ({ ...f, contact_email: e.target.value }))} className={inp} /></div>
+                  <div><label className={label}>{t('form.contactPhone')}</label><input value={form.contact_phone} onChange={e => setForm(f => ({ ...f, contact_phone: e.target.value }))} className={inp} /></div>
+                  <div><label className={label}>{t('form.contactWhatsapp')}</label><input value={form.contact_whatsapp} onChange={e => setForm(f => ({ ...f, contact_whatsapp: e.target.value }))} className={inp} /></div>
                 </div>
               </div>
 
               {/* financeiro / logístico */}
               <div className="rounded-lg p-4 space-y-3" style={{ background: '#0f0f12', border: '1px solid #1e1e24' }}>
-                <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Logística & Pagamento</p>
+                <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">{t('section.logisticsPayment')}</p>
                 <div className="grid grid-cols-2 gap-3">
-                  <div><label className={label}>Lead Time Padrão (dias)</label><input type="number" value={form.default_lead_time_days} onChange={e => setForm(f => ({ ...f, default_lead_time_days: e.target.value }))} className={inp} placeholder="30" /></div>
-                  <div><label className={label}>Safety Stock (dias)</label><input type="number" value={form.default_safety_days} onChange={e => setForm(f => ({ ...f, default_safety_days: e.target.value }))} className={inp} placeholder="7" /></div>
-                  <div><label className={label}>Prazo de Pagamento</label><input value={form.payment_terms} onChange={e => setForm(f => ({ ...f, payment_terms: e.target.value }))} className={inp} placeholder="30/60/90 dias" /></div>
-                  <div><label className={label}>Forma de Pagamento</label><input value={form.payment_method} onChange={e => setForm(f => ({ ...f, payment_method: e.target.value }))} className={inp} placeholder="TT, L/C, Boleto" /></div>
+                  <div><label className={label}>{t('form.leadTime')}</label><input type="number" value={form.default_lead_time_days} onChange={e => setForm(f => ({ ...f, default_lead_time_days: e.target.value }))} className={inp} placeholder="30" /></div>
+                  <div><label className={label}>{t('form.safetyStock')}</label><input type="number" value={form.default_safety_days} onChange={e => setForm(f => ({ ...f, default_safety_days: e.target.value }))} className={inp} placeholder="7" /></div>
+                  <div><label className={label}>{t('form.paymentTerms')}</label><input value={form.payment_terms} onChange={e => setForm(f => ({ ...f, payment_terms: e.target.value }))} className={inp} placeholder={t('form.paymentTermsPlaceholder')} /></div>
+                  <div><label className={label}>{t('form.paymentMethod')}</label><input value={form.payment_method} onChange={e => setForm(f => ({ ...f, payment_method: e.target.value }))} className={inp} placeholder="TT, L/C, Boleto" /></div>
                 </div>
                 {form.supplier_type === 'importado' && (
                   <div className="grid grid-cols-2 gap-3">
-                    <div><label className={label}>Porto de Origem</label><input value={form.port_of_origin} onChange={e => setForm(f => ({ ...f, port_of_origin: e.target.value }))} className={inp} placeholder="Shenzhen, Shanghai..." /></div>
-                    <div><label className={label}>Agente de Despacho</label><input value={form.customs_agent} onChange={e => setForm(f => ({ ...f, customs_agent: e.target.value }))} className={inp} /></div>
+                    <div><label className={label}>{t('form.portOfOrigin')}</label><input value={form.port_of_origin} onChange={e => setForm(f => ({ ...f, port_of_origin: e.target.value }))} className={inp} placeholder="Shenzhen, Shanghai..." /></div>
+                    <div><label className={label}>{t('form.customsAgent')}</label><input value={form.customs_agent} onChange={e => setForm(f => ({ ...f, customs_agent: e.target.value }))} className={inp} /></div>
                   </div>
                 )}
                 <div className="flex items-center gap-2">
                   <input type="checkbox" id="freight" checked={form.freight_included} onChange={e => setForm(f => ({ ...f, freight_included: e.target.checked }))} className="w-4 h-4 accent-[#00E5FF]" />
-                  <label htmlFor="freight" className="text-sm text-zinc-400 cursor-pointer">Frete incluso no preço</label>
+                  <label htmlFor="freight" className="text-sm text-zinc-400 cursor-pointer">{t('form.freightIncluded')}</label>
                 </div>
               </div>
 
               <div>
-                <label className={label}>Observações</label>
-                <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={3} className={inp + ' resize-none'} placeholder="Notas internas..." />
+                <label className={label}>{t('form.notes')}</label>
+                <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={3} className={inp + ' resize-none'} placeholder={t('form.notesPlaceholder')} />
               </div>
             </form>
 
             <div className="shrink-0 px-6 py-4 flex items-center justify-between gap-3" style={{ borderTop: '1px solid #1e1e24' }}>
               {formErr && <p className="text-xs text-red-400 flex-1">{formErr}</p>}
               <div className="flex gap-2 ml-auto">
-                <button onClick={() => setShowModal(false)} className="px-4 py-2 text-sm rounded-lg text-zinc-400 hover:text-white transition-colors" style={{ border: '1px solid #27272a' }}>Cancelar</button>
+                <button onClick={() => setShowModal(false)} className="px-4 py-2 text-sm rounded-lg text-zinc-400 hover:text-white transition-colors" style={{ border: '1px solid #27272a' }}>{t('cancel')}</button>
                 <button onClick={handleCreate} disabled={saving} className="glow-rainbow px-4 py-2 text-sm font-medium rounded-lg transition-colors" style={{ background: '#00E5FF', color: '#09090b', opacity: saving ? 0.6 : 1 }}>
-                  {saving ? 'Salvando...' : 'Salvar'}
+                  {saving ? t('saving') : t('save')}
                 </button>
               </div>
             </div>

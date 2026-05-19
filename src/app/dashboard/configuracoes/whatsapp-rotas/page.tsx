@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import { useConfirm, useAlert } from '@/components/ui/dialog-provider'
 import {
@@ -41,64 +42,21 @@ interface Assignment {
 
 const PURPOSES: Array<{
   key:      WaPurpose
-  title:    string
   category: 'internal' | 'customer' | 'security'
   icon:     typeof Bell
-  desc:     string
-  example:  string
   fallbackPref: ChannelKind  // canal preferido quando não há assignment
 }> = [
-  {
-    key:      'internal_alert',
-    title:    'Alertas internos',
-    category: 'internal',
-    icon:     Brain,
-    desc:     'Alertas IA do Intelligence Hub, ads-ai e pricing pra equipe interna',
-    example:  'Ruptura iminente de SKU · ROAS baixo · margem crítica · digest diário',
-    fallbackPref: 'baileys',
-  },
-  {
-    key:      'manager_verification',
-    title:    'Verificação de gestor',
-    category: 'security',
-    icon:     ShieldCheck,
-    desc:     'Código WA de 6 dígitos quando você cadastra um novo gestor IH',
-    example:  'Olá Maria! Seu código é: 123456',
-    fallbackPref: 'baileys',
-  },
-  {
-    key:      'customer_journey',
-    title:    'Jornadas pós-venda',
-    category: 'customer',
-    icon:     Send,
-    desc:     'Mensagens automáticas baseadas em status do pedido (enviado, entregue, etc)',
-    example:  'Pedido enviado · Pedido entregue · Pesquisa NPS',
-    fallbackPref: 'cloud_api',
-  },
-  {
-    key:      'customer_campaign',
-    title:    'Campanhas marketing',
-    category: 'customer',
-    icon:     Megaphone,
-    desc:     'Broadcasts em massa pra clientes (segmentos VIP, churn, novos lançamentos)',
-    example:  'Promoção Black Friday · Reativação inativos 90d',
-    fallbackPref: 'cloud_api',
-  },
-  {
-    key:      'auth_2fa',
-    title:    'Autenticação 2FA',
-    category: 'security',
-    icon:     Lock,
-    desc:     'Códigos de 2 fatores via WhatsApp (sprint futuro)',
-    example:  '(em breve)',
-    fallbackPref: 'cloud_api',
-  },
+  { key: 'internal_alert',       category: 'internal', icon: Brain,       fallbackPref: 'baileys' },
+  { key: 'manager_verification', category: 'security', icon: ShieldCheck, fallbackPref: 'baileys' },
+  { key: 'customer_journey',     category: 'customer', icon: Send,        fallbackPref: 'cloud_api' },
+  { key: 'customer_campaign',    category: 'customer', icon: Megaphone,   fallbackPref: 'cloud_api' },
+  { key: 'auth_2fa',             category: 'security', icon: Lock,        fallbackPref: 'cloud_api' },
 ]
 
-const CATEGORY_META: Record<'internal' | 'customer' | 'security', { color: string; label: string }> = {
-  internal: { color: '#a78bfa', label: 'Interno' },
-  customer: { color: '#4ade80', label: 'Cliente' },
-  security: { color: '#f59e0b', label: 'Segurança' },
+const CATEGORY_COLOR: Record<'internal' | 'customer' | 'security', string> = {
+  internal: '#a78bfa',
+  customer: '#4ade80',
+  security: '#f59e0b',
 }
 
 // ── API ───────────────────────────────────────────────────────────────────────
@@ -155,6 +113,7 @@ function channelKindBadge(kind: ChannelKind) {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function WhatsAppRotasPage() {
+  const t = useTranslations('configuracoes')
   const [channels, setChannels]       = useState<AvailableChannel[]>([])
   const [assignments, setAssignments] = useState<Assignment[]>([])
   const [loading, setLoading]         = useState(true)
@@ -174,11 +133,11 @@ export default function WhatsAppRotasPage() {
       setChannels(ch)
       setAssignments(as)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Erro ao carregar')
+      setError(e instanceof Error ? e.message : t('whatsappRoutes.loadError'))
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [t])
 
   useEffect(() => { load() }, [load])
 
@@ -224,8 +183,8 @@ export default function WhatsAppRotasPage() {
       }
     } catch (e) {
       await alert({
-        title:   'Erro ao salvar rota',
-        message: e instanceof Error ? e.message : 'Erro desconhecido',
+        title:   t('whatsappRoutes.saveRouteError'),
+        message: e instanceof Error ? e.message : t('whatsappRoutes.unknownError'),
         variant: 'danger',
       })
     } finally {
@@ -234,11 +193,10 @@ export default function WhatsAppRotasPage() {
   }
 
   async function handleClear(purpose: WaPurpose) {
-    const meta = PURPOSES.find(p => p.key === purpose)!
     const ok = await confirm({
-      title:        'Limpar rota?',
-      message:      `Voltar "${meta.title}" pro fallback automático? O sistema vai escolher um canal disponível conforme a categoria.`,
-      confirmLabel: 'Limpar rota',
+      title:        t('whatsappRoutes.clearRouteTitle'),
+      message:      t('whatsappRoutes.clearRouteMessage', { title: t(`whatsappRoutes.purpose_${purpose}_title` as 'whatsappRoutes.purpose_internal_alert_title') }),
+      confirmLabel: t('whatsappRoutes.clearRoute'),
       variant:      'warning',
     })
     if (!ok) return
@@ -265,22 +223,20 @@ export default function WhatsAppRotasPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <p className="text-zinc-500 text-xs">Configurações</p>
+          <p className="text-zinc-500 text-xs">{t('whatsappRoutes.breadcrumb')}</p>
           <h2 className="text-white text-lg font-semibold mt-0.5 inline-flex items-center gap-2">
             <Phone size={16} style={{ color: '#00E5FF' }} />
-            Rotas de WhatsApp
+            {t('whatsappRoutes.title')}
           </h2>
           <p className="text-[11px] text-zinc-600 mt-1 max-w-2xl leading-relaxed">
-            Configure qual canal WhatsApp envia cada tipo de mensagem.
-            Sem rota explícita, o sistema escolhe automaticamente conforme a categoria
-            (interno → Baileys gratuito · cliente → Cloud API oficial).
+            {t('whatsappRoutes.subtitle')}
           </p>
         </div>
         <button onClick={load} disabled={loading}
           className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border transition-all disabled:opacity-60"
           style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>
           <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
-          <span className="hidden sm:inline">Atualizar</span>
+          <span className="hidden sm:inline">{t('whatsappRoutes.refresh')}</span>
         </button>
       </div>
 
@@ -297,22 +253,21 @@ export default function WhatsAppRotasPage() {
           style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.2)' }}>
           <AlertCircle size={18} style={{ color: '#f59e0b', marginTop: 2 }} />
           <div className="flex-1">
-            <h3 className="text-white font-semibold text-sm">Nenhum canal WhatsApp conectado</h3>
+            <h3 className="text-white font-semibold text-sm">{t('whatsappRoutes.noChannelsTitle')}</h3>
             <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
-              Você precisa conectar pelo menos um canal antes de configurar rotas.
-              Tem 2 opções:
+              {t('whatsappRoutes.noChannelsDesc')}
             </p>
             <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
               <Link href="/dashboard/canais"
                 className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-xs transition-colors"
                 style={{ background: 'rgba(96,165,250,0.08)', color: '#60a5fa', border: '1px solid rgba(96,165,250,0.25)' }}>
-                <span className="flex items-center gap-1.5"><Wifi size={11} /> Conectar Baileys (grátis)</span>
+                <span className="flex items-center gap-1.5"><Wifi size={11} /> {t('whatsappRoutes.connectBaileys')}</span>
                 <ArrowRight size={11} />
               </Link>
               <Link href="/dashboard/configuracoes/integracoes"
                 className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-xs transition-colors"
                 style={{ background: 'rgba(74,222,128,0.08)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.25)' }}>
-                <span className="flex items-center gap-1.5"><ShieldCheck size={11} /> Conectar Cloud API</span>
+                <span className="flex items-center gap-1.5"><ShieldCheck size={11} /> {t('whatsappRoutes.connectCloudApi')}</span>
                 <ArrowRight size={11} />
               </Link>
             </div>
@@ -323,16 +278,16 @@ export default function WhatsAppRotasPage() {
       {/* Status overview */}
       {!noChannels && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <StatusCard label="Canais conectados" value={channels.length} icon={Wifi} color="#00E5FF" />
-          <StatusCard label="Rotas configuradas" value={assignments.length} sub={`de ${PURPOSES.length} propósitos`} icon={Settings} color="#a78bfa" />
+          <StatusCard label={t('whatsappRoutes.kpiConnectedChannels')} value={channels.length} icon={Wifi} color="#00E5FF" />
+          <StatusCard label={t('whatsappRoutes.kpiConfiguredRoutes')} value={assignments.length} sub={t('whatsappRoutes.kpiOfPurposes', { count: PURPOSES.length })} icon={Settings} color="#a78bfa" />
           <StatusCard
-            label="Baileys (grátis)"
+            label={t('whatsappRoutes.kpiBaileys')}
             value={channels.filter(c => c.kind === 'baileys').length}
             icon={Wifi}
             color="#60a5fa"
           />
           <StatusCard
-            label="Cloud API (oficial)"
+            label={t('whatsappRoutes.kpiCloudApi')}
             value={channels.filter(c => c.kind === 'cloud_api').length}
             icon={ShieldCheck}
             color="#4ade80"
@@ -346,7 +301,7 @@ export default function WhatsAppRotasPage() {
         {/* Propósitos */}
         <div className="xl:col-span-2 space-y-3">
           <div className="flex items-center gap-2 px-1">
-            <h3 className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">Propósitos</h3>
+            <h3 className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">{t('whatsappRoutes.purposesHeading')}</h3>
             <div className="flex-1 h-px" style={{ background: '#1e1e24' }} />
           </div>
 
@@ -358,7 +313,8 @@ export default function WhatsAppRotasPage() {
             const fallbackChannel = !assignment
               ? channels.find(c => c.kind === p.fallbackPref) ?? channels.find(c => c.status === 'active' || c.status === 'verified')
               : null
-            const catMeta = CATEGORY_META[p.category]
+            const catColor = CATEGORY_COLOR[p.category]
+            const catMeta = { color: catColor, label: t(`whatsappRoutes.category_${p.category}` as 'whatsappRoutes.category_internal') }
             const isLocked = p.key === 'auth_2fa'  // sprint futuro
 
             return (
@@ -372,7 +328,7 @@ export default function WhatsAppRotasPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      <h4 className="text-white font-semibold text-sm">{p.title}</h4>
+                      <h4 className="text-white font-semibold text-sm">{t(`whatsappRoutes.purpose_${p.key}_title` as 'whatsappRoutes.purpose_internal_alert_title')}</h4>
                       <span className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded-full"
                         style={{ background: `${catMeta.color}1a`, color: catMeta.color, border: `1px solid ${catMeta.color}33` }}>
                         {catMeta.label}
@@ -380,12 +336,12 @@ export default function WhatsAppRotasPage() {
                       {isLocked && (
                         <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded-full"
                           style={{ background: '#27272a', color: '#71717a' }}>
-                          Em breve
+                          {t('whatsappRoutes.comingSoon')}
                         </span>
                       )}
                     </div>
-                    <p className="text-[11px] text-zinc-500 mt-0.5 leading-relaxed">{p.desc}</p>
-                    <p className="text-[10px] text-zinc-700 mt-1 italic">Ex: {p.example}</p>
+                    <p className="text-[11px] text-zinc-500 mt-0.5 leading-relaxed">{t(`whatsappRoutes.purpose_${p.key}_desc` as 'whatsappRoutes.purpose_internal_alert_desc')}</p>
+                    <p className="text-[10px] text-zinc-700 mt-1 italic">{t('whatsappRoutes.examplePrefix')} {t(`whatsappRoutes.purpose_${p.key}_example` as 'whatsappRoutes.purpose_internal_alert_example')}</p>
                   </div>
                 </div>
 
@@ -409,7 +365,7 @@ export default function WhatsAppRotasPage() {
                         style={{ color: '#71717a' }}
                         onMouseEnter={e => (e.currentTarget.style.color = '#f87171')}
                         onMouseLeave={e => (e.currentTarget.style.color = '#71717a')}
-                        title="Voltar pro fallback automático">
+                        title={t('whatsappRoutes.backToFallback')}>
                         <Trash2 size={12} />
                       </button>
                     </div>
@@ -418,7 +374,7 @@ export default function WhatsAppRotasPage() {
                       style={{ background: '#18181b', border: '1px dashed #27272a' }}>
                       <Sparkles size={11} style={{ color: '#71717a' }} />
                       <p className="text-[11px] text-zinc-500 flex-1">
-                        Fallback automático →
+                        {t('whatsappRoutes.autoFallback')}
                         <span className="text-zinc-300 font-medium ml-1">{fallbackChannel.name}</span>
                         <span className="text-zinc-600 ml-1">({channelKindBadge(fallbackChannel.kind).label})</span>
                       </p>
@@ -426,7 +382,7 @@ export default function WhatsAppRotasPage() {
                   ) : (
                     <div className="px-3 py-2 rounded-lg text-[11px] text-rose-400"
                       style={{ background: 'rgba(248,113,113,0.06)', border: '1px solid rgba(248,113,113,0.2)' }}>
-                      Sem canal disponível pra fallback. Conecte um canal acima.
+                      {t('whatsappRoutes.noFallbackChannel')}
                     </div>
                   )}
 
@@ -468,14 +424,14 @@ export default function WhatsAppRotasPage() {
         {/* Sidebar: canais disponíveis */}
         <div className="space-y-3">
           <div className="flex items-center gap-2 px-1">
-            <h3 className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">Canais disponíveis</h3>
+            <h3 className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">{t('whatsappRoutes.availableChannels')}</h3>
             <div className="flex-1 h-px" style={{ background: '#1e1e24' }} />
           </div>
 
           {channels.length === 0 ? (
             <div className="rounded-2xl px-4 py-6 text-center text-xs text-zinc-500"
               style={{ background: '#111114', border: '1px dashed #27272a' }}>
-              Nenhum canal conectado.
+              {t('whatsappRoutes.noChannelsConnected')}
             </div>
           ) : (
             channels.map(c => {
@@ -506,7 +462,7 @@ export default function WhatsAppRotasPage() {
                   <div className="mt-3 pt-3 flex items-center gap-2" style={{ borderTop: '1px solid #1e1e24' }}>
                     <Users size={10} style={{ color: '#71717a' }} />
                     <span className="text-[10px] text-zinc-600">
-                      {usage > 0 ? `${usage} propósito${usage !== 1 ? 's' : ''}` : 'Não atribuído'}
+                      {usage > 0 ? t('whatsappRoutes.purposeCount', { count: usage }) : t('whatsappRoutes.unassigned')}
                     </span>
                   </div>
                 </div>
@@ -519,18 +475,16 @@ export default function WhatsAppRotasPage() {
             style={{ background: 'rgba(0,229,255,0.04)', border: '1px solid rgba(0,229,255,0.15)' }}>
             <h4 className="text-white text-xs font-semibold inline-flex items-center gap-1.5">
               <Info size={11} style={{ color: '#00E5FF' }} />
-              Como funciona
+              {t('whatsappRoutes.howItWorks')}
             </h4>
             <p className="text-[11px] text-zinc-400 leading-relaxed">
-              <strong>Baileys</strong> é grátis (gera QR no canal) mas é não-oficial — risco de banimento se usado pra spam.
-              Bom pra alertas internos baixo volume.
+              {t.rich('whatsappRoutes.helpBaileys', { strong: (c) => <strong>{c}</strong> })}
             </p>
             <p className="text-[11px] text-zinc-400 leading-relaxed">
-              <strong>Cloud API</strong> é oficial Meta (paga, ~R$ 0,10-0,80/mensagem) — tier verde,
-              templates aprovados, escala bem pra marketing massivo.
+              {t.rich('whatsappRoutes.helpCloudApi', { strong: (c) => <strong>{c}</strong> })}
             </p>
             <p className="text-[10px] text-zinc-600 leading-relaxed pt-1">
-              Sem rota explícita, o sistema usa fallback baseado na categoria do propósito.
+              {t('whatsappRoutes.helpFallback')}
             </p>
           </div>
         </div>

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
@@ -46,7 +47,10 @@ interface Summary {
   pending_count: number
 }
 
+type Translator = ReturnType<typeof useTranslations>
+
 export default function ContasAPagarPage() {
+  const t = useTranslations('financeiro')
   const router = useRouter()
   const supabase = useMemo(() => createClient(), [])
 
@@ -59,9 +63,9 @@ export default function ContasAPagarPage() {
 
   const getHeaders = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session?.access_token) throw new Error('Não autenticado')
+    if (!session?.access_token) throw new Error(t('payables.notAuthenticated'))
     return { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' }
-  }, [supabase])
+  }, [supabase, t])
 
   const load = useCallback(async () => {
     setLoading(true); setErr('')
@@ -80,10 +84,10 @@ export default function ContasAPagarPage() {
       setPayables(await pRes.json())
       setSummary(await sRes.json())
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Erro ao carregar')
+      setErr(e instanceof Error ? e.message : t('payables.loadError'))
       setPayables([])
     } finally { setLoading(false) }
-  }, [getHeaders, filterStatus, search])
+  }, [getHeaders, filterStatus, search, t])
 
   useEffect(() => { load() }, [load])
 
@@ -95,9 +99,9 @@ export default function ContasAPagarPage() {
             <ArrowLeft size={18} />
           </Link>
           <div>
-            <h1 className="text-xl font-semibold text-white">Contas a Pagar</h1>
+            <h1 className="text-xl font-semibold text-white">{t('payables.title')}</h1>
             <p className="text-sm text-zinc-500 mt-0.5">
-              OCs aprovadas + lançamentos manuais + outras dívidas
+              {t('payables.subtitle')}
             </p>
           </div>
         </div>
@@ -119,15 +123,19 @@ export default function ContasAPagarPage() {
         }}>
           <AlertTriangle size={18} style={{ color: '#f87171' }} />
           <p className="text-sm text-zinc-300 flex-1">
-            <strong className="text-white">{summary.overdue_count} contas vencidas</strong> totalizando{' '}
-            <strong style={{ color: '#f87171' }}>{fmtBrl(summary.overdue_value)}</strong>
+            {t.rich('payables.overdueAlert', {
+              count: summary.overdue_count,
+              value: fmtBrl(summary.overdue_value),
+              s1: (chunks) => <strong className="text-white">{chunks}</strong>,
+              s2: (chunks) => <strong style={{ color: '#f87171' }}>{chunks}</strong>,
+            })}
           </p>
           <button
             onClick={() => setFilterStatus('overdue')}
             className="text-xs px-3 py-1 rounded-lg"
             style={{ border: '1px solid rgba(248,113,113,0.3)', color: '#f87171' }}
           >
-            Filtrar vencidas
+            {t('payables.filterOverdue')}
           </button>
         </div>
       )}
@@ -135,27 +143,27 @@ export default function ContasAPagarPage() {
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
         <Kpi
-          label="Em aberto"
+          label={t('payables.kpiOpen')}
           value={summary ? fmtBrl(summary.total_pending) : '…'}
-          sub={summary ? `${summary.pending_count} contas` : undefined}
+          sub={summary ? t('payables.kpiBillsCount', { count: summary.pending_count }) : undefined}
         />
         <Kpi
-          label="Vencidas"
+          label={t('payables.kpiOverdue')}
           value={summary ? fmtBrl(summary.overdue_value) : '…'}
           accent={summary && summary.overdue_value > 0 ? '#f87171' : undefined}
-          sub={summary ? `${summary.overdue_count} contas` : undefined}
+          sub={summary ? t('payables.kpiBillsCount', { count: summary.overdue_count }) : undefined}
         />
         <Kpi
-          label="Próximos 7d"
+          label={t('payables.kpiNext7d')}
           value={summary ? fmtBrl(summary.next_7d_value) : '…'}
           accent={summary && summary.next_7d_value > 0 ? '#fcd34d' : undefined}
         />
         <Kpi
-          label="Próximos 30d"
+          label={t('payables.kpiNext30d')}
           value={summary ? fmtBrl(summary.next_30d_value) : '…'}
         />
         <Kpi
-          label="Pago no mês"
+          label={t('payables.kpiPaidThisMonth')}
           value={summary ? fmtBrl(summary.paid_this_month) : '…'}
           accent="#22c55e"
         />
@@ -174,7 +182,7 @@ export default function ContasAPagarPage() {
                 color: filterStatus === s ? '#09090b' : '#a1a1aa',
               }}
             >
-              {filterLabel(s)}
+              {filterLabel(s, t)}
             </button>
           ))}
         </div>
@@ -184,7 +192,7 @@ export default function ContasAPagarPage() {
           </span>
           <input
             value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="Buscar por descrição, beneficiário ou número..."
+            placeholder={t('payables.searchPlaceholder')}
             className="w-full pl-8 pr-3 py-2 text-sm rounded-lg outline-none"
             style={{ background: '#111114', border: '1px solid #27272a', color: '#fff' }}
           />
@@ -196,18 +204,22 @@ export default function ContasAPagarPage() {
         <table className="w-full text-sm">
           <thead>
             <tr style={{ background: '#111114', borderBottom: '1px solid #1a1a1f' }}>
-              {['Número', 'Descrição', 'Beneficiário', 'Origem', 'Vencimento', 'Valor', 'Pago', 'Restante', 'Status', ''].map(h => (
-                <th key={h} className="text-left px-4 py-3 text-xs font-medium text-zinc-500">{h}</th>
+              {[
+                t('payables.colNumber'), t('payables.colDescription'), t('payables.colBeneficiary'),
+                t('payables.colSource'), t('payables.colDueDate'), t('payables.colAmount'),
+                t('payables.colPaid'), t('payables.colRemaining'), t('payables.colStatus'), '',
+              ].map((h, i) => (
+                <th key={i} className="text-left px-4 py-3 text-xs font-medium text-zinc-500">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={10} className="px-4 py-12 text-center text-zinc-500 text-sm">Carregando...</td></tr>
+              <tr><td colSpan={10} className="px-4 py-12 text-center text-zinc-500 text-sm">{t('payables.loadingRow')}</td></tr>
             ) : payables.length === 0 ? (
               <tr>
                 <td colSpan={10} className="px-4 py-12 text-center text-zinc-500 text-sm">
-                  Nenhuma conta a pagar nesse filtro.
+                  {t('payables.emptyRow')}
                 </td>
               </tr>
             ) : payables.map(p => (
@@ -232,11 +244,11 @@ export default function ContasAPagarPage() {
                   {p.category && <p className="text-xs text-zinc-500">{p.category}</p>}
                 </td>
                 <td className="px-4 py-3 text-zinc-300 text-xs">{p.beneficiary_name}</td>
-                <td className="px-4 py-3"><SourcePill type={p.source_type} /></td>
+                <td className="px-4 py-3"><SourcePill type={p.source_type} t={t} /></td>
                 <td className="px-4 py-3">
                   <p className="text-xs text-zinc-300">{fmtDate(p.due_date)}</p>
                   <p className="text-xs" style={{ color: p.status === 'overdue' ? '#f87171' : '#71717a' }}>
-                    {fmtRelativeDue(p.due_date, p.status)}
+                    {fmtRelativeDue(p.due_date, p.status, t)}
                   </p>
                 </td>
                 <td className="px-4 py-3 text-zinc-300 text-xs">{fmtBrl(p.amount)}</td>
@@ -246,7 +258,7 @@ export default function ContasAPagarPage() {
                 <td className="px-4 py-3 font-semibold text-white text-xs">
                   {p.status === 'paid' ? '—' : fmtBrl(p.remaining_amount)}
                 </td>
-                <td className="px-4 py-3"><PayableStatusPill status={p.status} /></td>
+                <td className="px-4 py-3"><PayableStatusPill status={p.status} t={t} /></td>
                 <td className="px-4 py-3 text-right">
                   <ChevronRight size={14} className="inline text-zinc-600" />
                 </td>
@@ -271,53 +283,56 @@ function Kpi({ label, value, accent, sub }: { label: string; value: string; acce
   )
 }
 
-function PayableStatusPill({ status }: { status: PayableStatus }) {
-  const c: Record<PayableStatus, { bg: string; fg: string; label: string }> = {
-    pending:   { bg: 'rgba(252,211,77,0.10)',  fg: '#fcd34d', label: 'Pendente' },
-    partial:   { bg: 'rgba(96,165,250,0.10)',  fg: '#60a5fa', label: 'Parcial' },
-    paid:      { bg: 'rgba(34,197,94,0.10)',   fg: '#22c55e', label: 'Pago' },
-    overdue:   { bg: 'rgba(248,113,113,0.10)', fg: '#f87171', label: 'Vencida' },
-    cancelled: { bg: 'rgba(113,113,122,0.10)', fg: '#71717a', label: 'Cancelada' },
+function PayableStatusPill({ status, t }: { status: PayableStatus; t: Translator }) {
+  const c: Record<PayableStatus, { bg: string; fg: string }> = {
+    pending:   { bg: 'rgba(252,211,77,0.10)',  fg: '#fcd34d' },
+    partial:   { bg: 'rgba(96,165,250,0.10)',  fg: '#60a5fa' },
+    paid:      { bg: 'rgba(34,197,94,0.10)',   fg: '#22c55e' },
+    overdue:   { bg: 'rgba(248,113,113,0.10)', fg: '#f87171' },
+    cancelled: { bg: 'rgba(113,113,122,0.10)', fg: '#71717a' },
   }
   const x = c[status]
   return (
     <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium"
       style={{ background: x.bg, color: x.fg, border: `1px solid ${x.fg}33` }}>
-      {x.label}
+      {t(`payables.status.${status}`)}
     </span>
   )
 }
 
-function SourcePill({ type }: { type: string }) {
-  const labels: Record<string, { label: string; color: string }> = {
-    dropship_oc:    { label: 'OC Dropship',  color: '#00E5FF' },
-    purchase_order: { label: 'Importação',   color: '#60a5fa' },
-    manual:         { label: 'Manual',       color: '#a1a1aa' },
-    service:        { label: 'Serviço',      color: '#fcd34d' },
-    rent:           { label: 'Aluguel',      color: '#fcd34d' },
-    tax:            { label: 'Imposto',      color: '#f87171' },
-    salary:         { label: 'Folha',        color: '#fb923c' },
-    utility:        { label: 'Utilities',    color: '#a1a1aa' },
-    other:          { label: 'Outro',        color: '#71717a' },
+const SOURCE_KEYS = ['dropship_oc', 'purchase_order', 'manual', 'service', 'rent', 'tax', 'salary', 'utility', 'other'] as const
+
+function SourcePill({ type, t }: { type: string; t: Translator }) {
+  const colors: Record<string, string> = {
+    dropship_oc:    '#00E5FF',
+    purchase_order: '#60a5fa',
+    manual:         '#a1a1aa',
+    service:        '#fcd34d',
+    rent:           '#fcd34d',
+    tax:            '#f87171',
+    salary:         '#fb923c',
+    utility:        '#a1a1aa',
+    other:          '#71717a',
   }
-  const t = labels[type] ?? labels.other
+  const color = colors[type] ?? colors.other
+  const key = (SOURCE_KEYS as readonly string[]).includes(type) ? type : 'other'
   return (
     <span className="inline-block px-2 py-0.5 rounded-full text-xs"
-      style={{ background: `${t.color}1A`, color: t.color, border: `1px solid ${t.color}33` }}>
-      {t.label}
+      style={{ background: `${color}1A`, color, border: `1px solid ${color}33` }}>
+      {t(`payables.source.${key}`)}
     </span>
   )
 }
 
 // ── helpers ────────────────────────────────────────────────────────────────────
 
-function filterLabel(s: string): string {
-  return s === 'pending_all' ? 'Em aberto'
-    : s === 'overdue' ? 'Vencidas'
-    : s === 'pending' ? 'Pendentes'
-    : s === 'partial' ? 'Parciais'
-    : s === 'paid' ? 'Pagas'
-    : 'Todas'
+function filterLabel(s: string, t: Translator): string {
+  return s === 'pending_all' ? t('payables.filter.pendingAll')
+    : s === 'overdue' ? t('payables.filter.overdue')
+    : s === 'pending' ? t('payables.filter.pending')
+    : s === 'partial' ? t('payables.filter.partial')
+    : s === 'paid' ? t('payables.filter.paid')
+    : t('payables.filter.all')
 }
 
 function fmtBrl(v: number) {
@@ -328,16 +343,15 @@ function fmtDate(d: string) {
   return new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' })
 }
 
-function fmtRelativeDue(d: string, status: PayableStatus): string {
+function fmtRelativeDue(d: string, status: PayableStatus, t: Translator): string {
   if (status === 'paid' || status === 'cancelled') return ''
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   const due = new Date(d)
   due.setHours(0, 0, 0, 0)
   const days = Math.round((due.getTime() - today.getTime()) / 86400000)
-  if (days < 0) return `vencida há ${Math.abs(days)}d`
-  if (days === 0) return 'hoje'
-  if (days === 1) return 'amanhã'
-  if (days <= 7) return `em ${days}d`
-  return `em ${days}d`
+  if (days < 0) return t('payables.dueOverdue', { days: Math.abs(days) })
+  if (days === 0) return t('payables.dueToday')
+  if (days === 1) return t('payables.dueTomorrow')
+  return t('payables.dueInDays', { days })
 }

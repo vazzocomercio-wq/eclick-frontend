@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState, useEffect, useCallback, useRef } from 'react'
+import { useTranslations } from 'next-intl'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { DataTable } from '@/components/data-table'
@@ -16,16 +17,9 @@ const PREFS_KEY = 'eclick.produtos.datatable.prefs'
 
 type QuickFilterValue = 'all' | 'active' | 'paused' | 'no_stock' | 'critical' | 'stock_high' | 'in_ads' | 'no_ads' | 'cadastro_pendente'
 
-const QUICK_OPTIONS: { value: QuickFilterValue; label: string }[] = [
-  { value: 'all',                label: 'Todos' },
-  { value: 'active',             label: 'Ativos' },
-  { value: 'paused',             label: 'Pausados' },
-  { value: 'no_stock',           label: 'Sem estoque' },
-  { value: 'critical',           label: 'Estoque crítico' },
-  { value: 'stock_high',         label: 'Estoque alto (>10)' },  // 2026-05-14: prioridade pra cadastro
-  { value: 'cadastro_pendente',  label: 'Cadastro pendente' },  // F2/F3 (2026-05-14)
-  { value: 'in_ads',             label: 'Em Ads' },
-  { value: 'no_ads',             label: 'Sem Ads' },
+const QUICK_FILTER_VALUES: QuickFilterValue[] = [
+  'all', 'active', 'paused', 'no_stock', 'critical',
+  'stock_high', 'cadastro_pendente', 'in_ads', 'no_ads',
 ]
 
 // Tipos vivem em page.tsx; redeclarado aqui pra contornar barrel.
@@ -50,10 +44,10 @@ const PM: Record<string, { abbr: string; bg: string; fg: string }> = {
   magalu:       { abbr: 'MG', bg: '#0086FF', fg: '#fff' },
 }
 
-const SM: Record<string, { label: string; bg: string; color: string }> = {
-  active: { label: 'Ativo',    bg: 'rgba(52,211,153,0.12)',  color: '#34d399' },
-  draft:  { label: 'Rascunho', bg: 'rgba(245,158,11,0.12)',  color: '#f59e0b' },
-  paused: { label: 'Pausado',  bg: 'rgba(113,113,122,0.15)', color: '#71717a' },
+const SM: Record<string, { bg: string; color: string }> = {
+  active: { bg: 'rgba(52,211,153,0.12)',  color: '#34d399' },
+  draft:  { bg: 'rgba(245,158,11,0.12)',  color: '#f59e0b' },
+  paused: { bg: 'rgba(113,113,122,0.15)', color: '#71717a' },
 }
 
 const brl = (v: number | null) => v == null ? '—' : v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -69,7 +63,7 @@ function loadPrefs(): { perPage: number; quickFilter: QuickFilterValue } {
       const p = JSON.parse(raw) as Partial<{ perPage: number; quickFilter: QuickFilterValue }>
       return {
         perPage:     [10, 25, 50, 100].includes(p.perPage ?? 0) ? p.perPage as number : 25,
-        quickFilter: QUICK_OPTIONS.some(o => o.value === p.quickFilter) ? p.quickFilter as QuickFilterValue : 'all',
+        quickFilter: QUICK_FILTER_VALUES.includes(p.quickFilter as QuickFilterValue) ? p.quickFilter as QuickFilterValue : 'all',
       }
     }
   } catch {}
@@ -104,6 +98,7 @@ export function ProdutosTable({
    * dois campos de busca na table view (um deles morto). */
   searchOverride?:  string
 }) {
+  const t            = useTranslations('produtos')
   const router       = useRouter()
   const pathname     = usePathname()
   const searchParams = useSearchParams()
@@ -255,7 +250,7 @@ export function ProdutosTable({
 
   const columns: Column<ProdutoRow>[] = useMemo(() => [
     {
-      key: 'photo', label: 'Foto', width: '56px',
+      key: 'photo', label: t('table.col.photo'), width: '56px',
       render: p => p.photo_urls?.[0]
         ? <img src={p.photo_urls[0]} alt="" className="w-10 h-10 rounded object-cover" style={{ border: '1px solid #1e1e24' }} />
         : <div className="w-10 h-10 rounded flex items-center justify-center text-zinc-700 text-[10px]" style={{ background: '#0c0c10', border: '1px solid #1e1e24' }}>—</div>,
@@ -265,7 +260,7 @@ export function ProdutosTable({
       render: p => <span className="text-[11px] font-mono text-zinc-400">{p.sku ?? '—'}</span>,
     },
     {
-      key: 'name', label: 'Título',
+      key: 'name', label: t('table.col.title'),
       render: p => (
         <div className="min-w-0">
           <p className="text-zinc-100 text-xs font-medium truncate max-w-[280px]">{p.name}</p>
@@ -274,7 +269,7 @@ export function ProdutosTable({
       ),
     },
     {
-      key: 'platforms', label: 'Marketplace',
+      key: 'platforms', label: t('table.col.marketplace'),
       render: p => (
         <div className="flex items-center gap-1 flex-wrap">
           {(p.platforms ?? []).map(plat => {
@@ -291,7 +286,7 @@ export function ProdutosTable({
       ),
     },
     {
-      key: 'stock', label: 'Estoque', align: 'right', sortable: true,
+      key: 'stock', label: t('table.col.stock'), align: 'right', sortable: true,
       render: p => {
         const s = p.stock ?? 0
         const color = s === 0 ? '#f87171' : s <= 5 ? '#facc15' : '#a1a1aa'
@@ -299,31 +294,31 @@ export function ProdutosTable({
       },
     },
     {
-      key: 'price', label: 'Preço', align: 'right', sortable: true,
+      key: 'price', label: t('table.col.price'), align: 'right', sortable: true,
       render: p => <span className="text-xs font-semibold tabular-nums" style={{ color: '#00E5FF' }}>{brl(p.price)}</span>,
     },
     {
-      key: 'status', label: 'Status',
+      key: 'status', label: t('table.col.status'),
       render: p => {
         const m = SM[p.status]
         return (
           <span className="text-[10px] font-semibold px-2 py-0.5 rounded"
-            style={{ color: m.color, background: m.bg }}>{m.label}</span>
+            style={{ color: m.color, background: m.bg }}>{t(`table.status.${p.status}`)}</span>
         )
       },
     },
-  ], [])
+  ], [t])
 
   const bulkActions: BulkAction<ProdutoRow>[] = useMemo(() => {
     const acts: BulkAction<ProdutoRow>[] = []
     if (onBulkPause) acts.push({
-      key: 'pause-bulk', label: 'Pausar', icon: <Pause size={11} />, tone: 'warn',
+      key: 'pause-bulk', label: t('table.bulk.pause'), icon: <Pause size={11} />, tone: 'warn',
       onClick: rows => {
         // Filtra só rows com status='active' direto da seleção (cada row já
         // carrega o status atual; não precisa lookup numa lista externa).
         const ids = rows.filter(r => r.status === 'active').map(r => r.id)
         if (ids.length === 0) {
-          pushToast({ tone: 'info', message: 'Nenhum produto ativo na seleção' })
+          pushToast({ tone: 'info', message: t('table.bulk.noActiveSelected') })
           return
         }
         void onBulkPause(ids)
@@ -331,7 +326,7 @@ export function ProdutosTable({
       },
     })
     acts.push({
-      key: 'export-bulk', label: 'Exportar CSV', icon: <FileDown size={11} />,
+      key: 'export-bulk', label: t('table.bulk.exportCsv'), icon: <FileDown size={11} />,
       onClick: rows => {
         if (rows.length === 0) return
         const cols = ['sku','name','status','stock','price','brand','platforms']
@@ -346,12 +341,12 @@ export function ProdutosTable({
         const a    = document.createElement('a'); a.href = url
         a.download = `produtos-selecionados-${new Date().toISOString().slice(0,10)}.csv`
         a.click(); URL.revokeObjectURL(url)
-        pushToast({ tone: 'success', message: `✓ ${rows.length} produto${rows.length === 1 ? '' : 's'} exportado${rows.length === 1 ? '' : 's'}` })
+        pushToast({ tone: 'success', message: '✓ ' + t('table.bulk.exported', { count: rows.length }) })
       },
     })
     if (onBulkStorefront) {
       acts.push({
-        key: 'storefront-add', label: 'Enviar para a loja', icon: <Store size={11} />,
+        key: 'storefront-add', label: t('table.bulk.sendToStore'), icon: <Store size={11} />,
         onClick: rows => {
           if (rows.length === 0) return
           void onBulkStorefront(rows.map(r => r.id), true)
@@ -359,7 +354,7 @@ export function ProdutosTable({
         },
       })
       acts.push({
-        key: 'storefront-remove', label: 'Tirar da loja', icon: <Store size={11} />,
+        key: 'storefront-remove', label: t('table.bulk.removeFromStore'), icon: <Store size={11} />,
         onClick: rows => {
           if (rows.length === 0) return
           void onBulkStorefront(rows.map(r => r.id), false)
@@ -368,7 +363,7 @@ export function ProdutosTable({
       })
     }
     if (onBulkDelete) acts.push({
-      key: 'delete-bulk', label: 'Excluir', icon: <Trash2 size={11} />, tone: 'danger',
+      key: 'delete-bulk', label: t('table.bulk.delete'), icon: <Trash2 size={11} />, tone: 'danger',
       onClick: rows => {
         const ids = rows.map(r => r.id)
         void onBulkDelete(ids)
@@ -376,35 +371,35 @@ export function ProdutosTable({
       },
     })
     return acts
-  }, [onBulkPause, onBulkDelete, onBulkStorefront])
+  }, [onBulkPause, onBulkDelete, onBulkStorefront, t])
 
   const rowActions = useMemo(() => (p: ProdutoRow): RowAction<ProdutoRow>[] => {
     const acts: RowAction<ProdutoRow>[] = [
-      { key: 'view',  label: 'Ver / Editar',          icon: <Eye size={12} />, onClick: () => router.push(`/dashboard/produtos/${p.id}/editar`) },
+      { key: 'view',  label: t('table.row.viewEdit'),       icon: <Eye size={12} />, onClick: () => router.push(`/dashboard/produtos/${p.id}/editar`) },
     ]
     if (p.status !== 'draft' && onToggleStatus) {
       acts.push({
         key: 'toggle',
-        label: p.status === 'active' ? 'Pausar anúncio' : 'Ativar anúncio',
+        label: p.status === 'active' ? t('table.row.pause') : t('table.row.activate'),
         icon:  p.status === 'active' ? <Pause size={12} /> : <Play size={12} />,
         tone:  p.status === 'active' ? 'warn' : 'success',
         onClick: () => onToggleStatus(p.id, p.status === 'active' ? 'paused' : 'active'),
       })
     }
     acts.push(
-      { key: 'ads',     label: 'Adicionar a campanha Ads',   icon: <Megaphone size={12} />, onClick: () => todoToast('Vínculo com campanha Ads') },
-      { key: 'ai',      label: 'Gerar conteúdo IA',          icon: <Sparkles  size={12} />, onClick: () => todoToast('IA — título / descrição / fotos / atributos') },
-      { key: 'dup',     label: 'Duplicar (outro marketplace)', icon: <Copy size={12} />,    onClick: () => onDuplicate?.(p.id) ?? todoToast('Duplicar produto') },
-      { key: 'delete',  label: 'Excluir',                    icon: <Trash2 size={12} />, tone: 'danger',
-        onClick: () => onDelete?.(p.id) ?? todoToast('Excluir produto') },
+      { key: 'ads',     label: t('table.row.addToAds'),      icon: <Megaphone size={12} />, onClick: () => todoToast(t('table.row.adsTodo')) },
+      { key: 'ai',      label: t('table.row.generateAi'),    icon: <Sparkles  size={12} />, onClick: () => todoToast(t('table.row.aiTodo')) },
+      { key: 'dup',     label: t('table.row.duplicate'),     icon: <Copy size={12} />,    onClick: () => onDuplicate?.(p.id) ?? todoToast(t('table.row.duplicateTodo')) },
+      { key: 'delete',  label: t('table.row.delete'),        icon: <Trash2 size={12} />, tone: 'danger',
+        onClick: () => onDelete?.(p.id) ?? todoToast(t('table.row.deleteTodo')) },
     )
     return acts
-  }, [router, onToggleStatus, onDuplicate, onDelete])
+  }, [router, onToggleStatus, onDuplicate, onDelete, t])
 
   const quickFilterProp: QuickFilter = {
-    label:    'Filtro',
+    label:    t('table.filter'),
     value:    quickFilter,
-    options:  QUICK_OPTIONS,
+    options:  QUICK_FILTER_VALUES.map(v => ({ value: v, label: t(`table.quickFilter.${v}`) })),
     onChange: v => { setQuickFilter(v as QuickFilterValue); setPage(1); setSelected([]) },
   }
 
@@ -412,33 +407,33 @@ export function ProdutosTable({
   // cadastro de produtos com estoque alto primeiro.
   const stockFilters = (
     <div className="flex items-center gap-1.5 text-[11px] text-zinc-400">
-      <span className="font-medium">Estoque</span>
+      <span className="font-medium">{t('table.stock')}</span>
       <input
         type="number"
         inputMode="numeric"
-        placeholder="min"
+        placeholder={t('table.min')}
         value={stockMin}
         onChange={e => { setStockMin(e.target.value); setPage(1) }}
         className="w-14 px-2 py-1 rounded-md text-[11px] text-white border outline-none transition-colors focus:border-cyan-500/60 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
         style={{ background: '#0c0c10', borderColor: '#27272a' }}
-        title="Estoque mínimo"
+        title={t('table.minStock')}
       />
       <span className="text-zinc-600">–</span>
       <input
         type="number"
         inputMode="numeric"
-        placeholder="max"
+        placeholder={t('table.max')}
         value={stockMax}
         onChange={e => { setStockMax(e.target.value); setPage(1) }}
         className="w-14 px-2 py-1 rounded-md text-[11px] text-white border outline-none transition-colors focus:border-cyan-500/60 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
         style={{ background: '#0c0c10', borderColor: '#27272a' }}
-        title="Estoque máximo"
+        title={t('table.maxStock')}
       />
       {(stockMin || stockMax) && (
         <button
           onClick={() => { setStockMin(''); setStockMax(''); setPage(1) }}
           className="text-zinc-500 hover:text-zinc-300 transition-colors"
-          title="Limpar filtro de estoque">
+          title={t('table.clearStockFilter')}>
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
           </svg>
@@ -449,8 +444,8 @@ export function ProdutosTable({
 
   return (
     <DataTable<ProdutoRow>
-      title="Produtos (DataTable beta)"
-      breadcrumb={['Catálogo']}
+      title={t('table.title')}
+      breadcrumb={[t('table.breadcrumb')]}
       quickFilter={quickFilterProp}
       filters={stockFilters}
       columns={columns}
@@ -468,7 +463,7 @@ export function ProdutosTable({
       }}
       search={searchControlled ? undefined : {
         value: internalSearch,
-        placeholder: 'Buscar por nome, SKU ou marca…',
+        placeholder: t('table.searchPlaceholder'),
         onChange: v => { setInternalSearch(v); setPage(1) },
       }}
       selection={{ mode: 'multi', selected, onChange: setSelected }}
@@ -476,14 +471,14 @@ export function ProdutosTable({
       rowActions={rowActions}
       emptyState={{
         icon: <SearchIcon size={20} />,
-        title: 'Nenhum produto encontrado',
-        description: search ? 'Tente outra busca.' : 'O catálogo está vazio. Importe do ML pra começar.',
+        title: t('table.emptyTitle'),
+        description: search ? t('table.emptySearch') : t('table.emptyCatalog'),
       }}
       headerExtras={(onRefresh || isServerMode) && (
         <button onClick={() => { onRefresh?.(); void refetch() }}
           className="text-[11px] px-3 py-2 rounded-xl font-semibold transition-colors"
           style={{ background: '#111114', color: '#a1a1aa', border: '1px solid #27272a' }}>
-          Atualizar
+          {t('table.refresh')}
         </button>
       )}
     />

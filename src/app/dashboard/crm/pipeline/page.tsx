@@ -1,11 +1,14 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import {
   Plus, X, AlertTriangle, Calendar, DollarSign, User, Building2,
   GripVertical, Pencil, Trash2, TrendingUp, Target, Trophy, XCircle,
 } from 'lucide-react'
+
+type TFn = (key: string, values?: Record<string, string | number>) => string
 import {
   DndContext, DragEndEvent, DragOverlay, DragStartEvent,
   useDroppable, useDraggable, PointerSensor, useSensor, useSensors,
@@ -33,13 +36,13 @@ interface Deal {
 
 // ── Stage config ──────────────────────────────────────────────────────────────
 
-const STAGES: { id: Stage; label: string; color: string; prob: number; icon: React.ReactNode }[] = [
-  { id: 'prospecting',   label: 'Prospecção',   color: '#71717a', prob: 25,  icon: <Target size={13} /> },
-  { id: 'qualification', label: 'Qualificação', color: '#3b82f6', prob: 40,  icon: <TrendingUp size={13} /> },
-  { id: 'proposal',      label: 'Proposta',     color: '#a78bfa', prob: 60,  icon: <DollarSign size={13} /> },
-  { id: 'negotiation',   label: 'Negociação',   color: '#f59e0b', prob: 80,  icon: <Building2 size={13} /> },
-  { id: 'won',           label: 'Ganho',        color: '#22c55e', prob: 100, icon: <Trophy size={13} /> },
-  { id: 'lost',          label: 'Perdido',      color: '#f87171', prob: 0,   icon: <XCircle size={13} /> },
+const STAGES: { id: Stage; color: string; prob: number; icon: React.ReactNode }[] = [
+  { id: 'prospecting',   color: '#71717a', prob: 25,  icon: <Target size={13} /> },
+  { id: 'qualification', color: '#3b82f6', prob: 40,  icon: <TrendingUp size={13} /> },
+  { id: 'proposal',      color: '#a78bfa', prob: 60,  icon: <DollarSign size={13} /> },
+  { id: 'negotiation',   color: '#f59e0b', prob: 80,  icon: <Building2 size={13} /> },
+  { id: 'won',           color: '#22c55e', prob: 100, icon: <Trophy size={13} /> },
+  { id: 'lost',          color: '#f87171', prob: 0,   icon: <XCircle size={13} /> },
 ]
 
 const KANBAN_STAGES = STAGES.filter(s => s.id !== 'won' && s.id !== 'lost')
@@ -151,6 +154,7 @@ function PipelineColumn({ stage, deals, onAdd, onEdit, onDelete }: {
   stage: typeof STAGES[0]; deals: Deal[]
   onAdd: (s: Stage) => void; onEdit: (d: Deal) => void; onDelete: (id: string) => void
 }) {
+  const t = useTranslations('crm.pipeline')
   const { setNodeRef, isOver } = useDroppable({ id: stage.id })
   const total = deals.reduce((s, d) => s + d.value, 0)
   const weighted = deals.reduce((s, d) => s + d.value * (d.probability / 100), 0)
@@ -160,7 +164,7 @@ function PipelineColumn({ stage, deals, onAdd, onEdit, onDelete }: {
       <div className="flex items-center justify-between mb-2 px-1">
         <div className="flex items-center gap-1.5">
           <span style={{ color: stage.color }}>{stage.icon}</span>
-          <span className="text-xs font-semibold text-zinc-300">{stage.label}</span>
+          <span className="text-xs font-semibold text-zinc-300">{t(`stages.${stage.id}`)}</span>
           <span className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold" style={{ background: 'rgba(255,255,255,0.06)', color: '#71717a' }}>{deals.length}</span>
         </div>
         <button onClick={() => onAdd(stage.id)} className="p-1 rounded-lg text-zinc-600 hover:text-zinc-300 hover:bg-zinc-800 transition-all">
@@ -173,7 +177,7 @@ function PipelineColumn({ stage, deals, onAdd, onEdit, onDelete }: {
         <div className="flex items-center gap-2 mb-2 px-1">
           <span className="text-[10px] text-zinc-600">{brl(total)}</span>
           <span className="text-[10px] text-zinc-700">·</span>
-          <span className="text-[10px]" style={{ color: stage.color }}>{brl(weighted)} pond.</span>
+          <span className="text-[10px]" style={{ color: stage.color }}>{t('weighted', { value: brl(weighted) })}</span>
         </div>
       )}
 
@@ -182,7 +186,7 @@ function PipelineColumn({ stage, deals, onAdd, onEdit, onDelete }: {
         {deals.map(d => <DealCard key={d.id} deal={d} onEdit={onEdit} onDelete={onDelete} />)}
         {deals.length === 0 && (
           <div className="flex items-center justify-center h-16">
-            <p className="text-[11px] text-zinc-700">Sem negócios</p>
+            <p className="text-[11px] text-zinc-700">{t('noDeals')}</p>
           </div>
         )}
       </div>
@@ -197,6 +201,7 @@ type DealForm = { title: string; contact_name: string; company: string; value: s
 function DealModal({ initial, defaultStage, onSave, onClose }: {
   initial?: Deal; defaultStage: Stage; onSave: (f: DealForm) => Promise<void>; onClose: () => void
 }) {
+  const t = useTranslations('crm.pipeline')
   const [form, setForm] = useState<DealForm>({
     title:          initial?.title          ?? '',
     contact_name:   initial?.contact_name   ?? '',
@@ -219,7 +224,7 @@ function DealModal({ initial, defaultStage, onSave, onClose }: {
   }
 
   async function submit() {
-    if (!form.title.trim()) { setErr('Título é obrigatório'); return }
+    if (!form.title.trim()) { setErr(t('errors.titleRequired')); return }
     setSaving(true); setErr(null)
     try { await onSave(form) }
     catch (e: any) { setErr(e.message); setSaving(false) }
@@ -233,64 +238,64 @@ function DealModal({ initial, defaultStage, onSave, onClose }: {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.75)' }}>
       <div className="w-full max-w-lg rounded-2xl p-6 space-y-4 overflow-y-auto max-h-[90vh]" style={{ background: '#111114', border: '1px solid #2e2e33' }}>
         <div className="flex items-center justify-between">
-          <h3 className="text-white font-semibold text-sm">{initial ? 'Editar Negócio' : 'Novo Negócio'}</h3>
+          <h3 className="text-white font-semibold text-sm">{initial ? t('modal.editTitle') : t('modal.newTitle')}</h3>
           <button onClick={onClose} className="text-zinc-500 hover:text-white transition-colors"><X size={18} /></button>
         </div>
 
         <div>
-          <label className={lbl}>Título *</label>
-          <input value={form.title} onChange={e => set('title', e.target.value)} className={inp} style={is} placeholder="Nome do negócio ou oportunidade"
+          <label className={lbl}>{t('modal.titleField')}</label>
+          <input value={form.title} onChange={e => set('title', e.target.value)} className={inp} style={is} placeholder={t('modal.titlePlaceholder')}
             onFocus={e => (e.target.style.borderColor = '#00E5FF')} onBlur={e => (e.target.style.borderColor = '#3f3f46')} />
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className={lbl}>Contato</label>
-            <input value={form.contact_name} onChange={e => set('contact_name', e.target.value)} className={inp} style={is} placeholder="Nome do contato"
+            <label className={lbl}>{t('modal.contact')}</label>
+            <input value={form.contact_name} onChange={e => set('contact_name', e.target.value)} className={inp} style={is} placeholder={t('modal.contactPlaceholder')}
               onFocus={e => (e.target.style.borderColor = '#00E5FF')} onBlur={e => (e.target.style.borderColor = '#3f3f46')} />
           </div>
           <div>
-            <label className={lbl}>Empresa</label>
-            <input value={form.company} onChange={e => set('company', e.target.value)} className={inp} style={is} placeholder="Empresa"
+            <label className={lbl}>{t('modal.company')}</label>
+            <input value={form.company} onChange={e => set('company', e.target.value)} className={inp} style={is} placeholder={t('modal.companyPlaceholder')}
               onFocus={e => (e.target.style.borderColor = '#00E5FF')} onBlur={e => (e.target.style.borderColor = '#3f3f46')} />
           </div>
           <div>
-            <label className={lbl}>Valor (R$)</label>
+            <label className={lbl}>{t('modal.value')}</label>
             <input type="number" min={0} value={form.value} onChange={e => set('value', e.target.value)} className={inp} style={is} placeholder="0"
               onFocus={e => (e.target.style.borderColor = '#00E5FF')} onBlur={e => (e.target.style.borderColor = '#3f3f46')} />
           </div>
           <div>
-            <label className={lbl}>Previsão de fechamento</label>
+            <label className={lbl}>{t('modal.expectedClose')}</label>
             <input type="date" value={form.expected_close} onChange={e => set('expected_close', e.target.value)} className={inp} style={is}
               onFocus={e => (e.target.style.borderColor = '#00E5FF')} onBlur={e => (e.target.style.borderColor = '#3f3f46')} />
           </div>
           <div>
-            <label className={lbl}>Estágio</label>
+            <label className={lbl}>{t('modal.stage')}</label>
             <select value={form.stage} onChange={e => set('stage', e.target.value as Stage)} className={inp + ' cursor-pointer'} style={is}>
-              {STAGES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+              {STAGES.map(s => <option key={s.id} value={s.id}>{t(`stages.${s.id}`)}</option>)}
             </select>
           </div>
           <div>
-            <label className={lbl}>Probabilidade (%)</label>
+            <label className={lbl}>{t('modal.probability')}</label>
             <input type="number" min={0} max={100} value={form.probability} onChange={e => set('probability', e.target.value)} className={inp} style={is}
               onFocus={e => (e.target.style.borderColor = '#00E5FF')} onBlur={e => (e.target.style.borderColor = '#3f3f46')} />
           </div>
         </div>
 
         <div>
-          <label className={lbl}>Notas</label>
-          <textarea value={form.notes} onChange={e => set('notes', e.target.value)} className={inp} style={{ ...is, resize: 'none' }} rows={2} placeholder="Observações…"
+          <label className={lbl}>{t('modal.notes')}</label>
+          <textarea value={form.notes} onChange={e => set('notes', e.target.value)} className={inp} style={{ ...is, resize: 'none' }} rows={2} placeholder={t('modal.notesPlaceholder')}
             onFocus={e => (e.target.style.borderColor = '#00E5FF')} onBlur={e => (e.target.style.borderColor = '#3f3f46')} />
         </div>
 
         {err && <p className="text-xs text-red-400">{err}</p>}
 
         <div className="flex gap-2 pt-1">
-          <button onClick={onClose} className="flex-1 py-2 rounded-lg text-xs font-semibold text-zinc-400 border border-zinc-800">Cancelar</button>
+          <button onClick={onClose} className="flex-1 py-2 rounded-lg text-xs font-semibold text-zinc-400 border border-zinc-800">{t('cancel')}</button>
           <button onClick={submit} disabled={saving}
             className="glow-rainbow flex-1 py-2 rounded-lg text-xs font-semibold transition-all disabled:opacity-60"
             style={{ background: '#00E5FF', color: '#000' }}>
-            {saving ? 'Salvando…' : (initial ? 'Salvar' : 'Criar negócio')}
+            {saving ? t('saving') : (initial ? t('save') : t('modal.create'))}
           </button>
         </div>
       </div>
@@ -301,6 +306,7 @@ function DealModal({ initial, defaultStage, onSave, onClose }: {
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function PipelinePage() {
+  const t = useTranslations('crm.pipeline')
   const [deals, setDeals]       = useState<Deal[]>([])
   const [loading, setLoading]   = useState(true)
   const [noTable, setNoTable]   = useState(false)
@@ -396,9 +402,9 @@ export default function PipelinePage() {
 
   async function deleteDeal(id: string) {
     const ok = await confirm({
-      title:        'Excluir negócio',
-      message:      'Excluir este negócio?',
-      confirmLabel: 'Excluir',
+      title:        t('confirm.deleteTitle'),
+      message:      t('confirm.deleteMessage'),
+      confirmLabel: t('confirm.deleteConfirm'),
       variant:      'danger',
     })
     if (!ok) return
@@ -411,21 +417,21 @@ export default function PipelinePage() {
 
   if (noTable) return (
     <div className="p-6 space-y-4 min-h-full" style={{ background: 'var(--background)' }}>
-      <div><p className="text-zinc-500 text-xs">CRM</p><h2 className="text-white text-lg font-semibold mt-0.5">Pipeline</h2></div>
+      <div><p className="text-zinc-500 text-xs">{t('breadcrumb')}</p><h2 className="text-white text-lg font-semibold mt-0.5">{t('pipelineShort')}</h2></div>
       <div className="rounded-2xl p-5 space-y-4 max-w-2xl" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
         <div className="flex items-center gap-2 text-amber-400">
-          <AlertTriangle size={16} /><p className="text-sm font-semibold">Tabela <code className="font-mono">deals</code> não encontrada</p>
+          <AlertTriangle size={16} /><p className="text-sm font-semibold">{t.rich('tableMissing', { code: (chunks) => <code className="font-mono">{chunks}</code> })}</p>
         </div>
-        <p className="text-xs text-zinc-400">Execute o SQL abaixo no Supabase SQL Editor:</p>
+        <p className="text-xs text-zinc-400">{t('runSqlBelow')}</p>
         <pre className="text-[10px] font-mono p-4 rounded-xl overflow-x-auto leading-relaxed"
           style={{ background: '#0a0a0d', border: '1px solid #1e1e24', color: '#a1a1aa' }}>{CREATE_SQL}</pre>
         <div className="flex gap-2">
           <button onClick={() => { navigator.clipboard.writeText(CREATE_SQL); setCopied(true); setTimeout(() => setCopied(false), 2000) }}
             className="px-4 py-2 rounded-lg text-xs font-semibold transition-all"
             style={{ background: copied ? 'rgba(34,197,94,0.15)' : 'rgba(0,229,255,0.1)', color: copied ? '#22c55e' : '#00E5FF', border: `1px solid ${copied ? 'rgba(34,197,94,0.3)' : 'rgba(0,229,255,0.2)'}` }}>
-            {copied ? 'Copiado!' : 'Copiar SQL'}
+            {copied ? t('copied') : t('copySql')}
           </button>
-          <button onClick={load} className="px-4 py-2 rounded-lg text-xs font-semibold border border-zinc-800 text-zinc-400">Verificar novamente</button>
+          <button onClick={load} className="px-4 py-2 rounded-lg text-xs font-semibold border border-zinc-800 text-zinc-400">{t('checkAgain')}</button>
         </div>
       </div>
     </div>
@@ -438,21 +444,21 @@ export default function PipelinePage() {
 
       {/* Header */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div><p className="text-zinc-500 text-xs">CRM</p><h2 className="text-white text-lg font-semibold mt-0.5">Pipeline de Vendas</h2></div>
+        <div><p className="text-zinc-500 text-xs">{t('breadcrumb')}</p><h2 className="text-white text-lg font-semibold mt-0.5">{t('title')}</h2></div>
         <div className="flex items-center gap-2">
           <div className="flex rounded-lg overflow-hidden" style={{ border: '1px solid #2e2e33' }}>
             {(['kanban', 'list'] as const).map(v => (
               <button key={v} onClick={() => setView(v)}
                 className="px-3 py-1.5 text-xs font-semibold transition-all"
                 style={{ background: view === v ? 'rgba(0,229,255,0.12)' : 'transparent', color: view === v ? '#00E5FF' : '#71717a' }}>
-                {v === 'kanban' ? 'Kanban' : 'Lista'}
+                {v === 'kanban' ? t('viewKanban') : t('viewList')}
               </button>
             ))}
           </div>
           <button onClick={() => setModal({ open: true, defaultStage: 'prospecting' })}
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all"
             style={{ background: '#00E5FF', color: '#000' }}>
-            <Plus size={14} /> Novo Negócio
+            <Plus size={14} /> {t('newDeal')}
           </button>
         </div>
       </div>
@@ -461,10 +467,10 @@ export default function PipelinePage() {
       {!loading && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
-            { label: 'Pipeline total',    value: brl(kpis.pipeline), color: '#00E5FF' },
-            { label: 'Receita ponderada', value: brl(kpis.weighted), color: '#a78bfa' },
-            { label: 'Negócios ativos',   value: kpis.active,        color: '#f59e0b' },
-            { label: 'Taxa de conversão', value: `${kpis.winRate}%`, color: '#22c55e' },
+            { label: t('kpi.pipelineTotal'),  value: brl(kpis.pipeline), color: '#00E5FF' },
+            { label: t('kpi.weightedRevenue'), value: brl(kpis.weighted), color: '#a78bfa' },
+            { label: t('kpi.activeDeals'),     value: kpis.active,        color: '#f59e0b' },
+            { label: t('kpi.winRate'),         value: `${kpis.winRate}%`, color: '#22c55e' },
           ].map(k => (
             <div key={k.label} className="rounded-xl p-4" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
               <p className="text-zinc-500 text-[11px] font-medium">{k.label}</p>
@@ -478,7 +484,7 @@ export default function PipelinePage() {
       {!loading && deals.length > 0 && (
         <div className="flex gap-1 h-1.5 rounded-full overflow-hidden">
           {KANBAN_STAGES.map(s => byStage[s.id].length > 0 && (
-            <div key={s.id} title={`${s.label}: ${byStage[s.id].length}`}
+            <div key={s.id} title={`${t(`stages.${s.id}`)}: ${byStage[s.id].length}`}
               className="rounded-sm transition-all"
               style={{ background: s.color, flex: byStage[s.id].length }} />
           ))}
@@ -515,14 +521,22 @@ export default function PipelinePage() {
           <table className="w-full" style={{ minWidth: 640 }}>
             <thead>
               <tr style={{ background: '#0a0a0d', borderBottom: '1px solid #1e1e24' }}>
-                {['Negócio', 'Contato', 'Estágio', 'Valor', 'Prob.', 'Fechamento', ''].map(h => (
-                  <th key={h} className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-zinc-600">{h}</th>
+                {[
+                  { key: 'deal', label: t('list.deal') },
+                  { key: 'contact', label: t('list.contact') },
+                  { key: 'stage', label: t('list.stage') },
+                  { key: 'value', label: t('list.value') },
+                  { key: 'prob', label: t('list.prob') },
+                  { key: 'close', label: t('list.close') },
+                  { key: 'actions', label: '' },
+                ].map(h => (
+                  <th key={h.key} className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-zinc-600">{h.label}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {deals.length === 0 ? (
-                <tr><td colSpan={7} className="px-4 py-10 text-center text-zinc-600 text-sm">Nenhum negócio cadastrado.</td></tr>
+                <tr><td colSpan={7} className="px-4 py-10 text-center text-zinc-600 text-sm">{t('list.empty')}</td></tr>
               ) : deals.map(d => {
                 const s = STAGES.find(st => st.id === d.stage)!
                 return (
@@ -537,7 +551,7 @@ export default function PipelinePage() {
                     <td className="px-3 py-2.5">
                       <span className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full w-fit"
                         style={{ background: `${s.color}18`, color: s.color }}>
-                        {s.icon} {s.label}
+                        {s.icon} {t(`stages.${s.id}`)}
                       </span>
                     </td>
                     <td className="px-3 py-2.5"><span className="text-xs font-bold" style={{ color: s.color }}>{brl(d.value)}</span></td>
@@ -568,9 +582,9 @@ export default function PipelinePage() {
             <div key={s.id} className="rounded-xl p-3 flex items-center gap-3" style={{ background: '#111114', border: `1px solid ${s.color}20` }}>
               <span style={{ color: s.color }}>{s.icon}</span>
               <div>
-                <p className="text-[11px] font-semibold" style={{ color: s.color }}>{s.label}</p>
+                <p className="text-[11px] font-semibold" style={{ color: s.color }}>{t(`stages.${s.id}`)}</p>
                 <p className="text-xs font-black" style={{ color: s.color }}>
-                  {byStage[s.id].length} negócio{byStage[s.id].length !== 1 ? 's' : ''} · {brl(byStage[s.id].reduce((sum, d) => sum + d.value, 0))}
+                  {t('dealSummary', { count: byStage[s.id].length, value: brl(byStage[s.id].reduce((sum, d) => sum + d.value, 0)) })}
                 </p>
               </div>
             </div>

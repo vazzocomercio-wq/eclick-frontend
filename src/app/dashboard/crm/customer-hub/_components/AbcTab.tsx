@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import { ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import { api } from './api'
 import { TopCustomer, Curve, ABC_COLORS, fmtCurrency, fmtNumber } from './types'
@@ -9,6 +10,7 @@ import CustomerDetailDrawer from '@/components/customer-hub/CustomerDetailDrawer
 type CurveFilter = Curve | 'all'
 
 export function AbcTab({ onToast }: { onToast: (m: string, type?: 'success' | 'error') => void }) {
+  const t = useTranslations('crm.customerHub.abc')
   const [filter, setFilter]   = useState<CurveFilter>('all')
   const [list, setList]       = useState<TopCustomer[]>([])
   const [loading, setLoading] = useState(true)
@@ -49,7 +51,7 @@ export function AbcTab({ onToast }: { onToast: (m: string, type?: 'success' | 'e
 
   function exportCsv() {
     const rows = [
-      ['Cliente', 'Curva', 'Compras (R$)', 'Frequência', 'Ticket médio', 'Última compra'],
+      [t('csv.customer'), t('csv.curve'), t('csv.purchases'), t('csv.frequency'), t('csv.avgTicket'), t('csv.lastPurchase')],
       ...filtered.map(c => [
         c.display_name ?? c.phone ?? c.id.slice(0, 8),
         c.abc_curve ?? '—',
@@ -72,7 +74,7 @@ export function AbcTab({ onToast }: { onToast: (m: string, type?: 'success' | 'e
   return (
     <>
       <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
-        <p className="text-zinc-400 text-sm">Distribuição Pareto + tabela top 200 por receita. Exporte CSV pra ações segmentadas.</p>
+        <p className="text-zinc-400 text-sm">{t('intro')}</p>
         <div className="flex gap-1">
           {(['all', 'A', 'B', 'C'] as CurveFilter[]).map(f => (
             <button key={f}
@@ -83,14 +85,14 @@ export function AbcTab({ onToast }: { onToast: (m: string, type?: 'success' | 'e
                 color:       filter === f ? (f === 'all' ? '#00E5FF' : ABC_COLORS[f as Curve]) : '#a1a1aa',
                 background:  filter === f ? `${f === 'all' ? '#00E5FF' : ABC_COLORS[f as Curve]}1a` : 'transparent',
               }}
-            >{f === 'all' ? 'Todos' : `Curva ${f}`}</button>
+            >{f === 'all' ? t('filterAll') : t('filterCurve', { curve: f })}</button>
           ))}
         </div>
       </div>
 
       {/* Pareto chart */}
       <div className="rounded-2xl p-5 mb-5" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
-        <p className="text-zinc-300 text-sm font-semibold mb-3">Pareto — top 50 por receita (% cumulativo)</p>
+        <p className="text-zinc-300 text-sm font-semibold mb-3">{t('paretoTitle')}</p>
         <div style={{ width: '100%', height: 280 }}>
           <ResponsiveContainer>
             <ComposedChart data={paretoData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
@@ -106,34 +108,34 @@ export function AbcTab({ onToast }: { onToast: (m: string, type?: 'success' | 'e
                   return name === 'cumulative_pct' ? `${num.toFixed(1)}%` : fmtCurrency(num)
                 }}
               />
-              <Bar  yAxisId="left"  dataKey="revenue"        fill="#00E5FF" name="Receita" />
-              <Line yAxisId="right" dataKey="cumulative_pct" stroke="#34d399" strokeWidth={2} dot={false} name="% acumulado" />
+              <Bar  yAxisId="left"  dataKey="revenue"        fill="#00E5FF" name={t('seriesRevenue')} />
+              <Line yAxisId="right" dataKey="cumulative_pct" stroke="#34d399" strokeWidth={2} dot={false} name={t('seriesCumulative')} />
             </ComposedChart>
           </ResponsiveContainer>
         </div>
       </div>
 
       <div className="flex items-center justify-between mb-3">
-        <p className="text-zinc-300 text-sm font-semibold">{fmtNumber(filtered.length)} cliente{filtered.length === 1 ? '' : 's'} {filter === 'all' ? '' : `(curva ${filter})`}</p>
+        <p className="text-zinc-300 text-sm font-semibold">{t('customerCount', { count: filtered.length })}{filter === 'all' ? '' : ` ${t('curveSuffix', { curve: filter })}`}</p>
         <button onClick={exportCsv} className="px-3 py-1.5 rounded-lg text-xs font-medium border" style={{ borderColor: '#3f3f46', color: '#e4e4e7' }}>
-          Exportar CSV
+          {t('exportCsv')}
         </button>
       </div>
 
       {loading
         ? <div className="h-48 rounded-2xl animate-pulse" style={{ background: '#111114' }} />
         : filtered.length === 0
-          ? <div className="rounded-2xl px-6 py-10 text-center text-zinc-500 text-sm" style={{ background: '#111114', border: '1px dashed #27272a' }}>Nenhum cliente nesta curva.</div>
+          ? <div className="rounded-2xl px-6 py-10 text-center text-zinc-500 text-sm" style={{ background: '#111114', border: '1px dashed #27272a' }}>{t('emptyCurve')}</div>
           : <div className="rounded-2xl overflow-hidden" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
               <table className="w-full text-sm">
                 <thead style={{ background: '#0a0a0e' }}>
                   <tr className="text-zinc-500 text-[11px] uppercase tracking-wider">
-                    <th className="text-left  px-4 py-2.5">Cliente</th>
-                    <th className="text-right px-4 py-2.5">Compras</th>
-                    <th className="text-right px-4 py-2.5">Freq.</th>
-                    <th className="text-right px-4 py-2.5">Ticket médio</th>
-                    <th className="text-left  px-4 py-2.5">Última compra</th>
-                    <th className="text-center px-4 py-2.5">Curva</th>
+                    <th className="text-left  px-4 py-2.5">{t('colCustomer')}</th>
+                    <th className="text-right px-4 py-2.5">{t('colPurchases')}</th>
+                    <th className="text-right px-4 py-2.5">{t('colFreq')}</th>
+                    <th className="text-right px-4 py-2.5">{t('colAvgTicket')}</th>
+                    <th className="text-left  px-4 py-2.5">{t('colLastPurchase')}</th>
+                    <th className="text-center px-4 py-2.5">{t('colCurve')}</th>
                   </tr>
                 </thead>
                 <tbody>

@@ -13,6 +13,7 @@
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 
@@ -81,17 +82,18 @@ function plusDays(days: number): string {
   return d.toISOString().slice(0, 10)
 }
 
-const STATUS_PILL: Record<Assignment['status'], { label: string; bg: string; color: string }> = {
-  open:        { label: 'Aberto',      bg: 'rgba(0,229,255,0.12)',   color: '#67e8f9' },
-  in_progress: { label: 'Em andamento', bg: 'rgba(245,158,11,0.12)',  color: '#f59e0b' },
-  completed:   { label: 'Concluído',    bg: 'rgba(52,211,153,0.12)',  color: '#34d399' },
-  cancelled:   { label: 'Cancelado',    bg: 'rgba(113,113,122,0.15)', color: '#71717a' },
-  failed:      { label: 'Falhou',       bg: 'rgba(248,113,113,0.12)', color: '#f87171' },
+const STATUS_PILL: Record<Assignment['status'], { bg: string; color: string }> = {
+  open:        { bg: 'rgba(0,229,255,0.12)',   color: '#67e8f9' },
+  in_progress: { bg: 'rgba(245,158,11,0.12)',  color: '#f59e0b' },
+  completed:   { bg: 'rgba(52,211,153,0.12)',  color: '#34d399' },
+  cancelled:   { bg: 'rgba(113,113,122,0.15)', color: '#71717a' },
+  failed:      { bg: 'rgba(248,113,113,0.12)', color: '#f87171' },
 }
 
 // ── main page ───────────────────────────────────────────────────────────────
 
 export default function OperacaoCadastroPage() {
+  const t = useTranslations('produtos')
   const [summary, setSummary] = useState<CompletenessSummary | null>(null)
   const [assignments, setAssignments] = useState<Assignment[]>([])
   const [loading, setLoading] = useState(true)
@@ -120,7 +122,7 @@ export default function OperacaoCadastroPage() {
     setLoading(true)
     try {
       const token = await getAuthToken()
-      if (!token) throw new Error('Sessão expirou')
+      if (!token) throw new Error(t('ops.sessionExpired'))
 
       const qs = new URLSearchParams({ limit: '500', sample_size: '200' })
       if (debounced.stockMin.trim() && Number.isFinite(Number(debounced.stockMin))) qs.set('stock_min', String(parseInt(debounced.stockMin, 10)))
@@ -149,7 +151,7 @@ export default function OperacaoCadastroPage() {
     } finally {
       setLoading(false)
     }
-  }, [debounced, sort])
+  }, [debounced, sort, t])
 
   useEffect(() => { void load() }, [load])
 
@@ -180,7 +182,7 @@ export default function OperacaoCadastroPage() {
     setDispatchResult(null)
     try {
       const token = await getAuthToken()
-      if (!token) throw new Error('Sessão expirou')
+      if (!token) throw new Error(t('ops.sessionExpired'))
 
       const res = await fetch(`${BACKEND}/products/dispatch-to-operator`, {
         method:  'POST',
@@ -210,7 +212,7 @@ export default function OperacaoCadastroPage() {
     } finally {
       setDispatching(false)
     }
-  }, [selected, load])
+  }, [selected, load, t])
 
   // ── KPIs ────────────────────────────────────────────────────────────────
 
@@ -237,20 +239,19 @@ export default function OperacaoCadastroPage() {
         <div className="flex items-start justify-between mb-6">
           <div>
             <div className="flex items-center gap-2 text-xs text-zinc-500 mb-1">
-              <Link href="/dashboard/produtos" className="hover:text-zinc-300">Produtos</Link>
+              <Link href="/dashboard/produtos" className="hover:text-zinc-300">{t('ops.breadcrumbProducts')}</Link>
               <span>›</span>
-              <span>Operação de cadastro</span>
+              <span>{t('ops.breadcrumb')}</span>
             </div>
-            <h1 className="text-2xl font-bold">Operação de Cadastro</h1>
+            <h1 className="text-2xl font-bold">{t('ops.title')}</h1>
             <p className="text-sm text-zinc-400 mt-1">
-              Selecione produtos pendentes e despache pro operador como cards no Active CRM.
-              O operador recebe tarefas no kanban com prazo e campos a preencher.
+              {t('ops.subtitle')}
             </p>
           </div>
           <Link href="/dashboard/produtos/importar"
             className="px-3 py-2 rounded-lg text-[13px] font-medium border transition-all hover:border-cyan-500/40 hover:text-cyan-400"
             style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>
-            + Importar planilha
+            {t('ops.importSheet')}
           </Link>
         </div>
 
@@ -263,18 +264,18 @@ export default function OperacaoCadastroPage() {
 
         {/* KPIs */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-          <Kpi label="Cadastros pendentes" value={kpis.pendentes} color="amber" />
-          <Kpi label="Em andamento" value={kpis.em_andamento} color="cyan" />
-          <Kpi label="Em fila" value={kpis.em_fila} />
-          <Kpi label="Concluídos (7 dias)" value={kpis.concluidos_7d} color="emerald" />
+          <Kpi label={t('ops.kpi.pending')} value={kpis.pendentes} color="amber" />
+          <Kpi label={t('ops.kpi.inProgress')} value={kpis.em_andamento} color="cyan" />
+          <Kpi label={t('ops.kpi.queued')} value={kpis.em_fila} />
+          <Kpi label={t('ops.kpi.completed7d')} value={kpis.concluidos_7d} color="emerald" />
         </div>
 
         {/* Tabs */}
         <div className="flex items-center gap-1 mb-4 border-b" style={{ borderColor: '#27272a' }}>
           <TabBtn active={tab === 'pending'} onClick={() => setTab('pending')}
-            label="Pendentes" count={summary?.incomplete_count ?? 0} />
+            label={t('ops.tab.pending')} count={summary?.incomplete_count ?? 0} />
           <TabBtn active={tab === 'assignments'} onClick={() => setTab('assignments')}
-            label="Despachados" count={assignments.filter(a => a.status !== 'completed').length} />
+            label={t('ops.tab.dispatched')} count={assignments.filter(a => a.status !== 'completed').length} />
         </div>
 
         {/* PENDING tab */}
@@ -285,59 +286,59 @@ export default function OperacaoCadastroPage() {
             <div className="mb-3 flex flex-wrap items-center gap-3 px-4 py-3 rounded-xl"
               style={{ background: '#111114', border: '1px solid #27272a' }}>
               <div className="flex-1 min-w-[200px] max-w-sm">
-                <input type="text" placeholder="Buscar nome, SKU ou marca…"
+                <input type="text" placeholder={t('ops.searchPlaceholder')}
                   value={search} onChange={e => setSearch(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg text-sm text-white placeholder-zinc-600 border outline-none transition-all focus:border-cyan-500/60"
                   style={{ background: '#0a0a0c', borderColor: '#27272a' }} />
               </div>
               <div className="flex items-center gap-1.5 text-[11px] text-zinc-400">
-                <span className="font-medium">Estoque</span>
-                <input type="number" inputMode="numeric" placeholder="min"
+                <span className="font-medium">{t('ops.stock')}</span>
+                <input type="number" inputMode="numeric" placeholder={t('ops.min')}
                   value={stockMin} onChange={e => setStockMin(e.target.value)}
                   className="w-16 px-2 py-1.5 rounded-md text-[12px] text-white border outline-none focus:border-cyan-500/60 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   style={{ background: '#0a0a0c', borderColor: '#27272a' }} />
                 <span className="text-zinc-600">–</span>
-                <input type="number" inputMode="numeric" placeholder="max"
+                <input type="number" inputMode="numeric" placeholder={t('ops.max')}
                   value={stockMax} onChange={e => setStockMax(e.target.value)}
                   className="w-16 px-2 py-1.5 rounded-md text-[12px] text-white border outline-none focus:border-cyan-500/60 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   style={{ background: '#0a0a0c', borderColor: '#27272a' }} />
               </div>
               <div className="flex items-center gap-1.5 text-[11px] text-zinc-400">
-                <span className="font-medium">Ordenar por</span>
+                <span className="font-medium">{t('ops.sortBy')}</span>
                 <select value={sort} onChange={e => setSort(e.target.value as SortMode)}
                   className="px-2 py-1.5 rounded-md text-[12px] text-white border outline-none cursor-pointer"
                   style={{ background: '#0a0a0c', borderColor: '#27272a' }}>
-                  <option value="stock_desc">Estoque ↓ (maior primeiro)</option>
-                  <option value="stock_asc">Estoque ↑ (menor primeiro)</option>
-                  <option value="name">Nome A–Z</option>
-                  <option value="">Mais recentes</option>
+                  <option value="stock_desc">{t('ops.sortStockDesc')}</option>
+                  <option value="stock_asc">{t('ops.sortStockAsc')}</option>
+                  <option value="name">{t('ops.sortName')}</option>
+                  <option value="">{t('ops.sortRecent')}</option>
                 </select>
               </div>
               {(stockMin || stockMax || search) && (
                 <button onClick={() => { setStockMin(''); setStockMax(''); setSearch('') }}
                   className="text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors px-2 py-1.5">
-                  Limpar filtros
+                  {t('ops.clearFilters')}
                 </button>
               )}
             </div>
 
             {loading ? (
-            <div className="text-center py-12 text-zinc-500">Carregando…</div>
+            <div className="text-center py-12 text-zinc-500">{t('ops.loading')}</div>
           ) : !summary || summary.incomplete_count === 0 ? (
             <div className="text-center py-12 rounded-2xl" style={{ background: '#111114', border: '1px solid #27272a' }}>
               <div className="text-5xl mb-3">{(stockMin || stockMax || search) ? '🔍' : '🎉'}</div>
               <div className="text-lg font-semibold">
-                {(stockMin || stockMax || search) ? 'Nenhum produto bate com os filtros' : 'Nenhum produto pendente!'}
+                {(stockMin || stockMax || search) ? t('ops.emptyFiltered') : t('ops.emptyNone')}
               </div>
               <div className="text-sm text-zinc-400 mt-1">
-                {(stockMin || stockMax || search) ? 'Ajuste os filtros acima ou limpe pra ver tudo.' : 'Todos os cadastros estão completos.'}
+                {(stockMin || stockMax || search) ? t('ops.emptyFilteredHint') : t('ops.emptyNoneHint')}
               </div>
             </div>
           ) : (
             <>
               {/* Top missing fields breakdown */}
               <div className="mb-4 p-4 rounded-xl" style={{ background: '#111114', border: '1px solid #27272a' }}>
-                <div className="text-[11px] text-zinc-500 uppercase tracking-wider mb-2">Principais campos faltando</div>
+                <div className="text-[11px] text-zinc-500 uppercase tracking-wider mb-2">{t('ops.topMissingFields')}</div>
                 <div className="flex flex-wrap gap-2">
                   {Object.entries(summary.by_missing)
                     .sort((a, b) => b[1] - a[1])
@@ -357,15 +358,15 @@ export default function OperacaoCadastroPage() {
               {selected.size > 0 && (
                 <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl mb-3 text-sm"
                   style={{ background: 'rgba(0,229,255,0.07)', border: '1px solid rgba(0,229,255,0.2)' }}>
-                  <span className="font-semibold text-cyan-400">{selected.size} selecionado{selected.size === 1 ? '' : 's'}</span>
+                  <span className="font-semibold text-cyan-400">{t('ops.selectedCount', { count: selected.size })}</span>
                   <button onClick={() => setShowDispatchModal(true)}
                     className="ml-auto px-3 py-1.5 rounded-lg text-[12px] font-semibold"
                     style={{ background: '#00E5FF', color: '#000' }}>
-                    Despachar pra operador
+                    {t('ops.dispatchToOperator')}
                   </button>
                   <button onClick={() => setSelected(new Set())}
                     className="text-zinc-500 hover:text-zinc-300 text-xs">
-                    Limpar
+                    {t('ops.clear')}
                   </button>
                 </div>
               )}
@@ -382,10 +383,10 @@ export default function OperacaoCadastroPage() {
                           className="w-4 h-4 cursor-pointer accent-cyan-400" />
                       </th>
                       <th className="px-3 py-3 text-left">SKU</th>
-                      <th className="px-3 py-3 text-left">Nome</th>
-                      <th className="px-3 py-3 text-right w-24">Estoque</th>
-                      <th className="px-3 py-3 text-left">Campos faltando</th>
-                      <th className="px-3 py-3 text-right w-32">Ação</th>
+                      <th className="px-3 py-3 text-left">{t('ops.col.name')}</th>
+                      <th className="px-3 py-3 text-right w-24">{t('ops.col.stock')}</th>
+                      <th className="px-3 py-3 text-left">{t('ops.col.missingFields')}</th>
+                      <th className="px-3 py-3 text-right w-32">{t('ops.col.action')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -422,7 +423,7 @@ export default function OperacaoCadastroPage() {
                         <td className="px-3 py-2.5 text-right">
                           <Link href={`/dashboard/produtos/${p.id}/editar`}
                             className="text-[11px] text-cyan-400 hover:text-cyan-300">
-                            Editar →
+                            {t('ops.edit')} →
                           </Link>
                         </td>
                       </tr>
@@ -433,7 +434,7 @@ export default function OperacaoCadastroPage() {
                 {summary.incomplete_count > summary.sample_incomplete.length && (
                   <div className="px-4 py-3 text-center text-xs text-zinc-500"
                     style={{ borderTop: '1px solid #27272a' }}>
-                    Mostrando {summary.sample_incomplete.length} de {summary.incomplete_count} pendentes
+                    {t('ops.showingOf', { shown: summary.sample_incomplete.length, total: summary.incomplete_count })}
                   </div>
                 )}
               </div>
@@ -447,19 +448,19 @@ export default function OperacaoCadastroPage() {
           assignments.length === 0 ? (
             <div className="text-center py-12 rounded-2xl" style={{ background: '#111114', border: '1px solid #27272a' }}>
               <div className="text-4xl mb-2">📋</div>
-              <div className="text-base font-semibold">Nenhum despacho ainda</div>
-              <div className="text-sm text-zinc-500 mt-1">Despache produtos pendentes pro operador na aba "Pendentes".</div>
+              <div className="text-base font-semibold">{t('ops.noDispatches')}</div>
+              <div className="text-sm text-zinc-500 mt-1">{t('ops.noDispatchesHint')}</div>
             </div>
           ) : (
             <div className="rounded-2xl overflow-hidden" style={{ background: '#111114', border: '1px solid #27272a' }}>
               <table className="w-full text-sm">
                 <thead style={{ background: '#0d0d10' }}>
                   <tr className="text-[11px] text-zinc-500 uppercase tracking-wider">
-                    <th className="px-3 py-3 text-left">Produto</th>
-                    <th className="px-3 py-3 text-left">Status</th>
-                    <th className="px-3 py-3 text-left">Faltando</th>
-                    <th className="px-3 py-3 text-left">Prazo</th>
-                    <th className="px-3 py-3 text-left">Despachado em</th>
+                    <th className="px-3 py-3 text-left">{t('ops.col.product')}</th>
+                    <th className="px-3 py-3 text-left">{t('ops.col.status')}</th>
+                    <th className="px-3 py-3 text-left">{t('ops.col.missing')}</th>
+                    <th className="px-3 py-3 text-left">{t('ops.col.deadline')}</th>
+                    <th className="px-3 py-3 text-left">{t('ops.col.dispatchedAt')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -472,7 +473,7 @@ export default function OperacaoCadastroPage() {
                       <td className="px-3 py-2.5">
                         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium"
                           style={{ background: STATUS_PILL[a.status].bg, color: STATUS_PILL[a.status].color }}>
-                          {STATUS_PILL[a.status].label}
+                          {t(`ops.status.${a.status}`)}
                         </span>
                       </td>
                       <td className="px-3 py-2.5">
@@ -503,17 +504,17 @@ export default function OperacaoCadastroPage() {
                 <div className="text-2xl shrink-0">{hasErrors && !hasSuccess ? '❌' : '✅'}</div>
                 <div className="flex-1 min-w-0">
                   <div className={`font-semibold ${hasSuccess ? 'text-emerald-400' : 'text-red-400'}`}>
-                    {dispatchResult.dispatched} card{dispatchResult.dispatched === 1 ? '' : 's'} criado{dispatchResult.dispatched === 1 ? '' : 's'} no Active
+                    {t('ops.cardsCreated', { count: dispatchResult.dispatched })}
                   </div>
                   {dispatchResult.skipped_existing > 0 && (
                     <div className="text-xs text-zinc-400 mt-0.5">
-                      {dispatchResult.skipped_existing} já tinha{dispatchResult.skipped_existing === 1 ? '' : 'm'} card aberto
+                      {t('ops.alreadyHadCard', { count: dispatchResult.skipped_existing })}
                     </div>
                   )}
                   {hasErrors && (
                     <div className="mt-2 space-y-1">
                       <div className="text-xs text-red-400 font-medium">
-                        {dispatchResult.errors.length} erro{dispatchResult.errors.length === 1 ? '' : 's'}:
+                        {t('ops.errorsLabel', { count: dispatchResult.errors.length })}
                       </div>
                       <ul className="text-[11px] text-red-300/90 space-y-0.5 max-h-40 overflow-y-auto">
                         {dispatchResult.errors.map((err, i) => (
@@ -597,6 +598,7 @@ function DispatchModal({ count, onClose, onConfirm, loading }: {
   onConfirm: (config: DispatchConfig) => Promise<void> | void
   loading:   boolean
 }) {
+  const t = useTranslations('produtos')
   const [operator, setOperator] = useState('')
   const [pipeline, setPipeline] = useState('')
   const [stage, setStage] = useState('')
@@ -619,14 +621,14 @@ function DispatchModal({ count, onClose, onConfirm, loading }: {
       setConfigError(null)
       try {
         const token = await getAuthToken()
-        if (!token) throw new Error('Não autenticado')
+        if (!token) throw new Error(t('ops.notAuthenticated'))
         const headers = { 'Authorization': `Bearer ${token}` }
         const [agentsRes, pipelinesRes] = await Promise.all([
           fetch(`${BACKEND}/products/active-config/agents`, { headers }),
           fetch(`${BACKEND}/products/active-config/pipelines`, { headers }),
         ])
-        if (!agentsRes.ok) throw new Error('Não foi possível carregar agentes do Active')
-        if (!pipelinesRes.ok) throw new Error('Não foi possível carregar pipelines do Active')
+        if (!agentsRes.ok) throw new Error(t('ops.loadAgentsError'))
+        if (!pipelinesRes.ok) throw new Error(t('ops.loadPipelinesError'))
         const agentsData    = await agentsRes.json() as ActiveAgent[]
         const pipelinesData = await pipelinesRes.json() as ActivePipeline[]
         if (cancelled) return
@@ -645,7 +647,7 @@ function DispatchModal({ count, onClose, onConfirm, loading }: {
       }
     })()
     return () => { cancelled = true }
-  }, [])
+  }, [t])
 
   // Fetch stages sempre que pipeline muda
   useEffect(() => {
@@ -657,7 +659,7 @@ function DispatchModal({ count, onClose, onConfirm, loading }: {
         const res = await fetch(`${BACKEND}/products/active-config/pipelines/${pipeline}/stages`, {
           headers: { 'Authorization': `Bearer ${token}` },
         })
-        if (!res.ok) throw new Error('Não foi possível carregar estágios')
+        if (!res.ok) throw new Error(t('ops.loadStagesError'))
         const data = await res.json() as ActiveStage[]
         if (cancelled) return
         setStages(data)
@@ -669,7 +671,7 @@ function DispatchModal({ count, onClose, onConfirm, loading }: {
       }
     })()
     return () => { cancelled = true }
-  }, [pipeline])
+  }, [pipeline, t])
 
   const canSubmit = operator.trim() && pipeline.trim() && stage.trim()
   const selectStyle = {
@@ -682,9 +684,9 @@ function DispatchModal({ count, onClose, onConfirm, loading }: {
         style={{ background: '#0d0d10', border: '1px solid #27272a' }}
         onClick={e => e.stopPropagation()}>
         <div className="mb-4">
-          <h2 className="text-lg font-bold">Despachar {count} produto{count === 1 ? '' : 's'} pro operador</h2>
+          <h2 className="text-lg font-bold">{t('ops.modal.title', { count })}</h2>
           <p className="text-xs text-zinc-500 mt-1">
-            Cria 1 card no kanban do Active por produto, com task atribuída ao operador e prazo.
+            {t('ops.modal.subtitle')}
           </p>
         </div>
 
@@ -696,7 +698,7 @@ function DispatchModal({ count, onClose, onConfirm, loading }: {
         )}
 
         <div className="space-y-3">
-          <Field label="Operador" hint={loadingConfig ? 'carregando agentes do Active…' : `${agents.length} agente${agents.length === 1 ? '' : 's'} disponíve${agents.length === 1 ? 'l' : 'is'}`}>
+          <Field label={t('ops.modal.operator')} hint={loadingConfig ? t('ops.modal.loadingAgents') : t('ops.modal.agentsAvailable', { count: agents.length })}>
             <select
               value={operator}
               onChange={e => setOperator(e.target.value)}
@@ -704,18 +706,18 @@ function DispatchModal({ count, onClose, onConfirm, loading }: {
               className="w-full px-3 py-2 rounded-lg text-sm border outline-none disabled:opacity-50"
               style={selectStyle}
             >
-              <option value="">— Selecione o agente —</option>
+              <option value="">{t('ops.modal.selectAgent')}</option>
               {agents.map(a => (
                 <option key={a.user_id} value={a.user_id}>
                   {a.display_name ?? a.user_id.slice(0, 8)}
                   {a.role !== 'agent' ? ` (${a.role})` : ''}
-                  {a.status === 'invited' ? ' · convidado' : ''}
+                  {a.status === 'invited' ? ` · ${t('ops.modal.invited')}` : ''}
                 </option>
               ))}
             </select>
           </Field>
 
-          <Field label="Funil (Pipeline)" hint={loadingConfig ? 'carregando…' : `${pipelines.length} funil(is) disponíve${pipelines.length === 1 ? 'l' : 'is'}`}>
+          <Field label={t('ops.modal.pipeline')} hint={loadingConfig ? t('ops.modal.loading') : t('ops.modal.pipelinesAvailable', { count: pipelines.length })}>
             <select
               value={pipeline}
               onChange={e => setPipeline(e.target.value)}
@@ -723,18 +725,18 @@ function DispatchModal({ count, onClose, onConfirm, loading }: {
               className="w-full px-3 py-2 rounded-lg text-sm border outline-none disabled:opacity-50"
               style={selectStyle}
             >
-              <option value="">— Selecione o funil —</option>
+              <option value="">{t('ops.modal.selectPipeline')}</option>
               {pipelines.map(p => (
                 <option key={p.id} value={p.id}>
                   {p.name}
-                  {p.template_key === 'operacao_cadastro' ? ' ★ recomendado' : ''}
-                  {p.is_default ? ' · default' : ''}
+                  {p.template_key === 'operacao_cadastro' ? ` ${t('ops.modal.recommended')}` : ''}
+                  {p.is_default ? ` · ${t('ops.modal.default')}` : ''}
                 </option>
               ))}
             </select>
           </Field>
 
-          <Field label="Estágio inicial" hint={pipeline ? `${stages.length} estágio(s) deste funil` : 'escolha um funil primeiro'}>
+          <Field label={t('ops.modal.initialStage')} hint={pipeline ? t('ops.modal.stagesInPipeline', { count: stages.length }) : t('ops.modal.choosePipelineFirst')}>
             <select
               value={stage}
               onChange={e => setStage(e.target.value)}
@@ -742,7 +744,7 @@ function DispatchModal({ count, onClose, onConfirm, loading }: {
               className="w-full px-3 py-2 rounded-lg text-sm border outline-none disabled:opacity-50"
               style={selectStyle}
             >
-              <option value="">— Selecione o estágio —</option>
+              <option value="">{t('ops.modal.selectStage')}</option>
               {stages.map(s => (
                 <option key={s.id} value={s.id}>
                   {s.position + 1}. {s.name}
@@ -753,27 +755,27 @@ function DispatchModal({ count, onClose, onConfirm, loading }: {
           </Field>
 
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Prazo">
+            <Field label={t('ops.modal.deadline')}>
               <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)}
                 className="w-full px-3 py-2 rounded-lg text-sm border outline-none"
                 style={selectStyle} />
             </Field>
 
-            <Field label="Prioridade">
+            <Field label={t('ops.modal.priority')}>
               <select value={priority} onChange={e => setPriority(e.target.value as DispatchConfig['priority'])}
                 className="w-full px-3 py-2 rounded-lg text-sm border outline-none"
                 style={selectStyle}>
-                <option value="low">Baixa</option>
-                <option value="normal">Normal</option>
-                <option value="high">Alta</option>
-                <option value="urgent">Urgente</option>
+                <option value="low">{t('ops.modal.priorityLow')}</option>
+                <option value="normal">{t('ops.modal.priorityNormal')}</option>
+                <option value="high">{t('ops.modal.priorityHigh')}</option>
+                <option value="urgent">{t('ops.modal.priorityUrgent')}</option>
               </select>
             </Field>
           </div>
 
-          <Field label="Observações (opcional)">
+          <Field label={t('ops.modal.notes')}>
             <textarea value={notes} onChange={e => setNotes(e.target.value)}
-              rows={2} placeholder="Instruções extras pro operador"
+              rows={2} placeholder={t('ops.modal.notesPlaceholder')}
               className="w-full px-3 py-2 rounded-lg text-sm border outline-none resize-none"
               style={selectStyle} />
           </Field>
@@ -783,7 +785,7 @@ function DispatchModal({ count, onClose, onConfirm, loading }: {
           <button onClick={onClose} disabled={loading}
             className="px-4 py-2 rounded-lg text-sm font-medium border transition-all"
             style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>
-            Cancelar
+            {t('ops.modal.cancel')}
           </button>
           <button onClick={() => void onConfirm({
             operator_user_id: operator.trim(),
@@ -796,7 +798,7 @@ function DispatchModal({ count, onClose, onConfirm, loading }: {
             disabled={!canSubmit || loading}
             className="px-4 py-2 rounded-lg text-sm font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed"
             style={{ background: 'linear-gradient(135deg, #00E5FF 0%, #0091EA 100%)', color: '#000' }}>
-            {loading ? 'Despachando…' : `Despachar ${count}`}
+            {loading ? t('ops.modal.dispatching') : t('ops.modal.dispatchBtn', { count })}
           </button>
         </div>
       </div>

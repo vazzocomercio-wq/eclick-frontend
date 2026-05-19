@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import {
   Brain, TrendingUp, TrendingDown, Minus, Package,
@@ -46,11 +47,13 @@ const fmtBRL = (n: number) =>
 
 // ── Stock Bar (Level 1) ───────────────────────────────────────────────────────
 
-function StockBar({ days, lead }: { days: number; lead: number }) {
+type TFn = ReturnType<typeof useTranslations>
+
+function StockBar({ days, lead, t }: { days: number; lead: number; t: TFn }) {
   if (days === 0) return (
     <div>
-      <span style={{ color: '#ef4444', fontSize: 11, fontWeight: 700 }}>SEM ESTOQUE</span>
-      <p style={{ fontSize: 10, color: '#a1a1aa', marginTop: 1 }}>Lead: {lead}d</p>
+      <span style={{ color: '#ef4444', fontSize: 11, fontWeight: 700 }}>{t('outOfStock')}</span>
+      <p style={{ fontSize: 10, color: '#a1a1aa', marginTop: 1 }}>{t('leadLabel', { days: lead })}</p>
     </div>
   )
   if (days === 999) return (
@@ -61,7 +64,7 @@ function StockBar({ days, lead }: { days: number; lead: number }) {
         </div>
         <span style={{ fontSize: 11, fontWeight: 600, color: '#22c55e', minWidth: 14 }}>∞</span>
       </div>
-      <p style={{ fontSize: 10, color: '#52525b' }}>Lead: {lead}d · sem giro</p>
+      <p style={{ fontSize: 10, color: '#52525b' }}>{t('leadNoTurnover', { days: lead })}</p>
     </div>
   )
 
@@ -91,7 +94,7 @@ function StockBar({ days, lead }: { days: number; lead: number }) {
         <span style={{ fontSize: 11, fontWeight: 600, color: barColor, minWidth: 26, textAlign: 'right' }}>{days}d</span>
       </div>
       <p style={{ fontSize: 10, color: '#52525b' }}>
-        Lead: {lead}d{freedays > 0 ? ` · ${freedays}d livre` : ' · ⚠ urgente'}
+        {t('leadLabel', { days: lead })}{freedays > 0 ? ` · ${t('daysFree', { days: freedays })}` : ` · ${t('urgent')}`}
       </p>
     </div>
   )
@@ -99,7 +102,7 @@ function StockBar({ days, lead }: { days: number; lead: number }) {
 
 // ── Stock Projection Chart (SVG) ──────────────────────────────────────────────
 
-function StockChart({ p }: { p: Product }) {
+function StockChart({ p, t }: { p: Product; t: TFn }) {
   const W = 380, H = 110
   const mL = 38, mR = 10, mT = 14, mB = 22
   const cW = W - mL - mR
@@ -160,7 +163,7 @@ function StockChart({ p }: { p: Product }) {
         <>
           <line x1={xLead} y1={mT} x2={xLead} y2={yBottom}
             stroke="#f97316" strokeWidth={1} strokeDasharray="3 3" opacity={0.7} />
-          <text x={xLead + 3} y={mT + 9} fontSize={8} fill="#f97316" opacity={0.9}>Pedir hoje</text>
+          <text x={xLead + 3} y={mT + 9} fontSize={8} fill="#f97316" opacity={0.9}>{t('chart.orderToday')}</text>
         </>
       )}
 
@@ -170,7 +173,7 @@ function StockChart({ p }: { p: Product }) {
           <line x1={xStockout} y1={mT} x2={xStockout} y2={yBottom}
             stroke="#ef4444" strokeWidth={1} strokeDasharray="3 3" opacity={0.7} />
           <text x={xStockout + 3} y={mT + 9 + labelOffset} fontSize={8} fill="#ef4444" opacity={0.9}>
-            Ruptura {stockoutDate}
+            {t('chart.stockout', { date: stockoutDate })}
           </text>
         </>
       )}
@@ -178,7 +181,7 @@ function StockChart({ p }: { p: Product }) {
       {/* Current stock dot + label */}
       <circle cx={toX(0)} cy={toY(p.current_stock)} r={3} fill="#00E5FF" />
       <text x={toX(0) + 5} y={toY(p.current_stock) - 3} fontSize={8} fill="#00E5FF">
-        {fmtN(p.current_stock)} un
+        {t('chart.units', { n: fmtN(p.current_stock) })}
       </text>
 
       {/* X axis ticks */}
@@ -186,7 +189,7 @@ function StockChart({ p }: { p: Product }) {
         <g key={d}>
           <line x1={toX(d)} y1={yBottom} x2={toX(d)} y2={yBottom + 3} stroke="#3f3f46" strokeWidth={1} />
           <text x={toX(d)} y={H - 4} fontSize={8} fill="#52525b" textAnchor="middle">
-            {d === 0 ? 'Hoje' : `+${d}d`}
+            {d === 0 ? t('chart.today') : `+${d}d`}
           </text>
         </g>
       ))}
@@ -228,7 +231,7 @@ function ABCBadge({ abc }: { abc: string | null }) {
 
 // ── Product Drawer (Level 2) ──────────────────────────────────────────────────
 
-function ProductDrawer({ product: p, onClose }: { product: Product; onClose: () => void }) {
+function ProductDrawer({ product: p, onClose, t }: { product: Product; onClose: () => void; t: TFn }) {
   const [visible, setVisible] = useState(false)
 
   useEffect(() => {
@@ -286,7 +289,7 @@ function ProductDrawer({ product: p, onClose }: { product: Product; onClose: () 
               <div className="flex items-center gap-2 flex-wrap">
                 <ABCBadge abc={p.abc_class} />
                 <span style={{ fontSize: 11, color: '#71717a' }}>
-                  {p.supply_type === 'importado' ? '🌍 Importado' : '🇧🇷 Nacional'}
+                  {p.supply_type === 'importado' ? `🌍 ${t('imported')}` : `🇧🇷 ${t('national')}`}
                 </span>
                 <span style={{ fontSize: 11, color: scoreColor(p.score), background: scoreColor(p.score) + '18', padding: '1px 7px', borderRadius: 20 }}>
                   {p.acao}
@@ -295,22 +298,22 @@ function ProductDrawer({ product: p, onClose }: { product: Product; onClose: () 
             </div>
             <div className="flex flex-col items-center shrink-0">
               <ScoreBadge score={p.score} />
-              <span style={{ fontSize: 9, color: '#a1a1aa', marginTop: 3 }}>score</span>
+              <span style={{ fontSize: 9, color: '#a1a1aa', marginTop: 3 }}>{t('score')}</span>
             </div>
           </div>
 
           {/* ── Section B: Stock Projection Chart ── */}
           <div style={{ background: '#0e0e11', borderRadius: 10, padding: '12px 10px 6px', marginBottom: 16, border: '1px solid #1a1a1f' }}>
             <p style={{ color: '#a1a1aa', fontSize: 11, fontWeight: 600, marginBottom: 6, paddingLeft: 4 }}>
-              Projeção de estoque — 90 dias
+              {t('drawer.stockProjection')}
             </p>
-            <StockChart p={p} />
+            <StockChart p={p} t={t} />
             <div className="flex items-center gap-4 mt-2 px-1">
               {[
-                { color: '#00E5FF', label: 'Estoque projetado' },
-                { color: '#f97316', label: `Lead: ${p.lead_time_days}d` },
-                { color: '#f59e0b', label: 'Estoque mínimo' },
-                { color: '#ef4444', label: 'Ruptura' },
+                { color: '#00E5FF', label: t('drawer.legendProjected') },
+                { color: '#f97316', label: t('leadLabel', { days: p.lead_time_days }) },
+                { color: '#f59e0b', label: t('drawer.legendMinStock') },
+                { color: '#ef4444', label: t('drawer.legendStockout') },
               ].map(({ color, label }) => (
                 <div key={label} className="flex items-center gap-1">
                   <div style={{ width: 8, height: 8, borderRadius: 2, background: color }} />
@@ -323,13 +326,13 @@ function ProductDrawer({ product: p, onClose }: { product: Product; onClose: () 
           {/* ── Section C: Metrics grid ── */}
           <div className="grid grid-cols-2 gap-2 mb-4">
             {[
-              { label: 'Estoque atual',  value: `${fmtN(p.current_stock)} un`, color: '#e4e4e7' },
-              { label: 'Em trânsito',    value: '0 un',                          color: '#71717a' },
-              { label: 'Vendas 30d',     value: `${fmtN(p.sales_30d)} un`,      color: '#e4e4e7' },
-              { label: 'Giro/dia',       value: `${fmtN(p.avg_daily_sales_30d, 2)} un`, color: '#e4e4e7' },
-              { label: 'Dias restantes', value: p.days_of_stock === 999 ? '∞' : `${fmtN(p.days_of_stock)} dias`,
+              { label: t('metric.currentStock'),  value: t('chart.units', { n: fmtN(p.current_stock) }), color: '#e4e4e7' },
+              { label: t('metric.inTransit'),     value: t('chart.units', { n: 0 }),                     color: '#71717a' },
+              { label: t('metric.sales30d'),      value: t('chart.units', { n: fmtN(p.sales_30d) }),     color: '#e4e4e7' },
+              { label: t('metric.turnoverPerDay'), value: t('chart.units', { n: fmtN(p.avg_daily_sales_30d, 2) }), color: '#e4e4e7' },
+              { label: t('metric.daysRemaining'), value: p.days_of_stock === 999 ? '∞' : t('daysValue', { days: fmtN(p.days_of_stock) }),
                 color: daysColor(p.days_of_stock, p.lead_time_days) },
-              { label: 'Lead time',      value: `${p.lead_time_days} dias`,      color: '#e4e4e7' },
+              { label: t('metric.leadTime'),      value: t('daysValue', { days: p.lead_time_days }),     color: '#e4e4e7' },
             ].map(({ label, value, color }) => (
               <div key={label} style={{ background: '#0e0e11', borderRadius: 8, padding: '10px 12px', border: '1px solid #1a1a1f' }}>
                 <p style={{ color: '#a1a1aa', fontSize: 10, marginBottom: 3 }}>{label}</p>
@@ -342,14 +345,14 @@ function ProductDrawer({ product: p, onClose }: { product: Product; onClose: () 
           {p.sugestao_compra > 0 && (
             <div style={{ background: 'rgba(0,229,255,0.05)', border: '1px solid rgba(0,229,255,0.14)', borderRadius: 10, padding: 14, marginBottom: 14 }}>
               <p style={{ color: '#00E5FF', fontSize: 13, fontWeight: 700, marginBottom: 2 }}>
-                Sugestão: {fmtN(p.sugestao_compra)} unidades
+                {t('drawer.suggestion', { count: fmtN(p.sugestao_compra) })}
               </p>
               <p style={{ color: '#a1a1aa', fontSize: 12 }}>
-                Capital necessário: {fmtBRL(p.sugestao_compra * p.cost_price)}
+                {t('drawer.capitalNeeded', { value: fmtBRL(p.sugestao_compra * p.cost_price) })}
               </p>
               {p.days_of_stock < p.lead_time_days && (
                 <p style={{ color: '#f97316', fontSize: 11, marginTop: 6 }}>
-                  ⚠ Pedir até {orderDate} para evitar ruptura
+                  {t('drawer.orderBy', { date: orderDate })}
                 </p>
               )}
             </div>
@@ -363,7 +366,7 @@ function ProductDrawer({ product: p, onClose }: { product: Product; onClose: () 
                 background: 'rgba(0,229,255,0.08)', border: '1px solid rgba(0,229,255,0.18)',
                 color: '#00E5FF', fontSize: 12, fontWeight: 600,
               }}>
-                Ver fornecedor: {p.supplier_name}
+                {t('drawer.viewSupplier', { name: p.supplier_name })}
               </button>
             )}
             <button style={{
@@ -371,7 +374,7 @@ function ProductDrawer({ product: p, onClose }: { product: Product; onClose: () 
               background: '#18181b', border: '1px solid #27272a',
               color: '#a1a1aa', fontSize: 12,
             }}>
-              Criar ordem de compra (em breve)
+              {t('drawer.createPo')}
             </button>
           </div>
         </div>
@@ -434,6 +437,7 @@ function BlockRow({ left, right }: { left: React.ReactNode; right: React.ReactNo
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function InteligenciaPage() {
+  const t = useTranslations('compras.inteligencia')
   const [allItems, setAllItems]        = useState<Product[]>([])
   const [summary, setSummary]          = useState<Summary | null>(null)
   const [loading, setLoading]          = useState(true)
@@ -499,17 +503,17 @@ export default function InteligenciaPage() {
 
       {/* Drawer */}
       {selectedProduct && (
-        <ProductDrawer product={selectedProduct} onClose={() => setSelected(null)} />
+        <ProductDrawer product={selectedProduct} onClose={() => setSelected(null)} t={t} />
       )}
 
       {/* ── Section 1: Header + Filters ── */}
       <div className="mb-5">
         <div className="flex items-center gap-2.5 mb-1">
           <Brain size={20} color="#00E5FF" />
-          <h1 className="text-lg font-bold" style={{ color: '#e4e4e7' }}>Inteligência de Compras</h1>
+          <h1 className="text-lg font-bold" style={{ color: '#e4e4e7' }}>{t('title')}</h1>
         </div>
         <p className="text-xs mb-4" style={{ color: '#a1a1aa' }}>
-          Score preditivo por produto · {allItems.length} produtos analisados · clique em uma linha para detalhes
+          {t('subtitle', { count: allItems.length })}
         </p>
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2 relative">
@@ -527,7 +531,7 @@ export default function InteligenciaPage() {
               onClick={() => setCustomPickerOpen(o => !o)}
               className="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors"
               style={{ background: isCustom ? 'rgba(0,229,255,0.12)' : '#18181b', color: isCustom ? '#00E5FF' : '#71717a', border: '1px solid #27272a' }}>
-              {isCustom ? customLabel : '📅 Personalizado'}
+              {isCustom ? customLabel : `📅 ${t('filters.custom')}`}
             </button>
             {customPickerOpen && (
               <div style={{
@@ -536,7 +540,7 @@ export default function InteligenciaPage() {
                 padding: '14px 16px', minWidth: 240, boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
               }}>
                 <div className="flex flex-col gap-3">
-                  {([['De', customFrom, setCustomFrom], ['Até', customTo, setCustomTo]] as const).map(([label, value, set]) => (
+                  {([[t('filters.from'), customFrom, setCustomFrom], [t('filters.to'), customTo, setCustomTo]] as const).map(([label, value, set]) => (
                     <div key={label} className="flex flex-col gap-1">
                       <label style={{ fontSize: 11, color: '#71717a' }}>{label}</label>
                       <input type="date" value={value} onChange={e => (set as (v: string) => void)(e.target.value)}
@@ -547,10 +551,10 @@ export default function InteligenciaPage() {
                   <button
                     onClick={() => {
                       setCustomError('')
-                      if (!customFrom || !customTo) { setCustomError('Selecione as duas datas'); return }
+                      if (!customFrom || !customTo) { setCustomError(t('filters.errorSelectBoth')); return }
                       const days = Math.round((new Date(customTo).getTime() - new Date(customFrom).getTime()) / 86400000)
-                      if (days <= 0) { setCustomError('Data final deve ser após a inicial'); return }
-                      if (days > 180) { setCustomError('Máximo 180 dias'); return }
+                      if (days <= 0) { setCustomError(t('filters.errorEndAfterStart')); return }
+                      if (days > 180) { setCustomError(t('filters.errorMax180')); return }
                       const fmt = (s: string) => new Date(s + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
                       setCustomLabel(`${fmt(customFrom)} → ${fmt(customTo)}`)
                       setIsCustom(true)
@@ -558,42 +562,42 @@ export default function InteligenciaPage() {
                       setFiltros(f => ({ ...f, periodo: days }))
                     }}
                     style={{ background: 'rgba(0,229,255,0.1)', border: '1px solid rgba(0,229,255,0.2)', borderRadius: 7, color: '#00E5FF', fontSize: 12, fontWeight: 600, padding: '7px 0', cursor: 'pointer' }}>
-                    Aplicar
+                    {t('filters.apply')}
                   </button>
                 </div>
               </div>
             )}
           </div>
           <select value={filtros.tipo} onChange={e => setFiltros(f => ({ ...f, tipo: e.target.value }))} style={selStyle}>
-            <option value="">Todos os tipos</option>
-            <option value="nacional">🇧🇷 Nacional</option>
-            <option value="importado">🌍 Importado</option>
+            <option value="">{t('filters.allTypes')}</option>
+            <option value="nacional">🇧🇷 {t('national')}</option>
+            <option value="importado">🌍 {t('imported')}</option>
           </select>
           <select value={filtros.abc} onChange={e => setFiltros(f => ({ ...f, abc: e.target.value }))} style={selStyle}>
-            <option value="">Curva ABC</option>
+            <option value="">{t('filters.abcCurve')}</option>
             <option value="A">A</option><option value="B">B</option><option value="C">C</option>
           </select>
           <select value={filtros.minScore} onChange={e => setFiltros(f => ({ ...f, minScore: Number(e.target.value) }))} style={selStyle}>
-            <option value={0}>Score mínimo</option>
-            <option value={50}>≥ 50 (Monitorar+)</option>
-            <option value={70}>≥ 70 (Comprar+)</option>
-            <option value={85}>≥ 85 (Crítico)</option>
+            <option value={0}>{t('filters.minScore')}</option>
+            <option value={50}>{t('filters.score50')}</option>
+            <option value={70}>{t('filters.score70')}</option>
+            <option value={85}>{t('filters.score85')}</option>
           </select>
-          <input value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar produto / SKU…"
+          <input value={q} onChange={e => setQ(e.target.value)} placeholder={t('filters.searchPlaceholder')}
             style={{ ...selStyle, width: 200 }} />
-          {loading && <span className="text-xs animate-pulse" style={{ color: '#a1a1aa' }}>Carregando…</span>}
+          {loading && <span className="text-xs animate-pulse" style={{ color: '#a1a1aa' }}>{t('loading')}</span>}
         </div>
       </div>
 
       {/* ── Section 2: KPI Cards ── */}
       {summary && (
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-5">
-          <KpiCard icon={<ShoppingCart size={16} />} label="Capital sugerido" value={fmtBRL(summary.capital_sugerido)} sub="score ≥ 50" color="#00E5FF" />
-          <KpiCard icon={<AlertTriangle size={16} />} label="Críticos" value={String(summary.produtos_criticos)} sub="score ≥ 85" color="#ef4444" />
-          <KpiCard icon={<Ship size={16} />} label="Importar agora" value={String(summary.importacoes_urgentes)} sub="importados score ≥ 70" color="#f97316" />
-          <KpiCard icon={<Package size={16} />} label="Parados" value={String(summary.produtos_parados)} sub="> 180 dias sem venda" color="#6b7280" />
-          <KpiCard icon={<Rocket size={16} />} label="Oportunidades" value={String(summary.produtos_oportunidade)} sub="tendência positiva" color="#22c55e" />
-          <KpiCard icon={<BarChart3 size={16} />} label="Cobertura média" value={`${fmtN(summary.cobertura_media)} dias`} sub="produtos ativos" color="#f59e0b" />
+          <KpiCard icon={<ShoppingCart size={16} />} label={t('kpi.suggestedCapital')} value={fmtBRL(summary.capital_sugerido)} sub={t('kpi.score50')} color="#00E5FF" />
+          <KpiCard icon={<AlertTriangle size={16} />} label={t('kpi.critical')} value={String(summary.produtos_criticos)} sub={t('kpi.score85')} color="#ef4444" />
+          <KpiCard icon={<Ship size={16} />} label={t('kpi.importNow')} value={String(summary.importacoes_urgentes)} sub={t('kpi.importedScore70')} color="#f97316" />
+          <KpiCard icon={<Package size={16} />} label={t('kpi.stopped')} value={String(summary.produtos_parados)} sub={t('kpi.stoppedSub')} color="#6b7280" />
+          <KpiCard icon={<Rocket size={16} />} label={t('kpi.opportunities')} value={String(summary.produtos_oportunidade)} sub={t('kpi.positiveTrend')} color="#22c55e" />
+          <KpiCard icon={<BarChart3 size={16} />} label={t('kpi.avgCoverage')} value={t('daysValue', { days: fmtN(summary.cobertura_media) })} sub={t('kpi.activeProducts')} color="#f59e0b" />
         </div>
       )}
 
@@ -601,7 +605,7 @@ export default function InteligenciaPage() {
       <div className="rounded-xl mb-5 overflow-hidden" style={{ border: '1px solid #1a1a1f' }}>
         <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: '1px solid #1a1a1f' }}>
           <p className="text-sm font-semibold" style={{ color: '#e4e4e7' }}>
-            {filtered.length} produtos · ordenados por score
+            {t('table.heading', { count: filtered.length })}
           </p>
           {totalPages > 1 && (
             <div className="flex items-center gap-2 text-xs" style={{ color: '#a1a1aa' }}>
@@ -617,8 +621,8 @@ export default function InteligenciaPage() {
           <table className="w-full" style={{ minWidth: 980 }}>
             <thead>
               <tr style={{ borderBottom: '1px solid #1a1a1f' }}>
-                {['Produto', 'ABC', 'Tipo', 'Vendas 30d', 'Tendência', 'Giro/dia', 'Estoque', 'Dias est.', 'Lead', 'Score', 'Ação'].map(h => (
-                  <th key={h} className="px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider"
+                {[t('col.product'), t('col.abc'), t('col.type'), t('col.sales30d'), t('col.trend'), t('col.turnoverPerDay'), t('col.stock'), t('col.daysStock'), t('col.lead'), t('col.score'), t('col.action')].map((h, i) => (
+                  <th key={i} className="px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider"
                     style={{ color: '#52525b', background: '#0e0e11' }}>{h}</th>
                 ))}
               </tr>
@@ -626,7 +630,7 @@ export default function InteligenciaPage() {
             <tbody>
               {paginated.length === 0 && !loading && (
                 <tr><td colSpan={11} className="px-4 py-10 text-center text-sm" style={{ color: '#a1a1aa' }}>
-                  Nenhum produto encontrado
+                  {t('noProductsFound')}
                 </td></tr>
               )}
               {paginated.map(p => (
@@ -649,7 +653,7 @@ export default function InteligenciaPage() {
                   </td>
                   <td className="px-3 py-2.5"><ABCBadge abc={p.abc_class} /></td>
                   <td className="px-3 py-2.5 text-xs" style={{ color: '#a1a1aa' }}>
-                    {p.supply_type === 'importado' ? '🌍 Import.' : '🇧🇷 Nac.'}
+                    {p.supply_type === 'importado' ? `🌍 ${t('importedShort')}` : `🇧🇷 ${t('nationalShort')}`}
                   </td>
                   {/* Vendas 30d */}
                   <td className="px-3 py-2.5">
@@ -663,15 +667,15 @@ export default function InteligenciaPage() {
                     <div className="flex items-center gap-1">
                       <TendIcon t={p.tendencia} />
                       <span className="text-[11px]" style={{ color: p.tendencia === 'POSITIVA' ? '#22c55e' : p.tendencia === 'NEGATIVA' ? '#ef4444' : '#6b7280' }}>
-                        {p.tendencia === 'POSITIVA' ? 'Subindo' : p.tendencia === 'NEGATIVA' ? 'Caindo' : 'Estável'}
+                        {p.tendencia === 'POSITIVA' ? t('trend.up') : p.tendencia === 'NEGATIVA' ? t('trend.down') : t('trend.stable')}
                       </span>
                     </div>
                   </td>
-                  <td className="px-3 py-2.5 text-xs" style={{ color: '#a1a1aa' }}>{fmtN(p.avg_daily_sales_30d, 2)} un</td>
+                  <td className="px-3 py-2.5 text-xs" style={{ color: '#a1a1aa' }}>{t('chart.units', { n: fmtN(p.avg_daily_sales_30d, 2) })}</td>
                   <td className="px-3 py-2.5 text-xs font-medium" style={{ color: '#e4e4e7' }}>{fmtN(p.current_stock)}</td>
                   {/* Dias est. — visual bar */}
                   <td className="px-3 py-2.5">
-                    <StockBar days={p.days_of_stock} lead={p.lead_time_days} />
+                    <StockBar days={p.days_of_stock} lead={p.lead_time_days} t={t} />
                   </td>
                   <td className="px-3 py-2.5 text-xs" style={{ color: '#a1a1aa' }}>{p.lead_time_days}d</td>
                   <td className="px-3 py-2.5"><ScoreBadge score={p.score} /></td>
@@ -690,54 +694,54 @@ export default function InteligenciaPage() {
 
       {/* ── Section 4: Blocks ── */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Block title="Comprar Agora" icon={<ShoppingCart size={15} />} count={criticals.length} color="#ef4444">
+        <Block title={t('block.buyNow')} icon={<ShoppingCart size={15} />} count={criticals.length} color="#ef4444">
           {criticals.length === 0
-            ? <p className="text-xs py-2" style={{ color: '#a1a1aa' }}>Nenhum produto crítico</p>
+            ? <p className="text-xs py-2" style={{ color: '#a1a1aa' }}>{t('block.noCritical')}</p>
             : criticals.slice(0, 6).map(p => (
               <BlockRow key={p.id}
-                left={<><p className="text-xs font-medium truncate" style={{ color: '#e4e4e7' }}>{p.name}</p><p className="text-[10px]" style={{ color: '#a1a1aa' }}>{p.days_of_stock === 999 ? 'Sem giro' : `${p.days_of_stock}d restantes`} · Lead {p.lead_time_days}d</p></>}
-                right={<><p className="text-xs font-bold" style={{ color: '#00E5FF' }}>{fmtN(p.sugestao_compra)} un</p><p className="text-[10px]" style={{ color: '#a1a1aa' }}>{fmtBRL(p.sugestao_compra * p.cost_price)}</p></>}
+                left={<><p className="text-xs font-medium truncate" style={{ color: '#e4e4e7' }}>{p.name}</p><p className="text-[10px]" style={{ color: '#a1a1aa' }}>{p.days_of_stock === 999 ? t('block.noTurnover') : t('daysRemaining', { days: p.days_of_stock })} · {t('leadShort', { days: p.lead_time_days })}</p></>}
+                right={<><p className="text-xs font-bold" style={{ color: '#00E5FF' }}>{t('chart.units', { n: fmtN(p.sugestao_compra) })}</p><p className="text-[10px]" style={{ color: '#a1a1aa' }}>{fmtBRL(p.sugestao_compra * p.cost_price)}</p></>}
               />
             ))
           }
         </Block>
 
-        <Block title="Planejamento de Importação" icon={<Ship size={15} />} count={imports.length} color="#f97316">
+        <Block title={t('block.importPlanning')} icon={<Ship size={15} />} count={imports.length} color="#f97316">
           {imports.length === 0
-            ? <p className="text-xs py-2" style={{ color: '#a1a1aa' }}>Nenhuma importação urgente</p>
+            ? <p className="text-xs py-2" style={{ color: '#a1a1aa' }}>{t('block.noImports')}</p>
             : imports.slice(0, 6).map(p => {
               const dto = Math.max(0, p.days_of_stock === 999 ? 90 : p.days_of_stock - p.lead_time_days)
               return (
                 <BlockRow key={p.id}
-                  left={<><p className="text-xs font-medium truncate" style={{ color: '#e4e4e7' }}>{p.name}</p><p className="text-[10px]" style={{ color: '#a1a1aa' }}>Pedir até {new Date(Date.now() + dto * 86400000).toLocaleDateString('pt-BR')} · Chega {new Date(Date.now() + (dto + p.lead_time_days) * 86400000).toLocaleDateString('pt-BR')}</p></>}
-                  right={<><p className="text-xs font-bold" style={{ color: '#f97316' }}>{fmtN(p.sugestao_compra)} un</p><p className="text-[10px]" style={{ color: '#a1a1aa' }}>{fmtBRL(p.sugestao_compra * p.cost_price)}</p></>}
+                  left={<><p className="text-xs font-medium truncate" style={{ color: '#e4e4e7' }}>{p.name}</p><p className="text-[10px]" style={{ color: '#a1a1aa' }}>{t('block.orderByArrives', { orderBy: new Date(Date.now() + dto * 86400000).toLocaleDateString('pt-BR'), arrives: new Date(Date.now() + (dto + p.lead_time_days) * 86400000).toLocaleDateString('pt-BR') })}</p></>}
+                  right={<><p className="text-xs font-bold" style={{ color: '#f97316' }}>{t('chart.units', { n: fmtN(p.sugestao_compra) })}</p><p className="text-[10px]" style={{ color: '#a1a1aa' }}>{fmtBRL(p.sugestao_compra * p.cost_price)}</p></>}
                 />
               )
             })
           }
         </Block>
 
-        <Block title="Estoque Parado" icon={<Package size={15} />} count={stopped.length} color="#6b7280">
+        <Block title={t('block.stoppedStock')} icon={<Package size={15} />} count={stopped.length} color="#6b7280">
           {stopped.length === 0
-            ? <p className="text-xs py-2" style={{ color: '#a1a1aa' }}>Nenhum produto parado</p>
+            ? <p className="text-xs py-2" style={{ color: '#a1a1aa' }}>{t('block.noStopped')}</p>
             : stopped.slice(0, 6).map(p => (
               <BlockRow key={p.id}
-                left={<><p className="text-xs font-medium truncate" style={{ color: '#e4e4e7' }}>{p.name}</p><p className="text-[10px]" style={{ color: '#a1a1aa' }}>{fmtN(p.current_stock)} un · Considere promoção</p></>}
-                right={<><p className="text-xs font-bold" style={{ color: '#ef4444' }}>{fmtBRL(p.current_stock * p.cost_price)}</p><p className="text-[10px]" style={{ color: '#a1a1aa' }}>capital imobilizado</p></>}
+                left={<><p className="text-xs font-medium truncate" style={{ color: '#e4e4e7' }}>{p.name}</p><p className="text-[10px]" style={{ color: '#a1a1aa' }}>{t('block.considerPromo', { n: fmtN(p.current_stock) })}</p></>}
+                right={<><p className="text-xs font-bold" style={{ color: '#ef4444' }}>{fmtBRL(p.current_stock * p.cost_price)}</p><p className="text-[10px]" style={{ color: '#a1a1aa' }}>{t('block.tiedCapital')}</p></>}
               />
             ))
           }
         </Block>
 
-        <Block title="Oportunidades" icon={<Rocket size={15} />} count={opps.length} color="#22c55e">
+        <Block title={t('block.opportunities')} icon={<Rocket size={15} />} count={opps.length} color="#22c55e">
           {opps.length === 0
-            ? <p className="text-xs py-2" style={{ color: '#a1a1aa' }}>Nenhuma oportunidade</p>
+            ? <p className="text-xs py-2" style={{ color: '#a1a1aa' }}>{t('block.noOpportunities')}</p>
             : opps.slice(0, 6).map(p => {
               const growth = p.avg_daily_sales_30d > 0 ? ((p.sales_7d / 7 / p.avg_daily_sales_30d) - 1) * 100 : 0
               return (
                 <BlockRow key={p.id}
-                  left={<><p className="text-xs font-medium truncate" style={{ color: '#e4e4e7' }}>{p.name}</p><p className="text-[10px]" style={{ color: '#a1a1aa' }}>Estoque: {fmtN(p.current_stock)} un · Em ascensão</p></>}
-                  right={<><p className="text-xs font-bold" style={{ color: '#22c55e' }}>+{fmtN(growth, 0)}%</p><p className="text-[10px]" style={{ color: '#a1a1aa' }}>vs 30d</p></>}
+                  left={<><p className="text-xs font-medium truncate" style={{ color: '#e4e4e7' }}>{p.name}</p><p className="text-[10px]" style={{ color: '#a1a1aa' }}>{t('block.stockRising', { n: fmtN(p.current_stock) })}</p></>}
+                  right={<><p className="text-xs font-bold" style={{ color: '#22c55e' }}>+{fmtN(growth, 0)}%</p><p className="text-[10px]" style={{ color: '#a1a1aa' }}>{t('block.vs30d')}</p></>}
                 />
               )
             })
@@ -745,17 +749,17 @@ export default function InteligenciaPage() {
         </Block>
 
         <div className="md:col-span-2">
-          <Block title="Risco de Ruptura" icon={<AlertTriangle size={15} />} count={rupture.length} color="#f59e0b">
+          <Block title={t('block.stockoutRisk')} icon={<AlertTriangle size={15} />} count={rupture.length} color="#f59e0b">
             {rupture.length === 0
-              ? <p className="text-xs py-2" style={{ color: '#a1a1aa' }}>Nenhum produto em risco de ruptura</p>
+              ? <p className="text-xs py-2" style={{ color: '#a1a1aa' }}>{t('block.noStockoutRisk')}</p>
               : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8">
                   {rupture.slice(0, 8).map(p => {
                     const deficit = Math.max(0, p.lead_time_days * p.avg_daily_sales_30d - p.current_stock)
                     return (
                       <BlockRow key={p.id}
-                        left={<><p className="text-xs font-medium truncate" style={{ color: '#e4e4e7' }}>{p.name}</p><p className="text-[10px]" style={{ color: '#a1a1aa' }}>{p.days_of_stock}d restantes · Lead {p.lead_time_days}d · Déficit: {fmtN(deficit)} un</p></>}
-                        right={<span className="text-xs font-bold" style={{ color: daysColor(p.days_of_stock, p.lead_time_days) }}>{p.days_of_stock < 1 ? 'ZEROU' : `${p.days_of_stock}d`}</span>}
+                        left={<><p className="text-xs font-medium truncate" style={{ color: '#e4e4e7' }}>{p.name}</p><p className="text-[10px]" style={{ color: '#a1a1aa' }}>{t('block.ruptureDetail', { days: p.days_of_stock, lead: p.lead_time_days, deficit: fmtN(deficit) })}</p></>}
+                        right={<span className="text-xs font-bold" style={{ color: daysColor(p.days_of_stock, p.lead_time_days) }}>{p.days_of_stock < 1 ? t('block.zeroed') : `${p.days_of_stock}d`}</span>}
                       />
                     )
                   })}

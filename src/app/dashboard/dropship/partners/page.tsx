@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import { Plus, Search, X, Building2, ChevronRight } from 'lucide-react'
 
@@ -80,6 +81,7 @@ const EMPTY_FORM: NewPartnerForm = {
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function PartnersPage() {
+  const t = useTranslations('dropship.partners')
   const router = useRouter()
   const supabase = useMemo(() => createClient(), [])
 
@@ -94,9 +96,9 @@ export default function PartnersPage() {
 
   const getHeaders = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session?.access_token) throw new Error('Não autenticado')
+    if (!session?.access_token) throw new Error(t('errors.notAuthenticated'))
     return { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' }
-  }, [supabase])
+  }, [supabase, t])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -121,8 +123,8 @@ export default function PartnersPage() {
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
-    if (!form.name.trim()) { setFormErr('Nome do parceiro é obrigatório'); return }
-    if (!form.notification_email.trim()) { setFormErr('E-mail de notificação é obrigatório'); return }
+    if (!form.name.trim()) { setFormErr(t('errors.nameRequired')); return }
+    if (!form.notification_email.trim()) { setFormErr(t('errors.emailRequired')); return }
     setSaving(true); setFormErr('')
     try {
       const headers = await getHeaders()
@@ -160,7 +162,7 @@ export default function PartnersPage() {
       setForm(EMPTY_FORM)
       router.push(`/dashboard/dropship/partners/${created.profile.id}`)
     } catch (err: unknown) {
-      setFormErr(err instanceof Error ? err.message : 'Erro ao salvar')
+      setFormErr(err instanceof Error ? err.message : t('errors.saveFailed'))
     } finally { setSaving(false) }
   }
 
@@ -172,8 +174,8 @@ export default function PartnersPage() {
       {/* header */}
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-white">Parceiros Dropship</h1>
-          <p className="text-sm text-zinc-500 mt-0.5">Cadastre fornecedores que despacham direto pro comprador</p>
+          <h1 className="text-xl font-semibold text-white">{t('title')}</h1>
+          <p className="text-sm text-zinc-500 mt-0.5">{t('subtitle')}</p>
         </div>
         <button
           onClick={() => { setShowModal(true); setForm(EMPTY_FORM); setFormErr('') }}
@@ -181,16 +183,16 @@ export default function PartnersPage() {
           style={{ background: '#00E5FF', color: '#09090b' }}
         >
           <Plus size={15} />
-          Novo Parceiro
+          {t('newPartner')}
         </button>
       </div>
 
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-        <KpiCard label="Total" value={total} />
-        <KpiCard label="Ativos" value={active} />
-        <KpiCard label="Pausados" value={paused} />
-        <KpiCard label="SKUs Dropship" value={totalSkus} />
+        <KpiCard label={t('kpi.total')} value={total} />
+        <KpiCard label={t('kpi.active')} value={active} />
+        <KpiCard label={t('kpi.paused')} value={paused} />
+        <KpiCard label={t('kpi.dropshipSkus')} value={totalSkus} />
       </div>
 
       {/* filters */}
@@ -206,7 +208,7 @@ export default function PartnersPage() {
                 color: filterStatus === s ? '#09090b' : '#a1a1aa',
               }}
             >
-              {s === 'all' ? 'Todos' : s === 'active' ? 'Ativos' : s === 'paused' ? 'Pausados' : 'Inativos'}
+              {s === 'all' ? t('filter.all') : s === 'active' ? t('filter.active') : s === 'paused' ? t('filter.paused') : t('filter.inactive')}
             </button>
           ))}
         </div>
@@ -216,7 +218,7 @@ export default function PartnersPage() {
           </span>
           <input
             value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="Buscar parceiro..."
+            placeholder={t('searchPlaceholder')}
             className="w-full pl-8 pr-3 py-2 text-sm rounded-lg outline-none"
             style={{ background: '#111114', border: '1px solid #27272a', color: '#fff' }}
           />
@@ -228,19 +230,19 @@ export default function PartnersPage() {
         <table className="w-full text-sm">
           <thead>
             <tr style={{ background: '#111114', borderBottom: '1px solid #1a1a1f' }}>
-              {['Parceiro', 'Status', 'Integração', 'Cutoff', 'SKUs', 'Pedidos 30d', 'A Pagar', 'Score', ''].map(h => (
-                <th key={h} className="text-left px-4 py-3 text-xs font-medium text-zinc-500">{h}</th>
+              {[t('table.partner'), t('table.status'), t('table.integration'), t('table.cutoff'), t('table.skus'), t('table.orders30d'), t('table.toPay'), t('table.score'), ''].map((h, i) => (
+                <th key={i} className="text-left px-4 py-3 text-xs font-medium text-zinc-500">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={9} className="px-4 py-12 text-center text-zinc-500 text-sm">Carregando...</td></tr>
+              <tr><td colSpan={9} className="px-4 py-12 text-center text-zinc-500 text-sm">{t('loading')}</td></tr>
             ) : partners.length === 0 ? (
               <tr>
                 <td colSpan={9} className="px-4 py-12 text-center text-zinc-500 text-sm">
-                  Nenhum parceiro cadastrado.{' '}
-                  <button onClick={() => setShowModal(true)} style={{ color: '#00E5FF' }}>Cadastrar o primeiro</button>
+                  {t('empty')}{' '}
+                  <button onClick={() => setShowModal(true)} style={{ color: '#00E5FF' }}>{t('registerFirst')}</button>
                 </td>
               </tr>
             ) : partners.map(p => (
@@ -256,8 +258,8 @@ export default function PartnersPage() {
                   <p className="font-medium text-white">{p.suppliers?.name ?? '—'}</p>
                   {p.suppliers?.legal_name && <p className="text-xs text-zinc-500">{p.suppliers.legal_name}</p>}
                 </td>
-                <td className="px-4 py-3"><StatusPill status={p.dropship_status} /></td>
-                <td className="px-4 py-3"><IntegrationPill type={p.integration_type} /></td>
+                <td className="px-4 py-3"><StatusPill status={p.dropship_status} t={t} /></td>
+                <td className="px-4 py-3"><IntegrationPill type={p.integration_type} t={t} /></td>
                 <td className="px-4 py-3 text-zinc-300 text-xs">{(p.cutoff_time || '').slice(0, 5)}</td>
                 <td className="px-4 py-3 text-zinc-300">{p.active_dropship_skus ?? 0}</td>
                 <td className="px-4 py-3 text-zinc-300">{p.orders_30d ?? 0}</td>
@@ -281,7 +283,7 @@ export default function PartnersPage() {
             <div className="flex items-center justify-between px-6 py-4 shrink-0" style={{ borderBottom: '1px solid #1e1e24' }}>
               <div className="flex items-center gap-2">
                 <Building2 size={18} style={{ color: '#00E5FF' }} />
-                <h2 className="text-white font-semibold">Novo Parceiro Dropship</h2>
+                <h2 className="text-white font-semibold">{t('modal.title')}</h2>
               </div>
               <button onClick={() => !saving && setShowModal(false)} className="text-zinc-500 hover:text-white">
                 <X size={18} />
@@ -290,83 +292,83 @@ export default function PartnersPage() {
 
             <form onSubmit={handleCreate} className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
               {/* Identificação */}
-              <Section title="Identificação">
+              <Section title={t('section.identification')}>
                 <div>
-                  <label className={lbl}>Nome do parceiro *</label>
-                  <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className={inp} placeholder="Ex: Distribuidora ABC" />
+                  <label className={lbl}>{t('form.name')}</label>
+                  <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className={inp} placeholder={t('form.namePlaceholder')} />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className={lbl}>CNPJ</label>
+                    <label className={lbl}>{t('form.cnpj')}</label>
                     <input value={form.cnpj} onChange={e => setForm(f => ({ ...f, cnpj: e.target.value }))} className={inp} placeholder="00.000.000/0001-00" />
                   </div>
                   <div>
-                    <label className={lbl}>Razão Social</label>
+                    <label className={lbl}>{t('form.legalName')}</label>
                     <input value={form.legal_name} onChange={e => setForm(f => ({ ...f, legal_name: e.target.value }))} className={inp} />
                   </div>
                 </div>
               </Section>
 
               {/* Contato comercial */}
-              <Section title="Contato Comercial">
+              <Section title={t('section.commercialContact')}>
                 <div className="grid grid-cols-2 gap-3">
-                  <div><label className={lbl}>Nome</label><input value={form.contact_name} onChange={e => setForm(f => ({ ...f, contact_name: e.target.value }))} className={inp} /></div>
-                  <div><label className={lbl}>E-mail</label><input type="email" value={form.contact_email} onChange={e => setForm(f => ({ ...f, contact_email: e.target.value }))} className={inp} /></div>
-                  <div><label className={lbl}>Telefone</label><input value={form.contact_phone} onChange={e => setForm(f => ({ ...f, contact_phone: e.target.value }))} className={inp} /></div>
-                  <div><label className={lbl}>WhatsApp</label><input value={form.contact_whatsapp} onChange={e => setForm(f => ({ ...f, contact_whatsapp: e.target.value }))} className={inp} /></div>
+                  <div><label className={lbl}>{t('form.contactName')}</label><input value={form.contact_name} onChange={e => setForm(f => ({ ...f, contact_name: e.target.value }))} className={inp} /></div>
+                  <div><label className={lbl}>{t('form.contactEmail')}</label><input type="email" value={form.contact_email} onChange={e => setForm(f => ({ ...f, contact_email: e.target.value }))} className={inp} /></div>
+                  <div><label className={lbl}>{t('form.contactPhone')}</label><input value={form.contact_phone} onChange={e => setForm(f => ({ ...f, contact_phone: e.target.value }))} className={inp} /></div>
+                  <div><label className={lbl}>{t('form.contactWhatsapp')}</label><input value={form.contact_whatsapp} onChange={e => setForm(f => ({ ...f, contact_whatsapp: e.target.value }))} className={inp} /></div>
                 </div>
               </Section>
 
               {/* Notificação operacional */}
-              <Section title="Notificação Operacional">
-                <p className="text-xs text-zinc-500 mb-2">Por onde o parceiro recebe a OC do dia + lembretes.</p>
+              <Section title={t('section.operationalNotification')}>
+                <p className="text-xs text-zinc-500 mb-2">{t('form.notificationHint')}</p>
                 <div>
-                  <label className={lbl}>E-mail de notificação *</label>
+                  <label className={lbl}>{t('form.notificationEmail')}</label>
                   <input type="email" value={form.notification_email} onChange={e => setForm(f => ({ ...f, notification_email: e.target.value }))} className={inp} placeholder="ops@parceiro.com.br" />
                 </div>
                 <div>
-                  <label className={lbl}>WhatsApp de notificação</label>
+                  <label className={lbl}>{t('form.notificationWhatsapp')}</label>
                   <input value={form.notification_whatsapp} onChange={e => setForm(f => ({ ...f, notification_whatsapp: e.target.value }))} className={inp} placeholder="+5571..." />
                 </div>
               </Section>
 
               {/* Janela operacional */}
-              <Section title="Janela Operacional">
+              <Section title={t('section.operationalWindow')}>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className={lbl}>Cutoff time (parceiro)</label>
+                    <label className={lbl}>{t('form.cutoffTime')}</label>
                     <input type="time" value={form.cutoff_time} onChange={e => setForm(f => ({ ...f, cutoff_time: e.target.value }))} className={inp} />
                   </div>
                   <div>
-                    <label className={lbl}>Ship lead (dias)</label>
+                    <label className={lbl}>{t('form.shipLead')}</label>
                     <input type="number" min="0" value={form.ship_lead_days} onChange={e => setForm(f => ({ ...f, ship_lead_days: e.target.value }))} className={inp} />
                   </div>
                 </div>
                 <div className="grid grid-cols-3 gap-3">
                   <div>
-                    <label className={lbl}>Prévia abre</label>
+                    <label className={lbl}>{t('form.previewOpens')}</label>
                     <input type="time" value={form.oc_preview_open_time} onChange={e => setForm(f => ({ ...f, oc_preview_open_time: e.target.value }))} className={inp} />
                   </div>
                   <div>
-                    <label className={lbl}>Cutoff prévia</label>
+                    <label className={lbl}>{t('form.previewCutoff')}</label>
                     <input type="time" value={form.oc_review_cutoff_time} onChange={e => setForm(f => ({ ...f, oc_review_cutoff_time: e.target.value }))} className={inp} />
                   </div>
                   <div>
-                    <label className={lbl}>Geração OC</label>
+                    <label className={lbl}>{t('form.ocGeneration')}</label>
                     <input type="time" value={form.oc_generation_time} onChange={e => setForm(f => ({ ...f, oc_generation_time: e.target.value }))} className={inp} />
                   </div>
                 </div>
               </Section>
 
               {/* Estratégia */}
-              <Section title="Estratégia Comercial">
+              <Section title={t('section.commercialStrategy')}>
                 <div>
-                  <label className={lbl}>Tipo de integração</label>
+                  <label className={lbl}>{t('form.integrationType')}</label>
                   <select value={form.integration_type} onChange={e => setForm(f => ({ ...f, integration_type: e.target.value as NewPartnerForm['integration_type'] }))} className={inp}>
-                    <option value="manual">Manual (sem automação)</option>
-                    <option value="spreadsheet">Planilha periódica</option>
-                    <option value="api">API/ERP do parceiro</option>
-                    <option value="csv_email">CSV por e-mail</option>
+                    <option value="manual">{t('integration.manual')}</option>
+                    <option value="spreadsheet">{t('integration.spreadsheet')}</option>
+                    <option value="api">{t('integration.api')}</option>
+                    <option value="csv_email">{t('integration.csvEmail')}</option>
                     <option value="sftp">SFTP</option>
                     <option value="erp_bling">Bling</option>
                     <option value="erp_tiny">Tiny ERP</option>
@@ -374,47 +376,47 @@ export default function PartnersPage() {
                   </select>
                 </div>
                 <div>
-                  <label className={lbl}>Estratégia de custo</label>
+                  <label className={lbl}>{t('form.costStrategy')}</label>
                   <select value={form.cost_strategy} onChange={e => setForm(f => ({ ...f, cost_strategy: e.target.value as NewPartnerForm['cost_strategy'] }))} className={inp}>
-                    <option value="current_table">Tabela vigente no momento da OC (recomendado)</option>
-                    <option value="at_sale_date">Custo do momento da venda</option>
-                    <option value="at_ship_date">Custo do momento do envio</option>
-                    <option value="fixed_per_period">Tabela fixa por período</option>
-                    <option value="per_campaign">Acordo por campanha</option>
+                    <option value="current_table">{t('costStrategy.currentTable')}</option>
+                    <option value="at_sale_date">{t('costStrategy.atSaleDate')}</option>
+                    <option value="at_ship_date">{t('costStrategy.atShipDate')}</option>
+                    <option value="fixed_per_period">{t('costStrategy.fixedPerPeriod')}</option>
+                    <option value="per_campaign">{t('costStrategy.perCampaign')}</option>
                   </select>
                 </div>
                 <div>
-                  <label className={lbl}>Régua de devolução</label>
+                  <label className={lbl}>{t('form.returnStrategy')}</label>
                   <select value={form.return_credit_strategy} onChange={e => setForm(f => ({ ...f, return_credit_strategy: e.target.value as NewPartnerForm['return_credit_strategy'] }))} className={inp}>
-                    <option value="next_oc">Crédito na próxima OC (recomendado)</option>
-                    <option value="same_oc">Abate na mesma OC se ainda não paga</option>
-                    <option value="separate_invoice">Lançamento financeiro separado</option>
+                    <option value="next_oc">{t('returnStrategy.nextOc')}</option>
+                    <option value="same_oc">{t('returnStrategy.sameOc')}</option>
+                    <option value="separate_invoice">{t('returnStrategy.separateInvoice')}</option>
                   </select>
                 </div>
               </Section>
 
               {/* Pagamento */}
-              <Section title="Pagamento">
+              <Section title={t('section.payment')}>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className={lbl}>Prazo (dias)</label>
+                    <label className={lbl}>{t('form.paymentTerms')}</label>
                     <input value={form.payment_terms} onChange={e => setForm(f => ({ ...f, payment_terms: e.target.value }))} className={inp} placeholder="15" />
                   </div>
                   <div>
-                    <label className={lbl}>Método</label>
+                    <label className={lbl}>{t('form.paymentMethod')}</label>
                     <select value={form.payment_method} onChange={e => setForm(f => ({ ...f, payment_method: e.target.value }))} className={inp}>
                       <option value="pix">PIX</option>
-                      <option value="boleto">Boleto</option>
-                      <option value="transfer">Transferência</option>
-                      <option value="check">Cheque</option>
+                      <option value="boleto">{t('paymentMethod.boleto')}</option>
+                      <option value="transfer">{t('paymentMethod.transfer')}</option>
+                      <option value="check">{t('paymentMethod.check')}</option>
                     </select>
                   </div>
                 </div>
               </Section>
 
               <div>
-                <label className={lbl}>Observações</label>
-                <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} className={inp + ' resize-none'} placeholder="Notas internas (opcional)" />
+                <label className={lbl}>{t('form.notes')}</label>
+                <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} className={inp + ' resize-none'} placeholder={t('form.notesPlaceholder')} />
               </div>
             </form>
 
@@ -427,9 +429,9 @@ export default function PartnersPage() {
                 }}>{formErr}</div>
               )}
               <div className="flex gap-2 ml-auto">
-                <button onClick={() => !saving && setShowModal(false)} disabled={saving} className="px-4 py-2 text-sm rounded-lg text-zinc-400 hover:text-white transition-colors" style={{ border: '1px solid #27272a' }}>Cancelar</button>
+                <button onClick={() => !saving && setShowModal(false)} disabled={saving} className="px-4 py-2 text-sm rounded-lg text-zinc-400 hover:text-white transition-colors" style={{ border: '1px solid #27272a' }}>{t('cancel')}</button>
                 <button onClick={handleCreate} disabled={saving} className="px-4 py-2 text-sm font-medium rounded-lg transition-colors" style={{ background: '#00E5FF', color: '#09090b', opacity: saving ? 0.6 : 1 }}>
-                  {saving ? 'Salvando...' : 'Criar Parceiro'}
+                  {saving ? t('saving') : t('createPartner')}
                 </button>
               </div>
             </div>
@@ -461,26 +463,26 @@ function KpiCard({ label, value, sub }: { label: string; value: string | number;
   )
 }
 
-function StatusPill({ status }: { status: string }) {
-  const c: Record<string, { bg: string; fg: string; label: string }> = {
-    active:        { bg: 'rgba(34,197,94,0.10)',   fg: '#22c55e', label: 'Ativo' },
-    paused:        { bg: 'rgba(252,211,77,0.10)',  fg: '#fcd34d', label: 'Pausado' },
-    inactive:      { bg: 'rgba(113,113,122,0.10)', fg: '#71717a', label: 'Inativo' },
-    pending_setup: { bg: 'rgba(0,229,255,0.10)',   fg: '#00E5FF', label: 'Setup' },
+function StatusPill({ status, t }: { status: string; t: ReturnType<typeof useTranslations> }) {
+  const c: Record<string, { bg: string; fg: string; key: string }> = {
+    active:        { bg: 'rgba(34,197,94,0.10)',   fg: '#22c55e', key: 'statusPill.active' },
+    paused:        { bg: 'rgba(252,211,77,0.10)',  fg: '#fcd34d', key: 'statusPill.paused' },
+    inactive:      { bg: 'rgba(113,113,122,0.10)', fg: '#71717a', key: 'statusPill.inactive' },
+    pending_setup: { bg: 'rgba(0,229,255,0.10)',   fg: '#00E5FF', key: 'statusPill.setup' },
   }
   const x = c[status] ?? c.inactive
   return (
     <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium"
       style={{ background: x.bg, color: x.fg, border: `1px solid ${x.fg}33` }}>
-      {x.label}
+      {t(x.key)}
     </span>
   )
 }
 
-function IntegrationPill({ type }: { type: string }) {
+function IntegrationPill({ type, t }: { type: string; t: ReturnType<typeof useTranslations> }) {
   const labels: Record<string, string> = {
-    manual: 'Manual',
-    spreadsheet: 'Planilha',
+    manual: t('integrationPill.manual'),
+    spreadsheet: t('integrationPill.spreadsheet'),
     api: 'API',
     csv_email: 'CSV/email',
     sftp: 'SFTP',

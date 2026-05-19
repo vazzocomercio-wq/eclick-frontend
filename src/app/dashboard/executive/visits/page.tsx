@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import {
   RefreshCw, Eye, ShoppingCart, TrendingUp, TrendingDown, Minus,
@@ -31,17 +32,19 @@ const pct  = (v: number | null, digits = 2) =>
 const dateBr = (iso: string) =>
   new Date(`${iso}T00:00:00Z`).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
 
-function timeSince(iso: string): string {
+type Translator = ReturnType<typeof useTranslations>
+
+function timeSince(iso: string, t: Translator): string {
   const diff = Date.now() - new Date(iso).getTime()
   const m = Math.round(diff / 60_000)
-  if (m < 1)  return 'agora'
-  if (m < 60) return `há ${m}m`
+  if (m < 1)  return t('timeNow')
+  if (m < 60) return t('timeMinutesAgo', { m })
   const h = Math.round(m / 60)
-  return h < 24 ? `há ${h}h` : `há ${Math.round(h / 24)}d`
+  return h < 24 ? t('timeHoursAgo', { h }) : t('timeDaysAgo', { d: Math.round(h / 24) })
 }
 
 /** Mini line chart SVG das últimas N visitas + pontos de orders. */
-function VisitsChart({ data, height = 180, width = 800 }: { data: VisitsDay[]; height?: number; width?: number }) {
+function VisitsChart({ data, t, height = 180, width = 800 }: { data: VisitsDay[]; t: Translator; height?: number; width?: number }) {
   if (data.length === 0) return null
   const padding = { top: 20, right: 20, bottom: 28, left: 50 }
   const chartW = width - padding.left - padding.right
@@ -102,15 +105,16 @@ function VisitsChart({ data, height = 180, width = 800 }: { data: VisitsDay[]; h
       {/* Legenda */}
       <g transform={`translate(${padding.left + 8}, 12)`}>
         <line x1={0} x2={14} y1={0} y2={0} stroke="#00E5FF" strokeWidth={2} />
-        <text x={20} y={4} fontSize="11" fill="#a1a1aa">Visitas</text>
+        <text x={20} y={4} fontSize="11" fill="#a1a1aa">{t('visitsLegendVisits')}</text>
         <line x1={74} x2={88} y1={0} y2={0} stroke="#84cc16" strokeWidth={1.5} strokeDasharray="4 4" />
-        <text x={94} y={4} fontSize="11" fill="#a1a1aa">Pedidos</text>
+        <text x={94} y={4} fontSize="11" fill="#a1a1aa">{t('visitsLegendOrders')}</text>
       </g>
     </svg>
   )
 }
 
 export default function VisitsPage() {
+  const t = useTranslations('executive')
   const supabase = useMemo(() => createClient(), [])
   const [history,  setHistory]  = useState<VisitsDay[]>([])
   const [accounts, setAccounts] = useState<AccountConnection[]>([])
@@ -121,9 +125,9 @@ export default function VisitsPage() {
 
   const getHeaders = useCallback(async (): Promise<Record<string, string>> => {
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session?.access_token) throw new Error('Não autenticado')
+    if (!session?.access_token) throw new Error(t('notAuthenticated'))
     return { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' }
-  }, [supabase])
+  }, [supabase, t])
 
   // Carrega contas via /executive/dashboard pra reusar a lista de nicknames
   const loadAccounts = useCallback(async () => {
@@ -212,13 +216,13 @@ export default function VisitsPage() {
       }}>
         <div>
           <h1 style={{ fontSize: 24, fontWeight: 600, margin: 0, color: '#fafafa' }}>
-            Visitas + Conversão
+            {t('visitsTitle')}
           </h1>
           <div style={{ fontSize: 13, color: '#71717a', marginTop: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
             <Activity size={12} />
             {history.length > 0
-              ? <>Última sync {timeSince(history[history.length - 1]?.date + 'T00:00:00Z')} · cron diário 03:00 BRT</>
-              : <>Sem dados ainda</>}
+              ? <>{t('visitsUpdatedMeta', { since: timeSince(history[history.length - 1]?.date + 'T00:00:00Z', t) })}</>
+              : <>{t('visitsNoDataYet')}</>}
           </div>
         </div>
         <button
@@ -234,7 +238,7 @@ export default function VisitsPage() {
           }}
         >
           <RefreshCw size={14} style={{ animation: syncing ? 'spin 1s linear infinite' : undefined }} />
-          {syncing ? 'Sincronizando…' : 'Sincronizar agora'}
+          {syncing ? t('reputationSyncing') : t('reputationSyncNow')}
         </button>
       </div>
 
@@ -253,7 +257,7 @@ export default function VisitsPage() {
                 cursor: 'pointer', fontWeight: 500,
               }}
             >
-              {a.nickname ?? `Conta ${a.seller_id}`}
+              {a.nickname ?? t('accountFallback', { id: a.seller_id })}
             </button>
           ))}
         </div>
@@ -277,16 +281,16 @@ export default function VisitsPage() {
       </div>
 
       {loading && history.length === 0 && (
-        <div style={{ textAlign: 'center', padding: 40, color: '#71717a' }}>Carregando…</div>
+        <div style={{ textAlign: 'center', padding: 40, color: '#71717a' }}>{t('loading')}</div>
       )}
 
       {stats && (
         <>
           {/* KPI cards */}
           <h2 style={{ fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.8, color: '#a1a1aa', marginBottom: 12 }}>
-            Resumo últimos 7 dias
+            {t('visitsSummary7d')}
             <span style={{ marginLeft: 8, fontSize: 10, color: '#52525b', textTransform: 'none', letterSpacing: 0 }}>
-              (excluindo dia parcial)
+              {t('visitsExcludingPartial')}
             </span>
           </h2>
           <div style={{
@@ -302,7 +306,7 @@ export default function VisitsPage() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                 <Eye size={14} color="#00E5FF" />
                 <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6, color: '#a1a1aa' }}>
-                  Visitas
+                  {t('visitsLabelVisits')}
                 </span>
               </div>
               <div style={{ fontSize: 28, fontWeight: 600, color: '#00E5FF', lineHeight: 1 }}>
@@ -314,7 +318,7 @@ export default function VisitsPage() {
                   marginTop: 6, display: 'flex', alignItems: 'center', gap: 4,
                 }}>
                   {stats.change >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-                  {stats.change > 0 ? '+' : ''}{stats.change.toFixed(1)}% vs 7d anteriores
+                  {stats.change > 0 ? '+' : ''}{t('visitsChangeVsPrev7d', { pct: stats.change.toFixed(1) })}
                 </div>
               )}
             </div>
@@ -327,14 +331,14 @@ export default function VisitsPage() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                 <ShoppingCart size={14} color="#84cc16" />
                 <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6, color: '#a1a1aa' }}>
-                  Pedidos
+                  {t('visitsLabelOrders')}
                 </span>
               </div>
               <div style={{ fontSize: 28, fontWeight: 600, color: '#84cc16', lineHeight: 1 }}>
                 {num(stats.last7.orders)}
               </div>
               <div style={{ fontSize: 12, color: '#71717a', marginTop: 6 }}>
-                {num(stats.last7.units)} unidades vendidas
+                {t('visitsUnitsSold', { count: num(stats.last7.units) })}
               </div>
             </div>
 
@@ -354,7 +358,7 @@ export default function VisitsPage() {
                   stats.last7.conv >= 1 ? '#f59e0b' : '#ef4444'
                 } />
                 <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6, color: '#a1a1aa' }}>
-                  Taxa de conversão
+                  {t('visitsConversionRate')}
                 </span>
               </div>
               <div style={{
@@ -379,14 +383,14 @@ export default function VisitsPage() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                   <AlertCircle size={14} color="#f59e0b" />
                   <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6, color: '#a1a1aa' }}>
-                    Hoje (parcial)
+                    {t('visitsTodayPartial')}
                   </span>
                 </div>
                 <div style={{ fontSize: 22, fontWeight: 500, color: '#f59e0b' }}>
                   {num(stats.partialToday.total_visits)}
                 </div>
                 <div style={{ fontSize: 11, color: '#71717a', marginTop: 6 }}>
-                  visitas até agora · {stats.partialToday.total_orders} pedidos
+                  {t('visitsSoFar', { orders: stats.partialToday.total_orders })}
                 </div>
               </div>
             )}
@@ -394,7 +398,7 @@ export default function VisitsPage() {
 
           {/* Gráfico */}
           <h2 style={{ fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.8, color: '#a1a1aa', marginBottom: 12 }}>
-            Evolução {days}d
+            {t('visitsEvolution', { days })}
           </h2>
           <div style={{
             background: 'rgba(255,255,255,0.02)',
@@ -402,12 +406,12 @@ export default function VisitsPage() {
             borderRadius: 12, padding: '20px 16px',
             marginBottom: 28,
           }}>
-            <VisitsChart data={history} />
+            <VisitsChart data={history} t={t} />
           </div>
 
           {/* Tabela detalhada */}
           <h2 style={{ fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.8, color: '#a1a1aa', marginBottom: 12 }}>
-            Diário ({history.length} dias)
+            {t('visitsDaily', { days: history.length })}
           </h2>
           <div style={{
             background: 'rgba(255,255,255,0.02)',
@@ -417,19 +421,19 @@ export default function VisitsPage() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                  <th style={{ textAlign: 'left',  padding: '12px 16px', color: '#71717a', fontWeight: 500, fontSize: 11 }}>DATA</th>
-                  <th style={{ textAlign: 'right', padding: '12px 16px', color: '#71717a', fontWeight: 500, fontSize: 11 }}>VISITAS</th>
-                  <th style={{ textAlign: 'right', padding: '12px 16px', color: '#71717a', fontWeight: 500, fontSize: 11 }}>VS DIA ANT.</th>
-                  <th style={{ textAlign: 'right', padding: '12px 16px', color: '#71717a', fontWeight: 500, fontSize: 11 }}>VS SEM ANT.</th>
-                  <th style={{ textAlign: 'right', padding: '12px 16px', color: '#71717a', fontWeight: 500, fontSize: 11 }}>PEDIDOS</th>
-                  <th style={{ textAlign: 'right', padding: '12px 16px', color: '#71717a', fontWeight: 500, fontSize: 11 }}>CONVERSÃO</th>
+                  <th style={{ textAlign: 'left',  padding: '12px 16px', color: '#71717a', fontWeight: 500, fontSize: 11 }}>{t('visitsColDate')}</th>
+                  <th style={{ textAlign: 'right', padding: '12px 16px', color: '#71717a', fontWeight: 500, fontSize: 11 }}>{t('visitsColVisits')}</th>
+                  <th style={{ textAlign: 'right', padding: '12px 16px', color: '#71717a', fontWeight: 500, fontSize: 11 }}>{t('visitsColVsPrevDay')}</th>
+                  <th style={{ textAlign: 'right', padding: '12px 16px', color: '#71717a', fontWeight: 500, fontSize: 11 }}>{t('visitsColVsPrevWeek')}</th>
+                  <th style={{ textAlign: 'right', padding: '12px 16px', color: '#71717a', fontWeight: 500, fontSize: 11 }}>{t('visitsColOrders')}</th>
+                  <th style={{ textAlign: 'right', padding: '12px 16px', color: '#71717a', fontWeight: 500, fontSize: 11 }}>{t('visitsColConversion')}</th>
                 </tr>
               </thead>
               <tbody>
                 {[...history].reverse().map(d => (
                   <tr key={d.date} style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>
                     <td style={{ padding: '10px 16px', color: d.is_partial ? '#f59e0b' : '#e4e4e7' }}>
-                      {dateBr(d.date)}{d.is_partial && ' · parcial'}
+                      {dateBr(d.date)}{d.is_partial && t('visitsPartialSuffix')}
                     </td>
                     <td style={{ padding: '10px 16px', textAlign: 'right', color: '#e4e4e7' }}>
                       {num(d.total_visits)}
@@ -463,10 +467,10 @@ export default function VisitsPage() {
           }}>
             <BarChart3 size={16} color="#71717a" style={{ flexShrink: 0, marginTop: 2 }} />
             <div style={{ fontSize: 12, color: '#a1a1aa', lineHeight: 1.5 }}>
-              <strong style={{ color: '#e4e4e7' }}>Próximo:</strong> granularidade por item ("top anúncios com muita visita, pouca venda")
-              precisa do endpoint <code style={{ background: 'rgba(255,255,255,0.05)', padding: '1px 5px', borderRadius: 3 }}>
-                /items/&#123;id&#125;/visits
-              </code> — ainda não validado no smoke. Fica pra E4 fase 2.
+              {t.rich('visitsNextNote', {
+                strong: (chunks) => <strong style={{ color: '#e4e4e7' }}>{chunks}</strong>,
+                code: (chunks) => <code style={{ background: 'rgba(255,255,255,0.05)', padding: '1px 5px', borderRadius: 3 }}>{chunks}</code>,
+              })}
             </div>
           </div>
         </>
@@ -478,7 +482,7 @@ export default function VisitsPage() {
           border: '1px dashed rgba(255,255,255,0.10)',
           borderRadius: 12, padding: 20, color: '#71717a', fontSize: 13,
         }}>
-          Sem dados de visitas ainda. Click em &ldquo;Sincronizar agora&rdquo; pra trazer da API ML.
+          {t('visitsNoDataEmpty')}
         </div>
       )}
 

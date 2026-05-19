@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import {
   CheckCircle2, XCircle, Clock, RefreshCw, Plug, Zap,
@@ -61,29 +62,32 @@ function connStatus(conn: MlConn): IntegStatus {
   return new Date(conn.expires_at).getTime() - Date.now() < 0 ? 'expired' : 'connected'
 }
 
-function timeAgo(iso?: string) {
+type Translate = (key: string, values?: Record<string, string | number>) => string
+
+function timeAgo(iso: string | undefined, t: Translate) {
   if (!iso) return null
   const diff = Date.now() - new Date(iso).getTime()
-  if (diff < 60000)   return 'agora'
-  if (diff < 3600000) return `${Math.floor(diff / 60000)}min atrás`
-  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h atrás`
-  return `${Math.floor(diff / 86400000)}d atrás`
+  if (diff < 60000)   return t('timeAgo.now')
+  if (diff < 3600000) return t('timeAgo.minutes', { n: Math.floor(diff / 60000) })
+  if (diff < 86400000) return t('timeAgo.hours', { n: Math.floor(diff / 3600000) })
+  return t('timeAgo.days', { n: Math.floor(diff / 86400000) })
 }
 
-const STATUS_CFG: Record<IntegStatus, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
-  connected:     { label: 'Conectado',      color: '#4ade80', bg: 'rgba(74,222,128,0.1)',   icon: <CheckCircle2 size={11} /> },
-  expired:       { label: 'Token expirado', color: '#f87171', bg: 'rgba(248,113,113,0.1)',  icon: <XCircle size={11} /> },
-  disconnected:  { label: 'Desconectado',   color: '#71717a', bg: 'rgba(113,113,122,0.12)', icon: <XCircle size={11} /> },
-  not_connected: { label: 'Não integrado',  color: '#fb923c', bg: 'rgba(251,146,60,0.1)',   icon: <Plug size={11} /> },
-  soon:          { label: 'Em breve',       color: '#52525b', bg: 'rgba(82,82,91,0.15)',    icon: <Clock size={11} /> },
+const STATUS_CFG: Record<IntegStatus, { color: string; bg: string; icon: React.ReactNode }> = {
+  connected:     { color: '#4ade80', bg: 'rgba(74,222,128,0.1)',   icon: <CheckCircle2 size={11} /> },
+  expired:       { color: '#f87171', bg: 'rgba(248,113,113,0.1)',  icon: <XCircle size={11} /> },
+  disconnected:  { color: '#71717a', bg: 'rgba(113,113,122,0.12)', icon: <XCircle size={11} /> },
+  not_connected: { color: '#fb923c', bg: 'rgba(251,146,60,0.1)',   icon: <Plug size={11} /> },
+  soon:          { color: '#52525b', bg: 'rgba(82,82,91,0.15)',    icon: <Clock size={11} /> },
 }
 
 function StatusBadge({ status }: { status: IntegStatus }) {
+  const t = useTranslations('integracoes')
   const c = STATUS_CFG[status]
   return (
     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold"
       style={{ background: c.bg, color: c.color }}>
-      {c.icon} {c.label}
+      {c.icon} {t(`integStatus.${status}` as 'integStatus.connected')}
     </span>
   )
 }
@@ -133,6 +137,7 @@ function AddKeyModal({ provider, onClose, onSaved }: {
   onClose: () => void
   onSaved: (cred: Credential) => void
 }) {
+  const t = useTranslations('integracoes')
   const [value, setValue]   = useState('')
   const [show, setShow]     = useState(false)
   const [saving, setSaving] = useState(false)
@@ -151,7 +156,7 @@ function AddKeyModal({ provider, onClose, onSaved }: {
         method: 'POST', headers,
         body: JSON.stringify({ provider: provider.id, key_name: provider.keyName, key_value: value }),
       })
-      if (!saveRes.ok) throw new Error('Falha ao salvar')
+      if (!saveRes.ok) throw new Error(t('addKey.saveFailed'))
       const cred: Credential = await saveRes.json()
 
       // Test it
@@ -176,20 +181,20 @@ function AddKeyModal({ provider, onClose, onSaved }: {
         <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid #1e1e24' }}>
           <div className="flex items-center gap-2">
             <Key size={15} style={{ color: '#00E5FF' }} />
-            <p className="text-sm font-semibold text-white">Adicionar chave {provider.name}</p>
+            <p className="text-sm font-semibold text-white">{t('addKey.title', { name: provider.name })}</p>
           </div>
           <button onClick={onClose} className="text-zinc-500 hover:text-zinc-300 transition-colors"><X size={16} /></button>
         </div>
 
         <div className="px-5 py-5 space-y-4">
           <div>
-            <label className="block text-xs text-zinc-400 mb-1.5">Cole sua API Key</label>
+            <label className="block text-xs text-zinc-400 mb-1.5">{t('addKey.pasteKey')}</label>
             <div className="relative">
               <input
                 type={show ? 'text' : 'password'}
                 value={value}
                 onChange={e => setValue(e.target.value)}
-                placeholder={provider.placeholder}
+                placeholder={provider.id === 'screenshotone' ? t('addKey.screenshotonePlaceholder') : provider.placeholder}
                 className="w-full pl-3 pr-10 py-2.5 rounded-xl text-sm text-white placeholder-zinc-600 font-mono"
                 style={{ background: '#0d0d10', border: '1px solid #27272a' }}
                 autoFocus
@@ -202,8 +207,8 @@ function AddKeyModal({ provider, onClose, onSaved }: {
           </div>
 
           <div className="rounded-xl p-3 space-y-1" style={{ background: '#0d0d10', border: '1px solid #1e1e24' }}>
-            <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wide">Como obter sua chave</p>
-            <p className="text-xs text-zinc-400">{provider.helpText}</p>
+            <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wide">{t('addKey.howToGetKey')}</p>
+            <p className="text-xs text-zinc-400">{t(`providerHelp.${provider.id}` as 'providerHelp.anthropic')}</p>
             <a href={provider.helpUrl} target="_blank" rel="noreferrer"
               className="flex items-center gap-1 text-[11px] transition-colors"
               style={{ color: '#00E5FF' }}>
@@ -223,13 +228,13 @@ function AddKeyModal({ provider, onClose, onSaved }: {
         <div className="flex justify-between px-5 py-4" style={{ borderTop: '1px solid #1e1e24' }}>
           <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm text-zinc-400 transition-colors"
             style={{ background: '#1e1e24' }}>
-            Cancelar
+            {t('common.cancel')}
           </button>
           <button onClick={save} disabled={!value.trim() || saving}
             className="glow-rainbow flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-colors disabled:opacity-40"
             style={{ background: '#00E5FF', color: '#000' }}>
             {saving ? <Loader2 size={13} className="animate-spin" /> : <TestTube2 size={13} />}
-            Salvar e testar
+            {t('addKey.saveAndTest')}
           </button>
         </div>
       </div>
@@ -254,6 +259,7 @@ function AIProviderCard({ def, cred, usage, onAdd, onTest, onRemove, testing }: 
   onRemove: () => void
   testing: boolean
 }) {
+  const t = useTranslations('integracoes')
   const hasKey = !!cred
   const testOk = cred?.last_test_status === 'ok'
   const maxModelTokens = usage?.by_model?.[0]?.tokens ?? 1
@@ -278,9 +284,9 @@ function AIProviderCard({ def, cred, usage, onAdd, onTest, onRemove, testing }: 
           ? <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold"
               style={{ background: testOk ? 'rgba(74,222,128,0.1)' : 'rgba(248,113,113,0.1)', color: testOk ? '#4ade80' : '#f87171' }}>
               {testOk ? <CheckCircle2 size={10} /> : <AlertCircle size={10} />}
-              {testOk ? 'Conectada' : 'Erro'}
+              {testOk ? t('aiCard.connected') : t('aiCard.error')}
             </span>
-          : <span className="text-[10px] text-zinc-600">Não configurada</span>}
+          : <span className="text-[10px] text-zinc-600">{t('aiCard.notConfigured')}</span>}
       </div>
 
       {/* Key preview + test status */}
@@ -310,9 +316,9 @@ function AIProviderCard({ def, cred, usage, onAdd, onTest, onRemove, testing }: 
         <div className="space-y-2.5 pt-1" style={{ borderTop: '1px solid #1e1e24' }}>
           {/* Month totals */}
           <div>
-            <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-600 mb-1.5">Uso do mês</p>
+            <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-600 mb-1.5">{t('aiCard.monthUsage')}</p>
             <div className="flex items-center justify-between text-xs">
-              <span className="text-zinc-300">{fmtTokens(usage.total_tokens)} tokens</span>
+              <span className="text-zinc-300">{t('aiCard.tokens', { value: fmtTokens(usage.total_tokens) })}</span>
               <span className="font-semibold" style={{ color: '#00E5FF' }}>US$ {usage.total_cost_usd.toFixed(4)}</span>
             </div>
           </div>
@@ -340,13 +346,13 @@ function AIProviderCard({ def, cred, usage, onAdd, onTest, onRemove, testing }: 
           {/* Today + feature breakdown */}
           <div className="grid grid-cols-2 gap-2">
             <div className="rounded-lg px-2 py-1.5" style={{ background: '#0d0d10' }}>
-              <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-600 mb-0.5">Hoje</p>
+              <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-600 mb-0.5">{t('aiCard.today')}</p>
               <p className="text-xs font-semibold text-white">{fmtTokens(usage.today_tokens)}</p>
               <p className="text-[10px] text-zinc-600">US$ {usage.today_cost_usd.toFixed(4)}</p>
             </div>
             {usage.by_feature.length > 0 && (
               <div className="rounded-lg px-2 py-1.5 overflow-hidden" style={{ background: '#0d0d10' }}>
-                <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-600 mb-0.5">Por feature</p>
+                <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-600 mb-0.5">{t('aiCard.byFeature')}</p>
                 {usage.by_feature.slice(0, 2).map(f => (
                   <p key={f.feature} className="text-[10px] text-zinc-500 truncate">
                     {f.feature.replace(/_/g, ' ')}: {fmtTokens(f.tokens)}
@@ -364,7 +370,7 @@ function AIProviderCard({ def, cred, usage, onAdd, onTest, onRemove, testing }: 
           <button onClick={onAdd}
             className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold transition-colors"
             style={{ background: 'rgba(0,229,255,0.1)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.25)' }}>
-            <Plus size={12} /> Adicionar chave
+            <Plus size={12} /> {t('aiCard.addKey')}
           </button>
         ) : (
           <>
@@ -372,7 +378,7 @@ function AIProviderCard({ def, cred, usage, onAdd, onTest, onRemove, testing }: 
               className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-medium transition-colors disabled:opacity-50"
               style={{ background: '#1e1e24', color: '#a1a1aa' }}>
               {testing ? <Loader2 size={11} className="animate-spin" /> : <TestTube2 size={11} />}
-              Testar
+              {t('aiCard.test')}
             </button>
             <button onClick={onRemove}
               className="flex items-center justify-center p-2 rounded-xl text-zinc-600 transition-colors"
@@ -399,6 +405,7 @@ function IntegCard({
   onConnect?: () => void
   onDisconnect?: (sellerId: number) => void
 }) {
+  const t = useTranslations('integracoes')
   const isSoon = status === 'soon'
   return (
     <div className="rounded-2xl p-4 space-y-3" style={{ background: '#111114', border: '1px solid #1e1e24', opacity: isSoon ? 0.6 : 1 }}>
@@ -428,15 +435,15 @@ function IntegCard({
                   style={{ background: 'rgba(255,230,0,0.12)', color: '#FFE600' }}>
                   {(acc.nickname ?? `${acc.seller_id}`).charAt(0).toUpperCase()}
                 </div>
-                <span className="text-[10px] font-medium text-zinc-300 flex-1 truncate">{acc.nickname ?? `Conta #${acc.seller_id}`}</span>
-                <span className="text-[9px] font-semibold" style={{ color: cfg.color }}>{cfg.label}</span>
+                <span className="text-[10px] font-medium text-zinc-300 flex-1 truncate">{acc.nickname ?? t('integCard.accountNumber', { id: acc.seller_id })}</span>
+                <span className="text-[9px] font-semibold" style={{ color: cfg.color }}>{t(`integStatus.${st}` as 'integStatus.connected')}</span>
                 {onDisconnect && (
                   <button onClick={() => onDisconnect(acc.seller_id)}
                     className="text-[9px] px-1.5 py-0.5 rounded transition-colors"
                     style={{ color: '#71717a', border: '1px solid #2e2e33' }}
                     onMouseEnter={e => (e.currentTarget.style.color = '#f87171')}
                     onMouseLeave={e => (e.currentTarget.style.color = '#71717a')}>
-                    Remover
+                    {t('integCard.remove')}
                   </button>
                 )}
               </div>
@@ -454,7 +461,7 @@ function IntegCard({
             border:    `1px solid ${accounts && accounts.length > 0 ? '#2e2e33' : 'rgba(0,229,255,0.25)'}`,
           }}>
           <Plug size={11} />
-          {accounts && accounts.length > 0 ? 'Adicionar conta' : 'Conectar'}
+          {accounts && accounts.length > 0 ? t('integCard.addAccount') : t('integCard.connect')}
         </button>
       )}
     </div>
@@ -486,6 +493,7 @@ function CanvaCard({ getHeaders, onToast }: {
   getHeaders: () => Promise<{ Authorization: string }>
   onToast: (m: string, t?: 'success' | 'error') => void
 }) {
+  const t = useTranslations('integracoes')
   const [status, setStatus] = useState<{ connected: boolean; configured: boolean } | null>(null)
   const [connecting, setConnecting] = useState(false)
 
@@ -516,10 +524,10 @@ function CanvaCard({ getHeaders, onToast }: {
         const { authorize_url } = await res.json()
         window.location.href = authorize_url
       } else {
-        onToast('Não foi possível iniciar a conexão com o Canva', 'error')
+        onToast(t('canva.connectError'), 'error')
       }
     } catch (e) {
-      onToast(`Erro: ${(e as Error).message}`, 'error')
+      onToast(`${t('common.error')}: ${(e as Error).message}`, 'error')
     } finally {
       setConnecting(false)
     }
@@ -540,21 +548,21 @@ function CanvaCard({ getHeaders, onToast }: {
           </div>
           <div>
             <p className="text-xs font-semibold text-zinc-200">Canva</p>
-            <p className="text-[10px] text-zinc-600 mt-0.5">Designs do Canva como inspiração da loja</p>
+            <p className="text-[10px] text-zinc-600 mt-0.5">{t('canva.cardSubtitle')}</p>
           </div>
         </div>
         <StatusBadge status={integStatus} />
       </div>
       {status && !status.configured ? (
         <p className="px-3 py-2 rounded-xl text-[11px] text-zinc-500" style={{ background: '#0d0d10' }}>
-          Integração Canva não configurada pelo administrador da plataforma.
+          {t('canva.notConfigured')}
         </p>
       ) : (
         <button onClick={connect} disabled={connecting || !status}
           className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold transition-colors disabled:opacity-50"
           style={{ background: 'rgba(0,229,255,0.1)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.25)' }}>
           {connecting ? <Loader2 size={12} className="animate-spin" /> : <Plug size={12} />}
-          {status?.connected ? 'Reconectar Canva' : 'Conectar Canva'}
+          {status?.connected ? t('canva.reconnect') : t('canva.connect')}
         </button>
       )}
     </div>
@@ -564,6 +572,7 @@ function CanvaCard({ getHeaders, onToast }: {
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function IntegracoesPage() {
+  const t = useTranslations('integracoes')
   const [mlConns, setMlConns]         = useState<MlConn[]>([])
   const [channels, setChannels]       = useState<ChannelRow[]>([])
   const [credentials, setCredentials] = useState<Credential[]>([])
@@ -624,9 +633,9 @@ export default function IntegracoesPage() {
 
   async function disconnectML(sellerId: number) {
     const ok = await confirm({
-      title:        'Remover integração ML',
-      message:      `Remover integração ML ${sellerId}?`,
-      confirmLabel: 'Remover',
+      title:        t('disconnectMl.title'),
+      message:      t('disconnectMl.message', { id: sellerId }),
+      confirmLabel: t('common.remove'),
       variant:      'danger',
     })
     if (!ok) return
@@ -649,22 +658,22 @@ export default function IntegracoesPage() {
         showToast(result.ok ? `✅ ${result.message}` : `❌ ${result.message}`, result.ok ? 'success' : 'error')
       }
     } catch (e) {
-      showToast(`❌ Erro: ${(e as Error).message}`, 'error')
+      showToast(`❌ ${t('common.error')}: ${(e as Error).message}`, 'error')
     } finally { setTestingId(null) }
   }
 
   async function removeCredential(id: string, providerName: string) {
     const ok = await confirm({
-      title:        'Remover chave',
-      message:      `Tem certeza que deseja remover a chave ${providerName}? Esta ação não pode ser desfeita.`,
-      confirmLabel: 'Remover',
+      title:        t('removeKey.title'),
+      message:      t('removeKey.message', { name: providerName }),
+      confirmLabel: t('common.remove'),
       variant:      'danger',
     })
     if (!ok) return
     const headers = await getHeaders()
     await fetch(`${BACKEND}/credentials/${id}`, { method: 'DELETE', headers })
     setCredentials(prev => prev.filter(c => c.id !== id))
-    showToast('Chave removida com sucesso', 'success')
+    showToast(t('removeKey.success'), 'success')
   }
 
   const overallMlStatus: IntegStatus = loading ? 'disconnected'
@@ -680,26 +689,26 @@ export default function IntegracoesPage() {
       {/* Header */}
       <div className="flex items-center justify-between gap-4">
         <div>
-          <p className="text-zinc-500 text-xs">Configurações</p>
-          <h2 className="text-white text-lg font-semibold mt-0.5">Integrações</h2>
-          <p className="text-zinc-500 text-xs mt-1">Configure provedores de IA, marketplaces e mensageiros em um só lugar.</p>
+          <p className="text-zinc-500 text-xs">{t('cfgPage.breadcrumb')}</p>
+          <h2 className="text-white text-lg font-semibold mt-0.5">{t('cfgPage.title')}</h2>
+          <p className="text-zinc-500 text-xs mt-1">{t('cfgPage.subtitle')}</p>
         </div>
         <button onClick={load} disabled={loading}
           className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border transition-all disabled:opacity-60"
           style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>
           <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
-          Atualizar
+          {t('cfgPage.refresh')}
         </button>
       </div>
 
       {/* Anchor nav */}
       <div className="flex flex-wrap gap-2 sticky top-0 z-30 -mx-6 px-6 py-3" style={{ background: 'rgba(9,9,11,0.85)', backdropFilter: 'blur(8px)', borderBottom: '1px solid #1e1e24' }}>
         {[
-          { href: '#ia',           label: 'IA',           emoji: '🤖' },
-          { href: '#loja',         label: 'Loja',         emoji: '🛍️' },
-          { href: '#marketplaces', label: 'Marketplaces', emoji: '🏪' },
-          { href: '#mensageiros',  label: 'Mensageiros',  emoji: '💬' },
-          { href: '#email',        label: 'Email',        emoji: '📧' },
+          { href: '#ia',           label: t('cfgPage.navIa'),           emoji: '🤖' },
+          { href: '#loja',         label: t('cfgPage.navStore'),        emoji: '🛍️' },
+          { href: '#marketplaces', label: t('cfgPage.navMarketplaces'), emoji: '🏪' },
+          { href: '#mensageiros',  label: t('cfgPage.navMessengers'),   emoji: '💬' },
+          { href: '#email',        label: t('cfgPage.navEmail'),        emoji: '📧' },
         ].map(a => (
           <a key={a.href} href={a.href}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all hover:bg-white/5"
@@ -710,7 +719,7 @@ export default function IntegracoesPage() {
       </div>
 
       {/* ── Inteligência Artificial ──────────────────────────────────────── */}
-      <Section id="ia" title="Inteligência Artificial" subtitle="Provedores de modelos de linguagem usados pelas features de IA do app." icon={<Bot size={13} />}>
+      <Section id="ia" title={t('cfgPage.sectionIaTitle')} subtitle={t('cfgPage.sectionIaSubtitle')} icon={<Bot size={13} />}>
         {AI_PROVIDERS_DEF.map(def => (
           <AIProviderCard
             key={def.id}
@@ -730,7 +739,7 @@ export default function IntegracoesPage() {
         <div className="rounded-2xl p-5 space-y-3" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
           <div className="flex items-center gap-2">
             <BarChart2 size={13} style={{ color: '#00E5FF' }} />
-            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">Custo IA — últimos 30 dias (USD)</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">{t('cfgPage.aiCostChartTitle')}</p>
           </div>
           <ResponsiveContainer width="100%" height={160}>
             <LineChart data={chartData} margin={{ top: 4, right: 4, bottom: 4, left: -24 }}>
@@ -754,7 +763,7 @@ export default function IntegracoesPage() {
       )}
 
       {/* ── Loja & Serviços ──────────────────────────────────────────────── */}
-      <Section id="loja" title="Loja & Serviços" subtitle="Integrações usadas pelo Designer da Loja Própria — inspiração visual e por design." icon={<Palette size={13} />}>
+      <Section id="loja" title={t('cfgPage.sectionStoreTitle')} subtitle={t('cfgPage.sectionStoreSubtitle')} icon={<Palette size={13} />}>
         <CanvaCard getHeaders={getHeaders} onToast={showToast} />
         <AIProviderCard
           def={SCREENSHOTONE_DEF}
@@ -767,21 +776,21 @@ export default function IntegracoesPage() {
       </Section>
 
       {/* ── Marketplaces ─────────────────────────────────────────────────── */}
-      <Section id="marketplaces" title="Marketplaces" subtitle="Conecte suas contas de marketplace para sincronizar estoque, preços e pedidos automaticamente." icon={<Zap size={13} />}>
+      <Section id="marketplaces" title={t('cfgPage.sectionMarketplacesTitle')} subtitle={t('cfgPage.sectionMarketplacesSubtitle')} icon={<Zap size={13} />}>
         {/* ML uses the rich OAuth flow (multiple accounts, token expiry tracking). */}
         <IntegCard
           name="Mercado Livre" abbr="ML" abbrBg="rgba(255,230,0,0.15)" abbrColor="#FFE600"
           status={connecting ? 'disconnected' : overallMlStatus}
-          description="OAuth 2.0 · token renovado automaticamente pelo backend."
+          description={t('cfgPage.mlDescription')}
           accounts={mlConns} onConnect={connectML} onDisconnect={disconnectML}
         />
         {/* Other channels — driven by marketplace_channels rows. */}
         {([
-          { id: 'shopee',     name: 'Shopee',         abbr: 'SH', bg: 'rgba(238,77,45,0.15)',  fg: '#EE4D2D', desc: 'Sincronize pedidos, estoque e anúncios.' },
-          { id: 'amazon',     name: 'Amazon',         abbr: 'AZ', bg: 'rgba(255,153,0,0.15)',  fg: '#FF9900', desc: 'Amazon Seller Central via SP-API.' },
-          { id: 'magalu',     name: 'Magazine Luiza', abbr: 'MG', bg: 'rgba(0,134,255,0.15)',  fg: '#0086FF', desc: 'Magazine Luiza Marketplace.' },
-          { id: 'americanas', name: 'Americanas',     abbr: 'AM', bg: 'rgba(232,0,45,0.15)',   fg: '#e8002d', desc: 'Marketplace Americanas.' },
-          { id: 'netshoes',   name: 'Netshoes',       abbr: 'NS', bg: 'rgba(255,107,0,0.15)',  fg: '#FF6B00', desc: 'Marketplace Netshoes.' },
+          { id: 'shopee',     name: 'Shopee',         abbr: 'SH', bg: 'rgba(238,77,45,0.15)',  fg: '#EE4D2D', desc: t('cfgPage.descShopee') },
+          { id: 'amazon',     name: 'Amazon',         abbr: 'AZ', bg: 'rgba(255,153,0,0.15)',  fg: '#FF9900', desc: t('cfgPage.descAmazon') },
+          { id: 'magalu',     name: 'Magazine Luiza', abbr: 'MG', bg: 'rgba(0,134,255,0.15)',  fg: '#0086FF', desc: t('cfgPage.descMagalu') },
+          { id: 'americanas', name: 'Americanas',     abbr: 'AM', bg: 'rgba(232,0,45,0.15)',   fg: '#e8002d', desc: t('cfgPage.descAmericanas') },
+          { id: 'netshoes',   name: 'Netshoes',       abbr: 'NS', bg: 'rgba(255,107,0,0.15)',  fg: '#FF6B00', desc: t('cfgPage.descNetshoes') },
         ] as const).map(m => {
           const ch = channels.find(c => c.id === m.id)
           // Default to 'soon' if backend hasn't returned this channel yet (e.g. migration not run);
@@ -794,7 +803,7 @@ export default function IntegracoesPage() {
             : 'not_connected'
           const onConnect = status === 'soon'
             ? undefined
-            : () => showToast(`OAuth para ${m.name} ainda não disponível — em breve`, 'error')
+            : () => showToast(t('cfgPage.oauthNotAvailable', { name: m.name }), 'error')
           return (
             <IntegCard key={m.id} name={m.name} abbr={m.abbr} abbrBg={m.bg} abbrColor={m.fg}
               status={status} description={m.desc} onConnect={onConnect} />
@@ -803,13 +812,13 @@ export default function IntegracoesPage() {
       </Section>
 
       {/* ── Mensageiros ──────────────────────────────────────────────────── */}
-      <Section id="mensageiros" title="Mensageiros" subtitle="Atendimento omnichannel em apps de mensagem." icon={<MessageCircle size={13} />}>
+      <Section id="mensageiros" title={t('cfgPage.sectionMessengersTitle')} subtitle={t('cfgPage.sectionMessengersSubtitle')} icon={<MessageCircle size={13} />}>
         <WhatsAppIntegCard onToast={showToast} />
         <WhatsAppFreeCard onToast={showToast} />
         {([
-          { name: 'Instagram', abbr: 'IG', bg: 'rgba(228,64,95,0.15)',  fg: '#E4405F', desc: 'DMs e comentários via Instagram Graph API.' },
-          { name: 'TikTok',    abbr: 'TT', bg: 'rgba(255,0,80,0.15)',   fg: '#ff0050', desc: 'Mensagens via TikTok Business API.' },
-          { name: 'Telegram',  abbr: 'TG', bg: 'rgba(0,136,204,0.15)', fg: '#0088cc', desc: 'Bot Telegram via Bot API.' },
+          { name: 'Instagram', abbr: 'IG', bg: 'rgba(228,64,95,0.15)',  fg: '#E4405F', desc: t('cfgPage.descInstagram') },
+          { name: 'TikTok',    abbr: 'TT', bg: 'rgba(255,0,80,0.15)',   fg: '#ff0050', desc: t('cfgPage.descTiktok') },
+          { name: 'Telegram',  abbr: 'TG', bg: 'rgba(0,136,204,0.15)', fg: '#0088cc', desc: t('cfgPage.descTelegram') },
         ] as const).map(m => (
           <IntegCard key={m.name} name={m.name} abbr={m.abbr} abbrBg={m.bg} abbrColor={m.fg}
             status="soon" description={m.desc} />
@@ -817,17 +826,17 @@ export default function IntegracoesPage() {
       </Section>
 
       {/* ── Email (Sprint EM-1) ──────────────────────────────────────────── */}
-      <Section id="email" title="Email" subtitle="Provedor SMTP usado nas jornadas de comunicação pós-venda quando o canal escolhido é email." icon={<Mail size={13} />}>
+      <Section id="email" title={t('cfgPage.sectionEmailTitle')} subtitle={t('cfgPage.sectionEmailSubtitle')} icon={<Mail size={13} />}>
         <EmailProviderCard onToast={showToast} />
       </Section>
 
       {/* ── ERP ──────────────────────────────────────────────────────────── */}
-      <Section title="ERP & Gestão" icon={<Plug size={13} />}>
+      <Section title={t('cfgPage.sectionErpTitle')} icon={<Plug size={13} />}>
         {([
-          { name: 'Bling',     abbr: 'BL', bg: 'rgba(0,85,165,0.15)',  fg: '#0055A5', desc: 'NF-e, pedidos e estoque via Bling ERP.' },
-          { name: 'Omie',      abbr: 'OM', bg: 'rgba(255,107,53,0.15)', fg: '#FF6B35', desc: 'Integração bidirecional com Omie.' },
-          { name: 'ContaAzul', abbr: 'CA', bg: 'rgba(30,144,255,0.15)', fg: '#1E90FF', desc: 'Financeiro e conciliação via ContaAzul.' },
-          { name: 'Tiny ERP',  abbr: 'TN', bg: 'rgba(0,193,110,0.15)', fg: '#00C16E', desc: 'Emissão de NF-e e gestão via Tiny.' },
+          { name: 'Bling',     abbr: 'BL', bg: 'rgba(0,85,165,0.15)',  fg: '#0055A5', desc: t('cfgPage.descBling') },
+          { name: 'Omie',      abbr: 'OM', bg: 'rgba(255,107,53,0.15)', fg: '#FF6B35', desc: t('cfgPage.descOmie') },
+          { name: 'ContaAzul', abbr: 'CA', bg: 'rgba(30,144,255,0.15)', fg: '#1E90FF', desc: t('cfgPage.descContaazul') },
+          { name: 'Tiny ERP',  abbr: 'TN', bg: 'rgba(0,193,110,0.15)', fg: '#00C16E', desc: t('cfgPage.descTiny') },
         ] as const).map(m => (
           <IntegCard key={m.name} name={m.name} abbr={m.abbr} abbrBg={m.bg} abbrColor={m.fg}
             status="soon" description={m.desc} />
@@ -835,11 +844,11 @@ export default function IntegracoesPage() {
       </Section>
 
       {/* ── Frete ────────────────────────────────────────────────────────── */}
-      <Section title="Frete & Logística" icon={<Plug size={13} />}>
+      <Section title={t('cfgPage.sectionShippingTitle')} icon={<Plug size={13} />}>
         {([
-          { name: 'Melhor Envio', abbr: 'ME', bg: 'rgba(108,78,242,0.15)', fg: '#6C4EF2', desc: 'Cotação automática e etiquetas.' },
-          { name: 'Frenet',       abbr: 'FR', bg: 'rgba(26,86,219,0.15)',  fg: '#1a56db', desc: 'Multi-transportadora em tempo real.' },
-          { name: 'ClickPost',    abbr: 'CP', bg: 'rgba(6,182,212,0.15)',  fg: '#06b6d4', desc: 'Rastreamento unificado de encomendas.' },
+          { name: 'Melhor Envio', abbr: 'ME', bg: 'rgba(108,78,242,0.15)', fg: '#6C4EF2', desc: t('cfgPage.descMelhorEnvio') },
+          { name: 'Frenet',       abbr: 'FR', bg: 'rgba(26,86,219,0.15)',  fg: '#1a56db', desc: t('cfgPage.descFrenet') },
+          { name: 'ClickPost',    abbr: 'CP', bg: 'rgba(6,182,212,0.15)',  fg: '#06b6d4', desc: t('cfgPage.descClickpost') },
         ] as const).map(m => (
           <IntegCard key={m.name} name={m.name} abbr={m.abbr} abbrBg={m.bg} abbrColor={m.fg}
             status="soon" description={m.desc} />
@@ -847,11 +856,11 @@ export default function IntegracoesPage() {
       </Section>
 
       {/* ── Fiscal ───────────────────────────────────────────────────────── */}
-      <Section title="Fiscal & NF-e" icon={<Plug size={13} />}>
+      <Section title={t('cfgPage.sectionFiscalTitle')} icon={<Plug size={13} />}>
         {([
-          { name: 'Focus NFe', abbr: 'FN', bg: 'rgba(124,58,237,0.15)', fg: '#7c3aed', desc: 'Emissão automática de NF-e e NFC-e.' },
-          { name: 'Nfe.io',    abbr: 'NI', bg: 'rgba(5,150,105,0.15)',  fg: '#059669', desc: 'API de emissão de notas fiscais.' },
-          { name: 'eNotas',    abbr: 'EN', bg: 'rgba(2,132,199,0.15)',  fg: '#0284c7', desc: 'NFS-e e NF-e em escala.' },
+          { name: 'Focus NFe', abbr: 'FN', bg: 'rgba(124,58,237,0.15)', fg: '#7c3aed', desc: t('cfgPage.descFocusNfe') },
+          { name: 'Nfe.io',    abbr: 'NI', bg: 'rgba(5,150,105,0.15)',  fg: '#059669', desc: t('cfgPage.descNfeio') },
+          { name: 'eNotas',    abbr: 'EN', bg: 'rgba(2,132,199,0.15)',  fg: '#0284c7', desc: t('cfgPage.descEnotas') },
         ] as const).map(m => (
           <IntegCard key={m.name} name={m.name} abbr={m.abbr} abbrBg={m.bg} abbrColor={m.fg}
             status="soon" description={m.desc} />
@@ -859,7 +868,7 @@ export default function IntegracoesPage() {
       </Section>
 
       <p className="text-[10px] text-zinc-700">
-        Novas integrações são adicionadas continuamente. Entre em contato para priorizar uma integração específica.
+        {t('cfgPage.footerNote')}
       </p>
 
       {/* Toast stack */}
@@ -907,6 +916,7 @@ interface WaConfig {
 type WizardStep = 'requirements' | 'credentials' | 'webhook' | 'done'
 
 function WhatsAppIntegCard({ onToast }: { onToast: (msg: string, t?: 'success' | 'error') => void }) {
+  const t = useTranslations('integracoes')
   const supabase = useMemo(() => createClient(), [])
   const [config, setConfig] = useState<WaConfig | null>(null)
   const [loading, setLoading] = useState(true)
@@ -945,7 +955,7 @@ function WhatsAppIntegCard({ onToast }: { onToast: (msg: string, t?: 'success' |
 
   async function save() {
     if (!phoneNumberId || !wabaId || !token) {
-      onToast('Preencha phone_number_id, business_account_id e access_token', 'error'); return
+      onToast(t('whatsapp.fillCredentials'), 'error'); return
     }
     setSaving(true)
     try {
@@ -967,9 +977,9 @@ function WhatsAppIntegCard({ onToast }: { onToast: (msg: string, t?: 'success' |
       if (wRes.ok) setWebhookInfo(await wRes.json())
       setPhoneNumberId(''); setWabaId(''); setToken(''); setDisplayPhone(''); setDisplayName('')
       setStep('webhook') // advance wizard
-      onToast('Credenciais salvas — agora configure o webhook na Meta', 'success')
+      onToast(t('whatsapp.credentialsSaved'), 'success')
     } catch (e: unknown) {
-      onToast(e instanceof Error ? e.message : 'Erro ao salvar', 'error')
+      onToast(e instanceof Error ? e.message : t('common.saveError'), 'error')
     } finally { setSaving(false) }
   }
 
@@ -980,10 +990,10 @@ function WhatsAppIntegCard({ onToast }: { onToast: (msg: string, t?: 'success' |
       const headers = await getHeaders()
       const res = await fetch(`${BACKEND}/whatsapp/config/${config.id}/test`, { method: 'POST', headers })
       const data = await res.json() as { ok: boolean; display_phone_number?: string; verified_name?: string; error?: string }
-      if (data.ok) onToast(`✅ Credenciais válidas — ${data.display_phone_number ?? ''} (${data.verified_name ?? ''})`, 'success')
-      else         onToast(`❌ ${data.error ?? 'Falha na validação'}`, 'error')
+      if (data.ok) onToast(`✅ ${t('whatsapp.credentialsValid', { phone: data.display_phone_number ?? '', name: data.verified_name ?? '' })}`, 'success')
+      else         onToast(`❌ ${data.error ?? t('whatsapp.validationFailed')}`, 'error')
     } catch (e: unknown) {
-      onToast(e instanceof Error ? e.message : 'Erro ao validar', 'error')
+      onToast(e instanceof Error ? e.message : t('whatsapp.validateError'), 'error')
     } finally { setValidating(false) }
   }
 
@@ -997,9 +1007,9 @@ function WhatsAppIntegCard({ onToast }: { onToast: (msg: string, t?: 'success' |
       if (info.is_verified) {
         await load() // refresh config.is_verified too
         setStep('done')
-        onToast('✅ Webhook verificado pela Meta!', 'success')
+        onToast(t('whatsapp.webhookVerified'), 'success')
       } else {
-        onToast('⏳ Ainda não verificado. Confirme que colou URL + token no painel da Meta e tente de novo.', 'error')
+        onToast(t('whatsapp.webhookNotVerified'), 'error')
       }
     }
   }
@@ -1007,16 +1017,16 @@ function WhatsAppIntegCard({ onToast }: { onToast: (msg: string, t?: 'success' |
   async function disconnect() {
     if (!config) return
     const ok = await confirm({
-      title:        'Desconectar WhatsApp',
-      message:      'Desconectar WhatsApp? As conversas existentes não são apagadas.',
-      confirmLabel: 'Desconectar',
+      title:        t('whatsapp.disconnectTitle'),
+      message:      t('whatsapp.disconnectMessage'),
+      confirmLabel: t('whatsapp.disconnect'),
       variant:      'warning',
     })
     if (!ok) return
     const headers = await getHeaders()
     await fetch(`${BACKEND}/whatsapp/config/${config.id}`, { method: 'DELETE', headers })
     setConfig(null); setWebhookInfo(null); setWizardOpen(false); setStep('requirements')
-    onToast('WhatsApp desconectado', 'success')
+    onToast(t('whatsapp.disconnected'), 'success')
   }
 
   const isConnected = !!config?.is_active
@@ -1039,7 +1049,7 @@ function WhatsAppIntegCard({ onToast }: { onToast: (msg: string, t?: 'success' |
           <div>
             <p className="text-xs font-semibold text-zinc-200">WhatsApp Business</p>
             <p className="text-[10px] text-zinc-500 mt-0.5 leading-snug">
-              {isConnected ? `Conectado · ${config.display_phone ?? config.phone_number_id}` : 'Atendimento via WhatsApp Business API (Meta).'}
+              {isConnected ? t('whatsapp.connectedWith', { phone: config.display_phone ?? config.phone_number_id }) : t('whatsapp.cardSubtitle')}
             </p>
           </div>
         </div>
@@ -1048,12 +1058,12 @@ function WhatsAppIntegCard({ onToast }: { onToast: (msg: string, t?: 'success' |
         ) : isConnected ? (
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold"
             style={{ background: isVerified ? 'rgba(74,222,128,0.1)' : 'rgba(251,191,36,0.1)', color: isVerified ? '#4ade80' : '#fbbf24' }}>
-            <CheckCircle2 size={10} />{isVerified ? 'Conectado' : 'Aguardando webhook'}
+            <CheckCircle2 size={10} />{isVerified ? t('whatsapp.badgeConnected') : t('whatsapp.badgeAwaitingWebhook')}
           </span>
         ) : (
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold"
             style={{ background: 'rgba(251,146,60,0.1)', color: '#fb923c' }}>
-            <Plug size={10} />Não integrado
+            <Plug size={10} />{t('whatsapp.badgeNotIntegrated')}
           </span>
         )}
       </div>
@@ -1064,19 +1074,19 @@ function WhatsAppIntegCard({ onToast }: { onToast: (msg: string, t?: 'success' |
           <div className="flex gap-2 pt-1">
             <button onClick={openWizard} className="flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[11px] font-semibold"
               style={{ background: '#1a1a1f', color: '#a1a1aa', border: '1px solid #27272a' }}>
-              <Settings size={11} /> Configurações
+              <Settings size={11} /> {t('whatsapp.settings')}
             </button>
             <button onClick={disconnect}
               className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold"
               style={{ background: 'rgba(248,113,113,0.1)', color: '#f87171', border: '1px solid rgba(248,113,113,0.25)' }}>
-              Desconectar
+              {t('whatsapp.disconnect')}
             </button>
           </div>
         ) : (
           <button onClick={openWizard}
             className="flex items-center gap-1.5 w-full justify-center py-2 rounded-xl text-xs font-semibold transition-all"
             style={{ background: 'rgba(37,211,102,0.1)', color: '#25D366', border: '1px solid rgba(37,211,102,0.25)' }}>
-            <Plug size={11} /> Conectar WhatsApp
+            <Plug size={11} /> {t('whatsapp.connectWhatsapp')}
           </button>
         )
       )}
@@ -1088,7 +1098,7 @@ function WhatsAppIntegCard({ onToast }: { onToast: (msg: string, t?: 'success' |
           <div className="flex items-center justify-between gap-1">
             {(['requirements', 'credentials', 'webhook', 'done'] as const).map((s, i) => {
               const ix = ['requirements', 'credentials', 'webhook', 'done'].indexOf(step)
-              const labels = ['Requisitos', 'Credenciais', 'Webhook', 'Concluído']
+              const labels = [t('whatsapp.stepRequirements'), t('whatsapp.stepCredentials'), t('whatsapp.stepWebhook'), t('whatsapp.stepDone')]
               const passed = i < ix
               const current = i === ix
               const color = passed ? '#25D366' : current ? '#25D366' : '#3f3f46'
@@ -1112,50 +1122,50 @@ function WhatsAppIntegCard({ onToast }: { onToast: (msg: string, t?: 'success' |
           {/* Step content */}
           {step === 'requirements' && (
             <div className="space-y-2 pt-1">
-              <p className="text-[11px] text-zinc-400">Antes de conectar, verifique:</p>
+              <p className="text-[11px] text-zinc-400">{t('whatsapp.reqIntro')}</p>
               <ul className="space-y-1.5 text-[11px] text-zinc-500">
-                <li className="flex items-start gap-2"><Check size={10} className="mt-0.5 text-zinc-600 shrink-0" /> Conta Meta Business verificada</li>
-                <li className="flex items-start gap-2"><Check size={10} className="mt-0.5 text-zinc-600 shrink-0" /> App criado em developers.facebook.com com produto WhatsApp adicionado</li>
-                <li className="flex items-start gap-2"><Check size={10} className="mt-0.5 text-zinc-600 shrink-0" /> Número dedicado (não pode ser WhatsApp pessoal)</li>
-                <li className="flex items-start gap-2"><Check size={10} className="mt-0.5 text-zinc-600 shrink-0" /> Access Token <strong className="text-zinc-400">permanente</strong> gerado (não temporário)</li>
+                <li className="flex items-start gap-2"><Check size={10} className="mt-0.5 text-zinc-600 shrink-0" /> {t('whatsapp.req1')}</li>
+                <li className="flex items-start gap-2"><Check size={10} className="mt-0.5 text-zinc-600 shrink-0" /> {t('whatsapp.req2')}</li>
+                <li className="flex items-start gap-2"><Check size={10} className="mt-0.5 text-zinc-600 shrink-0" /> {t('whatsapp.req3')}</li>
+                <li className="flex items-start gap-2"><Check size={10} className="mt-0.5 text-zinc-600 shrink-0" /> {t.rich('whatsapp.req4', { strong: (c) => <strong className="text-zinc-400">{c}</strong> })}</li>
               </ul>
               <a href="https://developers.facebook.com/docs/whatsapp/cloud-api/get-started" target="_blank" rel="noreferrer"
                 className="inline-flex items-center gap-1 text-[11px] font-semibold mt-1" style={{ color: '#25D366' }}>
-                <ExternalLink size={11} /> Como criar meu App Meta
+                <ExternalLink size={11} /> {t('whatsapp.howToCreateApp')}
               </a>
               <div className="flex gap-2 pt-2">
                 <button onClick={() => setWizardOpen(false)} className="flex-1 py-2 rounded-lg text-xs text-zinc-400 hover:text-white"
-                  style={{ background: '#1e1e24', border: '1px solid #27272a' }}>Cancelar</button>
+                  style={{ background: '#1e1e24', border: '1px solid #27272a' }}>{t('common.cancel')}</button>
                 <button onClick={() => setStep('credentials')}
                   className="flex-1 py-2 rounded-lg text-xs font-semibold"
-                  style={{ background: '#25D366', color: '#000' }}>Já tenho, continuar</button>
+                  style={{ background: '#25D366', color: '#000' }}>{t('whatsapp.haveItContinue')}</button>
               </div>
             </div>
           )}
 
           {step === 'credentials' && (
             <div className="space-y-2.5 pt-1">
-              <p className="text-[10px] uppercase tracking-widest text-zinc-500">Credenciais Meta</p>
+              <p className="text-[10px] uppercase tracking-widest text-zinc-500">{t('whatsapp.metaCredentials')}</p>
               <input value={phoneNumberId} onChange={e => setPhoneNumberId(e.target.value)} placeholder="Phone Number ID"
                 className="w-full bg-[#0d0d10] border border-[#27272a] text-white text-xs rounded-lg px-3 py-2 outline-none focus:border-[#25D366] font-mono" />
               <input value={wabaId} onChange={e => setWabaId(e.target.value)} placeholder="Business Account ID (WABA)"
                 className="w-full bg-[#0d0d10] border border-[#27272a] text-white text-xs rounded-lg px-3 py-2 outline-none focus:border-[#25D366] font-mono" />
-              <input type="password" value={token} onChange={e => setToken(e.target.value)} placeholder="Access Token (permanente)"
+              <input type="password" value={token} onChange={e => setToken(e.target.value)} placeholder={t('whatsapp.accessTokenPlaceholder')}
                 className="w-full bg-[#0d0d10] border border-[#27272a] text-white text-xs rounded-lg px-3 py-2 outline-none focus:border-[#25D366] font-mono" />
               <div className="grid grid-cols-2 gap-2">
-                <input value={displayName} onChange={e => setDisplayName(e.target.value)} placeholder="Nome (opcional)"
+                <input value={displayName} onChange={e => setDisplayName(e.target.value)} placeholder={t('whatsapp.namePlaceholder')}
                   className="bg-[#0d0d10] border border-[#27272a] text-white text-xs rounded-lg px-3 py-2 outline-none focus:border-[#25D366]" />
                 <input value={displayPhone} onChange={e => setDisplayPhone(e.target.value)} placeholder="+55 11 9..."
                   className="bg-[#0d0d10] border border-[#27272a] text-white text-xs rounded-lg px-3 py-2 outline-none focus:border-[#25D366]" />
               </div>
               <div className="flex gap-2 pt-1">
                 <button onClick={() => setStep('requirements')} className="flex-1 py-2 rounded-lg text-xs text-zinc-400 hover:text-white"
-                  style={{ background: '#1e1e24', border: '1px solid #27272a' }}>← Voltar</button>
+                  style={{ background: '#1e1e24', border: '1px solid #27272a' }}>{t('whatsapp.back')}</button>
                 <button onClick={save} disabled={saving}
                   className="glow-rainbow flex-1 inline-flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold disabled:opacity-50"
                   style={{ background: '#25D366', color: '#000' }}>
                   {saving ? <Loader2 size={11} className="animate-spin" /> : <Save size={11} />}
-                  Salvar e continuar
+                  {t('whatsapp.saveAndContinue')}
                 </button>
               </div>
             </div>
@@ -1163,24 +1173,23 @@ function WhatsAppIntegCard({ onToast }: { onToast: (msg: string, t?: 'success' |
 
           {step === 'webhook' && webhookInfo && (
             <div className="space-y-2 pt-1">
-              <p className="text-[11px] text-zinc-400">Configure este webhook no painel da Meta:</p>
-              <CopyField label="URL do webhook" value={webhookInfo.webhook_url} />
-              <CopyField label="Verify Token" value={webhookInfo.verify_token} />
+              <p className="text-[11px] text-zinc-400">{t('whatsapp.webhookIntro')}</p>
+              <CopyField label={t('whatsapp.webhookUrlLabel')} value={webhookInfo.webhook_url} />
+              <CopyField label={t('whatsapp.verifyTokenLabel')} value={webhookInfo.verify_token} />
               <p className="text-[10px] text-zinc-600">
-                developers.facebook.com → seu app → WhatsApp → Configuration → Webhook.
-                Assine: <code className="text-zinc-400">messages, message_statuses</code>.
+                {t.rich('whatsapp.webhookHint', { code: (c) => <code className="text-zinc-400">{c}</code> })}
               </p>
               <div className="flex gap-2 pt-1">
                 <button onClick={validate} disabled={validating}
                   className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 rounded-lg text-[11px] font-semibold disabled:opacity-50"
                   style={{ background: '#1a1a1f', color: '#a1a1aa', border: '1px solid #27272a' }}>
                   {validating ? <Loader2 size={11} className="animate-spin" /> : <TestTube2 size={11} />}
-                  Validar credenciais
+                  {t('whatsapp.validateCredentials')}
                 </button>
                 <button onClick={checkWebhookVerified}
                   className="flex-1 py-2 rounded-lg text-[11px] font-semibold"
                   style={{ background: '#25D366', color: '#000' }}>
-                  Webhook configurado, verificar
+                  {t('whatsapp.webhookConfiguredVerify')}
                 </button>
               </div>
             </div>
@@ -1195,16 +1204,16 @@ function WhatsAppIntegCard({ onToast }: { onToast: (msg: string, t?: 'success' |
                 </div>
               </div>
               <div>
-                <p className="text-sm font-bold text-white">WhatsApp conectado!</p>
+                <p className="text-sm font-bold text-white">{t('whatsapp.connectedDone')}</p>
                 <p className="text-[11px] text-zinc-500 mt-0.5">{config.display_phone ?? config.phone_number_id}</p>
               </div>
               <div className="flex gap-2 pt-1">
                 <button onClick={() => setWizardOpen(false)} className="flex-1 py-2 rounded-lg text-xs text-zinc-400 hover:text-white"
-                  style={{ background: '#1e1e24', border: '1px solid #27272a' }}>Fechar</button>
+                  style={{ background: '#1e1e24', border: '1px solid #27272a' }}>{t('whatsapp.close')}</button>
                 <a href="/dashboard/atendente-ia/conversas"
                   className="flex-1 inline-flex items-center justify-center py-2 rounded-lg text-xs font-semibold"
                   style={{ background: '#25D366', color: '#000' }}>
-                  Ver conversas →
+                  {t('whatsapp.viewConversations')}
                 </a>
               </div>
             </div>
@@ -1216,6 +1225,7 @@ function WhatsAppIntegCard({ onToast }: { onToast: (msg: string, t?: 'success' |
 }
 
 function CopyField({ label, value }: { label: string; value: string }) {
+  const t = useTranslations('integracoes')
   const [copied, setCopied] = useState(false)
   return (
     <div>
@@ -1226,7 +1236,7 @@ function CopyField({ label, value }: { label: string; value: string }) {
         <button onClick={() => navigator.clipboard.writeText(value).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500) })}
           className="px-2 py-1.5 rounded-lg text-[10px] font-semibold transition-colors shrink-0"
           style={{ background: copied ? 'rgba(74,222,128,0.15)' : '#1a1a1f', color: copied ? '#4ade80' : '#a1a1aa' }}>
-          {copied ? '✓' : 'Copiar'}
+          {copied ? '✓' : t('common.copy')}
         </button>
       </div>
     </div>
@@ -1266,6 +1276,7 @@ const EMAIL_PROVIDERS: Array<{
 ]
 
 function EmailProviderCard({ onToast }: { onToast: (msg: string, t?: 'success' | 'error') => void }) {
+  const t = useTranslations('integracoes')
   const [config, setConfig] = useState<EmailSettingsView | null>(null)
   const [loading, setLoading] = useState(true)
   const [setupOpen, setSetupOpen] = useState(false)
@@ -1299,26 +1310,26 @@ function EmailProviderCard({ onToast }: { onToast: (msg: string, t?: 'success' |
       const headers = await getHeaders()
       const res = await fetch(`${BACKEND}/email-settings/test`, { method: 'POST', headers })
       const data = await res.json() as { ok: boolean; error?: string; recipient?: string }
-      if (data.ok) onToast(`✅ Teste enviado pra ${data.recipient ?? 'você'}`, 'success')
-      else         onToast(`❌ ${data.error ?? 'Falha no envio'}`, 'error')
+      if (data.ok) onToast(`✅ ${t('email.testSent', { recipient: data.recipient ?? t('email.you') })}`, 'success')
+      else         onToast(`❌ ${data.error ?? t('email.sendFailed')}`, 'error')
       await load()
     } catch (e: unknown) {
-      onToast(e instanceof Error ? e.message : 'Erro de rede', 'error')
+      onToast(e instanceof Error ? e.message : t('common.networkError'), 'error')
     } finally { setTesting(false) }
   }
 
   async function remove() {
     const ok = await confirm({
-      title:        'Remover configuração de email',
-      message:      'Remover configuração de email? Templates de email param de funcionar até reconfigurar.',
-      confirmLabel: 'Remover',
+      title:        t('email.removeTitle'),
+      message:      t('email.removeMessage'),
+      confirmLabel: t('common.remove'),
       variant:      'danger',
     })
     if (!ok) return
     const headers = await getHeaders()
     await fetch(`${BACKEND}/email-settings`, { method: 'DELETE', headers })
     setConfig(null)
-    onToast('Configuração removida', 'success')
+    onToast(t('email.configRemoved'), 'success')
   }
 
   const providerDef = config ? EMAIL_PROVIDERS.find(p => p.id === config.provider) : null
@@ -1333,12 +1344,12 @@ function EmailProviderCard({ onToast }: { onToast: (msg: string, t?: 'success' |
           </div>
           <div>
             <p className="text-xs font-semibold text-zinc-200">
-              {config ? `Email · ${providerDef?.name ?? config.provider}` : 'Email transacional'}
+              {config ? t('email.cardTitleConfigured', { provider: providerDef?.name ?? config.provider }) : t('email.cardTitle')}
             </p>
             <p className="text-[10px] text-zinc-500 mt-0.5 leading-snug">
               {config
                 ? `${config.from_name} <${config.from_address}>`
-                : 'Resend ou SendGrid · usado pelas jornadas de comunicação.'}
+                : t('email.cardSubtitle')}
             </p>
           </div>
         </div>
@@ -1350,12 +1361,12 @@ function EmailProviderCard({ onToast }: { onToast: (msg: string, t?: 'success' |
               background: config.is_verified ? 'rgba(74,222,128,0.1)' : 'rgba(251,191,36,0.1)',
               color:      config.is_verified ? '#4ade80' : '#fbbf24',
             }}>
-            <CheckCircle2 size={10} />{config.is_verified ? 'Conectado' : 'Sem teste'}
+            <CheckCircle2 size={10} />{config.is_verified ? t('email.badgeConnected') : t('email.badgeNoTest')}
           </span>
         ) : (
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold"
             style={{ background: 'rgba(251,146,60,0.1)', color: '#fb923c' }}>
-            <Plug size={10} />Não integrado
+            <Plug size={10} />{t('email.badgeNotIntegrated')}
           </span>
         )}
       </div>
@@ -1370,8 +1381,8 @@ function EmailProviderCard({ onToast }: { onToast: (msg: string, t?: 'success' |
             <p className="flex items-center gap-1 text-[10px] flex-wrap"
               style={{ color: config.is_verified ? '#4ade80' : '#f87171' }}>
               {config.is_verified ? '✅' : '❌'}
-              <span>{config.is_verified ? 'Teste OK' : config.last_test_error ?? 'falhou'}</span>
-              <span className="text-zinc-600">· {timeAgo(config.last_tested_at) ?? 'agora'}</span>
+              <span>{config.is_verified ? t('email.testOk') : config.last_test_error ?? t('email.failed')}</span>
+              <span className="text-zinc-600">· {timeAgo(config.last_tested_at, t) ?? t('timeAgo.now')}</span>
             </p>
           )}
         </div>
@@ -1381,7 +1392,7 @@ function EmailProviderCard({ onToast }: { onToast: (msg: string, t?: 'success' |
         <button onClick={() => setSetupOpen(true)}
           className="flex items-center gap-1.5 w-full justify-center py-2 rounded-xl text-xs font-semibold transition-all"
           style={{ background: 'rgba(0,229,255,0.1)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.25)' }}>
-          <Plug size={11} /> Configurar
+          <Plug size={11} /> {t('email.configure')}
         </button>
       ) : (
         <div className="flex gap-2">
@@ -1389,12 +1400,12 @@ function EmailProviderCard({ onToast }: { onToast: (msg: string, t?: 'success' |
             className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-medium disabled:opacity-50"
             style={{ background: '#1e1e24', color: '#a1a1aa' }}>
             {testing ? <Loader2 size={11} className="animate-spin" /> : <TestTube2 size={11} />}
-            Testar envio
+            {t('email.testSend')}
           </button>
           <button onClick={() => setSetupOpen(true)}
             className="inline-flex items-center justify-center p-2 rounded-xl"
             style={{ background: '#1e1e24', color: '#a1a1aa' }}
-            title="Editar">
+            title={t('email.edit')}>
             <Settings size={12} />
           </button>
           <button onClick={remove}
@@ -1414,9 +1425,9 @@ function EmailProviderCard({ onToast }: { onToast: (msg: string, t?: 'success' |
           onSaved={(saved, testResult) => {
             setConfig(saved)
             setSetupOpen(false)
-            if (testResult?.ok) onToast(`✅ Email salvo e teste enviado pra ${testResult.recipient ?? 'você'}`, 'success')
-            else if (testResult)  onToast(`⚠ Salvo, mas teste falhou: ${testResult.error}`, 'error')
-            else                  onToast('Configuração salva', 'success')
+            if (testResult?.ok) onToast(`✅ ${t('email.savedAndTested', { recipient: testResult.recipient ?? t('email.you') })}`, 'success')
+            else if (testResult)  onToast(`⚠ ${t('email.savedButTestFailed', { error: testResult.error ?? '' })}`, 'error')
+            else                  onToast(t('email.configSaved'), 'success')
             void load()
           }}
         />
@@ -1430,6 +1441,7 @@ function EmailSetupModal({ existing, onClose, onSaved }: {
   onClose:  () => void
   onSaved:  (saved: EmailSettingsView, test: { ok: boolean; error?: string; recipient?: string } | null) => void
 }) {
+  const t = useTranslations('integracoes')
   const [provider, setProvider] = useState<EmailProvider>(existing?.provider ?? 'resend')
   const [apiKey, setApiKey]     = useState('')
   const [showKey, setShowKey]   = useState(false)
@@ -1475,7 +1487,7 @@ function EmailSetupModal({ existing, onClose, onSaved }: {
           <div className="flex items-center gap-2">
             <Mail size={15} style={{ color: '#00E5FF' }} />
             <p className="text-sm font-semibold text-white">
-              {existing ? 'Editar configuração de email' : 'Configurar email'}
+              {existing ? t('emailModal.editTitle') : t('emailModal.title')}
             </p>
           </div>
           <button onClick={onClose} className="text-zinc-500 hover:text-zinc-300"><X size={16} /></button>
@@ -1483,7 +1495,7 @@ function EmailSetupModal({ existing, onClose, onSaved }: {
 
         {step === 'pick' && (
           <div className="px-5 py-5 space-y-3">
-            <p className="text-xs text-zinc-400">Escolha o provedor:</p>
+            <p className="text-xs text-zinc-400">{t('emailModal.choosePicker')}</p>
             <div className="grid grid-cols-2 gap-3">
               {EMAIL_PROVIDERS.map(p => (
                 <button key={p.id} onClick={() => { setProvider(p.id); setStep('fill') }}
@@ -1507,14 +1519,14 @@ function EmailSetupModal({ existing, onClose, onSaved }: {
         {step === 'fill' && (
           <div className="px-5 py-5 space-y-3">
             <div className="flex items-center justify-between">
-              <p className="text-xs text-zinc-400">Provider: <span className="text-zinc-200 font-semibold">{def.name}</span></p>
+              <p className="text-xs text-zinc-400">{t('emailModal.providerLabel')} <span className="text-zinc-200 font-semibold">{def.name}</span></p>
               {!existing && (
-                <button onClick={() => setStep('pick')} className="text-[10px] text-zinc-500 hover:text-zinc-300">← Trocar</button>
+                <button onClick={() => setStep('pick')} className="text-[10px] text-zinc-500 hover:text-zinc-300">{t('emailModal.change')}</button>
               )}
             </div>
 
             <div>
-              <label className="block text-xs text-zinc-400 mb-1">API Key {existing && <span className="text-zinc-600">· deixe em branco pra manter atual</span>}</label>
+              <label className="block text-xs text-zinc-400 mb-1">{t('emailModal.apiKey')} {existing && <span className="text-zinc-600">{t('emailModal.keepCurrentHint')}</span>}</label>
               <div className="relative">
                 <input type={showKey ? 'text' : 'password'} value={apiKey} onChange={e => setApiKey(e.target.value)}
                   placeholder={def.placeholder}
@@ -1529,14 +1541,14 @@ function EmailSetupModal({ existing, onClose, onSaved }: {
 
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="block text-xs text-zinc-400 mb-1">Nome remetente</label>
+                <label className="block text-xs text-zinc-400 mb-1">{t('emailModal.fromName')}</label>
                 <input value={fromName} onChange={e => setFromName(e.target.value)}
                   placeholder="e-Click Comercio"
                   className="w-full px-3 py-2 rounded-xl text-xs text-white placeholder-zinc-600"
                   style={{ background: '#0d0d10', border: '1px solid #27272a' }} />
               </div>
               <div>
-                <label className="block text-xs text-zinc-400 mb-1">Email remetente</label>
+                <label className="block text-xs text-zinc-400 mb-1">{t('emailModal.fromAddress')}</label>
                 <input type="email" value={fromAddress} onChange={e => setFromAddress(e.target.value)}
                   placeholder="noreply@seudominio.com.br"
                   className="w-full px-3 py-2 rounded-xl text-xs text-white placeholder-zinc-600"
@@ -1545,21 +1557,21 @@ function EmailSetupModal({ existing, onClose, onSaved }: {
             </div>
 
             <p className="text-[10px] text-zinc-600">
-              Após salvar, dispara um email de teste pro endereço da sua conta. SPF/DKIM precisam estar OK no domínio do remetente.
+              {t('emailModal.testNote')}
             </p>
           </div>
         )}
 
         <div className="flex justify-between px-5 py-4" style={{ borderTop: '1px solid #1e1e24' }}>
           <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm text-zinc-400"
-            style={{ background: '#1e1e24' }}>Cancelar</button>
+            style={{ background: '#1e1e24' }}>{t('common.cancel')}</button>
           {step === 'fill' && (
             <button onClick={save}
               disabled={!apiKey.trim() || !fromName.trim() || !fromAddress.trim() || saving}
               className="glow-rainbow flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold disabled:opacity-40"
               style={{ background: '#00E5FF', color: '#000' }}>
               {saving ? <Loader2 size={13} className="animate-spin" /> : <TestTube2 size={13} />}
-              Salvar e testar
+              {t('addKey.saveAndTest')}
             </button>
           )}
         </div>
@@ -1582,6 +1594,7 @@ interface WaChannel {
 }
 
 function WhatsAppFreeCard({ onToast }: { onToast: (msg: string, t?: 'success' | 'error') => void }) {
+  const t = useTranslations('integracoes')
   const supabase = useMemo(() => createClient(), [])
   const [channel, setChannel] = useState<WaChannel | null>(null)
   const [loading, setLoading] = useState(true)
@@ -1640,12 +1653,12 @@ function WhatsAppFreeCard({ onToast }: { onToast: (msg: string, t?: 'success' | 
             external_id: payload.display_name ?? prev.external_id,
             error_message: null,
           } : prev)
-          onToast(`WhatsApp Gratuito conectado: ${payload.display_name ?? payload.phone_number}`, 'success')
+          onToast(t('whatsappFree.connectedToast', { name: payload.display_name ?? payload.phone_number }), 'success')
           setTimeout(() => setDialogOpen(false), 1500)
         }
         const onDisconnected = (payload: { channel_id: string; reason: string; needs_reauth?: boolean }) => {
           setChannel(prev => prev ? { ...prev, status: 'disconnected', error_message: payload.reason } : prev)
-          if (payload.needs_reauth) onToast('WhatsApp desconectado — reescaneie o QR', 'error')
+          if (payload.needs_reauth) onToast(t('whatsappFree.disconnectedReauth'), 'error')
         }
 
         socket.on('whatsapp:qr', onQr)
@@ -1670,7 +1683,7 @@ function WhatsAppFreeCard({ onToast }: { onToast: (msg: string, t?: 'success' | 
         } catch { /* ignore */ }
       })()
     }
-  }, [channel, onToast])
+  }, [channel, onToast, t])
 
   // QR timeout 90s
   useEffect(() => {
@@ -1698,7 +1711,7 @@ function WhatsAppFreeCard({ onToast }: { onToast: (msg: string, t?: 'success' | 
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({} as { message?: string }))
-        throw new Error(err.message ?? 'Falha ao conectar')
+        throw new Error(err.message ?? t('whatsappFree.connectFailed'))
       }
       const created = (await res.json()) as WaChannel
       setChannel(created)
@@ -1712,9 +1725,9 @@ function WhatsAppFreeCard({ onToast }: { onToast: (msg: string, t?: 'success' | 
 
   async function disconnect() {
     const ok = await confirm({
-      title:        'Desconectar WhatsApp Gratuito',
-      message:      'Desconectar WhatsApp Gratuito? Você precisará escanear o QR novamente.',
-      confirmLabel: 'Desconectar',
+      title:        t('whatsappFree.disconnectTitle'),
+      message:      t('whatsappFree.disconnectMessage'),
+      confirmLabel: t('whatsapp.disconnect'),
       variant:      'warning',
     })
     if (!ok) return
@@ -1723,9 +1736,9 @@ function WhatsAppFreeCard({ onToast }: { onToast: (msg: string, t?: 'success' | 
     try {
       const headers = await getHeaders()
       const res = await fetch(`${BACKEND}/channels/${channel.id}`, { method: 'DELETE', headers })
-      if (!res.ok) throw new Error('Falha ao desconectar')
+      if (!res.ok) throw new Error(t('whatsappFree.disconnectFailed'))
       setChannel(null)
-      onToast('WhatsApp Gratuito desconectado', 'success')
+      onToast(t('whatsappFree.disconnected'), 'success')
     } catch (e) {
       onToast((e as Error).message, 'error')
     } finally {
@@ -1751,14 +1764,14 @@ function WhatsAppFreeCard({ onToast }: { onToast: (msg: string, t?: 'success' | 
               style={{ background: 'rgba(34,197,94,0.15)', color: '#22c55e' }}>WG</div>
             <div>
               <div className="flex items-center gap-2">
-                <p className="text-xs font-semibold text-zinc-200">WhatsApp Gratuito</p>
+                <p className="text-xs font-semibold text-zinc-200">{t('whatsappFree.cardTitle')}</p>
                 <span className="text-[9px] font-bold px-1.5 py-0.5 rounded"
-                  style={{ background: 'rgba(34,197,94,0.15)', color: '#22c55e' }}>GRÁTIS</span>
+                  style={{ background: 'rgba(34,197,94,0.15)', color: '#22c55e' }}>{t('whatsappFree.freeBadge')}</span>
               </div>
               <p className="text-[10px] text-zinc-500 mt-0.5 leading-snug">
                 {isActive
-                  ? `Conectado · ${channel?.external_id ?? channel?.phone_number ?? '—'}`
-                  : 'Conecte seu WhatsApp direto, sem custo. Uso interno recomendado.'}
+                  ? t('whatsapp.connectedWith', { phone: channel?.external_id ?? channel?.phone_number ?? '—' })
+                  : t('whatsappFree.cardSubtitle')}
               </p>
             </div>
           </div>
@@ -1767,49 +1780,49 @@ function WhatsAppFreeCard({ onToast }: { onToast: (msg: string, t?: 'success' | 
           ) : workerOffline ? (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold"
               style={{ background: 'rgba(113,113,122,0.15)', color: '#a1a1aa' }}>
-              <AlertCircle size={10} />Serviço offline
+              <AlertCircle size={10} />{t('whatsappFree.serviceOffline')}
             </span>
           ) : isActive ? (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold"
               style={{ background: 'rgba(74,222,128,0.1)', color: '#4ade80' }}>
-              <CheckCircle2 size={10} />Ativo
+              <CheckCircle2 size={10} />{t('whatsappFree.badgeActive')}
             </span>
           ) : channel?.status === 'error' ? (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold"
               style={{ background: 'rgba(248,113,113,0.1)', color: '#f87171' }}>
-              <XCircle size={10} />Erro
+              <XCircle size={10} />{t('whatsappFree.badgeError')}
             </span>
           ) : (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold"
               style={{ background: 'rgba(251,146,60,0.1)', color: '#fb923c' }}>
-              <Plug size={10} />Não conectado
+              <Plug size={10} />{t('whatsappFree.badgeNotConnected')}
             </span>
           )}
         </div>
 
         {!isActive && !workerOffline && (
           <p className="text-[10px] text-zinc-600 leading-snug">
-            ⚠️ Uso intenso pode levar a restrição pelo WhatsApp. Recomendamos para volume baixo/atendimento manual.
+            {t('whatsappFree.usageWarning')}
           </p>
         )}
 
         {workerOffline ? (
           <div className="text-[11px] text-zinc-500 px-3 py-2 rounded-lg" style={{ background: '#0d0d10', border: '1px solid #27272a' }}>
-            Serviço temporariamente indisponível.
+            {t('whatsappFree.serviceUnavailable')}
           </div>
         ) : isActive ? (
           <button onClick={disconnect} disabled={busy}
             className="inline-flex items-center justify-center gap-1.5 w-full py-2 rounded-xl text-xs font-semibold disabled:opacity-40"
             style={{ background: 'rgba(248,113,113,0.1)', color: '#f87171', border: '1px solid rgba(248,113,113,0.25)' }}>
             {busy ? <Loader2 size={11} className="animate-spin" /> : null}
-            Desconectar
+            {t('whatsapp.disconnect')}
           </button>
         ) : (
           <button onClick={connect} disabled={busy}
             className="flex items-center gap-1.5 w-full justify-center py-2 rounded-xl text-xs font-semibold transition-all disabled:opacity-40"
             style={{ background: 'rgba(34,197,94,0.1)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.25)' }}>
             {busy ? <Loader2 size={11} className="animate-spin" /> : <Plug size={11} />}
-            Conectar
+            {t('integCard.connect')}
           </button>
         )}
       </div>
@@ -1820,7 +1833,7 @@ function WhatsAppFreeCard({ onToast }: { onToast: (msg: string, t?: 'success' | 
           <div className="relative w-full max-w-sm rounded-2xl overflow-hidden"
             style={{ background: '#111114', border: '1px solid #1e1e24' }}>
             <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: '1px solid #1e1e24' }}>
-              <p className="text-sm font-semibold text-zinc-200">Conectar WhatsApp Gratuito</p>
+              <p className="text-sm font-semibold text-zinc-200">{t('whatsappFree.dialogTitle')}</p>
               <button onClick={closeDialog} className="text-zinc-500 hover:text-white"><X size={16} /></button>
             </div>
 
@@ -1828,23 +1841,23 @@ function WhatsAppFreeCard({ onToast }: { onToast: (msg: string, t?: 'success' | 
               {channel?.status === 'active' ? (
                 <>
                   <CheckCircle2 size={48} style={{ color: '#22c55e' }} />
-                  <p className="text-sm font-bold text-white">Conectado!</p>
+                  <p className="text-sm font-bold text-white">{t('whatsappFree.connectedShort')}</p>
                   <p className="text-xs text-zinc-400 text-center">
                     {channel.external_id ?? '—'}<br/>
                     {channel.phone_number ?? ''}
                   </p>
                   <button onClick={closeDialog}
                     className="w-full py-2 rounded-xl text-xs font-semibold"
-                    style={{ background: '#22c55e', color: '#000' }}>Fechar</button>
+                    style={{ background: '#22c55e', color: '#000' }}>{t('whatsapp.close')}</button>
                 </>
               ) : qrExpired ? (
                 <>
                   <AlertCircle size={36} style={{ color: '#fb923c' }} />
-                  <p className="text-sm text-zinc-300 text-center">QR expirado.</p>
+                  <p className="text-sm text-zinc-300 text-center">{t('whatsappFree.qrExpired')}</p>
                   <button onClick={connect} disabled={busy}
                     className="w-full py-2 rounded-xl text-xs font-semibold disabled:opacity-40"
                     style={{ background: 'rgba(34,197,94,0.15)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.3)' }}>
-                    Gerar novo QR
+                    {t('whatsappFree.generateNewQr')}
                   </button>
                 </>
               ) : qrBase64 ? (
@@ -1853,14 +1866,13 @@ function WhatsAppFreeCard({ onToast }: { onToast: (msg: string, t?: 'success' | 
                     <img src={qrBase64} alt="QR Code" width={250} height={250} />
                   </div>
                   <div className="text-[11px] text-zinc-400 text-center leading-relaxed">
-                    Abra o WhatsApp no celular →<br/>
-                    <strong className="text-zinc-200">⋮ → Aparelhos conectados → Conectar aparelho</strong>
+                    {t.rich('whatsappFree.qrInstructions', { strong: (c) => <strong className="text-zinc-200">{c}</strong>, br: () => <br/> })}
                   </div>
                 </>
               ) : (
                 <>
                   <Loader2 size={36} className="animate-spin text-zinc-500" />
-                  <p className="text-xs text-zinc-400">Gerando QR code...</p>
+                  <p className="text-xs text-zinc-400">{t('whatsappFree.generatingQr')}</p>
                 </>
               )}
             </div>

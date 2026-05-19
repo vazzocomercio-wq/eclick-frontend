@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import {
@@ -73,6 +74,7 @@ const CARD = { background: '#111114', border: '1px solid #1a1a1f' }
 const COMP_COLORS = ['#f59e0b', '#22c55e', '#a78bfa', '#f87171']
 
 export default function RadarDetailPage() {
+  const t = useTranslations('radar')
   const params = useParams<{ id: string }>()
   const id = params?.id
 
@@ -99,7 +101,7 @@ export default function RadarDetailPage() {
         setSeries(s)
         setEvents(e)
       } catch (err) {
-        if (alive) setError(err instanceof Error ? err.message : 'Falha ao carregar o produto')
+        if (alive) setError(err instanceof Error ? err.message : t('errorLoadProduct'))
       } finally {
         if (alive) setLoading(false)
       }
@@ -114,13 +116,13 @@ export default function RadarDetailPage() {
       const own = s.is_own
       const cfg = {
         key: s.item_id,
-        label: own ? 'Vazzo' : `Conc. ${comp + 1}`,
+        label: own ? 'Vazzo' : t('competitorN', { n: comp + 1 }),
         color: own ? '#00E5FF' : COMP_COLORS[comp % COMP_COLORS.length],
       }
       if (!own) comp++
       return cfg
     })
-  }, [series])
+  }, [series, t])
 
   const offers = data?.offers ?? []
   const marketMin = offers.length ? offers[0].price : null
@@ -131,7 +133,7 @@ export default function RadarDetailPage() {
       <Link href="/dashboard/radar"
         className="inline-flex items-center gap-1.5 text-xs mb-4 hover:text-zinc-300 transition-colors"
         style={{ color: '#71717a' }}>
-        <ArrowLeft size={13} /> Voltar ao Radar
+        <ArrowLeft size={13} /> {t('backToRadar')}
       </Link>
 
       {error && (
@@ -161,20 +163,20 @@ export default function RadarDetailPage() {
           {data.internal && data.internal.cost_price != null && (
             <div className="rounded-xl p-4 mb-5" style={CARD}>
               <h2 className="text-sm font-semibold mb-3" style={{ color: '#fafafa' }}>
-                Cruzamento de margem
+                {t('marginCrossing')}
               </h2>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Metric label="Custo interno" value={brl(data.internal.cost_price)} />
-                <Metric label="Menor preço do mercado" value={brl(marketMin)} />
-                <Metric label="Margem no menor preço"
+                <Metric label={t('internalCost')} value={brl(data.internal.cost_price)} />
+                <Metric label={t('marketLowestPrice')} value={brl(marketMin)} />
+                <Metric label={t('marginAtLowest')}
                   value={marginPct(marketMin, data.internal.cost_price)}
                   color={marginColor(marketMin, data.internal.cost_price)} />
-                <Metric label="Margem no seu preço"
+                <Metric label={t('marginAtYourPrice')}
                   value={marginPct(vazzoOffer?.price ?? null, data.internal.cost_price)}
                   color={marginColor(vazzoOffer?.price ?? null, data.internal.cost_price)} />
               </div>
               <p className="text-[10px] mt-3" style={{ color: '#52525b' }}>
-                Margem bruta estimada — (preço − custo) ÷ preço. Não inclui tarifa ML, frete nem imposto.
+                {t('grossMarginNote')}
               </p>
             </div>
           )}
@@ -183,21 +185,21 @@ export default function RadarDetailPage() {
           <section className="rounded-xl overflow-hidden mb-5" style={CARD}>
             <div className="px-4 py-3" style={{ borderBottom: '1px solid #1a1a1f' }}>
               <h2 className="text-sm font-semibold" style={{ color: '#fafafa' }}>
-                Ranking competitivo <span style={{ color: '#52525b' }}>· {offers.length} ofertas</span>
+                {t('competitiveRanking')} <span style={{ color: '#52525b' }}>· {t('offerCount', { count: offers.length })}</span>
               </h2>
             </div>
             <div className="flex items-center gap-3 px-4 py-2 text-[10px] uppercase tracking-wide"
               style={{ borderBottom: '1px solid #1a1a1f', color: '#52525b' }}>
-              <span className="flex-1">Vendedor</span>
-              <span className="w-24 text-right">Preço</span>
-              <span className="w-28 text-right">Demanda 30d</span>
-              <span className="w-20 text-center">Frete</span>
-              <span className="w-28 text-center">Logística</span>
-              <span className="w-24 text-center">Tipo</span>
+              <span className="flex-1">{t('colSeller')}</span>
+              <span className="w-24 text-right">{t('colPrice')}</span>
+              <span className="w-28 text-right">{t('colDemand30d')}</span>
+              <span className="w-20 text-center">{t('colShipping')}</span>
+              <span className="w-28 text-center">{t('colLogistics')}</span>
+              <span className="w-24 text-center">{t('colType')}</span>
             </div>
             {offers.length === 0 && (
               <div className="p-8 text-center text-sm" style={{ color: '#a1a1aa' }}>
-                Sem ofertas ativas neste produto de catálogo.
+                {t('noActiveOffers')}
               </div>
             )}
             {offers.map(o => (
@@ -210,11 +212,11 @@ export default function RadarDetailPage() {
                   <span className="h-2 w-2 rounded-full shrink-0"
                     style={{ background: reputationColor(o.seller?.reputation_level) }} />
                   <span className="text-xs font-medium truncate" style={{ color: '#fafafa' }}>
-                    {o.is_own ? 'Vazzo (você)' : o.seller?.nickname ?? 'Concorrente'}
+                    {o.is_own ? t('sellerYou') : o.seller?.nickname ?? t('competitor')}
                   </span>
                   {o.seller?.is_official_store && (
                     <span className="text-[9px] rounded px-1 py-0.5 shrink-0"
-                      style={{ background: 'rgba(0,229,255,0.12)', color: '#67e8f9' }}>oficial</span>
+                      style={{ background: 'rgba(0,229,255,0.12)', color: '#67e8f9' }}>{t('official')}</span>
                   )}
                 </div>
                 <span className="w-24 text-right text-xs tabular-nums font-semibold"
@@ -227,10 +229,10 @@ export default function RadarDetailPage() {
                   ) : (
                     <>
                       <span className="text-xs tabular-nums" style={{ color: '#a1a1aa' }}>
-                        ~{o.est_units_30d.toLocaleString('pt-BR')} un
+                        {t('unitsEst', { value: o.est_units_30d.toLocaleString('pt-BR') })}
                       </span>
                       <span className="block text-[9px] tabular-nums" style={{ color: '#52525b' }}>
-                        {o.visits_30d.toLocaleString('pt-BR')} visitas
+                        {t('visitsCount', { value: o.visits_30d.toLocaleString('pt-BR') })}
                       </span>
                     </>
                   )}
@@ -253,38 +255,40 @@ export default function RadarDetailPage() {
           {/* Transparência da conversão */}
           <div className="rounded-xl p-4 mb-5" style={CARD}>
             <h2 className="text-sm font-semibold mb-2" style={{ color: '#fafafa' }}>
-              Como a demanda é estimada
+              {t('howDemandEstimated')}
             </h2>
             {data.calibration.rate == null ? (
               <p className="text-xs leading-relaxed" style={{ color: '#a1a1aa' }}>
-                Ainda não há conversão calibrada para a sua operação. A demanda estimada
-                aparece assim que o Radar acumular vendas e visitas próprias suficientes
-                (a coleta diária calibra isso automaticamente).
+                {t('noCalibrationYet')}
               </p>
             ) : (
               <>
                 <p className="text-xs leading-relaxed" style={{ color: '#a1a1aa' }}>
-                  Demanda estimada = <span style={{ color: '#fafafa' }}>visitas coletadas do anúncio</span> ×{' '}
-                  <span style={{ color: '#fafafa' }}>conversão de {pct(data.calibration.rate)}</span>.
-                  A conversão vem das suas próprias vendas (unidades vendidas ÷ visitas, janela de 30 dias),
-                  calibrada por {data.calibration.basis}.
+                  {t.rich('demandFormula', {
+                    rate: pct(data.calibration.rate),
+                    basis: data.calibration.basis,
+                    em: (chunks) => <span style={{ color: '#fafafa' }}>{chunks}</span>,
+                  })}
                 </p>
                 <div className="flex flex-wrap gap-x-8 gap-y-3 mt-3">
-                  <Metric label="Conversão usada" value={pct(data.calibration.rate)} />
-                  <Metric label="Base de cálculo"
-                    value={`${data.calibration.own_units.toLocaleString('pt-BR')} un · ${data.calibration.own_visits.toLocaleString('pt-BR')} visitas`} />
-                  <Metric label="Confiança"
-                    value={data.calibration.confidence === 'ok' ? 'Boa' : 'Baixa'}
+                  <Metric label={t('conversionUsed')} value={pct(data.calibration.rate)} />
+                  <Metric label={t('calcBasis')}
+                    value={t('calcBasisValue', {
+                      units: data.calibration.own_units.toLocaleString('pt-BR'),
+                      visits: data.calibration.own_visits.toLocaleString('pt-BR'),
+                    })} />
+                  <Metric label={t('confidence')}
+                    value={data.calibration.confidence === 'ok' ? t('confidenceGood') : t('confidenceLow')}
                     color={data.calibration.confidence === 'ok' ? '#4ade80' : '#fbbf24'} />
                 </div>
                 {data.calibration.confidence === 'low' && (
                   <p className="text-[10px] mt-3" style={{ color: '#fbbf24' }}>
-                    Confiança baixa — ainda há poucos dados próprios. Trate a demanda como ordem de grandeza, não número exato.
+                    {t('lowConfidenceNote')}
                   </p>
                 )}
                 <p className="text-[10px] mt-2" style={{ color: '#52525b' }}>
-                  Estimativa — não é a venda real do concorrente, dado que o Mercado Livre não expõe.
-                  {data.calibration.calc_date ? ` Conversão calibrada em ${data.calibration.calc_date}.` : ''}
+                  {t('estimateNote')}
+                  {data.calibration.calc_date ? ` ${t('calibratedOn', { date: data.calibration.calc_date })}` : ''}
                 </p>
               </>
             )}
@@ -292,7 +296,7 @@ export default function RadarDetailPage() {
 
           {/* Gráficos */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5">
-            <ChartCard title="Histórico de preço">
+            <ChartCard title={t('priceHistory')}>
               {series && series.price_history.length > 0 ? (
                 <ResponsiveContainer width="100%" height={240}>
                   <LineChart data={series.price_history}>
@@ -309,10 +313,10 @@ export default function RadarDetailPage() {
                     ))}
                   </LineChart>
                 </ResponsiveContainer>
-              ) : <ChartEmpty msg="Sem histórico de preço ainda" />}
+              ) : <ChartEmpty msg={t('noPriceHistory')} />}
             </ChartCard>
 
-            <ChartCard title="Visitas">
+            <ChartCard title={t('visits')}>
               {series && series.visits.length > 0 ? (
                 <ResponsiveContainer width="100%" height={240}>
                   <LineChart data={series.visits}>
@@ -321,11 +325,11 @@ export default function RadarDetailPage() {
                     <YAxis tick={{ fill: '#52525b', fontSize: 10 }} axisLine={false} tickLine={false} width={45} />
                     <Tooltip contentStyle={{ background: '#18181b', border: '1px solid #27272a', borderRadius: 8, fontSize: 11 }}
                       labelStyle={{ color: '#a1a1aa' }} />
-                    <Line type="monotone" dataKey="visits" name="Visitas"
+                    <Line type="monotone" dataKey="visits" name={t('visits')}
                       stroke="#00E5FF" strokeWidth={1.5} dot={false} />
                   </LineChart>
                 </ResponsiveContainer>
-              ) : <ChartEmpty msg="Sem dados de visita ainda" />}
+              ) : <ChartEmpty msg={t('noVisitsData')} />}
             </ChartCard>
           </div>
 
@@ -333,13 +337,13 @@ export default function RadarDetailPage() {
           <section className="rounded-xl overflow-hidden" style={CARD}>
             <div className="px-4 py-3 flex items-center gap-2" style={{ borderBottom: '1px solid #1a1a1f' }}>
               <Activity size={15} style={{ color: '#00E5FF' }} />
-              <h2 className="text-sm font-semibold" style={{ color: '#fafafa' }}>Eventos deste produto</h2>
+              <h2 className="text-sm font-semibold" style={{ color: '#fafafa' }}>{t('productEvents')}</h2>
             </div>
             {events.length === 0 && (
               <div className="p-8 text-center">
-                <p className="text-sm" style={{ color: '#a1a1aa' }}>Nenhum evento registrado</p>
+                <p className="text-sm" style={{ color: '#a1a1aa' }}>{t('noEventsRecorded')}</p>
                 <p className="text-xs mt-1" style={{ color: '#52525b' }}>
-                  Eventos surgem quando a coleta diária detecta mudanças.
+                  {t('eventsAppearNote')}
                 </p>
               </div>
             )}
@@ -357,7 +361,7 @@ export default function RadarDetailPage() {
                         style={{ background: sev.bg, color: sev.text }}>{sev.label}</span>
                     </div>
                     <p className="text-[11px] mt-0.5" style={{ color: '#71717a' }}>
-                      {describeEvent(ev)}
+                      {describeEvent(ev, t)}
                     </p>
                   </div>
                   <span className="text-[10px] shrink-0" style={{ color: '#52525b' }}>
@@ -383,18 +387,18 @@ function marginColor(price: number | null, cost: number | null): string {
   return m < 0.1 ? '#f87171' : m < 0.25 ? '#fbbf24' : '#4ade80'
 }
 
-function describeEvent(ev: RadarEvent): string {
+function describeEvent(ev: RadarEvent, t: ReturnType<typeof useTranslations>): string {
   const nv = ev.new_value ?? {}
   const pv = ev.previous_value ?? {}
   if (ev.event_type === 'queda_preco' || ev.event_type === 'alta_preco') {
     return `${brl(pv.price as number)} → ${brl(nv.price as number)}`
   }
   if (ev.event_type === 'mudanca_menor_preco') {
-    return nv.leader === 'vazzo' ? 'Vazzo voltou à ponta de preço' : 'Vazzo perdeu a ponta de preço'
+    return nv.leader === 'vazzo' ? t('eventLeadRegained') : t('eventLeadLost')
   }
-  if (ev.event_type === 'novo_concorrente') return 'Nova oferta no conjunto competitivo'
-  if (ev.event_type === 'saiu_concorrente') return 'Oferta saiu do conjunto'
-  if (ev.event_type === 'mudanca_frete') return 'Frete ou logística mudou'
+  if (ev.event_type === 'novo_concorrente') return t('eventNewCompetitor')
+  if (ev.event_type === 'saiu_concorrente') return t('eventCompetitorLeft')
+  if (ev.event_type === 'mudanca_frete') return t('eventShippingChange')
   return ''
 }
 

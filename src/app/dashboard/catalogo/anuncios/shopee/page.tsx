@@ -1,18 +1,20 @@
+import { getTranslations } from 'next-intl/server'
 import ChannelListingsPlaceholder from '@/components/ui/ChannelListingsPlaceholder'
 
-export default function Page() {
+export default async function Page() {
+  const t = await getTranslations('catalogo')
   return (
     <ChannelListingsPlaceholder channel={{
       name:        'Shopee',
       abbr:        'SH',
       abbrBg:      'rgba(238,77,45,0.15)',
       abbrColor:   '#EE4D2D',
-      description: 'Sincronize anúncios, pedidos e estoque com a Shopee.',
+      description: t('shopee.description'),
       features: [
-        'Importação e criação de anúncios via Shopee Open Platform API.',
-        'Sincronização automática de estoque entre Shopee e catálogo interno.',
-        'Gestão de pedidos, logística e vouchers do vendedor.',
-        'Relatórios de performance e avaliações de compradores.',
+        t('shopee.feature1'),
+        t('shopee.feature2'),
+        t('shopee.feature3'),
+        t('shopee.feature4'),
       ],
     }} />
   )

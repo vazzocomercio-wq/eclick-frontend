@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import { api } from './_components/api'
 import {
   PricingConfig, PresetName, MODE_META, PRESET_LABELS,
@@ -17,20 +18,21 @@ import { useConfirm } from '@/components/ui/dialog-provider'
 
 type TabKey = 'globais' | 'abc' | 'triggers' | 'blocks' | 'confidence' | 'seasonal' | 'untouchable' | 'audit'
 
-const TABS: { key: TabKey; label: string; emoji: string }[] = [
-  { key: 'globais',     label: 'Globais',      emoji: '📊' },
-  { key: 'abc',         label: 'Curva ABC',    emoji: '📈' },
-  { key: 'triggers',    label: 'Gatilhos',     emoji: '⚡' },
-  { key: 'blocks',      label: 'Bloqueios',    emoji: '🔒' },
-  { key: 'confidence',  label: 'Confiança',    emoji: '🎯' },
-  { key: 'seasonal',    label: 'Sazonalidade', emoji: '🗓' },
-  { key: 'untouchable', label: 'Vendedores',   emoji: '🚫' },
-  { key: 'audit',       label: 'Auditoria',    emoji: '📜' },
+const TAB_KEYS: { key: TabKey; emoji: string }[] = [
+  { key: 'globais',     emoji: '📊' },
+  { key: 'abc',         emoji: '📈' },
+  { key: 'triggers',    emoji: '⚡' },
+  { key: 'blocks',      emoji: '🔒' },
+  { key: 'confidence',  emoji: '🎯' },
+  { key: 'seasonal',    emoji: '🗓' },
+  { key: 'untouchable', emoji: '🚫' },
+  { key: 'audit',       emoji: '📜' },
 ]
 
 type Toast = { id: number; msg: string; type: 'success' | 'error' }
 
 export default function PricingConfigPage() {
+  const t = useTranslations('pricing')
   const [config, setConfig]       = useState<PricingConfig | null>(null)
   const [original, setOriginal]   = useState<PricingConfig | null>(null)
   const [loading, setLoading]     = useState(true)
@@ -89,12 +91,12 @@ export default function PricingConfigPage() {
         })
       } catch (e) {
         errors++
-        pushToast(`Falha em ${path}: ${(e as Error).message}`, 'error')
+        pushToast(t('saveFieldError', { path, error: (e as Error).message }), 'error')
       }
     }
     if (lastConfig) {
       setConfig(lastConfig); setOriginal(lastConfig); setDirty(new Set())
-      pushToast(errors === 0 ? 'Configuração salva' : `Salvou parcial (${errors} erro${errors === 1 ? '' : 's'})`, errors === 0 ? 'success' : 'error')
+      pushToast(errors === 0 ? t('configSaved') : t('savedPartial', { errors }), errors === 0 ? 'success' : 'error')
     }
     setSaving(false)
   }
@@ -103,9 +105,9 @@ export default function PricingConfigPage() {
     if (preset === 'custom') return
     if (dirtyPaths.size > 0) {
       const ok = await confirm({
-        title:        'Aplicar preset',
-        message:      `Você tem ${dirtyPaths.size} alteração(ões) pendentes. Aplicar preset "${PRESET_LABELS[preset]}" descarta-as. Continuar?`,
-        confirmLabel: 'Continuar',
+        title:        t('applyPresetTitle'),
+        message:      t('applyPresetMessage', { count: dirtyPaths.size, preset: PRESET_LABELS[preset] }),
+        confirmLabel: t('continue'),
         variant:      'warning',
       })
       if (!ok) return
@@ -117,16 +119,16 @@ export default function PricingConfigPage() {
         body: JSON.stringify({ preset }),
       })
       setConfig(c); setOriginal(c); setDirty(new Set())
-      pushToast(`Preset "${PRESET_LABELS[preset]}" aplicado`, 'success')
+      pushToast(t('presetApplied', { preset: PRESET_LABELS[preset] }), 'success')
     } catch (e) { pushToast((e as Error).message, 'error') }
     setSaving(false)
   }
 
   async function resetToDefaults() {
     const ok = await confirm({
-      title:        'Restaurar padrões',
-      message:      'Restaurar padrões? Esta ação descarta todas as customizações.',
-      confirmLabel: 'Restaurar',
+      title:        t('resetTitle'),
+      message:      t('resetMessage'),
+      confirmLabel: t('reset'),
       variant:      'warning',
     })
     if (!ok) return
@@ -134,7 +136,7 @@ export default function PricingConfigPage() {
     try {
       const c = await api<PricingConfig>('/pricing/config/reset', { method: 'POST' })
       setConfig(c); setOriginal(c); setDirty(new Set())
-      pushToast('Padrões restaurados', 'success')
+      pushToast(t('defaultsRestored'), 'success')
     } catch (e) { pushToast((e as Error).message, 'error') }
     setSaving(false)
   }
@@ -143,9 +145,9 @@ export default function PricingConfigPage() {
     if (!original) return
     if (dirtyPaths.size > 0) {
       const ok = await confirm({
-        title:        'Descartar mudanças',
-        message:      `Descartar ${dirtyPaths.size} alteração(ões) pendentes?`,
-        confirmLabel: 'Descartar',
+        title:        t('discardTitle'),
+        message:      t('discardMessage', { count: dirtyPaths.size }),
+        confirmLabel: t('discard'),
         variant:      'warning',
       })
       if (!ok) return
@@ -156,7 +158,7 @@ export default function PricingConfigPage() {
   const dirtyCount = dirtyPaths.size
 
   if (loading) return <div className="p-6"><div className="h-64 rounded-2xl animate-pulse" style={{ background: '#111114' }} /></div>
-  if (!config) return <div className="p-6 text-zinc-500 text-sm">Não foi possível carregar a configuração.</div>
+  if (!config) return <div className="p-6 text-zinc-500 text-sm">{t('configLoadFailed')}</div>
 
   const modeMeta   = MODE_META[config.mode]
   const presetName = (config.preset_name ?? 'custom') as PresetName
@@ -167,8 +169,8 @@ export default function PricingConfigPage() {
       <div className="shrink-0 px-6 pt-6 pb-4" style={{ borderBottom: '1px solid #1e1e24' }}>
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <h1 className="text-white text-lg font-semibold">Inteligência de Preços — Configuração</h1>
-            <p className="text-zinc-500 text-sm mt-0.5">8 abas com parâmetros editáveis. Cada mudança é auditada.</p>
+            <h1 className="text-white text-lg font-semibold">{t('configTitle')}</h1>
+            <p className="text-zinc-500 text-sm mt-0.5">{t('configSubtitle')}</p>
           </div>
 
           <div className="flex items-center gap-3 flex-wrap">
@@ -185,7 +187,7 @@ export default function PricingConfigPage() {
             >
               {(['conservador', 'equilibrado', 'agressivo', 'custom'] as PresetName[]).map(p => (
                 <option key={p} value={p} disabled={p === 'custom'}>
-                  {PRESET_LABELS[p]}{p === 'custom' && presetName === 'custom' ? ' (atual)' : ''}
+                  {PRESET_LABELS[p]}{p === 'custom' && presetName === 'custom' ? ` ${t('currentSuffix')}` : ''}
                 </option>
               ))}
             </select>
@@ -195,10 +197,10 @@ export default function PricingConfigPage() {
               className="glow-rainbow px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50"
               style={{ background: '#00E5FF', color: '#08323b' }}
             >
-              {saving ? 'Salvando…' : `Salvar alterações${dirtyCount > 0 ? ` (${dirtyCount})` : ''}`}
+              {saving ? t('saving') : `${t('saveChangesBtn')}${dirtyCount > 0 ? ` (${dirtyCount})` : ''}`}
             </button>
             {dirtyCount > 0 && !saving && (
-              <button onClick={discardChanges} className="text-xs text-zinc-400 hover:text-white">Descartar</button>
+              <button onClick={discardChanges} className="text-xs text-zinc-400 hover:text-white">{t('discard')}</button>
             )}
           </div>
         </div>
@@ -208,19 +210,19 @@ export default function PricingConfigPage() {
         {/* Sidebar de abas */}
         <div className="shrink-0 w-56 overflow-y-auto" style={{ borderRight: '1px solid #1e1e24', background: '#0a0a0e' }}>
           <div className="p-3 space-y-0.5">
-            {TABS.map(t => (
+            {TAB_KEYS.map(tk => (
               <button
-                key={t.key}
-                onClick={() => setTab(t.key)}
+                key={tk.key}
+                onClick={() => setTab(tk.key)}
                 className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition text-left"
                 style={{
-                  background:  tab === t.key ? 'rgba(0,229,255,0.05)' : 'transparent',
-                  color:       tab === t.key ? '#00E5FF' : '#a1a1aa',
-                  borderLeft:  tab === t.key ? '2px solid #00E5FF' : '2px solid transparent',
+                  background:  tab === tk.key ? 'rgba(0,229,255,0.05)' : 'transparent',
+                  color:       tab === tk.key ? '#00E5FF' : '#a1a1aa',
+                  borderLeft:  tab === tk.key ? '2px solid #00E5FF' : '2px solid transparent',
                 }}
               >
-                <span className="text-base">{t.emoji}</span>
-                <span>{t.label}</span>
+                <span className="text-base">{tk.emoji}</span>
+                <span>{t(`cfgTab_${tk.key}`)}</span>
               </button>
             ))}
           </div>
@@ -233,7 +235,7 @@ export default function PricingConfigPage() {
               className="w-full px-3 py-2 rounded-lg text-xs font-medium text-left disabled:opacity-50"
               style={{ background: 'rgba(245,158,11,0.05)', border: '1px solid rgba(245,158,11,0.3)', color: '#f59e0b' }}
             >
-              ↻ Restaurar padrões
+              ↻ {t('restoreDefaults')}
             </button>
           </div>
         </div>

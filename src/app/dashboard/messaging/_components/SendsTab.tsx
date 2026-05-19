@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { useTranslations } from 'next-intl'
 import { createPortal } from 'react-dom'
 import { createClient } from '@/lib/supabase'
 import { WhatsappBubble } from './WhatsappBubble'
@@ -45,13 +46,7 @@ interface MessagingSend {
   created_at:      string
 }
 
-const STATUS_LABEL: Record<SendStatus, string> = {
-  pending:   'Pendente',
-  sent:      'Enviado',
-  delivered: 'Entregue',
-  read:      'Lido',
-  failed:    'Falhou',
-}
+const STATUS_KEYS: SendStatus[] = ['pending', 'sent', 'delivered', 'read', 'failed']
 const STATUS_COLOR: Record<SendStatus, { bg: string; fg: string }> = {
   pending:   { bg: 'rgba(161,161,170,0.1)', fg: '#a1a1aa' },
   sent:      { bg: 'rgba(96,165,250,0.1)',  fg: '#60a5fa' },
@@ -63,6 +58,7 @@ const STATUS_COLOR: Record<SendStatus, { bg: string; fg: string }> = {
 const PAGE_SIZE = 25
 
 export function SendsTab({ onToast }: { onToast: (m: string, type?: 'success'|'error') => void }) {
+  const t = useTranslations('messaging.sends')
   const [list, setList]           = useState<MessagingSend[]>([])
   const [total, setTotal]         = useState(0)
   const [page, setPage]           = useState(0)
@@ -102,24 +98,24 @@ export function SendsTab({ onToast }: { onToast: (m: string, type?: 'success'|'e
 
   return (
     <>
-      <p className="text-zinc-400 text-sm mb-4">Histórico de todos os envios. Click na linha pra ver detalhes.</p>
+      <p className="text-zinc-400 text-sm mb-4">{t('intro')}</p>
 
       {/* Filters */}
       <div className="flex flex-wrap gap-2 mb-4">
         <select value={filterStatus} onChange={e => { setFilterStatus(e.target.value as SendStatus | ''); setPage(0) }} className="se-input">
-          <option value="">Todos status</option>
-          {(Object.keys(STATUS_LABEL) as SendStatus[]).map(s => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
+          <option value="">{t('allStatuses')}</option>
+          {STATUS_KEYS.map(s => <option key={s} value={s}>{t(`status.${s}`)}</option>)}
         </select>
         <select value={filterTpl} onChange={e => { setFilterTpl(e.target.value); setPage(0) }} className="se-input">
-          <option value="">Todos templates</option>
-          {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+          <option value="">{t('allTemplates')}</option>
+          {templates.map(tpl => <option key={tpl.id} value={tpl.id}>{tpl.name}</option>)}
         </select>
         <input type="date" value={filterFrom} onChange={e => { setFilterFrom(e.target.value); setPage(0) }} className="se-input" />
         <input type="date" value={filterTo}   onChange={e => { setFilterTo(e.target.value); setPage(0) }}   className="se-input" />
         {(filterStatus || filterTpl || filterFrom || filterTo) && (
           <button onClick={() => { setFilterStatus(''); setFilterTpl(''); setFilterFrom(''); setFilterTo(''); setPage(0) }}
             className="px-3 py-1.5 rounded-lg text-xs font-medium border" style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>
-            Limpar
+            {t('clear')}
           </button>
         )}
       </div>
@@ -128,17 +124,17 @@ export function SendsTab({ onToast }: { onToast: (m: string, type?: 'success'|'e
       {loading
         ? <div className="h-48 rounded-2xl animate-pulse" style={{ background: '#111114' }} />
         : list.length === 0
-          ? <div className="rounded-2xl px-6 py-10 text-center text-zinc-500 text-sm" style={{ background: '#111114', border: '1px dashed #27272a' }}>Nenhum envio.</div>
+          ? <div className="rounded-2xl px-6 py-10 text-center text-zinc-500 text-sm" style={{ background: '#111114', border: '1px dashed #27272a' }}>{t('empty')}</div>
           : <div className="rounded-2xl overflow-hidden" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
               <table className="w-full text-sm">
                 <thead style={{ background: '#0a0a0e' }}>
                   <tr className="text-zinc-500 text-[11px] uppercase tracking-wider">
-                    <th className="text-left px-4 py-2.5">Data</th>
-                    <th className="text-left px-4 py-2.5">Cliente</th>
-                    <th className="text-left px-4 py-2.5">Telefone</th>
-                    <th className="text-left px-4 py-2.5">Template</th>
-                    <th className="text-left px-4 py-2.5">Canal</th>
-                    <th className="text-left px-4 py-2.5">Status</th>
+                    <th className="text-left px-4 py-2.5">{t('colDate')}</th>
+                    <th className="text-left px-4 py-2.5">{t('colCustomer')}</th>
+                    <th className="text-left px-4 py-2.5">{t('colPhone')}</th>
+                    <th className="text-left px-4 py-2.5">{t('colTemplate')}</th>
+                    <th className="text-left px-4 py-2.5">{t('colChannel')}</th>
+                    <th className="text-left px-4 py-2.5">{t('colStatus')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -155,7 +151,7 @@ export function SendsTab({ onToast }: { onToast: (m: string, type?: 'success'|'e
                         <td className="px-4 py-2.5 text-zinc-400">{s.channel}</td>
                         <td className="px-4 py-2.5">
                           <span className="text-[11px] uppercase tracking-wider px-2 py-0.5 rounded-full" style={{ background: c.bg, color: c.fg }}>
-                            {STATUS_LABEL[s.status]}
+                            {t(`status.${s.status}`)}
                           </span>
                         </td>
                       </tr>
@@ -169,16 +165,16 @@ export function SendsTab({ onToast }: { onToast: (m: string, type?: 'success'|'e
       {!loading && total > PAGE_SIZE && (
         <div className="flex items-center justify-between mt-4">
           <p className="text-zinc-500 text-xs">
-            {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, total)} de {total}
+            {t('pagination', { start: page * PAGE_SIZE + 1, end: Math.min((page + 1) * PAGE_SIZE, total), total })}
           </p>
           <div className="flex gap-2">
             <button disabled={page === 0} onClick={() => setPage(p => p - 1)}
               className="px-3 py-1.5 rounded-lg text-xs font-medium border disabled:opacity-40"
-              style={{ borderColor: '#3f3f46', color: '#e4e4e7' }}>Anterior</button>
+              style={{ borderColor: '#3f3f46', color: '#e4e4e7' }}>{t('previous')}</button>
             <span className="px-3 py-1.5 text-zinc-500 text-xs">{page + 1} / {totalPages}</span>
             <button disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}
               className="px-3 py-1.5 rounded-lg text-xs font-medium border disabled:opacity-40"
-              style={{ borderColor: '#3f3f46', color: '#e4e4e7' }}>Próxima</button>
+              style={{ borderColor: '#3f3f46', color: '#e4e4e7' }}>{t('nextPage')}</button>
           </div>
         </div>
       )}
@@ -203,33 +199,34 @@ function fmtDate(iso: string): string {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function SendDrawer({ send, onClose, tplName }: { send: MessagingSend; onClose: () => void; tplName: string | null }) {
+  const t = useTranslations('messaging.sends')
   if (typeof window === 'undefined') return null
   const c = STATUS_COLOR[send.status]
   return createPortal(
     <div className="fixed inset-0 z-50 flex justify-end" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={onClose}>
       <div className="w-full max-w-md h-full overflow-y-auto p-6 space-y-4" style={{ background: '#0a0a0e', borderLeft: '1px solid #1e1e24' }} onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between">
-          <p className="text-white font-semibold">Detalhes do envio</p>
+          <p className="text-white font-semibold">{t('drawerTitle')}</p>
           <button onClick={onClose} className="text-zinc-400 hover:text-white">✕</button>
         </div>
 
         <div className="flex items-center gap-2">
           <span className="text-[11px] uppercase tracking-wider px-2 py-0.5 rounded-full" style={{ background: c.bg, color: c.fg }}>
-            {STATUS_LABEL[send.status]}
+            {t(`status.${send.status}`)}
           </span>
           <span className="text-zinc-500 text-xs">{send.channel}</span>
         </div>
 
-        <Section label="Mensagem">
+        <Section label={t('drawerMessage')}>
           <WhatsappBubble message={send.message_body} />
         </Section>
 
-        <Section label="Telefone">
+        <Section label={t('drawerPhone')}>
           <p className="text-white text-sm font-mono">{send.phone}</p>
         </Section>
 
         {send.customer_id && (
-          <Section label="Cliente">
+          <Section label={t('drawerCustomer')}>
             <a href={`/dashboard/atendente-ia/clientes?id=${send.customer_id}`} className="text-cyan-400 text-sm underline">
               {send.customer_id}
             </a>
@@ -237,26 +234,26 @@ function SendDrawer({ send, onClose, tplName }: { send: MessagingSend; onClose: 
         )}
 
         {send.order_id && (
-          <Section label="Pedido">
+          <Section label={t('drawerOrder')}>
             <p className="text-zinc-300 text-sm font-mono">{send.order_id}</p>
           </Section>
         )}
 
         {tplName && (
-          <Section label="Template">
+          <Section label={t('drawerTemplate')}>
             <p className="text-zinc-300 text-sm">{tplName}</p>
           </Section>
         )}
 
         <div className="space-y-2">
-          <Stamp label="Criado em"   value={send.created_at} />
-          <Stamp label="Enviado em"  value={send.sent_at} />
-          <Stamp label="Entregue em" value={send.delivered_at} />
-          <Stamp label="Lido em"     value={send.read_at} />
+          <Stamp label={t('stampCreated')}   value={send.created_at} />
+          <Stamp label={t('stampSent')}      value={send.sent_at} />
+          <Stamp label={t('stampDelivered')} value={send.delivered_at} />
+          <Stamp label={t('stampRead')}      value={send.read_at} />
         </div>
 
         {send.error && (
-          <Section label="Erro">
+          <Section label={t('drawerError')}>
             <div className="rounded-lg p-3 text-red-400 text-xs font-mono" style={{ background: '#1a0a0a', border: '1px solid rgba(248,113,113,0.3)' }}>
               {send.error}
             </div>

@@ -1,5 +1,6 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
 import {
   AbcStrategy, Curve, AbcPriority,
   CURVE_COLORS, CURVE_LABELS, PRIORITY_OPTIONS,
@@ -38,6 +39,7 @@ function CurveCard({
   isDirty:  (path: string) => boolean
   setField: (path: string, value: unknown) => void
 }) {
+  const t = useTranslations('pricing')
   const color = CURVE_COLORS[curve]
   const base = `abc_strategies.${curve}`
 
@@ -49,13 +51,13 @@ function CurveCard({
           {curve}
         </div>
         <div>
-          <p className="text-white font-semibold">Curva {curve}</p>
+          <p className="text-white font-semibold">{t('curveLabel', { curve })}</p>
           <p className="text-zinc-500 text-xs">{CURVE_LABELS[curve].split('—')[1]?.trim()}</p>
         </div>
       </div>
 
       <SliderField
-        label="Margem mínima"
+        label={t('abcMinMargin')}
         value={Number(strategy.min_margin_pct)}
         unit="%"
         min={0} max={50}
@@ -64,7 +66,7 @@ function CurveCard({
         onChange={(v) => setField(`${base}.min_margin_pct`, v)}
       />
       <SliderField
-        label="Máximo de desconto"
+        label={t('abcMaxDiscount')}
         value={Number(strategy.max_discount_pct)}
         unit="%"
         min={0} max={30}
@@ -73,7 +75,7 @@ function CurveCard({
         onChange={(v) => setField(`${base}.max_discount_pct`, v)}
       />
       <SliderField
-        label="Aprovação acima de"
+        label={t('abcApprovalAbove')}
         value={Number(strategy.approval_threshold_pct)}
         unit="%"
         min={0} max={15}
@@ -90,12 +92,12 @@ function CurveCard({
           className="w-4 h-4"
           style={{ accentColor: color }}
         />
-        <span className="text-sm text-zinc-300">Requer aprovação humana sempre</span>
-        {isDirty(`${base}.require_approval`) && <span className="text-[10px] uppercase" style={{ color }}>● editado</span>}
+        <span className="text-sm text-zinc-300">{t('abcRequireApproval')}</span>
+        {isDirty(`${base}.require_approval`) && <span className="text-[10px] uppercase" style={{ color }}>● {t('editedMark')}</span>}
       </label>
 
       <div className="mt-4">
-        <p className="text-zinc-500 text-xs mb-1">Prioridade</p>
+        <p className="text-zinc-500 text-xs mb-1">{t('priority')}</p>
         <select
           value={strategy.priority}
           onChange={(e) => setField(`${base}.priority`, e.target.value as AbcPriority)}

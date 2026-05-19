@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import { RefreshCw, ChevronDown, TrendingUp, TrendingDown } from 'lucide-react'
 
@@ -83,14 +84,9 @@ function getPeriod(id: PeriodId, custom?: { from: string; to: string }) {
   }
 }
 
-const PERIOD_LABELS: Record<PeriodId, string> = {
-  this_month:   'Este mês',
-  last_month:   'Mês passado',
-  this_quarter: 'Este trimestre',
-  last_quarter: 'Trimestre passado',
-  this_year:    'Este ano',
-  custom:       'Personalizado',
-}
+type Translator = ReturnType<typeof useTranslations>
+
+const PERIOD_IDS: PeriodId[] = ['this_month', 'last_month', 'this_quarter', 'last_quarter', 'this_year', 'custom']
 
 // ── DRE line ──────────────────────────────────────────────────────────────────
 
@@ -166,6 +162,7 @@ function KpiPill({ label, value }: { label: string; value: string }) {
 // ── page ──────────────────────────────────────────────────────────────────────
 
 export default function DrePage() {
+  const t = useTranslations('financeiro')
   const [periodId,    setPeriodId]    = useState<PeriodId>('this_month')
   const [customFrom,  setCustomFrom]  = useState('')
   const [customTo,    setCustomTo]    = useState('')
@@ -209,8 +206,8 @@ export default function DrePage() {
       {/* header */}
       <div className="flex items-center justify-between gap-4 mb-5">
         <div>
-          <h1 className="text-xl font-bold text-white">DRE — Demonstrativo de Resultado</h1>
-          <p className="text-sm text-zinc-500 mt-0.5">Visão gerencial por competência</p>
+          <h1 className="text-xl font-bold text-white">{t('dre.title')}</h1>
+          <p className="text-sm text-zinc-500 mt-0.5">{t('dre.subtitle')}</p>
         </div>
         <div className="flex items-center gap-2">
           {/* period picker */}
@@ -220,7 +217,7 @@ export default function DrePage() {
               className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all"
               style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#a1a1aa' }}
             >
-              {PERIOD_LABELS[periodId]}
+              {t(`dre.period.${periodId}`)}
               <ChevronDown size={13} />
             </button>
             {showPicker && (
@@ -228,18 +225,18 @@ export default function DrePage() {
                 className="absolute right-0 top-full mt-1 rounded-xl overflow-hidden z-20 py-1"
                 style={{ background: '#18181b', border: '1px solid #27272a', minWidth: 200 }}
               >
-                {(Object.keys(PERIOD_LABELS) as PeriodId[]).filter(p => p !== 'custom').map(pid => (
+                {PERIOD_IDS.filter(p => p !== 'custom').map(pid => (
                   <button
                     key={pid}
                     onClick={() => applyPeriod(pid)}
                     className="w-full text-left px-4 py-2 text-sm hover:bg-zinc-800 transition-colors"
                     style={{ color: periodId === pid ? '#00E5FF' : '#a1a1aa' }}
                   >
-                    {PERIOD_LABELS[pid]}
+                    {t(`dre.period.${pid}`)}
                   </button>
                 ))}
                 <div className="border-t border-zinc-800 mt-1 pt-1 px-3 pb-2">
-                  <p className="text-[10px] text-zinc-600 mb-1.5">Personalizado</p>
+                  <p className="text-[10px] text-zinc-600 mb-1.5">{t('dre.period.custom')}</p>
                   <div className="flex gap-2">
                     <input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)}
                       className="flex-1 bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-cyan-600" />
@@ -251,7 +248,7 @@ export default function DrePage() {
                     className="mt-1.5 w-full text-xs py-1 rounded font-medium transition-all"
                     style={{ background: 'rgba(0,229,255,0.1)', color: '#00E5FF' }}
                   >
-                    Aplicar
+                    {t('dre.apply')}
                   </button>
                 </div>
               </div>
@@ -271,20 +268,20 @@ export default function DrePage() {
       {/* summary pills */}
       {!loading && k && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-          <KpiPill label="Vendas aprovadas"  value={String(k.qtd_aprovadas)} />
-          <KpiPill label="Ticket médio"      value={brl(k.ticket_medio)} />
-          <KpiPill label="MC por pedido"     value={brl(k.ticket_medio_mc)} />
-          <KpiPill label="Canceladas"        value={String(k.qtd_canceladas)} />
+          <KpiPill label={t('dre.pillApprovedSales')}  value={String(k.qtd_aprovadas)} />
+          <KpiPill label={t('dre.pillAvgTicket')}      value={brl(k.ticket_medio)} />
+          <KpiPill label={t('dre.pillMcPerOrder')}     value={brl(k.ticket_medio_mc)} />
+          <KpiPill label={t('dre.pillCancelled')}      value={String(k.qtd_canceladas)} />
         </div>
       )}
 
       {loading ? (
         <div className="flex items-center justify-center h-60 text-zinc-600 text-sm gap-2">
-          <RefreshCw size={14} className="animate-spin" /> Carregando…
+          <RefreshCw size={14} className="animate-spin" /> {t('dre.loading')}
         </div>
       ) : !k ? (
         <div className="flex items-center justify-center h-60 text-zinc-500 text-sm">
-          ML não conectado ou sem dados no período.
+          {t('dre.noData')}
         </div>
       ) : (
         <div className="rounded-xl overflow-hidden max-w-3xl"
@@ -292,47 +289,47 @@ export default function DrePage() {
 
           {/* column headers */}
           <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-800">
-            <span className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wide">Linha</span>
+            <span className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wide">{t('dre.colLine')}</span>
             <div className="flex items-center gap-6">
-              <span className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wide w-16 text-right">% Rec.</span>
-              <span className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wide w-36 text-right">Valor</span>
+              <span className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wide w-16 text-right">{t('dre.colPctRev')}</span>
+              <span className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wide w-36 text-right">{t('dre.colValue')}</span>
             </div>
           </div>
 
           {/* 1. Receita Bruta */}
-          <SectionHeader label="Receita" />
-          <DRELine label="Receita Bruta (Faturamento ML)"   value={base}  base={base}   bold   highlight />
+          <SectionHeader label={t('dre.sectionRevenue')} />
+          <DRELine label={t('dre.lineGrossRevenue')}   value={base}  base={base}   bold   highlight />
 
           {/* 2. Deduções */}
-          <SectionHeader label="Deduções da Receita" />
-          <DRELine label="Tarifas ML (11,5%)"              value={k.tarifa_total}       base={base} sign="negative" indent={1} />
-          <DRELine label="Frete (custo vendedor)"          value={k.frete_vendedor}     base={base} sign="negative" indent={1} dimIfZero />
+          <SectionHeader label={t('dre.sectionDeductions')} />
+          <DRELine label={t('dre.lineMlFees')}              value={k.tarifa_total}       base={base} sign="negative" indent={1} />
+          <DRELine label={t('dre.lineShipping')}          value={k.frete_vendedor}     base={base} sign="negative" indent={1} dimIfZero />
           <Divider />
-          <DRELine label="(=) Receita Líquida"             value={k.vendas_aprovadas}   base={base} bold   highlight
+          <DRELine label={t('dre.lineNetRevenue')}             value={k.vendas_aprovadas}   base={base} bold   highlight
             sign={k.vendas_aprovadas >= 0 ? 'positive' : 'negative'} />
 
           {/* 3. Custos */}
           <div className="flex items-center justify-between px-4 pt-3 pb-1">
-            <p className="text-[10px] font-semibold text-zinc-600 uppercase tracking-widest">Custos e Despesas</p>
+            <p className="text-[10px] font-semibold text-zinc-600 uppercase tracking-widest">{t('dre.sectionCosts')}</p>
             <button
               onClick={() => setShowCosts(v => !v)}
               className="text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors"
             >
-              {showCosts ? 'ocultar' : 'mostrar'}
+              {showCosts ? t('dre.hide') : t('dre.show')}
             </button>
           </div>
           {showCosts && (
             <>
-              <DRELine label="CPV — Custo dos produtos vendidos" value={k.custo_total}    base={base} sign="negative" indent={1} dimIfZero />
-              <DRELine label="Impostos sobre vendas"             value={k.imposto_total}  base={base} sign="negative" indent={1} dimIfZero />
+              <DRELine label={t('dre.lineCogs')} value={k.custo_total}    base={base} sign="negative" indent={1} dimIfZero />
+              <DRELine label={t('dre.lineSalesTax')}             value={k.imposto_total}  base={base} sign="negative" indent={1} dimIfZero />
             </>
           )}
           <Divider />
 
           {/* 4. Resultado */}
-          <SectionHeader label="Resultado" />
+          <SectionHeader label={t('dre.sectionResult')} />
           <DRELine
-            label="(=) Margem de Contribuição"
+            label={t('dre.lineContributionMargin')}
             value={k.margem_contribuicao}
             base={base}
             bold
@@ -362,7 +359,7 @@ export default function DrePage() {
           {k.canceladas > 0 && (
             <div className="px-4 pb-3">
               <p className="text-[11px] text-zinc-600">
-                Pedidos cancelados no período: {brl(k.canceladas)} ({k.qtd_canceladas} pedido{k.qtd_canceladas !== 1 ? 's' : ''}) — não incluídos acima.
+                {t('dre.cancelledNote', { value: brl(k.canceladas), count: k.qtd_canceladas })}
               </p>
             </div>
           )}
@@ -371,7 +368,7 @@ export default function DrePage() {
           {k.custo_total === 0 && (
             <div className="mx-4 mb-3 px-3 py-2 rounded-lg text-xs text-amber-400"
               style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)' }}>
-              CPV zerado — cadastre o custo dos produtos em Produtos → editar para ver o resultado real.
+              {t('dre.zeroCostWarning')}
             </div>
           )}
         </div>

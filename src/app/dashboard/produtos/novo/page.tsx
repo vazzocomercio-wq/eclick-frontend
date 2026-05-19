@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
+import { useTranslations } from 'next-intl'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { emptyForm, ProductForm } from './types'
@@ -15,16 +16,7 @@ import Tab8Others from './_components/Tab8Others'
 
 // ── tab config ──────────────────────────────────────────────────────────────
 
-const TABS = [
-  { n: 1, label: 'Informação Básica',  short: 'Básico' },
-  { n: 2, label: 'Descrição',           short: 'Descrição' },
-  { n: 3, label: 'Atributos',           short: 'Atributos' },
-  { n: 4, label: 'Variações',           short: 'Variações' },
-  { n: 5, label: 'Vendas & Estoque',    short: 'Vendas' },
-  { n: 6, label: 'Envio',               short: 'Envio' },
-  { n: 7, label: 'Fiscal',              short: 'Fiscal' },
-  { n: 8, label: 'Outros',              short: 'Outros' },
-]
+const TAB_KEYS = [1, 2, 3, 4, 5, 6, 7, 8]
 
 // ── required fields for progress bar ────────────────────────────────────────
 
@@ -67,6 +59,7 @@ function Toasts({ toasts }: { toasts: Toast[] }) {
 // ── main page ────────────────────────────────────────────────────────────────
 
 export default function NovoProdutoPage() {
+  const t = useTranslations('produtos')
   const router = useRouter()
   const [form, setForm] = useState<ProductForm>(emptyForm)
   const [tab, setTab] = useState(1)
@@ -96,17 +89,17 @@ export default function NovoProdutoPage() {
 
   // ── validation ─────────────────────────────────────────────────────────
   function validate(): string | null {
-    if (!form.name.trim()) return 'Nome do produto é obrigatório.'
-    if (!form.brand.trim()) return 'Marca é obrigatória.'
-    if (!form.mlTitle.trim()) return 'Título ML é obrigatório.'
-    if (form.mlTitle.length > 60) return 'Título ML deve ter no máximo 60 caracteres.'
-    if (!form.price.trim()) return 'Preço de venda é obrigatório.'
-    if (!form.stock.trim()) return 'Estoque é obrigatório.'
-    if (!form.weightKg.trim()) return 'Peso é obrigatório.'
+    if (!form.name.trim()) return t('novo.validation.name')
+    if (!form.brand.trim()) return t('novo.validation.brand')
+    if (!form.mlTitle.trim()) return t('novo.validation.mlTitle')
+    if (form.mlTitle.length > 60) return t('novo.validation.mlTitleLength')
+    if (!form.price.trim()) return t('novo.validation.price')
+    if (!form.stock.trim()) return t('novo.validation.stock')
+    if (!form.weightKg.trim()) return t('novo.validation.weight')
     if (!form.widthCm.trim() || !form.lengthCm.trim() || !form.heightCm.trim()) {
-      return 'Dimensões (L × C × A) são obrigatórias.'
+      return t('novo.validation.dimensions')
     }
-    if (form.platforms.length === 0) return 'Selecione ao menos uma plataforma.'
+    if (form.platforms.length === 0) return t('novo.validation.platforms')
     return null
   }
 
@@ -192,7 +185,7 @@ export default function NovoProdutoPage() {
       const err = validate()
       if (err) { toast(err, 'error'); return }
     }
-    if (!orgId) { toast('Organização não encontrada.', 'error'); return }
+    if (!orgId) { toast(t('novo.orgNotFound'), 'error'); return }
 
     setSaving(true)
     const supabase = createClient()
@@ -203,11 +196,11 @@ export default function NovoProdutoPage() {
 
     if (error) {
       console.error('[produto/novo] insert error:', error)
-      toast(`Erro ao salvar: ${error.message}`, 'error')
+      toast(t('novo.saveError', { msg: error.message }), 'error')
       return
     }
 
-    toast(status === 'draft' ? 'Rascunho salvo!' : 'Produto publicado com sucesso!', 'success')
+    toast(status === 'draft' ? t('novo.draftSaved') : t('novo.published'), 'success')
     setTimeout(() => router.push('/dashboard/produtos'), 1200)
   }
 
@@ -223,14 +216,14 @@ export default function NovoProdutoPage() {
             <div className="flex items-center gap-3">
               <button onClick={() => router.push('/dashboard/produtos')}
                 className="text-zinc-500 hover:text-white transition-colors"
-                aria-label="Voltar">
+                aria-label={t('novo.back')}>
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
                 </svg>
               </button>
               <div>
-                <h2 className="text-white text-base font-semibold leading-tight">Novo Produto</h2>
-                <p className="text-zinc-500 text-[12px]">{progress}% dos campos obrigatórios preenchidos</p>
+                <h2 className="text-white text-base font-semibold leading-tight">{t('novo.title')}</h2>
+                <p className="text-zinc-500 text-[12px]">{t('novo.progressFilled', { progress })}</p>
               </div>
             </div>
 
@@ -248,10 +241,10 @@ export default function NovoProdutoPage() {
 
           {/* Tab strip */}
           <div className="flex gap-0 overflow-x-auto no-scrollbar">
-            {TABS.map(t => {
-              const active = tab === t.n
+            {TAB_KEYS.map(n => {
+              const active = tab === n
               return (
-                <button key={t.n} type="button" onClick={() => setTab(t.n)}
+                <button key={n} type="button" onClick={() => setTab(n)}
                   className="shrink-0 px-4 py-2.5 text-[13px] font-medium border-b-2 transition-all whitespace-nowrap"
                   style={{
                     borderColor: active ? '#00E5FF' : 'transparent',
@@ -260,8 +253,8 @@ export default function NovoProdutoPage() {
                   }}
                   onMouseEnter={e => { if (!active) e.currentTarget.style.color = '#a1a1aa' }}
                   onMouseLeave={e => { if (!active) e.currentTarget.style.color = '#71717a' }}>
-                  <span className="hidden lg:inline">{t.label}</span>
-                  <span className="lg:hidden">{t.short}</span>
+                  <span className="hidden lg:inline">{t(`novo.tab${n}`)}</span>
+                  <span className="lg:hidden">{t(`novo.tab${n}Short`)}</span>
                 </button>
               )
             })}
@@ -292,21 +285,21 @@ export default function NovoProdutoPage() {
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
             </svg>
-            Anterior
+            {t('novo.previous')}
           </button>
 
           <div className="flex items-center gap-2">
             <button type="button" disabled={saving} onClick={() => save('draft')}
               className="px-4 py-2 rounded-lg text-sm font-medium border transition-all disabled:opacity-60 disabled:cursor-not-allowed"
               style={{ borderColor: '#3f3f46', color: '#a1a1aa', background: 'transparent' }}>
-              {saving ? 'Salvando…' : 'Salvar rascunho'}
+              {saving ? t('novo.saving') : t('novo.saveDraft')}
             </button>
             <button type="button" disabled={saving} onClick={() => save('active')}
               className="submit-glow flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
               style={{ background: '#00E5FF', color: '#000' }}>
               {saving
-                ? <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>Publicando…</>
-                : <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>Publicar Produto</>
+                ? <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>{t('novo.publishing')}</>
+                : <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>{t('novo.publishProduct')}</>
               }
             </button>
           </div>
@@ -315,7 +308,7 @@ export default function NovoProdutoPage() {
             onClick={() => setTab(t => Math.min(8, t + 1))}
             className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium border transition-all disabled:opacity-40 disabled:cursor-not-allowed"
             style={{ borderColor: '#3f3f46', color: '#a1a1aa', background: 'transparent' }}>
-            Próxima
+            {t('novo.next')}
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
             </svg>

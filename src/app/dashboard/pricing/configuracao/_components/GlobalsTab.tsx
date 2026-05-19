@@ -1,5 +1,6 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
 import { GlobalParams, CHANNEL_OPTIONS } from './types'
 
 /** Aba 1 — Parâmetros Globais. Cards 2-col com inputs + helpers. Cada
@@ -11,72 +12,73 @@ export function GlobalsTab({
   isDirty:  (path: string) => boolean
   setField: (path: string, value: unknown) => void
 }) {
+  const t = useTranslations('pricing')
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       <NumberCard
         path="global_params.min_margin_absolute_pct"
-        label="Margem mínima absoluta"
+        label={t('gMinMarginAbs')}
         value={params.min_margin_absolute_pct}
         unit="%"
-        helper="Nunca vende abaixo disso — limite de segurança."
+        helper={t('gMinMarginAbsHelp')}
         dirty={isDirty('global_params.min_margin_absolute_pct')}
         onChange={(v) => setField('global_params.min_margin_absolute_pct', v)}
         min={0} max={100}
       />
       <NumberCard
         path="global_params.target_margin_pct"
-        label="Margem alvo"
+        label={t('gTargetMargin')}
         value={params.target_margin_pct}
         unit="%"
-        helper="Onde quer estar na maioria dos produtos."
+        helper={t('gTargetMarginHelp')}
         dirty={isDirty('global_params.target_margin_pct')}
         onChange={(v) => setField('global_params.target_margin_pct', v)}
         min={0} max={100}
       />
       <SelectCard
         path="global_params.priority_channel"
-        label="Canal prioritário"
+        label={t('gPriorityChannel')}
         value={params.priority_channel}
         options={CHANNEL_OPTIONS}
-        helper="Canal mais relevante pra estratégia de preço."
+        helper={t('gPriorityChannelHelp')}
         dirty={isDirty('global_params.priority_channel')}
         onChange={(v) => setField('global_params.priority_channel', v)}
       />
       <SelectCard
         path="global_params.desired_position"
-        label="Posição desejada no canal"
+        label={t('gDesiredPosition')}
         value={String(params.desired_position)}
         options={Array.from({ length: 10 }, (_, i) => ({ value: String(i + 1), label: `${i + 1}º` }))}
-        helper="Top 3 = foco em destaque. Posições mais altas demandam preços competitivos."
+        helper={t('gDesiredPositionHelp')}
         dirty={isDirty('global_params.desired_position')}
         onChange={(v) => setField('global_params.desired_position', Number(v))}
       />
       <NumberCard
         path="global_params.avg_replenishment_days"
-        label="Prazo médio de reposição"
+        label={t('gAvgReplenishment')}
         value={params.avg_replenishment_days}
-        unit="dias"
-        helper="Da ordem de compra até chegar no estoque."
+        unit={t('days')}
+        helper={t('gAvgReplenishmentHelp')}
         dirty={isDirty('global_params.avg_replenishment_days')}
         onChange={(v) => setField('global_params.avg_replenishment_days', v)}
         min={1} max={365}
       />
       <NumberCard
         path="global_params.min_stock_coverage_days"
-        label="Cobertura mínima de estoque"
+        label={t('gMinStockCoverage')}
         value={params.min_stock_coverage_days}
-        unit="dias"
-        helper="Mínimo de dias antes de alertar reposição."
+        unit={t('days')}
+        helper={t('gMinStockCoverageHelp')}
         dirty={isDirty('global_params.min_stock_coverage_days')}
         onChange={(v) => setField('global_params.min_stock_coverage_days', v)}
         min={1} max={180}
       />
       <NumberCard
         path="global_params.critical_stock_days"
-        label="Estoque crítico"
+        label={t('gCriticalStock')}
         value={params.critical_stock_days}
-        unit="dias"
-        helper="Abaixo disso: modo conservador de preços."
+        unit={t('days')}
+        helper={t('gCriticalStockHelp')}
         dirty={isDirty('global_params.critical_stock_days')}
         onChange={(v) => setField('global_params.critical_stock_days', v)}
         min={1} max={60}

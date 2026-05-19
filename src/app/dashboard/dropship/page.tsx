@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import Link from 'next/link'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import {
   Truck, Building2, Link2, Package, AlertTriangle, ShoppingCart, Calendar,
@@ -45,6 +46,7 @@ interface SetupStatus {
 }
 
 export default function DropshipHomePage() {
+  const t = useTranslations('dropship.home')
   const supabase = useMemo(() => createClient(), [])
 
   const [data, setData] = useState<DashboardData | null>(null)
@@ -77,9 +79,9 @@ export default function DropshipHomePage() {
     <div className="min-h-screen p-6" style={{ background: 'var(--background)', color: '#fff' }}>
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-white">Dropship Center</h1>
+          <h1 className="text-xl font-semibold text-white">{t('title')}</h1>
           <p className="text-sm text-zinc-500 mt-0.5">
-            Gerencie parceiros, OCs diárias, devoluções e abatimentos
+            {t('subtitle')}
           </p>
         </div>
         <button
@@ -89,30 +91,30 @@ export default function DropshipHomePage() {
           style={{ border: '1px solid #27272a', color: '#a1a1aa' }}
         >
           <RefreshCw size={12} className={refreshing ? 'animate-spin' : ''} />
-          Atualizar
+          {t('refresh')}
         </button>
       </div>
 
       {/* KPIs primários (4) */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
         <Kpi
-          label="Parceiros Ativos"
+          label={t('kpi.activePartners')}
           value={loading ? '…' : kpis?.active_partners ?? 0}
           icon={<Building2 size={14} />}
         />
         <Kpi
-          label="SKUs Dropship"
+          label={t('kpi.dropshipSkus')}
           value={loading ? '…' : kpis?.active_skus ?? 0}
           icon={<Package size={14} />}
         />
         <Kpi
-          label="Despachados Hoje"
+          label={t('kpi.shippedToday')}
           value={loading ? '…' : kpis?.shipped_today ?? 0}
           icon={<Truck size={14} />}
           accent="#22c55e"
         />
         <Kpi
-          label="Receita Hoje"
+          label={t('kpi.revenueToday')}
           value={loading ? '…' : fmtBrl(kpis?.today_value ?? 0)}
           icon={<ShoppingCart size={14} />}
         />
@@ -120,19 +122,19 @@ export default function DropshipHomePage() {
 
       {/* KPIs secundários (4) */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-        <KpiSmall label="CMV Hoje" value={loading ? '…' : fmtBrl(kpis?.today_cmv ?? 0)} />
+        <KpiSmall label={t('kpi.cmvToday')} value={loading ? '…' : fmtBrl(kpis?.today_cmv ?? 0)} />
         <KpiSmall
-          label="Margem Hoje"
+          label={t('kpi.marginToday')}
           value={loading ? '…' : fmtBrl(kpis?.today_margin ?? 0)}
           accent={(kpis?.today_margin ?? 0) >= 0 ? '#22c55e' : '#f87171'}
         />
         <KpiSmall
-          label="Em Hold"
+          label={t('kpi.onHold')}
           value={loading ? '…' : kpis?.on_hold_count ?? 0}
           accent={(kpis?.on_hold_count ?? 0) > 0 ? '#fcd34d' : undefined}
         />
         <KpiSmall
-          label="Sem Estoque"
+          label={t('kpi.outOfStock')}
           value={loading ? '…' : kpis?.out_of_stock_skus ?? 0}
           accent={(kpis?.out_of_stock_skus ?? 0) > 0 ? '#f87171' : undefined}
         />
@@ -152,7 +154,10 @@ export default function DropshipHomePage() {
         >
           <AlertTriangle size={18} style={{ color: '#fcd34d' }} />
           <p className="text-sm text-zinc-300 flex-1">
-            <strong className="text-white">{kpis?.on_hold_count} pedido{(kpis?.on_hold_count ?? 0) > 1 ? 's' : ''}</strong> em hold — clique pra revisar
+            {t.rich('alert.onHold', {
+              count: kpis?.on_hold_count ?? 0,
+              strong: (chunks) => <strong className="text-white">{chunks}</strong>,
+            })}
           </p>
           <ChevronRight size={14} className="text-zinc-500" />
         </Link>
@@ -164,7 +169,10 @@ export default function DropshipHomePage() {
         >
           <AlertTriangle size={18} style={{ color: '#f87171' }} />
           <p className="text-sm text-zinc-300 flex-1">
-            <strong className="text-white">{kpis?.out_of_stock_skus} SKUs</strong> ativos sem estoque do parceiro — anúncios podem ficar pendurados
+            {t.rich('alert.outOfStock', {
+              count: kpis?.out_of_stock_skus ?? 0,
+              strong: (chunks) => <strong className="text-white">{chunks}</strong>,
+            })}
           </p>
         </div>
       )}
@@ -174,59 +182,59 @@ export default function DropshipHomePage() {
         <NavCard
           href="/dashboard/dropship/partners"
           icon={<Building2 size={18} />}
-          title="Parceiros"
-          description="Cadastre fornecedores dropship: cutoff, integração, estratégia"
+          title={t('nav.partners.title')}
+          description={t('nav.partners.description')}
         />
         <NavCard
           href="/dashboard/dropship/account-suppliers"
           icon={<Link2 size={18} />}
-          title="Vínculo Contas"
-          description="Mapeie qual parceiro despacha pelos pedidos de cada conta"
+          title={t('nav.accountLinks.title')}
+          description={t('nav.accountLinks.description')}
         />
         <NavCard
           href="/dashboard/dropship/orders"
           icon={<ShoppingCart size={18} />}
-          title="Pedidos"
-          description="Pedidos identificados como dropship (cron @5min)"
+          title={t('nav.orders.title')}
+          description={t('nav.orders.description')}
         />
         <NavCard
           href="/dashboard/dropship/orders/today"
           icon={<Calendar size={18} />}
-          title="Vendas Hoje"
-          description="Resumo do dia agregado por parceiro"
+          title={t('nav.salesToday.title')}
+          description={t('nav.salesToday.description')}
         />
         <NavCard
           href="/dashboard/dropship/oc"
           icon={<FileText size={18} />}
-          title="Ordens de Compra"
-          description="OCs geradas automaticamente às 22h por parceiro"
+          title={t('nav.purchaseOrders.title')}
+          description={t('nav.purchaseOrders.description')}
         />
         <NavCard
           href="/dashboard/dropship/oc/preview"
           icon={<Eye size={18} />}
-          title="Prévia OC"
-          description="Visualize quais OCs serão geradas no próximo cron"
+          title={t('nav.ocPreview.title')}
+          description={t('nav.ocPreview.description')}
         />
       </div>
 
       {/* Recent orders */}
-      <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-3">Pedidos Recentes</h2>
+      <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-3">{t('recentOrders')}</h2>
       <div className="rounded-xl overflow-hidden" style={{ border: '1px solid #1a1a1f' }}>
         {loading ? (
-          <div className="px-4 py-12 text-center text-zinc-500 text-sm">Carregando...</div>
+          <div className="px-4 py-12 text-center text-zinc-500 text-sm">{t('loading')}</div>
         ) : !data || data.recent_orders.length === 0 ? (
           <div className="px-4 py-12 text-center text-zinc-500 text-sm">
-            Nenhum pedido dropship ainda.{' '}
+            {t('empty.text')}{' '}
             <Link href="/dashboard/dropship/account-suppliers" style={{ color: '#00E5FF' }}>
-              Verifique os vínculos conta↔parceiro
+              {t('empty.link')}
             </Link>{' '}
-            pra começar.
+            {t('empty.suffix')}
           </div>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr style={{ background: '#111114', borderBottom: '1px solid #1a1a1f' }}>
-                {['Quando', 'Parceiro', 'Produto', 'SKU', 'Qtd', 'Preço', 'Margem', 'Status'].map(h => (
+                {[t('table.when'), t('table.partner'), t('table.product'), t('table.sku'), t('table.qty'), t('table.price'), t('table.margin'), t('table.status')].map(h => (
                   <th key={h} className="text-left px-4 py-2 text-xs font-medium text-zinc-500">{h}</th>
                 ))}
               </tr>
@@ -234,7 +242,7 @@ export default function DropshipHomePage() {
             <tbody>
               {data.recent_orders.map(o => (
                 <tr key={o.id} style={{ borderBottom: '1px solid #1a1a1f' }}>
-                  <td className="px-4 py-2 text-zinc-400 text-xs">{fmtRelative(o.identified_at)}</td>
+                  <td className="px-4 py-2 text-zinc-400 text-xs">{fmtRelative(o.identified_at, t)}</td>
                   <td className="px-4 py-2 text-zinc-300">{o.suppliers?.name ?? '—'}</td>
                   <td className="px-4 py-2">
                     <p className="text-white text-xs truncate max-w-[280px]">{o.products?.name ?? '—'}</p>
@@ -259,37 +267,38 @@ export default function DropshipHomePage() {
 // ── Components ─────────────────────────────────────────────────────────────────
 
 function OnboardingChecklist({ setup }: { setup: SetupStatus }) {
+  const t = useTranslations('dropship.home.onboarding')
   const isCriticalBlocker = !setup.has_partners || !setup.has_account_links
   const isWarning = setup.has_partners && setup.has_account_links
 
   const steps = [
     {
       done: setup.has_partners,
-      title: 'Cadastre seu primeiro parceiro dropship',
-      desc: 'Fornecedor que despacha direto pro comprador',
+      title: t('step1.title'),
+      desc: t('step1.desc'),
       href: '/dashboard/dropship/partners',
       icon: <Building2 size={14} />,
     },
     {
       done: setup.has_account_links,
-      title: 'Vincule conta de marketplace ao parceiro',
-      desc: 'Quais pedidos ML/Shopee/Amazon serão dropship',
+      title: t('step2.title'),
+      desc: t('step2.desc'),
       href: '/dashboard/dropship/account-suppliers',
       icon: <Link2 size={14} />,
       requiresPrev: !setup.has_partners,
     },
     {
       done: setup.has_email_config,
-      title: 'Configure provider de e-mail',
-      desc: 'Necessário pra enviar OCs ao parceiro (Resend/SendGrid)',
+      title: t('step3.title'),
+      desc: t('step3.desc'),
       href: '/dashboard/configuracoes/integracoes',
       icon: <Mail size={14} />,
       optional: true,
     },
     {
       done: setup.has_whatsapp_config,
-      title: 'Configure WhatsApp (opcional)',
-      desc: 'Notificação adicional ao parceiro junto com e-mail',
+      title: t('step4.title'),
+      desc: t('step4.desc'),
       href: '/dashboard/configuracoes/integracoes',
       icon: <MessageSquare size={14} />,
       optional: true,
@@ -310,13 +319,13 @@ function OnboardingChecklist({ setup }: { setup: SetupStatus }) {
         <Settings size={20} style={{ color: isCriticalBlocker ? '#fcd34d' : '#00E5FF' }} />
         <div className="flex-1">
           <h3 className="text-sm font-semibold text-white">
-            {isCriticalBlocker ? 'Configuração inicial pendente' : 'Configurações recomendadas'}
+            {isCriticalBlocker ? t('criticalTitle') : t('recommendedTitle')}
           </h3>
           <p className="text-xs text-zinc-400 mt-0.5">
             {isCriticalBlocker
-              ? 'Complete os passos abaixo pra começar a operar dropship'
+              ? t('criticalDesc')
               : isWarning
-              ? 'Configurações opcionais que melhoram a operação'
+              ? t('recommendedDesc')
               : ''}
           </p>
         </div>
@@ -353,7 +362,7 @@ function OnboardingChecklist({ setup }: { setup: SetupStatus }) {
                     className="text-xs px-1.5 py-0.5 rounded"
                     style={{ background: 'rgba(113,113,122,0.10)', color: '#71717a' }}
                   >
-                    opcional
+                    {t('optional')}
                   </span>
                 )}
               </div>
@@ -420,12 +429,12 @@ function fmtBrl(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
-function fmtRelative(d: string) {
+function fmtRelative(d: string, t: (key: string, values?: Record<string, string | number>) => string) {
   const ms = Date.now() - new Date(d).getTime()
   const min = Math.floor(ms / 60000)
-  if (min < 1) return 'agora'
-  if (min < 60) return `${min}min`
+  if (min < 1) return t('relative.now')
+  if (min < 60) return t('relative.minutes', { min })
   const hours = Math.floor(min / 60)
-  if (hours < 24) return `${hours}h`
+  if (hours < 24) return t('relative.hours', { hours })
   return new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
 }

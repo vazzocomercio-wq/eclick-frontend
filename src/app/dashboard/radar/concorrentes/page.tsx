@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { ArrowLeft, Plus, Users, ChevronRight, X, Search } from 'lucide-react'
 import { api } from '../_components/api'
@@ -25,6 +26,7 @@ interface ProductHit {
 const CARD = { background: '#111114', border: '1px solid #1a1a1f' }
 
 export default function ConcorrentesPage() {
+  const t = useTranslations('radar')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [products, setProducts] = useState<MonitoredProduct[]>([])
@@ -36,11 +38,11 @@ export default function ConcorrentesPage() {
     try {
       setProducts(await api<MonitoredProduct[]>('/radar/competitors/products'))
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Falha ao carregar')
+      setError(e instanceof Error ? e.message : t('errorLoad'))
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [t])
 
   useEffect(() => { void load() }, [load])
 
@@ -49,20 +51,19 @@ export default function ConcorrentesPage() {
       <Link href="/dashboard/radar"
         className="inline-flex items-center gap-1.5 text-xs mb-4 hover:text-zinc-300 transition-colors"
         style={{ color: '#71717a' }}>
-        <ArrowLeft size={13} /> Voltar ao Radar
+        <ArrowLeft size={13} /> {t('backToRadar')}
       </Link>
 
       <div className="flex items-start justify-between gap-4 mb-1">
-        <h1 className="text-xl font-bold" style={{ color: '#fafafa' }}>Concorrentes Vinculados</h1>
+        <h1 className="text-xl font-bold" style={{ color: '#fafafa' }}>{t('linkedCompetitors')}</h1>
         <button onClick={() => setModalOpen(true)}
           className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium shrink-0 transition-colors"
           style={{ background: '#00E5FF', color: '#09090b' }}>
-          <Plus size={14} /> Vincular concorrente
+          <Plus size={14} /> {t('linkCompetitor')}
         </button>
       </div>
       <p className="text-xs mb-5" style={{ color: '#52525b' }}>
-        Acompanhe anúncios de concorrentes que você escolher, lado a lado com os seus.
-        Visitas são coletadas automaticamente; o preço você informa.
+        {t('linkedCompetitorsIntro')}
       </p>
 
       {error && (
@@ -80,14 +81,14 @@ export default function ConcorrentesPage() {
       {!loading && products.length === 0 && (
         <div className="rounded-xl p-10 text-center" style={CARD}>
           <Users size={28} className="mx-auto mb-3" style={{ color: '#3f3f46' }} />
-          <p className="text-sm font-medium" style={{ color: '#fafafa' }}>Nenhum concorrente vinculado ainda</p>
+          <p className="text-sm font-medium" style={{ color: '#fafafa' }}>{t('noLinkedCompetitors')}</p>
           <p className="text-xs mt-1 mb-4" style={{ color: '#71717a' }}>
-            Escolha um produto seu e vincule os anúncios de concorrente que quer monitorar.
+            {t('noLinkedCompetitorsHint')}
           </p>
           <button onClick={() => setModalOpen(true)}
             className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium"
             style={{ background: '#00E5FF', color: '#09090b' }}>
-            <Plus size={14} /> Vincular o primeiro concorrente
+            <Plus size={14} /> {t('linkFirstCompetitor')}
           </button>
         </div>
       )}
@@ -109,12 +110,12 @@ export default function ConcorrentesPage() {
                   {p.name ?? p.product_id}
                 </p>
                 <p className="text-[11px] truncate" style={{ color: '#52525b' }}>
-                  {p.sku ? `SKU ${p.sku}` : '—'}
+                  {p.sku ? t('skuLabel', { sku: p.sku }) : '—'}
                 </p>
               </div>
               <span className="text-[11px] tabular-nums rounded-full px-2.5 py-1 shrink-0"
                 style={{ background: 'rgba(0,229,255,0.10)', color: '#67e8f9' }}>
-                {p.active_count} concorrente{p.active_count === 1 ? '' : 's'}
+                {t('competitorCount', { count: p.active_count })}
               </span>
               <ChevronRight size={15} style={{ color: '#52525b' }} />
             </Link>
@@ -130,6 +131,7 @@ export default function ConcorrentesPage() {
 }
 
 function LinkModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+  const t = useTranslations('radar')
   const [query, setQuery] = useState('')
   const [hits, setHits] = useState<ProductHit[]>([])
   const [picked, setPicked] = useState<ProductHit | null>(null)
@@ -154,8 +156,8 @@ function LinkModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => v
 
   const submit = async () => {
     setErr(null)
-    if (!picked) { setErr('Escolha um produto seu.'); return }
-    if (!url.trim()) { setErr('Cole o link do anúncio concorrente.'); return }
+    if (!picked) { setErr(t('errChooseProduct')); return }
+    if (!url.trim()) { setErr(t('errPasteLink')); return }
     setSaving(true)
     try {
       await api('/radar/competitors/links', {
@@ -169,7 +171,7 @@ function LinkModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => v
       })
       onSaved()
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Falha ao salvar')
+      setErr(e instanceof Error ? e.message : t('errorSave'))
     } finally {
       setSaving(false)
     }
@@ -180,22 +182,22 @@ function LinkModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => v
       style={{ background: 'rgba(0,0,0,0.7)' }} onClick={onClose}>
       <div className="w-full max-w-md rounded-xl p-5" style={CARD} onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold" style={{ color: '#fafafa' }}>Vincular concorrente</h2>
+          <h2 className="text-sm font-semibold" style={{ color: '#fafafa' }}>{t('linkCompetitor')}</h2>
           <button onClick={onClose}><X size={16} style={{ color: '#71717a' }} /></button>
         </div>
 
-        <label className="text-[11px] block mb-1" style={{ color: '#a1a1aa' }}>Seu produto</label>
+        <label className="text-[11px] block mb-1" style={{ color: '#a1a1aa' }}>{t('yourProduct')}</label>
         {picked ? (
           <div className="flex items-center justify-between rounded-lg px-3 py-2 mb-3"
             style={{ background: 'rgba(0,229,255,0.08)', border: '1px solid rgba(0,229,255,0.2)' }}>
             <span className="text-xs truncate" style={{ color: '#fafafa' }}>{picked.name ?? picked.id}</span>
             <button onClick={() => { setPicked(null); setQuery('') }}
-              className="text-[10px] shrink-0 ml-2" style={{ color: '#67e8f9' }}>trocar</button>
+              className="text-[10px] shrink-0 ml-2" style={{ color: '#67e8f9' }}>{t('change')}</button>
           </div>
         ) : (
           <div className="relative mb-3">
             <Search size={13} className="absolute left-2.5 top-2.5" style={{ color: '#52525b' }} />
-            <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar produto por nome ou SKU…"
+            <input value={query} onChange={e => setQuery(e.target.value)} placeholder={t('searchProductByNameOrSku')}
               className="w-full rounded-lg pl-8 pr-3 py-2 text-xs outline-none"
               style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }} />
             {hits.length > 0 && (
@@ -221,27 +223,27 @@ function LinkModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => v
           </div>
         )}
 
-        <label className="text-[11px] block mb-1" style={{ color: '#a1a1aa' }}>Link do anúncio concorrente</label>
+        <label className="text-[11px] block mb-1" style={{ color: '#a1a1aa' }}>{t('competitorLink')}</label>
         <input value={url} onChange={e => setUrl(e.target.value)} placeholder="https://produto.mercadolivre.com.br/MLB-…"
           className="w-full rounded-lg px-3 py-2 text-xs outline-none mb-3"
           style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }} />
 
         <div className="grid grid-cols-2 gap-3 mb-3">
           <div>
-            <label className="text-[11px] block mb-1" style={{ color: '#a1a1aa' }}>Apelido (opcional)</label>
-            <input value={label} onChange={e => setLabel(e.target.value)} placeholder="Ex: Loja barata"
+            <label className="text-[11px] block mb-1" style={{ color: '#a1a1aa' }}>{t('nicknameOptional')}</label>
+            <input value={label} onChange={e => setLabel(e.target.value)} placeholder={t('nicknamePlaceholder')}
               className="w-full rounded-lg px-3 py-2 text-xs outline-none"
               style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }} />
           </div>
           <div>
-            <label className="text-[11px] block mb-1" style={{ color: '#a1a1aa' }}>Preço dele (R$)</label>
+            <label className="text-[11px] block mb-1" style={{ color: '#a1a1aa' }}>{t('theirPrice')}</label>
             <input value={price} onChange={e => setPrice(e.target.value)} placeholder="0,00" inputMode="decimal"
               className="w-full rounded-lg px-3 py-2 text-xs outline-none tabular-nums"
               style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }} />
           </div>
         </div>
         <p className="text-[10px] mb-3" style={{ color: '#52525b' }}>
-          O Mercado Livre não libera o preço de concorrente — por isso você informa. As visitas são coletadas sozinhas.
+          {t('priceNotShared')}
         </p>
 
         {err && (
@@ -253,7 +255,7 @@ function LinkModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => v
         <button onClick={submit} disabled={saving}
           className="w-full rounded-lg py-2.5 text-xs font-medium transition-opacity disabled:opacity-50"
           style={{ background: '#00E5FF', color: '#09090b' }}>
-          {saving ? 'Salvando…' : 'Vincular'}
+          {saving ? t('saving') : t('link')}
         </button>
       </div>
     </div>

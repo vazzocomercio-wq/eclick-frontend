@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import {
   TrendingUp, TrendingDown, Minus, Search, RefreshCw,
@@ -94,6 +95,7 @@ function diffColor(d: number | null): string {
 function PriceEditor({
   productId, initial, onSaved,
 }: { productId: string; initial: number | null; onSaved: (v: number) => void }) {
+  const t = useTranslations('precos')
   const [editing, setEditing] = useState(false)
   const [val, setVal]         = useState(initial != null ? String(initial) : '')
   const [saving, setSaving]   = useState(false)
@@ -118,7 +120,7 @@ function PriceEditor({
       <button
         onClick={() => setEditing(true)}
         className="flex items-center gap-1 group"
-        title="Editar preço"
+        title={t('editPrice')}
       >
         <span className="font-semibold text-white">{brl(initial)}</span>
         <Edit2 size={11} className="opacity-0 group-hover:opacity-60 transition-opacity text-zinc-400" />
@@ -173,6 +175,7 @@ function CompetitorChip({ c }: { c: Competitor }) {
 // ── row ───────────────────────────────────────────────────────────────────────
 
 function Row({ p, onPriceChange }: { p: PricedProduct; onPriceChange: (id: string, v: number) => void }) {
+  const t = useTranslations('precos')
   const thumb = p.photo_urls?.[0]
 
   return (
@@ -213,7 +216,7 @@ function Row({ p, onPriceChange }: { p: PricedProduct; onPriceChange: (id: strin
       {/* competitors */}
       <td className="py-3 px-4">
         {p.competitors.length === 0
-          ? <span className="text-zinc-600 text-xs">Sem dados</span>
+          ? <span className="text-zinc-600 text-xs">{t('noData')}</span>
           : (
             <div className="flex flex-wrap gap-1">
               {p.competitors.slice(0, 4).map(c => <CompetitorChip key={c.id} c={c} />)}
@@ -294,17 +297,12 @@ function Kpi({ label, value, sub, icon }: { label: string; value: string; sub?: 
 
 type FilterKey = 'all' | 'low_margin' | 'expensive' | 'no_cost' | 'no_competitors'
 
-const FILTERS: { key: FilterKey; label: string }[] = [
-  { key: 'all',            label: 'Todos'           },
-  { key: 'low_margin',     label: 'Margem baixa'    },
-  { key: 'expensive',      label: 'Acima da média'  },
-  { key: 'no_cost',        label: 'Sem custo'       },
-  { key: 'no_competitors', label: 'Sem concorrentes'},
-]
+const FILTER_KEYS: FilterKey[] = ['all', 'low_margin', 'expensive', 'no_cost', 'no_competitors']
 
 // ── page ──────────────────────────────────────────────────────────────────────
 
 export default function PrecosPage() {
+  const t = useTranslations('precos')
   const [products,     setProducts]     = useState<Product[]>([])
   const [competitors,  setCompetitors]  = useState<Competitor[]>([])
   const [loading,      setLoading]      = useState(true)
@@ -413,11 +411,11 @@ export default function PrecosPage() {
       {/* header */}
       <div className="flex-shrink-0 px-6 pt-6 pb-4 flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-white">Gestão de Preços</h1>
+          <h1 className="text-xl font-bold text-white">{t('title')}</h1>
           <p className="text-sm text-zinc-500 mt-0.5">
-            Margem, custo e comparativo manual com concorrentes ·{' '}
+            {t('subtitle')} ·{' '}
             <a href="/dashboard/pricing/analise" className="text-cyan-400 hover:text-cyan-300 underline-offset-2 hover:underline">
-              Ver alertas IA →
+              {t('seeAiAlerts')} →
             </a>
           </p>
         </div>
@@ -430,7 +428,7 @@ export default function PrecosPage() {
           style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#a1a1aa' }}
         >
           <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
-          Atualizar
+          {t('refresh')}
         </button>
         </div>
       </div>
@@ -438,26 +436,26 @@ export default function PrecosPage() {
       {/* KPIs */}
       <div className="flex-shrink-0 px-6 pb-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
         <Kpi
-          label="Produtos com preço"
+          label={t('kpiPricedProducts')}
           value={`${priced.length}/${rows.length}`}
           icon={<CheckCircle2 size={18} />}
         />
         <Kpi
-          label="Margem média"
+          label={t('kpiAvgMargin')}
           value={avgMargin != null ? `${avgMargin.toFixed(1)}%` : '—'}
-          sub="dos produtos com custo"
+          sub={t('kpiAvgMarginSub')}
           icon={<TrendingUp size={18} />}
         />
         <Kpi
-          label="Acima da concorrência"
+          label={t('kpiAboveCompetition')}
           value={String(expensiveCt)}
-          sub="> 5% acima da média"
+          sub={t('kpiAboveCompetitionSub')}
           icon={<AlertTriangle size={18} />}
         />
         <Kpi
-          label="Margem baixa"
+          label={t('kpiLowMargin')}
           value={String(lowMarginCt)}
-          sub="< 15% de margem"
+          sub={t('kpiLowMarginSub')}
           icon={<TrendingDown size={18} />}
         />
       </div>
@@ -469,24 +467,24 @@ export default function PrecosPage() {
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Buscar produto ou SKU…"
+            placeholder={t('searchPlaceholder')}
             className="pl-8 pr-3 py-1.5 rounded-lg text-sm bg-zinc-800/60 border border-zinc-700 text-white placeholder-zinc-500 focus:outline-none focus:border-cyan-600"
             style={{ width: 220 }}
           />
         </div>
         <div className="flex gap-1 flex-wrap">
-          {FILTERS.map(f => (
+          {FILTER_KEYS.map(key => (
             <button
-              key={f.key}
-              onClick={() => setFilter(f.key)}
+              key={key}
+              onClick={() => setFilter(key)}
               className="px-3 py-1.5 rounded-full text-xs font-medium transition-all"
-              style={filter === f.key
+              style={filter === key
                 ? { background: 'rgba(0,229,255,0.15)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.35)' }
                 : { background: 'rgba(255,255,255,0.04)', color: '#71717a', border: '1px solid rgba(255,255,255,0.07)' }
               }
             >
-              {f.label}
-              {f.key !== 'all' && (() => {
+              {t(`filter_${key}`)}
+              {key !== 'all' && (() => {
                 const counts: Record<FilterKey, number> = {
                   all:            rows.length,
                   low_margin:     rows.filter(p => p.margin != null && p.margin < 15).length,
@@ -494,7 +492,7 @@ export default function PrecosPage() {
                   no_cost:        rows.filter(p => !p.cost_price).length,
                   no_competitors: rows.filter(p => p.competitors.length === 0).length,
                 }
-                const n = counts[f.key]
+                const n = counts[key]
                 return n > 0 ? (
                   <span className="ml-1 px-1 rounded-sm" style={{ background: 'rgba(255,255,255,0.1)', fontSize: 9 }}>{n}</span>
                 ) : null
@@ -502,7 +500,7 @@ export default function PrecosPage() {
             </button>
           ))}
         </div>
-        <span className="text-xs text-zinc-600 ml-auto">{sorted.length} produtos</span>
+        <span className="text-xs text-zinc-600 ml-auto">{t('productCount', { count: sorted.length })}</span>
       </div>
 
       {/* table */}
@@ -510,32 +508,32 @@ export default function PrecosPage() {
         {loading
           ? (
             <div className="flex items-center justify-center h-40 text-zinc-600 text-sm gap-2">
-              <RefreshCw size={14} className="animate-spin" /> Carregando…
+              <RefreshCw size={14} className="animate-spin" /> {t('loading')}
             </div>
           )
           : sorted.length === 0
             ? (
               <div className="flex flex-col items-center justify-center h-40 text-zinc-600 gap-2">
                 <Search size={24} />
-                <span className="text-sm">Nenhum produto encontrado</span>
+                <span className="text-sm">{t('emptyState')}</span>
               </div>
             )
             : (
               <table className="w-full border-collapse">
                 <thead className="sticky top-0 z-10" style={{ background: 'rgba(9,9,11,0.95)' }}>
                   <tr className="border-b border-zinc-800">
-                    <SortTh label="Produto"       sortKey="name"           current={sortKey} dir={sortDir} onSort={handleSort} />
-                    <SortTh label="Meu preço"     sortKey="price"          current={sortKey} dir={sortDir} onSort={handleSort} />
-                    <SortTh label="Custo"         sortKey="cost_price"     current={sortKey} dir={sortDir} onSort={handleSort} />
-                    <SortTh label="Margem"        sortKey="margin"         current={sortKey} dir={sortDir} onSort={handleSort} />
+                    <SortTh label={t('colProduct')}    sortKey="name"           current={sortKey} dir={sortDir} onSort={handleSort} />
+                    <SortTh label={t('colMyPrice')}    sortKey="price"          current={sortKey} dir={sortDir} onSort={handleSort} />
+                    <SortTh label={t('colCost')}       sortKey="cost_price"     current={sortKey} dir={sortDir} onSort={handleSort} />
+                    <SortTh label={t('colMargin')}     sortKey="margin"         current={sortKey} dir={sortDir} onSort={handleSort} />
                     <th className="py-2.5 px-4 text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wide whitespace-nowrap">
-                      Concorrentes
+                      {t('colCompetitors')}
                     </th>
                     <th className="py-2.5 px-4 text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wide whitespace-nowrap">
-                      Média concorr.
+                      {t('colAvgCompetitor')}
                     </th>
-                    <SortTh label="Diferença"     sortKey="competitorDiff" current={sortKey} dir={sortDir} onSort={handleSort} />
-                    <SortTh label="Estoque"       sortKey="stock"          current={sortKey} dir={sortDir} onSort={handleSort} />
+                    <SortTh label={t('colDiff')}       sortKey="competitorDiff" current={sortKey} dir={sortDir} onSort={handleSort} />
+                    <SortTh label={t('colStock')}      sortKey="stock"          current={sortKey} dir={sortDir} onSort={handleSort} />
                   </tr>
                 </thead>
                 <tbody>

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { OverviewTab }   from './_components/OverviewTab'
 import { AbcTab }        from './_components/AbcTab'
 import { RfmTab }        from './_components/RfmTab'
@@ -9,19 +10,20 @@ import { ChurnRiskTab }  from './_components/ChurnRiskTab'
 
 type TabKey = 'overview' | 'abc' | 'rfm' | 'segments' | 'churn'
 
-const TABS: { key: TabKey; label: string }[] = [
-  { key: 'overview', label: 'Visão Geral' },
-  { key: 'abc',      label: 'Curva ABC' },
-  { key: 'rfm',      label: 'RFM' },
-  { key: 'segments', label: 'Segmentos' },
-  { key: 'churn',    label: 'Churn Risk' },
-]
-
 type Toast = { id: number; msg: string; type: 'success' | 'error' }
 
 export default function CustomerHubPage() {
+  const t = useTranslations('crm.customerHub')
   const [tab, setTab]       = useState<TabKey>('overview')
   const [toasts, setToasts] = useState<Toast[]>([])
+
+  const TABS: { key: TabKey; label: string }[] = [
+    { key: 'overview', label: t('tabs.overview') },
+    { key: 'abc',      label: t('tabs.abc') },
+    { key: 'rfm',      label: t('tabs.rfm') },
+    { key: 'segments', label: t('tabs.segments') },
+    { key: 'churn',    label: t('tabs.churn') },
+  ]
 
   function pushToast(msg: string, type: Toast['type'] = 'success') {
     const id = Date.now() + Math.random()
@@ -32,8 +34,8 @@ export default function CustomerHubPage() {
   return (
     <div className="flex flex-col h-full" style={{ background: 'var(--background)' }}>
       <div className="shrink-0 px-6 pt-6 pb-2" style={{ borderBottom: '1px solid #1e1e24' }}>
-        <h1 className="text-white text-lg font-semibold">Customer Hub</h1>
-        <p className="text-zinc-500 text-sm mt-0.5">RFM · Curva ABC · Segmentação · Churn risk. Cron diário @03:17 BRT recalcula tudo automaticamente.</p>
+        <h1 className="text-white text-lg font-semibold">{t('title')}</h1>
+        <p className="text-zinc-500 text-sm mt-0.5">{t('subtitle')}</p>
 
         <div className="flex gap-1 mt-4 overflow-x-auto">
           {TABS.map(t => (

@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import { Package, ExternalLink, RefreshCw, AlertCircle } from 'lucide-react'
 
@@ -29,19 +30,22 @@ interface FullFulfillmentCardData {
   lastSyncedAt:          string | null
 }
 
+type Translator = ReturnType<typeof useTranslations>
+
 const num = (v: number) => v.toLocaleString('pt-BR')
 
-function timeSince(iso: string | null): string {
-  if (!iso) return 'nunca'
+function timeSince(iso: string | null, t: Translator): string {
+  if (!iso) return t('timeNever')
   const diff = Date.now() - new Date(iso).getTime()
   const m = Math.round(diff / 60_000)
-  if (m < 1) return 'agora'
-  if (m < 60) return `há ${m}m`
+  if (m < 1) return t('timeNow')
+  if (m < 60) return t('timeMinutesAgo', { m })
   const h = Math.round(m / 60)
-  return h < 24 ? `há ${h}h` : `há ${Math.round(h / 24)}d`
+  return h < 24 ? t('timeHoursAgo', { h }) : t('timeDaysAgo', { d: Math.round(h / 24) })
 }
 
 export default function FullFulfillmentCard() {
+  const t = useTranslations('executive')
   const supabase = useMemo(() => createClient(), [])
   const [data, setData] = useState<FullFulfillmentCardData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -80,7 +84,7 @@ export default function FullFulfillmentCard() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <Package size={14} color={tone === 'positive' ? '#00E5FF' : '#71717a'} />
           <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6, color: '#a1a1aa' }}>
-            Full Fulfillment
+            {t('fullCardTitle')}
           </span>
         </div>
         <button onClick={load} disabled={refreshing} style={{
@@ -92,17 +96,16 @@ export default function FullFulfillmentCard() {
       </div>
 
       {loading && (
-        <div style={{ color: '#52525b', fontSize: 13 }}>Carregando…</div>
+        <div style={{ color: '#52525b', fontSize: 13 }}>{t('loading')}</div>
       )}
 
       {!loading && empty && (
         <div style={{ paddingTop: 8 }}>
           <div style={{ fontSize: 14, fontWeight: 500, color: '#a1a1aa', marginBottom: 6 }}>
-            Conta ainda não usa Full
+            {t('fullEmptyTitle')}
           </div>
           <div style={{ fontSize: 12, color: '#71717a', lineHeight: 1.5, marginBottom: 10 }}>
-            Operação atual é cross-docking + Flex. Para vender com prazo de 1 dia
-            e ganhar boost de visibilidade, considere mover SKUs de alto giro pro Full.
+            {t('fullEmptyDesc')}
           </div>
           <a href="https://www.mercadolivre.com.br/ajuda/Como-funciona-Full-Fulfillment_15064"
              target="_blank" rel="noopener noreferrer"
@@ -110,7 +113,7 @@ export default function FullFulfillmentCard() {
                display: 'inline-flex', alignItems: 'center', gap: 6,
                color: '#00E5FF', fontSize: 12, textDecoration: 'none',
              }}>
-            Ver requisitos do Full <ExternalLink size={11} />
+            {t('fullSeeRequirements')} <ExternalLink size={11} />
           </a>
         </div>
       )}
@@ -122,7 +125,7 @@ export default function FullFulfillmentCard() {
               {data.summary.fullPenetrationPct}%
             </div>
             <div style={{ fontSize: 12, color: '#71717a', marginTop: 4 }}>
-              {num(data.summary.skusInFull)} / {num(data.summary.totalSkusActive)} SKUs no Full
+              {t('fullSkusInFull', { inFull: num(data.summary.skusInFull), total: num(data.summary.totalSkusActive) })}
             </div>
           </div>
           {data.summary.staleItemsCount > 0 && (
@@ -134,7 +137,7 @@ export default function FullFulfillmentCard() {
             }}>
               <AlertCircle size={14} color="#f59e0b" />
               <span style={{ fontSize: 12, color: '#f59e0b' }}>
-                {num(data.summary.staleItemsCount)} parados · {num(data.summary.staleItemsUnits)} unidades
+                {t('fullStaleItems', { count: num(data.summary.staleItemsCount), units: num(data.summary.staleItemsUnits) })}
               </span>
             </div>
           )}
@@ -153,7 +156,7 @@ export default function FullFulfillmentCard() {
                     {it.listing_title ?? it.ml_item_id}
                   </span>
                   <span style={{ color: '#71717a', whiteSpace: 'nowrap', marginLeft: 8 }}>
-                    {it.available_quantity} un · {it.days_since_sale ?? '?'} dias
+                    {t('fullStaleItemMeta', { units: it.available_quantity, days: it.days_since_sale ?? '?' })}
                   </span>
                 </a>
               ))}
@@ -163,7 +166,7 @@ export default function FullFulfillmentCard() {
       )}
 
       <div style={{ fontSize: 10, color: '#52525b', marginTop: 'auto' }}>
-        ↻ atualizado {timeSince(data?.lastSyncedAt ?? null)}
+        {t('refreshedAt', { since: timeSince(data?.lastSyncedAt ?? null, t) })}
       </div>
 
       <style jsx>{`

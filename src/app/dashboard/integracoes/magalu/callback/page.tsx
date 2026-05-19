@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
@@ -11,6 +12,7 @@ type State = 'loading' | 'success' | 'error'
 function MagaluCallbackContent() {
   const router = useRouter()
   const params = useSearchParams()
+  const t = useTranslations('integracoes')
   const [state, setState] = useState<State>('loading')
   const [errMsg, setErrMsg] = useState('')
 
@@ -20,7 +22,7 @@ function MagaluCallbackContent() {
 
     if (error || !code) {
       setState('error')
-      setErrMsg(error ?? 'Código de autorização ausente.')
+      setErrMsg(error ?? t('callback.missingCode'))
       return
     }
 
@@ -29,7 +31,7 @@ function MagaluCallbackContent() {
         const supabase = createClient()
         const { data } = await supabase.auth.getSession()
         const token = data.session?.access_token
-        if (!token) { setState('error'); setErrMsg('Sessão expirada. Faça login novamente.'); return }
+        if (!token) { setState('error'); setErrMsg(t('callback.sessionExpired')); return }
 
         const res = await fetch(`${BACKEND}/marketplace/magalu/callback`, {
           method: 'POST',
@@ -39,7 +41,7 @@ function MagaluCallbackContent() {
         if (!res.ok) {
           const body = await res.json().catch(() => ({}))
           setState('error')
-          setErrMsg(`[${res.status}] ${body?.message ?? body?.error ?? 'Falha ao conectar Magalu.'}`)
+          setErrMsg(`[${res.status}] ${body?.message ?? body?.error ?? t('callback.magalu.connectFailed')}`)
           return
         }
         const body = await res.json().catch(() => ({}))
@@ -49,10 +51,10 @@ function MagaluCallbackContent() {
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err)
         setState('error')
-        setErrMsg(`Erro de rede: ${msg}`)
+        setErrMsg(`${t('callback.networkError')}: ${msg}`)
       }
     })()
-  }, [params, router])
+  }, [params, router, t])
 
   return (
     <div className="flex flex-col items-center justify-center h-screen" style={{ background: 'var(--background)' }}>
@@ -72,8 +74,8 @@ function MagaluCallbackContent() {
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
             </svg>
             <div>
-              <p className="text-white font-semibold">Conectando Magalu…</p>
-              <p className="text-zinc-500 text-sm mt-1">Trocando code por tokens.</p>
+              <p className="text-white font-semibold">{t('callback.magalu.connecting')}</p>
+              <p className="text-zinc-500 text-sm mt-1">{t('callback.exchangingTokens')}</p>
             </div>
           </>
         )}
@@ -87,8 +89,8 @@ function MagaluCallbackContent() {
               </svg>
             </div>
             <div>
-              <p className="text-white font-semibold">Conta conectada!</p>
-              <p className="text-zinc-500 text-sm mt-1">Redirecionando…</p>
+              <p className="text-white font-semibold">{t('callback.accountConnected')}</p>
+              <p className="text-zinc-500 text-sm mt-1">{t('callback.redirecting')}</p>
             </div>
           </>
         )}
@@ -102,7 +104,7 @@ function MagaluCallbackContent() {
               </svg>
             </div>
             <div>
-              <p className="text-white font-semibold">Falha na conexão</p>
+              <p className="text-white font-semibold">{t('callback.connectionFailed')}</p>
               <p className="text-zinc-500 text-sm mt-1">{errMsg}</p>
             </div>
             <button
@@ -110,7 +112,7 @@ function MagaluCallbackContent() {
               className="mt-2 px-5 py-2 rounded-lg text-sm font-medium border transition-all"
               style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}
             >
-              Voltar para Integrações
+              {t('callback.backToIntegrations')}
             </button>
           </>
         )}

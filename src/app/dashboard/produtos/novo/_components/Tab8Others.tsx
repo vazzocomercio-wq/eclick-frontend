@@ -1,6 +1,7 @@
 'use client'
 
 import { useRef } from 'react'
+import { useTranslations } from 'next-intl'
 import type { TabProps } from '../types'
 
 const inp = 'w-full bg-[#1c1c1f] border border-[#3f3f46] text-white text-sm rounded-lg px-3 py-2.5 outline-none transition-all placeholder-zinc-600 focus:border-[#00E5FF] focus:ring-1 focus:ring-[#00E5FF20]'
@@ -15,6 +16,7 @@ const PLATFORM_OPTIONS = [
 ]
 
 export default function Tab8Others({ data, set }: TabProps) {
+  const t = useTranslations('produtos')
   const anatelRef = useRef<HTMLInputElement>(null)
 
   function togglePlatform(id: string) {
@@ -29,26 +31,26 @@ export default function Tab8Others({ data, set }: TabProps) {
 
       {/* Publishing */}
       <section>
-        <p className={sec}>Publicação</p>
+        <p className={sec}>{t('tab8.publishSection')}</p>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className={lbl}>SKU principal</label>
-            <input type="text" className={inp} placeholder="Ex: SKU-PRINCIPAL-001"
+            <label className={lbl}>{t('tab8.mainSku')}</label>
+            <input type="text" className={inp} placeholder={t('tab8.mainSkuPlaceholder')}
               value={data.mainSku} onChange={e => set('mainSku', e.target.value)} />
           </div>
           <div>
-            <label className={lbl}>Agendamento</label>
+            <label className={lbl}>{t('tab8.schedule')}</label>
             <input type="datetime-local" className={inp}
               value={data.publishAt} onChange={e => set('publishAt', e.target.value)}
               style={{ colorScheme: 'dark' }} />
-            <p className="text-[11px] text-zinc-600 mt-1">Deixe vazio para publicar imediatamente.</p>
+            <p className="text-[11px] text-zinc-600 mt-1">{t('tab8.scheduleHint')}</p>
           </div>
         </div>
       </section>
 
       {/* Platforms */}
       <section>
-        <p className={sec}>Plataformas de destino</p>
+        <p className={sec}>{t('tab8.platformsSection')}</p>
         <div className="grid grid-cols-2 gap-3">
           {PLATFORM_OPTIONS.map(p => {
             const active = data.platforms.includes(p.id)
@@ -80,17 +82,17 @@ export default function Tab8Others({ data, set }: TabProps) {
           })}
         </div>
         {data.platforms.length === 0 && (
-          <p className="text-[12px] text-red-400 mt-2">Selecione ao menos uma plataforma.</p>
+          <p className="text-[12px] text-red-400 mt-2">{t('tab8.selectPlatform')}</p>
         )}
       </section>
 
       {/* Condition for Shopee */}
       {data.platforms.includes('shopee') && (
         <section>
-          <p className={sec}>Condição — Shopee</p>
+          <p className={sec}>{t('tab8.conditionSection')}</p>
           <div className="flex gap-3">
             {(['new', 'used'] as const).map(c => {
-              const labels = { new: 'Novo', used: 'Usado' }
+              const labels = { new: t('tab8.conditionNew'), used: t('tab8.conditionUsed') }
               const active = data.condition === c
               return (
                 <button key={c} type="button" onClick={() => set('condition', c)}
@@ -110,15 +112,15 @@ export default function Tab8Others({ data, set }: TabProps) {
 
       {/* ANATEL */}
       <section>
-        <p className={sec}>Homologação ANATEL (opcional)</p>
+        <p className={sec}>{t('tab8.anatelSection')}</p>
         <div className="space-y-3">
           <div>
-            <label className={lbl}>Número de homologação</label>
+            <label className={lbl}>{t('tab8.anatelNumber')}</label>
             <input type="text" className={inp} placeholder="Ex: 12345-22-12345"
               value={data.anatelHomologation} onChange={e => set('anatelHomologation', e.target.value)} />
           </div>
           <div>
-            <label className={lbl}>Certificado (PDF ou imagem)</label>
+            <label className={lbl}>{t('tab8.anatelCertificate')}</label>
             <button type="button" onClick={() => anatelRef.current?.click()}
               className="w-full flex items-center gap-3 px-4 py-3 rounded-lg border border-dashed transition-all text-sm"
               style={{ borderColor: '#3f3f46', color: '#71717a', background: 'transparent' }}
@@ -129,7 +131,7 @@ export default function Tab8Others({ data, set }: TabProps) {
               </svg>
               {data.anatelFile
                 ? <span style={{ color: '#00E5FF' }}>{data.anatelFile.name}</span>
-                : <span>Clique para selecionar arquivo</span>
+                : <span>{t('tab8.selectFile')}</span>
               }
             </button>
             <input ref={anatelRef} type="file" accept=".pdf,image/*" className="hidden"

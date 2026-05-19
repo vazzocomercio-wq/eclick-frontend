@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import Link from 'next/link'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import { ArrowLeft, AlertCircle, Calendar, TrendingUp } from 'lucide-react'
 
@@ -38,6 +39,7 @@ interface TodayResponse {
 }
 
 export default function TodayPage() {
+  const t = useTranslations('dropship.today')
   const supabase = useMemo(() => createClient(), [])
 
   const [data, setData] = useState<TodayResponse | null>(null)
@@ -48,17 +50,17 @@ export default function TodayPage() {
     setLoading(true); setErr('')
     try {
       const { data: { session } } = await supabase.auth.getSession()
-      if (!session?.access_token) throw new Error('Não autenticado')
+      if (!session?.access_token) throw new Error(t('errors.notAuthenticated'))
       const res = await fetch(`${BACKEND}/dropship/today`, {
         headers: { Authorization: `Bearer ${session.access_token}` },
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       setData(await res.json())
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Erro ao carregar')
+      setErr(e instanceof Error ? e.message : t('errors.loadFailed'))
       setData(null)
     } finally { setLoading(false) }
-  }, [supabase])
+  }, [supabase, t])
 
   useEffect(() => { load() }, [load])
 
@@ -77,7 +79,7 @@ export default function TodayPage() {
           <ArrowLeft size={18} />
         </Link>
         <div>
-          <h1 className="text-xl font-semibold text-white">Vendas Dropship Hoje</h1>
+          <h1 className="text-xl font-semibold text-white">{t('title')}</h1>
           <p className="text-sm text-zinc-500 mt-0.5 flex items-center gap-1.5">
             <Calendar size={12} />
             {new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' })}
@@ -96,32 +98,32 @@ export default function TodayPage() {
 
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
-        <Kpi label="Pedidos" value={loading ? '…' : totalOrders} />
-        <Kpi label="Unidades" value={loading ? '…' : totalUnits} />
-        <Kpi label="Receita" value={loading ? '…' : fmtBrl(totalGross)} />
-        <Kpi label="CMV" value={loading ? '…' : fmtBrl(totalCmv)} accent="#a1a1aa" />
+        <Kpi label={t('kpi.orders')} value={loading ? '…' : totalOrders} />
+        <Kpi label={t('kpi.units')} value={loading ? '…' : totalUnits} />
+        <Kpi label={t('kpi.revenue')} value={loading ? '…' : fmtBrl(totalGross)} />
+        <Kpi label={t('kpi.cmv')} value={loading ? '…' : fmtBrl(totalCmv)} accent="#a1a1aa" />
         <Kpi
-          label="Margem"
+          label={t('kpi.margin')}
           value={loading ? '…' : fmtBrl(totalMargin)}
           accent={totalMargin >= 0 ? '#22c55e' : '#f87171'}
         />
       </div>
 
       {/* Por parceiro */}
-      <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-3">Por Parceiro</h2>
+      <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-3">{t('byPartner')}</h2>
       {loading ? (
         <div className="rounded-xl p-12 text-center text-zinc-500 text-sm" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
-          Carregando...
+          {t('loading')}
         </div>
       ) : bySupplier.length === 0 ? (
         <div className="rounded-xl p-12 text-center text-zinc-500 text-sm" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
           <TrendingUp size={28} className="mx-auto mb-2 text-zinc-700" />
-          Nenhuma venda dropship hoje ainda.
+          {t('empty')}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-8">
           {bySupplier.map(b => (
-            <SupplierCard key={b.supplier_id} agg={b} />
+            <SupplierCard key={b.supplier_id} agg={b} t={t} />
           ))}
         </div>
       )}
@@ -130,14 +132,14 @@ export default function TodayPage() {
       {orders.length > 0 && (
         <>
           <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-3 mt-6">
-            Pedidos do Dia ({orders.length})
+            {t('dayOrders', { count: orders.length })}
           </h2>
           <div className="rounded-xl overflow-x-auto" style={{ border: '1px solid #1a1a1f' }}>
             <table className="w-full text-sm">
               <thead>
                 <tr style={{ background: '#111114', borderBottom: '1px solid #1a1a1f' }}>
-                  {['Hora', 'Parceiro', 'Produto', 'SKU', 'Qtd', 'Preço', 'Margem', 'Status'].map(h => (
-                    <th key={h} className="text-left px-4 py-3 text-xs font-medium text-zinc-500">{h}</th>
+                  {[t('table.time'), t('table.partner'), t('table.product'), t('table.sku'), t('table.qty'), t('table.price'), t('table.margin'), t('table.status')].map((h, i) => (
+                    <th key={i} className="text-left px-4 py-3 text-xs font-medium text-zinc-500">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -169,7 +171,7 @@ export default function TodayPage() {
   )
 }
 
-function SupplierCard({ agg }: { agg: SupplierAggregate }) {
+function SupplierCard({ agg, t }: { agg: SupplierAggregate; t: ReturnType<typeof useTranslations> }) {
   const marginPct = agg.gross_total > 0 ? (agg.margin / agg.gross_total) * 100 : 0
   return (
     <div className="rounded-xl p-4" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
@@ -181,29 +183,29 @@ function SupplierCard({ agg }: { agg: SupplierAggregate }) {
             color: '#00E5FF',
             border: '1px solid rgba(0,229,255,0.3)',
           }}>
-          {agg.orders_count} pedido{agg.orders_count !== 1 ? 's' : ''}
+          {t('ordersCount', { count: agg.orders_count })}
         </span>
       </div>
       <div className="grid grid-cols-3 gap-2 mb-3">
         <div>
-          <p className="text-xs text-zinc-500">Receita</p>
+          <p className="text-xs text-zinc-500">{t('kpi.revenue')}</p>
           <p className="text-sm font-semibold text-white">{fmtBrl(agg.gross_total)}</p>
         </div>
         <div>
-          <p className="text-xs text-zinc-500">CMV</p>
+          <p className="text-xs text-zinc-500">{t('kpi.cmv')}</p>
           <p className="text-sm font-semibold text-zinc-400">{fmtBrl(agg.cmv)}</p>
         </div>
         <div>
-          <p className="text-xs text-zinc-500">Margem</p>
+          <p className="text-xs text-zinc-500">{t('kpi.margin')}</p>
           <p className="text-sm font-semibold" style={{ color: agg.margin >= 0 ? '#22c55e' : '#f87171' }}>
             {fmtBrl(agg.margin)}
           </p>
         </div>
       </div>
       <div className="flex items-center justify-between text-xs">
-        <span className="text-zinc-500">{agg.units} {agg.units === 1 ? 'unidade' : 'unidades'}</span>
+        <span className="text-zinc-500">{t('unitsCount', { count: agg.units })}</span>
         <span style={{ color: marginPct > 0 ? '#22c55e' : '#f87171' }}>
-          {marginPct.toFixed(1)}% margem
+          {t('marginPct', { pct: marginPct.toFixed(1) })}
         </span>
       </div>
     </div>

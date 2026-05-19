@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { useTranslations } from 'next-intl'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
@@ -24,17 +25,7 @@ import Tab8Others from '../../novo/_components/Tab8Others'
 
 // ── tab config ────────────────────────────────────────────────────────────────
 
-const TABS = [
-  { n: 1, label: 'Informação Básica', short: 'Básico' },
-  { n: 2, label: 'Descrição',          short: 'Descrição' },
-  { n: 3, label: 'Atributos',          short: 'Atributos' },
-  { n: 4, label: 'Variações',          short: 'Variações' },
-  { n: 5, label: 'Vendas & Estoque',   short: 'Vendas' },
-  { n: 6, label: 'Envio',              short: 'Envio' },
-  { n: 7, label: 'Vínculos',           short: 'Vínculos' },
-  { n: 8, label: 'Fiscal',             short: 'Fiscal' },
-  { n: 9, label: 'Outros',             short: 'Outros' },
-]
+const TAB_KEYS = [1, 2, 3, 4, 5, 6, 7, 8, 9]
 
 const REQUIRED: (keyof ProductForm)[] = [
   'name', 'brand', 'mlTitle', 'price', 'stock',
@@ -183,6 +174,7 @@ function Toasts({ toasts }: { toasts: Toast[] }) {
 // ── main page ─────────────────────────────────────────────────────────────────
 
 export default function EditarProdutoPage() {
+  const t        = useTranslations('produtos')
   const router   = useRouter()
   const params   = useParams()
   const id       = params.id as string
@@ -228,13 +220,13 @@ export default function EditarProdutoPage() {
     if (!id) return
     async function load() {
       const token = await getAuthToken()
-      if (!token) { setLoadError('Não autenticado'); setLoadingProduct(false); return }
+      if (!token) { setLoadError(t('editar.notAuthenticated')); setLoadingProduct(false); return }
 
       const res = await fetch(`${BACKEND}/products/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       })
       setLoadingProduct(false)
-      if (!res.ok) { setLoadError('Produto não encontrado.'); return }
+      if (!res.ok) { setLoadError(t('editar.notFound')); return }
 
       const data = await res.json()
       setOrgId(data.organization_id ?? null)
@@ -252,7 +244,7 @@ export default function EditarProdutoPage() {
       }
     }
     load()
-  }, [id])
+  }, [id, t])
 
   function set<K extends keyof ProductForm>(key: K, value: ProductForm[K]) {
     setForm(prev => ({ ...prev, [key]: value }))
@@ -268,17 +260,17 @@ export default function EditarProdutoPage() {
   // Retorna { msg, tab } — o `tab` leva o usuário direto pra aba do campo com
   // erro (campo inválido numa aba que ele não está vendo gera confusão).
   function validate(): { msg: string; tab: number } | null {
-    if (!form.name.trim())    return { msg: 'Nome do produto é obrigatório.', tab: 1 }
-    if (!form.brand.trim())   return { msg: 'Marca é obrigatória.', tab: 1 }
-    if (!form.mlTitle.trim()) return { msg: 'Título ML é obrigatório.', tab: 2 }
+    if (!form.name.trim())    return { msg: t('editar.validation.name'), tab: 1 }
+    if (!form.brand.trim())   return { msg: t('editar.validation.brand'), tab: 1 }
+    if (!form.mlTitle.trim()) return { msg: t('editar.validation.mlTitle'), tab: 2 }
     if (form.mlTitle.length > 60)
-      return { msg: `Título ML tem ${form.mlTitle.length} caracteres — o Mercado Livre aceita no máximo 60.`, tab: 2 }
-    if (!form.price.trim())   return { msg: 'Preço de venda é obrigatório.', tab: 5 }
-    if (!form.stock.trim())   return { msg: 'Estoque é obrigatório.', tab: 5 }
-    if (!form.weightKg.trim()) return { msg: 'Peso é obrigatório.', tab: 6 }
+      return { msg: t('editar.validation.mlTitleLength', { len: form.mlTitle.length }), tab: 2 }
+    if (!form.price.trim())   return { msg: t('editar.validation.price'), tab: 5 }
+    if (!form.stock.trim())   return { msg: t('editar.validation.stock'), tab: 5 }
+    if (!form.weightKg.trim()) return { msg: t('editar.validation.weight'), tab: 6 }
     if (!form.widthCm.trim() || !form.lengthCm.trim() || !form.heightCm.trim())
-      return { msg: 'Dimensões (L × C × A) são obrigatórias.', tab: 6 }
-    if (form.platforms.length === 0) return { msg: 'Selecione ao menos uma plataforma.', tab: 1 }
+      return { msg: t('editar.validation.dimensions'), tab: 6 }
+    if (form.platforms.length === 0) return { msg: t('editar.validation.platforms'), tab: 1 }
     return null
   }
 
@@ -362,7 +354,7 @@ export default function EditarProdutoPage() {
 
     setSaving(true)
     const token = await getAuthToken()
-    if (!token) { toast('Não autenticado', 'error'); setSaving(false); return }
+    if (!token) { toast(t('editar.notAuthenticated'), 'error'); setSaving(false); return }
 
     const res = await fetch(`${BACKEND}/products/${id}`, {
       method: 'PUT',
@@ -373,7 +365,7 @@ export default function EditarProdutoPage() {
     if (!res.ok) {
       const err = await res.json().catch(() => ({}))
       console.error('[produto/editar] update error:', err)
-      toast(`Erro ao salvar: ${err.message ?? res.status}`, 'error')
+      toast(t('editar.saveError', { msg: err.message ?? res.status }), 'error')
       setSaving(false)
       return
     }
@@ -387,7 +379,7 @@ export default function EditarProdutoPage() {
     originalPhotos.current = form.photoUrls
 
     setSaving(false)
-    toast('Produto atualizado com sucesso!', 'success')
+    toast(t('editar.updated'), 'success')
     setTimeout(() => router.push('/dashboard/produtos'), 1000)
   }
 
@@ -411,7 +403,7 @@ export default function EditarProdutoPage() {
         <p className="text-zinc-400 text-sm">{loadError}</p>
         <button onClick={() => router.push('/dashboard/produtos')}
           className="text-sm font-medium" style={{ color: '#00E5FF' }}>
-          ← Voltar para Produtos
+          {t('editar.backToProducts')}
         </button>
       </div>
     )
@@ -430,12 +422,12 @@ export default function EditarProdutoPage() {
               <nav className="flex items-center gap-1.5 text-[12px] min-w-0">
                 <Link href="/dashboard/produtos"
                   className="text-zinc-500 hover:text-zinc-300 transition-colors shrink-0">
-                  Produtos
+                  {t('editar.breadcrumbProducts')}
                 </Link>
                 <span className="text-zinc-700">/</span>
                 <span className="text-zinc-500 truncate max-w-[160px]">{productName || '…'}</span>
                 <span className="text-zinc-700">/</span>
-                <span className="text-white font-medium shrink-0">Editar</span>
+                <span className="text-white font-medium shrink-0">{t('editar.breadcrumbEdit')}</span>
               </nav>
             </div>
 
@@ -458,12 +450,12 @@ export default function EditarProdutoPage() {
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
               </svg>
-              <span>Anúncio ML vinculado:</span>
+              <span>{t('editar.mlLinkedBanner')}</span>
               <span className="font-mono">{mlListingId}</span>
               {mlPermalink && (
                 <a href={mlPermalink} target="_blank" rel="noopener noreferrer"
                   className="ml-1 flex items-center gap-1 underline underline-offset-2 hover:text-green-300 transition-colors">
-                  Ver no ML
+                  {t('editar.viewOnMl')}
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                   </svg>
@@ -474,10 +466,10 @@ export default function EditarProdutoPage() {
 
           {/* Tab strip */}
           <div className="flex gap-0 overflow-x-auto no-scrollbar">
-            {TABS.map(t => {
-              const active = tab === t.n
+            {TAB_KEYS.map(n => {
+              const active = tab === n
               return (
-                <button key={t.n} type="button" onClick={() => setTab(t.n)}
+                <button key={n} type="button" onClick={() => setTab(n)}
                   className="shrink-0 px-4 py-2.5 text-[13px] font-medium border-b-2 transition-all whitespace-nowrap"
                   style={{
                     borderColor: active ? '#00E5FF' : 'transparent',
@@ -486,8 +478,8 @@ export default function EditarProdutoPage() {
                   }}
                   onMouseEnter={e => { if (!active) e.currentTarget.style.color = '#a1a1aa' }}
                   onMouseLeave={e => { if (!active) e.currentTarget.style.color = '#71717a' }}>
-                  <span className="hidden lg:inline">{t.label}</span>
-                  <span className="lg:hidden">{t.short}</span>
+                  <span className="hidden lg:inline">{t(`editar.tab${n}`)}</span>
+                  <span className="lg:hidden">{t(`editar.tab${n}Short`)}</span>
                 </button>
               )
             })}
@@ -513,13 +505,13 @@ export default function EditarProdutoPage() {
         <div className="shrink-0 px-6 py-4 flex items-center justify-between gap-3"
           style={{ borderTop: '1px solid #1e1e24', background: '#0c0c0f' }}>
           <button type="button" disabled={tab === 1 || saving}
-            onClick={() => setTab(t => Math.max(1, t - 1))}
+            onClick={() => setTab(n => Math.max(1, n - 1))}
             className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium border transition-all disabled:opacity-40 disabled:cursor-not-allowed"
             style={{ borderColor: '#3f3f46', color: '#a1a1aa', background: 'transparent' }}>
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
             </svg>
-            Anterior
+            {t('editar.previous')}
           </button>
 
           <div className="flex items-center gap-2">
@@ -527,7 +519,7 @@ export default function EditarProdutoPage() {
             <button type="button" disabled={saving} onClick={() => save('draft')}
               className="px-4 py-2 rounded-lg text-sm font-medium border transition-all disabled:opacity-60"
               style={{ borderColor: '#3f3f46', color: '#a1a1aa', background: 'transparent' }}>
-              {saving ? 'Salvando…' : 'Salvar rascunho'}
+              {saving ? t('editar.saving') : t('editar.saveDraft')}
             </button>
 
             {/* Save active */}
@@ -538,19 +530,19 @@ export default function EditarProdutoPage() {
                 ? <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>Salvando…</>
+                  </svg>{t('editar.saving')}</>
                 : <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                  </svg>Salvar alterações</>
+                  </svg>{t('editar.saveChanges')}</>
               }
             </button>
           </div>
 
           <button type="button" disabled={tab === 9 || saving}
-            onClick={() => setTab(t => Math.min(9, t + 1))}
+            onClick={() => setTab(n => Math.min(9, n + 1))}
             className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium border transition-all disabled:opacity-40 disabled:cursor-not-allowed"
             style={{ borderColor: '#3f3f46', color: '#a1a1aa', background: 'transparent' }}>
-            Próxima
+            {t('editar.next')}
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
             </svg>
@@ -581,6 +573,7 @@ interface VinculoRow {
 }
 
 function TabVinculos({ productId, productName }: { productId: string; productName: string }) {
+  const t = useTranslations('produtos')
   const supabase = createClient()
   const [vinculos, setVinculos]   = useState<VinculoRow[]>([])
   const [loading, setLoading]     = useState(true)
@@ -610,7 +603,7 @@ function TabVinculos({ productId, productName }: { productId: string; productNam
   async function fetchPreview() {
     setError(null); setSuccess(null); setPreview(null)
     const mlb = mlbInput.trim().toUpperCase()
-    if (!mlb.match(/^MLB\d+$/i)) { setError('Formato inválido. Use MLB seguido de números (ex: MLB1234567890)'); return }
+    if (!mlb.match(/^MLB\d+$/i)) { setError(t('vinc.invalidFormat')); return }
     setPreviewLoading(true)
     try {
       const token = await getAuthToken()
@@ -653,7 +646,7 @@ function TabVinculos({ productId, productName }: { productId: string; productNam
         const body = await res.json().catch(() => ({} as { message?: string }))
         throw new Error(body.message ?? `HTTP ${res.status}`)
       }
-      setSuccess(`✓ ${preview.id} vinculado`)
+      setSuccess('✓ ' + t('vinc.linkedSuccess', { id: preview.id }))
       setMlbInput(''); setPreview(null); setQtyPerUnit('1')
       void load()
     } catch (e) {
@@ -664,7 +657,7 @@ function TabVinculos({ productId, productName }: { productId: string; productNam
   }
 
   async function removeVinculo(vid: string, listingId: string) {
-    if (!confirm(`Remover vínculo com ${listingId}?`)) return
+    if (!confirm(t('vinc.removeConfirm', { id: listingId }))) return
     try {
       const token = await getAuthToken()
       const res = await fetch(`${BACKEND}/products/vinculos/${vid}`, {
@@ -672,7 +665,7 @@ function TabVinculos({ productId, productName }: { productId: string; productNam
         headers: { Authorization: `Bearer ${token}` },
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      setSuccess(`✓ Vínculo removido`)
+      setSuccess('✓ ' + t('vinc.linkRemoved'))
       void load()
     } catch (e) {
       setError((e as Error).message)
@@ -682,20 +675,22 @@ function TabVinculos({ productId, productName }: { productId: string; productNam
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-semibold text-zinc-100">Vínculos com anúncios</h2>
+        <h2 className="text-lg font-semibold text-zinc-100">{t('vinc.title')}</h2>
         <p className="text-sm text-zinc-500 mt-1">
-          Vincule o produto <strong className="text-zinc-300">{productName || 'atual'}</strong> a anúncios do Mercado Livre.
-          Pedidos vindos desses anúncios puxam custo + imposto deste produto automaticamente.
+          {t.rich('vinc.subtitle', {
+            name: productName || t('vinc.currentFallback'),
+            b: (chunks) => <strong className="text-zinc-300">{chunks}</strong>,
+          })}
         </p>
       </div>
 
       {/* Adicionar novo vínculo */}
       <div className="rounded-xl p-4 space-y-3" style={{ background: '#0c0c0f', border: '1px solid #27272a' }}>
-        <h3 className="text-sm font-semibold text-cyan-300">+ Adicionar vínculo</h3>
+        <h3 className="text-sm font-semibold text-cyan-300">{t('vinc.addLink')}</h3>
         <div className="flex items-center gap-2">
           <input
             type="text"
-            placeholder="Cole o ID do anúncio (MLB...)"
+            placeholder={t('vinc.pasteMlbPlaceholder')}
             value={mlbInput}
             onChange={e => { setMlbInput(e.target.value); setPreview(null); setError(null) }}
             onKeyDown={e => { if (e.key === 'Enter') fetchPreview() }}
@@ -707,7 +702,7 @@ function TabVinculos({ productId, productName }: { productId: string; productNam
             disabled={previewLoading || !mlbInput.trim()}
             className="px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50"
             style={{ background: 'rgba(0,229,255,0.15)', color: '#67e8f9', border: '1px solid rgba(0,229,255,0.35)' }}>
-            {previewLoading ? 'Buscando…' : 'Pré-visualizar'}
+            {previewLoading ? t('vinc.searching') : t('vinc.preview')}
           </button>
         </div>
 
@@ -729,7 +724,7 @@ function TabVinculos({ productId, productName }: { productId: string; productNam
               <p className="text-sm text-zinc-100 line-clamp-2">{preview.title}</p>
               <p className="text-xs text-zinc-500 mt-1 font-mono">{preview.id} · R$ {preview.price?.toFixed(2)}</p>
               <div className="flex items-center gap-2 mt-2">
-                <label className="text-xs text-zinc-400">Qtd por unidade:</label>
+                <label className="text-xs text-zinc-400">{t('vinc.qtyPerUnit')}</label>
                 <input
                   type="number"
                   min={1}
@@ -739,7 +734,7 @@ function TabVinculos({ productId, productName }: { productId: string; productNam
                   style={{ background: '#09090b', border: '1px solid #27272a', color: '#fafafa' }}
                 />
                 <span className="text-[10px] text-zinc-600">
-                  (para kits: quantos deste produto = 1 unidade do anúncio)
+                  {t('vinc.qtyHint')}
                 </span>
               </div>
             </div>
@@ -748,7 +743,7 @@ function TabVinculos({ productId, productName }: { productId: string; productNam
               disabled={adding}
               className="px-4 py-2 rounded-lg text-sm font-semibold flex-shrink-0 disabled:opacity-50"
               style={{ background: '#00E5FF', color: '#000' }}>
-              {adding ? 'Vinculando…' : 'Confirmar vínculo'}
+              {adding ? t('vinc.linking') : t('vinc.confirmLink')}
             </button>
           </div>
         )}
@@ -757,12 +752,12 @@ function TabVinculos({ productId, productName }: { productId: string; productNam
       {/* Lista de vínculos atuais */}
       <div>
         <h3 className="text-sm font-semibold text-zinc-200 mb-3">
-          Vínculos ativos
+          {t('vinc.activeLinks')}
           {!loading && <span className="text-xs text-zinc-500 ml-2">({vinculos.length})</span>}
         </h3>
-        {loading && <p className="text-sm text-zinc-500">Carregando…</p>}
+        {loading && <p className="text-sm text-zinc-500">{t('vinc.loading')}</p>}
         {!loading && vinculos.length === 0 && (
-          <p className="text-sm text-zinc-500 italic">Nenhum vínculo ainda. Adicione um anúncio acima.</p>
+          <p className="text-sm text-zinc-500 italic">{t('vinc.empty')}</p>
         )}
         <div className="space-y-2">
           {vinculos.map(v => (
@@ -780,12 +775,12 @@ function TabVinculos({ productId, productName }: { productId: string; productNam
                   <span className="font-mono text-xs text-zinc-300">{v.listing_id}</span>
                   {v.listing_permalink && (
                     <a href={v.listing_permalink} target="_blank" rel="noreferrer" className="text-cyan-400 text-xs hover:underline">
-                      ↗ ver
+                      {t('vinc.view')}
                     </a>
                   )}
                   {v.quantity_per_unit !== 1 && (
                     <span className="text-[10px] text-violet-300 px-1.5 py-0.5 rounded" style={{ background: 'rgba(167,139,250,0.1)' }}>
-                      kit × {v.quantity_per_unit}
+                      {t('vinc.kitBadge', { qty: v.quantity_per_unit })}
                     </span>
                   )}
                 </div>
@@ -800,7 +795,7 @@ function TabVinculos({ productId, productName }: { productId: string; productNam
                 onClick={() => removeVinculo(v.id, v.listing_id)}
                 className="px-3 py-1.5 rounded text-xs font-semibold flex-shrink-0"
                 style={{ background: 'rgba(248,113,113,0.1)', color: '#f87171', border: '1px solid rgba(248,113,113,0.3)' }}>
-                Remover
+                {t('vinc.remove')}
               </button>
             </div>
           ))}

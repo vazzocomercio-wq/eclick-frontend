@@ -1,14 +1,15 @@
 'use client'
 
 import { useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { TriggerGroup, TriggerItem, TRIGGER_PARAMS } from './types'
 
 type GroupKey = 'decrease_price' | 'increase_price' | 'do_not_touch'
 
-const GROUP_META: Record<GroupKey, { label: string; emoji: string; color: string }> = {
-  decrease_price: { label: 'BAIXAR PREÇO',  emoji: '🔻', color: '#34d399' },
-  increase_price: { label: 'SUBIR PREÇO',   emoji: '🔺', color: '#f59e0b' },
-  do_not_touch:   { label: 'NÃO MEXER',     emoji: '⏸',  color: '#a1a1aa' },
+const GROUP_META: Record<GroupKey, { emoji: string; color: string }> = {
+  decrease_price: { emoji: '🔻', color: '#34d399' },
+  increase_price: { emoji: '🔺', color: '#f59e0b' },
+  do_not_touch:   { emoji: '⏸',  color: '#a1a1aa' },
 }
 
 /** Aba 3 — Gatilhos da IA. 3 seções colapsáveis, cada uma com cards
@@ -20,6 +21,7 @@ export function TriggersTab({
   isDirty:  (path: string) => boolean
   setField: (path: string, value: unknown) => void
 }) {
+  const t = useTranslations('pricing')
   const [open, setOpen] = useState<Record<GroupKey, boolean>>({
     decrease_price: true,
     increase_price: true,
@@ -40,9 +42,9 @@ export function TriggersTab({
             >
               <div className="flex items-center gap-3">
                 <span className="text-xl">{meta.emoji}</span>
-                <p className="text-white font-semibold tracking-wide" style={{ color: meta.color }}>{meta.label}</p>
+                <p className="text-white font-semibold tracking-wide" style={{ color: meta.color }}>{t(`triggerGroup_${group}`)}</p>
                 <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: `${meta.color}1a`, color: meta.color }}>
-                  {activeCount} ativo{activeCount === 1 ? '' : 's'} de {items.length}
+                  {t('triggerActiveCount', { active: activeCount, total: items.length })}
                 </span>
               </div>
               <span className="text-zinc-400 text-sm">{open[group] ? '▾' : '▸'}</span>
@@ -80,6 +82,7 @@ function TriggerCard({
   isDirty:  (path: string) => boolean
   setField: (path: string, value: unknown) => void
 }) {
+  const t = useTranslations('pricing')
   const specs = TRIGGER_PARAMS[trigger.id] ?? []
   const activePath = `${basePath}.active`
   const dirtyAny = isDirty(activePath) || specs.some(s => isDirty(`${basePath}.params.${s.key}`))
@@ -133,13 +136,13 @@ function TriggerCard({
           )}
 
           {specs.length === 0 && (
-            <p className="text-zinc-600 text-xs mt-2 italic">Sem parâmetros — apenas ativa/desativa.</p>
+            <p className="text-zinc-600 text-xs mt-2 italic">{t('triggerNoParams')}</p>
           )}
         </div>
 
         {dirtyAny && (
           <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full self-start" style={{ background: `${color}1a`, color }}>
-            ● Editado
+            ● {t('editedMark')}
           </span>
         )}
       </div>

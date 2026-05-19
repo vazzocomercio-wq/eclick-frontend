@@ -1,5 +1,6 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
 import type { TabProps } from '../types'
 
 const inp = 'w-full bg-[#1c1c1f] border border-[#3f3f46] text-white text-sm rounded-lg px-3 py-2.5 outline-none transition-all placeholder-zinc-600 focus:border-[#00E5FF] focus:ring-1 focus:ring-[#00E5FF20]'
@@ -7,36 +8,12 @@ const sel = `${inp} cursor-pointer`
 const lbl = 'block text-[13px] font-medium text-zinc-300 mb-1.5'
 const sec = 'text-[11px] font-semibold uppercase tracking-widest text-zinc-500 mb-4 pb-2 border-b border-[#1e1e24]'
 
-const ORIGINS = [
-  { v: '0', l: '0 – Nacional (padrão)' },
-  { v: '1', l: '1 – Estrangeira, importação direta' },
-  { v: '2', l: '2 – Estrangeira, mercado interno' },
-  { v: '3', l: '3 – Nacional, > 40% conteúdo estrangeiro' },
-  { v: '4', l: '4 – Nacional, processos produtivos básicos' },
-  { v: '5', l: '5 – Nacional, < 40% conteúdo estrangeiro' },
-  { v: '6', l: '6 – Estrangeira c/ similar nacional' },
-  { v: '7', l: '7 – Estrangeira s/ similar nacional' },
-  { v: '8', l: '8 – Nacional, > 70% conteúdo importado' },
-]
-
-const CSOSN_OPTIONS = [
-  { v: '102', l: '102 – Tributada pelo Simples sem permissão de crédito' },
-  { v: '400', l: '400 – Não tributada pelo Simples Nacional' },
-  { v: '500', l: '500 – ICMS cobrado anteriormente por ST' },
-  { v: '900', l: '900 – Outros' },
-]
-
-const PIS_COFINS = [
-  { v: '01', l: '01 – Op. Tributável (alíquota básica)' },
-  { v: '02', l: '02 – Op. Tributável (alíquota diferenciada)' },
-  { v: '07', l: '07 – Op. Isenta da contribuição' },
-  { v: '08', l: '08 – Op. sem incidência da contribuição' },
-  { v: '49', l: '49 – Outras operações de saída' },
-  { v: '70', l: '70 – Op. de aquisição sem direito a crédito' },
-  { v: '99', l: '99 – Outras operações' },
-]
+const ORIGIN_CODES = ['0', '1', '2', '3', '4', '5', '6', '7', '8']
+const CSOSN_CODES = ['102', '400', '500', '900']
+const PIS_COFINS_CODES = ['01', '02', '07', '08', '49', '70', '99']
 
 export default function Tab7Fiscal({ data, set }: TabProps) {
+  const t = useTranslations('produtos')
   return (
     <div className="space-y-8">
 
@@ -45,12 +22,12 @@ export default function Tab7Fiscal({ data, set }: TabProps) {
         <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
-        Esta aba é opcional. Preencha apenas se emite NF-e e precisa de conformidade fiscal.
+        {t('tab7.optionalNotice')}
       </div>
 
       {/* Classification */}
       <section>
-        <p className={sec}>Classificação fiscal</p>
+        <p className={sec}>{t('tab7.classificationSection')}</p>
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className={lbl}>NCM</label>
@@ -63,10 +40,10 @@ export default function Tab7Fiscal({ data, set }: TabProps) {
               value={data.cest} onChange={e => set('cest', e.target.value)} />
           </div>
           <div className="col-span-2">
-            <label className={lbl}>Origem</label>
+            <label className={lbl}>{t('tab7.origin')}</label>
             <select className={sel} value={data.origin} onChange={e => set('origin', e.target.value)}
               style={{ background: '#1c1c1f' }}>
-              {ORIGINS.map(o => <option key={o.v} value={o.v}>{o.l}</option>)}
+              {ORIGIN_CODES.map(o => <option key={o} value={o}>{t(`tab7.originOption.${o}`)}</option>)}
             </select>
           </div>
         </div>
@@ -77,12 +54,12 @@ export default function Tab7Fiscal({ data, set }: TabProps) {
         <p className={sec}>CFOP</p>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className={lbl}>Venda mesmo estado</label>
+            <label className={lbl}>{t('tab7.cfopSameState')}</label>
             <input type="text" className={inp} placeholder="5102" maxLength={4}
               value={data.cfopSameState} onChange={e => set('cfopSameState', e.target.value)} />
           </div>
           <div>
-            <label className={lbl}>Venda outros estados</label>
+            <label className={lbl}>{t('tab7.cfopOtherState')}</label>
             <input type="text" className={inp} placeholder="6102" maxLength={4}
               value={data.cfopOtherState} onChange={e => set('cfopOtherState', e.target.value)} />
           </div>
@@ -91,26 +68,26 @@ export default function Tab7Fiscal({ data, set }: TabProps) {
 
       {/* Taxes */}
       <section>
-        <p className={sec}>Tributação</p>
+        <p className={sec}>{t('tab7.taxesSection')}</p>
         <div className="grid grid-cols-2 gap-4">
           <div className="col-span-2">
             <label className={lbl}>CSOSN</label>
             <select className={sel} value={data.csosn} onChange={e => set('csosn', e.target.value)}
               style={{ background: '#1c1c1f' }}>
-              <option value="">Selecione</option>
-              {CSOSN_OPTIONS.map(o => <option key={o.v} value={o.v}>{o.l}</option>)}
+              <option value="">{t('tab7.select')}</option>
+              {CSOSN_CODES.map(o => <option key={o} value={o}>{t(`tab7.csosnOption.${o}`)}</option>)}
             </select>
           </div>
           <div className="col-span-2">
             <label className={lbl}>PIS/COFINS CST</label>
             <select className={sel} value={data.pisCofins} onChange={e => set('pisCofins', e.target.value)}
               style={{ background: '#1c1c1f' }}>
-              <option value="">Selecione</option>
-              {PIS_COFINS.map(o => <option key={o.v} value={o.v}>{o.l}</option>)}
+              <option value="">{t('tab7.select')}</option>
+              {PIS_COFINS_CODES.map(o => <option key={o} value={o}>{t(`tab7.pisCofinsOption.${o}`)}</option>)}
             </select>
           </div>
           <div>
-            <label className={lbl}>% Total de tributos</label>
+            <label className={lbl}>{t('tab7.totalTributes')}</label>
             <div className="relative">
               <input type="number" className={inp} placeholder="0.00" step="0.01" min={0} max={100}
                 value={data.tributesPercent} onChange={e => set('tributesPercent', e.target.value)}
@@ -128,38 +105,38 @@ export default function Tab7Fiscal({ data, set }: TabProps) {
 
       {/* Other fiscal */}
       <section>
-        <p className={sec}>Outros dados fiscais</p>
+        <p className={sec}>{t('tab7.otherSection')}</p>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className={lbl}>Nº RECOPI</label>
-            <input type="text" className={inp} placeholder="20 dígitos"
+            <label className={lbl}>{t('tab7.recopi')}</label>
+            <input type="text" className={inp} placeholder={t('tab7.recopiPlaceholder')}
               value={data.recopi} onChange={e => set('recopi', e.target.value)} />
           </div>
           <div>
-            <label className={lbl}>Nº FCI</label>
+            <label className={lbl}>{t('tab7.fci')}</label>
             <input type="text" className={inp} placeholder="UUID"
               value={data.fci} onChange={e => set('fci', e.target.value)} />
           </div>
           <div className="col-span-2">
-            <label className={lbl}>Informações adicionais do produto</label>
-            <textarea className={inp} rows={3} placeholder="Informações adicionais para a NF-e..."
+            <label className={lbl}>{t('tab7.additionalInfo')}</label>
+            <textarea className={inp} rows={3} placeholder={t('tab7.additionalInfoPlaceholder')}
               value={data.additionalInfo} onChange={e => set('additionalInfo', e.target.value)}
               style={{ resize: 'vertical' }} />
           </div>
           <div className="col-span-2">
-            <label className={lbl}>Item agrupável</label>
+            <label className={lbl}>{t('tab7.groupable')}</label>
             <div className="flex gap-3">
-              {(['Sim', 'Não'] as const).map(opt => {
-                const active = (opt === 'Sim') === data.groupable
+              {([true, false] as const).map(optVal => {
+                const active = optVal === data.groupable
                 return (
-                  <button key={opt} type="button" onClick={() => set('groupable', opt === 'Sim')}
+                  <button key={String(optVal)} type="button" onClick={() => set('groupable', optVal)}
                     className="px-5 py-2.5 rounded-lg text-sm font-medium border transition-all"
                     style={{
                       background: active ? 'rgba(0,229,255,0.08)' : '#1c1c1f',
                       borderColor: active ? '#00E5FF' : '#3f3f46',
                       color: active ? '#00E5FF' : '#71717a',
                     }}>
-                    {opt}
+                    {optVal ? t('tab7.yes') : t('tab7.no')}
                   </button>
                 )
               })}

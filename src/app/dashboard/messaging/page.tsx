@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { TemplatesTab }  from './_components/TemplatesTab'
 import { JourneysTab }   from './_components/JourneysTab'
 import { AnalyticsTab }  from './_components/AnalyticsTab'
@@ -9,18 +10,19 @@ import { WhatsAppStatusCard } from './_components/WhatsAppStatusCard'
 
 type TabKey = 'templates' | 'journeys' | 'analytics' | 'sends'
 
-const TABS: { key: TabKey; label: string }[] = [
-  { key: 'templates',  label: 'Templates' },
-  { key: 'journeys',   label: 'Jornadas' },
-  { key: 'analytics',  label: 'Analytics' },
-  { key: 'sends',      label: 'Envios' },
-]
-
 type Toast = { id: number; msg: string; type: 'success' | 'error' }
 
 export default function MessagingPage() {
+  const t = useTranslations('messaging')
   const [tab, setTab]       = useState<TabKey>('templates')
   const [toasts, setToasts] = useState<Toast[]>([])
+
+  const TABS: { key: TabKey; label: string }[] = [
+    { key: 'templates',  label: t('tabs.templates') },
+    { key: 'journeys',   label: t('tabs.journeys') },
+    { key: 'analytics',  label: t('tabs.analytics') },
+    { key: 'sends',      label: t('tabs.sends') },
+  ]
 
   function pushToast(msg: string, type: Toast['type'] = 'success') {
     const id = Date.now() + Math.random()
@@ -32,8 +34,8 @@ export default function MessagingPage() {
     <div className="flex flex-col h-full" style={{ background: 'var(--background)' }}>
       {/* Header */}
       <div className="shrink-0 px-6 pt-6 pb-2" style={{ borderBottom: '1px solid #1e1e24' }}>
-        <h1 className="text-white text-lg font-semibold">Mensageria</h1>
-        <p className="text-zinc-500 text-sm mt-0.5">Templates, jornadas e analytics. WhatsApp ativo, Instagram/TikTok em breve. Campanhas em massa em /dashboard/campanhas.</p>
+        <h1 className="text-white text-lg font-semibold">{t('title')}</h1>
+        <p className="text-zinc-500 text-sm mt-0.5">{t('subtitle')}</p>
 
         {/* Tabs */}
         <div className="flex gap-1 mt-4 overflow-x-auto">

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import {
   ArrowLeft, Sparkles, Loader2, AlertCircle, CheckCircle2, Wand2, Clock,
@@ -9,6 +10,7 @@ import {
 import { CatalogApi, type EnrichmentSummary, type BulkEnrichmentResult, type CatalogHealth, type ProductEnrichmentJob, CATALOG_STATUS_LABELS, type CatalogStatus } from '@/components/catalog/catalogApi'
 
 export default function CatalogBulkEnrichmentPage() {
+  const t = useTranslations('produtos')
   const [summary, setSummary] = useState<EnrichmentSummary | null>(null)
   const [health, setHealth]   = useState<CatalogHealth | null>(null)
   const [activeJob, setActiveJob] = useState<ProductEnrichmentJob | null>(null)
@@ -54,7 +56,7 @@ export default function CatalogBulkEnrichmentPage() {
 
   async function cancelActiveJob() {
     if (!activeJob) return
-    if (!confirm('Cancelar o job? Produtos já enriquecidos preservam o trabalho.')) return
+    if (!confirm(t('aiBulk.cancelConfirm'))) return
     try {
       const updated = await CatalogApi.cancelEnrichmentJob(activeJob.id)
       setActiveJob(updated)
@@ -64,7 +66,7 @@ export default function CatalogBulkEnrichmentPage() {
   }
 
   async function runBulk(action: 'missing' | 'low-score' | 'very-low', payload: Parameters<typeof CatalogApi.enrichBulk>[0]) {
-    if (!confirm(buildConfirmMsg(action, summary))) return
+    if (!confirm(buildConfirmMsg(action, summary, t))) return
     setBusyAction(action); setActionError(null); setLastResult(null)
     try {
       const result = await CatalogApi.enrichBulk(payload)
@@ -89,10 +91,10 @@ export default function CatalogBulkEnrichmentPage() {
           <div>
             <div className="flex items-center gap-2">
               <Wand2 size={16} className="text-cyan-400" />
-              <h1 className="text-base font-semibold">Enriquecimento em massa do catálogo</h1>
+              <h1 className="text-base font-semibold">{t('aiBulk.title')}</h1>
             </div>
             <p className="text-[11px] text-zinc-500 mt-0.5">
-              Marca produtos pra serem enriquecidos pela IA em background. Worker processa ~5/5min.
+              {t('aiBulk.subtitle')}
             </p>
           </div>
           <button
@@ -102,7 +104,7 @@ export default function CatalogBulkEnrichmentPage() {
             className="ml-auto flex items-center gap-1 px-2 py-1 rounded text-[11px] text-zinc-400 hover:text-cyan-300 disabled:opacity-50"
           >
             {loading ? <Loader2 size={11} className="animate-spin" /> : <RefreshCw size={11} />}
-            atualizar
+            {t('aiBulk.refresh')}
           </button>
         </header>
 
@@ -115,19 +117,19 @@ export default function CatalogBulkEnrichmentPage() {
         {/* KPIs */}
         {summary && (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
-            <KpiCard icon={<Package size={11} />} label="Total" value={summary.total} tone="zinc" />
-            <KpiCard icon={<CheckCircle2 size={11} />} label="Enriquecidos" value={summary.enriched} tone="emerald" />
-            <KpiCard icon={<Clock size={11} />} label="Na fila" value={summary.pending} tone="cyan" />
-            <KpiCard icon={<AlertCircle size={11} />} label="Sem enriquecimento" value={summary.missing} tone="amber" />
-            <KpiCard icon={<TrendingDown size={11} />} label="Score < 60" value={summary.score_under_60} tone="orange" />
-            <KpiCard icon={<AlertTriangle size={11} />} label="Score < 40" value={summary.score_under_40} tone="red" />
+            <KpiCard icon={<Package size={11} />} label={t('aiBulk.kpi.total')} value={summary.total} tone="zinc" />
+            <KpiCard icon={<CheckCircle2 size={11} />} label={t('aiBulk.kpi.enriched')} value={summary.enriched} tone="emerald" />
+            <KpiCard icon={<Clock size={11} />} label={t('aiBulk.kpi.queued')} value={summary.pending} tone="cyan" />
+            <KpiCard icon={<AlertCircle size={11} />} label={t('aiBulk.kpi.missing')} value={summary.missing} tone="amber" />
+            <KpiCard icon={<TrendingDown size={11} />} label={t('aiBulk.kpi.scoreUnder60')} value={summary.score_under_60} tone="orange" />
+            <KpiCard icon={<AlertTriangle size={11} />} label={t('aiBulk.kpi.scoreUnder40')} value={summary.score_under_40} tone="red" />
           </div>
         )}
 
         {/* Catalog health (Delta 1) */}
         {health && (
           <div className="mb-5 rounded-xl border border-zinc-800 bg-zinc-900/30 p-3">
-            <h2 className="text-[10px] uppercase tracking-wider text-zinc-500 mb-2">Saúde do catálogo (catalog_status)</h2>
+            <h2 className="text-[10px] uppercase tracking-wider text-zinc-500 mb-2">{t('aiBulk.catalogHealth')}</h2>
             <div className="grid grid-cols-3 sm:grid-cols-7 gap-2">
               {(Object.keys(CATALOG_STATUS_LABELS) as CatalogStatus[]).map(s => {
                 const c = health.by_status[s] ?? 0
@@ -153,8 +155,8 @@ export default function CatalogBulkEnrichmentPage() {
           <div className="mb-5 rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3 text-sm text-emerald-200 flex items-start gap-2">
             <CheckCircle2 size={14} className="shrink-0 mt-0.5" />
             <span>
-              <strong>Job criado com {lastResult.result.total} produto(s).</strong>{' '}
-              Custo estimado: ${lastResult.result.estimated_cost_usd.toFixed(2)}.
+              <strong>{t('aiBulk.jobCreated', { count: lastResult.result.total })}</strong>{' '}
+              {t('aiBulk.estimatedCost', { cost: lastResult.result.estimated_cost_usd.toFixed(2) })}
             </span>
           </div>
         )}
@@ -169,10 +171,10 @@ export default function CatalogBulkEnrichmentPage() {
           <ActionCard
             icon={<AlertCircle size={14} />}
             tone="amber"
-            title="Enriquecer produtos sem enriquecimento"
+            title={t('aiBulk.action.missingTitle')}
             count={summary?.missing ?? 0}
-            description="Produtos que nunca passaram pela IA. Aplica em até 100 por vez. Cada um: ~$0.02."
-            cta="Enriquecer todos sem score"
+            description={t('aiBulk.action.missingDesc')}
+            cta={t('aiBulk.action.missingCta')}
             disabled={!summary || summary.missing === 0 || busyAction !== null}
             loading={busyAction === 'missing'}
             onClick={() => runBulk('missing', { missing_enrichment: true, limit: 100 })}
@@ -180,10 +182,10 @@ export default function CatalogBulkEnrichmentPage() {
           <ActionCard
             icon={<TrendingDown size={14} />}
             tone="orange"
-            title="Re-enriquecer produtos com score baixo (<60)"
+            title={t('aiBulk.action.lowScoreTitle')}
             count={summary?.score_under_60 ?? 0}
-            description="Produtos enriquecidos mas com score baixo. Re-aplicar pode melhorar quality."
-            cta="Re-enriquecer score < 60"
+            description={t('aiBulk.action.lowScoreDesc')}
+            cta={t('aiBulk.action.lowScoreCta')}
             disabled={!summary || summary.score_under_60 === 0 || busyAction !== null}
             loading={busyAction === 'low-score'}
             onClick={() => runBulk('low-score', { ai_score_lt: 60, limit: 100 })}
@@ -191,10 +193,10 @@ export default function CatalogBulkEnrichmentPage() {
           <ActionCard
             icon={<AlertTriangle size={14} />}
             tone="red"
-            title="Atenção crítica: score < 40"
+            title={t('aiBulk.action.veryLowTitle')}
             count={summary?.score_under_40 ?? 0}
-            description="Produtos com qualidade muito baixa. Revisão manual + re-enriquecimento sugeridos."
-            cta="Re-enriquecer score < 40"
+            description={t('aiBulk.action.veryLowDesc')}
+            cta={t('aiBulk.action.veryLowCta')}
             disabled={!summary || summary.score_under_40 === 0 || busyAction !== null}
             loading={busyAction === 'very-low'}
             onClick={() => runBulk('very-low', { ai_score_lt: 40, limit: 100 })}
@@ -205,9 +207,8 @@ export default function CatalogBulkEnrichmentPage() {
           <div className="mt-6 rounded-lg border border-cyan-400/20 bg-cyan-400/5 p-3 text-xs text-cyan-200 flex items-start gap-2">
             <Sparkles size={12} className="shrink-0 mt-0.5" />
             <span>
-              <strong>{summary.pending} produto(s) já na fila.</strong>{' '}
-              Worker enriquece ~5 por 5min. Estimativa: ~{Math.ceil(summary.pending / 5)} ciclos
-              ({Math.ceil(summary.pending / 5) * 5}min) pra esvaziar.
+              <strong>{t('aiBulk.pendingQueued', { count: summary.pending })}</strong>{' '}
+              {t('aiBulk.pendingEstimate', { cycles: Math.ceil(summary.pending / 5), minutes: Math.ceil(summary.pending / 5) * 5 })}
             </span>
           </div>
         )}
@@ -232,18 +233,22 @@ function toneText(tone: string): string {
 }
 
 function ActiveJobCard({ job, onCancel, onDismiss }: { job: ProductEnrichmentJob; onCancel: () => void; onDismiss: () => void }) {
+  const t = useTranslations('produtos')
   const pct = job.total_count > 0 ? Math.round((job.processed_count / job.total_count) * 100) : 0
   const isActive = job.status === 'queued' || job.status === 'processing'
   const finished = job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled'
 
-  const statusLabels: Record<string, { label: string; tone: string }> = {
-    queued:     { label: 'Na fila',     tone: 'cyan' },
-    processing: { label: 'Processando', tone: 'cyan' },
-    completed:  { label: '✓ Concluído', tone: 'emerald' },
-    failed:     { label: '✗ Falhou',    tone: 'red' },
-    cancelled:  { label: 'Cancelado',   tone: 'zinc' },
+  const statusTone: Record<string, string> = {
+    queued:     'cyan',
+    processing: 'cyan',
+    completed:  'emerald',
+    failed:     'red',
+    cancelled:  'zinc',
   }
-  const s = statusLabels[job.status] ?? { label: job.status, tone: 'zinc' }
+  const s = {
+    label: statusTone[job.status] ? t(`aiBulk.jobStatus.${job.status}`) : job.status,
+    tone: statusTone[job.status] ?? 'zinc',
+  }
 
   return (
     <div className={`mb-5 rounded-xl border ${toneBorder(s.tone)} bg-zinc-900/30 p-4`}>
@@ -252,7 +257,7 @@ function ActiveJobCard({ job, onCancel, onDismiss }: { job: ProductEnrichmentJob
           {isActive && <Loader2 size={14} className="animate-spin text-cyan-400" />}
           <span className={`text-xs font-semibold ${toneText(s.tone)}`}>{s.label}</span>
           <span className="text-[11px] text-zinc-500">
-            · {job.processed_count}/{job.total_count} produtos
+            · {t('aiBulk.jobProgress', { processed: job.processed_count, total: job.total_count })}
             {' · '}
             ${Number(job.total_cost_usd).toFixed(4)} / ${Number(job.max_cost_usd).toFixed(2)}
           </span>
@@ -260,12 +265,12 @@ function ActiveJobCard({ job, onCancel, onDismiss }: { job: ProductEnrichmentJob
         <div className="flex items-center gap-2">
           {isActive && (
             <button onClick={onCancel} className="text-[11px] text-zinc-500 hover:text-red-400">
-              cancelar
+              {t('aiBulk.cancel')}
             </button>
           )}
           {finished && (
             <button onClick={onDismiss} className="text-[11px] text-zinc-500 hover:text-zinc-300">
-              dispensar
+              {t('aiBulk.dismiss')}
             </button>
           )}
         </div>
@@ -288,13 +293,17 @@ function ActiveJobCard({ job, onCancel, onDismiss }: { job: ProductEnrichmentJob
   )
 }
 
-function buildConfirmMsg(action: string, summary: EnrichmentSummary | null): string {
+function buildConfirmMsg(
+  action: string,
+  summary: EnrichmentSummary | null,
+  t: (key: string, values?: Record<string, string | number | Date>) => string,
+): string {
   const count = action === 'missing' ? summary?.missing
     : action === 'low-score' ? summary?.score_under_60
     : summary?.score_under_40
   const cap = Math.min(count ?? 0, 100)
   const cost = (cap * 0.02).toFixed(2)
-  return `Marcar ${cap} produto${cap === 1 ? '' : 's'} pra enriquecimento.\n\nCusto estimado: ~$${cost}\nWorker processa em background (~5/5min).\n\nConfirmar?`
+  return t('aiBulk.bulkConfirm', { count: cap, cost })
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────

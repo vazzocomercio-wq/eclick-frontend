@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import {
@@ -41,6 +42,7 @@ const CARD = { background: '#111114', border: '1px solid #1a1a1f' }
 const COMP_COLORS = ['#f59e0b', '#22c55e', '#a78bfa', '#f87171', '#fb923c', '#34d399']
 
 export default function ComparacaoPage() {
+  const t = useTranslations('radar')
   const params = useParams<{ productId: string }>()
   const productId = params?.productId
 
@@ -57,11 +59,11 @@ export default function ComparacaoPage() {
     try {
       setData(await api<Comparison>(`/radar/competitors/products/${productId}`))
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Falha ao carregar')
+      setError(e instanceof Error ? e.message : t('errorLoad'))
     } finally {
       setLoading(false)
     }
-  }, [productId])
+  }, [productId, t])
 
   useEffect(() => { void load() }, [load])
 
@@ -78,17 +80,18 @@ export default function ComparacaoPage() {
   }, [productId, data])
 
   const labelOf = useCallback((c: Competitor, i: number) =>
-    c.label || c.title || `Concorrente ${i + 1}`, [])
+    c.label || c.title || t('competitorN', { n: i + 1 }), [t])
 
-  const priceChart = useMemo(() => data ? mergeSeries(data, 'price', labelOf) : [], [data, labelOf])
-  const visitsChart = useMemo(() => data ? mergeSeries(data, 'visits', labelOf) : [], [data, labelOf])
+  const youLabel = t('you')
+  const priceChart = useMemo(() => data ? mergeSeries(data, 'price', labelOf, youLabel) : [], [data, labelOf, youLabel])
+  const visitsChart = useMemo(() => data ? mergeSeries(data, 'visits', labelOf, youLabel) : [], [data, labelOf, youLabel])
 
   return (
     <div className="px-6 py-6 max-w-[1400px] mx-auto">
       <Link href="/dashboard/radar/concorrentes"
         className="inline-flex items-center gap-1.5 text-xs mb-4 hover:text-zinc-300 transition-colors"
         style={{ color: '#71717a' }}>
-        <ArrowLeft size={13} /> Concorrentes Vinculados
+        <ArrowLeft size={13} /> {t('linkedCompetitors')}
       </Link>
 
       {error && (
@@ -122,19 +125,19 @@ export default function ComparacaoPage() {
             <button onClick={() => setAddOpen(true)}
               className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium shrink-0"
               style={{ background: '#00E5FF', color: '#09090b' }}>
-              <Plus size={14} /> Vincular concorrente
+              <Plus size={14} /> {t('linkCompetitor')}
             </button>
           </div>
           <p className="text-xs mb-5" style={{ color: '#52525b' }}>
-            {data.product.sku ? `SKU ${data.product.sku}` : '—'} · seu anúncio vs concorrentes vinculados
+            {data.product.sku ? t('skuLabel', { sku: data.product.sku }) : '—'} · {t('yourListingVsCompetitors')}
           </p>
 
           {/* KPI strip */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-            <Kpi label="Seu preço" value={brl(data.our_side.min_price)} />
-            <Kpi label="Suas visitas (30d)" value={data.our_side.visits_30d.toLocaleString('pt-BR')} />
-            <Kpi label="Suas vendas reais (30d)" value={`${data.our_side.real_units_30d.toLocaleString('pt-BR')} un`} accent />
-            <Kpi label="Concorrentes" value={String(data.competitors.length)} />
+            <Kpi label={t('kpiYourPrice')} value={brl(data.our_side.min_price)} />
+            <Kpi label={t('kpiYourVisits')} value={data.our_side.visits_30d.toLocaleString('pt-BR')} />
+            <Kpi label={t('kpiYourRealSales')} value={t('unitsValue', { value: data.our_side.real_units_30d.toLocaleString('pt-BR') })} accent />
+            <Kpi label={t('kpiCompetitors')} value={String(data.competitors.length)} />
           </div>
 
           {/* Insight IA */}
@@ -144,24 +147,24 @@ export default function ComparacaoPage() {
             }}>
               <div className="flex items-center gap-2 mb-1.5">
                 <Sparkles size={14} style={{ color: '#00E5FF' }} />
-                <h2 className="text-sm font-semibold" style={{ color: '#fafafa' }}>Leitura do Radar</h2>
+                <h2 className="text-sm font-semibold" style={{ color: '#fafafa' }}>{t('radarReading')}</h2>
               </div>
               <p className="text-xs leading-relaxed" style={{ color: insight ? '#d4d4d8' : '#52525b' }}>
-                {insight ?? 'Analisando os movimentos dos concorrentes…'}
+                {insight ?? t('analyzingCompetitorMoves')}
               </p>
             </div>
           )}
 
           {data.competitors.length === 0 && (
             <div className="rounded-xl p-10 text-center" style={CARD}>
-              <p className="text-sm font-medium" style={{ color: '#fafafa' }}>Nenhum concorrente vinculado a este produto</p>
+              <p className="text-sm font-medium" style={{ color: '#fafafa' }}>{t('noCompetitorsForProduct')}</p>
               <p className="text-xs mt-1 mb-4" style={{ color: '#71717a' }}>
-                Vincule anúncios de concorrente para comparar preço, visitas e venda estimada.
+                {t('noCompetitorsForProductHint')}
               </p>
               <button onClick={() => setAddOpen(true)}
                 className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium"
                 style={{ background: '#00E5FF', color: '#09090b' }}>
-                <Plus size={14} /> Vincular concorrente
+                <Plus size={14} /> {t('linkCompetitor')}
               </button>
             </div>
           )}
@@ -170,20 +173,24 @@ export default function ComparacaoPage() {
             <>
               {/* Gráficos */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5">
-                <ChartCard title="Preço ao longo do tempo">
-                  <CompareChart data={priceChart} comps={data.competitors} labelOf={labelOf}
+                <ChartCard title={t('priceOverTime')}>
+                  <CompareChart data={priceChart} comps={data.competitors} labelOf={labelOf} youLabel={youLabel}
                     fmt={(v: number) => `R$${v}`} />
                 </ChartCard>
-                <ChartCard title="Visitas ao longo do tempo">
-                  <CompareChart data={visitsChart} comps={data.competitors} labelOf={labelOf} />
+                <ChartCard title={t('visitsOverTime')}>
+                  <CompareChart data={visitsChart} comps={data.competitors} labelOf={labelOf} youLabel={youLabel} />
                 </ChartCard>
               </div>
 
               {/* Conversão usada */}
               <p className="text-[10px] mb-4" style={{ color: '#52525b' }}>
-                Venda estimada do concorrente = visitas × {data.conversion.rate != null
-                  ? `conversão de ${(data.conversion.rate * 100).toFixed(1).replace('.', ',')}% (calibrada por ${data.conversion.basis}${data.conversion.confidence === 'low' ? ', confiança baixa' : ''})`
-                  : 'conversão ainda não calibrada'}. É estimativa — não a venda real do concorrente.
+                {data.conversion.rate != null
+                  ? t('estimatedSaleFormulaCalibrated', {
+                      rate: (data.conversion.rate * 100).toFixed(1).replace('.', ','),
+                      basis: data.conversion.basis,
+                      conf: data.conversion.confidence === 'low' ? t('lowConfidenceSuffix') : '',
+                    })
+                  : t('estimatedSaleFormulaNotCalibrated')}
               </p>
 
               {/* Cards de concorrente */}
@@ -212,6 +219,7 @@ export default function ComparacaoPage() {
 function CompetitorCard({ comp, color, name, onChanged }: {
   comp: Competitor; color: string; name: string; onChanged: () => void
 }) {
+  const t = useTranslations('radar')
   const [editing, setEditing] = useState(false)
   const [priceInput, setPriceInput] = useState(comp.current_price != null ? String(comp.current_price) : '')
   const [busy, setBusy] = useState(false)
@@ -238,7 +246,7 @@ function CompetitorCard({ comp, color, name, onChanged }: {
     } catch { setBusy(false) }
   }
   const remove = async () => {
-    if (!confirm(`Remover o vínculo com "${name}"?`)) return
+    if (!confirm(t('confirmRemoveLink', { name }))) return
     setBusy(true)
     try {
       await api(`/radar/competitors/links/${comp.link_id}`, { method: 'DELETE' })
@@ -257,7 +265,7 @@ function CompetitorCard({ comp, color, name, onChanged }: {
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium truncate" style={{ color: '#fafafa' }}>{name}</span>
             {comp.status === 'pausado' && (
-              <span className="text-[9px] rounded px-1.5 py-0.5" style={{ background: '#27272a', color: '#a1a1aa' }}>pausado</span>
+              <span className="text-[9px] rounded px-1.5 py-0.5" style={{ background: '#27272a', color: '#a1a1aa' }}>{t('paused')}</span>
             )}
           </div>
           {comp.url && (
@@ -268,13 +276,13 @@ function CompetitorCard({ comp, color, name, onChanged }: {
           )}
         </div>
         <div className="flex items-center gap-1 shrink-0">
-          <button onClick={toggleStatus} disabled={busy} title={comp.status === 'ativo' ? 'Pausar' : 'Retomar'}
+          <button onClick={toggleStatus} disabled={busy} title={comp.status === 'ativo' ? t('pause') : t('resume')}
             className="p-1.5 rounded hover:bg-white/[0.05]">
             {comp.status === 'ativo'
               ? <Pause size={13} style={{ color: '#71717a' }} />
               : <Play size={13} style={{ color: '#71717a' }} />}
           </button>
-          <button onClick={remove} disabled={busy} title="Remover"
+          <button onClick={remove} disabled={busy} title={t('remove')}
             className="p-1.5 rounded hover:bg-white/[0.05]">
             <Trash2 size={13} style={{ color: '#71717a' }} />
           </button>
@@ -283,13 +291,13 @@ function CompetitorCard({ comp, color, name, onChanged }: {
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-3">
         <div>
-          <p className="text-[10px] mb-1" style={{ color: '#71717a' }}>Preço dele</p>
+          <p className="text-[10px] mb-1" style={{ color: '#71717a' }}>{t('theirPriceLabel')}</p>
           {editing ? (
             <div className="flex items-center gap-1">
               <input value={priceInput} onChange={e => setPriceInput(e.target.value)} inputMode="decimal" autoFocus
                 className="w-20 rounded px-1.5 py-1 text-sm tabular-nums outline-none"
                 style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }} />
-              <button onClick={savePrice} disabled={busy} className="text-[10px]" style={{ color: '#4ade80' }}>ok</button>
+              <button onClick={savePrice} disabled={busy} className="text-[10px]" style={{ color: '#4ade80' }}>{t('ok')}</button>
               <button onClick={() => { setEditing(false); setPriceInput(comp.current_price != null ? String(comp.current_price) : '') }}
                 className="text-[10px]" style={{ color: '#71717a' }}>x</button>
             </div>
@@ -303,22 +311,22 @@ function CompetitorCard({ comp, color, name, onChanged }: {
           )}
         </div>
         <div>
-          <p className="text-[10px] mb-1" style={{ color: '#71717a' }}>Preço vs você</p>
+          <p className="text-[10px] mb-1" style={{ color: '#71717a' }}>{t('priceVsYou')}</p>
           <p className="text-base font-semibold tabular-nums"
             style={{ color: vs == null ? '#71717a' : vs < 0 ? '#f87171' : vs > 0 ? '#4ade80' : '#fafafa' }}>
             {vs == null ? '—' : `${vs > 0 ? '+' : ''}${vs.toString().replace('.', ',')}%`}
           </p>
         </div>
         <div>
-          <p className="text-[10px] mb-1" style={{ color: '#71717a' }}>Visitas (30d)</p>
+          <p className="text-[10px] mb-1" style={{ color: '#71717a' }}>{t('visits30d')}</p>
           <p className="text-base font-semibold tabular-nums" style={{ color: '#fafafa' }}>
             {comp.visits_30d.toLocaleString('pt-BR')}
           </p>
         </div>
         <div>
-          <p className="text-[10px] mb-1" style={{ color: '#71717a' }}>Venda estimada (30d)</p>
+          <p className="text-[10px] mb-1" style={{ color: '#71717a' }}>{t('estimatedSale30d')}</p>
           <p className="text-base font-semibold tabular-nums" style={{ color: '#a1a1aa' }}>
-            {comp.est_units_30d == null ? '—' : `~${comp.est_units_30d.toLocaleString('pt-BR')} un`}
+            {comp.est_units_30d == null ? '—' : t('unitsEst', { value: comp.est_units_30d.toLocaleString('pt-BR') })}
           </p>
         </div>
       </div>
@@ -345,6 +353,7 @@ function CompetitorCard({ comp, color, name, onChanged }: {
 function AddCompetitorModal({ productId, onClose, onSaved }: {
   productId: string; onClose: () => void; onSaved: () => void
 }) {
+  const t = useTranslations('radar')
   const [url, setUrl] = useState('')
   const [label, setLabel] = useState('')
   const [price, setPrice] = useState('')
@@ -353,7 +362,7 @@ function AddCompetitorModal({ productId, onClose, onSaved }: {
 
   const submit = async () => {
     setErr(null)
-    if (!url.trim()) { setErr('Cole o link do anúncio concorrente.'); return }
+    if (!url.trim()) { setErr(t('errPasteLink')); return }
     setSaving(true)
     try {
       await api('/radar/competitors/links', {
@@ -367,7 +376,7 @@ function AddCompetitorModal({ productId, onClose, onSaved }: {
       })
       onSaved()
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Falha ao salvar')
+      setErr(e instanceof Error ? e.message : t('errorSave'))
     } finally {
       setSaving(false)
     }
@@ -378,31 +387,31 @@ function AddCompetitorModal({ productId, onClose, onSaved }: {
       style={{ background: 'rgba(0,0,0,0.7)' }} onClick={onClose}>
       <div className="w-full max-w-md rounded-xl p-5" style={CARD} onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold" style={{ color: '#fafafa' }}>Vincular concorrente</h2>
+          <h2 className="text-sm font-semibold" style={{ color: '#fafafa' }}>{t('linkCompetitor')}</h2>
           <button onClick={onClose}><X size={16} style={{ color: '#71717a' }} /></button>
         </div>
 
-        <label className="text-[11px] block mb-1" style={{ color: '#a1a1aa' }}>Link do anúncio concorrente</label>
+        <label className="text-[11px] block mb-1" style={{ color: '#a1a1aa' }}>{t('competitorLink')}</label>
         <input value={url} onChange={e => setUrl(e.target.value)} placeholder="https://produto.mercadolivre.com.br/MLB-…"
           className="w-full rounded-lg px-3 py-2 text-xs outline-none mb-3"
           style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }} />
 
         <div className="grid grid-cols-2 gap-3 mb-3">
           <div>
-            <label className="text-[11px] block mb-1" style={{ color: '#a1a1aa' }}>Apelido (opcional)</label>
-            <input value={label} onChange={e => setLabel(e.target.value)} placeholder="Ex: Loja barata"
+            <label className="text-[11px] block mb-1" style={{ color: '#a1a1aa' }}>{t('nicknameOptional')}</label>
+            <input value={label} onChange={e => setLabel(e.target.value)} placeholder={t('nicknamePlaceholder')}
               className="w-full rounded-lg px-3 py-2 text-xs outline-none"
               style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }} />
           </div>
           <div>
-            <label className="text-[11px] block mb-1" style={{ color: '#a1a1aa' }}>Preço dele (R$)</label>
+            <label className="text-[11px] block mb-1" style={{ color: '#a1a1aa' }}>{t('theirPrice')}</label>
             <input value={price} onChange={e => setPrice(e.target.value)} placeholder="0,00" inputMode="decimal"
               className="w-full rounded-lg px-3 py-2 text-xs outline-none tabular-nums"
               style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }} />
           </div>
         </div>
         <p className="text-[10px] mb-3" style={{ color: '#52525b' }}>
-          O Mercado Livre não libera o preço de concorrente — por isso você informa. As visitas são coletadas sozinhas.
+          {t('priceNotShared')}
         </p>
 
         {err && (
@@ -414,7 +423,7 @@ function AddCompetitorModal({ productId, onClose, onSaved }: {
         <button onClick={submit} disabled={saving}
           className="w-full rounded-lg py-2.5 text-xs font-medium transition-opacity disabled:opacity-50"
           style={{ background: '#00E5FF', color: '#09090b' }}>
-          {saving ? 'Salvando…' : 'Vincular'}
+          {saving ? t('saving') : t('link')}
         </button>
       </div>
     </div>
@@ -441,16 +450,18 @@ function ChartCard({ title, children }: { title: string; children: ReactNode }) 
   )
 }
 
-function CompareChart({ data, comps, labelOf, fmt }: {
+function CompareChart({ data, comps, labelOf, youLabel, fmt }: {
   data: Array<Record<string, number | string>>
   comps: Competitor[]
   labelOf: (c: Competitor, i: number) => string
+  youLabel: string
   fmt?: (v: number) => string
 }) {
+  const t = useTranslations('radar')
   if (data.length === 0) {
     return (
       <div className="h-[240px] flex items-center justify-center">
-        <p className="text-xs" style={{ color: '#52525b' }}>Sem dados ainda — a coleta diária preenche isto.</p>
+        <p className="text-xs" style={{ color: '#52525b' }}>{t('noDataYet')}</p>
       </div>
     )
   }
@@ -464,7 +475,7 @@ function CompareChart({ data, comps, labelOf, fmt }: {
         <Tooltip contentStyle={{ background: '#18181b', border: '1px solid #27272a', borderRadius: 8, fontSize: 11 }}
           labelStyle={{ color: '#a1a1aa' }} />
         <Legend wrapperStyle={{ fontSize: 11, color: '#71717a' }} iconSize={9} />
-        <Line type="monotone" dataKey="Você" stroke="#00E5FF" strokeWidth={1.8} dot={false} connectNulls />
+        <Line type="monotone" dataKey={youLabel} stroke="#00E5FF" strokeWidth={1.8} dot={false} connectNulls />
         {comps.map((c, i) => (
           <Line key={c.link_id} type="monotone" dataKey={labelOf(c, i)}
             stroke={COMP_COLORS[i % COMP_COLORS.length]} strokeWidth={1.5} dot={false} connectNulls />
@@ -479,6 +490,7 @@ function mergeSeries(
   data: Comparison,
   field: 'price' | 'visits',
   labelOf: (c: Competitor, i: number) => string,
+  youLabel: string,
 ): Array<Record<string, number | string>> {
   const byDate = new Map<string, Record<string, number | string>>()
   const ensure = (d: string): Record<string, number | string> => {
@@ -488,7 +500,7 @@ function mergeSeries(
   }
   for (const p of data.our_side.series) {
     const v = p[field]
-    if (v != null) ensure(p.date)['Você'] = v
+    if (v != null) ensure(p.date)[youLabel] = v
   }
   data.competitors.forEach((c, i) => {
     const name = labelOf(c, i)

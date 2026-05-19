@@ -1,6 +1,7 @@
 'use client'
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import { Loader2, RefreshCw } from 'lucide-react'
 
@@ -43,24 +44,18 @@ interface Journey {
   last_error?:           string | null
 }
 
-const STATE_META: Record<string, { color: string; label: string }> = {
-  pending:            { color: '#fbbf24', label: 'Pendente' },
-  active:             { color: '#22c55e', label: 'Em andamento' },
-  blocked_consent:    { color: '#f97316', label: 'Sem consent.' },
-  blocked_no_contact: { color: '#ef4444', label: 'Sem contato' },
-  completed:          { color: '#00E5FF', label: 'Concluído' },
-  failed:             { color: '#dc2626', label: 'Falha' },
-  cancelled:          { color: '#6b7280', label: 'Cancelado' },
-  paused:             { color: '#a1a1aa', label: 'Pausado' },
+const STATE_COLORS: Record<string, string> = {
+  pending:            '#fbbf24',
+  active:             '#22c55e',
+  blocked_consent:    '#f97316',
+  blocked_no_contact: '#ef4444',
+  completed:          '#00E5FF',
+  failed:             '#dc2626',
+  cancelled:          '#6b7280',
+  paused:             '#a1a1aa',
 }
 
-const FILTERS: { key: FilterKey; label: string }[] = [
-  { key: 'all',          label: 'Todos' },
-  { key: 'em_andamento', label: 'Em andamento' },
-  { key: 'bloqueados',   label: 'Bloqueados' },
-  { key: 'concluidos',   label: 'Concluídos' },
-  { key: 'falhas',       label: 'Falhas' },
-]
+const FILTER_KEYS: FilterKey[] = ['all', 'em_andamento', 'bloqueados', 'concluidos', 'falhas']
 
 interface Props {
   onToast?: (msg: string, type?: 'success' | 'error') => void
@@ -68,13 +63,15 @@ interface Props {
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
-function relTime(iso: string | null | undefined): string {
+type TFn = (key: string, values?: Record<string, string | number>) => string
+
+function relTime(iso: string | null | undefined, t: TFn): string {
   if (!iso) return '—'
   const d = Date.now() - new Date(iso).getTime()
-  if (d < 60_000)        return 'agora'
-  if (d < 3_600_000)     return `há ${Math.floor(d / 60_000)}min`
-  if (d < 86_400_000)    return `há ${Math.floor(d / 3_600_000)}h`
-  if (d < 86_400_000 * 7) return `há ${Math.floor(d / 86_400_000)}d`
+  if (d < 60_000)        return t('relTime.now')
+  if (d < 3_600_000)     return t('relTime.minutes', { n: Math.floor(d / 60_000) })
+  if (d < 86_400_000)    return t('relTime.hours', { n: Math.floor(d / 3_600_000) })
+  if (d < 86_400_000 * 7) return t('relTime.days', { n: Math.floor(d / 86_400_000) })
   return new Date(iso).toLocaleDateString('pt-BR')
 }
 
@@ -86,6 +83,7 @@ function truncate(s: string | null | undefined, n: number): string {
 // ── component ─────────────────────────────────────────────────────────────────
 
 export default function PedidosEmCursoTab({ onToast }: Props) {
+  const t = useTranslations('comunicacao.orders')
   const supabase = useMemo(() => createClient(), [])
   const [funnel,    setFunnel]    = useState<Funnel | null>(null)
   const [timeline,  setTimeline]  = useState<TimelineDay[]>([])
@@ -144,11 +142,11 @@ export default function PedidosEmCursoTab({ onToast }: Props) {
       if (timelineRes.ok) setTimeline(await timelineRes.json() as TimelineDay[])
       setJourneys(journeysRes)
     } catch {
-      if (!silent) onToast?.('Erro ao carregar dashboard', 'error')
+      if (!silent) onToast?.(t('toast.loadFailed'), 'error')
     } finally {
       setLoading(false); setRefreshing(false)
     }
-  }, [headers, fetchJourneys, onToast])
+  }, [headers, fetchJourneys, onToast, t])
 
   // onMount + filter change
   useEffect(() => { void loadAll() }, [loadAll, filter])
@@ -192,19 +190,19 @@ export default function PedidosEmCursoTab({ onToast }: Props) {
         {/* Funil */}
         <div className="rounded-xl p-4"
           style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
-          <h3 className="text-zinc-200 text-sm font-semibold mb-3">Funil últimos 30 dias</h3>
+          <h3 className="text-zinc-200 text-sm font-semibold mb-3">{t('funnel.title')}</h3>
           {!funnel ? (
-            <p className="text-zinc-600 text-[12px]"><Loader2 size={11} className="inline animate-spin mr-1.5" />Carregando…</p>
+            <p className="text-zinc-600 text-[12px]"><Loader2 size={11} className="inline animate-spin mr-1.5" />{t('loading')}</p>
           ) : (
             <div className="grid grid-cols-2 gap-2.5">
-              <Kpi label="Jornadas criadas"       value={funnel.journeys_created}            color="#60a5fa" />
-              <Kpi label="Clientes enriquecidos"  value={funnel.customers_enriched}          color="#60a5fa" />
-              <Kpi label="Em andamento"           value={funnel.journeys_active}             color="#22c55e" />
-              <Kpi label="Bloqueados (consent)"   value={funnel.journeys_blocked_consent}    color="#f97316" />
-              <Kpi label="Sem contato"            value={funnel.journeys_blocked_no_contact} color="#ef4444" />
-              <Kpi label="Mensagens enviadas"     value={funnel.messages_sent}               color="#00E5FF" />
+              <Kpi label={t('funnel.journeysCreated')}      value={funnel.journeys_created}            color="#60a5fa" />
+              <Kpi label={t('funnel.customersEnriched')}    value={funnel.customers_enriched}          color="#60a5fa" />
+              <Kpi label={t('funnel.active')}               value={funnel.journeys_active}             color="#22c55e" />
+              <Kpi label={t('funnel.blockedConsent')}       value={funnel.journeys_blocked_consent}    color="#f97316" />
+              <Kpi label={t('funnel.noContact')}            value={funnel.journeys_blocked_no_contact} color="#ef4444" />
+              <Kpi label={t('funnel.messagesSent')}         value={funnel.messages_sent}               color="#00E5FF" />
               <div className="col-span-2">
-                <Kpi label="Falhas" value={funnel.messages_failed} color="#dc2626" />
+                <Kpi label={t('funnel.failures')} value={funnel.messages_failed} color="#dc2626" />
               </div>
             </div>
           )}
@@ -213,9 +211,9 @@ export default function PedidosEmCursoTab({ onToast }: Props) {
         {/* Gráfico timeline */}
         <div className="rounded-xl p-4"
           style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
-          <h3 className="text-zinc-200 text-sm font-semibold mb-3">Mensagens últimos 30 dias</h3>
+          <h3 className="text-zinc-200 text-sm font-semibold mb-3">{t('timeline.title')}</h3>
           {!timelineGeo.hasData ? (
-            <p className="text-zinc-600 text-[12px] text-center py-12">Nenhuma atividade nos últimos 30 dias</p>
+            <p className="text-zinc-600 text-[12px] text-center py-12">{t('timeline.empty')}</p>
           ) : (
             <>
               <svg viewBox={`0 0 ${timelineGeo.W} ${timelineGeo.H}`} preserveAspectRatio="none"
@@ -224,29 +222,29 @@ export default function PedidosEmCursoTab({ onToast }: Props) {
                   <g key={i}>
                     {b.sentH > 0 && (
                       <rect x={b.x} y={b.sentY} width={b.w} height={b.sentH} fill="#22c55e">
-                        <title>{`${b.date}\n✓ Enviadas: ${b.sent}\n✗ Falhas: ${b.fail}`}</title>
+                        <title>{`${b.date}\n${t('timeline.tooltipSent', { n: b.sent })}\n${t('timeline.tooltipFailed', { n: b.fail })}`}</title>
                       </rect>
                     )}
                     {b.failH > 0 && (
                       <rect x={b.x} y={b.failY} width={b.w} height={b.failH} fill="#dc2626">
-                        <title>{`${b.date}\n✓ Enviadas: ${b.sent}\n✗ Falhas: ${b.fail}`}</title>
+                        <title>{`${b.date}\n${t('timeline.tooltipSent', { n: b.sent })}\n${t('timeline.tooltipFailed', { n: b.fail })}`}</title>
                       </rect>
                     )}
                   </g>
                 ))}
               </svg>
               <div className="flex justify-between text-[10px] text-zinc-600 mt-1 px-0.5">
-                <span>dia 1</span>
+                <span>{t('timeline.day1')}</span>
                 <span>10</span>
                 <span>20</span>
                 <span>30</span>
               </div>
               <div className="flex items-center justify-end gap-3 text-[10px] text-zinc-500 mt-2">
                 <span className="inline-flex items-center gap-1">
-                  <span className="w-2 h-2 inline-block rounded-sm" style={{ background: '#22c55e' }} /> enviadas
+                  <span className="w-2 h-2 inline-block rounded-sm" style={{ background: '#22c55e' }} /> {t('timeline.legendSent')}
                 </span>
                 <span className="inline-flex items-center gap-1">
-                  <span className="w-2 h-2 inline-block rounded-sm" style={{ background: '#dc2626' }} /> falhas
+                  <span className="w-2 h-2 inline-block rounded-sm" style={{ background: '#dc2626' }} /> {t('timeline.legendFailed')}
                 </span>
               </div>
             </>
@@ -256,23 +254,23 @@ export default function PedidosEmCursoTab({ onToast }: Props) {
 
       {/* SEÇÃO 2: Filtros */}
       <div className="flex items-center gap-2 flex-wrap">
-        {FILTERS.map(f => {
-          const active = filter === f.key
+        {FILTER_KEYS.map(key => {
+          const active = filter === key
           return (
-            <button key={f.key} onClick={() => { setFilter(f.key); setExpanded(null) }}
+            <button key={key} onClick={() => { setFilter(key); setExpanded(null) }}
               className="px-3 py-1.5 text-[12px] font-medium rounded-full transition-colors"
               style={{
                 background: active ? 'rgba(0,229,255,0.08)' : '#0c0c10',
                 color:      active ? '#00E5FF' : '#a1a1aa',
                 border:     `1px solid ${active ? 'rgba(0,229,255,0.40)' : '#1a1a1f'}`,
               }}>
-              {f.label}
+              {t(`filters.${key}`)}
             </button>
           )
         })}
         {refreshing && (
           <span className="ml-2 inline-flex items-center gap-1 text-[10px] text-zinc-500">
-            <RefreshCw size={10} className="animate-spin" /> atualizando…
+            <RefreshCw size={10} className="animate-spin" /> {t('refreshing')}
           </span>
         )}
       </div>
@@ -285,29 +283,30 @@ export default function PedidosEmCursoTab({ onToast }: Props) {
             <thead>
               <tr className="text-left text-[10px] uppercase tracking-wide text-zinc-600"
                 style={{ borderBottom: '1px solid #1a1a1f' }}>
-                <th className="px-3 py-2 font-semibold">Cliente</th>
-                <th className="px-3 py-2 font-semibold">Produto</th>
-                <th className="px-3 py-2 font-semibold w-28">Estado</th>
-                <th className="px-3 py-2 font-semibold w-28">Progresso</th>
-                <th className="px-3 py-2 font-semibold w-20">Última msg</th>
-                <th className="px-3 py-2 font-semibold w-20">Criado</th>
+                <th className="px-3 py-2 font-semibold">{t('table.customer')}</th>
+                <th className="px-3 py-2 font-semibold">{t('table.product')}</th>
+                <th className="px-3 py-2 font-semibold w-28">{t('table.state')}</th>
+                <th className="px-3 py-2 font-semibold w-28">{t('table.progress')}</th>
+                <th className="px-3 py-2 font-semibold w-20">{t('table.lastMsg')}</th>
+                <th className="px-3 py-2 font-semibold w-20">{t('table.created')}</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
                   <td colSpan={6} className="px-3 py-8 text-center text-[12px] text-zinc-600">
-                    <Loader2 size={14} className="inline animate-spin mr-1.5" />Carregando pedidos…
+                    <Loader2 size={14} className="inline animate-spin mr-1.5" />{t('table.loading')}
                   </td>
                 </tr>
               ) : journeys.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-3 py-8 text-center text-[12px] text-zinc-600">
-                    Nenhum pedido encontrado{filter !== 'all' ? ' nesse filtro' : ''}.
+                    {filter !== 'all' ? t('table.emptyFiltered') : t('table.empty')}
                   </td>
                 </tr>
               ) : journeys.map(j => {
-                const meta = STATE_META[j.state] ?? { color: '#a1a1aa', label: j.state }
+                const stateColor = STATE_COLORS[j.state] ?? '#a1a1aa'
+                const meta = { color: stateColor, label: STATE_COLORS[j.state] ? t(`states.${j.state}`) : j.state }
                 const isOpen = expanded === j.ocj_id
                 const total  = j.total_steps ?? 0
                 const cur    = j.current_step ?? 0
@@ -341,10 +340,10 @@ export default function PedidosEmCursoTab({ onToast }: Props) {
                         ) : <span className="text-[10px] text-zinc-700">—</span>}
                       </td>
                       <td className="px-3 py-2.5 text-[11px] text-zinc-500 tabular-nums">
-                        {relTime(j.last_message_sent_at)}
+                        {relTime(j.last_message_sent_at, t)}
                       </td>
                       <td className="px-3 py-2.5 text-[11px] text-zinc-500 tabular-nums">
-                        {relTime(j.created_at)}
+                        {relTime(j.created_at, t)}
                       </td>
                     </tr>
                     {isOpen && (
@@ -353,25 +352,25 @@ export default function PedidosEmCursoTab({ onToast }: Props) {
                           <div className="space-y-1.5 text-[11px]">
                             {j.journey_name && (
                               <p className="text-zinc-400">
-                                <span className="text-zinc-600 mr-1">Jornada:</span>
+                                <span className="text-zinc-600 mr-1">{t('detail.journey')}</span>
                                 <span className="text-zinc-200">{j.journey_name}</span>
                               </p>
                             )}
                             {j.stopped_reason && (
                               <p style={{ color: '#f97316' }}>
-                                <span className="text-zinc-600 mr-1">Parada:</span>
+                                <span className="text-zinc-600 mr-1">{t('detail.stopped')}</span>
                                 {j.stopped_reason}
                               </p>
                             )}
                             {j.last_error && (
                               <p style={{ color: '#dc2626' }}>
-                                <span className="text-zinc-600 mr-1">Erro:</span>
+                                <span className="text-zinc-600 mr-1">{t('detail.error')}</span>
                                 {j.last_error}
                               </p>
                             )}
                             <p className="text-zinc-600 italic pt-1.5"
                               style={{ borderTop: '1px solid #1a1a1f' }}>
-                              Detalhes de mensagens em breve.
+                              {t('detail.soon')}
                             </p>
                           </div>
                         </td>

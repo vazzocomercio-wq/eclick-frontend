@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import {
   PieChart, Pie, Cell, Tooltip as ReTooltip,
@@ -54,6 +55,8 @@ type SortDir = 'asc' | 'desc'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+type Translator = ReturnType<typeof useTranslations>
+
 async function getToken() {
   const { data } = await createClient().auth.getSession()
   return data.session?.access_token ?? null
@@ -78,13 +81,14 @@ function Skel({ h = 16, w = '100%', className = '' }: { h?: number; w?: string; 
 // ── KPI Cards ─────────────────────────────────────────────────────────────────
 
 function KpiCard6({
-  label, value, sub1, sub2, color, loading, toggle, toggled, onToggle, warning,
+  label, value, sub1, sub2, color, loading, toggle, toggled, onToggle, warning, t,
 }: {
   label: string; value: string; sub1?: string; sub2?: string
   color: string; loading: boolean
   toggle?: string; toggled?: boolean; onToggle?: () => void
   /** Alerta âmbar dentro do card (ex.: "X de Y sem custo · margem inflada"). */
   warning?: { text: string; href?: string }
+  t: Translator
 }) {
   return (
     <div className="rounded-xl p-4 flex flex-col gap-2" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
@@ -113,7 +117,7 @@ function KpiCard6({
                 <span className="text-[9.5px] text-yellow-300 leading-snug">
                   {warning.text}
                   {warning.href && (
-                    <> · <a href={warning.href} className="underline hover:text-yellow-200 transition-colors">Atualizar →</a></>
+                    <> · <a href={warning.href} className="underline hover:text-yellow-200 transition-colors">{t('resumo.warningUpdateLink')}</a></>
                   )}
                 </span>
               </div>
@@ -126,7 +130,7 @@ function KpiCard6({
 
 // ── Donut Chart ───────────────────────────────────────────────────────────────
 
-function DonutChart({ data, marginPct }: { data: DonutSlice[]; marginPct: number }) {
+function DonutChart({ data, marginPct, t }: { data: DonutSlice[]; marginPct: number; t: Translator }) {
   const [active, setActive] = useState<number | null>(null)
   const displayData = data.filter(d => d.value > 0)
   const marginColor = marginPct >= 0 ? '#22c55e' : '#f87171'
@@ -173,7 +177,7 @@ function DonutChart({ data, marginPct }: { data: DonutSlice[]; marginPct: number
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="text-center">
             <p className="text-lg font-black leading-none" style={{ color: marginColor }}>{marginPct.toFixed(1)}%</p>
-            <p className="text-[9px] text-zinc-600 mt-0.5">margem</p>
+            <p className="text-[9px] text-zinc-600 mt-0.5">{t('resumo.donutMargin')}</p>
           </div>
         </div>
       </div>
@@ -185,7 +189,7 @@ function DonutChart({ data, marginPct }: { data: DonutSlice[]; marginPct: number
             <span className="text-[11px] font-semibold text-zinc-200 shrink-0 tabular-nums">{d.pct.toFixed(1)}%</span>
           </div>
         ))}
-        <p className="text-[9px] text-zinc-700 mt-1 leading-snug">*Frete pago pelo comprador não considerado</p>
+        <p className="text-[9px] text-zinc-700 mt-1 leading-snug">{t('resumo.donutFootnote')}</p>
       </div>
     </div>
   )
@@ -198,10 +202,10 @@ const sel = `${inp} cursor-pointer`
 const lbl = 'block text-[11px] font-medium text-zinc-400 mb-1'
 
 function FilterPanel({
-  filters, setFilters, onSearch, loading,
+  filters, setFilters, onSearch, loading, t,
 }: {
   filters: Filters; setFilters: (f: Filters) => void
-  onSearch: () => void; loading: boolean
+  onSearch: () => void; loading: boolean; t: Translator
 }) {
   function set(key: keyof Filters, val: string) {
     setFilters({ ...filters, [key]: val })
@@ -209,27 +213,27 @@ function FilterPanel({
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
       <div>
-        <label className={lbl}>Data início</label>
+        <label className={lbl}>{t('resumo.filterDateFrom')}</label>
         <input type="date" className={inp} value={filters.date_from}
           onChange={e => set('date_from', e.target.value)} />
       </div>
       <div>
-        <label className={lbl}>Data fim</label>
+        <label className={lbl}>{t('resumo.filterDateTo')}</label>
         <input type="date" className={inp} value={filters.date_to}
           onChange={e => set('date_to', e.target.value)} />
       </div>
       <div>
-        <label className={lbl}>Status</label>
+        <label className={lbl}>{t('resumo.filterStatus')}</label>
         <select className={sel} value={filters.status} onChange={e => set('status', e.target.value)}>
-          <option value="all">Todos</option>
-          <option value="paid">Aprovadas</option>
-          <option value="cancelled">Canceladas</option>
+          <option value="all">{t('resumo.statusAll')}</option>
+          <option value="paid">{t('resumo.statusApproved')}</option>
+          <option value="cancelled">{t('resumo.statusCancelled')}</option>
         </select>
       </div>
       <div>
-        <label className={lbl}>Tipo de Frete</label>
+        <label className={lbl}>{t('resumo.filterShippingType')}</label>
         <select className={sel} value={filters.shipping_type} onChange={e => set('shipping_type', e.target.value)}>
-          <option value="all">Todos</option>
+          <option value="all">{t('resumo.statusAll')}</option>
           <option value="fulfillment">Full</option>
           <option value="self_service">Flex</option>
           <option value="drop_off">ME1/ME2</option>
@@ -237,8 +241,8 @@ function FilterPanel({
         </select>
       </div>
       <div>
-        <label className={lbl}>Título ou SKU</label>
-        <input type="text" className={inp} placeholder="buscar..." value={filters.q}
+        <label className={lbl}>{t('resumo.filterTitleOrSku')}</label>
+        <input type="text" className={inp} placeholder={t('resumo.searchPlaceholder')} value={filters.q}
           onChange={e => set('q', e.target.value)}
           onKeyDown={e => e.key === 'Enter' && onSearch()} />
       </div>
@@ -246,7 +250,7 @@ function FilterPanel({
         <button onClick={onSearch} disabled={loading}
           className="w-full py-2 rounded-lg text-xs font-semibold transition-all disabled:opacity-60"
           style={{ background: '#00E5FF', color: '#000' }}>
-          {loading ? 'Buscando…' : 'Buscar'}
+          {loading ? t('resumo.searching') : t('resumo.search')}
         </button>
       </div>
     </div>
@@ -293,15 +297,15 @@ function MonCell({ v, color, prefix = '' }: { v: number | null; color?: string; 
 
 // ── Pagination ────────────────────────────────────────────────────────────────
 
-function Pagination({ page, total, size, onPage, onSize }: {
+function Pagination({ page, total, size, onPage, onSize, t }: {
   page: number; total: number; size: number
-  onPage: (p: number) => void; onSize: (s: 20 | 50 | 100) => void
+  onPage: (p: number) => void; onSize: (s: 20 | 50 | 100) => void; t: Translator
 }) {
   const last = Math.max(0, Math.ceil(total / size) - 1)
   return (
     <div className="flex items-center justify-between pt-4">
       <div className="flex items-center gap-2">
-        <span className="text-zinc-600 text-xs">{total.toLocaleString('pt-BR')} registros</span>
+        <span className="text-zinc-600 text-xs">{t('resumo.records', { count: total })}</span>
         <select
           value={size}
           onChange={e => onSize(Number(e.target.value) as 20 | 50 | 100)}
@@ -333,24 +337,24 @@ function Pagination({ page, total, size, onPage, onSize }: {
 
 // ── Action bar ────────────────────────────────────────────────────────────────
 
-function ActionBar({ onExport }: { onExport: (fmt: 'csv') => void }) {
+function ActionBar({ onExport, t }: { onExport: (fmt: 'csv') => void; t: Translator }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
       <button className="px-3.5 py-2 rounded-lg text-[11px] font-semibold transition-all"
         style={{ background: 'rgba(59,130,246,0.12)', color: '#60a5fa', border: '1px solid rgba(59,130,246,0.25)' }}>
-        Nivelar Custo &amp; Imposto
+        {t('resumo.actionLevelCostTax')}
       </button>
       <button className="px-3.5 py-2 rounded-lg text-[11px] font-semibold transition-all"
         style={{ background: 'rgba(167,139,250,0.12)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.25)' }}>
-        Nivelar SKU
+        {t('resumo.actionLevelSku')}
       </button>
       <button className="px-3.5 py-2 rounded-lg text-[11px] font-semibold transition-all"
         style={{ background: 'rgba(251,191,36,0.10)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.2)' }}>
-        Ranking de Produtos
+        {t('resumo.actionProductRanking')}
       </button>
       <button className="px-3.5 py-2 rounded-lg text-[11px] font-semibold transition-all"
         style={{ background: 'rgba(34,197,94,0.10)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.2)' }}>
-        Reaver Dias Perdidos
+        {t('resumo.actionRecoverLostDays')}
       </button>
       <div className="ml-auto flex items-center gap-1.5">
         <button onClick={() => onExport('csv')}
@@ -369,6 +373,7 @@ function ActionBar({ onExport }: { onExport: (fmt: 'csv') => void }) {
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function FinancialSummaryPage() {
+  const t = useTranslations('financeiro')
   const [summary, setSummary]       = useState<Summary | null>(null)
   const [loading, setLoading]       = useState(true)
   const [filters, setFilters]       = useState<Filters>(defaultFilters)
@@ -385,7 +390,7 @@ export default function FinancialSummaryPage() {
     setLoading(true)
     setError(null)
     const token = await getToken()
-    if (!token) { setError('Sessão expirada.'); setLoading(false); return }
+    if (!token) { setError(t('resumo.sessionExpired')); setLoading(false); return }
 
     const qs = new URLSearchParams({
       date_from:  new Date(f.date_from).toISOString(),
@@ -399,7 +404,7 @@ export default function FinancialSummaryPage() {
 
     if (!res.ok) {
       const txt = await res.text().catch(() => '')
-      setError(txt.slice(0, 200) || 'Erro ao carregar resumo financeiro')
+      setError(txt.slice(0, 200) || t('resumo.loadError'))
       setLoading(false)
       return
     }
@@ -408,7 +413,7 @@ export default function FinancialSummaryPage() {
     setSummary(data)
     setPage(0)
     setLoading(false)
-  }, [])
+  }, [t])
 
   useEffect(() => { load(appliedFilters) }, [load, appliedFilters])
 
@@ -453,8 +458,12 @@ export default function FinancialSummaryPage() {
 
   function exportCsv() {
     if (!sortedOrders.length) return
-    const cols = ['Data','Conta','Título','SKU','Status','Frete','Qtd','Valor Unit.','Faturamento ML',
-      'Custo','Imposto','Tarifa ML','Frete Comprador','Frete Vendedor','Margem Contrib.','MC %']
+    const cols = [
+      t('resumo.csvDate'), t('resumo.csvAccount'), t('resumo.csvTitle'), t('resumo.csvSku'),
+      t('resumo.csvStatus'), t('resumo.csvShipping'), t('resumo.csvQty'), t('resumo.csvUnitPrice'),
+      t('resumo.csvMlRevenue'), t('resumo.csvCost'), t('resumo.csvTax'), t('resumo.csvMlFee'),
+      t('resumo.csvBuyerShipping'), t('resumo.csvSellerShipping'), t('resumo.csvContributionMargin'), t('resumo.csvMcPct'),
+    ]
     const rows = sortedOrders.map(o => [
       new Date(o.date_created).toLocaleDateString('pt-BR'),
       o.account_nickname, o.title ?? '', o.sku ?? '', o.status, o.shipping_type ?? '',
@@ -486,8 +495,8 @@ export default function FinancialSummaryPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-zinc-500 text-xs">Financeiro</p>
-          <h2 className="text-white text-lg font-semibold mt-0.5">Resumo Financeiro</h2>
+          <p className="text-zinc-500 text-xs">{t('resumo.breadcrumb')}</p>
+          <h2 className="text-white text-lg font-semibold mt-0.5">{t('resumo.title')}</h2>
         </div>
         <button onClick={() => setFiltersOpen(o => !o)}
           className="flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold border transition-all"
@@ -495,7 +504,7 @@ export default function FinancialSummaryPage() {
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
           </svg>
-          Filtros avançados
+          {t('resumo.advancedFilters')}
           <svg className="w-3 h-3 transition-transform" style={{ transform: filtersOpen ? 'rotate(180deg)' : undefined }}
             fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
@@ -514,50 +523,50 @@ export default function FinancialSummaryPage() {
       {/* KPI Cards */}
       <section>
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
-          <KpiCard6
-            label="Vendas Aprovadas" loading={loading}
+          <KpiCard6 t={t}
+            label={t('resumo.kpiApprovedSales')} loading={loading}
             value={vendasEfetivas != null ? brl(vendasEfetivas) : '—'}
-            sub1={`Faturamento ML: ${kpis ? brl(kpis.faturamento_ml) : '—'}`}
-            sub2={`Canceladas: ${kpis ? brl(kpis.canceladas) : '—'}`}
+            sub1={t('resumo.kpiMlRevenueSub', { value: kpis ? brl(kpis.faturamento_ml) : '—' })}
+            sub2={t('resumo.kpiCancelledSub', { value: kpis ? brl(kpis.canceladas) : '—' })}
             color="#22c55e"
-            toggle="+ frete comprador" toggled={freteToggle} onToggle={() => setFreteToggle(t => !t)}
+            toggle={t('resumo.kpiToggleBuyerShipping')} toggled={freteToggle} onToggle={() => setFreteToggle(v => !v)}
           />
-          <KpiCard6
-            label="Custo &amp; Imposto" loading={loading}
+          <KpiCard6 t={t}
+            label={t('resumo.kpiCostTax')} loading={loading}
             value={kpis ? brl(kpis.custo_total + kpis.imposto_total) : '—'}
-            sub1={`Custo: ${kpis ? brl(kpis.custo_total) : '—'}`}
-            sub2={`Imposto: ${kpis ? brl(kpis.imposto_total) : '—'}`}
+            sub1={t('resumo.kpiCostSub', { value: kpis ? brl(kpis.custo_total) : '—' })}
+            sub2={t('resumo.kpiTaxSub', { value: kpis ? brl(kpis.imposto_total) : '—' })}
             color="#f87171"
           />
-          <KpiCard6
-            label="Tarifa de Venda" loading={loading}
+          <KpiCard6 t={t}
+            label={t('resumo.kpiSalesFee')} loading={loading}
             value={kpis ? brl(kpis.tarifa_total) : '—'}
-            sub1={`${kpis && kpis.faturamento_ml > 0 ? ((kpis.tarifa_total / kpis.faturamento_ml) * 100).toFixed(1) : '0'}% do faturamento`}
+            sub1={t('resumo.kpiSalesFeeSub', { pct: kpis && kpis.faturamento_ml > 0 ? ((kpis.tarifa_total / kpis.faturamento_ml) * 100).toFixed(1) : '0' })}
             color="#f59e0b"
           />
-          <KpiCard6
-            label="Frete Total" loading={loading}
+          <KpiCard6 t={t}
+            label={t('resumo.kpiTotalShipping')} loading={loading}
             value={kpis ? brl(kpis.frete_total) : '—'}
-            sub1={`Comprador: ${kpis ? brl(kpis.frete_comprador) : '—'}`}
-            sub2={`Vendedor: ${kpis ? brl(kpis.frete_vendedor) : '—'}`}
+            sub1={t('resumo.kpiBuyerShippingSub', { value: kpis ? brl(kpis.frete_comprador) : '—' })}
+            sub2={t('resumo.kpiSellerShippingSub', { value: kpis ? brl(kpis.frete_vendedor) : '—' })}
             color="#3b82f6"
           />
-          <KpiCard6
-            label="Margem de Contribuição" loading={loading}
+          <KpiCard6 t={t}
+            label={t('resumo.kpiContributionMargin')} loading={loading}
             value={kpis ? `${brl(kpis.margem_contribuicao)} / ${pctFmt(kpis.margem_pct)}` : '—'}
             color={kpis ? (kpis.margem_pct >= 0 ? '#22c55e' : '#f87171') : '#52525b'}
             sub1={kpis && kpis.qtd_sem_custo != null && kpis.qtd_sem_custo > 0 && kpis.margem_projetada_pct != null
-              ? `Real estimada: ${brl(kpis.margem_projetada ?? 0)} / ${pctFmt(kpis.margem_projetada_pct)}`
+              ? t('resumo.kpiEstimatedRealSub', { value: brl(kpis.margem_projetada ?? 0), pct: pctFmt(kpis.margem_projetada_pct) })
               : undefined}
             warning={kpis && kpis.qtd_sem_custo != null && kpis.qtd_sem_custo > 0 && kpis.qtd_aprovadas > 0
               ? {
-                  text: `${kpis.qtd_sem_custo} de ${kpis.qtd_aprovadas} pedidos sem custo · margem pode estar superestimada`,
+                  text: t('resumo.kpiMarginWarning', { without: kpis.qtd_sem_custo, total: kpis.qtd_aprovadas }),
                   href: '/dashboard/produtos?missing_cost=1',
                 }
               : undefined}
           />
-          <KpiCard6
-            label="Ticket Médio MC" loading={loading}
+          <KpiCard6 t={t}
+            label={t('resumo.kpiAvgTicketMc')} loading={loading}
             value={kpis ? brl(kpis.ticket_medio_mc) : '—'}
             sub1={pctFmt(kpis?.margem_pct ?? 0)}
             color="#00E5FF"
@@ -572,12 +581,12 @@ export default function FinancialSummaryPage() {
             <div className="flex-1">
               <FilterPanel
                 filters={filters} setFilters={setFilters}
-                onSearch={handleSearch} loading={loading}
+                onSearch={handleSearch} loading={loading} t={t}
               />
             </div>
             {!loading && donut.length > 0 && (
               <div className="shrink-0 xl:w-72">
-                <DonutChart data={donut} marginPct={kpis?.margem_pct ?? 0} />
+                <DonutChart data={donut} marginPct={kpis?.margem_pct ?? 0} t={t} />
               </div>
             )}
           </div>
@@ -588,15 +597,15 @@ export default function FinancialSummaryPage() {
       {!filtersOpen && !loading && donut.length > 0 && (
         <section className="rounded-2xl p-5" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
-            <DonutChart data={donut} marginPct={kpis?.margem_pct ?? 0} />
+            <DonutChart data={donut} marginPct={kpis?.margem_pct ?? 0} t={t} />
             <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 gap-3">
               {kpis && [
-                { l: 'Pedidos aprovados', v: kpis.qtd_aprovadas, c: '#22c55e' },
-                { l: 'Pedidos cancelados', v: kpis.qtd_canceladas, c: '#f87171' },
-                { l: 'Ticket médio', v: brl(kpis.ticket_medio), c: '#00E5FF' },
-                { l: 'Faturamento ML', v: brl(kpis.faturamento_ml), c: '#e4e4e7' },
-                { l: 'Margem total', v: pctFmt(kpis.margem_pct), c: kpis.margem_pct >= 0 ? '#22c55e' : '#f87171' },
-                { l: 'MC / pedido', v: brl(kpis.ticket_medio_mc), c: '#a78bfa' },
+                { l: t('resumo.statApprovedOrders'), v: kpis.qtd_aprovadas, c: '#22c55e' },
+                { l: t('resumo.statCancelledOrders'), v: kpis.qtd_canceladas, c: '#f87171' },
+                { l: t('resumo.statAvgTicket'), v: brl(kpis.ticket_medio), c: '#00E5FF' },
+                { l: t('resumo.statMlRevenue'), v: brl(kpis.faturamento_ml), c: '#e4e4e7' },
+                { l: t('resumo.statTotalMargin'), v: pctFmt(kpis.margem_pct), c: kpis.margem_pct >= 0 ? '#22c55e' : '#f87171' },
+                { l: t('resumo.statMcPerOrder'), v: brl(kpis.ticket_medio_mc), c: '#a78bfa' },
               ].map(item => (
                 <div key={item.l} className="flex flex-col gap-0.5">
                   <p className="text-[10px] text-zinc-500">{item.l}</p>
@@ -611,7 +620,7 @@ export default function FinancialSummaryPage() {
       )}
 
       {/* Action buttons */}
-      <ActionBar onExport={exportCsv} />
+      <ActionBar onExport={exportCsv} t={t} />
 
       {/* Table */}
       <section className="rounded-2xl overflow-hidden" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
@@ -619,21 +628,21 @@ export default function FinancialSummaryPage() {
           <table className="w-full" style={{ minWidth: 1100 }}>
             <thead>
               <tr style={{ background: '#0a0a0d', borderBottom: '1px solid #1e1e24' }}>
-                <Th col="title"                  label="Anúncio"           sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} />
-                <Th col="account_nickname"        label="Conta"             sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} />
-                <Th col="sku"                     label="SKU"               sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} />
-                <Th col="date_created"            label="Data"              sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} />
-                <Th col="shipping_type"           label="Frete"             sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} />
-                <Th col="unit_price"              label="Valor Unit."       sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} />
-                <Th col="quantity"                label="Qtd"               sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} />
-                <Th col="total_amount"            label="Faturamento ML"    sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} />
-                <Th col="cost_price"              label="Custo (−)"         sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} />
-                <Th col="tax_amount"              label="Imposto (−)"       sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} />
-                <Th col="tarifa_ml"               label="Tarifa (−)"        sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} />
-                <Th col="frete_comprador"         label="Fr. Comprador (−)" sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} />
-                <Th col="frete_vendedor"          label="Fr. Vendedor (−)"  sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} />
-                <Th col="contribution_margin"     label="Margem Contrib. (=)" sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} />
-                <Th col="contribution_margin_pct" label="MC %"              sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} />
+                <Th col="title"                  label={t('resumo.thListing')}           sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} />
+                <Th col="account_nickname"        label={t('resumo.thAccount')}             sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} />
+                <Th col="sku"                     label={t('resumo.thSku')}               sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} />
+                <Th col="date_created"            label={t('resumo.thDate')}              sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} />
+                <Th col="shipping_type"           label={t('resumo.thShipping')}             sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} />
+                <Th col="unit_price"              label={t('resumo.thUnitPrice')}       sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} />
+                <Th col="quantity"                label={t('resumo.thQty')}               sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} />
+                <Th col="total_amount"            label={t('resumo.thMlRevenue')}    sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} />
+                <Th col="cost_price"              label={t('resumo.thCost')}         sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} />
+                <Th col="tax_amount"              label={t('resumo.thTax')}       sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} />
+                <Th col="tarifa_ml"               label={t('resumo.thFee')}        sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} />
+                <Th col="frete_comprador"         label={t('resumo.thBuyerShipping')} sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} />
+                <Th col="frete_vendedor"          label={t('resumo.thSellerShipping')}  sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} />
+                <Th col="contribution_margin"     label={t('resumo.thContributionMargin')} sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} />
+                <Th col="contribution_margin_pct" label={t('resumo.thMcPct')}              sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} />
               </tr>
             </thead>
             <tbody>
@@ -649,7 +658,7 @@ export default function FinancialSummaryPage() {
                   ? (
                     <tr>
                       <td colSpan={15} className="px-4 py-12 text-center text-zinc-600 text-sm">
-                        Nenhuma venda no período selecionado.
+                        {t('resumo.emptyRow')}
                       </td>
                     </tr>
                   )
@@ -764,7 +773,7 @@ export default function FinancialSummaryPage() {
           <div className="px-4 pb-4">
             <Pagination
               page={page} total={sortedOrders.length} size={pageSize}
-              onPage={p => setPage(p)} onSize={s => { setPageSize(s); setPage(0) }}
+              onPage={p => setPage(p)} onSize={s => { setPageSize(s); setPage(0) }} t={t}
             />
           </div>
         )}

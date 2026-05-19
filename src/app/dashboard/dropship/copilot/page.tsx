@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import Link from 'next/link'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import { ArrowLeft, Send, Bot, User, Loader2, Sparkles } from 'lucide-react'
 
@@ -14,17 +15,18 @@ interface Message {
   ts: string
 }
 
-const SUGGESTIONS = [
-  'Quais parceiros estão em risco hoje?',
-  'Quanto eu tenho a pagar nos próximos 7 dias?',
-  'Quais devoluções estão abertas?',
-  'Que divergências críticas tenho?',
-  'Como está o score do top parceiro?',
-  'Quais SKUs estão sem estoque?',
-]
-
 export default function CopilotPage() {
+  const t = useTranslations('dropship.copilot')
   const supabase = useMemo(() => createClient(), [])
+
+  const SUGGESTIONS = [
+    t('suggestions.s1'),
+    t('suggestions.s2'),
+    t('suggestions.s3'),
+    t('suggestions.s4'),
+    t('suggestions.s5'),
+    t('suggestions.s6'),
+  ]
 
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
@@ -40,7 +42,7 @@ export default function CopilotPage() {
     setSending(true); setErr('')
     try {
       const { data: { session } } = await supabase.auth.getSession()
-      if (!session?.access_token) throw new Error('Não autenticado')
+      if (!session?.access_token) throw new Error(t('errors.notAuthenticated'))
       const res = await fetch(`${BACKEND}/dropship/copilot/message`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
@@ -55,15 +57,15 @@ export default function CopilotPage() {
         role: 'assistant', content: r.response, tokens: r.tokens, ts: new Date().toISOString(),
       }])
     } catch (e) {
-      const errMsg = e instanceof Error ? e.message : 'Erro'
+      const errMsg = e instanceof Error ? e.message : t('errors.generic')
       setErr(errMsg)
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: `❌ Erro: ${errMsg}`,
+        content: `❌ ${t('errors.prefix')}: ${errMsg}`,
         ts: new Date().toISOString(),
       }])
     } finally { setSending(false) }
-  }, [sending, supabase])
+  }, [sending, supabase, t])
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
@@ -81,11 +83,11 @@ export default function CopilotPage() {
         </div>
         <div>
           <h1 className="text-base font-semibold text-white flex items-center gap-2">
-            Copiloto Dropship
+            {t('title')}
             <Sparkles size={14} style={{ color: '#00E5FF' }} />
           </h1>
           <p className="text-xs text-zinc-500">
-            Faça perguntas sobre parceiros, OCs, devoluções, divergências
+            {t('subtitle')}
           </p>
         </div>
       </div>
@@ -98,9 +100,9 @@ export default function CopilotPage() {
                 style={{ background: 'rgba(0,229,255,0.10)', color: '#00E5FF' }}>
                 <Sparkles size={28} />
               </div>
-              <h2 className="text-xl font-semibold text-white mb-2">Como posso ajudar?</h2>
+              <h2 className="text-xl font-semibold text-white mb-2">{t('howCanIHelp')}</h2>
               <p className="text-sm text-zinc-500">
-                Tenho acesso aos KPIs do dashboard, scores dos parceiros, devoluções e divergências.
+                {t('helpDescription')}
               </p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -126,7 +128,7 @@ export default function CopilotPage() {
                 <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'rgba(0,229,255,0.10)' }}>
                   <Loader2 size={14} className="animate-spin" style={{ color: '#00E5FF' }} />
                 </div>
-                <span>Pensando...</span>
+                <span>{t('thinking')}</span>
               </div>
             )}
           </div>
@@ -142,7 +144,7 @@ export default function CopilotPage() {
             <input
               value={input}
               onChange={e => setInput(e.target.value)}
-              placeholder="Pergunte algo sobre o dropship..."
+              placeholder={t('inputPlaceholder')}
               disabled={sending}
               className="flex-1 px-4 py-3 rounded-lg outline-none text-sm"
               style={{ background: '#111114', border: '1px solid #27272a', color: '#fff' }}
@@ -163,7 +165,7 @@ export default function CopilotPage() {
             <p className="text-xs mt-2" style={{ color: '#f87171' }}>{err}</p>
           )}
           <p className="text-xs text-zinc-600 mt-2 text-center">
-            v1: respostas em texto livre · contexto inclui dashboard + scores + devoluções + divergências críticas
+            {t('footer')}
           </p>
         </div>
       </div>

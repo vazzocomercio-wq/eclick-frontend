@@ -1,12 +1,12 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { useTranslations } from 'next-intl'
 import { createPortal } from 'react-dom'
 import { createClient } from '@/lib/supabase'
 import {
   MessagingTemplate, MessagingJourney, JourneyStep,
   TriggerEvent, JourneyMode, StepType,
-  TRIGGER_LABELS, MODE_LABELS, STEP_TYPE_LABELS,
 } from './types'
 import { useConfirm } from '@/components/ui/dialog-provider'
 
@@ -42,6 +42,7 @@ const TRIGGERS: TriggerEvent[] = [
 const MODES: JourneyMode[] = ['automatic','manual','campaign']
 
 export function JourneysTab({ onToast }: { onToast: (m: string, type?: 'success'|'error') => void }) {
+  const t = useTranslations('messaging.journeys')
   const [list, setList]               = useState<MessagingJourney[]>([])
   const [templates, setTemplates]     = useState<MessagingTemplate[]>([])
   const [loading, setLoading]         = useState(true)
@@ -75,35 +76,35 @@ export function JourneysTab({ onToast }: { onToast: (m: string, type?: 'success'
 
   async function remove(id: string) {
     const ok = await confirm({
-      title:        'Excluir jornada',
-      message:      'Excluir jornada? Runs ativas continuarão (mas sem nova execução).',
-      confirmLabel: 'Excluir',
+      title:        t('confirm.deleteTitle'),
+      message:      t('confirm.deleteMessage'),
+      confirmLabel: t('confirm.deleteConfirm'),
       variant:      'danger',
     })
     if (!ok) return
     try {
       await api(`/messaging/journeys/${id}`, { method: 'DELETE' })
       setList(prev => prev.filter(x => x.id !== id))
-      onToast('Jornada excluída', 'success')
+      onToast(t('toast.deleted'), 'success')
     } catch (e) { onToast((e as Error).message, 'error') }
   }
 
   return (
     <>
       <div className="flex items-center justify-between mb-5">
-        <p className="text-zinc-400 text-sm">Jornadas multi-step com automático/manual/campanha. Engine cron a cada 5 min processa runs ativas.</p>
+        <p className="text-zinc-400 text-sm">{t('intro')}</p>
         <button
           onClick={() => setEditing('new')}
           className="px-4 py-2 rounded-lg text-sm font-semibold transition"
           style={{ background: '#00E5FF', color: '#08323b' }}
-        >+ Nova jornada</button>
+        >{t('newJourney')}</button>
       </div>
 
       {loading
         ? <div className="h-32 rounded-2xl animate-pulse" style={{ background: '#111114' }} />
         : list.length === 0
           ? <div className="rounded-2xl px-6 py-10 text-center text-zinc-500" style={{ background: '#111114', border: '1px dashed #27272a' }}>
-              Nenhuma jornada ainda. Comece com um template-só (1 step) e evolua a partir daí.
+              {t('empty')}
             </div>
           : <div className="grid gap-3">
               {list.map(j => (
@@ -128,7 +129,7 @@ export function JourneysTab({ onToast }: { onToast: (m: string, type?: 'success'
               const idx = prev.findIndex(x => x.id === j.id)
               return idx >= 0 ? prev.map(x => x.id === j.id ? j : x) : [j, ...prev]
             })
-            onToast('Jornada salva', 'success')
+            onToast(t('toast.saved'), 'success')
           }}
           onError={(m) => onToast(m, 'error')}
         />
@@ -158,7 +159,8 @@ function JourneyCard({
   onDelete: () => void
   onTrigger: () => void
 }) {
-  const tplMap = new Map(templates.map(t => [t.id, t.name]))
+  const t = useTranslations('messaging.journeys')
+  const tplMap = new Map(templates.map(tpl => [tpl.id, tpl.name]))
   return (
     <div className="rounded-2xl p-5" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
       <div className="flex items-start justify-between gap-4">
@@ -169,22 +171,22 @@ function JourneyCard({
               style={j.is_active
                 ? { background: 'rgba(52,211,153,0.1)', color: '#34d399' }
                 : { background: 'rgba(161,161,170,0.1)', color: '#a1a1aa' }}>
-              {j.is_active ? 'Ativa' : 'Inativa'}
+              {j.is_active ? t('statusActive') : t('statusInactive')}
             </span>
             <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full" style={{ background: 'rgba(0,229,255,0.1)', color: '#00E5FF' }}>
-              {MODE_LABELS[j.mode]}
+              {t(`modes.${j.mode}`)}
             </span>
           </div>
           {j.description && <p className="text-zinc-500 text-xs mb-2">{j.description}</p>}
-          <p className="text-zinc-500 text-xs">Trigger: <span className="text-zinc-300">{TRIGGER_LABELS[j.trigger_event]}</span></p>
-          <p className="text-zinc-500 text-xs mt-1">{j.steps.length} step{j.steps.length === 1 ? '' : 's'}</p>
+          <p className="text-zinc-500 text-xs">{t('triggerLabel')} <span className="text-zinc-300">{t(`triggers.${j.trigger_event}`)}</span></p>
+          <p className="text-zinc-500 text-xs mt-1">{t('stepCount', { count: j.steps.length })}</p>
 
           {j.steps.length > 0 && (
             <div className="mt-3 space-y-1">
               {j.steps.map((s, i) => (
                 <div key={i} className="flex items-center gap-2 text-[11px] text-zinc-400">
                   <span className="font-mono text-cyan-400">{i + 1}.</span>
-                  <span>{STEP_TYPE_LABELS[s.type]}</span>
+                  <span>{t(`stepTypes.${s.type}`)}</span>
                   {s.type === 'send_message' && s.template_id && (
                     <span className="text-zinc-500">— {tplMap.get(s.template_id) ?? s.template_id.slice(0,8)}</span>
                   )}
@@ -192,7 +194,7 @@ function JourneyCard({
                     <span className="text-zinc-500">— {s.delay_days ? `${s.delay_days}d` : ''}{s.delay_hours ? `${s.delay_hours}h` : ''}</span>
                   )}
                   {s.type === 'condition' && s.condition_field && (
-                    <span className="text-zinc-500">— se {s.condition_field} = {String(s.condition_value)}</span>
+                    <span className="text-zinc-500">— {t('conditionIf', { field: s.condition_field, value: String(s.condition_value) })}</span>
                   )}
                 </div>
               ))}
@@ -201,10 +203,10 @@ function JourneyCard({
         </div>
 
         <div className="flex flex-col gap-2 shrink-0">
-          <button onClick={onEdit} className="px-3 py-1.5 rounded-lg text-xs font-medium border" style={{ borderColor: '#3f3f46', color: '#e4e4e7' }}>Editar</button>
-          <button onClick={onToggle} className="px-3 py-1.5 rounded-lg text-xs font-medium border" style={{ borderColor: '#3f3f46', color: '#e4e4e7' }}>{j.is_active ? 'Desativar' : 'Ativar'}</button>
-          <button onClick={onTrigger} disabled={!j.is_active} className="px-3 py-1.5 rounded-lg text-xs font-medium border disabled:opacity-40" style={{ borderColor: '#00E5FF', color: '#00E5FF' }}>Disparar</button>
-          <button onClick={onDelete} className="px-3 py-1.5 rounded-lg text-xs font-medium border" style={{ borderColor: '#3f3f46', color: '#f87171' }}>Excluir</button>
+          <button onClick={onEdit} className="px-3 py-1.5 rounded-lg text-xs font-medium border" style={{ borderColor: '#3f3f46', color: '#e4e4e7' }}>{t('edit')}</button>
+          <button onClick={onToggle} className="px-3 py-1.5 rounded-lg text-xs font-medium border" style={{ borderColor: '#3f3f46', color: '#e4e4e7' }}>{j.is_active ? t('deactivate') : t('activate')}</button>
+          <button onClick={onTrigger} disabled={!j.is_active} className="px-3 py-1.5 rounded-lg text-xs font-medium border disabled:opacity-40" style={{ borderColor: '#00E5FF', color: '#00E5FF' }}>{t('trigger')}</button>
+          <button onClick={onDelete} className="px-3 py-1.5 rounded-lg text-xs font-medium border" style={{ borderColor: '#3f3f46', color: '#f87171' }}>{t('delete')}</button>
         </div>
       </div>
     </div>
@@ -222,6 +224,7 @@ function JourneyEditor({
   onSaved: (j: MessagingJourney) => void
   onError: (m: string) => void
 }) {
+  const t = useTranslations('messaging.journeys')
   const [name, setName]             = useState(initial?.name ?? '')
   const [description, setDesc]      = useState(initial?.description ?? '')
   const [trigger, setTrigger]       = useState<TriggerEvent>(initial?.trigger_event ?? 'order_paid')
@@ -254,7 +257,7 @@ function JourneyEditor({
   }
 
   async function save() {
-    if (!name.trim()) return onError('Nome obrigatório')
+    if (!name.trim()) return onError(t('errors.nameRequired'))
     setSaving(true)
     try {
       const payload = {
@@ -276,45 +279,45 @@ function JourneyEditor({
     <div className="fixed inset-0 z-50 flex items-start justify-center px-4 py-6 overflow-y-auto" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={onClose}>
       <div className="w-full max-w-3xl rounded-2xl my-auto" style={{ background: '#111114', border: '1px solid #1e1e24' }} onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid #1e1e24' }}>
-          <p className="text-white font-semibold">{initial ? 'Editar jornada' : 'Nova jornada'}</p>
+          <p className="text-white font-semibold">{initial ? t('editJourney') : t('newJourneyTitle')}</p>
           <button onClick={onClose} className="text-zinc-400 hover:text-white">✕</button>
         </div>
 
         <div className="p-6 space-y-5">
           <div className="grid md:grid-cols-2 gap-4">
             <div>
-              <p className="text-zinc-400 text-xs mb-1">Nome</p>
-              <input className="je-input" value={name} onChange={e => setName(e.target.value)} placeholder="Ex: Pós-venda automático" />
+              <p className="text-zinc-400 text-xs mb-1">{t('fields.name')}</p>
+              <input className="je-input" value={name} onChange={e => setName(e.target.value)} placeholder={t('fields.namePlaceholder')} />
             </div>
             <div>
-              <p className="text-zinc-400 text-xs mb-1">Trigger</p>
+              <p className="text-zinc-400 text-xs mb-1">{t('fields.trigger')}</p>
               <select className="je-input" value={trigger} onChange={e => setTrigger(e.target.value as TriggerEvent)}>
-                {TRIGGERS.map(t => <option key={t} value={t}>{TRIGGER_LABELS[t]}</option>)}
+                {TRIGGERS.map(tr => <option key={tr} value={tr}>{t(`triggers.${tr}`)}</option>)}
               </select>
             </div>
             <div>
-              <p className="text-zinc-400 text-xs mb-1">Modo</p>
+              <p className="text-zinc-400 text-xs mb-1">{t('fields.mode')}</p>
               <select className="je-input" value={mode} onChange={e => setMode(e.target.value as JourneyMode)}>
-                {MODES.map(m => <option key={m} value={m}>{MODE_LABELS[m]}</option>)}
+                {MODES.map(m => <option key={m} value={m}>{t(`modes.${m}`)}</option>)}
               </select>
             </div>
             <label className="flex items-center gap-2 text-sm text-zinc-300 mt-5">
               <input type="checkbox" checked={active} onChange={e => setActive(e.target.checked)} />
-              Jornada ativa
+              {t('fields.journeyActive')}
             </label>
           </div>
 
           <div>
-            <p className="text-zinc-400 text-xs mb-1">Descrição (opcional)</p>
+            <p className="text-zinc-400 text-xs mb-1">{t('fields.description')}</p>
             <textarea className="je-input" rows={2} value={description ?? ''} onChange={e => setDesc(e.target.value)} />
           </div>
 
           {/* Steps timeline */}
           <div>
-            <p className="text-zinc-300 text-sm font-semibold mb-3">Steps</p>
+            <p className="text-zinc-300 text-sm font-semibold mb-3">{t('stepsTitle')}</p>
             {steps.length === 0 && (
               <div className="rounded-xl px-4 py-6 text-center text-zinc-500 text-sm" style={{ background: '#0a0a0e', border: '1px dashed #27272a' }}>
-                Nenhum step. Adicione o primeiro abaixo.
+                {t('stepsEmpty')}
               </div>
             )}
             <div className="space-y-2">
@@ -333,17 +336,17 @@ function JourneyEditor({
               ))}
             </div>
             <div className="flex gap-2 mt-3">
-              <button onClick={() => addStep('send_message')} className="px-3 py-1.5 rounded-lg text-xs font-medium border" style={{ borderColor: '#3f3f46', color: '#e4e4e7' }}>+ Enviar mensagem</button>
-              <button onClick={() => addStep('wait')} className="px-3 py-1.5 rounded-lg text-xs font-medium border" style={{ borderColor: '#3f3f46', color: '#e4e4e7' }}>+ Aguardar</button>
-              <button onClick={() => addStep('condition')} className="px-3 py-1.5 rounded-lg text-xs font-medium border" style={{ borderColor: '#3f3f46', color: '#e4e4e7' }}>+ Condição</button>
+              <button onClick={() => addStep('send_message')} className="px-3 py-1.5 rounded-lg text-xs font-medium border" style={{ borderColor: '#3f3f46', color: '#e4e4e7' }}>{t('addSendMessage')}</button>
+              <button onClick={() => addStep('wait')} className="px-3 py-1.5 rounded-lg text-xs font-medium border" style={{ borderColor: '#3f3f46', color: '#e4e4e7' }}>{t('addWait')}</button>
+              <button onClick={() => addStep('condition')} className="px-3 py-1.5 rounded-lg text-xs font-medium border" style={{ borderColor: '#3f3f46', color: '#e4e4e7' }}>{t('addCondition')}</button>
             </div>
           </div>
         </div>
 
         <div className="flex justify-end gap-2 px-6 py-4" style={{ borderTop: '1px solid #1e1e24' }}>
-          <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm border" style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>Cancelar</button>
+          <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm border" style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>{t('cancel')}</button>
           <button onClick={save} disabled={saving} className="glow-rainbow px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50" style={{ background: '#00E5FF', color: '#08323b' }}>
-            {saving ? 'Salvando…' : 'Salvar'}
+            {saving ? t('saving') : t('save')}
           </button>
         </div>
       </div>
@@ -372,11 +375,12 @@ function StepRow({
   canMoveUp:   boolean
   canMoveDown: boolean
 }) {
+  const t = useTranslations('messaging.journeys')
   return (
     <div className="rounded-xl p-3" style={{ background: '#0a0a0e', border: '1px solid #27272a' }}>
       <div className="flex items-center gap-2 mb-2">
         <span className="font-mono text-cyan-400 text-xs">{index + 1}.</span>
-        <span className="text-zinc-300 text-xs font-medium">{STEP_TYPE_LABELS[step.type]}</span>
+        <span className="text-zinc-300 text-xs font-medium">{t(`stepTypes.${step.type}`)}</span>
         <div className="ml-auto flex gap-1">
           <button onClick={() => onMove(-1)} disabled={!canMoveUp}  className="px-2 py-0.5 text-xs text-zinc-400 disabled:opacity-30">↑</button>
           <button onClick={() => onMove(1)}  disabled={!canMoveDown} className="px-2 py-0.5 text-xs text-zinc-400 disabled:opacity-30">↓</button>
@@ -390,18 +394,18 @@ function StepRow({
           value={step.template_id ?? ''}
           onChange={e => onChange({ template_id: e.target.value })}
         >
-          <option value="">— escolher template —</option>
-          {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+          <option value="">{t('chooseTemplate')}</option>
+          {templates.map(tpl => <option key={tpl.id} value={tpl.id}>{tpl.name}</option>)}
         </select>
       )}
       {step.type === 'wait' && (
         <div className="flex gap-2">
           <label className="flex-1">
-            <p className="text-zinc-500 text-[10px] mb-0.5">Horas</p>
+            <p className="text-zinc-500 text-[10px] mb-0.5">{t('waitHours')}</p>
             <input type="number" min="0" className="step-input" value={step.delay_hours ?? 0} onChange={e => onChange({ delay_hours: Number(e.target.value) || 0 })} />
           </label>
           <label className="flex-1">
-            <p className="text-zinc-500 text-[10px] mb-0.5">Dias</p>
+            <p className="text-zinc-500 text-[10px] mb-0.5">{t('waitDays')}</p>
             <input type="number" min="0" className="step-input" value={step.delay_days ?? 0} onChange={e => onChange({ delay_days: Number(e.target.value) || 0 })} />
           </label>
         </div>
@@ -409,11 +413,11 @@ function StepRow({
       {step.type === 'condition' && (
         <div className="flex gap-2">
           <label className="flex-1">
-            <p className="text-zinc-500 text-[10px] mb-0.5">Campo do contexto</p>
-            <input className="step-input" value={step.condition_field ?? ''} onChange={e => onChange({ condition_field: e.target.value })} placeholder="ex: nome" />
+            <p className="text-zinc-500 text-[10px] mb-0.5">{t('conditionField')}</p>
+            <input className="step-input" value={step.condition_field ?? ''} onChange={e => onChange({ condition_field: e.target.value })} placeholder={t('conditionFieldPlaceholder')} />
           </label>
           <label className="flex-1">
-            <p className="text-zinc-500 text-[10px] mb-0.5">Valor esperado</p>
+            <p className="text-zinc-500 text-[10px] mb-0.5">{t('conditionValue')}</p>
             <input className="step-input" value={String(step.condition_value ?? '')} onChange={e => onChange({ condition_value: e.target.value })} />
           </label>
         </div>
@@ -440,17 +444,18 @@ function TriggerModal({
   onDone: (msg: string) => void
   onError: (m: string) => void
 }) {
+  const t = useTranslations('messaging.journeys')
   const [phone, setPhone]     = useState('')
   const [orderId, setOrderId] = useState('')
   const [ctx, setCtx]         = useState(JSON.stringify({ nome: '', pedido: '', produto: '', loja: 'Vazzo' }, null, 2))
   const [sending, setSending] = useState(false)
 
   async function fire() {
-    if (!phone.trim()) return onError('Phone obrigatório')
+    if (!phone.trim()) return onError(t('errors.phoneRequired'))
     setSending(true)
     try {
       let parsed: Record<string, unknown> = {}
-      try { parsed = JSON.parse(ctx) } catch { onError('JSON inválido em context'); setSending(false); return }
+      try { parsed = JSON.parse(ctx) } catch { onError(t('errors.invalidJson')); setSending(false); return }
       const res = await api<{ run_id: string }>(`/messaging/journeys/${journey.id}/trigger`, {
         method: 'POST',
         body: JSON.stringify({
@@ -459,7 +464,7 @@ function TriggerModal({
           context: parsed,
         }),
       })
-      onDone(`Run criada: ${res.run_id.slice(0, 8)}…`)
+      onDone(t('toast.runCreated', { id: res.run_id.slice(0, 8) }))
     } catch (e) { onError((e as Error).message) }
     setSending(false)
   }
@@ -468,24 +473,24 @@ function TriggerModal({
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={onClose}>
       <div className="w-full max-w-md rounded-2xl p-6 space-y-4" style={{ background: '#111114', border: '1px solid #1e1e24' }} onClick={(e) => e.stopPropagation()}>
-        <p className="text-white font-semibold">Disparar &quot;{journey.name}&quot;</p>
-        <p className="text-zinc-500 text-xs">Cria 1 run com next_step_at=now. Engine processa em até 5 min.</p>
+        <p className="text-white font-semibold">{t('triggerModalTitle', { name: journey.name })}</p>
+        <p className="text-zinc-500 text-xs">{t('triggerModalDesc')}</p>
         <label className="block">
-          <p className="text-zinc-400 text-xs mb-1">Phone (com DDI)</p>
+          <p className="text-zinc-400 text-xs mb-1">{t('fields.phoneDdi')}</p>
           <input className="tg-input" value={phone} onChange={e => setPhone(e.target.value)} placeholder="5511999998888" />
         </label>
         <label className="block">
-          <p className="text-zinc-400 text-xs mb-1">Order ID (opcional)</p>
+          <p className="text-zinc-400 text-xs mb-1">{t('fields.orderId')}</p>
           <input className="tg-input" value={orderId} onChange={e => setOrderId(e.target.value)} />
         </label>
         <label className="block">
-          <p className="text-zinc-400 text-xs mb-1">Context (JSON)</p>
+          <p className="text-zinc-400 text-xs mb-1">{t('fields.context')}</p>
           <textarea className="tg-input font-mono text-xs" rows={6} value={ctx} onChange={e => setCtx(e.target.value)} />
         </label>
         <div className="flex justify-end gap-2">
-          <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm border" style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>Cancelar</button>
+          <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm border" style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>{t('cancel')}</button>
           <button onClick={fire} disabled={sending} className="px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50" style={{ background: '#00E5FF', color: '#08323b' }}>
-            {sending ? 'Disparando…' : 'Disparar'}
+            {sending ? t('triggering') : t('trigger')}
           </button>
         </div>
       </div>

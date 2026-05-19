@@ -1,11 +1,14 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import {
   RefreshCw, AlertTriangle, CheckCircle2, XCircle,
   Clock, Star, TrendingDown, Package, ExternalLink,
 } from 'lucide-react'
+
+type TFn = (key: string, values?: Record<string, string | number>) => string
 
 const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
@@ -54,17 +57,20 @@ type Order = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-const LEVEL_CFG: Record<string, { label: string; color: string; bg: string }> = {
-  '5_green':   { label: 'Verde',     color: '#4ade80', bg: 'rgba(74,222,128,0.12)' },
-  '4_light_green': { label: 'Verde claro', color: '#a3e635', bg: 'rgba(163,230,53,0.12)' },
-  '3_yellow':  { label: 'Amarelo',   color: '#facc15', bg: 'rgba(250,204,21,0.12)' },
-  '2_orange':  { label: 'Laranja',   color: '#fb923c', bg: 'rgba(251,146,60,0.12)' },
-  '1_red':     { label: 'Vermelho',  color: '#f87171', bg: 'rgba(248,113,113,0.12)' },
+const LEVEL_CFG: Record<string, { color: string; bg: string }> = {
+  '5_green':       { color: '#4ade80', bg: 'rgba(74,222,128,0.12)' },
+  '4_light_green': { color: '#a3e635', bg: 'rgba(163,230,53,0.12)' },
+  '3_yellow':      { color: '#facc15', bg: 'rgba(250,204,21,0.12)' },
+  '2_orange':      { color: '#fb923c', bg: 'rgba(251,146,60,0.12)' },
+  '1_red':         { color: '#f87171', bg: 'rgba(248,113,113,0.12)' },
 }
 
-function levelCfg(levelId?: string) {
-  if (!levelId) return { label: 'N/A', color: '#71717a', bg: 'rgba(113,113,122,0.12)' }
-  return LEVEL_CFG[levelId] ?? { label: levelId, color: '#a1a1aa', bg: 'rgba(161,161,170,0.12)' }
+/** Resolve cor + label do nível. label vem traduzido via t() quando o id é conhecido. */
+function levelCfg(t: TFn, levelId?: string) {
+  if (!levelId) return { label: t('levels.na'), color: '#71717a', bg: 'rgba(113,113,122,0.12)' }
+  const cfg = LEVEL_CFG[levelId]
+  if (cfg) return { label: t(`levels.${levelId}`), color: cfg.color, bg: cfg.bg }
+  return { label: levelId, color: '#a1a1aa', bg: 'rgba(161,161,170,0.12)' }
 }
 
 function fmtRate(r: number) {
@@ -80,19 +86,14 @@ function fmtBRL(n: number) {
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
-const CLAIM_REASON_LABEL: Record<string, string> = {
-  'PNR':  'Produto não recebido',
-  'PDD':  'Produto danificado',
-  'PNDA': 'Produto não conforme',
-  'WP':   'Produto errado',
-}
+const CLAIM_REASON_KEYS = ['PNR', 'PDD', 'PNDA', 'WP']
 
-const ORDER_STATUS_CFG: Record<string, { label: string; color: string }> = {
-  paid:           { label: 'Pago',        color: '#4ade80' },
-  confirmed:      { label: 'Confirmado',  color: '#60a5fa' },
-  payment_in_process: { label: 'Processando', color: '#facc15' },
-  cancelled:      { label: 'Cancelado',   color: '#f87171' },
-  invalid:        { label: 'Inválido',    color: '#71717a' },
+const ORDER_STATUS_COLOR: Record<string, string> = {
+  paid:               '#4ade80',
+  confirmed:          '#60a5fa',
+  payment_in_process: '#facc15',
+  cancelled:          '#f87171',
+  invalid:            '#71717a',
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -127,19 +128,22 @@ function MetricBar({ label, rate, color }: { label: string; rate: number; color:
   )
 }
 
-function ClaimRow({ claim }: { claim: Claim }) {
+function ClaimRow({ claim, t }: { claim: Claim; t: TFn }) {
   const reasonId  = claim.reason?.id ?? ''
-  const reasonLbl = claim.reason?.label ?? CLAIM_REASON_LABEL[reasonId] ?? reasonId ?? 'Reclamação'
+  const reasonLbl = claim.reason?.label
+    ?? (CLAIM_REASON_KEYS.includes(reasonId) ? t(`claimReasons.${reasonId}`) : '')
+    ?? reasonId
+    ?? t('claimDefault')
   return (
     <div className="flex items-center gap-3 px-4 py-3 border-b last:border-b-0" style={{ borderColor: '#1e1e24' }}>
       <AlertTriangle size={13} className="shrink-0 text-amber-400" />
       <div className="flex-1 min-w-0">
-        <p className="text-[12px] font-medium text-zinc-200 truncate">{reasonLbl}</p>
-        <p className="text-[10px] text-zinc-500 mt-0.5">Pedido #{claim.resource_id ?? claim.id} · {fmtDate(claim.date_created)}</p>
+        <p className="text-[12px] font-medium text-zinc-200 truncate">{reasonLbl || t('claimDefault')}</p>
+        <p className="text-[10px] text-zinc-500 mt-0.5">{t('orderNumber', { id: String(claim.resource_id ?? claim.id) })} · {fmtDate(claim.date_created)}</p>
       </div>
       <span className="shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full"
         style={{ background: 'rgba(248,113,113,0.1)', color: '#f87171' }}>
-        {claim.status ?? 'aberta'}
+        {claim.status ?? t('claimOpen')}
       </span>
       {claim.resource_id && (
         <a href={`https://www.mercadolivre.com.br/vendas/${claim.resource_id}`} target="_blank" rel="noreferrer"
@@ -151,10 +155,11 @@ function ClaimRow({ claim }: { claim: Claim }) {
   )
 }
 
-function OrderRow({ order }: { order: Order }) {
+function OrderRow({ order, t }: { order: Order; t: TFn }) {
   const item  = order.order_items?.[0]
-  const title = item?.item?.title ?? `Pedido #${order.id}`
-  const stCfg = ORDER_STATUS_CFG[order.status] ?? { label: order.status, color: '#a1a1aa' }
+  const title = item?.item?.title ?? t('orderNumber', { id: String(order.id) })
+  const stColor = ORDER_STATUS_COLOR[order.status] ?? '#a1a1aa'
+  const stLabel = ORDER_STATUS_COLOR[order.status] ? t(`orderStatus.${order.status}`) : order.status
   return (
     <div className="flex items-center gap-3 px-4 py-3 border-b last:border-b-0" style={{ borderColor: '#1e1e24' }}>
       <Package size={13} className="shrink-0 text-zinc-500" />
@@ -165,8 +170,8 @@ function OrderRow({ order }: { order: Order }) {
         </p>
       </div>
       <span className="shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full"
-        style={{ background: stCfg.color + '1a', color: stCfg.color }}>
-        {stCfg.label}
+        style={{ background: stColor + '1a', color: stColor }}>
+        {stLabel}
       </span>
     </div>
   )
@@ -175,6 +180,7 @@ function OrderRow({ order }: { order: Order }) {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function PosVendaPage() {
+  const t = useTranslations('crm.posVenda')
   const [rep,     setRep]     = useState<Reputation | null>(null)
   const [claims,  setClaims]  = useState<Claim[]>([])
   const [orders,  setOrders]  = useState<Order[]>([])
@@ -208,15 +214,15 @@ export default function PosVendaPage() {
         setOrders(d?.orders ?? d ?? [])
       }
     } catch (e: any) {
-      setError(e?.message ?? 'Erro ao carregar dados')
+      setError(e?.message ?? t('loadError'))
     }
     setLoading(false)
-  }, [])
+  }, [t])
 
   useEffect(() => { load() }, [load])
 
   // ── Derived KPIs ──────────────────────────────────────────────────────────
-  const lvl      = levelCfg(rep?.level_id)
+  const lvl      = levelCfg(t, rep?.level_id)
   const metrics  = rep?.metrics
   const txn      = rep?.transactions
   const claimRate   = metrics?.claims?.rate ?? 0
@@ -229,15 +235,15 @@ export default function PosVendaPage() {
       {/* Header */}
       <div className="flex items-center justify-between gap-4">
         <div>
-          <p className="text-zinc-500 text-xs">CRM</p>
-          <h2 className="text-white text-lg font-semibold mt-0.5">Pós-venda</h2>
-          <p className="text-zinc-500 text-xs mt-1">Reputação, reclamações e acompanhamento de pedidos recentes.</p>
+          <p className="text-zinc-500 text-xs">{t('breadcrumb')}</p>
+          <h2 className="text-white text-lg font-semibold mt-0.5">{t('title')}</h2>
+          <p className="text-zinc-500 text-xs mt-1">{t('subtitle')}</p>
         </div>
         <button onClick={load} disabled={loading}
           className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border transition-all disabled:opacity-60"
           style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>
           <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
-          Atualizar
+          {t('refresh')}
         </button>
       </div>
 
@@ -250,30 +256,30 @@ export default function PosVendaPage() {
       {/* Reputation KPIs */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <KpiCard
-          label="Nível de reputação"
+          label={t('kpiReputationLevel')}
           value={lvl.label}
-          sub={rep?.power_seller_status ? `Power Seller: ${rep.power_seller_status}` : 'Mercado Livre'}
+          sub={rep?.power_seller_status ? t('powerSeller', { status: rep.power_seller_status }) : t('mercadoLivre')}
           color={lvl.color}
           icon={<Star size={14} />}
         />
         <KpiCard
-          label="Reclamações"
+          label={t('kpiClaims')}
           value={loading ? '…' : fmtRate(claimRate)}
-          sub={`${claims.length} abertas`}
+          sub={t('claimsOpen', { count: claims.length })}
           color={claimRate > 0.03 ? '#f87171' : claimRate > 0.01 ? '#facc15' : '#4ade80'}
           icon={<AlertTriangle size={14} />}
         />
         <KpiCard
-          label="Cancelamentos"
+          label={t('kpiCancellations')}
           value={loading ? '…' : fmtRate(cancelRate)}
-          sub={txn ? `${txn.canceled} de ${txn.total}` : undefined}
+          sub={txn ? t('canceledOfTotal', { canceled: txn.canceled, total: txn.total }) : undefined}
           color={cancelRate > 0.03 ? '#f87171' : cancelRate > 0.01 ? '#facc15' : '#4ade80'}
           icon={<XCircle size={14} />}
         />
         <KpiCard
-          label="Atraso no envio"
+          label={t('kpiShipDelay')}
           value={loading ? '…' : fmtRate(delayRate)}
-          sub="Handling time"
+          sub={t('handlingTime')}
           color={delayRate > 0.05 ? '#f87171' : delayRate > 0.02 ? '#facc15' : '#4ade80'}
           icon={<Clock size={14} />}
         />
@@ -284,7 +290,7 @@ export default function PosVendaPage() {
         <div className="rounded-2xl p-5 space-y-4" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
           <div className="flex items-center gap-2">
             <Star size={13} style={{ color: lvl.color }} />
-            <h3 className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">Reputação Mercado Livre</h3>
+            <h3 className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">{t('reputationTitle')}</h3>
           </div>
           <div className="flex items-center gap-3">
             <span className="px-3 py-1 rounded-full text-sm font-bold" style={{ background: lvl.bg, color: lvl.color }}>
@@ -292,31 +298,31 @@ export default function PosVendaPage() {
             </span>
             {rep.power_seller_status && (
               <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold" style={{ background: 'rgba(0,229,255,0.1)', color: '#00E5FF' }}>
-                Power Seller: {rep.power_seller_status}
+                {t('powerSeller', { status: rep.power_seller_status })}
               </span>
             )}
             {txn && (
-              <span className="text-xs text-zinc-400">{txn.completed.toLocaleString()} vendas concluídas</span>
+              <span className="text-xs text-zinc-400">{t('completedSales', { count: txn.completed })}</span>
             )}
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
-            {metrics?.claims           && <MetricBar label="Taxa de reclamações"  rate={metrics.claims.rate}                color={metrics.claims.rate > 0.03 ? '#f87171' : '#4ade80'} />}
-            {metrics?.cancellations    && <MetricBar label="Taxa de cancelamentos" rate={metrics.cancellations.rate}         color={metrics.cancellations.rate > 0.03 ? '#f87171' : '#4ade80'} />}
-            {metrics?.delayed_handling_time && <MetricBar label="Envio com atraso" rate={metrics.delayed_handling_time.rate} color={metrics.delayed_handling_time.rate > 0.05 ? '#f87171' : '#4ade80'} />}
+            {metrics?.claims           && <MetricBar label={t('metricClaimRate')}        rate={metrics.claims.rate}                color={metrics.claims.rate > 0.03 ? '#f87171' : '#4ade80'} />}
+            {metrics?.cancellations    && <MetricBar label={t('metricCancelRate')}       rate={metrics.cancellations.rate}         color={metrics.cancellations.rate > 0.03 ? '#f87171' : '#4ade80'} />}
+            {metrics?.delayed_handling_time && <MetricBar label={t('metricDelayedShip')} rate={metrics.delayed_handling_time.rate} color={metrics.delayed_handling_time.rate > 0.05 ? '#f87171' : '#4ade80'} />}
           </div>
           {txn?.ratings && (
             <div className="flex items-center gap-4 pt-1">
               <div className="flex items-center gap-1.5">
                 <CheckCircle2 size={12} className="text-green-400" />
-                <span className="text-[11px] text-zinc-300">{txn.ratings.positive} positivas</span>
+                <span className="text-[11px] text-zinc-300">{t('ratingsPositive', { count: txn.ratings.positive })}</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <XCircle size={12} className="text-red-400" />
-                <span className="text-[11px] text-zinc-300">{txn.ratings.negative} negativas</span>
+                <span className="text-[11px] text-zinc-300">{t('ratingsNegative', { count: txn.ratings.negative })}</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <Clock size={12} className="text-zinc-500" />
-                <span className="text-[11px] text-zinc-300">{txn.ratings.neutral} neutras</span>
+                <span className="text-[11px] text-zinc-300">{t('ratingsNeutral', { count: txn.ratings.neutral })}</span>
               </div>
             </div>
           )}
@@ -330,24 +336,24 @@ export default function PosVendaPage() {
           <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: '#1e1e24' }}>
             <div className="flex items-center gap-2">
               <AlertTriangle size={13} className="text-amber-400" />
-              <span className="text-xs font-semibold text-zinc-300">Reclamações abertas</span>
+              <span className="text-xs font-semibold text-zinc-300">{t('openClaims')}</span>
             </div>
             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'rgba(248,113,113,0.1)', color: '#f87171' }}>
               {loading ? '…' : claims.length}
             </span>
           </div>
           {loading ? (
-            <div className="flex items-center justify-center py-12 text-zinc-600 text-xs">Carregando…</div>
+            <div className="flex items-center justify-center py-12 text-zinc-600 text-xs">{t('loading')}</div>
           ) : claims.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 gap-2">
               <CheckCircle2 size={24} className="text-green-500" />
-              <p className="text-xs text-zinc-500">Nenhuma reclamação aberta</p>
+              <p className="text-xs text-zinc-500">{t('noClaims')}</p>
             </div>
           ) : (
             <div>
-              {claims.slice(0, 10).map(c => <ClaimRow key={c.id} claim={c} />)}
+              {claims.slice(0, 10).map(c => <ClaimRow key={c.id} claim={c} t={t} />)}
               {claims.length > 10 && (
-                <p className="text-center text-[10px] text-zinc-600 py-3">+{claims.length - 10} mais</p>
+                <p className="text-center text-[10px] text-zinc-600 py-3">{t('moreClaims', { count: claims.length - 10 })}</p>
               )}
             </div>
           )}
@@ -358,20 +364,20 @@ export default function PosVendaPage() {
           <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: '#1e1e24' }}>
             <div className="flex items-center gap-2">
               <TrendingDown size={13} className="text-zinc-400" />
-              <span className="text-xs font-semibold text-zinc-300">Pedidos recentes</span>
+              <span className="text-xs font-semibold text-zinc-300">{t('recentOrders')}</span>
             </div>
-            <span className="text-[10px] text-zinc-600">últimos 20</span>
+            <span className="text-[10px] text-zinc-600">{t('last20')}</span>
           </div>
           {loading ? (
-            <div className="flex items-center justify-center py-12 text-zinc-600 text-xs">Carregando…</div>
+            <div className="flex items-center justify-center py-12 text-zinc-600 text-xs">{t('loading')}</div>
           ) : orders.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 gap-2">
               <Package size={24} className="text-zinc-700" />
-              <p className="text-xs text-zinc-500">Nenhum pedido recente</p>
+              <p className="text-xs text-zinc-500">{t('noOrders')}</p>
             </div>
           ) : (
             <div>
-              {orders.map(o => <OrderRow key={o.id} order={o} />)}
+              {orders.map(o => <OrderRow key={o.id} order={o} t={t} />)}
             </div>
           )}
         </div>

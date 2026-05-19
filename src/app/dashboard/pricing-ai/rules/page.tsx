@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { useRouter } from 'next/navigation'
 import {
   ArrowLeft, Loader2, Save, AlertCircle, Settings, Zap,
@@ -8,6 +9,7 @@ import {
 import { PricingAiApi, type PricingRules } from '@/components/pricing-ai/pricingAiApi'
 
 export default function PricingAiRulesPage() {
+  const t = useTranslations('pricingAi')
   const router = useRouter()
   const [rules, setRules] = useState<PricingRules | null>(null)
   const [loading, setLoading] = useState(true)
@@ -52,14 +54,14 @@ export default function PricingAiRulesPage() {
 
   if (loading) return (
     <div className="p-6 flex items-center gap-2 text-zinc-500 text-sm">
-      <Loader2 size={14} className="animate-spin" /> carregando…
+      <Loader2 size={14} className="animate-spin" /> {t('loading')}
     </div>
   )
 
   if (error || !rules) return (
     <div className="p-6 space-y-3">
       <button onClick={() => router.back()} className="text-zinc-500 hover:text-zinc-300 text-sm flex items-center gap-1">
-        <ArrowLeft size={14} /> voltar
+        <ArrowLeft size={14} /> {t('back')}
       </button>
       <div className="rounded-lg border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-300">⚠ {error}</div>
     </div>
@@ -68,15 +70,15 @@ export default function PricingAiRulesPage() {
   return (
     <div className="p-4 sm:p-6 space-y-5 max-w-3xl mx-auto">
       <button onClick={() => router.back()} className="text-zinc-500 hover:text-zinc-300 text-sm flex items-center gap-1">
-        <ArrowLeft size={14} /> voltar
+        <ArrowLeft size={14} /> {t('back')}
       </button>
 
       <div>
         <h1 className="text-xl font-bold text-zinc-100 flex items-center gap-2">
           <Settings size={18} className="text-cyan-400" />
-          Regras de Precificação
+          {t('rulesTitle')}
         </h1>
-        <p className="text-xs text-zinc-500 mt-0.5">Define como a IA gera sugestões e quando pode aplicar automaticamente.</p>
+        <p className="text-xs text-zinc-500 mt-0.5">{t('rulesSubtitle')}</p>
       </div>
 
       {error && (
@@ -86,32 +88,32 @@ export default function PricingAiRulesPage() {
       )}
 
       {/* Margins */}
-      <Section title="Margens & descontos">
-        <Field label="Margem mínima global" hint="A IA nunca vai sugerir preço abaixo dessa margem">
+      <Section title={t('sectionMargins')}>
+        <Field label={t('fieldMinMargin')} hint={t('fieldMinMarginHint')}>
           <NumberInput value={Number(v('min_margin_pct'))} onChange={n => set('min_margin_pct', n)} suffix="%" />
         </Field>
-        <Field label="Desconto máximo" hint="Limite de desconto que a IA pode propor">
+        <Field label={t('fieldMaxDiscount')} hint={t('fieldMaxDiscountHint')}>
           <NumberInput value={Number(v('max_discount_pct'))} onChange={n => set('max_discount_pct', n)} suffix="%" />
         </Field>
-        <Field label="Arredondamento" hint="Como arredondar o preço sugerido">
+        <Field label={t('fieldRounding')} hint={t('fieldRoundingHint')}>
           <select
             value={String(v('price_rounding') ?? 'x.90')}
             onChange={e => set('price_rounding', e.target.value as PricingRules['price_rounding'])}
             className="bg-zinc-950 border border-zinc-800 rounded px-2 py-1.5 text-sm text-zinc-200 outline-none focus:border-cyan-400/60"
           >
-            <option value="x.90">Termina em ,90 (ex: R$ 49,90)</option>
-            <option value="x.99">Termina em ,99 (ex: R$ 49,99)</option>
-            <option value="x.00">Inteiro (ex: R$ 50,00)</option>
-            <option value="none">Sem arredondamento</option>
+            <option value="x.90">{t('rounding_x90')}</option>
+            <option value="x.99">{t('rounding_x99')}</option>
+            <option value="x.00">{t('rounding_x00')}</option>
+            <option value="none">{t('rounding_none')}</option>
           </select>
         </Field>
       </Section>
 
       {/* Auto-apply */}
-      <Section title="Auto-aplicação" icon={<Zap size={12} className="text-purple-400" />}>
+      <Section title={t('sectionAutoApply')} icon={<Zap size={12} className="text-purple-400" />}>
         <Field
-          label="Aplicar automaticamente"
-          hint="Se ativado, a IA aplica preços sem precisar de aprovação quando a mudança for pequena"
+          label={t('fieldAutoApply')}
+          hint={t('fieldAutoApplyHint')}
         >
           <label className="inline-flex items-center gap-2">
             <input
@@ -120,10 +122,10 @@ export default function PricingAiRulesPage() {
               onChange={e => set('auto_apply_enabled', e.target.checked)}
               className="w-4 h-4 rounded border-zinc-700 bg-zinc-950 accent-cyan-400"
             />
-            <span className="text-sm text-zinc-200">Habilitado</span>
+            <span className="text-sm text-zinc-200">{t('enabled')}</span>
           </label>
         </Field>
-        <Field label="Mudança máxima pra auto-apply" hint="Se a sugestão for menor que isso, aplica direto. Maior, pede aprovação.">
+        <Field label={t('fieldMaxChange')} hint={t('fieldMaxChangeHint')}>
           <NumberInput
             value={Number(v('auto_apply_max_change_pct'))}
             onChange={n => set('auto_apply_max_change_pct', n)}
@@ -134,23 +136,23 @@ export default function PricingAiRulesPage() {
       </Section>
 
       {/* Frequency */}
-      <Section title="Frequência de análise">
-        <Field label="Quando rodar análise automática">
+      <Section title={t('sectionFrequency')}>
+        <Field label={t('fieldFrequency')}>
           <select
             value={String(v('analysis_frequency') ?? 'weekly')}
             onChange={e => set('analysis_frequency', e.target.value as PricingRules['analysis_frequency'])}
             className="bg-zinc-950 border border-zinc-800 rounded px-2 py-1.5 text-sm text-zinc-200 outline-none focus:border-cyan-400/60"
           >
-            <option value="daily">Diariamente</option>
-            <option value="weekly">Semanalmente</option>
-            <option value="biweekly">Quinzenalmente</option>
-            <option value="monthly">Mensalmente</option>
-            <option value="manual">Manual (só quando eu pedir)</option>
+            <option value="daily">{t('freq_daily')}</option>
+            <option value="weekly">{t('freq_weekly')}</option>
+            <option value="biweekly">{t('freq_biweekly')}</option>
+            <option value="monthly">{t('freq_monthly')}</option>
+            <option value="manual">{t('freq_manual')}</option>
           </select>
         </Field>
         {rules.last_analysis_at && (
           <p className="text-[11px] text-zinc-500">
-            Última análise: {new Date(rules.last_analysis_at).toLocaleString('pt-BR')}
+            {t('lastAnalysis', { date: new Date(rules.last_analysis_at).toLocaleString('pt-BR') })}
           </p>
         )}
       </Section>
@@ -163,7 +165,7 @@ export default function PricingAiRulesPage() {
           className="glow-rainbow inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan-400 hover:bg-cyan-300 disabled:opacity-50 text-black text-sm font-medium shadow-lg"
         >
           {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-          Salvar alterações
+          {t('saveChanges')}
         </button>
       </div>
     </div>

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import { AlertTriangle, Package, TrendingDown, CheckCircle2, XCircle, RefreshCw, ChevronDown, ChevronUp, X } from 'lucide-react'
 
@@ -62,18 +63,19 @@ function calcAlert(qty: number, min: number): StockRow['alert'] {
 // ── Alert badge ───────────────────────────────────────────────────────────────
 
 const ALERT_CFG = {
-  zero:     { label: 'Sem estoque', color: '#f87171', bg: 'rgba(248,113,113,0.1)', icon: <XCircle size={11} /> },
-  critical: { label: 'Crítico',     color: '#fb923c', bg: 'rgba(251,146,60,0.1)', icon: <AlertTriangle size={11} /> },
-  low:      { label: 'Baixo',       color: '#fbbf24', bg: 'rgba(251,191,36,0.1)', icon: <TrendingDown size={11} /> },
-  ok:       { label: 'OK',          color: '#4ade80', bg: 'rgba(74,222,128,0.1)', icon: <CheckCircle2 size={11} /> },
+  zero:     { color: '#f87171', bg: 'rgba(248,113,113,0.1)', icon: <XCircle size={11} /> },
+  critical: { color: '#fb923c', bg: 'rgba(251,146,60,0.1)', icon: <AlertTriangle size={11} /> },
+  low:      { color: '#fbbf24', bg: 'rgba(251,191,36,0.1)', icon: <TrendingDown size={11} /> },
+  ok:       { color: '#4ade80', bg: 'rgba(74,222,128,0.1)', icon: <CheckCircle2 size={11} /> },
 }
 
 function AlertBadge({ alert }: { alert: StockRow['alert'] }) {
+  const t = useTranslations('catalogo')
   const c = ALERT_CFG[alert]
   return (
     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold"
       style={{ background: c.bg, color: c.color, border: `1px solid ${c.color}30` }}>
-      {c.icon} {c.label}
+      {c.icon} {t(`stock.alert.${alert}`)}
     </span>
   )
 }
@@ -85,6 +87,7 @@ function AdjustModal({ row, onClose, onDone }: {
   onClose: () => void
   onDone: () => void
 }) {
+  const t = useTranslations('catalogo')
   const [type, setType]     = useState<MovementType>('in')
   const [qty, setQty]       = useState('')
   const [reason, setReason] = useState('')
@@ -100,7 +103,7 @@ function AdjustModal({ row, onClose, onDone }: {
 
   async function handleSubmit() {
     const n = parseInt(qty)
-    if (!n || n <= 0) { setError('Informe uma quantidade válida.'); return }
+    if (!n || n <= 0) { setError(t('stock.modal.invalidQty')); return }
 
     setSaving(true)
     setError(null)
@@ -117,19 +120,19 @@ function AdjustModal({ row, onClose, onDone }: {
           reason: reason.trim() || null,
         }),
       })
-      if (!res.ok) { const t = await res.text(); throw new Error(t) }
+      if (!res.ok) { const errText = await res.text(); throw new Error(errText) }
       onDone()
     } catch (e: any) {
-      setError(e.message ?? 'Erro ao salvar movimentação')
+      setError(e.message ?? t('stock.modal.saveError'))
     } finally {
       setSaving(false)
     }
   }
 
   const TYPE_OPTS: { value: MovementType; label: string; color: string }[] = [
-    { value: 'in',         label: 'Entrada',  color: '#4ade80' },
-    { value: 'out',        label: 'Saída',    color: '#f87171' },
-    { value: 'adjustment', label: 'Ajuste',   color: '#00E5FF' },
+    { value: 'in',         label: t('stock.movType.in'),         color: '#4ade80' },
+    { value: 'out',        label: t('stock.movType.out'),        color: '#f87171' },
+    { value: 'adjustment', label: t('stock.movType.adjustment'), color: '#00E5FF' },
   ]
 
   return (
@@ -137,7 +140,7 @@ function AdjustModal({ row, onClose, onDone }: {
       <div className="w-full max-w-md rounded-2xl p-6 space-y-5" style={{ background: '#111114', border: '1px solid #2e2e33' }}>
         <div className="flex items-start justify-between">
           <div>
-            <h3 className="text-white font-semibold text-sm">Movimentar Estoque</h3>
+            <h3 className="text-white font-semibold text-sm">{t('stock.modal.title')}</h3>
             <p className="text-zinc-500 text-xs mt-0.5 line-clamp-1">{row.product.name}</p>
           </div>
           <button onClick={onClose} className="text-zinc-500 hover:text-white transition-colors">
@@ -163,7 +166,7 @@ function AdjustModal({ row, onClose, onDone }: {
         {/* Quantity */}
         <div>
           <label className="block text-[11px] font-medium text-zinc-400 mb-1">
-            {type === 'adjustment' ? 'Novo estoque físico' : 'Quantidade'}
+            {type === 'adjustment' ? t('stock.modal.newPhysical') : t('stock.modal.quantity')}
           </label>
           <input
             type="number"
@@ -181,20 +184,20 @@ function AdjustModal({ row, onClose, onDone }: {
         {/* Preview */}
         {qty && parseInt(qty) > 0 && (
           <div className="flex items-center gap-3 px-3 py-2 rounded-lg text-xs" style={{ background: 'rgba(0,229,255,0.06)', border: '1px solid rgba(0,229,255,0.15)' }}>
-            <span className="text-zinc-400">Atual: <strong className="text-white">{row.qty}</strong></span>
+            <span className="text-zinc-400">{t('stock.modal.current')} <strong className="text-white">{row.qty}</strong></span>
             <span className="text-zinc-600">→</span>
-            <span className="text-zinc-400">Novo: <strong style={{ color: '#00E5FF' }}>{previewQty}</strong></span>
+            <span className="text-zinc-400">{t('stock.modal.new')} <strong style={{ color: '#00E5FF' }}>{previewQty}</strong></span>
           </div>
         )}
 
         {/* Reason */}
         <div>
-          <label className="block text-[11px] font-medium text-zinc-400 mb-1">Motivo (opcional)</label>
+          <label className="block text-[11px] font-medium text-zinc-400 mb-1">{t('stock.modal.reasonLabel')}</label>
           <input
             type="text"
             value={reason}
             onChange={e => setReason(e.target.value)}
-            placeholder="ex: compra, quebra, inventário…"
+            placeholder={t('stock.modal.reasonPlaceholder')}
             className="w-full rounded-lg px-3 py-2 text-sm text-white outline-none transition-all"
             style={{ background: '#1c1c1f', border: '1px solid #3f3f46' }}
             onFocus={e => (e.target.style.borderColor = '#00E5FF')}
@@ -207,12 +210,12 @@ function AdjustModal({ row, onClose, onDone }: {
         <div className="flex gap-2 pt-1">
           <button onClick={onClose} className="flex-1 py-2 rounded-lg text-xs font-semibold text-zinc-400 transition-colors"
             style={{ border: '1px solid #3f3f46' }}>
-            Cancelar
+            {t('stock.modal.cancel')}
           </button>
           <button onClick={handleSubmit} disabled={saving}
             className="flex-1 py-2 rounded-lg text-xs font-semibold transition-all disabled:opacity-60"
             style={{ background: '#00E5FF', color: '#000' }}>
-            {saving ? 'Salvando…' : 'Confirmar'}
+            {saving ? t('stock.modal.saving') : t('stock.modal.confirm')}
           </button>
         </div>
       </div>
@@ -330,12 +333,12 @@ type Movement = {
   notes: string | null; created_at: string
 }
 
-const MOV_CFG: Record<string, { label: string; color: string; sign: '+' | '-' | '' }> = {
-  sale:          { label: 'Venda',            color: '#f87171', sign: '-' },
-  sale_reversal: { label: 'Estorno de venda', color: '#4ade80', sign: '+' },
-  in:            { label: 'Entrada',          color: '#4ade80', sign: '+' },
-  out:           { label: 'Saída',            color: '#f87171', sign: '-' },
-  adjustment:    { label: 'Ajuste',           color: '#00E5FF', sign: ''  },
+const MOV_CFG: Record<string, { color: string; sign: '+' | '-' | '' }> = {
+  sale:          { color: '#f87171', sign: '-' },
+  sale_reversal: { color: '#4ade80', sign: '+' },
+  in:            { color: '#4ade80', sign: '+' },
+  out:           { color: '#f87171', sign: '-' },
+  adjustment:    { color: '#00E5FF', sign: ''  },
 }
 
 function fmtDateTime(iso: string) {
@@ -354,6 +357,7 @@ function ChainLine({ label, value, sign = '', muted = false }: {
 }
 
 function StockDetailDrawer({ row, onClose }: { row: StockRow; onClose: () => void }) {
+  const t = useTranslations('catalogo')
   const [full, setFull]       = useState<FullStock | null>(null)
   const [moves, setMoves]     = useState<Movement[]>([])
   const [loading, setLoading] = useState(true)
@@ -380,7 +384,7 @@ function StockDetailDrawer({ row, onClose }: { row: StockRow; onClose: () => voi
   }, [row.product.id])
 
   const channelLabel = (c: string) =>
-    c === 'mercadolivre' ? 'Mercado Livre' : c === 'shopee' ? 'Shopee' : c === 'loja' ? 'Loja própria' : c
+    c === 'mercadolivre' ? 'Mercado Livre' : c === 'shopee' ? 'Shopee' : c === 'loja' ? t('stock.drawer.ownStore') : c
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={onClose}>
@@ -410,26 +414,26 @@ function StockDetailDrawer({ row, onClose }: { row: StockRow; onClose: () => voi
 
             {/* Cadeia do estoque */}
             <section>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-600 mb-2">Cadeia do estoque</p>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-600 mb-2">{t('stock.drawer.chainTitle')}</p>
               <div className="rounded-xl p-4 space-y-2" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
-                <ChainLine label="Físico (armazém)"     value={full?.physical ?? 0} />
-                <ChainLine label="Virtual (majoração)"  value={full?.virtual ?? 0}  sign="+" muted />
-                <ChainLine label="Reservado"            value={full?.reserved ?? 0} sign="-" muted />
-                <ChainLine label="Segurança"            value={full?.safety ?? 0}   sign="-" muted />
+                <ChainLine label={t('stock.drawer.physical')}  value={full?.physical ?? 0} />
+                <ChainLine label={t('stock.drawer.virtual')}   value={full?.virtual ?? 0}  sign="+" muted />
+                <ChainLine label={t('stock.drawer.reserved')}  value={full?.reserved ?? 0} sign="-" muted />
+                <ChainLine label={t('stock.drawer.safety')}    value={full?.safety ?? 0}   sign="-" muted />
                 <div className="h-px my-1" style={{ background: '#2e2e33' }} />
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-zinc-300">Disponível pra venda</span>
+                  <span className="text-xs font-semibold text-zinc-300">{t('stock.drawer.availableForSale')}</span>
                   <span className="text-xl font-black tabular-nums" style={{ color: '#00E5FF' }}>{full?.available ?? 0}</span>
                 </div>
               </div>
               {full?.no_stock_record && (
-                <p className="text-[10px] text-amber-400 mt-1.5">Produto sem registro de estoque cadastrado.</p>
+                <p className="text-[10px] text-amber-400 mt-1.5">{t('stock.drawer.noStockRecord')}</p>
               )}
             </section>
 
             {/* Distribuição por canal */}
             <section>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-600 mb-2">Distribuição por canal</p>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-600 mb-2">{t('stock.drawer.distributionTitle')}</p>
               {full && full.distributions.length > 0 ? (
                 <div className="space-y-1.5">
                   {full.distributions.map(d => (
@@ -438,16 +442,16 @@ function StockDetailDrawer({ row, onClose }: { row: StockRow; onClose: () => voi
                       <div>
                         <p className="text-xs text-zinc-200">{channelLabel(d.channel)}</p>
                         <p className="text-[10px] text-zinc-600">
-                          {d.distribution_mode === 'fixed' ? `Fixo ${d.fixed_quantity ?? 0}`
-                            : d.distribution_mode === 'auto' ? `Auto ${d.percentage ?? 0}%`
+                          {d.distribution_mode === 'fixed' ? t('stock.drawer.modeFixed', { qty: d.fixed_quantity ?? 0 })
+                            : d.distribution_mode === 'auto' ? t('stock.drawer.modeAuto', { pct: d.percentage ?? 0 })
                             : `${d.percentage ?? 100}%`}
-                          {d.virtual_markup ? ` · +${d.virtual_markup} virtual` : ''}
-                          {!d.is_active ? ' · inativo' : ''}
+                          {d.virtual_markup ? t('stock.drawer.virtualSuffix', { qty: d.virtual_markup }) : ''}
+                          {!d.is_active ? t('stock.drawer.inactiveSuffix') : ''}
                         </p>
                       </div>
                       <div className="text-right">
                         <p className="text-sm font-bold tabular-nums text-zinc-200">{d.last_published_qty ?? 0}</p>
-                        <p className="text-[9px] text-zinc-600">{d.last_synced_at ? fmtDateTime(d.last_synced_at) : 'nunca'}</p>
+                        <p className="text-[9px] text-zinc-600">{d.last_synced_at ? fmtDateTime(d.last_synced_at) : t('stock.drawer.never')}</p>
                       </div>
                     </div>
                   ))}
@@ -455,28 +459,29 @@ function StockDetailDrawer({ row, onClose }: { row: StockRow; onClose: () => voi
               ) : (
                 <div className="rounded-lg px-3 py-2.5 text-[11px] text-zinc-500"
                   style={{ background: '#111114', border: '1px solid #1e1e24' }}>
-                  Sem configuração de distribuição — o disponível é publicado integral em cada canal vinculado.
+                  {t('stock.drawer.noDistribution')}
                 </div>
               )}
             </section>
 
             {/* Histórico de movimentos */}
             <section>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-600 mb-2">Histórico de movimentos</p>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-600 mb-2">{t('stock.drawer.historyTitle')}</p>
               {moves.length === 0 ? (
                 <div className="rounded-lg px-3 py-2.5 text-[11px] text-zinc-500"
                   style={{ background: '#111114', border: '1px solid #1e1e24' }}>
-                  Nenhum movimento registrado.
+                  {t('stock.drawer.noMovements')}
                 </div>
               ) : (
                 <div className="space-y-1">
                   {moves.map(m => {
-                    const cfg = MOV_CFG[m.movement_type] ?? { label: m.movement_type, color: '#a1a1aa', sign: '' as const }
+                    const cfg = MOV_CFG[m.movement_type] ?? { color: '#a1a1aa', sign: '' as const }
+                    const cfgLabel = MOV_CFG[m.movement_type] ? t(`stock.movLabel.${m.movement_type}`) : m.movement_type
                     return (
                       <div key={m.id} className="flex items-center gap-3 rounded-lg px-3 py-2"
                         style={{ background: '#111114', border: '1px solid #1e1e24' }}>
                         <div className="min-w-0 flex-1">
-                          <p className="text-[11px] font-semibold" style={{ color: cfg.color }}>{cfg.label}</p>
+                          <p className="text-[11px] font-semibold" style={{ color: cfg.color }}>{cfgLabel}</p>
                           <p className="text-[10px] text-zinc-600 truncate">{m.notes ?? '—'}</p>
                         </div>
                         <div className="text-right shrink-0">
@@ -502,6 +507,7 @@ type FilterKey = 'all' | 'zero' | 'critical' | 'low' | 'ok'
 type SortKey = 'name' | 'qty' | 'platformQty' | 'alert' | 'minStock'
 
 export default function EstoquePage() {
+  const t = useTranslations('catalogo')
   const [rows, setRows]         = useState<StockRow[]>([])
   const [loading, setLoading]   = useState(true)
   const [error, setError]       = useState<string | null>(null)
@@ -524,7 +530,7 @@ export default function EstoquePage() {
         sb.from('product_stock').select('id,product_id,quantity,virtual_quantity,min_stock_to_pause,auto_pause_enabled,updated_at').is('platform', null),
       ])
 
-      if (!prodRes.ok) throw new Error('Erro ao carregar produtos')
+      if (!prodRes.ok) throw new Error(t('stock.loadProductsError'))
       const products: Product[] = await prodRes.json()
 
       const stockMap = new Map<string, StockRecord>()
@@ -549,11 +555,11 @@ export default function EstoquePage() {
 
       setRows(built)
     } catch (e: any) {
-      setError(e.message ?? 'Erro ao carregar estoque')
+      setError(e.message ?? t('stock.loadStockError'))
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [t])
 
   useEffect(() => { load() }, [load])
 
@@ -605,11 +611,11 @@ export default function EstoquePage() {
   }
 
   const FILTER_PILLS: { key: FilterKey; label: string; count: number; color: string }[] = [
-    { key: 'all',      label: 'Todos',       count: kpis.total,    color: '#a1a1aa' },
-    { key: 'zero',     label: 'Sem estoque', count: kpis.zero,     color: '#f87171' },
-    { key: 'critical', label: 'Crítico',     count: kpis.critical, color: '#fb923c' },
-    { key: 'low',      label: 'Baixo',       count: kpis.low,      color: '#fbbf24' },
-    { key: 'ok',       label: 'OK',          count: kpis.ok,       color: '#4ade80' },
+    { key: 'all',      label: t('stock.filter.all'),      count: kpis.total,    color: '#a1a1aa' },
+    { key: 'zero',     label: t('stock.filter.zero'),     count: kpis.zero,     color: '#f87171' },
+    { key: 'critical', label: t('stock.filter.critical'), count: kpis.critical, color: '#fb923c' },
+    { key: 'low',      label: t('stock.filter.low'),      count: kpis.low,      color: '#fbbf24' },
+    { key: 'ok',       label: t('stock.filter.ok'),       count: kpis.ok,       color: '#4ade80' },
   ]
 
   // ── Render ──────────────────────────────────────────────────────────────────
@@ -620,14 +626,14 @@ export default function EstoquePage() {
       {/* Header */}
       <div className="flex items-center justify-between gap-4">
         <div>
-          <p className="text-zinc-500 text-xs">Catálogo</p>
-          <h2 className="text-white text-lg font-semibold mt-0.5">Estoque</h2>
+          <p className="text-zinc-500 text-xs">{t('stock.eyebrow')}</p>
+          <h2 className="text-white text-lg font-semibold mt-0.5">{t('stock.title')}</h2>
         </div>
         <button onClick={load} disabled={loading}
           className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border transition-all disabled:opacity-60"
           style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>
           <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
-          Atualizar
+          {t('stock.refresh')}
         </button>
       </div>
 
@@ -640,10 +646,10 @@ export default function EstoquePage() {
       {/* KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: 'Total de produtos', value: kpis.total,    color: '#a1a1aa' },
-          { label: 'Sem estoque',       value: kpis.zero,     color: '#f87171' },
-          { label: 'Críticos',          value: kpis.critical + kpis.low, color: '#fb923c' },
-          { label: 'Saudáveis',         value: kpis.ok,       color: '#4ade80' },
+          { label: t('stock.kpi.totalProducts'), value: kpis.total,    color: '#a1a1aa' },
+          { label: t('stock.kpi.outOfStock'),    value: kpis.zero,     color: '#f87171' },
+          { label: t('stock.kpi.critical'),      value: kpis.critical + kpis.low, color: '#fb923c' },
+          { label: t('stock.kpi.healthy'),       value: kpis.ok,       color: '#4ade80' },
         ].map(k => (
           <div key={k.label} className="rounded-xl p-4" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
             <p className="text-zinc-500 text-[11px] font-medium">{k.label}</p>
@@ -672,7 +678,7 @@ export default function EstoquePage() {
         <div className="ml-auto">
           <input
             type="text"
-            placeholder="Buscar produto ou SKU…"
+            placeholder={t('stock.searchPlaceholder')}
             value={search}
             onChange={e => setSearch(e.target.value)}
             className="rounded-lg px-3 py-1.5 text-xs text-white outline-none w-52 transition-all"
@@ -689,14 +695,14 @@ export default function EstoquePage() {
           <table className="w-full" style={{ minWidth: 700 }}>
             <thead>
               <tr style={{ background: '#0a0a0d', borderBottom: '1px solid #1e1e24' }}>
-                <SortTh k="name"        label="Produto" />
-                <SortTh k="qty"         label="Físico" />
-                <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-zinc-600">Virtual</th>
-                <SortTh k="platformQty" label="Plataforma" />
-                <SortTh k="minStock"    label="Mín. estoque" />
-                <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-zinc-600">Auto-pausa</th>
-                <SortTh k="alert"       label="Status" />
-                <th className="px-3 py-2.5 text-[10px] text-zinc-600 font-semibold uppercase tracking-wider">Ação</th>
+                <SortTh k="name"        label={t('stock.col.product')} />
+                <SortTh k="qty"         label={t('stock.col.physical')} />
+                <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-zinc-600">{t('stock.col.virtual')}</th>
+                <SortTh k="platformQty" label={t('stock.col.platform')} />
+                <SortTh k="minStock"    label={t('stock.col.minStock')} />
+                <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-zinc-600">{t('stock.col.autoPause')}</th>
+                <SortTh k="alert"       label={t('stock.col.status')} />
+                <th className="px-3 py-2.5 text-[10px] text-zinc-600 font-semibold uppercase tracking-wider">{t('stock.col.action')}</th>
               </tr>
             </thead>
             <tbody>
@@ -715,7 +721,7 @@ export default function EstoquePage() {
                     <tr>
                       <td colSpan={8} className="px-4 py-12 text-center">
                         <Package size={32} className="mx-auto mb-2 text-zinc-700" />
-                        <p className="text-zinc-600 text-sm">Nenhum produto encontrado</p>
+                        <p className="text-zinc-600 text-sm">{t('stock.empty')}</p>
                       </td>
                     </tr>
                   )
@@ -731,7 +737,7 @@ export default function EstoquePage() {
                           <td className="px-3 py-2.5" style={{ maxWidth: 280 }}>
                             <button onClick={() => setDetail(row)}
                               className="flex items-center gap-2.5 text-left w-full group"
-                              title="Ver detalhe do estoque">
+                              title={t('stock.viewDetailTooltip')}>
                               <div className="w-8 h-8 rounded-lg shrink-0 overflow-hidden flex items-center justify-center"
                                 style={{ background: '#1c1c1f', border: '1px solid #2e2e33' }}>
                                 {thumb
@@ -788,7 +794,7 @@ export default function EstoquePage() {
                               style={{ background: 'rgba(0,229,255,0.1)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.2)' }}
                               onMouseEnter={e => (e.currentTarget.style.background = 'rgba(0,229,255,0.18)')}
                               onMouseLeave={e => (e.currentTarget.style.background = 'rgba(0,229,255,0.1)')}>
-                              Movimentar
+                              {t('stock.moveAction')}
                             </button>
                           </td>
                         </tr>
@@ -801,15 +807,14 @@ export default function EstoquePage() {
 
         {!loading && visible.length > 0 && (
           <div className="px-4 py-2 border-t" style={{ borderColor: '#1e1e24' }}>
-            <p className="text-[10px] text-zinc-600">{visible.length} produto{visible.length !== 1 ? 's' : ''} exibidos</p>
+            <p className="text-[10px] text-zinc-600">{t('stock.shownCount', { count: visible.length })}</p>
           </div>
         )}
       </section>
 
       {/* Legend */}
       <p className="text-[10px] text-zinc-700">
-        Físico = estoque no armazém · Virtual = quantidade adicional para plataforma · Plataforma = total anunciado ·
-        Mín. estoque = clique para editar · Auto-pausa = pausar anúncio ao atingir mínimo
+        {t('stock.legend')}
       </p>
 
       {/* Adjust modal */}

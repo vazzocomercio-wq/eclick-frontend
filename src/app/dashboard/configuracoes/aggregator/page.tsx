@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import {
   Database, RefreshCw, AlertCircle, CheckCircle2, XCircle,
@@ -60,11 +61,12 @@ function fmtDate(iso: string | null): string {
 }
 
 function StatusBadge({ status }: { status: AggregatorRun['status'] }) {
+  const t = useTranslations('configuracoes')
   const cfg = {
-    running:   { bg: 'rgba(0,229,255,0.12)', color: '#00E5FF', label: 'Em andamento', pulse: true },
-    completed: { bg: 'rgba(34,197,94,0.12)', color: '#22c55e', label: 'Concluído',    pulse: false },
-    failed:    { bg: 'rgba(239,68,68,0.12)', color: '#ef4444', label: 'Falhou',       pulse: false },
-    cancelled: { bg: 'rgba(113,113,122,0.12)', color: '#71717a', label: 'Cancelado',  pulse: false },
+    running:   { bg: 'rgba(0,229,255,0.12)', color: '#00E5FF', label: t('aggregator.statusRunning'),   pulse: true },
+    completed: { bg: 'rgba(34,197,94,0.12)', color: '#22c55e', label: t('aggregator.statusCompleted'), pulse: false },
+    failed:    { bg: 'rgba(239,68,68,0.12)', color: '#ef4444', label: t('aggregator.statusFailed'),    pulse: false },
+    cancelled: { bg: 'rgba(113,113,122,0.12)', color: '#71717a', label: t('aggregator.statusCancelled'), pulse: false },
   }[status]
   return (
     <span
@@ -82,7 +84,8 @@ function StatusBadge({ status }: { status: AggregatorRun['status'] }) {
 }
 
 function TypeBadge({ type }: { type: AggregatorRun['run_type'] }) {
-  const labels = { backfill: 'Backfill', daily: 'Diário', manual: 'Manual' }
+  const t = useTranslations('configuracoes')
+  const labels = { backfill: t('aggregator.typeBackfill'), daily: t('aggregator.typeDaily'), manual: t('aggregator.typeManual') }
   return (
     <span style={{ fontSize: 11, fontWeight: 600, color: '#71717a', background: 'rgba(255,255,255,0.05)', padding: '2px 8px', borderRadius: 6 }}>
       {labels[type]}
@@ -121,6 +124,7 @@ function ElapsedTimer({ startedAt }: { startedAt: string }) {
 function ConfirmModal({
   title, description, onConfirm, onClose,
 }: { title: string; description: string; onConfirm: () => void; onClose: () => void }) {
+  const t = useTranslations('configuracoes')
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center"
@@ -138,13 +142,13 @@ function ConfirmModal({
             onClick={onClose}
             style={{ padding: '8px 18px', borderRadius: 8, background: 'rgba(255,255,255,0.05)', color: '#a1a1aa', fontSize: 13 }}
           >
-            Cancelar
+            {t('aggregator.cancel')}
           </button>
           <button
             onClick={() => { onConfirm(); onClose() }}
             style={{ padding: '8px 18px', borderRadius: 8, background: '#00E5FF', color: '#000', fontWeight: 700, fontSize: 13 }}
           >
-            Confirmar
+            {t('aggregator.confirm')}
           </button>
         </div>
       </div>
@@ -153,6 +157,7 @@ function ConfirmModal({
 }
 
 function RunDetailModal({ run, onClose }: { run: AggregatorRun; onClose: () => void }) {
+  const t = useTranslations('configuracoes')
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
@@ -168,24 +173,24 @@ function RunDetailModal({ run, onClose }: { run: AggregatorRun; onClose: () => v
           <button onClick={onClose} style={{ color: '#a1a1aa' }}><X size={18} /></button>
         </div>
         <div className="grid grid-cols-2 gap-4 mb-6">
-          <Stat label="Início" value={fmtDate(run.started_at)} />
-          <Stat label="Duração" value={fmtDuration(run.duration_seconds)} />
-          <Stat label="Período" value={`${run.start_date} → ${run.end_date}`} />
-          <Stat label="Dias processados" value={`${run.processed_dates}/${run.total_dates}`} />
-          <Stat label="Pedidos encontrados" value={run.orders_fetched} color="#00E5FF" />
-          <Stat label="Pedidos inseridos" value={run.orders_inserted} color="#00E5FF" />
-          <Stat label="Snapshots gerados" value={run.snapshots_inserted} color="#22c55e" />
-          <Stat label="Chamadas API" value={run.api_calls_made} />
+          <Stat label={t('aggregator.startLabel')} value={fmtDate(run.started_at)} />
+          <Stat label={t('aggregator.durationLabel')} value={fmtDuration(run.duration_seconds)} />
+          <Stat label={t('aggregator.periodLabel')} value={`${run.start_date} → ${run.end_date}`} />
+          <Stat label={t('aggregator.processedDays')} value={`${run.processed_dates}/${run.total_dates}`} />
+          <Stat label={t('aggregator.ordersFound')} value={run.orders_fetched} color="#00E5FF" />
+          <Stat label={t('aggregator.ordersInserted')} value={run.orders_inserted} color="#00E5FF" />
+          <Stat label={t('aggregator.snapshotsGenerated')} value={run.snapshots_inserted} color="#22c55e" />
+          <Stat label={t('aggregator.apiCalls')} value={run.api_calls_made} />
         </div>
         {run.error_message && (
           <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, padding: 14, marginBottom: 12 }}>
-            <p style={{ fontSize: 12, fontWeight: 600, color: '#ef4444', marginBottom: 6 }}>Erro</p>
+            <p style={{ fontSize: 12, fontWeight: 600, color: '#ef4444', marginBottom: 6 }}>{t('aggregator.errorLabel')}</p>
             <p style={{ fontSize: 12, color: '#fca5a5' }}>{run.error_message}</p>
           </div>
         )}
         {run.error_details && (
           <div>
-            <p style={{ fontSize: 11, color: '#a1a1aa', marginBottom: 6 }}>Detalhes dos erros</p>
+            <p style={{ fontSize: 11, color: '#a1a1aa', marginBottom: 6 }}>{t('aggregator.errorDetails')}</p>
             <pre style={{ fontSize: 11, color: '#a1a1aa', background: '#0c0c0f', padding: 12, borderRadius: 8, overflow: 'auto', maxHeight: 200 }}>
               {JSON.stringify(run.error_details, null, 2)}
             </pre>
@@ -197,6 +202,7 @@ function RunDetailModal({ run, onClose }: { run: AggregatorRun; onClose: () => v
 }
 
 export default function AggregatorPage() {
+  const t = useTranslations('configuracoes')
   const [status, setStatus] = useState<StatusResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
@@ -263,7 +269,7 @@ export default function AggregatorPage() {
   const handleBackfill = async () => {
     try {
       await post('backfill', { days: backfillDays })
-      showToast(`Backfill de ${backfillDays} dias iniciado`)
+      showToast(t('aggregator.backfillStarted', { days: backfillDays }))
     } catch (e: unknown) {
       showToast((e as Error).message, false)
     }
@@ -272,7 +278,7 @@ export default function AggregatorPage() {
   const handleRunNow = async (days: number) => {
     try {
       await post('run-now', { days })
-      showToast(`Sincronização de ${days} dias iniciada`)
+      showToast(t('aggregator.syncStarted', { days }))
     } catch (e: unknown) {
       showToast((e as Error).message, false)
     }
@@ -281,7 +287,7 @@ export default function AggregatorPage() {
   const handleCancel = async (runId: string) => {
     try {
       await post(`cancel/${runId}`)
-      showToast('Execução marcada como cancelada')
+      showToast(t('aggregator.runCancelled'))
     } catch (e: unknown) {
       showToast((e as Error).message, false)
     }
@@ -312,61 +318,61 @@ export default function AggregatorPage() {
       <div className="mb-6">
         <div className="flex items-center gap-3 mb-1">
           <Database size={20} style={{ color: '#00E5FF' }} />
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: '#fff' }}>Agregador de Vendas</h1>
+          <h1 style={{ fontSize: 22, fontWeight: 700, color: '#fff' }}>{t('aggregator.title')}</h1>
         </div>
         <p style={{ fontSize: 13, color: '#71717a' }}>
-          Sincroniza pedidos da API do Mercado Livre e agrega métricas por produto/dia.
+          {t('aggregator.subtitle')}
         </p>
       </div>
 
       {/* Status Card */}
       <Card style={{ marginBottom: 20 }}>
         <div className="flex items-center justify-between mb-4">
-          <span style={{ fontSize: 13, fontWeight: 600, color: '#a1a1aa' }}>Status Atual</span>
+          <span style={{ fontSize: 13, fontWeight: 600, color: '#a1a1aa' }}>{t('aggregator.currentStatus')}</span>
           <button
             onClick={fetchStatus}
             style={{ color: '#a1a1aa', padding: 4, borderRadius: 6 }}
-            title="Atualizar"
+            title={t('aggregator.refresh')}
           >
             <RefreshCw size={14} />
           </button>
         </div>
 
         {loading ? (
-          <p style={{ fontSize: 13, color: '#71717a' }}>Carregando...</p>
+          <p style={{ fontSize: 13, color: '#71717a' }}>{t('aggregator.loading')}</p>
         ) : active ? (
           <div>
             <div className="flex items-center gap-3 mb-4">
               <StatusBadge status="running" />
               <TypeBadge type={active.run_type} />
               <span style={{ fontSize: 12, color: '#71717a' }}>
-                <ElapsedTimer startedAt={active.started_at} /> decorridos
+                <ElapsedTimer startedAt={active.started_at} /> {t('aggregator.elapsed')}
               </span>
             </div>
             <p style={{ fontSize: 12, color: '#a1a1aa', marginBottom: 8 }}>
               {active.current_date_processing
-                ? `Processando ${active.current_date_processing}... (${active.processed_dates}/${active.total_dates} dias)`
-                : `Aguardando... (${active.processed_dates}/${active.total_dates} dias)`
+                ? t('aggregator.processing', { date: active.current_date_processing, done: active.processed_dates, total: active.total_dates })
+                : t('aggregator.waiting', { done: active.processed_dates, total: active.total_dates })
               }
             </p>
             <div style={{ background: '#1a1a1f', borderRadius: 99, height: 8, marginBottom: 16, overflow: 'hidden' }}>
               <div style={{ height: '100%', background: '#00E5FF', borderRadius: 99, width: `${pct}%`, transition: 'width 0.5s ease' }} />
             </div>
             <div className="grid grid-cols-2 gap-4 mb-4" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
-              <Stat label="Pedidos lidos" value={active.orders_fetched} color="#00E5FF" />
-              <Stat label="Pedidos gravados" value={active.orders_inserted} color="#00E5FF" />
-              <Stat label="Snapshots" value={active.snapshots_inserted} color="#22c55e" />
-              <Stat label="Chamadas API" value={active.api_calls_made} />
+              <Stat label={t('aggregator.ordersRead')} value={active.orders_fetched} color="#00E5FF" />
+              <Stat label={t('aggregator.ordersSaved')} value={active.orders_inserted} color="#00E5FF" />
+              <Stat label={t('aggregator.snapshots')} value={active.snapshots_inserted} color="#22c55e" />
+              <Stat label={t('aggregator.apiCalls')} value={active.api_calls_made} />
             </div>
             <button
               onClick={() => setConfirm({
-                title: 'Cancelar execução',
-                desc: 'Isso marcará a execução como cancelada. O processamento em andamento continuará até completar o dia atual.',
+                title: t('aggregator.cancelRunTitle'),
+                desc: t('aggregator.cancelRunDesc'),
                 action: () => handleCancel(active.id),
               })}
               style={{ fontSize: 12, color: '#ef4444', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 6, padding: '5px 12px' }}
             >
-              Cancelar execução
+              {t('aggregator.cancelRun')}
             </button>
           </div>
         ) : (
@@ -374,12 +380,12 @@ export default function AggregatorPage() {
             <div className="flex items-center gap-3 mb-4">
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 99, background: 'rgba(34,197,94,0.12)', color: '#22c55e' }}>
                 <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', display: 'inline-block' }} />
-                Ocioso
+                {t('aggregator.idle')}
               </span>
             </div>
             {status?.recentRuns?.[0] && (
               <p style={{ fontSize: 12, color: '#71717a' }}>
-                Última execução: <span style={{ color: '#a1a1aa' }}>{fmtDate(status.recentRuns[0].started_at)}</span>
+                {t('aggregator.lastRun')} <span style={{ color: '#a1a1aa' }}>{fmtDate(status.recentRuns[0].started_at)}</span>
                 &nbsp;—&nbsp;<StatusBadge status={status.recentRuns[0].status} />
               </p>
             )}
@@ -387,7 +393,7 @@ export default function AggregatorPage() {
               <div style={{ marginTop: 12, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, padding: 12 }}>
                 <div className="flex items-center gap-2 mb-1">
                   <AlertCircle size={13} style={{ color: '#ef4444' }} />
-                  <span style={{ fontSize: 12, fontWeight: 600, color: '#ef4444' }}>Último erro</span>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: '#ef4444' }}>{t('aggregator.lastError')}</span>
                 </div>
                 <p style={{ fontSize: 12, color: '#fca5a5' }}>{status.recentRuns[0].error_message}</p>
               </div>
@@ -403,10 +409,10 @@ export default function AggregatorPage() {
         <Card>
           <div className="flex items-center gap-2 mb-2">
             <Clock size={16} style={{ color: '#00E5FF' }} />
-            <span style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>Sincronização Diária</span>
+            <span style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>{t('aggregator.dailySyncTitle')}</span>
           </div>
-          <p style={{ fontSize: 12, color: '#a1a1aa', marginBottom: 4 }}>Re-processa os últimos 3 dias.</p>
-          <p style={{ fontSize: 11, color: '#a1a1aa', marginBottom: 14 }}>Cron: 02:00 BRT todos os dias</p>
+          <p style={{ fontSize: 12, color: '#a1a1aa', marginBottom: 4 }}>{t('aggregator.dailySyncDesc')}</p>
+          <p style={{ fontSize: 11, color: '#a1a1aa', marginBottom: 14 }}>{t('aggregator.dailySyncCron')}</p>
           <button
             onClick={() => handleRunNow(3)}
             disabled={!!active || actionLoading}
@@ -421,7 +427,7 @@ export default function AggregatorPage() {
             }}
           >
             <Play size={13} />
-            Forçar agora
+            {t('aggregator.forceNow')}
           </button>
         </Card>
 
@@ -429,12 +435,12 @@ export default function AggregatorPage() {
         <Card>
           <div className="flex items-center gap-2 mb-2">
             <Database size={16} style={{ color: '#f59e0b' }} />
-            <span style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>Backfill Inicial</span>
+            <span style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>{t('aggregator.backfillTitle')}</span>
           </div>
-          <p style={{ fontSize: 12, color: '#a1a1aa', marginBottom: 4 }}>Importa histórico completo.</p>
-          <p style={{ fontSize: 11, color: '#f59e0b', marginBottom: 10 }}>⚠ Pode levar 30–60 minutos</p>
+          <p style={{ fontSize: 12, color: '#a1a1aa', marginBottom: 4 }}>{t('aggregator.backfillDesc')}</p>
+          <p style={{ fontSize: 11, color: '#f59e0b', marginBottom: 10 }}>{t('aggregator.backfillWarning')}</p>
           <div className="flex items-center gap-2 mb-3">
-            <span style={{ fontSize: 12, color: '#a1a1aa' }}>Dias:</span>
+            <span style={{ fontSize: 12, color: '#a1a1aa' }}>{t('aggregator.daysLabel')}</span>
             <input
               type="number"
               value={backfillDays}
@@ -445,8 +451,8 @@ export default function AggregatorPage() {
           </div>
           <button
             onClick={() => setConfirm({
-              title: 'Iniciar Backfill',
-              desc: `Isso vai importar pedidos dos últimos ${backfillDays} dias. A operação pode levar mais de 30 minutos. Continuar?`,
+              title: t('aggregator.startBackfillTitle'),
+              desc: t('aggregator.startBackfillDesc', { days: backfillDays }),
               action: handleBackfill,
             })}
             disabled={!!active || actionLoading}
@@ -461,7 +467,7 @@ export default function AggregatorPage() {
             }}
           >
             <Play size={13} />
-            Iniciar Backfill
+            {t('aggregator.startBackfill')}
           </button>
         </Card>
 
@@ -469,12 +475,12 @@ export default function AggregatorPage() {
         <Card>
           <div className="flex items-center gap-2 mb-2">
             <RefreshCw size={16} style={{ color: '#a78bfa' }} />
-            <span style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>Sincronização Custom</span>
+            <span style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>{t('aggregator.customSyncTitle')}</span>
           </div>
-          <p style={{ fontSize: 12, color: '#a1a1aa', marginBottom: 4 }}>Sincroniza um período personalizado.</p>
-          <p style={{ fontSize: 11, color: '#a1a1aa', marginBottom: 10 }}>Máximo 30 dias</p>
+          <p style={{ fontSize: 12, color: '#a1a1aa', marginBottom: 4 }}>{t('aggregator.customSyncDesc')}</p>
+          <p style={{ fontSize: 11, color: '#a1a1aa', marginBottom: 10 }}>{t('aggregator.customSyncMax')}</p>
           <div className="flex items-center gap-2 mb-3">
-            <span style={{ fontSize: 12, color: '#a1a1aa' }}>Dias:</span>
+            <span style={{ fontSize: 12, color: '#a1a1aa' }}>{t('aggregator.daysLabel')}</span>
             <input
               type="number"
               value={customDays}
@@ -497,23 +503,32 @@ export default function AggregatorPage() {
             }}
           >
             <Play size={13} />
-            Sincronizar
+            {t('aggregator.sync')}
           </button>
         </Card>
       </div>
 
       {/* History Table */}
       <Card>
-        <h2 style={{ fontSize: 14, fontWeight: 700, color: '#fff', marginBottom: 16 }}>Histórico de Execuções</h2>
+        <h2 style={{ fontSize: 14, fontWeight: 700, color: '#fff', marginBottom: 16 }}>{t('aggregator.historyTitle')}</h2>
         {!status?.recentRuns?.length ? (
-          <p style={{ fontSize: 13, color: '#a1a1aa', textAlign: 'center', padding: '24px 0' }}>Nenhuma execução registrada.</p>
+          <p style={{ fontSize: 13, color: '#a1a1aa', textAlign: 'center', padding: '24px 0' }}>{t('aggregator.noRuns')}</p>
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid #1a1a1f' }}>
-                  {['Tipo', 'Início', 'Duração', 'Status', 'Dias', 'Pedidos', 'Snapshots', ''].map(h => (
-                    <th key={h} style={{ padding: '8px 12px', textAlign: 'left', color: '#a1a1aa', fontWeight: 600, whiteSpace: 'nowrap' }}>{h}</th>
+                  {[
+                    { k: 'type',      l: t('aggregator.colType') },
+                    { k: 'start',     l: t('aggregator.colStart') },
+                    { k: 'duration',  l: t('aggregator.colDuration') },
+                    { k: 'status',    l: t('aggregator.colStatus') },
+                    { k: 'days',      l: t('aggregator.colDays') },
+                    { k: 'orders',    l: t('aggregator.colOrders') },
+                    { k: 'snapshots', l: t('aggregator.colSnapshots') },
+                    { k: 'chevron',   l: '' },
+                  ].map(h => (
+                    <th key={h.k} style={{ padding: '8px 12px', textAlign: 'left', color: '#a1a1aa', fontWeight: 600, whiteSpace: 'nowrap' }}>{h.l}</th>
                   ))}
                 </tr>
               </thead>

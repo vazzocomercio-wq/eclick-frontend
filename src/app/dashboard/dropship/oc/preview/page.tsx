@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import Link from 'next/link'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import {
   ArrowLeft, AlertCircle, Eye, RefreshCw, Clock, FileText,
@@ -24,6 +25,7 @@ interface PreviewResponse {
 }
 
 export default function OCPreviewPage() {
+  const t = useTranslations('dropship.ocPreview')
   const supabase = useMemo(() => createClient(), [])
 
   const [data, setData] = useState<PreviewResponse | null>(null)
@@ -37,16 +39,16 @@ export default function OCPreviewPage() {
     setErr('')
     try {
       const { data: { session } } = await supabase.auth.getSession()
-      if (!session?.access_token) throw new Error('Não autenticado')
+      if (!session?.access_token) throw new Error(t('errors.notAuthenticated'))
       const res = await fetch(`${BACKEND}/dropship/oc/preview`, {
         headers: { Authorization: `Bearer ${session.access_token}` },
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       setData(await res.json())
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Erro ao carregar')
+      setErr(e instanceof Error ? e.message : t('errors.loadFailed'))
     } finally { setLoading(false); setRefreshing(false) }
-  }, [supabase])
+  }, [supabase, t])
 
   useEffect(() => { load() }, [load])
 
@@ -80,10 +82,10 @@ export default function OCPreviewPage() {
           <div>
             <h1 className="text-xl font-semibold text-white flex items-center gap-2">
               <Eye size={20} style={{ color: '#00E5FF' }} />
-              Prévia das OCs
+              {t('title')}
             </h1>
             <p className="text-sm text-zinc-500 mt-0.5">
-              Quais OCs SERIAM geradas se o cron rodasse agora · auto-refresh a cada 60s
+              {t('subtitle')}
             </p>
           </div>
         </div>
@@ -94,7 +96,7 @@ export default function OCPreviewPage() {
           style={{ border: '1px solid #27272a', color: '#a1a1aa' }}
         >
           <RefreshCw size={12} className={refreshing ? 'animate-spin' : ''} />
-          Atualizar
+          {t('refresh')}
         </button>
       </div>
 
@@ -114,21 +116,24 @@ export default function OCPreviewPage() {
         <Clock size={20} style={{ color: '#00E5FF' }} />
         <div className="flex-1">
           <p className="text-sm text-white font-medium">
-            Próxima geração automática em <strong>{hoursUntil}h{String(minsUntil).padStart(2, '0')}min</strong>
+            {t.rich('countdown', {
+              time: `${hoursUntil}h${String(minsUntil).padStart(2, '0')}min`,
+              strong: (chunks) => <strong>{chunks}</strong>,
+            })}
           </p>
           <p className="text-xs text-zinc-400 mt-0.5">
-            OCs são geradas todo dia às 22:00. Use "Gerar agora" na lista de OCs pra forçar fora do horário.
+            {t('countdownHint')}
           </p>
         </div>
       </div>
 
       {/* totais */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-        <Kpi label="OCs previstas" value={loading ? '…' : groups.length} />
-        <Kpi label="Pedidos" value={loading ? '…' : totalItems} />
-        <Kpi label="Unidades" value={loading ? '…' : totalUnits} />
+        <Kpi label={t('kpi.expectedOcs')} value={loading ? '…' : groups.length} />
+        <Kpi label={t('kpi.orders')} value={loading ? '…' : totalItems} />
+        <Kpi label={t('kpi.units')} value={loading ? '…' : totalUnits} />
         <Kpi
-          label="Valor estimado"
+          label={t('kpi.estimatedValue')}
           value={loading ? '…' : fmtBrl(totalGross)}
           accent="#00E5FF"
         />
@@ -136,19 +141,18 @@ export default function OCPreviewPage() {
 
       {/* grupos */}
       <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-3">
-        Grupos {groups.length > 0 && `(${groups.length})`}
+        {t('groups')} {groups.length > 0 && `(${groups.length})`}
       </h2>
       {loading ? (
         <div className="rounded-xl p-12 text-center text-zinc-500 text-sm" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
-          Carregando...
+          {t('loading')}
         </div>
       ) : groups.length === 0 ? (
         <div className="rounded-xl p-12 text-center text-zinc-500 text-sm" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
           <FileText size={28} className="mx-auto mb-2 text-zinc-700" />
-          Nenhum pedido elegível pra OC no momento.
+          {t('empty')}
           <p className="text-xs mt-1">
-            Pedidos elegíveis precisam estar com status <code>eligible_for_oc</code> ou <code>shipped_confirmed</code>
-            {' '}e ainda não estar em outra OC.
+            {t.rich('emptyHint', { code: (chunks) => <code>{chunks}</code> })}
           </p>
         </div>
       ) : (
@@ -166,16 +170,16 @@ export default function OCPreviewPage() {
                     color: '#00E5FF',
                     border: '1px solid rgba(0,229,255,0.3)',
                   }}>
-                  {g.items_count} pedido{g.items_count !== 1 ? 's' : ''}
+                  {t('ordersCount', { count: g.items_count })}
                 </span>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <p className="text-xs text-zinc-500">Unidades</p>
+                  <p className="text-xs text-zinc-500">{t('kpi.units')}</p>
                   <p className="text-sm font-semibold text-white">{g.units_count}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-zinc-500">Valor estimado</p>
+                  <p className="text-xs text-zinc-500">{t('kpi.estimatedValue')}</p>
                   <p className="text-sm font-semibold text-white">{fmtBrl(g.gross_total)}</p>
                 </div>
               </div>

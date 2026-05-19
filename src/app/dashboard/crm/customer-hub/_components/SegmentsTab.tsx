@@ -1,15 +1,17 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { useTranslations } from 'next-intl'
 import { useRouter } from 'next/navigation'
 import { createPortal } from 'react-dom'
 import { api } from './api'
 import {
   CustomerSegment, SegmentRule, SegmentField, SegmentOperator,
-  SEGMENT_FIELD_LABELS, OPERATOR_LABELS, SEGMENT_AUTO_LABELS,
   fmtNumber,
 } from './types'
 import { useConfirm } from '@/components/ui/dialog-provider'
+
+const SEGMENT_AUTO_KEYS = ['campeoes', 'leais', 'promissores', 'novos', 'em_risco', 'perdidos', 'ocasionais']
 
 const ICON_PRESETS = ['👥', '👑', '⭐', '🎯', '💎', '🚀', '⚠️', '🔥', '📈', '💰', '❤️', '🛡️']
 
@@ -32,6 +34,7 @@ const OPERATORS_BY_FIELD: Record<SegmentField, SegmentOperator[]> = {
 }
 
 export function SegmentsTab({ onToast }: { onToast: (m: string, type?: 'success' | 'error') => void }) {
+  const t = useTranslations('crm.customerHub.segments')
   const router = useRouter()
   const [list, setList]     = useState<CustomerSegment[]>([])
   const [loading, setLoad]  = useState(true)
@@ -50,7 +53,7 @@ export function SegmentsTab({ onToast }: { onToast: (m: string, type?: 'success'
   async function compute(s: CustomerSegment) {
     try {
       const r = await api<{ count: number }>(`/customer-hub/segments/${s.id}/compute`, { method: 'POST' })
-      onToast(`${s.name}: ${r.count} clientes`, 'success')
+      onToast(t('toast.computed', { name: s.name, count: r.count }), 'success')
       await load()
     } catch (e) { onToast((e as Error).message, 'error') }
   }
@@ -60,12 +63,12 @@ export function SegmentsTab({ onToast }: { onToast: (m: string, type?: 'success'
       type Row = { id: string; display_name: string | null; phone: string | null; email: string | null; ltv_score?: number | null; avg_ticket?: number | null; abc_curve?: string | null; churn_risk?: string | null }
       const rows = await api<Row[]>(`/customer-hub/segments/${s.id}/customers?limit=10000`)
       if (rows.length === 0) {
-        onToast('Segmento sem clientes pra exportar', 'error')
+        onToast(t('toast.noCustomersToExport'), 'error')
         return
       }
       const escape = (x: string) => /[",\n]/.test(x) ? `"${x.replace(/"/g, '""')}"` : x
       const lines = [
-        ['Cliente', 'Telefone', 'Email', 'LTV', 'Ticket médio', 'Curva ABC', 'Churn'].join(','),
+        [t('csv.customer'), t('csv.phone'), t('csv.email'), t('csv.ltv'), t('csv.avgTicket'), t('csv.abcCurve'), t('csv.churn')].join(','),
         ...rows.map(r => [
           escape(r.display_name ?? ''),
           r.phone ?? '',
@@ -86,41 +89,41 @@ export function SegmentsTab({ onToast }: { onToast: (m: string, type?: 'success'
       a.download = `segmento-${slug}-${stamp}.csv`
       document.body.appendChild(a); a.click(); document.body.removeChild(a)
       URL.revokeObjectURL(url)
-      onToast(`${rows.length} clientes exportados`, 'success')
+      onToast(t('toast.exported', { count: rows.length }), 'success')
     } catch (e) { onToast((e as Error).message, 'error') }
   }
 
   async function remove(id: string) {
     const ok = await confirm({
-      title:        'Excluir segmento',
-      message:      'Excluir segmento? Membros serão removidos (clientes preservados).',
-      confirmLabel: 'Excluir',
+      title:        t('confirm.deleteTitle'),
+      message:      t('confirm.deleteMessage'),
+      confirmLabel: t('confirm.deleteConfirm'),
       variant:      'danger',
     })
     if (!ok) return
     try {
       await api(`/customer-hub/segments/${id}`, { method: 'DELETE' })
       setList(prev => prev.filter(s => s.id !== id))
-      onToast('Segmento excluído', 'success')
+      onToast(t('toast.deleted'), 'success')
     } catch (e) { onToast((e as Error).message, 'error') }
   }
 
   return (
     <>
       <div className="flex items-center justify-between mb-5">
-        <p className="text-zinc-400 text-sm">Segmentos com regras dinâmicas. Cron diário recalcula auto_refresh=true.</p>
+        <p className="text-zinc-400 text-sm">{t('intro')}</p>
         <button
           onClick={() => setEdit('new')}
           className="px-4 py-2 rounded-lg text-sm font-semibold"
           style={{ background: '#00E5FF', color: '#08323b' }}
-        >+ Novo segmento</button>
+        >{t('newSegment')}</button>
       </div>
 
       {loading
         ? <div className="h-32 rounded-2xl animate-pulse" style={{ background: '#111114' }} />
         : list.length === 0
           ? <div className="rounded-2xl px-6 py-10 text-center text-zinc-500" style={{ background: '#111114', border: '1px dashed #27272a' }}>
-              Nenhum segmento ainda. Crie um pra usar em campanhas Messaging.
+              {t('empty')}
             </div>
           : <div className="grid gap-3">
               {list.map(s => (
@@ -132,26 +135,26 @@ export function SegmentsTab({ onToast }: { onToast: (m: string, type?: 'success'
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="text-white font-semibold truncate">{s.name}</p>
                       <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full" style={{ background: `${s.color}1a`, color: s.color }}>
-                        {fmtNumber(s.customer_count)} clientes
+                        {t('customerCountBadge', { count: s.customer_count })}
                       </span>
                       {s.auto_refresh && (
                         <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full" style={{ background: 'rgba(52,211,153,0.1)', color: '#34d399' }}>
-                          Auto
+                          {t('autoBadge')}
                         </span>
                       )}
                     </div>
                     {s.description && <p className="text-zinc-500 text-xs mt-0.5">{s.description}</p>}
                     <p className="text-zinc-600 text-[11px] mt-1">
-                      {s.rules.length} regra{s.rules.length === 1 ? '' : 's'}
-                      {s.last_computed_at && ` · Última atualização: ${new Date(s.last_computed_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}`}
+                      {t('ruleCount', { count: s.rules.length })}
+                      {s.last_computed_at && ` · ${t('lastUpdate', { date: new Date(s.last_computed_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) })}`}
                     </p>
                   </div>
                   <div className="flex flex-col gap-2 shrink-0">
-                    <button onClick={() => setEdit(s)} className="px-3 py-1.5 rounded-lg text-xs font-medium border" style={{ borderColor: '#3f3f46', color: '#e4e4e7' }}>Editar</button>
-                    <button onClick={() => compute(s)} className="px-3 py-1.5 rounded-lg text-xs font-medium border" style={{ borderColor: '#00E5FF', color: '#00E5FF' }}>Recalcular</button>
-                    <button onClick={() => router.push(`/dashboard/messaging?segment_id=${s.id}`)} className="px-3 py-1.5 rounded-lg text-xs font-medium border" style={{ borderColor: '#3f3f46', color: '#e4e4e7' }}>Campanha</button>
-                    <button onClick={() => exportSegmentCsv(s)} className="px-3 py-1.5 rounded-lg text-xs font-medium border" style={{ borderColor: '#3f3f46', color: '#e4e4e7' }}>CSV</button>
-                    <button onClick={() => remove(s.id)} className="px-3 py-1.5 rounded-lg text-xs font-medium border" style={{ borderColor: '#3f3f46', color: '#f87171' }}>Excluir</button>
+                    <button onClick={() => setEdit(s)} className="px-3 py-1.5 rounded-lg text-xs font-medium border" style={{ borderColor: '#3f3f46', color: '#e4e4e7' }}>{t('edit')}</button>
+                    <button onClick={() => compute(s)} className="px-3 py-1.5 rounded-lg text-xs font-medium border" style={{ borderColor: '#00E5FF', color: '#00E5FF' }}>{t('recompute')}</button>
+                    <button onClick={() => router.push(`/dashboard/messaging?segment_id=${s.id}`)} className="px-3 py-1.5 rounded-lg text-xs font-medium border" style={{ borderColor: '#3f3f46', color: '#e4e4e7' }}>{t('campaign')}</button>
+                    <button onClick={() => exportSegmentCsv(s)} className="px-3 py-1.5 rounded-lg text-xs font-medium border" style={{ borderColor: '#3f3f46', color: '#e4e4e7' }}>{t('csvButton')}</button>
+                    <button onClick={() => remove(s.id)} className="px-3 py-1.5 rounded-lg text-xs font-medium border" style={{ borderColor: '#3f3f46', color: '#f87171' }}>{t('delete')}</button>
                   </div>
                 </div>
               ))}
@@ -167,7 +170,7 @@ export function SegmentsTab({ onToast }: { onToast: (m: string, type?: 'success'
               const idx = prev.findIndex(x => x.id === s.id)
               return idx >= 0 ? prev.map(x => x.id === s.id ? s : x) : [s, ...prev]
             })
-            onToast('Segmento salvo', 'success')
+            onToast(t('toast.saved'), 'success')
           }}
           onError={(m) => onToast(m, 'error')}
         />
@@ -186,6 +189,7 @@ function SegmentEditor({
   onSaved: (s: CustomerSegment) => void
   onError: (m: string) => void
 }) {
+  const t = useTranslations('crm.customerHub.segments')
   const [name, setName]               = useState(initial?.name ?? '')
   const [description, setDesc]        = useState(initial?.description ?? '')
   const [color, setColor]             = useState(initial?.color ?? '#00E5FF')
@@ -233,7 +237,7 @@ function SegmentEditor({
   }
 
   async function save() {
-    if (!name.trim()) return onError('Nome obrigatório')
+    if (!name.trim()) return onError(t('errors.nameRequired'))
     setSaving(true)
     try {
       const payload = { name: name.trim(), description: description.trim() || null, color, icon, rules, auto_refresh: autoRefresh }
@@ -254,37 +258,37 @@ function SegmentEditor({
     <div className="fixed inset-0 z-50 flex items-start justify-center px-4 py-6 overflow-y-auto" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={onClose}>
       <div className="w-full max-w-2xl rounded-2xl my-auto" style={{ background: '#111114', border: '1px solid #1e1e24' }} onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid #1e1e24' }}>
-          <p className="text-white font-semibold">{initial ? 'Editar segmento' : 'Novo segmento'}</p>
+          <p className="text-white font-semibold">{initial ? t('editSegment') : t('newSegmentTitle')}</p>
           <button onClick={onClose} className="text-zinc-400 hover:text-white">✕</button>
         </div>
 
         <div className="p-6 space-y-5">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <p className="text-zinc-400 text-xs mb-1">Nome</p>
-              <input className="seg-input" value={name} onChange={e => setName(e.target.value)} placeholder="Ex: VIPs ativos" />
+              <p className="text-zinc-400 text-xs mb-1">{t('fields.name')}</p>
+              <input className="seg-input" value={name} onChange={e => setName(e.target.value)} placeholder={t('fields.namePlaceholder')} />
             </div>
             <label className="flex items-center gap-2 text-sm text-zinc-300 mt-5">
               <input type="checkbox" checked={autoRefresh} onChange={e => setAutoRefresh(e.target.checked)} />
-              Atualização automática (cron diário)
+              {t('fields.autoRefresh')}
             </label>
           </div>
 
           <div>
-            <p className="text-zinc-400 text-xs mb-1">Descrição (opcional)</p>
+            <p className="text-zinc-400 text-xs mb-1">{t('fields.description')}</p>
             <textarea className="seg-input" rows={2} value={description ?? ''} onChange={e => setDesc(e.target.value)} />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <p className="text-zinc-400 text-xs mb-1">Cor</p>
+              <p className="text-zinc-400 text-xs mb-1">{t('fields.color')}</p>
               <div className="flex items-center gap-2">
                 <input type="color" value={color} onChange={e => setColor(e.target.value)} className="w-10 h-10 rounded-lg cursor-pointer" style={{ background: 'transparent', border: '1px solid #27272a' }} />
                 <input type="text" value={color} onChange={e => setColor(e.target.value)} className="seg-input flex-1 font-mono text-xs" />
               </div>
             </div>
             <div>
-              <p className="text-zinc-400 text-xs mb-1">Ícone</p>
+              <p className="text-zinc-400 text-xs mb-1">{t('fields.icon')}</p>
               <div className="flex flex-wrap gap-1">
                 {ICON_PRESETS.map(em => (
                   <button key={em} type="button" onClick={() => setIcon(em)}
@@ -302,9 +306,9 @@ function SegmentEditor({
           {/* Rules builder */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <p className="text-zinc-300 text-sm font-semibold">Regras (todas precisam ser verdadeiras)</p>
+              <p className="text-zinc-300 text-sm font-semibold">{t('rulesTitle')}</p>
               <p className="text-zinc-500 text-xs">
-                {previewing ? 'Calculando…' : previewCount !== null ? `${fmtNumber(previewCount)} clientes correspondem` : 'Adicione regras'}
+                {previewing ? t('calculating') : previewCount !== null ? t('rulesMatch', { count: previewCount }) : t('addRules')}
               </p>
             </div>
             <div className="space-y-2">
@@ -312,23 +316,23 @@ function SegmentEditor({
                 <RuleRow key={i} rule={rule} onChange={(p) => updateRule(i, p)} onRemove={() => removeRule(i)} />
               ))}
             </div>
-            <button onClick={addRule} className="mt-3 px-3 py-1.5 rounded-lg text-xs font-medium border" style={{ borderColor: '#3f3f46', color: '#e4e4e7' }}>+ Adicionar regra</button>
+            <button onClick={addRule} className="mt-3 px-3 py-1.5 rounded-lg text-xs font-medium border" style={{ borderColor: '#3f3f46', color: '#e4e4e7' }}>{t('addRule')}</button>
           </div>
 
           {/* Preview */}
           <div className="rounded-lg p-3" style={{ background: '#0a0a0e', border: '1px solid #27272a' }}>
-            <p className="text-zinc-400 text-xs">Preview ao vivo</p>
+            <p className="text-zinc-400 text-xs">{t('livePreview')}</p>
             <p className="text-2xl font-bold mt-1" style={{ color }}>
               {previewing ? '…' : previewCount !== null ? fmtNumber(previewCount) : '0'}
-              <span className="text-sm text-zinc-500 ml-2 font-normal">cliente{previewCount === 1 ? '' : 's'} correspondem</span>
+              <span className="text-sm text-zinc-500 ml-2 font-normal">{t('matchSuffix', { count: previewCount ?? 0 })}</span>
             </p>
           </div>
         </div>
 
         <div className="flex justify-end gap-2 px-6 py-4" style={{ borderTop: '1px solid #1e1e24' }}>
-          <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm border" style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>Cancelar</button>
+          <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm border" style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>{t('cancel')}</button>
           <button onClick={save} disabled={saving} className="px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50" style={{ background: '#00E5FF', color: '#08323b' }}>
-            {saving ? 'Salvando…' : 'Salvar e calcular'}
+            {saving ? t('saving') : t('saveAndCompute')}
           </button>
         </div>
       </div>
@@ -361,13 +365,14 @@ function RuleRow({
   onChange: (p: Partial<SegmentRule>) => void
   onRemove: () => void
 }) {
+  const t = useTranslations('crm.customerHub.segments')
   return (
     <div className="rounded-lg p-3 grid grid-cols-12 gap-2" style={{ background: '#0a0a0e', border: '1px solid #27272a' }}>
       <select className="rule-input col-span-4" value={rule.field} onChange={e => onChange({ field: e.target.value as SegmentField })}>
-        {FIELDS.map(f => <option key={f} value={f}>{SEGMENT_FIELD_LABELS[f]}</option>)}
+        {FIELDS.map(f => <option key={f} value={f}>{t(`fieldLabels.${f}`)}</option>)}
       </select>
       <select className="rule-input col-span-3" value={rule.operator} onChange={e => onChange({ operator: e.target.value as SegmentOperator })}>
-        {OPERATORS_BY_FIELD[rule.field].map(op => <option key={op} value={op}>{OPERATOR_LABELS[op]}</option>)}
+        {OPERATORS_BY_FIELD[rule.field].map(op => <option key={op} value={op}>{t(`operatorLabels.${op}`)}</option>)}
       </select>
       <ValueInput rule={rule} onChange={onChange} />
       <button onClick={onRemove} className="col-span-1 text-red-400 hover:text-red-300 text-sm">✕</button>
@@ -383,6 +388,7 @@ function RuleRow({
 }
 
 function ValueInput({ rule, onChange }: { rule: SegmentRule; onChange: (p: Partial<SegmentRule>) => void }) {
+  const t = useTranslations('crm.customerHub.segments')
   const cls = "rule-input col-span-4"
   // Multi-value pra in/not_in
   if (rule.operator === 'in' || rule.operator === 'not_in') {
@@ -390,7 +396,7 @@ function ValueInput({ rule, onChange }: { rule: SegmentRule; onChange: (p: Parti
     return (
       <input className={cls} value={csv}
         onChange={e => onChange({ value: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
-        placeholder="A,B (vírgula)" />
+        placeholder={t('multiValuePlaceholder')} />
     )
   }
   if (rule.field === 'abc_curve') {
@@ -403,22 +409,22 @@ function ValueInput({ rule, onChange }: { rule: SegmentRule; onChange: (p: Parti
   if (rule.field === 'churn_risk') {
     return (
       <select className={cls} value={String(rule.value ?? 'low')} onChange={e => onChange({ value: e.target.value })}>
-        <option value="low">Baixo</option><option value="medium">Médio</option>
-        <option value="high">Alto</option><option value="critical">Crítico</option>
+        <option value="low">{t('churnValues.low')}</option><option value="medium">{t('churnValues.medium')}</option>
+        <option value="high">{t('churnValues.high')}</option><option value="critical">{t('churnValues.critical')}</option>
       </select>
     )
   }
   if (rule.field === 'segment') {
     return (
       <select className={cls} value={String(rule.value ?? 'campeoes')} onChange={e => onChange({ value: e.target.value })}>
-        {Object.keys(SEGMENT_AUTO_LABELS).map(s => <option key={s} value={s}>{SEGMENT_AUTO_LABELS[s]}</option>)}
+        {SEGMENT_AUTO_KEYS.map(s => <option key={s} value={s}>{t(`segmentLabels.${s}`)}</option>)}
       </select>
     )
   }
   if (rule.field === 'has_cpf' || rule.field === 'is_vip') {
     return (
       <select className={cls} value={String(rule.value ?? 'true')} onChange={e => onChange({ value: e.target.value === 'true' })}>
-        <option value="true">Sim</option><option value="false">Não</option>
+        <option value="true">{t('boolYes')}</option><option value="false">{t('boolNo')}</option>
       </select>
     )
   }

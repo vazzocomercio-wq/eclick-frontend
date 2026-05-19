@@ -1,12 +1,14 @@
 import { MessageSquare } from 'lucide-react'
+import { getTranslations } from 'next-intl/server'
 import ComingSoonPage from '@/components/ui/ComingSoonPage'
 
-export default function Page() {
+export default async function Page() {
+  const t = await getTranslations('crm.whatsapp')
   return (
     <ComingSoonPage
       icon={<MessageSquare size={64} />}
-      title="WhatsApp"
-      description="Integração com WhatsApp Business para atendimento, notificações de pedido e campanhas de reativação."
+      title={t('title')}
+      description={t('description')}
     />
   )
 }

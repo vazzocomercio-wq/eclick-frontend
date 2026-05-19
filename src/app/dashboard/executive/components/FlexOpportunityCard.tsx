@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import { Zap, ExternalLink, RefreshCw, CheckCircle2 } from 'lucide-react'
 
@@ -27,19 +28,22 @@ interface FlexOpportunityCardData {
   lastSyncedAt: string | null
 }
 
+type Translator = ReturnType<typeof useTranslations>
+
 const num = (v: number) => v.toLocaleString('pt-BR')
 
-function timeSince(iso: string | null): string {
-  if (!iso) return 'nunca'
+function timeSince(iso: string | null, t: Translator): string {
+  if (!iso) return t('timeNever')
   const diff = Date.now() - new Date(iso).getTime()
   const m = Math.round(diff / 60_000)
-  if (m < 1) return 'agora'
-  if (m < 60) return `há ${m}m`
+  if (m < 1) return t('timeNow')
+  if (m < 60) return t('timeMinutesAgo', { m })
   const h = Math.round(m / 60)
-  return h < 24 ? `há ${h}h` : `há ${Math.round(h / 24)}d`
+  return h < 24 ? t('timeHoursAgo', { h }) : t('timeDaysAgo', { d: Math.round(h / 24) })
 }
 
 export default function FlexOpportunityCard() {
+  const t = useTranslations('executive')
   const supabase = useMemo(() => createClient(), [])
   const [data, setData] = useState<FlexOpportunityCardData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -78,7 +82,7 @@ export default function FlexOpportunityCard() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <Zap size={14} color={oppCount > 0 ? '#84cc16' : '#71717a'} />
           <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6, color: '#a1a1aa' }}>
-            Flex — Oportunidades
+            {t('flexCardTitle')}
           </span>
         </div>
         <button onClick={load} disabled={refreshing} style={{
@@ -89,18 +93,18 @@ export default function FlexOpportunityCard() {
         </button>
       </div>
 
-      {loading && <div style={{ color: '#52525b', fontSize: 13 }}>Carregando…</div>}
+      {loading && <div style={{ color: '#52525b', fontSize: 13 }}>{t('loading')}</div>}
 
       {!loading && allActivated && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#22c55e' }}>
           <CheckCircle2 size={18} />
-          <span style={{ fontSize: 13 }}>100% dos elegíveis ativos.</span>
+          <span style={{ fontSize: 13 }}>{t('flexAllActivated')}</span>
         </div>
       )}
 
       {!loading && data && oppCount === 0 && data.summary.totalEligible === 0 && (
         <div style={{ fontSize: 12, color: '#71717a', lineHeight: 1.5 }}>
-          Nenhum item elegível ao Flex nesta região.
+          {t('flexNoEligible')}
         </div>
       )}
 
@@ -111,7 +115,7 @@ export default function FlexOpportunityCard() {
               {num(oppCount)}
             </div>
             <div style={{ fontSize: 12, color: '#71717a', marginTop: 4 }}>
-              elegíveis sem adesão · {num(data.summary.activated)} ativos · {num(data.summary.notEligible)} não elegíveis
+              {t('flexOppSummary', { activated: num(data.summary.activated), notEligible: num(data.summary.notEligible) })}
             </div>
           </div>
           {data.summary.nullCoverage > 0 && (
@@ -121,13 +125,13 @@ export default function FlexOpportunityCard() {
               borderRadius: 8, padding: '8px 10px',
               fontSize: 11, color: '#f59e0b',
             }}>
-              Varredura parcial — {num(data.summary.nullCoverage)} itens ainda não verificados
+              {t('flexPartialScan', { count: num(data.summary.nullCoverage) })}
             </div>
           )}
           {data.opportunityTopItems.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4 }}>
               <div style={{ fontSize: 10, color: '#71717a', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 2 }}>
-                Top por tráfego
+                {t('flexTopByTraffic')}
               </div>
               {data.opportunityTopItems.slice(0, 5).map(it => (
                 <a key={it.ml_item_id}
@@ -142,7 +146,7 @@ export default function FlexOpportunityCard() {
                     {it.listing_title ?? it.ml_item_id}
                   </span>
                   <span style={{ color: '#84cc16', whiteSpace: 'nowrap', marginLeft: 8 }}>
-                    {it.visits_7d > 0 ? `${num(it.visits_7d)} visitas/7d` : '—'}
+                    {it.visits_7d > 0 ? t('flexVisits7d', { count: num(it.visits_7d) }) : '—'}
                   </span>
                 </a>
               ))}
@@ -158,13 +162,13 @@ export default function FlexOpportunityCard() {
                fontSize: 12, fontWeight: 500, textDecoration: 'none',
                marginTop: 4,
              }}>
-            Ativar Flex no ML <ExternalLink size={11} />
+            {t('flexActivateOnMl')} <ExternalLink size={11} />
           </a>
         </>
       )}
 
       <div style={{ fontSize: 10, color: '#52525b', marginTop: 'auto' }}>
-        ↻ atualizado {timeSince(data?.lastSyncedAt ?? null)}
+        {t('refreshedAt', { since: timeSince(data?.lastSyncedAt ?? null, t) })}
       </div>
 
       <style jsx>{`

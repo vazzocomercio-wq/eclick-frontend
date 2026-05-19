@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import { api } from './_components/api'
 import {
   PricingSignal, Severity, SignalType, SignalsSummary,
@@ -18,16 +19,17 @@ type StatusFilter   = 'active' | 'actioned' | 'expired'
 
 type Toast = { id: number; msg: string; type: 'success' | 'error' }
 
-const TYPE_FILTERS: Array<{ value: TypeFilter; label: string }> = [
-  { value: 'all',            label: 'Todos' },
-  { value: 'decrease_price', label: '↓ Baixar' },
-  { value: 'increase_price', label: '↑ Subir' },
-  { value: 'do_not_touch',   label: '⏸ Não mexer' },
-  { value: 'review_needed',  label: '🔍 Revisar' },
-  { value: 'low_confidence', label: '❓ Baixa confiança' },
+const TYPE_FILTER_VALUES: Array<{ value: TypeFilter; icon: string }> = [
+  { value: 'all',            icon: '' },
+  { value: 'decrease_price', icon: '↓ ' },
+  { value: 'increase_price', icon: '↑ ' },
+  { value: 'do_not_touch',   icon: '⏸ ' },
+  { value: 'review_needed',  icon: '🔍 ' },
+  { value: 'low_confidence', icon: '❓ ' },
 ]
 
 export default function PricingAnalisePage() {
+  const t = useTranslations('pricing')
   const [signals, setSignals]       = useState<PricingSignal[]>([])
   const [summary, setSummary]       = useState<SignalsSummary | null>(null)
   const [notif, setNotif]           = useState<NotifSettings | null>(null)
@@ -71,7 +73,7 @@ export default function PricingAnalisePage() {
     setScanning(true)
     try {
       const r = await api<{ products: number; newSignals: number }>('/pricing/signals/scan', { method: 'POST' })
-      pushToast(`Varredura: ${r.products} produtos, ${r.newSignals} sinais novos`, 'success')
+      pushToast(t('scanResult', { products: r.products, signals: r.newSignals }), 'success')
       await load()
     } catch (e) { pushToast((e as Error).message, 'error') }
     setScanning(false)
@@ -83,7 +85,7 @@ export default function PricingAnalisePage() {
         method: 'POST',
         body:   JSON.stringify({ action }),
       })
-      pushToast(action === 'approve' ? 'Sinal aprovado' : 'Sinal dispensado', 'success')
+      pushToast(action === 'approve' ? t('signalApproved') : t('signalDismissed'), 'success')
       setSignals(prev => prev.filter(s => s.id !== signal.id))
       // Atualiza summary localmente sem refetch
       if (summary) {
@@ -112,13 +114,16 @@ export default function PricingAnalisePage() {
       <div className="shrink-0 px-6 pt-6 pb-4" style={{ borderBottom: '1px solid #1e1e24' }}>
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <h1 className="text-white text-lg font-semibold">Radar de Preços</h1>
+            <h1 className="text-white text-lg font-semibold">{t('priceRadar')}</h1>
             <p className="text-zinc-400 text-sm mt-0.5">
               {totalActive > 0
-                ? <><span className="text-cyan-400 font-semibold">{totalActive}</span> produto{totalActive === 1 ? '' : 's'} precisa{totalActive === 1 ? '' : 'm'} de atenção</>
-                : 'Tudo certo — nenhum produto precisa de atenção'}
+                ? t.rich('productsNeedAttention', {
+                    count: totalActive,
+                    em: (chunks) => <span className="text-cyan-400 font-semibold">{chunks}</span>,
+                  })
+                : t('allGood')}
             </p>
-            {lastScanAt && <p className="text-zinc-500 text-xs mt-0.5">Última varredura: {fmtRelativeTime(lastScanAt)}</p>}
+            {lastScanAt && <p className="text-zinc-500 text-xs mt-0.5">{t('lastScan', { time: fmtRelativeTime(lastScanAt) })}</p>}
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
@@ -126,19 +131,19 @@ export default function PricingAnalisePage() {
               style={waEnabled
                 ? { background: 'rgba(52,211,153,0.1)', color: '#34d399' }
                 : { background: 'rgba(161,161,170,0.1)', color: '#a1a1aa' }}>
-              🔔 WhatsApp: <span className="font-semibold">{waEnabled ? '● ATIVO' : '○ Inativo'}</span>
+              🔔 {t('whatsappLabel')} <span className="font-semibold">{waEnabled ? t('whatsappActive') : t('whatsappInactive')}</span>
             </span>
             <a href="/dashboard/precos"
               className="px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors hover:border-cyan-500 hover:text-cyan-400"
               style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}
-              title="Tabela manual de preços × concorrentes">
-              Tabela de preços →
+              title={t('priceTableTooltip')}>
+              {t('priceTable')} →
             </a>
             <button
               onClick={() => setShowSettings(true)}
               className="px-3 py-1.5 rounded-lg text-xs font-medium border"
               style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}
-            >Configurar</button>
+            >{t('configure')}</button>
             <button
               onClick={handleScan}
               disabled={scanning}
@@ -146,7 +151,7 @@ export default function PricingAnalisePage() {
               style={{ background: '#00E5FF', color: '#08323b', boxShadow: scanning ? '0 0 18px rgba(0,229,255,0.6)' : 'none' }}
             >
               {scanning && <span className="absolute inset-0 rounded-lg animate-pulse" style={{ background: 'rgba(0,229,255,0.3)' }} />}
-              <span className="relative">{scanning ? 'Varrendo…' : 'Varrer agora'}</span>
+              <span className="relative">{scanning ? t('scanning') : t('scanNow')}</span>
             </button>
           </div>
         </div>
@@ -179,8 +184,8 @@ export default function PricingAnalisePage() {
 
       {/* Filters */}
       <div className="shrink-0 px-6 py-3 flex items-center gap-2 flex-wrap" style={{ background: '#0a0a0e', borderBottom: '1px solid #1e1e24' }}>
-        <span className="text-zinc-500 text-xs uppercase tracking-wider">Tipo:</span>
-        {TYPE_FILTERS.map(f => (
+        <span className="text-zinc-500 text-xs uppercase tracking-wider">{t('filterTypeLabel')}</span>
+        {TYPE_FILTER_VALUES.map(f => (
           <button key={f.value}
             onClick={() => setType(f.value)}
             className="px-2.5 py-1 rounded-full text-xs font-medium border transition"
@@ -189,10 +194,10 @@ export default function PricingAnalisePage() {
               color:       filterType === f.value ? '#00E5FF' : '#a1a1aa',
               background:  filterType === f.value ? 'rgba(0,229,255,0.05)' : 'transparent',
             }}
-          >{f.label}</button>
+          >{f.icon}{t(`typeFilter_${f.value}`)}</button>
         ))}
 
-        <span className="text-zinc-500 text-xs uppercase tracking-wider ml-3">Canal:</span>
+        <span className="text-zinc-500 text-xs uppercase tracking-wider ml-3">{t('filterChannelLabel')}</span>
         {(['all','mercadolivre','shopee','magalu','amazon'] as const).map(c => (
           <button key={c}
             onClick={() => setChannel(c)}
@@ -202,10 +207,10 @@ export default function PricingAnalisePage() {
               color:       filterChannel === c ? '#00E5FF' : '#a1a1aa',
               background:  filterChannel === c ? 'rgba(0,229,255,0.05)' : 'transparent',
             }}
-          >{c === 'all' ? 'Todos' : c.charAt(0).toUpperCase() + c.slice(1)}</button>
+          >{c === 'all' ? t('channelAll') : c.charAt(0).toUpperCase() + c.slice(1)}</button>
         ))}
 
-        <span className="text-zinc-500 text-xs uppercase tracking-wider ml-3">Status:</span>
+        <span className="text-zinc-500 text-xs uppercase tracking-wider ml-3">{t('filterStatusLabel')}</span>
         {(['active','actioned','expired'] as StatusFilter[]).map(s => (
           <button key={s}
             onClick={() => setStatus(s)}
@@ -215,7 +220,7 @@ export default function PricingAnalisePage() {
               color:       filterStatus === s ? '#00E5FF' : '#a1a1aa',
               background:  filterStatus === s ? 'rgba(0,229,255,0.05)' : 'transparent',
             }}
-          >{s === 'active' ? 'Ativos' : s === 'actioned' ? 'Resolvidos' : 'Expirados'}</button>
+          >{t(`statusFilter_${s}`)}</button>
         ))}
       </div>
 
@@ -275,12 +280,13 @@ export default function PricingAnalisePage() {
 }
 
 function EmptyState({ onScan, scanning }: { onScan: () => void; scanning: boolean }) {
+  const t = useTranslations('pricing')
   return (
     <div className="rounded-2xl px-6 py-16 text-center" style={{ background: '#111114', border: '1px dashed #27272a' }}>
       <p className="text-4xl mb-3">🎯</p>
-      <p className="text-white text-lg font-semibold mb-2">Tudo certo por aqui!</p>
+      <p className="text-white text-lg font-semibold mb-2">{t('emptyTitle')}</p>
       <p className="text-zinc-500 text-sm mb-5">
-        Nenhum produto precisa de atenção no momento. Scanner roda automaticamente a cada 2h.
+        {t('emptyDescription')}
       </p>
       <button
         onClick={onScan}
@@ -288,7 +294,7 @@ function EmptyState({ onScan, scanning }: { onScan: () => void; scanning: boolea
         className="px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50"
         style={{ background: '#00E5FF', color: '#08323b' }}
       >
-        {scanning ? 'Varrendo…' : 'Varrer agora'}
+        {scanning ? t('scanning') : t('scanNow')}
       </button>
     </div>
   )

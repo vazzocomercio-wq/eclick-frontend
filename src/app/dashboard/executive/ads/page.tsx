@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import {
   RefreshCw, Megaphone, TrendingUp, TrendingDown, DollarSign,
@@ -64,13 +65,15 @@ const pctPct  = (v: number | null, digits = 2) => v == null ? '—' : `${v.toFix
 const dateBr = (iso: string) =>
   new Date(`${iso}T00:00:00Z`).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
 
-function timeSince(iso: string): string {
+type Translator = ReturnType<typeof useTranslations>
+
+function timeSince(iso: string, t: Translator): string {
   const diff = Date.now() - new Date(iso).getTime()
   const m = Math.round(diff / 60_000)
-  if (m < 1)  return 'agora'
-  if (m < 60) return `há ${m}m`
+  if (m < 1)  return t('timeNow')
+  if (m < 60) return t('timeMinutesAgo', { m })
   const h = Math.round(m / 60)
-  return h < 24 ? `há ${h}h` : `há ${Math.round(h / 24)}d`
+  return h < 24 ? t('timeHoursAgo', { h }) : t('timeDaysAgo', { d: Math.round(h / 24) })
 }
 
 const TYPE_LABEL: Record<string, string> = {
@@ -79,7 +82,7 @@ const TYPE_LABEL: Record<string, string> = {
   DISPLAY: 'Display',
 }
 
-function SpendRevenueChart({ data, width = 800, height = 220 }: { data: ChartPoint[]; width?: number; height?: number }) {
+function SpendRevenueChart({ data, t, width = 800, height = 220 }: { data: ChartPoint[]; t: Translator; width?: number; height?: number }) {
   if (data.length === 0) return null
   const padding = { top: 20, right: 30, bottom: 28, left: 60 }
   const chartW = width - padding.left - padding.right
@@ -120,15 +123,15 @@ function SpendRevenueChart({ data, width = 800, height = 220 }: { data: ChartPoi
       </g>
       <g transform={`translate(${padding.left + 8}, 12)`}>
         <line x1={0} x2={14} y1={0} y2={0} stroke="#22c55e" strokeWidth={2} />
-        <text x={20} y={4} fontSize="11" fill="#a1a1aa">Receita</text>
+        <text x={20} y={4} fontSize="11" fill="#a1a1aa">{t('adsLegendRevenue')}</text>
         <line x1={84} x2={98} y1={0} y2={0} stroke="#ef4444" strokeWidth={2} strokeDasharray="4 4" />
-        <text x={104} y={4} fontSize="11" fill="#a1a1aa">Gasto</text>
+        <text x={104} y={4} fontSize="11" fill="#a1a1aa">{t('adsLegendSpend')}</text>
       </g>
     </svg>
   )
 }
 
-function CampaignTable({ rows, kind }: { rows: CampaignRow[]; kind: 'winners' | 'losers' }) {
+function CampaignTable({ rows, kind, t }: { rows: CampaignRow[]; kind: 'winners' | 'losers'; t: Translator }) {
   if (rows.length === 0) {
     return (
       <div style={{
@@ -136,7 +139,7 @@ function CampaignTable({ rows, kind }: { rows: CampaignRow[]; kind: 'winners' | 
         border: '1px dashed rgba(255,255,255,0.10)',
         borderRadius: 12, padding: 20, color: '#71717a', fontSize: 13,
       }}>
-        Sem campanhas {kind === 'winners' ? 'com ROAS alto' : 'perdendo dinheiro'} nos últimos 7 dias.
+        {kind === 'winners' ? t('adsNoWinners') : t('adsNoLosers')}
       </div>
     )
   }
@@ -149,13 +152,13 @@ function CampaignTable({ rows, kind }: { rows: CampaignRow[]; kind: 'winners' | 
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
         <thead>
           <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-            <th style={{ textAlign: 'left',  padding: '12px 16px', color: '#71717a', fontWeight: 500, fontSize: 11 }}>CAMPANHA</th>
-            <th style={{ textAlign: 'left',  padding: '12px 16px', color: '#71717a', fontWeight: 500, fontSize: 11 }}>TIPO</th>
-            <th style={{ textAlign: 'right', padding: '12px 16px', color: '#71717a', fontWeight: 500, fontSize: 11 }}>GASTO 7D</th>
-            <th style={{ textAlign: 'right', padding: '12px 16px', color: '#71717a', fontWeight: 500, fontSize: 11 }}>RECEITA 7D</th>
-            <th style={{ textAlign: 'right', padding: '12px 16px', color: '#71717a', fontWeight: 500, fontSize: 11 }}>ACOS</th>
-            <th style={{ textAlign: 'right', padding: '12px 16px', color: '#71717a', fontWeight: 500, fontSize: 11 }}>ROAS</th>
-            <th style={{ textAlign: 'right', padding: '12px 16px', color: '#71717a', fontWeight: 500, fontSize: 11 }}>CLIQUES</th>
+            <th style={{ textAlign: 'left',  padding: '12px 16px', color: '#71717a', fontWeight: 500, fontSize: 11 }}>{t('adsColCampaign')}</th>
+            <th style={{ textAlign: 'left',  padding: '12px 16px', color: '#71717a', fontWeight: 500, fontSize: 11 }}>{t('adsColType')}</th>
+            <th style={{ textAlign: 'right', padding: '12px 16px', color: '#71717a', fontWeight: 500, fontSize: 11 }}>{t('adsColSpend7d')}</th>
+            <th style={{ textAlign: 'right', padding: '12px 16px', color: '#71717a', fontWeight: 500, fontSize: 11 }}>{t('adsColRevenue7d')}</th>
+            <th style={{ textAlign: 'right', padding: '12px 16px', color: '#71717a', fontWeight: 500, fontSize: 11 }}>{t('adsColAcos')}</th>
+            <th style={{ textAlign: 'right', padding: '12px 16px', color: '#71717a', fontWeight: 500, fontSize: 11 }}>{t('adsColRoas')}</th>
+            <th style={{ textAlign: 'right', padding: '12px 16px', color: '#71717a', fontWeight: 500, fontSize: 11 }}>{t('adsColClicks')}</th>
           </tr>
         </thead>
         <tbody>
@@ -169,7 +172,7 @@ function CampaignTable({ rows, kind }: { rows: CampaignRow[]; kind: 'winners' | 
             return (
               <tr key={c.campaign_id} style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>
                 <td style={{ padding: '10px 16px', color: '#e4e4e7' }}>
-                  <div style={{ fontWeight: 500 }}>{c.name ?? '(sem nome)'}</div>
+                  <div style={{ fontWeight: 500 }}>{c.name ?? t('adsNoName')}</div>
                   <div style={{ fontSize: 10, color: '#52525b', fontFamily: 'monospace' }}>{c.campaign_id}</div>
                 </td>
                 <td style={{ padding: '10px 16px', color: '#a1a1aa', fontSize: 11 }}>
@@ -200,6 +203,7 @@ function CampaignTable({ rows, kind }: { rows: CampaignRow[]; kind: 'winners' | 
 }
 
 export default function AdsPage() {
+  const t = useTranslations('executive')
   const supabase = useMemo(() => createClient(), [])
   const [summary, setSummary] = useState<AdsSummary | null>(null)
   const [winners, setWinners] = useState<CampaignRow[]>([])
@@ -212,9 +216,9 @@ export default function AdsPage() {
 
   const getHeaders = useCallback(async (): Promise<Record<string, string>> => {
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session?.access_token) throw new Error('Não autenticado')
+    if (!session?.access_token) throw new Error(t('notAuthenticated'))
     return { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' }
-  }, [supabase])
+  }, [supabase, t])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -277,7 +281,7 @@ export default function AdsPage() {
     return (
       <div style={{ padding: '20px 24px', maxWidth: 1400, margin: '0 auto' }}>
         <h1 style={{ fontSize: 24, fontWeight: 600, margin: 0, color: '#fafafa', marginBottom: 24 }}>
-          Ads
+          {t('adsTitle')}
         </h1>
         <div style={{
           background: 'rgba(245,158,11,0.06)',
@@ -288,13 +292,12 @@ export default function AdsPage() {
           <AlertTriangle size={24} color="#f59e0b" style={{ flexShrink: 0 }} />
           <div>
             <div style={{ fontSize: 16, fontWeight: 600, color: '#f59e0b', marginBottom: 6 }}>
-              Conecte Product Ads pra ver mais dados
+              {t('connectProductAds')}
             </div>
             <div style={{ fontSize: 13, color: '#a1a1aa', lineHeight: 1.5, maxWidth: 600 }}>
-              Esta org ainda não tem advertiser_id sincronizado em
-              <code style={{ background: 'rgba(255,255,255,0.05)', padding: '1px 5px', borderRadius: 3, margin: '0 4px' }}>ml_ads_campaigns</code>.
-              Quando o módulo ml-ads detectar o advertiser via OAuth (segmentos PADS/BADS/DISPLAY),
-              os KPIs aparecem aqui automaticamente.
+              {t.rich('adsNoAdvertiserDesc', {
+                code: (chunks) => <code style={{ background: 'rgba(255,255,255,0.05)', padding: '1px 5px', borderRadius: 3, margin: '0 4px' }}>{chunks}</code>,
+              })}
             </div>
           </div>
         </div>
@@ -318,13 +321,13 @@ export default function AdsPage() {
       }}>
         <div>
           <h1 style={{ fontSize: 24, fontWeight: 600, margin: 0, color: '#fafafa' }}>
-            Ads
+            {t('adsTitle')}
           </h1>
           <div style={{ fontSize: 13, color: '#71717a', marginTop: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
             <Activity size={12} />
             {summary
-              ? <>Atualizado {timeSince(summary.last_refresh_at)} · refresh horário · {summary.advertiser_ids.length} advertiser{summary.advertiser_ids.length > 1 ? 's' : ''}</>
-              : <>Carregando…</>}
+              ? <>{t('adsUpdatedMeta', { since: timeSince(summary.last_refresh_at, t), count: summary.advertiser_ids.length })}</>
+              : <>{t('loading')}</>}
           </div>
         </div>
         <button
@@ -340,7 +343,7 @@ export default function AdsPage() {
           }}
         >
           <RefreshCw size={14} style={{ animation: refreshing ? 'spin 1s linear infinite' : undefined }} />
-          {refreshing ? 'Atualizando…' : 'Atualizar agora'}
+          {refreshing ? t('refreshing') : t('refreshNow')}
         </button>
       </div>
 
@@ -348,7 +351,7 @@ export default function AdsPage() {
         <>
           {/* KPI cards 7d */}
           <h2 style={{ fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.8, color: '#a1a1aa', marginBottom: 12 }}>
-            Performance últimos 7 dias
+            {t('adsPerformance7d')}
           </h2>
           <div style={{
             display: 'grid',
@@ -358,13 +361,13 @@ export default function AdsPage() {
             <div style={{ background: 'rgba(239,68,68,0.04)', border: '1px solid rgba(239,68,68,0.20)', borderRadius: 12, padding: '16px 18px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                 <DollarSign size={14} color="#ef4444" />
-                <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6, color: '#a1a1aa' }}>Gasto</span>
+                <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6, color: '#a1a1aa' }}>{t('adsLabelSpend')}</span>
               </div>
               <div style={{ fontSize: 26, fontWeight: 600, color: '#ef4444', lineHeight: 1 }}>{brl(summary.ads_spend_7d)}</div>
               {summary.ads_spend_change_pct != null && (
                 <div style={{ fontSize: 12, color: summary.ads_spend_change_pct >= 0 ? '#ef4444' : '#22c55e', marginTop: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
                   {summary.ads_spend_change_pct >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-                  {summary.ads_spend_change_pct > 0 ? '+' : ''}{summary.ads_spend_change_pct.toFixed(1)}% vs 7 dias anteriores
+                  {summary.ads_spend_change_pct > 0 ? '+' : ''}{t('changeVsPrev7d', { pct: summary.ads_spend_change_pct.toFixed(1) })}
                 </div>
               )}
             </div>
@@ -372,13 +375,13 @@ export default function AdsPage() {
             <div style={{ background: 'rgba(34,197,94,0.04)', border: '1px solid rgba(34,197,94,0.20)', borderRadius: 12, padding: '16px 18px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                 <TrendingUp size={14} color="#22c55e" />
-                <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6, color: '#a1a1aa' }}>Receita</span>
+                <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6, color: '#a1a1aa' }}>{t('adsLabelRevenue')}</span>
               </div>
               <div style={{ fontSize: 26, fontWeight: 600, color: '#22c55e', lineHeight: 1 }}>{brl(summary.ads_revenue_7d)}</div>
               {summary.ads_revenue_change_pct != null && (
                 <div style={{ fontSize: 12, color: summary.ads_revenue_change_pct >= 0 ? '#22c55e' : '#ef4444', marginTop: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
                   {summary.ads_revenue_change_pct >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-                  {summary.ads_revenue_change_pct > 0 ? '+' : ''}{summary.ads_revenue_change_pct.toFixed(1)}% vs 7 dias anteriores
+                  {summary.ads_revenue_change_pct > 0 ? '+' : ''}{t('changeVsPrev7d', { pct: summary.ads_revenue_change_pct.toFixed(1) })}
                 </div>
               )}
             </div>
@@ -390,26 +393,26 @@ export default function AdsPage() {
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                 <Target size={14} color={acosColor} />
-                <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6, color: '#a1a1aa' }}>ACOS</span>
+                <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6, color: '#a1a1aa' }}>{t('adsLabelAcos')}</span>
               </div>
               <div style={{ fontSize: 26, fontWeight: 600, color: acosColor, lineHeight: 1 }}>
                 {pctFrac(summary.ads_acos_7d)}
               </div>
               <div style={{ fontSize: 11, color: '#71717a', marginTop: 6 }}>
-                limite configurado {pctFrac(summary.acos_threshold)}
+                {t('adsConfiguredLimit', { limit: pctFrac(summary.acos_threshold) })}
               </div>
             </div>
 
             <div style={{ background: 'rgba(0,229,255,0.04)', border: '1px solid rgba(0,229,255,0.20)', borderRadius: 12, padding: '16px 18px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                 <Megaphone size={14} color="#00E5FF" />
-                <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6, color: '#a1a1aa' }}>ROAS</span>
+                <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6, color: '#a1a1aa' }}>{t('adsLabelRoas')}</span>
               </div>
               <div style={{ fontSize: 26, fontWeight: 600, color: '#00E5FF', lineHeight: 1 }}>
                 {summary.ads_roas_7d == null ? '—' : `${summary.ads_roas_7d.toFixed(2)}x`}
               </div>
               <div style={{ fontSize: 11, color: '#71717a', marginTop: 6 }}>
-                R$ retorno por R$ investido
+                {t('adsRoasHint')}
               </div>
             </div>
           </div>
@@ -421,44 +424,44 @@ export default function AdsPage() {
             gap: 12, marginBottom: 28,
           }}>
             <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: '14px 16px' }}>
-              <div style={{ fontSize: 11, color: '#71717a', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.6 }}>Cliques 7d</div>
+              <div style={{ fontSize: 11, color: '#71717a', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.6 }}>{t('adsClicks7d')}</div>
               <div style={{ fontSize: 20, fontWeight: 500, color: '#e4e4e7' }}>{num(summary.ads_clicks_7d)}</div>
               {summary.ads_ctr_7d != null && (
-                <div style={{ fontSize: 11, color: '#71717a', marginTop: 4 }}>CTR {pctPct(summary.ads_ctr_7d, 2)}</div>
+                <div style={{ fontSize: 11, color: '#71717a', marginTop: 4 }}>{t('adsCtr', { ctr: pctPct(summary.ads_ctr_7d, 2) })}</div>
               )}
             </div>
             <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: '14px 16px' }}>
-              <div style={{ fontSize: 11, color: '#71717a', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.6 }}>Impressões 7d</div>
+              <div style={{ fontSize: 11, color: '#71717a', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.6 }}>{t('adsImpressions7d')}</div>
               <div style={{ fontSize: 20, fontWeight: 500, color: '#e4e4e7' }}>{num(summary.ads_impressions_7d)}</div>
             </div>
             <div style={{ background: 'rgba(34,197,94,0.04)', border: '1px solid rgba(34,197,94,0.20)', borderRadius: 12, padding: '14px 16px' }}>
-              <div style={{ fontSize: 11, color: '#71717a', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.6 }}>Vencendo</div>
+              <div style={{ fontSize: 11, color: '#71717a', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.6 }}>{t('adsWinning')}</div>
               <div style={{ fontSize: 20, fontWeight: 500, color: '#22c55e' }}>{num(summary.ads_campaigns_winning)}</div>
-              <div style={{ fontSize: 11, color: '#71717a', marginTop: 4 }}>ROAS &gt; 3x</div>
+              <div style={{ fontSize: 11, color: '#71717a', marginTop: 4 }}>{t('adsRoasOver3')}</div>
             </div>
             <div style={{ background: summary.ads_campaigns_losing_money > 0 ? 'rgba(239,68,68,0.04)' : 'rgba(255,255,255,0.02)',
                           border: summary.ads_campaigns_losing_money > 0 ? '1px solid rgba(239,68,68,0.20)' : '1px solid rgba(255,255,255,0.08)',
                           borderRadius: 12, padding: '14px 16px' }}>
-              <div style={{ fontSize: 11, color: '#71717a', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.6 }}>Perdendo dinheiro</div>
+              <div style={{ fontSize: 11, color: '#71717a', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.6 }}>{t('adsLosingMoney')}</div>
               <div style={{ fontSize: 20, fontWeight: 500, color: summary.ads_campaigns_losing_money > 0 ? '#ef4444' : '#22c55e' }}>
                 {num(summary.ads_campaigns_losing_money)}
               </div>
               <div style={{ fontSize: 11, color: '#71717a', marginTop: 4 }}>
-                ACOS &gt; {pctFrac(summary.acos_threshold)}
+                {t('adsAcosOver', { limit: pctFrac(summary.acos_threshold) })}
               </div>
             </div>
             <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: '14px 16px' }}>
-              <div style={{ fontSize: 11, color: '#71717a', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.6 }}>Campanhas</div>
+              <div style={{ fontSize: 11, color: '#71717a', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.6 }}>{t('adsCampaigns')}</div>
               <div style={{ fontSize: 20, fontWeight: 500, color: '#e4e4e7' }}>{num(summary.ads_campaigns_active)}</div>
               <div style={{ fontSize: 11, color: '#71717a', marginTop: 4 }}>
-                ativas · {summary.ads_campaigns_paused} pausadas
+                {t('adsActivePaused', { paused: summary.ads_campaigns_paused })}
               </div>
             </div>
           </div>
 
           {/* Gráfico spend vs revenue 30d */}
           <h2 style={{ fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.8, color: '#a1a1aa', marginBottom: 12 }}>
-            Gasto vs Receita 30d
+            {t('adsSpendVsRevenue30d')}
           </h2>
           <div style={{
             background: 'rgba(255,255,255,0.02)',
@@ -466,8 +469,8 @@ export default function AdsPage() {
             borderRadius: 12, padding: '20px 16px', marginBottom: 28,
           }}>
             {chart.length > 0
-              ? <SpendRevenueChart data={chart} />
-              : <div style={{ color: '#71717a', fontSize: 13, textAlign: 'center', padding: 20 }}>Sem dados de chart no período.</div>}
+              ? <SpendRevenueChart data={chart} t={t} />
+              : <div style={{ color: '#71717a', fontSize: 13, textAlign: 'center', padding: 20 }}>{t('adsNoChartData')}</div>}
           </div>
 
           {/* Toggle de filtros + chip bar */}
@@ -483,7 +486,7 @@ export default function AdsPage() {
               }}
             >
               <Filter size={12} />
-              Filtros{filterType ? ` (1)` : ''}
+              {t('adsFilters')}{filterType ? ` (1)` : ''}
             </button>
             {filterType && (
               <span style={{
@@ -491,7 +494,7 @@ export default function AdsPage() {
                 background: 'rgba(0,229,255,0.06)', border: '1px solid rgba(0,229,255,0.20)',
                 color: '#00E5FF', padding: '3px 10px', borderRadius: 99, fontSize: 11,
               }}>
-                Tipo: {TYPE_LABEL[filterType] ?? filterType}
+                {t('adsTypeChip', { type: TYPE_LABEL[filterType] ?? filterType })}
                 <button onClick={() => setFilterType('')} style={{
                   background: 'none', border: 'none', color: '#00E5FF', cursor: 'pointer', padding: 0, fontSize: 14, lineHeight: 1,
                 }}>×</button>
@@ -505,19 +508,19 @@ export default function AdsPage() {
               border: '1px solid rgba(255,255,255,0.08)',
               borderRadius: 12, padding: '14px 16px', marginBottom: 24,
             }}>
-              <div style={{ fontSize: 11, color: '#71717a', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.6 }}>Tipo de campanha</div>
+              <div style={{ fontSize: 11, color: '#71717a', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.6 }}>{t('adsCampaignType')}</div>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {['', 'PADS', 'BADS', 'DISPLAY'].map(t => (
-                  <button key={t || 'all'}
-                    onClick={() => setFilterType(t)}
+                {['', 'PADS', 'BADS', 'DISPLAY'].map(opt => (
+                  <button key={opt || 'all'}
+                    onClick={() => setFilterType(opt)}
                     style={{
                       padding: '5px 12px', borderRadius: 6, fontSize: 11,
-                      background: filterType === t ? 'rgba(255,255,255,0.05)' : 'transparent',
-                      border:     filterType === t ? '1px solid rgba(255,255,255,0.15)' : '1px solid rgba(255,255,255,0.05)',
-                      color:      filterType === t ? '#e4e4e7' : '#71717a',
+                      background: filterType === opt ? 'rgba(255,255,255,0.05)' : 'transparent',
+                      border:     filterType === opt ? '1px solid rgba(255,255,255,0.15)' : '1px solid rgba(255,255,255,0.05)',
+                      color:      filterType === opt ? '#e4e4e7' : '#71717a',
                       cursor: 'pointer', fontWeight: 500,
                     }}>
-                    {t === '' ? 'Todos' : (TYPE_LABEL[t] ?? t)}
+                    {opt === '' ? t('adsAll') : (TYPE_LABEL[opt] ?? opt)}
                   </button>
                 ))}
               </div>
@@ -531,10 +534,10 @@ export default function AdsPage() {
             marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8,
           }}>
             <AlertTriangle size={14} />
-            Top 10 perdendo dinheiro (ACOS alto)
+            {t('adsTopLosers')}
           </h2>
           <div style={{ marginBottom: 28 }}>
-            <CampaignTable rows={filteredLosers} kind="losers" />
+            <CampaignTable rows={filteredLosers} kind="losers" t={t} />
           </div>
 
           {/* Winners */}
@@ -543,10 +546,10 @@ export default function AdsPage() {
             marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8,
           }}>
             <CheckCircle2 size={14} />
-            Top 10 vencendo (ROAS alto)
+            {t('adsTopWinners')}
           </h2>
           <div style={{ marginBottom: 28 }}>
-            <CampaignTable rows={filteredWinners} kind="winners" />
+            <CampaignTable rows={filteredWinners} kind="winners" t={t} />
           </div>
         </>
       )}

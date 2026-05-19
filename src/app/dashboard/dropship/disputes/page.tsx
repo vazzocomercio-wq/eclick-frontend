@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import Link from 'next/link'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import {
-  ArrowLeft, AlertCircle, Plus, X, Scale, CheckCircle2, Gavel,
+  ArrowLeft, AlertCircle, Plus, X, Scale, Gavel,
 } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
@@ -39,6 +40,7 @@ interface SupplierOption {
 }
 
 export default function DisputesPage() {
+  const t = useTranslations('dropship.disputes')
   const supabase = useMemo(() => createClient(), [])
 
   const [disputes, setDisputes] = useState<Dispute[]>([])
@@ -51,9 +53,9 @@ export default function DisputesPage() {
 
   const getHeaders = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session?.access_token) throw new Error('Não autenticado')
+    if (!session?.access_token) throw new Error(t('errors.notAuthenticated'))
     return { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' }
-  }, [supabase])
+  }, [supabase, t])
 
   const load = useCallback(async () => {
     setLoading(true); setErr('')
@@ -70,9 +72,9 @@ export default function DisputesPage() {
       setDisputes(await dRes.json())
       if (pRes.ok) setPartners(await pRes.json())
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Erro ao carregar')
+      setErr(e instanceof Error ? e.message : t('errors.loadFailed'))
     } finally { setLoading(false) }
-  }, [getHeaders, filterStatus])
+  }, [getHeaders, filterStatus, t])
 
   useEffect(() => { load() }, [load])
 
@@ -88,9 +90,9 @@ export default function DisputesPage() {
             <ArrowLeft size={18} />
           </Link>
           <div>
-            <h1 className="text-xl font-semibold text-white">Disputas</h1>
+            <h1 className="text-xl font-semibold text-white">{t('title')}</h1>
             <p className="text-sm text-zinc-500 mt-0.5">
-              Conflitos sobre custo, responsabilidade ou valores entre seller e parceiro
+              {t('subtitle')}
             </p>
           </div>
         </div>
@@ -101,7 +103,7 @@ export default function DisputesPage() {
           style={{ background: '#00E5FF', color: '#09090b', opacity: partners.length === 0 ? 0.5 : 1 }}
         >
           <Plus size={15} />
-          Abrir Disputa
+          {t('openDispute')}
         </button>
       </div>
 
@@ -115,9 +117,9 @@ export default function DisputesPage() {
       )}
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
-        <Kpi label="Total" value={total} />
-        <Kpi label="Em aberto" value={open} accent={open > 0 ? '#fcd34d' : undefined} />
-        <Kpi label="Escaladas" value={escalated} accent={escalated > 0 ? '#f87171' : undefined} />
+        <Kpi label={t('kpi.total')} value={total} />
+        <Kpi label={t('kpi.open')} value={open} accent={open > 0 ? '#fcd34d' : undefined} />
+        <Kpi label={t('kpi.escalated')} value={escalated} accent={escalated > 0 ? '#f87171' : undefined} />
       </div>
 
       <div className="flex items-center gap-3 mb-4 flex-wrap">
@@ -132,7 +134,7 @@ export default function DisputesPage() {
                 color: filterStatus === s ? '#09090b' : '#a1a1aa',
               }}
             >
-              {filterLabel(s)}
+              {filterLabel(s, t)}
             </button>
           ))}
         </div>
@@ -142,29 +144,29 @@ export default function DisputesPage() {
         <table className="w-full text-sm">
           <thead>
             <tr style={{ background: '#111114', borderBottom: '1px solid #1a1a1f' }}>
-              {['Aberta em', 'Parceiro', 'Tipo', 'Quem abriu', 'Motivo', 'Valor', 'Status', ''].map(h => (
-                <th key={h} className="text-left px-4 py-3 text-xs font-medium text-zinc-500">{h}</th>
+              {[t('table.openedAt'), t('table.partner'), t('table.type'), t('table.openedBy'), t('table.reason'), t('table.value'), t('table.status'), ''].map((h, i) => (
+                <th key={i} className="text-left px-4 py-3 text-xs font-medium text-zinc-500">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={8} className="px-4 py-12 text-center text-zinc-500 text-sm">Carregando...</td></tr>
+              <tr><td colSpan={8} className="px-4 py-12 text-center text-zinc-500 text-sm">{t('loading')}</td></tr>
             ) : disputes.length === 0 ? (
               <tr>
                 <td colSpan={8} className="px-4 py-12 text-center text-zinc-500 text-sm">
                   <Scale size={28} className="mx-auto mb-2 text-zinc-700" />
-                  Nenhuma disputa nesse filtro.
+                  {t('emptyFilter')}
                 </td>
               </tr>
             ) : disputes.map(d => (
               <tr key={d.id} style={{ borderBottom: '1px solid #1a1a1f' }}>
                 <td className="px-4 py-3 text-zinc-400 text-xs">{fmtDateTime(d.claimed_at)}</td>
                 <td className="px-4 py-3 text-zinc-300">{d.suppliers?.name ?? '—'}</td>
-                <td className="px-4 py-3"><DisputeTypePill type={d.dispute_type} /></td>
+                <td className="px-4 py-3"><DisputeTypePill type={d.dispute_type} t={t} /></td>
                 <td className="px-4 py-3 text-zinc-300 text-xs">
                   <span className="font-medium" style={{ color: d.claimed_by === 'partner' ? '#fcd34d' : '#60a5fa' }}>
-                    {d.claimed_by === 'partner' ? 'Parceiro' : 'Seller'}
+                    {d.claimed_by === 'partner' ? t('claimedBy.partner') : t('claimedBy.seller')}
                   </span>
                   {d.claimed_by_name && <span className="text-zinc-500"> · {d.claimed_by_name}</span>}
                 </td>
@@ -175,17 +177,17 @@ export default function DisputesPage() {
                   {d.amount_claimed != null ? fmtBrl(d.amount_claimed) : '—'}
                   {d.final_resolved_amount != null && (
                     <p className="text-zinc-500" style={{ fontSize: '10px' }}>
-                      Final: {fmtBrl(d.final_resolved_amount)}
+                      {t('finalLabel')}: {fmtBrl(d.final_resolved_amount)}
                     </p>
                   )}
                 </td>
-                <td className="px-4 py-3"><DisputeStatusPill status={d.status} /></td>
+                <td className="px-4 py-3"><DisputeStatusPill status={d.status} t={t} /></td>
                 <td className="px-4 py-3 text-right">
                   {!['resolved_partner', 'resolved_seller', 'resolved_compromise', 'closed'].includes(d.status) && (
                     <button
                       onClick={() => setResolveId(d.id)}
                       className="text-zinc-500 hover:text-green-400"
-                      title="Resolver"
+                      title={t('resolve')}
                     >
                       <Gavel size={14} />
                     </button>
@@ -201,6 +203,7 @@ export default function DisputesPage() {
         <NewDisputeModal
           partners={partners}
           getHeaders={getHeaders}
+          t={t}
           onClose={() => setShowNew(false)}
           onCreated={() => { setShowNew(false); load() }}
         />
@@ -210,6 +213,7 @@ export default function DisputesPage() {
         <ResolveDisputeModal
           disputeId={resolveId}
           getHeaders={getHeaders}
+          t={t}
           onClose={() => setResolveId(null)}
           onResolved={() => { setResolveId(null); load() }}
         />
@@ -220,11 +224,14 @@ export default function DisputesPage() {
 
 // ── Modals ─────────────────────────────────────────────────────────────────────
 
+type TFn = ReturnType<typeof useTranslations>
+
 function NewDisputeModal({
-  partners, getHeaders, onClose, onCreated,
+  partners, getHeaders, t, onClose, onCreated,
 }: {
   partners: SupplierOption[]
   getHeaders: () => Promise<Record<string, string>>
+  t: TFn
   onClose: () => void
   onCreated: () => void
 }) {
@@ -276,8 +283,8 @@ function NewDisputeModal({
   }, [supplierId, getHeaders])
 
   async function submit() {
-    if (!supplierId) { setErr('Parceiro obrigatório'); return }
-    if (!reason.trim()) { setErr('Motivo obrigatório'); return }
+    if (!supplierId) { setErr(t('errors.partnerRequired')); return }
+    if (!reason.trim()) { setErr(t('errors.reasonRequired')); return }
     setSaving(true); setErr('')
     try {
       const headers = await getHeaders()
@@ -301,7 +308,7 @@ function NewDisputeModal({
       }
       onCreated()
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Erro')
+      setErr(e instanceof Error ? e.message : t('errors.generic'))
     } finally { setSaving(false) }
   }
 
@@ -309,11 +316,11 @@ function NewDisputeModal({
   const lbl = 'block text-xs text-zinc-400 mb-1'
 
   return (
-    <Modal title="Abrir Disputa" onClose={() => !saving && onClose()}>
+    <Modal title={t('newModal.title')} onClose={() => !saving && onClose()}>
       <div>
-        <label className={lbl}>Parceiro *</label>
+        <label className={lbl}>{t('newModal.partner')}</label>
         <select value={supplierId} onChange={e => setSupplierId(e.target.value)} className={inp}>
-          <option value="">— Selecione —</option>
+          <option value="">{t('selectPlaceholder')}</option>
           {partners.map(p => (
             <option key={p.supplier_id} value={p.supplier_id}>{p.suppliers?.name ?? p.supplier_id}</option>
           ))}
@@ -321,52 +328,52 @@ function NewDisputeModal({
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className={lbl}>Tipo *</label>
+          <label className={lbl}>{t('newModal.type')}</label>
           <select value={disputeType} onChange={e => setDisputeType(e.target.value as DisputeType)} className={inp}>
-            <option value="cost_divergence">Custo divergente</option>
-            <option value="responsibility">Responsabilidade</option>
-            <option value="amount">Valor de crédito</option>
-            <option value="product_returned">Produto devolvido</option>
-            <option value="item_inclusion">Item incluído erroneamente</option>
-            <option value="other">Outro</option>
+            <option value="cost_divergence">{t('typeOption.costDivergence')}</option>
+            <option value="responsibility">{t('typeOption.responsibility')}</option>
+            <option value="amount">{t('typeOption.amount')}</option>
+            <option value="product_returned">{t('typeOption.productReturned')}</option>
+            <option value="item_inclusion">{t('typeOption.itemInclusion')}</option>
+            <option value="other">{t('typeOption.other')}</option>
           </select>
         </div>
         <div>
-          <label className={lbl}>Aberta por *</label>
+          <label className={lbl}>{t('newModal.openedBy')}</label>
           <select value={claimedBy} onChange={e => setClaimedBy(e.target.value as 'seller' | 'partner')} className={inp}>
-            <option value="seller">Seller (nós)</option>
-            <option value="partner">Parceiro</option>
+            <option value="seller">{t('newModal.openedBySeller')}</option>
+            <option value="partner">{t('claimedBy.partner')}</option>
           </select>
         </div>
       </div>
       <div>
-        <label className={lbl}>Nome de quem está abrindo (opcional)</label>
+        <label className={lbl}>{t('newModal.openerName')}</label>
         <input value={claimedByName} onChange={e => setClaimedByName(e.target.value)} className={inp} />
       </div>
       <div>
-        <label className={lbl}>Motivo (resumo) *</label>
-        <input value={reason} onChange={e => setReason(e.target.value)} className={inp} placeholder="Ex: Custo do SKU ABC-123 está R$5 mais alto do que combinado" />
+        <label className={lbl}>{t('newModal.reason')}</label>
+        <input value={reason} onChange={e => setReason(e.target.value)} className={inp} placeholder={t('newModal.reasonPlaceholder')} />
       </div>
       <div>
-        <label className={lbl}>Descrição detalhada (opcional)</label>
+        <label className={lbl}>{t('newModal.description')}</label>
         <textarea value={description} onChange={e => setDescription(e.target.value)} rows={3} className={inp + ' resize-none'} />
       </div>
       <div>
-        <label className={lbl}>Valor reclamado (R$)</label>
+        <label className={lbl}>{t('newModal.amountClaimed')}</label>
         <input type="number" step="0.01" value={amountClaimed} onChange={e => setAmountClaimed(e.target.value)} className={inp} />
       </div>
 
       {supplierId && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
-            <label className={lbl}>OC vinculada (opcional)</label>
+            <label className={lbl}>{t('newModal.linkedOc')}</label>
             {loadingRefs ? (
-              <div className={inp + ' text-zinc-500'}>Carregando...</div>
+              <div className={inp + ' text-zinc-500'}>{t('loading')}</div>
             ) : ocOptions.length === 0 ? (
-              <div className={inp + ' text-zinc-500'}>Sem OCs deste parceiro</div>
+              <div className={inp + ' text-zinc-500'}>{t('newModal.noOcs')}</div>
             ) : (
               <select value={ocId} onChange={e => setOcId(e.target.value)} className={inp}>
-                <option value="">— Nenhuma —</option>
+                <option value="">{t('newModal.none')}</option>
                 {ocOptions.slice(0, 50).map(oc => (
                   <option key={oc.id} value={oc.id}>
                     {oc.oc_number} · {fmtDate(oc.reference_date)} · {fmtBrl(oc.net_total)}
@@ -376,17 +383,17 @@ function NewDisputeModal({
             )}
           </div>
           <div>
-            <label className={lbl}>Devolução vinculada (opcional)</label>
+            <label className={lbl}>{t('newModal.linkedReturn')}</label>
             {loadingRefs ? (
-              <div className={inp + ' text-zinc-500'}>Carregando...</div>
+              <div className={inp + ' text-zinc-500'}>{t('loading')}</div>
             ) : returnOptions.length === 0 ? (
-              <div className={inp + ' text-zinc-500'}>Sem devoluções deste parceiro</div>
+              <div className={inp + ' text-zinc-500'}>{t('newModal.noReturns')}</div>
             ) : (
               <select value={returnId} onChange={e => setReturnId(e.target.value)} className={inp}>
-                <option value="">— Nenhuma —</option>
+                <option value="">{t('newModal.none')}</option>
                 {returnOptions.slice(0, 50).map(r => (
                   <option key={r.id} value={r.id}>
-                    {returnTypeLabel(r.return_type)} · {fmtDate(r.opened_at)} · {fmtBrl(r.return_amount)}
+                    {returnTypeLabel(r.return_type, t)} · {fmtDate(r.opened_at)} · {fmtBrl(r.return_amount)}
                   </option>
                 ))}
               </select>
@@ -396,9 +403,9 @@ function NewDisputeModal({
       )}
       {err && <ErrBox msg={err} />}
       <div className="flex gap-2 justify-end pt-2">
-        <button onClick={() => !saving && onClose()} disabled={saving} className="px-4 py-2 text-sm rounded-lg text-zinc-400 hover:text-white" style={{ border: '1px solid #27272a' }}>Cancelar</button>
+        <button onClick={() => !saving && onClose()} disabled={saving} className="px-4 py-2 text-sm rounded-lg text-zinc-400 hover:text-white" style={{ border: '1px solid #27272a' }}>{t('cancel')}</button>
         <button onClick={submit} disabled={saving} className="px-5 py-2 text-sm font-semibold rounded-lg" style={{ background: '#00E5FF', color: '#09090b', opacity: saving ? 0.6 : 1 }}>
-          {saving ? 'Abrindo...' : 'Abrir Disputa'}
+          {saving ? t('newModal.opening') : t('openDispute')}
         </button>
       </div>
     </Modal>
@@ -406,10 +413,11 @@ function NewDisputeModal({
 }
 
 function ResolveDisputeModal({
-  disputeId, getHeaders, onClose, onResolved,
+  disputeId, getHeaders, t, onClose, onResolved,
 }: {
   disputeId: string
   getHeaders: () => Promise<Record<string, string>>
+  t: TFn
   onClose: () => void
   onResolved: () => void
 }) {
@@ -420,7 +428,7 @@ function ResolveDisputeModal({
   const [err, setErr] = useState('')
 
   async function submit() {
-    if (!resolution.trim()) { setErr('Texto de resolução obrigatório'); return }
+    if (!resolution.trim()) { setErr(t('errors.resolutionRequired')); return }
     setSaving(true); setErr('')
     try {
       const headers = await getHeaders()
@@ -438,35 +446,35 @@ function ResolveDisputeModal({
       }
       onResolved()
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Erro')
+      setErr(e instanceof Error ? e.message : t('errors.generic'))
     } finally { setSaving(false) }
   }
 
   const inp = 'w-full bg-[#0f0f12] border border-[#27272a] text-white text-sm rounded-lg px-3 py-2 outline-none'
 
   return (
-    <Modal title="Resolver Disputa" onClose={() => !saving && onClose()}>
+    <Modal title={t('resolveModal.title')} onClose={() => !saving && onClose()}>
       <div>
-        <label className="block text-xs text-zinc-400 mb-1">A favor de *</label>
+        <label className="block text-xs text-zinc-400 mb-1">{t('resolveModal.inFavorOf')}</label>
         <select value={resolutionType} onChange={e => setResolutionType(e.target.value as typeof resolutionType)} className={inp}>
-          <option value="resolved_partner">Parceiro (devolução procede, gera crédito)</option>
-          <option value="resolved_seller">Seller (devolução rejeitada)</option>
-          <option value="resolved_compromise">Acordo intermediário</option>
+          <option value="resolved_partner">{t('resolveModal.favorPartner')}</option>
+          <option value="resolved_seller">{t('resolveModal.favorSeller')}</option>
+          <option value="resolved_compromise">{t('resolveModal.favorCompromise')}</option>
         </select>
       </div>
       <div>
-        <label className="block text-xs text-zinc-400 mb-1">Valor final (R$)</label>
-        <input type="number" step="0.01" value={finalAmount} onChange={e => setFinalAmount(e.target.value)} className={inp} placeholder="Pra compromise: valor acordado" />
+        <label className="block text-xs text-zinc-400 mb-1">{t('resolveModal.finalAmount')}</label>
+        <input type="number" step="0.01" value={finalAmount} onChange={e => setFinalAmount(e.target.value)} className={inp} placeholder={t('resolveModal.finalAmountPlaceholder')} />
       </div>
       <div>
-        <label className="block text-xs text-zinc-400 mb-1">Texto de resolução *</label>
-        <textarea value={resolution} onChange={e => setResolution(e.target.value)} rows={4} className={inp + ' resize-none'} placeholder="Detalhe a decisão (vai pro registro de auditoria)" />
+        <label className="block text-xs text-zinc-400 mb-1">{t('resolveModal.resolutionText')}</label>
+        <textarea value={resolution} onChange={e => setResolution(e.target.value)} rows={4} className={inp + ' resize-none'} placeholder={t('resolveModal.resolutionPlaceholder')} />
       </div>
       {err && <ErrBox msg={err} />}
       <div className="flex gap-2 justify-end pt-2">
-        <button onClick={() => !saving && onClose()} disabled={saving} className="px-4 py-2 text-sm rounded-lg text-zinc-400 hover:text-white" style={{ border: '1px solid #27272a' }}>Cancelar</button>
+        <button onClick={() => !saving && onClose()} disabled={saving} className="px-4 py-2 text-sm rounded-lg text-zinc-400 hover:text-white" style={{ border: '1px solid #27272a' }}>{t('cancel')}</button>
         <button onClick={submit} disabled={saving} className="px-5 py-2 text-sm font-semibold rounded-lg" style={{ background: '#22c55e', color: '#fff', opacity: saving ? 0.6 : 1 }}>
-          {saving ? 'Resolvendo...' : 'Confirmar Resolução'}
+          {saving ? t('resolveModal.resolving') : t('resolveModal.confirm')}
         </button>
       </div>
     </Modal>
@@ -504,39 +512,39 @@ function Kpi({ label, value, accent }: { label: string; value: string | number; 
   )
 }
 
-function DisputeTypePill({ type }: { type: DisputeType }) {
-  const m: Record<DisputeType, string> = {
-    cost_divergence: 'Custo',
-    responsibility: 'Responsabil.',
-    amount: 'Valor',
-    product_returned: 'Produto retornou',
-    item_inclusion: 'Item incluído',
-    other: 'Outro',
+function DisputeTypePill({ type, t }: { type: DisputeType; t: TFn }) {
+  const keys: Record<DisputeType, string> = {
+    cost_divergence: 'typePill.costDivergence',
+    responsibility: 'typePill.responsibility',
+    amount: 'typePill.amount',
+    product_returned: 'typePill.productReturned',
+    item_inclusion: 'typePill.itemInclusion',
+    other: 'typePill.other',
   }
   return (
     <span className="inline-block px-2 py-0.5 rounded-full text-xs"
       style={{ background: 'rgba(113,113,122,0.10)', color: '#a1a1aa', border: '1px solid #27272a' }}>
-      {m[type]}
+      {t(keys[type])}
     </span>
   )
 }
 
-function DisputeStatusPill({ status }: { status: DisputeStatus }) {
-  const c: Record<DisputeStatus, { bg: string; fg: string; label: string }> = {
-    open:                { bg: 'rgba(252,211,77,0.10)',  fg: '#fcd34d', label: 'Aberta' },
-    in_review:           { bg: 'rgba(0,229,255,0.10)',   fg: '#00E5FF', label: 'Em análise' },
-    mediation:           { bg: 'rgba(96,165,250,0.10)',  fg: '#60a5fa', label: 'Mediação' },
-    resolved_partner:    { bg: 'rgba(34,197,94,0.10)',   fg: '#22c55e', label: 'A favor parceiro' },
-    resolved_seller:     { bg: 'rgba(96,165,250,0.10)',  fg: '#60a5fa', label: 'A favor seller' },
-    resolved_compromise: { bg: 'rgba(252,211,77,0.10)',  fg: '#fcd34d', label: 'Acordo' },
-    escalated:           { bg: 'rgba(248,113,113,0.10)', fg: '#f87171', label: 'Escalada' },
-    closed:              { bg: 'rgba(113,113,122,0.10)', fg: '#71717a', label: 'Fechada' },
+function DisputeStatusPill({ status, t }: { status: DisputeStatus; t: TFn }) {
+  const c: Record<DisputeStatus, { bg: string; fg: string; key: string }> = {
+    open:                { bg: 'rgba(252,211,77,0.10)',  fg: '#fcd34d', key: 'statusPill.open' },
+    in_review:           { bg: 'rgba(0,229,255,0.10)',   fg: '#00E5FF', key: 'statusPill.inReview' },
+    mediation:           { bg: 'rgba(96,165,250,0.10)',  fg: '#60a5fa', key: 'statusPill.mediation' },
+    resolved_partner:    { bg: 'rgba(34,197,94,0.10)',   fg: '#22c55e', key: 'statusPill.resolvedPartner' },
+    resolved_seller:     { bg: 'rgba(96,165,250,0.10)',  fg: '#60a5fa', key: 'statusPill.resolvedSeller' },
+    resolved_compromise: { bg: 'rgba(252,211,77,0.10)',  fg: '#fcd34d', key: 'statusPill.resolvedCompromise' },
+    escalated:           { bg: 'rgba(248,113,113,0.10)', fg: '#f87171', key: 'statusPill.escalated' },
+    closed:              { bg: 'rgba(113,113,122,0.10)', fg: '#71717a', key: 'statusPill.closed' },
   }
   const x = c[status]
   return (
     <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap"
       style={{ background: x.bg, color: x.fg, border: `1px solid ${x.fg}33` }}>
-      {x.label}
+      {t(x.key)}
     </span>
   )
 }
@@ -552,32 +560,32 @@ function ErrBox({ msg }: { msg: string }) {
   )
 }
 
-function filterLabel(s: string): string {
-  return s === 'open_all' ? 'Em aberto'
-    : s === 'open' ? 'Abertas'
-    : s === 'in_review' ? 'Em análise'
-    : s === 'escalated' ? 'Escaladas'
-    : s === 'resolved_partner' ? 'A favor parceiro'
-    : s === 'resolved_seller' ? 'A favor seller'
-    : s === 'resolved_compromise' ? 'Acordos'
-    : 'Todas'
+function filterLabel(s: string, t: TFn): string {
+  return s === 'open_all' ? t('filter.openAll')
+    : s === 'open' ? t('filter.open')
+    : s === 'in_review' ? t('filter.inReview')
+    : s === 'escalated' ? t('filter.escalated')
+    : s === 'resolved_partner' ? t('filter.resolvedPartner')
+    : s === 'resolved_seller' ? t('filter.resolvedSeller')
+    : s === 'resolved_compromise' ? t('filter.resolvedCompromise')
+    : t('filter.all')
 }
 
-function returnTypeLabel(t: string): string {
-  const m: Record<string, string> = {
-    cancellation: 'Cancelamento',
-    return_buyer_regret: 'Arrependimento',
-    return_defective: 'Defeito',
-    return_wrong_item: 'Item errado',
-    return_damaged: 'Avariado',
-    return_not_delivered: 'Não entregue',
-    return_incomplete: 'Incompleto',
-    warranty_claim: 'Garantia',
-    reclamation_refund: 'Reembolso',
-    chargeback: 'Chargeback',
-    partner_negotiated: 'Negociado',
+function returnTypeLabel(rt: string, t: TFn): string {
+  const keys: Record<string, string> = {
+    cancellation: 'returnType.cancellation',
+    return_buyer_regret: 'returnType.buyerRegret',
+    return_defective: 'returnType.defective',
+    return_wrong_item: 'returnType.wrongItem',
+    return_damaged: 'returnType.damaged',
+    return_not_delivered: 'returnType.notDelivered',
+    return_incomplete: 'returnType.incomplete',
+    warranty_claim: 'returnType.warranty',
+    reclamation_refund: 'returnType.refund',
+    chargeback: 'returnType.chargeback',
+    partner_negotiated: 'returnType.negotiated',
   }
-  return m[t] ?? t
+  return keys[rt] ? t(keys[rt]) : rt
 }
 
 function fmtDate(d: string) {

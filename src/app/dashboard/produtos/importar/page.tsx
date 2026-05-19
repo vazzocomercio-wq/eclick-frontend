@@ -15,6 +15,7 @@
  */
 
 import { useState, useCallback, useRef } from 'react'
+import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
@@ -77,6 +78,7 @@ function fmtDate(iso: string | null): string {
 // ── main page ────────────────────────────────────────────────────────────────
 
 export default function ImportarProdutosPage() {
+  const t = useTranslations('produtos')
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -96,11 +98,11 @@ export default function ImportarProdutosPage() {
     const f = files[0]
     const okExt = /\.(xlsx|xls|csv)$/i.test(f.name)
     if (!okExt) {
-      setError('Use planilha .xlsx, .xls ou .csv')
+      setError(t('import.errorExt'))
       return
     }
     if (f.size > 10 * 1024 * 1024) {
-      setError('Arquivo > 10MB. Quebre em partes menores.')
+      setError(t('import.errorSize'))
       return
     }
     setFile(f)
@@ -110,7 +112,7 @@ export default function ImportarProdutosPage() {
 
     try {
       const token = await getAuthToken()
-      if (!token) throw new Error('Sessão expirou. Recarregue a página.')
+      if (!token) throw new Error(t('import.sessionExpired'))
       const fd = new FormData()
       fd.append('file', f)
       const res = await fetch(`${BACKEND}/products/import/dry-run`, {
@@ -129,7 +131,7 @@ export default function ImportarProdutosPage() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [t])
 
   // ── confirm commit ────────────────────────────────────────────────────────
 
@@ -140,7 +142,7 @@ export default function ImportarProdutosPage() {
 
     try {
       const token = await getAuthToken()
-      if (!token) throw new Error('Sessão expirou. Recarregue a página.')
+      if (!token) throw new Error(t('import.sessionExpired'))
       const fd = new FormData()
       fd.append('file', file)
       const res = await fetch(`${BACKEND}/products/import`, {
@@ -158,7 +160,7 @@ export default function ImportarProdutosPage() {
     } finally {
       setLoading(false)
     }
-  }, [file])
+  }, [file, t])
 
   // ── reset for new import ──────────────────────────────────────────────────
 
@@ -203,9 +205,9 @@ export default function ImportarProdutosPage() {
       a.remove()
       URL.revokeObjectURL(url)
     } catch (e) {
-      setError(`Falha ao baixar template: ${(e as Error).message}`)
+      setError(t('import.templateError', { msg: (e as Error).message }))
     }
-  }, [])
+  }, [t])
 
   // ── UI ────────────────────────────────────────────────────────────────────
 
@@ -216,26 +218,27 @@ export default function ImportarProdutosPage() {
         <div className="flex items-center justify-between mb-6">
           <div>
             <div className="flex items-center gap-2 text-xs text-zinc-500 mb-1">
-              <Link href="/dashboard/produtos" className="hover:text-zinc-300 transition-colors">Produtos</Link>
+              <Link href="/dashboard/produtos" className="hover:text-zinc-300 transition-colors">{t('import.breadcrumbProducts')}</Link>
               <span>›</span>
-              <span>Importar planilha</span>
+              <span>{t('import.breadcrumbImport')}</span>
             </div>
-            <h1 className="text-2xl font-bold">Importar planilha de produtos</h1>
+            <h1 className="text-2xl font-bold">{t('import.title')}</h1>
             <p className="text-sm text-zinc-400 mt-1">
-              Cadastra apenas SKUs novos. Produtos já cadastrados são pulados.
-              Novos itens recebem tag <span className="text-cyan-400">cadastro_pendente</span> até serem completados.
+              {t.rich('import.subtitle', {
+                tag: (chunks) => <span className="text-cyan-400">{chunks}</span>,
+              })}
             </p>
           </div>
           <div className="flex items-center gap-2">
             <button onClick={downloadTemplate}
               className="px-3 py-2 rounded-lg text-[13px] font-medium border transition-all hover:text-cyan-400 hover:border-cyan-500/40"
               style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>
-              Baixar template
+              {t('import.downloadTemplate')}
             </button>
             <button onClick={() => { setHistoryOpen(true); loadHistory() }}
               className="px-3 py-2 rounded-lg text-[13px] font-medium border transition-all hover:text-cyan-400 hover:border-cyan-500/40"
               style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>
-              Histórico
+              {t('import.history')}
             </button>
           </div>
         </div>
@@ -262,15 +265,17 @@ export default function ImportarProdutosPage() {
               onChange={e => void handleFiles(e.target.files)} />
 
             <div className="text-5xl mb-3">📊</div>
-            <div className="text-lg font-semibold mb-1">Arraste sua planilha aqui</div>
-            <div className="text-sm text-zinc-400 mb-3">ou clique para selecionar (.xlsx, .xls, .csv até 10MB)</div>
+            <div className="text-lg font-semibold mb-1">{t('import.dropTitle')}</div>
+            <div className="text-sm text-zinc-400 mb-3">{t('import.dropSubtitle')}</div>
             <div className="text-xs text-zinc-600">
-              Colunas obrigatórias: <span className="text-zinc-400">SKU/Código</span> e <span className="text-zinc-400">Nome</span>
+              {t.rich('import.requiredColumns', {
+                col: (chunks) => <span className="text-zinc-400">{chunks}</span>,
+              })}
             </div>
 
             {loading && (
               <div className="absolute inset-0 flex items-center justify-center bg-black/60 rounded-2xl">
-                <div className="text-cyan-400 text-sm font-medium animate-pulse">Processando planilha…</div>
+                <div className="text-cyan-400 text-sm font-medium animate-pulse">{t('import.processing')}</div>
               </div>
             )}
           </div>
@@ -282,38 +287,37 @@ export default function ImportarProdutosPage() {
             <div className="rounded-2xl p-5" style={{ background: '#111114', border: '1px solid #27272a' }}>
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <div className="text-[11px] text-zinc-500 uppercase tracking-wider">Preview</div>
+                  <div className="text-[11px] text-zinc-500 uppercase tracking-wider">{t('import.preview')}</div>
                   <div className="font-semibold mt-1">{file?.name}</div>
                 </div>
                 <button onClick={handleReset}
                   className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">
-                  Trocar arquivo
+                  {t('import.changeFile')}
                 </button>
               </div>
 
               {/* Summary cards */}
               <div className="grid grid-cols-4 gap-3 mb-5">
-                <SummaryCard label="Linhas na planilha" value={dryRun.rows_count} />
-                <SummaryCard label="Serão cadastrados" value={dryRun.summary.would_create} color="emerald" />
-                <SummaryCard label="Já existem (pulados)" value={dryRun.summary.would_skip} color="amber" />
-                <SummaryCard label="Erros de leitura" value={dryRun.summary.would_error} color={dryRun.summary.would_error > 0 ? 'red' : undefined} />
+                <SummaryCard label={t('import.summary.rows')} value={dryRun.rows_count} />
+                <SummaryCard label={t('import.summary.willCreate')} value={dryRun.summary.would_create} color="emerald" />
+                <SummaryCard label={t('import.summary.alreadyExist')} value={dryRun.summary.would_skip} color="amber" />
+                <SummaryCard label={t('import.summary.readErrors')} value={dryRun.summary.would_error} color={dryRun.summary.would_error > 0 ? 'red' : undefined} />
               </div>
 
               {/* Missing columns warning */}
               {dryRun.missing_required.length > 0 && (
                 <div className="mb-4 px-4 py-3 rounded-xl text-sm border"
                   style={{ background: '#1a0a0a', borderColor: 'rgba(248,113,113,0.3)', color: '#f87171' }}>
-                  <div className="font-semibold mb-1">Colunas obrigatórias não encontradas</div>
+                  <div className="font-semibold mb-1">{t('import.missingColsTitle')}</div>
                   <div className="text-xs">
-                    Faltando: {dryRun.missing_required.join(', ')}.
-                    Garanta que sua planilha tenha cabeçalhos com essas colunas (case-insensitive, aceita variantes).
+                    {t('import.missingColsText', { cols: dryRun.missing_required.join(', ') })}
                   </div>
                 </div>
               )}
 
               {/* Column mapping */}
               <div className="mb-4">
-                <div className="text-[11px] text-zinc-500 uppercase tracking-wider mb-2">Mapeamento de colunas reconhecidas</div>
+                <div className="text-[11px] text-zinc-500 uppercase tracking-wider mb-2">{t('import.columnMapping')}</div>
                 <div className="flex flex-wrap gap-2">
                   {Object.entries(dryRun.column_mapping).map(([header, mapped]) => (
                     <span key={header}
@@ -331,7 +335,7 @@ export default function ImportarProdutosPage() {
               {dryRun.preview.length > 0 && (
                 <div className="mb-5">
                   <div className="text-[11px] text-zinc-500 uppercase tracking-wider mb-2">
-                    Preview (primeiras {dryRun.preview.length} linhas)
+                    {t('import.previewRows', { count: dryRun.preview.length })}
                   </div>
                   <div className="overflow-x-auto rounded-lg" style={{ border: '1px solid #27272a' }}>
                     <table className="w-full text-sm">
@@ -339,8 +343,8 @@ export default function ImportarProdutosPage() {
                         <tr className="text-[11px] text-zinc-500 uppercase tracking-wider">
                           <th className="px-3 py-2 text-left">#</th>
                           <th className="px-3 py-2 text-left">SKU</th>
-                          <th className="px-3 py-2 text-left">Nome</th>
-                          <th className="px-3 py-2 text-right">Ação</th>
+                          <th className="px-3 py-2 text-left">{t('import.col.name')}</th>
+                          <th className="px-3 py-2 text-right">{t('import.col.action')}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -365,7 +369,7 @@ export default function ImportarProdutosPage() {
                 <button onClick={handleReset}
                   className="px-4 py-2 rounded-lg text-sm font-medium border transition-all"
                   style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>
-                  Cancelar
+                  {t('import.cancel')}
                 </button>
                 <button onClick={() => void handleCommit()}
                   disabled={loading || dryRun.summary.would_create === 0 || dryRun.missing_required.length > 0}
@@ -374,7 +378,7 @@ export default function ImportarProdutosPage() {
                     background: 'linear-gradient(135deg, #00E5FF 0%, #0091EA 100%)',
                     color: '#000',
                   }}>
-                  {loading ? 'Importando…' : `Confirmar importação de ${dryRun.summary.would_create} produto${dryRun.summary.would_create === 1 ? '' : 's'}`}
+                  {loading ? t('import.importing') : t('import.confirmImport', { count: dryRun.summary.would_create })}
                 </button>
               </div>
             </div>
@@ -386,37 +390,46 @@ export default function ImportarProdutosPage() {
           <div className="space-y-5">
             <div className="rounded-2xl p-6 text-center" style={{ background: '#111114', border: '1px solid #27272a' }}>
               <div className="text-5xl mb-2">{commit.rows_errors > 0 ? '⚠️' : '✅'}</div>
-              <div className="text-xl font-semibold mb-1">Importação concluída</div>
+              <div className="text-xl font-semibold mb-1">{t('import.doneTitle')}</div>
               <div className="text-sm text-zinc-400 mb-5">
                 {commit.rows_created > 0 && (
                   <>
-                    <span className="text-emerald-400 font-medium">{commit.rows_created}</span> novo{commit.rows_created === 1 ? '' : 's'} cadastrado{commit.rows_created === 1 ? '' : 's'}
+                    {t.rich('import.doneCreated', {
+                      count: commit.rows_created,
+                      v: (chunks) => <span className="text-emerald-400 font-medium">{chunks}</span>,
+                    })}
                     {commit.rows_skipped_existing > 0 && ', '}
                   </>
                 )}
                 {commit.rows_skipped_existing > 0 && (
-                  <><span className="text-amber-400 font-medium">{commit.rows_skipped_existing}</span> já existia{commit.rows_skipped_existing === 1 ? '' : 'm'}</>
+                  t.rich('import.doneSkipped', {
+                    count: commit.rows_skipped_existing,
+                    v: (chunks) => <span className="text-amber-400 font-medium">{chunks}</span>,
+                  })
                 )}
                 {commit.rows_errors > 0 && (
-                  <>, <span className="text-red-400 font-medium">{commit.rows_errors}</span> com erro</>
+                  <>, {t.rich('import.doneErrors', {
+                    count: commit.rows_errors,
+                    v: (chunks) => <span className="text-red-400 font-medium">{chunks}</span>,
+                  })}</>
                 )}
               </div>
 
               <div className="grid grid-cols-3 gap-3 mb-5 text-left">
-                <SummaryCard label="Cadastrados" value={commit.rows_created} color="emerald" />
-                <SummaryCard label="Já existiam" value={commit.rows_skipped_existing} color="amber" />
-                <SummaryCard label="Erros" value={commit.rows_errors} color={commit.rows_errors > 0 ? 'red' : undefined} />
+                <SummaryCard label={t('import.summary.created')} value={commit.rows_created} color="emerald" />
+                <SummaryCard label={t('import.summary.existed')} value={commit.rows_skipped_existing} color="amber" />
+                <SummaryCard label={t('import.summary.errors')} value={commit.rows_errors} color={commit.rows_errors > 0 ? 'red' : undefined} />
               </div>
 
               {commit.errors.length > 0 && (
                 <div className="text-left mb-5">
-                  <div className="text-[11px] text-zinc-500 uppercase tracking-wider mb-2">Erros ({commit.errors.length})</div>
+                  <div className="text-[11px] text-zinc-500 uppercase tracking-wider mb-2">{t('import.errorsTitle', { count: commit.errors.length })}</div>
                   <div className="rounded-lg max-h-48 overflow-y-auto"
                     style={{ background: '#0d0d10', border: '1px solid #27272a' }}>
                     {commit.errors.map((e, i) => (
                       <div key={i} className="px-3 py-2 text-xs border-b last:border-b-0"
                         style={{ borderColor: '#27272a' }}>
-                        <span className="text-zinc-500">Linha {e.row}</span>
+                        <span className="text-zinc-500">{t('import.lineN', { row: e.row })}</span>
                         {e.sku && <span className="ml-2 text-zinc-400 font-mono">{e.sku}</span>}
                         <span className="ml-2 text-red-400">{e.message}</span>
                       </div>
@@ -429,7 +442,7 @@ export default function ImportarProdutosPage() {
                 <button onClick={handleReset}
                   className="px-4 py-2 rounded-lg text-sm font-medium border transition-all"
                   style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>
-                  Importar outra
+                  {t('import.importAnother')}
                 </button>
                 <button onClick={() => router.push('/dashboard/produtos?quick_filter=cadastro_pendente')}
                   className="px-4 py-2 rounded-lg text-sm font-semibold transition-all"
@@ -437,7 +450,7 @@ export default function ImportarProdutosPage() {
                     background: 'linear-gradient(135deg, #00E5FF 0%, #0091EA 100%)',
                     color: '#000',
                   }}>
-                  Ver produtos pendentes →
+                  {t('import.viewPending')} →
                 </button>
               </div>
             </div>
@@ -452,7 +465,7 @@ export default function ImportarProdutosPage() {
               style={{ background: '#0d0d10', borderLeft: '1px solid #27272a' }}
               onClick={e => e.stopPropagation()}>
               <div className="flex items-center justify-between mb-4">
-                <div className="font-semibold">Histórico de imports</div>
+                <div className="font-semibold">{t('import.historyTitle')}</div>
                 <button onClick={() => setHistoryOpen(false)} className="text-zinc-500 hover:text-zinc-300">
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -460,18 +473,18 @@ export default function ImportarProdutosPage() {
                 </button>
               </div>
               {history.length === 0 ? (
-                <div className="text-sm text-zinc-500 text-center py-8">Nenhum import ainda.</div>
+                <div className="text-sm text-zinc-500 text-center py-8">{t('import.noImports')}</div>
               ) : (
                 <div className="space-y-2">
                   {history.map(b => (
                     <div key={b.id} className="p-3 rounded-lg"
                       style={{ background: '#111114', border: '1px solid #27272a' }}>
-                      <div className="text-sm font-medium truncate">{b.file_name || '(sem nome)'}</div>
+                      <div className="text-sm font-medium truncate">{b.file_name || t('import.noName')}</div>
                       <div className="text-[11px] text-zinc-500 mt-0.5">{fmtDate(b.created_at)}</div>
                       <div className="flex gap-3 mt-2 text-[11px]">
                         <span className="text-emerald-400">+{b.rows_created}</span>
-                        <span className="text-amber-400">{b.rows_skipped_existing} pulados</span>
-                        {b.rows_errors > 0 && <span className="text-red-400">{b.rows_errors} erros</span>}
+                        <span className="text-amber-400">{t('import.skippedCount', { count: b.rows_skipped_existing })}</span>
+                        {b.rows_errors > 0 && <span className="text-red-400">{t('import.errorsCount', { count: b.rows_errors })}</span>}
                       </div>
                     </div>
                   ))}
@@ -503,15 +516,16 @@ function SummaryCard({ label, value, color }: { label: string; value: number; co
 }
 
 function ActionPill({ kind, reason }: { kind: 'created' | 'skipped' | 'error'; reason?: string }) {
+  const t = useTranslations('produtos')
   const cfg = {
-    created: { label: 'Será criado', bg: 'rgba(52,211,153,0.12)', color: '#34d399' },
-    skipped: { label: 'Já existe',    bg: 'rgba(245,158,11,0.12)', color: '#f59e0b' },
-    error:   { label: 'Erro',         bg: 'rgba(248,113,113,0.12)', color: '#f87171' },
+    created: { bg: 'rgba(52,211,153,0.12)', color: '#34d399' },
+    skipped: { bg: 'rgba(245,158,11,0.12)', color: '#f59e0b' },
+    error:   { bg: 'rgba(248,113,113,0.12)', color: '#f87171' },
   }[kind]
   return (
     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium"
       style={{ background: cfg.bg, color: cfg.color }} title={reason}>
-      {cfg.label}
+      {t(`import.actionPill.${kind}`)}
     </span>
   )
 }

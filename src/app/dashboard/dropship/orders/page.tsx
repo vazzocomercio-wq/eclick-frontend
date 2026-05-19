@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import Link from 'next/link'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import { useConfirm, usePrompt } from '@/components/ui/dialog-provider'
 import {
@@ -42,6 +43,7 @@ interface DropshipOrder {
 }
 
 export default function DropshipOrdersPage() {
+  const t = useTranslations('dropship.orders')
   const supabase = useMemo(() => createClient(), [])
 
   const [orders, setOrders] = useState<DropshipOrder[]>([])
@@ -55,9 +57,9 @@ export default function DropshipOrdersPage() {
 
   const getHeaders = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session?.access_token) throw new Error('Não autenticado')
+    if (!session?.access_token) throw new Error(t('errors.notAuthenticated'))
     return { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' }
-  }, [supabase])
+  }, [supabase, t])
 
   const load = useCallback(async () => {
     setLoading(true); setErr('')
@@ -70,10 +72,10 @@ export default function DropshipOrdersPage() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       setOrders(await res.json())
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Erro ao carregar')
+      setErr(e instanceof Error ? e.message : t('errors.loadFailed'))
       setOrders([])
     } finally { setLoading(false) }
-  }, [getHeaders, filterStatus, search])
+  }, [getHeaders, filterStatus, search, t])
 
   useEffect(() => { load() }, [load])
 
@@ -85,19 +87,19 @@ export default function DropshipOrdersPage() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const r = await res.json()
       if (r.identified > 0) await load()
-      else setErr(`Nenhum pedido novo identificado (processados ${r.processed}, skipped ${r.skipped})`)
+      else setErr(t('noNewIdentified', { processed: r.processed, skipped: r.skipped }))
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Erro ao identificar')
+      setErr(e instanceof Error ? e.message : t('errors.identifyFailed'))
     } finally { setIdentifying(false) }
   }
 
   async function holdOrder(id: string) {
     const reason = await prompt({
-      title: 'Suspender pedido',
-      message: 'Por que esse pedido deve ficar em hold? (não vira OC até liberar)',
-      placeholder: 'Ex: Aguardando confirmação do parceiro sobre defeito',
+      title: t('holdPrompt.title'),
+      message: t('holdPrompt.message'),
+      placeholder: t('holdPrompt.placeholder'),
       multiline: true,
-      confirmLabel: 'Suspender',
+      confirmLabel: t('holdPrompt.confirm'),
       variant: 'warning',
     })
     if (!reason?.trim()) return
@@ -109,15 +111,15 @@ export default function DropshipOrdersPage() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       await load()
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Erro ao suspender')
+      setErr(e instanceof Error ? e.message : t('errors.holdFailed'))
     }
   }
 
   async function releaseOrder(id: string) {
     const ok = await confirm({
-      title: 'Liberar pedido?',
-      message: 'O pedido sai do hold e fica elegível pra próxima OC.',
-      confirmLabel: 'Liberar',
+      title: t('releaseConfirm.title'),
+      message: t('releaseConfirm.message'),
+      confirmLabel: t('releaseConfirm.confirm'),
     })
     if (!ok) return
     try {
@@ -126,7 +128,7 @@ export default function DropshipOrdersPage() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       await load()
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Erro ao liberar')
+      setErr(e instanceof Error ? e.message : t('errors.releaseFailed'))
     }
   }
 
@@ -145,9 +147,9 @@ export default function DropshipOrdersPage() {
             <ArrowLeft size={18} />
           </Link>
           <div>
-            <h1 className="text-xl font-semibold text-white">Pedidos Dropship</h1>
+            <h1 className="text-xl font-semibold text-white">{t('title')}</h1>
             <p className="text-sm text-zinc-500 mt-0.5">
-              Pedidos de marketplace identificados como dropship — atualizado a cada 5min
+              {t('subtitle')}
             </p>
           </div>
         </div>
@@ -158,7 +160,7 @@ export default function DropshipOrdersPage() {
           style={{ border: '1px solid #27272a', color: '#a1a1aa', opacity: identifying ? 0.6 : 1 }}
         >
           <RefreshCw size={14} className={identifying ? 'animate-spin' : ''} />
-          {identifying ? 'Identificando...' : 'Forçar identificação'}
+          {identifying ? t('identifying') : t('forceIdentify')}
         </button>
       </div>
 
@@ -173,10 +175,10 @@ export default function DropshipOrdersPage() {
 
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-        <Kpi label="Total" value={total} />
-        <Kpi label="Despachados" value={shipped} accent="#22c55e" />
-        <Kpi label="Em hold" value={onHold} accent={onHold > 0 ? '#fcd34d' : undefined} />
-        <Kpi label="Receita" value={fmtBrl(totalValue)} />
+        <Kpi label={t('kpi.total')} value={total} />
+        <Kpi label={t('kpi.shipped')} value={shipped} accent="#22c55e" />
+        <Kpi label={t('kpi.onHold')} value={onHold} accent={onHold > 0 ? '#fcd34d' : undefined} />
+        <Kpi label={t('kpi.revenue')} value={fmtBrl(totalValue)} />
       </div>
 
       {/* filters */}
@@ -192,7 +194,7 @@ export default function DropshipOrdersPage() {
                 color: filterStatus === s ? '#09090b' : '#a1a1aa',
               }}
             >
-              {s === 'all' ? 'Todos' : statusLabel(s as DropshipStatus)}
+              {s === 'all' ? t('filter.all') : statusLabel(s as DropshipStatus, t)}
             </button>
           ))}
         </div>
@@ -202,7 +204,7 @@ export default function DropshipOrdersPage() {
           </span>
           <input
             value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="Buscar SKU do parceiro..."
+            placeholder={t('searchPlaceholder')}
             className="w-full pl-8 pr-3 py-2 text-sm rounded-lg outline-none"
             style={{ background: '#111114', border: '1px solid #27272a', color: '#fff' }}
           />
@@ -214,23 +216,21 @@ export default function DropshipOrdersPage() {
         <table className="w-full text-sm">
           <thead>
             <tr style={{ background: '#111114', borderBottom: '1px solid #1a1a1f' }}>
-              {['Pedido', 'Marketplace', 'Parceiro', 'Produto', 'Qtd', 'Preço', 'Custo', 'Margem', 'Status', ''].map(h => (
-                <th key={h} className="text-left px-4 py-3 text-xs font-medium text-zinc-500">{h}</th>
+              {[t('table.order'), t('table.marketplace'), t('table.partner'), t('table.product'), t('table.qty'), t('table.price'), t('table.cost'), t('table.margin'), t('table.status'), ''].map((h, i) => (
+                <th key={i} className="text-left px-4 py-3 text-xs font-medium text-zinc-500">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={10} className="px-4 py-12 text-center text-zinc-500 text-sm">Carregando...</td></tr>
+              <tr><td colSpan={10} className="px-4 py-12 text-center text-zinc-500 text-sm">{t('loading')}</td></tr>
             ) : orders.length === 0 ? (
               <tr>
                 <td colSpan={10} className="px-4 py-12 text-center text-zinc-500 text-sm">
                   <Package size={28} className="mx-auto mb-2 text-zinc-700" />
-                  Nenhum pedido dropship identificado{filterStatus !== 'all' ? ' nesse filtro' : ''}.
+                  {filterStatus !== 'all' ? t('emptyFilter') : t('empty')}
                   <p className="text-xs mt-1">
-                    {filterStatus !== 'all'
-                      ? 'Tente outro filtro.'
-                      : 'Pedidos de contas vinculadas a parceiros aparecem aqui automaticamente (cron a cada 5min).'}
+                    {filterStatus !== 'all' ? t('emptyFilterHint') : t('emptyHint')}
                   </p>
                 </td>
               </tr>
@@ -266,7 +266,7 @@ export default function DropshipOrdersPage() {
                   {fmtBrl(Number(o.estimated_margin ?? 0))}
                 </td>
                 <td className="px-4 py-3">
-                  <DropshipStatusPill status={o.dropship_status} />
+                  <DropshipStatusPill status={o.dropship_status} t={t} />
                   {o.dropship_status === 'on_hold' && o.hold_reason && (
                     <p className="text-xs text-zinc-500 mt-1 max-w-[180px] truncate" title={o.hold_reason}>
                       {o.hold_reason}
@@ -275,11 +275,11 @@ export default function DropshipOrdersPage() {
                 </td>
                 <td className="px-4 py-3 text-right">
                   {o.dropship_status === 'on_hold' ? (
-                    <button onClick={() => releaseOrder(o.id)} className="text-zinc-500 hover:text-white" title="Liberar">
+                    <button onClick={() => releaseOrder(o.id)} className="text-zinc-500 hover:text-white" title={t('release')}>
                       <Play size={14} />
                     </button>
                   ) : !['cancelled', 'returned', 'paid'].includes(o.dropship_status) ? (
-                    <button onClick={() => holdOrder(o.id)} className="text-zinc-500 hover:text-yellow-400" title="Suspender">
+                    <button onClick={() => holdOrder(o.id)} className="text-zinc-500 hover:text-yellow-400" title={t('hold')}>
                       <Pause size={14} />
                     </button>
                   ) : null}
@@ -320,41 +320,41 @@ function MarketplacePill({ marketplace }: { marketplace: string }) {
   )
 }
 
-function DropshipStatusPill({ status }: { status: DropshipStatus }) {
-  const c: Record<DropshipStatus, { bg: string; fg: string; label: string }> = {
-    identified:         { bg: 'rgba(0,229,255,0.10)',   fg: '#00E5FF', label: 'Identificado' },
-    awaiting_shipment:  { bg: 'rgba(252,211,77,0.10)',  fg: '#fcd34d', label: 'A enviar' },
-    shipped:            { bg: 'rgba(96,165,250,0.10)',  fg: '#60a5fa', label: 'Enviado' },
-    shipped_confirmed:  { bg: 'rgba(34,197,94,0.10)',   fg: '#22c55e', label: 'Conf. parceiro' },
-    eligible_for_oc:    { bg: 'rgba(34,197,94,0.10)',   fg: '#22c55e', label: 'Pra OC' },
-    in_oc_draft:        { bg: 'rgba(252,211,77,0.10)',  fg: '#fcd34d', label: 'OC prévia' },
-    in_oc_generated:    { bg: 'rgba(252,211,77,0.10)',  fg: '#fcd34d', label: 'OC gerada' },
-    in_oc_approved:     { bg: 'rgba(34,197,94,0.10)',   fg: '#22c55e', label: 'OC aprov.' },
-    in_payable:         { bg: 'rgba(96,165,250,0.10)',  fg: '#60a5fa', label: 'A pagar' },
-    paid:               { bg: 'rgba(34,197,94,0.10)',   fg: '#22c55e', label: 'Pago' },
-    cancelled:          { bg: 'rgba(113,113,122,0.10)', fg: '#71717a', label: 'Cancelado' },
-    returned:           { bg: 'rgba(248,113,113,0.10)', fg: '#f87171', label: 'Devolvido' },
-    on_hold:            { bg: 'rgba(252,211,77,0.10)',  fg: '#fcd34d', label: 'Em hold' },
-    excluded:           { bg: 'rgba(113,113,122,0.10)', fg: '#71717a', label: 'Excluído' },
+function DropshipStatusPill({ status, t }: { status: DropshipStatus; t: ReturnType<typeof useTranslations> }) {
+  const c: Record<DropshipStatus, { bg: string; fg: string; key: string }> = {
+    identified:         { bg: 'rgba(0,229,255,0.10)',   fg: '#00E5FF', key: 'statusPill.identified' },
+    awaiting_shipment:  { bg: 'rgba(252,211,77,0.10)',  fg: '#fcd34d', key: 'statusPill.awaitingShipment' },
+    shipped:            { bg: 'rgba(96,165,250,0.10)',  fg: '#60a5fa', key: 'statusPill.shipped' },
+    shipped_confirmed:  { bg: 'rgba(34,197,94,0.10)',   fg: '#22c55e', key: 'statusPill.shippedConfirmed' },
+    eligible_for_oc:    { bg: 'rgba(34,197,94,0.10)',   fg: '#22c55e', key: 'statusPill.eligibleForOc' },
+    in_oc_draft:        { bg: 'rgba(252,211,77,0.10)',  fg: '#fcd34d', key: 'statusPill.inOcDraft' },
+    in_oc_generated:    { bg: 'rgba(252,211,77,0.10)',  fg: '#fcd34d', key: 'statusPill.inOcGenerated' },
+    in_oc_approved:     { bg: 'rgba(34,197,94,0.10)',   fg: '#22c55e', key: 'statusPill.inOcApproved' },
+    in_payable:         { bg: 'rgba(96,165,250,0.10)',  fg: '#60a5fa', key: 'statusPill.inPayable' },
+    paid:               { bg: 'rgba(34,197,94,0.10)',   fg: '#22c55e', key: 'statusPill.paid' },
+    cancelled:          { bg: 'rgba(113,113,122,0.10)', fg: '#71717a', key: 'statusPill.cancelled' },
+    returned:           { bg: 'rgba(248,113,113,0.10)', fg: '#f87171', key: 'statusPill.returned' },
+    on_hold:            { bg: 'rgba(252,211,77,0.10)',  fg: '#fcd34d', key: 'statusPill.onHold' },
+    excluded:           { bg: 'rgba(113,113,122,0.10)', fg: '#71717a', key: 'statusPill.excluded' },
   }
   const x = c[status]
   return (
     <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap"
       style={{ background: x.bg, color: x.fg, border: `1px solid ${x.fg}33` }}>
-      {x.label}
+      {t(x.key)}
     </span>
   )
 }
 
-function statusLabel(s: DropshipStatus): string {
-  const m: Record<DropshipStatus, string> = {
-    identified: 'Identific.', awaiting_shipment: 'A enviar', shipped: 'Enviados',
-    shipped_confirmed: 'Conf.', eligible_for_oc: 'Pra OC', in_oc_draft: 'OC',
-    in_oc_generated: 'OC ger.', in_oc_approved: 'OC aprov.', in_payable: 'A pagar',
-    paid: 'Pagos', cancelled: 'Cancelados', returned: 'Devolvidos', on_hold: 'Em hold',
-    excluded: 'Excluídos',
+function statusLabel(s: DropshipStatus, t: ReturnType<typeof useTranslations>): string {
+  const keys: Record<DropshipStatus, string> = {
+    identified: 'filter.identified', awaiting_shipment: 'filter.awaitingShipment', shipped: 'filter.shipped',
+    shipped_confirmed: 'filter.shippedConfirmed', eligible_for_oc: 'filter.eligibleForOc', in_oc_draft: 'filter.inOc',
+    in_oc_generated: 'filter.inOcGenerated', in_oc_approved: 'filter.inOcApproved', in_payable: 'filter.inPayable',
+    paid: 'filter.paid', cancelled: 'filter.cancelled', returned: 'filter.returned', on_hold: 'filter.onHold',
+    excluded: 'filter.excluded',
   }
-  return m[s] ?? s
+  return keys[s] ? t(keys[s]) : s
 }
 
 function fmtBrl(v: number) {

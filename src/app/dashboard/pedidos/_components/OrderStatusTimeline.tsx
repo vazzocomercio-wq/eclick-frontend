@@ -12,6 +12,7 @@
  */
 
 import { useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import { CreditCard, Package, Truck, MapPin, CheckCircle2, XCircle, AlertOctagon } from 'lucide-react'
 
 interface Props {
@@ -27,12 +28,12 @@ interface Props {
 type StepKey = 'paid' | 'handling' | 'shipped' | 'in_transit' | 'delivered'
 type StepState = 'done' | 'current' | 'pending' | 'failed'
 
-const STEPS: Array<{ key: StepKey; label: string; icon: typeof Package }> = [
-  { key: 'paid',        label: 'Pago',          icon: CreditCard },
-  { key: 'handling',    label: 'Em preparação', icon: Package },
-  { key: 'shipped',     label: 'Despachado',    icon: Truck },
-  { key: 'in_transit',  label: 'Em trânsito',   icon: MapPin },
-  { key: 'delivered',   label: 'Entregue',      icon: CheckCircle2 },
+const STEPS: Array<{ key: StepKey; icon: typeof Package }> = [
+  { key: 'paid',        icon: CreditCard },
+  { key: 'handling',    icon: Package },
+  { key: 'shipped',     icon: Truck },
+  { key: 'in_transit',  icon: MapPin },
+  { key: 'delivered',   icon: CheckCircle2 },
 ]
 
 /** Mapeia (payment, shipping) → indice da etapa atual.
@@ -60,6 +61,7 @@ export default function OrderStatusTimeline({
   soldAt,
   compact = false,
 }: Props) {
+  const t = useTranslations('pedidos')
   const currentIdx = useMemo(
     () => resolveCurrentIndex(paymentStatus, shippingStatus),
     [paymentStatus, shippingStatus],
@@ -191,9 +193,9 @@ export default function OrderStatusTimeline({
                 <p
                   className="text-[10px] font-semibold uppercase tracking-wider truncate"
                   style={{ color: labelColor, transition: 'color 300ms ease-out' }}
-                  title={s.label}
+                  title={t(`timeline.${s.key}`)}
                 >
-                  {st === 'failed' && isCancelled ? 'Cancelado' : st === 'failed' && isMediation ? 'Reclamação' : s.label}
+                  {st === 'failed' && isCancelled ? t('timeline.cancelled') : st === 'failed' && isMediation ? t('timeline.claim') : t(`timeline.${s.key}`)}
                 </p>
                 {dateStr && (
                   <p className="text-[9px] font-mono mt-0.5" style={{ color: '#52525b' }}>{dateStr}</p>

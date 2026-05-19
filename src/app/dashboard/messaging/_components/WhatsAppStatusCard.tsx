@@ -1,8 +1,11 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import { CheckCircle2, AlertCircle, RefreshCw, Send, Smartphone, Battery } from 'lucide-react'
+
+type TFn = (key: string, values?: Record<string, string | number>) => string
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
@@ -28,15 +31,16 @@ function fmtPhone(p?: string | null): string {
   return `+${cc} (${rest.slice(0, 2)}) ${rest.slice(2, 7)}-${rest.slice(7)}`
 }
 
-function relTime(iso: number): string {
+function relTime(iso: number, t: TFn): string {
   const s = Math.floor((Date.now() - iso) / 1000)
-  if (s < 60) return `há ${s}s`
-  if (s < 3600) return `há ${Math.floor(s / 60)}min`
-  if (s < 86400) return `há ${Math.floor(s / 3600)}h`
-  return `há ${Math.floor(s / 86400)}d`
+  if (s < 60) return t('relTime.seconds', { n: s })
+  if (s < 3600) return t('relTime.minutes', { n: Math.floor(s / 60) })
+  if (s < 86400) return t('relTime.hours', { n: Math.floor(s / 3600) })
+  return t('relTime.days', { n: Math.floor(s / 86400) })
 }
 
 export function WhatsAppStatusCard({ onToast }: Props) {
+  const t = useTranslations('messaging.whatsappStatus')
   const [status, setStatus]     = useState<Status | null>(null)
   const [loading, setLoading]   = useState(false)
   const [testing, setTesting]   = useState(false)
@@ -61,18 +65,18 @@ export function WhatsAppStatusCard({ onToast }: Props) {
       if (body) setStatus(body)
       setLastCheck(Date.now())
     } catch {
-      onToast('Falha ao consultar status', 'error')
+      onToast(t('toast.statusFailed'), 'error')
     } finally {
       setLoading(false)
     }
-  }, [headers, onToast])
+  }, [headers, onToast, t])
 
   useEffect(() => { fetchStatus() }, [fetchStatus])
 
   const sendTest = useCallback(async () => {
     const phone = testPhone.replace(/\D/g, '')
     if (phone.length < 10) {
-      onToast('Informe um número com DDD', 'error')
+      onToast(t('toast.invalidPhone'), 'error')
       return
     }
     setTesting(true)
@@ -83,16 +87,16 @@ export function WhatsAppStatusCard({ onToast }: Props) {
       })
       const body = (await res.json().catch(() => null)) as { success?: boolean; messageId?: string; error?: string } | null
       if (res.ok && body?.success) {
-        onToast(`Teste enviado — id ${body.messageId ?? '?'}`, 'success')
+        onToast(t('toast.testSent', { id: body.messageId ?? '?' }), 'success')
       } else {
-        onToast(body?.error ?? 'Falha ao enviar teste', 'error')
+        onToast(body?.error ?? t('toast.testFailed'), 'error')
       }
     } catch {
-      onToast('Erro de rede no envio de teste', 'error')
+      onToast(t('toast.testNetworkError'), 'error')
     } finally {
       setTesting(false)
     }
-  }, [testPhone, headers, onToast])
+  }, [testPhone, headers, onToast, t])
 
   const connected = status?.connected === true
   const provider  = status?.provider ?? 'none'
@@ -112,10 +116,10 @@ export function WhatsAppStatusCard({ onToast }: Props) {
             <div className="flex items-center gap-2">
               <span className="text-[12px] font-bold uppercase tracking-widest"
                 style={{ color: connected ? '#4ade80' : '#f87171' }}>
-                {connected ? '● Conectado' : '○ Desconectado'}
+                {connected ? t('connected') : t('disconnected')}
               </span>
               <span className="text-[10px] uppercase tracking-widest text-zinc-600">
-                via {provider === 'zapi' ? 'Z-API' : provider}
+                {t('via', { provider: provider === 'zapi' ? 'Z-API' : provider })}
               </span>
             </div>
             <div className="flex items-center gap-3 mt-1">
@@ -130,7 +134,7 @@ export function WhatsAppStatusCard({ onToast }: Props) {
                 </span>
               )}
               {lastCheck && (
-                <span className="text-zinc-600 text-[10px]">checado {relTime(lastCheck)}</span>
+                <span className="text-zinc-600 text-[10px]">{t('checked', { time: relTime(lastCheck, t) })}</span>
               )}
             </div>
             {!connected && status?.message && (
@@ -143,14 +147,14 @@ export function WhatsAppStatusCard({ onToast }: Props) {
           <button onClick={fetchStatus} disabled={loading}
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[12px] font-medium border border-zinc-800 text-zinc-300 hover:bg-zinc-900/50 disabled:opacity-50">
             <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
-            Verificar conexão
+            {t('checkConnection')}
           </button>
         </div>
       </div>
 
       <div className="mt-3 pt-3 flex items-center gap-2 flex-wrap"
         style={{ borderTop: '1px solid #1e1e24' }}>
-        <span className="text-[11px] text-zinc-500 shrink-0">Enviar teste:</span>
+        <span className="text-[11px] text-zinc-500 shrink-0">{t('sendTestLabel')}</span>
         <input value={testPhone} onChange={e => setTestPhone(e.target.value)}
           placeholder="5571999998050"
           className="flex-1 min-w-[180px] px-3 py-1.5 text-[12px] rounded-lg bg-[#0c0c10] border border-[#27272a] text-zinc-200 outline-none focus:border-[#00E5FF]" />
@@ -158,7 +162,7 @@ export function WhatsAppStatusCard({ onToast }: Props) {
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold disabled:opacity-40"
           style={{ background: 'rgba(0,229,255,0.08)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.30)' }}>
           <Send size={11} className={testing ? 'animate-pulse' : ''} />
-          {testing ? 'Enviando…' : 'Enviar mensagem teste'}
+          {testing ? t('sending') : t('sendTestButton')}
         </button>
       </div>
     </div>

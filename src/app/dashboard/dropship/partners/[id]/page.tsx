@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import { useConfirm } from '@/components/ui/dialog-provider'
 import { ArrowLeft, Save, Archive, AlertCircle, Package, History, Trophy, TrendingUp, TrendingDown, Minus } from 'lucide-react'
@@ -50,6 +51,7 @@ interface PartnerDetail {
 }
 
 export default function PartnerDetailPage() {
+  const t = useTranslations('dropship.partnerDetail')
   const router = useRouter()
   const params = useParams()
   const id = params.id as string
@@ -76,9 +78,9 @@ export default function PartnerDetailPage() {
 
   const getHeaders = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session?.access_token) throw new Error('Não autenticado')
+    if (!session?.access_token) throw new Error(t('errors.notAuthenticated'))
     return { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' }
-  }, [supabase])
+  }, [supabase, t])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -115,9 +117,9 @@ export default function PartnerDetailPage() {
         notes: data.notes ?? '',
       })
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Erro ao carregar')
+      setErr(e instanceof Error ? e.message : t('errors.loadFailed'))
     } finally { setLoading(false) }
-  }, [getHeaders, id])
+  }, [getHeaders, id, t])
 
   useEffect(() => { load() }, [load])
 
@@ -173,15 +175,15 @@ export default function PartnerDetailPage() {
       setTimeout(() => setSavedOk(false), 2000)
       await load()
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Erro ao salvar')
+      setErr(e instanceof Error ? e.message : t('errors.saveFailed'))
     } finally { setSaving(false) }
   }
 
   async function handleArchive() {
     const ok = await confirm({
-      title: 'Arquivar parceiro?',
-      message: 'Ficará inativo (sem novas OCs), mas todos os dados históricos são preservados. Pode reativar depois mudando o status.',
-      confirmLabel: 'Arquivar',
+      title: t('archiveConfirm.title'),
+      message: t('archiveConfirm.message'),
+      confirmLabel: t('archiveConfirm.confirm'),
       variant: 'warning',
     })
     if (!ok) return
@@ -191,7 +193,7 @@ export default function PartnerDetailPage() {
       if (!res.ok && res.status !== 204) throw new Error(`HTTP ${res.status}`)
       router.push('/dashboard/dropship/partners')
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Erro ao arquivar')
+      setErr(e instanceof Error ? e.message : t('errors.archiveFailed'))
     }
   }
 
@@ -201,7 +203,7 @@ export default function PartnerDetailPage() {
   const lbl = 'block text-xs text-zinc-400 mb-1'
 
   if (loading) {
-    return <div className="min-h-screen p-6 text-zinc-500" style={{ background: 'var(--background)' }}>Carregando...</div>
+    return <div className="min-h-screen p-6 text-zinc-500" style={{ background: 'var(--background)' }}>{t('loading')}</div>
   }
   if (!partner) {
     return (
@@ -209,8 +211,8 @@ export default function PartnerDetailPage() {
         <div className="rounded-lg p-4 text-sm" style={{
           background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)',
         }}>
-          Parceiro não encontrado. {err && `(${err})`}{' '}
-          <Link href="/dashboard/dropship/partners" style={{ color: '#00E5FF' }}>Voltar à lista</Link>
+          {t('notFound')} {err && `(${err})`}{' '}
+          <Link href="/dashboard/dropship/partners" style={{ color: '#00E5FF' }}>{t('backToList')}</Link>
         </div>
       </div>
     )
@@ -227,7 +229,7 @@ export default function PartnerDetailPage() {
           <div>
             <h1 className="text-xl font-semibold text-white">{partner.suppliers?.name ?? '—'}</h1>
             <p className="text-sm text-zinc-500 mt-0.5">
-              {partner.suppliers?.legal_name ?? 'Parceiro Dropship'} · CNPJ {partner.suppliers?.tax_id ?? '—'}
+              {partner.suppliers?.legal_name ?? t('dropshipPartner')} · CNPJ {partner.suppliers?.tax_id ?? '—'}
             </p>
           </div>
         </div>
@@ -238,7 +240,7 @@ export default function PartnerDetailPage() {
             style={{ border: '1px solid #27272a', color: '#a1a1aa' }}
           >
             <Package size={14} />
-            Catálogo
+            {t('catalog')}
           </Link>
           <Link
             href={`/dashboard/dropship/sync-logs?supplier_id=${partner.supplier_id}`}
@@ -246,7 +248,7 @@ export default function PartnerDetailPage() {
             style={{ border: '1px solid #27272a', color: '#a1a1aa' }}
           >
             <History size={14} />
-            Logs
+            {t('logs')}
           </Link>
           <button
             onClick={handleArchive}
@@ -254,7 +256,7 @@ export default function PartnerDetailPage() {
             style={{ border: '1px solid #27272a', color: '#a1a1aa' }}
           >
             <Archive size={14} />
-            Arquivar
+            {t('archive')}
           </button>
           <button
             onClick={handleSave}
@@ -263,7 +265,7 @@ export default function PartnerDetailPage() {
             style={{ background: '#00E5FF', color: '#09090b', opacity: saving ? 0.6 : 1 }}
           >
             <Save size={14} />
-            {saving ? 'Salvando...' : 'Salvar'}
+            {saving ? t('saving') : t('save')}
           </button>
         </div>
       </div>
@@ -281,7 +283,7 @@ export default function PartnerDetailPage() {
         <div className="rounded-lg p-3 text-sm mb-4" style={{
           background: 'rgba(34,197,94,0.10)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.3)',
         }}>
-          ✓ Salvo
+          ✓ {t('saved')}
         </div>
       )}
 
@@ -293,17 +295,18 @@ export default function PartnerDetailPage() {
           periodEnd={latestScore.period_end}
           breakdown={latestScore.score_breakdown}
           supplierId={partner.supplier_id}
+          t={t}
         />
       )}
 
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
-        <Kpi label="Status" value={statusLabel(partner.dropship_status)} />
-        <Kpi label="SKUs ativos" value={partner.active_dropship_skus ?? 0} />
-        <Kpi label="Pedidos 30d" value={partner.orders_30d ?? 0} />
-        <Kpi label="A pagar" value={fmtBrl(partner.pending_payable ?? 0)} />
+        <Kpi label={t('kpi.status')} value={statusLabel(partner.dropship_status, t)} />
+        <Kpi label={t('kpi.activeSkus')} value={partner.active_dropship_skus ?? 0} />
+        <Kpi label={t('kpi.orders30d')} value={partner.orders_30d ?? 0} />
+        <Kpi label={t('kpi.toPay')} value={fmtBrl(partner.pending_payable ?? 0)} />
         <Kpi
-          label="Créditos pendentes"
+          label={t('kpi.pendingCredits')}
           value={fmtBrl(creditsBalance)}
           accent={creditsBalance > 0 ? '#fcd34d' : undefined}
         />
@@ -311,67 +314,67 @@ export default function PartnerDetailPage() {
 
       {/* form em 2 colunas */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Section title="Identificação">
+        <Section title={t('section.identification')}>
           <div>
-            <label className={lbl}>Nome *</label>
+            <label className={lbl}>{t('form.name')}</label>
             <input value={String(form.name ?? '')} onChange={e => setField('name', e.target.value)} className={inp} />
           </div>
           <div>
-            <label className={lbl}>Razão Social</label>
+            <label className={lbl}>{t('form.legalName')}</label>
             <input value={String(form.legal_name ?? '')} onChange={e => setField('legal_name', e.target.value)} className={inp} />
           </div>
           <div>
-            <label className={lbl}>CNPJ</label>
+            <label className={lbl}>{t('form.cnpj')}</label>
             <input value={String(form.cnpj ?? '')} onChange={e => setField('cnpj', e.target.value)} className={inp} />
           </div>
         </Section>
 
-        <Section title="Contato Comercial">
+        <Section title={t('section.commercialContact')}>
           <div className="grid grid-cols-2 gap-3">
-            <div><label className={lbl}>Nome</label><input value={String(form.contact_name ?? '')} onChange={e => setField('contact_name', e.target.value)} className={inp} /></div>
-            <div><label className={lbl}>E-mail</label><input value={String(form.contact_email ?? '')} onChange={e => setField('contact_email', e.target.value)} className={inp} /></div>
-            <div><label className={lbl}>Telefone</label><input value={String(form.contact_phone ?? '')} onChange={e => setField('contact_phone', e.target.value)} className={inp} /></div>
-            <div><label className={lbl}>WhatsApp</label><input value={String(form.contact_whatsapp ?? '')} onChange={e => setField('contact_whatsapp', e.target.value)} className={inp} /></div>
+            <div><label className={lbl}>{t('form.contactName')}</label><input value={String(form.contact_name ?? '')} onChange={e => setField('contact_name', e.target.value)} className={inp} /></div>
+            <div><label className={lbl}>{t('form.contactEmail')}</label><input value={String(form.contact_email ?? '')} onChange={e => setField('contact_email', e.target.value)} className={inp} /></div>
+            <div><label className={lbl}>{t('form.contactPhone')}</label><input value={String(form.contact_phone ?? '')} onChange={e => setField('contact_phone', e.target.value)} className={inp} /></div>
+            <div><label className={lbl}>{t('form.contactWhatsapp')}</label><input value={String(form.contact_whatsapp ?? '')} onChange={e => setField('contact_whatsapp', e.target.value)} className={inp} /></div>
           </div>
         </Section>
 
-        <Section title="Notificação Operacional">
+        <Section title={t('section.operationalNotification')}>
           <div>
-            <label className={lbl}>E-mail (recebe OC) *</label>
+            <label className={lbl}>{t('form.notificationEmail')}</label>
             <input value={String(form.notification_email ?? '')} onChange={e => setField('notification_email', e.target.value)} className={inp} />
           </div>
           <div>
-            <label className={lbl}>WhatsApp</label>
+            <label className={lbl}>{t('form.notificationWhatsapp')}</label>
             <input value={String(form.notification_whatsapp ?? '')} onChange={e => setField('notification_whatsapp', e.target.value)} className={inp} />
           </div>
         </Section>
 
-        <Section title="Janela Operacional">
+        <Section title={t('section.operationalWindow')}>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className={lbl}>Cutoff (parceiro)</label>
+              <label className={lbl}>{t('form.cutoff')}</label>
               <input type="time" value={String(form.cutoff_time ?? '')} onChange={e => setField('cutoff_time', e.target.value)} className={inp} />
             </div>
             <div>
-              <label className={lbl}>Ship lead (dias)</label>
+              <label className={lbl}>{t('form.shipLead')}</label>
               <input type="number" min="0" value={Number(form.ship_lead_days ?? 1)} onChange={e => setField('ship_lead_days', e.target.value)} className={inp} />
             </div>
           </div>
           <div className="grid grid-cols-3 gap-3">
-            <div><label className={lbl}>Prévia abre</label><input type="time" value={String(form.oc_preview_open_time ?? '')} onChange={e => setField('oc_preview_open_time', e.target.value)} className={inp} /></div>
-            <div><label className={lbl}>Cutoff prévia</label><input type="time" value={String(form.oc_review_cutoff_time ?? '')} onChange={e => setField('oc_review_cutoff_time', e.target.value)} className={inp} /></div>
-            <div><label className={lbl}>Geração OC</label><input type="time" value={String(form.oc_generation_time ?? '')} onChange={e => setField('oc_generation_time', e.target.value)} className={inp} /></div>
+            <div><label className={lbl}>{t('form.previewOpens')}</label><input type="time" value={String(form.oc_preview_open_time ?? '')} onChange={e => setField('oc_preview_open_time', e.target.value)} className={inp} /></div>
+            <div><label className={lbl}>{t('form.previewCutoff')}</label><input type="time" value={String(form.oc_review_cutoff_time ?? '')} onChange={e => setField('oc_review_cutoff_time', e.target.value)} className={inp} /></div>
+            <div><label className={lbl}>{t('form.ocGeneration')}</label><input type="time" value={String(form.oc_generation_time ?? '')} onChange={e => setField('oc_generation_time', e.target.value)} className={inp} /></div>
           </div>
         </Section>
 
-        <Section title="Estratégia">
+        <Section title={t('section.strategy')}>
           <div>
-            <label className={lbl}>Integração</label>
+            <label className={lbl}>{t('form.integration')}</label>
             <select value={String(form.integration_type ?? 'manual')} onChange={e => setField('integration_type', e.target.value)} className={inp}>
-              <option value="manual">Manual</option>
-              <option value="spreadsheet">Planilha</option>
-              <option value="api">API/ERP</option>
-              <option value="csv_email">CSV por e-mail</option>
+              <option value="manual">{t('integration.manual')}</option>
+              <option value="spreadsheet">{t('integration.spreadsheet')}</option>
+              <option value="api">{t('integration.apiErp')}</option>
+              <option value="csv_email">{t('integration.csvEmail')}</option>
               <option value="sftp">SFTP</option>
               <option value="erp_bling">Bling</option>
               <option value="erp_tiny">Tiny</option>
@@ -379,53 +382,53 @@ export default function PartnerDetailPage() {
             </select>
           </div>
           <div>
-            <label className={lbl}>Custo</label>
+            <label className={lbl}>{t('form.cost')}</label>
             <select value={String(form.cost_strategy ?? 'current_table')} onChange={e => setField('cost_strategy', e.target.value)} className={inp}>
-              <option value="current_table">Tabela vigente na OC</option>
-              <option value="at_sale_date">Custo do momento da venda</option>
-              <option value="at_ship_date">Custo do momento do envio</option>
-              <option value="fixed_per_period">Tabela fixa por período</option>
-              <option value="per_campaign">Acordo por campanha</option>
+              <option value="current_table">{t('costStrategy.currentTable')}</option>
+              <option value="at_sale_date">{t('costStrategy.atSaleDate')}</option>
+              <option value="at_ship_date">{t('costStrategy.atShipDate')}</option>
+              <option value="fixed_per_period">{t('costStrategy.fixedPerPeriod')}</option>
+              <option value="per_campaign">{t('costStrategy.perCampaign')}</option>
             </select>
           </div>
           <div>
-            <label className={lbl}>Devolução</label>
+            <label className={lbl}>{t('form.return')}</label>
             <select value={String(form.return_credit_strategy ?? 'next_oc')} onChange={e => setField('return_credit_strategy', e.target.value)} className={inp}>
-              <option value="next_oc">Crédito na próxima OC</option>
-              <option value="same_oc">Abate na mesma OC se ainda não paga</option>
-              <option value="separate_invoice">Lançamento separado</option>
+              <option value="next_oc">{t('returnStrategy.nextOc')}</option>
+              <option value="same_oc">{t('returnStrategy.sameOc')}</option>
+              <option value="separate_invoice">{t('returnStrategy.separateInvoice')}</option>
             </select>
           </div>
         </Section>
 
-        <Section title="Pagamento + Status">
+        <Section title={t('section.paymentStatus')}>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className={lbl}>Prazo (dias)</label>
+              <label className={lbl}>{t('form.paymentTerms')}</label>
               <input value={String(form.payment_terms ?? '')} onChange={e => setField('payment_terms', e.target.value)} className={inp} placeholder="15" />
             </div>
             <div>
-              <label className={lbl}>Método</label>
+              <label className={lbl}>{t('form.method')}</label>
               <select value={String(form.payment_method ?? 'pix')} onChange={e => setField('payment_method', e.target.value)} className={inp}>
                 <option value="pix">PIX</option>
-                <option value="boleto">Boleto</option>
-                <option value="transfer">Transferência</option>
-                <option value="check">Cheque</option>
+                <option value="boleto">{t('paymentMethod.boleto')}</option>
+                <option value="transfer">{t('paymentMethod.transfer')}</option>
+                <option value="check">{t('paymentMethod.check')}</option>
               </select>
             </div>
           </div>
           <div>
-            <label className={lbl}>Status dropship</label>
+            <label className={lbl}>{t('form.dropshipStatus')}</label>
             <select value={String(form.dropship_status ?? 'active')} onChange={e => setField('dropship_status', e.target.value)} className={inp}>
-              <option value="active">Ativo</option>
-              <option value="paused">Pausado</option>
-              <option value="inactive">Inativo</option>
-              <option value="pending_setup">Setup pendente</option>
+              <option value="active">{t('status.active')}</option>
+              <option value="paused">{t('status.paused')}</option>
+              <option value="inactive">{t('status.inactive')}</option>
+              <option value="pending_setup">{t('status.pendingSetup')}</option>
             </select>
           </div>
           {form.dropship_status === 'paused' && (
             <div>
-              <label className={lbl}>Motivo da pausa</label>
+              <label className={lbl}>{t('form.pauseReason')}</label>
               <input value={String(form.paused_reason ?? '')} onChange={e => setField('paused_reason', e.target.value)} className={inp} />
             </div>
           )}
@@ -433,8 +436,8 @@ export default function PartnerDetailPage() {
       </div>
 
       <div className="mt-4">
-        <Section title="Observações Internas">
-          <textarea value={String(form.notes ?? '')} onChange={e => setField('notes', e.target.value)} rows={3} className={inp + ' resize-none'} placeholder="Notas internas (não visíveis ao parceiro)" />
+        <Section title={t('section.internalNotes')}>
+          <textarea value={String(form.notes ?? '')} onChange={e => setField('notes', e.target.value)} rows={3} className={inp + ' resize-none'} placeholder={t('form.notesPlaceholder')} />
         </Section>
       </div>
     </div>
@@ -462,23 +465,24 @@ function Kpi({ label, value, accent }: { label: string; value: string | number; 
 }
 
 function ScoreBadge({
-  score, change, periodEnd, breakdown, supplierId,
+  score, change, periodEnd, breakdown, t,
 }: {
   score: number
   change: number | null
   periodEnd: string
   breakdown: Record<string, number>
   supplierId: string
+  t: ReturnType<typeof useTranslations>
 }) {
   const color = score >= 80 ? '#22c55e' : score >= 60 ? '#fcd34d' : '#f87171'
   const bg = score >= 80 ? 'rgba(34,197,94,0.05)' : score >= 60 ? 'rgba(252,211,77,0.05)' : 'rgba(248,113,113,0.05)'
 
-  const dimLabels: Record<string, string> = {
-    stock_accuracy: 'Estoque',
-    ship_lead_compliance: 'Prazo',
-    divergence_rate: 'Divergência',
-    return_rate: 'Devolução',
-    approval_speed: 'Aprovação',
+  const dimKeys: Record<string, string> = {
+    stock_accuracy: 'dimShort.stock',
+    ship_lead_compliance: 'dimShort.lead',
+    divergence_rate: 'dimShort.divergence',
+    return_rate: 'dimShort.return',
+    approval_speed: 'dimShort.approval',
   }
 
   return (
@@ -497,23 +501,23 @@ function ScoreBadge({
           <div>
             <div className="flex items-center gap-2">
               <Trophy size={14} style={{ color }} />
-              <p className="text-sm font-semibold text-white">Score do parceiro</p>
+              <p className="text-sm font-semibold text-white">{t('partnerScore')}</p>
             </div>
             <p className="text-xs text-zinc-500 mt-0.5">
-              Período {new Date(periodEnd).toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' })}
+              {t('period', { period: new Date(periodEnd).toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }) })}
             </p>
             {change != null && change !== 0 && (
               <div className="flex items-center gap-1 text-xs mt-1">
                 {change > 0 ? (
-                  <><TrendingUp size={11} style={{ color: '#22c55e' }} /><span style={{ color: '#22c55e' }}>+{change} vs anterior</span></>
+                  <><TrendingUp size={11} style={{ color: '#22c55e' }} /><span style={{ color: '#22c55e' }}>{t('vsPreviousUp', { change })}</span></>
                 ) : (
-                  <><TrendingDown size={11} style={{ color: '#f87171' }} /><span style={{ color: '#f87171' }}>{change} vs anterior</span></>
+                  <><TrendingDown size={11} style={{ color: '#f87171' }} /><span style={{ color: '#f87171' }}>{t('vsPreviousDown', { change })}</span></>
                 )}
               </div>
             )}
             {change === 0 && (
               <div className="flex items-center gap-1 text-xs mt-1 text-zinc-500">
-                <Minus size={11} /> sem mudança
+                <Minus size={11} /> {t('noChange')}
               </div>
             )}
           </div>
@@ -526,7 +530,7 @@ function ScoreBadge({
             return (
               <div key={key} className="text-center">
                 <p className="text-xs font-semibold" style={{ color: dimColor }}>{value}/20</p>
-                <p className="text-xs text-zinc-500 mt-0.5">{dimLabels[key] ?? key}</p>
+                <p className="text-xs text-zinc-500 mt-0.5">{dimKeys[key] ? t(dimKeys[key]) : key}</p>
                 <div className="h-1 rounded-full overflow-hidden mt-1.5" style={{ background: '#0d0d10' }}>
                   <div className="h-full" style={{ width: `${pct}%`, background: dimColor }} />
                 </div>
@@ -540,15 +544,15 @@ function ScoreBadge({
           className="text-xs px-3 py-1.5 rounded-lg shrink-0"
           style={{ border: `1px solid ${color}33`, color }}
         >
-          Ver ranking →
+          {t('viewRanking')}
         </Link>
       </div>
     </div>
   )
 }
 
-function statusLabel(s: string): string {
-  return s === 'active' ? 'Ativo' : s === 'paused' ? 'Pausado' : s === 'inactive' ? 'Inativo' : 'Setup'
+function statusLabel(s: string, t: ReturnType<typeof useTranslations>): string {
+  return s === 'active' ? t('status.active') : s === 'paused' ? t('status.paused') : s === 'inactive' ? t('status.inactive') : t('status.setup')
 }
 
 function fmtBrl(v: number) {

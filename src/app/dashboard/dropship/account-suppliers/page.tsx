@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import Link from 'next/link'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import { Plus, X, Link2, Trash2, AlertCircle, Loader2, AlertTriangle } from 'lucide-react'
 import { useConfirm } from '@/components/ui/dialog-provider'
@@ -55,6 +56,7 @@ const MARKETPLACE_LABELS: Record<string, string> = {
 }
 
 export default function AccountSuppliersPage() {
+  const t = useTranslations('dropship.accountSuppliers')
   const supabase = useMemo(() => createClient(), [])
 
   const [links, setLinks] = useState<AccountSupplier[]>([])
@@ -79,9 +81,9 @@ export default function AccountSuppliersPage() {
 
   const getHeaders = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session?.access_token) throw new Error('Não autenticado')
+    if (!session?.access_token) throw new Error(t('errors.notAuthenticated'))
     return { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' }
-  }, [supabase])
+  }, [supabase, t])
 
   const load = useCallback(async () => {
     setLoading(true); setPageErr('')
@@ -94,15 +96,15 @@ export default function AccountSuppliersPage() {
         fetch(`${BACKEND}/dropship/account-suppliers?${params}`, { headers }),
         fetch(`${BACKEND}/dropship/partners?status=active`, { headers }),
       ])
-      if (!linksRes.ok) throw new Error(`Vínculos HTTP ${linksRes.status}`)
-      if (!partnersRes.ok) throw new Error(`Parceiros HTTP ${partnersRes.status}`)
+      if (!linksRes.ok) throw new Error(`${t('errors.linksHttp')} ${linksRes.status}`)
+      if (!partnersRes.ok) throw new Error(`${t('errors.partnersHttp')} ${partnersRes.status}`)
       setLinks(await linksRes.json())
       setPartners(await partnersRes.json())
     } catch (e) {
-      setPageErr(e instanceof Error ? e.message : 'Erro ao carregar')
+      setPageErr(e instanceof Error ? e.message : t('errors.loadFailed'))
       setLinks([])
     } finally { setLoading(false) }
-  }, [getHeaders, filterMarketplace])
+  }, [getHeaders, filterMarketplace, t])
 
   useEffect(() => { load() }, [load])
 
@@ -151,9 +153,9 @@ export default function AccountSuppliersPage() {
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
-    if (!form.supplier_id) { setFormErr('Escolha um parceiro'); return }
+    if (!form.supplier_id) { setFormErr(t('errors.choosePartner')); return }
     if (!form.seller_id && !form.shopee_shop_id && !form.amazon_seller_id) {
-      setFormErr('Informe pelo menos um ID da conta no marketplace')
+      setFormErr(t('errors.provideAccountId'))
       return
     }
     setSaving(true); setFormErr('')
@@ -180,15 +182,15 @@ export default function AccountSuppliersPage() {
       setForm(EMPTY_FORM)
       await load()
     } catch (e) {
-      setFormErr(e instanceof Error ? e.message : 'Erro ao salvar')
+      setFormErr(e instanceof Error ? e.message : t('errors.saveFailed'))
     } finally { setSaving(false) }
   }
 
   async function handleUnlink(linkId: string) {
     const ok = await confirm({
-      title: 'Desvincular conta?',
-      message: 'Histórico de pedidos antigos é preservado, mas pedidos novos NÃO serão mais atribuídos a este parceiro.',
-      confirmLabel: 'Desvincular',
+      title: t('unlinkConfirm.title'),
+      message: t('unlinkConfirm.message'),
+      confirmLabel: t('unlinkConfirm.confirm'),
       variant: 'warning',
     })
     if (!ok) return
@@ -198,7 +200,7 @@ export default function AccountSuppliersPage() {
       if (!res.ok && res.status !== 204) throw new Error(`HTTP ${res.status}`)
       await load()
     } catch (e) {
-      setPageErr(e instanceof Error ? e.message : 'Erro ao desvincular')
+      setPageErr(e instanceof Error ? e.message : t('errors.unlinkFailed'))
     }
   }
 
@@ -210,9 +212,9 @@ export default function AccountSuppliersPage() {
       {/* header */}
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-white">Vínculo Conta ↔ Parceiro</h1>
+          <h1 className="text-xl font-semibold text-white">{t('title')}</h1>
           <p className="text-sm text-zinc-500 mt-0.5">
-            Mapeie qual parceiro despacha pelos pedidos de cada conta de marketplace
+            {t('subtitle')}
           </p>
         </div>
         <button
@@ -222,7 +224,7 @@ export default function AccountSuppliersPage() {
           style={{ background: '#00E5FF', color: '#09090b', opacity: partners.length === 0 ? 0.5 : 1 }}
         >
           <Plus size={15} />
-          Novo Vínculo
+          {t('newLink')}
         </button>
       </div>
 
@@ -230,9 +232,9 @@ export default function AccountSuppliersPage() {
       <div className="rounded-xl p-4 mb-6 flex items-start gap-3" style={{ background: 'rgba(0,229,255,0.05)', border: '1px solid rgba(0,229,255,0.2)' }}>
         <Link2 size={18} style={{ color: '#00E5FF' }} className="mt-0.5 shrink-0" />
         <div className="text-sm text-zinc-300">
-          <p className="font-medium text-white mb-1">Como funciona</p>
+          <p className="font-medium text-white mb-1">{t('explainer.title')}</p>
           <p className="text-xs text-zinc-400 leading-relaxed">
-            Quando entra um pedido de uma conta marketplace (ML/Shopee/Amazon), o sistema busca o parceiro vinculado nessa tabela e cria a identificação dropship com o supplier correto. Pra desvincular, usamos <code>active_until</code> (não DELETE) — pedidos antigos mantêm referência histórica.
+            {t.rich('explainer.text', { code: (chunks) => <code>{chunks}</code> })}
           </p>
         </div>
       </div>
@@ -260,7 +262,7 @@ export default function AccountSuppliersPage() {
                 color: filterMarketplace === m ? '#09090b' : '#a1a1aa',
               }}
             >
-              {m === 'all' ? 'Todos' : MARKETPLACE_LABELS[m]}
+              {m === 'all' ? t('filter.all') : m === 'others' ? t('marketplace.others') : MARKETPLACE_LABELS[m]}
             </button>
           ))}
         </div>
@@ -271,25 +273,27 @@ export default function AccountSuppliersPage() {
         <table className="w-full text-sm">
           <thead>
             <tr style={{ background: '#111114', borderBottom: '1px solid #1a1a1f' }}>
-              {['Marketplace', 'Conta', 'ID', 'Parceiro', 'Default', 'Desde', 'Ativo Até', ''].map(h => (
-                <th key={h} className="text-left px-4 py-3 text-xs font-medium text-zinc-500">{h}</th>
+              {[t('table.marketplace'), t('table.account'), t('table.id'), t('table.partner'), t('table.default'), t('table.since'), t('table.activeUntil'), ''].map((h, i) => (
+                <th key={i} className="text-left px-4 py-3 text-xs font-medium text-zinc-500">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={8} className="px-4 py-12 text-center text-zinc-500 text-sm">Carregando...</td></tr>
+              <tr><td colSpan={8} className="px-4 py-12 text-center text-zinc-500 text-sm">{t('loading')}</td></tr>
             ) : links.length === 0 ? (
               <tr>
                 <td colSpan={8} className="px-4 py-12 text-center text-zinc-500 text-sm">
                   {partners.length === 0 ? (
                     <>
-                      Cadastre um <Link href="/dashboard/dropship/partners" style={{ color: '#00E5FF' }}>parceiro</Link> antes de criar vínculos.
+                      {t.rich('empty.needPartner', {
+                        link: (chunks) => <Link href="/dashboard/dropship/partners" style={{ color: '#00E5FF' }}>{chunks}</Link>,
+                      })}
                     </>
                   ) : (
                     <>
-                      Nenhum vínculo cadastrado.{' '}
-                      <button onClick={() => setShowModal(true)} style={{ color: '#00E5FF' }}>Criar o primeiro</button>
+                      {t('empty.noLinks')}{' '}
+                      <button onClick={() => setShowModal(true)} style={{ color: '#00E5FF' }}>{t('empty.createFirst')}</button>
                     </>
                   )}
                 </td>
@@ -297,7 +301,10 @@ export default function AccountSuppliersPage() {
             ) : links.map(l => (
               <tr key={l.id} style={{ borderBottom: '1px solid #1a1a1f' }}>
                 <td className="px-4 py-3">
-                  <MarketplacePill marketplace={l.marketplace} />
+                  <MarketplacePill
+                    marketplace={l.marketplace}
+                    label={l.marketplace === 'others' ? t('marketplace.others') : undefined}
+                  />
                 </td>
                 <td className="px-4 py-3 text-zinc-300 text-xs">{l.account_label ?? '—'}</td>
                 <td className="px-4 py-3 text-zinc-400 text-xs font-mono">
@@ -309,7 +316,7 @@ export default function AccountSuppliersPage() {
                     <span className="px-2 py-0.5 rounded-full text-xs" style={{
                       background: 'rgba(0,229,255,0.10)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.3)',
                     }}>
-                      Default
+                      {t('default')}
                     </span>
                   ) : (
                     <span className="text-zinc-600 text-xs">—</span>
@@ -320,7 +327,7 @@ export default function AccountSuppliersPage() {
                   {l.active_until ? (
                     <span style={{ color: '#71717a' }}>{fmtDate(l.active_until)}</span>
                   ) : (
-                    <span style={{ color: '#22c55e' }}>Ativo</span>
+                    <span style={{ color: '#22c55e' }}>{t('active')}</span>
                   )}
                 </td>
                 <td className="px-4 py-3 text-right">
@@ -328,7 +335,7 @@ export default function AccountSuppliersPage() {
                     <button
                       onClick={() => handleUnlink(l.id)}
                       className="text-zinc-500 hover:text-red-400 transition-colors"
-                      title="Desvincular"
+                      title={t('unlink')}
                     >
                       <Trash2 size={14} />
                     </button>
@@ -349,7 +356,7 @@ export default function AccountSuppliersPage() {
             <div className="flex items-center justify-between px-6 py-4 shrink-0" style={{ borderBottom: '1px solid #1e1e24' }}>
               <div className="flex items-center gap-2">
                 <Link2 size={18} style={{ color: '#00E5FF' }} />
-                <h2 className="text-white font-semibold">Novo Vínculo</h2>
+                <h2 className="text-white font-semibold">{t('newLink')}</h2>
               </div>
               <button onClick={() => !saving && setShowModal(false)} className="text-zinc-500 hover:text-white">
                 <X size={18} />
@@ -358,9 +365,9 @@ export default function AccountSuppliersPage() {
 
             <form onSubmit={handleCreate} className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
               <div>
-                <label className={lbl}>Parceiro *</label>
+                <label className={lbl}>{t('form.partner')}</label>
                 <select value={form.supplier_id} onChange={e => setForm(f => ({ ...f, supplier_id: e.target.value }))} className={inp}>
-                  <option value="">— Selecione —</option>
+                  <option value="">{t('form.selectPlaceholder')}</option>
                   {partners.map(p => (
                     <option key={p.supplier_id} value={p.supplier_id}>{p.suppliers?.name ?? p.supplier_id}</option>
                   ))}
@@ -368,20 +375,20 @@ export default function AccountSuppliersPage() {
               </div>
 
               <div>
-                <label className={lbl}>Marketplace *</label>
+                <label className={lbl}>{t('form.marketplace')}</label>
                 <select value={form.marketplace} onChange={e => setForm(f => ({ ...f, marketplace: e.target.value as NewLinkForm['marketplace'] }))} className={inp}>
                   {Object.entries(MARKETPLACE_LABELS).map(([k, v]) => (
-                    <option key={k} value={k}>{v}</option>
+                    <option key={k} value={k}>{k === 'others' ? t('marketplace.others') : v}</option>
                   ))}
                 </select>
               </div>
 
               <div>
-                <label className={lbl}>Conta conectada *</label>
+                <label className={lbl}>{t('form.connectedAccount')}</label>
                 {loadingAccounts ? (
                   <div className={inp + ' flex items-center gap-2 text-zinc-500'}>
                     <Loader2 size={14} className="animate-spin" />
-                    Buscando contas conectadas...
+                    {t('form.searchingAccounts')}
                   </div>
                 ) : connectedAccounts.length === 0 ? (
                   <div className="rounded-lg p-3 text-xs flex items-start gap-2" style={{
@@ -391,11 +398,11 @@ export default function AccountSuppliersPage() {
                   }}>
                     <AlertTriangle size={14} className="mt-0.5 shrink-0" />
                     <div className="flex-1">
-                      <p className="font-medium">Nenhuma conta {MARKETPLACE_LABELS[form.marketplace]} conectada</p>
+                      <p className="font-medium">{t('form.noAccount', { marketplace: form.marketplace === 'others' ? t('marketplace.others') : MARKETPLACE_LABELS[form.marketplace] })}</p>
                       <p className="text-zinc-400 mt-1">
-                        Conecte uma conta primeiro em{' '}
+                        {t('form.connectFirst')}{' '}
                         <Link href="/dashboard/integracoes" className="underline" style={{ color: '#00E5FF' }} onClick={() => setShowModal(false)}>
-                          Configurações &gt; Integrações
+                          {t('form.settingsIntegrations')}
                         </Link>
                         .
                       </p>
@@ -408,30 +415,29 @@ export default function AccountSuppliersPage() {
                       onChange={e => selectAccount(e.target.value)}
                       className={inp}
                     >
-                      <option value="">— Selecione a conta —</option>
+                      <option value="">{t('form.selectAccount')}</option>
                       {connectedAccounts.map(acc => (
                         <option key={`${acc.id_field}:${acc.id_value}`} value={acc.id_value}>
-                          {acc.nickname ? `${acc.nickname}` : '(sem apelido)'}
+                          {acc.nickname ? `${acc.nickname}` : t('form.noNickname')}
                           {' · '}
                           {acc.id_field === 'seller_id' ? 'Seller ID' :
                            acc.id_field === 'shopee_shop_id' ? 'Shop ID' :
                            'Seller ID Amazon'}{' '}
                           {acc.id_value}
-                          {acc.already_linked ? ' [já vinculada]' : ''}
+                          {acc.already_linked ? ` ${t('form.alreadyLinked')}` : ''}
                         </option>
                       ))}
                     </select>
                     <p className="text-xs text-zinc-500 mt-1">
-                      {connectedAccounts.length} {connectedAccounts.length === 1 ? 'conta' : 'contas'} conectada{connectedAccounts.length !== 1 ? 's' : ''}.
-                      Vinculadas em vermelho já têm parceiro ativo.
+                      {t('form.accountsCount', { count: connectedAccounts.length })}
                     </p>
                   </>
                 )}
               </div>
 
               <div>
-                <label className={lbl}>Apelido da conta</label>
-                <input value={form.account_label} onChange={e => setForm(f => ({ ...f, account_label: e.target.value }))} className={inp} placeholder="Ex: Vazzo Principal, EsLar Loja" />
+                <label className={lbl}>{t('form.accountLabel')}</label>
+                <input value={form.account_label} onChange={e => setForm(f => ({ ...f, account_label: e.target.value }))} className={inp} placeholder={t('form.accountLabelPlaceholder')} />
               </div>
 
               <div className="flex items-center gap-2">
@@ -443,12 +449,12 @@ export default function AccountSuppliersPage() {
                   className="w-4 h-4 accent-[#00E5FF]"
                 />
                 <label htmlFor="default" className="text-sm text-zinc-400 cursor-pointer">
-                  Vínculo default (1 conta = 1 parceiro principal)
+                  {t('form.defaultLink')}
                 </label>
               </div>
 
               <div>
-                <label className={lbl}>Observações</label>
+                <label className={lbl}>{t('form.notes')}</label>
                 <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} className={inp + ' resize-none'} />
               </div>
             </form>
@@ -460,9 +466,9 @@ export default function AccountSuppliersPage() {
                 }}>{formErr}</div>
               )}
               <div className="flex gap-2 ml-auto">
-                <button onClick={() => !saving && setShowModal(false)} disabled={saving} className="px-4 py-2 text-sm rounded-lg text-zinc-400 hover:text-white transition-colors" style={{ border: '1px solid #27272a' }}>Cancelar</button>
+                <button onClick={() => !saving && setShowModal(false)} disabled={saving} className="px-4 py-2 text-sm rounded-lg text-zinc-400 hover:text-white transition-colors" style={{ border: '1px solid #27272a' }}>{t('cancel')}</button>
                 <button onClick={handleCreate} disabled={saving} className="px-4 py-2 text-sm font-medium rounded-lg transition-colors" style={{ background: '#00E5FF', color: '#09090b', opacity: saving ? 0.6 : 1 }}>
-                  {saving ? 'Salvando...' : 'Criar Vínculo'}
+                  {saving ? t('saving') : t('createLink')}
                 </button>
               </div>
             </div>
@@ -475,7 +481,7 @@ export default function AccountSuppliersPage() {
 
 // ── helpers ────────────────────────────────────────────────────────────────────
 
-function MarketplacePill({ marketplace }: { marketplace: string }) {
+function MarketplacePill({ marketplace, label }: { marketplace: string; label?: string }) {
   const colors: Record<string, { bg: string; fg: string }> = {
     mercado_livre: { bg: 'rgba(255,224,0,0.10)',  fg: '#fde047' },  // ML amarelo
     shopee:        { bg: 'rgba(255,107,53,0.10)', fg: '#fb923c' },  // Shopee laranja
@@ -487,7 +493,7 @@ function MarketplacePill({ marketplace }: { marketplace: string }) {
   return (
     <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium"
       style={{ background: c.bg, color: c.fg, border: `1px solid ${c.fg}33` }}>
-      {MARKETPLACE_LABELS[marketplace] ?? marketplace}
+      {label ?? MARKETPLACE_LABELS[marketplace] ?? marketplace}
     </span>
   )
 }

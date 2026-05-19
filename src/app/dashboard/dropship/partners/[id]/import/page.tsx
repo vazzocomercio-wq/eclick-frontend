@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { useTranslations } from 'next-intl'
 import * as XLSX from 'xlsx'
 import { createClient } from '@/lib/supabase'
 import {
@@ -59,6 +60,7 @@ const HEADER_ALIASES: Record<keyof Omit<ParsedRow, '_row_num' | '_error'>, strin
 const REQUIRED: (keyof typeof HEADER_ALIASES)[] = ['supplier_sku', 'unit_cost']
 
 export default function ImportPage() {
+  const t = useTranslations('dropship.import')
   const params = useParams()
   const router = useRouter()
   const profileId = params.id as string
@@ -78,9 +80,9 @@ export default function ImportPage() {
 
   const getHeaders = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session?.access_token) throw new Error('Não autenticado')
+    if (!session?.access_token) throw new Error(t('errors.notAuthenticated'))
     return { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' }
-  }, [supabase])
+  }, [supabase, t])
 
   // Load partner info
   useEffect(() => {
@@ -100,11 +102,11 @@ export default function ImportPage() {
       const buf = await f.arrayBuffer()
       const wb = XLSX.read(buf, { type: 'array' })
       const sheetName = wb.SheetNames[0]
-      if (!sheetName) throw new Error('Arquivo sem planilha válida')
+      if (!sheetName) throw new Error(t('errors.noValidSheet'))
       const sheet = wb.Sheets[sheetName]
       const json = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' })
 
-      if (json.length === 0) throw new Error('Planilha vazia')
+      if (json.length === 0) throw new Error(t('errors.emptySheet'))
 
       // Identifica headers
       const sourceHeaders = Object.keys(json[0])
@@ -117,7 +119,7 @@ export default function ImportPage() {
       const missing = REQUIRED.filter(r => !fieldToHeader[r])
       setMissingHeaders(missing.map(m => m.replace('_', ' ')))
       if (missing.length > 0) {
-        throw new Error(`Colunas obrigatórias não encontradas: ${missing.join(', ')}`)
+        throw new Error(`${t('errors.missingColumns')}: ${missing.join(', ')}`)
       }
 
       // Parse rows
@@ -143,9 +145,9 @@ export default function ImportPage() {
           _row_num: idx + 2,  // +2 = header row + 1-indexed
         }
 
-        if (!supplierSku) row._error = 'SKU do parceiro vazio'
-        else if (cost == null || cost < 0) row._error = 'Custo inválido'
-        else if (!row.master_sku && !row.product_sku) row._error = 'Falta master_sku ou product_sku pra match'
+        if (!supplierSku) row._error = t('rowError.emptySku')
+        else if (cost == null || cost < 0) row._error = t('rowError.invalidCost')
+        else if (!row.master_sku && !row.product_sku) row._error = t('rowError.missingMatch')
 
         return row
       })
@@ -153,7 +155,7 @@ export default function ImportPage() {
       setParsed(rows)
       setStep(2)
     } catch (e) {
-      setParseErr(e instanceof Error ? e.message : 'Erro ao parsear arquivo')
+      setParseErr(e instanceof Error ? e.message : t('errors.parseFailed'))
     } finally { setParsing(false) }
   }
 
@@ -190,17 +192,17 @@ export default function ImportPage() {
       setResult(await res.json())
       setStep(3)
     } catch (e) {
-      setSubmitErr(e instanceof Error ? e.message : 'Erro ao importar')
+      setSubmitErr(e instanceof Error ? e.message : t('errors.importFailed'))
     } finally { setSubmitting(false) }
   }
 
   function downloadTemplate() {
     const ws = XLSX.utils.aoa_to_sheet([
       ['supplier_sku', 'master_sku', 'product_sku', 'product_name', 'unit_cost', 'packaging_cost', 'handling_cost', 'stock', 'lead_time_days', 'moq'],
-      ['ABC-001', 'GTIN-12345', 'SKU-001', 'Produto Exemplo', 50.00, 1.50, 0.80, 100, 1, 1],
+      ['ABC-001', 'GTIN-12345', 'SKU-001', t('templateExampleProduct'), 50.00, 1.50, 0.80, 100, 1, 1],
     ])
     const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'Catálogo')
+    XLSX.utils.book_append_sheet(wb, ws, t('templateSheetName'))
     XLSX.writeFile(wb, 'modelo-catalogo-dropship.xlsx')
   }
 
@@ -214,20 +216,20 @@ export default function ImportPage() {
           <ArrowLeft size={18} />
         </Link>
         <div>
-          <h1 className="text-xl font-semibold text-white">Importar Catálogo</h1>
+          <h1 className="text-xl font-semibold text-white">{t('title')}</h1>
           <p className="text-sm text-zinc-500 mt-0.5">
-            {partner?.suppliers?.name ?? 'Carregando...'} · upload de planilha XLSX/CSV
+            {partner?.suppliers?.name ?? t('loading')} · {t('subtitle')}
           </p>
         </div>
       </div>
 
       {/* progress steps */}
       <div className="flex items-center gap-2 mb-8 max-w-md">
-        <StepDot num={1} label="Upload" active={step === 1} done={step > 1} />
+        <StepDot num={1} label={t('step.upload')} active={step === 1} done={step > 1} />
         <div className="flex-1 h-0.5" style={{ background: step > 1 ? '#00E5FF' : '#27272a' }} />
-        <StepDot num={2} label="Preview" active={step === 2} done={step > 2} />
+        <StepDot num={2} label={t('step.preview')} active={step === 2} done={step > 2} />
         <div className="flex-1 h-0.5" style={{ background: step > 2 ? '#00E5FF' : '#27272a' }} />
-        <StepDot num={3} label="Resultado" active={step === 3} done={false} />
+        <StepDot num={3} label={t('step.result')} active={step === 3} done={false} />
       </div>
 
       {/* STEP 1 — UPLOAD */}
@@ -235,13 +237,15 @@ export default function ImportPage() {
         <div className="max-w-2xl space-y-4">
           <div className="rounded-xl p-6" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
             <p className="text-sm text-zinc-300 mb-3">
-              <strong className="text-white">Como funciona:</strong> envie planilha (XLSX, XLS ou CSV) com o catálogo do parceiro.
-              Cada linha vira um produto dropship vinculado a um produto do seu catálogo (match por <code className="text-cyan-400">master_sku</code> ou <code className="text-cyan-400">product_sku</code>).
+              {t.rich('howItWorks', {
+                strong: (chunks) => <strong className="text-white">{chunks}</strong>,
+                code: (chunks) => <code className="text-cyan-400">{chunks}</code>,
+              })}
             </p>
             <p className="text-xs text-zinc-500 mb-4">
-              Colunas aceitas (case-insensitive, com/sem acento):
-              <br /><strong>obrigatórias:</strong> supplier_sku · unit_cost
-              <br /><strong>opcionais:</strong> master_sku · product_sku · product_name · packaging_cost · handling_cost · stock · lead_time_days · moq
+              {t('acceptedColumns')}
+              <br />{t.rich('requiredColumns', { strong: (chunks) => <strong>{chunks}</strong> })}
+              <br />{t.rich('optionalColumns', { strong: (chunks) => <strong>{chunks}</strong> })}
             </p>
 
             <button
@@ -250,7 +254,7 @@ export default function ImportPage() {
               style={{ border: '1px solid #27272a', color: '#a1a1aa' }}
             >
               <Download size={12} />
-              Baixar modelo XLSX
+              {t('downloadTemplate')}
             </button>
           </div>
 
@@ -273,13 +277,13 @@ export default function ImportPage() {
             {parsing ? (
               <>
                 <Loader2 size={32} className="animate-spin" style={{ color: '#00E5FF' }} />
-                <p className="text-sm text-zinc-300">Processando arquivo...</p>
+                <p className="text-sm text-zinc-300">{t('processingFile')}</p>
               </>
             ) : (
               <>
                 <Upload size={32} className="text-zinc-500" />
-                <p className="text-sm text-zinc-300">Clique para selecionar planilha</p>
-                <p className="text-xs text-zinc-500">XLSX, XLS ou CSV · até 10MB</p>
+                <p className="text-sm text-zinc-300">{t('clickToSelect')}</p>
+                <p className="text-xs text-zinc-500">{t('fileHint')}</p>
               </>
             )}
           </label>
@@ -292,7 +296,7 @@ export default function ImportPage() {
               {parseErr}
               {missingHeaders.length > 0 && (
                 <p className="text-xs mt-2 text-zinc-400">
-                  Renomeie as colunas da planilha pra um dos aliases aceitos.
+                  {t('renameColumnsHint')}
                 </p>
               )}
             </div>
@@ -305,10 +309,10 @@ export default function ImportPage() {
         <div className="space-y-4">
           {/* summary */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <Kpi label="Total" value={parsed.length} />
-            <Kpi label="Válidas" value={parsed.filter(r => !r._error).length} accent="#22c55e" />
-            <Kpi label="Com erro" value={parsed.filter(r => r._error).length} accent={parsed.some(r => r._error) ? '#f87171' : undefined} />
-            <Kpi label="Arquivo" value={file?.name ?? '—'} small />
+            <Kpi label={t('kpi.total')} value={parsed.length} />
+            <Kpi label={t('kpi.valid')} value={parsed.filter(r => !r._error).length} accent="#22c55e" />
+            <Kpi label={t('kpi.withError')} value={parsed.filter(r => r._error).length} accent={parsed.some(r => r._error) ? '#f87171' : undefined} />
+            <Kpi label={t('kpi.file')} value={file?.name ?? '—'} small />
           </div>
 
           {parsed.some(r => r._error) && (
@@ -316,7 +320,7 @@ export default function ImportPage() {
               background: 'rgba(252,211,77,0.10)', color: '#fcd34d', border: '1px solid rgba(252,211,77,0.3)',
             }}>
               <AlertTriangle size={14} className="inline mr-2" />
-              Linhas com erro serão puladas. Backend faz match adicional pra resolver product_id.
+              {t('errorRowsSkipped')}
             </div>
           )}
 
@@ -359,7 +363,7 @@ export default function ImportPage() {
             </table>
             {parsed.length > 30 && (
               <p className="px-3 py-2 text-xs text-zinc-500" style={{ background: '#0d0d10' }}>
-                ...mais {parsed.length - 30} linhas (não mostradas no preview, mas serão processadas)
+                {t('moreRows', { count: parsed.length - 30 })}
               </p>
             )}
           </div>
@@ -382,7 +386,7 @@ export default function ImportPage() {
               style={{ border: '1px solid #27272a' }}
             >
               <ArrowLeft size={14} className="inline mr-1" />
-              Trocar arquivo
+              {t('changeFile')}
             </button>
             <button
               onClick={handleSubmit}
@@ -391,7 +395,7 @@ export default function ImportPage() {
               style={{ background: '#00E5FF', color: '#09090b', opacity: submitting ? 0.6 : 1 }}
             >
               {submitting ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-              {submitting ? 'Importando...' : `Importar ${parsed.filter(r => !r._error).length} linhas`}
+              {submitting ? t('importing') : t('importRows', { count: parsed.filter(r => !r._error).length })}
             </button>
           </div>
         </div>
@@ -413,33 +417,33 @@ export default function ImportPage() {
             </div>
             <div>
               <h2 className="text-lg font-semibold text-white">
-                {result.failed === 0 ? 'Importação concluída' : 'Importação parcial'}
+                {result.failed === 0 ? t('result.completed') : t('result.partial')}
               </h2>
               <p className="text-sm text-zinc-400 mt-0.5">
-                {result.created + result.updated} produtos sincronizados
+                {t('result.synced', { count: result.created + result.updated })}
               </p>
             </div>
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <Kpi label="Processados" value={result.processed} />
-            <Kpi label="Criados" value={result.created} accent="#22c55e" />
-            <Kpi label="Atualizados" value={result.updated} accent="#fcd34d" />
-            <Kpi label="Falhas" value={result.failed} accent={result.failed > 0 ? '#f87171' : undefined} />
+            <Kpi label={t('kpi.processed')} value={result.processed} />
+            <Kpi label={t('kpi.created')} value={result.created} accent="#22c55e" />
+            <Kpi label={t('kpi.updated')} value={result.updated} accent="#fcd34d" />
+            <Kpi label={t('kpi.failures')} value={result.failed} accent={result.failed > 0 ? '#f87171' : undefined} />
           </div>
 
           {result.cost_changes > 0 && (
             <div className="rounded-lg p-3 text-sm" style={{
               background: 'rgba(0,229,255,0.05)', color: '#a5f3fc', border: '1px solid rgba(0,229,255,0.2)',
             }}>
-              {result.cost_changes} produto{result.cost_changes !== 1 ? 's' : ''} tiveram mudança de custo registrada no histórico
+              {t('costChanges', { count: result.cost_changes })}
             </div>
           )}
 
           {result.validation_errors.length > 0 && (
             <div className="rounded-xl overflow-hidden" style={{ border: '1px solid #1a1a1f' }}>
               <p className="px-4 py-2 text-xs font-medium text-zinc-400" style={{ background: '#111114', borderBottom: '1px solid #1a1a1f' }}>
-                Erros ({result.validation_errors.length})
+                {t('errorsHeading', { count: result.validation_errors.length })}
               </p>
               <table className="w-full text-xs">
                 <tbody>
@@ -454,7 +458,7 @@ export default function ImportPage() {
               </table>
               {result.validation_errors.length > 50 && (
                 <p className="px-3 py-2 text-xs text-zinc-500" style={{ background: '#0d0d10' }}>
-                  ...mais {result.validation_errors.length - 50} erros (ver no log de sync)
+                  {t('moreErrors', { count: result.validation_errors.length - 50 })}
                 </p>
               )}
             </div>
@@ -466,7 +470,7 @@ export default function ImportPage() {
               className="px-4 py-2 text-sm font-medium rounded-lg"
               style={{ background: '#00E5FF', color: '#09090b' }}
             >
-              Ver catálogo
+              {t('viewCatalog')}
               <ChevronRight size={14} className="inline ml-1" />
             </button>
             <Link
@@ -475,14 +479,14 @@ export default function ImportPage() {
               style={{ border: '1px solid #27272a' }}
             >
               <FileSpreadsheet size={14} className="inline mr-1" />
-              Ver log
+              {t('viewLog')}
             </Link>
             <button
               onClick={() => { setStep(1); setParsed(null); setFile(null); setResult(null) }}
               className="px-4 py-2 text-sm rounded-lg text-zinc-400 hover:text-white"
               style={{ border: '1px solid #27272a' }}
             >
-              Importar outra
+              {t('importAnother')}
             </button>
           </div>
         </div>

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { createPortal } from 'react-dom'
 import { api } from './api'
 import {
@@ -32,6 +33,7 @@ export function SignalDrawer({
   onActionTaken: (msg: string) => void
   onError:       (m: string) => void
 }) {
+  const t = useTranslations('pricing')
   const [product, setProduct] = useState<ProductRow | null>(null)
   const [loading, setLoading] = useState(true)
   const [acting, setActing]   = useState(false)
@@ -52,9 +54,9 @@ export function SignalDrawer({
         body:   JSON.stringify({ action, snooze_hours: snoozeHours }),
       })
       const msgs: Record<string, string> = {
-        approve: 'Sinal aprovado',
-        dismiss: 'Sinal dispensado',
-        snooze:  `Sinal adiado ${snoozeHours}h`,
+        approve: t('signalApproved'),
+        dismiss: t('signalDismissed'),
+        snooze:  t('signalSnoozed', { hours: snoozeHours ?? 0 }),
       }
       onActionTaken(msgs[action])
     } catch (e) {
@@ -97,12 +99,12 @@ export function SignalDrawer({
             <button onClick={onClose} className="text-zinc-400 hover:text-white text-xl">✕</button>
           </div>
           <p className="text-white text-base font-semibold mt-3">{signal.title}</p>
-          <p className="text-zinc-500 text-xs mt-1">Detectado {fmtRelativeTime(signal.created_at)} · expira {fmtRelativeTime(signal.expires_at)}</p>
+          <p className="text-zinc-500 text-xs mt-1">{t('detectedExpires', { detected: fmtRelativeTime(signal.created_at), expires: fmtRelativeTime(signal.expires_at) })}</p>
         </div>
 
         <div className="p-6 space-y-6">
           {/* 1. PRODUTO */}
-          <Section title="Produto" emoji="📦">
+          <Section title={t('sectionProduct')} emoji="📦">
             {loading
               ? <div className="h-16 rounded-xl animate-pulse" style={{ background: '#111114' }} />
               : product ? (
@@ -112,7 +114,7 @@ export function SignalDrawer({
                     {product.sku && <span className="text-zinc-500">SKU <span className="font-mono text-zinc-300">{product.sku}</span></span>}
                     {product.abc_curve && (
                       <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded" style={{ background: `${typeMeta.color}1a`, color: typeMeta.color }}>
-                        Curva {product.abc_curve}
+                        {t('curveLabel', { curve: product.abc_curve })}
                       </span>
                     )}
                     {product.segment && <span className="text-zinc-500">{product.segment}</span>}
@@ -120,15 +122,18 @@ export function SignalDrawer({
                   </div>
                 </div>
               ) : (
-                <p className="text-zinc-500 text-xs italic">Produto não encontrado.</p>
+                <p className="text-zinc-500 text-xs italic">{t('productNotFound')}</p>
               )}
           </Section>
 
           {/* 2. POR QUE ESTE SINAL? */}
-          <Section title="Por que este sinal?" emoji="🤔">
+          <Section title={t('sectionWhy')} emoji="🤔">
             <div className="rounded-xl p-3" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
               <p className="text-zinc-300 text-sm leading-relaxed">
-                Detectado pelo gatilho <span className="font-semibold text-cyan-400">&quot;{triggerLabel}&quot;</span>.
+                {t.rich('detectedByTrigger', {
+                  trigger: triggerLabel,
+                  em: (chunks) => <span className="font-semibold text-cyan-400">{chunks}</span>,
+                })}
               </p>
               {signal.description && (
                 <p className="text-zinc-400 text-sm mt-2 leading-relaxed">{signal.description}</p>
@@ -147,22 +152,22 @@ export function SignalDrawer({
           </Section>
 
           {/* 3. SNAPSHOT — limited (sem endpoint /snapshot na P2 v1) */}
-          <Section title="Snapshot do produto" emoji="📊">
+          <Section title={t('sectionSnapshot')} emoji="📊">
             <div className="grid grid-cols-3 gap-2">
-              <Metric label="Preço atual"      value={fmtCurrency(signal.current_price)} />
-              <Metric label="Custo"            value={fmtCurrency(product?.cost_price)} />
-              <Metric label="Estoque"          value={product?.stock_quantity != null ? String(product.stock_quantity) : '—'} />
-              <Metric label="Margem atual"     value={fmtPct(signal.current_margin_pct)} />
-              <Metric label="Mín seguro"       value={fmtCurrency(signal.min_safe_price)} />
-              <Metric label="Sugerido"         value={fmtCurrency(signal.suggested_price)} />
+              <Metric label={t('metricCurrentPrice')}  value={fmtCurrency(signal.current_price)} />
+              <Metric label={t('metricCost')}          value={fmtCurrency(product?.cost_price)} />
+              <Metric label={t('metricStock')}         value={product?.stock_quantity != null ? String(product.stock_quantity) : '—'} />
+              <Metric label={t('metricCurrentMargin')} value={fmtPct(signal.current_margin_pct)} />
+              <Metric label={t('metricMinSafe')}       value={fmtCurrency(signal.min_safe_price)} />
+              <Metric label={t('metricSuggested')}     value={fmtCurrency(signal.suggested_price)} />
             </div>
             <p className="text-zinc-600 text-[11px] italic mt-2">
-              Snapshot completo (vendas/CTR/concorrentes/cobertura) virá quando endpoint /pricing/snapshot/:id for exposto. Por ora, evidência do gatilho está em &quot;Por que&quot;.
+              {t('snapshotNote')}
             </p>
           </Section>
 
           {/* 4. CONFIANÇA */}
-          <Section title="Análise de confiança" emoji="🎯">
+          <Section title={t('sectionConfidence')} emoji="🎯">
             <div className="rounded-xl p-4" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
               <div className="flex items-center gap-3 mb-3">
                 <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: '#27272a' }}>
@@ -175,7 +180,7 @@ export function SignalDrawer({
 
               <div className="space-y-1 text-xs">
                 <div className="flex justify-between text-zinc-300">
-                  <span>Base</span>
+                  <span>{t('baseLabel')}</span>
                   <span className="font-mono">100%</span>
                 </div>
                 {Object.entries(signal.confidence_breakdown ?? {}).map(([key, value]) => (
@@ -185,33 +190,33 @@ export function SignalDrawer({
                   </div>
                 ))}
                 <div className="flex justify-between font-semibold pt-2" style={{ borderTop: '1px solid #1e1e24', color: confidenceColor(signal.confidence_score) }}>
-                  <span>Score final</span>
+                  <span>{t('finalScore')}</span>
                   <span className="font-mono">{signal.confidence_score}%</span>
                 </div>
               </div>
 
               <p className="text-xs mt-3" style={{ color: confidenceColor(signal.confidence_score) }}>
                 {signal.confidence_score >= 75
-                  ? '✓ Confiança suficiente para ação automática'
+                  ? t('confidenceHigh')
                   : signal.confidence_score >= 50
-                    ? '⚠ Apenas sugestão — confiança baixa para auto'
-                    : '✗ Confiança insuficiente — revisar manualmente'}
+                    ? t('confidenceMedium')
+                    : t('confidenceInsufficient')}
               </p>
             </div>
           </Section>
 
           {/* 5. AÇÃO RECOMENDADA */}
           {(signal.signal_type === 'decrease_price' || signal.signal_type === 'increase_price') && (
-            <Section title="Ação recomendada" emoji="⚡">
+            <Section title={t('sectionRecommendedAction')} emoji="⚡">
               <div className="rounded-xl p-4" style={{ background: `${typeMeta.color}08`, border: `1px solid ${typeMeta.color}40` }}>
                 <div className="grid grid-cols-3 gap-3 mb-4">
-                  <Metric label="Atual"       value={fmtCurrency(signal.current_price)}   color="#a1a1aa" />
-                  <Metric label="Sugerido"    value={fmtCurrency(signal.suggested_price)} color={typeMeta.color} />
-                  <Metric label="Variação"    value={movePct != null ? `${movePct > 0 ? '+' : ''}${movePct.toFixed(1)}%` : '—'} color={typeMeta.color} />
+                  <Metric label={t('metricCurrent')}   value={fmtCurrency(signal.current_price)}   color="#a1a1aa" />
+                  <Metric label={t('metricSuggested')} value={fmtCurrency(signal.suggested_price)} color={typeMeta.color} />
+                  <Metric label={t('metricChange')}    value={movePct != null ? `${movePct > 0 ? '+' : ''}${movePct.toFixed(1)}%` : '—'} color={typeMeta.color} />
                 </div>
                 {signal.current_margin_pct != null && signal.min_safe_price != null && (
                   <p className="text-xs text-zinc-400">
-                    Margem após: <span className="font-mono text-zinc-300">{signal.current_margin_pct.toFixed(1)}%</span> (mínimo seguro R$ {Number(signal.min_safe_price).toFixed(2)})
+                    {t('marginAfter', { margin: signal.current_margin_pct.toFixed(1), minSafe: Number(signal.min_safe_price).toFixed(2) })}
                   </p>
                 )}
               </div>
@@ -226,7 +231,7 @@ export function SignalDrawer({
               className="w-full px-4 py-3 rounded-lg text-sm font-semibold disabled:opacity-50"
               style={{ background: '#34d399', color: '#08323b' }}
             >
-              ✓ Aprovar e marcar como acionado
+              ✓ {t('approveAndMark')}
             </button>
             <button
               onClick={() => takeAction('dismiss')}
@@ -234,7 +239,7 @@ export function SignalDrawer({
               className="w-full px-4 py-3 rounded-lg text-sm font-semibold disabled:opacity-50"
               style={{ background: '#1a0a0a', color: '#f87171', border: '1px solid rgba(248,113,113,0.3)' }}
             >
-              ✗ Dispensar este sinal
+              ✗ {t('dismissSignal')}
             </button>
             <div className="grid grid-cols-2 gap-2">
               <button
@@ -242,13 +247,13 @@ export function SignalDrawer({
                 disabled={acting}
                 className="px-4 py-2 rounded-lg text-xs font-medium border disabled:opacity-50"
                 style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}
-              >⏰ Adiar 24h</button>
+              >⏰ {t('snooze24h')}</button>
               <button
                 onClick={() => takeAction('snooze', 24 * 7)}
                 disabled={acting}
                 className="px-4 py-2 rounded-lg text-xs font-medium border disabled:opacity-50"
                 style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}
-              >⏰ Adiar 7 dias</button>
+              >⏰ {t('snooze7d')}</button>
             </div>
           </div>
         </div>

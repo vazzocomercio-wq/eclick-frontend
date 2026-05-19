@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import { useConfirm } from '@/components/ui/dialog-provider'
 import {
@@ -32,6 +33,7 @@ interface OC {
 }
 
 export default function OCsListPage() {
+  const t = useTranslations('dropship.oc')
   const router = useRouter()
   const supabase = useMemo(() => createClient(), [])
 
@@ -44,9 +46,9 @@ export default function OCsListPage() {
 
   const getHeaders = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session?.access_token) throw new Error('Não autenticado')
+    if (!session?.access_token) throw new Error(t('errors.notAuthenticated'))
     return { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' }
-  }, [supabase])
+  }, [supabase, t])
 
   const load = useCallback(async () => {
     setLoading(true); setErr('')
@@ -58,18 +60,18 @@ export default function OCsListPage() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       setOcs(await res.json())
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Erro ao carregar')
+      setErr(e instanceof Error ? e.message : t('errors.loadFailed'))
       setOcs([])
     } finally { setLoading(false) }
-  }, [getHeaders, filterStatus])
+  }, [getHeaders, filterStatus, t])
 
   useEffect(() => { load() }, [load])
 
   async function generateNow() {
     const ok = await confirm({
-      title: 'Gerar OCs fora do horário',
-      message: 'Vai gerar agora (fora das 22h programadas). Apenas pedidos elegíveis sem OC ativa serão incluídos.',
-      confirmLabel: 'Gerar OCs',
+      title: t('generateConfirm.title'),
+      message: t('generateConfirm.message'),
+      confirmLabel: t('generateConfirm.confirm'),
       variant: 'warning',
     })
     if (!ok) return
@@ -79,10 +81,10 @@ export default function OCsListPage() {
       const res = await fetch(`${BACKEND}/dropship/oc/generate`, { method: 'POST', headers })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const r = await res.json()
-      if (r.length === 0) setErr('Nenhuma OC gerada — sem pedidos elegíveis no momento')
+      if (r.length === 0) setErr(t('noOcGenerated'))
       else await load()
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Erro ao gerar')
+      setErr(e instanceof Error ? e.message : t('errors.generateFailed'))
     } finally { setGenerating(false) }
   }
 
@@ -101,9 +103,9 @@ export default function OCsListPage() {
             <ArrowLeft size={18} />
           </Link>
           <div>
-            <h1 className="text-xl font-semibold text-white">Ordens de Compra Dropship</h1>
+            <h1 className="text-xl font-semibold text-white">{t('title')}</h1>
             <p className="text-sm text-zinc-500 mt-0.5">
-              Geradas automaticamente às 22h (1 OC por parceiro/marketplace/conta)
+              {t('subtitle')}
             </p>
           </div>
         </div>
@@ -114,7 +116,7 @@ export default function OCsListPage() {
             style={{ border: '1px solid #27272a', color: '#a1a1aa' }}
           >
             <Eye size={14} />
-            Ver Prévia
+            {t('viewPreview')}
           </Link>
           <button
             onClick={generateNow}
@@ -123,7 +125,7 @@ export default function OCsListPage() {
             style={{ background: '#00E5FF', color: '#09090b', opacity: generating ? 0.6 : 1 }}
           >
             <RefreshCw size={14} className={generating ? 'animate-spin' : ''} />
-            {generating ? 'Gerando...' : 'Gerar agora'}
+            {generating ? t('generating') : t('generateNow')}
           </button>
         </div>
       </div>
@@ -142,10 +144,10 @@ export default function OCsListPage() {
 
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-        <Kpi label="Total OCs" value={total} />
-        <Kpi label="Geradas (sem envio)" value={drafts} accent={drafts > 0 ? '#fcd34d' : undefined} />
-        <Kpi label="Aguardando aprovação" value={pendingApproval} />
-        <Kpi label="Valor líquido total" value={fmtBrl(totalNet)} />
+        <Kpi label={t('kpi.totalOcs')} value={total} />
+        <Kpi label={t('kpi.generatedNotSent')} value={drafts} accent={drafts > 0 ? '#fcd34d' : undefined} />
+        <Kpi label={t('kpi.awaitingApproval')} value={pendingApproval} />
+        <Kpi label={t('kpi.totalNetValue')} value={fmtBrl(totalNet)} />
       </div>
 
       {/* filters */}
@@ -161,7 +163,7 @@ export default function OCsListPage() {
                 color: filterStatus === s ? '#09090b' : '#a1a1aa',
               }}
             >
-              {s === 'all' ? 'Todas' : statusLabel(s)}
+              {s === 'all' ? t('filter.all') : statusLabel(s, t)}
             </button>
           ))}
         </div>
@@ -172,21 +174,21 @@ export default function OCsListPage() {
         <table className="w-full text-sm">
           <thead>
             <tr style={{ background: '#111114', borderBottom: '1px solid #1a1a1f' }}>
-              {['Número', 'Parceiro', 'Marketplace', 'Data ref.', 'Vencimento', 'Itens', 'Bruto', 'Créditos', 'Líquido', 'Status', ''].map(h => (
-                <th key={h} className="text-left px-4 py-3 text-xs font-medium text-zinc-500">{h}</th>
+              {[t('table.number'), t('table.partner'), t('table.marketplace'), t('table.refDate'), t('table.dueDate'), t('table.items'), t('table.gross'), t('table.credits'), t('table.net'), t('table.status'), ''].map((h, i) => (
+                <th key={i} className="text-left px-4 py-3 text-xs font-medium text-zinc-500">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={11} className="px-4 py-12 text-center text-zinc-500 text-sm">Carregando...</td></tr>
+              <tr><td colSpan={11} className="px-4 py-12 text-center text-zinc-500 text-sm">{t('loading')}</td></tr>
             ) : ocs.length === 0 ? (
               <tr>
                 <td colSpan={11} className="px-4 py-12 text-center text-zinc-500 text-sm">
                   <FileText size={28} className="mx-auto mb-2 text-zinc-700" />
-                  Nenhuma OC gerada{filterStatus !== 'all' ? ' nesse filtro' : ''}.
+                  {filterStatus !== 'all' ? t('emptyFilter') : t('empty')}
                   <p className="text-xs mt-1">
-                    Cron @22h gera OCs com pedidos elegíveis. Use "Gerar agora" pra forçar fora do horário.
+                    {t('emptyHint')}
                   </p>
                 </td>
               </tr>
@@ -210,7 +212,7 @@ export default function OCsListPage() {
                   {o.total_credits > 0 ? `-${fmtBrl(o.total_credits)}` : '—'}
                 </td>
                 <td className="px-4 py-3 font-semibold text-white text-xs">{fmtBrl(o.net_total)}</td>
-                <td className="px-4 py-3"><OCStatusPill status={o.status} /></td>
+                <td className="px-4 py-3"><OCStatusPill status={o.status} t={t} /></td>
                 <td className="px-4 py-3 text-right">
                   <ChevronRight size={14} className="inline text-zinc-600" />
                 </td>
@@ -226,6 +228,7 @@ export default function OCsListPage() {
 // ── Components ─────────────────────────────────────────────────────────────────
 
 function CutoffBanner() {
+  const t = useTranslations('dropship.oc')
   // Re-render a cada minuto pro countdown atualizar
   const [now, setNow] = useState(new Date())
   useEffect(() => {
@@ -247,19 +250,19 @@ function CutoffBanner() {
 
   if (h < 12) {
     phase = 'before_preview'
-    nextEventLabel = 'Prévia abre'
+    nextEventLabel = t('cutoff.previewOpens')
     nextEventHour = 12
   } else if (h < 21) {
     phase = 'preview_open'
-    nextEventLabel = 'Prévia trava'
+    nextEventLabel = t('cutoff.previewLocks')
     nextEventHour = 21
   } else if (h < 22) {
     phase = 'preview_locked'
-    nextEventLabel = 'Geração'
+    nextEventLabel = t('cutoff.generation')
     nextEventHour = 22
   } else {
     phase = 'generating'
-    nextEventLabel = 'Próxima prévia'
+    nextEventLabel = t('cutoff.nextPreview')
     nextEventHour = 36  // 12:00 next day
   }
 
@@ -277,28 +280,28 @@ function CutoffBanner() {
       border: 'rgba(113,113,122,0.2)',
       fg: '#a1a1aa',
       icon: <Clock size={18} />,
-      title: 'Aguardando prévia abrir',
+      title: t('cutoff.beforePreviewTitle'),
     },
     preview_open: {
       bg: 'rgba(0,229,255,0.05)',
       border: 'rgba(0,229,255,0.2)',
       fg: '#00E5FF',
       icon: <Eye size={18} />,
-      title: 'Prévia aberta — pedidos elegíveis editáveis',
+      title: t('cutoff.previewOpenTitle'),
     },
     preview_locked: {
       bg: 'rgba(252,211,77,0.05)',
       border: 'rgba(252,211,77,0.2)',
       fg: '#fcd34d',
       icon: <Lock size={18} />,
-      title: 'Prévia trancada — admin pode liberar',
+      title: t('cutoff.previewLockedTitle'),
     },
     generating: {
       bg: 'rgba(34,197,94,0.05)',
       border: 'rgba(34,197,94,0.2)',
       fg: '#22c55e',
       icon: <FileText size={18} />,
-      title: 'OCs do dia geradas',
+      title: t('cutoff.generatingTitle'),
     },
   }
   const c = cfg[phase]
@@ -311,9 +314,9 @@ function CutoffBanner() {
       <div className="flex-1">
         <p className="text-sm text-white font-medium">{c.title}</p>
         <p className="text-xs text-zinc-400 mt-0.5">
-          {nextEventLabel} em <strong style={{ color: c.fg }}>{countdown}</strong>
+          {t('cutoff.in', { event: nextEventLabel })} <strong style={{ color: c.fg }}>{countdown}</strong>
           {' · '}
-          12h abre · 21h trava · 22h gera
+          {t('cutoff.schedule')}
         </p>
       </div>
     </div>
@@ -329,38 +332,38 @@ function Kpi({ label, value, accent }: { label: string; value: string | number; 
   )
 }
 
-function OCStatusPill({ status }: { status: string }) {
-  const c: Record<string, { bg: string; fg: string; label: string }> = {
-    draft:               { bg: 'rgba(113,113,122,0.10)', fg: '#a1a1aa', label: 'Prévia' },
-    preview_locked:      { bg: 'rgba(252,211,77,0.10)',  fg: '#fcd34d', label: 'Trancada' },
-    generating:          { bg: 'rgba(0,229,255,0.10)',   fg: '#00E5FF', label: 'Gerando' },
-    generated:           { bg: 'rgba(0,229,255,0.10)',   fg: '#00E5FF', label: 'Gerada' },
-    sent:                { bg: 'rgba(96,165,250,0.10)',  fg: '#60a5fa', label: 'Enviada' },
-    viewed:              { bg: 'rgba(96,165,250,0.10)',  fg: '#60a5fa', label: 'Visualizada' },
-    approved:            { bg: 'rgba(34,197,94,0.10)',   fg: '#22c55e', label: 'Aprovada' },
-    approved_with_notes: { bg: 'rgba(252,211,77,0.10)',  fg: '#fcd34d', label: 'Aprov. c/ notas' },
-    rejected:            { bg: 'rgba(248,113,113,0.10)', fg: '#f87171', label: 'Rejeitada' },
-    in_payable:          { bg: 'rgba(96,165,250,0.10)',  fg: '#60a5fa', label: 'A pagar' },
-    paid:                { bg: 'rgba(34,197,94,0.10)',   fg: '#22c55e', label: 'Paga' },
-    partially_paid:      { bg: 'rgba(252,211,77,0.10)',  fg: '#fcd34d', label: 'Pago parcial' },
-    cancelled:           { bg: 'rgba(113,113,122,0.10)', fg: '#71717a', label: 'Cancelada' },
-    on_hold:             { bg: 'rgba(252,211,77,0.10)',  fg: '#fcd34d', label: 'Em hold' },
+function OCStatusPill({ status, t }: { status: string; t: ReturnType<typeof useTranslations> }) {
+  const c: Record<string, { bg: string; fg: string; key: string }> = {
+    draft:               { bg: 'rgba(113,113,122,0.10)', fg: '#a1a1aa', key: 'statusPill.draft' },
+    preview_locked:      { bg: 'rgba(252,211,77,0.10)',  fg: '#fcd34d', key: 'statusPill.previewLocked' },
+    generating:          { bg: 'rgba(0,229,255,0.10)',   fg: '#00E5FF', key: 'statusPill.generating' },
+    generated:           { bg: 'rgba(0,229,255,0.10)',   fg: '#00E5FF', key: 'statusPill.generated' },
+    sent:                { bg: 'rgba(96,165,250,0.10)',  fg: '#60a5fa', key: 'statusPill.sent' },
+    viewed:              { bg: 'rgba(96,165,250,0.10)',  fg: '#60a5fa', key: 'statusPill.viewed' },
+    approved:            { bg: 'rgba(34,197,94,0.10)',   fg: '#22c55e', key: 'statusPill.approved' },
+    approved_with_notes: { bg: 'rgba(252,211,77,0.10)',  fg: '#fcd34d', key: 'statusPill.approvedWithNotes' },
+    rejected:            { bg: 'rgba(248,113,113,0.10)', fg: '#f87171', key: 'statusPill.rejected' },
+    in_payable:          { bg: 'rgba(96,165,250,0.10)',  fg: '#60a5fa', key: 'statusPill.inPayable' },
+    paid:                { bg: 'rgba(34,197,94,0.10)',   fg: '#22c55e', key: 'statusPill.paid' },
+    partially_paid:      { bg: 'rgba(252,211,77,0.10)',  fg: '#fcd34d', key: 'statusPill.partiallyPaid' },
+    cancelled:           { bg: 'rgba(113,113,122,0.10)', fg: '#71717a', key: 'statusPill.cancelled' },
+    on_hold:             { bg: 'rgba(252,211,77,0.10)',  fg: '#fcd34d', key: 'statusPill.onHold' },
   }
-  const x = c[status] ?? { bg: 'rgba(113,113,122,0.10)', fg: '#a1a1aa', label: status }
+  const x = c[status]
   return (
     <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap"
-      style={{ background: x.bg, color: x.fg, border: `1px solid ${x.fg}33` }}>
-      {x.label}
+      style={{ background: x?.bg ?? 'rgba(113,113,122,0.10)', color: x?.fg ?? '#a1a1aa', border: `1px solid ${x?.fg ?? '#a1a1aa'}33` }}>
+      {x ? t(x.key) : status}
     </span>
   )
 }
 
-function statusLabel(s: string): string {
-  const m: Record<string, string> = {
-    generated: 'Geradas', sent: 'Enviadas', approved: 'Aprovadas',
-    in_payable: 'A pagar', paid: 'Pagas', cancelled: 'Canceladas',
+function statusLabel(s: string, t: ReturnType<typeof useTranslations>): string {
+  const keys: Record<string, string> = {
+    generated: 'filter.generated', sent: 'filter.sent', approved: 'filter.approved',
+    in_payable: 'filter.inPayable', paid: 'filter.paid', cancelled: 'filter.cancelled',
   }
-  return m[s] ?? s
+  return keys[s] ? t(keys[s]) : s
 }
 
 function fmtBrl(v: number) {

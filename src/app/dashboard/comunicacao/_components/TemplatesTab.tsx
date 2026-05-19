@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import { Plus, X, Save, Trash2, CheckCircle2, XCircle } from 'lucide-react'
 import { useConfirm } from '@/components/ui/dialog-provider'
@@ -78,6 +79,7 @@ interface Props {
 // ── component ─────────────────────────────────────────────────────────────────
 
 export default function TemplatesTab({ onToast }: Props) {
+  const t = useTranslations('comunicacao.templates')
   const supabase = useMemo(() => createClient(), [])
   const [templates,    setTemplates]    = useState<Template[]>([])
   const [loading,      setLoading]      = useState(true)
@@ -108,17 +110,17 @@ export default function TemplatesTab({ onToast }: Props) {
       const h = await headers()
       const res = await fetch(`${BACKEND}/communication/templates`, { headers: h })
       if (!res.ok) {
-        onToast?.('Falha ao carregar templates', 'error')
+        onToast?.(t('toast.loadFailed'), 'error')
         return
       }
       const body = await res.json() as Template[]
       setTemplates(Array.isArray(body) ? body : [])
     } catch {
-      onToast?.('Erro de rede', 'error')
+      onToast?.(t('toast.networkError'), 'error')
     } finally {
       setLoading(false)
     }
-  }, [headers, onToast])
+  }, [headers, onToast, t])
 
   useEffect(() => { void load() }, [load])
 
@@ -126,29 +128,29 @@ export default function TemplatesTab({ onToast }: Props) {
   const selectTemplate = useCallback(async (id: string) => {
     if (isDirty) {
       const ok = await confirm({
-        title:        'Descartar mudanças',
-        message:      'Descartar mudanças?',
-        confirmLabel: 'Descartar',
+        title:        t('confirm.discardTitle'),
+        message:      t('confirm.discardMessage'),
+        confirmLabel: t('confirm.discardConfirm'),
         variant:      'warning',
       })
       if (!ok) return
     }
-    const t = templates.find(x => x.id === id)
-    if (!t) return
+    const tpl = templates.find(x => x.id === id)
+    if (!tpl) return
     setSelected(id)
     setCreating(false)
-    setForm(t)
-    setOriginalForm(t)
+    setForm(tpl)
+    setOriginalForm(tpl)
     setErrors({})
     setTagInput('')
-  }, [isDirty, templates, confirm])
+  }, [isDirty, templates, confirm, t])
 
   const newTemplate = useCallback(async () => {
     if (isDirty) {
       const ok = await confirm({
-        title:        'Descartar mudanças',
-        message:      'Descartar mudanças?',
-        confirmLabel: 'Descartar',
+        title:        t('confirm.discardTitle'),
+        message:      t('confirm.discardMessage'),
+        confirmLabel: t('confirm.discardConfirm'),
         variant:      'warning',
       })
       if (!ok) return
@@ -159,14 +161,14 @@ export default function TemplatesTab({ onToast }: Props) {
     setOriginalForm(EMPTY_FORM)
     setErrors({})
     setTagInput('')
-  }, [isDirty, confirm])
+  }, [isDirty, confirm, t])
 
   const cancelEdit = useCallback(async () => {
     if (isDirty) {
       const ok = await confirm({
-        title:        'Descartar mudanças',
-        message:      'Descartar mudanças?',
-        confirmLabel: 'Descartar',
+        title:        t('confirm.discardTitle'),
+        message:      t('confirm.discardMessage'),
+        confirmLabel: t('confirm.discardConfirm'),
         variant:      'warning',
       })
       if (!ok) return
@@ -174,25 +176,25 @@ export default function TemplatesTab({ onToast }: Props) {
     setForm(originalForm)
     setErrors({})
     setTagInput('')
-  }, [isDirty, originalForm, confirm])
+  }, [isDirty, originalForm, confirm, t])
 
   // ── validation ───────────────────────────────────────────────────────────────
   const validate = (): boolean => {
     const errs: { name?: string; message_body?: string } = {}
     const name = (form.name ?? '').trim()
-    if (!name)                  errs.name = 'Nome obrigatório'
-    else if (name.length < 3)   errs.name = 'Min 3 caracteres'
+    if (!name)                  errs.name = t('errors.nameRequired')
+    else if (name.length < 3)   errs.name = t('errors.nameMin3')
     else {
       // Unicidade é POR (name + channel) — engine CC-2 resolve por esse par.
       // 'boas_vindas' whatsapp e 'boas_vindas' email são templates distintos.
-      const dupe = templates.find(t =>
-        t.name === name && t.channel === form.channel && t.id !== selected,
+      const dupe = templates.find(tpl =>
+        tpl.name === name && tpl.channel === form.channel && tpl.id !== selected,
       )
-      if (dupe) errs.name = `Já existe template "${name}" no canal ${form.channel}`
+      if (dupe) errs.name = t('errors.nameDuplicate', { name, channel: form.channel ?? '' })
     }
     const msg = (form.message_body ?? '').trim()
-    if (!msg)                   errs.message_body = 'Mensagem obrigatória'
-    else if (msg.length < 10)   errs.message_body = 'Min 10 caracteres'
+    if (!msg)                   errs.message_body = t('errors.messageRequired')
+    else if (msg.length < 10)   errs.message_body = t('errors.messageMin10')
     setErrors(errs)
     return Object.keys(errs).length === 0
   }
@@ -220,11 +222,11 @@ export default function TemplatesTab({ onToast }: Props) {
       const res = await fetch(url, { method, headers: h, body: JSON.stringify(body) })
       if (!res.ok) {
         const err = await res.json().catch(() => null) as { message?: string } | null
-        onToast?.(err?.message ?? `Falha ao salvar (${res.status})`, 'error')
+        onToast?.(err?.message ?? t('toast.saveFailed', { status: res.status }), 'error')
         return
       }
       const saved = await res.json() as Template
-      onToast?.(creating ? 'Template criado' : 'Template atualizado', 'success')
+      onToast?.(creating ? t('toast.created') : t('toast.updated'), 'success')
       await load()
       setSelected(saved.id)
       setCreating(false)
@@ -232,7 +234,7 @@ export default function TemplatesTab({ onToast }: Props) {
       setOriginalForm(saved)
       setTagInput('')
     } catch {
-      onToast?.('Erro de rede', 'error')
+      onToast?.(t('toast.networkError'), 'error')
     } finally {
       setSaving(false)
     }
@@ -243,9 +245,9 @@ export default function TemplatesTab({ onToast }: Props) {
   const deactivate = useCallback(async () => {
     if (!selected || creating) return
     const ok = await confirm({
-      title:        'Desativar template',
-      message:      'Desativar template? Histórico preservado.',
-      confirmLabel: 'Desativar',
+      title:        t('confirm.deactivateTitle'),
+      message:      t('confirm.deactivateMessage'),
+      confirmLabel: t('confirm.deactivateConfirm'),
       variant:      'danger',
     })
     if (!ok) return
@@ -255,19 +257,19 @@ export default function TemplatesTab({ onToast }: Props) {
         method: 'DELETE', headers: h,
       })
       if (!res.ok) {
-        onToast?.(`Falha ao desativar (${res.status})`, 'error')
+        onToast?.(t('toast.deactivateFailed', { status: res.status }), 'error')
         return
       }
-      onToast?.('Template desativado, histórico preservado', 'success')
+      onToast?.(t('toast.deactivated'), 'success')
       setSelected(null)
       setCreating(false)
       setForm(EMPTY_FORM)
       setOriginalForm(EMPTY_FORM)
       await load()
     } catch {
-      onToast?.('Erro de rede', 'error')
+      onToast?.(t('toast.networkError'), 'error')
     }
-  }, [selected, creating, headers, load, onToast, confirm])
+  }, [selected, creating, headers, load, onToast, confirm, t])
 
   // ── variables auto-extracted ─────────────────────────────────────────────────
   const messageVars = useMemo(() => {
@@ -338,26 +340,26 @@ export default function TemplatesTab({ onToast }: Props) {
       <div className="lg:col-span-1 rounded-xl p-3 self-start"
         style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
         <div className="flex items-center justify-between mb-3 px-1">
-          <h3 className="text-zinc-200 text-sm font-semibold">Templates</h3>
+          <h3 className="text-zinc-200 text-sm font-semibold">{t('listTitle')}</h3>
           <button onClick={newTemplate}
             className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg"
             style={{ background: 'rgba(0,229,255,0.08)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.30)' }}>
-            <Plus size={11} /> Novo template
+            <Plus size={11} /> {t('newTemplate')}
           </button>
         </div>
         {loading ? (
-          <p className="text-zinc-600 text-[11px] text-center py-6">Carregando…</p>
+          <p className="text-zinc-600 text-[11px] text-center py-6">{t('loading')}</p>
         ) : templates.length === 0 ? (
           <p className="text-zinc-500 text-[11px] text-center py-6">
-            Nenhum template — clique em + Novo template
+            {t('emptyList')}
           </p>
         ) : (
           <div className="space-y-1.5">
-            {templates.map(t => {
-              const meta  = KIND_META[t.template_kind] ?? KIND_META.custom
-              const isSel = t.id === selected
+            {templates.map(tpl => {
+              const meta  = KIND_META[tpl.template_kind] ?? KIND_META.custom
+              const isSel = tpl.id === selected
               return (
-                <button key={t.id} onClick={() => selectTemplate(t.id)}
+                <button key={tpl.id} onClick={() => selectTemplate(tpl.id)}
                   className="w-full text-left rounded-lg px-3 py-2.5 transition-colors"
                   style={{
                     background: isSel ? 'rgba(0,229,255,0.08)' : '#070709',
@@ -367,11 +369,11 @@ export default function TemplatesTab({ onToast }: Props) {
                     <div className="flex items-start gap-2 min-w-0">
                       <span className="text-base shrink-0">{meta.icon}</span>
                       <div className="min-w-0">
-                        <p className="text-[12px] font-medium text-zinc-100 truncate">{t.name}</p>
-                        <p className="text-[10px] text-zinc-500 truncate">{meta.label} · {t.channel}</p>
+                        <p className="text-[12px] font-medium text-zinc-100 truncate">{tpl.name}</p>
+                        <p className="text-[10px] text-zinc-500 truncate">{t(`kinds.${tpl.template_kind}`)} · {tpl.channel}</p>
                       </div>
                     </div>
-                    {t.is_active
+                    {tpl.is_active
                       ? <CheckCircle2 size={11} style={{ color: '#4ade80' }} className="shrink-0 mt-0.5" />
                       : <XCircle      size={11} style={{ color: '#71717a' }} className="shrink-0 mt-0.5" />}
                   </div>
@@ -388,7 +390,7 @@ export default function TemplatesTab({ onToast }: Props) {
           <div className="rounded-xl p-12 text-center"
             style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
             <p className="text-zinc-500 text-sm">
-              Selecione um template ou clique em <span className="text-cyan-400">+ Novo template</span> pra começar.
+              {t('emptyEditorBefore')} <span className="text-cyan-400">{t('emptyEditorLink')}</span> {t('emptyEditorAfter')}
             </p>
           </div>
         ) : (
@@ -398,12 +400,12 @@ export default function TemplatesTab({ onToast }: Props) {
             <div className="rounded-xl p-4 space-y-3"
               style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
               <h3 className="text-zinc-200 text-sm font-semibold">
-                {creating ? 'Novo template' : 'Editar template'}
+                {creating ? t('newTemplate') : t('editTemplate')}
               </h3>
 
               {/* Nome */}
               <div>
-                <label className="text-[10px] uppercase tracking-widest text-zinc-500">Nome</label>
+                <label className="text-[10px] uppercase tracking-widest text-zinc-500">{t('fields.name')}</label>
                 <input value={form.name ?? ''}
                   onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                   className="w-full mt-1 px-3 py-2 text-[12px] rounded-lg bg-[#070709] text-zinc-200 outline-none"
@@ -414,7 +416,7 @@ export default function TemplatesTab({ onToast }: Props) {
               {/* Canal + Tipo */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[10px] uppercase tracking-widest text-zinc-500">Canal</label>
+                  <label className="text-[10px] uppercase tracking-widest text-zinc-500">{t('fields.channel')}</label>
                   <select value={form.channel ?? 'whatsapp'}
                     onChange={e => setForm(f => ({ ...f, channel: e.target.value as Channel }))}
                     className="w-full mt-1 px-3 py-2 text-[12px] rounded-lg bg-[#070709] border border-[#27272a] text-zinc-200 outline-none">
@@ -422,28 +424,28 @@ export default function TemplatesTab({ onToast }: Props) {
                   </select>
                 </div>
                 <div>
-                  <label className="text-[10px] uppercase tracking-widest text-zinc-500">Tipo</label>
+                  <label className="text-[10px] uppercase tracking-widest text-zinc-500">{t('fields.kind')}</label>
                   <select value={form.template_kind ?? 'transactional'}
                     onChange={e => setForm(f => ({ ...f, template_kind: e.target.value as TemplateKind }))}
                     className="w-full mt-1 px-3 py-2 text-[12px] rounded-lg bg-[#070709] border border-[#27272a] text-zinc-200 outline-none">
-                    {KINDS.map(k => <option key={k} value={k}>{k}</option>)}
+                    {KINDS.map(k => <option key={k} value={k}>{t(`kinds.${k}`)}</option>)}
                   </select>
                 </div>
               </div>
 
               {/* Disparo */}
               <div>
-                <label className="text-[10px] uppercase tracking-widest text-zinc-500">Disparo</label>
+                <label className="text-[10px] uppercase tracking-widest text-zinc-500">{t('fields.trigger')}</label>
                 <select value={form.trigger_event ?? 'order_paid'}
                   onChange={e => setForm(f => ({ ...f, trigger_event: e.target.value as TriggerEvent }))}
                   className="w-full mt-1 px-3 py-2 text-[12px] rounded-lg bg-[#070709] border border-[#27272a] text-zinc-200 outline-none">
-                  {TRIGGERS.map(t => <option key={t} value={t}>{t}</option>)}
+                  {TRIGGERS.map(tr => <option key={tr} value={tr}>{tr}</option>)}
                 </select>
               </div>
 
               {/* Subject */}
               <div>
-                <label className="text-[10px] uppercase tracking-widest text-zinc-500">Assunto (opcional)</label>
+                <label className="text-[10px] uppercase tracking-widest text-zinc-500">{t('fields.subject')}</label>
                 <input value={form.subject ?? ''}
                   onChange={e => setForm(f => ({ ...f, subject: e.target.value }))}
                   className="w-full mt-1 px-3 py-2 text-[12px] rounded-lg bg-[#070709] border border-[#27272a] text-zinc-200 outline-none" />
@@ -451,7 +453,7 @@ export default function TemplatesTab({ onToast }: Props) {
 
               {/* Descrição */}
               <div>
-                <label className="text-[10px] uppercase tracking-widest text-zinc-500">Descrição (opcional)</label>
+                <label className="text-[10px] uppercase tracking-widest text-zinc-500">{t('fields.description')}</label>
                 <textarea value={form.description ?? ''} rows={2}
                   onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
                   className="w-full mt-1 px-3 py-2 text-[12px] rounded-lg bg-[#070709] border border-[#27272a] text-zinc-200 outline-none resize-none" />
@@ -459,7 +461,7 @@ export default function TemplatesTab({ onToast }: Props) {
 
               {/* Tags */}
               <div>
-                <label className="text-[10px] uppercase tracking-widest text-zinc-500">Tags</label>
+                <label className="text-[10px] uppercase tracking-widest text-zinc-500">{t('fields.tags')}</label>
                 <div className="flex gap-1 flex-wrap mt-1 mb-1.5">
                   {(form.tags ?? []).map(tag => (
                     <span key={tag}
@@ -475,16 +477,16 @@ export default function TemplatesTab({ onToast }: Props) {
                 <input value={tagInput}
                   onChange={e => setTagInput(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTag() } }}
-                  placeholder="Digite e pressione Enter"
+                  placeholder={t('fields.tagsPlaceholder')}
                   className="w-full px-3 py-2 text-[12px] rounded-lg bg-[#070709] border border-[#27272a] text-zinc-200 outline-none" />
               </div>
 
               {/* Mensagem */}
               <div>
-                <label className="text-[10px] uppercase tracking-widest text-zinc-500">Mensagem</label>
+                <label className="text-[10px] uppercase tracking-widest text-zinc-500">{t('fields.message')}</label>
                 <textarea ref={textareaRef} value={form.message_body ?? ''} rows={12}
                   onChange={e => setForm(f => ({ ...f, message_body: e.target.value }))}
-                  placeholder="Olá {{first_name}}, ..."
+                  placeholder={t('fields.messagePlaceholder')}
                   className="w-full mt-1 px-3 py-2 text-[12px] font-mono rounded-lg bg-[#070709] text-zinc-200 outline-none resize-y"
                   style={{ border: `1px solid ${errors.message_body ? '#dc2626' : '#27272a'}` }} />
                 {errors.message_body && <p className="text-[10px] text-red-500 mt-1">{errors.message_body}</p>}
@@ -493,7 +495,7 @@ export default function TemplatesTab({ onToast }: Props) {
               {/* Variáveis (clicáveis pra inserir no cursor) */}
               {messageVars.length > 0 && (
                 <div>
-                  <label className="text-[10px] uppercase tracking-widest text-zinc-500">Variáveis</label>
+                  <label className="text-[10px] uppercase tracking-widest text-zinc-500">{t('fields.variables')}</label>
                   <div className="flex gap-1 flex-wrap mt-1">
                     {messageVars.map(v => (
                       <button key={v} onClick={() => insertVarAtCursor(v)} type="button"
@@ -513,17 +515,17 @@ export default function TemplatesTab({ onToast }: Props) {
                   <button onClick={deactivate} type="button"
                     className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold rounded-lg"
                     style={{ background: 'rgba(248,113,113,0.08)', color: '#f87171', border: '1px solid rgba(248,113,113,0.30)' }}>
-                    <Trash2 size={11} /> Desativar
+                    <Trash2 size={11} /> {t('deactivate')}
                   </button>
                 )}
                 <button onClick={cancelEdit} type="button"
                   className="px-3 py-1.5 text-[12px] rounded-lg text-zinc-300 border border-zinc-800 hover:bg-zinc-900/50">
-                  Cancelar
+                  {t('cancel')}
                 </button>
                 <button onClick={save} disabled={saving} type="button"
                   className="submit-glow flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold rounded-lg disabled:opacity-50"
                   style={{ background: 'rgba(0,229,255,0.08)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.30)' }}>
-                  <Save size={11} /> {saving ? 'Salvando…' : 'Salvar'}
+                  <Save size={11} /> {saving ? t('saving') : t('save')}
                 </button>
               </div>
             </div>
@@ -531,7 +533,7 @@ export default function TemplatesTab({ onToast }: Props) {
             {/* PREVIEW WhatsApp */}
             <div className="rounded-xl p-3 self-start"
               style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
-              <h3 className="text-zinc-200 text-sm font-semibold mb-3">Preview WhatsApp</h3>
+              <h3 className="text-zinc-200 text-sm font-semibold mb-3">{t('previewTitle')}</h3>
               <div className="rounded-lg overflow-hidden"
                 style={{ background: '#ECE5DD', minHeight: '420px', padding: '16px 12px' }}>
                 <div className="rounded-lg shadow-sm relative"
@@ -543,14 +545,14 @@ export default function TemplatesTab({ onToast }: Props) {
                   }}>
                   <div className="text-[12px] leading-relaxed whitespace-pre-wrap"
                     style={{ color: '#000', wordBreak: 'break-word' }}>
-                    {previewParts.length > 0 ? previewParts : <span className="italic text-zinc-500">(sem mensagem)</span>}
+                    {previewParts.length > 0 ? previewParts : <span className="italic text-zinc-500">{t('previewEmpty')}</span>}
                   </div>
                   <span className="absolute bottom-1 right-2 text-[9px]"
                     style={{ color: 'rgba(0,0,0,0.45)' }}>19:30 ✓✓</span>
                 </div>
               </div>
               <p className="text-[10px] text-zinc-600 mt-2">
-                Variáveis conhecidas usam valores mock; desconhecidas aparecem em <span style={{ color: '#dc2626' }}>vermelho</span>.
+                {t.rich('previewHint', { red: (chunks) => <span style={{ color: '#dc2626' }}>{chunks}</span> })}
               </p>
             </div>
 

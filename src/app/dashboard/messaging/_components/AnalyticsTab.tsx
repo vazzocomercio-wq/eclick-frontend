@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { useTranslations } from 'next-intl'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import { createClient } from '@/lib/supabase'
 
@@ -36,6 +37,7 @@ type Analytics = {
 type Period = '7d' | '30d' | 'custom'
 
 export function AnalyticsTab({ onToast }: { onToast: (m: string, type?: 'success'|'error') => void }) {
+  const t = useTranslations('messaging.analytics')
   const [period, setPeriod]   = useState<Period>('30d')
   const [from, setFrom]       = useState('')
   const [to, setTo]           = useState('')
@@ -64,7 +66,7 @@ export function AnalyticsTab({ onToast }: { onToast: (m: string, type?: 'success
   return (
     <>
       <div className="flex items-center gap-2 mb-5">
-        <p className="text-zinc-400 text-sm flex-1">Resumo dos envios. Padrão: últimos 30 dias.</p>
+        <p className="text-zinc-400 text-sm flex-1">{t('summary')}</p>
         <div className="flex gap-1">
           {(['7d', '30d', 'custom'] as Period[]).map(p => (
             <button key={p}
@@ -75,7 +77,7 @@ export function AnalyticsTab({ onToast }: { onToast: (m: string, type?: 'success
                 color:       period === p ? '#00E5FF' : '#a1a1aa',
                 background:  period === p ? 'rgba(0,229,255,0.05)' : 'transparent',
               }}
-            >{p === '7d' ? '7 dias' : p === '30d' ? '30 dias' : 'Personalizado'}</button>
+            >{p === '7d' ? t('period7d') : p === '30d' ? t('period30d') : t('periodCustom')}</button>
           ))}
         </div>
       </div>
@@ -83,11 +85,11 @@ export function AnalyticsTab({ onToast }: { onToast: (m: string, type?: 'success
       {period === 'custom' && (
         <div className="flex gap-2 mb-5">
           <label className="text-xs text-zinc-400 flex-1">
-            <span>De</span>
+            <span>{t('from')}</span>
             <input type="date" value={from} onChange={e => setFrom(e.target.value)} className="an-input" />
           </label>
           <label className="text-xs text-zinc-400 flex-1">
-            <span>Até</span>
+            <span>{t('to')}</span>
             <input type="date" value={to} onChange={e => setTo(e.target.value)} className="an-input" />
           </label>
         </div>
@@ -95,15 +97,15 @@ export function AnalyticsTab({ onToast }: { onToast: (m: string, type?: 'success
 
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-        <Kpi label="Total enviado"  value={loading ? '…' : data?.total_sent ?? 0} />
-        <Kpi label="Taxa entrega"   value={loading ? '…' : pct(data?.delivered_rate)} accent="#34d399" />
-        <Kpi label="Taxa leitura"   value={loading ? '…' : pct(data?.read_rate)}      accent="#00E5FF" />
-        <Kpi label="Falhas"         value={loading ? '…' : pct(data?.failed_rate)}    accent="#f87171" />
+        <Kpi label={t('kpiTotalSent')}     value={loading ? '…' : data?.total_sent ?? 0} />
+        <Kpi label={t('kpiDeliveryRate')}  value={loading ? '…' : pct(data?.delivered_rate)} accent="#34d399" />
+        <Kpi label={t('kpiReadRate')}      value={loading ? '…' : pct(data?.read_rate)}      accent="#00E5FF" />
+        <Kpi label={t('kpiFailures')}      value={loading ? '…' : pct(data?.failed_rate)}    accent="#f87171" />
       </div>
 
       {!loading && !has && (
         <div className="rounded-2xl px-6 py-12 text-center text-zinc-500" style={{ background: '#111114', border: '1px dashed #27272a' }}>
-          Nenhum envio no período selecionado.
+          {t('empty')}
         </div>
       )}
 
@@ -111,7 +113,7 @@ export function AnalyticsTab({ onToast }: { onToast: (m: string, type?: 'success
         <>
           {/* Line chart */}
           <div className="rounded-2xl p-5 mb-5" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
-            <p className="text-zinc-300 text-sm font-semibold mb-3">Envios por dia</p>
+            <p className="text-zinc-300 text-sm font-semibold mb-3">{t('chartTitle')}</p>
             <div style={{ width: '100%', height: 260 }}>
               <ResponsiveContainer>
                 <LineChart data={data!.by_day} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
@@ -122,8 +124,8 @@ export function AnalyticsTab({ onToast }: { onToast: (m: string, type?: 'success
                     contentStyle={{ background: '#0a0a0e', border: '1px solid #27272a', borderRadius: 8, fontSize: 12 }}
                     labelStyle={{ color: '#a1a1aa' }}
                   />
-                  <Line type="monotone" dataKey="sent"      stroke="#00E5FF" strokeWidth={2} dot={false} name="Enviados" />
-                  <Line type="monotone" dataKey="delivered" stroke="#34d399" strokeWidth={2} dot={false} name="Entregues" />
+                  <Line type="monotone" dataKey="sent"      stroke="#00E5FF" strokeWidth={2} dot={false} name={t('seriesSent')} />
+                  <Line type="monotone" dataKey="delivered" stroke="#34d399" strokeWidth={2} dot={false} name={t('seriesDelivered')} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -132,17 +134,17 @@ export function AnalyticsTab({ onToast }: { onToast: (m: string, type?: 'success
           {/* Per-template table */}
           <div className="rounded-2xl overflow-hidden" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
             <div className="px-5 py-3" style={{ borderBottom: '1px solid #1e1e24' }}>
-              <p className="text-zinc-300 text-sm font-semibold">Por template</p>
+              <p className="text-zinc-300 text-sm font-semibold">{t('byTemplate')}</p>
             </div>
             <table className="w-full text-sm">
               <thead style={{ background: '#0a0a0e' }}>
                 <tr className="text-zinc-500 text-[11px] uppercase tracking-wider">
-                  <th className="text-left  px-4 py-2.5">Template</th>
-                  <th className="text-right px-4 py-2.5">Enviados</th>
-                  <th className="text-right px-4 py-2.5">Entregues</th>
-                  <th className="text-right px-4 py-2.5">Lidos</th>
-                  <th className="text-right px-4 py-2.5">Falhas</th>
-                  <th className="text-right px-4 py-2.5">Taxa entrega</th>
+                  <th className="text-left  px-4 py-2.5">{t('colTemplate')}</th>
+                  <th className="text-right px-4 py-2.5">{t('colSent')}</th>
+                  <th className="text-right px-4 py-2.5">{t('colDelivered')}</th>
+                  <th className="text-right px-4 py-2.5">{t('colRead')}</th>
+                  <th className="text-right px-4 py-2.5">{t('colFailed')}</th>
+                  <th className="text-right px-4 py-2.5">{t('colDeliveryRate')}</th>
                 </tr>
               </thead>
               <tbody>

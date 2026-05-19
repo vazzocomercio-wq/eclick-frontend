@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import { TrendingDown, ExternalLink, RefreshCw, CheckCircle2 } from 'lucide-react'
 
@@ -38,17 +39,19 @@ interface VisitsLowConvCardData {
   lastSyncedAt: string | null
 }
 
+type Translator = ReturnType<typeof useTranslations>
+
 const num = (v: number) => v.toLocaleString('pt-BR')
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
 
-function timeSince(iso: string | null): string {
-  if (!iso) return 'nunca'
+function timeSince(iso: string | null, t: Translator): string {
+  if (!iso) return t('timeNever')
   const diff = Date.now() - new Date(iso).getTime()
   const m = Math.round(diff / 60_000)
-  if (m < 1) return 'agora'
-  if (m < 60) return `há ${m}m`
+  if (m < 1) return t('timeNow')
+  if (m < 60) return t('timeMinutesAgo', { m })
   const h = Math.round(m / 60)
-  return h < 24 ? `há ${h}h` : `há ${Math.round(h / 24)}d`
+  return h < 24 ? t('timeHoursAgo', { h }) : t('timeDaysAgo', { d: Math.round(h / 24) })
 }
 
 /** Mini sparkline SVG inline pra evitar dependência de recharts em card pequeno. */
@@ -71,6 +74,7 @@ function Sparkline({ points, height = 24, width = 80 }: { points: DailyPoint[]; 
 }
 
 export default function VisitsLowConvCard() {
+  const t = useTranslations('executive')
   const supabase = useMemo(() => createClient(), [])
   const [data, setData] = useState<VisitsLowConvCardData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -109,7 +113,7 @@ export default function VisitsLowConvCard() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <TrendingDown size={14} color="#ef4444" />
           <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6, color: '#a1a1aa' }}>
-            Muita visita, pouca venda
+            {t('lowConvCardTitle')}
           </span>
         </div>
         <button onClick={load} disabled={refreshing} style={{
@@ -120,12 +124,12 @@ export default function VisitsLowConvCard() {
         </button>
       </div>
 
-      {loading && <div style={{ color: '#52525b', fontSize: 13 }}>Carregando…</div>}
+      {loading && <div style={{ color: '#52525b', fontSize: 13 }}>{t('loading')}</div>}
 
       {!loading && empty && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#22c55e' }}>
           <CheckCircle2 size={18} />
-          <span style={{ fontSize: 13 }}>Todos os itens com tráfego performam dentro ou acima da média.</span>
+          <span style={{ fontSize: 13 }}>{t('lowConvEmpty')}</span>
         </div>
       )}
 
@@ -137,7 +141,7 @@ export default function VisitsLowConvCard() {
                 {num(data.summary.totalOpportunities)}
               </div>
               <div style={{ fontSize: 11, color: '#71717a', marginTop: 4 }}>
-                oportunidade{data.summary.totalOpportunities === 1 ? '' : 's'} detectada{data.summary.totalOpportunities === 1 ? '' : 's'}
+                {t('lowConvOpportunitiesDetected', { count: data.summary.totalOpportunities })}
               </div>
             </div>
             <div>
@@ -145,7 +149,7 @@ export default function VisitsLowConvCard() {
                 {num(data.summary.totalVisitsWasted)}
               </div>
               <div style={{ fontSize: 11, color: '#71717a', marginTop: 4 }}>
-                visitas vazando/7d
+                {t('lowConvVisitsLeaking')}
               </div>
             </div>
             {data.summary.totalGmvUnderperforming > 0 && (
@@ -154,7 +158,7 @@ export default function VisitsLowConvCard() {
                   {brl(data.summary.totalGmvUnderperforming)}
                 </div>
                 <div style={{ fontSize: 11, color: '#71717a', marginTop: 4 }}>
-                  GMV atual destes itens
+                  {t('lowConvCurrentGmv')}
                 </div>
               </div>
             )}
@@ -179,18 +183,18 @@ export default function VisitsLowConvCard() {
                     <div style={{ fontSize: 10, color: '#71717a', marginTop: 2, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                       <span>{it.ml_item_id}</span>
                       {it.category_ml_id && <span>· {it.category_ml_id}</span>}
-                      {it.benchmark_source === 'category' && <span style={{ color: '#84cc16' }}>· referência da categoria</span>}
-                      {it.benchmark_source === 'seller' && <span style={{ color: '#f59e0b' }}>· referência da conta</span>}
+                      {it.benchmark_source === 'category' && <span style={{ color: '#84cc16' }}>{t('lowConvBenchmarkCategory')}</span>}
+                      {it.benchmark_source === 'seller' && <span style={{ color: '#f59e0b' }}>{t('lowConvBenchmarkSeller')}</span>}
                     </div>
                     <div style={{ fontSize: 11, color: '#a1a1aa', marginTop: 6, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                      <span>{num(it.visits_7d)} visits</span>
-                      <span>{num(it.orders_7d)} vendas</span>
-                      <span style={{ color: '#ef4444' }}>conversão {it.conversion_pct}%</span>
+                      <span>{t('lowConvVisits', { count: num(it.visits_7d) })}</span>
+                      <span>{t('lowConvSales', { count: num(it.orders_7d) })}</span>
+                      <span style={{ color: '#ef4444' }}>{t('lowConvConversion', { pct: it.conversion_pct })}</span>
                       {it.benchmark_pct != null && (
-                        <span style={{ color: '#71717a' }}>vs {it.benchmark_pct}% médio</span>
+                        <span style={{ color: '#71717a' }}>{t('lowConvVsAverage', { pct: it.benchmark_pct })}</span>
                       )}
                       {it.gap_pct != null && (
-                        <span style={{ color: '#f59e0b' }}>gap {it.gap_pct.toFixed(2)}pp</span>
+                        <span style={{ color: '#f59e0b' }}>{t('lowConvGap', { pp: it.gap_pct.toFixed(2) })}</span>
                       )}
                     </div>
                   </div>
@@ -203,7 +207,7 @@ export default function VisitsLowConvCard() {
                            display: 'inline-flex', alignItems: 'center', gap: 4,
                            color: '#00E5FF', fontSize: 11, textDecoration: 'none',
                          }}>
-                        Ver no ML <ExternalLink size={10} />
+                        {t('viewOnMl')} <ExternalLink size={10} />
                       </a>
                     )}
                   </div>
@@ -215,9 +219,9 @@ export default function VisitsLowConvCard() {
       )}
 
       <div style={{ fontSize: 10, color: '#52525b', marginTop: 'auto' }}>
-        ↻ atualizado {timeSince(data?.lastSyncedAt ?? null)}
+        {t('refreshedAt', { since: timeSince(data?.lastSyncedAt ?? null, t) })}
         {data && data.summary.benchmarkSourcesMix && (
-          <> · benchmark: {data.summary.benchmarkSourcesMix.category} cat · {data.summary.benchmarkSourcesMix.seller} seller</>
+          <> {t('lowConvBenchmarkMix', { category: data.summary.benchmarkSourcesMix.category, seller: data.summary.benchmarkSourcesMix.seller })}</>
         )}
       </div>
 

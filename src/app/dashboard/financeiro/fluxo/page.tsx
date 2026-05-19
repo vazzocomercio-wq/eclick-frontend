@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -44,9 +45,9 @@ type MonthData = {
 
 // ── month helpers ─────────────────────────────────────────────────────────────
 
-const PT_MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
+type Translator = ReturnType<typeof useTranslations>
 
-function buildMonths(n: number): MonthData[] {
+function buildMonths(n: number, months: string[]): MonthData[] {
   const now = new Date()
   const result: MonthData[] = []
   for (let i = n - 1; i >= 0; i--) {
@@ -56,7 +57,7 @@ function buildMonths(n: number): MonthData[] {
     const lastDay = new Date(y, m + 1, 0)
     const isCurrentMonth = i === 0
     result.push({
-      label: `${PT_MONTHS[m]}/${String(y).slice(2)}`,
+      label: `${months[m]}/${String(y).slice(2)}`,
       from:  `${y}-${String(m + 1).padStart(2, '0')}-01`,
       to:    isCurrentMonth
         ? now.toISOString().slice(0, 10)
@@ -123,6 +124,13 @@ const RANGES = [
 // ── page ──────────────────────────────────────────────────────────────────────
 
 export default function FluxoCaixaPage() {
+  const t = useTranslations('financeiro')
+  const PT_MONTHS = useMemo(() => [
+    t('fluxo.months.jan'), t('fluxo.months.feb'), t('fluxo.months.mar'),
+    t('fluxo.months.apr'), t('fluxo.months.may'), t('fluxo.months.jun'),
+    t('fluxo.months.jul'), t('fluxo.months.aug'), t('fluxo.months.sep'),
+    t('fluxo.months.oct'), t('fluxo.months.nov'), t('fluxo.months.dec'),
+  ], [t])
   const [nMonths,   setNMonths]   = useState(6)
   const [months,    setMonths]    = useState<MonthData[]>([])
   const [loading,   setLoading]   = useState(true)
@@ -133,7 +141,7 @@ export default function FluxoCaixaPage() {
     const token = await getToken()
     if (!token) { setLoading(false); return }
 
-    const initial = buildMonths(n)
+    const initial = buildMonths(n, PT_MONTHS)
     setMonths(initial)
 
     const results = await Promise.allSettled(
@@ -155,19 +163,19 @@ export default function FluxoCaixaPage() {
     }))
     setMonths(updated)
     setLoading(false)
-  }, [])
+  }, [PT_MONTHS])
 
   useEffect(() => { loadAll(nMonths) }, [loadAll, nMonths])
 
   // Chart data
   const chartData = months.map(m => ({
     name: m.label,
-    Faturamento:  m.kpis?.faturamento_ml ?? 0,
-    'Rec. Líquida': m.kpis?.vendas_aprovadas ?? 0,
-    Custos:       (m.kpis?.custo_total ?? 0) + (m.kpis?.imposto_total ?? 0),
-    Tarifas:      m.kpis?.tarifa_total ?? 0,
-    Frete:        m.kpis?.frete_vendedor ?? 0,
-    MC:           m.kpis?.margem_contribuicao ?? 0,
+    revenue:  m.kpis?.faturamento_ml ?? 0,
+    netRevenue: m.kpis?.vendas_aprovadas ?? 0,
+    costs:    (m.kpis?.custo_total ?? 0) + (m.kpis?.imposto_total ?? 0),
+    fees:     m.kpis?.tarifa_total ?? 0,
+    shipping: m.kpis?.frete_vendedor ?? 0,
+    mc:       m.kpis?.margem_contribuicao ?? 0,
   }))
 
   // Totals
@@ -192,8 +200,8 @@ export default function FluxoCaixaPage() {
       {/* header */}
       <div className="flex items-center justify-between gap-4 mb-5 flex-wrap">
         <div>
-          <h1 className="text-xl font-bold text-white">Fluxo de Receita</h1>
-          <p className="text-sm text-zinc-500 mt-0.5">Evolução mensal de faturamento e margem</p>
+          <h1 className="text-xl font-bold text-white">{t('fluxo.title')}</h1>
+          <p className="text-sm text-zinc-500 mt-0.5">{t('fluxo.subtitle')}</p>
         </div>
         <div className="flex items-center gap-2">
           {/* range */}
@@ -225,7 +233,7 @@ export default function FluxoCaixaPage() {
                   : { background: 'rgba(255,255,255,0.04)', color: '#71717a' }
                 }
               >
-                {v === 'bar' ? 'Barras' : 'Linhas'}
+                {v === 'bar' ? t('fluxo.viewBars') : t('fluxo.viewLines')}
               </button>
             ))}
           </div>
@@ -243,18 +251,18 @@ export default function FluxoCaixaPage() {
 
       {/* KPIs */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-        <KpiCard label={`Faturamento (${nMonths}m)`}    value={brl(totFat)}  delta={momFat  !== undefined ? { v: momFat,  label: 'vs mês ant.' } : undefined} loading={loading} />
-        <KpiCard label={`MC acumulada (${nMonths}m)`}   value={brl(totMC)}   delta={momMC   !== undefined ? { v: momMC,   label: 'vs mês ant.' } : undefined} loading={loading} />
-        <KpiCard label={`Margem média`}                 value={`${avgMgPct.toFixed(1)}%`} loading={loading} />
-        <KpiCard label={`Pedidos (${nMonths}m)`}        value={String(totQtd)} loading={loading} />
+        <KpiCard label={t('fluxo.kpiRevenue', { n: nMonths })}    value={brl(totFat)}  delta={momFat  !== undefined ? { v: momFat,  label: t('fluxo.vsPrevMonth') } : undefined} loading={loading} />
+        <KpiCard label={t('fluxo.kpiAccumMc', { n: nMonths })}   value={brl(totMC)}   delta={momMC   !== undefined ? { v: momMC,   label: t('fluxo.vsPrevMonth') } : undefined} loading={loading} />
+        <KpiCard label={t('fluxo.kpiAvgMargin')}                 value={`${avgMgPct.toFixed(1)}%`} loading={loading} />
+        <KpiCard label={t('fluxo.kpiOrders', { n: nMonths })}        value={String(totQtd)} loading={loading} />
       </div>
 
       {/* chart */}
       <div className="rounded-xl p-4 mb-6" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
-        <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-4">Faturamento vs Margem de Contribuição</p>
+        <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-4">{t('fluxo.chartRevenueVsMc')}</p>
         {loading
           ? <div className="h-64 flex items-center justify-center text-zinc-600 text-sm gap-2">
-              <RefreshCw size={14} className="animate-spin" /> Carregando…
+              <RefreshCw size={14} className="animate-spin" /> {t('fluxo.loading')}
             </div>
           : (
             <ResponsiveContainer width="100%" height={260}>
@@ -266,9 +274,9 @@ export default function FluxoCaixaPage() {
                   <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
                   <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8, color: '#71717a' }} />
                   <ReferenceLine y={0} stroke="#3f3f46" />
-                  <Bar dataKey="Faturamento"   fill="#3b82f6" radius={[4,4,0,0]} />
-                  <Bar dataKey="Rec. Líquida"  fill="#6366f1" radius={[4,4,0,0]} />
-                  <Bar dataKey="MC"            fill="#22c55e" radius={[4,4,0,0]} />
+                  <Bar dataKey="revenue"    name={t('fluxo.seriesRevenue')}    fill="#3b82f6" radius={[4,4,0,0]} />
+                  <Bar dataKey="netRevenue" name={t('fluxo.seriesNetRevenue')} fill="#6366f1" radius={[4,4,0,0]} />
+                  <Bar dataKey="mc"         name={t('fluxo.seriesMc')}         fill="#22c55e" radius={[4,4,0,0]} />
                 </BarChart>
               ) : (
                 <LineChart data={chartData}>
@@ -278,9 +286,9 @@ export default function FluxoCaixaPage() {
                   <Tooltip content={<ChartTooltip />} />
                   <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8, color: '#71717a' }} />
                   <ReferenceLine y={0} stroke="#3f3f46" />
-                  <Line dataKey="Faturamento"  stroke="#3b82f6" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
-                  <Line dataKey="Rec. Líquida" stroke="#6366f1" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
-                  <Line dataKey="MC"           stroke="#22c55e" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                  <Line dataKey="revenue"    name={t('fluxo.seriesRevenue')}    stroke="#3b82f6" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                  <Line dataKey="netRevenue" name={t('fluxo.seriesNetRevenue')} stroke="#6366f1" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                  <Line dataKey="mc"         name={t('fluxo.seriesMc')}         stroke="#22c55e" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
                 </LineChart>
               )}
             </ResponsiveContainer>
@@ -290,7 +298,7 @@ export default function FluxoCaixaPage() {
 
       {/* cost breakdown chart */}
       <div className="rounded-xl p-4 mb-6" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
-        <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-4">Deduções mensais (Tarifas + Frete + Custos + Impostos)</p>
+        <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-4">{t('fluxo.chartDeductions')}</p>
         {loading
           ? <div className="h-48 flex items-center justify-center text-zinc-600 text-sm gap-2">
               <RefreshCw size={14} className="animate-spin" />
@@ -303,9 +311,9 @@ export default function FluxoCaixaPage() {
                 <YAxis tickFormatter={shortBrl} tick={{ fill: '#71717a', fontSize: 10 }} axisLine={false} tickLine={false} width={65} />
                 <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
                 <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8, color: '#71717a' }} />
-                <Bar dataKey="Tarifas" stackId="a" fill="#f59e0b" />
-                <Bar dataKey="Frete"   stackId="a" fill="#3b82f6" />
-                <Bar dataKey="Custos"  stackId="a" fill="#f97316" radius={[4,4,0,0]} />
+                <Bar dataKey="fees"     name={t('fluxo.seriesFees')}     stackId="a" fill="#f59e0b" />
+                <Bar dataKey="shipping" name={t('fluxo.seriesShipping')} stackId="a" fill="#3b82f6" />
+                <Bar dataKey="costs"    name={t('fluxo.seriesCosts')}    stackId="a" fill="#f97316" radius={[4,4,0,0]} />
               </BarChart>
             </ResponsiveContainer>
           )
@@ -317,8 +325,11 @@ export default function FluxoCaixaPage() {
         <table className="w-full border-collapse">
           <thead>
             <tr className="border-b border-zinc-800">
-              {['Mês','Faturamento','Tarifas','Frete','CPV','Rec. Líquida','MC','Margem %','Pedidos'].map(h => (
-                <th key={h} className="py-2.5 px-3 text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
+              {[
+                t('fluxo.colMonth'), t('fluxo.colRevenue'), t('fluxo.colFees'), t('fluxo.colShipping'),
+                t('fluxo.colCogs'), t('fluxo.colNetRevenue'), t('fluxo.colMc'), t('fluxo.colMarginPct'), t('fluxo.colOrders'),
+              ].map((h, i) => (
+                <th key={i} className="py-2.5 px-3 text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
               ))}
             </tr>
           </thead>
@@ -350,7 +361,7 @@ export default function FluxoCaixaPage() {
             {/* totals row */}
             {!loading && months.some(m => m.kpis) && (
               <tr style={{ background: 'rgba(255,255,255,0.03)', borderTop: '2px solid rgba(255,255,255,0.08)' }}>
-                <td className="py-2.5 px-3 text-sm font-bold text-white">Total</td>
+                <td className="py-2.5 px-3 text-sm font-bold text-white">{t('fluxo.totalRow')}</td>
                 <td className="py-2.5 px-3 text-sm tabular-nums font-semibold text-zinc-200">{brl(totFat)}</td>
                 <td className="py-2.5 px-3 text-sm tabular-nums font-semibold text-amber-400">
                   {brl(months.reduce((s, m) => s + (m.kpis?.tarifa_total ?? 0), 0))}

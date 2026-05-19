@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
@@ -11,6 +12,7 @@ type State = 'loading' | 'success' | 'error'
 function MlCallbackContent() {
   const router = useRouter()
   const params = useSearchParams()
+  const t = useTranslations('integracoes')
   const [state, setState] = useState<State>('loading')
   const [errMsg, setErrMsg] = useState('')
 
@@ -20,7 +22,7 @@ function MlCallbackContent() {
 
     if (error || !code) {
       setState('error')
-      setErrMsg(error ?? 'Código de autorização ausente.')
+      setErrMsg(error ?? t('callback.missingCode'))
       return
     }
 
@@ -35,7 +37,7 @@ function MlCallbackContent() {
 
         if (!token) {
           setState('error')
-          setErrMsg('Sessão expirada. Faça login novamente.')
+          setErrMsg(t('callback.sessionExpired'))
           return
         }
 
@@ -57,7 +59,7 @@ function MlCallbackContent() {
           const body = await res.json().catch(() => ({}))
           console.error('[ML Callback] erro backend:', body)
           setState('error')
-          setErrMsg(`[${res.status}] ${body?.message ?? body?.error ?? 'Falha ao conectar conta.'}`)
+          setErrMsg(`[${res.status}] ${body?.message ?? body?.error ?? t('callback.ml.connectFailed')}`)
           return
         }
 
@@ -70,10 +72,10 @@ function MlCallbackContent() {
         console.error('[ML Callback] exceção:', err)
         const msg = err instanceof Error ? err.message : String(err)
         setState('error')
-        setErrMsg(`Erro de rede ou CORS: ${msg}`)
+        setErrMsg(`${t('callback.networkOrCorsError')}: ${msg}`)
       }
     })()
-  }, [params, router])
+  }, [params, router, t])
 
   return (
     <div className="flex flex-col items-center justify-center h-screen" style={{ background: 'var(--background)' }}>
@@ -96,8 +98,8 @@ function MlCallbackContent() {
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
             </svg>
             <div>
-              <p className="text-white font-semibold">Conectando ao Mercado Livre…</p>
-              <p className="text-zinc-500 text-sm mt-1">Aguarde enquanto confirmamos sua conta.</p>
+              <p className="text-white font-semibold">{t('callback.ml.connecting')}</p>
+              <p className="text-zinc-500 text-sm mt-1">{t('callback.ml.connectingSub')}</p>
             </div>
           </>
         )}
@@ -113,8 +115,8 @@ function MlCallbackContent() {
               </svg>
             </div>
             <div>
-              <p className="text-white font-semibold">Conta conectada!</p>
-              <p className="text-zinc-500 text-sm mt-1">Redirecionando para Integrações…</p>
+              <p className="text-white font-semibold">{t('callback.accountConnected')}</p>
+              <p className="text-zinc-500 text-sm mt-1">{t('callback.redirectingToIntegrations')}</p>
             </div>
           </>
         )}
@@ -130,7 +132,7 @@ function MlCallbackContent() {
               </svg>
             </div>
             <div>
-              <p className="text-white font-semibold">Falha na conexão</p>
+              <p className="text-white font-semibold">{t('callback.connectionFailed')}</p>
               <p className="text-zinc-500 text-sm mt-1">{errMsg}</p>
             </div>
             <button
@@ -138,7 +140,7 @@ function MlCallbackContent() {
               className="mt-2 px-5 py-2 rounded-lg text-sm font-medium border transition-all"
               style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}
             >
-              Voltar para Integrações
+              {t('callback.backToIntegrations')}
             </button>
           </>
         )}

@@ -1,6 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import type { TabProps } from '../types'
 import CategoryPicker from './CategoryPicker'
@@ -117,6 +118,7 @@ function DragOverlayPhoto({ url }: { url: string }) {
 // ── Tab1Basic ─────────────────────────────────────────────────────────────────
 
 export default function Tab1Basic({ data, set, orgId, categoryName, categoryPath }: Props) {
+  const t = useTranslations('produtos')
   const fileRef = useRef<HTMLInputElement>(null)
   const [uploadingCount, setUploadingCount] = useState(0)
   const [uploadError, setUploadError] = useState<string | null>(null)
@@ -175,7 +177,7 @@ export default function Tab1Basic({ data, set, orgId, categoryName, categoryPath
 
     if (uploaded.length > 0) set('photoUrls', [...data.photoUrls, ...uploaded])
     if (failed.length > 0) {
-      setUploadError(`Erro ao enviar: ${failed.join(', ')}. Verifique se o bucket "produtos" existe no Supabase Storage.`)
+      setUploadError(t('tab1.uploadError', { files: failed.join(', ') }))
     }
 
     if (fileRef.current) fileRef.current.value = ''
@@ -194,7 +196,7 @@ export default function Tab1Basic({ data, set, orgId, categoryName, categoryPath
 
       {/* Photos */}
       <section>
-        <p className={sec}>Fotos do produto</p>
+        <p className={sec}>{t('tab1.photosSection')}</p>
 
         {uploadError && (
           <div className="mb-3 px-3 py-2.5 rounded-lg border text-[12px]"
@@ -244,7 +246,7 @@ export default function Tab1Basic({ data, set, orgId, categoryName, categoryPath
                   <svg className="w-5 h-5 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.75}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
                   </svg>
-                  <span className="text-[10px] text-zinc-600">Adicionar</span>
+                  <span className="text-[10px] text-zinc-600">{t('tab1.add')}</span>
                 </button>
               )}
             </div>
@@ -256,7 +258,7 @@ export default function Tab1Basic({ data, set, orgId, categoryName, categoryPath
         </DndContext>
 
         <p className="text-[11px] text-zinc-600 mt-2">
-          {totalSlots}/10 fotos · Arraste para reordenar · A primeira imagem será a capa
+          {t('tab1.photosHint', { count: totalSlots })}
         </p>
         <input ref={fileRef} type="file" accept="image/*" multiple className="hidden"
           onChange={e => handleFiles(e.target.files)} />
@@ -264,18 +266,18 @@ export default function Tab1Basic({ data, set, orgId, categoryName, categoryPath
 
       {/* Identity */}
       <section>
-        <p className={sec}>Identificação</p>
+        <p className={sec}>{t('tab1.identitySection')}</p>
         <div className="grid grid-cols-1 gap-4">
           <div>
-            <label className={lbl}>Nome do produto <span className="text-red-400">*</span></label>
-            <input type="text" className={inp} maxLength={120} placeholder="Ex: Ventilador de Mesa Mondial 40cm 6 Pás"
+            <label className={lbl}>{t('tab1.productName')} <span className="text-red-400">*</span></label>
+            <input type="text" className={inp} maxLength={120} placeholder={t('tab1.productNamePlaceholder')}
               value={data.name} onChange={e => set('name', e.target.value)} />
             <p className="text-[11px] text-zinc-600 mt-1 text-right">{data.name.length}/120</p>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className={lbl}>SKU interno</label>
+              <label className={lbl}>{t('tab1.internalSku')}</label>
               <input type="text" className={inp} placeholder="Ex: VENT-40CM-001"
                 value={data.sku} onChange={e => set('sku', e.target.value)} />
             </div>
@@ -288,12 +290,12 @@ export default function Tab1Basic({ data, set, orgId, categoryName, categoryPath
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className={lbl}>Marca <span className="text-red-400">*</span></label>
-              <input type="text" className={inp} placeholder="Ex: Mondial"
+              <label className={lbl}>{t('tab1.brand')} <span className="text-red-400">*</span></label>
+              <input type="text" className={inp} placeholder={t('tab1.brandPlaceholder')}
                 value={data.brand} onChange={e => set('brand', e.target.value)} />
             </div>
             <div>
-              <label className={lbl}>Modelo</label>
+              <label className={lbl}>{t('tab1.model')}</label>
               <input type="text" className={inp} placeholder="Ex: NV-18-6P"
                 value={data.model} onChange={e => set('model', e.target.value)} />
             </div>
@@ -303,10 +305,10 @@ export default function Tab1Basic({ data, set, orgId, categoryName, categoryPath
 
       {/* Condition */}
       <section>
-        <p className={sec}>Condição</p>
+        <p className={sec}>{t('tab1.conditionSection')}</p>
         <div className="flex gap-3">
           {(['new', 'used', 'refurbished'] as const).map(c => {
-            const labels = { new: 'Novo', used: 'Usado', refurbished: 'Recondicionado' }
+            const labels = { new: t('tab1.condNew'), used: t('tab1.condUsed'), refurbished: t('tab1.condRefurbished') }
             const active = data.condition === c
             return (
               <button key={c} type="button" onClick={() => set('condition', c)}
@@ -325,7 +327,7 @@ export default function Tab1Basic({ data, set, orgId, categoryName, categoryPath
 
       {/* Category */}
       <section>
-        <p className={sec}>Categoria ML</p>
+        <p className={sec}>{t('tab1.categorySection')}</p>
         {categoryName !== undefined ? (
           <div className="rounded-xl p-3 border border-[#1a1a1f]" style={{ background: '#0d0d10' }}>
             {categoryName ? (
@@ -335,7 +337,7 @@ export default function Tab1Basic({ data, set, orgId, categoryName, categoryPath
                 <p className="text-gray-600 text-xs mt-1">ID: {data.category}</p>
               </div>
             ) : (
-              <p className="text-gray-500 text-sm">ID: {data.category || 'Não definida'}</p>
+              <p className="text-gray-500 text-sm">ID: {data.category || t('tab1.categoryUndefined')}</p>
             )}
           </div>
         ) : (

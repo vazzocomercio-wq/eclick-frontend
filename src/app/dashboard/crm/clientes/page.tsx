@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useTranslations } from 'next-intl'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import {
@@ -53,15 +54,17 @@ type QF = 'all' | 'with_cpf' | 'with_wa' | 'vip' | 'pending' | 'blocked'
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
-function relTime(iso: string | null) {
+type TFn = (key: string, values?: Record<string, string | number>) => string
+
+function relTime(iso: string | null, t: TFn) {
   if (!iso) return '—'
   const d = Date.now() - new Date(iso).getTime()
   const days = Math.floor(d / 86400000)
-  if (days === 0) return 'Hoje'
-  if (days === 1) return 'Ontem'
-  if (days < 30)  return `${days}d`
-  if (days < 365) return `${Math.floor(days / 30)}m`
-  return `${Math.floor(days / 365)}a`
+  if (days === 0) return t('relTime.today')
+  if (days === 1) return t('relTime.yesterday')
+  if (days < 30)  return t('relTime.days', { n: days })
+  if (days < 365) return t('relTime.months', { n: Math.floor(days / 30) })
+  return t('relTime.years', { n: Math.floor(days / 365) })
 }
 
 function initials(name: string | null) {
@@ -95,11 +98,11 @@ function fmtPhone(v: string | null) {
   return `+${cc} (${rest.slice(0,2)}) ${rest.slice(2,7)}-${rest.slice(7)}`
 }
 
-const STATUS_META: Record<string, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
-  pending: { label: 'Pendente', color: '#a1a1aa', bg: 'rgba(161,161,170,0.10)', icon: <AlertTriangle size={11} /> },
-  partial: { label: 'Parcial',  color: '#facc15', bg: 'rgba(250,204,21,0.10)',  icon: <AlertTriangle size={11} /> },
-  full:    { label: 'Validado', color: '#4ade80', bg: 'rgba(74,222,128,0.10)',  icon: <CheckCircle2 size={11} /> },
-  failed:  { label: 'Falhou',   color: '#f87171', bg: 'rgba(248,113,113,0.10)', icon: <XCircle size={11} /> },
+const STATUS_META: Record<string, { color: string; bg: string; icon: React.ReactNode }> = {
+  pending: { color: '#a1a1aa', bg: 'rgba(161,161,170,0.10)', icon: <AlertTriangle size={11} /> },
+  partial: { color: '#facc15', bg: 'rgba(250,204,21,0.10)',  icon: <AlertTriangle size={11} /> },
+  full:    { color: '#4ade80', bg: 'rgba(74,222,128,0.10)',  icon: <CheckCircle2 size={11} /> },
+  failed:  { color: '#f87171', bg: 'rgba(248,113,113,0.10)', icon: <XCircle size={11} /> },
 }
 
 const PER_PAGE_KEY = 'eclick.clientes.perPage'
@@ -108,6 +111,7 @@ const QF_KEY       = 'eclick.clientes.qf'
 // ── page ──────────────────────────────────────────────────────────────────────
 
 export default function ClientesPage() {
+  const t        = useTranslations('crm.clientes')
   const supabase = useMemo(() => createClient(), [])
   const router   = useRouter()
   const search   = useSearchParams()
@@ -208,9 +212,9 @@ export default function ClientesPage() {
   const resetOrphans = useCallback(async () => {
     if (resetting || !orphans) return
     const ok = await confirm({
-      title:        'Reprocessar billing_info',
-      message:      `Isso vai marcar ${orphans} pedidos para reprocessar o billing_info. Continuar?`,
-      confirmLabel: 'Continuar',
+      title:        t('confirm.reprocessBillingTitle'),
+      message:      t('confirm.reprocessBillingMessage', { count: orphans }),
+      confirmLabel: t('confirm.continue'),
       variant:      'warning',
     })
     if (!ok) return
@@ -222,17 +226,17 @@ export default function ClientesPage() {
       })
       const body = await res.json().catch(() => null) as { reset?: number; message?: string } | null
       if (!res.ok || !body || typeof body.reset !== 'number') {
-        toast({ tone: 'error', message: body?.message ?? 'Falha ao resetar' })
+        toast({ tone: 'error', message: body?.message ?? t('toast.resetFailed') })
       } else {
-        toast({ tone: 'success', message: `✓ ${body.reset} pedidos resetados. Clique em "Buscar CPFs no ML" para reprocessar.` })
+        toast({ tone: 'success', message: t('toast.resetDone', { count: body.reset }) })
       }
       await Promise.all([loadOrphans(), loadMlPending()])
     } catch {
-      toast({ tone: 'error', message: 'Erro de rede ao resetar' })
+      toast({ tone: 'error', message: t('toast.resetNetworkError') })
     } finally {
       setResetting(false)
     }
-  }, [resetting, orphans, getHeaders, toast, loadOrphans, loadMlPending, confirm])
+  }, [resetting, orphans, getHeaders, toast, loadOrphans, loadMlPending, confirm, t])
 
   // ── KPIs (agregados via /customers/stats — banco inteiro, não página) ──
   type StatsAgg = {
@@ -281,12 +285,12 @@ export default function ClientesPage() {
       const headers = await getHeaders()
       const res = await fetch(`${BACKEND}/enrichment/customer/${c.id}`, { method: 'POST', headers })
       const body = await res.json().catch(() => null) as { status?: string; fields_filled?: number } | null
-      if (!res.ok || !body) toast({ tone: 'error', message: 'Falha ao enriquecer' })
+      if (!res.ok || !body) toast({ tone: 'error', message: t('toast.enrichFailed') })
       else toast({ tone: body.status === 'full' ? 'success' : body.status === 'failed' ? 'warn' : 'info',
-        message: `${c.display_name ?? 'Cliente'}: ${body.status} — ${body.fields_filled ?? 0} campos preenchidos` })
+        message: t('toast.enrichOneResult', { name: c.display_name ?? t('customerFallback'), status: body.status ?? '', fields: body.fields_filled ?? 0 }) })
       await load()
-    } catch { toast({ tone: 'error', message: 'Erro de rede' }) }
-  }, [getHeaders, toast, load])
+    } catch { toast({ tone: 'error', message: t('toast.networkError') }) }
+  }, [getHeaders, toast, load, t])
 
   const enrichBatch = useCallback(async () => {
     if (busy) return
@@ -297,12 +301,12 @@ export default function ClientesPage() {
         method: 'POST', headers, body: JSON.stringify({ limit: 25 }),
       })
       const body = await res.json().catch(() => null) as { processed: number; full: number; partial: number; failed: number } | null
-      if (!res.ok || !body) toast({ tone: 'error', message: 'Falha — verifique provedores em Configurações' })
-      else if (body.processed === 0) toast({ tone: 'info', message: 'Nenhum pendente para enriquecer' })
-      else toast({ tone: 'success', message: `${body.processed} processados — ${body.full} validados, ${body.partial} parciais, ${body.failed} falharam` })
+      if (!res.ok || !body) toast({ tone: 'error', message: t('toast.enrichProvidersError') })
+      else if (body.processed === 0) toast({ tone: 'info', message: t('toast.noneToEnrich') })
+      else toast({ tone: 'success', message: t('toast.enrichBatchResult', { processed: body.processed, full: body.full, partial: body.partial, failed: body.failed }) })
       await load()
     } finally { setBusy(null) }
-  }, [busy, getHeaders, toast, load])
+  }, [busy, getHeaders, toast, load, t])
 
   const fetchMlBilling = useCallback(async () => {
     if (busy || !mlPending) return
@@ -313,12 +317,12 @@ export default function ClientesPage() {
         method: 'POST', headers, body: JSON.stringify({ limit: 200 }),
       })
       const body = await res.json().catch(() => null) as { processed: number; with_cpf: number; with_email: number; with_phone: number; errors: number } | null
-      if (!res.ok || !body) toast({ tone: 'error', message: 'Falha ao consultar ML' })
-      else if (body.processed === 0) toast({ tone: 'info', message: 'Nenhum pedido pendente' })
-      else toast({ tone: 'success', message: `${body.processed} consultados — ${body.with_cpf} CPFs, ${body.with_email} emails, ${body.with_phone} telefones` })
+      if (!res.ok || !body) toast({ tone: 'error', message: t('toast.mlQueryFailed') })
+      else if (body.processed === 0) toast({ tone: 'info', message: t('toast.noPendingOrders') })
+      else toast({ tone: 'success', message: t('toast.mlBillingResult', { processed: body.processed, cpf: body.with_cpf, email: body.with_email, phone: body.with_phone }) })
       await Promise.all([load(), loadMlPending()])
     } finally { setBusy(null) }
-  }, [busy, mlPending, getHeaders, toast, load, loadMlPending])
+  }, [busy, mlPending, getHeaders, toast, load, loadMlPending, t])
 
   const toggleTag = useCallback(async (c: Customer, tag: 'vip' | 'blocked') => {
     const has = (c.tags ?? []).includes(tag)
@@ -327,29 +331,34 @@ export default function ClientesPage() {
       const res = await fetch(`${BACKEND}/customers/${c.id}/tags/${tag}`, {
         method: has ? 'DELETE' : 'POST', headers,
       })
-      if (!res.ok) toast({ tone: 'error', message: `Falha ao ${has ? 'remover' : 'aplicar'} ${tag}` })
-      else toast({ tone: 'success', message: `${tag === 'vip' ? '👑 VIP' : '🚫 Bloqueio'} ${has ? 'removido' : 'aplicado'} em ${c.display_name ?? 'cliente'}` })
+      if (!res.ok) {
+        toast({ tone: 'error', message: has ? t('toast.tagRemoveFailed', { tag }) : t('toast.tagApplyFailed', { tag }) })
+      } else {
+        const tagLabel = tag === 'vip' ? t('toast.tagVip') : t('toast.tagBlock')
+        const name = c.display_name ?? t('customerFallbackLower')
+        toast({ tone: 'success', message: has ? t('toast.tagRemoved', { tag: tagLabel, name }) : t('toast.tagApplied', { tag: tagLabel, name }) })
+      }
       await load()
-    } catch { toast({ tone: 'error', message: 'Erro de rede' }) }
-  }, [getHeaders, toast, load])
+    } catch { toast({ tone: 'error', message: t('toast.networkError') }) }
+  }, [getHeaders, toast, load, t])
 
   const removeOne = useCallback(async (c: Customer) => {
     const ok = await confirm({
-      title:        'Excluir cliente',
-      message:      `Excluir ${c.display_name ?? 'este cliente'}? Esta ação não pode ser desfeita.`,
-      confirmLabel: 'Excluir',
+      title:        t('confirm.deleteTitle'),
+      message:      t('confirm.deleteMessage', { name: c.display_name ?? t('thisCustomer') }),
+      confirmLabel: t('confirm.delete'),
       variant:      'danger',
     })
     if (!ok) return
     try {
       const headers = await getHeaders()
       const res = await fetch(`${BACKEND}/customers/${c.id}`, { method: 'DELETE', headers })
-      if (!res.ok) toast({ tone: 'error', message: 'Falha ao excluir' })
-      else toast({ tone: 'success', message: 'Cliente excluído' })
+      if (!res.ok) toast({ tone: 'error', message: t('toast.deleteFailed') })
+      else toast({ tone: 'success', message: t('toast.deleted') })
       setSelected(s => s.filter(x => x !== c.id))
       await load()
-    } catch { toast({ tone: 'error', message: 'Erro de rede' }) }
-  }, [getHeaders, toast, load, confirm])
+    } catch { toast({ tone: 'error', message: t('toast.networkError') }) }
+  }, [getHeaders, toast, load, confirm, t])
 
   const exportCsv = useCallback((rows: Customer[]) => {
     const cols = ['display_name','cpf','phone','email','whatsapp_id','enrichment_status','total_purchases','last_contact_at']
@@ -371,8 +380,8 @@ export default function ClientesPage() {
     const a    = document.createElement('a')
     a.href = url; a.download = `clientes-${new Date().toISOString().slice(0,10)}${maskExport ? '-masked' : ''}.csv`; a.click()
     URL.revokeObjectURL(url)
-    toast({ tone: 'success', message: `${rows.length} clientes exportados${maskExport ? ' (mascarado)' : ''}` })
-  }, [toast, maskExport])
+    toast({ tone: 'success', message: maskExport ? t('toast.exportedMasked', { count: rows.length }) : t('toast.exported', { count: rows.length }) })
+  }, [toast, maskExport, t])
 
   // ── bulk action handlers (chamados pela barra de seleção) ──────────────────
   const [waModal,    setWaModal]    = useState<{ rows: Customer[] } | null>(null)
@@ -391,18 +400,18 @@ export default function ClientesPage() {
   const enrichBulk = useCallback(async (rows: Customer[]) => {
     if (!rows.length) return
     const ids = rows.map(r => r.id)
-    toast({ tone: 'info', message: `Enriquecendo ${ids.length} cliente${ids.length === 1 ? '' : 's'}…` })
+    toast({ tone: 'info', message: t('toast.enrichingBulk', { count: ids.length }) })
     try {
       const headers = await getHeaders()
       const res = await fetch(`${BACKEND}/enrichment/batch`, {
         method: 'POST', headers, body: JSON.stringify({ customer_ids: ids, limit: ids.length }),
       })
       const body = await res.json().catch(() => null) as { processed: number; full: number; partial: number; failed: number } | null
-      if (!res.ok || !body) toast({ tone: 'error', message: 'Falha — verifique provedores em Configurações' })
-      else toast({ tone: 'success', message: `${body.processed} processados — ${body.full} validados, ${body.partial} parciais, ${body.failed} falharam` })
+      if (!res.ok || !body) toast({ tone: 'error', message: t('toast.enrichProvidersError') })
+      else toast({ tone: 'success', message: t('toast.enrichBatchResult', { processed: body.processed, full: body.full, partial: body.partial, failed: body.failed }) })
       setTimeout(() => { void load() }, 3000)
-    } catch { toast({ tone: 'error', message: 'Erro de rede' }) }
-  }, [getHeaders, toast, load])
+    } catch { toast({ tone: 'error', message: t('toast.networkError') }) }
+  }, [getHeaders, toast, load, t])
 
   const sendWaBulk = useCallback(async (rows: Customer[], message: string) => {
     if (!rows.length || !message.trim()) return
@@ -413,20 +422,20 @@ export default function ClientesPage() {
       })
       const body = await res.json().catch(() => null) as { success?: boolean; message?: string } | null
       // Stub retorna { success: true, message: 'Em breve' } → toast amarelo
-      if (body?.message === 'Em breve') toast({ tone: 'warn', message: 'Funcionalidade em desenvolvimento' })
-      else if (res.ok && body?.success) toast({ tone: 'success', message: 'Mensagem enviada' })
-      else toast({ tone: 'error', message: 'Falha ao enviar' })
-    } catch { toast({ tone: 'error', message: 'Erro de rede' }) }
+      if (body?.message === 'Em breve') toast({ tone: 'warn', message: t('toast.featureInDev') })
+      else if (res.ok && body?.success) toast({ tone: 'success', message: t('toast.messageSent') })
+      else toast({ tone: 'error', message: t('toast.sendFailed') })
+    } catch { toast({ tone: 'error', message: t('toast.networkError') }) }
     finally { setWaModal(null) }
-  }, [getHeaders, toast])
+  }, [getHeaders, toast, t])
 
   const pvBulk = useCallback((rows: Customer[]) => {
     if (!rows.length) return
     setConfirmModal({
       open:          true,
-      title:         'Iniciar jornada pós-venda',
-      message:       `Iniciar jornada pós-venda para ${rows.length} cliente${rows.length === 1 ? '' : 's'}?`,
-      confirmLabel:  'Iniciar',
+      title:         t('confirm.startJourneyTitle'),
+      message:       t('confirm.startJourneyMessage', { count: rows.length }),
+      confirmLabel:  t('confirm.start'),
       confirmColor:  '#00E5FF',
       onConfirm: async () => {
         setConfirmModal(null)
@@ -437,13 +446,13 @@ export default function ClientesPage() {
             body: JSON.stringify({ customer_ids: rows.map(r => r.id), journey_type: 'pos_venda' }),
           })
           const body = await res.json().catch(() => null) as { success?: boolean; message?: string } | null
-          if (body?.message === 'Em breve') toast({ tone: 'warn', message: 'Funcionalidade em desenvolvimento' })
-          else if (res.ok && body?.success) toast({ tone: 'success', message: 'Jornada iniciada' })
-          else toast({ tone: 'error', message: 'Falha ao iniciar jornada' })
-        } catch { toast({ tone: 'error', message: 'Erro de rede' }) }
+          if (body?.message === 'Em breve') toast({ tone: 'warn', message: t('toast.featureInDev') })
+          else if (res.ok && body?.success) toast({ tone: 'success', message: t('toast.journeyStarted') })
+          else toast({ tone: 'error', message: t('toast.journeyFailed') })
+        } catch { toast({ tone: 'error', message: t('toast.networkError') }) }
       },
     })
-  }, [getHeaders, toast])
+  }, [getHeaders, toast, t])
 
   const openSegModal = useCallback(async (rows: Customer[]) => {
     setSegModal({ rows })
@@ -464,19 +473,19 @@ export default function ClientesPage() {
         body: JSON.stringify({ customer_ids: rows.map(r => r.id), segment_id: segmentId }),
       })
       const body = await res.json().catch(() => null) as { success?: boolean; message?: string } | null
-      if (body?.message === 'Em breve') toast({ tone: 'warn', message: 'Funcionalidade em desenvolvimento' })
-      else if (res.ok && body?.success) toast({ tone: 'success', message: `${rows.length} cliente${rows.length === 1 ? '' : 's'} adicionado${rows.length === 1 ? '' : 's'} ao segmento` })
-      else toast({ tone: 'error', message: 'Falha ao adicionar' })
-    } catch { toast({ tone: 'error', message: 'Erro de rede' }) }
+      if (body?.message === 'Em breve') toast({ tone: 'warn', message: t('toast.featureInDev') })
+      else if (res.ok && body?.success) toast({ tone: 'success', message: t('toast.addedToSegment', { count: rows.length }) })
+      else toast({ tone: 'error', message: t('toast.addFailed') })
+    } catch { toast({ tone: 'error', message: t('toast.networkError') }) }
     finally { setSegModal(null) }
-  }, [getHeaders, toast])
+  }, [getHeaders, toast, t])
 
   const vipBulk = useCallback(async (rows: Customer[]) => {
     if (!rows.length) return
     const ok = await confirm({
-      title:        'Marcar como VIP',
-      message:      `Marcar ${rows.length} cliente${rows.length === 1 ? '' : 's'} como VIP?`,
-      confirmLabel: 'Marcar VIP',
+      title:        t('confirm.markVipTitle'),
+      message:      t('confirm.markVipMessage', { count: rows.length }),
+      confirmLabel: t('confirm.markVip'),
       variant:      'default',
     })
     if (!ok) return
@@ -493,25 +502,25 @@ export default function ClientesPage() {
       })
       const body = await res.json().catch(() => null) as { updated?: number; total?: number } | null
       if (!res.ok || !body) {
-        toast({ tone: 'error', message: 'Falha ao marcar VIP' })
+        toast({ tone: 'error', message: t('toast.vipFailed') })
         await load() // rollback do optimistic
       } else {
-        toast({ tone: 'success', message: `${body.updated ?? 0} cliente${body.updated === 1 ? '' : 's'} marcado${body.updated === 1 ? '' : 's'} como VIP` })
+        toast({ tone: 'success', message: t('toast.vipMarked', { count: body.updated ?? 0 }) })
         await load()
       }
     } catch {
-      toast({ tone: 'error', message: 'Erro de rede' })
+      toast({ tone: 'error', message: t('toast.networkError') })
       await load()
     }
-  }, [getHeaders, toast, load, confirm])
+  }, [getHeaders, toast, load, confirm, t])
 
   const blockBulk = useCallback((rows: Customer[]) => {
     if (!rows.length) return
     setConfirmModal({
       open:          true,
-      title:         'Bloquear clientes',
-      message:       `Bloquear ${rows.length} cliente${rows.length === 1 ? '' : 's'} selecionado${rows.length === 1 ? '' : 's'}? Eles não receberão comunicações automáticas.`,
-      confirmLabel:  'Bloquear',
+      title:         t('confirm.blockTitle'),
+      message:       t('confirm.blockMessage', { count: rows.length }),
+      confirmLabel:  t('confirm.block'),
       confirmColor:  '#ef4444',
       onConfirm: async () => {
         setConfirmModal(null)
@@ -527,27 +536,27 @@ export default function ClientesPage() {
           })
           const body = await res.json().catch(() => null) as { updated?: number } | null
           if (!res.ok || !body) {
-            toast({ tone: 'error', message: 'Falha ao bloquear' })
+            toast({ tone: 'error', message: t('toast.blockFailed') })
             await load()
           } else {
-            toast({ tone: 'success', message: `${body.updated ?? 0} cliente${body.updated === 1 ? '' : 's'} bloqueado${body.updated === 1 ? '' : 's'}` })
+            toast({ tone: 'success', message: t('toast.blocked', { count: body.updated ?? 0 }) })
             await load()
           }
         } catch {
-          toast({ tone: 'error', message: 'Erro de rede' })
+          toast({ tone: 'error', message: t('toast.networkError') })
           await load()
         }
       },
     })
-  }, [getHeaders, toast, load])
+  }, [getHeaders, toast, load, t])
 
   const mergeBulk = useCallback((rows: Customer[]) => {
     if (rows.length !== 2) {
-      toast({ tone: 'warn', message: 'Selecione exatamente 2 clientes para mesclar' })
+      toast({ tone: 'warn', message: t('toast.selectExactly2') })
       return
     }
     setMergeModal({ rows })
-  }, [toast])
+  }, [toast, t])
 
   const confirmMerge = useCallback(async (keepId: string, discardId: string) => {
     try {
@@ -556,13 +565,13 @@ export default function ClientesPage() {
         method: 'POST', headers,
         body: JSON.stringify({ keep_id: keepId, discard_id: discardId }),
       })
-      if (!res.ok) toast({ tone: 'error', message: 'Falha ao mesclar' })
-      else toast({ tone: 'success', message: 'Clientes mesclados' })
+      if (!res.ok) toast({ tone: 'error', message: t('toast.mergeFailed') })
+      else toast({ tone: 'success', message: t('toast.merged') })
       setSelected([])
       await load()
-    } catch { toast({ tone: 'error', message: 'Erro de rede' }) }
+    } catch { toast({ tone: 'error', message: t('toast.networkError') }) }
     finally { setMergeModal(null) }
-  }, [getHeaders, toast, load])
+  }, [getHeaders, toast, load, t])
 
   const exportBulk = useCallback(async (rows: Customer[]) => {
     if (!rows.length) return
@@ -570,7 +579,7 @@ export default function ClientesPage() {
       const headers = await getHeaders()
       const ids = rows.map(r => r.id).join(',')
       const res = await fetch(`${BACKEND}/customers/export?ids=${encodeURIComponent(ids)}`, { headers })
-      if (!res.ok) { toast({ tone: 'error', message: 'Falha ao exportar' }); return }
+      if (!res.ok) { toast({ tone: 'error', message: t('toast.exportFailed') }); return }
       const blob = await res.blob()
       const url  = URL.createObjectURL(blob)
       const a    = document.createElement('a')
@@ -578,14 +587,14 @@ export default function ClientesPage() {
       a.download = `clientes-${new Date().toISOString().slice(0, 10)}.csv`
       a.click()
       URL.revokeObjectURL(url)
-      toast({ tone: 'success', message: `${rows.length} cliente${rows.length === 1 ? '' : 's'} exportado${rows.length === 1 ? '' : 's'}` })
-    } catch { toast({ tone: 'error', message: 'Erro de rede' }) }
-  }, [getHeaders, toast])
+      toast({ tone: 'success', message: t('toast.exported', { count: rows.length }) })
+    } catch { toast({ tone: 'error', message: t('toast.networkError') }) }
+  }, [getHeaders, toast, t])
 
   // ── columns ────────────────────────────────────────────────────────────────
   const columns: Column<Customer>[] = useMemo(() => [
     {
-      key: 'name', label: 'Cliente',
+      key: 'name', label: t('columns.customer'),
       render: c => {
         const hasRealName = !isLikelyNickname(c.display_name)
         // Linha 1: nome real se houver, caso contrário @nickname (ou @display_name se for o nick).
@@ -595,12 +604,12 @@ export default function ClientesPage() {
             ? `@${c.ml_nickname}`
             : c.display_name
               ? `@${c.display_name}`
-              : '(sem nome)'
+              : t('noName')
         // Linha 2: @nickname · ML #buyer_id (· ⚠️ pendente quando faltam dados)
         const secondaryParts: React.ReactNode[] = []
         if (hasRealName && c.ml_nickname) secondaryParts.push(<span key="nick" className="font-mono">@{c.ml_nickname}</span>)
         if (c.ml_buyer_id)                secondaryParts.push(<span key="buy"  className="font-mono">ML #{c.ml_buyer_id}</span>)
-        if (!hasRealName)                 secondaryParts.push(<span key="warn" style={{ color: '#facc15' }}>⚠️ Aguardando enriquecimento</span>)
+        if (!hasRealName)                 secondaryParts.push(<span key="warn" style={{ color: '#facc15' }}>{t('awaitingEnrichment')}</span>)
 
         return (
           <div className="flex items-center gap-2.5">
@@ -622,13 +631,13 @@ export default function ClientesPage() {
         )
       },
     },
-    { key: 'cpf', label: 'CPF', width: '130px',
+    { key: 'cpf', label: t('columns.cpf'), width: '130px',
       render: c => (
         <span className="text-zinc-400 text-[11px]">
           <MaskedField type="cpf" value={c.cpf} customerId={c.id} copyable={!!c.cpf} hideToggle={!c.cpf} />
         </span>
       ) },
-    { key: 'contatos', label: 'Contatos', width: '200px',
+    { key: 'contatos', label: t('columns.contacts'), width: '200px',
       render: c => (
         <div className="flex items-center gap-1.5 flex-wrap">
           {c.phone && (
@@ -655,7 +664,7 @@ export default function ClientesPage() {
         </div>
       ),
     },
-    { key: 'cidade_uf', label: 'Cidade/UF', width: '100px', className: 'hidden lg:table-cell',
+    { key: 'cidade_uf', label: t('columns.cityState'), width: '100px', className: 'hidden lg:table-cell',
       render: c => {
         if (!c.city && !c.state) return <span className="text-zinc-700 text-[11px]">—</span>
         const uf = (c.state ?? '').slice(0, 2).toUpperCase()
@@ -669,96 +678,98 @@ export default function ClientesPage() {
         )
       },
     },
-    { key: 'status', label: 'Status', width: '100px',
+    { key: 'status', label: t('columns.status'), width: '100px',
       render: c => {
-        const m = STATUS_META[c.enrichment_status ?? 'pending'] ?? STATUS_META.pending
+        const key = c.enrichment_status ?? 'pending'
+        const m = STATUS_META[key] ?? STATUS_META.pending
+        const statusKey = STATUS_META[key] ? key : 'pending'
         return (
           <span className="text-[10px] font-semibold inline-flex items-center gap-1 px-2 py-0.5 rounded"
             style={{ color: m.color, background: m.bg }}>
-            {m.icon} {m.label}
+            {m.icon} {t(`statusLabels.${statusKey}`)}
           </span>
         )
       },
     },
-    { key: 'compras', label: 'Compras', align: 'right', width: '100px', className: 'hidden xl:table-cell',
+    { key: 'compras', label: t('columns.purchases'), align: 'right', width: '100px', className: 'hidden xl:table-cell',
       render: c => (
         <div className="text-right">
           <p className="text-zinc-100 text-xs font-semibold tabular-nums">{brl(Number(c.total_purchases ?? 0))}</p>
-          <p className="text-[10px] text-zinc-600">{c.total_conversations} conv.</p>
+          <p className="text-[10px] text-zinc-600">{t('conversations', { count: c.total_conversations })}</p>
         </div>
       ),
     },
-    { key: 'last_contact_at', label: 'Última', align: 'right', sortable: true, width: '90px', className: 'hidden 2xl:table-cell',
-      render: c => <span className="text-[11px] text-zinc-500">{relTime(c.last_contact_at)}</span> },
-  ], [])
+    { key: 'last_contact_at', label: t('columns.last'), align: 'right', sortable: true, width: '90px', className: 'hidden 2xl:table-cell',
+      render: c => <span className="text-[11px] text-zinc-500">{relTime(c.last_contact_at, t)}</span> },
+  ], [t])
 
   // ── row actions ────────────────────────────────────────────────────────────
   const rowActions = useCallback((c: Customer): RowAction<Customer>[] => {
     const isVip     = (c.tags ?? []).includes('vip')
     const isBlocked = (c.tags ?? []).includes('blocked')
     return [
-      { key: 'enrich',   label: 'Enriquecer dados',   icon: <Sparkles size={12} />,    onClick: () => enrichOne(c) },
-      { key: 'wa',       label: 'Disparar WhatsApp',  icon: <Send size={12} />,        onClick: () => todoToast('Disparo WhatsApp') },
-      { key: 'posvenda', label: 'Adicionar a campanha pós-venda', icon: <Megaphone size={12} />, onClick: () => todoToast('Campanha pós-venda') },
-      { key: 'qr',       label: 'Gerar QR Lead Bridge', icon: <QrCode size={12} />,    onClick: () => todoToast('QR Lead Bridge para cliente') },
-      { key: 'segmento', label: 'Criar segmento',     icon: <Tag size={12} />,         onClick: () => todoToast('Segmentação') },
-      { key: 'vip',      label: isVip ? 'Remover VIP' : 'Marcar como VIP', icon: <Crown size={12} />, tone: isVip ? 'warn' : 'success', onClick: () => toggleTag(c, 'vip') },
-      { key: 'block',    label: isBlocked ? 'Desbloquear' : 'Bloquear', icon: <Ban size={12} />, tone: isBlocked ? 'success' : 'warn', onClick: () => toggleTag(c, 'blocked') },
-      { key: 'merge',    label: 'Mesclar duplicado',  icon: <GitMerge size={12} />,    onClick: () => todoToast('Detecção de duplicados') },
-      { key: 'view',     label: 'Ver detalhes',       icon: <Eye size={12} />,         onClick: () => router.push(`/dashboard/crm/clientes/${c.id}`) },
-      { key: 'delete',   label: 'Excluir',            icon: <Trash2 size={12} />,      tone: 'danger',  onClick: () => removeOne(c) },
+      { key: 'enrich',   label: t('rowActions.enrich'),   icon: <Sparkles size={12} />,    onClick: () => enrichOne(c) },
+      { key: 'wa',       label: t('rowActions.whatsapp'),  icon: <Send size={12} />,       onClick: () => todoToast(t('todo.whatsappSend')) },
+      { key: 'posvenda', label: t('rowActions.posVenda'), icon: <Megaphone size={12} />,   onClick: () => todoToast(t('todo.posVendaCampaign')) },
+      { key: 'qr',       label: t('rowActions.qr'),        icon: <QrCode size={12} />,     onClick: () => todoToast(t('todo.qrLeadBridge')) },
+      { key: 'segmento', label: t('rowActions.segment'),  icon: <Tag size={12} />,         onClick: () => todoToast(t('todo.segmentation')) },
+      { key: 'vip',      label: isVip ? t('rowActions.removeVip') : t('rowActions.markVip'), icon: <Crown size={12} />, tone: isVip ? 'warn' : 'success', onClick: () => toggleTag(c, 'vip') },
+      { key: 'block',    label: isBlocked ? t('rowActions.unblock') : t('rowActions.block'), icon: <Ban size={12} />, tone: isBlocked ? 'success' : 'warn', onClick: () => toggleTag(c, 'blocked') },
+      { key: 'merge',    label: t('rowActions.merge'),    icon: <GitMerge size={12} />,    onClick: () => todoToast(t('todo.duplicateDetection')) },
+      { key: 'view',     label: t('rowActions.view'),     icon: <Eye size={12} />,         onClick: () => router.push(`/dashboard/crm/clientes/${c.id}`) },
+      { key: 'delete',   label: t('rowActions.delete'),   icon: <Trash2 size={12} />,      tone: 'danger',  onClick: () => removeOne(c) },
     ]
-  }, [enrichOne, toggleTag, removeOne, router])
+  }, [enrichOne, toggleTag, removeOne, router, t])
 
   // ── bulk actions ───────────────────────────────────────────────────────────
   const bulkActions: BulkAction<Customer>[] = useMemo(() => [
-    { key: 'enrich-bulk', label: 'Enriquecer',   icon: <Sparkles size={11} />, onClick: rows => enrichBulk(rows) },
-    { key: 'wa-bulk',     label: 'WhatsApp',     icon: <Send size={11} />,     onClick: rows => setWaModal({ rows }) },
-    { key: 'pv-bulk',     label: 'Pós-venda',    icon: <Megaphone size={11} />, onClick: rows => pvBulk(rows) },
-    { key: 'seg-bulk',    label: 'Segmento',     icon: <Tag size={11} />,      onClick: rows => openSegModal(rows) },
-    { key: 'vip-bulk',    label: 'VIP',          icon: <Crown size={11} />,    onClick: rows => vipBulk(rows) },
-    { key: 'block-bulk',  label: 'Bloquear',     icon: <Ban size={11} />,      tone: 'warn',   onClick: rows => blockBulk(rows) },
-    { key: 'merge-bulk',  label: 'Mesclar',      icon: <GitMerge size={11} />, onClick: rows => mergeBulk(rows) },
-    { key: 'export',      label: 'Exportar CSV', icon: <Map size={11} />,      onClick: rows => exportBulk(rows) },
-  ], [enrichBulk, pvBulk, openSegModal, vipBulk, blockBulk, mergeBulk, exportBulk])
+    { key: 'enrich-bulk', label: t('bulkActions.enrich'),   icon: <Sparkles size={11} />, onClick: rows => enrichBulk(rows) },
+    { key: 'wa-bulk',     label: t('bulkActions.whatsapp'), icon: <Send size={11} />,     onClick: rows => setWaModal({ rows }) },
+    { key: 'pv-bulk',     label: t('bulkActions.posVenda'), icon: <Megaphone size={11} />, onClick: rows => pvBulk(rows) },
+    { key: 'seg-bulk',    label: t('bulkActions.segment'),  icon: <Tag size={11} />,      onClick: rows => openSegModal(rows) },
+    { key: 'vip-bulk',    label: t('bulkActions.vip'),      icon: <Crown size={11} />,    onClick: rows => vipBulk(rows) },
+    { key: 'block-bulk',  label: t('bulkActions.block'),    icon: <Ban size={11} />,      tone: 'warn',   onClick: rows => blockBulk(rows) },
+    { key: 'merge-bulk',  label: t('bulkActions.merge'),    icon: <GitMerge size={11} />, onClick: rows => mergeBulk(rows) },
+    { key: 'export',      label: t('bulkActions.exportCsv'), icon: <Map size={11} />,     onClick: rows => exportBulk(rows) },
+  ], [enrichBulk, pvBulk, openSegModal, vipBulk, blockBulk, mergeBulk, exportBulk, t])
 
   // ── right panel ────────────────────────────────────────────────────────────
   const rightPanelSections: PanelSection[] = useMemo(() => {
     const ltvAvg = totals.ltv_avg ?? (totals.total ? totals.revenue / totals.total : 0)
     const gmvTotal = totals.gmv_total
     return [
-      { title: 'Ferramentas', items: [
-        { label: 'Buscar CPFs no ML', icon: <ScanLine size={12} />, badge: mlPending ?? undefined,
+      { title: t('panel.tools'), items: [
+        { label: t('panel.fetchCpfMl'), icon: <ScanLine size={12} />, badge: mlPending ?? undefined,
           tone: 'accent', disabled: !mlPending,
           loading: busy === 'ml',
           onClick: fetchMlBilling },
-        { label: 'Enriquecer pendentes', icon: <Sparkles size={12} />, badge: totals.pending || undefined,
+        { label: t('panel.enrichPending'), icon: <Sparkles size={12} />, badge: totals.pending || undefined,
           tone: 'accent', disabled: !totals.pending,
           loading: busy === 'enrich',
           onClick: enrichBatch },
-        { label: 'Resetar pedidos sem CPF',
+        { label: t('panel.resetNoCpf'),
           icon: <RotateCcw size={12} />,
-          badge: orphans ? `${orphans} órfão${orphans === 1 ? '' : 's'}` : undefined,
+          badge: orphans ? t('panel.orphansBadge', { count: orphans }) : undefined,
           tone: 'warn',
           disabled: !orphans,
           loading: resetting,
           onClick: resetOrphans },
-        { label: 'Detectar duplicados', icon: <GitMerge size={12} />, onClick: () => todoToast('Detecção de duplicados') },
-        { label: 'Exportar lista atual', icon: <Map size={12} />, onClick: () => exportCsv(list) },
+        { label: t('panel.detectDuplicates'), icon: <GitMerge size={12} />, onClick: () => todoToast(t('todo.duplicateDetection')) },
+        { label: t('panel.exportCurrent'), icon: <Map size={12} />, onClick: () => exportCsv(list) },
       ]},
-      { title: 'Informações', items: [
-        { label: 'Total',       value: totals.total.toLocaleString('pt-BR') },
-        { label: 'Com CPF',     value: totals.with_cpf.toLocaleString('pt-BR') },
-        { label: 'WhatsApp',    value: totals.with_wa.toLocaleString('pt-BR') },
-        { label: 'Email',       value: totals.with_mail.toLocaleString('pt-BR') },
-        { label: 'VIP',         value: totals.vip.toLocaleString('pt-BR'), tone: 'warn' },
-        { label: 'Bloqueados',  value: totals.blocked.toLocaleString('pt-BR'), tone: 'danger' },
-        ...(gmvTotal != null ? [{ label: 'GMV total',  value: brl(gmvTotal),       tone: 'success' as const }] : []),
-        { label: 'GMV pág.',   value: brl(totals.revenue) },
-        { label: 'LTV médio',   value: brl(ltvAvg) },
+      { title: t('panel.info'), items: [
+        { label: t('panel.total'),      value: totals.total.toLocaleString('pt-BR') },
+        { label: t('panel.withCpf'),    value: totals.with_cpf.toLocaleString('pt-BR') },
+        { label: t('panel.whatsapp'),   value: totals.with_wa.toLocaleString('pt-BR') },
+        { label: t('panel.email'),      value: totals.with_mail.toLocaleString('pt-BR') },
+        { label: t('panel.vip'),        value: totals.vip.toLocaleString('pt-BR'), tone: 'warn' },
+        { label: t('panel.blocked'),    value: totals.blocked.toLocaleString('pt-BR'), tone: 'danger' },
+        ...(gmvTotal != null ? [{ label: t('panel.gmvTotal'), value: brl(gmvTotal), tone: 'success' as const }] : []),
+        { label: t('panel.gmvPage'),    value: brl(totals.revenue) },
+        { label: t('panel.avgLtv'),     value: brl(ltvAvg) },
       ]},
     ]
-  }, [totals, mlPending, orphans, busy, resetting, fetchMlBilling, enrichBatch, resetOrphans, exportCsv, list])
+  }, [totals, mlPending, orphans, busy, resetting, fetchMlBilling, enrichBatch, resetOrphans, exportCsv, list, t])
 
   // ── render ────────────────────────────────────────────────────────────────
   return (
@@ -768,33 +779,33 @@ export default function ClientesPage() {
       {/* KPI strip — kept above DataTable for at-a-glance glance */}
       <div className="px-6 pt-6">
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-          <Kpi label="Total"     value={totals.total.toLocaleString('pt-BR')}      color="#00E5FF" />
-          <Kpi label="Com CPF"   value={totals.with_cpf.toLocaleString('pt-BR')}   color="#a78bfa" />
-          <Kpi label="WhatsApp"  value={totals.with_wa.toLocaleString('pt-BR')}    color="#25D366" />
-          <Kpi label="Email"     value={totals.with_mail.toLocaleString('pt-BR')}  color="#60a5fa" />
-          <Kpi label="GMV pág."  value={brl(totals.revenue)}                       color="#4ade80" />
+          <Kpi label={t('kpi.total')}    value={totals.total.toLocaleString('pt-BR')}      color="#00E5FF" />
+          <Kpi label={t('kpi.withCpf')}  value={totals.with_cpf.toLocaleString('pt-BR')}   color="#a78bfa" />
+          <Kpi label={t('kpi.whatsapp')} value={totals.with_wa.toLocaleString('pt-BR')}    color="#25D366" />
+          <Kpi label={t('kpi.email')}    value={totals.with_mail.toLocaleString('pt-BR')}  color="#60a5fa" />
+          <Kpi label={t('kpi.gmvPage')}  value={brl(totals.revenue)}                       color="#4ade80" />
         </div>
       </div>
 
       <DataTable<Customer>
-        title="Clientes"
-        breadcrumb={['CRM']}
+        title={t('title')}
+        breadcrumb={[t('breadcrumb')]}
         quickFilter={{
-          label: 'Filtro', value: qf,
+          label: t('filterLabel'), value: qf,
           options: [
-            { value: 'all',      label: 'Todos' },
-            { value: 'with_cpf', label: 'Com CPF' },
-            { value: 'with_wa',  label: 'Com WhatsApp' },
-            { value: 'vip',      label: 'VIP' },
-            { value: 'pending',  label: 'Pendentes' },
-            { value: 'blocked',  label: 'Bloqueados' },
+            { value: 'all',      label: t('filters.all') },
+            { value: 'with_cpf', label: t('filters.withCpf') },
+            { value: 'with_wa',  label: t('filters.withWa') },
+            { value: 'vip',      label: t('filters.vip') },
+            { value: 'pending',  label: t('filters.pending') },
+            { value: 'blocked',  label: t('filters.blocked') },
           ],
           onChange: v => { setQf(v as QF); setPage(1); setSelected([]) },
         }}
-        onIncluir={() => todoToast('Cadastro manual de cliente')}
-        incluirLabel="Incluir cliente"
+        onIncluir={() => todoToast(t('todo.manualCustomer'))}
+        incluirLabel={t('addCustomer')}
 
-        search={{ value: searchStr, placeholder: 'Buscar por nome, telefone, email ou CPF…',
+        search={{ value: searchStr, placeholder: t('searchPlaceholder'),
           onChange: v => { setSearchStr(v); setPage(1) } }}
 
         columns={columns}
@@ -813,11 +824,11 @@ export default function ClientesPage() {
         bulkActions={bulkActions}
         rowActions={rowActions}
 
-        rightPanel={{ title: 'Painel', sections: rightPanelSections }}
+        rightPanel={{ title: t('panelTitle'), sections: rightPanelSections }}
 
         emptyState={{
-          icon: <Search size={20} />, title: 'Nenhum cliente encontrado',
-          description: 'Tente limpar os filtros ou aguardar a próxima sincronização de pedidos.',
+          icon: <Search size={20} />, title: t('emptyTitle'),
+          description: t('emptyDescription'),
         }}
       />
 
@@ -844,9 +855,9 @@ export default function ClientesPage() {
             // FK em 5 tabelas, mas mesmo assim a UI não tem "desmesclar".
             setConfirmModal({
               open:         true,
-              title:        'Confirmar mesclagem',
-              message:      `Tem certeza? Os dados de "${discardRow?.display_name ?? 'cliente descartado'}" serão mesclados em "${keepRow?.display_name ?? 'cliente mantido'}" permanentemente. Esta ação não pode ser desfeita.`,
-              confirmLabel: 'Sim, mesclar',
+              title:        t('confirm.mergeTitle'),
+              message:      t('confirm.mergeMessage', { discard: discardRow?.display_name ?? t('discardedCustomer'), keep: keepRow?.display_name ?? t('keptCustomer') }),
+              confirmLabel: t('confirm.mergeConfirm'),
               confirmColor: '#ef4444',
               onConfirm: () => {
                 setConfirmModal(null)
@@ -902,7 +913,7 @@ function ModalShell({ title, onClose, children, maxWidth = 480 }: {
   )
 }
 
-function ConfirmModal({ open, title, message, onConfirm, onCancel, confirmLabel = 'Confirmar', confirmColor = '#ef4444' }: {
+function ConfirmModal({ open, title, message, onConfirm, onCancel, confirmLabel, confirmColor = '#ef4444' }: {
   open:          boolean
   title:         string
   message:       string
@@ -911,6 +922,7 @@ function ConfirmModal({ open, title, message, onConfirm, onCancel, confirmLabel 
   confirmLabel?: string
   confirmColor?: string
 }) {
+  const t = useTranslations('crm.clientes')
   if (!open) return null
   return (
     <ModalShell title={title} onClose={onCancel} maxWidth={420}>
@@ -918,12 +930,12 @@ function ConfirmModal({ open, title, message, onConfirm, onCancel, confirmLabel 
       <div className="flex items-center justify-end gap-2 mt-4">
         <button onClick={onCancel}
           className="px-3 py-1.5 rounded-lg text-[12px] border border-zinc-800 text-zinc-300 hover:bg-zinc-900/50">
-          Cancelar
+          {t('cancel')}
         </button>
         <button onClick={onConfirm}
           className="px-3 py-1.5 rounded-lg text-[12px] font-semibold"
           style={{ background: `${confirmColor}1a`, color: confirmColor, border: `1px solid ${confirmColor}4d` }}>
-          {confirmLabel}
+          {confirmLabel ?? t('confirm.confirm')}
         </button>
       </div>
     </ModalShell>
@@ -933,23 +945,24 @@ function ConfirmModal({ open, title, message, onConfirm, onCancel, confirmLabel 
 function WaSendModal({ rows, onClose, onSend }: {
   rows: Customer[]; onClose: () => void; onSend: (msg: string) => void
 }) {
+  const t = useTranslations('crm.clientes')
   const [msg, setMsg] = useState('')
   const ready = msg.trim().length > 0
   return (
-    <ModalShell title={`Disparar WhatsApp para ${rows.length} contato${rows.length === 1 ? '' : 's'}`} onClose={onClose} maxWidth={520}>
+    <ModalShell title={t('waModal.title', { count: rows.length })} onClose={onClose} maxWidth={520}>
       <p className="text-[11px] text-zinc-500 mb-2">
-        Mensagem livre (sem template). Use {'{{first_name}}'} se quiser personalizar.
+        {t('waModal.hintBefore')} {'{{first_name}}'} {t('waModal.hintAfter')}
       </p>
       <textarea value={msg} onChange={e => setMsg(e.target.value)}
-        rows={6} placeholder="Olá {{first_name}}, ..."
+        rows={6} placeholder={t('waModal.placeholder')}
         className="w-full p-3 text-[12px] rounded-lg bg-[#070709] border border-[#27272a] text-zinc-200 outline-none focus:border-[#00E5FF] resize-none" />
       <div className="flex items-center justify-end gap-2 mt-3">
         <button onClick={onClose}
-          className="px-3 py-1.5 rounded-lg text-[12px] border border-zinc-800 text-zinc-300 hover:bg-zinc-900/50">Cancelar</button>
+          className="px-3 py-1.5 rounded-lg text-[12px] border border-zinc-800 text-zinc-300 hover:bg-zinc-900/50">{t('cancel')}</button>
         <button onClick={() => onSend(msg)} disabled={!ready}
           className="px-3 py-1.5 rounded-lg text-[12px] font-semibold disabled:opacity-40"
           style={{ background: 'rgba(37,211,102,0.10)', color: '#25D366', border: '1px solid rgba(37,211,102,0.30)' }}>
-          Enviar para {rows.length} contato{rows.length === 1 ? '' : 's'}
+          {t('waModal.send', { count: rows.length })}
         </button>
       </div>
     </ModalShell>
@@ -962,17 +975,18 @@ function SegmentSelectModal({ rows, segments, onClose, onPick }: {
   onClose: () => void
   onPick: (segmentId: string) => void
 }) {
+  const t = useTranslations('crm.clientes')
   const [picked, setPicked] = useState<string>('')
   return (
-    <ModalShell title={`Adicionar ${rows.length} cliente${rows.length === 1 ? '' : 's'} a um segmento`} onClose={onClose}>
+    <ModalShell title={t('segModal.title', { count: rows.length })} onClose={onClose}>
       {segments.length === 0 ? (
         <p className="text-[12px] text-zinc-400">
-          Nenhum segmento encontrado. Crie um em <span className="text-zinc-200">CRM &gt; Segmentos</span> primeiro.
+          {t.rich('segModal.noSegments', { path: (chunks) => <span className="text-zinc-200">{chunks}</span> })}
         </p>
       ) : (
         <select value={picked} onChange={e => setPicked(e.target.value)}
           className="w-full px-3 py-2 text-[12px] rounded-lg bg-[#070709] border border-[#27272a] text-zinc-200 outline-none focus:border-[#00E5FF]">
-          <option value="">Selecione um segmento…</option>
+          <option value="">{t('segModal.selectPlaceholder')}</option>
           {segments.map(s => (
             <option key={s.id} value={s.id}>
               {s.name}{typeof s.customer_count === 'number' ? ` (${s.customer_count})` : ''}
@@ -982,11 +996,11 @@ function SegmentSelectModal({ rows, segments, onClose, onPick }: {
       )}
       <div className="flex items-center justify-end gap-2 mt-3">
         <button onClick={onClose}
-          className="px-3 py-1.5 rounded-lg text-[12px] border border-zinc-800 text-zinc-300 hover:bg-zinc-900/50">Cancelar</button>
+          className="px-3 py-1.5 rounded-lg text-[12px] border border-zinc-800 text-zinc-300 hover:bg-zinc-900/50">{t('cancel')}</button>
         <button onClick={() => picked && onPick(picked)} disabled={!picked}
           className="px-3 py-1.5 rounded-lg text-[12px] font-semibold disabled:opacity-40"
           style={{ background: 'rgba(0,229,255,0.08)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.30)' }}>
-          Adicionar ao segmento
+          {t('segModal.add')}
         </button>
       </div>
     </ModalShell>
@@ -996,12 +1010,13 @@ function SegmentSelectModal({ rows, segments, onClose, onPick }: {
 function MergeModal({ rows, onClose, onConfirm }: {
   rows: [Customer, Customer]; onClose: () => void; onConfirm: (keepId: string, discardId: string) => void
 }) {
+  const t = useTranslations('crm.clientes')
   const [keep, setKeep] = useState<string>(rows[0].id)
   const discard = rows.find(r => r.id !== keep)?.id ?? rows[1].id
   return (
-    <ModalShell title="Mesclar 2 clientes" onClose={onClose} maxWidth={680}>
+    <ModalShell title={t('mergeModal.title')} onClose={onClose} maxWidth={680}>
       <p className="text-[11px] text-zinc-500 mb-3">
-        Escolha qual cliente manter. O outro será apagado e seus dados/conversas migrados.
+        {t('mergeModal.hint')}
       </p>
       <div className="grid grid-cols-2 gap-3">
         {rows.map(c => {
@@ -1014,24 +1029,24 @@ function MergeModal({ rows, onClose, onConfirm }: {
                 border: `1px solid ${isKeep ? 'rgba(74,222,128,0.40)' : '#27272a'}`,
               }}>
               <div className="flex items-center justify-between gap-2 mb-1">
-                <span className="text-zinc-100 text-[12px] font-semibold truncate">{c.display_name ?? '(sem nome)'}</span>
-                {isKeep && <span className="text-[10px] font-bold text-green-400">MANTER</span>}
+                <span className="text-zinc-100 text-[12px] font-semibold truncate">{c.display_name ?? t('noName')}</span>
+                {isKeep && <span className="text-[10px] font-bold text-green-400">{t('mergeModal.keepBadge')}</span>}
               </div>
-              <p className="text-[10px] text-zinc-500 truncate">CPF: {c.cpf ?? '—'}</p>
-              <p className="text-[10px] text-zinc-500 truncate">Tel: {c.phone ?? '—'}</p>
-              <p className="text-[10px] text-zinc-500 truncate">Email: {c.email ?? '—'}</p>
-              <p className="text-[10px] text-zinc-500 truncate">{c.total_purchases ?? 0} compra{c.total_purchases === 1 ? '' : 's'}</p>
+              <p className="text-[10px] text-zinc-500 truncate">{t('mergeModal.cpf')} {c.cpf ?? '—'}</p>
+              <p className="text-[10px] text-zinc-500 truncate">{t('mergeModal.phone')} {c.phone ?? '—'}</p>
+              <p className="text-[10px] text-zinc-500 truncate">{t('mergeModal.email')} {c.email ?? '—'}</p>
+              <p className="text-[10px] text-zinc-500 truncate">{t('mergeModal.purchaseCount', { count: c.total_purchases ?? 0 })}</p>
             </button>
           )
         })}
       </div>
       <div className="flex items-center justify-end gap-2 mt-4">
         <button onClick={onClose}
-          className="px-3 py-1.5 rounded-lg text-[12px] border border-zinc-800 text-zinc-300 hover:bg-zinc-900/50">Cancelar</button>
+          className="px-3 py-1.5 rounded-lg text-[12px] border border-zinc-800 text-zinc-300 hover:bg-zinc-900/50">{t('cancel')}</button>
         <button onClick={() => onConfirm(keep, discard)}
           className="px-3 py-1.5 rounded-lg text-[12px] font-semibold"
           style={{ background: 'rgba(0,229,255,0.08)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.30)' }}>
-          Mesclar
+          {t('mergeModal.merge')}
         </button>
       </div>
     </ModalShell>

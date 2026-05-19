@@ -1,13 +1,22 @@
 'use client'
 
 import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import { useRouter } from 'next/navigation'
 import { ScatterChart, Scatter, XAxis, YAxis, ZAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import { api } from './api'
 import {
-  RfmDistribution, TopCustomer, SEGMENT_AUTO_LABELS,
+  RfmDistribution, TopCustomer,
   fmtCurrency, fmtNumber,
 } from './types'
+
+type TFn = (key: string, values?: Record<string, string | number>) => string
+
+/** Label de segmento automático: usa t() se a chave existe, senão o raw. */
+function segLabel(t: TFn, seg: string): string {
+  const known = ['campeoes', 'leais', 'promissores', 'novos', 'em_risco', 'perdidos', 'ocasionais']
+  return known.includes(seg) ? t(`segmentLabels.${seg}`) : seg
+}
 
 const SEGMENTS_ORDER = ['campeoes','leais','promissores','novos','em_risco','perdidos','ocasionais']
 
@@ -18,6 +27,7 @@ function scoreColor(s: number): string {
 }
 
 export function RfmTab({ onToast }: { onToast: (m: string, type?: 'success' | 'error') => void }) {
+  const t = useTranslations('crm.customerHub.rfm')
   const router = useRouter()
   const [data, setData]               = useState<RfmDistribution | null>(null)
   const [topCustomers, setTopCustomers] = useState<TopCustomer[]>([])
@@ -64,53 +74,53 @@ export function RfmTab({ onToast }: { onToast: (m: string, type?: 'success' | 'e
   }
 
   if (loading) return <div className="h-64 rounded-2xl animate-pulse" style={{ background: '#111114' }} />
-  if (!data) return <div className="text-zinc-500 text-sm">Sem dados RFM. Rode "Recalcular métricas" na Visão Geral.</div>
+  if (!data) return <div className="text-zinc-500 text-sm">{t('noData')}</div>
 
   return (
     <>
-      <p className="text-zinc-400 text-sm mb-5">Recência × Frequência × Monetário. Score 0-10 ponderado (R30/F30/M40).</p>
+      <p className="text-zinc-400 text-sm mb-5">{t('intro')}</p>
 
       {/* RFM explicação */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-5">
         <RfmCard
           letter="R"
-          name="Recência"
+          name={t('rCard.name')}
           color="#00E5FF"
-          desc="Quantos dias se passaram desde a última compra. Menor = melhor (cliente engajado)."
+          desc={t('rCard.desc')}
         />
         <RfmCard
           letter="F"
-          name="Frequência"
+          name={t('fCard.name')}
           color="#34d399"
-          desc="Quantas compras o cliente fez. Mais compras = melhor (cliente recorrente)."
+          desc={t('fCard.desc')}
         />
         <RfmCard
           letter="M"
-          name="Monetário"
+          name={t('mCard.name')}
           color="#fbbf24"
-          desc="Total já gasto. Maior = melhor (cliente de alto valor)."
+          desc={t('mCard.desc')}
         />
       </div>
 
       {/* ScatterChart */}
       <div className="rounded-2xl p-5 mb-5" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
-        <p className="text-zinc-300 text-sm font-semibold mb-1">Mapa RFM</p>
-        <p className="text-zinc-500 text-[11px] mb-3">X = Frequência · Y = Recência (menor no topo) · tamanho = Monetário · cor = score (verde 7-10, amarelo 4-7, vermelho 0-4)</p>
+        <p className="text-zinc-300 text-sm font-semibold mb-1">{t('mapTitle')}</p>
+        <p className="text-zinc-500 text-[11px] mb-3">{t('mapDesc')}</p>
         <div style={{ width: '100%', height: 320 }}>
           <ResponsiveContainer>
             <ScatterChart margin={{ top: 10, right: 20, bottom: 10, left: 0 }}>
               <CartesianGrid stroke="#1e1e24" strokeDasharray="3 3" />
-              <XAxis type="number" dataKey="frequency" name="Freq." stroke="#52525b" fontSize={11} />
-              <YAxis type="number" dataKey="recency"   name="Recência (d)" stroke="#52525b" fontSize={11} reversed />
-              <ZAxis type="number" dataKey="monetary"  range={[20, 400]} name="Monetário" />
+              <XAxis type="number" dataKey="frequency" name={t('axisFreq')} stroke="#52525b" fontSize={11} />
+              <YAxis type="number" dataKey="recency"   name={t('axisRecency')} stroke="#52525b" fontSize={11} reversed />
+              <ZAxis type="number" dataKey="monetary"  range={[20, 400]} name={t('axisMonetary')} />
               <Tooltip
                 cursor={{ strokeDasharray: '3 3' }}
                 contentStyle={{ background: '#0a0a0e', border: '1px solid #27272a', borderRadius: 8, fontSize: 12 }}
                 labelStyle={{ color: '#a1a1aa' }}
                 formatter={(v, name) => {
                   const num = Number(v ?? 0)
-                  if (name === 'Monetário')     return fmtCurrency(num)
-                  if (name === 'Recência (d)')  return `${num} dias`
+                  if (name === t('axisMonetary'))  return fmtCurrency(num)
+                  if (name === t('axisRecency'))   return t('daysValue', { n: num })
                   return num
                 }}
               />
@@ -132,18 +142,18 @@ export function RfmTab({ onToast }: { onToast: (m: string, type?: 'success' | 'e
       {/* Tabela de segmentos automáticos */}
       <div className="rounded-2xl overflow-hidden mb-5" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
         <div className="px-5 py-3 flex items-center justify-between" style={{ borderBottom: '1px solid #1e1e24' }}>
-          <p className="text-zinc-300 text-sm font-semibold">Segmentos automáticos</p>
+          <p className="text-zinc-300 text-sm font-semibold">{t('autoSegments')}</p>
           {segmentFilter && (
-            <button onClick={() => setSegmentFilter(null)} className="text-xs text-zinc-400 hover:text-white">Limpar filtro ✕</button>
+            <button onClick={() => setSegmentFilter(null)} className="text-xs text-zinc-400 hover:text-white">{t('clearFilter')}</button>
           )}
         </div>
         <table className="w-full text-sm">
           <thead style={{ background: '#0a0a0e' }}>
             <tr className="text-zinc-500 text-[11px] uppercase tracking-wider">
-              <th className="text-left  px-4 py-2.5">Segmento</th>
-              <th className="text-right px-4 py-2.5">Clientes</th>
-              <th className="text-right px-4 py-2.5">% do total</th>
-              <th className="text-right px-4 py-2.5">Ação</th>
+              <th className="text-left  px-4 py-2.5">{t('colSegment')}</th>
+              <th className="text-right px-4 py-2.5">{t('colCustomers')}</th>
+              <th className="text-right px-4 py-2.5">{t('colPctTotal')}</th>
+              <th className="text-right px-4 py-2.5">{t('colAction')}</th>
             </tr>
           </thead>
           <tbody>
@@ -161,14 +171,14 @@ export function RfmTab({ onToast }: { onToast: (m: string, type?: 'success' | 'e
                       borderColor: '#1e1e24',
                       background: seg === segmentFilter ? 'rgba(0,229,255,0.05)' : undefined,
                     }}>
-                    <td className="px-4 py-2.5 text-white">{SEGMENT_AUTO_LABELS[seg] ?? seg}</td>
+                    <td className="px-4 py-2.5 text-white">{segLabel(t, seg)}</td>
                     <td className="px-4 py-2.5 text-right text-zinc-300">{fmtNumber(cnt)}</td>
                     <td className="px-4 py-2.5 text-right text-zinc-400">{(pct * 100).toFixed(1)}%</td>
                     <td className="px-4 py-2.5 text-right">
                       <button
                         onClick={(e) => { e.stopPropagation(); goToCampaign(seg) }}
                         className="text-xs text-cyan-400 hover:text-cyan-300"
-                      >Criar campanha →</button>
+                      >{t('createCampaign')}</button>
                     </td>
                   </tr>
                 )
@@ -181,18 +191,18 @@ export function RfmTab({ onToast }: { onToast: (m: string, type?: 'success' | 'e
       <div className="rounded-2xl overflow-hidden" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
         <div className="px-5 py-3" style={{ borderBottom: '1px solid #1e1e24' }}>
           <p className="text-zinc-300 text-sm font-semibold">
-            {segmentFilter ? `Clientes em "${SEGMENT_AUTO_LABELS[segmentFilter] ?? segmentFilter}"` : 'Top clientes por score RFM'}
+            {segmentFilter ? t('customersInSegment', { segment: segLabel(t, segmentFilter) }) : t('topByScore')}
           </p>
         </div>
         <table className="w-full text-sm">
           <thead style={{ background: '#0a0a0e' }}>
             <tr className="text-zinc-500 text-[11px] uppercase tracking-wider">
-              <th className="text-left  px-4 py-2.5">Cliente</th>
-              <th className="text-right px-4 py-2.5">Score RFM</th>
-              <th className="text-right px-4 py-2.5">Recência</th>
-              <th className="text-right px-4 py-2.5">Freq.</th>
-              <th className="text-right px-4 py-2.5">Monetário</th>
-              <th className="text-left  px-4 py-2.5">Segmento</th>
+              <th className="text-left  px-4 py-2.5">{t('colCustomer')}</th>
+              <th className="text-right px-4 py-2.5">{t('colRfmScore')}</th>
+              <th className="text-right px-4 py-2.5">{t('colRecency')}</th>
+              <th className="text-right px-4 py-2.5">{t('colFreq')}</th>
+              <th className="text-right px-4 py-2.5">{t('colMonetary')}</th>
+              <th className="text-left  px-4 py-2.5">{t('colSegment')}</th>
             </tr>
           </thead>
           <tbody>
@@ -205,7 +215,7 @@ export function RfmTab({ onToast }: { onToast: (m: string, type?: 'success' | 'e
                 <td className="px-4 py-2.5 text-right text-zinc-400">{c.rfm_recency_days != null ? `${c.rfm_recency_days}d` : '—'}</td>
                 <td className="px-4 py-2.5 text-right text-zinc-300">{c.rfm_frequency ?? '—'}</td>
                 <td className="px-4 py-2.5 text-right text-zinc-300">{fmtCurrency(c.rfm_monetary)}</td>
-                <td className="px-4 py-2.5 text-zinc-400">{c.segment ? (SEGMENT_AUTO_LABELS[c.segment] ?? c.segment) : '—'}</td>
+                <td className="px-4 py-2.5 text-zinc-400">{c.segment ? segLabel(t, c.segment) : '—'}</td>
               </tr>
             ))}
           </tbody>

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import { UserCog, Crown, User, Copy, Check, Mail, Shield, Trash2, Plus, RefreshCw } from 'lucide-react'
 import { useConfirm } from '@/components/ui/dialog-provider'
@@ -26,20 +27,22 @@ type CurrentUser = {
 
 // ── Role config ───────────────────────────────────────────────────────────────
 
-const ROLE_CFG: Record<string, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
-  owner:  { label: 'Proprietário', color: '#fbbf24', bg: 'rgba(251,191,36,0.12)',  icon: <Crown size={11} /> },
-  admin:  { label: 'Admin',        color: '#00E5FF', bg: 'rgba(0,229,255,0.10)',   icon: <Shield size={11} /> },
-  member: { label: 'Membro',       color: '#a1a1aa', bg: 'rgba(161,161,170,0.12)', icon: <User size={11} /> },
-  viewer: { label: 'Visualizador', color: '#71717a', bg: 'rgba(113,113,122,0.12)', icon: <User size={11} /> },
+const ROLE_CFG: Record<string, { color: string; bg: string; icon: React.ReactNode }> = {
+  owner:  { color: '#fbbf24', bg: 'rgba(251,191,36,0.12)',  icon: <Crown size={11} /> },
+  admin:  { color: '#00E5FF', bg: 'rgba(0,229,255,0.10)',   icon: <Shield size={11} /> },
+  member: { color: '#a1a1aa', bg: 'rgba(161,161,170,0.12)', icon: <User size={11} /> },
+  viewer: { color: '#71717a', bg: 'rgba(113,113,122,0.12)', icon: <User size={11} /> },
 }
 
 function RoleBadge({ role }: { role: string | null }) {
+  const t = useTranslations('configuracoes')
   const r = role ?? 'member'
   const c = ROLE_CFG[r] ?? ROLE_CFG.member
+  const label = ROLE_CFG[r] ? t(`roles.${r}` as 'roles.owner') : r
   return (
     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold"
       style={{ background: c.bg, color: c.color }}>
-      {c.icon} {c.label}
+      {c.icon} {label}
     </span>
   )
 }
@@ -56,6 +59,7 @@ function avatarColor(id: string) { return AVATAR_COLORS[id.charCodeAt(0) % AVATA
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function EquipePage() {
+  const t = useTranslations('configuracoes')
   const [me, setMe]             = useState<CurrentUser | null>(null)
   const [members, setMembers]   = useState<Member[]>([])
   const [orgId, setOrgId]       = useState<string | null>(null)
@@ -121,15 +125,15 @@ export default function EquipePage() {
         body: JSON.stringify({ email: inviteEmail.trim(), role: inviteRole, organization_id: orgId }),
       })
       if (res.ok) {
-        setInviteMsg({ ok: true, text: `Convite enviado para ${inviteEmail.trim()}` })
+        setInviteMsg({ ok: true, text: t('equipe.inviteSent', { email: inviteEmail.trim() }) })
         setInvite('')
         load()
       } else {
         const err = await res.json().catch(() => ({}))
-        setInviteMsg({ ok: false, text: err.message ?? `Endpoint /api/teams/invite não configurado ainda.` })
+        setInviteMsg({ ok: false, text: err.message ?? t('equipe.endpointNotConfiguredShort') })
       }
     } catch {
-      setInviteMsg({ ok: false, text: 'Endpoint /api/teams/invite não configurado ainda. Adicione membros via Supabase Dashboard → Authentication → Users.' })
+      setInviteMsg({ ok: false, text: t('equipe.endpointNotConfigured') })
     } finally {
       setInviting(false)
     }
@@ -138,9 +142,9 @@ export default function EquipePage() {
   async function handleRemove(userId: string) {
     if (userId === me?.id) return
     const ok = await confirm({
-      title:        'Remover membro',
-      message:      'Remover este membro da organização?',
-      confirmLabel: 'Remover',
+      title:        t('equipe.removeMemberTitle'),
+      message:      t('equipe.removeMemberMessage'),
+      confirmLabel: t('equipe.removeConfirm'),
       variant:      'danger',
     })
     if (!ok) return
@@ -164,14 +168,14 @@ export default function EquipePage() {
       {/* Header */}
       <div className="flex items-center justify-between gap-4">
         <div>
-          <p className="text-zinc-500 text-xs">Configurações</p>
-          <h2 className="text-white text-lg font-semibold mt-0.5">Equipe</h2>
+          <p className="text-zinc-500 text-xs">{t('equipe.breadcrumb')}</p>
+          <h2 className="text-white text-lg font-semibold mt-0.5">{t('equipe.title')}</h2>
         </div>
         <button onClick={load} disabled={loading}
           className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border transition-all disabled:opacity-60"
           style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>
           <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
-          Atualizar
+          {t('equipe.refresh')}
         </button>
       </div>
 
@@ -181,8 +185,8 @@ export default function EquipePage() {
         <div className="xl:col-span-2 space-y-4">
           <div className="rounded-2xl overflow-hidden" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
             <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid #1e1e24' }}>
-              <p className="text-xs font-semibold text-zinc-300">Membros da equipe</p>
-              {!loading && <span className="text-[10px] text-zinc-600">{members.length} membro{members.length !== 1 ? 's' : ''}</span>}
+              <p className="text-xs font-semibold text-zinc-300">{t('equipe.teamMembers')}</p>
+              {!loading && <span className="text-[10px] text-zinc-600">{t('equipe.memberCount', { count: members.length })}</span>}
             </div>
 
             {loading ? (
@@ -200,14 +204,14 @@ export default function EquipePage() {
             ) : members.length === 0 ? (
               <div className="px-4 py-10 text-center">
                 <UserCog size={28} className="mx-auto mb-2 text-zinc-700" />
-                <p className="text-zinc-600 text-sm">Nenhum membro encontrado</p>
+                <p className="text-zinc-600 text-sm">{t('equipe.noMembers')}</p>
               </div>
             ) : (
               <div className="divide-y" style={{ borderColor: '#1a1a1f' }}>
                 {members.map(m => {
                   const isMe   = m.user_id === me?.id
                   const color  = avatarColor(m.user_id)
-                  const label  = isMe ? (me?.name ?? me?.email ?? m.user_id) : m.name ?? `Usuário ${m.user_id.slice(0, 8)}…`
+                  const label  = isMe ? (me?.name ?? me?.email ?? m.user_id) : m.name ?? t('equipe.unnamedUser', { id: m.user_id.slice(0, 8) })
                   const sub    = isMe ? me?.email : null
                   return (
                     <div key={m.user_id} className="flex items-center gap-3 px-4 py-3">
@@ -221,10 +225,10 @@ export default function EquipePage() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <p className="text-xs font-semibold text-zinc-200 truncate">{label}</p>
-                          {isMe && <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold" style={{ background: 'rgba(0,229,255,0.1)', color: '#00E5FF' }}>Você</span>}
+                          {isMe && <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold" style={{ background: 'rgba(0,229,255,0.1)', color: '#00E5FF' }}>{t('equipe.you')}</span>}
                         </div>
                         {sub && <p className="text-[10px] text-zinc-500 truncate">{sub}</p>}
-                        {m.created_at && <p className="text-[9px] text-zinc-700">Desde {new Date(m.created_at).toLocaleDateString('pt-BR')}</p>}
+                        {m.created_at && <p className="text-[9px] text-zinc-700">{t('equipe.since', { date: new Date(m.created_at).toLocaleDateString('pt-BR') })}</p>}
                       </div>
 
                       <RoleBadge role={m.role} />
@@ -233,7 +237,7 @@ export default function EquipePage() {
                       {!isMe && (
                         <button onClick={() => handleRemove(m.user_id)} disabled={removing === m.user_id}
                           className="p-1.5 rounded-lg text-zinc-700 hover:text-red-400 transition-colors disabled:opacity-40"
-                          title="Remover membro">
+                          title={t('equipe.removeMemberTitle')}>
                           <Trash2 size={13} />
                         </button>
                       )}
@@ -248,18 +252,18 @@ export default function EquipePage() {
           <div className="rounded-2xl p-5 space-y-4" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
             <div className="flex items-center gap-2">
               <Plus size={14} className="text-zinc-400" />
-              <h3 className="text-sm font-semibold text-white">Convidar membro</h3>
+              <h3 className="text-sm font-semibold text-white">{t('equipe.inviteMember')}</h3>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="sm:col-span-2">
-                <label className="block text-[10px] font-medium text-zinc-500 mb-1.5">E-mail</label>
+                <label className="block text-[10px] font-medium text-zinc-500 mb-1.5">{t('equipe.emailLabel')}</label>
                 <input
                   type="email"
                   value={inviteEmail}
                   onChange={e => setInvite(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && handleInvite()}
-                  placeholder="colega@empresa.com"
+                  placeholder={t('equipe.emailPlaceholder')}
                   className="w-full rounded-lg px-3 py-2 text-xs text-white outline-none transition-all"
                   style={{ background: '#1c1c1f', border: '1px solid #3f3f46' }}
                   onFocus={e => (e.target.style.borderColor = '#00E5FF')}
@@ -267,13 +271,13 @@ export default function EquipePage() {
                 />
               </div>
               <div>
-                <label className="block text-[10px] font-medium text-zinc-500 mb-1.5">Função</label>
+                <label className="block text-[10px] font-medium text-zinc-500 mb-1.5">{t('equipe.roleLabel')}</label>
                 <select value={inviteRole} onChange={e => setInviteRole(e.target.value as Role)}
                   className="w-full rounded-lg px-3 py-2 text-xs text-white outline-none cursor-pointer"
                   style={{ background: '#1c1c1f', border: '1px solid #3f3f46' }}>
-                  <option value="admin">Admin</option>
-                  <option value="member">Membro</option>
-                  <option value="viewer">Visualizador</option>
+                  <option value="admin">{t('equipe.roleOptionAdmin')}</option>
+                  <option value="member">{t('roles.member')}</option>
+                  <option value="viewer">{t('roles.viewer')}</option>
                 </select>
               </div>
             </div>
@@ -288,12 +292,11 @@ export default function EquipePage() {
               className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all disabled:opacity-50"
               style={{ background: '#00E5FF', color: '#000' }}>
               <Mail size={13} />
-              {inviting ? 'Enviando…' : 'Enviar convite'}
+              {inviting ? t('equipe.sending') : t('equipe.sendInvite')}
             </button>
 
             <p className="text-[10px] text-zinc-700 leading-relaxed">
-              O convite é enviado via Supabase Auth (magic link). Se o endpoint ainda não estiver configurado,
-              adicione usuários diretamente em <strong className="text-zinc-600">Supabase Dashboard → Authentication → Users</strong>.
+              {t.rich('equipe.inviteHint', { strong: (chunks) => <strong className="text-zinc-600">{chunks}</strong> })}
             </p>
           </div>
         </div>
@@ -301,7 +304,7 @@ export default function EquipePage() {
         {/* Right: org info */}
         <div className="space-y-4">
           <div className="rounded-2xl p-5 space-y-4" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
-            <h3 className="text-[11px] font-semibold uppercase tracking-wider text-zinc-600">Organização</h3>
+            <h3 className="text-[11px] font-semibold uppercase tracking-wider text-zinc-600">{t('equipe.organization')}</h3>
 
             {me && (
               <div className="flex items-center gap-3">
@@ -318,7 +321,7 @@ export default function EquipePage() {
 
             {orgId && (
               <div>
-                <p className="text-[10px] font-medium text-zinc-600 mb-1">ID da organização</p>
+                <p className="text-[10px] font-medium text-zinc-600 mb-1">{t('equipe.orgIdLabel')}</p>
                 <div className="flex items-center gap-2 px-2.5 py-2 rounded-lg" style={{ background: '#18181b', border: '1px solid #27272a' }}>
                   <p className="text-[10px] font-mono text-zinc-400 flex-1 truncate">{orgId}</p>
                   <button onClick={copyOrgId} className="shrink-0 text-zinc-600 hover:text-zinc-300 transition-colors">
@@ -330,8 +333,8 @@ export default function EquipePage() {
 
             <div className="space-y-2 pt-1">
               {[
-                { label: 'Total de membros', value: members.length },
-                { label: 'Admins',           value: members.filter(m => m.role === 'admin' || m.role === 'owner').length },
+                { label: t('equipe.totalMembers'), value: members.length },
+                { label: t('equipe.adminsCount'),  value: members.filter(m => m.role === 'admin' || m.role === 'owner').length },
               ].map(r => (
                 <div key={r.label} className="flex items-center justify-between">
                   <span className="text-[11px] text-zinc-500">{r.label}</span>
@@ -342,16 +345,16 @@ export default function EquipePage() {
           </div>
 
           <div className="rounded-2xl p-5 space-y-3" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
-            <h3 className="text-[11px] font-semibold uppercase tracking-wider text-zinc-600">Funções disponíveis</h3>
+            <h3 className="text-[11px] font-semibold uppercase tracking-wider text-zinc-600">{t('equipe.availableRoles')}</h3>
             <div className="space-y-2">
-              {Object.entries(ROLE_CFG).map(([key, cfg]) => (
+              {Object.keys(ROLE_CFG).map((key) => (
                 <div key={key} className="flex items-center gap-2">
                   <RoleBadge role={key} />
                   <span className="text-[10px] text-zinc-600">
-                    {key === 'owner'  && 'Acesso total, não pode ser removido'}
-                    {key === 'admin'  && 'Gerencia membros e integrações'}
-                    {key === 'member' && 'Acesso completo às funcionalidades'}
-                    {key === 'viewer' && 'Somente leitura'}
+                    {key === 'owner'  && t('equipe.roleDescOwner')}
+                    {key === 'admin'  && t('equipe.roleDescAdmin')}
+                    {key === 'member' && t('equipe.roleDescMember')}
+                    {key === 'viewer' && t('equipe.roleDescViewer')}
                   </span>
                 </div>
               ))}

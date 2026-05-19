@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import { ArrowLeft, AlertCircle, CheckCircle2, XCircle, Clock, ListFilter } from 'lucide-react'
 
@@ -29,6 +30,7 @@ interface SyncLog {
 }
 
 export default function SyncLogsPage() {
+  const t = useTranslations('dropship.syncLogs')
   const searchParams = useSearchParams()
   const initialSupplierId = searchParams.get('supplier_id') ?? ''
   const supabase = useMemo(() => createClient(), [])
@@ -41,9 +43,9 @@ export default function SyncLogsPage() {
 
   const getHeaders = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session?.access_token) throw new Error('Não autenticado')
+    if (!session?.access_token) throw new Error(t('errors.notAuthenticated'))
     return { Authorization: `Bearer ${session.access_token}` }
-  }, [supabase])
+  }, [supabase, t])
 
   const load = useCallback(async () => {
     setLoading(true); setErr('')
@@ -56,10 +58,10 @@ export default function SyncLogsPage() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       setLogs(await res.json())
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Erro ao carregar')
+      setErr(e instanceof Error ? e.message : t('errors.loadFailed'))
       setLogs([])
     } finally { setLoading(false) }
-  }, [getHeaders, filterStatus, supplierFilter])
+  }, [getHeaders, filterStatus, supplierFilter, t])
 
   useEffect(() => { load() }, [load])
 
@@ -70,10 +72,10 @@ export default function SyncLogsPage() {
           <ArrowLeft size={18} />
         </Link>
         <div>
-          <h1 className="text-xl font-semibold text-white">Logs de Sincronização</h1>
+          <h1 className="text-xl font-semibold text-white">{t('title')}</h1>
           <p className="text-sm text-zinc-500 mt-0.5">
-            Histórico de syncs de catálogo (manual, planilha, API)
-            {supplierFilter && ' · filtrado por parceiro'}
+            {t('subtitle')}
+            {supplierFilter && ` · ${t('filteredByPartner')}`}
           </p>
         </div>
       </div>
@@ -100,7 +102,7 @@ export default function SyncLogsPage() {
                 color: filterStatus === s ? '#09090b' : '#a1a1aa',
               }}
             >
-              {s === 'all' ? 'Todos' : statusLabel(s)}
+              {s === 'all' ? t('filter.all') : statusLabel(s, t)}
             </button>
           ))}
         </div>
@@ -111,27 +113,27 @@ export default function SyncLogsPage() {
         <table className="w-full text-sm">
           <thead>
             <tr style={{ background: '#111114', borderBottom: '1px solid #1a1a1f' }}>
-              {['Quando', 'Parceiro', 'Tipo', 'Fonte', 'Processados', 'Criados/Atualizados', 'Falhas', 'Status', 'Duração'].map(h => (
-                <th key={h} className="text-left px-4 py-3 text-xs font-medium text-zinc-500">{h}</th>
+              {[t('table.when'), t('table.partner'), t('table.type'), t('table.source'), t('table.processed'), t('table.createdUpdated'), t('table.failures'), t('table.status'), t('table.duration')].map((h, i) => (
+                <th key={i} className="text-left px-4 py-3 text-xs font-medium text-zinc-500">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={9} className="px-4 py-12 text-center text-zinc-500 text-sm">Carregando...</td></tr>
+              <tr><td colSpan={9} className="px-4 py-12 text-center text-zinc-500 text-sm">{t('loading')}</td></tr>
             ) : logs.length === 0 ? (
               <tr>
                 <td colSpan={9} className="px-4 py-12 text-center text-zinc-500 text-sm">
                   <ListFilter size={28} className="mx-auto mb-2 text-zinc-700" />
-                  Nenhum sync registrado ainda.
-                  <p className="text-xs mt-1">Sincronizações aparecem aqui assim que houver upload de planilha ou pull de API (Sprint 2 Batch D).</p>
+                  {t('empty')}
+                  <p className="text-xs mt-1">{t('emptyHint')}</p>
                 </td>
               </tr>
             ) : logs.map(l => (
               <tr key={l.id} style={{ borderBottom: '1px solid #1a1a1f' }}>
                 <td className="px-4 py-3 text-zinc-300 text-xs">{fmtDateTime(l.started_at)}</td>
                 <td className="px-4 py-3 text-white">{l.suppliers?.name ?? '—'}</td>
-                <td className="px-4 py-3 text-zinc-400 text-xs">{syncTypeLabel(l.sync_type)}</td>
+                <td className="px-4 py-3 text-zinc-400 text-xs">{syncTypeLabel(l.sync_type, t)}</td>
                 <td className="px-4 py-3 text-zinc-400 text-xs">
                   {l.source_file_name ?? l.source ?? '—'}
                 </td>
@@ -144,7 +146,7 @@ export default function SyncLogsPage() {
                 <td className="px-4 py-3 text-xs" style={{ color: l.products_failed > 0 ? '#f87171' : '#71717a' }}>
                   {l.products_failed}
                 </td>
-                <td className="px-4 py-3"><StatusPill status={l.status} /></td>
+                <td className="px-4 py-3"><StatusPill status={l.status} t={t} /></td>
                 <td className="px-4 py-3 text-zinc-400 text-xs">{fmtDuration(l.duration_seconds)}</td>
               </tr>
             ))}
@@ -157,42 +159,42 @@ export default function SyncLogsPage() {
 
 // ── helpers ────────────────────────────────────────────────────────────────────
 
-function StatusPill({ status }: { status: SyncLog['status'] }) {
-  const c: Record<string, { bg: string; fg: string; label: string; icon: React.ReactNode }> = {
-    running:   { bg: 'rgba(0,229,255,0.10)',   fg: '#00E5FF', label: 'Rodando',   icon: <Clock size={11} /> },
-    completed: { bg: 'rgba(34,197,94,0.10)',   fg: '#22c55e', label: 'OK',        icon: <CheckCircle2 size={11} /> },
-    partial:   { bg: 'rgba(252,211,77,0.10)',  fg: '#fcd34d', label: 'Parcial',   icon: <AlertCircle size={11} /> },
-    failed:    { bg: 'rgba(248,113,113,0.10)', fg: '#f87171', label: 'Falhou',    icon: <XCircle size={11} /> },
+function StatusPill({ status, t }: { status: SyncLog['status']; t: ReturnType<typeof useTranslations> }) {
+  const c: Record<string, { bg: string; fg: string; key: string; icon: React.ReactNode }> = {
+    running:   { bg: 'rgba(0,229,255,0.10)',   fg: '#00E5FF', key: 'statusPill.running',   icon: <Clock size={11} /> },
+    completed: { bg: 'rgba(34,197,94,0.10)',   fg: '#22c55e', key: 'statusPill.ok',        icon: <CheckCircle2 size={11} /> },
+    partial:   { bg: 'rgba(252,211,77,0.10)',  fg: '#fcd34d', key: 'statusPill.partial',   icon: <AlertCircle size={11} /> },
+    failed:    { bg: 'rgba(248,113,113,0.10)', fg: '#f87171', key: 'statusPill.failed',    icon: <XCircle size={11} /> },
   }
   const x = c[status]
   return (
     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
       style={{ background: x.bg, color: x.fg, border: `1px solid ${x.fg}33` }}>
       {x.icon}
-      {x.label}
+      {t(x.key)}
     </span>
   )
 }
 
-function statusLabel(s: string): string {
-  return s === 'running' ? 'Rodando'
-    : s === 'completed' ? 'OK'
-    : s === 'partial' ? 'Parcial'
-    : s === 'failed' ? 'Falhou'
+function statusLabel(s: string, t: ReturnType<typeof useTranslations>): string {
+  return s === 'running' ? t('statusPill.running')
+    : s === 'completed' ? t('statusPill.ok')
+    : s === 'partial' ? t('statusPill.partial')
+    : s === 'failed' ? t('statusPill.failed')
     : s
 }
 
-function syncTypeLabel(t: string): string {
-  const m: Record<string, string> = {
-    catalog_full: 'Catálogo (full)',
-    catalog_incremental: 'Catálogo (incremental)',
-    stock: 'Estoque',
-    cost: 'Custo',
-    spreadsheet_import: 'Planilha',
-    api_pull: 'API pull',
-    manual: 'Manual',
+function syncTypeLabel(type: string, t: ReturnType<typeof useTranslations>): string {
+  const keys: Record<string, string> = {
+    catalog_full: 'syncType.catalogFull',
+    catalog_incremental: 'syncType.catalogIncremental',
+    stock: 'syncType.stock',
+    cost: 'syncType.cost',
+    spreadsheet_import: 'syncType.spreadsheet',
+    api_pull: 'syncType.apiPull',
+    manual: 'syncType.manual',
   }
-  return m[t] ?? t
+  return keys[type] ? t(keys[type]) : type
 }
 
 function fmtDateTime(d: string) {

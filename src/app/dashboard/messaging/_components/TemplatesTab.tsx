@@ -1,12 +1,13 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { useTranslations } from 'next-intl'
 import { createPortal } from 'react-dom'
 import { createClient } from '@/lib/supabase'
 import { WhatsappBubble } from './WhatsappBubble'
 import {
   MessagingTemplate, Channel, TriggerEvent,
-  TRIGGER_LABELS, CHANNEL_LABELS, SAMPLE_CONTEXT,
+  CHANNEL_LABELS, SAMPLE_CONTEXT,
 } from './types'
 import { useConfirm } from '@/components/ui/dialog-provider'
 
@@ -36,6 +37,7 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export function TemplatesTab({ onToast }: { onToast: (m: string, type?: 'success'|'error') => void }) {
+  const t = useTranslations('messaging.templates')
   const [list, setList]       = useState<MessagingTemplate[]>([])
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState<MessagingTemplate | 'new' | null>(null)
@@ -64,39 +66,39 @@ export function TemplatesTab({ onToast }: { onToast: (m: string, type?: 'success
 
   async function remove(id: string) {
     const ok = await confirm({
-      title:        'Excluir template',
-      message:      'Excluir template? Sends e jornadas que referenciam serão preservados, mas novos envios falharão.',
-      confirmLabel: 'Excluir',
+      title:        t('confirm.deleteTitle'),
+      message:      t('confirm.deleteMessage'),
+      confirmLabel: t('confirm.deleteConfirm'),
       variant:      'danger',
     })
     if (!ok) return
     try {
       await api(`/messaging/templates/${id}`, { method: 'DELETE' })
       setList(prev => prev.filter(x => x.id !== id))
-      onToast('Template excluído', 'success')
+      onToast(t('toast.deleted'), 'success')
     } catch (e) { onToast((e as Error).message, 'error') }
   }
 
   return (
     <>
       <div className="flex items-center justify-between mb-5">
-        <p className="text-zinc-400 text-sm">Mensagens reutilizáveis com variáveis dinâmicas. WhatsApp ativo, Instagram/TikTok em breve.</p>
+        <p className="text-zinc-400 text-sm">{t('intro')}</p>
         <button
           onClick={() => setEditing('new')}
           className="px-4 py-2 rounded-lg text-sm font-semibold transition"
           style={{ background: '#00E5FF', color: '#08323b' }}
-        >+ Novo template</button>
+        >{t('newTemplate')}</button>
       </div>
 
       {loading
         ? <div className="h-32 rounded-2xl animate-pulse" style={{ background: '#111114' }} />
         : list.length === 0
           ? <div className="rounded-2xl px-6 py-10 text-center text-zinc-500" style={{ background: '#111114', border: '1px dashed #27272a' }}>
-              Nenhum template ainda. Clique em "+ Novo template" pra começar.
+              {t('empty')}
             </div>
           : <div className="grid gap-3">
-              {list.map(t => (
-                <TemplateCard key={t.id} t={t} onEdit={() => setEditing(t)} onToggle={() => toggleActive(t)} onDelete={() => remove(t.id)} />
+              {list.map(tpl => (
+                <TemplateCard key={tpl.id} t={tpl} onEdit={() => setEditing(tpl)} onToggle={() => toggleActive(tpl)} onDelete={() => remove(tpl.id)} />
               ))}
             </div>}
 
@@ -104,13 +106,13 @@ export function TemplatesTab({ onToast }: { onToast: (m: string, type?: 'success
         <TemplateModal
           initial={editing === 'new' ? null : editing}
           onClose={() => setEditing(null)}
-          onSaved={(t) => {
+          onSaved={(saved) => {
             setEditing(null)
             setList(prev => {
-              const idx = prev.findIndex(x => x.id === t.id)
-              return idx >= 0 ? prev.map(x => x.id === t.id ? t : x) : [t, ...prev]
+              const idx = prev.findIndex(x => x.id === saved.id)
+              return idx >= 0 ? prev.map(x => x.id === saved.id ? saved : x) : [saved, ...prev]
             })
-            onToast('Template salvo', 'success')
+            onToast(t('toast.saved'), 'success')
           }}
           onError={(m) => onToast(m, 'error')}
         />
@@ -122,35 +124,36 @@ export function TemplatesTab({ onToast }: { onToast: (m: string, type?: 'success
 // ─────────────────────────────────────────────────────────────────────────────
 
 function TemplateCard({
-  t, onEdit, onToggle, onDelete,
+  t: tpl, onEdit, onToggle, onDelete,
 }: {
   t: MessagingTemplate
   onEdit: () => void
   onToggle: () => void
   onDelete: () => void
 }) {
+  const t = useTranslations('messaging.templates')
   return (
     <div className="rounded-2xl p-5 grid grid-cols-1 md:grid-cols-2 gap-4" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
       <div>
         <div className="flex items-center gap-2 mb-2">
-          <p className="text-white text-sm font-semibold">{t.name}</p>
+          <p className="text-white text-sm font-semibold">{tpl.name}</p>
           <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full"
-            style={t.is_active
+            style={tpl.is_active
               ? { background: 'rgba(52,211,153,0.1)', color: '#34d399' }
               : { background: 'rgba(161,161,170,0.1)', color: '#a1a1aa' }}>
-            {t.is_active ? 'Ativo' : 'Inativo'}
+            {tpl.is_active ? t('statusActive') : t('statusInactive')}
           </span>
         </div>
-        <p className="text-zinc-500 text-xs mb-1">Canal: <span className="text-zinc-300">{CHANNEL_LABELS[t.channel]}</span></p>
-        <p className="text-zinc-500 text-xs mb-1">Trigger: <span className="text-zinc-300">{TRIGGER_LABELS[t.trigger_event]}</span></p>
-        <p className="text-zinc-500 text-xs">Variáveis: {t.variables.length === 0 ? '—' : t.variables.map(v => `{{${v}}}`).join(' ')}</p>
+        <p className="text-zinc-500 text-xs mb-1">{t('channelLabel')} <span className="text-zinc-300">{t(`channels.${tpl.channel}`)}</span></p>
+        <p className="text-zinc-500 text-xs mb-1">{t('triggerLabel')} <span className="text-zinc-300">{t(`triggers.${tpl.trigger_event}`)}</span></p>
+        <p className="text-zinc-500 text-xs">{t('variablesLabel')} {tpl.variables.length === 0 ? '—' : tpl.variables.map(v => `{{${v}}}`).join(' ')}</p>
         <div className="flex gap-2 mt-4">
-          <button onClick={onEdit} className="px-3 py-1.5 rounded-lg text-xs font-medium border" style={{ borderColor: '#3f3f46', color: '#e4e4e7' }}>Editar</button>
-          <button onClick={onToggle} className="px-3 py-1.5 rounded-lg text-xs font-medium border" style={{ borderColor: '#3f3f46', color: '#e4e4e7' }}>{t.is_active ? 'Desativar' : 'Ativar'}</button>
-          <button onClick={onDelete} className="px-3 py-1.5 rounded-lg text-xs font-medium border" style={{ borderColor: '#3f3f46', color: '#f87171' }}>Excluir</button>
+          <button onClick={onEdit} className="px-3 py-1.5 rounded-lg text-xs font-medium border" style={{ borderColor: '#3f3f46', color: '#e4e4e7' }}>{t('edit')}</button>
+          <button onClick={onToggle} className="px-3 py-1.5 rounded-lg text-xs font-medium border" style={{ borderColor: '#3f3f46', color: '#e4e4e7' }}>{tpl.is_active ? t('deactivate') : t('activate')}</button>
+          <button onClick={onDelete} className="px-3 py-1.5 rounded-lg text-xs font-medium border" style={{ borderColor: '#3f3f46', color: '#f87171' }}>{t('delete')}</button>
         </div>
       </div>
-      <WhatsappBubble message={t.message_body} context={SAMPLE_CONTEXT} />
+      <WhatsappBubble message={tpl.message_body} context={SAMPLE_CONTEXT} />
     </div>
   )
 }
@@ -170,6 +173,7 @@ function TemplateModal({
   onSaved: (t: MessagingTemplate) => void
   onError: (m: string) => void
 }) {
+  const t = useTranslations('messaging.templates')
   const [name, setName]                 = useState(initial?.name ?? '')
   const [channel, setChannel]           = useState<Channel>(initial?.channel ?? 'whatsapp')
   const [trigger, setTrigger]           = useState<TriggerEvent>(initial?.trigger_event ?? 'order_paid')
@@ -184,8 +188,8 @@ function TemplateModal({
   const [sending, setSending]     = useState(false)
 
   async function save() {
-    if (!name.trim()) return onError('Nome obrigatório')
-    if (!body.trim()) return onError('Mensagem obrigatória')
+    if (!name.trim()) return onError(t('errors.nameRequired'))
+    if (!body.trim()) return onError(t('errors.messageRequired'))
     setSaving(true)
     try {
       const payload = { name: name.trim(), channel, trigger_event: trigger, message_body: body, is_active: active }
@@ -200,18 +204,18 @@ function TemplateModal({
   }
 
   async function sendTest() {
-    if (!initial) return onError('Salve o template antes de enviar teste')
-    if (!testPhone.trim()) return onError('Phone obrigatório')
+    if (!initial) return onError(t('errors.saveBeforeTest'))
+    if (!testPhone.trim()) return onError(t('errors.phoneRequired'))
     setSending(true)
     try {
       let ctx: Record<string, unknown>
-      try { ctx = JSON.parse(testCtx) } catch { onError('JSON inválido em context'); setSending(false); return }
+      try { ctx = JSON.parse(testCtx) } catch { onError(t('errors.invalidJson')); setSending(false); return }
       const res = await api<{ ok: boolean; rendered: string; error?: string }>(`/messaging/templates/${initial.id}/preview`, {
         method: 'POST',
         body: JSON.stringify({ phone: testPhone.trim(), context: ctx }),
       })
       if (res.ok) onSaved({ ...initial }) // reaproveita callback (toast)
-      else        onError(res.error ?? 'Falha ao enviar teste')
+      else        onError(res.error ?? t('errors.testFailed'))
       setTestOpen(false)
     } catch (e) { onError((e as Error).message) }
     setSending(false)
@@ -222,48 +226,48 @@ function TemplateModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={onClose}>
       <div className="w-full max-w-3xl rounded-2xl overflow-hidden flex flex-col max-h-[90vh]" style={{ background: '#111114', border: '1px solid #1e1e24' }} onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid #1e1e24' }}>
-          <p className="text-white font-semibold">{initial ? 'Editar template' : 'Novo template'}</p>
+          <p className="text-white font-semibold">{initial ? t('editTemplate') : t('newTemplateTitle')}</p>
           <button onClick={onClose} className="text-zinc-400 hover:text-white">✕</button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 grid md:grid-cols-2 gap-5">
           <div className="space-y-4">
-            <Field label="Nome">
-              <input className="input" value={name} onChange={e => setName(e.target.value)} placeholder="Ex: Confirmação de pedido" />
+            <Field label={t('fields.name')}>
+              <input className="input" value={name} onChange={e => setName(e.target.value)} placeholder={t('fields.namePlaceholder')} />
             </Field>
-            <Field label="Canal">
+            <Field label={t('fields.channel')}>
               <select className="input" value={channel} onChange={e => setChannel(e.target.value as Channel)}>
-                {(Object.keys(CHANNEL_LABELS) as Channel[]).map(c => <option key={c} value={c}>{CHANNEL_LABELS[c]}</option>)}
+                {(Object.keys(CHANNEL_LABELS) as Channel[]).map(c => <option key={c} value={c}>{t(`channels.${c}`)}</option>)}
               </select>
             </Field>
-            <Field label="Trigger event">
+            <Field label={t('fields.triggerEvent')}>
               <select className="input" value={trigger} onChange={e => setTrigger(e.target.value as TriggerEvent)}>
-                {TRIGGERS.map(t => <option key={t} value={t}>{TRIGGER_LABELS[t]}</option>)}
+                {TRIGGERS.map(tr => <option key={tr} value={tr}>{t(`triggers.${tr}`)}</option>)}
               </select>
             </Field>
-            <Field label="Mensagem">
+            <Field label={t('fields.message')}>
               <textarea
                 className="input font-mono text-xs"
                 rows={8}
                 value={body}
                 onChange={e => setBody(e.target.value)}
-                placeholder="Olá {{nome}}! Seu pedido #{{pedido}}..."
+                placeholder={t('fields.messagePlaceholder')}
               />
               <p className="text-zinc-500 text-[11px] mt-1">
-                Variáveis: <span className="font-mono text-cyan-400">{'{{nome}} {{pedido}} {{produto}} {{rastreio}} {{loja}} {{cupom}} {{valor}}'}</span>
+                {t('fields.variablesHint')} <span className="font-mono text-cyan-400">{'{{nome}} {{pedido}} {{produto}} {{rastreio}} {{loja}} {{cupom}} {{valor}}'}</span>
               </p>
             </Field>
             <label className="flex items-center gap-2 text-sm text-zinc-300">
               <input type="checkbox" checked={active} onChange={e => setActive(e.target.checked)} />
-              Template ativo
+              {t('fields.templateActive')}
             </label>
           </div>
 
           <div className="space-y-3">
-            <p className="text-zinc-500 text-[11px] uppercase tracking-widest">Preview com dados fictícios</p>
-            <WhatsappBubble message={body || '(vazio)'} context={SAMPLE_CONTEXT} />
-            <p className="text-zinc-500 text-[11px] uppercase tracking-widest pt-2">Editor (variáveis em cyan)</p>
-            <WhatsappBubble message={body || '(vazio)'} highlightVars />
+            <p className="text-zinc-500 text-[11px] uppercase tracking-widest">{t('previewSample')}</p>
+            <WhatsappBubble message={body || t('emptyBody')} context={SAMPLE_CONTEXT} />
+            <p className="text-zinc-500 text-[11px] uppercase tracking-widest pt-2">{t('previewEditor')}</p>
+            <WhatsappBubble message={body || t('emptyBody')} highlightVars />
           </div>
         </div>
 
@@ -273,11 +277,11 @@ function TemplateModal({
             disabled={!initial}
             className="px-3 py-2 rounded-lg text-xs font-medium border disabled:opacity-50"
             style={{ borderColor: '#3f3f46', color: '#e4e4e7' }}
-          >Enviar teste</button>
+          >{t('sendTest')}</button>
           <div className="flex gap-2">
-            <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm border" style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>Cancelar</button>
+            <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm border" style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>{t('cancel')}</button>
             <button onClick={save} disabled={saving} className="glow-rainbow px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50" style={{ background: '#00E5FF', color: '#08323b' }}>
-              {saving ? 'Salvando…' : 'Salvar'}
+              {saving ? t('saving') : t('save')}
             </button>
           </div>
         </div>
@@ -285,17 +289,17 @@ function TemplateModal({
         {testOpen && (
           <div className="absolute inset-0 flex items-center justify-center px-4" style={{ background: 'rgba(0,0,0,0.7)' }}>
             <div className="w-full max-w-md rounded-2xl p-6 space-y-4" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
-              <p className="text-white font-semibold">Enviar teste por WhatsApp</p>
-              <Field label="Número (com DDI, só dígitos)">
+              <p className="text-white font-semibold">{t('testModalTitle')}</p>
+              <Field label={t('fields.testPhone')}>
                 <input className="input" value={testPhone} onChange={e => setTestPhone(e.target.value)} placeholder="5511999998888" />
               </Field>
-              <Field label="Context (JSON)">
+              <Field label={t('fields.testContext')}>
                 <textarea className="input font-mono text-xs" rows={6} value={testCtx} onChange={e => setTestCtx(e.target.value)} />
               </Field>
               <div className="flex justify-end gap-2">
-                <button onClick={() => setTestOpen(false)} className="px-4 py-2 rounded-lg text-sm border" style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>Cancelar</button>
+                <button onClick={() => setTestOpen(false)} className="px-4 py-2 rounded-lg text-sm border" style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>{t('cancel')}</button>
                 <button onClick={sendTest} disabled={sending} className="px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50" style={{ background: '#00E5FF', color: '#08323b' }}>
-                  {sending ? 'Enviando…' : 'Enviar'}
+                  {sending ? t('sendingTest') : t('sendTestSubmit')}
                 </button>
               </div>
             </div>
