@@ -139,4 +139,51 @@ export const SocialCommerceApi = {
     api<{ ready: boolean; checks: TiktokReadinessCheck[] }>(
       `/social-commerce/tiktok/readiness/${productId}`,
     ),
+
+  // WhatsApp Business Catalog
+  getWhatsappStatus: () =>
+    api<WhatsappStatus>('/social-commerce/whatsapp/status'),
+
+  listWabas: () =>
+    api<MetaWaba[]>('/social-commerce/whatsapp/wabas'),
+
+  setupWhatsapp: (body: {
+    waba_id:          string
+    catalog_id:       string
+    phone_number_id?: string
+    display_phone?:   string
+  }) =>
+    api<unknown>('/social-commerce/whatsapp/setup', {
+      method: 'POST', body: JSON.stringify(body),
+    }),
+
+  syncWhatsapp: () =>
+    api<{ synced: number; failed: number; skipped: number }>(
+      '/social-commerce/whatsapp/sync',
+      { method: 'POST' },
+    ),
+
+  disconnectWhatsapp: () =>
+    api<{ ok: true }>('/social-commerce/whatsapp/disconnect', { method: 'POST' }),
+}
+
+export interface MetaWaba {
+  id:           string
+  name:         string
+  business_id:  string | null
+  phone_numbers?: Array<{ id: string; display_phone_number: string; verified_name: string }>
+}
+
+export interface WhatsappStatus {
+  connected: boolean
+  channel: null | {
+    id:                  string
+    status:              string
+    external_account_id: string | null  // waba_id
+    external_catalog_id: string | null
+    config:              Record<string, unknown>
+    last_sync_at:        string | null
+    last_error:          string | null
+    products_synced:     number
+  }
 }
