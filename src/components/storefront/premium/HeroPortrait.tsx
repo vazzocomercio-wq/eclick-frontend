@@ -7,6 +7,7 @@
  */
 
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { useTranslations } from 'next-intl'
 import type { Section } from '@/lib/storefront/types'
 import { effects, watermarkColor, onAccentColor, alpha } from '@/lib/storefront/theme'
 import type { RenderCtx } from '../renderCtx'
@@ -38,6 +39,7 @@ export function HeroPortrait({ section, ctx }: { section: HeroSec; ctx: RenderCt
   const n = slides.length
   const [active, setActive] = useState(0)
   const touchX = useRef<number | null>(null)
+  const t = useTranslations('storefront')
 
   const go = (i: number) => { if (n) setActive(((i % n) + n) % n) }
 
@@ -126,7 +128,7 @@ export function HeroPortrait({ section, ctx }: { section: HeroSec; ctx: RenderCt
                           className="text-sm font-semibold"
                           style={{ color: colors.text, fontFamily: ctx.fontH }}
                         >
-                          {s.label ?? 'Coleção'}
+                          {s.label ?? t('hero.collection')}
                         </span>
                       </div>
                     )}
@@ -140,7 +142,7 @@ export function HeroPortrait({ section, ctx }: { section: HeroSec; ctx: RenderCt
             <>
               <div className="flex items-center justify-center gap-4 mt-6">
                 <button
-                  type="button" aria-label="Anterior" onClick={() => go(active - 1)}
+                  type="button" aria-label={t('nav.previous')} onClick={() => go(active - 1)}
                   className="w-9 h-9 flex items-center justify-center rounded-full transition-transform hover:scale-105"
                   style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.text }}
                 >
@@ -152,7 +154,7 @@ export function HeroPortrait({ section, ctx }: { section: HeroSec; ctx: RenderCt
                 <div className="flex items-center gap-2">
                   {slides.map((_, i) => (
                     <button
-                      key={i} type="button" aria-label={`Slide ${i + 1}`} onClick={() => go(i)}
+                      key={i} type="button" aria-label={t('nav.slide', { n: i + 1 })} onClick={() => go(i)}
                       className="rounded-full transition-all"
                       style={{
                         width: i === active ? 22 : 7,
@@ -163,7 +165,7 @@ export function HeroPortrait({ section, ctx }: { section: HeroSec; ctx: RenderCt
                   ))}
                 </div>
                 <button
-                  type="button" aria-label="Próximo" onClick={() => go(active + 1)}
+                  type="button" aria-label={t('nav.next')} onClick={() => go(active + 1)}
                   className="w-9 h-9 flex items-center justify-center rounded-full transition-transform hover:scale-105"
                   style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.text }}
                 >

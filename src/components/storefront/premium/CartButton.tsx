@@ -10,6 +10,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { useTranslations } from 'next-intl'
 import { X, ShoppingBag, Plus, Minus, Trash2, CreditCard } from 'lucide-react'
 import { useCart } from '@/lib/storefront/cart'
 import { formatBRL } from '@/lib/storefront/data'
@@ -25,6 +26,7 @@ export function CartButton({ store, slug, ctx }: {
   const cart = useCart(slug)
   const [open, setOpen] = useState(false)
   const { colors } = ctx.theme
+  const t = useTranslations('storefront')
 
   const link = cart.checkoutLink(store.store_name, store.whatsapp_number)
 
@@ -44,7 +46,7 @@ export function CartButton({ store, slug, ctx }: {
   return (
     <>
       <button type="button" onClick={() => setOpen(true)}
-        aria-label="Abrir carrinho"
+        aria-label={t('cart.open')}
         className="relative p-1.5 transition-opacity hover:opacity-70">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={colors.text}
           strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -64,7 +66,7 @@ export function CartButton({ store, slug, ctx }: {
       {open && (
         <div className="fixed inset-0 z-50 flex">
           {/* Backdrop */}
-          <button type="button" aria-label="Fechar"
+          <button type="button" aria-label={t('cart.closeGeneric')}
             onClick={() => setOpen(false)}
             className="flex-1 bg-black/55 transition-opacity" />
 
@@ -75,15 +77,15 @@ export function CartButton({ store, slug, ctx }: {
               style={{ borderColor: colors.border }}>
               <h2 className="text-lg font-bold flex items-center gap-2" style={{ fontFamily: ctx.fontH }}>
                 <ShoppingBag size={18} style={{ color: colors.primary }} />
-                Seu carrinho
+                {t('cart.title')}
                 {cart.count > 0 && (
                   <span className="text-xs px-2 py-0.5 rounded-full"
                     style={{ background: alpha(colors.primary, 0.15), color: colors.primary }}>
-                    {cart.count} {cart.count === 1 ? 'item' : 'itens'}
+                    {t('cart.count', { n: cart.count })}
                   </span>
                 )}
               </h2>
-              <button type="button" aria-label="Fechar carrinho"
+              <button type="button" aria-label={t('cart.close')}
                 onClick={() => setOpen(false)}
                 className="p-1 rounded hover:opacity-70" style={{ color: colors.textMuted }}>
                 <X size={20} />
@@ -95,12 +97,12 @@ export function CartButton({ store, slug, ctx }: {
                 <div className="h-full flex flex-col items-center justify-center text-center gap-3 py-12">
                   <ShoppingBag size={36} style={{ color: colors.textMuted, opacity: 0.5 }} />
                   <p className="text-sm" style={{ color: colors.textMuted }}>
-                    Seu carrinho está vazio.
+                    {t('cart.empty')}
                   </p>
                   <button type="button" onClick={() => setOpen(false)}
                     className="text-xs px-4 py-2 rounded transition-opacity hover:opacity-80"
                     style={{ background: colors.primary, color: onAccentColor(ctx.theme), borderRadius: ctx.radius }}>
-                    Continuar comprando
+                    {t('nav.keepShopping')}
                   </button>
                 </div>
               ) : (
@@ -123,18 +125,18 @@ export function CartButton({ store, slug, ctx }: {
                           {item.name}
                         </p>
                         <p className="text-xs mt-0.5" style={{ color: colors.textMuted }}>
-                          {formatBRL(item.price)} cada
+                          {t('cart.perUnit', { price: formatBRL(item.price) })}
                         </p>
                         <div className="flex items-center justify-between mt-2">
                           <div className="flex items-center"
                             style={{ border: `1px solid ${colors.border}`, borderRadius: ctx.radius }}>
-                            <button type="button" aria-label="Diminuir"
+                            <button type="button" aria-label={t('product.decrease')}
                               onClick={() => cart.setQty(item.productId, item.qty - 1)}
                               className="px-2 py-1 hover:opacity-70" style={{ color: colors.text }}>
                               <Minus size={12} />
                             </button>
                             <span className="px-2 text-xs font-medium min-w-[24px] text-center">{item.qty}</span>
-                            <button type="button" aria-label="Aumentar"
+                            <button type="button" aria-label={t('product.increase')}
                               onClick={() => cart.setQty(item.productId, item.qty + 1)}
                               className="px-2 py-1 hover:opacity-70" style={{ color: colors.text }}>
                               <Plus size={12} />
@@ -145,7 +147,7 @@ export function CartButton({ store, slug, ctx }: {
                           </p>
                         </div>
                       </div>
-                      <button type="button" aria-label="Remover"
+                      <button type="button" aria-label={t('cart.remove')}
                         onClick={() => cart.remove(item.productId)}
                         className="self-start p-1 hover:opacity-70" style={{ color: colors.textMuted }}>
                         <Trash2 size={14} />
@@ -160,7 +162,7 @@ export function CartButton({ store, slug, ctx }: {
               <footer className="px-5 py-4 border-t space-y-3"
                 style={{ borderColor: colors.border, background: colors.background }}>
                 <div className="flex items-center justify-between text-sm">
-                  <span style={{ color: colors.textMuted }}>Subtotal</span>
+                  <span style={{ color: colors.textMuted }}>{t('cart.subtotal')}</span>
                   <span className="text-xl font-bold" style={{ color: colors.text, fontFamily: ctx.fontH }}>
                     {formatBRL(cart.subtotal)}
                   </span>
@@ -172,30 +174,30 @@ export function CartButton({ store, slug, ctx }: {
                       onClick={() => setOpen(false)}
                       className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 font-semibold text-sm transition-transform hover:scale-[1.02]"
                       style={{ background: colors.primary, color: onAccentColor(ctx.theme), borderRadius: ctx.radius }}>
-                      <CreditCard size={16} /> Finalizar compra
+                      <CreditCard size={16} /> {t('cart.checkout')}
                     </Link>
                     {link && (
                       <a href={link} target="_blank" rel="noopener noreferrer"
                         className="w-full inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm transition-opacity hover:opacity-80"
                         style={{ border: `1px solid ${colors.border}`, color: colors.text, borderRadius: ctx.radius }}>
-                        Combinar pelo WhatsApp
+                        {t('cart.combineWhatsapp')}
                       </a>
                     )}
                   </>
                 ) : (
                   <>
                     <p className="text-[11px]" style={{ color: colors.textMuted }}>
-                      Pagamento e frete combinados pelo WhatsApp.
+                      {t('cart.paymentNote')}
                     </p>
                     {link ? (
                       <a href={link} target="_blank" rel="noopener noreferrer"
                         className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 font-semibold text-sm transition-transform hover:scale-[1.02]"
                         style={{ background: '#25D366', color: '#fff', borderRadius: ctx.radius }}>
-                        Finalizar pelo WhatsApp
+                        {t('cart.finishWhatsapp')}
                       </a>
                     ) : (
                       <p className="text-xs text-center" style={{ color: colors.textMuted }}>
-                        Adicione o WhatsApp da loja em Configurações para finalizar.
+                        {t('cart.setupWhatsapp')}
                       </p>
                     )}
                   </>
@@ -204,7 +206,7 @@ export function CartButton({ store, slug, ctx }: {
                 <button type="button" onClick={() => cart.clear()}
                   className="w-full text-xs py-2 transition-opacity hover:opacity-70"
                   style={{ color: colors.textMuted }}>
-                  Limpar carrinho
+                  {t('cart.clear')}
                 </button>
               </footer>
             )}

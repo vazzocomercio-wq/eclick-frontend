@@ -12,6 +12,7 @@
 
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
+import { getTranslations } from 'next-intl/server'
 import type { StorefrontStore } from '@/lib/storefront/data'
 import type { StorefrontDesign } from '@/lib/storefront/types'
 import { buildCtx } from '../renderCtx'
@@ -20,7 +21,7 @@ import { AnnouncementBar } from './AnnouncementBar'
 import { SiteHeader } from './SiteHeader'
 import { SiteFooter } from './SiteFooter'
 
-export function CustomPage({ store, design, slug, page }: {
+export async function CustomPage({ store, design, slug, page }: {
   store:  StorefrontStore
   design: StorefrontDesign
   slug:   string
@@ -28,6 +29,7 @@ export function CustomPage({ store, design, slug, page }: {
 }) {
   const ctx = buildCtx(design.theme)
   const { colors } = ctx.theme
+  const t = await getTranslations('storefront')
 
   const announce = design.sections.find(s => s.type === 'announcementBar')
   const header   = design.sections.find(s => s.type === 'siteHeader')
@@ -47,7 +49,7 @@ export function CustomPage({ store, design, slug, page }: {
         <Link href={`/loja/${slug}`}
           className="text-xs sm:text-sm inline-flex items-center gap-1 hover:underline"
           style={{ color: colors.textMuted }}>
-          <ArrowLeft size={12} /> Voltar para a loja
+          <ArrowLeft size={12} /> {t('nav.backToStore')}
         </Link>
 
         <h1 className="mt-6 text-3xl sm:text-5xl font-bold leading-tight"

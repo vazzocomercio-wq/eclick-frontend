@@ -7,6 +7,7 @@
  */
 
 import Link from 'next/link'
+import { getTranslations } from 'next-intl/server'
 import type { StorefrontDesign, Section } from '@/lib/storefront/types'
 import { googleFontsHref, alpha } from '@/lib/storefront/theme'
 import { formatBRL, whatsappLink } from '@/lib/storefront/data'
@@ -21,7 +22,7 @@ import { SiteFooter } from './premium/SiteFooter'
 import { ShowcaseCarousel } from './premium/ShowcaseCarousel'
 import { AddToCartButton } from './premium/AddToCartButton'
 
-export function PremiumProductDetail({ design, store, product, slug, related }: {
+export async function PremiumProductDetail({ design, store, product, slug, related }: {
   design: StorefrontDesign
   store: StorefrontStore
   product: StorefrontProductDetail
@@ -31,6 +32,7 @@ export function PremiumProductDetail({ design, store, product, slug, related }: 
   const ctx = buildCtx(design.theme)
   const { colors } = design.theme
   const pd = design.product
+  const t = await getTranslations('storefront')
 
   const announce = design.sections.find(
     (s): s is Extract<Section, { type: 'announcementBar' }> => s.type === 'announcementBar',
@@ -51,7 +53,7 @@ export function PremiumProductDetail({ design, store, product, slug, related }: 
   const badges = [product.category, product.brand, condition].filter(Boolean) as string[]
 
   const sideLayout = pd.gallery === 'side'
-  const ctaMessage = `Olá! Tenho interesse no produto "${product.name}" (${formatBRL(product.price)}).`
+  const ctaMessage = t('product.interestMessage', { name: product.name, price: formatBRL(product.price) })
   const relatedProducts = related.filter(p => p.id !== product.id).slice(0, 12)
 
   const cta = outOfStock ? (
@@ -63,17 +65,17 @@ export function PremiumProductDetail({ design, store, product, slug, related }: 
           borderRadius: ctx.radius, border: `1px solid ${colors.border}`,
         }}
       >
-        Produto esgotado
+        {t('product.outOfStock')}
       </span>
       {store.whatsapp_number && (
         <a
-          href={whatsappLink(store.whatsapp_number, `Olá! Vi que o produto "${product.name}" está esgotado. Posso ser avisado quando voltar?`)}
+          href={whatsappLink(store.whatsapp_number, t('product.notifyMessage', { name: product.name }))}
           target="_blank"
           rel="noopener noreferrer"
           className="block text-xs underline transition-opacity hover:opacity-70"
           style={{ color: colors.textMuted }}
         >
-          Quer ser avisado quando voltar? Chame no WhatsApp →
+          {t('product.notifyMe')}
         </a>
       )}
     </div>
@@ -96,14 +98,14 @@ export function PremiumProductDetail({ design, store, product, slug, related }: 
       className="inline-flex items-center justify-center w-full sm:w-auto px-8 py-3.5 font-semibold text-sm transition-transform hover:scale-[1.02]"
       style={{ background: '#25D366', color: '#fff', borderRadius: ctx.radius }}
     >
-      Comprar pelo WhatsApp
+      {t('product.buyOnWhatsapp')}
     </a>
   ) : (
     <span
       className="inline-flex items-center justify-center w-full sm:w-auto px-8 py-3.5 font-semibold text-sm"
       style={{ background: colors.surface, color: colors.textMuted, borderRadius: ctx.radius, border: `1px solid ${colors.border}` }}
     >
-      Em breve
+      {t('product.comingSoon')}
     </span>
   )
 
@@ -121,7 +123,7 @@ export function PremiumProductDetail({ design, store, product, slug, related }: 
           className="text-xs sm:text-sm hover:underline"
           style={{ color: colors.textMuted }}
         >
-          &larr; Voltar para a loja
+          &larr; {t('nav.backToStore')}
         </Link>
 
         <div
@@ -171,7 +173,7 @@ export function PremiumProductDetail({ design, store, product, slug, related }: 
                   className="text-sm font-bold uppercase tracking-wider mb-2"
                   style={{ color: colors.text }}
                 >
-                  Descrição
+                  {t('product.description')}
                 </h2>
                 <p
                   className="text-sm leading-relaxed whitespace-pre-line"
@@ -199,7 +201,7 @@ export function PremiumProductDetail({ design, store, product, slug, related }: 
                   className="text-sm font-bold uppercase tracking-wider mb-2"
                   style={{ color: colors.text }}
                 >
-                  Ficha técnica
+                  {t('product.specs')}
                 </h2>
                 <dl
                   className="text-sm overflow-hidden"
@@ -227,7 +229,7 @@ export function PremiumProductDetail({ design, store, product, slug, related }: 
               className="text-xl sm:text-2xl font-bold mb-6"
               style={{ color: colors.text, fontFamily: ctx.fontH }}
             >
-              Você também pode gostar
+              {t('product.related')}
             </h2>
             <ShowcaseCarousel products={relatedProducts} slug={slug} ctx={ctx} />
           </div>
@@ -241,7 +243,7 @@ export function PremiumProductDetail({ design, store, product, slug, related }: 
             className="px-4 sm:px-8 py-8 text-center text-xs"
             style={{ borderTop: `1px solid ${colors.border}`, background: colors.surface, color: colors.textMuted }}
           >
-            Powered by <span style={{ color: colors.primary }}>e-Click</span>
+            {t('footer.poweredBy')} <span style={{ color: colors.primary }}>e-Click</span>
           </footer>
         )}
 

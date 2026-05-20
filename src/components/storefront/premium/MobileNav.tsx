@@ -6,6 +6,7 @@
  */
 
 import { useState } from 'react'
+import { useTranslations } from 'next-intl'
 
 export function MobileNav({ nav, color, surface, border }: {
   nav: Array<{ label: string; href: string }>
@@ -14,6 +15,7 @@ export function MobileNav({ nav, color, surface, border }: {
   border: string
 }) {
   const [open, setOpen] = useState(false)
+  const t = useTranslations('storefront')
   if (nav.length === 0) return null
 
   return (
@@ -21,7 +23,7 @@ export function MobileNav({ nav, color, surface, border }: {
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
-        aria-label={open ? 'Fechar menu' : 'Abrir menu'}
+        aria-label={open ? t('nav.closeMenu') : t('nav.openMenu')}
         aria-expanded={open}
         className="flex items-center justify-center w-9 h-9"
         style={{ color }}

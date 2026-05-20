@@ -265,6 +265,7 @@
       "lojaAutomacao": "Automação (IA)",
       "socialShop": "Social Shop",
       "socialShopInstagram": "Instagram / Facebook",
+      "socialShopWhatsapp": "Catálogo WhatsApp",
       "atendenteAgentes": "Agentes",
       "atendenteConversas": "Conversas",
       "atendenteConhecimento": "Conhecimento",
@@ -12384,6 +12385,155 @@
       "thu": "Qui -2",
       "fri": "Sex -1",
       "today": "Hoje"
+    }
+  },
+  "storefront": {
+    "errors": {
+      "storeNotFound": "Loja não encontrada",
+      "productNotFound": "Produto não encontrado",
+      "pageNotFound": "Página não encontrada",
+      "orderNotFound": "Pedido não encontrado."
+    },
+    "meta": {
+      "products": "Produtos",
+      "order": "Pedido",
+      "checkout": "Finalizar compra"
+    },
+    "nav": {
+      "backToStore": "Voltar para a loja",
+      "seeAll": "Ver tudo",
+      "seeStore": "Ver a loja",
+      "keepShopping": "Continuar comprando",
+      "previous": "Anterior",
+      "next": "Próximo",
+      "slide": "Slide {n}",
+      "closeMenu": "Fechar menu",
+      "openMenu": "Abrir menu"
+    },
+    "collection": {
+      "title": "Todos os produtos",
+      "sortLabel": "Ordenar",
+      "all": "Tudo",
+      "sortRel": "Relevância",
+      "sortAsc": "Menor preço",
+      "sortDesc": "Maior preço",
+      "count": "{n, plural, one {# produto} other {# produtos}}",
+      "empty": "Nenhum produto nesta categoria.",
+      "emptyShowcase": "Nenhum produto disponível no momento."
+    },
+    "product": {
+      "description": "Descrição",
+      "specs": "Ficha técnica",
+      "related": "Você também pode gostar",
+      "outOfStock": "Produto esgotado",
+      "notifyMe": "Quer ser avisado quando voltar? Chame no WhatsApp →",
+      "notifyMessage": "Olá! Vi que o produto \"{name}\" está esgotado. Posso ser avisado quando voltar?",
+      "buyOnWhatsapp": "Comprar pelo WhatsApp",
+      "comingSoon": "Em breve",
+      "interestMessage": "Olá! Tenho interesse no produto \"{name}\" ({price}).",
+      "photo": "Foto {n}",
+      "noPhoto": "sem foto",
+      "decrease": "Diminuir",
+      "increase": "Aumentar",
+      "added": "Adicionado!",
+      "addToCart": "Adicionar ao carrinho"
+    },
+    "cart": {
+      "open": "Abrir carrinho",
+      "close": "Fechar carrinho",
+      "closeGeneric": "Fechar",
+      "title": "Seu carrinho",
+      "count": "{n, plural, one {# item} other {# itens}}",
+      "empty": "Seu carrinho está vazio.",
+      "perUnit": "{price} cada",
+      "remove": "Remover",
+      "subtotal": "Subtotal",
+      "checkout": "Finalizar compra",
+      "combineWhatsapp": "Combinar pelo WhatsApp",
+      "paymentNote": "Pagamento e frete combinados pelo WhatsApp.",
+      "finishWhatsapp": "Finalizar pelo WhatsApp",
+      "setupWhatsapp": "Adicione o WhatsApp da loja em Configurações para finalizar.",
+      "clear": "Limpar carrinho"
+    },
+    "checkout": {
+      "title": "Finalizar compra",
+      "empty": "Seu carrinho está vazio.",
+      "validation": {
+        "missingFields": "Preencha nome e e-mail.",
+        "genericError": "Erro {status}"
+      },
+      "customer": {
+        "title": "Dados do comprador",
+        "name": "Nome completo *",
+        "email": "E-mail *",
+        "phone": "Telefone",
+        "phonePlaceholder": "(11) 9...",
+        "doc": "CPF ou CNPJ",
+        "docPlaceholder": "Apenas números",
+        "notes": "Observações (opcional)",
+        "notesPlaceholder": "Endereço de entrega, ponto de referência, etc."
+      },
+      "payment": {
+        "title": "Forma de pagamento",
+        "redirectNoteMp": "Você será redirecionado para o pagamento seguro do Mercado Pago.",
+        "redirectNoteStripe": "Você será redirecionado para o pagamento seguro do Stripe.",
+        "mp": "Mercado Pago",
+        "mpDesc": "Pix, cartão e boleto",
+        "stripe": "Cartão (Stripe)",
+        "stripeDesc": "Cartão de crédito ou débito"
+      },
+      "summary": {
+        "title": "{n, plural, one {Seu pedido (# item)} other {Seu pedido (# itens)}}",
+        "qty": "× {qty}",
+        "total": "Total"
+      },
+      "submit": {
+        "redirecting": "Redirecionando…",
+        "pay": "Pagar {price}"
+      }
+    },
+    "orderResult": {
+      "success": {
+        "title": "Pagamento confirmado!",
+        "sub": "Obrigado pela compra, {firstName}. O lojista entrará em contato pelos próximos passos."
+      },
+      "failed": {
+        "title": "Pagamento não concluído",
+        "sub": "Não recebemos confirmação do pagamento. Você pode tentar de novo ou falar com o lojista."
+      },
+      "pending": {
+        "title": "Aguardando confirmação",
+        "sub": "O pagamento ainda está em análise pelo gateway. Avisaremos por e-mail quando confirmar."
+      },
+      "order": "Pedido",
+      "qty": "× {qty}",
+      "total": "Total",
+      "back": "Voltar para a loja",
+      "retry": "Tentar pagar de novo",
+      "refresh": "Atualizar status",
+      "whatsappHint": "Dúvidas? Chame a loja no WhatsApp:"
+    },
+    "newsletter": {
+      "title": "Receba novidades",
+      "desc": "Ofertas e lançamentos no seu e-mail.",
+      "placeholder": "Seu e-mail",
+      "submit": "OK"
+    },
+    "whatsapp": {
+      "floaterAriaOpen": "Abrir menu do WhatsApp",
+      "floaterAriaClose": "Fechar menu do WhatsApp",
+      "floaterAriaTalk": "Falar no WhatsApp",
+      "floaterClose": "Fechar",
+      "chatTitle": "Conversar com a loja",
+      "chatSubtitle": "Abre o WhatsApp",
+      "catalogTitle": "Ver catálogo no WhatsApp",
+      "catalogSubtitle": "Lista de produtos da loja"
+    },
+    "hero": {
+      "collection": "Coleção"
+    },
+    "footer": {
+      "poweredBy": "Powered by"
     }
   }
 }

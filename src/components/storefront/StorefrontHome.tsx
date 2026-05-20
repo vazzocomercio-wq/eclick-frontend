@@ -6,6 +6,7 @@
  */
 
 import type { ReactNode } from 'react'
+import { getTranslations } from 'next-intl/server'
 import type { StorefrontDesign, Section } from '@/lib/storefront/types'
 import { googleFontsHref, effects } from '@/lib/storefront/theme'
 import { whatsappLink } from '@/lib/storefront/data'
@@ -27,14 +28,15 @@ import { WhatsAppFloater } from './premium/WhatsAppFloater'
 
 /* -------------------------------------------------------- WhatsApp button */
 
-export function WhatsAppButton({ store, message }: { store: StorefrontStore; message?: string }) {
+export async function WhatsAppButton({ store, message }: { store: StorefrontStore; message?: string }) {
   if (!store.whatsapp_widget_enabled || !store.whatsapp_number) return null
+  const t = await getTranslations('storefront')
   return (
     <a
       href={whatsappLink(store.whatsapp_number, message)}
       target="_blank"
       rel="noopener noreferrer"
-      aria-label="Falar no WhatsApp"
+      aria-label={t('whatsapp.floaterAriaTalk')}
       className="fixed bottom-5 right-5 z-50 rounded-full p-3.5 sm:p-4 shadow-2xl transition-transform hover:scale-105"
       style={{ background: '#25D366', color: '#fff' }}
     >

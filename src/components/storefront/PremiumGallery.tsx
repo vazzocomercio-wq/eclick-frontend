@@ -7,6 +7,7 @@
  */
 
 import { useState } from 'react'
+import { useTranslations } from 'next-intl'
 import type { RenderCtx } from './renderCtx'
 
 export function PremiumGallery({ images, name, ctx, layout }: {
@@ -17,6 +18,7 @@ export function PremiumGallery({ images, name, ctx, layout }: {
 }) {
   const [active, setActive] = useState(0)
   const { colors } = ctx.theme
+  const t = useTranslations('storefront')
   const safe = images.filter(Boolean)
   const current = safe[active] ?? safe[0]
   const side = layout === 'side'
@@ -34,7 +36,7 @@ export function PremiumGallery({ images, name, ctx, layout }: {
           key={i}
           type="button"
           onClick={() => setActive(i)}
-          aria-label={`Foto ${i + 1}`}
+          aria-label={t('product.photo', { n: i + 1 })}
           className="h-16 w-16 shrink-0 overflow-hidden transition-opacity"
           style={{
             background: '#fff',
@@ -62,7 +64,7 @@ export function PremiumGallery({ images, name, ctx, layout }: {
           <img src={current} alt={name} className="w-full h-full object-contain" />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-sm text-zinc-400">
-            sem foto
+            {t('product.noPhoto')}
           </div>
         )}
       </div>

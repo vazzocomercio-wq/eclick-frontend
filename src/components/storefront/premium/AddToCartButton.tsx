@@ -7,6 +7,7 @@
  */
 
 import { useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { Plus, Minus, Check, ShoppingBag } from 'lucide-react'
 import { useCart, type CartItem } from '@/lib/storefront/cart'
 import type { RenderCtx } from '../renderCtx'
@@ -22,6 +23,7 @@ export function AddToCartButton({ slug, ctx, product, disabled }: {
   const [qty, setQty] = useState(1)
   const [added, setAdded] = useState(false)
   const { colors } = ctx.theme
+  const t = useTranslations('storefront')
 
   function onAdd() {
     if (disabled) return
@@ -34,7 +36,7 @@ export function AddToCartButton({ slug, ctx, product, disabled }: {
     <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
       <div className="flex items-center self-start"
         style={{ border: `1px solid ${colors.border}`, borderRadius: ctx.radius }}>
-        <button type="button" aria-label="Diminuir"
+        <button type="button" aria-label={t('product.decrease')}
           onClick={() => setQty(q => Math.max(1, q - 1))}
           disabled={disabled}
           className="px-3 py-3 hover:opacity-70 disabled:opacity-30"
@@ -45,7 +47,7 @@ export function AddToCartButton({ slug, ctx, product, disabled }: {
           style={{ color: colors.text }}>
           {qty}
         </span>
-        <button type="button" aria-label="Aumentar"
+        <button type="button" aria-label={t('product.increase')}
           onClick={() => setQty(q => q + 1)}
           disabled={disabled}
           className="px-3 py-3 hover:opacity-70 disabled:opacity-30"
@@ -62,7 +64,7 @@ export function AddToCartButton({ slug, ctx, product, disabled }: {
           borderRadius: ctx.radius,
         }}>
         {added ? <Check size={16} /> : <ShoppingBag size={16} />}
-        {added ? 'Adicionado!' : 'Adicionar ao carrinho'}
+        {added ? t('product.added') : t('product.addToCart')}
       </button>
     </div>
   )

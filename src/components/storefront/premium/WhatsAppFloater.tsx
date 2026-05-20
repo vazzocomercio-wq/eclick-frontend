@@ -15,6 +15,7 @@
  */
 
 import { useState, useEffect } from 'react'
+import { useTranslations } from 'next-intl'
 import { MessageCircle, ShoppingBag, X } from 'lucide-react'
 import type { StorefrontStore } from '@/lib/storefront/data'
 import { whatsappLink } from '@/lib/storefront/data'
@@ -24,6 +25,7 @@ export function WhatsAppFloater({ store, message }: {
   message?: string
 }) {
   const [open, setOpen] = useState(false)
+  const t = useTranslations('storefront')
 
   // ESC fecha o menu. Hook ANTES de qualquer early return — rule of
   // hooks exige ordem estavel entre renders.
@@ -43,7 +45,7 @@ export function WhatsAppFloater({ store, message }: {
   if (!catalogHref) {
     return (
       <a href={chatHref} target="_blank" rel="noopener noreferrer"
-        aria-label="Falar no WhatsApp"
+        aria-label={t('whatsapp.floaterAriaTalk')}
         className="fixed bottom-5 right-5 z-50 rounded-full p-3.5 sm:p-4 shadow-2xl transition-transform hover:scale-105"
         style={{ background: '#25D366', color: '#fff' }}>
         <WaIcon />
@@ -55,7 +57,7 @@ export function WhatsAppFloater({ store, message }: {
   return (
     <>
       <button type="button" onClick={() => setOpen(o => !o)}
-        aria-label={open ? 'Fechar menu do WhatsApp' : 'Abrir menu do WhatsApp'}
+        aria-label={open ? t('whatsapp.floaterAriaClose') : t('whatsapp.floaterAriaOpen')}
         aria-expanded={open}
         className="fixed bottom-5 right-5 z-50 rounded-full p-3.5 sm:p-4 shadow-2xl transition-transform hover:scale-105"
         style={{ background: '#25D366', color: '#fff' }}>
@@ -64,7 +66,7 @@ export function WhatsAppFloater({ store, message }: {
 
       {open && (
         <>
-          <button type="button" aria-label="Fechar"
+          <button type="button" aria-label={t('whatsapp.floaterClose')}
             onClick={() => setOpen(false)}
             className="fixed inset-0 z-40 bg-black/20 sm:bg-transparent" />
           <div role="menu"
@@ -73,15 +75,15 @@ export function WhatsAppFloater({ store, message }: {
             <MenuItem
               href={chatHref}
               icon={<MessageCircle size={18} style={{ color: '#128C7E' }} />}
-              title="Conversar com a loja"
-              subtitle="Abre o WhatsApp"
+              title={t('whatsapp.chatTitle')}
+              subtitle={t('whatsapp.chatSubtitle')}
             />
             <div style={{ borderTop: '1px solid #ececec' }} />
             <MenuItem
               href={catalogHref}
               icon={<ShoppingBag size={18} style={{ color: '#128C7E' }} />}
-              title="Ver catálogo no WhatsApp"
-              subtitle="Lista de produtos da loja"
+              title={t('whatsapp.catalogTitle')}
+              subtitle={t('whatsapp.catalogSubtitle')}
             />
           </div>
         </>

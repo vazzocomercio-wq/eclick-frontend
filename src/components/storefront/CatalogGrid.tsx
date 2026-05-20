@@ -6,6 +6,7 @@
  */
 
 import { useMemo, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { PremiumProductCard } from './premium/PremiumProductCard'
 import type { StorefrontProduct } from '@/lib/storefront/data'
 import type { RenderCtx } from './renderCtx'
@@ -43,6 +44,7 @@ export function CatalogGrid({ products, slug, ctx, initialCategory }: {
   initialCategory?: string
 }) {
   const { colors } = ctx.theme
+  const t = useTranslations('storefront')
 
   const categories = useMemo(() => {
     const set = new Set<string>()
@@ -67,7 +69,7 @@ export function CatalogGrid({ products, slug, ctx, initialCategory }: {
       <div className="flex flex-wrap items-center gap-2 mb-5">
         {categories.length > 0 && (
           <>
-            <Chip active={cat === null} onClick={() => setCat(null)} ctx={ctx}>Tudo</Chip>
+            <Chip active={cat === null} onClick={() => setCat(null)} ctx={ctx}>{t('collection.all')}</Chip>
             {categories.map(c => (
               <Chip key={c} active={cat === c} onClick={() => setCat(c)} ctx={ctx}>{c}</Chip>
             ))}
@@ -76,7 +78,7 @@ export function CatalogGrid({ products, slug, ctx, initialCategory }: {
         <select
           value={sort}
           onChange={e => setSort(e.target.value as Sort)}
-          aria-label="Ordenar"
+          aria-label={t('collection.sortLabel')}
           className="ml-auto text-xs px-3 py-1.5 outline-none cursor-pointer"
           style={{
             borderRadius: ctx.radius,
@@ -85,14 +87,14 @@ export function CatalogGrid({ products, slug, ctx, initialCategory }: {
             color: colors.text,
           }}
         >
-          <option value="rel">Relevância</option>
-          <option value="asc">Menor preço</option>
-          <option value="desc">Maior preço</option>
+          <option value="rel">{t('collection.sortRel')}</option>
+          <option value="asc">{t('collection.sortAsc')}</option>
+          <option value="desc">{t('collection.sortDesc')}</option>
         </select>
       </div>
 
       <p className="text-xs mb-5" style={{ color: colors.textMuted }}>
-        {visible.length} {visible.length === 1 ? 'produto' : 'produtos'}
+        {t('collection.count', { n: visible.length })}
       </p>
 
       {visible.length === 0 ? (
@@ -100,7 +102,7 @@ export function CatalogGrid({ products, slug, ctx, initialCategory }: {
           className="py-16 text-center text-sm"
           style={{ color: colors.textMuted, border: `1px dashed ${colors.border}`, borderRadius: ctx.radius }}
         >
-          Nenhum produto nesta categoria.
+          {t('collection.empty')}
         </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4" style={{ gap: ctx.gap }}>

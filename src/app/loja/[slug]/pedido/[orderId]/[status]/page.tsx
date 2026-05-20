@@ -11,6 +11,8 @@
 
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
+import type { Metadata } from 'next'
+import { getTranslations } from 'next-intl/server'
 import { getStore } from '@/lib/storefront/data'
 import { DEFAULT_DESIGN } from '@/lib/storefront/templates'
 import { OrderResult } from '@/components/storefront/premium/OrderResult'
@@ -34,7 +36,10 @@ interface PublicOrder {
 
 const ALLOWED_STATUS = new Set(['sucesso', 'falha', 'pendente'])
 
-export const metadata = { title: 'Pedido' }
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations('storefront')
+  return { title: t('meta.order') }
+}
 
 async function fetchOrder(orderId: string): Promise<PublicOrder | null> {
   try {
@@ -57,11 +62,12 @@ export default async function OrderResultPage({ params }: Props) {
 
   const order = await fetchOrder(orderId)
   if (!order) {
+    const t = await getTranslations('storefront')
     return (
       <div className="min-h-screen flex flex-col items-center justify-center px-4 text-center">
-        <p className="text-zinc-500 text-sm">Pedido não encontrado.</p>
+        <p className="text-zinc-500 text-sm">{t('errors.orderNotFound')}</p>
         <Link href={`/loja/${slug}`} className="mt-4 text-cyan-400 hover:underline text-sm">
-          Voltar para a loja
+          {t('nav.backToStore')}
         </Link>
       </div>
     )

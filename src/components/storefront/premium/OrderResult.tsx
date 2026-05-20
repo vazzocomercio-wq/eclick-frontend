@@ -9,6 +9,7 @@
  */
 
 import Link from 'next/link'
+import { useTranslations } from 'next-intl'
 import { Check, X, Clock, ArrowLeft, RefreshCcw } from 'lucide-react'
 import { formatBRL } from '@/lib/storefront/data'
 import type { StorefrontStore } from '@/lib/storefront/data'
@@ -38,6 +39,7 @@ export function OrderResult({ store, design, slug, order, returnStatus }: {
 }) {
   const ctx = buildCtx(design.theme)
   const { colors } = ctx.theme
+  const t = useTranslations('storefront')
 
   const announce = design.sections.find(s => s.type === 'announcementBar')
   const header   = design.sections.find(s => s.type === 'siteHeader')
@@ -57,20 +59,20 @@ export function OrderResult({ store, design, slug, order, returnStatus }: {
     success: {
       icon:  <Check size={28} />,
       bg:    '#22c55e',
-      title: 'Pagamento confirmado!',
-      sub:   `Obrigado pela compra, ${order.customer.name.split(' ')[0] || ''}. O lojista entrará em contato pelos próximos passos.`,
+      title: t('orderResult.success.title'),
+      sub:   t('orderResult.success.sub', { firstName: order.customer.name.split(' ')[0] || '' }),
     },
     failed: {
       icon:  <X size={28} />,
       bg:    '#ef4444',
-      title: 'Pagamento não concluído',
-      sub:   'Não recebemos confirmação do pagamento. Você pode tentar de novo ou falar com o lojista.',
+      title: t('orderResult.failed.title'),
+      sub:   t('orderResult.failed.sub'),
     },
     pending: {
       icon:  <Clock size={28} />,
       bg:    '#f59e0b',
-      title: 'Aguardando confirmação',
-      sub:   'O pagamento ainda está em análise pelo gateway. Avisaremos por e-mail quando confirmar.',
+      title: t('orderResult.pending.title'),
+      sub:   t('orderResult.pending.sub'),
     },
   }[variant]
 
@@ -100,14 +102,14 @@ export function OrderResult({ store, design, slug, order, returnStatus }: {
         <section className="mt-8 p-5"
           style={{ background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: ctx.radius }}>
           <div className="flex items-center justify-between text-xs mb-3" style={{ color: colors.textMuted }}>
-            <span>Pedido</span>
+            <span>{t('orderResult.order')}</span>
             <span className="font-mono">{order.id.slice(0, 8)}</span>
           </div>
           <ul className="space-y-2.5">
             {order.items.map(it => (
               <li key={it.productId} className="flex gap-3 text-sm">
                 <span className="flex-1 truncate" style={{ color: colors.text }}>
-                  {it.name} <span style={{ color: colors.textMuted }}>× {it.qty}</span>
+                  {it.name} <span style={{ color: colors.textMuted }}>{t('orderResult.qty', { qty: it.qty })}</span>
                 </span>
                 <span className="shrink-0 font-medium" style={{ color: colors.text }}>
                   {formatBRL(it.price * it.qty)}
@@ -117,7 +119,7 @@ export function OrderResult({ store, design, slug, order, returnStatus }: {
           </ul>
           <div className="mt-4 pt-3 border-t flex items-baseline justify-between"
             style={{ borderColor: colors.border }}>
-            <span className="text-sm" style={{ color: colors.textMuted }}>Total</span>
+            <span className="text-sm" style={{ color: colors.textMuted }}>{t('orderResult.total')}</span>
             <span className="text-2xl font-bold" style={{ color: colors.primary, fontFamily: ctx.fontH }}>
               {formatBRL(order.total)}
             </span>
@@ -128,14 +130,14 @@ export function OrderResult({ store, design, slug, order, returnStatus }: {
           <Link href={`/loja/${slug}`}
             className="inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-semibold transition-opacity hover:opacity-80"
             style={{ background: colors.primary, color: onAccentColor(ctx.theme), borderRadius: ctx.radius }}>
-            <ArrowLeft size={14} /> Voltar para a loja
+            <ArrowLeft size={14} /> {t('orderResult.back')}
           </Link>
           {isFailed && order.initPoint && (
             <a href={order.initPoint}
               className="inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-semibold transition-opacity hover:opacity-80"
               style={{ background: alpha(colors.primary, 0.1), color: colors.primary,
                        border: `1px solid ${colors.primary}`, borderRadius: ctx.radius }}>
-              <RefreshCcw size={14} /> Tentar pagar de novo
+              <RefreshCcw size={14} /> {t('orderResult.retry')}
             </a>
           )}
           {isPending && (
@@ -143,14 +145,14 @@ export function OrderResult({ store, design, slug, order, returnStatus }: {
               className="inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-semibold transition-opacity hover:opacity-80"
               style={{ background: alpha(colors.primary, 0.1), color: colors.primary,
                        border: `1px solid ${colors.primary}`, borderRadius: ctx.radius }}>
-              <RefreshCcw size={14} /> Atualizar status
+              <RefreshCcw size={14} /> {t('orderResult.refresh')}
             </button>
           )}
         </div>
 
         {isPaid && store.whatsapp_number && (
           <p className="mt-6 text-center text-[11px]" style={{ color: colors.textMuted }}>
-            Dúvidas? Chame a loja no WhatsApp: <span className="font-mono">{store.whatsapp_number}</span>
+            {t('orderResult.whatsappHint')} <span className="font-mono">{store.whatsapp_number}</span>
           </p>
         )}
       </main>

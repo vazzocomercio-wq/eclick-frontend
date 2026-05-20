@@ -4,17 +4,19 @@
  * fase; a inscricao real entra com o modulo de marketing.
  */
 
+import { getTranslations } from 'next-intl/server'
 import type { Section } from '@/lib/storefront/types'
 import type { StorefrontStore } from '@/lib/storefront/data'
 import { darkColor, bestContrast, alpha, onAccentColor } from '@/lib/storefront/theme'
 import type { RenderCtx } from '../renderCtx'
 
-export function SiteFooter({ store, section, ctx }: {
+export async function SiteFooter({ store, section, ctx }: {
   store: StorefrontStore
   section: Extract<Section, { type: 'siteFooter' }>
   ctx: RenderCtx
 }) {
   const { colors } = ctx.theme
+  const t = await getTranslations('storefront')
   const columns = section.variant === 'columns'
   const bg = columns ? darkColor(ctx.theme) : colors.surface
   const fg = columns ? bestContrast(bg) : colors.text
@@ -80,15 +82,15 @@ export function SiteFooter({ store, section, ctx }: {
           {columns && section.newsletter && (
             <div>
               <p className="text-xs font-bold uppercase tracking-wider" style={{ color: fg }}>
-                Receba novidades
+                {t('newsletter.title')}
               </p>
               <p className="mt-3 text-xs" style={{ color: muted }}>
-                Ofertas e lançamentos no seu e-mail.
+                {t('newsletter.desc')}
               </p>
               <div className="mt-3 flex" style={{ borderRadius: ctx.radius, overflow: 'hidden' }}>
                 <input
                   type="email"
-                  placeholder="Seu e-mail"
+                  placeholder={t('newsletter.placeholder')}
                   className="flex-1 min-w-0 px-3 py-2 text-sm outline-none"
                   style={{ background: alpha(fg, 0.08), color: fg, border: `1px solid ${alpha(fg, 0.15)}` }}
                 />
@@ -97,7 +99,7 @@ export function SiteFooter({ store, section, ctx }: {
                   className="px-4 text-sm font-semibold shrink-0"
                   style={{ background: colors.primary, color: onAccentColor(ctx.theme) }}
                 >
-                  OK
+                  {t('newsletter.submit')}
                 </button>
               </div>
             </div>
@@ -112,7 +114,7 @@ export function SiteFooter({ store, section, ctx }: {
             © {new Date().getFullYear()} {store.store_name}
           </p>
           <p className="text-xs" style={{ color: muted }}>
-            Powered by <span style={{ color: colors.primary }}>e-Click</span>
+            {t('footer.poweredBy')} <span style={{ color: colors.primary }}>e-Click</span>
           </p>
         </div>
       </div>

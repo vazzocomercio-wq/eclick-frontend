@@ -7,6 +7,7 @@
 
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
+import { getTranslations } from 'next-intl/server'
 import { getProduct, getProducts } from '@/lib/storefront/data'
 import { PremiumProductDetail } from '@/components/storefront/PremiumProductDetail'
 import { DEFAULT_DESIGN } from '@/lib/storefront/templates'
@@ -18,7 +19,8 @@ interface Props {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug, id } = await params
   const data = await getProduct(slug, id)
-  if (!data) return { title: 'Produto não encontrado' }
+  const t = await getTranslations('storefront')
+  if (!data) return { title: t('errors.productNotFound') }
   return {
     title: `${data.product.name} — ${data.store.store_name}`,
     description: data.product.ai_short_description ?? data.store.store_description ?? undefined,

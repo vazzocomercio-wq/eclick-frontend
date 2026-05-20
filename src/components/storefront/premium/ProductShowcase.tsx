@@ -6,6 +6,7 @@
  * na fase de pagina de colecao.
  */
 
+import { getTranslations } from 'next-intl/server'
 import type { Section } from '@/lib/storefront/types'
 import type { StorefrontProduct } from '@/lib/storefront/data'
 import { effects, watermarkColor } from '@/lib/storefront/theme'
@@ -18,7 +19,7 @@ const COLS_MOBILE:  Record<number, string> = { 1: 'grid-cols-1', 2: 'grid-cols-2
 const COLS_TABLET:  Record<number, string> = { 1: 'sm:grid-cols-1', 2: 'sm:grid-cols-2', 3: 'sm:grid-cols-3', 4: 'sm:grid-cols-4' }
 const COLS_DESKTOP: Record<number, string> = { 2: 'lg:grid-cols-2', 3: 'lg:grid-cols-3', 4: 'lg:grid-cols-4', 5: 'lg:grid-cols-5' }
 
-export function ProductShowcase({ section, products, slug, ctx, anchorId }: {
+export async function ProductShowcase({ section, products, slug, ctx, anchorId }: {
   section: Extract<Section, { type: 'productShowcase' }>
   products: StorefrontProduct[]
   slug: string
@@ -27,6 +28,7 @@ export function ProductShowcase({ section, products, slug, ctx, anchorId }: {
 }) {
   const { colors } = ctx.theme
   const showWm = effects(ctx.theme).watermarks && !!section.watermark
+  const t = await getTranslations('storefront')
   const cols = section.columns ?? { mobile: 2, tablet: 3, desktop: 4 }
   const gridClass = [
     COLS_MOBILE[cols.mobile]   ?? 'grid-cols-2',
@@ -54,7 +56,7 @@ export function ProductShowcase({ section, products, slug, ctx, anchorId }: {
             className="text-sm whitespace-nowrap hover:underline shrink-0"
             style={{ color: colors.primary }}
           >
-            Ver tudo
+            {t('nav.seeAll')}
           </a>
         </div>
 
@@ -67,7 +69,7 @@ export function ProductShowcase({ section, products, slug, ctx, anchorId }: {
               borderRadius: ctx.radius,
             }}
           >
-            Nenhum produto disponível no momento.
+            {t('collection.emptyShowcase')}
           </div>
         ) : section.layout === 'carousel' ? (
           <ShowcaseCarousel products={products} slug={slug} ctx={ctx} />

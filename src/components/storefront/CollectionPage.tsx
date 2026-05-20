@@ -7,6 +7,7 @@
  */
 
 import Link from 'next/link'
+import { getTranslations } from 'next-intl/server'
 import type { StorefrontDesign, Section } from '@/lib/storefront/types'
 import { googleFontsHref } from '@/lib/storefront/theme'
 import type { StorefrontStore, StorefrontProduct } from '@/lib/storefront/data'
@@ -17,7 +18,7 @@ import { AnnouncementBar } from './premium/AnnouncementBar'
 import { SiteHeader } from './premium/SiteHeader'
 import { SiteFooter } from './premium/SiteFooter'
 
-export function CollectionPage({ design, store, products, slug, initialCategory }: {
+export async function CollectionPage({ design, store, products, slug, initialCategory }: {
   design: StorefrontDesign
   store: StorefrontStore
   products: StorefrontProduct[]
@@ -26,6 +27,7 @@ export function CollectionPage({ design, store, products, slug, initialCategory 
 }) {
   const ctx = buildCtx(design.theme)
   const { colors } = design.theme
+  const t = await getTranslations('storefront')
 
   const announce = design.sections.find(
     (s): s is Extract<Section, { type: 'announcementBar' }> => s.type === 'announcementBar',
@@ -51,14 +53,14 @@ export function CollectionPage({ design, store, products, slug, initialCategory 
           className="text-xs sm:text-sm hover:underline"
           style={{ color: colors.textMuted }}
         >
-          &larr; Voltar para a loja
+          &larr; {t('nav.backToStore')}
         </Link>
 
         <h1
           className="mt-4 mb-6 text-2xl sm:text-4xl font-bold"
           style={{ color: colors.text, fontFamily: ctx.fontH }}
         >
-          Todos os produtos
+          {t('collection.title')}
         </h1>
 
         <CatalogGrid products={products} slug={slug} ctx={ctx} initialCategory={initialCategory} />

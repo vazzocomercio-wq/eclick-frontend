@@ -265,6 +265,7 @@
       "lojaAutomacao": "自动化（AI）",
       "socialShop": "社交店铺",
       "socialShopInstagram": "Instagram / Facebook",
+      "socialShopWhatsapp": "WhatsApp 目录",
       "atendenteAgentes": "智能体",
       "atendenteConversas": "对话",
       "atendenteConhecimento": "知识库",
@@ -12384,6 +12385,155 @@
       "thu": "周四 -2",
       "fri": "周五 -1",
       "today": "今日"
+    }
+  },
+  "storefront": {
+    "errors": {
+      "storeNotFound": "未找到店铺",
+      "productNotFound": "未找到商品",
+      "pageNotFound": "未找到页面",
+      "orderNotFound": "未找到订单。"
+    },
+    "meta": {
+      "products": "商品",
+      "order": "订单",
+      "checkout": "结算"
+    },
+    "nav": {
+      "backToStore": "返回店铺",
+      "seeAll": "查看全部",
+      "seeStore": "访问店铺",
+      "keepShopping": "继续购物",
+      "previous": "上一个",
+      "next": "下一个",
+      "slide": "幻灯片 {n}",
+      "closeMenu": "关闭菜单",
+      "openMenu": "打开菜单"
+    },
+    "collection": {
+      "title": "全部商品",
+      "sortLabel": "排序",
+      "all": "全部",
+      "sortRel": "相关性",
+      "sortAsc": "价格从低到高",
+      "sortDesc": "价格从高到低",
+      "count": "{n, plural, other {# 件商品}}",
+      "empty": "此分类暂无商品。",
+      "emptyShowcase": "暂无可用商品。"
+    },
+    "product": {
+      "description": "描述",
+      "specs": "规格参数",
+      "related": "您可能还喜欢",
+      "outOfStock": "商品已售罄",
+      "notifyMe": "想在补货时收到通知吗？请通过 WhatsApp 联系 →",
+      "notifyMessage": "您好！我看到商品 \"{name}\" 已售罄。补货时可以通知我吗？",
+      "buyOnWhatsapp": "通过 WhatsApp 购买",
+      "comingSoon": "敬请期待",
+      "interestMessage": "您好！我对商品 \"{name}\" ({price}) 感兴趣。",
+      "photo": "照片 {n}",
+      "noPhoto": "无图片",
+      "decrease": "减少",
+      "increase": "增加",
+      "added": "已添加！",
+      "addToCart": "加入购物车"
+    },
+    "cart": {
+      "open": "打开购物车",
+      "close": "关闭购物车",
+      "closeGeneric": "关闭",
+      "title": "您的购物车",
+      "count": "{n, plural, other {# 件商品}}",
+      "empty": "您的购物车是空的。",
+      "perUnit": "{price} / 件",
+      "remove": "移除",
+      "subtotal": "小计",
+      "checkout": "结算",
+      "combineWhatsapp": "通过 WhatsApp 协商",
+      "paymentNote": "付款和运费通过 WhatsApp 协商。",
+      "finishWhatsapp": "通过 WhatsApp 完成",
+      "setupWhatsapp": "请在设置中添加店铺的 WhatsApp 以完成订单。",
+      "clear": "清空购物车"
+    },
+    "checkout": {
+      "title": "结算",
+      "empty": "您的购物车是空的。",
+      "validation": {
+        "missingFields": "请填写姓名和邮箱。",
+        "genericError": "错误 {status}"
+      },
+      "customer": {
+        "title": "买家信息",
+        "name": "全名 *",
+        "email": "邮箱 *",
+        "phone": "电话",
+        "phonePlaceholder": "(11) 9...",
+        "doc": "税务编号",
+        "docPlaceholder": "仅数字",
+        "notes": "备注（可选）",
+        "notesPlaceholder": "送货地址、参照点等。"
+      },
+      "payment": {
+        "title": "付款方式",
+        "redirectNoteMp": "您将被重定向至 Mercado Pago 的安全付款页面。",
+        "redirectNoteStripe": "您将被重定向至 Stripe 的安全付款页面。",
+        "mp": "Mercado Pago",
+        "mpDesc": "Pix、卡和 boleto",
+        "stripe": "信用卡（Stripe）",
+        "stripeDesc": "信用卡或借记卡"
+      },
+      "summary": {
+        "title": "{n, plural, other {您的订单（# 件商品）}}",
+        "qty": "× {qty}",
+        "total": "总计"
+      },
+      "submit": {
+        "redirecting": "正在重定向…",
+        "pay": "支付 {price}"
+      }
+    },
+    "orderResult": {
+      "success": {
+        "title": "付款成功！",
+        "sub": "感谢您的购买，{firstName}。店主将与您联系后续步骤。"
+      },
+      "failed": {
+        "title": "付款未完成",
+        "sub": "我们未收到付款确认。您可以重试或与店主联系。"
+      },
+      "pending": {
+        "title": "等待确认",
+        "sub": "付款仍在网关审核中。确认后我们将发送邮件通知您。"
+      },
+      "order": "订单",
+      "qty": "× {qty}",
+      "total": "总计",
+      "back": "返回店铺",
+      "retry": "重新付款",
+      "refresh": "刷新状态",
+      "whatsappHint": "有疑问？通过 WhatsApp 联系店铺："
+    },
+    "newsletter": {
+      "title": "订阅最新动态",
+      "desc": "优惠和新品资讯直达您的邮箱。",
+      "placeholder": "您的邮箱",
+      "submit": "确定"
+    },
+    "whatsapp": {
+      "floaterAriaOpen": "打开 WhatsApp 菜单",
+      "floaterAriaClose": "关闭 WhatsApp 菜单",
+      "floaterAriaTalk": "在 WhatsApp 上聊天",
+      "floaterClose": "关闭",
+      "chatTitle": "与店铺聊天",
+      "chatSubtitle": "打开 WhatsApp",
+      "catalogTitle": "在 WhatsApp 上查看目录",
+      "catalogSubtitle": "店铺商品列表"
+    },
+    "hero": {
+      "collection": "系列"
+    },
+    "footer": {
+      "poweredBy": "技术支持"
     }
   }
 }

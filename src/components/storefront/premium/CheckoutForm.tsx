@@ -11,6 +11,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { useTranslations } from 'next-intl'
 import { Loader2, CreditCard, AlertCircle, ShoppingBag, ArrowLeft } from 'lucide-react'
 import { useCart } from '@/lib/storefront/cart'
 import { formatBRL } from '@/lib/storefront/data'
@@ -35,6 +36,7 @@ export function CheckoutForm({ store, design, slug }: {
   const cart = useCart(slug)
   const ctx = buildCtx(design.theme)
   const { colors } = ctx.theme
+  const t = useTranslations('storefront')
 
   const [name, setName]       = useState('')
   const [email, setEmail]     = useState('')
@@ -56,7 +58,7 @@ export function CheckoutForm({ store, design, slug }: {
     if (empty || submitting) return
     setError(null)
     if (!name.trim() || !email.trim()) {
-      setError('Preencha nome e e-mail.')
+      setError(t('checkout.validation.missingFields'))
       return
     }
     setSubmitting(true)
@@ -79,7 +81,7 @@ export function CheckoutForm({ store, design, slug }: {
       })
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
-        throw new Error(body?.message ?? `Erro ${res.status}`)
+        throw new Error(body?.message ?? t('checkout.validation.genericError', { status: res.status }))
       }
       const data = await res.json() as { orderId: string; initPoint: string }
       // Limpa o carrinho ANTES do redirect (se o usuario voltar, comeca limpo)
@@ -103,11 +105,11 @@ export function CheckoutForm({ store, design, slug }: {
       <main className="max-w-5xl mx-auto px-4 sm:px-8 py-6 sm:py-10">
         <Link href={`/loja/${slug}`} className="text-xs sm:text-sm hover:underline inline-flex items-center gap-1"
           style={{ color: colors.textMuted }}>
-          <ArrowLeft size={12} /> Continuar comprando
+          <ArrowLeft size={12} /> {t('nav.keepShopping')}
         </Link>
 
         <h1 className="mt-4 text-2xl sm:text-4xl font-bold" style={{ color: colors.text, fontFamily: ctx.fontH }}>
-          Finalizar compra
+          {t('checkout.title')}
         </h1>
 
         {empty ? (
@@ -115,36 +117,36 @@ export function CheckoutForm({ store, design, slug }: {
             style={{ border: `1px dashed ${colors.border}`, borderRadius: ctx.radius }}>
             <ShoppingBag size={36} className="mx-auto mb-3" style={{ color: colors.textMuted, opacity: 0.5 }} />
             <p className="text-sm" style={{ color: colors.textMuted }}>
-              Seu carrinho está vazio.
+              {t('checkout.empty')}
             </p>
             <Link href={`/loja/${slug}`}
               className="inline-block mt-4 px-5 py-2 text-sm font-semibold transition-opacity hover:opacity-80"
               style={{ background: colors.primary, color: onAccentColor(ctx.theme), borderRadius: ctx.radius }}>
-              Ver a loja
+              {t('nav.seeStore')}
             </Link>
           </div>
         ) : (
           <form onSubmit={submit} className="mt-6 grid lg:grid-cols-[1fr_360px] gap-8">
             {/* Cliente */}
             <div className="space-y-5">
-              <Card title="Dados do comprador" ctx={ctx}>
-                <Field label="Nome completo *">
+              <Card title={t('checkout.customer.title')} ctx={ctx}>
+                <Field label={t('checkout.customer.name')}>
                   <Input value={name} onChange={setName} ctx={ctx} required />
                 </Field>
-                <Field label="E-mail *">
+                <Field label={t('checkout.customer.email')}>
                   <Input value={email} onChange={setEmail} ctx={ctx} type="email" required />
                 </Field>
                 <div className="grid sm:grid-cols-2 gap-3">
-                  <Field label="Telefone">
-                    <Input value={phone} onChange={setPhone} ctx={ctx} placeholder="(11) 9..." />
+                  <Field label={t('checkout.customer.phone')}>
+                    <Input value={phone} onChange={setPhone} ctx={ctx} placeholder={t('checkout.customer.phonePlaceholder')} />
                   </Field>
-                  <Field label="CPF ou CNPJ">
-                    <Input value={doc} onChange={setDoc} ctx={ctx} placeholder="Apenas números" />
+                  <Field label={t('checkout.customer.doc')}>
+                    <Input value={doc} onChange={setDoc} ctx={ctx} placeholder={t('checkout.customer.docPlaceholder')} />
                   </Field>
                 </div>
-                <Field label="Observações (opcional)">
+                <Field label={t('checkout.customer.notes')}>
                   <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2}
-                    placeholder="Endereço de entrega, ponto de referência, etc."
+                    placeholder={t('checkout.customer.notesPlaceholder')}
                     className="w-full px-3 py-2 text-sm outline-none resize-none"
                     style={{
                       background: colors.surface, color: colors.text,
@@ -153,10 +155,10 @@ export function CheckoutForm({ store, design, slug }: {
                 </Field>
               </Card>
 
-              <Card title="Forma de pagamento" ctx={ctx}>
+              <Card title={t('checkout.payment.title')} ctx={ctx}>
                 <GatewayPick value={gateway} onChange={setGateway} ctx={ctx} />
                 <p className="text-[11px] mt-2" style={{ color: colors.textMuted }}>
-                  Você será redirecionado para o pagamento seguro do {gateway === 'mercadopago' ? 'Mercado Pago' : 'Stripe'}.
+                  {gateway === 'mercadopago' ? t('checkout.payment.redirectNoteMp') : t('checkout.payment.redirectNoteStripe')}
                 </p>
               </Card>
 
@@ -176,18 +178,18 @@ export function CheckoutForm({ store, design, slug }: {
                 className="hidden lg:inline-flex w-full items-center justify-center gap-2 px-6 py-3.5 font-semibold text-sm transition-transform hover:scale-[1.01] disabled:opacity-50"
                 style={{ background: colors.primary, color: onAccentColor(ctx.theme), borderRadius: ctx.radius }}>
                 {submitting ? <Loader2 size={16} className="animate-spin" /> : <CreditCard size={16} />}
-                {submitting ? 'Redirecionando…' : `Pagar ${formatBRL(cart.subtotal)}`}
+                {submitting ? t('checkout.submit.redirecting') : t('checkout.submit.pay', { price: formatBRL(cart.subtotal) })}
               </button>
             </div>
 
             {/* Resumo */}
             <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
-              <Card title={`Seu pedido (${cart.count} ${cart.count === 1 ? 'item' : 'itens'})`} ctx={ctx}>
+              <Card title={t('checkout.summary.title', { n: cart.count })} ctx={ctx}>
                 <ul className="space-y-3">
                   {cart.items.map(it => (
                     <li key={it.productId} className="flex gap-2 text-xs">
                       <span className="flex-1 truncate" style={{ color: colors.text }}>
-                        {it.name} <span style={{ color: colors.textMuted }}>× {it.qty}</span>
+                        {it.name} <span style={{ color: colors.textMuted }}>{t('checkout.summary.qty', { qty: it.qty })}</span>
                       </span>
                       <span className="shrink-0 font-medium" style={{ color: colors.text }}>
                         {formatBRL(it.price * it.qty)}
@@ -197,7 +199,7 @@ export function CheckoutForm({ store, design, slug }: {
                 </ul>
                 <div className="mt-4 pt-3 border-t flex justify-between items-baseline"
                   style={{ borderColor: colors.border }}>
-                  <span className="text-sm" style={{ color: colors.textMuted }}>Total</span>
+                  <span className="text-sm" style={{ color: colors.textMuted }}>{t('checkout.summary.total')}</span>
                   <span className="text-2xl font-bold" style={{ color: colors.primary, fontFamily: ctx.fontH }}>
                     {formatBRL(cart.subtotal)}
                   </span>
@@ -208,7 +210,7 @@ export function CheckoutForm({ store, design, slug }: {
                 className="lg:hidden w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 font-semibold text-sm transition-transform hover:scale-[1.01] disabled:opacity-50"
                 style={{ background: colors.primary, color: onAccentColor(ctx.theme), borderRadius: ctx.radius }}>
                 {submitting ? <Loader2 size={16} className="animate-spin" /> : <CreditCard size={16} />}
-                {submitting ? 'Redirecionando…' : `Pagar ${formatBRL(cart.subtotal)}`}
+                {submitting ? t('checkout.submit.redirecting') : t('checkout.submit.pay', { price: formatBRL(cart.subtotal) })}
               </button>
             </aside>
           </form>
@@ -254,9 +256,12 @@ function Input({ value, onChange, ctx, ...rest }: {
 }
 
 function GatewayPick({ value, onChange, ctx }: {
-  value: Gateway; onChange: (v: Gateway) => void; ctx: ReturnType<typeof buildCtx>
+  value: Gateway
+  onChange: (v: Gateway) => void
+  ctx: ReturnType<typeof buildCtx>
 }) {
   const { colors } = ctx.theme
+  const t = useTranslations('storefront')
   const Opt = ({ id, title, desc }: { id: Gateway; title: string; desc: string }) => {
     const active = value === id
     return (
@@ -280,8 +285,8 @@ function GatewayPick({ value, onChange, ctx }: {
   }
   return (
     <div className="grid sm:grid-cols-2 gap-2">
-      <Opt id="mercadopago" title="Mercado Pago" desc="Pix, cartão e boleto" />
-      <Opt id="stripe"      title="Cartão (Stripe)" desc="Cartão de crédito ou débito" />
+      <Opt id="mercadopago" title={t('checkout.payment.mp')}     desc={t('checkout.payment.mpDesc')} />
+      <Opt id="stripe"      title={t('checkout.payment.stripe')} desc={t('checkout.payment.stripeDesc')} />
     </div>
   )
 }

@@ -1,9 +1,12 @@
+'use client'
+
 /**
  * Card de produto do tema premium — retrato editorial.
  * Serve tanto a grade quanto o carrossel (prop `carousel`).
  */
 
 import Link from 'next/link'
+import { useTranslations } from 'next-intl'
 import { formatBRL } from '@/lib/storefront/data'
 import type { StorefrontProduct } from '@/lib/storefront/data'
 import { effects } from '@/lib/storefront/theme'
@@ -17,6 +20,7 @@ export function PremiumProductCard({ product, slug, ctx, carousel = false }: {
 }) {
   const { colors } = ctx.theme
   const rollover = effects(ctx.theme).hoverRollover && (product.photo_urls?.length ?? 0) > 1
+  const t = useTranslations('storefront')
 
   return (
     <Link
@@ -41,7 +45,7 @@ export function PremiumProductCard({ product, slug, ctx, carousel = false }: {
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-xs text-zinc-400">
-            sem foto
+            {t('product.noPhoto')}
           </div>
         )}
         {rollover && (

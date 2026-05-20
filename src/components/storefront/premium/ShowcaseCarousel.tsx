@@ -6,22 +6,24 @@
  */
 
 import { useRef } from 'react'
+import { useTranslations } from 'next-intl'
 import { PremiumProductCard } from './PremiumProductCard'
 import type { StorefrontProduct } from '@/lib/storefront/data'
 import type { RenderCtx } from '../renderCtx'
 
-function Arrow({ dir, color, surface, border, onClick }: {
+function Arrow({ dir, color, surface, border, onClick, label }: {
   dir: 'left' | 'right'
   color: string
   surface: string
   border: string
   onClick: () => void
+  label: string
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      aria-label={dir === 'left' ? 'Anterior' : 'Próximo'}
+      aria-label={label}
       className={`hidden sm:flex absolute top-1/2 -translate-y-1/2 w-10 h-10 items-center justify-center rounded-full shadow-lg transition-transform hover:scale-105 ${
         dir === 'left' ? '-left-3' : '-right-3'
       }`}
@@ -42,6 +44,7 @@ export function ShowcaseCarousel({ products, slug, ctx }: {
 }) {
   const ref = useRef<HTMLDivElement>(null)
   const { colors } = ctx.theme
+  const t = useTranslations('storefront')
 
   const nudge = (dir: number) => {
     const el = ref.current
@@ -61,9 +64,9 @@ export function ShowcaseCarousel({ products, slug, ctx }: {
         ))}
       </div>
       <Arrow dir="left" color={colors.text} surface={colors.surface} border={colors.border}
-        onClick={() => nudge(-1)} />
+        onClick={() => nudge(-1)} label={t('nav.previous')} />
       <Arrow dir="right" color={colors.text} surface={colors.surface} border={colors.border}
-        onClick={() => nudge(1)} />
+        onClick={() => nudge(1)} label={t('nav.next')} />
     </div>
   )
 }

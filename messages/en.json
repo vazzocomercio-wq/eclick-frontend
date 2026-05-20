@@ -265,6 +265,7 @@
       "lojaAutomacao": "Automation (AI)",
       "socialShop": "Social Shop",
       "socialShopInstagram": "Instagram / Facebook",
+      "socialShopWhatsapp": "WhatsApp Catalog",
       "atendenteAgentes": "Agents",
       "atendenteConversas": "Conversations",
       "atendenteConhecimento": "Knowledge",
@@ -12384,6 +12385,155 @@
       "thu": "Thu -2",
       "fri": "Fri -1",
       "today": "Today"
+    }
+  },
+  "storefront": {
+    "errors": {
+      "storeNotFound": "Store not found",
+      "productNotFound": "Product not found",
+      "pageNotFound": "Page not found",
+      "orderNotFound": "Order not found."
+    },
+    "meta": {
+      "products": "Products",
+      "order": "Order",
+      "checkout": "Checkout"
+    },
+    "nav": {
+      "backToStore": "Back to store",
+      "seeAll": "See all",
+      "seeStore": "Visit the store",
+      "keepShopping": "Keep shopping",
+      "previous": "Previous",
+      "next": "Next",
+      "slide": "Slide {n}",
+      "closeMenu": "Close menu",
+      "openMenu": "Open menu"
+    },
+    "collection": {
+      "title": "All products",
+      "sortLabel": "Sort",
+      "all": "All",
+      "sortRel": "Relevance",
+      "sortAsc": "Lowest price",
+      "sortDesc": "Highest price",
+      "count": "{n, plural, one {# product} other {# products}}",
+      "empty": "No products in this category.",
+      "emptyShowcase": "No products available at the moment."
+    },
+    "product": {
+      "description": "Description",
+      "specs": "Specifications",
+      "related": "You might also like",
+      "outOfStock": "Out of stock",
+      "notifyMe": "Want to be notified when it's back? Message on WhatsApp →",
+      "notifyMessage": "Hi! I saw that the product \"{name}\" is out of stock. Can I be notified when it's back?",
+      "buyOnWhatsapp": "Buy on WhatsApp",
+      "comingSoon": "Coming soon",
+      "interestMessage": "Hi! I'm interested in the product \"{name}\" ({price}).",
+      "photo": "Photo {n}",
+      "noPhoto": "no photo",
+      "decrease": "Decrease",
+      "increase": "Increase",
+      "added": "Added!",
+      "addToCart": "Add to cart"
+    },
+    "cart": {
+      "open": "Open cart",
+      "close": "Close cart",
+      "closeGeneric": "Close",
+      "title": "Your cart",
+      "count": "{n, plural, one {# item} other {# items}}",
+      "empty": "Your cart is empty.",
+      "perUnit": "{price} each",
+      "remove": "Remove",
+      "subtotal": "Subtotal",
+      "checkout": "Checkout",
+      "combineWhatsapp": "Coordinate via WhatsApp",
+      "paymentNote": "Payment and shipping arranged via WhatsApp.",
+      "finishWhatsapp": "Finish via WhatsApp",
+      "setupWhatsapp": "Add the store's WhatsApp in Settings to finish.",
+      "clear": "Clear cart"
+    },
+    "checkout": {
+      "title": "Checkout",
+      "empty": "Your cart is empty.",
+      "validation": {
+        "missingFields": "Please fill in name and email.",
+        "genericError": "Error {status}"
+      },
+      "customer": {
+        "title": "Buyer details",
+        "name": "Full name *",
+        "email": "Email *",
+        "phone": "Phone",
+        "phonePlaceholder": "(11) 9...",
+        "doc": "Tax ID",
+        "docPlaceholder": "Digits only",
+        "notes": "Notes (optional)",
+        "notesPlaceholder": "Delivery address, landmark, etc."
+      },
+      "payment": {
+        "title": "Payment method",
+        "redirectNoteMp": "You will be redirected to Mercado Pago's secure payment.",
+        "redirectNoteStripe": "You will be redirected to Stripe's secure payment.",
+        "mp": "Mercado Pago",
+        "mpDesc": "Pix, card and boleto",
+        "stripe": "Card (Stripe)",
+        "stripeDesc": "Credit or debit card"
+      },
+      "summary": {
+        "title": "{n, plural, one {Your order (# item)} other {Your order (# items)}}",
+        "qty": "× {qty}",
+        "total": "Total"
+      },
+      "submit": {
+        "redirecting": "Redirecting…",
+        "pay": "Pay {price}"
+      }
+    },
+    "orderResult": {
+      "success": {
+        "title": "Payment confirmed!",
+        "sub": "Thank you for your purchase, {firstName}. The store will reach out with next steps."
+      },
+      "failed": {
+        "title": "Payment not completed",
+        "sub": "We didn't receive payment confirmation. You can try again or contact the store."
+      },
+      "pending": {
+        "title": "Awaiting confirmation",
+        "sub": "The payment is still under review by the gateway. We'll email you when confirmed."
+      },
+      "order": "Order",
+      "qty": "× {qty}",
+      "total": "Total",
+      "back": "Back to store",
+      "retry": "Try paying again",
+      "refresh": "Refresh status",
+      "whatsappHint": "Questions? Message the store on WhatsApp:"
+    },
+    "newsletter": {
+      "title": "Get updates",
+      "desc": "Deals and launches in your inbox.",
+      "placeholder": "Your email",
+      "submit": "OK"
+    },
+    "whatsapp": {
+      "floaterAriaOpen": "Open WhatsApp menu",
+      "floaterAriaClose": "Close WhatsApp menu",
+      "floaterAriaTalk": "Chat on WhatsApp",
+      "floaterClose": "Close",
+      "chatTitle": "Chat with the store",
+      "chatSubtitle": "Opens WhatsApp",
+      "catalogTitle": "View catalog on WhatsApp",
+      "catalogSubtitle": "Store product list"
+    },
+    "hero": {
+      "collection": "Collection"
+    },
+    "footer": {
+      "poweredBy": "Powered by"
     }
   }
 }
