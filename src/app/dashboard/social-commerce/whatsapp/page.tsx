@@ -97,6 +97,41 @@ export default function WhatsappCatalogPage() {
     }
   }
 
+  /** Bypass — quando Meta retorna #10 SMB, lojista marca como vinculado
+   *  manualmente (Business Verification ainda pendente). Salva localmente
+   *  e habilita o widget na vitrine — vincula real depois pela API quando
+   *  a Verificacao aprovar. */
+  async function confirmSetupManual() {
+    if (!pickedWaba || !pickedCatalog) return
+    const ok = confirm(
+      'Marcar como vinculado manualmente?\n\n' +
+      'Use essa opção apenas se você já vinculou o catálogo no painel da Meta ' +
+      'OU se sua conta ainda está em Business Verification e a API recusa o ' +
+      'vínculo automático.\n\n' +
+      'O e-Click vai assumir que o catálogo está vinculado e habilitar o widget ' +
+      '"Ver catálogo" na sua loja. Quando a Verificação Comercial sair, clique ' +
+      'em "Reconfigurar" pra fazer o vínculo real via API.',
+    )
+    if (!ok) return
+    setSetupBusy(true); setError(null)
+    try {
+      const phone = pickedWaba.phone_numbers?.find(p => p.id === pickedPhoneId)
+      await SocialCommerceApi.setupWhatsappManual({
+        waba_id:         pickedWaba.id,
+        catalog_id:      pickedCatalog.id,
+        phone_number_id: pickedPhoneId ?? undefined,
+        display_phone:   phone?.display_phone_number,
+      })
+      setSetupOpen(false)
+      setPickedWaba(null); setPickedPhoneId(null); setPickedCatalog(null)
+      await refresh()
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setSetupBusy(false)
+    }
+  }
+
   async function disconnect() {
     if (!confirm('Desvincular catálogo do WhatsApp Business? Os produtos deixam de aparecer no WhatsApp da loja.')) return
     setError(null)
@@ -338,10 +373,15 @@ export default function WhatsappCatalogPage() {
               ))}
             </div>
 
-            <div className="flex justify-end gap-2 pt-3 border-t border-zinc-800">
+            <div className="flex flex-col sm:flex-row sm:justify-end gap-2 pt-3 border-t border-zinc-800">
               <button onClick={() => setSetupOpen(false)} disabled={setupBusy}
                 className="px-3 py-2 rounded text-sm text-zinc-400 hover:text-zinc-200">
                 Cancelar
+              </button>
+              <button onClick={confirmSetupManual} disabled={!pickedWaba || !pickedCatalog || setupBusy}
+                title="Para contas SMB (Business Verification pendente). Marca como vinculado localmente sem chamar a Meta."
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-zinc-700 hover:border-amber-400/60 text-zinc-300 hover:text-amber-200 text-xs disabled:opacity-50">
+                Vinculei manualmente
               </button>
               <button onClick={confirmSetup} disabled={!pickedWaba || !pickedCatalog || setupBusy}
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-400 hover:bg-emerald-300 disabled:opacity-50 text-black text-sm font-semibold">

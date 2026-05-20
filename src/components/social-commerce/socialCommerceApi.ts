@@ -157,6 +157,20 @@ export const SocialCommerceApi = {
       method: 'POST', body: JSON.stringify(body),
     }),
 
+  /** Bypass — chama o setup local sem tentar linkCatalogToWaba na Meta.
+   *  Usado quando o BM ainda eh SMB business type (Verification pendente)
+   *  e a API recusa com #10 — o lojista marca como "vinculado manualmente"
+   *  pra desbloquear o widget da loja enquanto Business Verification roda. */
+  setupWhatsappManual: (body: {
+    waba_id:          string
+    catalog_id:       string
+    phone_number_id?: string
+    display_phone?:   string
+  }) =>
+    api<unknown>('/social-commerce/whatsapp/setup-manual', {
+      method: 'POST', body: JSON.stringify(body),
+    }),
+
   syncWhatsapp: () =>
     api<{ synced: number; failed: number; skipped: number }>(
       '/social-commerce/whatsapp/sync',
