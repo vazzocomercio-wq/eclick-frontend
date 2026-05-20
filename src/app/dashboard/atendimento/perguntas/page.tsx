@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import { useSugestaoResposta } from '@/lib/ai/hooks'
 import { getAIPreference } from '@/lib/ai/config'
@@ -85,12 +86,7 @@ interface PerfStats {
   per_account: Array<PerfStatsAggregate & { seller_id: number; nickname: string | null }>
 }
 
-const TRANSFORM_LABELS: Record<TransformAction, string> = {
-  shorten:        'Encurtar',
-  humanize:       'Humanizar',
-  add_warranty:   'Add garantia',
-  ready_response: 'Resp. pronta',
-}
+const TRANSFORM_ACTIONS: TransformAction[] = ['shorten', 'humanize', 'add_warranty', 'ready_response']
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -142,9 +138,9 @@ function RefreshIcon({ spinning }: { spinning: boolean }) {
 // ── KPI Card ───────────────────────────────────────────────────────────────
 
 function KpiCard({
-  label, value, color = '#00E5FF', sub, soon = false,
+  label, value, color = '#00E5FF', sub, soon = false, soonLabel,
 }: {
-  label: string; value: string | number; color?: string; sub?: string; soon?: boolean
+  label: string; value: string | number; color?: string; sub?: string; soon?: boolean; soonLabel?: string
 }) {
   return (
     <div className="bg-[#111114] border border-[#1a1a1f] rounded-xl p-3 flex flex-col gap-1">
@@ -152,7 +148,7 @@ function KpiCard({
       {soon ? (
         <div className="flex items-center gap-1.5 mt-0.5">
           <SparklesIcon size={12} className="text-gray-600" />
-          <span className="text-[11px] text-gray-600 border border-gray-800 px-1.5 py-0.5 rounded-full">Em breve</span>
+          <span className="text-[11px] text-gray-600 border border-gray-800 px-1.5 py-0.5 rounded-full">{soonLabel}</span>
         </div>
       ) : (
         <p className="text-xl font-bold" style={{ color }}>{value}</p>
@@ -176,12 +172,13 @@ function AIAssistantPanel({ selected, aiSuggestion, aiLoading, aiAvailable, onSu
   onTransform: (action: TransformAction) => void
   transformLoading: TransformAction | null
 }) {
+  const t = useTranslations('atendimento')
   const chipsEnabled = aiAvailable && !!selected && !transformLoading
   return (
     <div className="bg-[#111114] border border-[#1a1a1f] rounded-xl p-4 flex-shrink-0">
       <div className="flex items-center gap-2 mb-3">
         <SparklesIcon size={14} className="text-[#00E5FF]" />
-        <span className="text-sm font-semibold text-white">Assistente IA</span>
+        <span className="text-sm font-semibold text-white">{t('perguntas.ai.title')}</span>
         {aiAvailable && onProviderSelect && (
           <div className="ml-auto">
             <AISelector compact onSelect={onProviderSelect} />
@@ -189,7 +186,7 @@ function AIAssistantPanel({ selected, aiSuggestion, aiLoading, aiAvailable, onSu
         )}
         {aiAvailable && !onProviderSelect && (
           <span className="text-[10px] text-[#00E5FF] border border-[#00E5FF33] px-2 py-0.5 rounded-full ml-auto animate-pulse">
-            IA ativa
+            {t('perguntas.ai.active')}
           </span>
         )}
       </div>
@@ -201,7 +198,7 @@ function AIAssistantPanel({ selected, aiSuggestion, aiLoading, aiAvailable, onSu
           <div className="flex items-center justify-between mt-2">
             <button onClick={() => onUse(aiSuggestion)}
               className="text-[11px] text-[#00E5FF] hover:underline">
-              Usar essa resposta →
+              {t('perguntas.ai.useThisResponse')}
             </button>
           </div>
         </div>
@@ -209,15 +206,15 @@ function AIAssistantPanel({ selected, aiSuggestion, aiLoading, aiAvailable, onSu
         <div className={`bg-[#0d0d10] rounded-lg p-3 mb-3 ${!aiAvailable ? 'opacity-50' : ''}`}>
           <p className="text-xs text-gray-400 italic">
             {aiAvailable
-              ? 'Clique em "Gerar sugestão" para obter uma resposta baseada no contexto do produto.'
-              : 'A IA vai sugerir respostas automáticas baseadas no histórico de perguntas similares e nas informações do produto.'}
+              ? t('perguntas.ai.emptyAvailable')
+              : t('perguntas.ai.emptyUnavailable')}
           </p>
         </div>
       )}
 
       {/* Action chips */}
       <div className="grid grid-cols-2 gap-2 mb-3">
-        {(Object.keys(TRANSFORM_LABELS) as TransformAction[]).map(action => {
+        {TRANSFORM_ACTIONS.map(action => {
           const busy = transformLoading === action
           const disabled = !chipsEnabled
           return (
@@ -237,7 +234,7 @@ function AIAssistantPanel({ selected, aiSuggestion, aiLoading, aiAvailable, onSu
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
                 </svg>
               )}
-              {TRANSFORM_LABELS[action]}
+              {t(`perguntas.ai.transform.${action}`)}
             </button>
           )
         })}
@@ -255,7 +252,7 @@ function AIAssistantPanel({ selected, aiSuggestion, aiLoading, aiAvailable, onSu
         }}
       >
         <SparklesIcon size={12} />
-        {aiLoading ? 'Gerando...' : 'Gerar sugestão com IA'}
+        {aiLoading ? t('perguntas.ai.generating') : t('perguntas.ai.generate')}
       </button>
     </div>
   )
@@ -264,6 +261,7 @@ function AIAssistantPanel({ selected, aiSuggestion, aiLoading, aiAvailable, onSu
 // ── Main Page ──────────────────────────────────────────────────────────────
 
 export default function PerguntasPage() {
+  const t = useTranslations('atendimento')
   const [questions, setQuestions]         = useState<Question[]>([])
   const [answeredToday, setAnsweredToday] = useState<Question[]>([])
   const [total, setTotal]                 = useState(0)
@@ -328,7 +326,7 @@ export default function PerguntasPage() {
         if (prevIds.current.size > 0) {
           const newOnes = data.questions.filter(q => !prevIds.current.has(q.id))
           newOnes.forEach(q =>
-            addToast(`Nova pergunta sobre "${(q.item?.title ?? q.item_id).slice(0, 40)}"`, 'ok'),
+            addToast(t('perguntas.toast.newQuestion', { title: (q.item?.title ?? q.item_id).slice(0, 40) }), 'ok'),
           )
         }
         prevIds.current = new Set(data.questions.map(q => q.id))
@@ -339,12 +337,12 @@ export default function PerguntasPage() {
         setAnsweredToday((aData.questions ?? []).filter(q => q.answer && isToday(q.answer.date_created)))
       }
     } catch {
-      if (!silent) addToast('Erro ao carregar perguntas', 'err')
+      if (!silent) addToast(t('perguntas.toast.loadError'), 'err')
     } finally {
       setLoading(false)
       setRefreshing(false)
     }
-  }, [addToast, getSession, selectedSellerId])
+  }, [addToast, getSession, selectedSellerId, t])
 
   const fetchAutoAnswer = useCallback(async () => {
     try {
@@ -399,20 +397,20 @@ export default function PerguntasPage() {
       })
       if (res.ok) {
         setAutoAnswerEnabled(next)
-        addToast(next ? 'Resposta automática ativada' : 'Resposta automática desativada')
+        addToast(next ? t('perguntas.toast.autoAnswerOn') : t('perguntas.toast.autoAnswerOff'))
       } else {
-        addToast('Falha ao atualizar', 'err')
+        addToast(t('perguntas.toast.updateFailed'), 'err')
       }
     } catch {
-      addToast('Falha ao atualizar', 'err')
+      addToast(t('perguntas.toast.updateFailed'), 'err')
     } finally {
       setAutoAnswerLoading(false)
     }
-  }, [autoAnswerEnabled, autoAnswerLoading, getSession, addToast])
+  }, [autoAnswerEnabled, autoAnswerLoading, getSession, addToast, t])
 
   const handleTransform = useCallback(async (action: TransformAction) => {
     if (!answerText.trim()) {
-      addToast('Digite ou gere uma resposta primeiro', 'err')
+      addToast(t('perguntas.toast.typeFirst'), 'err')
       return
     }
     if (transformLoading) return
@@ -431,17 +429,17 @@ export default function PerguntasPage() {
         const data = await res.json()
         if (data.transformed) {
           setAnswerText(data.transformed)
-          addToast('Texto transformado ✓')
+          addToast(t('perguntas.toast.textTransformed'))
         }
       } else {
-        addToast('Falha ao transformar', 'err')
+        addToast(t('perguntas.toast.transformFailed'), 'err')
       }
     } catch {
-      addToast('Falha ao transformar', 'err')
+      addToast(t('perguntas.toast.transformFailed'), 'err')
     } finally {
       setTransformLoading(null)
     }
-  }, [answerText, transformLoading, getSession, addToast])
+  }, [answerText, transformLoading, getSession, addToast, t])
 
   useEffect(() => {
     fetchQuestions()
@@ -479,7 +477,7 @@ export default function PerguntasPage() {
   const handleAnswer = async () => {
     if (!selected || !answerText.trim()) return
     if (answerText.trim().length < 10) {
-      setAnswerError('Resposta muito curta. Mínimo 10 caracteres.')
+      setAnswerError(t('perguntas.errors.tooShort'))
       return
     }
     setSending(true)
@@ -514,15 +512,15 @@ export default function PerguntasPage() {
       })
       if (!res.ok) {
         const errData = await res.json().catch(() => ({})) as { message?: string }
-        const raw = errData.message ?? 'Erro ao enviar resposta'
+        const raw = errData.message ?? t('perguntas.errors.sendFailed')
         // Mensagens amigaveis pra erros conhecidos do ML
         let friendly = raw
         if (/item must be active/i.test(raw)) {
-          friendly = 'Anúncio pausado/inativo no Mercado Livre. Reative o anúncio antes de responder.'
+          friendly = t('perguntas.errors.itemInactive')
         } else if (/question.*closed/i.test(raw) || /already answered/i.test(raw)) {
-          friendly = 'Pergunta já foi respondida ou fechada no Mercado Livre.'
+          friendly = t('perguntas.errors.alreadyAnswered')
         } else if (/forbidden/i.test(raw) || raw.startsWith('403')) {
-          friendly = 'Sem permissão pra responder. Verifique se a conta ML conectada é dona do anúncio.'
+          friendly = t('perguntas.errors.forbidden')
         }
         setAnswerError(friendly)
         return
@@ -542,7 +540,7 @@ export default function PerguntasPage() {
       fetchQuestions(true)
       fetchAiStats()
     } catch {
-      setAnswerError('Erro ao enviar. Tente novamente.')
+      setAnswerError(t('perguntas.errors.sendRetry'))
     } finally {
       setSending(false)
     }
@@ -566,7 +564,7 @@ export default function PerguntasPage() {
       })
       if (!res.ok) {
         const errData = await res.json().catch(() => ({})) as { message?: string }
-        const raw = errData.message ?? `Erro ao excluir (HTTP ${res.status})`
+        const raw = errData.message ?? t('perguntas.errors.deleteFailed', { status: res.status })
         addToast(raw, 'err')
         return
       }
@@ -580,11 +578,11 @@ export default function PerguntasPage() {
       setAnswerText('')
       limparSugestao()
       setConfirmDelete(false)
-      addToast('Pergunta excluida no Mercado Livre', 'ok')
+      addToast(t('perguntas.toast.deleted'), 'ok')
       // Refetch silencioso pra reconciliar com servidor
       fetchQuestions(true)
     } catch {
-      addToast('Erro ao excluir pergunta. Tente novamente.', 'err')
+      addToast(t('perguntas.toast.deleteRetry'), 'err')
     } finally {
       setDeleting(false)
     }
@@ -659,8 +657,8 @@ export default function PerguntasPage() {
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-3 border-b border-[#1a1a1f] flex-shrink-0">
         <div>
-          <h1 className="text-base font-semibold text-white">Perguntas</h1>
-          <p className="text-xs text-gray-500 mt-0.5">Atendimento · Mercado Livre</p>
+          <h1 className="text-base font-semibold text-white">{t('perguntas.pageTitle')}</h1>
+          <p className="text-xs text-gray-500 mt-0.5">{t('perguntas.pageSubtitle')}</p>
         </div>
         <div className="flex items-center gap-2">
           <AccountSelector compact className="mr-2" />
@@ -670,7 +668,7 @@ export default function PerguntasPage() {
             className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#111114] border border-[#1a1a1f] text-xs text-gray-400 hover:text-white hover:border-[#00E5FF44] transition-colors disabled:opacity-50"
           >
             <RefreshIcon spinning={refreshing} />
-            Atualizar
+            {t('perguntas.refresh')}
           </button>
         </div>
       </div>
@@ -683,40 +681,40 @@ export default function PerguntasPage() {
       {/* 6 KPI cards — 2 cols mobile, 3 tablet, 6 desktop */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 px-6 py-3 flex-shrink-0">
         <KpiCard
-          label="Sem resposta"
+          label={t('perguntas.kpi.unanswered')}
           value={unanswered}
           color={unanswered > 0 ? '#f87171' : '#22c55e'}
-          sub="aguardando"
+          sub={t('perguntas.kpi.unansweredSub')}
         />
         <KpiCard
-          label="Respondidas hoje"
+          label={t('perguntas.kpi.answeredToday')}
           value={respondedToday}
           color="#22c55e"
-          sub={respondedToday === 1 ? 'pergunta' : 'perguntas'}
+          sub={respondedToday === 1 ? t('perguntas.kpi.questionSingular') : t('perguntas.kpi.questionPlural')}
         />
         <KpiCard
-          label="Tempo médio"
+          label={t('perguntas.kpi.avgTime')}
           value={avgResponseLabel}
           color="#00E5FF"
-          sub="para responder"
+          sub={t('perguntas.kpi.avgTimeSub')}
         />
         <KpiCard
-          label="SLA < 1h"
+          label={t('perguntas.kpi.sla')}
           value={slaUnder1h !== null ? `${slaUnder1h}%` : '--'}
           color={slaUnder1h !== null && slaUnder1h >= 80 ? '#22c55e' : '#fbbf24'}
-          sub="respondidas em até 1h"
+          sub={t('perguntas.kpi.slaSub')}
         />
         <KpiCard
-          label="Resp. automáticas"
+          label={t('perguntas.kpi.autoAnswers')}
           value={aiStats?.auto_sent_24h ?? 0}
           color="#a78bfa"
-          sub="últimas 24h"
+          sub={t('perguntas.kpi.autoAnswersSub')}
         />
         <KpiCard
-          label="Aprovação IA"
+          label={t('perguntas.kpi.aiApproval')}
           value={aiStats?.approval_rate != null ? `${aiStats.approval_rate}%` : '--'}
           color="#00E5FF"
-          sub={aiStats ? `${aiStats.used_as_is} usadas sem editar` : '30 dias'}
+          sub={aiStats ? t('perguntas.kpi.usedAsIs', { count: aiStats.used_as_is }) : t('perguntas.kpi.thirtyDays')}
         />
       </div>
 
@@ -727,7 +725,7 @@ export default function PerguntasPage() {
           <div className="p-3 border-b border-[#1a1a1f] flex-shrink-0">
             <input
               type="text"
-              placeholder="Buscar perguntas ou produtos..."
+              placeholder={t('perguntas.searchPlaceholder')}
               value={search}
               onChange={e => setSearch(e.target.value)}
               className="w-full bg-[#09090b] border border-[#1a1a1f] rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-[#00E5FF44]"
@@ -738,10 +736,10 @@ export default function PerguntasPage() {
             style={{ scrollbarWidth: 'thin', scrollbarColor: '#3f3f46 #09090b' }}
           >
             {loading ? (
-              <div className="p-6 text-center text-xs text-gray-600">Carregando...</div>
+              <div className="p-6 text-center text-xs text-gray-600">{t('perguntas.loading')}</div>
             ) : filtered.length === 0 ? (
               <div className="p-6 text-center text-xs text-gray-600">
-                {search ? 'Nenhum resultado' : 'Nenhuma pergunta pendente 🎉'}
+                {search ? t('perguntas.noResults') : t('perguntas.noPending')}
               </div>
             ) : (
               filtered.map(q => (
@@ -788,7 +786,7 @@ export default function PerguntasPage() {
                       d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                   </svg>
                 </div>
-                <p className="text-gray-600 text-sm">Selecione uma pergunta para responder</p>
+                <p className="text-gray-600 text-sm">{t('perguntas.selectToAnswer')}</p>
               </div>
             </div>
           ) : (
@@ -796,7 +794,7 @@ export default function PerguntasPage() {
               {/* Question meta */}
               <div className="p-4 border-b border-[#1a1a1f] flex-shrink-0">
                 <div className="flex items-center gap-2 mb-3">
-                  <span className="text-xs text-gray-500">Comprador #{selected.buyer_id}</span>
+                  <span className="text-xs text-gray-500">{t('perguntas.buyer', { id: selected.buyer_id })}</span>
                   <span className="text-gray-700">·</span>
                   <span className="text-xs text-gray-500">{timeAgo(selected.date_created)}</span>
                   <span className={`ml-auto text-[11px] px-2 py-0.5 rounded-full font-medium ${
@@ -804,7 +802,7 @@ export default function PerguntasPage() {
                       ? 'bg-red-900/30 text-red-400'
                       : 'bg-green-900/30 text-green-400'
                   }`}>
-                    {(selected.status === 'unanswered' || selected.status === 'UNANSWERED') ? 'Sem resposta' : 'Respondida'}
+                    {(selected.status === 'unanswered' || selected.status === 'UNANSWERED') ? t('perguntas.statusUnanswered') : t('perguntas.statusAnswered')}
                   </span>
 
                   {/* Delete (so libera pra perguntas sem resposta — ML rejeita
@@ -817,7 +815,7 @@ export default function PerguntasPage() {
                           onClick={handleDeleteQuestion}
                           disabled={deleting}
                           className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-red-500 hover:bg-red-400 text-white disabled:opacity-50 flex items-center gap-1"
-                          title="Confirmar exclusao no Mercado Livre"
+                          title={t('perguntas.confirmDeleteTooltip')}
                         >
                           {deleting ? (
                             <svg className="w-3 h-3 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -828,7 +826,7 @@ export default function PerguntasPage() {
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                             </svg>
                           )}
-                          Confirmar
+                          {t('perguntas.confirm')}
                         </button>
                         <button
                           type="button"
@@ -836,21 +834,21 @@ export default function PerguntasPage() {
                           disabled={deleting}
                           className="text-[11px] px-2 py-0.5 rounded-full font-medium bg-[#1a1a1f] text-gray-400 hover:text-white disabled:opacity-50"
                         >
-                          Cancelar
+                          {t('perguntas.cancel')}
                         </button>
                       </div>
                     ) : (
                       <button
                         type="button"
                         onClick={() => setConfirmDelete(true)}
-                        title="Excluir pergunta no Mercado Livre"
+                        title={t('perguntas.deleteTooltip')}
                         className="text-gray-500 hover:text-red-400 transition-colors flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full hover:bg-red-900/20"
                       >
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75}
                             d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3" />
                         </svg>
-                        Excluir
+                        {t('perguntas.delete')}
                       </button>
                     )
                   )}
@@ -863,14 +861,14 @@ export default function PerguntasPage() {
               {/* Answer area */}
               <div className="flex-1 flex flex-col p-4 min-h-0">
                 <div className="flex items-center gap-3 mb-2 flex-wrap">
-                  <span className="text-xs text-gray-500 font-medium whitespace-nowrap">Sua resposta</span>
+                  <span className="text-xs text-gray-500 font-medium whitespace-nowrap">{t('perguntas.yourAnswer')}</span>
                   <div className="ml-auto flex items-center gap-2 whitespace-nowrap">
-                    <span className="text-[11px] text-gray-500">Resposta automática</span>
+                    <span className="text-[11px] text-gray-500">{t('perguntas.autoAnswer')}</span>
                     <button
                       type="button"
                       onClick={toggleAutoAnswer}
                       disabled={autoAnswerLoading}
-                      title={autoAnswerEnabled ? 'Desativar auto-resposta' : 'Ativar auto-resposta (envia automaticamente sugestões com confiança ≥ 70%)'}
+                      title={autoAnswerEnabled ? t('perguntas.autoAnswerOffTooltip') : t('perguntas.autoAnswerOnTooltip')}
                       className={`relative w-9 h-5 rounded-full transition-colors flex-shrink-0 ${
                         autoAnswerEnabled ? 'bg-[#00E5FF]' : 'bg-[#1a1a1f]'
                       } ${autoAnswerLoading ? 'opacity-50 cursor-wait' : 'cursor-pointer'}`}
@@ -882,7 +880,7 @@ export default function PerguntasPage() {
                       />
                     </button>
                     <span className={`text-[10px] font-medium ${autoAnswerEnabled ? 'text-[#00E5FF]' : 'text-gray-600'}`}>
-                      {autoAnswerEnabled ? 'Ativa' : 'Inativa'}
+                      {autoAnswerEnabled ? t('perguntas.toggleActive') : t('perguntas.toggleInactive')}
                     </span>
                   </div>
                 </div>
@@ -890,7 +888,7 @@ export default function PerguntasPage() {
                 <textarea
                   value={answerText}
                   onChange={e => { setAnswerText(e.target.value); setAnswerError('') }}
-                  placeholder="Digite sua resposta..."
+                  placeholder={t('perguntas.answerPlaceholder')}
                   disabled={sending || (selected.status !== 'unanswered' && selected.status !== 'UNANSWERED')}
                   maxLength={2000}
                   className="flex-1 bg-[#09090b] border border-[#1a1a1f] rounded-lg p-3 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[#00E5FF44] resize-y disabled:opacity-50 min-h-[220px]"
@@ -919,11 +917,11 @@ export default function PerguntasPage() {
                     <div className="flex items-center justify-between mb-2 flex-shrink-0">
                       <span className="text-xs text-[#00E5FF] font-semibold flex items-center gap-1.5">
                         <SparklesIcon size={13} className="text-[#00E5FF]" />
-                        Sugestão da IA
+                        {t('perguntas.aiSuggestion')}
                       </span>
                       <button onClick={() => setAnswerText(aiSuggestion)}
                         className="text-xs text-[#00E5FF] hover:underline font-medium px-2 py-1 rounded hover:bg-[#00E5FF11] transition-colors">
-                        Usar essa →
+                        {t('perguntas.useThis')}
                       </button>
                     </div>
                     <p className="text-sm text-gray-200 leading-relaxed whitespace-pre-wrap">{aiSuggestion}</p>
@@ -951,21 +949,21 @@ export default function PerguntasPage() {
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
                         </svg>
-                        Enviando...
+                        {t('perguntas.sending')}
                       </>
                     ) : sent ? (
                       <>
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                         </svg>
-                        Enviado!
+                        {t('perguntas.sentBtn')}
                       </>
                     ) : (
                       <>
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z" />
                         </svg>
-                        Responder →
+                        {t('perguntas.answerBtn')}
                       </>
                     )}
                   </button>
@@ -993,7 +991,7 @@ export default function PerguntasPage() {
 
           {/* Product card */}
           <div className="bg-[#111114] border border-[#1a1a1f] rounded-xl p-4 flex-shrink-0">
-            <p className="text-[11px] text-gray-500 mb-3 font-medium uppercase tracking-wider">Produto</p>
+            <p className="text-[11px] text-gray-500 mb-3 font-medium uppercase tracking-wider">{t('perguntas.product')}</p>
             {selected?.item ? (
               <>
                 {selected.item.thumbnail && (
@@ -1005,9 +1003,9 @@ export default function PerguntasPage() {
                 <p className="text-lg font-bold text-[#00E5FF] mt-2">{brl(selected.item.price)}</p>
                 <div className="mt-2 space-y-1 text-xs">
                   <div className="flex items-center justify-between">
-                    <span className="text-gray-500">Estoque</span>
+                    <span className="text-gray-500">{t('perguntas.stock')}</span>
                     <span className={`font-medium ${selected.item.available_quantity > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                      {selected.item.available_quantity} un.
+                      {t('perguntas.units', { count: selected.item.available_quantity })}
                     </span>
                   </div>
                   {selected.item.seller_sku && (
@@ -1020,26 +1018,26 @@ export default function PerguntasPage() {
                 {selected.item.permalink && (
                   <a href={selected.item.permalink} target="_blank" rel="noopener noreferrer"
                     className="mt-3 w-full flex items-center justify-center gap-1 text-[11px] text-gray-600 hover:text-[#00E5FF] transition-colors">
-                    Ver anúncio no ML →
+                    {t('perguntas.viewListing')}
                   </a>
                 )}
               </>
             ) : (
               <p className="text-xs text-gray-600 text-center py-4">
-                {selected ? 'Sem dados de produto' : 'Selecione uma pergunta'}
+                {selected ? t('perguntas.noProductData') : t('perguntas.selectQuestion')}
               </p>
             )}
           </div>
 
           {/* Tips */}
           <div className="bg-[#111114] border border-[#1a1a1f] rounded-xl p-4">
-            <p className="text-[11px] text-gray-500 mb-3 font-medium uppercase tracking-wider">Boas práticas</p>
+            <p className="text-[11px] text-gray-500 mb-3 font-medium uppercase tracking-wider">{t('perguntas.bestPractices')}</p>
             <ul className="space-y-2">
               {[
-                'Responda em até 24h para manter boa reputação',
-                'Seja claro e objetivo na resposta',
-                'Não inclua contatos externos',
-                'Respostas públicas aumentam conversão',
+                t('perguntas.tips.tip1'),
+                t('perguntas.tips.tip2'),
+                t('perguntas.tips.tip3'),
+                t('perguntas.tips.tip4'),
               ].map((tip, i) => (
                 <li key={i} className="flex items-start gap-2 text-xs text-gray-500">
                   <span className="text-[#00E5FF] mt-0.5 flex-shrink-0">·</span>
@@ -1057,7 +1055,7 @@ export default function PerguntasPage() {
           <svg className="w-4 h-4 text-[#00E5FF]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
           </svg>
-          Resposta enviada com sucesso para o ML!
+          {t('perguntas.sentToast')}
         </div>
       )}
     </div>
@@ -1066,6 +1064,7 @@ export default function PerguntasPage() {
 
 // ── Card "Prazo de resposta" — espelha ML nativo ────────────────────────
 function PrazoRespostaCard({ stats }: { stats: PerfStats }) {
+  const t = useTranslations('atendimento')
   const agg = stats.aggregate
   const avg = agg.avg_response_min ?? 0
   const isAlert = avg > 60
@@ -1083,8 +1082,8 @@ function PrazoRespostaCard({ stats }: { stats: PerfStats }) {
         {/* Coluna esquerda — número grande */}
         <div className="min-w-[180px]">
           <div className="flex items-center gap-2">
-            <h3 className="text-sm font-semibold text-zinc-200">Prazo de resposta</h3>
-            <span title="Tempo médio de resposta nos últimos 14 dias" className="text-zinc-600">
+            <h3 className="text-sm font-semibold text-zinc-200">{t('perguntas.perf.title')}</h3>
+            <span title={t('perguntas.perf.tooltip')} className="text-zinc-600">
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
                 <circle cx="12" cy="12" r="10" />
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.243 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M12 18h.01" />
@@ -1110,7 +1109,7 @@ function PrazoRespostaCard({ stats }: { stats: PerfStats }) {
             )}
           </div>
           <p className="text-[11px] text-zinc-500 mt-1">
-            Últimos 14 dias · {agg.total_answered} resposta{agg.total_answered === 1 ? '' : 's'}
+            {t('perguntas.perf.last14days', { count: agg.total_answered })}
           </p>
           {agg.impact_msg && (
             <p className="text-[11px] text-amber-400 mt-2 leading-snug max-w-[200px]">
@@ -1121,7 +1120,7 @@ function PrazoRespostaCard({ stats }: { stats: PerfStats }) {
             <p className="text-[10px] text-zinc-600 mt-1">
               <span className={agg.sla_under_1h_pct >= 80 ? 'text-emerald-400' : 'text-amber-400'}>
                 {agg.sla_under_1h_pct}%
-              </span> em até 1h · mediana <span className="text-zinc-400">{agg.median_response_min}min</span>
+              </span> {t('perguntas.perf.within1hMedian', { median: agg.median_response_min ?? 0 })}
             </p>
           )}
         </div>
@@ -1129,18 +1128,18 @@ function PrazoRespostaCard({ stats }: { stats: PerfStats }) {
         {/* Coluna direita — bar chart por período */}
         <div className="flex-1 min-w-[280px]">
           <div className="space-y-2">
-            <PerfBar label="Seg a sex, das 9 às 18h" period={agg.by_period.weekday_business} />
-            <PerfBar label="Seg a sex, das 18 às 00h" period={agg.by_period.weekday_evening} />
-            <PerfBar label="Sábado e domingo"        period={agg.by_period.weekend} />
+            <PerfBar label={t('perguntas.perf.weekdayBusiness')} period={agg.by_period.weekday_business} />
+            <PerfBar label={t('perguntas.perf.weekdayEvening')} period={agg.by_period.weekday_evening} />
+            <PerfBar label={t('perguntas.perf.weekend')}        period={agg.by_period.weekend} />
           </div>
           <div className="flex items-center gap-4 mt-3 text-[10px]">
             <div className="flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-emerald-400" />
-              <span className="text-zinc-500">Menos de 1 hora</span>
+              <span className="text-zinc-500">{t('perguntas.perf.under1h')}</span>
             </div>
             <div className="flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-red-400" />
-              <span className="text-zinc-500">Mais de 1 hora</span>
+              <span className="text-zinc-500">{t('perguntas.perf.over1h')}</span>
             </div>
           </div>
         </div>
@@ -1150,7 +1149,7 @@ function PrazoRespostaCard({ stats }: { stats: PerfStats }) {
       {isMultiAccount && (
         <div className="mt-4 pt-3 border-t border-[#1a1a1f]">
           <p className="text-[10px] uppercase tracking-widest text-zinc-600 mb-2">
-            Por conta
+            {t('perguntas.perf.byAccount')}
           </p>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
             {stats.per_account.map(acc => {
@@ -1166,7 +1165,7 @@ function PrazoRespostaCard({ stats }: { stats: PerfStats }) {
                       {acc.nickname ?? `Seller ${acc.seller_id}`}
                     </p>
                     <p className="text-[10px] text-zinc-600">
-                      {acc.total_answered} respostas · 14d
+                      {t('perguntas.perf.accountResponses', { count: acc.total_answered })}
                     </p>
                   </div>
                   <span className={`text-xs font-bold tabular-nums ${accAlert ? 'text-red-400' : 'text-emerald-400'}`}>

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { useTranslations } from 'next-intl'
 import { useParams, useRouter } from 'next/navigation'
 import {
   ArrowLeft, Loader2, RefreshCw, Check, Megaphone, Pause, Play,
@@ -19,6 +20,7 @@ const STATUS_COLOR: Record<string, string> = {
 }
 
 export default function AdsCampaignDetail() {
+  const t = useTranslations('adsCampaigns')
   const params = useParams<{ id: string }>()
   const router = useRouter()
   const id = params.id
@@ -93,17 +95,17 @@ export default function AdsCampaignDetail() {
 
   if (loading) return (
     <div className="p-6 flex items-center gap-2 text-zinc-500 text-sm">
-      <Loader2 size={14} className="animate-spin" /> carregando…
+      <Loader2 size={14} className="animate-spin" /> {t('detail.loading')}
     </div>
   )
 
   if (error || !c) return (
     <div className="p-6 space-y-3">
       <button onClick={() => router.back()} className="text-zinc-500 hover:text-zinc-300 text-sm flex items-center gap-1">
-        <ArrowLeft size={14} /> voltar
+        <ArrowLeft size={14} /> {t('detail.back')}
       </button>
       <div className="rounded-lg border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-300">
-        ❌ {error ?? 'Campanha não encontrada'}
+        ❌ {error ?? t('detail.notFound')}
       </div>
     </div>
   )
@@ -113,7 +115,7 @@ export default function AdsCampaignDetail() {
   return (
     <div className="p-4 sm:p-6 space-y-5 max-w-5xl mx-auto">
       <button onClick={() => router.back()} className="text-zinc-500 hover:text-zinc-300 text-sm flex items-center gap-1">
-        <ArrowLeft size={14} /> voltar
+        <ArrowLeft size={14} /> {t('detail.back')}
       </button>
 
       {/* Header */}
@@ -129,11 +131,11 @@ export default function AdsCampaignDetail() {
                 background:  `${STATUS_COLOR[c.status]}10`,
                 color:       STATUS_COLOR[c.status],
               }}
-            >{c.status}</span>
+            >{t(`status.${c.status}`)}</span>
           </div>
           <h1 className="text-lg sm:text-xl font-semibold text-zinc-100">{c.name}</h1>
           <p className="text-[11px] text-zinc-500">
-            R$ {Number(c.budget_daily_brl).toFixed(2)}/dia · {c.duration_days} dias · objetivo {c.objective}
+            {t('detail.meta', { budget: Number(c.budget_daily_brl).toFixed(2), days: c.duration_days, objective: c.objective })}
           </p>
         </div>
 
@@ -145,7 +147,7 @@ export default function AdsCampaignDetail() {
               disabled={acting}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-400 hover:bg-cyan-300 disabled:opacity-50 text-black text-xs font-medium"
             >
-              <Check size={12} /> Marcar pronta
+              <Check size={12} /> {t('detail.markReady')}
             </button>
           )}
           {c.status === 'ready' && (
@@ -154,7 +156,7 @@ export default function AdsCampaignDetail() {
               disabled={acting}
               className="submit-glow inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-400 hover:bg-emerald-300 disabled:opacity-50 text-black text-xs font-medium"
             >
-              <Send size={12} /> Publicar
+              <Send size={12} /> {t('detail.publish')}
             </button>
           )}
           {c.status === 'active' && (
@@ -164,14 +166,14 @@ export default function AdsCampaignDetail() {
                 disabled={acting}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-400/40 hover:bg-amber-400/10 text-amber-300 text-xs"
               >
-                <Pause size={12} /> Pausar
+                <Pause size={12} /> {t('detail.pause')}
               </button>
               <button
                 onClick={() => action(() => AdsCampaignsApi.syncMetrics(id))}
                 disabled={acting}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-700 hover:border-cyan-400/60 text-zinc-300 hover:text-cyan-300 text-xs"
               >
-                <BarChart3 size={12} /> Sync métricas
+                <BarChart3 size={12} /> {t('detail.syncMetrics')}
               </button>
             </>
           )}
@@ -181,7 +183,7 @@ export default function AdsCampaignDetail() {
               disabled={acting}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-400/40 hover:bg-emerald-400/10 text-emerald-300 text-xs"
             >
-              <Play size={12} /> Retomar
+              <Play size={12} /> {t('detail.resume')}
             </button>
           )}
           <button
@@ -189,19 +191,19 @@ export default function AdsCampaignDetail() {
             disabled={acting}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-700 hover:border-cyan-400/60 text-zinc-300 hover:text-cyan-300 text-xs"
           >
-            <RefreshCw size={12} /> Regenerar copies
+            <RefreshCw size={12} /> {t('detail.regenerateCopies')}
           </button>
           <button
             onClick={() => action(() => AdsCampaignsApi.addVariant(id))}
             disabled={acting}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-700 hover:border-cyan-400/60 text-zinc-300 hover:text-cyan-300 text-xs"
           >
-            <Plus size={12} /> Variante
+            <Plus size={12} /> {t('detail.variant')}
           </button>
           {c.status !== 'archived' && (
             <button
               onClick={() => {
-                if (confirm('Arquivar campanha?')) {
+                if (confirm(t('detail.archiveConfirm'))) {
                   void action(() => AdsCampaignsApi.archive(id))
                   router.push('/dashboard/ads-campaigns')
                 }
@@ -225,26 +227,26 @@ export default function AdsCampaignDetail() {
       {(c.status === 'active' || c.status === 'paused' || c.status === 'completed') && Object.keys(m).length > 0 && (
         <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-4 space-y-3">
           <div className="flex items-center justify-between">
-            <p className="text-xs uppercase tracking-wider text-zinc-400">Métricas (últimos 7 dias)</p>
+            <p className="text-xs uppercase tracking-wider text-zinc-400">{t('detail.metricsTitle')}</p>
             {m.last_sync && (
-              <p className="text-[10px] text-zinc-500">sync: {new Date(m.last_sync).toLocaleString('pt-BR')}</p>
+              <p className="text-[10px] text-zinc-500">{t('detail.syncAt', { date: new Date(m.last_sync).toLocaleString('pt-BR') })}</p>
             )}
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <Metric label="Impressões" value={m.impressions?.toLocaleString('pt-BR') ?? '—'} />
-            <Metric label="Cliques" value={m.clicks?.toLocaleString('pt-BR') ?? '—'} />
-            <Metric label="Gasto" value={m.spend_brl != null ? `R$ ${m.spend_brl.toFixed(2)}` : '—'} />
+            <Metric label={t('detail.metric.impressions')} value={m.impressions?.toLocaleString('pt-BR') ?? '—'} />
+            <Metric label={t('detail.metric.clicks')} value={m.clicks?.toLocaleString('pt-BR') ?? '—'} />
+            <Metric label={t('detail.metric.spend')} value={m.spend_brl != null ? `R$ ${m.spend_brl.toFixed(2)}` : '—'} />
             <Metric label="ROAS" value={m.roas != null ? `${m.roas.toFixed(2)}×` : '—'} accent={m.roas && m.roas > 1 ? '#22c55e' : '#ef4444'} />
             <Metric label="CTR" value={m.ctr != null ? `${(m.ctr * 100).toFixed(2)}%` : '—'} />
             <Metric label="CPC" value={m.cpc_brl != null ? `R$ ${m.cpc_brl.toFixed(2)}` : '—'} />
-            <Metric label="Conversões" value={m.conversions?.toString() ?? '—'} />
+            <Metric label={t('detail.metric.conversions')} value={m.conversions?.toString() ?? '—'} />
           </div>
         </div>
       )}
 
       {/* Destination URL */}
       <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3 space-y-2">
-        <p className="text-[11px] uppercase tracking-wider text-zinc-500">URL de destino</p>
+        <p className="text-[11px] uppercase tracking-wider text-zinc-500">{t('detail.destinationUrl')}</p>
         <div className="flex gap-2">
           <input
             value={destUrl}
@@ -265,12 +267,12 @@ export default function AdsCampaignDetail() {
 
       {/* Ad copies */}
       <div className="space-y-2">
-        <p className="text-xs uppercase tracking-wider text-zinc-500">Variantes de copy ({c.ad_copies.length})</p>
+        <p className="text-xs uppercase tracking-wider text-zinc-500">{t('detail.copyVariants', { count: c.ad_copies.length })}</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {c.ad_copies.map(copy => (
             <div key={copy.variant} className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3 space-y-2">
               <div className="flex items-center justify-between">
-                <span className="rounded bg-cyan-400/10 text-cyan-300 px-2 py-0.5 text-[10px] font-mono">var {copy.variant}</span>
+                <span className="rounded bg-cyan-400/10 text-cyan-300 px-2 py-0.5 text-[10px] font-mono">{t('detail.variantLabel', { variant: copy.variant })}</span>
                 {copy.cta && <span className="text-[10px] text-zinc-500 font-mono">{copy.cta}</span>}
               </div>
               <p className="text-sm font-medium text-zinc-200">{copy.headline}</p>
@@ -280,7 +282,7 @@ export default function AdsCampaignDetail() {
               )}
               {copy.angle && (
                 <p className="text-[10px] text-cyan-300/70 pt-1 border-t border-zinc-800">
-                  ↳ ângulo: {copy.angle}
+                  {t('detail.angle', { angle: copy.angle })}
                 </p>
               )}
             </div>
@@ -290,7 +292,7 @@ export default function AdsCampaignDetail() {
 
       {/* Targeting (collapsed JSON view) */}
       <details className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3">
-        <summary className="text-xs text-zinc-400 cursor-pointer hover:text-zinc-200">Segmentação (JSON)</summary>
+        <summary className="text-xs text-zinc-400 cursor-pointer hover:text-zinc-200">{t('detail.targetingJson')}</summary>
         <pre className="text-[10px] font-mono text-cyan-200 mt-2 max-h-60 overflow-auto">
           {JSON.stringify(c.targeting, null, 2)}
         </pre>
@@ -316,27 +318,27 @@ export default function AdsCampaignDetail() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setRegenOpen(false)}>
           <div className="w-full max-w-md rounded-lg border border-zinc-800 bg-zinc-950 p-4 space-y-3" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-zinc-100">Regenerar copies</h3>
+              <h3 className="text-sm font-semibold text-zinc-100">{t('detail.regenModal.title')}</h3>
               <button onClick={() => setRegenOpen(false)} className="text-zinc-500 hover:text-zinc-300"><X size={14} /></button>
             </div>
-            <p className="text-xs text-zinc-400">Mantém targeting e budget — só refaz os copies.</p>
+            <p className="text-xs text-zinc-400">{t('detail.regenModal.subtitle')}</p>
             <textarea
               value={regenInstr}
               onChange={e => setRegenInstr(e.target.value)}
               disabled={regenBusy}
-              placeholder="Ex: 'foque mais em economia', 'tom mais urgente', 'remove emojis'…"
+              placeholder={t('detail.regenModal.placeholder')}
               rows={3}
               className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-sm text-zinc-200 outline-none focus:border-cyan-400/60 resize-none"
             />
             <div className="flex gap-2 justify-end">
-              <button onClick={() => setRegenOpen(false)} className="px-3 py-1.5 rounded border border-zinc-800 hover:border-zinc-700 text-zinc-300 text-xs">Cancelar</button>
+              <button onClick={() => setRegenOpen(false)} className="px-3 py-1.5 rounded border border-zinc-800 hover:border-zinc-700 text-zinc-300 text-xs">{t('detail.regenModal.cancel')}</button>
               <button
                 onClick={regenerate}
                 disabled={regenBusy || !regenInstr.trim()}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded bg-cyan-400 hover:bg-cyan-300 disabled:opacity-50 text-black text-xs font-medium"
               >
                 {regenBusy ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
-                Regenerar
+                {t('detail.regenModal.regenerate')}
               </button>
             </div>
           </div>

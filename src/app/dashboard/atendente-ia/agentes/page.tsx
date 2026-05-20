@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import { AI_PROVIDERS } from '@/lib/ai/config'
 import {
@@ -26,7 +27,6 @@ const CHANNELS = [
 ]
 
 const TONES   = ['professional', 'casual', 'friendly', 'technical']
-const TONE_PT: Record<string, string> = { professional: 'Profissional', casual: 'Casual', friendly: 'Amigável', technical: 'Técnico' }
 const LANGS   = [{ id: 'pt-BR', label: 'Português BR' }, { id: 'en', label: 'English' }, { id: 'es', label: 'Español' }]
 const CATEGORIES = ['preco', 'prazo', 'produto', 'troca', 'tecnico', 'outro']
 
@@ -73,6 +73,7 @@ function ChannelWizardCard({ ch, cfg, onChange }: {
   cfg: ChannelConfig
   onChange: (c: ChannelConfig) => void
 }) {
+  const t = useTranslations('atendenteIa')
   const [newKw, setNewKw] = useState('')
 
   return (
@@ -90,14 +91,14 @@ function ChannelWizardCard({ ch, cfg, onChange }: {
         <div className="space-y-2.5 text-xs">
           {/* Mode */}
           <div>
-            <p className="text-zinc-500 mb-1">Modo</p>
+            <p className="text-zinc-500 mb-1">{t('agents.wizard.channelCard.mode')}</p>
             <div className="flex gap-1">
               {['auto','hybrid','human'].map(m => (
                 <button key={m}
                   onClick={() => onChange({ ...cfg, mode: m })}
                   className="px-2.5 py-1 rounded-lg capitalize transition-colors"
                   style={{ background: cfg.mode === m ? 'rgba(0,229,255,0.15)' : '#1e1e24', color: cfg.mode === m ? '#00E5FF' : '#a1a1aa', border: `1px solid ${cfg.mode === m ? 'rgba(0,229,255,0.4)' : 'transparent'}` }}>
-                  {m === 'auto' ? 'Automático' : m === 'hybrid' ? 'Híbrido' : 'Humano'}
+                  {t(`agents.wizard.channelCard.modes.${m}`)}
                 </button>
               ))}
             </div>
@@ -107,7 +108,7 @@ function ChannelWizardCard({ ch, cfg, onChange }: {
           {cfg.mode === 'hybrid' && (
             <div>
               <div className="flex justify-between text-zinc-500 mb-1">
-                <span>Confiança mínima</span>
+                <span>{t('agents.wizard.channelCard.minConfidence')}</span>
                 <span style={{ color: '#00E5FF' }}>{cfg.confidence_threshold}%</span>
               </div>
               <input type="range" min={50} max={99} value={cfg.confidence_threshold}
@@ -118,17 +119,17 @@ function ChannelWizardCard({ ch, cfg, onChange }: {
 
           {/* Delay */}
           <div className="flex items-center gap-2">
-            <span className="text-zinc-500 shrink-0">Delay de resposta</span>
+            <span className="text-zinc-500 shrink-0">{t('agents.wizard.channelCard.replyDelay')}</span>
             <input type="number" min={0} max={300} value={cfg.auto_reply_delay_seconds}
               onChange={e => onChange({ ...cfg, auto_reply_delay_seconds: Number(e.target.value) })}
               className="w-16 px-2 py-1 rounded text-white text-center text-xs"
               style={{ background: '#1e1e24', border: '1px solid #27272a' }} />
-            <span className="text-zinc-500">seg</span>
+            <span className="text-zinc-500">{t('agents.wizard.channelCard.seconds')}</span>
           </div>
 
           {/* Escalate keywords */}
           <div>
-            <p className="text-zinc-500 mb-1">Palavras que escalam para humano</p>
+            <p className="text-zinc-500 mb-1">{t('agents.wizard.channelCard.escalateKeywords')}</p>
             <div className="flex flex-wrap gap-1 mb-1">
               {cfg.escalate_keywords.map(kw => (
                 <span key={kw} className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px]"
@@ -143,7 +144,7 @@ function ChannelWizardCard({ ch, cfg, onChange }: {
             <div className="flex gap-1">
               <input value={newKw} onChange={e => setNewKw(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter' && newKw.trim()) { onChange({ ...cfg, escalate_keywords: [...cfg.escalate_keywords, newKw.trim()] }); setNewKw('') }}}
-                placeholder="+ palavra"
+                placeholder={t('agents.wizard.channelCard.addWordPlaceholder')}
                 className="flex-1 px-2 py-1 rounded text-xs text-white placeholder-zinc-600"
                 style={{ background: '#1e1e24', border: '1px solid #27272a' }} />
             </div>
@@ -161,6 +162,7 @@ function AgentWizard({ onClose, onSaved, editAgent }: {
   onSaved: () => void
   editAgent?: Agent
 }) {
+  const t = useTranslations('atendenteIa')
   const [step, setStep] = useState(1)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -188,7 +190,7 @@ function AgentWizard({ onClose, onSaved, editAgent }: {
   const prov = AI_PROVIDERS[provider as keyof typeof AI_PROVIDERS]
 
   async function save() {
-    if (!name.trim()) { setError('Nome é obrigatório'); return }
+    if (!name.trim()) { setError(t('agents.wizard.errors.nameRequired')); return }
     setSaving(true); setError('')
     try {
       const sb = createClient()
@@ -215,17 +217,17 @@ function AgentWizard({ onClose, onSaved, editAgent }: {
 
       onSaved()
     } catch {
-      setError('Erro ao salvar agente')
+      setError(t('agents.wizard.errors.saveFailed'))
     } finally {
       setSaving(false)
     }
   }
 
   const steps = [
-    { n: 1, label: 'Identidade' },
-    { n: 2, label: 'Modelo IA' },
-    { n: 3, label: 'Canais' },
-    { n: 4, label: 'Revisar' },
+    { n: 1, label: t('agents.wizard.steps.identity') },
+    { n: 2, label: t('agents.wizard.steps.aiModel') },
+    { n: 3, label: t('agents.wizard.steps.channels') },
+    { n: 4, label: t('agents.wizard.steps.review') },
   ]
 
   return (
@@ -236,7 +238,7 @@ function AgentWizard({ onClose, onSaved, editAgent }: {
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid #1e1e24' }}>
           <div>
-            <h2 className="text-lg font-bold text-white">{editAgent ? 'Editar Agente' : 'Novo Agente'}</h2>
+            <h2 className="text-lg font-bold text-white">{editAgent ? t('agents.wizard.editTitle') : t('agents.wizard.newTitle')}</h2>
             <div className="flex gap-3 mt-1">
               {steps.map(s => (
                 <button key={s.n} onClick={() => s.n < step && setStep(s.n)}
@@ -261,31 +263,31 @@ function AgentWizard({ onClose, onSaved, editAgent }: {
           {step === 1 && (
             <div className="space-y-4">
               <div>
-                <label className="block text-xs text-zinc-400 mb-1.5">Nome do agente *</label>
-                <input value={name} onChange={e => setName(e.target.value)} placeholder="Ex: Sofia - Atendimento Vazzo"
+                <label className="block text-xs text-zinc-400 mb-1.5">{t('agents.wizard.identity.nameLabel')}</label>
+                <input value={name} onChange={e => setName(e.target.value)} placeholder={t('agents.wizard.identity.namePlaceholder')}
                   className="w-full px-3 py-2.5 rounded-xl text-sm text-white placeholder-zinc-600"
                   style={{ background: '#0d0d10', border: '1px solid #27272a' }} />
               </div>
               <div>
-                <label className="block text-xs text-zinc-400 mb-1.5">Descrição do papel</label>
-                <input value={description} onChange={e => setDescription(e.target.value)} placeholder="Ex: Atendimento de perguntas no ML e Shopee"
+                <label className="block text-xs text-zinc-400 mb-1.5">{t('agents.wizard.identity.descriptionLabel')}</label>
+                <input value={description} onChange={e => setDescription(e.target.value)} placeholder={t('agents.wizard.identity.descriptionPlaceholder')}
                   className="w-full px-3 py-2.5 rounded-xl text-sm text-white placeholder-zinc-600"
                   style={{ background: '#0d0d10', border: '1px solid #27272a' }} />
               </div>
               <div>
-                <label className="block text-xs text-zinc-400 mb-1.5">Tom de comunicação</label>
+                <label className="block text-xs text-zinc-400 mb-1.5">{t('agents.wizard.identity.toneLabel')}</label>
                 <div className="flex gap-2 flex-wrap">
-                  {TONES.map(t => (
-                    <button key={t} onClick={() => setTone(t)}
+                  {TONES.map(tn => (
+                    <button key={tn} onClick={() => setTone(tn)}
                       className="px-3 py-1.5 rounded-xl text-xs font-medium transition-colors"
-                      style={{ background: tone === t ? 'rgba(0,229,255,0.15)' : '#1e1e24', color: tone === t ? '#00E5FF' : '#a1a1aa', border: `1px solid ${tone === t ? 'rgba(0,229,255,0.4)' : 'transparent'}` }}>
-                      {TONE_PT[t]}
+                      style={{ background: tone === tn ? 'rgba(0,229,255,0.15)' : '#1e1e24', color: tone === tn ? '#00E5FF' : '#a1a1aa', border: `1px solid ${tone === tn ? 'rgba(0,229,255,0.4)' : 'transparent'}` }}>
+                      {t(`agents.tones.${tn}`)}
                     </button>
                   ))}
                 </div>
               </div>
               <div>
-                <label className="block text-xs text-zinc-400 mb-1.5">Idioma</label>
+                <label className="block text-xs text-zinc-400 mb-1.5">{t('agents.wizard.identity.languageLabel')}</label>
                 <div className="flex gap-2">
                   {LANGS.map(l => (
                     <button key={l.id} onClick={() => setLanguage(l.id)}
@@ -303,7 +305,7 @@ function AgentWizard({ onClose, onSaved, editAgent }: {
           {step === 2 && (
             <div className="space-y-4">
               <div>
-                <label className="block text-xs text-zinc-400 mb-1.5">Provedor</label>
+                <label className="block text-xs text-zinc-400 mb-1.5">{t('agents.wizard.model.providerLabel')}</label>
                 <div className="flex gap-2">
                   {Object.entries(AI_PROVIDERS).map(([pid, p]) => (
                     <button key={pid} onClick={() => { setProvider(pid); setModelId(p.models[0].id) }}
@@ -315,7 +317,7 @@ function AgentWizard({ onClose, onSaved, editAgent }: {
                 </div>
               </div>
               <div>
-                <label className="block text-xs text-zinc-400 mb-1.5">Modelo</label>
+                <label className="block text-xs text-zinc-400 mb-1.5">{t('agents.wizard.model.modelLabel')}</label>
                 <div className="space-y-1.5">
                   {prov?.models.map(m => (
                     <button key={m.id} onClick={() => setModelId(m.id)}
@@ -331,9 +333,9 @@ function AgentWizard({ onClose, onSaved, editAgent }: {
                 </div>
               </div>
               <div>
-                <label className="block text-xs text-zinc-400 mb-1.5">Prompt do sistema <span className="text-zinc-600">(opcional)</span></label>
+                <label className="block text-xs text-zinc-400 mb-1.5">{t('agents.wizard.model.systemPromptLabel')} <span className="text-zinc-600">{t('agents.wizard.model.optional')}</span></label>
                 <textarea value={sysPrompt} onChange={e => setSysPrompt(e.target.value)} rows={4}
-                  placeholder="Ex: Você é Sofia, atendente da Vazzo Comercio. Seja objetiva e cordial. Sempre mencione o prazo de entrega quando relevante."
+                  placeholder={t('agents.wizard.model.systemPromptPlaceholder')}
                   className="w-full px-3 py-2.5 rounded-xl text-sm text-white placeholder-zinc-600 resize-none"
                   style={{ background: '#0d0d10', border: '1px solid #27272a' }} />
               </div>
@@ -345,7 +347,7 @@ function AgentWizard({ onClose, onSaved, editAgent }: {
             <div className="space-y-3">
               {['marketplace', 'messenger', 'own'].map(group => {
                 const groupChannels = CHANNELS.filter(c => c.group === group)
-                const groupLabel = group === 'marketplace' ? 'Marketplaces' : group === 'messenger' ? 'Mensageiros' : 'Site Próprio'
+                const groupLabel = t(`agents.wizard.channelGroups.${group}`)
                 return (
                   <div key={group}>
                     <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-2">{groupLabel}</p>
@@ -369,21 +371,21 @@ function AgentWizard({ onClose, onSaved, editAgent }: {
           {step === 4 && (
             <div className="space-y-4">
               <div className="rounded-xl p-4 space-y-2" style={{ background: '#0d0d10', border: '1px solid #1e1e24' }}>
-                <p className="text-xs font-bold uppercase tracking-widest text-zinc-600">Identidade</p>
+                <p className="text-xs font-bold uppercase tracking-widest text-zinc-600">{t('agents.wizard.steps.identity')}</p>
                 <p className="text-white font-semibold">{name}</p>
                 <p className="text-zinc-400 text-sm">{description}</p>
                 <div className="flex gap-2 flex-wrap mt-1">
-                  <span className="px-2 py-0.5 rounded-full text-[10px]" style={{ background: '#1e1e24', color: '#a1a1aa' }}>{TONE_PT[tone]}</span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px]" style={{ background: '#1e1e24', color: '#a1a1aa' }}>{t(`agents.tones.${tone}`)}</span>
                   <span className="px-2 py-0.5 rounded-full text-[10px]" style={{ background: '#1e1e24', color: '#a1a1aa' }}>{language}</span>
                 </div>
               </div>
               <div className="rounded-xl p-4 space-y-2" style={{ background: '#0d0d10', border: '1px solid #1e1e24' }}>
-                <p className="text-xs font-bold uppercase tracking-widest text-zinc-600">Modelo IA</p>
+                <p className="text-xs font-bold uppercase tracking-widest text-zinc-600">{t('agents.wizard.steps.aiModel')}</p>
                 <p className="text-white">{AI_PROVIDERS[provider as keyof typeof AI_PROVIDERS]?.name}</p>
                 <p className="text-zinc-400 text-sm">{AI_PROVIDERS[provider as keyof typeof AI_PROVIDERS]?.models.find(m => m.id === modelId)?.name}</p>
               </div>
               <div className="rounded-xl p-4 space-y-2" style={{ background: '#0d0d10', border: '1px solid #1e1e24' }}>
-                <p className="text-xs font-bold uppercase tracking-widest text-zinc-600">Canais ativos</p>
+                <p className="text-xs font-bold uppercase tracking-widest text-zinc-600">{t('agents.wizard.review.activeChannels')}</p>
                 <div className="flex flex-wrap gap-1.5">
                   {Object.values(channels).filter(c => c.is_active).map(c => (
                     <span key={c.channel} className="px-2 py-0.5 rounded-full text-[11px] font-medium"
@@ -391,7 +393,7 @@ function AgentWizard({ onClose, onSaved, editAgent }: {
                       {CHANNELS.find(ch => ch.id === c.channel)?.label}
                     </span>
                   ))}
-                  {!Object.values(channels).some(c => c.is_active) && <p className="text-zinc-500 text-sm">Nenhum canal ativo</p>}
+                  {!Object.values(channels).some(c => c.is_active) && <p className="text-zinc-500 text-sm">{t('agents.wizard.review.noActiveChannels')}</p>}
                 </div>
               </div>
               {error && (
@@ -408,19 +410,19 @@ function AgentWizard({ onClose, onSaved, editAgent }: {
           <button onClick={() => step > 1 ? setStep(s => s - 1) : onClose()}
             className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm text-zinc-400 hover:text-white transition-colors"
             style={{ background: '#1e1e24' }}>
-            <ChevronLeft size={15} />{step > 1 ? 'Voltar' : 'Cancelar'}
+            <ChevronLeft size={15} />{step > 1 ? t('agents.wizard.back') : t('agents.wizard.cancel')}
           </button>
           {step < 4
-            ? <button onClick={() => { if (step === 1 && !name.trim()) { setError('Nome é obrigatório'); return } setError(''); setStep(s => s + 1) }}
+            ? <button onClick={() => { if (step === 1 && !name.trim()) { setError(t('agents.wizard.errors.nameRequired')); return } setError(''); setStep(s => s + 1) }}
                 className="glow-rainbow flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-colors"
                 style={{ background: '#00E5FF', color: '#000' }}>
-                Próximo <ChevronRight size={15} />
+                {t('agents.wizard.next')} <ChevronRight size={15} />
               </button>
             : <button onClick={save} disabled={saving}
                 className="glow-rainbow flex items-center gap-1.5 px-5 py-2 rounded-xl text-sm font-semibold transition-colors disabled:opacity-50"
                 style={{ background: '#00E5FF', color: '#000' }}>
                 {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
-                {editAgent ? 'Salvar' : 'Criar Agente'}
+                {editAgent ? t('agents.wizard.save') : t('agents.wizard.createAgent')}
               </button>
           }
         </div>
@@ -437,6 +439,7 @@ function AgentCard({ agent, onToggle, onEdit, onDelete }: {
   onEdit: () => void
   onDelete: () => void
 }) {
+  const t = useTranslations('atendenteIa')
   const prov = AI_PROVIDERS[agent.model_provider as keyof typeof AI_PROVIDERS]
   const mdl  = prov?.models.find(m => m.id === agent.model_id)
   const activeChannels = (agent.channels ?? []).filter(c => c.is_active)
@@ -452,7 +455,7 @@ function AgentCard({ agent, onToggle, onEdit, onDelete }: {
           </div>
           <div>
             <p className="font-semibold text-white">{agent.name}</p>
-            <p className="text-xs text-zinc-500 mt-0.5">{agent.description || 'Sem descrição'}</p>
+            <p className="text-xs text-zinc-500 mt-0.5">{agent.description || t('agents.card.noDescription')}</p>
           </div>
         </div>
         <button onClick={onToggle} className="transition-colors shrink-0">
@@ -485,9 +488,9 @@ function AgentCard({ agent, onToggle, onEdit, onDelete }: {
       {/* Stats */}
       <div className="grid grid-cols-3 gap-2">
         {[
-          { icon: <MessageCircle size={12} />, label: 'Hoje', value: '—' },
-          { icon: <Zap size={12} />,           label: 'Auto',  value: '—%' },
-          { icon: <Star size={12} />,           label: 'CSAT',  value: '—' },
+          { icon: <MessageCircle size={12} />, label: t('agents.card.today'), value: '—' },
+          { icon: <Zap size={12} />,           label: t('agents.card.auto'),  value: '—%' },
+          { icon: <Star size={12} />,           label: t('agents.card.csat'),  value: '—' },
         ].map(s => (
           <div key={s.label} className="rounded-lg px-2 py-2 text-center"
             style={{ background: '#0d0d10' }}>
@@ -504,7 +507,7 @@ function AgentCard({ agent, onToggle, onEdit, onDelete }: {
           style={{ background: '#1e1e24', color: '#a1a1aa' }}
           onMouseEnter={e => (e.currentTarget.style.color = '#fff')}
           onMouseLeave={e => (e.currentTarget.style.color = '#a1a1aa')}>
-          <Settings size={12} /> Configurar
+          <Settings size={12} /> {t('agents.card.configure')}
         </button>
         <button onClick={onDelete}
           className="flex items-center justify-center p-2 rounded-xl text-xs transition-colors"
@@ -532,6 +535,7 @@ interface AgentTemplate {
 }
 
 function TemplatesModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const t = useTranslations('atendenteIa')
   const [templates, setTemplates] = useState<AgentTemplate[]>([])
   const [loading,   setLoading]   = useState(true)
   const [creating,  setCreating]  = useState<string | null>(null)
@@ -546,8 +550,9 @@ function TemplatesModal({ onClose, onCreated }: { onClose: () => void; onCreated
           headers: { Authorization: `Bearer ${session?.access_token}` },
         })
         if (res.ok) { const v = await res.json(); setTemplates(Array.isArray(v) ? v : []) }
-      } catch (e: any) { setErr(e?.message ?? 'Erro') } finally { setLoading(false) }
+      } catch (e: any) { setErr(e?.message ?? t('agents.templates.error')) } finally { setLoading(false) }
     })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   async function handleCreate(tplId: string) {
@@ -566,7 +571,7 @@ function TemplatesModal({ onClose, onCreated }: { onClose: () => void; onCreated
       }
       onCreated()
     } catch (e: any) {
-      setErr(e?.message ?? 'Erro ao criar agente')
+      setErr(e?.message ?? t('agents.templates.createError'))
     } finally { setCreating(null) }
   }
 
@@ -577,7 +582,7 @@ function TemplatesModal({ onClose, onCreated }: { onClose: () => void; onCreated
         <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid #1e1e24' }}>
           <div className="flex items-center gap-2">
             <LayoutTemplate size={15} style={{ color: '#00E5FF' }} />
-            <p className="text-sm font-semibold text-white">Criar agente a partir de template</p>
+            <p className="text-sm font-semibold text-white">{t('agents.templates.title')}</p>
           </div>
           <button onClick={onClose} className="text-zinc-500 hover:text-zinc-300 transition-colors"><X size={16} /></button>
         </div>
@@ -589,27 +594,27 @@ function TemplatesModal({ onClose, onCreated }: { onClose: () => void; onCreated
             </div>
           ) : templates.length === 0 ? (
             <div className="py-12 text-center text-zinc-500 text-sm">
-              Nenhum template disponível. Rodou a migration?
+              {t('agents.templates.empty')}
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {templates.map(t => (
-                <button key={t.id} onClick={() => handleCreate(t.id)} disabled={creating !== null}
+              {templates.map(tpl => (
+                <button key={tpl.id} onClick={() => handleCreate(tpl.id)} disabled={creating !== null}
                   className="text-left p-4 rounded-xl transition-all disabled:opacity-50 hover:scale-[1.02]"
                   style={{ background: '#0d0d10', border: '1px solid #1e1e24' }}>
                   <div className="flex items-start justify-between gap-2 mb-2">
-                    <div className="text-3xl">{t.emoji}</div>
-                    {creating === t.id && <Loader2 size={14} className="animate-spin text-cyan-400" />}
+                    <div className="text-3xl">{tpl.emoji}</div>
+                    {creating === tpl.id && <Loader2 size={14} className="animate-spin text-cyan-400" />}
                   </div>
-                  <p className="text-sm font-bold text-white mb-1">{t.name}</p>
-                  <p className="text-[11px] text-zinc-500 leading-snug mb-3">{t.description}</p>
+                  <p className="text-sm font-bold text-white mb-1">{tpl.name}</p>
+                  <p className="text-[11px] text-zinc-500 leading-snug mb-3">{tpl.description}</p>
                   <div className="flex items-center gap-1 text-[10px] text-zinc-600">
                     <Zap size={10} />
-                    <span className="font-mono truncate">{t.default_model.replace('claude-', '').replace('-20251001', '')}</span>
-                    {t.always_escalate && (
+                    <span className="font-mono truncate">{tpl.default_model.replace('claude-', '').replace('-20251001', '')}</span>
+                    {tpl.always_escalate && (
                       <span className="ml-auto px-1.5 py-0.5 rounded font-semibold"
                         style={{ background: 'rgba(248,113,113,0.1)', color: '#f87171' }}>
-                        Sempre escala
+                        {t('agents.templates.alwaysEscalates')}
                       </span>
                     )}
                   </div>
@@ -621,8 +626,7 @@ function TemplatesModal({ onClose, onCreated }: { onClose: () => void; onCreated
           {err && <p className="text-[11px] text-red-400 mt-3">{err}</p>}
 
           <p className="text-[10px] text-zinc-600 mt-4">
-            O agente é criado com nome, descrição, prompt e modelo do template.
-            Você pode editar tudo depois.
+            {t('agents.templates.footnote')}
           </p>
         </div>
       </div>
@@ -631,6 +635,7 @@ function TemplatesModal({ onClose, onCreated }: { onClose: () => void; onCreated
 }
 
 export default function AgentesPage() {
+  const t = useTranslations('atendenteIa')
   const [agents, setAgents]         = useState<Agent[]>([])
   const [loading, setLoading]       = useState(true)
   const [showWizard, setShowWizard] = useState(false)
@@ -663,9 +668,9 @@ export default function AgentesPage() {
 
   async function deleteAgent(id: string) {
     const ok = await confirm({
-      title:        'Excluir agente',
-      message:      'Excluir este agente?',
-      confirmLabel: 'Excluir',
+      title:        t('agents.deleteConfirm.title'),
+      message:      t('agents.deleteConfirm.message'),
+      confirmLabel: t('agents.deleteConfirm.confirmLabel'),
       variant:      'danger',
     })
     if (!ok) return
@@ -684,20 +689,20 @@ export default function AgentesPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-            <Bot size={22} style={{ color: '#00E5FF' }} /> Agentes de IA
+            <Bot size={22} style={{ color: '#00E5FF' }} /> {t('agents.pageTitle')}
           </h1>
-          <p className="text-zinc-500 text-sm mt-1">Configure atendentes virtuais para cada canal</p>
+          <p className="text-zinc-500 text-sm mt-1">{t('agents.pageSubtitle')}</p>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={() => setShowTemplates(true)}
             className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-colors"
             style={{ background: 'rgba(0,229,255,0.08)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.25)' }}>
-            <LayoutTemplate size={15} /> Templates
+            <LayoutTemplate size={15} /> {t('agents.templatesButton')}
           </button>
           <button onClick={() => { setEditAgent(undefined); setShowWizard(true) }}
             className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-colors"
             style={{ background: '#00E5FF', color: '#000' }}>
-            <Plus size={15} /> Novo Agente
+            <Plus size={15} /> {t('agents.newAgent')}
           </button>
         </div>
       </div>
@@ -710,11 +715,11 @@ export default function AgentesPage() {
       ) : agents.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 space-y-3">
           <Bot size={40} style={{ color: '#27272a' }} />
-          <p className="text-zinc-500">Nenhum agente criado</p>
+          <p className="text-zinc-500">{t('agents.emptyTitle')}</p>
           <button onClick={() => { setEditAgent(undefined); setShowWizard(true) }}
             className="glow-rainbow px-4 py-2 rounded-xl text-sm font-medium transition-colors"
             style={{ background: '#1e1e24', color: '#a1a1aa' }}>
-            Criar primeiro agente
+            {t('agents.createFirst')}
           </button>
         </div>
       ) : (

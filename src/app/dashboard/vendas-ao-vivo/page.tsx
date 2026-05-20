@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useTranslations } from 'next-intl'
 import dynamic from 'next/dynamic'
 import { createClient } from '@/lib/supabase'
 import { useTodayOrders } from '@/hooks/useTodayOrders'
@@ -13,9 +14,7 @@ import {
 const BrazilSalesMap = dynamic(() => import('@/components/BrazilSalesMap'), {
   ssr: false,
   loading: () => (
-    <div className="h-[400px] bg-[#111114] rounded-xl animate-pulse flex items-center justify-center">
-      <span className="text-gray-500 text-sm">Carregando mapa...</span>
-    </div>
+    <div className="h-[400px] bg-[#111114] rounded-xl animate-pulse" />
   ),
 })
 
@@ -215,6 +214,7 @@ function HeatCell({ value, max }: { value: number; max: number }) {
 // ── main page ─────────────────────────────────────────────────────────────────
 
 export default function VendasAoVivoPage() {
+  const t = useTranslations('vendasAoVivo')
   // Hook compartilhado: busca pedidos de HOJE sem filtro de status (mesma lógica do Dashboard)
   const { faturamento: todayRevenue, pedidos: todayCount, loading: todayMetricsLoading, refresh: refreshTodayMetrics } = useTodayOrders()
 
@@ -329,7 +329,10 @@ export default function VendasAoVivoPage() {
   const minAgo = lastUpdated ? Math.round((now.getTime() - lastUpdated.getTime()) / 60_000) : null
 
   const HOURS = Array.from({ length: 24 }, (_, i) => `${String(i).padStart(2, '0')}h`)
-  const DAYS = ['Dom -6', 'Seg -5', 'Ter -4', 'Qua -3', 'Qui -2', 'Sex -1', 'Hoje']
+  const DAYS = [
+    t('heatDays.sun'), t('heatDays.mon'), t('heatDays.tue'), t('heatDays.wed'),
+    t('heatDays.thu'), t('heatDays.fri'), t('heatDays.today'),
+  ]
 
   if (!loading && !connected) {
     return (
@@ -339,8 +342,8 @@ export default function VendasAoVivoPage() {
             <path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
           </svg>
         </div>
-        <p className="text-white font-semibold">Mercado Livre não conectado</p>
-        <p className="text-zinc-500 text-sm">Conecte sua conta em Integrações para ver as vendas ao vivo.</p>
+        <p className="text-white font-semibold">{t('notConnectedTitle')}</p>
+        <p className="text-zinc-500 text-sm">{t('notConnectedHint')}</p>
       </div>
     )
   }
@@ -359,25 +362,25 @@ export default function VendasAoVivoPage() {
           {/* left */}
           <div>
             <div className="flex items-center gap-3 mb-1">
-              <h1 className="text-white text-xl font-bold tracking-tight">Vendas ao Vivo</h1>
+              <h1 className="text-white text-xl font-bold tracking-tight">{t('title')}</h1>
               <span className="flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full"
                 style={{ background: 'rgba(0,229,255,0.1)', color: '#00E5FF' }}>
                 <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: '#00E5FF' }} />
-                Ao vivo
+                {t('live')}
               </span>
               <span className="text-[10px] font-black px-1.5 py-0.5 rounded" style={{ background: '#ffe600', color: '#333' }}>ML</span>
             </div>
             <p className="text-zinc-500 text-[12px] capitalize">{dateLabel} · {timeStr}</p>
             {minAgo !== null && (
               <p className="text-zinc-600 text-[11px] mt-0.5">
-                Atualizado há {minAgo < 1 ? 'menos de 1 min' : `${minAgo} min`}
+                {minAgo < 1 ? t('updatedLessThanMin') : t('updatedMinAgo', { min: minAgo })}
               </p>
             )}
           </div>
 
           {/* center — revenue hero */}
           <div className="text-center">
-            <p className="text-zinc-500 text-[11px] uppercase tracking-widest mb-1">Faturamento de hoje</p>
+            <p className="text-zinc-500 text-[11px] uppercase tracking-widest mb-1">{t('todayRevenue')}</p>
             {todayMetricsLoading ? (
               <div className="h-10 w-48 rounded-lg animate-pulse mx-auto" style={{ background: '#1e1e24' }} />
             ) : (
@@ -389,12 +392,12 @@ export default function VendasAoVivoPage() {
               <div className="flex items-center justify-center gap-2 mt-2">
                 {(() => {
                   const delta = pct(todayRevenue, yestM.revenue)
-                  if (delta === null) return <p className="text-zinc-600 text-[11px]">Sem dados de ontem</p>
+                  if (delta === null) return <p className="text-zinc-600 text-[11px]">{t('noYesterdayData')}</p>
                   const up = delta >= 0
                   return (
                     <span className="text-[12px] font-bold px-2 py-0.5 rounded-md"
                       style={{ background: up ? 'rgba(52,211,153,0.12)' : 'rgba(248,113,113,0.12)', color: up ? '#34d399' : '#f87171' }}>
-                      {up ? '↑' : '↓'} {Math.abs(delta).toFixed(1)}% vs ontem
+                      {up ? '↑' : '↓'} {t('deltaVsYesterday', { pct: Math.abs(delta).toFixed(1) })}
                     </span>
                   )
                 })()}
@@ -410,7 +413,7 @@ export default function VendasAoVivoPage() {
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
-              Atualizar
+              {t('refresh')}
             </button>
           </div>
         </div>
@@ -425,53 +428,59 @@ export default function VendasAoVivoPage() {
             <div key={i} className="rounded-xl p-4 animate-pulse h-24" style={{ background: '#111114' }} />
           )) : [
             {
-              label: 'Faturamento hoje',
+              key: 'revenue',
+              label: t('cardRevenue'),
               value: brl(todayRevenue),
               change: pct(todayRevenue, yestM.revenue),
               color: '#00E5FF',
               sparkData: sparkRevenue,
             },
             {
-              label: 'Pedidos hoje',
+              key: 'orders',
+              label: t('cardOrders'),
               value: String(todayCount),
-              sub: 'todos os status',
+              sub: t('cardOrdersSub'),
               change: pct(todayCount, yestM.count),
               color: '#34d399',
               sparkData: sparkRevenue.map((_, i) => orders.filter(o => isPaid(o) && orderBrazilDate(o.date_created) === today && brazilHour(o.date_created) === i).length),
             },
             {
-              label: 'Unidades vendidas',
+              key: 'units',
+              label: t('cardUnits'),
               value: String(todayM.units),
-              sub: 'itens',
+              sub: t('cardUnitsSub'),
               change: pct(todayM.units, yestM.units),
               color: '#a78bfa',
               sparkData: sparkRevenue,
             },
             {
-              label: 'Ticket médio',
+              key: 'avgTicket',
+              label: t('cardAvgTicket'),
               value: brl(todayM.avgTicket),
               change: pct(todayM.avgTicket, yestM.avgTicket),
               color: '#fb923c',
               sparkData: sparkRevenue,
             },
             {
-              label: 'Taxa conversão',
+              key: 'conversion',
+              label: t('cardConversion'),
               value: '—',
-              sub: 'requer visitas',
+              sub: t('cardConversionSub'),
               change: null,
               color: '#60a5fa',
               sparkData: [0],
             },
             {
-              label: 'Compradores únicos',
+              key: 'uniqueBuyers',
+              label: t('cardUniqueBuyers'),
               value: String(new Set(recentFeed.filter(o => isPaid(o) && orderBrazilDate(o.date_created) === today).map(o => o.id)).size),
-              sub: 'estimativa',
+              sub: t('cardUniqueBuyersSub'),
               change: null,
               color: '#f87171',
               sparkData: sparkRevenue,
             },
           ].map(m => (
-            <MetricCard key={m.label} label={m.label} value={m.value} sub={m.sub}
+            <MetricCard key={m.key} label={m.label} value={m.value} sub={m.sub}
               change={m.change} sparkData={m.sparkData} color={m.color} />
           ))}
         </div>
@@ -480,12 +489,12 @@ export default function VendasAoVivoPage() {
         <div className="rounded-2xl px-6 py-5" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
           <div className="flex items-center justify-between mb-5">
             <div>
-              <p className="text-white text-sm font-semibold">Faturamento por hora</p>
-              <p className="text-zinc-500 text-xs mt-0.5">Hoje vs ontem vs semana passada</p>
+              <p className="text-white text-sm font-semibold">{t('hourlyTitle')}</p>
+              <p className="text-zinc-500 text-xs mt-0.5">{t('hourlySubtitle')}</p>
             </div>
             <div className="flex items-center gap-4 text-[11px]">
-              {[{ color: '#00E5FF', label: 'Hoje' }, { color: '#3f3f46', label: 'Ontem' }, { color: '#fb923c', label: 'Sem. passada' }].map(({ color, label }) => (
-                <span key={label} className="flex items-center gap-1.5" style={{ color: '#71717a' }}>
+              {[{ key: 'today', color: '#00E5FF', label: t('legendToday') }, { key: 'yesterday', color: '#3f3f46', label: t('legendYesterday') }, { key: 'lastWeek', color: '#fb923c', label: t('legendLastWeek') }].map(({ key, color, label }) => (
+                <span key={key} className="flex items-center gap-1.5" style={{ color: '#71717a' }}>
                   <span className="w-4 h-0.5 inline-block rounded" style={{ background: color }} />
                   {label}
                 </span>
@@ -505,9 +514,9 @@ export default function VendasAoVivoPage() {
               <YAxis tick={{ fill: '#52525b', fontSize: 10 }} tickFormatter={v => `R$${(v as number / 1000).toFixed(0)}k`} axisLine={false} tickLine={false} width={50} />
               <Tooltip content={<HourTip />} />
               <ReferenceLine x={`${String(new Date(now.getTime() - 3 * 60 * 60 * 1000).getUTCHours()).padStart(2, '0')}h`} stroke="#00E5FF" strokeOpacity={0.3} strokeDasharray="4 3" />
-              <Area type="monotone" dataKey="hoje" stroke="#00E5FF" strokeWidth={2} fill="url(#gradHoje)" name="Hoje" connectNulls dot={false} />
-              <Line type="monotone" dataKey="ontem" stroke="#3f3f46" strokeWidth={1.5} name="Ontem" dot={false} strokeDasharray="5 3" />
-              <Line type="monotone" dataKey="semPassada" stroke="#fb923c" strokeWidth={1.5} name="Sem. passada" dot={false} strokeDasharray="3 3" strokeOpacity={0.6} />
+              <Area type="monotone" dataKey="hoje" stroke="#00E5FF" strokeWidth={2} fill="url(#gradHoje)" name={t('legendToday')} connectNulls dot={false} />
+              <Line type="monotone" dataKey="ontem" stroke="#3f3f46" strokeWidth={1.5} name={t('legendYesterday')} dot={false} strokeDasharray="5 3" />
+              <Line type="monotone" dataKey="semPassada" stroke="#fb923c" strokeWidth={1.5} name={t('legendLastWeek')} dot={false} strokeDasharray="3 3" strokeOpacity={0.6} />
             </AreaChart>
           </ResponsiveContainer>
         </div>
@@ -516,8 +525,8 @@ export default function VendasAoVivoPage() {
         <div className="rounded-2xl px-6 py-5" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
           <div className="flex items-center justify-between mb-5">
             <div>
-              <p className="text-white text-sm font-semibold">Funil de Conversão</p>
-              <p className="text-zinc-500 text-xs mt-0.5">Baseado nos pedidos disponíveis</p>
+              <p className="text-white text-sm font-semibold">{t('funnelTitle')}</p>
+              <p className="text-zinc-500 text-xs mt-0.5">{t('funnelSubtitle')}</p>
             </div>
           </div>
           <div className="space-y-2.5 max-w-2xl">
@@ -525,21 +534,21 @@ export default function VendasAoVivoPage() {
               const totalOrders = orders.filter(o => orderBrazilDate(o.date_created) === today).length
               const paidCount = todayM.count
               const funnel = [
-                { label: 'Visitas estimadas', value: Math.max(paidCount * 12, 0), color: '#60a5fa' },
-                { label: 'Visualizações produto', value: Math.max(paidCount * 8, 0), color: '#a78bfa' },
-                { label: 'Intenções (carrinho)', value: Math.max(paidCount * 3, 0), color: '#fb923c' },
-                { label: 'Pedidos realizados', value: totalOrders, color: '#f59e0b' },
-                { label: 'Pedidos pagos', value: paidCount, color: '#34d399' },
+                { key: 'visits',     label: t('funnelVisits'),     value: Math.max(paidCount * 12, 0), color: '#60a5fa' },
+                { key: 'productViews', label: t('funnelProductViews'), value: Math.max(paidCount * 8, 0), color: '#a78bfa' },
+                { key: 'intents',    label: t('funnelIntents'),    value: Math.max(paidCount * 3, 0), color: '#fb923c' },
+                { key: 'ordersPlaced', label: t('funnelOrdersPlaced'), value: totalOrders, color: '#f59e0b' },
+                { key: 'ordersPaid', label: t('funnelOrdersPaid'), value: paidCount, color: '#34d399' },
               ]
               const top = funnel[0].value
               return funnel.map((f, i) => (
-                <div key={f.label}>
+                <div key={f.key}>
                   <FunnelBar label={f.label} value={f.value} total={top} color={f.color} />
                   {i < funnel.length - 1 && (
                     <div className="flex items-center gap-3 py-0.5">
                       <div className="w-32 shrink-0" />
                       <span className="text-zinc-700 text-[10px] pl-2">
-                        {funnel[i].value > 0 ? `${((funnel[i + 1].value / funnel[i].value) * 100).toFixed(0)}% avançam` : '—'}
+                        {funnel[i].value > 0 ? t('funnelAdvance', { pct: ((funnel[i + 1].value / funnel[i].value) * 100).toFixed(0) }) : '—'}
                       </span>
                     </div>
                   )}
@@ -547,14 +556,14 @@ export default function VendasAoVivoPage() {
               ))
             })()}
           </div>
-          <p className="text-zinc-700 text-[10px] mt-4">* Visitas e intenções são estimativas. Conecte a API de Analytics do ML para dados reais.</p>
+          <p className="text-zinc-700 text-[10px] mt-4">{t('funnelNote')}</p>
         </div>
 
         {/* LINHA 3.5 — Brazil Sales Map */}
         {console.log('[MAP DEBUG] vendas-ao-vivo orders total:', orders?.length, 'hoje:', orders?.filter(o => o.date_created?.slice(0, 10) === today)?.length, 'shipping_state[0]:', orders?.[0]?.shipping_state) as unknown as null}
         <BrazilSalesMap
           orders={orders.filter(o => orderBrazilDate(o.date_created) === today)}
-          title="Mapa de Vendas do Dia"
+          title={t('salesMapTitle')}
           height={400}
           realtime={true}
           newOrderIds={newIdsRef.current}
@@ -566,8 +575,8 @@ export default function VendasAoVivoPage() {
           {/* Top 10 Products */}
           <div className="rounded-2xl overflow-hidden" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
             <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid #1e1e24', background: '#0d0d10' }}>
-              <p className="text-white text-sm font-semibold">Top Produtos do Dia</p>
-              <span className="text-zinc-500 text-xs">{products.length} produtos</span>
+              <p className="text-white text-sm font-semibold">{t('topProductsTitle')}</p>
+              <span className="text-zinc-500 text-xs">{t('productsCount', { count: products.length })}</span>
             </div>
             <div className="divide-y" style={{ borderColor: '#1e1e24' }}>
               {loading ? [...Array(5)].map((_, i) => (
@@ -578,7 +587,7 @@ export default function VendasAoVivoPage() {
                 </div>
               )) : products.length === 0 ? (
                 <div className="flex items-center justify-center py-12">
-                  <p className="text-zinc-600 text-sm">Sem vendas hoje ainda.</p>
+                  <p className="text-zinc-600 text-sm">{t('noSalesToday')}</p>
                 </div>
               ) : products.map((p, idx) => {
                 const twoHoursAgo = Date.now() - 2 * 60 * 60 * 1000
@@ -602,7 +611,7 @@ export default function VendasAoVivoPage() {
                     </div>
                     <div className="text-right shrink-0">
                       <p className="text-white text-[12px] font-bold">{brl(p.revenue)}</p>
-                      <p className="text-zinc-600 text-[10px]">{p.units} un.</p>
+                      <p className="text-zinc-600 text-[10px]">{t('unitsShort', { count: p.units })}</p>
                     </div>
                   </div>
                 )
@@ -613,7 +622,7 @@ export default function VendasAoVivoPage() {
           {/* Recent Orders Feed */}
           <div className="rounded-2xl overflow-hidden" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
             <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid #1e1e24', background: '#0d0d10' }}>
-              <p className="text-white text-sm font-semibold">Pedidos Recentes</p>
+              <p className="text-white text-sm font-semibold">{t('recentOrdersTitle')}</p>
               <span className="text-[10px] font-black px-1.5 py-0.5 rounded" style={{ background: '#ffe600', color: '#333' }}>ML</span>
             </div>
             <div className="overflow-y-auto" style={{ maxHeight: 420 }}>
@@ -625,7 +634,7 @@ export default function VendasAoVivoPage() {
                 </div>
               )) : recentFeed.length === 0 ? (
                 <div className="flex items-center justify-center py-12">
-                  <p className="text-zinc-600 text-sm">Nenhum pedido recente.</p>
+                  <p className="text-zinc-600 text-sm">{t('noRecentOrders')}</p>
                 </div>
               ) : recentFeed.map((o) => {
                 const isNew = newIdsRef.current.has(o.id)
@@ -650,7 +659,7 @@ export default function VendasAoVivoPage() {
                       </span>
                       <span className="text-[9px] px-1 py-0.5 rounded font-semibold"
                         style={{ background: isPaid(o) ? 'rgba(52,211,153,0.1)' : 'rgba(113,113,122,0.15)', color: isPaid(o) ? '#34d399' : '#71717a' }}>
-                        {o.status === 'paid' ? 'Pago' : o.status === 'cancelled' ? 'Cancel.' : 'Pend.'}
+                        {o.status === 'paid' ? t('statusPaid') : o.status === 'cancelled' ? t('statusCancelled') : t('statusPending')}
                       </span>
                     </div>
                   </div>
@@ -664,17 +673,17 @@ export default function VendasAoVivoPage() {
         <div className="rounded-2xl px-6 py-5" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
           <div className="flex items-center justify-between mb-4">
             <div>
-              <p className="text-white text-sm font-semibold">Mapa de Calor — Vendas por Horário</p>
-              <p className="text-zinc-500 text-xs mt-0.5">Últimos 7 dias · intensidade = faturamento</p>
+              <p className="text-white text-sm font-semibold">{t('heatMapTitle')}</p>
+              <p className="text-zinc-500 text-xs mt-0.5">{t('heatMapSubtitle')}</p>
             </div>
             <div className="flex items-center gap-2 text-[10px] text-zinc-500">
-              <span>Baixo</span>
+              <span>{t('heatLow')}</span>
               <div className="flex gap-0.5">
                 {[0.1, 0.3, 0.5, 0.7, 0.9].map(v => (
                   <div key={v} style={{ width: 16, height: 12, borderRadius: 2, background: `rgba(0,229,255,${0.08 + v * 0.72})` }} />
                 ))}
               </div>
-              <span>Alto</span>
+              <span>{t('heatHigh')}</span>
             </div>
           </div>
           <div className="overflow-x-auto">

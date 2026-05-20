@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, use } from 'react'
+import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import {
   ArrowLeft, ExternalLink, Loader2, AlertOctagon, ShieldCheck, ShieldAlert,
@@ -60,6 +61,7 @@ async function getToken(): Promise<string | null> {
 
 export default function ItemDetailPage({ params }: { params: Promise<{ itemId: string }> }) {
   const { itemId } = use(params)
+  const t = useTranslations('mlQuality.itemDetail')
   const { selected: selectedSellerId } = useMlAccount()
   const { domainName, attributeName } = useMlLabels()
 
@@ -100,7 +102,7 @@ export default function ItemDetailPage({ params }: { params: Promise<{ itemId: s
     return (
       <div className="p-6 max-w-5xl mx-auto" style={{ background: 'var(--background)', minHeight: '100vh', color: 'var(--text)' }}>
         <div className="flex items-center gap-2 text-zinc-500 text-sm">
-          <Loader2 size={14} className="animate-spin" /> Carregando…
+          <Loader2 size={14} className="animate-spin" /> {t('loading')}
         </div>
       </div>
     )
@@ -110,10 +112,10 @@ export default function ItemDetailPage({ params }: { params: Promise<{ itemId: s
     return (
       <div className="p-6 max-w-5xl mx-auto" style={{ background: 'var(--background)', minHeight: '100vh', color: 'var(--text)' }}>
         <Link href="/dashboard/ml-quality/items" className="inline-flex items-center gap-1 text-cyan-400 text-xs mb-3 hover:underline">
-          <ArrowLeft size={12} /> Voltar pra lista
+          <ArrowLeft size={12} /> {t('backToList')}
         </Link>
         <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">
-          {error || 'Anúncio não encontrado.'}
+          {error || t('notFound')}
         </div>
       </div>
     )
@@ -133,11 +135,11 @@ export default function ItemDetailPage({ params }: { params: Promise<{ itemId: s
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-xs text-zinc-500">
         <Link href="/dashboard/ml-quality" className="hover:text-cyan-400 transition-colors">
-          Quality Center
+          {t('breadcrumbCenter')}
         </Link>
         <span>/</span>
         <Link href="/dashboard/ml-quality/items" className="hover:text-cyan-400 transition-colors">
-          Anúncios
+          {t('breadcrumbItems')}
         </Link>
         <span>/</span>
         <span className="text-zinc-300 font-mono">{item.ml_item_id}</span>
@@ -161,7 +163,7 @@ export default function ItemDetailPage({ params }: { params: Promise<{ itemId: s
               target="_blank" rel="noreferrer"
               className="inline-flex items-center gap-1 text-cyan-400 text-xs hover:underline"
             >
-              <ExternalLink size={11} /> Abrir no ML
+              <ExternalLink size={11} /> {t('openInMl')}
             </a>
           </div>
 
@@ -172,22 +174,22 @@ export default function ItemDetailPage({ params }: { params: Promise<{ itemId: s
                 className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] uppercase tracking-wider font-semibold"
                 style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}
               >
-                <AlertOctagon size={10} /> Penalizado
+                <AlertOctagon size={10} /> {t('penalizedBadge')}
               </span>
             )}
             {item.fix_complexity && <ComplexityBadge c={item.fix_complexity} />}
             {item.estimated_score_after_fix != null && item.estimated_score_after_fix > score && (
               <span className="inline-flex items-center gap-1 text-[11px] text-cyan-400">
-                <Sparkles size={10} /> Potencial: {item.estimated_score_after_fix}/100 (+{item.estimated_score_after_fix - score} pts)
+                <Sparkles size={10} /> {t('potential', { score: item.estimated_score_after_fix, pts: item.estimated_score_after_fix - score })}
               </span>
             )}
           </div>
 
           <div className="flex items-center gap-4 text-[11px] text-zinc-500 mt-2 flex-wrap">
             {item.ml_domain_id && <span>{domainName(item.ml_domain_id)}</span>}
-            <span>seller {item.seller_id}</span>
+            <span>{t('seller', { id: item.seller_id })}</span>
             <span className="inline-flex items-center gap-1">
-              <Calendar size={10} /> Última leitura: {formatDate(item.fetched_at)}
+              <Calendar size={10} /> {t('lastRead', { date: formatDate(item.fetched_at) })}
             </span>
           </div>
         </div>
@@ -198,9 +200,9 @@ export default function ItemDetailPage({ params }: { params: Promise<{ itemId: s
         <div className="rounded-xl p-4" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
           <div className="flex items-center justify-between mb-2">
             <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
-              Evolução do score (90 dias)
+              {t('scoreEvolution')}
             </h2>
-            <span className="text-[10px] text-zinc-500">{history.length} medições</span>
+            <span className="text-[10px] text-zinc-500">{t('measurements', { count: history.length })}</span>
           </div>
           <ScoreChart history={history} />
         </div>
@@ -209,7 +211,7 @@ export default function ItemDetailPage({ params }: { params: Promise<{ itemId: s
       {/* 3 dimensoes (PI / FT / ALL) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <DimensionCard
-          title="PI — Identificação do produto"
+          title={t('dimensions.pi')}
           weight={25}
           complete={item.pi_complete}
           filled={item.pi_filled_count}
@@ -219,7 +221,7 @@ export default function ItemDetailPage({ params }: { params: Promise<{ itemId: s
           color="#a78bfa"
         />
         <DimensionCard
-          title="FT — Ficha técnica"
+          title={t('dimensions.ft')}
           weight={60}
           complete={item.ft_complete}
           filled={item.ft_filled_count}
@@ -229,7 +231,7 @@ export default function ItemDetailPage({ params }: { params: Promise<{ itemId: s
           color="#00E5FF"
         />
         <DimensionCard
-          title="ALL — Todos atributos"
+          title={t('dimensions.all')}
           weight={15}
           complete={item.all_complete}
           filled={item.all_filled_count}
@@ -244,7 +246,7 @@ export default function ItemDetailPage({ params }: { params: Promise<{ itemId: s
       {item.penalty_reasons && item.penalty_reasons.length > 0 && (
         <div className="rounded-xl p-4" style={{ background: '#0c0c10', border: '1px solid rgba(239,68,68,0.25)' }}>
           <h2 className="text-xs font-semibold uppercase tracking-wider text-red-400 mb-3 flex items-center gap-1.5">
-            <AlertOctagon size={12} /> Motivos da penalização
+            <AlertOctagon size={12} /> {t('penaltyReasons')}
           </h2>
           <div className="space-y-1">
             {item.penalty_reasons.map(r => (
@@ -264,7 +266,7 @@ export default function ItemDetailPage({ params }: { params: Promise<{ itemId: s
       {item.ml_tags && item.ml_tags.length > 0 && (
         <div className="rounded-xl p-4" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
           <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-3">
-            Tags do anúncio (ML)
+            {t('mlTags')}
           </h2>
           <div className="flex flex-wrap gap-1.5">
             {item.ml_tags.map(t => (
@@ -284,7 +286,7 @@ export default function ItemDetailPage({ params }: { params: Promise<{ itemId: s
       {item.pending_count > 0 && (
         <div className="rounded-xl p-4" style={{ background: '#0c0c10', border: '1px solid rgba(0,229,255,0.25)' }}>
           <h2 className="text-xs font-semibold uppercase tracking-wider text-cyan-400 mb-3 flex items-center gap-1.5">
-            <Activity size={12} /> Ações sugeridas ({item.pending_count})
+            <Activity size={12} /> {t('suggestedActions', { count: item.pending_count })}
           </h2>
           {Array.isArray(item.pending_actions) && item.pending_actions.length > 0 ? (
             <div className="space-y-1.5">
@@ -300,8 +302,7 @@ export default function ItemDetailPage({ params }: { params: Promise<{ itemId: s
             </div>
           ) : (
             <p className="text-xs text-zinc-500">
-              Sugestões IA serão exibidas aqui quando a Camada 2 (sugestão automática) for ativada.
-              Por enquanto, preencher os atributos faltantes acima geralmente resolve.
+              {t('suggestedActionsEmpty')}
             </p>
           )}
         </div>
@@ -311,7 +312,7 @@ export default function ItemDetailPage({ params }: { params: Promise<{ itemId: s
       {dedupedMissing.length > 0 && (
         <div className="rounded-xl p-4" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
           <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-3">
-            Todos atributos faltantes ({dedupedMissing.length})
+            {t('allMissingAttributes', { count: dedupedMissing.length })}
           </h2>
           <div className="flex flex-wrap gap-1.5">
             {dedupedMissing.map(a => (
@@ -344,6 +345,7 @@ function DimensionCard({ title, weight, complete, filled, missing, missingAttrs,
   attributeName: (id: string) => string
   color:         string
 }) {
+  const t = useTranslations('mlQuality.itemDetail')
   const total = filled + missing
   const pct   = total > 0 ? Math.round((filled / total) * 100) : 0
   return (
@@ -351,7 +353,7 @@ function DimensionCard({ title, weight, complete, filled, missing, missingAttrs,
       <div>
         <div className="flex items-start justify-between">
           <h3 className="text-xs font-semibold text-zinc-300">{title}</h3>
-          <span className="text-[10px] text-zinc-500 flex-shrink-0">peso {weight}%</span>
+          <span className="text-[10px] text-zinc-500 flex-shrink-0">{t('weight', { weight })}</span>
         </div>
         <div className="flex items-end gap-2 mt-1">
           <span className="text-2xl font-bold" style={{ color: complete ? '#22c55e' : color }}>{pct}%</span>
@@ -362,7 +364,7 @@ function DimensionCard({ title, weight, complete, filled, missing, missingAttrs,
           )}
         </div>
         <p className="text-[10px] text-zinc-500 mt-1">
-          {filled} de {total} atributos preenchidos
+          {t('attributesFilled', { filled, total })}
         </p>
       </div>
 
@@ -372,7 +374,7 @@ function DimensionCard({ title, weight, complete, filled, missing, missingAttrs,
 
       {missingAttrs.length > 0 && (
         <div>
-          <p className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">Faltando:</p>
+          <p className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">{t('missingLabel')}</p>
           <div className="flex flex-wrap gap-1">
             {missingAttrs.slice(0, 8).map(a => (
               <span
@@ -398,6 +400,7 @@ function DimensionCard({ title, weight, complete, filled, missing, missingAttrs,
 // ────────────────────────────────────────────────────────────────────────
 
 function ScoreChart({ history }: { history: ItemHistory[] }) {
+  const t = useTranslations('mlQuality.itemDetail')
   if (history.length < 2) return null
   const w = 600
   const h = 80
@@ -434,7 +437,7 @@ function ScoreChart({ history }: { history: ItemHistory[] }) {
       <div className="flex items-center justify-between mt-2 text-[11px]">
         <span className="text-zinc-500">{formatDate(history[0]!.captured_at)}</span>
         <span style={{ color: deltaColor }}>
-          {delta > 0 ? '+' : ''}{delta} pts em {history.length} pontos
+          {t('chartDelta', { delta: `${delta > 0 ? '+' : ''}${delta}`, points: history.length })}
         </span>
         <span className="text-zinc-500">{formatDate(history[history.length - 1]!.captured_at)}</span>
       </div>
@@ -447,38 +450,40 @@ function ScoreChart({ history }: { history: ItemHistory[] }) {
 // ────────────────────────────────────────────────────────────────────────
 
 function LevelBadge({ level }: { level: 'basic' | 'satisfactory' | 'professional' | null }) {
+  const t = useTranslations('mlQuality.itemDetail')
   if (!level) return null
-  const map = {
-    basic:        { label: 'Básico',       color: '#ef4444' },
-    satisfactory: { label: 'Satisfatório', color: '#fbbf24' },
-    professional: { label: 'Profissional', color: '#22c55e' },
+  const colorMap = {
+    basic:        '#ef4444',
+    satisfactory: '#fbbf24',
+    professional: '#22c55e',
   } as const
-  const m = map[level]
+  const color = colorMap[level]
   return (
     <span
       className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] uppercase tracking-wider font-semibold"
-      style={{ background: `${m.color}15`, color: m.color, border: `1px solid ${m.color}40` }}
+      style={{ background: `${color}15`, color, border: `1px solid ${color}40` }}
     >
       {level === 'professional' ? <ShieldCheck size={10} /> : <ShieldAlert size={10} />}
-      {m.label}
+      {t(`level.${level}`)}
     </span>
   )
 }
 
 function ComplexityBadge({ c }: { c: 'easy' | 'medium' | 'hard' | 'blocked' }) {
-  const map = {
-    easy:    { label: 'Fácil',    color: '#22c55e' },
-    medium:  { label: 'Médio',    color: '#fbbf24' },
-    hard:    { label: 'Difícil',  color: '#f97316' },
-    blocked: { label: 'Bloqueado',color: '#ef4444' },
+  const t = useTranslations('mlQuality.itemDetail')
+  const colorMap = {
+    easy:    '#22c55e',
+    medium:  '#fbbf24',
+    hard:    '#f97316',
+    blocked: '#ef4444',
   } as const
-  const m = map[c]
+  const color = colorMap[c]
   return (
     <span
       className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded font-semibold"
-      style={{ background: `${m.color}15`, color: m.color, border: `1px solid ${m.color}40` }}
+      style={{ background: `${color}15`, color, border: `1px solid ${color}40` }}
     >
-      {m.label} de corrigir
+      {t(`complexityToFix.${c}`)}
     </span>
   )
 }

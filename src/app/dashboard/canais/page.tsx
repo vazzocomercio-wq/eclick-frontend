@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import { CheckCircle2, AlertCircle, Plus, Trash2, RefreshCw, ExternalLink, Clock } from 'lucide-react'
 import { useConfirm, useAlert } from '@/components/ui/dialog-provider'
@@ -41,14 +42,17 @@ async function getToken() {
 
 // ── Token status ──────────────────────────────────────────────────────────────
 
-function tokenStatus(expiresAt: string): { ok: boolean; label: string } {
+type Translate = ReturnType<typeof useTranslations>
+
+/** Status do token — texto via tradução, recebe `t` do componente. */
+function tokenStatus(expiresAt: string, t: Translate): { ok: boolean; label: string } {
   const ms  = new Date(expiresAt).getTime() - Date.now()
-  if (ms < 0)              return { ok: false, label: 'Token expirado' }
-  if (ms < 60 * 60 * 1000) return { ok: false, label: 'Expira em breve' }
+  if (ms < 0)              return { ok: false, label: t('tokenExpired') }
+  if (ms < 60 * 60 * 1000) return { ok: false, label: t('tokenExpiresSoon') }
   const h = Math.floor(ms / 3_600_000)
-  if (h < 24)              return { ok: true, label: `Expira em ${h}h` }
+  if (h < 24)              return { ok: true, label: t('tokenExpiresHours', { h }) }
   const d = Math.floor(h / 24)
-  return { ok: true, label: `Expira em ${d}d` }
+  return { ok: true, label: t('tokenExpiresDays', { d }) }
 }
 
 // ── ML Account Row ────────────────────────────────────────────────────────────
@@ -62,7 +66,8 @@ function MlAccountRow({
   onDisconnect: (sellerId: number) => void
   disconnecting: boolean
 }) {
-  const ts = tokenStatus(conn.expires_at)
+  const t = useTranslations('canais')
+  const ts = tokenStatus(conn.expires_at, t)
   return (
     <div className="flex items-center gap-3 px-4 py-3 rounded-xl" style={{ background: '#18181b', border: '1px solid #27272a' }}>
       {/* Avatar */}
@@ -73,7 +78,7 @@ function MlAccountRow({
 
       {/* Info */}
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-white truncate">{conn.nickname ?? `Conta #${conn.seller_id}`}</p>
+        <p className="text-sm font-semibold text-white truncate">{conn.nickname ?? t('accountNumber', { id: conn.seller_id })}</p>
         <p className="text-[10px] text-zinc-500 font-mono">ID {conn.seller_id}</p>
       </div>
 
@@ -91,14 +96,14 @@ function MlAccountRow({
       {/* Connected badge */}
       <div className="flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-semibold"
         style={{ background: 'rgba(74,222,128,0.1)', color: '#4ade80' }}>
-        <CheckCircle2 size={10} /> Conectado
+        <CheckCircle2 size={10} /> {t('connected')}
       </div>
 
       {/* Disconnect */}
       <button
         onClick={() => onDisconnect(conn.seller_id)}
         disabled={disconnecting}
-        title="Desconectar conta"
+        title={t('disconnectAccount')}
         className="p-1.5 rounded-lg transition-colors disabled:opacity-40"
         style={{ color: '#71717a' }}
         onMouseEnter={e => (e.currentTarget.style.color = '#f87171')}
@@ -112,6 +117,8 @@ function MlAccountRow({
 // ── Future channel card ───────────────────────────────────────────────────────
 
 function FutureChannelCard({ name, color, abbr, bg }: { name: string; color: string; abbr: string; bg: string }) {
+  const t = useTranslations('canais')
+  const rowKeys = ['activeListings', 'salesThisMonth', 'revenue', 'integration'] as const
   return (
     <div className="rounded-2xl p-5 flex flex-col gap-4" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
       <div className="flex items-center gap-3">
@@ -122,14 +129,14 @@ function FutureChannelCard({ name, color, abbr, bg }: { name: string; color: str
         <div>
           <h3 className="text-white font-semibold text-sm">{name}</h3>
           <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold" style={{ background: '#27272a', color: '#71717a' }}>
-            Em breve
+            {t('comingSoon')}
           </span>
         </div>
       </div>
       <div className="space-y-2">
-        {['Anúncios ativos', 'Vendas este mês', 'Receita', 'Integração'].map(l => (
-          <div key={l} className="flex items-center justify-between">
-            <span className="text-[11px] text-zinc-600">{l}</span>
+        {rowKeys.map(k => (
+          <div key={k} className="flex items-center justify-between">
+            <span className="text-[11px] text-zinc-600">{t(`futureRows.${k}`)}</span>
             <div className="h-3 w-16 rounded animate-none" style={{ background: '#1e1e24' }} />
           </div>
         ))}
@@ -137,7 +144,7 @@ function FutureChannelCard({ name, color, abbr, bg }: { name: string; color: str
       <button disabled
         className="w-full py-2 rounded-xl text-xs font-semibold transition-all opacity-40 cursor-not-allowed"
         style={{ background: '#1c1c1f', color: '#71717a', border: '1px solid #2e2e33' }}>
-        Conectar {name}
+        {t('connectChannel', { name })}
       </button>
     </div>
   )
@@ -146,6 +153,7 @@ function FutureChannelCard({ name, color, abbr, bg }: { name: string; color: str
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function CanaisPage() {
+  const t = useTranslations('canais')
   const [connections, setConnections] = useState<MlConnection[]>([])
   const [counts, setCounts]           = useState<ListingCounts | null>(null)
   const [kpis, setKpis]               = useState<SalesKpis | null>(null)
@@ -161,7 +169,7 @@ export default function CanaisPage() {
     setError(null)
     try {
       const token = await getToken()
-      if (!token) throw new Error('Sessão expirada')
+      if (!token) throw new Error(t('sessionExpired'))
       const h = { Authorization: `Bearer ${token}` }
 
       const [connRes, countsRes, kpisRes] = await Promise.allSettled([
@@ -182,19 +190,19 @@ export default function CanaisPage() {
         setKpis({ count: cm.count ?? 0, revenue: cm.revenue ?? 0, avg_ticket: cm.count > 0 ? (cm.revenue ?? 0) / cm.count : 0 })
       }
     } catch (e: any) {
-      setError(e.message ?? 'Erro ao carregar canais')
+      setError(e.message ?? t('errorLoad'))
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [t])
 
   useEffect(() => { load() }, [load])
 
   async function handleDisconnect(sellerId: number) {
     const ok = await confirm({
-      title:        'Desconectar conta ML',
-      message:      `Desconectar a conta ML ${sellerId}?`,
-      confirmLabel: 'Desconectar',
+      title:        t('disconnectMlTitle'),
+      message:      t('disconnectMlMessage', { sellerId }),
+      confirmLabel: t('disconnect'),
       variant:      'warning',
     })
     if (!ok) return
@@ -219,12 +227,12 @@ export default function CanaisPage() {
       const res = await fetch(`${BACKEND}/ml/auth-url?redirect_uri=${encodeURIComponent(redirectUri)}`, {
         headers: { Authorization: `Bearer ${token}` },
       })
-      if (!res.ok) throw new Error('Erro ao gerar URL de autenticação')
+      if (!res.ok) throw new Error(t('errorAuthUrl'))
       const { url } = await res.json()
       window.location.href = url
     } catch (e: any) {
       await alert({
-        title:   'Erro',
+        title:   t('errorTitle'),
         message: e.message,
         variant: 'danger',
       })
@@ -242,8 +250,8 @@ export default function CanaisPage() {
       {/* Header */}
       <div className="flex items-center justify-between gap-4">
         <div>
-          <p className="text-zinc-500 text-xs">Comercial</p>
-          <h2 className="text-white text-lg font-semibold mt-0.5">Canais de Venda</h2>
+          <p className="text-zinc-500 text-xs">{t('eyebrow')}</p>
+          <h2 className="text-white text-lg font-semibold mt-0.5">{t('title')}</h2>
         </div>
         <div className="flex items-center gap-2">
         <AccountSelector compact hideWhenEmpty />
@@ -251,7 +259,7 @@ export default function CanaisPage() {
           className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border transition-all disabled:opacity-60"
           style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>
           <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
-          Atualizar
+          {t('refresh')}
         </button>
         </div>
       </div>
@@ -277,25 +285,25 @@ export default function CanaisPage() {
               <div>
                 <h3 className="text-white font-semibold text-sm">Mercado Livre</h3>
                 <span className="text-[10px] font-medium" style={{ color: '#4ade80' }}>
-                  {loading ? '…' : `${connections.length} conta${connections.length !== 1 ? 's' : ''} conectada${connections.length !== 1 ? 's' : ''}`}
+                  {loading ? '…' : t('accountsConnected', { count: connections.length })}
                 </span>
               </div>
             </div>
             <a href="https://www.mercadolivre.com.br/vendas" target="_blank" rel="noopener noreferrer"
               className="flex items-center gap-1 text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors">
-              Painel ML <ExternalLink size={11} />
+              {t('mlPanel')} <ExternalLink size={11} />
             </a>
           </div>
 
           {/* KPI grid */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[
-              { label: 'Anúncios ativos',  value: loading ? '…' : (counts?.active ?? '—'),           color: '#4ade80' },
-              { label: 'Pausados',         value: loading ? '…' : (counts?.paused ?? '—'),           color: '#f59e0b' },
-              { label: 'Vendas este mês',  value: loading ? '…' : (kpis?.count ?? '—'),              color: '#00E5FF' },
-              { label: 'Receita este mês', value: loading ? '…' : (kpis ? brl(kpis.revenue) : '—'), color: '#a78bfa' },
+              { key: 'activeListings',  label: t('kpiActiveListings'),  value: loading ? '…' : (counts?.active ?? '—'),           color: '#4ade80' },
+              { key: 'paused',          label: t('kpiPaused'),          value: loading ? '…' : (counts?.paused ?? '—'),           color: '#f59e0b' },
+              { key: 'salesThisMonth',  label: t('kpiSalesThisMonth'),  value: loading ? '…' : (kpis?.count ?? '—'),              color: '#00E5FF' },
+              { key: 'revenueThisMonth',label: t('kpiRevenueThisMonth'),value: loading ? '…' : (kpis ? brl(kpis.revenue) : '—'),  color: '#a78bfa' },
             ].map(kpi => (
-              <div key={kpi.label} className="rounded-xl p-3" style={{ background: '#18181b', border: '1px solid #27272a' }}>
+              <div key={kpi.key} className="rounded-xl p-3" style={{ background: '#18181b', border: '1px solid #27272a' }}>
                 <p className="text-[10px] text-zinc-500 font-medium leading-snug">{kpi.label}</p>
                 <p className="text-lg font-black mt-1" style={{ color: kpi.color }}>{kpi.value}</p>
               </div>
@@ -306,8 +314,8 @@ export default function CanaisPage() {
           {!loading && counts && (
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-600">Distribuição de anúncios</p>
-                <p className="text-[10px] text-zinc-600">{totalListings?.toLocaleString('pt-BR')} total</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-600">{t('listingDistribution')}</p>
+                <p className="text-[10px] text-zinc-600">{t('totalCount', { count: totalListings?.toLocaleString('pt-BR') ?? '0' })}</p>
               </div>
               {totalListings && totalListings > 0 ? (
                 <div className="flex h-2 rounded-full overflow-hidden gap-0.5">
@@ -326,12 +334,12 @@ export default function CanaisPage() {
               )}
               <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2">
                 {[
-                  { label: 'Ativos',       val: counts.active,      color: '#4ade80' },
-                  { label: 'Pausados',     val: counts.paused,      color: '#f59e0b' },
-                  { label: 'Em revisão',   val: counts.under_review, color: '#60a5fa' },
-                  { label: 'Encerrados',   val: counts.closed,      color: '#52525b' },
+                  { key: 'active',       label: t('legendActive'),      val: counts.active,       color: '#4ade80' },
+                  { key: 'paused',       label: t('legendPaused'),      val: counts.paused,       color: '#f59e0b' },
+                  { key: 'underReview',  label: t('legendUnderReview'), val: counts.under_review, color: '#60a5fa' },
+                  { key: 'closed',       label: t('legendClosed'),      val: counts.closed,       color: '#52525b' },
                 ].map(s => (
-                  <div key={s.label} className="flex items-center gap-1">
+                  <div key={s.key} className="flex items-center gap-1">
                     <span className="w-2 h-2 rounded-sm" style={{ background: s.color }} />
                     <span className="text-[10px] text-zinc-500">{s.label}: <strong style={{ color: s.color }}>{s.val}</strong></span>
                   </div>
@@ -342,7 +350,7 @@ export default function CanaisPage() {
 
           {/* Connected accounts */}
           <div className="space-y-2">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-600">Contas conectadas</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-600">{t('connectedAccounts')}</p>
             {loading ? (
               [...Array(2)].map((_, i) => (
                 <div key={i} className="h-14 rounded-xl animate-pulse" style={{ background: '#18181b' }} />
@@ -350,7 +358,7 @@ export default function CanaisPage() {
             ) : connections.length === 0 ? (
               <div className="flex items-center gap-2 px-4 py-3 rounded-xl" style={{ background: '#18181b', border: '1px solid #27272a' }}>
                 <AlertCircle size={14} className="text-zinc-600 shrink-0" />
-                <p className="text-xs text-zinc-500">Nenhuma conta conectada.</p>
+                <p className="text-xs text-zinc-500">{t('noAccountsConnected')}</p>
               </div>
             ) : (
               connections.map(c => (
@@ -368,7 +376,7 @@ export default function CanaisPage() {
             onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,230,0,0.14)')}
             onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,230,0,0.08)')}>
             <Plus size={14} />
-            {connecting ? 'Redirecionando…' : 'Conectar nova conta ML'}
+            {connecting ? t('redirecting') : t('connectNewMlAccount')}
           </button>
         </div>
 
@@ -389,8 +397,7 @@ export default function CanaisPage() {
 
       {/* Info footer */}
       <p className="text-[10px] text-zinc-700">
-        Mercado Livre usa OAuth 2.0 — o token é renovado automaticamente pelo backend a cada 6 horas.
-        Para reconectar uma conta expirada, use o botão "Conectar nova conta ML".
+        {t('infoFooter')}
       </p>
     </div>
   )

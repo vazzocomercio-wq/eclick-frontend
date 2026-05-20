@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import { useRouter } from 'next/navigation'
 import {
   Megaphone, Loader2, ArrowLeft, ArrowRight, Check, Search, Package,
@@ -28,23 +29,17 @@ interface ProductLite {
 
 type SourceTab = 'catalog' | 'ml_ads'
 
-const PLATFORMS: Array<{ key: AdsPlatform; label: string; hint: string; color: string }> = [
-  { key: 'meta',              label: 'Meta Ads',     hint: 'Facebook + Instagram',           color: '#0866FF' },
-  { key: 'google',            label: 'Google Ads',   hint: 'Search + Shopping + PMax',        color: '#4285F4' },
-  { key: 'tiktok',            label: 'TikTok Ads',   hint: 'Vídeo nativo TikTok',             color: '#FF0050' },
-  { key: 'mercado_livre_ads', label: 'ML Ads',       hint: 'Boost de anúncios MercadoLivre',  color: '#FFE600' },
+const PLATFORMS: Array<{ key: AdsPlatform; label: string; color: string }> = [
+  { key: 'meta',              label: 'Meta Ads',     color: '#0866FF' },
+  { key: 'google',            label: 'Google Ads',   color: '#4285F4' },
+  { key: 'tiktok',            label: 'TikTok Ads',   color: '#FF0050' },
+  { key: 'mercado_livre_ads', label: 'ML Ads',       color: '#FFE600' },
 ]
 
-const OBJECTIVES: Array<{ key: AdsObjective; label: string; hint: string }> = [
-  { key: 'traffic',       label: 'Tráfego',         hint: 'Mandar pessoas pra landing/loja' },
-  { key: 'conversions',   label: 'Conversões',      hint: 'Vendas / compras' },
-  { key: 'catalog_sales', label: 'Catálogo',        hint: 'Dynamic Ads do catálogo' },
-  { key: 'engagement',    label: 'Engajamento',     hint: 'Likes / comentários' },
-  { key: 'awareness',     label: 'Reconhecimento',  hint: 'Branding e alcance' },
-  { key: 'leads',         label: 'Leads',           hint: 'Captura de contato' },
-]
+const OBJECTIVE_KEYS: AdsObjective[] = ['traffic', 'conversions', 'catalog_sales', 'engagement', 'awareness', 'leads']
 
 export default function NewCampaignWizard() {
+  const t = useTranslations('adsCampaigns')
   const router = useRouter()
 
   const [step, setStep] = useState<1 | 2 | 3>(1)
@@ -63,7 +58,7 @@ export default function NewCampaignWizard() {
     void (async () => {
       const sb = createClient()
       const { data: { session } } = await sb.auth.getSession()
-      if (!session?.access_token) { setError('Não autenticado'); return }
+      if (!session?.access_token) { setError(t('new.notAuthenticated')); return }
       try {
         const res = await fetch(`${BACKEND}/products`, {
           headers: { Authorization: `Bearer ${session.access_token}` },
@@ -74,6 +69,7 @@ export default function NewCampaignWizard() {
         setError((e as Error).message)
       }
     })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const counts = useMemo(() => {
@@ -130,9 +126,9 @@ export default function NewCampaignWizard() {
         <div>
           <h1 className="text-xl font-bold text-zinc-100 flex items-center gap-2">
             <Megaphone size={18} className="text-cyan-400" />
-            Nova campanha
+            {t('new.pageTitle')}
           </h1>
-          <p className="text-xs text-zinc-500 mt-0.5">3 passos: produto → plataforma → objetivo → IA gera tudo</p>
+          <p className="text-xs text-zinc-500 mt-0.5">{t('new.pageSubtitle')}</p>
         </div>
       </div>
 
@@ -148,7 +144,7 @@ export default function NewCampaignWizard() {
                 : 'bg-zinc-900 text-zinc-500 border border-zinc-800',
             ].join(' ')}>{step > n ? <Check size={11} /> : n}</span>
             <span className={step === n ? 'text-cyan-300' : 'text-zinc-500'}>
-              {n === 1 ? 'Produto' : n === 2 ? 'Plataforma' : 'Objetivo'}
+              {n === 1 ? t('new.steps.product') : n === 2 ? t('new.steps.platform') : t('new.steps.objective')}
             </span>
             {n < 3 && <span className="text-zinc-700 mx-1">→</span>}
           </div>
@@ -175,7 +171,7 @@ export default function NewCampaignWizard() {
                   : 'text-zinc-400 hover:text-zinc-200',
               ].join(' ')}
             >
-              Catálogo {products && <span className="text-zinc-600">· {counts.catalog}</span>}
+              {t('new.sourceCatalog')} {products && <span className="text-zinc-600">· {counts.catalog}</span>}
             </button>
             <button
               onClick={() => setSource('ml_ads')}
@@ -186,7 +182,7 @@ export default function NewCampaignWizard() {
                   : 'text-zinc-400 hover:text-zinc-200',
               ].join(' ')}
             >
-              Anúncios ML {products && <span className="text-zinc-600">· {counts.ml_ads}</span>}
+              {t('new.sourceMlAds')} {products && <span className="text-zinc-600">· {counts.ml_ads}</span>}
             </button>
           </div>
 
@@ -195,19 +191,19 @@ export default function NewCampaignWizard() {
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder={source === 'ml_ads' ? 'Buscar anúncio…' : 'Buscar produto…'}
+              placeholder={source === 'ml_ads' ? t('new.searchListing') : t('new.searchProduct')}
               className="flex-1 bg-transparent text-sm text-zinc-200 outline-none placeholder:text-zinc-600"
             />
           </div>
           {!products ? (
             <div className="flex items-center gap-2 text-zinc-500 text-sm">
-              <Loader2 size={14} className="animate-spin" /> carregando…
+              <Loader2 size={14} className="animate-spin" /> {t('new.loading')}
             </div>
           ) : filtered.length === 0 ? (
             <p className="text-sm text-zinc-500">
               {source === 'ml_ads'
-                ? 'Nenhum anúncio sincronizado do ML.'
-                : 'Nenhum produto encontrado.'}
+                ? t('new.noListings')
+                : t('new.noProducts')}
             </p>
           ) : (
             <div className="space-y-1 max-h-[60vh] overflow-y-auto rounded-lg border border-zinc-800">
@@ -265,7 +261,7 @@ export default function NewCampaignWizard() {
               disabled={!picked}
               className="glow-rainbow inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan-400 hover:bg-cyan-300 disabled:opacity-40 disabled:cursor-not-allowed text-black text-sm font-medium"
             >
-              Próximo <ArrowRight size={14} />
+              {t('new.next')} <ArrowRight size={14} />
             </button>
           </div>
         </div>
@@ -274,7 +270,7 @@ export default function NewCampaignWizard() {
       {/* Step 2 — Platform */}
       {step === 2 && (
         <div className="space-y-3">
-          <p className="text-xs text-zinc-400">Em qual plataforma vamos rodar?</p>
+          <p className="text-xs text-zinc-400">{t('new.platformQuestion')}</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {PLATFORMS.map(p => (
               <button
@@ -291,20 +287,20 @@ export default function NewCampaignWizard() {
                   <span className="w-2 h-4 rounded-sm" style={{ background: p.color }} />
                   <p className="text-sm font-medium text-zinc-200">{p.label}</p>
                 </div>
-                <p className="text-[11px] text-zinc-500">{p.hint}</p>
+                <p className="text-[11px] text-zinc-500">{t(`new.platformHints.${p.key}`)}</p>
               </button>
             ))}
           </div>
           <div className="flex justify-between">
             <button onClick={() => setStep(1)} className="px-4 py-2 rounded-lg border border-zinc-800 hover:border-zinc-700 text-zinc-300 text-sm flex items-center gap-2">
-              <ArrowLeft size={14} /> Voltar
+              <ArrowLeft size={14} /> {t('new.back')}
             </button>
             <button
               onClick={() => setStep(3)}
               disabled={!platform}
               className="glow-rainbow inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan-400 hover:bg-cyan-300 disabled:opacity-40 disabled:cursor-not-allowed text-black text-sm font-medium"
             >
-              Próximo <ArrowRight size={14} />
+              {t('new.next')} <ArrowRight size={14} />
             </button>
           </div>
         </div>
@@ -313,33 +309,33 @@ export default function NewCampaignWizard() {
       {/* Step 3 — Objective + Generate */}
       {step === 3 && !result && (
         <div className="space-y-3">
-          <p className="text-xs text-zinc-400">Qual o objetivo da campanha?</p>
+          <p className="text-xs text-zinc-400">{t('new.objectiveQuestion')}</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {OBJECTIVES.map(o => (
+            {OBJECTIVE_KEYS.map(key => (
               <button
-                key={o.key}
-                onClick={() => setObjective(o.key)}
+                key={key}
+                onClick={() => setObjective(key)}
                 disabled={generating}
                 className={[
                   'rounded-lg border p-3 text-left transition-colors disabled:opacity-50',
-                  objective === o.key
+                  objective === key
                     ? 'border-cyan-400/60 bg-cyan-400/5'
                     : 'border-zinc-800 bg-zinc-900/40 hover:border-zinc-700',
                 ].join(' ')}
               >
-                <p className="text-sm font-medium text-zinc-200">{o.label}</p>
-                <p className="text-[11px] text-zinc-500 mt-0.5">{o.hint}</p>
+                <p className="text-sm font-medium text-zinc-200">{t(`new.objectives.${key}.label`)}</p>
+                <p className="text-[11px] text-zinc-500 mt-0.5">{t(`new.objectives.${key}.hint`)}</p>
               </button>
             ))}
           </div>
 
           <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3 space-y-1 text-[11px]">
-            <p className="text-zinc-500 uppercase tracking-wider">Resumo</p>
+            <p className="text-zinc-500 uppercase tracking-wider">{t('new.summary')}</p>
             <p className="text-zinc-300">{picked?.name}</p>
             <p className="text-zinc-400">
-              {PLATFORMS.find(p => p.key === platform)?.label} · objetivo {objective}
+              {t('new.summaryLine', { platform: PLATFORMS.find(p => p.key === platform)?.label ?? '', objective: t(`new.objectives.${objective}.label`) })}
             </p>
-            <p className="text-zinc-500">Custo estimado: ~$0.025 USD por campanha gerada</p>
+            <p className="text-zinc-500">{t('new.estimatedCost')}</p>
           </div>
 
           <div className="flex justify-between">
@@ -348,14 +344,14 @@ export default function NewCampaignWizard() {
               disabled={generating}
               className="px-4 py-2 rounded-lg border border-zinc-800 hover:border-zinc-700 text-zinc-300 text-sm flex items-center gap-2 disabled:opacity-50"
             >
-              <ArrowLeft size={14} /> Voltar
+              <ArrowLeft size={14} /> {t('new.back')}
             </button>
             <button
               onClick={generate}
               disabled={generating}
               className="glow-rainbow inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan-400 hover:bg-cyan-300 disabled:opacity-40 disabled:cursor-not-allowed text-black text-sm font-medium"
             >
-              {generating ? <><Loader2 size={14} className="animate-spin" /> Gerando…</> : <><Sparkles size={14} /> Gerar com IA</>}
+              {generating ? <><Loader2 size={14} className="animate-spin" /> {t('new.generating')}</> : <><Sparkles size={14} /> {t('new.generateWithAi')}</>}
             </button>
           </div>
         </div>
@@ -369,8 +365,8 @@ export default function NewCampaignWizard() {
               <Check size={18} className="text-emerald-400" />
             </div>
             <div>
-              <p className="text-sm font-medium text-zinc-100">Campanha gerada!</p>
-              <p className="text-xs text-zinc-400">{result.name} · custo ${result.cost_usd.toFixed(4)}</p>
+              <p className="text-sm font-medium text-zinc-100">{t('new.campaignGenerated')}</p>
+              <p className="text-xs text-zinc-400">{t('new.resultLine', { name: result.name, cost: result.cost_usd.toFixed(4) })}</p>
             </div>
           </div>
           <div className="flex gap-2 justify-end">
@@ -378,13 +374,13 @@ export default function NewCampaignWizard() {
               onClick={() => { setResult(null); setStep(1); setPicked(null); setPlatform(null) }}
               className="px-4 py-2 rounded-lg border border-zinc-800 hover:border-zinc-700 text-zinc-300 text-sm"
             >
-              Gerar mais uma
+              {t('new.generateAnother')}
             </button>
             <a
               href={`/dashboard/ads-campaigns/${result.id}`}
               className="px-4 py-2 rounded-lg bg-cyan-400 hover:bg-cyan-300 text-black text-sm font-medium"
             >
-              Ver e revisar
+              {t('new.viewAndReview')}
             </a>
           </div>
         </div>

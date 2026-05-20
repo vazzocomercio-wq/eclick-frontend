@@ -9,6 +9,7 @@
  */
 
 import { useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { MoreVertical, Edit3, Power, PowerOff, Trash2, ImageOff, Sparkles } from 'lucide-react'
 import type { CreativeReference } from '@/components/creative/types'
 
@@ -23,6 +24,7 @@ export default function ReferenceCard({
   onDelete:        () => void
   busy?:           boolean
 }) {
+  const t = useTranslations('creative.references')
   const [menuOpen, setMenuOpen]   = useState(false)
   const [imgError, setImgError]   = useState(false)
   const [imgLoaded, setImgLoaded] = useState(false)
@@ -90,12 +92,12 @@ export default function ReferenceCard({
         <div className="absolute top-2 right-2 flex items-center gap-1">
           {curated && (
             <span className="inline-flex items-center gap-0.5 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-300 border border-cyan-500/30">
-              <Sparkles size={8} /> curada
+              <Sparkles size={8} /> {t('curated')}
             </span>
           )}
           {inactive && (
             <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/30">
-              desativada
+              {t('deactivated')}
             </span>
           )}
           {!curated && (
@@ -120,17 +122,17 @@ export default function ReferenceCard({
                   >
                     <MenuItem
                       icon={<Edit3 size={11} />}
-                      label="Editar"
+                      label={t('edit')}
                       onClick={() => { setMenuOpen(false); onEdit() }}
                     />
                     <MenuItem
                       icon={refImg.is_active ? <PowerOff size={11} /> : <Power size={11} />}
-                      label={refImg.is_active ? 'Desativar' : 'Ativar'}
+                      label={refImg.is_active ? t('deactivate') : t('activate')}
                       onClick={() => { setMenuOpen(false); onToggleActive() }}
                     />
                     <MenuItem
                       icon={<Trash2 size={11} />}
-                      label="Apagar"
+                      label={t('delete')}
                       danger
                       onClick={() => { setMenuOpen(false); onDelete() }}
                     />

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import {
   RefreshCw, Loader2, Megaphone, Clock, ShieldAlert, Sparkles,
@@ -33,14 +34,16 @@ async function getToken(): Promise<string | null> {
   return data.session?.access_token ?? null
 }
 
-function ago(iso: string | null): string {
-  if (!iso) return 'nunca'
+type AgoT = (key: string, values?: Record<string, string | number>) => string
+
+function ago(iso: string | null, t: AgoT): string {
+  if (!iso) return t('ago.never')
   const min = Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
-  if (min < 1) return 'agora'
-  if (min < 60) return `${min}min atrás`
+  if (min < 1) return t('ago.now')
+  if (min < 60) return t('ago.minutes', { n: min })
   const h = Math.floor(min / 60)
-  if (h < 24) return `${h}h atrás`
-  return `${Math.floor(h / 24)}d atrás`
+  if (h < 24) return t('ago.hours', { n: h })
+  return t('ago.days', { n: Math.floor(h / 24) })
 }
 
 function brl(v: number) {
@@ -48,6 +51,7 @@ function brl(v: number) {
 }
 
 export default function MlCampaignsDashboardPage() {
+  const t = useTranslations('mlCampaigns')
   const { selected: selectedSellerId } = useMlAccount()
   const [data, setData]       = useState<Dashboard | null>(null)
   const [loading, setLoading] = useState(true)
@@ -128,13 +132,13 @@ export default function MlCampaignsDashboardPage() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <p className="text-zinc-500 text-xs uppercase tracking-widest">Mercado Livre · Campaign Center IA</p>
+          <p className="text-zinc-500 text-xs uppercase tracking-widest">{t('eyebrow')}</p>
           <h1 className="text-2xl font-bold mt-1 flex items-center gap-2">
             <Megaphone size={22} className="text-cyan-400" />
-            Dashboard de Campanhas
+            {t('title')}
           </h1>
           {data?.last_sync_at && (
-            <p className="text-[11px] text-zinc-500 mt-1">Última sync: {ago(data.last_sync_at)}</p>
+            <p className="text-[11px] text-zinc-500 mt-1">{t('lastSync', { time: ago(data.last_sync_at, t) })}</p>
           )}
         </div>
         <div className="flex items-center gap-2">
@@ -142,7 +146,7 @@ export default function MlCampaignsDashboardPage() {
           <button onClick={syncNow} disabled={syncing}
             className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-cyan-400 hover:bg-cyan-300 disabled:opacity-50 text-black text-xs font-semibold">
             {syncing ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-            {syncing ? 'Sincronizando…' : 'Sincronizar agora'}
+            {syncing ? t('syncing') : t('syncNow')}
           </button>
         </div>
       </div>
@@ -164,10 +168,9 @@ export default function MlCampaignsDashboardPage() {
       {data && totalCampaigns === 0 && totalItems === 0 && !loading && (
         <div className="rounded-xl p-8 text-center" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
           <Megaphone size={48} className="mx-auto text-zinc-700 mb-3" />
-          <p className="text-zinc-300 font-medium">Nenhuma campanha sincronizada ainda</p>
+          <p className="text-zinc-300 font-medium">{t('empty.title')}</p>
           <p className="text-xs text-zinc-500 mt-2 max-w-md mx-auto">
-            Clica em <strong className="text-cyan-400">Sincronizar agora</strong> pra puxar campanhas
-            disponíveis e itens elegíveis das contas conectadas ao Mercado Livre.
+            {t('empty.desc')}
           </p>
         </div>
       )}
@@ -177,30 +180,30 @@ export default function MlCampaignsDashboardPage() {
           {/* KPIs principais */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <KpiCard
-              label="Campanhas ativas"
+              label={t('kpi.activeCampaigns')}
               value={`${data.total_active_campaigns}`}
-              suffix={data.total_pending_campaigns > 0 ? ` + ${data.total_pending_campaigns} programadas` : ''}
+              suffix={data.total_pending_campaigns > 0 ? ` ${t('kpi.activeCampaignsSuffix', { n: data.total_pending_campaigns })}` : ''}
               color="#22c55e"
               icon={<Megaphone size={14} />}
               href="/dashboard/ml-campaigns/list"
             />
             <KpiCard
-              label="Itens candidatos"
+              label={t('kpi.candidateItems')}
               value={`${data.total_candidate_items}`}
-              suffix={data.total_participating_items > 0 ? ` · ${data.total_participating_items} já participam` : ''}
+              suffix={data.total_participating_items > 0 ? ` ${t('kpi.candidateItemsSuffix', { n: data.total_participating_items })}` : ''}
               color="#00E5FF"
               icon={<Sparkles size={14} />}
             />
             <KpiCard
-              label="Encerrando esta semana"
+              label={t('kpi.endingThisWeek')}
               value={`${data.total_ending_this_week}`}
-              suffix={data.total_ending_today > 0 ? ` · ${data.total_ending_today} hoje!` : ''}
+              suffix={data.total_ending_today > 0 ? ` ${t('kpi.endingThisWeekSuffix', { n: data.total_ending_today })}` : ''}
               color={data.total_ending_today > 0 ? '#ef4444' : '#fbbf24'}
               icon={<Clock size={14} />}
               href="/dashboard/ml-campaigns/deadlines"
             />
             <KpiCard
-              label="Subsídio ML disponível"
+              label={t('kpi.mlSubsidy')}
               value={brl(data.total_meli_subsidy_available)}
               color="#a78bfa"
               icon={<TrendingUp size={14} />}
@@ -214,16 +217,15 @@ export default function MlCampaignsDashboardPage() {
               <AlertOctagon size={18} className="text-amber-400 flex-shrink-0 mt-0.5" />
               <div className="flex-1">
                 <p className="text-amber-200 font-medium text-sm">
-                  {itemsHealthIssues} {itemsHealthIssues === 1 ? 'anúncio precisa' : 'anúncios precisam'} de correção
+                  {t('healthAlert.title', { count: itemsHealthIssues })}
                 </p>
                 <p className="text-xs text-zinc-400 mt-0.5">
-                  Sem custo/imposto cadastrado, não é possível calcular margem.
-                  Corrigir antes de aderir às campanhas.
+                  {t('healthAlert.desc')}
                 </p>
               </div>
               <Link href="/dashboard/ml-campaigns/health"
                 className="text-xs text-amber-400 hover:underline flex items-center gap-1 flex-shrink-0">
-                Corrigir <ChevronRight size={12} />
+                {t('healthAlert.fix')} <ChevronRight size={12} />
               </Link>
             </div>
           )}
@@ -231,7 +233,7 @@ export default function MlCampaignsDashboardPage() {
           {/* Distribuicao por status */}
           <div className="rounded-xl p-5 space-y-3" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
             <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
-              Distribuição de itens
+              {t('itemDistribution')}
             </h2>
             <ItemDistribution
               candidate={data.total_candidate_items}
@@ -247,22 +249,22 @@ export default function MlCampaignsDashboardPage() {
             <Link href="/dashboard/ml-campaigns/recommendations"
               className="rounded-lg px-3 py-2.5 text-xs font-semibold hover:border-cyan-400/40 transition-colors inline-flex items-center gap-1.5"
               style={{ background: 'rgba(0,229,255,0.06)', border: '1px solid rgba(0,229,255,0.3)', color: '#67e8f9' }}>
-              <Sparkles size={12} /> Recomendações IA →
+              <Sparkles size={12} /> {t('shortcuts.recommendations')}
             </Link>
             <Link href="/dashboard/ml-campaigns/list"
               className="rounded-lg px-3 py-2.5 text-xs font-medium hover:border-cyan-400/40 transition-colors"
               style={{ background: '#0c0c10', border: '1px solid #1a1a1f', color: '#a1a1aa' }}>
-              Todas as campanhas →
+              {t('shortcuts.allCampaigns')}
             </Link>
             <Link href="/dashboard/ml-campaigns/deadlines"
               className="rounded-lg px-3 py-2.5 text-xs font-medium hover:border-cyan-400/40 transition-colors"
               style={{ background: '#0c0c10', border: '1px solid #1a1a1f', color: '#a1a1aa' }}>
-              Encerrando em breve →
+              {t('shortcuts.endingSoon')}
             </Link>
             <Link href="/dashboard/ml-campaigns/health"
               className="rounded-lg px-3 py-2.5 text-xs font-medium hover:border-cyan-400/40 transition-colors"
               style={{ background: '#0c0c10', border: '1px solid #1a1a1f', color: '#a1a1aa' }}>
-              Health check →
+              {t('shortcuts.healthCheck')}
             </Link>
           </div>
 
@@ -270,20 +272,20 @@ export default function MlCampaignsDashboardPage() {
           {data.sellers && data.sellers.length > 1 && (
             <div className="rounded-xl p-5" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
               <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-3">
-                Por conta
+                {t('byAccount')}
               </h2>
               <div className="space-y-2">
                 {data.sellers.map(s => (
                   <div key={s.seller_id}
                     className="flex items-center justify-between rounded-lg px-3 py-2 text-xs"
                     style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid #1a1a1f' }}>
-                    <span className="text-zinc-300 font-mono">seller {s.seller_id}</span>
+                    <span className="text-zinc-300 font-mono">{t('seller', { id: s.seller_id })}</span>
                     <div className="flex items-center gap-3 text-[11px] text-zinc-500">
-                      <span>{s.active_campaigns} campanhas</span>
+                      <span>{t('sellerCampaigns', { n: s.active_campaigns })}</span>
                       <span>·</span>
-                      <span>{s.candidate_items} candidatos</span>
+                      <span>{t('sellerCandidates', { n: s.candidate_items })}</span>
                       <span>·</span>
-                      <span>{s.participating_items} participando</span>
+                      <span>{t('sellerParticipating', { n: s.participating_items })}</span>
                     </div>
                   </div>
                 ))}
@@ -318,20 +320,21 @@ function KpiCard({ label, value, suffix, color, icon, href }: {
 function ItemDistribution({ candidate, pending, started, healthOk, total }: {
   candidate: number; pending: number; started: number; healthOk: number; total: number;
 }) {
+  const t = useTranslations('mlCampaigns')
   const pct = (n: number) => total > 0 ? (n / total) * 100 : 0
   return (
     <>
       <div className="flex h-3 rounded-full overflow-hidden" style={{ background: '#1a1a1f' }}>
-        {candidate > 0 && <div style={{ width: `${pct(candidate)}%`, background: '#00E5FF' }} title={`Candidatos: ${candidate}`} />}
-        {pending   > 0 && <div style={{ width: `${pct(pending)}%`,   background: '#a78bfa' }} title={`Programados: ${pending}`} />}
-        {started   > 0 && <div style={{ width: `${pct(started)}%`,   background: '#22c55e' }} title={`Participando: ${started}`} />}
+        {candidate > 0 && <div style={{ width: `${pct(candidate)}%`, background: '#00E5FF' }} title={`${t('dist.candidate')}: ${candidate}`} />}
+        {pending   > 0 && <div style={{ width: `${pct(pending)}%`,   background: '#a78bfa' }} title={`${t('dist.scheduled')}: ${pending}`} />}
+        {started   > 0 && <div style={{ width: `${pct(started)}%`,   background: '#22c55e' }} title={`${t('dist.participating')}: ${started}`} />}
       </div>
       <div className="flex items-center gap-4 text-xs flex-wrap">
-        <Legend color="#00E5FF" label={`Candidatos (${candidate})`}    />
-        <Legend color="#a78bfa" label={`Programados (${pending})`}     />
-        <Legend color="#22c55e" label={`Participando (${started})`}    />
+        <Legend color="#00E5FF" label={`${t('dist.candidate')} (${candidate})`}    />
+        <Legend color="#a78bfa" label={`${t('dist.scheduled')} (${pending})`}     />
+        <Legend color="#22c55e" label={`${t('dist.participating')} (${started})`}    />
         <span className="ml-auto text-zinc-500">
-          <strong className="text-emerald-400">{healthOk}</strong>/{total} prontos pra aderir
+          <strong className="text-emerald-400">{healthOk}</strong>/{total} {t('dist.readyToJoin')}
         </span>
       </div>
     </>

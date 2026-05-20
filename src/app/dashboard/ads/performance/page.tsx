@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import {
   RefreshCw, Eye, ShoppingCart, TrendingUp, TrendingDown,
@@ -62,8 +63,8 @@ function buildFunnel(visits: DayVisit[], orders: DayOrder[]) {
 
 // ── KPI card ──────────────────────────────────────────────────────────────────
 
-function KpiCard({ label, value, sub, icon, color = '#a1a1aa', change }: {
-  label: string; value: string; sub?: string; icon: React.ReactNode; color?: string; change?: number | null
+function KpiCard({ label, value, sub, icon, color = '#a1a1aa', change, vsLabel }: {
+  label: string; value: string; sub?: string; icon: React.ReactNode; color?: string; change?: number | null; vsLabel?: string
 }) {
   return (
     <div className="rounded-2xl p-4 space-y-2" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
@@ -77,7 +78,7 @@ function KpiCard({ label, value, sub, icon, color = '#a1a1aa', change }: {
           <span className="flex items-center gap-0.5 text-[10px] font-semibold"
             style={{ color: change >= 0 ? '#4ade80' : '#f87171' }}>
             {change >= 0 ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
-            {change >= 0 ? '+' : ''}{change.toFixed(1)}% vs mês ant.
+            {change >= 0 ? '+' : ''}{change.toFixed(1)}% {vsLabel}
           </span>
         )}
         {sub && <span className="text-[10px] text-zinc-600">{sub}</span>}
@@ -111,6 +112,7 @@ function ChartTooltip({ active, payload, label }: any) {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function AdsPerformancePage() {
+  const t = useTranslations('ads')
   const [visits,     setVisits]     = useState<DayVisit[]>([])
   const [curMonth,   setCurMonth]   = useState<KpiMonth | null>(null)
   const [prevMonth,  setPrevMonth]  = useState<KpiMonth | null>(null)
@@ -141,10 +143,10 @@ export default function AdsPerformancePage() {
         setPrevMonth(d?.last_month ?? null)
       }
     } catch (e: any) {
-      setError(e?.message ?? 'Erro ao carregar dados')
+      setError(e?.message ?? t('performance.loadError'))
     }
     setLoading(false)
-  }, [])
+  }, [t])
 
   useEffect(() => { load() }, [load])
 
@@ -167,15 +169,15 @@ export default function AdsPerformancePage() {
       {/* Header */}
       <div className="flex items-center justify-between gap-4">
         <div>
-          <p className="text-zinc-500 text-xs">Ads</p>
-          <h2 className="text-white text-lg font-semibold mt-0.5">Performance</h2>
-          <p className="text-zinc-500 text-xs mt-1">Visitas, conversão e receita dos canais conectados.</p>
+          <p className="text-zinc-500 text-xs">{t('performance.eyebrow')}</p>
+          <h2 className="text-white text-lg font-semibold mt-0.5">{t('performance.pageTitle')}</h2>
+          <p className="text-zinc-500 text-xs mt-1">{t('performance.pageSubtitle')}</p>
         </div>
         <button onClick={load} disabled={loading}
           className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border transition-all disabled:opacity-60"
           style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>
           <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
-          Atualizar
+          {t('performance.refresh')}
         </button>
       </div>
 
@@ -188,30 +190,32 @@ export default function AdsPerformancePage() {
       {/* KPIs */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <KpiCard
-          label="Visitas (30d)"
+          label={t('performance.kpi.visits')}
           value={loading ? '…' : totalVisits.toLocaleString('pt-BR')}
           icon={<Eye size={14} />}
           color="#60a5fa"
         />
         <KpiCard
-          label="Pedidos (mês)"
+          label={t('performance.kpi.orders')}
           value={loading ? '…' : curOrders.toLocaleString('pt-BR')}
           change={delta(curOrders, prvOrders)}
+          vsLabel={t('performance.vsLastMonth')}
           icon={<ShoppingCart size={14} />}
           color="#4ade80"
         />
         <KpiCard
-          label="Taxa de conversão"
+          label={t('performance.kpi.conversionRate')}
           value={loading ? '…' : fmtPct(cvrGlobal)}
-          sub="visitas → pedidos"
+          sub={t('performance.kpi.conversionSub')}
           icon={<Percent size={14} />}
           color="#a78bfa"
         />
         <KpiCard
-          label="Receita (mês)"
+          label={t('performance.kpi.revenue')}
           value={loading ? '…' : fmtBRL(curRevenue)}
           change={delta(curRevenue, prvRevenue)}
-          sub={`Ticket médio: ${fmtBRL(avgTicket)}`}
+          vsLabel={t('performance.vsLastMonth')}
+          sub={t('performance.kpi.avgTicket', { value: fmtBRL(avgTicket) })}
           icon={<DollarSign size={14} />}
           color="#34d399"
         />
@@ -222,7 +226,7 @@ export default function AdsPerformancePage() {
         <div className="rounded-2xl p-5 space-y-3" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
           <div className="flex items-center gap-2">
             <Eye size={13} className="text-blue-400" />
-            <h3 className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">Visitas diárias (30 dias)</h3>
+            <h3 className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">{t('performance.dailyVisits')}</h3>
           </div>
           <div style={{ height: 160 }}>
             <ResponsiveContainer width="100%" height="100%">
@@ -237,7 +241,7 @@ export default function AdsPerformancePage() {
                 <XAxis dataKey="label" tick={{ fill: '#52525b', fontSize: 9 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
                 <YAxis tick={{ fill: '#52525b', fontSize: 9 }} axisLine={false} tickLine={false} width={35} />
                 <Tooltip content={<ChartTooltip />} />
-                <Area type="monotone" dataKey="visits" name="Visitas" stroke="#60a5fa" strokeWidth={1.5} fill="url(#visitGrad)" dot={false} />
+                <Area type="monotone" dataKey="visits" name={t('performance.chart.visits')} stroke="#60a5fa" strokeWidth={1.5} fill="url(#visitGrad)" dot={false} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -251,7 +255,7 @@ export default function AdsPerformancePage() {
           <div className="rounded-2xl p-5 space-y-3" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
             <div className="flex items-center gap-2">
               <DollarSign size={13} className="text-emerald-400" />
-              <h3 className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">Receita diária — mês atual</h3>
+              <h3 className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">{t('performance.dailyRevenue')}</h3>
             </div>
             <div style={{ height: 160 }}>
               <ResponsiveContainer width="100%" height="100%">
@@ -261,7 +265,7 @@ export default function AdsPerformancePage() {
                   <YAxis tick={{ fill: '#52525b', fontSize: 9 }} axisLine={false} tickLine={false} width={45}
                     tickFormatter={v => `R$${(v / 1000).toFixed(0)}k`} />
                   <Tooltip content={<ChartTooltip />} />
-                  <Bar dataKey="revenue" name="Receita" fill="#34d399" radius={[3, 3, 0, 0]} maxBarSize={24} />
+                  <Bar dataKey="revenue" name={t('performance.chart.revenue')} fill="#34d399" radius={[3, 3, 0, 0]} maxBarSize={24} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -273,7 +277,7 @@ export default function AdsPerformancePage() {
           <div className="rounded-2xl p-5 space-y-3" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
             <div className="flex items-center gap-2">
               <Percent size={13} className="text-violet-400" />
-              <h3 className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">Taxa de conversão diária</h3>
+              <h3 className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">{t('performance.dailyCvr')}</h3>
             </div>
             <div style={{ height: 160 }}>
               <ResponsiveContainer width="100%" height="100%">
@@ -283,7 +287,7 @@ export default function AdsPerformancePage() {
                   <YAxis tick={{ fill: '#52525b', fontSize: 9 }} axisLine={false} tickLine={false} width={35}
                     tickFormatter={v => `${(v * 100).toFixed(1)}%`} />
                   <Tooltip content={<ChartTooltip />} />
-                  <Line type="monotone" dataKey="cvr" name="Conversão" stroke="#a78bfa" strokeWidth={1.5} dot={false} />
+                  <Line type="monotone" dataKey="cvr" name={t('performance.chart.conversion')} stroke="#a78bfa" strokeWidth={1.5} dot={false} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -295,7 +299,7 @@ export default function AdsPerformancePage() {
       <div className="rounded-2xl p-5 space-y-3" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
         <div className="flex items-center gap-2">
           <BarChart2 size={13} className="text-zinc-500" />
-          <h3 className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">Resumo por canal</h3>
+          <h3 className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">{t('performance.channelSummary')}</h3>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {/* ML */}
@@ -306,19 +310,19 @@ export default function AdsPerformancePage() {
             </div>
             <div className="space-y-1">
               <div className="flex justify-between text-[11px]">
-                <span className="text-zinc-500">Visitas</span>
+                <span className="text-zinc-500">{t('performance.channel.visits')}</span>
                 <span className="text-zinc-200 font-medium">{totalVisits.toLocaleString('pt-BR')}</span>
               </div>
               <div className="flex justify-between text-[11px]">
-                <span className="text-zinc-500">Pedidos</span>
+                <span className="text-zinc-500">{t('performance.channel.orders')}</span>
                 <span className="text-zinc-200 font-medium">{curOrders.toLocaleString('pt-BR')}</span>
               </div>
               <div className="flex justify-between text-[11px]">
-                <span className="text-zinc-500">CVR</span>
+                <span className="text-zinc-500">{t('performance.channel.cvr')}</span>
                 <span className="text-zinc-200 font-medium">{fmtPct(cvrGlobal)}</span>
               </div>
               <div className="flex justify-between text-[11px]">
-                <span className="text-zinc-500">Receita</span>
+                <span className="text-zinc-500">{t('performance.channel.revenue')}</span>
                 <span className="text-zinc-200 font-medium">{fmtBRL(curRevenue)}</span>
               </div>
             </div>
@@ -333,9 +337,9 @@ export default function AdsPerformancePage() {
                   {name === 'Shopee' ? 'SH' : 'AZ'}
                 </div>
                 <span className="text-xs font-semibold text-zinc-300">{name}</span>
-                <span className="ml-auto text-[9px] px-1.5 py-0.5 rounded" style={{ background: '#27272a', color: '#52525b' }}>em breve</span>
+                <span className="ml-auto text-[9px] px-1.5 py-0.5 rounded" style={{ background: '#27272a', color: '#52525b' }}>{t('performance.comingSoonBadge')}</span>
               </div>
-              <p className="text-[10px] text-zinc-600">Integração disponível em breve.</p>
+              <p className="text-[10px] text-zinc-600">{t('performance.comingSoonText')}</p>
             </div>
           ))}
         </div>

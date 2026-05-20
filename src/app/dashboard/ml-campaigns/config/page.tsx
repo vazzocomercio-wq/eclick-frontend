@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { Settings, Loader2, Save, AlertOctagon } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
@@ -61,6 +62,7 @@ async function getToken(): Promise<string | null> {
 }
 
 export default function ConfigPage() {
+  const t = useTranslations('mlCampaigns.config')
   const { selected: selectedSellerId, connections } = useMlAccount()
   const [cfg, setCfg]         = useState<Config | null>(null)
   const [usage, setUsage]     = useState<AiUsage | null>(null)
@@ -121,22 +123,22 @@ export default function ConfigPage() {
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
           <div className="flex items-center gap-2 text-xs text-zinc-500">
-            <Link href="/dashboard/ml-campaigns" className="hover:text-cyan-400">Campaign Center</Link>
+            <Link href="/dashboard/ml-campaigns" className="hover:text-cyan-400">{t('breadcrumb')}</Link>
             <span>/</span>
-            <span className="text-zinc-300">Configuração</span>
+            <span className="text-zinc-300">{t('breadcrumbCurrent')}</span>
           </div>
           <h1 className="text-2xl font-bold mt-1 flex items-center gap-2">
             <Settings size={22} className="text-cyan-400" />
-            Configuração
+            {t('title')}
           </h1>
-          <p className="text-xs text-zinc-500 mt-1">Regras do motor de decisão pra esta conta.</p>
+          <p className="text-xs text-zinc-500 mt-1">{t('subtitle')}</p>
         </div>
         <AccountSelector compact hideWhenEmpty />
       </div>
 
       {!sid && (
         <div className="rounded-lg p-3 text-sm" style={{ background: 'rgba(251,191,36,0.06)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.25)' }}>
-          Selecione uma conta ML pra configurar.
+          {t('selectAccount')}
         </div>
       )}
 
@@ -144,7 +146,7 @@ export default function ConfigPage() {
         <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">{error}</div>
       )}
 
-      {loading && <div className="text-zinc-500 text-sm flex items-center gap-2"><Loader2 size={14} className="animate-spin" /> Carregando…</div>}
+      {loading && <div className="text-zinc-500 text-sm flex items-center gap-2"><Loader2 size={14} className="animate-spin" /> {t('loading')}</div>}
 
       {cfg && (
         <>
@@ -157,9 +159,9 @@ export default function ConfigPage() {
               }}>
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <div>
-                  <h3 className="text-sm font-semibold">Uso de IA hoje</h3>
+                  <h3 className="text-sm font-semibold">{t('aiUsage.title')}</h3>
                   <p className="text-[11px] text-zinc-500 mt-0.5">
-                    {usage.calls} chamada{usage.calls === 1 ? '' : 's'} · ${usage.cost_usd.toFixed(4)} de ${cfg.ai_daily_cap_usd.toFixed(2)}
+                    {t('aiUsage.calls', { calls: usage.calls })} · ${usage.cost_usd.toFixed(4)} {t('aiUsage.of')} ${cfg.ai_daily_cap_usd.toFixed(2)}
                   </p>
                 </div>
                 <span className="text-2xl font-bold" style={{ color: usage.pct_used >= cfg.ai_alert_at_pct ? '#fbbf24' : '#22c55e' }}>
@@ -175,152 +177,150 @@ export default function ConfigPage() {
               </div>
               {usage.pct_used >= cfg.ai_alert_at_pct && usage.pct_used < 100 && (
                 <p className="text-[11px] text-amber-300 mt-2 inline-flex items-center gap-1">
-                  <AlertOctagon size={11} /> Você está em {usage.pct_used}% do cap. Considere aumentar abaixo se precisar de mais hoje.
+                  <AlertOctagon size={11} /> {t('aiUsage.capWarning', { pct: usage.pct_used })}
                 </p>
               )}
             </div>
           )}
 
           {/* Margem */}
-          <Section title="Regras de margem (motor de decisão)">
-            <NumField  label="Margem mínima aceitável (%)"  hint="Abaixo disso, recomendação vira 'skip'"
+          <Section title={t('margin.section')}>
+            <NumField  label={t('margin.minAcceptable')}  hint={t('margin.minAcceptableHint')}
               value={cfg.min_acceptable_margin_pct} onChange={v => update('min_acceptable_margin_pct', v)} />
-            <NumField  label="Margem alvo (%)"               hint="Cenário 'conservador' protege essa margem"
+            <NumField  label={t('margin.target')}               hint={t('margin.targetHint')}
               value={cfg.target_margin_pct} onChange={v => update('target_margin_pct', v)} />
-            <NumField  label="Margem mínima pra liquidação (%)" hint="Cenário 'agressivo' usa esse piso"
+            <NumField  label={t('margin.clearance')} hint={t('margin.clearanceHint')}
               value={cfg.clearance_min_margin_pct} onChange={v => update('clearance_min_margin_pct', v)} />
           </Section>
 
           {/* M1 — Soft gate de aprovação */}
-          <Section title="Soft gate de aprovação (margem mínima pra operador)">
+          <Section title={t('softGate.section')}>
             <p className="text-[11px] text-zinc-500 -mt-1">
-              Quando o operador tenta aprovar uma recomendação com margem abaixo do limite, ela vai pra fila do gestor pra liberação.
-              Tudo é registrado em audit log.
+              {t('softGate.intro')}
             </p>
-            <NumField label="Margem mínima pra aprovação direta (%)" step={0.5}
-              hint="Acima desse %, operador aprova direto. Abaixo, vai pra fila do gestor."
+            <NumField label={t('softGate.minApproval')} step={0.5}
+              hint={t('softGate.minApprovalHint')}
               value={cfg.min_approval_margin_pct} onChange={v => update('min_approval_margin_pct', v)} />
             <PerTypeOverrides
               value={cfg.per_campaign_type_overrides ?? {}}
               defaultValue={cfg.min_approval_margin_pct}
               onChange={v => update('per_campaign_type_overrides', v)} />
-            <NumField label="Tentativas suspeitas (alerta gestor em 30d)"
-              hint="Se operador tentar aprovar abaixo do limite X+ vezes em 30 dias, gestor recebe alerta."
+            <NumField label={t('softGate.suspiciousAttempts')}
+              hint={t('softGate.suspiciousAttemptsHint')}
               value={cfg.audit_attempts_threshold} onChange={v => update('audit_attempts_threshold', v)} />
           </Section>
 
           {/* M1 — Responsáveis (operador + gestor) */}
-          <Section title="Responsáveis e canais de notificação">
+          <Section title={t('responsibles.section')}>
             <p className="text-[11px] text-zinc-500 -mt-1">
-              Quem recebe alertas de deadline + a quem alertar quando operador tenta aprovar abaixo do limite.
+              {t('responsibles.intro')}
             </p>
-            <TextField label="WhatsApp do operador (formato +5511...)"
-              hint="Recebe alertas de deadline. Pode ser de quem não tem login no sistema."
+            <TextField label={t('responsibles.operatorWhatsapp')}
+              hint={t('responsibles.operatorWhatsappHint')}
               value={cfg.notification_phone ?? ''} onChange={v => update('notification_phone', v || null)} />
-            <TextField label="WhatsApp do gestor"
-              hint="Recebe alertas de fila pendente + tentativas suspeitas. Independe de login."
+            <TextField label={t('responsibles.managerWhatsapp')}
+              hint={t('responsibles.managerWhatsappHint')}
               value={cfg.manager_whatsapp_phone ?? ''} onChange={v => update('manager_whatsapp_phone', v || null)} />
-            <TextField label="ID do operador no sistema (uuid)" hint="Opcional — usado pra rastreio de auditoria"
+            <TextField label={t('responsibles.operatorId')} hint={t('responsibles.operatorIdHint')}
               value={cfg.assignee_user_id ?? ''} onChange={v => update('assignee_user_id', v || null)} />
-            <TextField label="ID do gestor no sistema (uuid)" hint="Opcional — quem pode aprovar override no painel da fila"
+            <TextField label={t('responsibles.managerId')} hint={t('responsibles.managerIdHint')}
               value={cfg.manager_user_id ?? ''} onChange={v => update('manager_user_id', v || null)} />
           </Section>
 
           {/* M4 — Integração Active (cards + tasks) */}
-          <Section title="Integração Active — cards no funil + tasks (M4)">
+          <Section title={t('active.section')}>
             <p className="text-[11px] text-zinc-500 -mt-1">
-              Quando alerta de deadline dispara, o sistema cria 1 card no funil "Campanhas/Promoção" do Active + 1 task vinculada,
-              forçando ação humana além do WhatsApp. Deixe vazio pra desligar (continua mandando só WhatsApp).
+              {t('active.intro')}
             </p>
             <p className="text-[10px] text-amber-300">
-              💡 Pegue os IDs no Supabase do Active: <code>SELECT id, name FROM active.organizations</code>; <code>SELECT id, name FROM active.pipelines</code>; <code>SELECT id, name FROM active.pipeline_stages WHERE pipeline_id='...'</code>
+              💡 {t('active.idsHint')} <code>SELECT id, name FROM active.organizations</code>; <code>SELECT id, name FROM active.pipelines</code>; <code>SELECT id, name FROM active.pipeline_stages WHERE pipeline_id='...'</code>
             </p>
-            <TextField label="Active Org ID (mapeamento SaaS↔Active)"
-              hint="UUID da SUA org dentro da DB do Active (diferente do org_id do SaaS). Se vazio, usa o do SaaS — só funciona se as DBs compartilharem UUIDs."
+            <TextField label={t('active.orgId')}
+              hint={t('active.orgIdHint')}
               value={cfg.active_org_id ?? ''} onChange={v => update('active_org_id', v || null)} />
-            <TextField label="Pipeline ID (funil Campanhas/Promoção)"
-              hint="UUID do pipeline criado no Active"
+            <TextField label={t('active.pipelineId')}
+              hint={t('active.pipelineIdHint')}
               value={cfg.active_pipeline_id ?? ''} onChange={v => update('active_pipeline_id', v || null)} />
-            <TextField label="Stage inicial — Aguardando decisão"
-              hint="UUID do estágio onde o card entra quando deadline aproxima"
+            <TextField label={t('active.stageInitial')}
+              hint={t('active.stageInitialHint')}
               value={cfg.active_stage_initial_id ?? ''} onChange={v => update('active_stage_initial_id', v || null)} />
-            <TextField label="Stage pending manager — Aguardando autorização"
-              hint="UUID do estágio quando uma reco cai na fila do gestor (futuro)"
+            <TextField label={t('active.stagePendingManager')}
+              hint={t('active.stagePendingManagerHint')}
               value={cfg.active_stage_pending_manager_id ?? ''} onChange={v => update('active_stage_pending_manager_id', v || null)} />
-            <TextField label="Stage final — Em campanha"
-              hint="UUID do estágio quando aplicar com sucesso (futuro)"
+            <TextField label={t('active.stageInCampaign')}
+              hint={t('active.stageInCampaignHint')}
               value={cfg.active_stage_in_campaign_id ?? ''} onChange={v => update('active_stage_in_campaign_id', v || null)} />
-            <TextField label="Assigned to (responsável dos cards/tasks)"
-              hint="UUID do user no Active que fica dono dos cards e tasks criados"
+            <TextField label={t('active.assignedTo')}
+              hint={t('active.assignedToHint')}
               value={cfg.active_assigned_to ?? ''} onChange={v => update('active_assigned_to', v || null)} />
           </Section>
 
           {/* M1 — Alertas */}
-          <Section title="Alertas de campanha (WhatsApp)">
-            <BoolField label="Ativar alertas via WhatsApp"
-              hint="Sem isso, sistema apenas registra in-app sem notificar."
+          <Section title={t('alerts.section')}>
+            <BoolField label={t('alerts.enableWhatsapp')}
+              hint={t('alerts.enableWhatsappHint')}
               value={cfg.whatsapp_alerts_enabled} onChange={v => update('whatsapp_alerts_enabled', v)} />
-            <NumField label="Avisar X dias antes do deadline"
-              hint="Inicia o ciclo de alertas. Default 2."
+            <NumField label={t('alerts.daysBefore')}
+              hint={t('alerts.daysBeforeHint')}
               value={cfg.deadline_alert_days_before} onChange={v => update('deadline_alert_days_before', v)} />
-            <BoolField label="Escalar urgência conforme aproxima"
-              hint="D-2 medium · D-1 high · D-0 critical. Para de avisar quando você aprovar/rejeitar tudo."
+            <BoolField label={t('alerts.escalate')}
+              hint={t('alerts.escalateHint')}
               value={cfg.escalate_alerts} onChange={v => update('escalate_alerts', v)} />
-            <NumField label="Alerta proativo de oportunidade — subsídio ML acima de (%)" step={0.5}
-              hint="Quando ML oferece subsídio alto numa campanha, dispara 'oportunidade rara'. 0 desliga."
+            <NumField label={t('alerts.subsidyAbove')} step={0.5}
+              hint={t('alerts.subsidyAboveHint')}
               value={cfg.auto_alert_when_subsidy_above_pct} onChange={v => update('auto_alert_when_subsidy_above_pct', v)} />
           </Section>
 
           {/* Estoque */}
-          <Section title="Regras de estoque">
-            <NumField label="Dias de estoque de segurança" value={cfg.safety_stock_days} onChange={v => update('safety_stock_days', v)} />
-            <NumField label="Estoque alto = X dias de venda" hint="Acima disso considera 'parado' e elegível pra liquidação"
+          <Section title={t('stock.section')}>
+            <NumField label={t('stock.safetyDays')} value={cfg.safety_stock_days} onChange={v => update('safety_stock_days', v)} />
+            <NumField label={t('stock.highThreshold')} hint={t('stock.highThresholdHint')}
               value={cfg.high_stock_threshold_days} onChange={v => update('high_stock_threshold_days', v)} />
-            <NumField label="Estoque mínimo pra participar" value={cfg.min_stock_to_participate} onChange={v => update('min_stock_to_participate', v)} />
+            <NumField label={t('stock.minToParticipate')} value={cfg.min_stock_to_participate} onChange={v => update('min_stock_to_participate', v)} />
           </Section>
 
           {/* Quality Gate */}
-          <Section title="Quality Gate (Quality Center IA)">
-            <BoolField label="Ativar quality gate" hint="Se ativo, anúncios com score baixo vêm como 'qualidade baixa' (warning, mas pode aprovar mesmo assim)"
+          <Section title={t('qualityGate.section')}>
+            <BoolField label={t('qualityGate.enable')} hint={t('qualityGate.enableHint')}
               value={cfg.quality_gate_enabled} onChange={v => update('quality_gate_enabled', v)} />
             {cfg.quality_gate_enabled && (
-              <NumField label="Score ML mínimo" value={cfg.quality_gate_min_score} onChange={v => update('quality_gate_min_score', v)} />
+              <NumField label={t('qualityGate.minScore')} value={cfg.quality_gate_min_score} onChange={v => update('quality_gate_min_score', v)} />
             )}
           </Section>
 
           {/* Custos operacionais */}
-          <Section title="Custos operacionais (defaults)">
-            <NumField label="Embalagem (R$ por unidade)" step={0.01}
+          <Section title={t('opCosts.section')}>
+            <NumField label={t('opCosts.packaging')} step={0.01}
               value={cfg.default_packaging_cost} onChange={v => update('default_packaging_cost', v)} />
-            <NumField label="Operacional (% do preço)"
+            <NumField label={t('opCosts.operational')}
               value={cfg.default_operational_cost_pct} onChange={v => update('default_operational_cost_pct', v)} />
           </Section>
 
           {/* IA */}
-          <Section title="IA">
-            <BoolField label="Habilitar reasoning IA" hint="Quando desligado, recomendações usam só template determinístico (sem custo)"
+          <Section title={t('ai.section')}>
+            <BoolField label={t('ai.enableReasoning')} hint={t('ai.enableReasoningHint')}
               value={cfg.ai_reasoning_enabled} onChange={v => update('ai_reasoning_enabled', v)} />
-            <NumField label="Cap diário (USD)" step={0.50}
+            <NumField label={t('ai.dailyCap')} step={0.50}
               value={cfg.ai_daily_cap_usd} onChange={v => update('ai_daily_cap_usd', v)} />
-            <NumField label="Alerta em (% do cap)" hint="Aviso quando você usar X% do cap diário"
+            <NumField label={t('ai.alertAt')} hint={t('ai.alertAtHint')}
               value={cfg.ai_alert_at_pct} onChange={v => update('ai_alert_at_pct', v)} />
           </Section>
 
           {/* Geração automática */}
-          <Section title="Geração automática">
-            <BoolField label="Gerar recomendação ao detectar novo candidato"
+          <Section title={t('autoGen.section')}>
+            <BoolField label={t('autoGen.onNewCandidate')}
               value={cfg.auto_suggest_on_new_candidate} onChange={v => update('auto_suggest_on_new_candidate', v)} />
-            <BoolField label="Análise diária" hint="Cron 1x/dia regenera recomendações pendentes"
+            <BoolField label={t('autoGen.dailyAnalysis')} hint={t('autoGen.dailyAnalysisHint')}
               value={cfg.daily_analysis_enabled} onChange={v => update('daily_analysis_enabled', v)} />
           </Section>
 
           {/* Auto-approve (v1.1) */}
-          <Section title="Auto-aprovação (experimental)">
-            <BoolField label="Auto-aprovar recomendações de score alto"
-              hint="⚠️ Ainda em beta — recomendações aprovadas vão direto pra fila de aplicação"
+          <Section title={t('autoApprove.section')}>
+            <BoolField label={t('autoApprove.enable')}
+              hint={t('autoApprove.enableHint')}
               value={cfg.auto_approve_enabled} onChange={v => update('auto_approve_enabled', v)} />
             {cfg.auto_approve_enabled && (
-              <NumField label="Auto-aprovar quando score ≥" value={cfg.auto_approve_score_above} onChange={v => update('auto_approve_score_above', v)} />
+              <NumField label={t('autoApprove.scoreAbove')} value={cfg.auto_approve_score_above} onChange={v => update('auto_approve_score_above', v)} />
             )}
           </Section>
 
@@ -330,9 +330,9 @@ export default function ConfigPage() {
               className="glow-rainbow px-4 py-2 rounded-lg text-sm font-semibold inline-flex items-center gap-1.5 disabled:opacity-50"
               style={{ background: '#22c55e', color: '#000' }}>
               {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-              Salvar configuração
+              {t('save')}
             </button>
-            {success && <span className="text-xs text-emerald-400">✓ Salvo</span>}
+            {success && <span className="text-xs text-emerald-400">{t('saved')}</span>}
           </div>
         </>
       )}
@@ -401,30 +401,24 @@ function PerTypeOverrides({ value, defaultValue, onChange }: {
   defaultValue: number
   onChange: (v: Record<string, number>) => void
 }) {
-  const KNOWN_TYPES = [
-    { key: 'DEAL',                 label: 'DEAL — relâmpago' },
-    { key: 'PRICE_DISCOUNT',       label: 'PRICE_DISCOUNT — desconto direto' },
-    { key: 'LIGHTNING',            label: 'LIGHTNING — relâmpago do dia' },
-    { key: 'DOD',                  label: 'DOD — Deal of the Day' },
-    { key: 'MARKETPLACE_CAMPAIGN', label: 'MARKETPLACE_CAMPAIGN — patrocinada ML' },
-    { key: 'PRE_NEGOTIATED',       label: 'PRE_NEGOTIATED — pré-negociada' },
-  ]
+  const t = useTranslations('mlCampaigns.config')
+  const KNOWN_TYPE_KEYS = ['DEAL', 'PRICE_DISCOUNT', 'LIGHTNING', 'DOD', 'MARKETPLACE_CAMPAIGN', 'PRE_NEGOTIATED']
   return (
     <div>
-      <label className="block text-xs text-zinc-300 mb-1">Override por tipo de campanha (%)</label>
+      <label className="block text-xs text-zinc-300 mb-1">{t('perType.label')}</label>
       <p className="text-[10px] text-zinc-500 mb-2">
-        Cada tipo pode ter um piso diferente. Vazio usa o global ({defaultValue}%).
+        {t('perType.hint', { value: defaultValue })}
       </p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-        {KNOWN_TYPES.map(t => (
-          <div key={t.key} className="flex items-center gap-2">
-            <span className="text-[10px] text-zinc-400 flex-1 truncate">{t.label}</span>
+        {KNOWN_TYPE_KEYS.map(key => (
+          <div key={key} className="flex items-center gap-2">
+            <span className="text-[10px] text-zinc-400 flex-1 truncate">{t(`perType.type.${key}`)}</span>
             <input type="number" step={0.5} placeholder={`${defaultValue}`}
-              value={value[t.key] ?? ''}
+              value={value[key] ?? ''}
               onChange={e => {
                 const next = { ...value }
-                if (e.target.value === '') delete next[t.key]
-                else next[t.key] = Number(e.target.value)
+                if (e.target.value === '') delete next[key]
+                else next[key] = Number(e.target.value)
                 onChange(next)
               }}
               className="w-20 rounded px-2 py-1 text-xs outline-none"

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { Sparkles, Plus, Loader2, Filter as FilterIcon } from 'lucide-react'
 import { SocialContentApi } from '@/components/social/socialContentApi'
@@ -11,6 +12,7 @@ import { ChannelBadge, StatusBadge } from '@/components/social/SocialBadges'
 const STATUSES: SocialContentStatus[] = ['draft', 'approved', 'scheduled', 'published', 'archived']
 
 export default function SocialFeedPage() {
+  const t = useTranslations('social')
   const [items, setItems]     = useState<SocialContent[] | null>(null)
   const [total, setTotal]     = useState(0)
   const [loading, setLoading] = useState(false)
@@ -52,17 +54,17 @@ export default function SocialFeedPage() {
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-zinc-100 flex items-center gap-2">
             <Sparkles size={20} className="text-cyan-400" />
-            Conteúdo Social
+            {t('title')}
           </h1>
           <p className="text-xs text-zinc-500 mt-1">
-            Posts, reels, ads e copies gerados a partir do catálogo. {total > 0 && `${total} peças no total.`}
+            {t('subtitle')} {total > 0 && t('totalPieces', { total })}
           </p>
         </div>
         <Link
           href="/dashboard/social/generate"
           className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan-400 hover:bg-cyan-300 text-black text-sm font-medium transition-colors shrink-0"
         >
-          <Plus size={14} /> Gerar conteúdo
+          <Plus size={14} /> {t('generateBtn')}
         </Link>
       </div>
 
@@ -70,7 +72,7 @@ export default function SocialFeedPage() {
       <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3 space-y-3">
         <div className="flex items-center gap-2 text-zinc-400">
           <FilterIcon size={12} />
-          <span className="text-[11px] uppercase tracking-wider">Filtros</span>
+          <span className="text-[11px] uppercase tracking-wider">{t('filters')}</span>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <select
@@ -78,7 +80,7 @@ export default function SocialFeedPage() {
             onChange={e => setFChannel(e.target.value as SocialChannel | '')}
             className="bg-zinc-950 border border-zinc-800 rounded px-3 py-2 text-sm text-zinc-200 focus:border-cyan-400/60 outline-none"
           >
-            <option value="">Todos os canais</option>
+            <option value="">{t('allChannels')}</option>
             {ALL_CHANNELS.map(c => (
               <option key={c} value={c}>{CHANNEL_META[c].label}</option>
             ))}
@@ -88,7 +90,7 @@ export default function SocialFeedPage() {
             onChange={e => setFStatus(e.target.value as SocialContentStatus | '')}
             className="bg-zinc-950 border border-zinc-800 rounded px-3 py-2 text-sm text-zinc-200 focus:border-cyan-400/60 outline-none"
           >
-            <option value="">Todos os status</option>
+            <option value="">{t('allStatuses')}</option>
             {STATUSES.map(s => (
               <option key={s} value={s}>{STATUS_META[s].label}</option>
             ))}
@@ -119,7 +121,7 @@ export default function SocialFeedPage() {
       {/* List */}
       {loading && (
         <div className="flex items-center gap-2 text-zinc-500 text-sm">
-          <Loader2 size={14} className="animate-spin" /> carregando…
+          <Loader2 size={14} className="animate-spin" /> {t('loading')}
         </div>
       )}
 
@@ -132,15 +134,15 @@ export default function SocialFeedPage() {
       {!loading && !error && items && items.length === 0 && (
         <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-8 text-center space-y-3">
           <Sparkles size={32} className="mx-auto text-cyan-400 opacity-60" />
-          <p className="text-sm text-zinc-300">Nenhum conteúdo social ainda.</p>
+          <p className="text-sm text-zinc-300">{t('emptyTitle')}</p>
           <p className="text-xs text-zinc-500">
-            Selecione um produto enriquecido e gere conteúdo para 1 ou mais canais em segundos.
+            {t('emptyText')}
           </p>
           <Link
             href="/dashboard/social/generate"
             className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan-400 hover:bg-cyan-300 text-black text-sm font-medium"
           >
-            <Plus size={14} /> Gerar primeiro conteúdo
+            <Plus size={14} /> {t('generateFirst')}
           </Link>
         </div>
       )}

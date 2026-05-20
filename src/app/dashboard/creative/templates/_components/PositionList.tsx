@@ -24,6 +24,7 @@ import {
   sortableKeyboardCoordinates,
   arrayMove,
 } from '@dnd-kit/sortable'
+import { useTranslations } from 'next-intl'
 import { Plus, FileStack } from 'lucide-react'
 import type { TemplatePosition } from '@/components/creative/types'
 import PositionCard from './PositionCard'
@@ -44,6 +45,7 @@ export default function PositionList({
   templateId?:   string
   templateName?: string
 }) {
+  const t = useTranslations('creative.templates')
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
@@ -65,7 +67,7 @@ export default function PositionList({
     if (positions.length >= MAX_POSITIONS) return
     const next: TemplatePosition = {
       position:              positions.length + 1,
-      name:                  `Posição ${positions.length + 1}`,
+      name:                  t('defaultPositionName', { n: positions.length + 1 }),
       prompt_template:       '',
       use_product_reference: true,
       use_brand_logo:        false,
@@ -93,11 +95,11 @@ export default function PositionList({
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-2">
           <h3 className="text-sm font-semibold text-zinc-200">
-            Posições <span className="text-zinc-500 font-normal">({positions.length}/{MAX_POSITIONS})</span>
+            {t('positions')} <span className="text-zinc-500 font-normal">{t('positionsCounter', { current: positions.length, max: MAX_POSITIONS })}</span>
           </h3>
           {positions.length === 0 && (
             <span className="text-[10px] text-amber-300 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/30">
-              vazio
+              {t('emptyBadge')}
             </span>
           )}
         </div>
@@ -112,9 +114,9 @@ export default function PositionList({
             onClick={addEmpty}
             disabled={disabled || positions.length >= MAX_POSITIONS}
             className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-zinc-900 border border-zinc-800 hover:border-cyan-400/40 text-cyan-400 text-xs transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            title={positions.length >= MAX_POSITIONS ? `Máx ${MAX_POSITIONS} posições` : 'Adicionar posição vazia'}
+            title={positions.length >= MAX_POSITIONS ? t('maxPositionsTooltip', { max: MAX_POSITIONS }) : t('addEmptyPositionTooltip')}
           >
-            <Plus size={12} /> Adicionar posição
+            <Plus size={12} /> {t('addPosition')}
           </button>
         </div>
       </div>
@@ -123,9 +125,9 @@ export default function PositionList({
       {positions.length === 0 ? (
         <div className="rounded-xl border border-dashed border-zinc-800 bg-zinc-900/30 p-8 text-center">
           <FileStack size={32} className="mx-auto text-zinc-700 mb-3" />
-          <p className="text-sm text-zinc-400 mb-2">Nenhuma posição ainda</p>
+          <p className="text-sm text-zinc-400 mb-2">{t('noPositionsTitle')}</p>
           <p className="text-[11px] text-zinc-600 mb-4">
-            Adicione manualmente ou aplique o esqueleto canônico de 11 posições pra começar rápido.
+            {t('noPositionsText')}
           </p>
         </div>
       ) : (

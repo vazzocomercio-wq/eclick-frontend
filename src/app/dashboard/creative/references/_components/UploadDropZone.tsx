@@ -9,6 +9,7 @@
  */
 
 import { useRef, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { UploadCloud, AlertTriangle } from 'lucide-react'
 
 const MAX_BYTES = 10 * 1024 * 1024
@@ -26,6 +27,7 @@ export default function UploadDropZone({
   /** Permite acionar o seletor de fora (botões "Subir imagens"). */
   inputRef?: React.RefObject<HTMLInputElement | null>
 }) {
+  const t = useTranslations('creative.references')
   const internalRef = useRef<HTMLInputElement>(null)
   const fileInput   = inputRef ?? internalRef
   const [dragging, setDragging] = useState(false)
@@ -37,11 +39,11 @@ export default function UploadDropZone({
     const bad: string[] = []
     for (const f of arr) {
       if (!isAccepted(f.type)) {
-        bad.push(`${f.name}: tipo "${f.type || 'desconhecido'}" não suportado (JPG/PNG/WebP)`)
+        bad.push(t('uploadTypeUnsupported', { name: f.name, type: f.type || t('uploadTypeUnknown') }))
         continue
       }
       if (f.size > MAX_BYTES) {
-        bad.push(`${f.name}: ${(f.size / 1024 / 1024).toFixed(1)}MB excede 10MB`)
+        bad.push(t('uploadTooLarge', { name: f.name, size: (f.size / 1024 / 1024).toFixed(1) }))
         continue
       }
       ok.push(f)
@@ -77,10 +79,10 @@ export default function UploadDropZone({
       >
         <UploadCloud size={26} className={dragging ? 'text-cyan-300' : 'text-zinc-400'} />
         <p className="text-sm font-medium text-zinc-200">
-          Arraste imagens ou clique pra selecionar
+          {t('dropTitle')}
         </p>
         <p className="text-[11px] text-zinc-500">
-          JPG, PNG ou WebP · até 10MB · múltiplos arquivos OK
+          {t('dropSubtitle')}
         </p>
         <input
           ref={fileInput}
@@ -102,7 +104,7 @@ export default function UploadDropZone({
         <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3">
           <div className="flex items-center gap-2 text-red-300 text-xs font-medium mb-1.5">
             <AlertTriangle size={12} />
-            {errors.length} arquivo{errors.length > 1 ? 's' : ''} ignorado{errors.length > 1 ? 's' : ''}
+            {t('filesIgnored', { count: errors.length })}
           </div>
           <ul className="space-y-0.5 text-[11px] text-red-200/90">
             {errors.map((m, i) => <li key={i}>· {m}</li>)}

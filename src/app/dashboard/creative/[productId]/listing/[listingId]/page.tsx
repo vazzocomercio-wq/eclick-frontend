@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -20,6 +21,7 @@ import type {
 import { isJobActive } from '@/components/creative/types'
 
 export default function ListingDetailPage() {
+  const t = useTranslations('creative.listing')
   const params = useParams<{ productId: string; listingId: string }>()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -111,7 +113,7 @@ export default function ListingDetailPage() {
       await CreativeApi.approveImage(id)
       await refreshJobImages()
     } catch (e) {
-      setError(`Falha ao aprovar imagem: ${(e as Error).message}`)
+      setError(t('approveImageFail', { message: (e as Error).message }))
     }
   }
 
@@ -120,7 +122,7 @@ export default function ListingDetailPage() {
       await CreativeApi.rejectImage(id)
       await refreshJobImages()
     } catch (e) {
-      setError(`Falha ao rejeitar imagem: ${(e as Error).message}`)
+      setError(t('rejectImageFail', { message: (e as Error).message }))
     }
   }
 
@@ -129,7 +131,7 @@ export default function ListingDetailPage() {
       await CreativeApi.regenerateImage(id)
       await refreshJobImages()
     } catch (e) {
-      setError(`Falha ao regenerar imagem: ${(e as Error).message}`)
+      setError(t('regenImageFail', { message: (e as Error).message }))
     }
   }
 
@@ -192,10 +194,10 @@ export default function ListingDetailPage() {
     return (
       <div className="min-h-screen bg-zinc-950 text-zinc-100 px-4 py-6">
         <Link href="/dashboard/creative" className="inline-flex items-center gap-2 text-zinc-400 hover:text-zinc-100 mb-4">
-          <ArrowLeft size={14} /> Voltar
+          <ArrowLeft size={14} /> {t('back')}
         </Link>
         <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200 max-w-2xl">
-          {error ?? 'Anúncio não encontrado'}
+          {error ?? t('listingNotFound')}
         </div>
       </div>
     )
@@ -241,25 +243,25 @@ export default function ListingDetailPage() {
                 <Link
                   href={`/dashboard/creative/${productId}/listing/compare?a=${otherListing.id}&b=${listing.id}`}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-cyan-400/40 text-zinc-200 text-xs transition-all"
-                  title="Comparar com outra versão"
+                  title={t('compareVersionsTooltip')}
                 >
-                  <Diff size={12} /> Comparar versões
+                  <Diff size={12} /> {t('compareVersions')}
                 </Link>
               )
             })()}
             <Link
               href={`/dashboard/creative/${productId}`}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-cyan-400/30 hover:border-cyan-400/60 text-cyan-300 text-xs transition-all"
-              title="Abrir Studio do produto (gerar vídeos, ver outros jobs)"
+              title={t('studioTooltip')}
             >
-              <Film size={12} /> Studio
+              <Film size={12} /> {t('studio')}
             </Link>
             <Link
               href={`/dashboard/creative/${productId}/listing/${listingId}/publish/ml`}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-400/10 hover:bg-amber-400/20 border border-amber-400/30 text-amber-200 text-xs transition-all"
-              title="Preparar publicação no Mercado Livre"
+              title={t('publishToMlTooltip')}
             >
-              <Send size={12} /> 🟡 Publicar no ML
+              <Send size={12} /> {t('publishToMl')}
             </Link>
             <button
               type="button"
@@ -267,7 +269,7 @@ export default function ListingDetailPage() {
               disabled={regenerating}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-cyan-400/40 text-zinc-200 text-xs transition-all"
             >
-              <RefreshCw size={12} /> Regenerar
+              <RefreshCw size={12} /> {t('regenerate')}
             </button>
             {!approved && (
               <button
@@ -277,12 +279,12 @@ export default function ListingDetailPage() {
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-black text-xs font-semibold transition-all"
               >
                 {approving ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
-                Aprovar
+                {t('approve')}
               </button>
             )}
             {approved && (
               <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-400/10 border border-emerald-400/30 text-emerald-300 text-xs">
-                <Check size={12} /> aprovado
+                <Check size={12} /> {t('approved')}
               </span>
             )}
           </div>
@@ -290,8 +292,8 @@ export default function ListingDetailPage() {
 
         {/* View toggle (mobile) */}
         <div className="lg:hidden flex gap-2 mb-4">
-          <ViewButton active={view === 'edit'}    onClick={() => setView('edit')}>    <Edit3 size={12} /> Editor    </ViewButton>
-          <ViewButton active={view === 'preview'} onClick={() => setView('preview')}> <Eye size={12} /> Preview   </ViewButton>
+          <ViewButton active={view === 'edit'}    onClick={() => setView('edit')}>    <Edit3 size={12} /> {t('editor')}    </ViewButton>
+          <ViewButton active={view === 'preview'} onClick={() => setView('preview')}> <Eye size={12} /> {t('preview')}   </ViewButton>
         </div>
 
         {/* Sprint 1 (F6): progresso do job de imagens, quando ?job= presente */}
@@ -374,7 +376,7 @@ export default function ListingDetailPage() {
             <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800">
               <div className="flex items-center gap-2">
                 <RefreshCw size={14} className="text-cyan-400" />
-                <h3 className="text-sm font-semibold">Regenerar anúncio</h3>
+                <h3 className="text-sm font-semibold">{t('regenModalTitle')}</h3>
               </div>
               <button onClick={() => setRegenOpen(false)} className="text-zinc-500 hover:text-zinc-200">
                 <X size={16} />
@@ -382,17 +384,16 @@ export default function ListingDetailPage() {
             </div>
             <div className="p-4 space-y-3">
               <p className="text-xs text-zinc-400">
-                Cria uma <strong className="text-zinc-200">nova versão (v{listing.version + 1})</strong>.
-                A atual fica preservada no histórico.
+                {t.rich('regenIntro', { version: listing.version + 1, b: (chunks) => <strong className="text-zinc-200">{chunks}</strong> })}
               </p>
               <div>
                 <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">
-                  Instrução (opcional)
+                  {t('instructionLabel')}
                 </label>
                 <textarea
                   value={regenInstruction}
                   onChange={e => setRegenInstruction(e.target.value)}
-                  placeholder="Ex: deixa o título mais curto, usa tom mais técnico, foca no benefício de durabilidade…"
+                  placeholder={t('instructionPlaceholder')}
                   rows={4}
                   className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-200 outline-none focus:border-cyan-400 placeholder:text-zinc-600 resize-y"
                 />
@@ -403,7 +404,7 @@ export default function ListingDetailPage() {
                 onClick={() => setRegenOpen(false)}
                 className="px-3 py-1.5 rounded-lg text-zinc-400 hover:text-zinc-200 text-xs"
               >
-                Cancelar
+                {t('cancel')}
               </button>
               <button
                 onClick={regenerate}
@@ -411,7 +412,7 @@ export default function ListingDetailPage() {
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-400 hover:bg-cyan-300 disabled:opacity-50 text-black text-xs font-semibold"
               >
                 {regenerating ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-                Regenerar
+                {t('regenerate')}
               </button>
             </div>
           </div>
@@ -447,20 +448,21 @@ function UsageCard({
   totalCost:     number
   versionCount:  number
 }) {
+  const t = useTranslations('creative.listing')
   return (
     <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-3">
-      <h4 className="text-[10px] uppercase tracking-wider text-zinc-500 mb-2">Custo da geração</h4>
+      <h4 className="text-[10px] uppercase tracking-wider text-zinc-500 mb-2">{t('generationCost')}</h4>
       <div className="grid grid-cols-3 gap-2 text-xs">
         <div>
-          <p className="text-zinc-500 text-[10px]">Esta versão</p>
+          <p className="text-zinc-500 text-[10px]">{t('thisVersion')}</p>
           <p className="text-zinc-100 font-mono">${(currentCost ?? 0).toFixed(4)}</p>
         </div>
         <div>
-          <p className="text-zinc-500 text-[10px]">Total no produto</p>
+          <p className="text-zinc-500 text-[10px]">{t('totalInProduct')}</p>
           <p className="text-zinc-100 font-mono">${totalCost.toFixed(4)}</p>
         </div>
         <div>
-          <p className="text-zinc-500 text-[10px]">Versões</p>
+          <p className="text-zinc-500 text-[10px]">{t('versions')}</p>
           <p className="text-zinc-100 font-mono">{versionCount}</p>
         </div>
       </div>

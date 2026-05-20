@@ -10,6 +10,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { X, Save, Trash2, AlertTriangle, Loader2, Plus, ImageOff } from 'lucide-react'
 import { CreativeApi } from '@/components/creative/api'
 import type { CreativeReference, TaxonomyOption } from '@/components/creative/types'
@@ -37,6 +38,7 @@ export default function ReferenceEditorDrawer({
   onDelete:   (id: string) => Promise<void>
   busy:       boolean
 }) {
+  const t = useTranslations('creative.references')
   const [name, setName]                 = useState('')
   const [description, setDescription]   = useState('')
   const [tags, setTags]                 = useState<string[]>([])
@@ -124,7 +126,7 @@ export default function ReferenceEditorDrawer({
   const removeCategory = (c: string) => setCategoryIds(categoryIds.filter(x => x !== c))
 
   const save = async () => {
-    if (!name.trim()) { setError('Nome obrigatório'); return }
+    if (!name.trim()) { setError(t('nameRequired')); return }
     setError(null)
     try {
       await onSave(reference.id, {
@@ -145,9 +147,9 @@ export default function ReferenceEditorDrawer({
 
   const remove = async () => {
     const ok = await confirmDialog({
-      title:        'Apagar referência',
-      message:      `Apagar "${reference.name}"? A imagem será removida do Storage também.`,
-      confirmLabel: 'Apagar',
+      title:        t('deleteRefTitle'),
+      message:      t('deleteWithStorage', { name: reference.name }),
+      confirmLabel: t('delete'),
       variant:      'danger',
     })
     if (!ok) return
@@ -170,12 +172,12 @@ export default function ReferenceEditorDrawer({
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800 shrink-0">
-          <h2 className="text-sm font-semibold text-zinc-100">Editar referência</h2>
+          <h2 className="text-sm font-semibold text-zinc-100">{t('editorTitle')}</h2>
           <button
             type="button"
             onClick={onClose}
             className="p-1.5 rounded-md text-zinc-500 hover:text-zinc-200 hover:bg-zinc-900 transition-colors"
-            title="Fechar (ESC)"
+            title={t('close')}
           >
             <X size={16} />
           </button>
@@ -203,7 +205,7 @@ export default function ReferenceEditorDrawer({
           {curated && (
             <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
               <AlertTriangle size={12} className="shrink-0 mt-0.5" />
-              <span>Referência curada da plataforma — read-only. Só pode ser editada via service_role.</span>
+              <span>{t('curatedBanner')}</span>
             </div>
           )}
 
@@ -216,31 +218,31 @@ export default function ReferenceEditorDrawer({
           )}
 
           {/* Nome */}
-          <Field label="Nome *">
+          <Field label={t('fieldName')}>
             <input
               type="text"
               value={name}
               onChange={e => setName(e.target.value)}
               disabled={curated}
               className="w-full px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-sm text-zinc-200 outline-none focus:border-cyan-400 placeholder:text-zinc-600 disabled:opacity-50"
-              placeholder="Lustre dourado sala 1"
+              placeholder={t('fieldNamePlaceholder')}
             />
           </Field>
 
           {/* Descrição */}
-          <Field label="Descrição">
+          <Field label={t('fieldDescription')}>
             <textarea
               value={description}
               onChange={e => setDescription(e.target.value)}
               disabled={curated}
               rows={2}
               className="w-full px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-sm text-zinc-200 outline-none focus:border-cyan-400 placeholder:text-zinc-600 resize-y disabled:opacity-50"
-              placeholder="Como/quando usar essa referência..."
+              placeholder={t('fieldDescriptionPlaceholder')}
             />
           </Field>
 
           {/* Tags */}
-          <Field label="Tags">
+          <Field label={t('fieldTags')}>
             <ChipsInput
               chips={tags}
               input={tagInput}
@@ -248,12 +250,12 @@ export default function ReferenceEditorDrawer({
               onAdd={addTag}
               onRemove={removeTag}
               disabled={curated}
-              placeholder="Adicionar tag (Enter)"
+              placeholder={t('tagPlaceholder')}
             />
           </Field>
 
           {/* Categorias ML */}
-          <Field label="Categorias Mercado Livre">
+          <Field label={t('fieldCategories')}>
             <ChipsInput
               chips={categoryIds}
               input={categoryInput}
@@ -261,13 +263,13 @@ export default function ReferenceEditorDrawer({
               onAdd={addCategory}
               onRemove={removeCategory}
               disabled={curated}
-              placeholder="MLB189195 (Enter)"
+              placeholder={t('categoryPlaceholder')}
               monoFont
             />
           </Field>
 
           {/* Posições — botões mostram label do ambient linkado ou número */}
-          <Field label="Posições default (em que slots da N a ref entra por default)">
+          <Field label={t('fieldPositions')}>
             <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-1.5">
               {POSITIONS.map(p => {
                 const checked = positions.has(p)
@@ -278,7 +280,7 @@ export default function ReferenceEditorDrawer({
                     type="button"
                     onClick={() => togglePosition(p)}
                     disabled={curated}
-                    title={label ? `Posição ${p}: ${label}` : `Posição ${p} (sem link)`}
+                    title={label ? t('positionTooltipLinked', { p, label }) : t('positionTooltipUnlinked', { p })}
                     className={[
                       'h-12 px-1.5 rounded-md flex flex-col items-center justify-center gap-0.5 transition-colors disabled:opacity-50',
                       checked
@@ -296,34 +298,34 @@ export default function ReferenceEditorDrawer({
                       'text-[11px] font-semibold leading-tight truncate w-full text-center',
                       label ? '' : 'opacity-50 italic',
                     ].join(' ')}>
-                      {label ?? 'sem link'}
+                      {label ?? t('noLink')}
                     </span>
                   </button>
                 )
               })}
             </div>
             <p className="text-[10px] text-zinc-500 mt-1">
-              Cada posição vira o nome do ambiente linkado (Configure em <strong>Ambiente</strong> abaixo).
+              {t.rich('positionsHint', { b: (chunks) => <strong>{chunks}</strong> })}
             </p>
           </Field>
 
           {/* Tipo + ambiente lado a lado */}
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Tipo de produto">
+            <Field label={t('fieldProductType')}>
               <TaxonomySelect
                 kind="product_type"
                 value={productType}
                 onChange={setProductType}
-                placeholder="— sem tipo —"
+                placeholder={t('noTypePlaceholder')}
                 disabled={curated}
               />
             </Field>
-            <Field label="Ambiente">
+            <Field label={t('fieldAmbient')}>
               <TaxonomySelect
                 kind="ambient"
                 value={ambient}
                 onChange={setAmbient}
-                placeholder="— sem ambiente —"
+                placeholder={t('noAmbientPlaceholder')}
                 disabled={curated}
                 onOptionsChanged={reloadAmbientOptions}
               />
@@ -339,16 +341,16 @@ export default function ReferenceEditorDrawer({
               disabled={curated}
               className="accent-cyan-400"
             />
-            <span className="text-sm text-zinc-200">Ativa (visível pros templates)</span>
+            <span className="text-sm text-zinc-200">{t('activeToggle')}</span>
           </label>
 
           {/* Metadata */}
           <div className="border-t border-zinc-800 pt-3 mt-2">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-2">Metadata</p>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-2">{t('metadata')}</p>
             <dl className="text-[11px] text-zinc-400 space-y-0.5 font-mono">
-              <MetaRow label="ID"     value={reference.id} />
-              <MetaRow label="Path"   value={reference.storage_path} />
-              <MetaRow label="Source" value={curated ? 'curated' : `org ${reference.organization_id?.slice(0, 8) ?? '?'}…`} />
+              <MetaRow label={t('metaId')}     value={reference.id} />
+              <MetaRow label={t('metaPath')}   value={reference.storage_path} />
+              <MetaRow label={t('metaSource')} value={curated ? t('metaSourceCurated') : t('metaSourceOrg', { id: reference.organization_id?.slice(0, 8) ?? '?' })} />
             </dl>
           </div>
         </div>
@@ -362,7 +364,7 @@ export default function ReferenceEditorDrawer({
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium text-red-300 hover:bg-red-500/10 disabled:opacity-40 disabled:hover:bg-transparent transition-colors"
           >
             {busy ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
-            Apagar
+            {t('delete')}
           </button>
           <div className="flex items-center gap-2">
             <button
@@ -370,7 +372,7 @@ export default function ReferenceEditorDrawer({
               onClick={onClose}
               className="px-3 py-2 rounded-lg text-xs text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900 transition-colors"
             >
-              Cancelar
+              {t('cancel')}
             </button>
             <button
               type="button"
@@ -379,7 +381,7 @@ export default function ReferenceEditorDrawer({
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-cyan-400 hover:bg-cyan-300 text-black text-xs font-semibold transition-colors disabled:opacity-40 disabled:hover:bg-cyan-400"
             >
               {busy ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
-              Salvar
+              {t('save')}
             </button>
           </div>
         </div>
@@ -420,6 +422,7 @@ function ChipsInput({
   placeholder: string
   monoFont?:   boolean
 }) {
+  const t = useTranslations('creative.references')
   return (
     <div className={[
       'flex flex-wrap items-center gap-1.5 px-2 py-1.5 bg-zinc-900 border border-zinc-800 rounded-lg min-h-[40px]',
@@ -439,7 +442,7 @@ function ChipsInput({
               type="button"
               onClick={() => onRemove(c)}
               className="hover:text-red-300"
-              aria-label={`remover ${c}`}
+              aria-label={t('removeChip', { chip: c })}
             >
               <X size={10} />
             </button>
@@ -466,7 +469,7 @@ function ChipsInput({
           type="button"
           onClick={onAdd}
           className="text-cyan-300 hover:text-cyan-200 px-1"
-          aria-label="adicionar"
+          aria-label={t('addChip')}
         >
           <Plus size={12} />
         </button>

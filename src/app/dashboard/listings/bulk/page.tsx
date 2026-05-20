@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import AccountSelector, { getStoredSellerId } from '@/components/ml/AccountSelector'
@@ -39,29 +40,18 @@ interface BulkActionDetail extends BulkAction {
   results: Array<{ item_id_or_task_id: string; status: 'applied' | 'failed' | 'skipped'; message?: string; new_price?: number }>
 }
 
-const STATUS_META: Record<Status, { color: string; bg: string; label: string; icon: typeof Activity }> = {
-  pending:     { color: '#a1a1aa', bg: 'rgba(113,113,122,0.08)', label: 'Pendente',     icon: Clock },
-  validating:  { color: '#3b82f6', bg: 'rgba(59,130,246,0.08)',  label: 'Validando',    icon: Activity },
-  executing:   { color: '#00E5FF', bg: 'rgba(0,229,255,0.08)',   label: 'Executando',   icon: Activity },
-  completed:   { color: '#22c55e', bg: 'rgba(34,197,94,0.08)',   label: 'Concluído',    icon: CheckCircle2 },
-  partial:     { color: '#f59e0b', bg: 'rgba(245,158,11,0.08)',  label: 'Parcial',      icon: AlertTriangle },
-  failed:      { color: '#ef4444', bg: 'rgba(239,68,68,0.08)',   label: 'Falhou',       icon: AlertTriangle },
-  cancelled:   { color: '#71717a', bg: 'rgba(113,113,122,0.08)', label: 'Cancelado',    icon: X },
-}
-
-const ACTION_LABELS: Record<ActionType, string> = {
-  apply_price_suggestions: 'Aplicar preços',
-  activate_automation:     'Ativar automação',
-  pause_automation:        'Pausar automação',
-  fix_fiscal_data:         'Corrigir fiscal',
-  reactivate_paused:       'Reativar pausados',
-  pause_listings:          'Pausar anúncios',
-  snooze_tasks:            'Adiar tarefas',
-  dismiss_tasks:           'Descartar tarefas',
-  resolve_tasks_manual:    'Resolver tarefas',
+const STATUS_META: Record<Status, { color: string; bg: string; icon: typeof Activity }> = {
+  pending:     { color: '#a1a1aa', bg: 'rgba(113,113,122,0.08)', icon: Clock },
+  validating:  { color: '#3b82f6', bg: 'rgba(59,130,246,0.08)',  icon: Activity },
+  executing:   { color: '#00E5FF', bg: 'rgba(0,229,255,0.08)',   icon: Activity },
+  completed:   { color: '#22c55e', bg: 'rgba(34,197,94,0.08)',   icon: CheckCircle2 },
+  partial:     { color: '#f59e0b', bg: 'rgba(245,158,11,0.08)',  icon: AlertTriangle },
+  failed:      { color: '#ef4444', bg: 'rgba(239,68,68,0.08)',   icon: AlertTriangle },
+  cancelled:   { color: '#71717a', bg: 'rgba(113,113,122,0.08)', icon: X },
 }
 
 export default function BulkActionsPage() {
+  const t = useTranslations('listings.bulk')
   const supabase = useMemo(() => createClient(), [])
   const toast = useToast()
 
@@ -72,9 +62,9 @@ export default function BulkActionsPage() {
 
   const getHeaders = useCallback(async (): Promise<Record<string, string>> => {
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session?.access_token) throw new Error('Não autenticado')
+    if (!session?.access_token) throw new Error(t('errors.notAuthenticated'))
     return { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' }
-  }, [supabase])
+  }, [supabase, t])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -86,11 +76,11 @@ export default function BulkActionsPage() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       setActions(await res.json())
     } catch (e) {
-      toast({ message: e instanceof Error ? e.message : 'Erro', tone: 'error' })
+      toast({ message: e instanceof Error ? e.message : t('errors.generic'), tone: 'error' })
     } finally {
       setLoading(false)
     }
-  }, [getHeaders, toast])
+  }, [getHeaders, toast, t])
 
   useEffect(() => { load() }, [load])
 
@@ -116,7 +106,7 @@ export default function BulkActionsPage() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       setDetail(await res.json())
     } catch (e) {
-      toast({ message: e instanceof Error ? e.message : 'Erro', tone: 'error' })
+      toast({ message: e instanceof Error ? e.message : t('errors.generic'), tone: 'error' })
     }
   }
 
@@ -127,14 +117,14 @@ export default function BulkActionsPage() {
       <div>
         <Link href="/dashboard/listings"
           className="text-zinc-500 hover:text-cyan-400 text-xs flex items-center gap-1 mb-2 transition-colors">
-          <ChevronLeft size={12} /> Voltar para Listing Center
+          <ChevronLeft size={12} /> {t('backToCenter')}
         </Link>
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <p className="text-zinc-500 text-xs font-medium tracking-widest uppercase mb-1">Listing Center · Histórico de bulk actions</p>
-            <h1 className="text-white text-3xl font-semibold">Ações em massa</h1>
+            <p className="text-zinc-500 text-xs font-medium tracking-widest uppercase mb-1">{t('eyebrow')}</p>
+            <h1 className="text-white text-3xl font-semibold">{t('title')}</h1>
             <p className="text-xs text-zinc-600 mt-1">
-              {actions.length > 0 ? `${actions.length} execuçõe${actions.length !== 1 ? 's' : ''}` : 'Sem ações em massa ainda'}
+              {actions.length > 0 ? t('executionsCount', { count: actions.length }) : t('summaryEmpty')}
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
@@ -142,7 +132,7 @@ export default function BulkActionsPage() {
             <button onClick={load} disabled={loading}
               className="text-[11px] font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors disabled:opacity-50"
               style={{ background: '#18181b', color: 'var(--text)', border: '1px solid #27272a' }}>
-              <RefreshCw size={11} className={loading ? 'animate-spin' : ''} /> Recarregar
+              <RefreshCw size={11} className={loading ? 'animate-spin' : ''} /> {t('reload')}
             </button>
           </div>
         </div>
@@ -150,12 +140,14 @@ export default function BulkActionsPage() {
 
       {loading && actions.length === 0 ? (
         <div className="rounded-xl p-12 text-center text-zinc-500 text-xs"
-          style={{ background: '#111114', border: '1px solid #1a1a1f' }}>Carregando…</div>
+          style={{ background: '#111114', border: '1px solid #1a1a1f' }}>{t('loading')}</div>
       ) : actions.length === 0 ? (
         <div className="rounded-xl p-12 text-center" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
-          <p className="text-zinc-400 text-sm">Sem ações em massa ainda</p>
+          <p className="text-zinc-400 text-sm">{t('empty.title')}</p>
           <p className="text-zinc-600 text-xs mt-1">
-            Vá pra <Link href="/dashboard/listings/pricing" className="text-cyan-400 hover:text-cyan-300">Pricing IA</Link> e selecione anúncios pra aplicar preços em lote
+            {t('empty.descPrefix')}{' '}
+            <Link href="/dashboard/listings/pricing" className="text-cyan-400 hover:text-cyan-300">{t('empty.descLink')}</Link>
+            {' '}{t('empty.descSuffix')}
           </p>
         </div>
       ) : (
@@ -178,18 +170,18 @@ export default function BulkActionsPage() {
 
                   <div className="flex-1 text-left min-w-0">
                     <div className="flex items-baseline gap-2 flex-wrap">
-                      <p className="text-zinc-100 font-semibold text-sm">{ACTION_LABELS[a.action_type]}</p>
+                      <p className="text-zinc-100 font-semibold text-sm">{t(`actionType.${a.action_type}`)}</p>
                       <span className="text-[10px] uppercase tracking-widest font-bold px-1.5 py-0.5 rounded"
                         style={{ background: meta.bg, color: meta.color, border: `1px solid ${meta.color}40` }}>
-                        {meta.label}
+                        {t(`status.${a.status}`)}
                       </span>
-                      <span className="text-[10px] text-zinc-500">mode: {a.apply_mode}</span>
+                      <span className="text-[10px] text-zinc-500">{t('mode', { mode: a.apply_mode })}</span>
                     </div>
                     <div className="flex items-center gap-3 mt-1 text-[10px] text-zinc-500">
-                      <span>{a.total_count} total</span>
-                      {a.applied_count > 0 && <span className="text-emerald-400">{a.applied_count} aplicado{a.applied_count !== 1 ? 's' : ''}</span>}
-                      {a.skipped_count > 0 && <span className="text-amber-400">{a.skipped_count} pulado{a.skipped_count !== 1 ? 's' : ''}</span>}
-                      {a.failed_count > 0 && <span className="text-rose-400">{a.failed_count} falha{a.failed_count !== 1 ? 's' : ''}</span>}
+                      <span>{t('totalCount', { count: a.total_count })}</span>
+                      {a.applied_count > 0 && <span className="text-emerald-400">{t('appliedCount', { count: a.applied_count })}</span>}
+                      {a.skipped_count > 0 && <span className="text-amber-400">{t('skippedCount', { count: a.skipped_count })}</span>}
+                      {a.failed_count > 0 && <span className="text-rose-400">{t('failedCount', { count: a.failed_count })}</span>}
                       <span className="text-zinc-600">·</span>
                       <span>{new Date(a.created_at).toLocaleString('pt-BR')}</span>
                     </div>
@@ -209,13 +201,13 @@ export default function BulkActionsPage() {
                 {isOpen && (
                   <div className="border-t border-zinc-800/60 p-4">
                     {!detail ? (
-                      <p className="text-xs text-zinc-500 text-center">Carregando detalhes…</p>
+                      <p className="text-xs text-zinc-500 text-center">{t('loadingDetails')}</p>
                     ) : (
                       <div className="space-y-2">
-                        <p className="text-[10px] uppercase tracking-widest text-zinc-500 font-semibold">Resultados</p>
+                        <p className="text-[10px] uppercase tracking-widest text-zinc-500 font-semibold">{t('results')}</p>
                         <div className="max-h-80 overflow-y-auto space-y-1">
                           {detail.results.length === 0 ? (
-                            <p className="text-xs text-zinc-500">Sem resultados ainda</p>
+                            <p className="text-xs text-zinc-500">{t('noResults')}</p>
                           ) : (
                             detail.results.map((r, idx) => {
                               const color = r.status === 'applied' ? '#22c55e' : r.status === 'skipped' ? '#f59e0b' : '#ef4444'
@@ -225,7 +217,7 @@ export default function BulkActionsPage() {
                                   <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: color }} />
                                   <span className="font-mono text-zinc-300">{r.item_id_or_task_id}</span>
                                   <span className="text-zinc-600">·</span>
-                                  <span style={{ color }}>{r.status}</span>
+                                  <span style={{ color }}>{t(`resultStatus.${r.status}`)}</span>
                                   {r.new_price != null && (
                                     <span className="text-emerald-400">{r.new_price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
                                   )}

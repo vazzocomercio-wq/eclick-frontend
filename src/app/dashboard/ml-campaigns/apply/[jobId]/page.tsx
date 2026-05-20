@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, use } from 'react'
+import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import {
   ArrowLeft, Loader2, Check, X, AlertOctagon, Clock,
@@ -40,6 +41,7 @@ async function getToken(): Promise<string | null> {
 
 export default function JobStatusPage({ params }: { params: Promise<{ jobId: string }> }) {
   const { jobId } = use(params)
+  const t = useTranslations('mlCampaigns.applyJob')
   const [job, setJob]         = useState<ApplyJob | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError]     = useState<string | null>(null)
@@ -74,7 +76,7 @@ export default function JobStatusPage({ params }: { params: Promise<{ jobId: str
     return (
       <div className="p-6 max-w-5xl mx-auto" style={{ background: 'var(--background)', minHeight: '100vh', color: 'var(--text)' }}>
         <div className="flex items-center gap-2 text-zinc-500 text-sm">
-          <Loader2 size={14} className="animate-spin" /> Carregando…
+          <Loader2 size={14} className="animate-spin" /> {t('loading')}
         </div>
       </div>
     )
@@ -83,8 +85,8 @@ export default function JobStatusPage({ params }: { params: Promise<{ jobId: str
   if (error || !job) {
     return (
       <div className="p-6 max-w-5xl mx-auto" style={{ background: 'var(--background)', minHeight: '100vh', color: 'var(--text)' }}>
-        <Link href="/dashboard/ml-campaigns/apply" className="inline-flex items-center gap-1 text-cyan-400 text-xs mb-3"><ArrowLeft size={12} /> Voltar</Link>
-        <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">{error || 'Job não encontrado'}</div>
+        <Link href="/dashboard/ml-campaigns/apply" className="inline-flex items-center gap-1 text-cyan-400 text-xs mb-3"><ArrowLeft size={12} /> {t('back')}</Link>
+        <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">{error || t('notFound')}</div>
       </div>
     )
   }
@@ -97,9 +99,9 @@ export default function JobStatusPage({ params }: { params: Promise<{ jobId: str
   return (
     <div className="p-6 space-y-4 max-w-5xl mx-auto" style={{ background: 'var(--background)', minHeight: '100vh', color: 'var(--text)' }}>
       <div className="flex items-center gap-2 text-xs text-zinc-500">
-        <Link href="/dashboard/ml-campaigns" className="hover:text-cyan-400">Campaign Center</Link>
+        <Link href="/dashboard/ml-campaigns" className="hover:text-cyan-400">{t('breadcrumb')}</Link>
         <span>/</span>
-        <Link href="/dashboard/ml-campaigns/apply" className="hover:text-cyan-400">Aplicar</Link>
+        <Link href="/dashboard/ml-campaigns/apply" className="hover:text-cyan-400">{t('breadcrumbApply')}</Link>
         <span>/</span>
         <span className="text-zinc-300 font-mono">{jobId.slice(0, 8)}</span>
       </div>
@@ -108,10 +110,10 @@ export default function JobStatusPage({ params }: { params: Promise<{ jobId: str
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             {isRunning && <Loader2 size={20} className="animate-spin text-cyan-400" />}
-            Job de Aplicação
+            {t('title')}
           </h1>
           <p className="text-xs text-zinc-500 mt-1">
-            {job.job_type} · iniciado {new Date(job.created_at).toLocaleString('pt-BR')}
+            {t('startedAt', { type: job.job_type, date: new Date(job.created_at).toLocaleString('pt-BR') })}
           </p>
         </div>
         <JobStatusBadge status={job.status} />
@@ -120,7 +122,7 @@ export default function JobStatusPage({ params }: { params: Promise<{ jobId: str
       {/* Progress bar */}
       <div className="rounded-xl p-4" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
         <div className="flex items-center justify-between mb-2">
-          <span className="text-xs text-zinc-400">Progresso</span>
+          <span className="text-xs text-zinc-400">{t('progress')}</span>
           <span className="text-sm font-bold text-zinc-200">{progress}%</span>
         </div>
         <div className="h-2 rounded-full overflow-hidden" style={{ background: '#1a1a1f' }}>
@@ -134,16 +136,16 @@ export default function JobStatusPage({ params }: { params: Promise<{ jobId: str
 
       {/* Counters */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Stat label="Total"     value={job.total_count}    color="#fafafa" />
-        <Stat label="Aplicadas" value={job.applied_count}  color="#22c55e" />
-        <Stat label="Falharam" value={job.failed_count}    color="#ef4444" />
-        <Stat label="Puladas"   value={job.skipped_count}  color="#71717a" />
+        <Stat label={t('stat.total')}     value={job.total_count}    color="#fafafa" />
+        <Stat label={t('stat.applied')} value={job.applied_count}  color="#22c55e" />
+        <Stat label={t('stat.failed')} value={job.failed_count}    color="#ef4444" />
+        <Stat label={t('stat.skipped')}   value={job.skipped_count}  color="#71717a" />
       </div>
 
       {/* Results detail */}
       {job.results && job.results.length > 0 && (
         <div className="space-y-1">
-          <h2 className="text-xs uppercase tracking-wider text-zinc-400 font-semibold mb-2">Resultados detalhados</h2>
+          <h2 className="text-xs uppercase tracking-wider text-zinc-400 font-semibold mb-2">{t('detailedResults')}</h2>
           {job.results.map((r, i) => <ResultRow key={i} r={r} />)}
         </div>
       )}
@@ -151,7 +153,7 @@ export default function JobStatusPage({ params }: { params: Promise<{ jobId: str
       {!isRunning && (
         <Link href="/dashboard/ml-campaigns/recommendations"
           className="inline-flex items-center gap-1 text-xs text-cyan-400 hover:underline">
-          ← Voltar pra recomendações
+          {t('backToRecommendations')}
         </Link>
       )}
     </div>
@@ -159,10 +161,11 @@ export default function JobStatusPage({ params }: { params: Promise<{ jobId: str
 }
 
 function ResultRow({ r }: { r: ApplyJob['results'][number] }) {
-  const config: Record<string, { color: string; icon: any; label: string }> = {
-    applied: { color: '#22c55e', icon: Check,         label: 'APLICADA' },
-    failed:  { color: '#ef4444', icon: X,             label: 'FALHOU'   },
-    skipped: { color: '#71717a', icon: AlertOctagon,  label: 'PULADA'   },
+  const t = useTranslations('mlCampaigns.applyJob')
+  const config: Record<string, { color: string; icon: typeof Check; key: string }> = {
+    applied: { color: '#22c55e', icon: Check,         key: 'applied' },
+    failed:  { color: '#ef4444', icon: X,             key: 'failed' },
+    skipped: { color: '#71717a', icon: AlertOctagon,  key: 'skipped' },
   }
   const c = config[r.status] ?? config.skipped
   const Icon = c.icon
@@ -173,13 +176,13 @@ function ResultRow({ r }: { r: ApplyJob['results'][number] }) {
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="font-mono text-xs text-zinc-200">{r.item_id ?? r.recommendation_id.slice(0, 8)}</span>
-          <span className="text-[10px] uppercase tracking-wider font-bold" style={{ color: c.color }}>{c.label}</span>
+          <span className="text-[10px] uppercase tracking-wider font-bold" style={{ color: c.color }}>{t(`resultStatus.${c.key}`)}</span>
         </div>
         {r.error_message && (
           <p className="text-[11px] text-red-300 mt-1">{r.error_message}</p>
         )}
         {r.new_offer_id && (
-          <p className="text-[11px] text-emerald-400 mt-1 font-mono">Oferta criada: {r.new_offer_id}</p>
+          <p className="text-[11px] text-emerald-400 mt-1 font-mono">{t('offerCreated', { id: r.new_offer_id })}</p>
         )}
       </div>
     </div>
@@ -195,21 +198,19 @@ function Stat({ label, value, color }: { label: string; value: number; color: st
   )
 }
 
+const JOB_STATUS_COLORS: Record<string, string> = {
+  pending: '#71717a', validating: '#a78bfa', applying: '#00E5FF',
+  completed: '#22c55e', partial: '#fbbf24', failed: '#ef4444', cancelled: '#71717a',
+}
+
 function JobStatusBadge({ status }: { status: string }) {
-  const map: Record<string, { label: string; color: string }> = {
-    pending:    { label: 'AGUARDANDO',  color: '#71717a' },
-    validating: { label: 'VALIDANDO',   color: '#a78bfa' },
-    applying:   { label: 'APLICANDO',   color: '#00E5FF' },
-    completed:  { label: 'CONCLUÍDO',   color: '#22c55e' },
-    partial:    { label: 'PARCIAL',     color: '#fbbf24' },
-    failed:     { label: 'FALHOU',      color: '#ef4444' },
-    cancelled:  { label: 'CANCELADO',   color: '#71717a' },
-  }
-  const m = map[status] ?? { label: status, color: '#71717a' }
+  const t = useTranslations('mlCampaigns.applyJob')
+  const color = JOB_STATUS_COLORS[status] ?? '#71717a'
+  const label = JOB_STATUS_COLORS[status] ? t(`jobStatus.${status}`) : status
   return (
     <span className="text-[10px] uppercase tracking-wider px-2 py-1 rounded font-bold"
-      style={{ background: `${m.color}15`, color: m.color, border: `1px solid ${m.color}40` }}>
-      {m.label}
+      style={{ background: `${color}15`, color, border: `1px solid ${color}40` }}>
+      {label}
     </span>
   )
 }

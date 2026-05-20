@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, use } from 'react'
+import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
@@ -84,6 +85,7 @@ function brl(v: number | null | undefined) {
 
 export default function RecoDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
+  const t = useTranslations('mlCampaigns.recoDetail')
   const router = useRouter()
   const [reco, setReco]       = useState<Recommendation | null>(null)
   const [loading, setLoading] = useState(true)
@@ -141,7 +143,7 @@ export default function RecoDetailPage({ params }: { params: Promise<{ id: strin
     if (!reco) return
     setBusy('approve')
     try {
-      const t = await getToken()
+      const token = await getToken()
       const body: Record<string, unknown> = {}
       if (withEdit) {
         if (editPrice) body.price    = Number(editPrice)
@@ -151,7 +153,7 @@ export default function RecoDetailPage({ params }: { params: Promise<{ id: strin
       }
       const r = await fetch(`${BACKEND}/ml-campaigns/recommendations/${id}/approve`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' },
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
       if (!r.ok) {
@@ -168,13 +170,13 @@ export default function RecoDetailPage({ params }: { params: Promise<{ id: strin
       if (result.gate_triggered) {
         // Margem abaixo — foi pra fila do gestor
         const m = result.attempted_margin_pct?.toFixed(1) ?? '?'
-        const t = result.threshold_pct?.toFixed(1) ?? '?'
+        const thr = result.threshold_pct?.toFixed(1) ?? '?'
         let extra = ''
         if (result.recent_attempts_count != null && result.audit_threshold != null
             && result.recent_attempts_count > result.audit_threshold) {
-          extra = `\n\n⚠ ATENÇÃO: você teve ${result.recent_attempts_count} tentativas abaixo do limite nos últimos 30 dias (limite ${result.audit_threshold}). O gestor foi notificado.`
+          extra = `\n\n${t('gateAlert.attemptsWarning', { count: result.recent_attempts_count, limit: result.audit_threshold })}`
         }
-        alert(`📋 Enviado pra fila do gestor.\n\nMargem ${m}% < ${t}% (limite). O gestor vai revisar e decidir aprovar ou rejeitar.${extra}`)
+        alert(t('gateAlert.message', { margin: m, threshold: thr }) + extra)
       }
       router.push('/dashboard/ml-campaigns/recommendations')
     } catch (e) {
@@ -185,13 +187,13 @@ export default function RecoDetailPage({ params }: { params: Promise<{ id: strin
   }
 
   async function reject() {
-    if (!reco || !confirm('Rejeitar essa recomendação?')) return
+    if (!reco || !confirm(t('confirmReject'))) return
     setBusy('reject')
     try {
-      const t = await getToken()
+      const token = await getToken()
       const r = await fetch(`${BACKEND}/ml-campaigns/recommendations/${id}/reject`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${t}` },
+        headers: { Authorization: `Bearer ${token}` },
       })
       if (!r.ok) throw new Error(`HTTP ${r.status}`)
       router.push('/dashboard/ml-campaigns/recommendations')
@@ -206,7 +208,7 @@ export default function RecoDetailPage({ params }: { params: Promise<{ id: strin
     return (
       <div className="p-6 max-w-5xl mx-auto" style={{ background: 'var(--background)', minHeight: '100vh', color: 'var(--text)' }}>
         <div className="flex items-center gap-2 text-zinc-500 text-sm">
-          <Loader2 size={14} className="animate-spin" /> Carregando…
+          <Loader2 size={14} className="animate-spin" /> {t('loading')}
         </div>
       </div>
     )
@@ -216,10 +218,10 @@ export default function RecoDetailPage({ params }: { params: Promise<{ id: strin
     return (
       <div className="p-6 max-w-5xl mx-auto" style={{ background: 'var(--background)', minHeight: '100vh', color: 'var(--text)' }}>
         <Link href="/dashboard/ml-campaigns/recommendations" className="inline-flex items-center gap-1 text-cyan-400 text-xs mb-3">
-          <ArrowLeft size={12} /> Voltar
+          <ArrowLeft size={12} /> {t('back')}
         </Link>
         <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">
-          {error || 'Recomendação não encontrada.'}
+          {error || t('notFound')}
         </div>
       </div>
     )
@@ -259,9 +261,9 @@ export default function RecoDetailPage({ params }: { params: Promise<{ id: strin
     <div className="p-6 space-y-4 max-w-5xl mx-auto" style={{ background: 'var(--background)', minHeight: '100vh', color: 'var(--text)' }}>
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-xs text-zinc-500">
-        <Link href="/dashboard/ml-campaigns" className="hover:text-cyan-400">Campaign Center</Link>
+        <Link href="/dashboard/ml-campaigns" className="hover:text-cyan-400">{t('breadcrumb')}</Link>
         <span>/</span>
-        <Link href="/dashboard/ml-campaigns/recommendations" className="hover:text-cyan-400">Recomendações</Link>
+        <Link href="/dashboard/ml-campaigns/recommendations" className="hover:text-cyan-400">{t('breadcrumbRecommendations')}</Link>
         <span>/</span>
         <span className="text-zinc-300">{item?.ml_item_id ?? id}</span>
       </div>
@@ -282,7 +284,7 @@ export default function RecoDetailPage({ params }: { params: Promise<{ id: strin
               <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-semibold inline-flex items-center gap-1"
                 style={{ background: 'rgba(0,229,255,0.1)', color: '#67e8f9', border: '1px solid rgba(0,229,255,0.3)' }}>
                 <Sparkles size={10} />
-                ML reduz {item.meli_percentage?.toFixed(1)}%
+                {t('mlReduces', { pct: item.meli_percentage?.toFixed(1) ?? '0' })}
               </span>
             )}
           </div>
@@ -298,7 +300,7 @@ export default function RecoDetailPage({ params }: { params: Promise<{ id: strin
           </h1>
           <p className="text-xs text-zinc-500 mt-1">
             {item?.ml_campaigns?.name ?? item?.ml_campaign_id} · {item?.ml_promotion_type}
-            {reco.expires_at && ` · expira ${new Date(reco.expires_at).toLocaleDateString('pt-BR')}`}
+            {reco.expires_at && ` · ${t('expires', { date: new Date(reco.expires_at).toLocaleDateString('pt-BR') })}`}
           </p>
         </div>
       </div>
@@ -328,17 +330,17 @@ export default function RecoDetailPage({ params }: { params: Promise<{ id: strin
       {/* 3 cenários */}
       {reco.scenarios?.competitive && (
         <div className="space-y-2">
-          <h2 className="text-xs uppercase tracking-wider text-zinc-400 font-semibold">Cenários de preço</h2>
+          <h2 className="text-xs uppercase tracking-wider text-zinc-400 font-semibold">{t('priceScenarios')}</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <ScenarioCard
-              title="Conservador" scenario={reco.scenarios.conservative}
+              title={t('scenario.conservative')} scenario={reco.scenarios.conservative}
               selected={strategy === 'conservative'}
               onClick={() => isPending && setStrategy('conservative')}
               color="#a78bfa"
               clickable={isPending}
             />
             <ScenarioCard
-              title="Competitivo" scenario={reco.scenarios.competitive}
+              title={t('scenario.competitive')} scenario={reco.scenarios.competitive}
               selected={strategy === 'competitive'}
               onClick={() => isPending && setStrategy('competitive')}
               color="#00E5FF"
@@ -346,7 +348,7 @@ export default function RecoDetailPage({ params }: { params: Promise<{ id: strin
               recommended={reco.recommended_strategy === 'competitive'}
             />
             <ScenarioCard
-              title="Agressivo" scenario={reco.scenarios.aggressive}
+              title={t('scenario.aggressive')} scenario={reco.scenarios.aggressive}
               selected={strategy === 'aggressive'}
               onClick={() => isPending && setStrategy('aggressive')}
               color="#22c55e"
@@ -355,7 +357,7 @@ export default function RecoDetailPage({ params }: { params: Promise<{ id: strin
           </div>
           {reco.scenarios.break_even && (
             <p className="text-[11px] text-zinc-500 text-center mt-1">
-              Break-even: <strong className="text-zinc-300">{brl(reco.scenarios.break_even.price)}</strong> — abaixo disso é prejuízo
+              {t('breakEvenLabel')}: <strong className="text-zinc-300">{brl(reco.scenarios.break_even.price)}</strong> {t('breakEvenSuffix')}
             </p>
           )}
         </div>
@@ -365,20 +367,20 @@ export default function RecoDetailPage({ params }: { params: Promise<{ id: strin
       {Object.keys(cb).length > 0 && (
         <div className="rounded-xl p-4" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
           <h2 className="text-xs uppercase tracking-wider text-zinc-400 font-semibold mb-3">
-            Detalhamento de custos
+            {t('costBreakdown')}
           </h2>
           <div className="space-y-1 text-xs">
-            <CostRow label="Custo do produto"        value={cb.cost_price} />
-            <CostRow label="Imposto"                  value={cb.tax_amount} suffix={`(${cb.tax_percentage}%)`} />
-            <CostRow label="Comissão ML"              value={cb.ml_commission} suffix={`(${cb.ml_commission_pct}%)`} />
-            {cb.ml_fixed_fee > 0       && <CostRow label="Taxa fixa ML"        value={cb.ml_fixed_fee} />}
-            {cb.free_shipping_cost > 0 && <CostRow label="Frete grátis"        value={cb.free_shipping_cost} />}
-            {cb.packaging_cost > 0     && <CostRow label="Embalagem"           value={cb.packaging_cost} />}
-            {cb.operational_cost > 0   && <CostRow label="Operacional"         value={cb.operational_cost} />}
-            {cb.meli_subsidy_brl > 0   && <CostRow label="− Subsídio ML"       value={-cb.meli_subsidy_brl} highlight="cyan" />}
+            <CostRow label={t('cost.productCost')}        value={cb.cost_price} />
+            <CostRow label={t('cost.tax')}                  value={cb.tax_amount} suffix={`(${cb.tax_percentage}%)`} />
+            <CostRow label={t('cost.mlCommission')}              value={cb.ml_commission} suffix={`(${cb.ml_commission_pct}%)`} />
+            {cb.ml_fixed_fee > 0       && <CostRow label={t('cost.mlFixedFee')}        value={cb.ml_fixed_fee} />}
+            {cb.free_shipping_cost > 0 && <CostRow label={t('cost.freeShipping')}        value={cb.free_shipping_cost} />}
+            {cb.packaging_cost > 0     && <CostRow label={t('cost.packaging')}           value={cb.packaging_cost} />}
+            {cb.operational_cost > 0   && <CostRow label={t('cost.operational')}         value={cb.operational_cost} />}
+            {cb.meli_subsidy_brl > 0   && <CostRow label={t('cost.mlSubsidy')}       value={-cb.meli_subsidy_brl} highlight="cyan" />}
             <div className="border-t border-zinc-800 pt-2 mt-2">
-              <CostRow label="Custo total"           value={cb.total_costs}  bold />
-              <CostRow label="Receita líquida (M.C.)" value={cb.net_revenue} bold highlight={cb.net_revenue > 0 ? 'green' : 'red'} />
+              <CostRow label={t('cost.totalCost')}           value={cb.total_costs}  bold />
+              <CostRow label={t('cost.netRevenue')} value={cb.net_revenue} bold highlight={cb.net_revenue > 0 ? 'green' : 'red'} />
             </div>
           </div>
         </div>
@@ -388,13 +390,13 @@ export default function RecoDetailPage({ params }: { params: Promise<{ id: strin
       {reco.quantity_recommendation?.recommended_max_qty != null && (
         <div className="rounded-xl p-4" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
           <h2 className="text-xs uppercase tracking-wider text-zinc-400 font-semibold mb-3">
-            Quantidade recomendada
+            {t('recommendedQuantity')}
           </h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-            <Stat label="Estoque atual"      value={reco.quantity_recommendation.current_stock ?? 0} />
-            <Stat label="Vendas/dia (avg)"   value={(reco.quantity_recommendation.avg_daily_sales ?? 0).toFixed(2)} />
-            <Stat label="Demanda esperada"   value={reco.quantity_recommendation.expected_demand_during ?? 0} />
-            <Stat label="Recomendado"        value={reco.quantity_recommendation.recommended_max_qty ?? 0} highlight="cyan" />
+            <Stat label={t('qty.currentStock')}      value={reco.quantity_recommendation.current_stock ?? 0} />
+            <Stat label={t('qty.dailySales')}   value={(reco.quantity_recommendation.avg_daily_sales ?? 0).toFixed(2)} />
+            <Stat label={t('qty.expectedDemand')}   value={reco.quantity_recommendation.expected_demand_during ?? 0} />
+            <Stat label={t('qty.recommended')}        value={reco.quantity_recommendation.recommended_max_qty ?? 0} highlight="cyan" />
           </div>
           <p className="text-[11px] text-zinc-400 mt-2">{reco.quantity_recommendation.rationale}</p>
         </div>
@@ -404,7 +406,7 @@ export default function RecoDetailPage({ params }: { params: Promise<{ id: strin
       {Object.keys(reco.score_breakdown ?? {}).length > 0 && (
         <details className="rounded-xl p-4" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
           <summary className="text-xs uppercase tracking-wider text-zinc-400 font-semibold cursor-pointer">
-            Detalhamento do score (clique pra expandir)
+            {t('scoreBreakdown')}
           </summary>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-3 text-xs">
             {Object.entries(reco.score_breakdown).filter(([k]) => k !== 'total').map(([k, v]) => (
@@ -428,24 +430,24 @@ export default function RecoDetailPage({ params }: { params: Promise<{ id: strin
                 className="px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50 inline-flex items-center gap-1.5"
                 style={{ background: '#22c55e', color: '#000' }}>
                 {busy === 'approve' ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
-                Aprovar {strategy && `(${strategy})`}
+                {strategy ? t('approveWithStrategy', { strategy }) : t('approve')}
               </button>
               <button onClick={() => setEditing(true)} disabled={busy !== null}
                 className="px-3 py-2 rounded-lg text-sm font-medium inline-flex items-center gap-1.5"
                 style={{ background: '#1a1a1f', color: '#a1a1aa' }}>
-                <Edit3 size={12} /> Editar
+                <Edit3 size={12} /> {t('edit')}
               </button>
               <button onClick={reject} disabled={busy !== null}
                 className="ml-auto px-3 py-2 rounded-lg text-sm font-medium inline-flex items-center gap-1.5"
                 style={{ background: 'rgba(239,68,68,0.1)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>
                 {busy === 'reject' ? <Loader2 size={14} className="animate-spin" /> : <X size={14} />}
-                Rejeitar
+                {t('reject')}
               </button>
             </div>
           ) : (
             <div className="space-y-3">
               <div className="flex items-center gap-3">
-                <label className="text-xs text-zinc-400 flex-shrink-0 w-28">Preço (R$)</label>
+                <label className="text-xs text-zinc-400 flex-shrink-0 w-28">{t('priceField')}</label>
                 <input type="number" value={editPrice} onChange={e => setEditPrice(e.target.value)}
                   step="0.01"
                   min={item?.min_discounted_price ?? 0}
@@ -453,11 +455,11 @@ export default function RecoDetailPage({ params }: { params: Promise<{ id: strin
                   className="flex-1 rounded px-2 py-1.5 text-sm outline-none"
                   style={{ background: '#09090b', border: '1px solid #27272a', color: '#fafafa' }} />
                 <span className="text-[11px] text-zinc-500">
-                  min {brl(item?.min_discounted_price)} · max {brl(item?.max_discounted_price)}
+                  {t('minMax', { min: brl(item?.min_discounted_price), max: brl(item?.max_discounted_price) })}
                 </span>
               </div>
               <div className="flex items-center gap-3">
-                <label className="text-xs text-zinc-400 flex-shrink-0 w-28">Quantidade</label>
+                <label className="text-xs text-zinc-400 flex-shrink-0 w-28">{t('quantityField')}</label>
                 <input type="number" value={editQty} onChange={e => setEditQty(e.target.value)}
                   min={1}
                   className="flex-1 rounded px-2 py-1.5 text-sm outline-none"
@@ -476,9 +478,9 @@ export default function RecoDetailPage({ params }: { params: Promise<{ id: strin
                   marginPct < gateThreshold ? 'review' :
                                               'ok'
                 const cfg = {
-                  ok:     { color: '#22c55e', bg: 'rgba(34,197,94,0.06)',  border: 'rgba(34,197,94,0.4)',  label: 'Aprovação direta',          icon: '✓' },
-                  review: { color: '#fbbf24', bg: 'rgba(251,191,36,0.06)', border: 'rgba(251,191,36,0.4)', label: 'Abaixo do limite — vai pra fila do gestor', icon: '⚠' },
-                  loss:   { color: '#ef4444', bg: 'rgba(239,68,68,0.06)',  border: 'rgba(239,68,68,0.4)',  label: 'Prejuízo — abaixo do break-even',           icon: '✕' },
+                  ok:     { color: '#22c55e', bg: 'rgba(34,197,94,0.06)',  border: 'rgba(34,197,94,0.4)',  label: t('liveMargin.ok'),     icon: '✓' },
+                  review: { color: '#fbbf24', bg: 'rgba(251,191,36,0.06)', border: 'rgba(251,191,36,0.4)', label: t('liveMargin.review'), icon: '⚠' },
+                  loss:   { color: '#ef4444', bg: 'rgba(239,68,68,0.06)',  border: 'rgba(239,68,68,0.4)',  label: t('liveMargin.loss'),   icon: '✕' },
                 }[state]
                 return (
                   <div className="rounded-lg p-3 space-y-2"
@@ -487,32 +489,32 @@ export default function RecoDetailPage({ params }: { params: Promise<{ id: strin
                       <div className="flex items-center gap-2">
                         <span className="text-lg" style={{ color: cfg.color }}>{cfg.icon}</span>
                         <span className="text-xs font-semibold" style={{ color: cfg.color }}>
-                          A esse preço: {cfg.label}
+                          {t('liveMargin.atThisPrice', { label: cfg.label })}
                         </span>
                       </div>
-                      <span className="text-[10px] text-zinc-500">limite: {gateThreshold.toFixed(1)}%</span>
+                      <span className="text-[10px] text-zinc-500">{t('liveMargin.threshold', { pct: gateThreshold.toFixed(1) })}</span>
                     </div>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
                       <div className="rounded p-2" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
-                        <p className="text-[9px] uppercase tracking-wider text-zinc-500">Margem</p>
+                        <p className="text-[9px] uppercase tracking-wider text-zinc-500">{t('liveMargin.margin')}</p>
                         <p className="font-bold text-base" style={{ color: cfg.color }}>{marginPct.toFixed(1)}%</p>
                       </div>
                       <div className="rounded p-2" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
-                        <p className="text-[9px] uppercase tracking-wider text-zinc-500">Lucro (M.C.)</p>
+                        <p className="text-[9px] uppercase tracking-wider text-zinc-500">{t('liveMargin.profit')}</p>
                         <p className="font-bold text-base" style={{ color: cfg.color }}>{brl(marginBrl)}</p>
                       </div>
                       <div className="rounded p-2 col-span-2 md:col-span-1" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
-                        <p className="text-[9px] uppercase tracking-wider text-zinc-500">Custo total</p>
+                        <p className="text-[9px] uppercase tracking-wider text-zinc-500">{t('liveMargin.totalCost')}</p>
                         <p className="text-zinc-300 font-medium">{brl(totalCosts)}</p>
                       </div>
                     </div>
                     {/* Quebra dos %s recalculados */}
                     <div className="text-[10px] text-zinc-500 flex items-center gap-3 flex-wrap pt-1 border-t border-zinc-800">
-                      <span>Imposto: {brl(taxAmount)}</span>
+                      <span>{t('liveMargin.tax')}: {brl(taxAmount)}</span>
                       <span>·</span>
-                      <span>Comissão ML: {brl(commission)}</span>
+                      <span>{t('liveMargin.commission')}: {brl(commission)}</span>
                       <span>·</span>
-                      <span>Preço: {brl(price)}</span>
+                      <span>{t('liveMargin.price')}: {brl(price)}</span>
                     </div>
                   </div>
                 )
@@ -523,12 +525,12 @@ export default function RecoDetailPage({ params }: { params: Promise<{ id: strin
                   className="flex-1 px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50 inline-flex items-center justify-center gap-1.5"
                   style={{ background: '#22c55e', color: '#000' }}>
                   {busy === 'approve' ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
-                  Aprovar editado
+                  {t('approveEdited')}
                 </button>
                 <button onClick={() => setEditing(false)} disabled={busy !== null}
                   className="px-3 py-2 rounded-lg text-sm font-medium"
                   style={{ background: '#1a1a1f', color: '#a1a1aa' }}>
-                  Cancelar
+                  {t('cancel')}
                 </button>
               </div>
             </div>
@@ -548,6 +550,7 @@ function ScenarioCard({ title, scenario, selected, onClick, color, clickable, re
   clickable: boolean
   recommended?: boolean
 }) {
+  const t = useTranslations('mlCampaigns.recoDetail')
   if (!scenario) return null
   return (
     <div
@@ -563,7 +566,7 @@ function ScenarioCard({ title, scenario, selected, onClick, color, clickable, re
         {recommended && (
           <span className="text-[9px] font-bold px-1.5 py-0.5 rounded uppercase"
             style={{ background: `${color}20`, color }}>
-            Recomendado
+            {t('recommendedTag')}
           </span>
         )}
       </div>
@@ -571,13 +574,13 @@ function ScenarioCard({ title, scenario, selected, onClick, color, clickable, re
       <p className="text-[11px] text-emerald-400">−{scenario.discount_pct}%</p>
       <div className="mt-3 pt-3 border-t" style={{ borderColor: '#1a1a1f' }}>
         <div className="flex justify-between text-[11px]">
-          <span className="text-zinc-500">M.C.</span>
+          <span className="text-zinc-500">{t('contributionMargin')}</span>
           <strong style={{ color: scenario.margin_pct > 0 ? '#22c55e' : '#ef4444' }}>
             {scenario.margin_pct.toFixed(1)}% ({brl(scenario.margin_brl)})
           </strong>
         </div>
         <div className="flex justify-between text-[11px] mt-1">
-          <span className="text-zinc-500">Volume</span>
+          <span className="text-zinc-500">{t('volume')}</span>
           <span className="text-zinc-300 capitalize">{scenario.expected_volume}</span>
         </div>
       </div>
@@ -615,38 +618,40 @@ function Stat({ label, value, highlight }: { label: string; value: number | stri
   )
 }
 
+const CLASSIFICATION_META: Record<string, { color: string; icon: string }> = {
+  recommended:         { color: '#22c55e', icon: '✅' },
+  recommended_caution: { color: '#fbbf24', icon: '⚠️' },
+  clearance_only:      { color: '#a78bfa', icon: '♻️' },
+  review_costs:        { color: '#f97316', icon: '📋' },
+  low_quality_listing: { color: '#ef4444', icon: '🔧' },
+  skip:                { color: '#71717a', icon: '❌' },
+}
+
 function ClassificationBadge({ type }: { type: string }) {
-  const map: Record<string, { label: string; color: string; icon: string }> = {
-    recommended:         { label: 'Recomendado',     color: '#22c55e', icon: '✅' },
-    recommended_caution: { label: 'Com cautela',     color: '#fbbf24', icon: '⚠️' },
-    clearance_only:      { label: 'Liquidação',      color: '#a78bfa', icon: '♻️' },
-    review_costs:        { label: 'Revisar custos',  color: '#f97316', icon: '📋' },
-    low_quality_listing: { label: 'Qualidade baixa', color: '#ef4444', icon: '🔧' },
-    skip:                { label: 'Não recomendado', color: '#71717a', icon: '❌' },
-  }
-  const m = map[type] ?? { label: type, color: '#71717a', icon: '·' }
+  const t = useTranslations('mlCampaigns.recoDetail')
+  const meta = CLASSIFICATION_META[type] ?? { color: '#71717a', icon: '·' }
+  const label = CLASSIFICATION_META[type] ? t(`classification.${type}`) : type
   return (
     <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded font-bold inline-flex items-center gap-1"
-      style={{ background: `${m.color}15`, color: m.color, border: `1px solid ${m.color}40` }}>
-      {m.icon} {m.label}
+      style={{ background: `${meta.color}15`, color: meta.color, border: `1px solid ${meta.color}40` }}>
+      {meta.icon} {label}
     </span>
   )
 }
 
+const RECO_STATUS_COLORS: Record<string, string> = {
+  pending: '#fbbf24', approved: '#22c55e', edited: '#22c55e',
+  rejected: '#ef4444', applied: '#a78bfa', expired: '#71717a',
+}
+
 function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, { label: string; color: string }> = {
-    pending:  { label: 'Pendente',   color: '#fbbf24' },
-    approved: { label: 'Aprovada',   color: '#22c55e' },
-    edited:   { label: 'Editada',    color: '#22c55e' },
-    rejected: { label: 'Rejeitada',  color: '#ef4444' },
-    applied:  { label: 'Aplicada',   color: '#a78bfa' },
-    expired:  { label: 'Expirada',   color: '#71717a' },
-  }
-  const m = map[status] ?? { label: status, color: '#71717a' }
+  const t = useTranslations('mlCampaigns.recoDetail')
+  const color = RECO_STATUS_COLORS[status] ?? '#71717a'
+  const label = RECO_STATUS_COLORS[status] ? t(`status.${status}`) : status
   return (
     <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded font-bold"
-      style={{ background: `${m.color}15`, color: m.color, border: `1px solid ${m.color}40` }}>
-      {m.label}
+      style={{ background: `${color}15`, color, border: `1px solid ${color}40` }}>
+      {label}
     </span>
   )
 }

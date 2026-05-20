@@ -9,6 +9,7 @@
  */
 
 import { useEffect, useState, useCallback } from 'react'
+import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import {
   ShieldAlert, Loader2, CheckCircle2, XCircle, Clock, ExternalLink,
@@ -59,6 +60,7 @@ function brl(v: number | null | undefined) {
 }
 
 export default function ManagerQueuePage() {
+  const t = useTranslations('mlCampaigns.managerQueue')
   const { selected: selectedSellerId } = useMlAccount()
   const [items, setItems]     = useState<QueuedReco[]>([])
   const [total, setTotal]     = useState(0)
@@ -116,13 +118,13 @@ export default function ManagerQueuePage() {
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
           <div className="flex items-center gap-2 text-xs text-zinc-500">
-            <Link href="/dashboard/ml-campaigns" className="hover:text-cyan-400">Campaign Center</Link>
+            <Link href="/dashboard/ml-campaigns" className="hover:text-cyan-400">{t('breadcrumb')}</Link>
             <span>/</span>
-            <span className="text-zinc-300">Fila do gestor</span>
+            <span className="text-zinc-300">{t('breadcrumbCurrent')}</span>
           </div>
           <h1 className="text-2xl font-bold mt-1 flex items-center gap-2">
             <ShieldAlert size={22} className="text-amber-400" />
-            Fila do gestor
+            {t('title')}
             {total > 0 && (
               <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: 'rgba(251,191,36,0.15)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.3)' }}>
                 {total}
@@ -130,7 +132,7 @@ export default function ManagerQueuePage() {
             )}
           </h1>
           <p className="text-xs text-zinc-500 mt-1">
-            Recomendações que operadores tentaram aprovar com margem abaixo do limite. Você decide liberar ou bloquear.
+            {t('subtitle')}
           </p>
         </div>
         <AccountSelector compact hideWhenEmpty />
@@ -142,15 +144,15 @@ export default function ManagerQueuePage() {
 
       {loading && (
         <div className="text-zinc-500 text-sm flex items-center gap-2">
-          <Loader2 size={14} className="animate-spin" /> Carregando…
+          <Loader2 size={14} className="animate-spin" /> {t('loading')}
         </div>
       )}
 
       {!loading && items.length === 0 && (
         <div className="rounded-xl p-8 text-center" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
           <CheckCircle2 size={28} className="text-emerald-400 mx-auto mb-2" />
-          <p className="text-sm text-zinc-300 font-semibold">Fila vazia</p>
-          <p className="text-xs text-zinc-500 mt-1">Nenhuma recomendação pendente do seu lado. Operadores estão aprovando dentro dos limites.</p>
+          <p className="text-sm text-zinc-300 font-semibold">{t('empty.title')}</p>
+          <p className="text-xs text-zinc-500 mt-1">{t('empty.desc')}</p>
         </div>
       )}
 
@@ -183,7 +185,7 @@ export default function ManagerQueuePage() {
                   </span>
                   {it.ml_campaigns?.deadline_date && (
                     <span className="text-[10px] text-amber-400 inline-flex items-center gap-1">
-                      <Clock size={10} /> Aderir até {new Date(it.ml_campaigns.deadline_date).toLocaleDateString('pt-BR')}
+                      <Clock size={10} /> {t('joinBy', { date: new Date(it.ml_campaigns.deadline_date).toLocaleDateString('pt-BR') })}
                     </span>
                   )}
                 </div>
@@ -194,34 +196,34 @@ export default function ManagerQueuePage() {
                   </div>
                 )}
                 <p className="text-[11px] text-zinc-400 mt-1">
-                  Campanha: <strong>{it.ml_campaigns?.name ?? '—'}</strong>
+                  {t('campaignLabel')}: <strong>{it.ml_campaigns?.name ?? '—'}</strong>
                 </p>
               </div>
 
               {/* Decision metrics */}
               <div className="flex-shrink-0 px-3 py-2 rounded-lg text-right"
                 style={{ background: 'rgba(248,113,113,0.06)', border: '1px solid rgba(248,113,113,0.25)' }}>
-                <p className="text-[9px] uppercase tracking-wider text-red-300">Margem tentada</p>
+                <p className="text-[9px] uppercase tracking-wider text-red-300">{t('attemptedMargin')}</p>
                 <p className="text-lg font-bold text-red-400">{margin.toFixed(1)}%</p>
-                <p className="text-[9px] text-zinc-500 mt-0.5">limite: {threshold.toFixed(1)}% · faltam {gap}pp</p>
+                <p className="text-[9px] text-zinc-500 mt-0.5">{t('thresholdGap', { threshold: threshold.toFixed(1), gap })}</p>
               </div>
             </div>
 
             {/* Preço + reason */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div className="rounded-lg p-2" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
-                <p className="text-[9px] uppercase tracking-wider text-zinc-500">Preço original</p>
+                <p className="text-[9px] uppercase tracking-wider text-zinc-500">{t('originalPrice')}</p>
                 <p className="text-xs text-zinc-300 font-medium">{brl(it.ml_campaign_items?.original_price)}</p>
               </div>
               <div className="rounded-lg p-2" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
-                <p className="text-[9px] uppercase tracking-wider text-zinc-500">Preço promocional tentado</p>
+                <p className="text-[9px] uppercase tracking-wider text-zinc-500">{t('attemptedPromoPrice')}</p>
                 <p className="text-xs text-zinc-100 font-medium">{brl(it.recommended_price)}</p>
                 {it.recommended_strategy && (
-                  <p className="text-[9px] text-zinc-500 mt-0.5">estratégia: {it.recommended_strategy}</p>
+                  <p className="text-[9px] text-zinc-500 mt-0.5">{t('strategy', { value: it.recommended_strategy })}</p>
                 )}
               </div>
               <div className="rounded-lg p-2" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
-                <p className="text-[9px] uppercase tracking-wider text-zinc-500">Quantidade</p>
+                <p className="text-[9px] uppercase tracking-wider text-zinc-500">{t('quantity')}</p>
                 <p className="text-xs text-zinc-300 font-medium">{it.recommended_quantity ?? '—'}</p>
               </div>
             </div>
@@ -229,7 +231,7 @@ export default function ManagerQueuePage() {
             {/* Reason */}
             <div className="rounded-lg p-2 text-[11px] text-zinc-400"
               style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
-              <span className="text-zinc-500 uppercase tracking-wider text-[9px]">IA: </span>
+              <span className="text-zinc-500 uppercase tracking-wider text-[9px]">{t('aiLabel')} </span>
               {it.recommendation_reason}
             </div>
 
@@ -253,23 +255,23 @@ export default function ManagerQueuePage() {
                 disabled={busy === it.id}
                 className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold disabled:opacity-50"
                 style={{ background: '#22c55e', color: '#000' }}>
-                <CheckCircle2 size={12} /> Liberar override
+                <CheckCircle2 size={12} /> {t('releaseOverride')}
               </button>
               <button
                 onClick={() => { setReasonModal({ id: it.id, action: 'reject' }); setReason('') }}
                 disabled={busy === it.id}
                 className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold disabled:opacity-50"
                 style={{ background: 'rgba(248,113,113,0.15)', color: '#f87171', border: '1px solid rgba(248,113,113,0.4)' }}>
-                <XCircle size={12} /> Rejeitar
+                <XCircle size={12} /> {t('reject')}
               </button>
               <Link href={`/dashboard/ml-campaigns/recommendations/${it.id}`}
                 className="inline-flex items-center gap-1 ml-auto text-[11px] text-cyan-400 hover:underline">
-                Ver detalhe <ChevronRight size={11} />
+                {t('viewDetail')} <ChevronRight size={11} />
               </Link>
               {it.reviewed_by && (
                 <Link href={`/dashboard/ml-campaigns/audit?operator=${it.reviewed_by}`}
                   className="text-[10px] text-zinc-500 hover:text-amber-300 inline-flex items-center gap-1">
-                  Audit operador <ArrowRight size={9} />
+                  {t('auditOperator')} <ArrowRight size={9} />
                 </Link>
               )}
             </div>
@@ -284,25 +286,25 @@ export default function ManagerQueuePage() {
           <div className="rounded-2xl max-w-md w-full p-5"
             style={{ background: '#111114', border: '1px solid #1e1e24' }}>
             <h3 className="text-sm font-semibold mb-2">
-              {reasonModal.action === 'approve' ? 'Liberar override' : 'Rejeitar override'}
+              {reasonModal.action === 'approve' ? t('modal.approveTitle') : t('modal.rejectTitle')}
             </h3>
             <p className="text-[11px] text-zinc-500 mb-3">
-              Motivo (opcional, fica no audit log):
+              {t('modal.reasonLabel')}
             </p>
             <textarea
               value={reason}
               onChange={e => setReason(e.target.value)}
               rows={3}
               placeholder={reasonModal.action === 'approve'
-                ? 'Ex: produto encalhado, vale liquidar mesmo abaixo do mínimo'
-                : 'Ex: margem inaceitável, prefiro deixar fora dessa campanha'}
+                ? t('modal.approvePlaceholder')
+                : t('modal.rejectPlaceholder')}
               className="w-full rounded-lg p-2 text-xs outline-none resize-none"
               style={{ background: '#09090b', border: '1px solid #27272a', color: '#fafafa' }} />
             <div className="flex items-center justify-end gap-2 mt-3">
               <button
                 onClick={() => { setReasonModal(null); setReason('') }}
                 className="px-3 py-1.5 rounded text-xs text-zinc-400">
-                Cancelar
+                {t('modal.cancel')}
               </button>
               <button
                 onClick={() => decide(reasonModal.id, reasonModal.action)}
@@ -313,7 +315,7 @@ export default function ManagerQueuePage() {
                   color: '#000',
                 }}>
                 {busy === reasonModal.id ? <Loader2 size={11} className="animate-spin" /> : null}
-                Confirmar {reasonModal.action === 'approve' ? 'liberação' : 'rejeição'}
+                {reasonModal.action === 'approve' ? t('modal.confirmApprove') : t('modal.confirmReject')}
               </button>
             </div>
           </div>

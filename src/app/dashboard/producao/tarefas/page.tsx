@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import {
   Plus, X, AlertTriangle, Calendar, User, Tag, GripVertical,
@@ -34,27 +35,30 @@ interface Task {
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
-const COLUMNS: { id: Status; label: string; color: string; icon: React.ReactNode }[] = [
-  { id: 'todo',        label: 'A Fazer',       color: '#71717a', icon: <Circle size={13} /> },
-  { id: 'in_progress', label: 'Em Andamento',  color: '#3b82f6', icon: <Clock size={13} /> },
-  { id: 'review',      label: 'Em Revisão',    color: '#f59e0b', icon: <AlertTriangle size={13} /> },
-  { id: 'done',        label: 'Concluído',     color: '#22c55e', icon: <CheckCircle2 size={13} /> },
+// Config estrutural — `label` vem da tradução via `t('columns.<id>')` etc.
+const COLUMNS: { id: Status; color: string; icon: React.ReactNode }[] = [
+  { id: 'todo',        color: '#71717a', icon: <Circle size={13} /> },
+  { id: 'in_progress', color: '#3b82f6', icon: <Clock size={13} /> },
+  { id: 'review',      color: '#f59e0b', icon: <AlertTriangle size={13} /> },
+  { id: 'done',        color: '#22c55e', icon: <CheckCircle2 size={13} /> },
 ]
 
-const PRIORITY_CFG: Record<Priority, { label: string; color: string; bg: string }> = {
-  low:    { label: 'Baixa',  color: '#71717a', bg: 'rgba(113,113,122,0.15)' },
-  medium: { label: 'Média',  color: '#3b82f6', bg: 'rgba(59,130,246,0.15)'  },
-  high:   { label: 'Alta',   color: '#f59e0b', bg: 'rgba(245,158,11,0.15)'  },
-  urgent: { label: 'Urgente', color: '#ef4444', bg: 'rgba(239,68,68,0.15)'  },
+const PRIORITY_CFG: Record<Priority, { color: string; bg: string }> = {
+  low:    { color: '#71717a', bg: 'rgba(113,113,122,0.15)' },
+  medium: { color: '#3b82f6', bg: 'rgba(59,130,246,0.15)'  },
+  high:   { color: '#f59e0b', bg: 'rgba(245,158,11,0.15)'  },
+  urgent: { color: '#ef4444', bg: 'rgba(239,68,68,0.15)'  },
 }
+const PRIORITY_KEYS: Priority[] = ['low', 'medium', 'high', 'urgent']
 
-const TYPE_CFG: Record<TaskType, { label: string; color: string }> = {
-  task:    { label: 'Tarefa',   color: '#a1a1aa' },
-  content: { label: 'Conteúdo', color: '#a78bfa' },
-  photo:   { label: 'Foto',     color: '#fb923c' },
-  listing: { label: 'Anúncio',  color: '#00E5FF' },
-  bug:     { label: 'Bug',      color: '#f87171' },
+const TYPE_CFG: Record<TaskType, { color: string }> = {
+  task:    { color: '#a1a1aa' },
+  content: { color: '#a78bfa' },
+  photo:   { color: '#fb923c' },
+  listing: { color: '#00E5FF' },
+  bug:     { color: '#f87171' },
 }
+const TYPE_KEYS: TaskType[] = ['task', 'content', 'photo', 'listing', 'bug']
 
 const CREATE_SQL = `-- Execute no Supabase SQL Editor
 CREATE TABLE IF NOT EXISTS tasks (
@@ -93,6 +97,7 @@ function TaskCard({
 }: {
   task: Task; onEdit: (t: Task) => void; onDelete: (id: string) => void; overlay?: boolean
 }) {
+  const t = useTranslations('producao.tarefas')
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: task.id })
   const style = { transform: CSS.Translate.toString(transform), opacity: isDragging ? 0.35 : 1 }
   const p   = PRIORITY_CFG[task.priority]
@@ -131,9 +136,9 @@ function TaskCard({
       {/* Badges */}
       <div className="flex flex-wrap items-center gap-1.5 ml-5">
         <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full"
-          style={{ background: p.bg, color: p.color }}>{p.label}</span>
+          style={{ background: p.bg, color: p.color }}>{t(`priority.${task.priority}`)}</span>
         <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full"
-          style={{ background: 'rgba(255,255,255,0.05)', color: tp.color }}>{tp.label}</span>
+          style={{ background: 'rgba(255,255,255,0.05)', color: tp.color }}>{t(`type.${task.type}`)}</span>
       </div>
 
       {/* Footer */}
@@ -170,6 +175,7 @@ function KanbanColumn({
   col: typeof COLUMNS[0]; tasks: Task[]
   onAdd: (status: Status) => void; onEdit: (t: Task) => void; onDelete: (id: string) => void
 }) {
+  const t = useTranslations('producao.tarefas')
   const { setNodeRef, isOver } = useDroppable({ id: col.id })
   return (
     <div className="flex flex-col min-w-[260px] max-w-[300px] flex-1" style={{ minHeight: 500 }}>
@@ -177,7 +183,7 @@ function KanbanColumn({
       <div className="flex items-center justify-between mb-3 px-1">
         <div className="flex items-center gap-2">
           <span style={{ color: col.color }}>{col.icon}</span>
-          <span className="text-xs font-semibold text-zinc-300">{col.label}</span>
+          <span className="text-xs font-semibold text-zinc-300">{t(`columns.${col.id}`)}</span>
           <span className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold"
             style={{ background: 'rgba(255,255,255,0.06)', color: '#71717a' }}>
             {tasks.length}
@@ -198,12 +204,12 @@ function KanbanColumn({
           border: `1px solid ${isOver ? col.color + '40' : '#1e1e24'}`,
           minHeight: 120,
         }}>
-        {tasks.map(t => (
-          <TaskCard key={t.id} task={t} onEdit={onEdit} onDelete={onDelete} />
+        {tasks.map(task => (
+          <TaskCard key={task.id} task={task} onEdit={onEdit} onDelete={onDelete} />
         ))}
         {tasks.length === 0 && (
           <div className="flex items-center justify-center h-20">
-            <p className="text-[11px] text-zinc-700">Sem tarefas</p>
+            <p className="text-[11px] text-zinc-700">{t('noTasks')}</p>
           </div>
         )}
       </div>
@@ -220,6 +226,7 @@ function TaskModal({
 }: {
   initial?: Task; defaultStatus: Status; onSave: (f: TaskForm) => Promise<void>; onClose: () => void
 }) {
+  const t = useTranslations('producao.tarefas')
   const [form, setForm] = useState<TaskForm>({
     title:         initial?.title         ?? '',
     description:   initial?.description   ?? '',
@@ -235,7 +242,7 @@ function TaskModal({
   function set<K extends keyof TaskForm>(k: K, v: TaskForm[K]) { setForm(f => ({ ...f, [k]: v })) }
 
   async function submit() {
-    if (!form.title.trim()) { setErr('Título é obrigatório'); return }
+    if (!form.title.trim()) { setErr(t('titleRequired')); return }
     setSaving(true); setErr(null)
     try { await onSave(form) }
     catch (e: any) { setErr(e.message); setSaving(false) }
@@ -249,54 +256,54 @@ function TaskModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.75)' }}>
       <div className="w-full max-w-lg rounded-2xl p-6 space-y-4" style={{ background: '#111114', border: '1px solid #2e2e33' }}>
         <div className="flex items-center justify-between">
-          <h3 className="text-white font-semibold text-sm">{initial ? 'Editar Tarefa' : 'Nova Tarefa'}</h3>
-          <button onClick={onClose} className="text-zinc-500 hover:text-white transition-colors"><X size={18} /></button>
+          <h3 className="text-white font-semibold text-sm">{initial ? t('editTask') : t('newTask')}</h3>
+          <button onClick={onClose} className="text-zinc-500 hover:text-white transition-colors" aria-label={t('close')}><X size={18} /></button>
         </div>
 
         <div>
-          <label className={lbl}>Título *</label>
+          <label className={lbl}>{t('fieldTitle')}</label>
           <input value={form.title} onChange={e => set('title', e.target.value)}
-            className={inp} style={is} placeholder="O que precisa ser feito?"
+            className={inp} style={is} placeholder={t('titlePlaceholder')}
             onFocus={e => (e.target.style.borderColor = '#00E5FF')}
             onBlur={e => (e.target.style.borderColor  = '#3f3f46')} />
         </div>
 
         <div>
-          <label className={lbl}>Descrição</label>
+          <label className={lbl}>{t('fieldDescription')}</label>
           <textarea value={form.description} onChange={e => set('description', e.target.value)}
-            className={inp} style={{ ...is, resize: 'none' }} rows={2} placeholder="Detalhes opcionais…"
+            className={inp} style={{ ...is, resize: 'none' }} rows={2} placeholder={t('descriptionPlaceholder')}
             onFocus={e => (e.target.style.borderColor = '#00E5FF')}
             onBlur={e => (e.target.style.borderColor  = '#3f3f46')} />
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className={lbl}>Status</label>
+            <label className={lbl}>{t('fieldStatus')}</label>
             <select value={form.status} onChange={e => set('status', e.target.value as Status)}
               className={inp + ' cursor-pointer'} style={is}>
-              {COLUMNS.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+              {COLUMNS.map(c => <option key={c.id} value={c.id}>{t(`columns.${c.id}`)}</option>)}
             </select>
           </div>
           <div>
-            <label className={lbl}>Prioridade</label>
+            <label className={lbl}>{t('fieldPriority')}</label>
             <select value={form.priority} onChange={e => set('priority', e.target.value as Priority)}
               className={inp + ' cursor-pointer'} style={is}>
-              {(Object.entries(PRIORITY_CFG) as [Priority, typeof PRIORITY_CFG[Priority]][]).map(([k, v]) => (
-                <option key={k} value={k}>{v.label}</option>
+              {PRIORITY_KEYS.map(k => (
+                <option key={k} value={k}>{t(`priority.${k}`)}</option>
               ))}
             </select>
           </div>
           <div>
-            <label className={lbl}>Tipo</label>
+            <label className={lbl}>{t('fieldType')}</label>
             <select value={form.type} onChange={e => set('type', e.target.value as TaskType)}
               className={inp + ' cursor-pointer'} style={is}>
-              {(Object.entries(TYPE_CFG) as [TaskType, typeof TYPE_CFG[TaskType]][]).map(([k, v]) => (
-                <option key={k} value={k}>{v.label}</option>
+              {TYPE_KEYS.map(k => (
+                <option key={k} value={k}>{t(`type.${k}`)}</option>
               ))}
             </select>
           </div>
           <div>
-            <label className={lbl}>Prazo</label>
+            <label className={lbl}>{t('fieldDueDate')}</label>
             <input type="date" value={form.due_date} onChange={e => set('due_date', e.target.value)}
               className={inp} style={is}
               onFocus={e => (e.target.style.borderColor = '#00E5FF')}
@@ -305,9 +312,9 @@ function TaskModal({
         </div>
 
         <div>
-          <label className={lbl}>Responsável</label>
+          <label className={lbl}>{t('fieldAssignee')}</label>
           <input value={form.assignee_name} onChange={e => set('assignee_name', e.target.value)}
-            className={inp} style={is} placeholder="Nome do responsável…"
+            className={inp} style={is} placeholder={t('assigneePlaceholder')}
             onFocus={e => (e.target.style.borderColor = '#00E5FF')}
             onBlur={e => (e.target.style.borderColor  = '#3f3f46')} />
         </div>
@@ -316,12 +323,12 @@ function TaskModal({
 
         <div className="flex gap-2 pt-1">
           <button onClick={onClose} className="flex-1 py-2 rounded-lg text-xs font-semibold text-zinc-400 border border-zinc-800 transition-colors">
-            Cancelar
+            {t('cancel')}
           </button>
           <button onClick={submit} disabled={saving}
             className="glow-rainbow flex-1 py-2 rounded-lg text-xs font-semibold transition-all disabled:opacity-60"
             style={{ background: '#00E5FF', color: '#000' }}>
-            {saving ? 'Salvando…' : (initial ? 'Salvar' : 'Criar tarefa')}
+            {saving ? t('saving') : (initial ? t('save') : t('createTask'))}
           </button>
         </div>
       </div>
@@ -332,6 +339,7 @@ function TaskModal({
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function TarefasPage() {
+  const t = useTranslations('producao.tarefas')
   const [tasks, setTasks]         = useState<Task[]>([])
   const [loading, setLoading]     = useState(true)
   const [noTable, setNoTable]     = useState(false)
@@ -384,26 +392,26 @@ export default function TarefasPage() {
 
   const byStatus = useMemo(() => {
     const map: Record<Status, Task[]> = { todo: [], in_progress: [], review: [], done: [] }
-    for (const t of tasks) map[t.status]?.push(t)
+    for (const task of tasks) map[task.status]?.push(task)
     return map
   }, [tasks])
 
   // ── DnD ──────────────────────────────────────────────────────────────────────
 
   function onDragStart(e: DragStartEvent) {
-    setDragging(tasks.find(t => t.id === e.active.id) ?? null)
+    setDragging(tasks.find(task => task.id === e.active.id) ?? null)
   }
 
   async function onDragEnd(e: DragEndEvent) {
     setDragging(null)
     const { active, over } = e
     if (!over || active.id === over.id) return
-    const task    = tasks.find(t => t.id === active.id)
+    const task    = tasks.find(tk => tk.id === active.id)
     const newStat = over.id as Status
     if (!task || task.status === newStat) return
 
     // Optimistic
-    setTasks(ts => ts.map(t => t.id === task.id ? { ...t, status: newStat } : t))
+    setTasks(ts => ts.map(tk => tk.id === task.id ? { ...tk, status: newStat } : tk))
 
     const sb = createClient()
     await sb.from('tasks').update({ status: newStat, updated_at: new Date().toISOString() }).eq('id', task.id)
@@ -438,15 +446,15 @@ export default function TarefasPage() {
 
   async function deleteTask(id: string) {
     const ok = await confirm({
-      title:        'Excluir tarefa',
-      message:      'Excluir esta tarefa?',
-      confirmLabel: 'Excluir',
+      title:        t('deleteTaskTitle'),
+      message:      t('deleteTaskMessage'),
+      confirmLabel: t('delete'),
       variant:      'danger',
     })
     if (!ok) return
     const sb = createClient()
     await sb.from('tasks').delete().eq('id', id)
-    setTasks(ts => ts.filter(t => t.id !== id))
+    setTasks(ts => ts.filter(tk => tk.id !== id))
   }
 
   function copySql() {
@@ -458,15 +466,15 @@ export default function TarefasPage() {
   if (noTable) return (
     <div className="p-6 space-y-4 min-h-full" style={{ background: 'var(--background)' }}>
       <div>
-        <p className="text-zinc-500 text-xs">Produção</p>
-        <h2 className="text-white text-lg font-semibold mt-0.5">Tarefas</h2>
+        <p className="text-zinc-500 text-xs">{t('eyebrow')}</p>
+        <h2 className="text-white text-lg font-semibold mt-0.5">{t('title')}</h2>
       </div>
       <div className="rounded-2xl p-5 space-y-4 max-w-2xl" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
         <div className="flex items-center gap-2 text-amber-400">
           <AlertTriangle size={16} />
-          <p className="text-sm font-semibold">Tabela <code className="font-mono">tasks</code> não encontrada</p>
+          <p className="text-sm font-semibold">{t.rich('tableNotFound', { code: (chunks) => <code className="font-mono">{chunks}</code> })}</p>
         </div>
-        <p className="text-xs text-zinc-400">Execute o SQL abaixo no Supabase SQL Editor para criar a tabela:</p>
+        <p className="text-xs text-zinc-400">{t('tableSqlHint')}</p>
         <pre className="text-[10px] font-mono p-4 rounded-xl overflow-x-auto leading-relaxed"
           style={{ background: '#0a0a0d', border: '1px solid #1e1e24', color: '#a1a1aa' }}>
           {CREATE_SQL}
@@ -475,11 +483,11 @@ export default function TarefasPage() {
           <button onClick={copySql}
             className="px-4 py-2 rounded-lg text-xs font-semibold transition-all"
             style={{ background: copied ? 'rgba(34,197,94,0.15)' : 'rgba(0,229,255,0.1)', color: copied ? '#22c55e' : '#00E5FF', border: `1px solid ${copied ? 'rgba(34,197,94,0.3)' : 'rgba(0,229,255,0.2)'}` }}>
-            {copied ? 'Copiado!' : 'Copiar SQL'}
+            {copied ? t('copied') : t('copySql')}
           </button>
           <button onClick={load}
             className="px-4 py-2 rounded-lg text-xs font-semibold border border-zinc-800 text-zinc-400 transition-colors">
-            Verificar novamente
+            {t('checkAgain')}
           </button>
         </div>
       </div>
@@ -489,9 +497,9 @@ export default function TarefasPage() {
   // ── KPIs ─────────────────────────────────────────────────────────────────────
 
   const total    = tasks.length
-  const done     = tasks.filter(t => t.status === 'done').length
-  const overdue  = tasks.filter(t => t.due_date && t.status !== 'done' && new Date(t.due_date + 'T23:59:59') < new Date()).length
-  const urgent   = tasks.filter(t => t.priority === 'urgent' && t.status !== 'done').length
+  const done     = tasks.filter(tk => tk.status === 'done').length
+  const overdue  = tasks.filter(tk => tk.due_date && tk.status !== 'done' && new Date(tk.due_date + 'T23:59:59') < new Date()).length
+  const urgent   = tasks.filter(tk => tk.priority === 'urgent' && tk.status !== 'done').length
 
   // ── Render ───────────────────────────────────────────────────────────────────
 
@@ -501,14 +509,14 @@ export default function TarefasPage() {
       {/* Header */}
       <div className="flex items-center justify-between gap-4">
         <div>
-          <p className="text-zinc-500 text-xs">Produção</p>
-          <h2 className="text-white text-lg font-semibold mt-0.5">Tarefas</h2>
+          <p className="text-zinc-500 text-xs">{t('eyebrow')}</p>
+          <h2 className="text-white text-lg font-semibold mt-0.5">{t('title')}</h2>
         </div>
         <button
           onClick={() => setModal({ open: true, defaultStatus: 'todo' })}
           className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all"
           style={{ background: '#00E5FF', color: '#000' }}>
-          <Plus size={14} /> Nova Tarefa
+          <Plus size={14} /> {t('newTask')}
         </button>
       </div>
 
@@ -516,15 +524,15 @@ export default function TarefasPage() {
       {!loading && (
         <div className="flex flex-wrap gap-3">
           {[
-            { label: 'Total',    value: total,  color: '#a1a1aa' },
-            { label: 'Concluídas', value: done,  color: '#22c55e' },
-            { label: 'Atrasadas', value: overdue, color: '#f87171' },
-            { label: 'Urgentes',  value: urgent,  color: '#ef4444' },
+            { key: 'total',     value: total,   color: '#a1a1aa' },
+            { key: 'completed', value: done,    color: '#22c55e' },
+            { key: 'overdue',   value: overdue, color: '#f87171' },
+            { key: 'urgent',    value: urgent,  color: '#ef4444' },
           ].map(k => (
-            <div key={k.label} className="flex items-center gap-2 px-3 py-2 rounded-xl"
+            <div key={k.key} className="flex items-center gap-2 px-3 py-2 rounded-xl"
               style={{ background: '#111114', border: '1px solid #1e1e24' }}>
               <span className="text-lg font-black" style={{ color: k.color }}>{k.value}</span>
-              <span className="text-[11px] text-zinc-500">{k.label}</span>
+              <span className="text-[11px] text-zinc-500">{t(`kpi.${k.key}`)}</span>
             </div>
           ))}
           {total > 0 && (
@@ -534,7 +542,7 @@ export default function TarefasPage() {
                   <div key={c.id} className="rounded-sm" style={{ background: c.color, flex: byStatus[c.id].length }} />
                 ))}
               </div>
-              <span className="text-[11px] text-zinc-500">{total > 0 ? Math.round((done / total) * 100) : 0}% completo</span>
+              <span className="text-[11px] text-zinc-500">{t('percentComplete', { pct: total > 0 ? Math.round((done / total) * 100) : 0 })}</span>
             </div>
           )}
         </div>

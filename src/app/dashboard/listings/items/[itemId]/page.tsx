@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { use } from 'react'
+import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import {
@@ -66,6 +67,7 @@ const TYPE_ICONS: Record<string, typeof Package> = {
 
 export default function ItemDetailPage({ params }: { params: Promise<{ itemId: string }> }) {
   const { itemId } = use(params)
+  const t = useTranslations('listings.itemDetail')
   const supabase = useMemo(() => createClient(), [])
   const toast = useToast()
 
@@ -74,9 +76,9 @@ export default function ItemDetailPage({ params }: { params: Promise<{ itemId: s
 
   const getHeaders = useCallback(async (): Promise<Record<string, string>> => {
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session?.access_token) throw new Error('Não autenticado')
+    if (!session?.access_token) throw new Error(t('errors.notAuthenticated'))
     return { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' }
-  }, [supabase])
+  }, [supabase, t])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -87,11 +89,11 @@ export default function ItemDetailPage({ params }: { params: Promise<{ itemId: s
       const data = await res.json()
       setTasks(Array.isArray(data) ? data : [])
     } catch (e) {
-      toast({ message: e instanceof Error ? e.message : 'Erro ao carregar', tone: 'error' })
+      toast({ message: e instanceof Error ? e.message : t('errors.loadFailed'), tone: 'error' })
     } finally {
       setLoading(false)
     }
-  }, [getHeaders, itemId, toast])
+  }, [getHeaders, itemId, toast, t])
 
   useEffect(() => { load() }, [load])
 
@@ -102,10 +104,10 @@ export default function ItemDetailPage({ params }: { params: Promise<{ itemId: s
         method: 'PATCH', headers, body: JSON.stringify({ action, ...extra }),
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      toast({ message: `Tarefa ${action === 'snooze' ? 'adiada' : action === 'dismiss' ? 'descartada' : 'resolvida'}`, tone: 'success' })
+      toast({ message: t(`taskActionDone.${action}`), tone: 'success' })
       await load()
     } catch (e) {
-      toast({ message: e instanceof Error ? e.message : 'Erro', tone: 'error' })
+      toast({ message: e instanceof Error ? e.message : t('errors.generic'), tone: 'error' })
     }
   }
 
@@ -120,38 +122,38 @@ export default function ItemDetailPage({ params }: { params: Promise<{ itemId: s
       <div>
         <Link href="/dashboard/listings"
           className="text-zinc-500 hover:text-cyan-400 text-xs flex items-center gap-1 mb-2 transition-colors">
-          <ChevronLeft size={12} /> Voltar para Listing Center
+          <ChevronLeft size={12} /> {t('backToCenter')}
         </Link>
-        <p className="text-zinc-500 text-xs font-medium tracking-widest uppercase mb-1">Anúncio</p>
+        <p className="text-zinc-500 text-xs font-medium tracking-widest uppercase mb-1">{t('eyebrow')}</p>
         <div className="flex items-baseline gap-3 flex-wrap">
           <h1 className="text-white text-2xl font-semibold font-mono">{itemId}</h1>
           <a href={`https://www.mercadolivre.com.br/${itemId}`} target="_blank" rel="noopener noreferrer"
             className="text-xs text-cyan-400 hover:text-cyan-300 flex items-center gap-1">
-            Ver no ML <ExternalLink size={11} />
+            {t('viewOnMl')} <ExternalLink size={11} />
           </a>
         </div>
         <p className="text-xs text-zinc-600 mt-1">
-          {open.length} tarefa{open.length !== 1 ? 's' : ''} aberta{open.length !== 1 ? 's' : ''}
-          {closed.length > 0 && ` · ${closed.length} resolvida${closed.length !== 1 ? 's' : ''}`}
+          {t('openTasks', { count: open.length })}
+          {closed.length > 0 && ` · ${t('resolvedTasks', { count: closed.length })}`}
         </p>
       </div>
 
       {/* Tarefas abertas */}
       <section>
-        <p className="text-[10px] uppercase tracking-widest text-zinc-500 font-semibold mb-2">Tarefas pendentes</p>
+        <p className="text-[10px] uppercase tracking-widest text-zinc-500 font-semibold mb-2">{t('pendingTasks')}</p>
         {loading ? (
           <div className="rounded-xl p-8 text-center text-zinc-500 text-xs"
-            style={{ background: '#111114', border: '1px solid #1a1a1f' }}>Carregando…</div>
+            style={{ background: '#111114', border: '1px solid #1a1a1f' }}>{t('loading')}</div>
         ) : open.length === 0 ? (
           <div className="rounded-xl p-8 text-center"
             style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
             <Check size={28} className="text-emerald-500/60 mx-auto mb-2" />
-            <p className="text-zinc-400 text-sm">Tudo certo com este anúncio</p>
-            <p className="text-zinc-600 text-xs mt-1">Nenhuma tarefa pendente</p>
+            <p className="text-zinc-400 text-sm">{t('empty.title')}</p>
+            <p className="text-zinc-600 text-xs mt-1">{t('empty.desc')}</p>
           </div>
         ) : (
           <div className="space-y-2">
-            {open.map(t => <FullTaskCard key={t.id} task={t} onAction={taskAction} />)}
+            {open.map(task => <FullTaskCard key={task.id} task={task} onAction={taskAction} />)}
           </div>
         )}
       </section>
@@ -159,22 +161,22 @@ export default function ItemDetailPage({ params }: { params: Promise<{ itemId: s
       {/* Tarefas resolvidas (histórico) */}
       {closed.length > 0 && (
         <section>
-          <p className="text-[10px] uppercase tracking-widest text-zinc-500 font-semibold mb-2">Histórico</p>
+          <p className="text-[10px] uppercase tracking-widest text-zinc-500 font-semibold mb-2">{t('history')}</p>
           <div className="space-y-1.5">
-            {closed.slice(0, 10).map(t => (
-              <div key={t.id} className="rounded-lg px-3 py-2 flex items-center justify-between text-xs opacity-60"
+            {closed.slice(0, 10).map(task => (
+              <div key={task.id} className="rounded-lg px-3 py-2 flex items-center justify-between text-xs opacity-60"
                 style={{ background: '#0d0d10', border: '1px solid #1a1a1f' }}>
                 <div className="flex items-center gap-2 min-w-0">
                   <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                    t.status === 'resolved_auto' ? 'bg-emerald-500/60' :
-                    t.status === 'resolved_manual' ? 'bg-emerald-500' :
-                    t.status === 'dismissed' ? 'bg-zinc-600' : 'bg-zinc-500'}`} />
-                  <p className="text-zinc-400 truncate">{t.task_title}</p>
+                    task.status === 'resolved_auto' ? 'bg-emerald-500/60' :
+                    task.status === 'resolved_manual' ? 'bg-emerald-500' :
+                    task.status === 'dismissed' ? 'bg-zinc-600' : 'bg-zinc-500'}`} />
+                  <p className="text-zinc-400 truncate">{task.task_title}</p>
                 </div>
                 <span className="text-zinc-600 text-[10px] shrink-0 ml-2">
-                  {t.resolved_at ? new Date(t.resolved_at).toLocaleDateString('pt-BR') : '—'}
+                  {task.resolved_at ? new Date(task.resolved_at).toLocaleDateString('pt-BR') : '—'}
                   {' · '}
-                  {t.status === 'resolved_auto' ? 'auto' : t.status === 'resolved_manual' ? 'manual' : 'descartada'}
+                  {task.status === 'resolved_auto' ? t('resolvedAuto') : task.status === 'resolved_manual' ? t('resolvedManual') : t('dismissed')}
                 </span>
               </div>
             ))}
@@ -186,6 +188,7 @@ export default function ItemDetailPage({ params }: { params: Promise<{ itemId: s
 }
 
 function FullTaskCard({ task, onAction }: { task: Task; onAction: (id: string, action: 'snooze' | 'dismiss' | 'resolve', extra?: Record<string, unknown>) => void }) {
+  const t = useTranslations('listings.itemDetail')
   const sev = SEV_COLORS[task.severity]
   const Icon = TYPE_ICONS[task.task_type] ?? AlertCircle
 
@@ -201,10 +204,10 @@ function FullTaskCard({ task, onAction }: { task: Task; onAction: (id: string, a
             <p className="text-zinc-100 font-semibold text-sm">{task.task_title}</p>
             <span className="text-[10px] uppercase tracking-widest font-bold px-1.5 py-0.5 rounded"
               style={{ background: sev.bg, color: sev.text, border: `1px solid ${sev.border}` }}>
-              {task.severity}
+              {t(`severity.${task.severity}`)}
             </span>
             <span className="text-[9px] text-zinc-600 uppercase tracking-widest">
-              fonte: {task.source}
+              {t('source', { source: task.source })}
             </span>
           </div>
           {task.task_description && (
@@ -212,36 +215,36 @@ function FullTaskCard({ task, onAction }: { task: Task; onAction: (id: string, a
           )}
           {task.suggested_action && (
             <div className="mt-2.5 px-3 py-2 rounded-lg" style={{ background: 'rgba(0,229,255,0.06)', border: '1px solid rgba(0,229,255,0.2)' }}>
-              <p className="text-[10px] uppercase tracking-widest text-cyan-400/80 font-bold mb-0.5">Ação sugerida</p>
+              <p className="text-[10px] uppercase tracking-widest text-cyan-400/80 font-bold mb-0.5">{t('suggestedAction')}</p>
               <p className="text-xs text-cyan-200">{task.suggested_action}</p>
             </div>
           )}
           <div className="mt-2 flex items-center gap-3 text-[10px] text-zinc-600 flex-wrap">
             {task.estimated_impact_brl ? (
-              <span className="text-emerald-500 font-medium">+R$ {Math.round(task.estimated_impact_brl).toLocaleString('pt-BR')}/mês estimado</span>
+              <span className="text-emerald-500 font-medium">{t('estimatedImpact', { value: Math.round(task.estimated_impact_brl).toLocaleString('pt-BR') })}</span>
             ) : null}
-            {task.priority_score != null && <span>Prioridade {task.priority_score}/100</span>}
-            <span>Detectada {task.detection_count}x · primeira em {new Date(task.first_detected_at).toLocaleDateString('pt-BR')}</span>
+            {task.priority_score != null && <span>{t('priority', { score: task.priority_score })}</span>}
+            <span>{t('detectionInfo', { count: task.detection_count, date: new Date(task.first_detected_at).toLocaleDateString('pt-BR') })}</span>
           </div>
         </div>
         <div className="shrink-0 flex flex-col gap-1">
           {task.deeplink_url && (
             <a href={task.deeplink_url}
               className="text-[10px] px-2 py-1 rounded text-cyan-400 hover:text-cyan-300 hover:bg-zinc-800 transition-colors flex items-center gap-1">
-              Resolver <ExternalLink size={10} />
+              {t('resolve')} <ExternalLink size={10} />
             </a>
           )}
           <button onClick={() => onAction(task.id, 'snooze', { days: 7 })}
             className="text-[10px] px-2 py-1 rounded text-amber-400 hover:bg-zinc-800 transition-colors flex items-center gap-1">
-            <Clock size={10} /> 7 dias
+            <Clock size={10} /> {t('snooze7')}
           </button>
           <button onClick={() => onAction(task.id, 'resolve')}
             className="text-[10px] px-2 py-1 rounded text-emerald-400 hover:bg-zinc-800 transition-colors flex items-center gap-1">
-            <Check size={10} /> Resolvi
+            <Check size={10} /> {t('resolved')}
           </button>
-          <button onClick={() => onAction(task.id, 'dismiss', { reason: 'Descartada manualmente' })}
+          <button onClick={() => onAction(task.id, 'dismiss', { reason: t('dismissReason') })}
             className="text-[10px] px-2 py-1 rounded text-rose-400 hover:bg-zinc-800 transition-colors flex items-center gap-1">
-            <X size={10} /> Descartar
+            <X size={10} /> {t('dismiss')}
           </button>
         </div>
       </div>

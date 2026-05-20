@@ -5,6 +5,7 @@
  * Pede confirm se já tem positions.
  */
 
+import { useTranslations } from 'next-intl'
 import { Sparkles } from 'lucide-react'
 import { CANONICAL_POSITIONS } from './constants'
 import type { TemplatePosition } from '@/components/creative/types'
@@ -19,16 +20,15 @@ export default function ApplyCanonicalSkeleton({
   onApply:       (positions: TemplatePosition[]) => void
   disabled?:     boolean
 }) {
+  const t = useTranslations('creative.templates')
   const confirmDialog = useConfirm()
 
   const handle = async () => {
     if (existingCount > 0) {
       const ok = await confirmDialog({
-        title:   'Substituir posições atuais?',
-        message:
-          `Você já tem ${existingCount} posição${existingCount !== 1 ? 'ões' : ''} configurada${existingCount !== 1 ? 's' : ''}. ` +
-          `Aplicar o esqueleto canônico vai SUBSTITUIR tudo pelas 11 posições padrão.`,
-        confirmLabel: 'Substituir',
+        title:   t('replacePositionsTitle'),
+        message: t('replacePositionsMessage', { count: existingCount }),
+        confirmLabel: t('replaceConfirm'),
         variant:      'warning',
       })
       if (!ok) return
@@ -47,9 +47,9 @@ export default function ApplyCanonicalSkeleton({
       onClick={handle}
       disabled={disabled}
       className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-cyan-400/10 border border-cyan-400/30 hover:bg-cyan-400/20 text-cyan-300 text-xs transition-colors disabled:opacity-40"
-      title="Substitui posições atuais pelas 11 canônicas (capa, detalhe, ambientes, técnica, etc.)"
+      title={t('applyCanonicalTooltip')}
     >
-      <Sparkles size={12} /> Aplicar 11 canônicas
+      <Sparkles size={12} /> {t('applyCanonical')}
     </button>
   )
 }

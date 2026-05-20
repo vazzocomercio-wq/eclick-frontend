@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -25,6 +26,7 @@ import { useAlert } from '@/components/ui/dialog-provider'
 interface AttributeValue { id: string; value_name?: string; value_id?: string }
 
 export default function MLPublishPage() {
+  const t = useTranslations('creative.publish')
   const params = useParams<{ productId: string; listingId: string }>()
   const productId = params.productId
   const listingId = params.listingId
@@ -127,7 +129,7 @@ export default function MLPublishPage() {
   async function publish() {
     if (!preview?.ready || !preview.publish_enabled) return
     if (selectedSellerIds.length === 0) {
-      setPublishError('Selecione ao menos uma conta do Mercado Livre.')
+      setPublishError(t('selectAccountError'))
       return
     }
     setPublishError(null); setPublishing(true)
@@ -265,9 +267,9 @@ export default function MLPublishPage() {
     return (
       <div className="min-h-screen bg-zinc-950 text-zinc-100 px-4 py-6">
         <Link href={`/dashboard/creative/${productId}/listing/${listingId}`} className="inline-flex items-center gap-2 text-zinc-400 hover:text-zinc-100 mb-4">
-          <ArrowLeft size={14} /> Voltar
+          <ArrowLeft size={14} /> {t('back')}
         </Link>
-        <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">{error ?? 'Listing não encontrado'}</div>
+        <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">{error ?? t('listingNotFound')}</div>
       </div>
     )
   }
@@ -286,12 +288,12 @@ export default function MLPublishPage() {
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <span className="text-lg">🟡</span>
-                <h1 className="text-base font-semibold truncate" title={listing.title}>Publicar no Mercado Livre</h1>
+                <h1 className="text-base font-semibold truncate" title={listing.title}>{t('headerTitle')}</h1>
                 <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-md bg-amber-400/10 text-amber-300 border border-amber-400/20">
-                  PREVIEW
+                  {t('preview')}
                 </span>
               </div>
-              <p className="text-[11px] text-zinc-500 truncate">{product.name} · v{listing.version}</p>
+              <p className="text-[11px] text-zinc-500 truncate">{t('headerSubtitle', { name: product.name, version: listing.version })}</p>
             </div>
           </div>
         </header>
@@ -301,7 +303,7 @@ export default function MLPublishPage() {
           <div className="mb-5 rounded-lg border border-zinc-700 bg-zinc-900/50 p-3 text-xs text-zinc-300 flex items-start gap-2">
             <Lock size={14} className="shrink-0 mt-0.5" />
             <span>
-              <strong>Publicação real desabilitada</strong> — set <code className="font-mono text-cyan-300">CREATIVE_ML_PUBLISH_ENABLED=true</code> no Railway pra ativar. Por enquanto preview-only, JSON copiável.
+              <strong>{t('publishDisabledBannerBold')}</strong>{t('publishDisabledBannerText')}
             </span>
           </div>
         )}
@@ -309,7 +311,7 @@ export default function MLPublishPage() {
           <div className="mb-5 rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3 text-xs text-emerald-200 flex items-start gap-2">
             <CheckCircle2 size={14} className="shrink-0 mt-0.5" />
             <span>
-              <strong>Publicação ATIVA</strong> — anúncios são criados em <code className="font-mono">paused</code> no ML. Você revisa e ativa manualmente lá.
+              <strong>{t('publishEnabledBannerBold')}</strong>{t('publishEnabledBannerText')}
             </span>
           </div>
         )}
@@ -328,7 +330,7 @@ export default function MLPublishPage() {
         {/* Histórico de publicações */}
         {publications.length > 0 && (
           <div className="mb-5">
-            <h3 className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">Publicações desse anúncio</h3>
+            <h3 className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">{t('publicationsHistory')}</h3>
             <div className="space-y-1.5">
               {publications.slice(0, 5).map(p => (
                 <PublicationRow key={p.id} pub={p} accountName={accountName(p.seller_id)} />
@@ -341,9 +343,9 @@ export default function MLPublishPage() {
           {/* LEFT: Form */}
           <div className="space-y-6">
             {/* Conta(s) ML — onde o anúncio será publicado */}
-            <Section icon={<Store size={14} />} title="Conta(s) do Mercado Livre">
+            <Section icon={<Store size={14} />} title={t('accountsSection')}>
               {accounts.length === 0 ? (
-                <p className="text-xs text-zinc-500">Nenhuma conta do Mercado Livre conectada.</p>
+                <p className="text-xs text-zinc-500">{t('noAccounts')}</p>
               ) : (
                 <div className="space-y-1.5">
                   {accounts.map(a => {
@@ -367,7 +369,7 @@ export default function MLPublishPage() {
                         </span>
                         <span className="flex-1 min-w-0">
                           <span className="block text-xs text-zinc-200 font-medium truncate">
-                            {a.nickname ?? `Conta ${a.seller_id}`}
+                            {a.nickname ?? t('accountFallback', { sellerId: a.seller_id })}
                           </span>
                           <span className="block text-[10px] text-zinc-500 font-mono">{a.seller_id}</span>
                         </span>
@@ -381,34 +383,34 @@ export default function MLPublishPage() {
                         selectedSellerIds.length === accounts.length ? [] : accounts.map(a => a.seller_id))}
                       className="text-[11px] text-cyan-400 hover:text-cyan-300"
                     >
-                      {selectedSellerIds.length === accounts.length ? 'Limpar seleção' : 'Selecionar todas as contas'}
+                      {selectedSellerIds.length === accounts.length ? t('clearSelection') : t('selectAllAccounts')}
                     </button>
                   )}
                   <p className="text-[10px] text-zinc-600">
-                    O anúncio é publicado em cada conta selecionada — uma publicação por conta.
+                    {t('accountsHint')}
                   </p>
                 </div>
               )}
             </Section>
 
             {/* Title — editável */}
-            <Section icon={<Tag size={14} />} title="Título do anúncio">
+            <Section icon={<Tag size={14} />} title={t('titleSection')}>
               <input
                 value={title}
                 onChange={e => setTitle(e.target.value)}
-                placeholder="Título do anúncio"
+                placeholder={t('titlePlaceholder')}
                 className="w-full text-xs text-zinc-100 px-3 py-2 rounded-lg bg-zinc-950 border border-zinc-800 outline-none focus:border-cyan-500/60"
               />
               <p className={`text-[10px] mt-1 ${title.length > 60 ? 'text-amber-400' : 'text-zinc-500'}`}>
                 {title.length > 60
-                  ? `⚠️ ${title.length} chars — ML aceita máx 60. Será truncado.`
-                  : `${title.length}/60 caracteres`}
+                  ? t('titleTooLong', { count: title.length })
+                  : t('titleCount', { count: title.length })}
               </p>
             </Section>
 
             {/* Images */}
             <div data-seo-field="pictures">
-              <Section icon={<ImageIcon size={14} />} title="Imagens (1-10)">
+              <Section icon={<ImageIcon size={14} />} title={t('imagesSection')}>
                 <MLImageSelector
                   available={approved_images}
                   selected={imageIds}
@@ -418,9 +420,9 @@ export default function MLPublishPage() {
             </div>
 
             {/* Video */}
-            <Section icon={<Film size={14} />} title="Vídeo (opcional)">
+            <Section icon={<Film size={14} />} title={t('videoSection')}>
               {approved_videos.length === 0 ? (
-                <p className="text-xs text-zinc-500">Nenhum vídeo aprovado disponível.</p>
+                <p className="text-xs text-zinc-500">{t('noApprovedVideos')}</p>
               ) : (
                 <div className="space-y-1.5">
                   <button
@@ -433,7 +435,7 @@ export default function MLPublishPage() {
                         : 'border-zinc-800 bg-zinc-950 text-zinc-400 hover:border-zinc-700',
                     ].join(' ')}
                   >
-                    Sem vídeo
+                    {t('noVideo')}
                   </button>
                   {approved_videos.map(v => (
                     <button
@@ -448,7 +450,7 @@ export default function MLPublishPage() {
                       ].join(' ')}
                     >
                       <span className="font-mono text-[10px] text-zinc-500">#{v.position}</span>
-                      <span className="flex-1">Vídeo {v.duration_seconds}s</span>
+                      <span className="flex-1">{t('videoOption', { duration: v.duration_seconds })}</span>
                       {videoId === v.id && <CheckCircle2 size={12} className="text-cyan-400" />}
                     </button>
                   ))}
@@ -458,30 +460,30 @@ export default function MLPublishPage() {
 
             {/* Category + Attributes */}
             <div data-seo-field="attributes">
-            <Section icon={<Layers size={14} />} title="Categoria & atributos">
+            <Section icon={<Layers size={14} />} title={t('categorySection')}>
               {!preview ? (
-                <p className="text-xs text-zinc-500">Aguardando preview…</p>
+                <p className="text-xs text-zinc-500">{t('waitingPreview')}</p>
               ) : !preview.predicted_category.category_id ? (
                 <div className="flex items-start gap-2 text-xs text-amber-300">
                   <AlertCircle size={12} className="mt-0.5" />
-                  <span>Não foi possível predizer categoria pelo título. (F3 vai permitir busca manual.)</span>
+                  <span>{t('categoryPredictFail')}</span>
                 </div>
               ) : (
                 <div className="space-y-3">
                   <div className="rounded-lg bg-zinc-950 border border-zinc-800 px-3 py-2 text-xs">
                     <div className="flex items-center justify-between">
-                      <span className="text-zinc-400">Categoria predita:</span>
+                      <span className="text-zinc-400">{t('predictedCategory')}</span>
                       <span className="font-mono text-cyan-300 text-[10px]">{preview.predicted_category.category_id}</span>
                     </div>
                     <p className="text-zinc-200 mt-1">{preview.predicted_category.category_name}</p>
                     {preview.predicted_category.domain_name && (
-                      <p className="text-[10px] text-zinc-500 mt-0.5">domínio: {preview.predicted_category.domain_name}</p>
+                      <p className="text-[10px] text-zinc-500 mt-0.5">{t('domain', { name: preview.predicted_category.domain_name })}</p>
                     )}
                   </div>
 
                   <div>
                     <p className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">
-                      Atributos obrigatórios ({preview.required_attributes.length})
+                      {t('requiredAttributes', { count: preview.required_attributes.length })}
                     </p>
                     <MLAttributesForm
                       attributes={preview.required_attributes}
@@ -498,14 +500,13 @@ export default function MLPublishPage() {
             {preview && preview.recommended_attributes.length > 0 && (
               <Section
                 icon={<Sparkles size={14} />}
-                title="Atributos recomendados"
-                actionLabel={aiFilling ? 'Preenchendo…' : 'Preencher com IA'}
+                title={t('recommendedAttributes')}
+                actionLabel={aiFilling ? t('fillingAi') : t('fillWithAi')}
                 onAction={aiFilling ? undefined : fillWithAI}
                 actionLoading={aiFilling}
               >
                 <p className="text-[11px] text-zinc-500 mb-2.5">
-                  A IA preenche pelos dados do produto. O que ela não conseguir determinar fica
-                  como <span className="text-zinc-400">&quot;Não se aplica&quot;</span> — você pode ajustar qualquer campo.
+                  {t('recommendedAttributesIntro')}<span className="text-zinc-400">{t('notApplicable')}</span>{t('recommendedAttributesIntroSuffix')}
                 </p>
                 {aiError && (
                   <div className="mb-2.5 rounded-lg border border-red-500/30 bg-red-500/10 p-2 text-[11px] text-red-200 flex items-start gap-1.5">
@@ -522,7 +523,7 @@ export default function MLPublishPage() {
             )}
 
             {/* Markup / precificação — calcula o preço de venda pela margem alvo */}
-            <Section icon={<Calculator size={14} />} title="Markup / Precificação">
+            <Section icon={<Calculator size={14} />} title={t('markupSection')}>
               <MarkupPanel
                 defaultFeePercent={fallbackFeeRate(listingType)}
                 currentPrice={price}
@@ -535,33 +536,33 @@ export default function MLPublishPage() {
             </Section>
 
             {/* Pricing */}
-            <Section icon={<DollarSign size={14} />} title="Preço & estoque">
+            <Section icon={<DollarSign size={14} />} title={t('pricingSection')}>
               {sku_suggestion && (
                 <div className="rounded-lg bg-cyan-400/5 border border-cyan-400/30 p-2 text-[11px] text-cyan-200 mb-3 flex items-start gap-2">
                   <Package size={11} className="mt-0.5 shrink-0" />
                   <span>
-                    Match SKU <strong>{sku_suggestion.sku}</strong>:
-                    {sku_suggestion.price != null && ` preço R$ ${sku_suggestion.price.toFixed(2)},`}
-                    {sku_suggestion.stock != null && ` estoque ${sku_suggestion.stock}.`}
-                    {' '}Pré-preenchido — ajuste se quiser.
+                    {t.rich('skuMatch', { sku: sku_suggestion.sku, b: (chunks) => <strong>{chunks}</strong> })}
+                    {sku_suggestion.price != null && t('skuMatchPrice', { price: sku_suggestion.price.toFixed(2) })}
+                    {sku_suggestion.stock != null && t('skuMatchStock', { stock: sku_suggestion.stock })}
+                    {t('skuMatchHint')}
                   </span>
                 </div>
               )}
               <div className="grid grid-cols-2 gap-3">
-                <NumberField label="Preço (R$) *" value={price} onChange={setPrice} placeholder="99.90" step="0.01" />
-                <NumberField label="Estoque *"     value={stock} onChange={setStock} placeholder="10" step="1" />
+                <NumberField label={t('fieldPrice')} value={price} onChange={setPrice} placeholder="99.90" step="0.01" />
+                <NumberField label={t('fieldStock')} value={stock} onChange={setStock} placeholder="10" step="1" />
               </div>
             </Section>
 
             {/* Listing type + condition */}
-            <Section icon={<Sparkles size={14} />} title="Tipo de anúncio & condição">
+            <Section icon={<Sparkles size={14} />} title={t('listingTypeSection')}>
               <div className="space-y-3">
                 <div>
                   <div className="flex items-center gap-2 mb-1.5">
-                    <p className="text-[10px] uppercase tracking-wider text-zinc-500">Modalidade</p>
+                    <p className="text-[10px] uppercase tracking-wider text-zinc-500">{t('modality')}</p>
                     {listingTypesFromApi !== null && (
-                      <span className="text-[9px] text-cyan-300/70" title="Lista vem da API do Mercado Livre">
-                        · ML API
+                      <span className="text-[9px] text-cyan-300/70" title={t('mlApiTooltip')}>
+                        {t('mlApiBadge')}
                       </span>
                     )}
                   </div>
@@ -603,7 +604,7 @@ export default function MLPublishPage() {
                   </div>
                 </div>
                 <div>
-                  <p className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">Condição</p>
+                  <p className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">{t('condition')}</p>
                   <div className="flex gap-1.5">
                     {ML_CONDITION_OPTIONS.map(o => (
                       <button
@@ -626,8 +627,8 @@ export default function MLPublishPage() {
 
           {/* RIGHT: Preview */}
           <div className="space-y-4 lg:sticky lg:top-4 lg:self-start">
-            <Section icon={<Eye size={14} />} title="Preview do payload ML"
-              actionLabel={previewing ? 'Atualizando…' : 'Atualizar'}
+            <Section icon={<Eye size={14} />} title={t('previewSection')}
+              actionLabel={previewing ? t('updating') : t('update')}
               onAction={previewing ? undefined : buildPreview}
               actionLoading={previewing}
             >
@@ -638,7 +639,7 @@ export default function MLPublishPage() {
               )}
 
               {!preview && !previewError && (
-                <div className="text-xs text-zinc-500 px-3 py-6 text-center">Aguardando preview…</div>
+                <div className="text-xs text-zinc-500 px-3 py-6 text-center">{t('waitingPreviewShort')}</div>
               )}
 
               {preview && (
@@ -651,7 +652,7 @@ export default function MLPublishPage() {
                       : 'bg-amber-400/10 text-amber-200 border border-amber-400/30',
                   ].join(' ')}>
                     {preview.ready ? <CheckCircle2 size={12} /> : <AlertCircle size={12} />}
-                    {preview.ready ? 'Pronto pra publicação (F3)' : `${preview.warnings.length} pendência${preview.warnings.length === 1 ? '' : 's'}`}
+                    {preview.ready ? t('readyToPublish') : t('pendingCount', { count: preview.warnings.length })}
                   </div>
 
                   {/* Warnings */}
@@ -669,7 +670,7 @@ export default function MLPublishPage() {
                   {/* JSON preview */}
                   <details className="rounded-lg border border-zinc-800 bg-zinc-950" open={false}>
                     <summary className="cursor-pointer px-3 py-2 text-xs text-zinc-300 hover:bg-zinc-900">
-                      Payload JSON (copiável)
+                      {t('payloadJson')}
                     </summary>
                     <pre className="px-3 py-2 text-[10px] text-zinc-300 max-h-96 overflow-auto leading-relaxed">
 {JSON.stringify(preview.ml_payload, null, 2)}
@@ -680,7 +681,7 @@ export default function MLPublishPage() {
                         onClick={() => navigator.clipboard.writeText(JSON.stringify(preview.ml_payload, null, 2))}
                         className="text-[10px] text-cyan-400 hover:text-cyan-300"
                       >
-                        copiar JSON
+                        {t('copyJson')}
                       </button>
                     </div>
                   </details>
@@ -691,9 +692,9 @@ export default function MLPublishPage() {
                       type="button"
                       disabled
                       className="w-full flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-500 text-xs font-semibold cursor-not-allowed"
-                      title="Setar CREATIVE_ML_PUBLISH_ENABLED=true no Railway pra ativar"
+                      title={t('publishDisabledBtnTooltip')}
                     >
-                      <Lock size={12} /> Publicação desabilitada
+                      <Lock size={12} /> {t('publishDisabledBtn')}
                     </button>
                   ) : !preview.ready ? (
                     <button
@@ -701,7 +702,7 @@ export default function MLPublishPage() {
                       disabled
                       className="w-full flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-500 text-xs font-semibold cursor-not-allowed"
                     >
-                      <AlertCircle size={12} /> Resolver pendências antes de publicar
+                      <AlertCircle size={12} /> {t('resolvePending')}
                     </button>
                   ) : (
                     <button
@@ -710,7 +711,7 @@ export default function MLPublishPage() {
                       style={{ ['--glow-color' as string]: '#34d399' }}
                       className="submit-glow w-full flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-semibold"
                     >
-                      <Send size={12} /> Publicar agora no ML (paused)
+                      <Send size={12} /> {t('publishNow')}
                     </button>
                   )}
                 </div>
@@ -727,7 +728,7 @@ export default function MLPublishPage() {
             <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800">
               <div className="flex items-center gap-2">
                 <Send size={14} className="text-emerald-400" />
-                <h3 className="text-sm font-semibold">Publicar no Mercado Livre</h3>
+                <h3 className="text-sm font-semibold">{t('confirmTitle')}</h3>
               </div>
               <button onClick={() => setConfirmOpen(false)} disabled={publishing} className="text-zinc-500 hover:text-zinc-200">
                 <X size={16} />
@@ -738,31 +739,30 @@ export default function MLPublishPage() {
               <div className="rounded-lg bg-amber-500/5 border border-amber-500/30 p-3 text-xs text-amber-200 flex items-start gap-2">
                 <AlertCircle size={12} className="shrink-0 mt-0.5" />
                 <span>
-                  Anúncio será criado com status <code className="font-mono">paused</code>.
-                  Você precisa abrir no ML, revisar e <strong>ativar manualmente</strong> pra ficar visível.
+                  {t.rich('pausedWarning', { b: (chunks) => <strong>{chunks}</strong> })}
                 </span>
               </div>
 
               <ul className="text-xs text-zinc-300 space-y-1">
                 <li>
-                  <span className="text-zinc-500">Conta(s):</span>{' '}
+                  <span className="text-zinc-500">{t('confirmAccounts')}</span>{' '}
                   <strong className="text-emerald-300">
                     {selectedSellerIds.length === 0
-                      ? 'nenhuma selecionada'
+                      ? t('noneSelected')
                       : selectedSellerIds.map(s => accountName(s)).join(', ')}
                   </strong>
                 </li>
-                <li><span className="text-zinc-500">Título:</span> {title.slice(0, 60)}</li>
-                <li><span className="text-zinc-500">Categoria:</span> {preview.predicted_category.category_id ?? '—'}</li>
-                <li><span className="text-zinc-500">Imagens:</span> {imageIds.length}</li>
-                <li><span className="text-zinc-500">Preço:</span> R$ {(Number(price) || 0).toFixed(2)}</li>
-                <li><span className="text-zinc-500">Estoque:</span> {Number(stock) || 0} un</li>
-                <li><span className="text-zinc-500">Modalidade:</span> {listingType}</li>
+                <li><span className="text-zinc-500">{t('confirmTitleLabel')}</span> {title.slice(0, 60)}</li>
+                <li><span className="text-zinc-500">{t('confirmCategory')}</span> {preview.predicted_category.category_id ?? '—'}</li>
+                <li><span className="text-zinc-500">{t('confirmImages')}</span> {imageIds.length}</li>
+                <li><span className="text-zinc-500">{t('confirmPrice')}</span> R$ {(Number(price) || 0).toFixed(2)}</li>
+                <li><span className="text-zinc-500">{t('confirmStock')}</span> {t('confirmStockUnit', { count: Number(stock) || 0 })}</li>
+                <li><span className="text-zinc-500">{t('confirmModality')}</span> {listingType}</li>
               </ul>
 
               {storefrontAlready ? (
                 <p className="rounded-lg bg-cyan-500/5 border border-cyan-500/25 p-3 text-xs text-cyan-200">
-                  ✓ Este produto já está na sua loja própria.
+                  {t('storefrontAlready')}
                 </p>
               ) : (
                 <label className="flex items-start gap-2 rounded-lg bg-cyan-500/5 border border-cyan-500/25 p-3 text-xs cursor-pointer">
@@ -770,15 +770,14 @@ export default function MLPublishPage() {
                     onChange={e => setAlsoStorefront(e.target.checked)}
                     className="w-4 h-4 accent-cyan-400 shrink-0 mt-0.5" />
                   <span className="text-zinc-300">
-                    Enviar este produto também para a <strong className="text-cyan-300">loja própria</strong> (vitrine /loja).
+                    {t.rich('alsoStorefront', { b: (chunks) => <strong className="text-cyan-300">{chunks}</strong> })}
                   </span>
                 </label>
               )}
 
               {videoId && (
                 <p className="text-[11px] text-amber-300">
-                  ℹ️ Vídeo selecionado: tentaremos upload pro ML. Se a API rejeitar (depende da região/conta),
-                  o anúncio publica sem vídeo e a razão fica registrada no histórico.
+                  {t('videoUploadNote')}
                 </p>
               )}
 
@@ -793,15 +792,15 @@ export default function MLPublishPage() {
             <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-zinc-800">
               <button onClick={() => setConfirmOpen(false)} disabled={publishing}
                 className="px-3 py-1.5 rounded-lg text-zinc-400 hover:text-zinc-200 text-xs">
-                Cancelar
+                {t('cancel')}
               </button>
               <button onClick={publish} disabled={publishing || selectedSellerIds.length === 0}
                 style={{ ['--glow-color' as string]: '#34d399' }}
                 className="submit-glow flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-black text-xs font-semibold">
                 {publishing ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
                 {selectedSellerIds.length > 1
-                  ? `Publicar em ${selectedSellerIds.length} contas`
-                  : 'Confirmar publicação'}
+                  ? t('publishInAccounts', { count: selectedSellerIds.length })
+                  : t('confirmPublish')}
               </button>
             </div>
           </div>
@@ -814,6 +813,7 @@ export default function MLPublishPage() {
 // ── Sub-components ────────────────────────────────────────────────────────
 
 function PublicationRow({ pub: initial, accountName }: { pub: CreativePublication; accountName: string | null }) {
+  const t = useTranslations('creative.publish')
   const [pub, setPub] = useState(initial)
   const [syncing, setSyncing] = useState(false)
   const [syncError, setSyncError] = useState<string | null>(null)
@@ -831,17 +831,17 @@ function PublicationRow({ pub: initial, accountName }: { pub: CreativePublicatio
       const updated = await CreativeApi.acknowledgeDegradation(pub.id)
       setPub(updated)
     } catch (e: unknown) {
-      await alertDialog({ title: 'Erro', message: (e as Error).message, variant: 'danger' })
+      await alertDialog({ title: t('errorTitle'), message: (e as Error).message, variant: 'danger' })
     } finally {
       setAcking(false)
     }
   }
 
   const cfg: Record<CreativePublication['status'], { label: string; className: string }> = {
-    pending:    { label: 'pendente',    className: 'bg-zinc-900 text-zinc-400 border-zinc-700' },
-    publishing: { label: 'publicando',  className: 'bg-cyan-400/10 text-cyan-300 border-cyan-400/30' },
-    published:  { label: '✓ publicado', className: 'bg-emerald-400/10 text-emerald-300 border-emerald-400/30' },
-    failed:     { label: '✗ falhou',    className: 'bg-red-500/10 text-red-300 border-red-500/30' },
+    pending:    { label: t('pubStatusPending'),    className: 'bg-zinc-900 text-zinc-400 border-zinc-700' },
+    publishing: { label: t('pubStatusPublishing'), className: 'bg-cyan-400/10 text-cyan-300 border-cyan-400/30' },
+    published:  { label: t('pubStatusPublished'),  className: 'bg-emerald-400/10 text-emerald-300 border-emerald-400/30' },
+    failed:     { label: t('pubStatusFailed'),     className: 'bg-red-500/10 text-red-300 border-red-500/30' },
   }
   const c = cfg[pub.status]
 
@@ -868,8 +868,13 @@ function PublicationRow({ pub: initial, accountName }: { pub: CreativePublicatio
           <div className="flex items-center gap-1.5 min-w-0">
             <AlertCircle size={12} className="shrink-0" />
             <span className="truncate">
-              <strong>Anúncio rebaixado</strong> — passou de <code className="font-mono">{pub.degraded_from_status}</code> pra <code className="font-mono">{pub.degraded_to_status}</code>{' '}
-              em {new Date(pub.degraded_at!).toLocaleString('pt-BR')}. Considere regerar nova versão.
+              {t.rich('degradedText', {
+                from: pub.degraded_from_status ?? '',
+                to:   pub.degraded_to_status ?? '',
+                date: new Date(pub.degraded_at!).toLocaleString('pt-BR'),
+                b:    (chunks) => <strong>{chunks}</strong>,
+                code: (chunks) => <code className="font-mono">{chunks}</code>,
+              })}
             </span>
           </div>
           <button
@@ -878,7 +883,7 @@ function PublicationRow({ pub: initial, accountName }: { pub: CreativePublicatio
             disabled={acking}
             className="shrink-0 text-[10px] text-amber-300 hover:text-amber-100 disabled:opacity-50"
           >
-            {acking ? '…' : 'dispensar alerta'}
+            {acking ? '…' : t('dismissAlert')}
           </button>
         </div>
       )}
@@ -907,10 +912,10 @@ function PublicationRow({ pub: initial, accountName }: { pub: CreativePublicatio
               onClick={sync}
               disabled={syncing}
               className="flex items-center gap-1 text-[10px] text-zinc-500 hover:text-cyan-300 disabled:opacity-50"
-              title="Sincronizar status com ML"
+              title={t('syncTooltip')}
             >
               {syncing ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />}
-              sync
+              {t('sync')}
             </button>
           )}
           {pub.external_url && (
@@ -920,7 +925,7 @@ function PublicationRow({ pub: initial, accountName }: { pub: CreativePublicatio
               rel="noopener noreferrer"
               className="flex items-center gap-1 text-[10px] text-amber-300 hover:text-amber-200"
             >
-              <ExternalLink size={10} /> ver no ML
+              <ExternalLink size={10} /> {t('viewOnMl')}
             </a>
           )}
         </div>
@@ -931,26 +936,27 @@ function PublicationRow({ pub: initial, accountName }: { pub: CreativePublicatio
         </p>
       )}
       {syncError && (
-        <p className="mt-1 text-[10px] text-red-300">sync: {syncError}</p>
+        <p className="mt-1 text-[10px] text-red-300">{t('syncError', { error: syncError })}</p>
       )}
     </div>
   )
 }
 
 function MlStatusBadge({ status, syncedAt }: { status: string; syncedAt: string | null }) {
+  const t = useTranslations('creative.publish')
   const cfg: Record<string, { label: string; className: string }> = {
-    active:           { label: 'ativo',          className: 'bg-emerald-400/10 text-emerald-300 border-emerald-400/30' },
-    paused:           { label: 'pausado',        className: 'bg-amber-400/10 text-amber-300 border-amber-400/30' },
-    closed:           { label: 'encerrado',      className: 'bg-zinc-800 text-zinc-400 border-zinc-700' },
-    under_review:     { label: 'em revisão',     className: 'bg-blue-400/10 text-blue-300 border-blue-400/30' },
-    inactive:         { label: 'inativo',        className: 'bg-red-500/10 text-red-300 border-red-500/30' },
-    payment_required: { label: 'pagto pendente', className: 'bg-red-500/10 text-red-300 border-red-500/30' },
+    active:           { label: t('mlStatusActive'),          className: 'bg-emerald-400/10 text-emerald-300 border-emerald-400/30' },
+    paused:           { label: t('mlStatusPaused'),          className: 'bg-amber-400/10 text-amber-300 border-amber-400/30' },
+    closed:           { label: t('mlStatusClosed'),          className: 'bg-zinc-800 text-zinc-400 border-zinc-700' },
+    under_review:     { label: t('mlStatusUnderReview'),     className: 'bg-blue-400/10 text-blue-300 border-blue-400/30' },
+    inactive:         { label: t('mlStatusInactive'),        className: 'bg-red-500/10 text-red-300 border-red-500/30' },
+    payment_required: { label: t('mlStatusPaymentRequired'), className: 'bg-red-500/10 text-red-300 border-red-500/30' },
   }
   const c = cfg[status] ?? { label: status, className: 'bg-zinc-900 text-zinc-300 border-zinc-700' }
-  const hint = syncedAt ? `Sincronizado em ${new Date(syncedAt).toLocaleString('pt-BR')}` : 'Não sincronizado'
+  const hint = syncedAt ? t('mlSyncedAt', { date: new Date(syncedAt).toLocaleString('pt-BR') }) : t('mlNotSynced')
   return (
     <span title={hint} className={`px-2 py-0.5 rounded-full text-[10px] border ${c.className}`}>
-      ML: {c.label}
+      {t('mlStatusBadge', { status: c.label })}
     </span>
   )
 }

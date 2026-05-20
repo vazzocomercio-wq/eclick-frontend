@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import {
   Map as MapIcon, ChevronDown, ChevronRight, Plus, Pencil, Loader2,
@@ -40,19 +41,17 @@ type FilterKey = 'all' | 'done' | 'wip' | 'new' | 'planned'
 
 // ── Status palette ────────────────────────────────────────────────────────────
 
-const STATUS: Record<RoadmapStatus, { label: string; color: string; bg: string; border: string }> = {
-  done:    { label: 'Concluído',    color: '#22d3a0', bg: 'rgba(34,211,160,0.10)', border: 'rgba(34,211,160,0.30)' },
-  wip:     { label: 'Em andamento', color: '#f59e0b', bg: 'rgba(245,158,11,0.10)', border: 'rgba(245,158,11,0.30)' },
-  next:    { label: 'Próximo',      color: '#378ADD', bg: 'rgba(55,138,221,0.10)', border: 'rgba(55,138,221,0.30)' },
-  new:     { label: 'Novo módulo',  color: '#a78bfa', bg: 'rgba(167,139,250,0.10)', border: 'rgba(167,139,250,0.30)' },
-  planned: { label: 'Planejado',    color: '#6b6b80', bg: 'rgba(107,107,128,0.10)', border: 'rgba(107,107,128,0.30)' },
+// Paleta de status — label vem da tradução via `t('status.<key>')`.
+const STATUS: Record<RoadmapStatus, { color: string; bg: string; border: string }> = {
+  done:    { color: '#22d3a0', bg: 'rgba(34,211,160,0.10)', border: 'rgba(34,211,160,0.30)' },
+  wip:     { color: '#f59e0b', bg: 'rgba(245,158,11,0.10)', border: 'rgba(245,158,11,0.30)' },
+  next:    { color: '#378ADD', bg: 'rgba(55,138,221,0.10)', border: 'rgba(55,138,221,0.30)' },
+  new:     { color: '#a78bfa', bg: 'rgba(167,139,250,0.10)', border: 'rgba(167,139,250,0.30)' },
+  planned: { color: '#6b6b80', bg: 'rgba(107,107,128,0.10)', border: 'rgba(107,107,128,0.30)' },
 }
+const STATUS_KEYS: RoadmapStatus[] = ['done', 'wip', 'next', 'new', 'planned']
 
-const PRIORITY_LABEL: Record<number, { label: string; color: string }> = {
-  0: { label: '',        color: '' },
-  1: { label: 'ALTA',    color: '#f59e0b' },
-  2: { label: 'URGENTE', color: '#ef4444' },
-}
+const PRIORITY_COLOR: Record<number, string> = { 0: '', 1: '#f59e0b', 2: '#ef4444' }
 
 function StatusIcon({ status, size = 14 }: { status: RoadmapStatus; size?: number }) {
   const c = STATUS[status].color
@@ -66,12 +65,13 @@ function StatusIcon({ status, size = 14 }: { status: RoadmapStatus; size?: numbe
 }
 
 function StatusBadge({ status }: { status: RoadmapStatus }) {
+  const t = useTranslations('roadmap')
   const cfg = STATUS[status]
   return (
     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold"
       style={{ background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}` }}>
       <span className="w-1.5 h-1.5 rounded-full" style={{ background: cfg.color }} />
-      {cfg.label}
+      {t(`status.${status}`)}
     </span>
   )
 }
@@ -79,6 +79,7 @@ function StatusBadge({ status }: { status: RoadmapStatus }) {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function RoadmapPage() {
+  const t = useTranslations('roadmap')
   const [phases, setPhases]   = useState<RoadmapPhase[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError]     = useState<string | null>(null)
@@ -103,7 +104,7 @@ export default function RoadmapPage() {
       if (!res.ok) {
         const body = await res.text().catch(() => '')
         console.error('[roadmap] fetch HTTP', res.status, body)
-        setError(`Erro ao carregar roadmap (HTTP ${res.status})`)
+        setError(t('errorLoadHttp', { status: res.status }))
         return
       }
       const data = await res.json() as RoadmapPhase[]
@@ -114,11 +115,11 @@ export default function RoadmapPage() {
       setExpanded(exp)
     } catch (err) {
       console.error('[roadmap] fetch falhou:', err)
-      setError('Erro ao carregar roadmap')
+      setError(t('errorLoad'))
     } finally {
       setLoading(false)
     }
-  }, [getHeaders])
+  }, [getHeaders, t])
 
   useEffect(() => { load() }, [load])
 
@@ -152,9 +153,9 @@ export default function RoadmapPage() {
 
   async function deleteItem(id: string) {
     const ok = await confirm({
-      title:        'Remover ideia',
-      message:      'Remover essa ideia do roadmap?',
-      confirmLabel: 'Remover',
+      title:        t('removeIdeaTitle'),
+      message:      t('removeIdeaMessage'),
+      confirmLabel: t('remove'),
       variant:      'danger',
     })
     if (!ok) return
@@ -168,16 +169,16 @@ export default function RoadmapPage() {
       {/* Header */}
       <div className="flex items-end justify-between gap-4">
         <div>
-          <p className="text-zinc-500 text-xs font-medium tracking-widest uppercase mb-1">Dashboard</p>
+          <p className="text-zinc-500 text-xs font-medium tracking-widest uppercase mb-1">{t('eyebrow')}</p>
           <h1 className="text-white text-3xl font-semibold flex items-center gap-2">
-            <MapIcon size={22} style={{ color: '#00E5FF' }} /> Roadmap
+            <MapIcon size={22} style={{ color: '#00E5FF' }} /> {t('title')}
           </h1>
-          <p className="text-zinc-500 text-sm mt-1">8 fases · versão 2.0 · {counts.all} itens</p>
+          <p className="text-zinc-500 text-sm mt-1">{t('subtitle', { count: counts.all })}</p>
         </div>
         <button onClick={() => setNewIdea({})}
           className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-colors"
           style={{ background: '#00E5FF', color: '#000' }}>
-          <Plus size={13} /> Nova ideia
+          <Plus size={13} /> {t('newIdea')}
         </button>
       </div>
 
@@ -185,31 +186,31 @@ export default function RoadmapPage() {
       {error && (
         <div className="rounded-lg p-3 text-sm"
           style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>
-          {error} · veja DevTools → Console pra detalhes
+          {t('errorBanner', { error })}
         </div>
       )}
 
       {/* Filters */}
       <div className="flex flex-wrap gap-1" style={{ borderBottom: '1px solid #1a1a1f' }}>
         {([
-          { k: 'all',     label: 'Todas',        count: counts.all     },
-          { k: 'done',    label: 'Concluído',    count: counts.done    },
-          { k: 'wip',     label: 'Em andamento', count: counts.wip     },
-          { k: 'new',     label: 'Novo',         count: counts.new     },
-          { k: 'planned', label: 'Planejado',    count: counts.planned },
-        ] as const).map(t => (
-          <button key={t.k} onClick={() => setFilter(t.k)}
+          { k: 'all',     count: counts.all     },
+          { k: 'done',    count: counts.done    },
+          { k: 'wip',     count: counts.wip     },
+          { k: 'new',     count: counts.new     },
+          { k: 'planned', count: counts.planned },
+        ] as const).map(tab => (
+          <button key={tab.k} onClick={() => setFilter(tab.k)}
             className="px-4 py-2.5 text-sm font-medium transition-colors relative"
-            style={filter === t.k
+            style={filter === tab.k
               ? { color: '#00E5FF', borderBottom: '2px solid #00E5FF', marginBottom: -1 }
               : { color: '#a1a1aa' }}>
-            {t.label}
-            {t.count > 0 && (
+            {t(`filters.${tab.k}`)}
+            {tab.count > 0 && (
               <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full"
-                style={filter === t.k
+                style={filter === tab.k
                   ? { background: '#00E5FF1a', color: '#00E5FF' }
                   : { background: '#1a1a1f', color: '#3f3f46' }}>
-                {t.count}
+                {tab.count}
               </span>
             )}
           </button>
@@ -226,7 +227,7 @@ export default function RoadmapPage() {
       ) : filteredPhases.length === 0 ? (
         <div className="rounded-xl p-8 text-center"
           style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
-          <p className="text-sm text-zinc-500">Nenhuma fase com itens nesse filtro.</p>
+          <p className="text-sm text-zinc-500">{t('noPhases')}</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -259,8 +260,8 @@ export default function RoadmapPage() {
                   <span onClick={e => { e.stopPropagation(); setNewIdea({ phaseId: phase.id }) }}
                     className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium transition-colors cursor-pointer hover:bg-white/5"
                     style={{ color: '#a1a1aa', border: '1px solid #1a1a1f' }}
-                    title="Adicionar ideia nesta fase">
-                    <Plus size={10} /> Ideia
+                    title={t('addIdeaToPhase')}>
+                    <Plus size={10} /> {t('idea')}
                   </span>
                 </button>
 
@@ -268,7 +269,7 @@ export default function RoadmapPage() {
                 {isExp && (
                   <div className="px-4 pb-4 pt-1" style={{ borderTop: '1px solid #1a1a1f' }}>
                     {phase.items.length === 0 ? (
-                      <p className="text-xs text-zinc-600 py-3">Sem itens nessa fase. Adicione uma ideia 👆</p>
+                      <p className="text-xs text-zinc-600 py-3">{t('noItemsInPhase')}</p>
                     ) : (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-3">
                         {phase.items.map(item => (
@@ -314,13 +315,15 @@ function ItemCard({ item, isEditing, onEdit, onCancel, onSave, onDelete }: {
   onSave:    (patch: Partial<Pick<RoadmapItem, 'status' | 'label' | 'priority' | 'notes'>>) => Promise<void>
   onDelete:  () => void
 }) {
+  const t = useTranslations('roadmap')
   const cfg = STATUS[item.status]
   const [status, setStatus]     = useState<RoadmapStatus>(item.status)
   const [priority, setPriority] = useState<number>(item.priority)
   const [notes, setNotes]       = useState<string>(item.notes ?? '')
   const [saving, setSaving]     = useState(false)
 
-  const prio = PRIORITY_LABEL[item.priority]
+  const prioColor = PRIORITY_COLOR[item.priority] ?? ''
+  const prioLabel = item.priority === 1 ? t('priorityHigh') : item.priority === 2 ? t('priorityUrgent') : ''
 
   if (isEditing) {
     return (
@@ -332,33 +335,33 @@ function ItemCard({ item, isEditing, onEdit, onCancel, onSave, onDelete }: {
           <select value={status} onChange={e => setStatus(e.target.value as RoadmapStatus)}
             className="px-2 py-1.5 text-[11px] rounded bg-[#070709] text-zinc-200 outline-none focus:border-[#00E5FF]"
             style={{ border: '1px solid #27272a' }}>
-            {(Object.keys(STATUS) as RoadmapStatus[]).map(s => (
-              <option key={s} value={s}>{STATUS[s].label}</option>
+            {STATUS_KEYS.map(s => (
+              <option key={s} value={s}>{t(`status.${s}`)}</option>
             ))}
           </select>
           <select value={priority} onChange={e => setPriority(Number(e.target.value))}
             className="px-2 py-1.5 text-[11px] rounded bg-[#070709] text-zinc-200 outline-none"
             style={{ border: '1px solid #27272a' }}>
-            <option value={0}>Normal</option>
-            <option value={1}>Alta</option>
-            <option value={2}>Urgente</option>
+            <option value={0}>{t('priorityNormal')}</option>
+            <option value={1}>{t('priorityHighOpt')}</option>
+            <option value={2}>{t('priorityUrgentOpt')}</option>
           </select>
         </div>
 
         <textarea value={notes} onChange={e => setNotes(e.target.value)}
-          placeholder="Notas (opcional)…" rows={2}
+          placeholder={t('notesPlaceholder')} rows={2}
           className="w-full px-2 py-1.5 text-[11px] rounded bg-[#070709] text-zinc-200 outline-none resize-none"
           style={{ border: '1px solid #27272a' }} />
 
         <div className="flex items-center justify-between gap-2">
           <button onClick={onDelete}
             className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] text-zinc-500 hover:text-red-400 transition-colors">
-            <Trash2 size={10} /> Remover
+            <Trash2 size={10} /> {t('remove')}
           </button>
           <div className="flex items-center gap-1">
             <button onClick={onCancel}
               className="px-2 py-1 rounded text-[10px] text-zinc-400"
-              style={{ background: '#1e1e24' }}>Cancelar</button>
+              style={{ background: '#1e1e24' }}>{t('cancel')}</button>
             <button onClick={async () => {
                 setSaving(true)
                 await onSave({ status, priority, notes: notes.trim() || null })
@@ -367,7 +370,7 @@ function ItemCard({ item, isEditing, onEdit, onCancel, onSave, onDelete }: {
               className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-semibold disabled:opacity-50"
               style={{ background: '#00E5FF', color: '#000' }}>
               {saving ? <Loader2 size={10} className="animate-spin" /> : <Save size={10} />}
-              Salvar
+              {t('save')}
             </button>
           </div>
         </div>
@@ -383,10 +386,10 @@ function ItemCard({ item, isEditing, onEdit, onCancel, onSave, onDelete }: {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <p className="text-xs text-zinc-200">{item.label}</p>
-            {prio.label && (
+            {prioLabel && (
               <span className="text-[9px] font-bold px-1.5 py-0.5 rounded"
-                style={{ background: `${prio.color}1a`, color: prio.color, border: `1px solid ${prio.color}55` }}>
-                {prio.label}
+                style={{ background: `${prioColor}1a`, color: prioColor, border: `1px solid ${prioColor}55` }}>
+                {prioLabel}
               </span>
             )}
           </div>
@@ -412,6 +415,7 @@ function NewIdeaModal({ phases, presetPhaseId, onClose, onSaved, getHeaders }: {
   onSaved:       () => void | Promise<void>
   getHeaders:    () => Promise<Record<string, string>>
 }) {
+  const t = useTranslations('roadmap')
   const [phaseId, setPhaseId]   = useState<string>(presetPhaseId ?? phases[0]?.id ?? '')
   const [label, setLabel]       = useState('')
   const [status, setStatus]     = useState<RoadmapStatus>('new')
@@ -445,14 +449,14 @@ function NewIdeaModal({ phases, presetPhaseId, onClose, onSaved, getHeaders }: {
         <header className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid #1e1e24' }}>
           <div className="flex items-center gap-2">
             <Plus size={15} style={{ color: '#00E5FF' }} />
-            <p className="text-sm font-semibold text-white">Adicionar ideia ao roadmap</p>
+            <p className="text-sm font-semibold text-white">{t('modalTitle')}</p>
           </div>
-          <button onClick={onClose} className="text-zinc-500 hover:text-zinc-300"><X size={16} /></button>
+          <button onClick={onClose} className="text-zinc-500 hover:text-zinc-300" aria-label={t('close')}><X size={16} /></button>
         </header>
 
         <div className="px-5 py-5 space-y-3">
           <div>
-            <label className="block text-xs text-zinc-400 mb-1">Fase</label>
+            <label className="block text-xs text-zinc-400 mb-1">{t('fieldPhase')}</label>
             <select value={phaseId} onChange={e => setPhaseId(e.target.value)}
               className="w-full px-3 py-2 text-sm rounded-lg bg-[#070709] text-zinc-200 outline-none focus:border-[#00E5FF]"
               style={{ border: '1px solid #27272a' }}>
@@ -463,40 +467,40 @@ function NewIdeaModal({ phases, presetPhaseId, onClose, onSaved, getHeaders }: {
           </div>
 
           <div>
-            <label className="block text-xs text-zinc-400 mb-1">Descrição da ideia</label>
+            <label className="block text-xs text-zinc-400 mb-1">{t('fieldIdeaDescription')}</label>
             <input value={label} onChange={e => setLabel(e.target.value)} autoFocus
-              placeholder="ex.: Importação CSV de clientes"
+              placeholder={t('ideaPlaceholder')}
               className="w-full px-3 py-2 text-sm rounded-lg bg-[#070709] text-zinc-200 outline-none focus:border-[#00E5FF]"
               style={{ border: '1px solid #27272a' }} />
           </div>
 
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="block text-xs text-zinc-400 mb-1">Status</label>
+              <label className="block text-xs text-zinc-400 mb-1">{t('fieldStatus')}</label>
               <select value={status} onChange={e => setStatus(e.target.value as RoadmapStatus)}
                 className="w-full px-3 py-2 text-sm rounded-lg bg-[#070709] text-zinc-200 outline-none"
                 style={{ border: '1px solid #27272a' }}>
-                {(Object.keys(STATUS) as RoadmapStatus[]).map(s => (
-                  <option key={s} value={s}>{STATUS[s].label}</option>
+                {STATUS_KEYS.map(s => (
+                  <option key={s} value={s}>{t(`status.${s}`)}</option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="block text-xs text-zinc-400 mb-1">Prioridade</label>
+              <label className="block text-xs text-zinc-400 mb-1">{t('fieldPriority')}</label>
               <select value={priority} onChange={e => setPriority(Number(e.target.value))}
                 className="w-full px-3 py-2 text-sm rounded-lg bg-[#070709] text-zinc-200 outline-none"
                 style={{ border: '1px solid #27272a' }}>
-                <option value={0}>Normal</option>
-                <option value={1}>Alta</option>
-                <option value={2}>Urgente</option>
+                <option value={0}>{t('priorityNormal')}</option>
+                <option value={1}>{t('priorityHighOpt')}</option>
+                <option value={2}>{t('priorityUrgentOpt')}</option>
               </select>
             </div>
           </div>
 
           <div>
-            <label className="block text-xs text-zinc-400 mb-1">Notas (opcional)</label>
+            <label className="block text-xs text-zinc-400 mb-1">{t('fieldNotes')}</label>
             <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3}
-              placeholder="Contexto, links, restrições…"
+              placeholder={t('modalNotesPlaceholder')}
               className="w-full px-3 py-2 text-xs rounded-lg bg-[#070709] text-zinc-200 outline-none resize-none focus:border-[#00E5FF]"
               style={{ border: '1px solid #27272a' }} />
           </div>
@@ -505,12 +509,12 @@ function NewIdeaModal({ phases, presetPhaseId, onClose, onSaved, getHeaders }: {
         <div className="flex justify-end gap-2 px-5 py-4" style={{ borderTop: '1px solid #1e1e24' }}>
           <button onClick={onClose}
             className="px-4 py-2 rounded-xl text-sm text-zinc-400"
-            style={{ background: '#1e1e24' }}>Cancelar</button>
+            style={{ background: '#1e1e24' }}>{t('cancel')}</button>
           <button onClick={save} disabled={!phaseId || !label.trim() || saving}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold disabled:opacity-40"
             style={{ background: '#00E5FF', color: '#000' }}>
             {saving ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
-            Adicionar ao roadmap
+            {t('addToRoadmap')}
           </button>
         </div>
       </div>

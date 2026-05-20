@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import {
   RefreshCw, CheckCircle2, ExternalLink,
@@ -8,6 +9,8 @@ import {
 } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
+
+type Translator = ReturnType<typeof useTranslations<'atendimento'>>
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -52,55 +55,55 @@ type FilterKey = 'all' | 'opened' | 'closed'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-const REASON_LABEL: Record<string, string> = {
-  PNR:  'Produto não recebido',
-  PDD:  'Produto danificado/defeituoso',
-  PNDA: 'Produto não conforme com o anúncio',
-  WP:   'Produto errado enviado',
+const REASON_IDS = ['PNR', 'PDD', 'PNDA', 'WP']
+
+const STATUS_COLOR: Record<string, { color: string; bg: string }> = {
+  opened:   { color: '#f87171', bg: 'rgba(248,113,113,0.1)' },
+  closed:   { color: '#4ade80', bg: 'rgba(74,222,128,0.1)' },
+  resolved: { color: '#60a5fa', bg: 'rgba(96,165,250,0.1)' },
+  appealed: { color: '#facc15', bg: 'rgba(250,204,21,0.1)' },
 }
 
-const STATUS_CFG: Record<string, { label: string; color: string; bg: string }> = {
-  opened:   { label: 'Aberta',    color: '#f87171', bg: 'rgba(248,113,113,0.1)' },
-  closed:   { label: 'Fechada',   color: '#4ade80', bg: 'rgba(74,222,128,0.1)' },
-  resolved: { label: 'Resolvida', color: '#60a5fa', bg: 'rgba(96,165,250,0.1)' },
-  appealed: { label: 'Apelada',   color: '#facc15', bg: 'rgba(250,204,21,0.1)' },
+const TYPE_IDS = ['mediations', 'return', 'returns', 'fulfillment', 'ml_case', 'cancel_sale', 'cancel_purchase', 'change']
+
+const STAGE_IDS = ['claim', 'dispute', 'mediation']
+
+const ROLE_COLOR: Record<string, string> = {
+  complainant: '#60a5fa',
+  respondent:  '#4ade80',
+  mediator:    '#facc15',
+  meli:        '#facc15',
 }
 
-const TYPE_LABEL: Record<string, string> = {
-  mediations: 'Mediação',
-  return:     'Devolução',
-  returns:    'Devolução',
-  fulfillment: 'Fulfillment',
-  ml_case:    'Caso ML',
-  cancel_sale: 'Cancelamento (venda)',
-  cancel_purchase: 'Cancelamento (compra)',
-  change:     'Troca',
+function getStatusCfg(t: Translator, s?: string) {
+  const color = STATUS_COLOR[s ?? '']
+  if (color) return { label: t(`reclamacoes.status.${s}`), ...color }
+  return { label: s ?? '—', color: '#a1a1aa', bg: 'rgba(161,161,170,0.1)' }
 }
 
-const STAGE_LABEL: Record<string, string> = {
-  claim:      'Reclamação',
-  dispute:    'Disputa',
-  mediation:  'Mediação',
+function getTypeLabel(t: Translator, type?: string): string {
+  if (!type) return ''
+  return TYPE_IDS.includes(type) ? t(`reclamacoes.type.${type}`) : type
 }
 
-const ROLE_LABEL: Record<string, { label: string; color: string }> = {
-  complainant: { label: 'Comprador', color: '#60a5fa' },
-  respondent:  { label: 'Você',      color: '#4ade80' },
-  mediator:    { label: 'ML',         color: '#facc15' },
-  meli:        { label: 'ML',         color: '#facc15' },
+function getStageLabel(t: Translator, stage?: string): string {
+  if (!stage) return ''
+  return STAGE_IDS.includes(stage) ? t(`reclamacoes.stage.${stage}`) : stage
 }
 
-function getStatusCfg(s?: string) {
-  return STATUS_CFG[s ?? ''] ?? { label: s ?? '—', color: '#a1a1aa', bg: 'rgba(161,161,170,0.1)' }
+function getRoleLabel(t: Translator, role?: string): { label: string; color: string } {
+  const color = ROLE_COLOR[role ?? '']
+  if (color) return { label: t(`reclamacoes.role.${role}`), color }
+  return { label: role ?? '?', color: '#71717a' }
 }
 
-function getReasonLabel(claim: Claim): string {
+function getReasonLabel(t: Translator, claim: Claim): string {
   const id = claim.reason_id ?? claim.reason?.id ?? ''
   // Tenta match exato ou prefixo (PDD9549 → PDD)
-  if (REASON_LABEL[id]) return REASON_LABEL[id]
+  if (REASON_IDS.includes(id)) return t(`reclamacoes.reason.${id}`)
   const prefix = id.match(/^[A-Z]+/)?.[0]
-  if (prefix && REASON_LABEL[prefix]) return REASON_LABEL[prefix]
-  return claim.reason_name ?? claim.reason?.label ?? id ?? 'Reclamação'
+  if (prefix && REASON_IDS.includes(prefix)) return t(`reclamacoes.reason.${prefix}`)
+  return claim.reason_name ?? claim.reason?.label ?? id ?? t('reclamacoes.reasonFallback')
 }
 
 function fmtDate(s?: string | null) {
@@ -131,11 +134,12 @@ function dueDateColor(due?: string | null): string {
 // ── Claim card ────────────────────────────────────────────────────────────────
 
 function ClaimCard({ claim, onOpen }: { claim: Claim; onOpen: () => void }) {
-  const reasonLbl = getReasonLabel(claim)
-  const stCfg     = getStatusCfg(claim.status)
+  const t = useTranslations('atendimento')
+  const reasonLbl = getReasonLabel(t, claim)
+  const stCfg     = getStatusCfg(t, claim.status)
   const buyer     = (claim.players ?? []).find(p => p.role === 'complainant')
-  const typeLbl   = claim.type ? (TYPE_LABEL[claim.type] ?? claim.type) : ''
-  const stageLbl  = claim.stage ? (STAGE_LABEL[claim.stage] ?? claim.stage) : ''
+  const typeLbl   = getTypeLabel(t, claim.type)
+  const stageLbl  = getStageLabel(t, claim.stage)
 
   return (
     <button onClick={onOpen}
@@ -157,13 +161,13 @@ function ClaimCard({ claim, onOpen }: { claim: Claim; onOpen: () => void }) {
       <div className="flex items-center gap-2 flex-wrap text-[10px] text-zinc-500">
         {typeLbl  && <span className="px-1.5 py-0.5 rounded bg-zinc-900">{typeLbl}</span>}
         {stageLbl && <span className="px-1.5 py-0.5 rounded bg-zinc-900">{stageLbl}</span>}
-        {buyer && <span>Comprador #{buyer.user_id}</span>}
+        {buyer && <span>{t('reclamacoes.buyer', { id: buyer.user_id })}</span>}
       </div>
 
       <div className="flex items-center justify-between pt-1 border-t border-zinc-800">
         <span className="text-[10px] text-zinc-600">{fmtDate(claim.date_created)}</span>
         <span className="text-[10px] text-[#00E5FF] flex items-center gap-1">
-          ver detalhes <MessageSquare size={10} />
+          {t('reclamacoes.viewDetails')} <MessageSquare size={10} />
         </span>
       </div>
     </button>
@@ -173,6 +177,7 @@ function ClaimCard({ claim, onOpen }: { claim: Claim; onOpen: () => void }) {
 // ── Drawer ────────────────────────────────────────────────────────────────────
 
 function ClaimDrawer({ claim, onClose }: { claim: Claim; onClose: () => void }) {
+  const t = useTranslations('atendimento')
   const [detail,   setDetail]   = useState<ClaimDetail>(null)
   const [messages, setMessages] = useState<ClaimMessage[]>([])
   const [loading,  setLoading]  = useState(true)
@@ -208,7 +213,7 @@ function ClaimDrawer({ claim, onClose }: { claim: Claim; onClose: () => void }) 
 
   const send = async () => {
     if (!reply.trim() || reply.length < 5) {
-      setError('Mensagem precisa ter ao menos 5 caracteres')
+      setError(t('reclamacoes.errors.tooShort'))
       return
     }
     setSending(true)
@@ -231,16 +236,16 @@ function ClaimDrawer({ claim, onClose }: { claim: Claim; onClose: () => void }) 
       // Reload messages
       setTimeout(() => { setSent(false); load() }, 1200)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Erro ao enviar')
+      setError(e instanceof Error ? e.message : t('reclamacoes.errors.sendFailed'))
     } finally {
       setSending(false)
     }
   }
 
-  const stCfg     = getStatusCfg(claim.status)
-  const reasonLbl = getReasonLabel(claim)
-  const typeLbl   = claim.type ? (TYPE_LABEL[claim.type] ?? claim.type) : ''
-  const stageLbl  = claim.stage ? (STAGE_LABEL[claim.stage] ?? claim.stage) : ''
+  const stCfg     = getStatusCfg(t, claim.status)
+  const reasonLbl = getReasonLabel(t, claim)
+  const typeLbl   = getTypeLabel(t, claim.type)
+  const stageLbl  = getStageLabel(t, claim.stage)
   const mlUrl     = claim.resource_id
     ? `https://www.mercadolivre.com.br/vendas/${claim.resource_id}/detalhe`
     : null
@@ -267,12 +272,12 @@ function ClaimDrawer({ claim, onClose }: { claim: Claim; onClose: () => void }) 
             </div>
             <p className="text-base font-semibold text-white">{reasonLbl}</p>
             <p className="text-xs text-zinc-500 mt-1">
-              Aberta em {fmtDate(claim.date_created)} · Atualizada {timeAgo(claim.last_updated)}
+              {t('reclamacoes.openedUpdated', { opened: fmtDate(claim.date_created), updated: timeAgo(claim.last_updated) })}
             </p>
             {mlUrl && (
               <a href={mlUrl} target="_blank" rel="noreferrer"
                 className="inline-flex items-center gap-1 text-[11px] text-[#00E5FF] hover:underline mt-2">
-                Abrir venda no ML <ExternalLink size={10} />
+                {t('reclamacoes.openSale')} <ExternalLink size={10} />
               </a>
             )}
           </div>
@@ -283,39 +288,39 @@ function ClaimDrawer({ claim, onClose }: { claim: Claim; onClose: () => void }) 
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
-          {loading && <p className="text-xs text-zinc-600 text-center py-8">Carregando…</p>}
+          {loading && <p className="text-xs text-zinc-600 text-center py-8">{t('reclamacoes.loading')}</p>}
 
           {!loading && detail && (detail.due_date || detail.action_responsible || detail.title || detail.description || detail.problem) && (
             <div className="rounded-xl p-4 space-y-3" style={{ background: '#0e0e11', border: '1px solid #1e1e24' }}>
               {detail.title && (
                 <div>
-                  <p className="text-[10px] uppercase tracking-widest text-zinc-600">Caso</p>
+                  <p className="text-[10px] uppercase tracking-widest text-zinc-600">{t('reclamacoes.detail.case')}</p>
                   <p className="text-sm text-white mt-1">{detail.title}</p>
                 </div>
               )}
               {detail.problem && (
                 <div>
-                  <p className="text-[10px] uppercase tracking-widest text-zinc-600">Problema</p>
+                  <p className="text-[10px] uppercase tracking-widest text-zinc-600">{t('reclamacoes.detail.problem')}</p>
                   <p className="text-sm text-zinc-300 mt-1">{detail.problem}</p>
                 </div>
               )}
               {detail.description && (
                 <div>
-                  <p className="text-[10px] uppercase tracking-widest text-zinc-600">Descrição</p>
+                  <p className="text-[10px] uppercase tracking-widest text-zinc-600">{t('reclamacoes.detail.description')}</p>
                   <p className="text-xs text-zinc-400 mt-1 leading-relaxed whitespace-pre-wrap">{detail.description}</p>
                 </div>
               )}
               <div className="grid grid-cols-2 gap-3 pt-2 border-t border-zinc-800">
                 <div>
                   <p className="text-[10px] uppercase tracking-widest text-zinc-600 flex items-center gap-1">
-                    <Clock size={9} /> Prazo
+                    <Clock size={9} /> {t('reclamacoes.detail.deadline')}
                   </p>
                   <p className="text-xs font-semibold mt-1" style={{ color: dueDateColor(detail.due_date) }}>
                     {fmtDate(detail.due_date)}
                   </p>
                 </div>
                 <div>
-                  <p className="text-[10px] uppercase tracking-widest text-zinc-600">Responsável</p>
+                  <p className="text-[10px] uppercase tracking-widest text-zinc-600">{t('reclamacoes.detail.responsible')}</p>
                   <p className="text-xs text-zinc-300 mt-1 capitalize">{detail.action_responsible ?? '—'}</p>
                 </div>
               </div>
@@ -326,13 +331,13 @@ function ClaimDrawer({ claim, onClose }: { claim: Claim; onClose: () => void }) 
           {!loading && (
             <div className="space-y-3">
               <p className="text-[10px] uppercase tracking-widest text-zinc-600">
-                Mensagens ({messages.length})
+                {t('reclamacoes.messages', { count: messages.length })}
               </p>
               {messages.length === 0 ? (
-                <p className="text-xs text-zinc-600 italic">Sem mensagens nesta reclamação ainda.</p>
+                <p className="text-xs text-zinc-600 italic">{t('reclamacoes.noMessages')}</p>
               ) : (
                 messages.map((m, i) => {
-                  const role = ROLE_LABEL[m.sender_role ?? ''] ?? { label: m.sender_role ?? '?', color: '#71717a' }
+                  const role = getRoleLabel(t, m.sender_role)
                   const text = m.message ?? m.text ?? ''
                   const date = m.date_created ?? m.date
                   return (
@@ -343,7 +348,7 @@ function ClaimDrawer({ claim, onClose }: { claim: Claim; onClose: () => void }) 
                           {role.label}
                         </span>
                         <span className="text-[10px] text-zinc-600">{timeAgo(date)}</span>
-                        {m.stage && <span className="text-[9px] px-1.5 py-0.5 rounded bg-zinc-900 text-zinc-500">{STAGE_LABEL[m.stage] ?? m.stage}</span>}
+                        {m.stage && <span className="text-[9px] px-1.5 py-0.5 rounded bg-zinc-900 text-zinc-500">{getStageLabel(t, m.stage)}</span>}
                       </div>
                       <p className="text-sm text-zinc-200 leading-relaxed whitespace-pre-wrap">{text}</p>
                       {m.attachments && m.attachments.length > 0 && (
@@ -351,7 +356,7 @@ function ClaimDrawer({ claim, onClose }: { claim: Claim; onClose: () => void }) 
                           {m.attachments.map((a, j) => (
                             <a key={j} href={a.url ?? '#'} target="_blank" rel="noreferrer"
                               className="text-[10px] text-[#00E5FF] hover:underline px-2 py-0.5 rounded bg-[#00E5FF11]">
-                              📎 {a.name ?? 'anexo'}
+                              📎 {a.name ?? t('reclamacoes.attachment')}
                             </a>
                           ))}
                         </div>
@@ -370,7 +375,7 @@ function ClaimDrawer({ claim, onClose }: { claim: Claim; onClose: () => void }) 
             <textarea
               value={reply}
               onChange={e => { setReply(e.target.value); setError('') }}
-              placeholder="Digite sua resposta ao comprador…"
+              placeholder={t('reclamacoes.replyPlaceholder')}
               maxLength={500}
               disabled={sending || sent}
               className="w-full bg-[#09090b] border border-[#1e1e24] rounded-lg p-3 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-[#00E5FF44] resize-y min-h-[80px] disabled:opacity-50"
@@ -384,7 +389,7 @@ function ClaimDrawer({ claim, onClose }: { claim: Claim; onClose: () => void }) 
                 )}
                 {sent && (
                   <span className="flex items-center gap-1 text-green-400">
-                    <CheckCircle2 size={11} /> Enviada
+                    <CheckCircle2 size={11} /> {t('reclamacoes.sent')}
                   </span>
                 )}
                 <span className="text-zinc-600">{reply.length}/500</span>
@@ -396,7 +401,7 @@ function ClaimDrawer({ claim, onClose }: { claim: Claim; onClose: () => void }) 
                   color:      sending || sent ? '#71717a' : '#000',
                 }}>
                 <Send size={13} />
-                {sending ? 'Enviando…' : 'Responder'}
+                {sending ? t('reclamacoes.sending') : t('reclamacoes.reply')}
               </button>
             </div>
           </div>
@@ -409,6 +414,7 @@ function ClaimDrawer({ claim, onClose }: { claim: Claim; onClose: () => void }) 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function ReclamacoesPage() {
+  const t = useTranslations('atendimento')
   const [claims,   setClaims]   = useState<Claim[]>([])
   const [loading,  setLoading]  = useState(true)
   const [filter,   setFilter]   = useState<FilterKey>('opened')
@@ -446,23 +452,23 @@ export default function ReclamacoesPage() {
 
       <div className="flex items-center justify-between gap-4">
         <div>
-          <p className="text-zinc-500 text-xs">Atendimento</p>
-          <h2 className="text-white text-lg font-semibold mt-0.5">Reclamações</h2>
-          <p className="text-zinc-500 text-xs mt-1">Gerencie reclamações de pós-compra do Mercado Livre.</p>
+          <p className="text-zinc-500 text-xs">{t('reclamacoes.eyebrow')}</p>
+          <h2 className="text-white text-lg font-semibold mt-0.5">{t('reclamacoes.pageTitle')}</h2>
+          <p className="text-zinc-500 text-xs mt-1">{t('reclamacoes.pageSubtitle')}</p>
         </div>
         <button onClick={load} disabled={loading}
           className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border transition-all disabled:opacity-60"
           style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>
           <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
-          Atualizar
+          {t('reclamacoes.refresh')}
         </button>
       </div>
 
       <div className="grid grid-cols-3 gap-3">
         {[
-          { label: 'Total',    value: claims.length,  color: '#a1a1aa' },
-          { label: 'Abertas',  value: openCount,       color: openCount > 0 ? '#f87171' : '#4ade80' },
-          { label: 'Fechadas', value: closedCount,     color: '#71717a' },
+          { label: t('reclamacoes.kpi.total'),    value: claims.length,  color: '#a1a1aa' },
+          { label: t('reclamacoes.kpi.opened'),  value: openCount,       color: openCount > 0 ? '#f87171' : '#4ade80' },
+          { label: t('reclamacoes.kpi.closed'), value: closedCount,     color: '#71717a' },
         ].map(({ label, value, color }) => (
           <div key={label} className="rounded-2xl p-4 space-y-1" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
             <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">{label}</p>
@@ -480,18 +486,18 @@ export default function ReclamacoesPage() {
               color:      filter === f ? '#00E5FF' : '#52525b',
               border:     `1px solid ${filter === f ? 'rgba(0,229,255,0.25)' : '#1e1e24'}`,
             }}>
-            {{ all: 'Todas', opened: 'Abertas', closed: 'Fechadas' }[f]}
+            {t(`reclamacoes.filter.${f}`)}
           </button>
         ))}
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-20 text-zinc-600 text-xs">Carregando…</div>
+        <div className="flex items-center justify-center py-20 text-zinc-600 text-xs">{t('reclamacoes.loading')}</div>
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 gap-3">
           <CheckCircle2 size={32} className="text-green-500" />
           <p className="text-sm text-zinc-400">
-            {filter === 'opened' ? 'Nenhuma reclamação aberta' : 'Nenhuma reclamação'}
+            {filter === 'opened' ? t('reclamacoes.emptyOpened') : t('reclamacoes.empty')}
           </p>
         </div>
       ) : (
@@ -504,13 +510,13 @@ export default function ReclamacoesPage() {
         <div className="rounded-2xl p-4 space-y-2" style={{ background: 'rgba(248,113,113,0.04)', border: '1px solid rgba(248,113,113,0.12)' }}>
           <div className="flex items-center gap-2">
             <ShieldAlert size={13} className="text-red-400" />
-            <p className="text-xs font-semibold text-zinc-300">Dicas para resolução</p>
+            <p className="text-xs font-semibold text-zinc-300">{t('reclamacoes.tips.title')}</p>
           </div>
           <ul className="space-y-1 pl-2">
             {[
-              'Responda dentro de 48h para evitar penalização na reputação.',
-              'Ofereça reembolso ou reenvio antes que o ML intervenha.',
-              'Registre o número de protocolo de cada caso resolvido.',
+              t('reclamacoes.tips.tip1'),
+              t('reclamacoes.tips.tip2'),
+              t('reclamacoes.tips.tip3'),
             ].map(tip => (
               <li key={tip} className="text-[11px] text-zinc-500 flex items-start gap-1.5">
                 <span className="text-zinc-700 mt-0.5">•</span>{tip}

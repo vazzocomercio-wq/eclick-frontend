@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -17,6 +18,7 @@ import {
 import { useConfirm, useAlert } from '@/components/ui/dialog-provider'
 
 export default function VideoJobPage() {
+  const t = useTranslations('creative.videoJob')
   const params = useParams<{ productId: string; jobId: string }>()
   const router = useRouter()
   const productId = params.productId
@@ -38,13 +40,13 @@ export default function VideoJobPage() {
     pollMs: 5000,
     onTerminal: (terminalJob) => {
       const title = terminalJob.status === 'completed'
-        ? 'Vídeos prontos ✓'
+        ? t('videosReady')
         : terminalJob.status === 'failed'
-          ? 'Geração de vídeo falhou'
-          : 'Job de vídeo cancelado'
+          ? t('generationFailed')
+          : t('jobCancelled')
       const body = terminalJob.status === 'completed'
-        ? `${terminalJob.completed_count}/${terminalJob.requested_count} vídeos prontos — clique pra revisar.`
-        : terminalJob.error_message ?? 'Veja detalhes na página do job.'
+        ? t('completedBody', { done: terminalJob.completed_count, total: terminalJob.requested_count })
+        : terminalJob.error_message ?? t('seeDetails')
       notify.fire(title, body, { tag: `creative-vid-${terminalJob.id}` })
     },
   })
@@ -74,10 +76,10 @@ export default function VideoJobPage() {
   async function cancelJob() {
     if (!job) return
     const ok = await confirmDialog({
-      title:        'Cancelar job',
-      message:      'Cancelar o job? Vídeos já gerados serão preservados.',
-      confirmLabel: 'Cancelar job',
-      cancelLabel:  'Voltar',
+      title:        t('cancelJobTitle'),
+      message:      t('cancelJobMessage'),
+      confirmLabel: t('cancelJobConfirm'),
+      cancelLabel:  t('back2'),
       variant:      'warning',
     })
     if (!ok) return
@@ -85,7 +87,7 @@ export default function VideoJobPage() {
     try {
       await CreativeApi.cancelVideoJob(job.id); await refresh()
     } catch (e: unknown) {
-      await alertDialog({ title: 'Erro', message: (e as Error).message, variant: 'danger' })
+      await alertDialog({ title: t('errorTitle'), message: (e as Error).message, variant: 'danger' })
     } finally { setCancelling(false) }
   }
 
@@ -94,9 +96,9 @@ export default function VideoJobPage() {
     if (!job) return
     const newLimit = (job.max_cost_usd ?? 5) * 2
     const ok = await confirmDialog({
-      title:        'Subir limite e retomar',
-      message:      `Limite atual: $${job.max_cost_usd?.toFixed(2)}. Subir pra $${newLimit.toFixed(2)} (2×) e processar partes restantes?`,
-      confirmLabel: 'Subir e retomar',
+      title:        t('raiseLimitTitle'),
+      message:      t('raiseLimitMessage', { current: job.max_cost_usd?.toFixed(2) ?? '0', next: newLimit.toFixed(2) }),
+      confirmLabel: t('raiseLimitConfirm'),
       variant:      'default',
     })
     if (!ok) return
@@ -105,7 +107,7 @@ export default function VideoJobPage() {
       await CreativeApi.raiseVideoJobCostLimit(job.id, { multiplier: 2 })
       await refresh()
     } catch (e: unknown) {
-      await alertDialog({ title: 'Erro', message: (e as Error).message, variant: 'danger' })
+      await alertDialog({ title: t('errorTitle'), message: (e as Error).message, variant: 'danger' })
     } finally { setRaisingLimit(false) }
   }
 
@@ -117,9 +119,9 @@ export default function VideoJobPage() {
       .filter(v => v.status === 'ready' && !v.is_chain_master)
       .reduce((sum, v) => sum + (v.duration_seconds ?? 0), 0)
     const ok = await confirmDialog({
-      title:        'Finalizar com partes prontas',
-      message:      `Vai concatenar ${readyCount} partes prontas (~${totalDuration}s) e descartar o resto. Sem custo adicional. Continuar?`,
-      confirmLabel: 'Finalizar agora',
+      title:        t('forceFinalizeTitle'),
+      message:      t('forceFinalizeMessage', { count: readyCount, duration: totalDuration }),
+      confirmLabel: t('forceFinalizeConfirm'),
       variant:      'default',
     })
     if (!ok) return
@@ -128,7 +130,7 @@ export default function VideoJobPage() {
       await CreativeApi.forceFinalizeVideoJob(job.id)
       await refresh()
     } catch (e: unknown) {
-      await alertDialog({ title: 'Erro', message: (e as Error).message, variant: 'danger' })
+      await alertDialog({ title: t('errorTitle'), message: (e as Error).message, variant: 'danger' })
     } finally { setForceFinalizing(false) }
   }
 
@@ -137,9 +139,9 @@ export default function VideoJobPage() {
     const rejectedCt = videos.filter(v => v.status === 'rejected').length
     if (rejectedCt === 0) return
     const ok = await confirmDialog({
-      title:        'Regerar rejeitados',
-      message:      `Regerar ${rejectedCt} vídeo${rejectedCt === 1 ? '' : 's'} rejeitado${rejectedCt === 1 ? '' : 's'}? Vai consumir ~$${(rejectedCt * (job.duration_seconds === 10 ? 0.84 : 0.42)).toFixed(2)}.`,
-      confirmLabel: 'Regerar',
+      title:        t('regenRejectedTitle'),
+      message:      t('regenRejectedMessage', { count: rejectedCt, cost: (rejectedCt * (job.duration_seconds === 10 ? 0.84 : 0.42)).toFixed(2) }),
+      confirmLabel: t('regenConfirm'),
       variant:      'default',
     })
     if (!ok) return
@@ -148,14 +150,14 @@ export default function VideoJobPage() {
       const res = await CreativeApi.regenerateAllRejectedVideos(job.id)
       if (res.skipped_cost_cap) {
         await alertDialog({
-          title:   'Limite de custo atingido',
-          message: 'Limite de custo do job já foi atingido. Crie um novo job pra continuar.',
+          title:   t('costCapTitle'),
+          message: t('costCapMessage'),
           variant: 'warning',
         })
       }
       await refresh()
     } catch (e: unknown) {
-      await alertDialog({ title: 'Erro', message: (e as Error).message, variant: 'danger' })
+      await alertDialog({ title: t('errorTitle'), message: (e as Error).message, variant: 'danger' })
     } finally {
       setBulkRegen(false)
     }
@@ -165,8 +167,8 @@ export default function VideoJobPage() {
     const approved = videos.filter(v => v.status === 'approved' && v.signed_video_url)
     if (approved.length === 0) {
       await alertDialog({
-        title:   'Nenhum vídeo aprovado',
-        message: 'Aprove pelo menos um vídeo antes de baixar.',
+        title:   t('noApprovedVideosTitle'),
+        message: t('noApprovedVideosMessage'),
         variant: 'warning',
       })
       return
@@ -186,10 +188,10 @@ export default function VideoJobPage() {
     return (
       <div className="min-h-screen bg-zinc-950 text-zinc-100 px-4 py-6">
         <Link href="/dashboard/creative" className="inline-flex items-center gap-2 text-zinc-400 hover:text-zinc-100 mb-4">
-          <ArrowLeft size={14} /> Voltar
+          <ArrowLeft size={14} /> {t('back')}
         </Link>
         <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200 max-w-2xl">
-          {productError ?? 'Produto não encontrado'}
+          {productError ?? t('productNotFound')}
         </div>
       </div>
     )
@@ -198,7 +200,7 @@ export default function VideoJobPage() {
     return (
       <div className="min-h-screen bg-zinc-950 text-zinc-100 px-4 py-6">
         <Link href={`/dashboard/creative/${productId}`} className="inline-flex items-center gap-2 text-zinc-400 hover:text-zinc-100 mb-4">
-          <ArrowLeft size={14} /> Voltar pro produto
+          <ArrowLeft size={14} /> {t('backToProduct')}
         </Link>
         <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200 max-w-2xl">{error}</div>
       </div>
@@ -230,7 +232,7 @@ export default function VideoJobPage() {
                 <h1 className="text-base font-semibold truncate" title={product.name}>{product.name}</h1>
               </div>
               <p className="text-[11px] text-zinc-500">
-                {job?.requested_count ?? '?'} vídeos · {job?.duration_seconds ?? '?'}s · {job?.aspect_ratio ?? '?'} · {job?.model_name ?? ''}
+                {t('jobSummary', { count: job?.requested_count ?? '?', duration: job?.duration_seconds ?? '?', aspect: job?.aspect_ratio ?? '?', model: job?.model_name ?? '' })}
               </p>
             </div>
           </div>
@@ -240,7 +242,7 @@ export default function VideoJobPage() {
               <NotifyButton
                 permission={notify.permission}
                 onRequest={notify.requestPermission}
-                hintGranted="Avisaremos quando o job terminar"
+                hintGranted={t('notifyHint')}
               />
             )}
             {(() => {
@@ -249,21 +251,21 @@ export default function VideoJobPage() {
                 <button onClick={regenerateRejected} disabled={bulkRegen}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-amber-400/30 text-amber-300 hover:bg-amber-400/10 text-xs font-semibold transition-all disabled:opacity-50">
                   {bulkRegen ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-                  Regerar {rejectedCt} rejeitado{rejectedCt > 1 ? 's' : ''}
+                  {t('regenRejectedBtn', { count: rejectedCt })}
                 </button>
               ) : null
             })()}
             {approvedCt > 0 && (
               <button onClick={downloadAllApproved}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-400 hover:bg-cyan-300 text-black text-xs font-semibold transition-all">
-                <Download size={12} /> Baixar {approvedCt} aprovado{approvedCt > 1 ? 's' : ''}
+                <Download size={12} /> {t('downloadApproved', { count: approvedCt })}
               </button>
             )}
             {active && (
               <button onClick={cancelJob} disabled={cancelling}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-red-400/40 text-zinc-300 hover:text-red-300 text-xs">
                 {cancelling ? <Loader2 size={12} className="animate-spin" /> : <X size={12} />}
-                Cancelar job
+                {t('cancelJobConfirm')}
               </button>
             )}
           </div>
@@ -297,10 +299,10 @@ export default function VideoJobPage() {
                     onClick={raiseLimitAndResume}
                     disabled={raisingLimit || forceFinalizing}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-400 hover:bg-cyan-300 disabled:opacity-50 text-black text-xs font-semibold transition-all"
-                    title="Sobe o limite pra 2× e processa partes pendentes"
+                    title={t('raiseLimitBtnTooltip')}
                   >
                     {raisingLimit ? <Loader2 size={12} className="animate-spin" /> : <TrendingUp size={12} />}
-                    Subir limite (2×) e retomar
+                    {t('raiseLimitBtn')}
                   </button>
                   {canForceFinalize && (
                     <button
@@ -308,10 +310,10 @@ export default function VideoJobPage() {
                       onClick={forceFinalize}
                       disabled={raisingLimit || forceFinalizing}
                       className="submit-glow flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 text-amber-200 text-xs font-semibold transition-all disabled:opacity-50"
-                      title="Concatena só as partes prontas e descarta o resto"
+                      title={t('forceFinalizeBtnTooltip')}
                     >
                       {forceFinalizing ? <Loader2 size={12} className="animate-spin" /> : <Scissors size={12} />}
-                      Finalizar com {readyParts.length} parte{readyParts.length > 1 ? 's' : ''} pronta{readyParts.length > 1 ? 's' : ''}
+                      {t('forceFinalizeBtn', { count: readyParts.length })}
                     </button>
                   )}
                   <button
@@ -319,9 +321,9 @@ export default function VideoJobPage() {
                     onClick={() => router.push(`/dashboard/creative/${productId}`)}
                     disabled={raisingLimit || forceFinalizing}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-300 text-xs transition-all disabled:opacity-50"
-                    title="Volta pro produto e cria um novo job"
+                    title={t('cancelAndRedoTooltip')}
                   >
-                    <RefreshCw size={12} /> Cancelar e refazer
+                    <RefreshCw size={12} /> {t('cancelAndRedo')}
                   </button>
                 </div>
               )}
@@ -330,7 +332,7 @@ export default function VideoJobPage() {
         })()}
         {cancelled && (
           <div className="mt-3 rounded-lg border border-zinc-700 bg-zinc-900 p-3 text-sm text-zinc-300 flex items-start gap-2">
-            <X size={14} className="shrink-0 mt-0.5" /><span>Job cancelado. Vídeos gerados continuam disponíveis abaixo.</span>
+            <X size={14} className="shrink-0 mt-0.5" /><span>{t('jobCancelledNotice')}</span>
           </div>
         )}
 
@@ -338,8 +340,8 @@ export default function VideoJobPage() {
           {videos.length === 0 ? (
             <div className="rounded-2xl border-2 border-dashed border-zinc-800 bg-zinc-900/30 p-12 text-center">
               <Loader2 size={28} className="text-cyan-400 animate-spin mx-auto mb-3" />
-              <p className="text-sm text-zinc-300">Gerando prompts da IA…</p>
-              <p className="text-[11px] text-zinc-500 mt-1">Cada vídeo demora ~1-3 min pra renderizar no Kling</p>
+              <p className="text-sm text-zinc-300">{t('generatingPrompts')}</p>
+              <p className="text-[11px] text-zinc-500 mt-1">{t('videoRenderHint')}</p>
             </div>
           ) : (
             (() => {
@@ -352,7 +354,7 @@ export default function VideoJobPage() {
                   {masters.length > 0 && (
                     <div>
                       <p className="text-[11px] uppercase tracking-wider text-cyan-300 mb-2">
-                        ✨ Vídeo final ({masters.length})
+                        {t('finalVideo', { count: masters.length })}
                       </p>
                       {/* Limita largura do master pra caber no viewport.
                           9:16 = max-w-xs (~320px → ~570px altura)
@@ -379,7 +381,7 @@ export default function VideoJobPage() {
                   {parts.length > 0 && (
                     <div>
                       <p className="text-[11px] uppercase tracking-wider text-zinc-500 mb-2">
-                        {masters.length > 0 ? 'Partes individuais' : 'Vídeos'} ({parts.length})
+                        {t('videosWithCount', { label: masters.length > 0 ? t('individualParts') : t('videos'), count: parts.length })}
                       </p>
                       <div className={`grid ${gridClass} gap-4`}>
                         {parts.map(v => (
@@ -398,7 +400,7 @@ export default function VideoJobPage() {
                     </div>
                   )}
                   {ordered.length === 0 && (
-                    <div className="text-center py-12 text-zinc-500 text-sm">Sem vídeos.</div>
+                    <div className="text-center py-12 text-zinc-500 text-sm">{t('noVideos')}</div>
                   )}
                 </div>
               )
@@ -423,6 +425,7 @@ function StatusBar({
   rejectedCount: number
   failedCount:   number
 }) {
+  const t = useTranslations('creative.videoJob')
   const costPct = maxCost > 0 ? Math.min(100, Math.round((Number(totalCost) / Number(maxCost)) * 100)) : 0
   const costNear = costPct >= 80
   return (
@@ -431,13 +434,13 @@ function StatusBar({
         <div className="flex items-center gap-2">
           <StatusPill status={status} />
           {progress.total > 0 && (
-            <span className="text-xs text-zinc-400">{progress.doneAt}/{progress.total} processados</span>
+            <span className="text-xs text-zinc-400">{t('processed', { done: progress.doneAt, total: progress.total })}</span>
           )}
         </div>
         <div className="flex items-center gap-3 text-[11px] text-zinc-400">
           {approvedCount > 0 && <span className="flex items-center gap-1 text-emerald-400"><Check size={10} /> {approvedCount}</span>}
           {rejectedCount > 0 && <span className="flex items-center gap-1 text-red-400"><X size={10} /> {rejectedCount}</span>}
-          {failedCount   > 0 && <span className="flex items-center gap-1 text-red-500"><AlertCircle size={10} /> {failedCount} falhas</span>}
+          {failedCount   > 0 && <span className="flex items-center gap-1 text-red-500"><AlertCircle size={10} /> {t('failures', { count: failedCount })}</span>}
         </div>
       </div>
 
@@ -449,7 +452,7 @@ function StatusBar({
 
       <div className="space-y-1">
         <div className="flex items-center justify-between text-[10px]">
-          <span className="text-zinc-500">Custo</span>
+          <span className="text-zinc-500">{t('cost')}</span>
           <span className={costNear ? 'text-amber-400 font-mono' : 'text-zinc-400 font-mono'}>
             ${Number(totalCost).toFixed(4)} / ${Number(maxCost).toFixed(2)}
           </span>

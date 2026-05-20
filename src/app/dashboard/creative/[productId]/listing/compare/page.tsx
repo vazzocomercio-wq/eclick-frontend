@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { useParams, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -16,6 +17,7 @@ import type { CreativeListing, CreativeProduct } from '@/components/creative/typ
  * Query params: ?a=<listingId>&b=<listingId>
  */
 export default function ListingComparePage() {
+  const t            = useTranslations('creative.compare')
   const params       = useParams<{ productId: string }>()
   const searchParams = useSearchParams()
   const productId    = params.productId
@@ -86,18 +88,18 @@ export default function ListingComparePage() {
   const sections = useMemo(() => {
     if (!a || !b) return []
     return [
-      diffString('Título',                     a.title,                     b.title),
-      diffString('Subtítulo',                  a.subtitle ?? '',            b.subtitle ?? ''),
-      diffString('Descrição',                  a.description,               b.description),
-      diffArray ('Bullets',                    a.bullets,                   b.bullets),
-      diffObject('Ficha técnica',              a.technical_sheet,           b.technical_sheet),
-      diffArray ('Palavras-chave',             a.keywords,                  b.keywords),
-      diffArray ('Tags de busca',              a.search_tags,               b.search_tags),
-      diffString('Categoria sugerida',         a.suggested_category ?? '',  b.suggested_category ?? ''),
-      diffFaq   ('FAQ',                        a.faq,                       b.faq),
-      diffArray ('Diferenciais comerciais',    a.commercial_differentials,  b.commercial_differentials),
+      diffString(t('sectionTitle'),             a.title,                     b.title,                    t('empty')),
+      diffString(t('sectionSubtitle'),          a.subtitle ?? '',            b.subtitle ?? '',           t('empty')),
+      diffString(t('sectionDescription'),       a.description,               b.description,              t('empty')),
+      diffArray (t('sectionBullets'),           'bullets',                   a.bullets,                  b.bullets,                  t('empty')),
+      diffObject(t('sectionTechSheet'),         a.technical_sheet,           b.technical_sheet,          t('empty')),
+      diffArray (t('sectionKeywords'),          'keywords',                  a.keywords,                 b.keywords,                 t('empty')),
+      diffArray (t('sectionSearchTags'),        'search_tags',               a.search_tags,              b.search_tags,              t('empty')),
+      diffString(t('sectionSuggestedCategory'), a.suggested_category ?? '',  b.suggested_category ?? '', t('empty')),
+      diffFaq   (t('sectionFaq'),               a.faq,                       b.faq,                      t('empty')),
+      diffArray (t('sectionCommercialDiff'),    'commercial_differentials',  a.commercial_differentials, b.commercial_differentials, t('empty')),
     ]
-  }, [a, b])
+  }, [a, b, t])
 
   const diffCount = sections.filter(s => !s.same).length
 
@@ -108,9 +110,9 @@ export default function ListingComparePage() {
     return (
       <div className="min-h-screen bg-zinc-950 text-zinc-100 px-4 py-6">
         <Link href={`/dashboard/creative/${productId}`} className="inline-flex items-center gap-2 text-zinc-400 hover:text-zinc-100 mb-4">
-          <ArrowLeft size={14} /> Voltar
+          <ArrowLeft size={14} /> {t('back')}
         </Link>
-        <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">{error ?? 'Produto não encontrado'}</div>
+        <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">{error ?? t('productNotFound')}</div>
       </div>
     )
   }
@@ -118,13 +120,13 @@ export default function ListingComparePage() {
     return (
       <div className="min-h-screen bg-zinc-950 text-zinc-100 px-4 py-6">
         <Link href={`/dashboard/creative/${productId}`} className="inline-flex items-center gap-2 text-zinc-400 hover:text-zinc-100 mb-4">
-          <ArrowLeft size={14} /> Voltar
+          <ArrowLeft size={14} /> {t('back')}
         </Link>
         <div className="rounded-2xl border-2 border-dashed border-zinc-800 bg-zinc-900/30 p-12 text-center max-w-2xl">
           <GitBranch size={28} className="text-zinc-600 mx-auto mb-3" />
-          <h2 className="text-base font-semibold text-zinc-300">Apenas 1 versão disponível</h2>
+          <h2 className="text-base font-semibold text-zinc-300">{t('onlyOneVersionTitle')}</h2>
           <p className="text-sm text-zinc-500 mt-2">
-            Pra comparar, gere outra versão do anúncio (botão "Regenerar" na página do listing).
+            {t('onlyOneVersionText')}
           </p>
         </div>
       </div>
@@ -143,11 +145,11 @@ export default function ListingComparePage() {
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <Diff size={14} className="text-cyan-400" />
-                <h1 className="text-base font-semibold truncate" title={product.name}>Comparar versões — {product.name}</h1>
+                <h1 className="text-base font-semibold truncate" title={product.name}>{t('headerTitle', { name: product.name })}</h1>
               </div>
               {a && b && (
                 <p className="text-[11px] text-zinc-500">
-                  v{a.version} <span className="text-zinc-600">vs</span> v{b.version} · <span className={diffCount > 0 ? 'text-amber-400' : 'text-emerald-400'}>{diffCount} de {sections.length} campos diferentes</span>
+                  v{a.version} <span className="text-zinc-600">{t('vs')}</span> v{b.version} · <span className={diffCount > 0 ? 'text-amber-400' : 'text-emerald-400'}>{t('versionsDiff', { diff: diffCount, total: sections.length })}</span>
                 </p>
               )}
             </div>
@@ -158,9 +160,9 @@ export default function ListingComparePage() {
               type="button"
               onClick={swap}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 text-xs"
-              title="Inverter A e B"
+              title={t('swapTooltip')}
             >
-              <ArrowRightLeft size={12} /> Inverter
+              <ArrowRightLeft size={12} /> {t('swap')}
             </button>
           )}
         </header>
@@ -168,14 +170,14 @@ export default function ListingComparePage() {
         {/* Version selectors */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
           <VersionSelector
-            label="Versão A"
+            label={t('versionA')}
             current={a}
             options={listings}
             disabledId={b?.id ?? null}
             onPick={pickA}
           />
           <VersionSelector
-            label="Versão B"
+            label={t('versionB')}
             current={b}
             options={listings}
             disabledId={a?.id ?? null}
@@ -196,18 +198,18 @@ export default function ListingComparePage() {
                 href={`/dashboard/creative/${productId}/listing/${a.id}`}
                 className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-cyan-400 hover:bg-cyan-300 text-black text-sm font-semibold shadow-[0_0_12px_rgba(0,229,255,0.25)]"
               >
-                <Check size={14} /> Escolher v{a.version} (A)
+                <Check size={14} /> {t('chooseVersionA', { version: a.version })}
               </Link>
               <Link
                 href={`/dashboard/creative/${productId}/listing/${b.id}`}
                 className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-cyan-400 hover:bg-cyan-300 text-black text-sm font-semibold shadow-[0_0_12px_rgba(0,229,255,0.25)]"
               >
-                <Check size={14} /> Escolher v{b.version} (B)
+                <Check size={14} /> {t('chooseVersionB', { version: b.version })}
               </Link>
             </div>
           </div>
         ) : (
-          <div className="text-zinc-500 text-sm">Selecione 2 versões pra comparar.</div>
+          <div className="text-zinc-500 text-sm">{t('selectTwo')}</div>
         )}
       </div>
     </div>
@@ -223,19 +225,25 @@ interface SectionResult {
   render:   (side: 'a' | 'b', listing: CreativeListing) => React.ReactNode
 }
 
-function diffString(title: string, a: string, b: string): SectionResult {
+function diffString(title: string, a: string, b: string, emptyLabel: string): SectionResult {
   return {
     title,
     same: a.trim() === b.trim(),
     render: (side) => (
       <div className="text-xs text-zinc-200 whitespace-pre-line leading-relaxed">
-        {side === 'a' ? a : b || <span className="text-zinc-600 italic">— vazio —</span>}
+        {side === 'a' ? a : b || <span className="text-zinc-600 italic">{emptyLabel}</span>}
       </div>
     ),
   }
 }
 
-function diffArray(title: string, a: string[], b: string[]): SectionResult {
+function diffArray(
+  title: string,
+  field: 'bullets' | 'keywords' | 'search_tags' | 'commercial_differentials',
+  a: string[],
+  b: string[],
+  emptyLabel: string,
+): SectionResult {
   const same = a.length === b.length && a.every((v, i) => v === b[i])
   const aSet = new Set(a)
   const bSet = new Set(b)
@@ -243,10 +251,7 @@ function diffArray(title: string, a: string[], b: string[]): SectionResult {
     title,
     same,
     render: (side, listing) => {
-      const items = title.startsWith('Bullets') ? listing.bullets
-        : title.startsWith('Palavras')         ? listing.keywords
-        : title.startsWith('Tags')              ? listing.search_tags
-        : listing.commercial_differentials
+      const items = listing[field]
       const otherSet = side === 'a' ? bSet : aSet
       return (
         <ul className="space-y-1">
@@ -263,7 +268,7 @@ function diffArray(title: string, a: string[], b: string[]): SectionResult {
             )
           })}
           {items.length === 0 && (
-            <li className="text-[10px] text-zinc-600 italic">— vazio —</li>
+            <li className="text-[10px] text-zinc-600 italic">{emptyLabel}</li>
           )}
         </ul>
       )
@@ -271,7 +276,7 @@ function diffArray(title: string, a: string[], b: string[]): SectionResult {
   }
 }
 
-function diffObject(title: string, a: Record<string, string>, b: Record<string, string>): SectionResult {
+function diffObject(title: string, a: Record<string, string>, b: Record<string, string>, emptyLabel: string): SectionResult {
   const aKeys = Object.keys(a ?? {})
   const bKeys = Object.keys(b ?? {})
   const allKeys = new Set([...aKeys, ...bKeys])
@@ -288,7 +293,7 @@ function diffObject(title: string, a: Record<string, string>, b: Record<string, 
       const obj = listing.technical_sheet
       const otherObj = side === 'a' ? b : a
       const keys = Object.keys(obj ?? {})
-      if (keys.length === 0) return <p className="text-[10px] text-zinc-600 italic">— vazio —</p>
+      if (keys.length === 0) return <p className="text-[10px] text-zinc-600 italic">{emptyLabel}</p>
       return (
         <div className="rounded-lg border border-zinc-800 overflow-hidden">
           <table className="w-full text-xs">
@@ -312,14 +317,14 @@ function diffObject(title: string, a: Record<string, string>, b: Record<string, 
   }
 }
 
-function diffFaq(title: string, a: Array<{ q: string; a: string }>, b: Array<{ q: string; a: string }>): SectionResult {
+function diffFaq(title: string, a: Array<{ q: string; a: string }>, b: Array<{ q: string; a: string }>, emptyLabel: string): SectionResult {
   const same = a.length === b.length && a.every((item, i) => item.q === b[i]?.q && item.a === b[i]?.a)
   return {
     title,
     same,
     render: (side, listing) => {
       const faq = listing.faq ?? []
-      if (faq.length === 0) return <p className="text-[10px] text-zinc-600 italic">— vazio —</p>
+      if (faq.length === 0) return <p className="text-[10px] text-zinc-600 italic">{emptyLabel}</p>
       return (
         <div className="space-y-1.5">
           {faq.map((f, i) => (
@@ -345,6 +350,7 @@ function VersionSelector({
   disabledId: string | null
   onPick:     (l: CreativeListing) => void
 }) {
+  const t = useTranslations('creative.compare')
   return (
     <div className="rounded-lg border border-zinc-800 bg-zinc-900/30 p-3">
       <p className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">{label}</p>
@@ -356,10 +362,10 @@ function VersionSelector({
         }}
         className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-1.5 text-sm text-zinc-200 outline-none focus:border-cyan-400"
       >
-        {!current && <option value="">— selecione —</option>}
+        {!current && <option value="">{t('selectPlaceholder')}</option>}
         {options.map(l => (
           <option key={l.id} value={l.id} disabled={l.id === disabledId}>
-            v{l.version} · {new Date(l.created_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })} · {l.status}{l.parent_listing_id ? ' (regen)' : ''}
+            v{l.version} · {new Date(l.created_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })} · {l.status}{l.parent_listing_id ? t('regenSuffix') : ''}
           </option>
         ))}
       </select>
@@ -379,6 +385,7 @@ function DiffSection({
   listingA: CreativeListing
   listingB: CreativeListing
 }) {
+  const t = useTranslations('creative.compare')
   return (
     <div className={[
       'rounded-xl border overflow-hidden',
@@ -390,7 +397,7 @@ function DiffSection({
       ].join(' ')}>
         <span className="font-semibold uppercase tracking-wider">{section.title}</span>
         <span className="flex items-center gap-1 text-[10px]">
-          {section.same ? <><Equal size={10} /> idêntico</> : <><Diff size={10} /> diferente</>}
+          {section.same ? <><Equal size={10} /> {t('identical')}</> : <><Diff size={10} /> {t('different')}</>}
         </span>
       </header>
       <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-zinc-800">

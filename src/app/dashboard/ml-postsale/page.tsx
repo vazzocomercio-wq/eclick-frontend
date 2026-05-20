@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import { getSocket } from '@/lib/socket'
 import {
@@ -85,15 +86,6 @@ const SLA_COLOR: Record<SlaState, string> = {
   resolved: '#52525b',
 }
 
-const SLA_LABEL: Record<SlaState, string> = {
-  green:    'Em dia',
-  yellow:   'Atenção',
-  orange:   'Alerta',
-  red:      'Urgente',
-  critical: 'Estourou',
-  resolved: 'Resolvido',
-}
-
 const SLA_PRIORITY: Record<SlaState, number> = {
   critical: 0, red: 1, orange: 2, yellow: 3, green: 4, resolved: 5,
 }
@@ -132,6 +124,7 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
 // ────────────────────────────────────────────────────────────────────────
 
 export default function MlPostsalePage() {
+  const t = useTranslations('mlPostsale')
   const [conversations, setConversations] = useState<ConversationItem[]>([])
   const [loadingList, setLoadingList] = useState(true)
   const [filter, setFilter] = useState<{ status: string; unread: boolean; sla?: SlaState; search: string }>({
@@ -249,7 +242,7 @@ export default function MlPostsalePage() {
   const onSend = async () => {
     if (!selectedId) return
     if (charOver) {
-      setError(`Texto excede ${POSTSALE_MAX_CHARS} caracteres (${charCount}). Encurte antes de enviar.`)
+      setError(t('errors.textTooLong', { max: POSTSALE_MAX_CHARS, count: charCount }))
       return
     }
     setBusy('send')
@@ -329,12 +322,12 @@ export default function MlPostsalePage() {
       {/* Coluna 1 — Lista */}
       <aside className="w-[320px] flex flex-col border-r" style={{ borderColor: '#1e1e24', background: '#0a0a0e' }}>
         <header className="p-3 border-b flex flex-col gap-2" style={{ borderColor: '#1e1e24' }}>
-          <h2 className="text-sm font-semibold" style={{ color: 'var(--text)' }}>ML Pós-venda</h2>
+          <h2 className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{t('title')}</h2>
           <div className="relative">
             <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2" style={{ color: '#52525b' }} />
             <input
               type="text"
-              placeholder="Buscar comprador ou produto…"
+              placeholder={t('searchPlaceholder')}
               value={filter.search}
               onChange={e => setFilter(f => ({ ...f, search: e.target.value }))}
               className="w-full pl-7 pr-2 py-1.5 text-xs rounded-md outline-none"
@@ -353,7 +346,7 @@ export default function MlPostsalePage() {
                   border:     `1px solid ${SLA_COLOR[s]}`,
                 }}
               >
-                {SLA_LABEL[s]}
+                {t(`slaLabel.${s}`)}
               </button>
             ))}
             <label className="text-[10px] flex items-center gap-1 ml-auto" style={{ color: '#a1a1aa' }}>
@@ -363,7 +356,7 @@ export default function MlPostsalePage() {
                 onChange={e => setFilter(f => ({ ...f, unread: e.target.checked }))}
                 className="accent-cyan-400"
               />
-              Não lidas
+              {t('unread')}
             </label>
           </div>
         </header>
@@ -376,7 +369,7 @@ export default function MlPostsalePage() {
           )}
           {!loadingList && conversations.length === 0 && (
             <div className="text-center py-8 text-xs" style={{ color: '#52525b' }}>
-              Nenhuma conversa encontrada.
+              {t('noConversations')}
             </div>
           )}
           {conversations.map(c => (
@@ -390,12 +383,12 @@ export default function MlPostsalePage() {
         </div>
 
         <footer className="p-2 border-t flex items-center justify-between text-[10px]" style={{ borderColor: '#1e1e24', color: '#a1a1aa' }}>
-          <span>{conversations.length} conversas</span>
+          <span>{t('conversationsCount', { count: conversations.length })}</span>
           <button
             onClick={() => void refreshList()}
             className="flex items-center gap-1 px-2 py-1 rounded transition hover:bg-zinc-800"
           >
-            <RefreshCw size={11} /> Atualizar
+            <RefreshCw size={11} /> {t('refresh')}
           </button>
         </footer>
       </aside>
@@ -406,7 +399,7 @@ export default function MlPostsalePage() {
           <div className="flex-1 flex items-center justify-center text-sm" style={{ color: '#52525b' }}>
             <div className="text-center">
               <MessageSquare size={32} className="mx-auto mb-2" style={{ color: '#27272a' }} />
-              Selecione uma conversa pra começar.
+              {t('selectConversation')}
             </div>
           </div>
         )}
@@ -421,10 +414,10 @@ export default function MlPostsalePage() {
                 )}
                 <div className="min-w-0">
                   <div className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>
-                    {selectedConv.buyer_nickname ?? `Comprador #${selectedConv.id.slice(0, 8)}`}
+                    {selectedConv.buyer_nickname ?? t('buyerWithId', { id: selectedConv.id.slice(0, 8) })}
                   </div>
                   <div className="text-xs truncate" style={{ color: '#a1a1aa' }}>
-                    {selectedConv.product_title ?? 'Produto não identificado'}
+                    {selectedConv.product_title ?? t('unknownProduct')}
                   </div>
                 </div>
               </div>
@@ -436,7 +429,7 @@ export default function MlPostsalePage() {
                   className="text-xs px-2 py-1 rounded transition disabled:opacity-50"
                   style={{ background: '#1e1e24', color: '#a1a1aa' }}
                 >
-                  {selectedConv.status === 'resolved' ? 'Resolvido' : 'Marcar resolvido'}
+                  {selectedConv.status === 'resolved' ? t('resolved') : t('markResolved')}
                 </button>
               </div>
             </header>
@@ -479,7 +472,7 @@ export default function MlPostsalePage() {
             onSaveKnowledge={async (kb) => {
               const productId = (detail.conversation as { product_id?: string }).product_id
               if (!productId) {
-                setError('Conversa sem product_id — não é possível salvar KB. Vincule o produto primeiro.')
+                setError(t('errors.noProductId'))
                 return
               }
               await api(`/ml/postsale/knowledge/${productId}`, {
@@ -517,6 +510,7 @@ function ConversationCard({ conv, selected, onClick }: {
   selected: boolean
   onClick:  () => void
 }) {
+  const t = useTranslations('mlPostsale')
   const sla = conv.sla_state ?? 'green'
   return (
     <button
@@ -535,7 +529,7 @@ function ConversationCard({ conv, selected, onClick }: {
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-2">
             <div className="text-xs font-medium truncate" style={{ color: 'var(--text)' }}>
-              {conv.buyer_nickname ?? 'Comprador'}
+              {conv.buyer_nickname ?? t('buyer')}
             </div>
             {conv.unread_count > 0 && (
               <span
@@ -550,7 +544,7 @@ function ConversationCard({ conv, selected, onClick }: {
             {conv.product_title ?? '—'}
           </div>
           <div className="text-[10px] mt-1" style={{ color: SLA_COLOR[sla] }}>
-            {SLA_LABEL[sla]} · {(conv.sla_elapsed_hours ?? 0).toFixed(1)}h
+            {t(`slaLabel.${sla}`)} · {t('hoursShort', { hours: (conv.sla_elapsed_hours ?? 0).toFixed(1) })}
           </div>
         </div>
       </div>
@@ -559,6 +553,7 @@ function ConversationCard({ conv, selected, onClick }: {
 }
 
 function SlaBadge({ state, elapsed }: { state: SlaState; elapsed?: number }) {
+  const t = useTranslations('mlPostsale')
   return (
     <span
       className="text-[10px] px-2 py-0.5 rounded-full font-medium flex items-center gap-1"
@@ -569,7 +564,7 @@ function SlaBadge({ state, elapsed }: { state: SlaState; elapsed?: number }) {
       }}
     >
       <Clock size={10} />
-      {SLA_LABEL[state]} · {(elapsed ?? 0).toFixed(1)}h úteis
+      {t(`slaLabel.${state}`)} · {t('businessHours', { hours: (elapsed ?? 0).toFixed(1) })}
     </span>
   )
 }
@@ -608,6 +603,7 @@ function SuggestionEditor(props: {
   onTransform: (t: 'mais_empatico' | 'mais_objetivo') => void
 }) {
   const { suggestion, text, setText, charCount, charWarn, charOver, busy, onSend, onRegenerate, onTransform } = props
+  const t = useTranslations('mlPostsale')
 
   return (
     <div
@@ -617,20 +613,20 @@ function SuggestionEditor(props: {
       {suggestion && (
         <div className="flex items-center gap-2 mb-2 flex-wrap">
           <span className="text-[10px] flex items-center gap-1 font-medium" style={{ color: '#00E5FF' }}>
-            <Sparkles size={11} /> Sugestão IA
+            <Sparkles size={11} /> {t('aiSuggestion')}
           </span>
           {suggestion.intent     && <Tag color="#a5f3fc" label={suggestion.intent} />}
           {suggestion.sentiment  && <Tag color="#fcd34d" label={suggestion.sentiment} />}
-          {suggestion.urgency    && <Tag color="#fb923c" label={`urg.${suggestion.urgency}`} />}
-          {suggestion.risk       && <Tag color={suggestion.risk === 'critico' ? '#dc2626' : suggestion.risk === 'alto' ? '#f87171' : '#52525b'} label={`risco ${suggestion.risk}`} />}
-          {suggestion.llm_fallback_used && <Tag color="#fcd34d" label="fallback" />}
+          {suggestion.urgency    && <Tag color="#fb923c" label={t('urgencyTag', { value: suggestion.urgency })} />}
+          {suggestion.risk       && <Tag color={suggestion.risk === 'critico' ? '#dc2626' : suggestion.risk === 'alto' ? '#f87171' : '#52525b'} label={t('riskTag', { value: suggestion.risk })} />}
+          {suggestion.llm_fallback_used && <Tag color="#fcd34d" label={t('fallback')} />}
         </div>
       )}
 
       <textarea
         value={text}
         onChange={e => setText(e.target.value)}
-        placeholder={suggestion?.suggested_text ?? 'Digite sua resposta…'}
+        placeholder={suggestion?.suggested_text ?? t('replyPlaceholder')}
         rows={3}
         className="w-full p-2 text-sm rounded outline-none resize-none"
         style={{
@@ -649,7 +645,7 @@ function SuggestionEditor(props: {
             style={{ background: '#00E5FF', color: '#09090b' }}
           >
             {busy === 'send' ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
-            Enviar
+            {t('send')}
           </button>
           <button
             onClick={onRegenerate}
@@ -658,7 +654,7 @@ function SuggestionEditor(props: {
             style={{ background: '#1e1e24', color: '#a1a1aa' }}
           >
             {busy === 'regen' ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-            Nova sugestão
+            {t('newSuggestion')}
           </button>
           <button
             onClick={() => onTransform('mais_empatico')}
@@ -666,7 +662,7 @@ function SuggestionEditor(props: {
             className="text-xs px-2 py-1.5 rounded transition disabled:opacity-50"
             style={{ background: '#1e1e24', color: '#a1a1aa' }}
           >
-            +empático
+            {t('moreEmpathetic')}
           </button>
           <button
             onClick={() => onTransform('mais_objetivo')}
@@ -674,7 +670,7 @@ function SuggestionEditor(props: {
             className="text-xs px-2 py-1.5 rounded transition disabled:opacity-50"
             style={{ background: '#1e1e24', color: '#a1a1aa' }}
           >
-            +objetivo
+            {t('moreObjective')}
           </button>
         </div>
         <span
@@ -704,6 +700,7 @@ function SaleContextPanel({ conversation, knowledge, onSaveKnowledge }: {
   knowledge:       KnowledgeRow | null
   onSaveKnowledge: (kb: KnowledgeRow) => Promise<void>
 }) {
+  const t = useTranslations('mlPostsale')
   const c = conversation as {
     pack_id?:           string | number
     order_id?:          string | number | null
@@ -720,13 +717,13 @@ function SaleContextPanel({ conversation, knowledge, onSaveKnowledge }: {
       {/* Card produto */}
       <div className="rounded-lg p-3" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
         <div className="flex items-center gap-2 mb-2 text-[11px] font-medium" style={{ color: '#a5f3fc' }}>
-          <Package size={12} /> Produto
+          <Package size={12} /> {t('product')}
         </div>
         {c.product_thumbnail && (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={c.product_thumbnail} alt="" className="w-full h-32 object-cover rounded mb-2" />
         )}
-        <div className="text-xs font-medium" style={{ color: 'var(--text)' }}>{c.product_title ?? 'Produto não identificado'}</div>
+        <div className="text-xs font-medium" style={{ color: 'var(--text)' }}>{c.product_title ?? t('unknownProduct')}</div>
         {c.ml_listing_id && (
           <a
             href={`https://produto.mercadolivre.com.br/${c.ml_listing_id}`}
@@ -743,12 +740,12 @@ function SaleContextPanel({ conversation, knowledge, onSaveKnowledge }: {
       {/* Card pedido */}
       <div className="rounded-lg p-3" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
         <div className="flex items-center gap-2 mb-2 text-[11px] font-medium" style={{ color: '#a5f3fc' }}>
-          <CheckCircle2 size={12} /> Pedido
+          <CheckCircle2 size={12} /> {t('order')}
         </div>
         <div className="space-y-1 text-xs" style={{ color: '#a1a1aa' }}>
-          <div>Pack ID: <span style={{ color: 'var(--text)' }}>{c.pack_id ?? '—'}</span></div>
-          <div>Order: <span style={{ color: 'var(--text)' }}>{c.order_id ?? '—'}</span></div>
-          <div>Comprador: <span style={{ color: 'var(--text)' }}>{c.buyer_nickname ?? `#${c.buyer_id ?? '—'}`}</span></div>
+          <div>{t('packId')}: <span style={{ color: 'var(--text)' }}>{c.pack_id ?? '—'}</span></div>
+          <div>{t('orderField')}: <span style={{ color: 'var(--text)' }}>{c.order_id ?? '—'}</span></div>
+          <div>{t('buyerField')}: <span style={{ color: 'var(--text)' }}>{c.buyer_nickname ?? `#${c.buyer_id ?? '—'}`}</span></div>
         </div>
       </div>
 
@@ -767,6 +764,7 @@ function KnowledgeEditor({ knowledge, onSave, productLinked }: {
   onSave:        (kb: KnowledgeRow) => Promise<void>
   productLinked: boolean
 }) {
+  const t = useTranslations('mlPostsale')
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState<KnowledgeRow>(knowledge ?? {})
   const [saving, setSaving] = useState(false)
@@ -790,7 +788,7 @@ function KnowledgeEditor({ knowledge, onSave, productLinked }: {
         className="w-full flex items-center justify-between text-[11px] font-medium"
         style={{ color: '#a5f3fc' }}
       >
-        <span className="flex items-center gap-2"><BookOpen size={12} /> Conhecimento do produto</span>
+        <span className="flex items-center gap-2"><BookOpen size={12} /> {t('productKnowledge')}</span>
         <span style={{ color: '#52525b' }}>{open ? '−' : '+'}</span>
       </button>
 
@@ -798,14 +796,14 @@ function KnowledgeEditor({ knowledge, onSave, productLinked }: {
         <div className="space-y-2 mt-3">
           {!productLinked && (
             <div className="text-[10px] p-2 rounded" style={{ background: 'rgba(252,211,77,0.10)', color: '#fcd34d', border: '1px solid rgba(252,211,77,0.3)' }}>
-              Esta conversa não tem produto vinculado no catálogo. KB pode ser editada apenas via SQL no MVP 1.
+              {t('noLinkedProductWarning')}
             </div>
           )}
-          <KbField label="Manual / uso"     value={draft.manual            ?? ''} onChange={v => setDraft(d => ({ ...d, manual: v }))} />
-          <KbField label="Problemas comuns" value={draft.problemas_comuns  ?? ''} onChange={v => setDraft(d => ({ ...d, problemas_comuns: v }))} />
-          <KbField label="Garantia"         value={draft.garantia          ?? ''} onChange={v => setDraft(d => ({ ...d, garantia: v }))} />
-          <KbField label="Política de troca" value={draft.politica_troca   ?? ''} onChange={v => setDraft(d => ({ ...d, politica_troca: v }))} />
-          <KbField label="Observações"      value={draft.observacoes       ?? ''} onChange={v => setDraft(d => ({ ...d, observacoes: v }))} />
+          <KbField label={t('kbFields.manual')}     value={draft.manual            ?? ''} onChange={v => setDraft(d => ({ ...d, manual: v }))} />
+          <KbField label={t('kbFields.commonProblems')} value={draft.problemas_comuns  ?? ''} onChange={v => setDraft(d => ({ ...d, problemas_comuns: v }))} />
+          <KbField label={t('kbFields.warranty')}         value={draft.garantia          ?? ''} onChange={v => setDraft(d => ({ ...d, garantia: v }))} />
+          <KbField label={t('kbFields.exchangePolicy')} value={draft.politica_troca   ?? ''} onChange={v => setDraft(d => ({ ...d, politica_troca: v }))} />
+          <KbField label={t('kbFields.notes')}      value={draft.observacoes       ?? ''} onChange={v => setDraft(d => ({ ...d, observacoes: v }))} />
           <button
             onClick={() => void save()}
             disabled={saving || !productLinked}
@@ -813,7 +811,7 @@ function KnowledgeEditor({ knowledge, onSave, productLinked }: {
             style={{ background: '#00E5FF', color: '#09090b' }}
           >
             {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
-            Salvar conhecimento
+            {t('saveKnowledge')}
           </button>
         </div>
       )}

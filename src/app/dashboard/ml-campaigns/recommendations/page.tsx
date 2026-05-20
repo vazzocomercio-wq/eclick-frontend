@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, Suspense } from 'react'
+import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import {
@@ -49,15 +50,21 @@ async function getToken(): Promise<string | null> {
   return data.session?.access_token ?? null
 }
 
+function RecoFallback() {
+  const t = useTranslations('mlCampaigns.recommendations')
+  return <div className="p-6 text-zinc-500 text-sm">{t('loading')}</div>
+}
+
 export default function RecommendationsPage() {
   return (
-    <Suspense fallback={<div className="p-6 text-zinc-500 text-sm">Carregando…</div>}>
+    <Suspense fallback={<RecoFallback />}>
       <Inner />
     </Suspense>
   )
 }
 
 function Inner() {
+  const t        = useTranslations('mlCampaigns.recommendations')
   const sp       = useSearchParams()
   const router   = useRouter()
   const pathname = usePathname()
@@ -133,16 +140,16 @@ function Inner() {
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
           <div className="flex items-center gap-2 text-xs text-zinc-500">
-            <Link href="/dashboard/ml-campaigns" className="hover:text-cyan-400">Campaign Center</Link>
+            <Link href="/dashboard/ml-campaigns" className="hover:text-cyan-400">{t('breadcrumb')}</Link>
             <span>/</span>
-            <span className="text-zinc-300">Recomendações IA</span>
+            <span className="text-zinc-300">{t('breadcrumbCurrent')}</span>
           </div>
           <h1 className="text-2xl font-bold mt-1 flex items-center gap-2">
             <Sparkles size={22} className="text-cyan-400" />
-            Recomendações IA
+            {t('title')}
           </h1>
           <p className="text-xs text-zinc-500 mt-1">
-            {loading ? 'Carregando…' : `${total} recomendaç${total === 1 ? 'ão' : 'ões'}`}
+            {loading ? t('loading') : t('count', { count: total })}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -150,7 +157,7 @@ function Inner() {
           <button onClick={generateNow} disabled={generating}
             className="glow-rainbow flex items-center gap-1.5 px-3 py-2 rounded-lg bg-cyan-400 hover:bg-cyan-300 disabled:opacity-50 text-black text-xs font-semibold">
             {generating ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-            {generating ? 'Gerando…' : 'Gerar agora'}
+            {generating ? t('generating') : t('generateNow')}
           </button>
         </div>
       </div>
@@ -158,31 +165,31 @@ function Inner() {
       {/* Filtros */}
       <div className="rounded-xl p-3 flex flex-wrap items-center gap-2 text-xs"
         style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
-        <FilterChip label="Classificação" value={classification}
+        <FilterChip label={t('filter.classification')} value={classification}
           options={[
-            { value: '',                    label: 'Todas' },
-            { value: 'recommended',         label: '✅ Recomendado' },
-            { value: 'recommended_caution', label: '⚠️ Com cautela' },
-            { value: 'clearance_only',      label: '♻️ Liquidação' },
-            { value: 'review_costs',        label: '📋 Revisar custos' },
-            { value: 'low_quality_listing', label: '🔧 Qualidade baixa' },
-            { value: 'skip',                label: '❌ Não recomendado' },
+            { value: '',                    label: t('filter.allClassifications') },
+            { value: 'recommended',         label: t('filter.classRecommended') },
+            { value: 'recommended_caution', label: t('filter.classCaution') },
+            { value: 'clearance_only',      label: t('filter.classClearance') },
+            { value: 'review_costs',        label: t('filter.classReviewCosts') },
+            { value: 'low_quality_listing', label: t('filter.classLowQuality') },
+            { value: 'skip',                label: t('filter.classSkip') },
           ]}
           onChange={v => updateFilter({ classification: v || null })}
         />
-        <FilterChip label="Status" value={status}
+        <FilterChip label={t('filter.status')} value={status}
           options={[
-            { value: 'pending',  label: 'Pendentes' },
-            { value: 'approved', label: 'Aprovadas' },
-            { value: 'edited',   label: 'Editadas' },
-            { value: 'rejected', label: 'Rejeitadas' },
-            { value: 'applied',  label: 'Aplicadas' },
+            { value: 'pending',  label: t('filter.statusPending') },
+            { value: 'approved', label: t('filter.statusApproved') },
+            { value: 'edited',   label: t('filter.statusEdited') },
+            { value: 'rejected', label: t('filter.statusRejected') },
+            { value: 'applied',  label: t('filter.statusApplied') },
           ]}
           onChange={v => updateFilter({ status: v || null })}
         />
-        <FilterChip label="Score mínimo" value={minScore}
+        <FilterChip label={t('filter.minScore')} value={minScore}
           options={[
-            { value: '',   label: 'Qualquer' },
+            { value: '',   label: t('filter.minScoreAny') },
             { value: '50', label: '≥ 50' },
             { value: '70', label: '≥ 70' },
             { value: '85', label: '≥ 85' },
@@ -191,7 +198,7 @@ function Inner() {
         />
         {(classification || minScore) && (
           <button onClick={() => router.replace(pathname)} className="ml-auto text-zinc-500 hover:text-red-400">
-            Limpar filtros
+            {t('clearFilters')}
           </button>
         )}
       </div>
@@ -213,11 +220,9 @@ function Inner() {
       {!loading && recos.length === 0 && !error && (
         <div className="rounded-xl p-8 text-center" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
           <Sparkles size={48} className="mx-auto text-zinc-700 mb-3" />
-          <p className="text-zinc-300 font-medium">Nenhuma recomendação ainda</p>
+          <p className="text-zinc-300 font-medium">{t('empty.title')}</p>
           <p className="text-xs text-zinc-500 mt-2 max-w-md mx-auto">
-            Clica em <strong className="text-cyan-400">Gerar agora</strong> pra IA analisar todos os candidatos
-            das campanhas sincronizadas. Cada recomendação calcula custos, cenários de preço, quantidade ideal
-            e classifica em ✅/⚠️/♻️/❌.
+            {t('empty.desc')}
           </p>
         </div>
       )}
@@ -232,6 +237,8 @@ function Inner() {
 }
 
 function RecoCard({ reco }: { reco: Recommendation }) {
+  const t = useTranslations('mlCampaigns.recommendations')
+  const td = useTranslations('mlCampaigns')
   const config = classificationConfig(reco.recommendation)
   const score = reco.opportunity_score ?? 0
 
@@ -252,11 +259,11 @@ function RecoCard({ reco }: { reco: Recommendation }) {
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-bold inline-flex items-center gap-1"
               style={{ background: `${config.color}15`, color: config.color, border: `1px solid ${config.color}40` }}>
-              {config.icon} {config.label}
+              {config.icon} {config.key ? t(`classification.${config.key}`) : reco.recommendation}
             </span>
             <span className="font-mono text-xs text-zinc-300">{reco.ml_campaign_items?.ml_item_id ?? '—'}</span>
             {reco.ml_campaigns?.has_subsidy_items && (
-              <span className="text-[10px] text-cyan-400">✦ subsídio</span>
+              <span className="text-[10px] text-cyan-400">{t('subsidyTag')}</span>
             )}
           </div>
 
@@ -268,7 +275,7 @@ function RecoCard({ reco }: { reco: Recommendation }) {
           {reco.recommended_price != null && reco.recommended_quantity != null && (
             <div className="flex items-center gap-3 mt-2 text-[11px] text-zinc-400">
               <span>
-                Preço sugerido: <strong className="text-zinc-200">R$ {reco.recommended_price.toFixed(2)}</strong>
+                {t('suggestedPrice')}: <strong className="text-zinc-200">R$ {reco.recommended_price.toFixed(2)}</strong>
                 {reco.ml_campaign_items?.original_price && (
                   <span className="ml-1 text-emerald-400">
                     −{Math.round(((reco.ml_campaign_items.original_price - reco.recommended_price) / reco.ml_campaign_items.original_price) * 100)}%
@@ -276,7 +283,7 @@ function RecoCard({ reco }: { reco: Recommendation }) {
                 )}
               </span>
               <span>·</span>
-              <span>Quantidade: <strong className="text-zinc-200">{reco.recommended_quantity} un</strong></span>
+              <span>{t('quantity')}: <strong className="text-zinc-200">{t('unitsValue', { n: reco.recommended_quantity })}</strong></span>
               <span>·</span>
               <span className="capitalize">{reco.recommended_strategy ?? '—'}</span>
             </div>
@@ -303,8 +310,8 @@ function RecoCard({ reco }: { reco: Recommendation }) {
           <div className="text-[10px] text-zinc-500 mt-2">
             {reco.ml_campaigns?.name ?? reco.ml_campaign_items?.ml_campaign_id} ·
             {' '}{reco.ml_campaigns?.ml_promotion_type}
-            {reco.expires_at && ` · expira ${new Date(reco.expires_at).toLocaleDateString('pt-BR')}`}
-            {' '}· seller {reco.seller_id}
+            {reco.expires_at && ` · ${t('expires', { date: new Date(reco.expires_at).toLocaleDateString('pt-BR') })}`}
+            {' '}· {td('seller', { id: reco.seller_id })}
           </div>
         </div>
 
@@ -321,7 +328,7 @@ function FilterChip({ label, value, options, onChange }: {
 }) {
   return (
     <div className="flex items-center gap-1">
-      <span className="text-zinc-500 text-[10px] uppercase tracking-wider">{label}:</span>
+      <span className="text-zinc-500 text-[10px] uppercase tracking-wider">{label}</span>
       <select
         value={value}
         onChange={e => onChange(e.target.value)}
@@ -337,15 +344,15 @@ function FilterChip({ label, value, options, onChange }: {
   )
 }
 
-function classificationConfig(c: string): { label: string; color: string; icon: string } {
+function classificationConfig(c: string): { key: string | null; color: string; icon: string } {
   switch (c) {
-    case 'recommended':         return { label: 'Recomendado',     color: '#22c55e', icon: '✅' }
-    case 'recommended_caution': return { label: 'Com cautela',     color: '#fbbf24', icon: '⚠️' }
-    case 'clearance_only':      return { label: 'Liquidação',      color: '#a78bfa', icon: '♻️' }
-    case 'review_costs':        return { label: 'Revisar custos',  color: '#f97316', icon: '📋' }
-    case 'low_quality_listing': return { label: 'Qualidade baixa', color: '#ef4444', icon: '🔧' }
-    case 'skip':                return { label: 'Não recomendado', color: '#71717a', icon: '❌' }
-    default:                    return { label: c,                 color: '#71717a', icon: '·' }
+    case 'recommended':         return { key: 'recommended',       color: '#22c55e', icon: '✅' }
+    case 'recommended_caution': return { key: 'recommended_caution', color: '#fbbf24', icon: '⚠️' }
+    case 'clearance_only':      return { key: 'clearance_only',     color: '#a78bfa', icon: '♻️' }
+    case 'review_costs':        return { key: 'review_costs',       color: '#f97316', icon: '📋' }
+    case 'low_quality_listing': return { key: 'low_quality_listing', color: '#ef4444', icon: '🔧' }
+    case 'skip':                return { key: 'skip',               color: '#71717a', icon: '❌' }
+    default:                    return { key: null,                color: '#71717a', icon: '·' }
   }
 }
 

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import {
@@ -24,6 +25,7 @@ const STATUS_COLOR: Record<AdsStatus, string> = {
 }
 
 export default function AdsHubDashboardPage() {
+  const t = useTranslations('adsCampaigns')
   const searchParams = useSearchParams()
   const justConnected = searchParams.get('meta_connected') === '1'
 
@@ -69,17 +71,17 @@ export default function AdsHubDashboardPage() {
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-zinc-100 flex items-center gap-2">
             <Megaphone size={20} className="text-cyan-400" />
-            Ads Hub
+            {t('list.pageTitle')}
           </h1>
           <p className="text-xs text-zinc-500 mt-1">
-            Campanhas Meta/Google/TikTok geradas a partir do catálogo. Um produto, um clique, uma campanha completa.
+            {t('list.pageSubtitle')}
           </p>
         </div>
         <Link
           href="/dashboard/ads-campaigns/new"
           className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan-400 hover:bg-cyan-300 text-black text-sm font-medium shrink-0"
         >
-          <Plus size={14} /> Nova campanha
+          <Plus size={14} /> {t('list.newCampaign')}
         </Link>
       </div>
 
@@ -91,7 +93,7 @@ export default function AdsHubDashboardPage() {
 
       {justConnected && meta?.connected && (
         <div className="rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-300 flex items-center gap-2">
-          <Check size={14} /> Meta Ads conectado!
+          <Check size={14} /> {t('list.metaConnected')}
         </div>
       )}
 
@@ -103,13 +105,13 @@ export default function AdsHubDashboardPage() {
               <Plug size={18} style={{ color: '#0866FF' }} />
             </div>
             <div>
-              <p className="text-sm font-medium text-zinc-200">Meta Ads (Facebook/Instagram)</p>
+              <p className="text-sm font-medium text-zinc-200">{t('list.metaAdsLabel')}</p>
               <p className="text-[11px] text-zinc-500 mt-0.5">
-                {!meta?.configured_globally && '⚠ App Meta não configurado pelo admin'}
-                {meta?.configured_globally && !meta.connected && 'Não conectado'}
-                {meta?.connected && !meta.ad_account_id && 'Conectado · Selecione uma Ad Account'}
+                {!meta?.configured_globally && t('list.metaNotConfigured')}
+                {meta?.configured_globally && !meta.connected && t('list.metaNotConnected')}
+                {meta?.connected && !meta.ad_account_id && t('list.metaSelectAccount')}
                 {meta?.connected && meta.ad_account_id && (
-                  <>Conectado · Ad Account <span className="font-mono text-cyan-300">{meta.ad_account_id}</span></>
+                  <>{t('list.metaConnectedAccount')} <span className="font-mono text-cyan-300">{meta.ad_account_id}</span></>
                 )}
               </p>
             </div>
@@ -119,7 +121,7 @@ export default function AdsHubDashboardPage() {
               onClick={connectMeta}
               className="px-3 py-1.5 rounded-lg bg-[#0866FF] hover:bg-[#0563d6] text-white text-xs font-medium"
             >
-              Conectar Meta
+              {t('list.connectMeta')}
             </button>
           )}
         </div>
@@ -129,17 +131,17 @@ export default function AdsHubDashboardPage() {
       {dashboard && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <SummaryCard
-            label="Campanhas ativas"
+            label={t('list.summary.activeCampaigns')}
             value={dashboard.total.count}
             icon={<Activity size={16} className="text-cyan-400" />}
           />
           <SummaryCard
-            label="Investimento total"
+            label={t('list.summary.totalInvestment')}
             value={`R$ ${dashboard.total.spend_brl.toFixed(2)}`}
             icon={<DollarSign size={16} className="text-emerald-400" />}
           />
           <SummaryCard
-            label="Conversões"
+            label={t('list.summary.conversions')}
             value={dashboard.total.conversions}
             icon={<TrendingUp size={16} className="text-amber-400" />}
           />
@@ -157,10 +159,10 @@ export default function AdsHubDashboardPage() {
                 <span className="w-2 h-3 rounded-sm" style={{ background: PLATFORM_COLOR[plat] }} />
                 <p className="text-[11px] text-zinc-400">{PLATFORM_LABEL[plat]}</p>
               </div>
-              <p className="text-sm text-zinc-200">{d.count} campanha{d.count > 1 ? 's' : ''}</p>
-              <p className="text-[11px] text-zinc-500">R$ {d.spend_brl.toFixed(2)} gastos</p>
+              <p className="text-sm text-zinc-200">{t('list.platformCampaigns', { count: d.count })}</p>
+              <p className="text-[11px] text-zinc-500">{t('list.platformSpent', { value: d.spend_brl.toFixed(2) })}</p>
               {d.roas_avg != null && (
-                <p className="text-[11px] text-emerald-300">ROAS médio {d.roas_avg.toFixed(2)}×</p>
+                <p className="text-[11px] text-emerald-300">{t('list.platformRoas', { value: d.roas_avg.toFixed(2) })}</p>
               )}
             </div>
           ))}
@@ -175,7 +177,7 @@ export default function AdsHubDashboardPage() {
           onChange={e => setFilterPlatform(e.target.value as AdsPlatform | '')}
           className="bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-xs text-zinc-200 outline-none focus:border-cyan-400/60"
         >
-          <option value="">Todas plataformas</option>
+          <option value="">{t('list.allPlatforms')}</option>
           {(['meta','google','tiktok','mercado_livre_ads'] as const).map(p => (
             <option key={p} value={p}>{PLATFORM_LABEL[p]}</option>
           ))}
@@ -185,9 +187,9 @@ export default function AdsHubDashboardPage() {
           onChange={e => setFilterStatus(e.target.value as AdsStatus | '')}
           className="bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-xs text-zinc-200 outline-none focus:border-cyan-400/60"
         >
-          <option value="">Todos status</option>
+          <option value="">{t('list.allStatuses')}</option>
           {(['draft','ready','publishing','active','paused','completed','error','archived'] as const).map(s => (
-            <option key={s} value={s}>{s}</option>
+            <option key={s} value={s}>{t(`status.${s}`)}</option>
           ))}
         </select>
       </div>
@@ -195,20 +197,20 @@ export default function AdsHubDashboardPage() {
       {/* Campaigns list */}
       {loading && (
         <div className="flex items-center gap-2 text-zinc-500 text-sm">
-          <Loader2 size={14} className="animate-spin" /> carregando…
+          <Loader2 size={14} className="animate-spin" /> {t('list.loading')}
         </div>
       )}
 
       {!loading && campaigns && campaigns.length === 0 && (
         <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-8 text-center space-y-2">
           <Megaphone size={28} className="mx-auto text-cyan-400 opacity-60" />
-          <p className="text-sm text-zinc-300">Nenhuma campanha ainda.</p>
-          <p className="text-xs text-zinc-500">Selecione um produto e gere a primeira campanha em segundos.</p>
+          <p className="text-sm text-zinc-300">{t('list.emptyTitle')}</p>
+          <p className="text-xs text-zinc-500">{t('list.emptySubtitle')}</p>
           <Link
             href="/dashboard/ads-campaigns/new"
             className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan-400 hover:bg-cyan-300 text-black text-sm font-medium mt-2"
           >
-            <Plus size={14} /> Criar primeira
+            <Plus size={14} /> {t('list.createFirst')}
           </Link>
         </div>
       )}
@@ -226,7 +228,7 @@ export default function AdsHubDashboardPage() {
                 <div className="min-w-0 flex-1">
                   <p className="text-sm text-zinc-200 truncate">{c.name}</p>
                   <p className="text-[11px] text-zinc-500 truncate">
-                    {PLATFORM_LABEL[c.platform]} · {c.objective} · {c.ad_copies.length} variantes · R$ {Number(c.budget_daily_brl).toFixed(2)}/dia
+                    {PLATFORM_LABEL[c.platform]} · {c.objective} · {t('list.variants', { count: c.ad_copies.length })} · {t('list.perDay', { value: Number(c.budget_daily_brl).toFixed(2) })}
                   </p>
                 </div>
               </div>
@@ -239,7 +241,7 @@ export default function AdsHubDashboardPage() {
                     color:       STATUS_COLOR[c.status],
                   }}
                 >
-                  {c.status}
+                  {t(`status.${c.status}`)}
                 </span>
                 {(c.metrics as { roas?: number }).roas != null && (
                   <span className="text-[10px] text-emerald-300 font-mono">

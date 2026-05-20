@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import {
   ImageIcon, Upload, Search, Copy, Trash2, ExternalLink,
@@ -41,6 +42,7 @@ function isImage(url: string) {
 // ── Upload zone ───────────────────────────────────────────────────────────────
 
 function UploadZone({ onUploaded }: { onUploaded: (urls: string[]) => void }) {
+  const t = useTranslations('producao.biblioteca')
   const [dragging,  setDragging]  = useState(false)
   const [uploading, setUploading] = useState(false)
   const [err,       setErr]       = useState('')
@@ -64,7 +66,7 @@ function UploadZone({ onUploaded }: { onUploaded: (urls: string[]) => void }) {
     }))
 
     setUploading(false)
-    if (failed.length > 0) setErr(`Falha ao enviar: ${failed.join(', ')}`)
+    if (failed.length > 0) setErr(t('uploadFailed', { files: failed.join(', ') }))
     if (uploaded.length > 0) onUploaded(uploaded)
   }
 
@@ -86,7 +88,7 @@ function UploadZone({ onUploaded }: { onUploaded: (urls: string[]) => void }) {
         : <Upload size={20} style={{ color: dragging ? '#00E5FF' : '#52525b' }} />
       }
       <p className="text-xs font-medium" style={{ color: dragging ? '#00E5FF' : '#71717a' }}>
-        {uploading ? 'Enviando…' : 'Arraste arquivos ou clique para selecionar'}
+        {uploading ? t('uploading') : t('dropFiles')}
       </p>
       <p className="text-[10px] text-zinc-600">JPG, PNG, WEBP, GIF, MP4</p>
       {err && <p className="text-[10px] text-red-400 mt-1">{err}</p>}
@@ -105,6 +107,7 @@ function MediaCard({
   onCopy: () => void
   onDelete: () => void
 }) {
+  const t = useTranslations('producao.biblioteca')
   const [copied, setCopied] = useState(false)
 
   function handleCopy() {
@@ -141,18 +144,18 @@ function MediaCard({
           <button onClick={e => { e.stopPropagation(); handleCopy() }}
             className="p-1.5 rounded-lg transition-colors"
             style={{ background: copied ? 'rgba(0,229,255,0.2)' : 'rgba(0,0,0,0.6)' }}
-            title="Copiar URL">
+            title={t('copyUrl')}>
             <Copy size={12} style={{ color: copied ? '#00E5FF' : '#e4e4e7' }} />
           </button>
           <a href={item.url} target="_blank" rel="noreferrer"
             onClick={e => e.stopPropagation()}
             className="p-1.5 rounded-lg transition-colors" style={{ background: 'rgba(0,0,0,0.6)' }}
-            title="Abrir em nova aba">
+            title={t('openNewTab')}>
             <ExternalLink size={12} className="text-zinc-200" />
           </a>
           <button onClick={e => { e.stopPropagation(); onDelete() }}
             className="p-1.5 rounded-lg transition-colors" style={{ background: 'rgba(0,0,0,0.6)' }}
-            title="Excluir">
+            title={t('delete')}>
             <Trash2 size={12} className="text-red-400" />
           </button>
         </div>
@@ -176,7 +179,7 @@ function MediaCard({
           </a>
         )}
         {!item.productName && (
-          <p className="text-[9px] text-zinc-600 mt-0.5">Biblioteca</p>
+          <p className="text-[9px] text-zinc-600 mt-0.5">{t('libraryTag')}</p>
         )}
       </div>
     </div>
@@ -186,6 +189,7 @@ function MediaCard({
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function BibliotecaPage() {
+  const t = useTranslations('producao.biblioteca')
   const [items,    setItems]    = useState<MediaItem[]>([])
   const [loading,  setLoading]  = useState(true)
   const [query,    setQuery]    = useState('')
@@ -247,9 +251,9 @@ export default function BibliotecaPage() {
 
   async function deleteSelected() {
     const ok = await confirm({
-      title:        'Excluir arquivos',
-      message:      `Excluir ${selected.size} arquivo(s)? Esta ação não pode ser desfeita.`,
-      confirmLabel: 'Excluir',
+      title:        t('deleteFilesTitle'),
+      message:      t('deleteFilesMessage', { count: selected.size }),
+      confirmLabel: t('delete'),
       variant:      'danger',
     })
     if (!ok) return
@@ -306,17 +310,17 @@ export default function BibliotecaPage() {
       {/* Header */}
       <div className="flex items-center justify-between gap-4">
         <div>
-          <p className="text-zinc-500 text-xs">Produção</p>
-          <h2 className="text-white text-lg font-semibold mt-0.5">Biblioteca de Mídias</h2>
+          <p className="text-zinc-500 text-xs">{t('eyebrow')}</p>
+          <h2 className="text-white text-lg font-semibold mt-0.5">{t('title')}</h2>
           <p className="text-zinc-500 text-xs mt-1">
-            {loading ? 'Carregando…' : `${items.length} arquivo${items.length !== 1 ? 's' : ''} · ${imgCount} imagem${imgCount !== 1 ? 'ns' : ''}`}
+            {loading ? t('loadingShort') : `${t('fileCount', { count: items.length })} · ${t('imageCount', { count: imgCount })}`}
           </p>
         </div>
         <button onClick={load} disabled={loading}
           className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border transition-all disabled:opacity-60"
           style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>
           <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
-          Atualizar
+          {t('refresh')}
         </button>
       </div>
 
@@ -330,7 +334,7 @@ export default function BibliotecaPage() {
           <Search size={13} className="text-zinc-600 shrink-0" />
           <input
             value={query} onChange={e => setQuery(e.target.value)}
-            placeholder="Buscar por nome ou produto…"
+            placeholder={t('searchPlaceholder')}
             className="bg-transparent text-xs text-zinc-300 outline-none flex-1 placeholder-zinc-600"
           />
           {query && <button onClick={() => setQuery('')}><X size={12} className="text-zinc-600 hover:text-zinc-300" /></button>}
@@ -350,16 +354,16 @@ export default function BibliotecaPage() {
         {/* Selection actions */}
         {selected.size > 0 ? (
           <div className="flex items-center gap-2">
-            <span className="text-xs text-zinc-400">{selected.size} selecionado{selected.size !== 1 ? 's' : ''}</span>
+            <span className="text-xs text-zinc-400">{t('selectedCount', { count: selected.size })}</span>
             <button onClick={clearSelection} className="text-[10px] text-zinc-500 hover:text-zinc-300 px-2 py-1 rounded-lg transition-colors"
               style={{ border: '1px solid #2e2e33' }}>
-              Limpar
+              {t('clear')}
             </button>
             <button onClick={deleteSelected} disabled={deleting}
               className="flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-lg transition-colors disabled:opacity-50"
               style={{ background: 'rgba(248,113,113,0.1)', color: '#f87171', border: '1px solid rgba(248,113,113,0.25)' }}>
               <Trash2 size={11} />
-              {deleting ? 'Excluindo…' : 'Excluir'}
+              {deleting ? t('deleting') : t('delete')}
             </button>
           </div>
         ) : (
@@ -368,7 +372,7 @@ export default function BibliotecaPage() {
               className="flex items-center gap-1 text-[10px] text-zinc-500 hover:text-zinc-300 px-2 py-1 rounded-lg transition-colors"
               style={{ border: '1px solid #2e2e33' }}>
               <CheckSquare size={11} />
-              Selecionar tudo
+              {t('selectAll')}
             </button>
           )
         )}
@@ -376,13 +380,13 @@ export default function BibliotecaPage() {
 
       {/* Grid */}
       {loading ? (
-        <div className="flex items-center justify-center py-20 text-zinc-600 text-xs">Carregando biblioteca…</div>
+        <div className="flex items-center justify-center py-20 text-zinc-600 text-xs">{t('loadingLibrary')}</div>
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 gap-3">
           <ImageIcon size={32} className="text-zinc-700" />
-          <p className="text-sm text-zinc-500">{query ? 'Nenhum arquivo encontrado' : 'Biblioteca vazia'}</p>
+          <p className="text-sm text-zinc-500">{query ? t('noFilesFound') : t('emptyLibrary')}</p>
           <p className="text-xs text-zinc-600">
-            {query ? 'Tente outro termo de busca.' : 'Faça upload de arquivos ou adicione fotos a produtos.'}
+            {query ? t('tryAnotherSearch') : t('emptyLibraryHint')}
           </p>
         </div>
       ) : view === 'grid' ? (
@@ -396,9 +400,9 @@ export default function BibliotecaPage() {
               onCopy={() => {}}
               onDelete={async () => {
                 const ok = await confirm({
-                  title:        'Excluir arquivo',
-                  message:      'Excluir este arquivo?',
-                  confirmLabel: 'Excluir',
+                  title:        t('deleteFileTitle'),
+                  message:      t('deleteFileMessage'),
+                  confirmLabel: t('delete'),
                   variant:      'danger',
                 })
                 if (!ok) return
@@ -432,20 +436,20 @@ export default function BibliotecaPage() {
               </div>
               <div className="flex items-center gap-1.5 shrink-0">
                 <button onClick={() => { navigator.clipboard.writeText(item.url).catch(() => {}) }}
-                  className="p-1.5 rounded-lg hover:bg-white/5 transition-colors" title="Copiar URL">
+                  className="p-1.5 rounded-lg hover:bg-white/5 transition-colors" title={t('copyUrl')}>
                   <Copy size={12} className="text-zinc-500" />
                 </button>
                 {item.productHref && (
-                  <a href={item.productHref} className="p-1.5 rounded-lg hover:bg-white/5 transition-colors" title="Ver produto">
+                  <a href={item.productHref} className="p-1.5 rounded-lg hover:bg-white/5 transition-colors" title={t('viewProduct')}>
                     <ExternalLink size={12} className="text-zinc-500" />
                   </a>
                 )}
                 <button
                   onClick={async () => {
                     const ok = await confirm({
-                      title:        'Excluir arquivo',
-                      message:      'Excluir este arquivo?',
-                      confirmLabel: 'Excluir',
+                      title:        t('deleteFileTitle'),
+                      message:      t('deleteFileMessage'),
+                      confirmLabel: t('delete'),
                       variant:      'danger',
                     })
                     if (!ok) return
@@ -453,7 +457,7 @@ export default function BibliotecaPage() {
                     sb.storage.from(BUCKET).remove([item.path]).catch(() => {})
                     setItems(prev => prev.filter(i => i.url !== item.url))
                   }}
-                  className="p-1.5 rounded-lg hover:bg-red-500/10 transition-colors" title="Excluir">
+                  className="p-1.5 rounded-lg hover:bg-red-500/10 transition-colors" title={t('delete')}>
                   <Trash2 size={12} className="text-red-500" />
                 </button>
               </div>

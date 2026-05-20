@@ -1,22 +1,17 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import {
-  Inbox, Search, Filter, RefreshCw, Send, Check, X, Edit3,
+  Inbox, Search, RefreshCw, Send, Check, X, Edit3,
   AlertTriangle, CheckCircle2, UserCheck, Loader2, ChevronDown, ChevronUp,
-  MessageSquare, Package, Clock, User, Bot, Zap, BookOpen, Save, Phone, History,
+  MessageSquare, Package, Clock, User, Bot, BookOpen, Save, Phone, History,
 } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 
-const STATUS_TABS = [
-  { id: 'all',             label: 'Todos' },
-  { id: 'open',            label: 'Abertos' },
-  { id: 'waiting_human',   label: 'Aguardando' },
-  { id: 'escalated',       label: 'Escalados' },
-  { id: 'resolved',        label: 'Resolvidos' },
-]
+const STATUS_TAB_IDS = ['all', 'open', 'waiting_human', 'escalated', 'resolved']
 
 const CHANNEL_LABELS: Record<string, string> = {
   mercadolivre: 'ML', ml: 'ML',
@@ -104,6 +99,7 @@ function formatPhoneFull(phone: string | null | undefined): string {
 // ── Conversation list item ────────────────────────────────────────────────────
 
 function ConvItem({ conv, active, onClick }: { conv: ConversationListItem; active: boolean; onClick: () => void }) {
+  const t = useTranslations('atendenteIa')
   const timeAgo = (d: string) => {
     const diff = Date.now() - new Date(d).getTime()
     if (diff < 3600000) return `${Math.floor(diff / 60000)}m`
@@ -115,9 +111,9 @@ function ConvItem({ conv, active, onClick }: { conv: ConversationListItem; activ
   const confDot = (() => {
     const c = conv.last_ai_confidence
     if (c == null) return null
-    if (c >= 80) return { color: '#4ade80', label: 'Alta' }
-    if (c >= 50) return { color: '#fb923c', label: 'Média' }
-    return { color: '#f87171', label: 'Baixa' }
+    if (c >= 80) return { color: '#4ade80', label: t('conversations.confidence.high') }
+    if (c >= 50) return { color: '#fb923c', label: t('conversations.confidence.medium') }
+    return { color: '#f87171', label: t('conversations.confidence.low') }
   })()
 
   return (
@@ -133,12 +129,12 @@ function ConvItem({ conv, active, onClick }: { conv: ConversationListItem; activ
               : { background: '#1e1e24', color: '#71717a' }}>
             {CHANNEL_LABELS[conv.channel] ?? conv.channel}
           </span>
-          <span className="text-xs text-white truncate font-medium">{conv.customer_nickname ?? conv.customer_name ?? 'Desconhecido'}</span>
+          <span className="text-xs text-white truncate font-medium">{conv.customer_nickname ?? conv.customer_name ?? t('conversations.unknown')}</span>
         </div>
         <div className="flex items-center gap-1 shrink-0">
           {confDot && (
             <span className="w-1.5 h-1.5 rounded-full" style={{ background: confDot.color }}
-              title={`Confiança IA: ${conv.last_ai_confidence}% (${confDot.label})`} />
+              title={t('conversations.confidence.tooltip', { pct: conv.last_ai_confidence ?? 0, label: confDot.label })} />
           )}
           <span className="text-[10px]">{SENTIMENT_EMOJI[conv.sentiment] ?? '😐'}</span>
           <span className="text-[10px] text-zinc-600">{timeAgo(conv.updated_at)}</span>
@@ -147,7 +143,7 @@ function ConvItem({ conv, active, onClick }: { conv: ConversationListItem; activ
       {conv.channel === 'whatsapp' && conv.customer_phone ? (
         <p className="text-[11px] text-zinc-600 font-mono truncate">{maskPhone(conv.customer_phone)}</p>
       ) : (
-        <p className="text-[11px] text-zinc-500 truncate">{conv.listing_title ?? 'Sem produto'}</p>
+        <p className="text-[11px] text-zinc-500 truncate">{conv.listing_title ?? t('conversations.noProduct')}</p>
       )}
       <div className="flex items-center justify-between mt-1.5">
         <span className="text-[9px] px-1.5 py-0.5 rounded-full font-medium"
@@ -155,10 +151,10 @@ function ConvItem({ conv, active, onClick }: { conv: ConversationListItem; activ
             background: conv.status === 'escalated' ? 'rgba(239,68,68,0.1)' : conv.status === 'waiting_human' ? 'rgba(245,158,11,0.1)' : 'rgba(63,63,70,0.5)',
             color: conv.status === 'escalated' ? '#f87171' : conv.status === 'waiting_human' ? '#fbbf24' : '#71717a',
           }}>
-          {conv.status === 'open' ? 'Aberto' : conv.status === 'waiting_human' ? 'Aguardando' : conv.status === 'escalated' ? 'Escalado' : conv.status === 'resolved' ? 'Resolvido' : conv.status}
+          {['open','waiting_human','escalated','resolved'].includes(conv.status) ? t(`conversations.statusBadge.${conv.status}`) : conv.status}
         </span>
         <div className="w-1.5 h-1.5 rounded-full shrink-0"
-          style={{ background: PRIORITY_COLORS[conv.priority] ?? '#52525b' }} title={`Prioridade: ${conv.priority}`} />
+          style={{ background: PRIORITY_COLORS[conv.priority] ?? '#52525b' }} title={t('conversations.priorityTooltip', { priority: conv.priority })} />
       </div>
     </button>
   )
@@ -173,6 +169,7 @@ function MsgBubble({ msg, onApprove, onReject, onCaptureTraining }: {
   /** Called when user edits + confirms; original AI content + edited content saved as training example. */
   onCaptureTraining?: (originalAiContent: string, editedContent: string) => Promise<void>
 }) {
+  const t = useTranslations('atendenteIa')
   const [editing, setEditing]   = useState(false)
   const [edited, setEdited]     = useState(msg.content)
   const [expanded, setExpanded] = useState(false)
@@ -219,11 +216,11 @@ function MsgBubble({ msg, onApprove, onReject, onCaptureTraining }: {
               <Bot size={9} /> IA{finalConf != null ? ` · ${finalConf}%` : ''}
             </span>
           )}
-          {isHuman && <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: 'rgba(59,130,246,0.1)', color: '#93c5fd' }}>Humano</span>}
+          {isHuman && <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: 'rgba(59,130,246,0.1)', color: '#93c5fd' }}>{t('conversations.human')}</span>}
           {isAI && hasMetadata && (
             <button onClick={() => setExpanded(e => !e)}
               className="text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors inline-flex items-center gap-0.5">
-              {expanded ? <ChevronUp size={10} /> : <ChevronDown size={10} />} detalhes
+              {expanded ? <ChevronUp size={10} /> : <ChevronDown size={10} />} {t('conversations.details')}
             </button>
           )}
           <span className="text-[10px] text-zinc-600">
@@ -237,32 +234,32 @@ function MsgBubble({ msg, onApprove, onReject, onCaptureTraining }: {
             style={{ background: 'rgba(0,229,255,0.04)', border: '1px solid rgba(0,229,255,0.15)' }}>
             <div className="grid grid-cols-2 gap-x-3 gap-y-1">
               {finalConf != null && (
-                <div className="flex justify-between"><span className="text-zinc-500">Confiança</span><span className="text-zinc-300 tabular-nums">{finalConf}%</span></div>
+                <div className="flex justify-between"><span className="text-zinc-500">{t('conversations.meta.confidence')}</span><span className="text-zinc-300 tabular-nums">{finalConf}%</span></div>
               )}
               {msg.decision && (
-                <div className="flex justify-between"><span className="text-zinc-500">Decisão</span><span className="text-zinc-300">{msg.decision}</span></div>
+                <div className="flex justify-between"><span className="text-zinc-500">{t('conversations.meta.decision')}</span><span className="text-zinc-300">{msg.decision}</span></div>
               )}
               {msg.ai_model && (
-                <div className="flex justify-between col-span-2"><span className="text-zinc-500">Modelo</span><span className="text-zinc-300 font-mono text-[10px] truncate ml-2">{msg.ai_model}</span></div>
+                <div className="flex justify-between col-span-2"><span className="text-zinc-500">{t('conversations.meta.model')}</span><span className="text-zinc-300 font-mono text-[10px] truncate ml-2">{msg.ai_model}</span></div>
               )}
               {msg.duration_ms != null && (
-                <div className="flex justify-between"><span className="text-zinc-500">Duração</span><span className="text-zinc-300 tabular-nums">{msg.duration_ms}ms</span></div>
+                <div className="flex justify-between"><span className="text-zinc-500">{t('conversations.meta.duration')}</span><span className="text-zinc-300 tabular-nums">{msg.duration_ms}ms</span></div>
               )}
               {tokens?.total != null && (
-                <div className="flex justify-between"><span className="text-zinc-500">Tokens</span>
+                <div className="flex justify-between"><span className="text-zinc-500">{t('conversations.meta.tokens')}</span>
                   <span className="text-zinc-300 tabular-nums">{tokens.input ?? 0} / {tokens.output ?? 0}</span>
                 </div>
               )}
             </div>
             {(msg.knowledge_cited?.length ?? 0) > 0 && (
               <div className="pt-1.5" style={{ borderTop: '1px solid rgba(0,229,255,0.1)' }}>
-                <div className="flex items-center gap-1 text-zinc-500"><BookOpen size={10} /> Conhecimento citado</div>
+                <div className="flex items-center gap-1 text-zinc-500"><BookOpen size={10} /> {t('conversations.meta.knowledgeCited')}</div>
                 <p className="text-[10px] text-zinc-600 font-mono mt-0.5 break-all">{msg.knowledge_cited!.join(' · ')}</p>
               </div>
             )}
             {msg.ai_reasoning && (
               <div className="pt-1.5" style={{ borderTop: '1px solid rgba(0,229,255,0.1)' }}>
-                <div className="text-zinc-500">Raciocínio</div>
+                <div className="text-zinc-500">{t('conversations.meta.reasoning')}</div>
                 <p className="text-[10px] text-zinc-400 mt-0.5">{msg.ai_reasoning}</p>
               </div>
             )}
@@ -294,17 +291,17 @@ function MsgBubble({ msg, onApprove, onReject, onCaptureTraining }: {
             }}
               className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors"
               style={{ background: 'rgba(34,197,94,0.12)', color: '#4ade80' }}>
-              <Check size={11} />{editing ? 'Confirmar' : 'Aprovar'}
+              <Check size={11} />{editing ? t('conversations.confirm') : t('conversations.approve')}
             </button>
             <button onClick={() => setEditing(e => !e)}
               className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors"
               style={{ background: 'rgba(245,158,11,0.1)', color: '#fbbf24' }}>
-              <Edit3 size={11} />{editing ? 'Cancelar' : 'Editar'}
+              <Edit3 size={11} />{editing ? t('conversations.cancel') : t('conversations.edit')}
             </button>
             <button onClick={() => onReject?.()}
               className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors"
               style={{ background: 'rgba(239,68,68,0.1)', color: '#f87171' }}
-              title="Recusar — escrever do zero">
+              title={t('conversations.rejectTooltip')}>
               <X size={11} />
             </button>
           </div>
@@ -320,19 +317,18 @@ function MsgBubble({ msg, onApprove, onReject, onCaptureTraining }: {
             onClick={e => e.stopPropagation()}>
             <div className="flex items-center gap-2">
               <Save size={14} style={{ color: '#00E5FF' }} />
-              <p className="text-sm font-semibold text-white">Salvar como exemplo de treinamento?</p>
+              <p className="text-sm font-semibold text-white">{t('conversations.captureModal.title')}</p>
             </div>
             <p className="text-[11px] text-zinc-500">
-              Sua edição pode ser salva como exemplo de resposta ideal pra esse agente,
-              ajudando a IA a melhorar com o tempo.
+              {t('conversations.captureModal.description')}
             </p>
             <div className="space-y-2 text-[11px]">
               <div className="rounded-lg p-2.5" style={{ background: 'rgba(248,113,113,0.05)', border: '1px solid rgba(248,113,113,0.15)' }}>
-                <p className="text-red-400 font-semibold mb-0.5">Resposta original IA</p>
+                <p className="text-red-400 font-semibold mb-0.5">{t('conversations.captureModal.originalLabel')}</p>
                 <p className="text-zinc-300 leading-relaxed">{msg.content}</p>
               </div>
               <div className="rounded-lg p-2.5" style={{ background: 'rgba(74,222,128,0.05)', border: '1px solid rgba(74,222,128,0.15)' }}>
-                <p className="text-green-400 font-semibold mb-0.5">Sua versão editada</p>
+                <p className="text-green-400 font-semibold mb-0.5">{t('conversations.captureModal.editedLabel')}</p>
                 <p className="text-zinc-300 leading-relaxed">{edited}</p>
               </div>
             </div>
@@ -341,7 +337,7 @@ function MsgBubble({ msg, onApprove, onReject, onCaptureTraining }: {
                 disabled={captureModal.saving}
                 className="flex-1 py-2 rounded-lg text-xs text-zinc-400 transition-colors hover:text-white disabled:opacity-50"
                 style={{ background: '#1a1a1f', border: '1px solid #27272a' }}>
-                Apenas enviar
+                {t('conversations.captureModal.sendOnly')}
               </button>
               <button onClick={async () => {
                 if (!onCaptureTraining) return
@@ -359,7 +355,7 @@ function MsgBubble({ msg, onApprove, onReject, onCaptureTraining }: {
                 className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-opacity disabled:opacity-50"
                 style={{ background: '#00E5FF', color: '#000' }}>
                 {captureModal.saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
-                {captureModal.saving ? 'Salvando…' : 'Sim, melhora a IA'}
+                {captureModal.saving ? t('conversations.captureModal.saving') : t('conversations.captureModal.confirm')}
               </button>
             </div>
           </div>
@@ -380,6 +376,7 @@ function CrossChannelHistory({ customerId, currentConvId, getHeaders }: {
 }) {
   type HistoryRow = { id: string; channel: string; status: string; total_messages: number; updated_at: string; listing_title?: string | null }
   type CustomerProfile = { display_name?: string; tags?: string[]; total_conversations?: number; history?: HistoryRow[] }
+  const t = useTranslations('atendenteIa')
   const [profile, setProfile] = useState<CustomerProfile | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -400,16 +397,16 @@ function CrossChannelHistory({ customerId, currentConvId, getHeaders }: {
   return (
     <div className="rounded-xl p-3 space-y-2" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
       <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 inline-flex items-center gap-1.5">
-        <History size={10} /> Histórico cross-canal
+        <History size={10} /> {t('conversations.crossChannel.title')}
       </p>
       {loading ? (
         <div className="flex items-center gap-2 text-[11px] text-zinc-500">
-          <Loader2 size={11} className="animate-spin" /> Carregando…
+          <Loader2 size={11} className="animate-spin" /> {t('conversations.loading')}
         </div>
       ) : !profile ? (
-        <p className="text-[11px] text-zinc-600">Sem perfil unificado ainda</p>
+        <p className="text-[11px] text-zinc-600">{t('conversations.crossChannel.noProfile')}</p>
       ) : others.length === 0 ? (
-        <p className="text-[11px] text-zinc-600">Primeira conversa deste cliente.</p>
+        <p className="text-[11px] text-zinc-600">{t('conversations.crossChannel.firstConversation')}</p>
       ) : (
         <div className="space-y-1">
           {others.slice(0, 5).map(h => (
@@ -438,6 +435,7 @@ function CrossChannelHistory({ customerId, currentConvId, getHeaders }: {
 }
 
 export default function ConversasPage() {
+  const t = useTranslations('atendenteIa')
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [selectedId, setSelectedId]       = useState<string | null>(null)
   const [messages, setMessages]           = useState<Message[]>([])
@@ -531,7 +529,7 @@ export default function ConversasPage() {
       const headers = await getHeaders()
       // Pull the customer message that the AI was responding to (last customer msg)
       const lastCustomerMsg = [...messages].reverse().find(m => m.role === 'customer')
-      const question = lastCustomerMsg?.content ?? '(pergunta não localizada)'
+      const question = lastCustomerMsg?.content ?? t('conversations.questionNotFound')
       await fetch(`${BACKEND}/atendente-ia/agents/${(selectedConv.agent as { id?: string }).id ?? ''}/training`, {
         method: 'POST',
         headers: { ...headers, 'Content-Type': 'application/json' },
@@ -581,7 +579,7 @@ export default function ConversasPage() {
         <div className="p-3 space-y-2" style={{ borderBottom: '1px solid #1e1e24' }}>
           <div className="flex items-center justify-between">
             <h1 className="text-sm font-bold text-white flex items-center gap-1.5">
-              <Inbox size={14} style={{ color: '#00E5FF' }} /> Conversas
+              <Inbox size={14} style={{ color: '#00E5FF' }} /> {t('conversations.pageTitle')}
             </h1>
             <button onClick={loadConversations} className="text-zinc-600 hover:text-zinc-400 transition-colors">
               <RefreshCw size={13} />
@@ -591,17 +589,17 @@ export default function ConversasPage() {
           <div className="relative">
             <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-600" />
             <input value={search} onChange={e => setSearch(e.target.value)}
-              placeholder="Buscar cliente ou produto..."
+              placeholder={t('conversations.searchPlaceholder')}
               className="w-full pl-7 pr-3 py-1.5 rounded-lg text-xs text-white placeholder-zinc-600"
               style={{ background: '#111114', border: '1px solid #1e1e24' }} />
           </div>
           {/* Status tabs */}
           <div className="flex gap-1 flex-wrap">
-            {STATUS_TABS.map(t => (
-              <button key={t.id} onClick={() => setStatus(t.id)}
+            {STATUS_TAB_IDS.map(id => (
+              <button key={id} onClick={() => setStatus(id)}
                 className="px-2 py-0.5 rounded text-[10px] font-medium transition-colors"
-                style={{ background: status === t.id ? 'rgba(0,229,255,0.12)' : '#111114', color: status === t.id ? '#00E5FF' : '#71717a' }}>
-                {t.label}
+                style={{ background: status === id ? 'rgba(0,229,255,0.12)' : '#111114', color: status === id ? '#00E5FF' : '#71717a' }}>
+                {t(`conversations.statusTabs.${id}`)}
               </button>
             ))}
           </div>
@@ -616,7 +614,7 @@ export default function ConversasPage() {
           ) : conversations.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 space-y-2">
               <MessageSquare size={28} style={{ color: '#27272a' }} />
-              <p className="text-zinc-600 text-xs">Nenhuma conversa</p>
+              <p className="text-zinc-600 text-xs">{t('conversations.noConversations')}</p>
             </div>
           ) : (
             conversations.map(conv => (
@@ -636,7 +634,7 @@ export default function ConversasPage() {
         {!selectedConv ? (
           <div className="flex-1 flex flex-col items-center justify-center space-y-3">
             <Inbox size={40} style={{ color: '#27272a' }} />
-            <p className="text-zinc-600 text-sm">Selecione uma conversa</p>
+            <p className="text-zinc-600 text-sm">{t('conversations.selectConversation')}</p>
           </div>
         ) : (
           <>
@@ -647,7 +645,7 @@ export default function ConversasPage() {
                   <img src={selectedConv.listing_thumbnail} alt="" className="w-9 h-9 rounded-lg object-cover shrink-0" />
                 )}
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-white truncate">{selectedConv.listing_title ?? 'Sem produto'}</p>
+                  <p className="text-sm font-semibold text-white truncate">{selectedConv.listing_title ?? t('conversations.noProduct')}</p>
                   <p className="text-xs text-zinc-500">{selectedConv.customer_nickname ?? selectedConv.customer_name}</p>
                 </div>
               </div>
@@ -655,12 +653,12 @@ export default function ConversasPage() {
                 <button onClick={resolveConv}
                   className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors"
                   style={{ background: 'rgba(34,197,94,0.1)', color: '#4ade80' }}>
-                  <CheckCircle2 size={12} /> Resolver
+                  <CheckCircle2 size={12} /> {t('conversations.resolve')}
                 </button>
                 <button onClick={escalateConv}
                   className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors"
                   style={{ background: 'rgba(245,158,11,0.1)', color: '#fbbf24' }}>
-                  <AlertTriangle size={12} /> Escalar
+                  <AlertTriangle size={12} /> {t('conversations.escalate')}
                 </button>
               </div>
             </div>
@@ -713,8 +711,7 @@ export default function ConversasPage() {
                     style={{ background: 'rgba(251,146,60,0.08)', border: '1px solid rgba(251,146,60,0.25)', color: '#fdba74' }}>
                     <AlertTriangle size={12} className="mt-0.5 shrink-0" />
                     <span>
-                      Última mensagem do cliente foi há {Math.round(hoursSince)}h.
-                      Fora da janela de 24h — envie via template aprovado pela Meta.
+                      {t('conversations.whatsapp24hWarning', { hours: Math.round(hoursSince) })}
                     </span>
                   </div>
                 )
@@ -722,7 +719,7 @@ export default function ConversasPage() {
               <div className="flex gap-2">
                 <textarea value={reply} onChange={e => setReply(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendReply() }}}
-                  placeholder={selectedConv.channel === 'whatsapp' ? 'Responder via WhatsApp... (Enter para enviar)' : 'Responder como humano... (Enter para enviar)'}
+                  placeholder={selectedConv.channel === 'whatsapp' ? t('conversations.replyPlaceholderWhatsapp') : t('conversations.replyPlaceholderHuman')}
                   maxLength={selectedConv.channel === 'whatsapp' ? 4096 : undefined}
                   rows={2}
                   className="flex-1 px-3 py-2 rounded-xl text-sm text-white placeholder-zinc-600 resize-none"
@@ -744,26 +741,26 @@ export default function ConversasPage() {
           <>
             {/* Customer */}
             <div className="rounded-xl p-3 space-y-2" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">Cliente</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">{t('conversations.panel.customer')}</p>
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: '#1e1e24' }}>
                   <User size={14} style={{ color: '#71717a' }} />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-white truncate">{selectedConv.customer_nickname ?? selectedConv.customer_name ?? 'Desconhecido'}</p>
-                  <p className="text-[10px] text-zinc-500">Canal: {CHANNEL_LABELS[selectedConv.channel] ?? selectedConv.channel}</p>
+                  <p className="text-sm font-medium text-white truncate">{selectedConv.customer_nickname ?? selectedConv.customer_name ?? t('conversations.unknown')}</p>
+                  <p className="text-[10px] text-zinc-500">{t('conversations.panel.channel', { channel: CHANNEL_LABELS[selectedConv.channel] ?? selectedConv.channel })}</p>
                 </div>
               </div>
               {selectedConv.customer_phone && (
                 <div className="pt-2 mt-2 space-y-1.5" style={{ borderTop: '1px solid #1e1e24' }}>
                   <div className="flex items-center justify-between text-[11px]">
-                    <span className="text-zinc-500">Telefone</span>
+                    <span className="text-zinc-500">{t('conversations.panel.phone')}</span>
                     <span className="text-zinc-300 font-mono">{formatPhoneFull(selectedConv.customer_phone)}</span>
                   </div>
                   <a href={`tel:+${selectedConv.customer_phone.replace(/\D/g, '')}`}
                     className="inline-flex items-center gap-1.5 w-full justify-center py-1.5 rounded-lg text-[11px] font-semibold transition-colors"
                     style={{ background: 'rgba(37,211,102,0.1)', color: '#25D366', border: '1px solid rgba(37,211,102,0.25)' }}>
-                    <Phone size={11} /> Chamar
+                    <Phone size={11} /> {t('conversations.panel.call')}
                   </a>
                 </div>
               )}
@@ -777,7 +774,7 @@ export default function ConversasPage() {
             {/* Product */}
             {selectedConv.listing_title && (
               <div className="rounded-xl p-3 space-y-2" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">Produto</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">{t('conversations.panel.product')}</p>
                 <div className="flex items-start gap-2">
                   {selectedConv.listing_thumbnail && (
                     <img src={selectedConv.listing_thumbnail} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0" />
@@ -789,12 +786,12 @@ export default function ConversasPage() {
 
             {/* Stats */}
             <div className="rounded-xl p-3 space-y-2" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">Conversa</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">{t('conversations.panel.conversation')}</p>
               <div className="space-y-1.5">
                 {[
-                  { icon: <MessageSquare size={12} />, label: 'Mensagens', value: String(selectedConv.total_messages) },
-                  { icon: <Clock size={12} />, label: 'Status', value: selectedConv.status },
-                  { icon: <Package size={12} />, label: 'Agente', value: selectedConv.agent?.name ?? '—' },
+                  { icon: <MessageSquare size={12} />, label: t('conversations.panel.messages'), value: String(selectedConv.total_messages) },
+                  { icon: <Clock size={12} />, label: t('conversations.panel.status'), value: selectedConv.status },
+                  { icon: <Package size={12} />, label: t('conversations.panel.agent'), value: selectedConv.agent?.name ?? '—' },
                 ].map(s => (
                   <div key={s.label} className="flex items-center justify-between text-xs">
                     <span className="flex items-center gap-1.5 text-zinc-500">{s.icon}{s.label}</span>
@@ -807,7 +804,7 @@ export default function ConversasPage() {
         ) : (
           <div className="flex flex-col items-center justify-center py-12 space-y-2">
             <UserCheck size={28} style={{ color: '#27272a' }} />
-            <p className="text-zinc-600 text-xs text-center">Contexto da conversa aparece aqui</p>
+            <p className="text-zinc-600 text-xs text-center">{t('conversations.panel.emptyHint')}</p>
           </div>
         )}
       </div>

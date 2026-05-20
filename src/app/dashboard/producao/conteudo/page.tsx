@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import { callAI } from '@/lib/ai/client'
 import { PROMPTS } from '@/lib/ai/prompts'
@@ -14,34 +15,34 @@ import {
 import Link from 'next/link'
 import { AnimatedPromptSuggestions, type PromptSuggestion } from '@/components/ui/animated-prompt-suggestions'
 
-// ── Context suggestions per tool ─────────────────────────────────────────────
+// ── Context suggestions per tool — ícone/cor fixos; text/label via tradução ──
 
-const DESCRICAO_SUGGESTIONS: PromptSuggestion[] = [
-  { text: 'Tom mais persuasivo, com gatilhos de venda',                  label: 'Tom persuasivo',     icon: Mic,        accent: '#00E5FF' },
-  { text: 'Linguagem técnica e detalhada para público especialista',     label: 'Técnico detalhado',  icon: Briefcase,  accent: '#a78bfa' },
-  { text: 'Texto descontraído e leve, conversacional',                   label: 'Descontraído',       icon: Smile,      accent: '#fbbf24' },
-  { text: 'Foco em durabilidade, materiais e construção robusta',        label: 'Durabilidade',       icon: Shield,     accent: '#34d399' },
-  { text: 'Tom premium e exclusivo, vibe luxo',                          label: 'Premium / luxo',     icon: Gem,        accent: '#c084fc' },
-  { text: 'Foco em custo-benefício e economia',                          label: 'Custo-benefício',    icon: DollarSign, accent: '#22c55e' },
-  { text: 'Destaque certificações, garantia e segurança',                label: 'Certificado / seguro', icon: Award,    accent: '#38bdf8' },
-  { text: 'Ideal para presente — embalagem e ocasião',                   label: 'Ideal pra presente', icon: Gift,       accent: '#fb7185' },
-  { text: 'Foco em performance, velocidade e resultado',                 label: 'Performance',        icon: Zap,        accent: '#f59e0b' },
-  { text: 'Inclua urgência, oferta limitada e escassez',                 label: 'Urgência / oferta',  icon: Clock,      accent: '#f87171' },
-  { text: 'Otimizado pra SEO Mercado Livre — palavras-chave de busca',   label: 'SEO ML',             icon: Search,     accent: '#00E5FF' },
-  { text: 'Apelo emocional — conta uma história curta',                  label: 'Emocional',          icon: Heart,      accent: '#f472b6' },
+const DESCRICAO_SUGGESTION_ICONS: { icon: PromptSuggestion['icon']; accent: string }[] = [
+  { icon: Mic,        accent: '#00E5FF' },
+  { icon: Briefcase,  accent: '#a78bfa' },
+  { icon: Smile,      accent: '#fbbf24' },
+  { icon: Shield,     accent: '#34d399' },
+  { icon: Gem,        accent: '#c084fc' },
+  { icon: DollarSign, accent: '#22c55e' },
+  { icon: Award,      accent: '#38bdf8' },
+  { icon: Gift,       accent: '#fb7185' },
+  { icon: Zap,        accent: '#f59e0b' },
+  { icon: Clock,      accent: '#f87171' },
+  { icon: Search,     accent: '#00E5FF' },
+  { icon: Heart,      accent: '#f472b6' },
 ]
 
-const BULLET_SUGGESTIONS: PromptSuggestion[] = [
-  { text: 'Foco em benefícios concretos, não só features',               label: 'Benefícios reais',    icon: Heart,     accent: '#00E5FF' },
-  { text: 'Inclua métricas e números — ex: "até 30% mais"',              label: 'Métricas / números',  icon: Layers,    accent: '#a78bfa' },
-  { text: 'Destaque compatibilidade e usos múltiplos',                   label: 'Compatibilidade',     icon: Zap,       accent: '#34d399' },
-  { text: 'Chame atenção pra dimensões e medidas exatas',                label: 'Dimensões',           icon: Ruler,     accent: '#fbbf24' },
-  { text: 'Reforce garantia, suporte e pós-venda',                       label: 'Garantia / suporte',  icon: Shield,    accent: '#38bdf8' },
-  { text: 'Linguagem técnica precisa pra público especialista',          label: 'Técnico preciso',     icon: Briefcase, accent: '#c084fc' },
-  { text: 'Tom descontraído, leitura rápida',                            label: 'Tom leve',            icon: Smile,     accent: '#f59e0b' },
-  { text: 'Use verbos no imperativo — "tenha", "leve", "aproveite"',     label: 'Verbo no imperativo', icon: Mic,       accent: '#fb7185' },
-  { text: 'Foque em economia e custo-benefício',                         label: 'Economia',            icon: DollarSign, accent: '#22c55e' },
-  { text: 'Destaque diferenciais únicos vs concorrência',                label: 'Diferenciais únicos', icon: Gem,       accent: '#f472b6' },
+const BULLET_SUGGESTION_ICONS: { icon: PromptSuggestion['icon']; accent: string }[] = [
+  { icon: Heart,      accent: '#00E5FF' },
+  { icon: Layers,     accent: '#a78bfa' },
+  { icon: Zap,        accent: '#34d399' },
+  { icon: Ruler,      accent: '#fbbf24' },
+  { icon: Shield,     accent: '#38bdf8' },
+  { icon: Briefcase,  accent: '#c084fc' },
+  { icon: Smile,      accent: '#f59e0b' },
+  { icon: Mic,        accent: '#fb7185' },
+  { icon: DollarSign, accent: '#22c55e' },
+  { icon: Gem,        accent: '#f472b6' },
 ]
 
 const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
@@ -52,12 +53,12 @@ type Product = { id: string; name: string; sku: string | null; price: number | n
 
 type ToolKey = 'titulo' | 'descricao' | 'bullet'
 
-// ── Tool config ───────────────────────────────────────────────────────────────
+// ── Tool config — ícone/feature estruturais; label/desc via tradução ────────
 
-const TOOLS: { key: ToolKey; label: string; icon: React.ReactNode; feature: 'titulo_anuncio' | 'descricao_produto' | 'descricao_produto'; desc: string }[] = [
-  { key: 'titulo',   label: 'Otimizar Título',  icon: <Tag size={16} />,      feature: 'titulo_anuncio',   desc: 'Reescreve o título do anúncio para melhorar SEO no Mercado Livre.' },
-  { key: 'descricao', label: 'Gerar Descrição', icon: <FileText size={16} />, feature: 'descricao_produto', desc: 'Cria uma descrição persuasiva com benefícios e especificações do produto.' },
-  { key: 'bullet',   label: 'Bullet Points',    icon: <Wand2 size={16} />,    feature: 'descricao_produto', desc: 'Gera uma lista de bullet points para destacar os diferenciais do produto.' },
+const TOOLS: { key: ToolKey; icon: React.ReactNode; feature: 'titulo_anuncio' | 'descricao_produto' }[] = [
+  { key: 'titulo',    icon: <Tag size={16} />,      feature: 'titulo_anuncio' },
+  { key: 'descricao', icon: <FileText size={16} />, feature: 'descricao_produto' },
+  { key: 'bullet',    icon: <Wand2 size={16} />,    feature: 'descricao_produto' },
 ]
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -85,6 +86,7 @@ function ProductPicker({ products, selected, onSelect }: {
   selected: Product | null
   onSelect: (p: Product | null) => void
 }) {
+  const t = useTranslations('producao.conteudo')
   const [open, setOpen] = useState(false)
   const [q, setQ]       = useState('')
 
@@ -98,7 +100,7 @@ function ProductPicker({ products, selected, onSelect }: {
       <button onClick={() => setOpen(o => !o)}
         className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-xs transition-all"
         style={{ background: '#1c1c1f', border: '1px solid #3f3f46', color: selected ? '#e4e4e7' : '#71717a' }}>
-        <span className="truncate">{selected ? selected.name : 'Selecionar produto…'}</span>
+        <span className="truncate">{selected ? selected.name : t('selectProduct')}</span>
         <ChevronDown size={12} className="shrink-0" style={{ transform: open ? 'rotate(180deg)' : undefined, transition: 'transform 150ms' }} />
       </button>
 
@@ -107,13 +109,13 @@ function ProductPicker({ products, selected, onSelect }: {
           style={{ background: '#18181b', border: '1px solid #2e2e33' }}>
           <div className="p-2">
             <input autoFocus value={q} onChange={e => setQ(e.target.value)}
-              placeholder="Buscar produto ou SKU…"
+              placeholder={t('searchProductSku')}
               className="w-full rounded-lg px-2.5 py-1.5 text-xs text-white outline-none"
               style={{ background: '#111114', border: '1px solid #3f3f46' }} />
           </div>
           <div className="max-h-52 overflow-y-auto">
             {filtered.length === 0
-              ? <p className="px-3 py-2 text-xs text-zinc-600">Nenhum produto</p>
+              ? <p className="px-3 py-2 text-xs text-zinc-600">{t('noProduct')}</p>
               : filtered.map(p => (
                   <button key={p.id} onClick={() => { onSelect(p); setOpen(false); setQ('') }}
                     className="w-full flex items-start gap-2 px-3 py-2 text-left hover:bg-zinc-800 transition-colors">
@@ -135,6 +137,7 @@ function ProductPicker({ products, selected, onSelect }: {
 // ── Result block ──────────────────────────────────────────────────────────────
 
 function ResultBlock({ text, copyKey, onApply }: { text: string; copyKey: string; onApply?: () => void }) {
+  const t = useTranslations('producao.conteudo')
   const { copied, copy } = useCopy()
   return (
     <div className="rounded-xl p-4 space-y-3" style={{ background: '#0a0a0d', border: '1px solid #1e1e24' }}>
@@ -144,13 +147,13 @@ function ResultBlock({ text, copyKey, onApply }: { text: string; copyKey: string
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all"
           style={{ background: copied === copyKey ? 'rgba(34,197,94,0.15)' : 'rgba(255,255,255,0.06)', color: copied === copyKey ? '#22c55e' : '#a1a1aa' }}>
           {copied === copyKey ? <Check size={11} /> : <Copy size={11} />}
-          {copied === copyKey ? 'Copiado!' : 'Copiar'}
+          {copied === copyKey ? t('copied') : t('copy')}
         </button>
         {onApply && (
           <button onClick={onApply}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all"
             style={{ background: 'rgba(0,229,255,0.1)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.2)' }}>
-            <Sparkles size={11} /> Aplicar ao produto
+            <Sparkles size={11} /> {t('applyToProduct')}
           </button>
         )}
       </div>
@@ -161,6 +164,7 @@ function ResultBlock({ text, copyKey, onApply }: { text: string; copyKey: string
 // ── AI Disabled Banner ────────────────────────────────────────────────────────
 
 function AIDisabledBanner({ feature }: { feature: 'titulo_anuncio' | 'descricao_produto' }) {
+  const t = useTranslations('producao.conteudo')
   const [enabled, setEnabled] = useState(false)
 
   function enable() {
@@ -177,17 +181,17 @@ function AIDisabledBanner({ feature }: { feature: 'titulo_anuncio' | 'descricao_
       style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)' }}>
       <AlertTriangle size={15} className="text-amber-400 shrink-0 mt-0.5" />
       <div className="space-y-2 flex-1">
-        <p className="text-xs text-amber-300 font-medium">IA desativada para este recurso</p>
-        <p className="text-[11px] text-zinc-500">Ative nas configurações ou use o atalho abaixo para habilitar agora.</p>
+        <p className="text-xs text-amber-300 font-medium">{t('aiDisabledTitle')}</p>
+        <p className="text-[11px] text-zinc-500">{t('aiDisabledHint')}</p>
         <div className="flex flex-wrap gap-2">
           <button onClick={enable}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all"
             style={{ background: 'rgba(245,158,11,0.15)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.3)' }}>
-            <Sparkles size={11} /> Ativar IA agora
+            <Sparkles size={11} /> {t('enableAiNow')}
           </button>
           <Link href="/dashboard/configuracoes/ia"
             className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-semibold border border-zinc-800 text-zinc-500 hover:text-zinc-300 transition-colors">
-            Configurações de IA <ExternalLink size={10} />
+            {t('aiSettings')} <ExternalLink size={10} />
           </Link>
         </div>
       </div>
@@ -198,6 +202,7 @@ function AIDisabledBanner({ feature }: { feature: 'titulo_anuncio' | 'descricao_
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function ConteudoPage() {
+  const t = useTranslations('producao.conteudo')
   const [tool,     setTool]     = useState<ToolKey>('titulo')
   const [products, setProducts] = useState<Product[]>([])
   const [selected, setSelected] = useState<Product | null>(null)
@@ -212,7 +217,29 @@ export default function ConteudoPage() {
   const [applying,   setApplying]   = useState(false)
   const [applied,    setApplied]    = useState(false)
 
-  const toolDef = TOOLS.find(t => t.key === tool)!
+  const toolDef = TOOLS.find(td => td.key === tool)!
+
+  const descricaoSuggestions = useMemo<PromptSuggestion[]>(
+    () => DESCRICAO_SUGGESTION_ICONS.map((s, i) => ({
+      ...s, text: t(`descricaoSuggestions.${i}.text`), label: t(`descricaoSuggestions.${i}.label`),
+    })),
+    [t],
+  )
+  const bulletSuggestions = useMemo<PromptSuggestion[]>(
+    () => BULLET_SUGGESTION_ICONS.map((s, i) => ({
+      ...s, text: t(`bulletSuggestions.${i}.text`), label: t(`bulletSuggestions.${i}.label`),
+    })),
+    [t],
+  )
+  const tips = useMemo(
+    () => ([
+      { icon: '🏷️', key: 'titles' },
+      { icon: '📝', key: 'descriptions' },
+      { icon: '✅', key: 'bullets' },
+      { icon: '🔄', key: 'iteration' },
+    ] as const),
+    [],
+  )
 
   // Check AI state client-side (isAIEnabled reads localStorage)
   useEffect(() => {
@@ -242,17 +269,17 @@ export default function ConteudoPage() {
       if (tool === 'titulo') {
         const titulo = extra.trim() || selected?.ml_title || selected?.name || ''
         const cat    = selected?.category ?? 'Geral'
-        if (!titulo) { setError('Informe um título ou selecione um produto.'); setLoading(false); return }
+        if (!titulo) { setError(t('errorNeedTitle')); setLoading(false); return }
         prompt = PROMPTS.otimizar_titulo(titulo, cat)
       } else if (tool === 'descricao') {
-        if (!selected && !extra.trim()) { setError('Selecione um produto ou descreva-o no campo abaixo.'); setLoading(false); return }
+        if (!selected && !extra.trim()) { setError(t('errorNeedProduct')); setLoading(false); return }
         prompt = PROMPTS.gerar_descricao({
           nome:  extra.trim() || selected?.name,
           sku:   selected?.sku ?? undefined,
           preco: selected?.price ?? undefined,
         })
       } else {
-        if (!selected && !extra.trim()) { setError('Selecione um produto ou descreva-o no campo abaixo.'); setLoading(false); return }
+        if (!selected && !extra.trim()) { setError(t('errorNeedProduct')); setLoading(false); return }
         prompt = `Crie 5 bullet points concisos e persuasivos para destacar os diferenciais do produto:
 Nome: ${extra.trim() || selected?.name}
 SKU: ${selected?.sku ?? ''}
@@ -261,15 +288,15 @@ Cada bullet com 1 linha. Use ícone ✓ no início. Em português.`
       }
 
       const res = await callAI(toolDef.feature, prompt, undefined, aiProvider, aiModel)
-      if (!res) throw new Error('A IA não retornou resultado. Verifique se a API key está configurada.')
+      if (!res) throw new Error(t('errorNoResult'))
       setResult(res.content)
       if (res.provider && res.model) setAiBadge({ provider: res.provider, model: res.model })
     } catch (e: any) {
-      setError(e.message ?? 'Erro ao gerar conteúdo')
+      setError(e.message ?? t('errorGenerate'))
     } finally {
       setLoading(false)
     }
-  }, [tool, toolDef.feature, selected, extra, aiReady])
+  }, [tool, toolDef.feature, selected, extra, aiReady, aiProvider, aiModel, t])
 
   async function applyTitle() {
     if (!selected || !result || tool !== 'titulo') return
@@ -294,9 +321,9 @@ Cada bullet com 1 linha. Use ícone ✓ no início. Em português.`
 
       {/* Header */}
       <div>
-        <p className="text-zinc-500 text-xs">Produção</p>
-        <h2 className="text-white text-lg font-semibold mt-0.5">Conteúdo com IA</h2>
-        <p className="text-zinc-500 text-xs mt-1">Gere títulos, descrições e bullet points otimizados para marketplace.</p>
+        <p className="text-zinc-500 text-xs">{t('eyebrow')}</p>
+        <h2 className="text-white text-lg font-semibold mt-0.5">{t('title')}</h2>
+        <p className="text-zinc-500 text-xs mt-1">{t('subtitle')}</p>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
@@ -306,15 +333,15 @@ Cada bullet com 1 linha. Use ícone ✓ no início. Em português.`
 
           {/* Tool tabs */}
           <div className="flex gap-2 flex-wrap">
-            {TOOLS.map(t => (
-              <button key={t.key} onClick={() => setTool(t.key)}
+            {TOOLS.map(td => (
+              <button key={td.key} onClick={() => setTool(td.key)}
                 className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all"
                 style={{
-                  background: tool === t.key ? 'rgba(0,229,255,0.12)' : '#111114',
-                  color: tool === t.key ? '#00E5FF' : '#71717a',
-                  border: `1px solid ${tool === t.key ? 'rgba(0,229,255,0.3)' : '#1e1e24'}`,
+                  background: tool === td.key ? 'rgba(0,229,255,0.12)' : '#111114',
+                  color: tool === td.key ? '#00E5FF' : '#71717a',
+                  border: `1px solid ${tool === td.key ? 'rgba(0,229,255,0.3)' : '#1e1e24'}`,
                 }}>
-                {t.icon} {t.label}
+                {td.icon} {t(`tools.${td.key}.label`)}
               </button>
             ))}
           </div>
@@ -322,29 +349,29 @@ Cada bullet com 1 linha. Use ícone ✓ no início. Em português.`
           {/* Form card */}
           <div className="rounded-2xl p-5 space-y-4" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
             <div>
-              <p className="text-sm font-semibold text-white">{toolDef.label}</p>
-              <p className="text-[11px] text-zinc-500 mt-0.5">{toolDef.desc}</p>
+              <p className="text-sm font-semibold text-white">{t(`tools.${toolDef.key}.label`)}</p>
+              <p className="text-[11px] text-zinc-500 mt-0.5">{t(`tools.${toolDef.key}.desc`)}</p>
             </div>
 
             {!aiReady && <AIDisabledBanner feature={toolDef.feature} />}
 
             {/* Product picker */}
             <div>
-              <label className="block text-[10px] font-medium text-zinc-500 mb-1.5">Produto (opcional)</label>
+              <label className="block text-[10px] font-medium text-zinc-500 mb-1.5">{t('productOptional')}</label>
               <ProductPicker products={products} selected={selected} onSelect={p => { setSelected(p); setExtra('') }} />
             </div>
 
             {/* Extra / override field */}
             <div>
               <label className="block text-[10px] font-medium text-zinc-500 mb-1.5">
-                {tool === 'titulo' ? 'Título atual (ou deixe preencher pelo produto)' : 'Contexto adicional (ou descrição manual)'}
+                {tool === 'titulo' ? t('currentTitleLabel') : t('extraContextLabel')}
               </label>
               {tool === 'titulo' ? (
                 <textarea
                   value={extra}
                   onChange={e => setExtra(e.target.value)}
                   rows={2}
-                  placeholder={selected?.ml_title ?? selected?.name ?? 'Cole o título atual aqui…'}
+                  placeholder={selected?.ml_title ?? selected?.name ?? t('titlePlaceholder')}
                   className="w-full rounded-xl px-3 py-2.5 text-xs text-white outline-none resize-none transition-all"
                   style={{ background: '#1c1c1f', border: '1px solid #3f3f46' }}
                   onFocus={e => (e.target.style.borderColor = '#00E5FF')}
@@ -352,7 +379,7 @@ Cada bullet com 1 linha. Use ícone ✓ no início. Em português.`
                 />
               ) : (
                 <AnimatedPromptSuggestions
-                  suggestions={tool === 'descricao' ? DESCRICAO_SUGGESTIONS : BULLET_SUGGESTIONS}
+                  suggestions={tool === 'descricao' ? descricaoSuggestions : bulletSuggestions}
                   onSuggestionClick={(text) => setExtra((prev) => (prev.trim() ? `${prev.trim()}\n${text}` : text))}
                   rows={2}
                   speed={55}
@@ -363,8 +390,8 @@ Cada bullet com 1 linha. Use ícone ✓ no início. Em português.`
                     rows={3}
                     placeholder={
                       tool === 'descricao'
-                        ? 'Descreva o produto: materiais, dimensões, diferenciais…'
-                        : 'Liste as características principais para gerar os bullets…'
+                        ? t('descricaoPlaceholder')
+                        : t('bulletPlaceholder')
                     }
                     className="w-full rounded-xl px-3 py-2.5 text-xs text-white outline-none resize-none transition-all"
                     style={{
@@ -386,8 +413,8 @@ Cada bullet com 1 linha. Use ícone ✓ no início. Em português.`
                 className="glow-rainbow flex items-center justify-center gap-2 flex-1 py-3 rounded-xl text-sm font-semibold transition-all disabled:opacity-50"
                 style={{ background: 'linear-gradient(135deg, #00E5FF, #7C3AED)', color: '#fff' }}>
                 {loading
-                  ? <><Loader2 size={15} className="animate-spin" /> Gerando…</>
-                  : <><Sparkles size={15} /> Gerar com IA</>
+                  ? <><Loader2 size={15} className="animate-spin" /> {t('generating')}</>
+                  : <><Sparkles size={15} /> {t('generateAi')}</>
                 }
               </button>
               {aiReady && <AISelector compact onSelect={(p, m) => { setAiProvider(p); setAiModel(m) }} />}
@@ -398,12 +425,12 @@ Cada bullet com 1 linha. Use ícone ✓ no início. Em português.`
           {result && (
             <div className="space-y-2">
               <div className="flex items-center gap-2 flex-wrap">
-                <p className="text-xs font-semibold text-zinc-400">Resultado</p>
+                <p className="text-xs font-semibold text-zinc-400">{t('result')}</p>
                 {aiBadge && <AIBadge provider={aiBadge.provider} model={aiBadge.model} />}
                 {applied && (
                   <span className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full"
                     style={{ background: 'rgba(34,197,94,0.1)', color: '#22c55e' }}>
-                    <Check size={10} /> Aplicado ao produto
+                    <Check size={10} /> {t('appliedToProduct')}
                   </span>
                 )}
               </div>
@@ -414,7 +441,7 @@ Cada bullet com 1 linha. Use ícone ✓ no início. Em português.`
               />
               {tool === 'titulo' && selected && !applied && (
                 <p className="text-[10px] text-zinc-600">
-                  "Aplicar ao produto" salva este título em <strong className="text-zinc-500">ml_title</strong> via PUT /products/{'{id}'}.
+                  {t.rich('applyTitleNote', { strong: (chunks) => <strong className="text-zinc-500">{chunks}</strong> })}
                 </p>
               )}
             </div>
@@ -426,41 +453,36 @@ Cada bullet com 1 linha. Use ícone ✓ no início. Em português.`
           <div className="rounded-2xl p-5 space-y-3" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
             <div className="flex items-center gap-2">
               <Sparkles size={13} style={{ color: '#a78bfa' }} />
-              <h3 className="text-[11px] font-semibold uppercase tracking-wider text-zinc-600">Dicas de uso</h3>
+              <h3 className="text-[11px] font-semibold uppercase tracking-wider text-zinc-600">{t('tipsTitle')}</h3>
             </div>
             <ul className="space-y-3">
-              {[
-                { icon: '🏷️', title: 'Títulos ML', text: 'Mantenha até 60 caracteres com as palavras-chave mais buscadas no início.' },
-                { icon: '📝', title: 'Descrições', text: 'Informe materiais, dimensões e diferenciais para gerar texto mais preciso.' },
-                { icon: '✅', title: 'Bullets', text: 'Use em anúncios com galeria ou em marketplaces que suportam HTML.' },
-                { icon: '🔄', title: 'Iteração', text: 'Gere várias versões e refine o contexto até obter o resultado ideal.' },
-              ].map(tip => (
-                <li key={tip.title} className="space-y-0.5">
-                  <p className="text-[11px] font-semibold" style={{ color: '#a1a1aa' }}>{tip.icon} {tip.title}</p>
-                  <p className="text-[10px] text-zinc-600 leading-relaxed">{tip.text}</p>
+              {tips.map(tip => (
+                <li key={tip.key} className="space-y-0.5">
+                  <p className="text-[11px] font-semibold" style={{ color: '#a1a1aa' }}>{tip.icon} {t(`tips.${tip.key}.title`)}</p>
+                  <p className="text-[10px] text-zinc-600 leading-relaxed">{t(`tips.${tip.key}.text`)}</p>
                 </li>
               ))}
             </ul>
           </div>
 
           <div className="rounded-2xl p-5 space-y-3" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
-            <h3 className="text-[11px] font-semibold uppercase tracking-wider text-zinc-600">Recursos disponíveis</h3>
+            <h3 className="text-[11px] font-semibold uppercase tracking-wider text-zinc-600">{t('availableResources')}</h3>
             <div className="space-y-2">
-              {TOOLS.map(t => {
-                const on = isAIEnabled(t.feature)
+              {TOOLS.map(td => {
+                const on = isAIEnabled(td.feature)
                 return (
-                  <div key={t.key} className="flex items-center justify-between">
-                    <span className="text-[11px] text-zinc-400">{t.label}</span>
+                  <div key={td.key} className="flex items-center justify-between">
+                    <span className="text-[11px] text-zinc-400">{t(`tools.${td.key}.label`)}</span>
                     <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
                       style={{ background: on ? 'rgba(34,197,94,0.1)' : 'rgba(113,113,122,0.15)', color: on ? '#4ade80' : '#71717a' }}>
-                      {on ? 'Ativo' : 'Inativo'}
+                      {on ? t('active') : t('inactive')}
                     </span>
                   </div>
                 )
               })}
               <Link href="/dashboard/configuracoes/ia"
                 className="flex items-center gap-1 text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors mt-1">
-                Gerenciar recursos de IA <ExternalLink size={9} />
+                {t('manageAiResources')} <ExternalLink size={9} />
               </Link>
             </div>
           </div>

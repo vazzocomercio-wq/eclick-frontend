@@ -15,6 +15,7 @@
  */
 
 import { useEffect, useState, useRef } from 'react'
+import { useTranslations } from 'next-intl'
 import { Search, X } from 'lucide-react'
 import TaxonomySelect from './TaxonomySelect'
 
@@ -50,6 +51,7 @@ export default function ReferenceFilters({
   activeCount: number
   inactiveCount: number
 }) {
+  const t = useTranslations('creative.references')
   // Debounce do search local pra não martelar API
   const [searchLocal, setSearchLocal] = useState(value.search)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -81,7 +83,7 @@ export default function ReferenceFilters({
             type="text"
             value={searchLocal}
             onChange={e => handleSearchChange(e.target.value)}
-            placeholder="Buscar nome ou descrição..."
+            placeholder={t('filterSearchPlaceholder')}
             className="w-full pl-8 pr-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-sm text-zinc-200 outline-none focus:border-cyan-400 placeholder:text-zinc-600"
           />
         </div>
@@ -90,7 +92,7 @@ export default function ReferenceFilters({
           type="text"
           value={value.tag}
           onChange={e => onChange({ ...value, tag: e.target.value })}
-          placeholder="Tag (ex: premium)"
+          placeholder={t('filterTagPlaceholder')}
           className="px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-xs text-zinc-200 outline-none focus:border-cyan-400 placeholder:text-zinc-600 w-36"
         />
 
@@ -98,7 +100,7 @@ export default function ReferenceFilters({
           type="text"
           value={value.category_ml_id}
           onChange={e => onChange({ ...value, category_ml_id: e.target.value })}
-          placeholder="Categoria (MLB…)"
+          placeholder={t('filterCategoryPlaceholder')}
           className="px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-xs text-zinc-200 outline-none focus:border-cyan-400 placeholder:text-zinc-600 w-40"
         />
 
@@ -106,7 +108,7 @@ export default function ReferenceFilters({
           kind="product_type"
           value={value.product_type}
           onChange={v => onChange({ ...value, product_type: v })}
-          placeholder="Tipo: todos"
+          placeholder={t('filterTypeAll')}
           className="w-40"
         />
 
@@ -114,7 +116,7 @@ export default function ReferenceFilters({
           kind="ambient"
           value={value.ambient}
           onChange={v => onChange({ ...value, ambient: v })}
-          placeholder="Ambiente: todos"
+          placeholder={t('filterAmbientAll')}
           className="w-44"
         />
 
@@ -125,7 +127,7 @@ export default function ReferenceFilters({
             onChange={e => onChange({ ...value, only_curated: e.target.checked })}
             className="accent-cyan-400"
           />
-          Só curadas
+          {t('onlyCurated')}
         </label>
 
         <label className="flex items-center gap-2 px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-800 cursor-pointer text-xs text-zinc-300">
@@ -135,7 +137,7 @@ export default function ReferenceFilters({
             onChange={e => onChange({ ...value, include_inactive: e.target.checked })}
             className="accent-cyan-400"
           />
-          Incluir desativadas
+          {t('includeInactive')}
         </label>
 
         {hasAny && (
@@ -144,14 +146,14 @@ export default function ReferenceFilters({
             onClick={reset}
             className="inline-flex items-center gap-1 px-2.5 py-2 rounded-lg text-xs text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60 transition-colors"
           >
-            <X size={12} /> Limpar
+            <X size={12} /> {t('clear')}
           </button>
         )}
       </div>
 
       <div className="text-[11px] text-zinc-500">
-        {totalCount} referência{totalCount === 1 ? '' : 's'}
-        {' '}({activeCount} ativa{activeCount === 1 ? '' : 's'}, {inactiveCount} inativa{inactiveCount === 1 ? '' : 's'})
+        {t('refCount', { count: totalCount })}
+        {' '}{t('refCountDetail', { active: activeCount, inactive: inactiveCount })}
       </div>
     </div>
   )

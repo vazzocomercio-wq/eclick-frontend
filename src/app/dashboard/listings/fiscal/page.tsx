@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import AccountSelector, { getStoredSellerId } from '@/components/ml/AccountSelector'
@@ -28,6 +29,7 @@ interface FiscalSnap {
 }
 
 export default function FiscalPage() {
+  const t = useTranslations('listings.fiscal')
   const supabase = useMemo(() => createClient(), [])
   const toast = useToast()
 
@@ -40,9 +42,9 @@ export default function FiscalPage() {
 
   const getHeaders = useCallback(async (): Promise<Record<string, string>> => {
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session?.access_token) throw new Error('Não autenticado')
+    if (!session?.access_token) throw new Error(t('errors.notAuthenticated'))
     return { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' }
-  }, [supabase])
+  }, [supabase, t])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -56,18 +58,18 @@ export default function FiscalPage() {
       const data = await res.json()
       setRows(Array.isArray(data) ? data : [])
     } catch (e) {
-      toast({ message: e instanceof Error ? e.message : 'Erro ao carregar', tone: 'error' })
+      toast({ message: e instanceof Error ? e.message : t('errors.loadFailed'), tone: 'error' })
     } finally {
       setLoading(false)
     }
-  }, [getHeaders, blockedOnly, toast])
+  }, [getHeaders, blockedOnly, toast, t])
 
   useEffect(() => { load() }, [load])
 
   const runScan = async () => {
     const sellerId = getStoredSellerId()
     if (sellerId == null) {
-      toast({ message: 'Selecione uma conta ML', tone: 'error' })
+      toast({ message: t('errors.selectAccount'), tone: 'error' })
       return
     }
     setScanning(true)
@@ -78,10 +80,10 @@ export default function FiscalPage() {
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const r = await res.json()
-      toast({ message: `Scan fiscal · ${r.items_scanned} items · ${r.tasks_created ?? 0} novas tarefas`, tone: 'success' })
+      toast({ message: t('scanDone', { items: r.items_scanned, tasks: r.tasks_created ?? 0 }), tone: 'success' })
       await load()
     } catch (e) {
-      toast({ message: e instanceof Error ? e.message : 'Erro', tone: 'error' })
+      toast({ message: e instanceof Error ? e.message : t('errors.generic'), tone: 'error' })
     } finally {
       setScanning(false)
     }
@@ -90,12 +92,12 @@ export default function FiscalPage() {
   const applyFix = async () => {
     if (!fixModal) return
     const sellerId = getStoredSellerId()
-    if (sellerId == null) { toast({ message: 'Sem conta', tone: 'error' }); return }
+    if (sellerId == null) { toast({ message: t('errors.noAccount'), tone: 'error' }); return }
     const fixes = Object.entries(fixModal.values)
       .filter(([, v]) => v.trim().length > 0)
       .map(([id, value_name]) => ({ id, value_name: value_name.trim() }))
     if (fixes.length === 0) {
-      toast({ message: 'Preencha pelo menos 1 campo', tone: 'warn' })
+      toast({ message: t('errors.fillField'), tone: 'warn' })
       return
     }
     setFixingItemId(fixModal.row.ml_item_id)
@@ -106,11 +108,11 @@ export default function FiscalPage() {
       })
       const body = await res.json()
       if (!res.ok) throw new Error(body?.message ?? `HTTP ${res.status}`)
-      toast({ message: `${fixes.length} atributo${fixes.length > 1 ? 's' : ''} aplicado${fixes.length > 1 ? 's' : ''}`, tone: 'success' })
+      toast({ message: t('attributesApplied', { count: fixes.length }), tone: 'success' })
       setFixModal(null)
       await load()
     } catch (e) {
-      toast({ message: e instanceof Error ? e.message : 'Erro', tone: 'error' })
+      toast({ message: e instanceof Error ? e.message : t('errors.generic'), tone: 'error' })
     } finally {
       setFixingItemId(null)
     }
@@ -126,16 +128,16 @@ export default function FiscalPage() {
       <div>
         <Link href="/dashboard/listings"
           className="text-zinc-500 hover:text-cyan-400 text-xs flex items-center gap-1 mb-2 transition-colors">
-          <ChevronLeft size={12} /> Voltar para Listing Center
+          <ChevronLeft size={12} /> {t('backToCenter')}
         </Link>
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <p className="text-zinc-500 text-xs font-medium tracking-widest uppercase mb-1">Listing Center · Compliance fiscal</p>
-            <h1 className="text-white text-3xl font-semibold">Dados fiscais</h1>
+            <p className="text-zinc-500 text-xs font-medium tracking-widest uppercase mb-1">{t('eyebrow')}</p>
+            <h1 className="text-white text-3xl font-semibold">{t('title')}</h1>
             <p className="text-xs text-zinc-600 mt-1">
               {rows.length > 0
-                ? `${totalBlocked} bloqueiam NF-e · Score médio: ${avgScore}/100`
-                : 'Rode o scan fiscal pra detectar atributos faltando'}
+                ? t('summary', { blocked: totalBlocked, score: avgScore })
+                : t('summaryEmpty')}
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
@@ -143,7 +145,7 @@ export default function FiscalPage() {
             <button onClick={runScan} disabled={scanning}
               className="text-[11px] font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors disabled:opacity-50"
               style={{ background: '#00E5FF', color: '#0d0d10' }}>
-              <RefreshCw size={11} className={scanning ? 'animate-spin' : ''} /> Rodar scan fiscal
+              <RefreshCw size={11} className={scanning ? 'animate-spin' : ''} /> {t('runScan')}
             </button>
           </div>
         </div>
@@ -157,26 +159,26 @@ export default function FiscalPage() {
           style={blockedOnly
             ? { background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.4)', color: '#ef4444' }
             : { background: '#0d0d10', border: '1px solid #27272a', color: '#a1a1aa' }}>
-          Bloqueiam NF-e
+          {t('filterBlocked')}
         </button>
         <button onClick={() => setBlockedOnly(false)}
           className="text-[11px] px-2.5 py-1 rounded-full transition-colors"
           style={!blockedOnly
             ? { background: 'rgba(0,229,255,0.15)', border: '1px solid rgba(0,229,255,0.4)', color: '#00E5FF' }
             : { background: '#0d0d10', border: '1px solid #27272a', color: '#a1a1aa' }}>
-          Todos
+          {t('filterAll')}
         </button>
       </section>
 
       {/* Lista */}
       {loading ? (
         <div className="rounded-xl p-12 text-center text-zinc-500 text-xs"
-          style={{ background: '#111114', border: '1px solid #1a1a1f' }}>Carregando…</div>
+          style={{ background: '#111114', border: '1px solid #1a1a1f' }}>{t('loading')}</div>
       ) : rows.length === 0 ? (
         <div className="rounded-xl p-12 text-center" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
           <CheckCircle2 size={32} className="text-emerald-500/60 mx-auto mb-2" />
-          <p className="text-zinc-400 text-sm">{blockedOnly ? 'Nenhum anúncio bloqueia NF-e' : 'Sem dados fiscais ainda'}</p>
-          <p className="text-zinc-600 text-xs mt-1">{blockedOnly ? '✓ Compliance fiscal ok' : 'Rode o scan pra começar'}</p>
+          <p className="text-zinc-400 text-sm">{blockedOnly ? t('empty.blockedTitle') : t('empty.allTitle')}</p>
+          <p className="text-zinc-600 text-xs mt-1">{blockedOnly ? t('empty.blockedDesc') : t('empty.allDesc')}</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -202,7 +204,7 @@ export default function FiscalPage() {
             className="rounded-2xl p-6 max-w-md w-full" style={{ background: '#111114', border: '1px solid #27272a' }}>
             <div className="flex items-start justify-between mb-3">
               <div>
-                <h3 className="text-white text-lg font-semibold">Corrigir atributos fiscais</h3>
+                <h3 className="text-white text-lg font-semibold">{t('modal.title')}</h3>
                 <p className="text-zinc-500 text-xs font-mono mt-0.5">{fixModal.row.ml_item_id}</p>
               </div>
               <button onClick={() => setFixModal(null)} className="text-zinc-500 hover:text-zinc-200">
@@ -215,9 +217,9 @@ export default function FiscalPage() {
                 <div key={field}>
                   <label className="text-xs text-zinc-400 block mb-1">
                     {field}
-                    {field === 'NCM'    && <span className="text-zinc-600 ml-1">(8 dígitos, ex: 8543.70.99)</span>}
-                    {field === 'GTIN'   && <span className="text-zinc-600 ml-1">(EAN-13)</span>}
-                    {field === 'ORIGIN' && <span className="text-zinc-600 ml-1">(Brasileiro, Importado, etc.)</span>}
+                    {field === 'NCM'    && <span className="text-zinc-600 ml-1">{t('modal.hintNcm')}</span>}
+                    {field === 'GTIN'   && <span className="text-zinc-600 ml-1">{t('modal.hintGtin')}</span>}
+                    {field === 'ORIGIN' && <span className="text-zinc-600 ml-1">{t('modal.hintOrigin')}</span>}
                   </label>
                   <input type="text" value={fixModal.values[field] ?? ''}
                     onChange={e => setFixModal(m => m ? { ...m, values: { ...m.values, [field]: e.target.value } } : null)}
@@ -227,19 +229,18 @@ export default function FiscalPage() {
             </div>
 
             <p className="text-[10px] text-zinc-600 mb-3 leading-relaxed">
-              Valores serão aplicados via PUT /items/{fixModal.row.ml_item_id}. Atributos vazios são ignorados.
-              Mais informação fica no anúncio (não no produto do catálogo).
+              {t('modal.note', { itemId: fixModal.row.ml_item_id })}
             </p>
 
             <div className="flex justify-end gap-2">
               <button onClick={() => setFixModal(null)}
                 className="text-xs px-3 py-2 rounded-lg border border-zinc-800 text-zinc-400 hover:text-zinc-200">
-                Cancelar
+                {t('modal.cancel')}
               </button>
               <button onClick={applyFix} disabled={fixingItemId !== null}
                 className="text-xs font-semibold px-3 py-2 rounded-lg disabled:opacity-50"
                 style={{ background: '#00E5FF', color: '#0d0d10' }}>
-                {fixingItemId ? 'Aplicando…' : 'Aplicar correção'}
+                {fixingItemId ? t('modal.applying') : t('modal.applyFix')}
               </button>
             </div>
           </div>
@@ -250,6 +251,7 @@ export default function FiscalPage() {
 }
 
 function FiscalCard({ row, fixing, onOpenFix }: { row: FiscalSnap; fixing: boolean; onOpenFix: () => void }) {
+  const t = useTranslations('listings.fiscal')
   const scoreColor =
     row.fiscal_completeness_score >= 80 ? '#22c55e' :
     row.fiscal_completeness_score >= 50 ? '#f59e0b' :
@@ -286,13 +288,13 @@ function FiscalCard({ row, fixing, onOpenFix }: { row: FiscalSnap; fixing: boole
               ML <ExternalLink size={9} />
             </a>
             <span className="text-[10px] font-bold tabular-nums" style={{ color: scoreColor }}>
-              Score {row.fiscal_completeness_score}/100
+              {t('scoreLabel', { score: row.fiscal_completeness_score })}
             </span>
           </div>
 
           {row.blocks_nfe && (
             <p className="text-xs text-rose-400 mt-1 font-medium">
-              ⚠ Bloqueia NF-e — falta: {row.missing_fields.join(', ')}
+              {t('blocksNfe', { fields: row.missing_fields.join(', ') })}
             </p>
           )}
 
@@ -312,7 +314,7 @@ function FiscalCard({ row, fixing, onOpenFix }: { row: FiscalSnap; fixing: boole
             <button onClick={onOpenFix} disabled={fixing}
               className="text-[11px] font-semibold px-3 py-1.5 rounded-lg disabled:opacity-50"
               style={{ background: '#00E5FF', color: '#0d0d10' }}>
-              {fixing ? 'Aplicando…' : 'Corrigir'}
+              {fixing ? t('modal.applying') : t('fix')}
             </button>
           )}
         </div>
@@ -322,6 +324,7 @@ function FiscalCard({ row, fixing, onOpenFix }: { row: FiscalSnap; fixing: boole
 }
 
 function AttrBadge({ label, ok, value, required }: { label: string; ok: boolean; value: string | null; required?: boolean }) {
+  const t = useTranslations('listings.fiscal')
   return (
     <div className="rounded px-2 py-1 text-[10px]"
       style={ok
@@ -330,7 +333,7 @@ function AttrBadge({ label, ok, value, required }: { label: string; ok: boolean;
           ? { background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)' }
           : { background: '#0d0d10', border: '1px solid #27272a' }}>
       <p className="font-bold tracking-widest uppercase" style={{ color: ok ? '#22c55e' : required ? '#ef4444' : '#71717a' }}>{label}</p>
-      <p className="text-zinc-500 truncate" title={value ?? '(vazio)'}>{value ?? '—'}</p>
+      <p className="text-zinc-500 truncate" title={value ?? t('emptyValue')}>{value ?? '—'}</p>
     </div>
   )
 }

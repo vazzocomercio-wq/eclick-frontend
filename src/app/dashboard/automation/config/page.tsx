@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Loader2, Save, Settings, Zap } from 'lucide-react'
 import {
@@ -15,27 +16,8 @@ const ALL_TRIGGERS: AutomationTrigger[] = [
   'seasonal_opportunity','margin_erosion','review_needed',
 ]
 
-const TRIGGER_DESC: Record<AutomationTrigger, string> = {
-  low_stock:              'Estoque crítico ou abaixo do reorder point',
-  high_stock:             'Produto parado com estoque alto',
-  sales_drop:             'Queda de >20% nas vendas em 30 dias',
-  sales_spike:            'Aumento de >30% nas vendas em 7 dias',
-  low_conversion:         'Taxa de conversão abaixo de 1%',
-  high_conversion:        'Produto com conversão >5% (oportunidade)',
-  competitor_price_drop:  'Concorrente baixou preço',
-  competitor_out_of_stock:'Concorrente sem estoque',
-  low_score:              'Score do produto < 40',
-  no_content:             'Produto bom sem conteúdo social',
-  no_ads:                 'Produto vendendo bem sem anúncio',
-  ads_underperforming:    'Campanha com ROAS < 1',
-  abandoned_carts_spike:  'Aumento de carrinhos abandonados',
-  new_product_ready:      'Produto novo ficou pronto pra anunciar',
-  seasonal_opportunity:   'Data comemorativa próxima',
-  margin_erosion:         'Margem caindo progressivamente',
-  review_needed:          'Produto precisa atenção manual',
-}
-
 export default function AutomationConfigPage() {
+  const t = useTranslations('automation.config')
   const router = useRouter()
   const [config, setConfig] = useState<StoreAutomationConfig | null>(null)
   const [draft, setDraft]   = useState<Partial<StoreAutomationConfig>>({})
@@ -64,9 +46,9 @@ export default function AutomationConfigPage() {
     setDraft(prev => ({ ...prev, [k]: v }))
   }
 
-  function toggleTrigger(t: AutomationTrigger, list: 'active_triggers' | 'auto_execute_triggers') {
+  function toggleTrigger(trigger: AutomationTrigger, list: 'active_triggers' | 'auto_execute_triggers') {
     const current = (getValue(list) ?? []) as AutomationTrigger[]
-    const next = current.includes(t) ? current.filter(x => x !== t) : [...current, t]
+    const next = current.includes(trigger) ? current.filter(x => x !== trigger) : [...current, trigger]
     set(list, next)
   }
 
@@ -85,7 +67,7 @@ export default function AutomationConfigPage() {
 
   if (loading) return (
     <div className="p-6 flex items-center gap-2 text-zinc-500 text-sm">
-      <Loader2 size={14} className="animate-spin" /> carregando…
+      <Loader2 size={14} className="animate-spin" /> {t('loading')}
     </div>
   )
 
@@ -99,20 +81,20 @@ export default function AutomationConfigPage() {
   return (
     <div className="p-4 sm:p-6 space-y-5 max-w-3xl mx-auto">
       <button onClick={() => router.back()} className="text-zinc-500 hover:text-zinc-300 text-sm flex items-center gap-1">
-        <ArrowLeft size={14} /> voltar
+        <ArrowLeft size={14} /> {t('back')}
       </button>
 
       <div>
         <h1 className="text-xl font-bold text-zinc-100 flex items-center gap-2">
           <Settings size={18} className="text-cyan-400" />
-          Configuração de Automações
+          {t('title')}
         </h1>
-        <p className="text-xs text-zinc-500 mt-0.5">Controle quais triggers a IA ativa e quando executar sem aprovação.</p>
+        <p className="text-xs text-zinc-500 mt-0.5">{t('subtitle')}</p>
       </div>
 
       {/* Enable */}
-      <Section title="Geral">
-        <Field label="Automação habilitada">
+      <Section title={t('sectionGeneral')}>
+        <Field label={t('automationEnabled')}>
           <input
             type="checkbox"
             checked={Boolean(getValue('enabled'))}
@@ -120,52 +102,52 @@ export default function AutomationConfigPage() {
             className="w-4 h-4 accent-cyan-400"
           />
         </Field>
-        <Field label="Frequência da análise">
+        <Field label={t('analysisFrequency')}>
           <select
             value={String(getValue('analysis_frequency') ?? 'daily')}
             onChange={e => set('analysis_frequency', e.target.value as StoreAutomationConfig['analysis_frequency'])}
             className="bg-zinc-950 border border-zinc-800 rounded px-2 py-1.5 text-sm text-zinc-200 outline-none focus:border-cyan-400/60"
           >
-            <option value="hourly">A cada hora</option>
-            <option value="daily">Diariamente</option>
-            <option value="weekly">Semanalmente</option>
+            <option value="hourly">{t('freqHourly')}</option>
+            <option value="daily">{t('freqDaily')}</option>
+            <option value="weekly">{t('freqWeekly')}</option>
           </select>
         </Field>
         {config.last_analysis_at && (
           <p className="text-[11px] text-zinc-500">
-            Última análise: {new Date(config.last_analysis_at).toLocaleString('pt-BR')}
+            {t('lastAnalysis', { date: new Date(config.last_analysis_at).toLocaleString('pt-BR') })}
           </p>
         )}
       </Section>
 
       {/* Triggers */}
-      <Section title="Triggers ativos" hint="Marque os que a IA deve detectar e propor ações">
+      <Section title={t('sectionTriggers')} hint={t('sectionTriggersHint')}>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          {ALL_TRIGGERS.map(t => {
-            const active = activeTriggers.includes(t)
-            const auto   = autoExecuteTriggers.includes(t)
+          {ALL_TRIGGERS.map(trigger => {
+            const active = activeTriggers.includes(trigger)
+            const auto   = autoExecuteTriggers.includes(trigger)
             return (
-              <div key={t} className="rounded border border-zinc-800 bg-zinc-950/40 p-2 space-y-1">
+              <div key={trigger} className="rounded border border-zinc-800 bg-zinc-950/40 p-2 space-y-1">
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={active}
-                    onChange={() => toggleTrigger(t, 'active_triggers')}
+                    onChange={() => toggleTrigger(trigger, 'active_triggers')}
                     className="w-4 h-4 accent-cyan-400"
                   />
-                  <span className="text-xs text-zinc-200 font-mono">{t}</span>
+                  <span className="text-xs text-zinc-200 font-mono">{trigger}</span>
                 </label>
-                <p className="text-[10px] text-zinc-500 pl-6">{TRIGGER_DESC[t]}</p>
+                <p className="text-[10px] text-zinc-500 pl-6">{t(`triggerDesc.${trigger}`)}</p>
                 {active && (
                   <label className="flex items-center gap-2 cursor-pointer pl-6 mt-1">
                     <input
                       type="checkbox"
                       checked={auto}
-                      onChange={() => toggleTrigger(t, 'auto_execute_triggers')}
+                      onChange={() => toggleTrigger(trigger, 'auto_execute_triggers')}
                       className="w-3 h-3 accent-purple-400"
                     />
                     <span className="text-[10px] text-purple-300 flex items-center gap-1">
-                      <Zap size={9} /> auto-executar (sem aprovação)
+                      <Zap size={9} /> {t('autoExecute')}
                     </span>
                   </label>
                 )}
@@ -176,8 +158,8 @@ export default function AutomationConfigPage() {
       </Section>
 
       {/* Limits */}
-      <Section title="Limites de auto-execução" hint="Mesmo com auto-exec habilitado, esses limites valem">
-        <Field label="Máx. ações automáticas por dia">
+      <Section title={t('sectionLimits')} hint={t('sectionLimitsHint')}>
+        <Field label={t('maxAutoActions')}>
           <input
             type="number" min={0} max={100}
             value={Number(getValue('max_auto_actions_per_day') ?? 10)}
@@ -185,7 +167,7 @@ export default function AutomationConfigPage() {
             className="w-24 bg-zinc-950 border border-zinc-800 rounded px-2 py-1.5 text-sm text-zinc-200 outline-none"
           />
         </Field>
-        <Field label="Máx. mudança de preço auto (%)">
+        <Field label={t('maxPriceChange')}>
           <input
             type="number" min={0} max={50} step="0.5"
             value={Number(getValue('max_price_change_auto_pct') ?? 5)}
@@ -193,7 +175,7 @@ export default function AutomationConfigPage() {
             className="w-24 bg-zinc-950 border border-zinc-800 rounded px-2 py-1.5 text-sm text-zinc-200 outline-none"
           />
         </Field>
-        <Field label="Máx. budget auto (R$)">
+        <Field label={t('maxBudget')}>
           <input
             type="number" min={0} max={1000} step="5"
             value={Number(getValue('max_budget_auto_brl') ?? 50)}
@@ -204,30 +186,30 @@ export default function AutomationConfigPage() {
       </Section>
 
       {/* Notifications */}
-      <Section title="Notificações">
-        <Field label="Canal">
+      <Section title={t('sectionNotifications')}>
+        <Field label={t('channel')}>
           <select
             value={String(getValue('notify_channel') ?? 'dashboard')}
             onChange={e => set('notify_channel', e.target.value as StoreAutomationConfig['notify_channel'])}
             className="bg-zinc-950 border border-zinc-800 rounded px-2 py-1.5 text-sm text-zinc-200 outline-none"
           >
-            <option value="dashboard">Só dashboard</option>
-            <option value="whatsapp">WhatsApp (precisa Active conectado)</option>
-            <option value="email">Email</option>
-            <option value="all">Todos</option>
+            <option value="dashboard">{t('channelDashboard')}</option>
+            <option value="whatsapp">{t('channelWhatsapp')}</option>
+            <option value="email">{t('channelEmail')}</option>
+            <option value="all">{t('channelAll')}</option>
           </select>
         </Field>
-        <Field label="Severidade mínima">
+        <Field label={t('minSeverity')}>
           <select
             value={String(getValue('notify_min_severity') ?? 'medium')}
             onChange={e => set('notify_min_severity', e.target.value as StoreAutomationConfig['notify_min_severity'])}
             className="bg-zinc-950 border border-zinc-800 rounded px-2 py-1.5 text-sm text-zinc-200 outline-none"
           >
-            <option value="opportunity">Oportunidades</option>
-            <option value="low">Baixa</option>
-            <option value="medium">Média</option>
-            <option value="high">Alta</option>
-            <option value="critical">Só crítica</option>
+            <option value="opportunity">{t('sevOpportunity')}</option>
+            <option value="low">{t('sevLow')}</option>
+            <option value="medium">{t('sevMedium')}</option>
+            <option value="high">{t('sevHigh')}</option>
+            <option value="critical">{t('sevCritical')}</option>
           </select>
         </Field>
       </Section>
@@ -239,7 +221,7 @@ export default function AutomationConfigPage() {
           className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan-400 hover:bg-cyan-300 disabled:opacity-50 text-black text-sm font-medium shadow-lg"
         >
           {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-          Salvar
+          {t('save')}
         </button>
       </div>
     </div>

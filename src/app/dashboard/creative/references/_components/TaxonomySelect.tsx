@@ -23,6 +23,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { createPortal } from 'react-dom'
 import { ChevronDown, Plus, X, Edit3, Trash2, Loader2, Check, RotateCcw } from 'lucide-react'
 import { CreativeApi } from '@/components/creative/api'
@@ -48,6 +49,7 @@ export default function TaxonomySelect({
    */
   onOptionsChanged?:  () => void
 }) {
+  const t = useTranslations('creative.templates')
   const [options, setOptions] = useState<TaxonomyOption[]>([])
   const [loading, setLoading] = useState(false)
   const [open, setOpen]       = useState(false)
@@ -142,14 +144,14 @@ export default function TaxonomySelect({
       setOptions(sorted)
     } catch (e) {
       await alertDialog({
-        title:   'Falha ao carregar opções',
+        title:   t('loadOptionsFail'),
         message: (e as Error).message,
         variant: 'danger',
       })
     } finally {
       setLoading(false)
     }
-  }, [kind, alertDialog, showHidden])
+  }, [kind, alertDialog, showHidden, t])
 
   useEffect(() => { void load() }, [load])
 
@@ -228,9 +230,9 @@ export default function TaxonomySelect({
     if (opt.is_default) {
       // Soft-delete (hide) — texto "Apagar"
       const ok = await confirmDialog({
-        title:        'Apagar opção',
-        message:      `Apagar "${opt.label}" da sua organização? Você pode recuperar depois ativando "Mostrar apagadas" no rodapé.`,
-        confirmLabel: 'Apagar',
+        title:        t('deleteOptionTitle'),
+        message:      t('deleteDefaultOptionMessage', { label: opt.label }),
+        confirmLabel: t('deleteConfirm'),
         variant:      'danger',
       })
       if (!ok) return
@@ -242,7 +244,7 @@ export default function TaxonomySelect({
         onOptionsChanged?.()
       } catch (e) {
         await alertDialog({
-          title:   'Falha ao apagar',
+          title:   t('deleteFailTitle'),
           message: (e as Error).message,
           variant: 'danger',
         })
@@ -253,9 +255,9 @@ export default function TaxonomySelect({
     }
     // Custom da org → DELETE real
     const ok = await confirmDialog({
-      title:        'Apagar opção',
-      message:      `Apagar "${opt.label}"? Esta ação não pode ser desfeita. References já cadastradas com esse valor não serão apagadas, mas o campo ficará órfão.`,
-      confirmLabel: 'Apagar',
+      title:        t('deleteOptionTitle'),
+      message:      t('deleteCustomOptionMessage', { label: opt.label }),
+      confirmLabel: t('deleteConfirm'),
       variant:      'danger',
     })
     if (!ok) return
@@ -267,7 +269,7 @@ export default function TaxonomySelect({
       onOptionsChanged?.()
     } catch (e) {
       await alertDialog({
-        title:   'Falha ao apagar',
+        title:   t('deleteFailTitle'),
         message: (e as Error).message,
         variant: 'danger',
       })
@@ -284,7 +286,7 @@ export default function TaxonomySelect({
       onOptionsChanged?.()
     } catch (e) {
       await alertDialog({
-        title:   'Falha ao reativar',
+        title:   t('reactivateFailTitle'),
         message: (e as Error).message,
         variant: 'danger',
       })
@@ -323,8 +325,8 @@ export default function TaxonomySelect({
               }
             }}
             className="p-0.5 rounded text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 shrink-0 transition-colors"
-            title="Limpar seleção"
-            aria-label="Limpar seleção"
+            title={t('clearSelectionTooltip')}
+            aria-label={t('clearSelectionTooltip')}
           >
             <X size={12} />
           </span>
@@ -345,7 +347,7 @@ export default function TaxonomySelect({
         >
           {loading && (
             <div className="flex items-center justify-center gap-1.5 py-3 text-xs text-zinc-500">
-              <Loader2 size={12} className="animate-spin" /> carregando…
+              <Loader2 size={12} className="animate-spin" /> {t('loadingOptions')}
             </div>
           )}
 
@@ -376,7 +378,7 @@ export default function TaxonomySelect({
                   <div key={opt.id}>
                     {showSeparator && (
                       <div className="px-3 py-1 text-[9px] font-bold uppercase tracking-wider text-zinc-600 border-t border-zinc-800 mt-1">
-                        Opções padrão
+                        {t('standardOptions')}
                       </div>
                     )}
                     <OptionRow
@@ -394,7 +396,7 @@ export default function TaxonomySelect({
 
               {options.length === 0 && (
                 <div className="px-3 py-4 text-xs text-zinc-500 text-center">
-                  Nenhuma opção cadastrada
+                  {t('noOptionsRegistered')}
                 </div>
               )}
             </div>
@@ -423,7 +425,7 @@ export default function TaxonomySelect({
                   onClick={() => setCreating(true)}
                   className="w-full flex items-center gap-2 px-3 py-2 text-xs text-cyan-300 hover:bg-cyan-400/10 transition-colors border-b border-zinc-800"
                 >
-                  <Plus size={12} /> Adicionar nova opção…
+                  <Plus size={12} /> {t('addNewOption')}
                 </button>
                 <label className="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] text-zinc-500 cursor-pointer hover:text-zinc-300 transition-colors">
                   <input
@@ -432,7 +434,7 @@ export default function TaxonomySelect({
                     onChange={e => setShowHidden(e.target.checked)}
                     className="accent-cyan-400"
                   />
-                  Mostrar apagadas
+                  {t('showDeleted')}
                 </label>
               </>
             )}
@@ -457,6 +459,7 @@ function OptionRow({
   onDelete:  () => void
   onUnhide:  () => void
 }) {
+  const t = useTranslations('creative.templates')
   const isHidden = opt.hidden === true
 
   return (
@@ -481,12 +484,12 @@ function OptionRow({
         <span className="truncate">{opt.label}</span>
         {opt.is_default && (
           <span className="text-[9px] font-medium px-1 py-0.5 rounded bg-zinc-800 text-zinc-500 border border-zinc-700 shrink-0">
-            padrão
+            {t('standardBadge')}
           </span>
         )}
         {isHidden && (
           <span className="text-[9px] font-medium px-1 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/30 shrink-0">
-            apagada
+            {t('deletedBadge')}
           </span>
         )}
       </button>
@@ -499,7 +502,7 @@ function OptionRow({
             type="button"
             onClick={e => { e.stopPropagation(); onUnhide() }}
             className="p-1 rounded text-cyan-400 hover:text-cyan-200 hover:bg-cyan-400/10 transition-all"
-            title="Reativar"
+            title={t('reactivate')}
           >
             <RotateCcw size={10} />
           </button>
@@ -510,7 +513,7 @@ function OptionRow({
               type="button"
               onClick={e => { e.stopPropagation(); onEdit() }}
               className="p-1 rounded text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 opacity-0 group-hover:opacity-100 transition-all"
-              title="Editar"
+              title={t('actionEdit')}
             >
               <Edit3 size={10} />
             </button>
@@ -518,7 +521,7 @@ function OptionRow({
               type="button"
               onClick={e => { e.stopPropagation(); onDelete() }}
               className="p-1 rounded text-zinc-500 hover:text-red-300 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-all"
-              title="Apagar"
+              title={t('actionDelete')}
             >
               <Trash2 size={10} />
             </button>
@@ -537,6 +540,7 @@ function CreateInlineForm({
   onCancel:        () => void
   onCreated:       (opt: TaxonomyOption) => void
 }) {
+  const t = useTranslations('creative.templates')
   const [label, setLabel] = useState('')
   const [value, setValue] = useState('')
   const [linkedPosition, setLinkedPosition] = useState<number | null>(null)
@@ -555,9 +559,9 @@ function CreateInlineForm({
   }
 
   const submit = async () => {
-    if (!label.trim()) { setError('Nome obrigatório'); return }
-    if (!value.trim()) { setError('Chave obrigatória'); return }
-    if (!/^[a-z0-9_]+$/.test(value)) { setError('Chave: só [a-z0-9_]'); return }
+    if (!label.trim()) { setError(t('optionNameRequired')); return }
+    if (!value.trim()) { setError(t('optionKeyRequired')); return }
+    if (!/^[a-z0-9_]+$/.test(value)) { setError(t('optionKeyInvalid')); return }
     setBusy(true)
     setError(null)
     try {
@@ -578,12 +582,12 @@ function CreateInlineForm({
   return (
     <div className="p-2 space-y-1.5">
       <div className="flex items-center justify-between">
-        <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Nova opção</span>
+        <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">{t('newOption')}</span>
         <button
           type="button"
           onClick={onCancel}
           className="text-zinc-500 hover:text-zinc-300"
-          aria-label="Cancelar"
+          aria-label={t('cancel')}
         >
           <X size={11} />
         </button>
@@ -594,7 +598,7 @@ function CreateInlineForm({
         value={label}
         onChange={e => onLabelChange(e.target.value)}
         onKeyDown={e => { if (e.key === 'Enter') submit() }}
-        placeholder="Nome (ex: Área da piscina)"
+        placeholder={t('newOptionNamePlaceholder')}
         disabled={busy}
         className="w-full px-2 py-1.5 bg-zinc-900 border border-zinc-800 rounded text-xs text-zinc-200 outline-none focus:border-cyan-400 placeholder:text-zinc-600"
       />
@@ -603,7 +607,7 @@ function CreateInlineForm({
         value={value}
         onChange={e => setValue(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
         onKeyDown={e => { if (e.key === 'Enter') submit() }}
-        placeholder="chave (auto)"
+        placeholder={t('keyAuto')}
         disabled={busy}
         className="w-full px-2 py-1.5 bg-zinc-900 border border-zinc-800 rounded text-[11px] font-mono text-zinc-300 outline-none focus:border-cyan-400 placeholder:text-zinc-600"
       />
@@ -626,7 +630,7 @@ function CreateInlineForm({
           disabled={busy}
           className="flex-1 py-1.5 rounded text-[11px] text-zinc-400 hover:bg-zinc-800 transition-colors"
         >
-          Cancelar
+          {t('cancel')}
         </button>
         <button
           type="button"
@@ -635,7 +639,7 @@ function CreateInlineForm({
           className="flex-1 py-1.5 rounded bg-cyan-400 hover:bg-cyan-300 text-black text-[11px] font-semibold disabled:opacity-50 disabled:hover:bg-cyan-400 transition-colors inline-flex items-center justify-center gap-1"
         >
           {busy ? <Loader2 size={10} className="animate-spin" /> : null}
-          Criar
+          {t('create')}
         </button>
       </div>
     </div>
@@ -650,6 +654,7 @@ function EditInlineForm({
   onCancel:        () => void
   onSaved:         (opt: TaxonomyOption) => void
 }) {
+  const t = useTranslations('creative.templates')
   const [label, setLabel] = useState(option.label)
   const [linkedPosition, setLinkedPosition] = useState<number | null>(option.linked_position)
   const [busy, setBusy]   = useState(false)
@@ -662,7 +667,7 @@ function EditInlineForm({
   }, [])
 
   const submit = async () => {
-    if (!label.trim()) { setError('Nome obrigatório'); return }
+    if (!label.trim()) { setError(t('optionNameRequired')); return }
     const labelChanged    = label.trim() !== option.label
     const positionChanged = linkedPosition !== option.linked_position
     if (!labelChanged && !positionChanged) { onCancel(); return }
@@ -685,13 +690,13 @@ function EditInlineForm({
     <div className="p-2 space-y-1.5">
       <div className="flex items-center justify-between">
         <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
-          Editar "{option.label}"
+          {t('editOption', { label: option.label })}
         </span>
         <button
           type="button"
           onClick={onCancel}
           className="text-zinc-500 hover:text-zinc-300"
-          aria-label="Cancelar"
+          aria-label={t('cancel')}
         >
           <X size={11} />
         </button>
@@ -708,7 +713,7 @@ function EditInlineForm({
         disabled={busy}
         className="w-full px-2 py-1.5 bg-zinc-900 border border-zinc-800 rounded text-xs text-zinc-200 outline-none focus:border-cyan-400"
       />
-      <p className="text-[10px] text-zinc-600 font-mono">chave: {option.value} (não editável)</p>
+      <p className="text-[10px] text-zinc-600 font-mono">{t('keyNotEditable', { value: option.value })}</p>
       {option.kind === 'ambient' && (
         <PositionLinkSelect
           value={linkedPosition}
@@ -728,7 +733,7 @@ function EditInlineForm({
           disabled={busy}
           className="flex-1 py-1.5 rounded text-[11px] text-zinc-400 hover:bg-zinc-800 transition-colors"
         >
-          Cancelar
+          {t('cancel')}
         </button>
         <button
           type="button"
@@ -737,7 +742,7 @@ function EditInlineForm({
           className="flex-1 py-1.5 rounded bg-cyan-400 hover:bg-cyan-300 text-black text-[11px] font-semibold disabled:opacity-50 disabled:hover:bg-cyan-400 transition-colors inline-flex items-center justify-center gap-1"
         >
           {busy ? <Loader2 size={10} className="animate-spin" /> : null}
-          Salvar
+          {t('save')}
         </button>
       </div>
     </div>
@@ -759,6 +764,7 @@ function PositionLinkSelect({
   excludeId:       string | null
   disabled?:       boolean
 }) {
+  const t = useTranslations('creative.templates')
   // Map de position → label do ambient que ocupa (excluindo o próprio em edit)
   // Só considera ambient (defaults globais não têm linked_position).
   const positionOwner = new Map<number, string>()
@@ -773,7 +779,7 @@ function PositionLinkSelect({
   return (
     <div className="space-y-1">
       <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">
-        Linkar à posição
+        {t('linkToPosition')}
       </label>
       <select
         value={value ?? ''}
@@ -781,19 +787,19 @@ function PositionLinkSelect({
         disabled={disabled}
         className="w-full px-2 py-1.5 bg-zinc-900 border border-zinc-800 rounded text-xs text-zinc-200 outline-none focus:border-cyan-400 disabled:opacity-50"
       >
-        <option value="">— sem link (só metadado)</option>
+        <option value="">{t('noLinkOption')}</option>
         {Array.from({ length: 11 }, (_, i) => i + 1).map(p => {
           const owner = positionOwner.get(p)
           return (
             <option key={p} value={p}>
-              Posição {p}{owner ? ` — ocupada por "${owner}"` : ' — livre'}
+              {owner ? t('positionOccupied', { p, owner }) : t('positionFree', { p })}
             </option>
           )
         })}
       </select>
       {conflictLabel && (
         <p className="text-[10px] text-amber-300">
-          ⚠ Posição {value} já tem "{conflictLabel}". Salvar vai falhar — desvincule essa outra primeiro.
+          {t('positionConflict', { p: value ?? 0, owner: conflictLabel })}
         </p>
       )}
     </div>

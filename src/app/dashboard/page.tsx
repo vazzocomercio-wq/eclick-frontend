@@ -2,6 +2,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
@@ -17,11 +18,11 @@ import {
 const BrazilSalesMap = dynamic(() => import('@/components/BrazilSalesMap'), {
   ssr: false,
   loading: () => (
-    <div className="h-[350px] bg-[#111114] rounded-xl animate-pulse flex items-center justify-center">
-      <span className="text-gray-400 text-sm">Carregando mapa...</span>
-    </div>
+    <div className="h-[350px] bg-[#111114] rounded-xl animate-pulse" />
   ),
 })
+
+type Translate = ReturnType<typeof useTranslations>
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 
@@ -131,6 +132,7 @@ function PrevRow({ label, prevValue, currentValue, format, isClamped = false }: 
   format: (v: number) => string
   isClamped?: boolean
 }) {
+  const t = useTranslations('dashboardHome')
   return (
     <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
       <div className="flex justify-between items-center">
@@ -155,7 +157,7 @@ function PrevRow({ label, prevValue, currentValue, format, isClamped = false }: 
               </span>
             </>
           )
-        })() : <span className="text-xs" style={{ color: 'var(--text-muted)' }}>sem dado anterior</span>}
+        })() : <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{t('noPrevData')}</span>}
       </div>
       {/* Mensagem actionable destacada: "Faltam R$ X pra igualar" quando
           current < prev, "Superando em R$ X" quando current > prev. Deixa
@@ -173,8 +175,8 @@ function PrevRow({ label, prevValue, currentValue, format, isClamped = false }: 
             }}>
             <span className="text-[11px] font-semibold" style={{ color: up ? '#4ade80' : '#f87171' }}>
               {up
-                ? `Superando em ${format(diff)}`
-                : `Faltam ${format(Math.abs(diff))} (${pctNeed.toFixed(1)}%) pra igualar`}
+                ? t('exceedingBy', { value: format(diff) })
+                : t('shortToMatch', { value: format(Math.abs(diff)), pct: pctNeed.toFixed(1) })}
             </span>
           </div>
         )
@@ -195,6 +197,7 @@ function MetaRow({ label, value, target, color }: {
   target: number | null
   color: string
 }) {
+  const t = useTranslations('dashboardHome')
   if (target == null) {
     return (
       <div className="mt-3 pt-3" style={{ borderTop: '1px dashed var(--border)' }}>
@@ -205,7 +208,7 @@ function MetaRow({ label, value, target, color }: {
             style={{ color: `${color}cc` }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = color }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = `${color}cc` }}>
-            Definir meta →
+            {t('setGoal')}
           </Link>
         </div>
       </div>
@@ -219,7 +222,11 @@ function MetaRow({ label, value, target, color }: {
       <div className="flex items-center justify-between mb-1.5">
         <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{label}</span>
         <span className="text-xs font-semibold" style={{ color: barColor }}>
-          {pctText} de {value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })} / {target.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })}
+          {t('metaProgress', {
+            pct: pctText,
+            value: value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }),
+            target: target.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }),
+          })}
         </span>
       </div>
       {/* Barra de progresso — clamped a 100% visual mesmo se ultrapassou,
@@ -375,15 +382,10 @@ function topProductsFromOrders(orders: Order[]) {
 
 // ── Row 1: Header / Filters ───────────────────────────────────────────────────
 
-const PERIODS: Array<{ key: Period; label: string }> = [
-  { key: 'today', label: 'Hoje' },
-  { key: '7d',    label: '7 dias' },
-  { key: '30d',   label: '30 dias' },
-  { key: 'month', label: 'Mês atual' },
-]
+const PERIOD_KEYS: Period[] = ['today', '7d', '30d', 'month']
 
 const CHANNELS: Array<{ key: Channel; label: string; color: string }> = [
-  { key: 'all',    label: 'Todos',   color: '#00E5FF' },
+  { key: 'all',    label: '',        color: '#00E5FF' },
   { key: 'ml',     label: 'ML',      color: '#ffe600' },
   { key: 'shopee', label: 'Shopee',  color: '#EE4D2D' },
   { key: 'amazon', label: 'Amazon',  color: '#FF9900' },
@@ -395,16 +397,17 @@ function DashHeader({ period, setPeriod, channel, setChannel, onRefresh, refresh
   channel: Channel; setChannel: (c: Channel) => void
   onRefresh: () => void; refreshing: boolean; lastUpdated: Date | null
 }) {
+  const t = useTranslations('dashboardHome')
   const minAgo = lastUpdated ? Math.round((Date.now() - lastUpdated.getTime()) / 60_000) : null
   return (
     <div className="flex flex-wrap items-center gap-3">
       {/* Period pills */}
       <div className="flex gap-1 p-1 rounded-lg" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-        {PERIODS.map(p => (
-          <button key={p.key} onClick={() => setPeriod(p.key)}
+        {PERIOD_KEYS.map(p => (
+          <button key={p} onClick={() => setPeriod(p)}
             className="px-3 py-1.5 rounded-md text-[12px] font-semibold transition-all"
-            style={{ background: period === p.key ? 'rgba(0,229,255,0.12)' : 'transparent', color: period === p.key ? 'var(--primary)' : 'var(--text-muted)' }}>
-            {p.label}
+            style={{ background: period === p ? 'rgba(0,229,255,0.12)' : 'transparent', color: period === p ? 'var(--primary)' : 'var(--text-muted)' }}>
+            {t(`periods.${p}`)}
           </button>
         ))}
       </div>
@@ -415,7 +418,7 @@ function DashHeader({ period, setPeriod, channel, setChannel, onRefresh, refresh
           <button key={c.key} onClick={() => setChannel(c.key)}
             className="px-3 py-1.5 rounded-md text-[12px] font-semibold transition-all"
             style={{ background: channel === c.key ? `${c.color}18` : 'transparent', color: channel === c.key ? c.color : 'var(--text-muted)' }}>
-            {c.label}
+            {c.key === 'all' ? t('channelAll') : c.label}
           </button>
         ))}
       </div>
@@ -423,7 +426,7 @@ function DashHeader({ period, setPeriod, channel, setChannel, onRefresh, refresh
       <div className="ml-auto flex items-center gap-3">
         {minAgo !== null && (
           <span className="text-[11px]" style={{ color: 'var(--text-dim)' }}>
-            Atualizado há {minAgo < 1 ? 'menos de 1 min' : `${minAgo} min`}
+            {minAgo < 1 ? t('updatedLessThanMin') : t('updatedMinAgo', { min: minAgo })}
           </span>
         )}
         <button onClick={onRefresh} disabled={refreshing}
@@ -433,7 +436,7 @@ function DashHeader({ period, setPeriod, channel, setChannel, onRefresh, refresh
             ? <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
             : <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
           }
-          Atualizar dados
+          {t('refreshData')}
         </button>
       </div>
     </div>
@@ -447,6 +450,7 @@ function KpiCard({ label, value, vsYest, vsWeek, sub, color = '#00E5FF', loading
   sub?: string; color?: string; loading: boolean
   comparison?: { prevValue: number; prevLabel: string; curRaw: number }
 }) {
+  const t = useTranslations('dashboardHome')
   return (
     <div className="rounded-xl p-4 flex flex-col gap-2.5 transition-all"
       style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
@@ -462,13 +466,13 @@ function KpiCard({ label, value, vsYest, vsWeek, sub, color = '#00E5FF', loading
             {vsYest != null && (
               <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
                 style={{ background: vsYest >= 0 ? 'rgba(52,211,153,0.12)' : 'rgba(248,113,113,0.12)', color: vsYest >= 0 ? '#34d399' : '#f87171' }}>
-                {vsYest >= 0 ? '↑' : '↓'} {Math.abs(vsYest).toFixed(1)}% ontem
+                {vsYest >= 0 ? '↑' : '↓'} {t('vsYesterdayShort', { pct: Math.abs(vsYest).toFixed(1) })}
               </span>
             )}
             {vsWeek != null && (
               <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
                 style={{ background: vsWeek >= 0 ? 'rgba(52,211,153,0.08)' : 'rgba(248,113,113,0.08)', color: vsWeek >= 0 ? '#34d399' : '#f87171' }}>
-                {vsWeek >= 0 ? '↑' : '↓'} {Math.abs(vsWeek).toFixed(1)}% sem.
+                {vsWeek >= 0 ? '↑' : '↓'} {t('vsWeekShort', { pct: Math.abs(vsWeek).toFixed(1) })}
               </span>
             )}
             {sub && <span className="text-[10px]" style={{ color: 'var(--text-dim)' }}>{sub}</span>}
@@ -482,7 +486,7 @@ function KpiCard({ label, value, vsYest, vsWeek, sub, color = '#00E5FF', loading
               {(() => {
                 const diff = comparison.curRaw - comparison.prevValue
                 if (comparison.prevValue === 0) return (
-                  <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>sem dado anterior</span>
+                  <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{t('noPrevData')}</span>
                 )
                 const pctChange = (diff / comparison.prevValue) * 100
                 const isUp = diff >= 0
@@ -512,7 +516,7 @@ function KpiCard({ label, value, vsYest, vsWeek, sub, color = '#00E5FF', loading
 // Cores seguem a paleta oficial: vermelho → laranja → amarelo → verde-claro → verde.
 
 const ML_LEVEL_COLORS = ['#ef4444', '#f97316', '#eab308', '#84cc16', '#22c55e'] as const
-const ML_LEVEL_LABELS = ['Iniciante', 'Em construção', 'Razoável', 'Bom', 'Excelente'] as const
+const ML_LEVEL_KEYS = ['beginner', 'building', 'fair', 'good', 'excellent'] as const
 
 function parseMlLevel(levelId: string | null | undefined): { level: number } | null {
   if (!levelId) return null
@@ -527,10 +531,11 @@ function ReputacaoMlCard({ sellerInfo, mlConnected, loading }: {
   mlConnected: boolean
   loading: boolean
 }) {
+  const t = useTranslations('dashboardHome')
   const parsed = parseMlLevel(sellerInfo?.level_id)
   const level = parsed?.level ?? 0
   const color = level > 0 ? ML_LEVEL_COLORS[level - 1] : '#71717a'
-  const label = level > 0 ? ML_LEVEL_LABELS[level - 1] : (mlConnected ? '—' : 'Desconectado')
+  const label = level > 0 ? t(`mlLevel.${ML_LEVEL_KEYS[level - 1]}`) : (mlConnected ? '—' : t('disconnected'))
   const status = sellerInfo?.power_seller_status
   const points = sellerInfo?.points ?? null
 
@@ -539,13 +544,13 @@ function ReputacaoMlCard({ sellerInfo, mlConnected, loading }: {
       style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
       onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = `${color}40` }}
       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)' }}>
-      <p className="text-[11px] font-medium leading-tight" style={{ color: 'var(--text-muted)' }}>Reputação ML</p>
+      <p className="text-[11px] font-medium leading-tight" style={{ color: 'var(--text-muted)' }}>{t('mlReputation')}</p>
       {loading ? (
         <div className="space-y-2"><Skel h={28} className="w-3/4" /><Skel h={12} className="w-1/2" /></div>
       ) : (
         <>
           {/* Termômetro: 5 barras (preenchidas até o nível atual) */}
-          <div className="flex gap-0.5 mt-0.5" aria-label={`Nível ${level} de 5`}>
+          <div className="flex gap-0.5 mt-0.5" aria-label={t('levelOf5', { level })}>
             {[1, 2, 3, 4, 5].map(i => (
               <div key={i} className="h-2 flex-1 rounded-sm transition-all"
                 style={{
@@ -568,8 +573,10 @@ function ReputacaoMlCard({ sellerInfo, mlConnected, loading }: {
           </div>
           <span className="text-[10px]" style={{ color: 'var(--text-dim)' }}>
             {level > 0
-              ? `Nível ${level} de 5${points ? ` · ${points.toLocaleString('pt-BR')} transações` : ''}`
-              : (mlConnected ? 'Aguardando dados' : 'ML desconect.')}
+              ? (points
+                  ? t('levelWithTransactions', { level, count: points.toLocaleString('pt-BR') })
+                  : t('levelOf5', { level }))
+              : (mlConnected ? t('awaitingData') : t('mlDisconnectedShort'))}
           </span>
         </>
       )}
@@ -690,40 +697,17 @@ const CHANNEL_META: Record<string, { label: string; color: string; bg: string }>
   magalu: { label: 'Magalu',        color: '#fff', bg: '#0086FF' },
 }
 
-const MAP_PERIOD_LABELS: Record<Period, string> = {
-  today: 'Vendas por Região — Hoje',
-  '7d':  'Vendas por Região — Últimos 7 dias',
-  '30d': 'Vendas por Região — Últimos 30 dias',
-  month: 'Vendas por Região — Mês Atual',
-}
-
-const PERIOD_LABEL: Record<Period, string> = {
-  today: 'Hoje',
-  '7d':  '7 dias',
-  '30d': '30 dias',
-  month: 'Mês atual',
-}
-
-// Labels do período anterior:
-//   FULL    = período inteiro (ontem dia todo, mês passado completo) — histórico padrão
-//   CLAMPED = mesmo offset de tempo decorrido (ontem até este horário) — apples-to-apples
-// Mostramos AMBOS em linhas separadas pra dar contexto completo.
-const PREV_PERIOD_LABEL_FULL: Record<Period, string> = {
-  today: 'Ontem',
-  '7d':  '7 dias anteriores',
-  '30d': '30 dias anteriores',
-  month: 'Mês passado',
-}
-const PREV_PERIOD_LABEL_CLAMPED: Record<Period, string> = {
-  today: 'Ontem até este horário',
-  '7d':  '7d anteriores (mesmo offset)',
-  '30d': '30d anteriores (mesmo offset)',
-  month: 'Mês passado (mesmo dia/hora)',
-}
+/** Helpers de label de período — texto vem do fragmento via `t`.
+ *  mapPeriod = título do mapa; periodLabel = curto; prevFull/prevClamped = comparativos. */
+function mapPeriodLabel(t: Translate, p: Period) { return t(`mapPeriod.${p}`) }
+function periodLabel(t: Translate, p: Period) { return t(`periods.${p}`) }
+function prevPeriodFull(t: Translate, p: Period) { return t(`prevPeriodFull.${p}`) }
+function prevPeriodClamped(t: Translate, p: Period) { return t(`prevPeriodClamped.${p}`) }
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
+  const t = useTranslations('dashboardHome')
   const [period, setPeriod] = useState<Period>('today')
   const [channel] = useState<Channel>('all')
   const [orders, setOrders] = useState<Order[]>([])
@@ -1356,13 +1340,13 @@ export default function DashboardPage() {
   const paidCount  = periodOrders.filter(isPaid).length
   const totalCount = periodOrders.length
   const funnelSteps = [
-    { label: 'Impressões',  value: Math.max(paidCount * 50, 0), color: '#60a5fa' },
-    { label: 'Cliques',     value: Math.max(paidCount * 20, 0), color: '#a78bfa' },
-    { label: 'Visitas',     value: Math.max(paidCount * 12, 0), color: '#00E5FF' },
-    { label: 'Carrinho',    value: Math.max(paidCount * 4,  0), color: '#f59e0b' },
-    { label: 'Checkout',    value: Math.max(totalCount, 0),      color: '#fb923c' },
-    { label: 'Aprovado',    value: paidCount,                    color: '#34d399' },
-    { label: 'Faturado',    value: paidCount,                    color: '#34d399' },
+    { key: 'impressions', value: Math.max(paidCount * 50, 0), color: '#60a5fa' },
+    { key: 'clicks',      value: Math.max(paidCount * 20, 0), color: '#a78bfa' },
+    { key: 'visits',      value: Math.max(paidCount * 12, 0), color: '#00E5FF' },
+    { key: 'cart',        value: Math.max(paidCount * 4,  0), color: '#f59e0b' },
+    { key: 'checkout',    value: Math.max(totalCount, 0),      color: '#fb923c' },
+    { key: 'approved',    value: paidCount,                    color: '#34d399' },
+    { key: 'invoiced',    value: paidCount,                    color: '#34d399' },
   ]
   const funnelTop = funnelSteps[0].value || 1
   const bottleneckIdx = (() => {
@@ -1380,13 +1364,13 @@ export default function DashboardPage() {
   // Priority actions
   const priorities = useMemo(() => {
     const list: Array<{ label: string; level: 'red' | 'yellow'; href: string }> = []
-    if (claims > 0) list.push({ label: `Resolver ${claims} reclamação${claims > 1 ? 'ões' : ''} aberta${claims > 1 ? 's' : ''}`, level: 'red', href: '/dashboard/atendimento/reclamacoes' })
-    if (questions > 0) list.push({ label: `Responder ${questions} pergunta${questions > 1 ? 's' : ''} pendente${questions > 1 ? 's' : ''}`, level: 'yellow', href: '/dashboard/atendimento/perguntas' })
-    if (noStockProds.length > 0) list.push({ label: `Repor estoque: ${noStockProds.length} produto${noStockProds.length > 1 ? 's' : ''} zerado${noStockProds.length > 1 ? 's' : ''}`, level: 'red', href: '/dashboard/produtos' })
-    if (lowStockProds.length > 0) list.push({ label: `Atenção: ${lowStockProds.length} produto${lowStockProds.length > 1 ? 's' : ''} com estoque crítico (< 5)`, level: 'yellow', href: '/dashboard/produtos' })
-    if (pausedProds.length > 0) list.push({ label: `${pausedProds.length} anúncio${pausedProds.length > 1 ? 's' : ''} pausado${pausedProds.length > 1 ? 's' : ''} — verificar`, level: 'yellow', href: '/dashboard/produtos' })
+    if (claims > 0) list.push({ label: t('priorityResolveClaims', { count: claims }), level: 'red', href: '/dashboard/atendimento/reclamacoes' })
+    if (questions > 0) list.push({ label: t('priorityAnswerQuestions', { count: questions }), level: 'yellow', href: '/dashboard/atendimento/perguntas' })
+    if (noStockProds.length > 0) list.push({ label: t('priorityRestock', { count: noStockProds.length }), level: 'red', href: '/dashboard/produtos' })
+    if (lowStockProds.length > 0) list.push({ label: t('priorityLowStock', { count: lowStockProds.length }), level: 'yellow', href: '/dashboard/produtos' })
+    if (pausedProds.length > 0) list.push({ label: t('priorityPausedListings', { count: pausedProds.length }), level: 'yellow', href: '/dashboard/produtos' })
     return list
-  }, [claims, questions, noStockProds, lowStockProds, pausedProds])
+  }, [claims, questions, noStockProds, lowStockProds, pausedProds, t])
 
   const today = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })
 
@@ -1399,14 +1383,14 @@ export default function DashboardPage() {
       <div className="flex items-center justify-between">
         <div>
           <p className="text-[12px] capitalize" style={{ color: 'var(--text-dim)' }}>{today}</p>
-          <h2 className="text-lg font-semibold mt-0.5" style={{ color: 'var(--text)' }}>Visão Geral</h2>
+          <h2 className="text-lg font-semibold mt-0.5" style={{ color: 'var(--text)' }}>{t('overview')}</h2>
         </div>
         <div className="flex items-center gap-2">
           {mlConnected && (
             <span className="flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full"
               style={{ background: 'rgba(52,211,153,0.1)', color: '#34d399' }}>
               <span className="w-1.5 h-1.5 rounded-full animate-pulse bg-emerald-400" />
-              ML conectado
+              {t('mlConnected')}
             </span>
           )}
           <AccountSelector compact hideWhenEmpty />
@@ -1441,7 +1425,7 @@ export default function DashboardPage() {
             boxShadow: '0 0 32px -12px rgba(0,229,255,0.2)',
           }}>
           <p className="text-[#00E5FF] text-xs uppercase tracking-widest mb-3">
-            Faturamento — {PERIOD_LABEL[period]}
+            {t('revenueCardTitle', { period: periodLabel(t, period) })}
           </p>
           {displaySummaryLoading ? (
             <div className="space-y-3"><Skel h={40} className="w-2/3" /><Skel h={14} className="w-1/2" /></div>
@@ -1449,7 +1433,7 @@ export default function DashboardPage() {
             <>
               <p className="text-4xl font-bold leading-none" style={{ color: 'var(--text)' }}>{formatCurrency(faturamento)}</p>
               <p className="text-xs mt-1" style={{ color: 'var(--text-dim)' }}>
-                {displayPedidos} pedido{displayPedidos !== 1 ? 's' : ''} no período
+                {t('ordersInPeriod', { count: displayPedidos })}
               </p>
               {pedCanceladosFinal > 0 && (
                 <div className="mt-2 px-2.5 py-1.5 rounded-lg flex items-center gap-1.5"
@@ -1458,9 +1442,9 @@ export default function DashboardPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                   </svg>
                   <span className="text-[10px] text-red-300">
-                    {pedCanceladosFinal} cancelado{pedCanceladosFinal > 1 ? 's' : ''} · −{formatCurrency(fatCanceladoFinal)}
+                    {t('cancelledOrders', { count: pedCanceladosFinal, value: formatCurrency(fatCanceladoFinal) })}
                     {' '}
-                    <span className="text-red-400/60">(já abatido do total)</span>
+                    <span className="text-red-400/60">{t('alreadyDeducted')}</span>
                   </span>
                 </div>
               )}
@@ -1468,14 +1452,14 @@ export default function DashboardPage() {
                 <>
                   {/* Linha 1: período anterior INTEIRO (histórico padrão) */}
                   <PrevRow
-                    label={PREV_PERIOD_LABEL_FULL[period]}
+                    label={prevPeriodFull(t, period)}
                     prevValue={prevData.full.faturamento}
                     currentValue={faturamento}
                     format={formatCurrency}
                   />
                   {/* Linha 2: período anterior CLAMPED (até mesmo offset) */}
                   <PrevRow
-                    label={PREV_PERIOD_LABEL_CLAMPED[period]}
+                    label={prevPeriodClamped(t, period)}
                     prevValue={prevData.clamped.faturamento}
                     currentValue={faturamento}
                     format={formatCurrency}
@@ -1489,7 +1473,7 @@ export default function DashboardPage() {
                   meta proporcional (mensal÷dias × período). Sem config:
                   CTA "Definir meta →". */}
               <MetaRow
-                label="Meta do período"
+                label={t('periodGoal')}
                 value={faturamento}
                 target={goalData.revenue}
                 color="#00E5FF"
@@ -1510,7 +1494,7 @@ export default function DashboardPage() {
             boxShadow: '0 0 32px -12px rgba(34,197,94,0.2)',
           }}>
           <p className="text-[#22c55e] text-xs uppercase tracking-widest mb-3">
-            Lucro Estimado — {PERIOD_LABEL[period]}
+            {t('estimatedProfitTitle', { period: periodLabel(t, period) })}
           </p>
           {/* Skeleton só enquanto os dados QUE O LUCRO USA carregam
               (periodOrders + financialSummary). Antes dependia do `loading`
@@ -1523,7 +1507,7 @@ export default function DashboardPage() {
             <>
               <p className="text-4xl font-bold leading-none" style={{ color: 'var(--text)' }}>{formatCurrency(lucroEstimado)}</p>
               <p className="text-xs text-[#22c55e] mt-1">
-                {margemPct.toFixed(1)}% do faturamento
+                {t('marginOfRevenue', { pct: margemPct.toFixed(1) })}
               </p>
               {pedidosSemCusto > 0 && (
                 <div className="mt-2 px-2.5 py-1.5 rounded-lg flex items-center gap-1.5"
@@ -1532,28 +1516,28 @@ export default function DashboardPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
                   </svg>
                   <span className="text-[10px] text-yellow-300">
-                    {pedidosSemCusto} pedido{pedidosSemCusto > 1 ? 's' : ''} sem custo ·{' '}
+                    {t('ordersWithoutCost', { count: pedidosSemCusto })} ·{' '}
                     <Link
                       href={`/dashboard/pedidos?missing_cost=1&period=${period === 'month' ? '30d' : period}`}
                       className="underline hover:text-yellow-200 transition-colors">
-                      Atualizar →
+                      {t('updateArrow')}
                     </Link>
                   </span>
                 </div>
               )}
               {pedidosComCusto > 0 && pedidosSemCusto === 0 && (
-                <p className="text-[10px] mt-1.5" style={{ color: 'var(--text-dim)' }}>✓ Calculado com custos reais ({pedidosComCusto} pedidos)</p>
+                <p className="text-[10px] mt-1.5" style={{ color: 'var(--text-dim)' }}>{t('calculatedWithRealCosts', { count: pedidosComCusto })}</p>
               )}
               {prevData && (
                 <>
                   <PrevRow
-                    label={PREV_PERIOD_LABEL_FULL[period]}
+                    label={prevPeriodFull(t, period)}
                     prevValue={prevData.full.lucro}
                     currentValue={lucroEstimado}
                     format={formatCurrency}
                   />
                   <PrevRow
-                    label={PREV_PERIOD_LABEL_CLAMPED[period]}
+                    label={prevPeriodClamped(t, period)}
                     prevValue={prevData.clamped.lucro}
                     currentValue={lucroEstimado}
                     format={formatCurrency}
@@ -1566,7 +1550,7 @@ export default function DashboardPage() {
                   metas; se vier em BRL (custom uso) compara direto, senão
                   fica em null e o usuário cria custom "Lucro mensal". */}
               <MetaRow
-                label="Meta de lucro"
+                label={t('profitGoal')}
                 value={lucroEstimado}
                 target={goalData.profit}
                 color="#22c55e"
@@ -1579,30 +1563,30 @@ export default function DashboardPage() {
 
       {/* LINHA 3 — KPIs menores */}
       <section>
-        <p className="text-[10px] uppercase tracking-widest font-semibold mb-3" style={{ color: 'var(--text-dim)' }}>KPIs Executivos</p>
+        <p className="text-[10px] uppercase tracking-widest font-semibold mb-3" style={{ color: 'var(--text-dim)' }}>{t('executiveKpis')}</p>
         <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-2.5">
-          <KpiCard label={`Pedidos — ${PERIOD_LABEL[period]}`} value={String(displayPedidos)} vsYest={period === 'today' ? pct(cur.count, yest.count) : null} color="#a78bfa" loading={displaySummaryLoading || periodLoading} />
-          <KpiCard label="Ticket médio"       value={brl(financialSummary?.average_ticket ?? cur.avgTicket)} color="#fb923c" loading={summaryLoading || periodLoading || loading} />
+          <KpiCard label={t('kpiOrders', { period: periodLabel(t, period) })} value={String(displayPedidos)} vsYest={period === 'today' ? pct(cur.count, yest.count) : null} color="#a78bfa" loading={displaySummaryLoading || periodLoading} />
+          <KpiCard label={t('kpiAvgTicket')}  value={brl(financialSummary?.average_ticket ?? cur.avgTicket)} color="#fb923c" loading={summaryLoading || periodLoading || loading} />
           <ReputacaoMlCard sellerInfo={sellerInfo} mlConnected={mlConnected} loading={loading} />
-          <KpiCard label="Vendas Aprovadas"   value={finKpis ? shortBrl(finKpis.vendas_aprovadas) : '—'} sub="líquido mês atual" color="#22c55e" loading={loading} />
-          <KpiCard label={`Margem — ${PERIOD_LABEL[period]}`} value={`${margemPct.toFixed(1)}%`} sub={shortBrl(lucroEstimado)} color={margemPct >= 0 ? '#22c55e' : '#f87171'} loading={periodLoading || summaryLoading} />
-          <KpiCard label="Investimento mídia" value={adsSummary ? shortBrl(adsSummary.spend) : '—'} sub={adsSummary && adsSummary.spend > 0 ? 'mês atual' : 'via Ads'} color="#f87171" loading={loading} />
-          <KpiCard label="ROAS / ROI"         value={adsSummary && adsSummary.roas > 0 ? `${adsSummary.roas.toFixed(2)}x` : '—'} sub={adsSummary && adsSummary.roas > 0 ? `receita ${shortBrl(adsSummary.revenue)}` : 'via Ads'} color="#e879f9" loading={loading} />
+          <KpiCard label={t('kpiApprovedSales')} value={finKpis ? shortBrl(finKpis.vendas_aprovadas) : '—'} sub={t('kpiApprovedSalesSub')} color="#22c55e" loading={loading} />
+          <KpiCard label={t('kpiMargin', { period: periodLabel(t, period) })} value={`${margemPct.toFixed(1)}%`} sub={shortBrl(lucroEstimado)} color={margemPct >= 0 ? '#22c55e' : '#f87171'} loading={periodLoading || summaryLoading} />
+          <KpiCard label={t('kpiMediaSpend')} value={adsSummary ? shortBrl(adsSummary.spend) : '—'} sub={adsSummary && adsSummary.spend > 0 ? t('kpiCurrentMonth') : t('kpiViaAds')} color="#f87171" loading={loading} />
+          <KpiCard label={t('kpiRoasRoi')}    value={adsSummary && adsSummary.roas > 0 ? `${adsSummary.roas.toFixed(2)}x` : '—'} sub={adsSummary && adsSummary.roas > 0 ? t('kpiRoasRevenue', { value: shortBrl(adsSummary.revenue) }) : t('kpiViaAds')} color="#e879f9" loading={loading} />
         </div>
       </section>
 
       {/* LINHA 3 — Alerts */}
       <section>
-        <p className="text-[10px] uppercase tracking-widest font-semibold mb-3" style={{ color: 'var(--text-dim)' }}>Central de Alertas</p>
+        <p className="text-[10px] uppercase tracking-widest font-semibold mb-3" style={{ color: 'var(--text-dim)' }}>{t('alertCenter')}</p>
         <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-2.5">
-          <AlertCard label="Reclamações abertas"    value={claims}              level={claims > 0 ? 'red' : 'green'}                              href="/dashboard/atendimento/reclamacoes" loading={loading} />
-          <AlertCard label="Mediações abertas"      value={mediations}          level={mediations > 0 ? 'yellow' : 'green'}                       href="/dashboard/atendimento/reclamacoes" loading={loading} />
-          <AlertCard label="Pedidos atrasados"      value={lateOrders}          level={lateOrders > 5 ? 'red' : lateOrders > 0 ? 'yellow' : 'green'} href="/dashboard/pedidos" loading={loading} />
-          <AlertCard label="Perguntas sem resposta" value={questions}           level={questions > 5 ? 'red' : questions > 0 ? 'yellow' : 'green'} href="/dashboard/atendimento/perguntas" loading={loading} />
-          <AlertCard label="Mensagens não lidas"    value={openConvs}           level={openConvs > 5 ? 'red' : openConvs > 0 ? 'yellow' : 'green'}  href="/dashboard/atendente-ia/conversas" loading={loading} />
-          <AlertCard label="Sem estoque"            value={noStockProds.length} level={noStockProds.length > 0 ? 'red' : 'green'}                  href="/dashboard/produtos" loading={loading} />
-          <AlertCard label="Anúncios pausados"      value={pausedProds.length}  level={pausedProds.length > 3 ? 'yellow' : 'green'}                href="/dashboard/produtos" loading={loading} />
-          <AlertCard label="Acima da concorrência"  value={aboveConcPrice}      level={aboveConcPrice > 0 ? 'yellow' : 'green'}                   href="/dashboard/precos" loading={loading} />
+          <AlertCard label={t('alertOpenClaims')}     value={claims}              level={claims > 0 ? 'red' : 'green'}                              href="/dashboard/atendimento/reclamacoes" loading={loading} />
+          <AlertCard label={t('alertOpenMediations')} value={mediations}          level={mediations > 0 ? 'yellow' : 'green'}                       href="/dashboard/atendimento/reclamacoes" loading={loading} />
+          <AlertCard label={t('alertLateOrders')}     value={lateOrders}          level={lateOrders > 5 ? 'red' : lateOrders > 0 ? 'yellow' : 'green'} href="/dashboard/pedidos" loading={loading} />
+          <AlertCard label={t('alertUnansweredQuestions')} value={questions}      level={questions > 5 ? 'red' : questions > 0 ? 'yellow' : 'green'} href="/dashboard/atendimento/perguntas" loading={loading} />
+          <AlertCard label={t('alertUnreadMessages')} value={openConvs}           level={openConvs > 5 ? 'red' : openConvs > 0 ? 'yellow' : 'green'}  href="/dashboard/atendente-ia/conversas" loading={loading} />
+          <AlertCard label={t('alertOutOfStock')}     value={noStockProds.length} level={noStockProds.length > 0 ? 'red' : 'green'}                  href="/dashboard/produtos" loading={loading} />
+          <AlertCard label={t('alertPausedListings')} value={pausedProds.length}  level={pausedProds.length > 3 ? 'yellow' : 'green'}                href="/dashboard/produtos" loading={loading} />
+          <AlertCard label={t('alertAboveCompetitor')} value={aboveConcPrice}     level={aboveConcPrice > 0 ? 'yellow' : 'green'}                   href="/dashboard/precos" loading={loading} />
         </div>
       </section>
 
@@ -1611,16 +1595,16 @@ export default function DashboardPage() {
         <div className="rounded-2xl px-6 py-5" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
           <div className="flex items-center justify-between mb-5">
             <div>
-              <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Resumo de Vendas</p>
-              <p className="text-xs mt-0.5" style={{ color: 'var(--text-dim)' }}>Faturamento diário — todos os pedidos</p>
+              <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{t('salesSummary')}</p>
+              <p className="text-xs mt-0.5" style={{ color: 'var(--text-dim)' }}>{t('salesSummarySub')}</p>
             </div>
             <div className="grid grid-cols-3 gap-4 text-center">
               {[
-                { label: 'Unidades',  value: curAll.units.toLocaleString('pt-BR') },
-                { label: 'Pedidos',   value: chartPedidos.toLocaleString('pt-BR') },
-                { label: 'Tk. Médio', value: brl(chartAvgTicket) },
+                { key: 'units',     label: t('chartUnits'),     value: curAll.units.toLocaleString('pt-BR') },
+                { key: 'orders',    label: t('chartOrders'),    value: chartPedidos.toLocaleString('pt-BR') },
+                { key: 'avgTicket', label: t('chartAvgTicket'), value: brl(chartAvgTicket) },
               ].map(m => (
-                <div key={m.label}>
+                <div key={m.key}>
                   {loading ? <Skel h={20} className="mx-auto w-16 mb-1" /> : <p className="text-white text-[13px] font-bold">{m.value}</p>}
                   <p className="text-zinc-600 text-[10px]">{m.label}</p>
                 </div>
@@ -1654,13 +1638,13 @@ export default function DashboardPage() {
         <div className="rounded-2xl px-6 py-5" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
           <div className="flex items-center justify-between mb-5">
             <div>
-              <p className="text-white text-sm font-semibold">Funil de Conversão</p>
-              <p className="text-zinc-500 text-xs mt-0.5">Estimativas baseadas nos pedidos disponíveis</p>
+              <p className="text-white text-sm font-semibold">{t('funnelTitle')}</p>
+              <p className="text-zinc-500 text-xs mt-0.5">{t('funnelSubtitle')}</p>
             </div>
             {bottleneckIdx > 0 && !loading && (
               <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full"
                 style={{ background: 'rgba(248,113,113,0.1)', color: '#f87171' }}>
-                Gargalo: {funnelSteps[bottleneckIdx]?.label}
+                {t('bottleneck', { step: t(`funnelSteps.${funnelSteps[bottleneckIdx]?.key}`) })}
               </span>
             )}
           </div>
@@ -1669,9 +1653,9 @@ export default function DashboardPage() {
           ) : (
             <div className="space-y-2 max-w-2xl">
               {funnelSteps.map((step, i) => (
-                <div key={step.label}>
+                <div key={step.key}>
                   <FunnelStep
-                    label={step.label}
+                    label={t(`funnelSteps.${step.key}`)}
                     value={step.value}
                     pctVal={funnelTop > 0 ? (step.value / funnelTop) * 100 : 0}
                     color={step.color}
@@ -1679,12 +1663,12 @@ export default function DashboardPage() {
                   />
                   {i < funnelSteps.length - 1 && step.value > 0 && funnelSteps[i + 1].value > 0 && (
                     <p className="text-zinc-700 text-[10px] ml-32 pl-3 py-0.5">
-                      → {((funnelSteps[i + 1].value / step.value) * 100).toFixed(1)}% avançam
+                      {t('funnelAdvance', { pct: ((funnelSteps[i + 1].value / step.value) * 100).toFixed(1) })}
                     </p>
                   )}
                 </div>
               ))}
-              <p className="text-zinc-700 text-[10px] mt-3">* Impressões, cliques e intenções são estimadas. Conecte Analytics para dados reais.</p>
+              <p className="text-zinc-700 text-[10px] mt-3">{t('funnelNote')}</p>
             </div>
           )}
         </div>
@@ -1694,12 +1678,12 @@ export default function DashboardPage() {
       <section className="space-y-3">
         <BrazilSalesMap
           orders={periodLoading ? [] : periodOrders}
-          title={MAP_PERIOD_LABELS[period]}
+          title={mapPeriodLabel(t, period)}
           height={350}
           realtime={false}
         />
         <p className="text-[10px] text-gray-400 -mt-1 px-1">
-          * Mapa baseado nos pedidos com endereço de entrega disponível no período selecionado
+          {t('mapNote')}
         </p>
 
         {/* Rankings: Top Estados e Top Cidades */}
@@ -1707,19 +1691,19 @@ export default function DashboardPage() {
 
           {/* Top Estados */}
           <div className="bg-[#111114] rounded-xl border border-[#1a1a1f] p-4">
-            <p className="text-white font-semibold text-sm mb-3">Top Estados</p>
+            <p className="text-white font-semibold text-sm mb-3">{t('topStates')}</p>
             {periodLoading ? (
               <div className="space-y-2">{[...Array(5)].map((_, i) => <Skel key={i} h={16} />)}</div>
             ) : topEstados.length === 0 ? (
-              <p className="text-gray-400 text-xs">Sem dados de estado no período</p>
+              <p className="text-gray-400 text-xs">{t('noStateData')}</p>
             ) : (
               <>
                 <div className="flex text-[10px] text-gray-400 mb-2 gap-2">
                   <span className="w-4">#</span>
-                  <span className="w-8">UF</span>
-                  <span className="flex-1">Participação</span>
-                  <span className="w-5 text-right">Qtd</span>
-                  <span className="w-20 text-right">Faturamento</span>
+                  <span className="w-8">{t('colUf')}</span>
+                  <span className="flex-1">{t('colShare')}</span>
+                  <span className="w-5 text-right">{t('colQty')}</span>
+                  <span className="w-20 text-right">{t('colRevenue')}</span>
                   <span className="w-10 text-right">%</span>
                 </div>
                 {topEstados.map((e, i) => (
@@ -1746,19 +1730,19 @@ export default function DashboardPage() {
 
           {/* Top Cidades */}
           <div className="bg-[#111114] rounded-xl border border-[#1a1a1f] p-4">
-            <p className="text-white font-semibold text-sm mb-3">Top Cidades</p>
+            <p className="text-white font-semibold text-sm mb-3">{t('topCities')}</p>
             {periodLoading ? (
               <div className="space-y-2">{[...Array(5)].map((_, i) => <Skel key={i} h={16} />)}</div>
             ) : topCidades.length === 0 ? (
-              <p className="text-gray-400 text-xs">Sem dados de cidade no período</p>
+              <p className="text-gray-400 text-xs">{t('noCityData')}</p>
             ) : (
               <>
                 <div className="flex text-[10px] text-gray-400 mb-2 gap-2">
                   <span className="w-4">#</span>
-                  <span className="w-20">Cidade</span>
-                  <span className="flex-1">Participação</span>
-                  <span className="w-5 text-right">Qtd</span>
-                  <span className="w-20 text-right">Faturamento</span>
+                  <span className="w-20">{t('colCity')}</span>
+                  <span className="flex-1">{t('colShare')}</span>
+                  <span className="w-5 text-right">{t('colQty')}</span>
+                  <span className="w-20 text-right">{t('colRevenue')}</span>
                   <span className="w-10 text-right">%</span>
                 </div>
                 {topCidades.map((c, i) => (
@@ -1788,61 +1772,61 @@ export default function DashboardPage() {
 
       {/* LINHA 6 — Sector Grid */}
       <section>
-        <p className="text-zinc-500 text-[10px] uppercase tracking-widest font-semibold mb-3">Visão por Setor</p>
+        <p className="text-zinc-500 text-[10px] uppercase tracking-widest font-semibold mb-3">{t('sectorView')}</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
 
-          <SectorCard title="Comercial" loading={summaryLoading || loading} icon={
+          <SectorCard title={t('sectorCommercial')} loading={summaryLoading || loading} icon={
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.75}><path strokeLinecap="round" strokeLinejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>
           } items={[
-            { label: 'Faturamento período', value: shortBrl(financialSummary?.total_revenue ?? cur.revenue), color: '#00E5FF' },
-            { label: 'Pedidos', value: financialSummary?.total_orders ?? cur.count },
-            { label: 'Ticket médio', value: brl(financialSummary?.average_ticket ?? cur.avgTicket) },
-            { label: 'Unidades vendidas', value: cur.units },
+            { label: t('sectorPeriodRevenue'), value: shortBrl(financialSummary?.total_revenue ?? cur.revenue), color: '#00E5FF' },
+            { label: t('sectorOrders'), value: financialSummary?.total_orders ?? cur.count },
+            { label: t('sectorAvgTicket'), value: brl(financialSummary?.average_ticket ?? cur.avgTicket) },
+            { label: t('sectorUnitsSold'), value: cur.units },
           ]} />
 
-          <SectorCard title="Catálogo" loading={loading} icon={
+          <SectorCard title={t('sectorCatalog')} loading={loading} icon={
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.75}><path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
           } items={[
-            { label: 'Ativos no ML', value: mlItemsTotal != null ? mlItemsTotal : activeProds.length, color: '#34d399' },
-            { label: 'Pausados', value: pausedProds.length, color: pausedProds.length > 0 ? '#f59e0b' : '#71717a' },
-            { label: 'Sem estoque', value: noStockProds.length, color: noStockProds.length > 0 ? '#f87171' : '#71717a' },
-            { label: 'Acima da concorrência', value: aboveConcPrice, color: aboveConcPrice > 0 ? '#f59e0b' : '#71717a' },
+            { label: t('sectorActiveOnMl'), value: mlItemsTotal != null ? mlItemsTotal : activeProds.length, color: '#34d399' },
+            { label: t('sectorPaused'), value: pausedProds.length, color: pausedProds.length > 0 ? '#f59e0b' : '#71717a' },
+            { label: t('sectorOutOfStock'), value: noStockProds.length, color: noStockProds.length > 0 ? '#f87171' : '#71717a' },
+            { label: t('sectorAboveCompetitor'), value: aboveConcPrice, color: aboveConcPrice > 0 ? '#f59e0b' : '#71717a' },
           ]} />
 
-          <SectorCard title="Atendimento" loading={loading} icon={
+          <SectorCard title={t('sectorSupport')} loading={loading} icon={
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.75}><path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
           } items={[
-            { label: 'Perguntas pendentes', value: questions, color: questions > 0 ? '#f59e0b' : '#34d399' },
-            { label: 'Reclamações abertas', value: claims, color: claims > 0 ? '#f87171' : '#34d399' },
-            { label: 'Mediações (>14d)', value: mediations, color: mediations > 0 ? '#f59e0b' : '#34d399' },
-            { label: 'Conversas abertas', value: openConvs, color: openConvs > 5 ? '#f87171' : openConvs > 0 ? '#f59e0b' : '#34d399' },
+            { label: t('sectorPendingQuestions'), value: questions, color: questions > 0 ? '#f59e0b' : '#34d399' },
+            { label: t('sectorOpenClaims'), value: claims, color: claims > 0 ? '#f87171' : '#34d399' },
+            { label: t('sectorMediations'), value: mediations, color: mediations > 0 ? '#f59e0b' : '#34d399' },
+            { label: t('sectorOpenConversations'), value: openConvs, color: openConvs > 5 ? '#f87171' : openConvs > 0 ? '#f59e0b' : '#34d399' },
           ]} />
 
-          <SectorCard title="Logística" loading={loading} icon={
+          <SectorCard title={t('sectorLogistics')} loading={loading} icon={
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.75}><path strokeLinecap="round" strokeLinejoin="round" d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1" /></svg>
           } items={[
-            { label: 'Pagos hoje', value: todayM.count, color: '#00E5FF' },
-            { label: 'Atrasados (>5d)', value: lateOrders, color: lateOrders > 5 ? '#f87171' : lateOrders > 0 ? '#f59e0b' : '#34d399' },
-            { label: 'Cancelados', value: orders.filter(o => o.status === 'cancelled').length, color: '#71717a' },
-            { label: 'Total pedidos', value: orders.length, color: '#a1a1aa' },
+            { label: t('sectorPaidToday'), value: todayM.count, color: '#00E5FF' },
+            { label: t('sectorLate'), value: lateOrders, color: lateOrders > 5 ? '#f87171' : lateOrders > 0 ? '#f59e0b' : '#34d399' },
+            { label: t('sectorCancelled'), value: orders.filter(o => o.status === 'cancelled').length, color: '#71717a' },
+            { label: t('sectorTotalOrders'), value: orders.length, color: '#a1a1aa' },
           ]} />
 
-          <SectorCard title="Financeiro" loading={summaryLoading || loading} icon={
+          <SectorCard title={t('sectorFinancial')} loading={summaryLoading || loading} icon={
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.75}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
           } items={[
-            { label: 'Receita bruta',  value: shortBrl(financialSummary?.total_revenue ?? cur.revenue), color: '#00E5FF' },
-            { label: 'Taxas ML (~11.5%)', value: shortBrl((financialSummary?.total_revenue ?? cur.revenue) * 0.115), color: '#f87171' },
-            { label: 'Receita líquida est.', value: shortBrl((financialSummary?.total_revenue ?? cur.revenue) * 0.885), color: '#34d399' },
-            { label: 'Margem est.', value: `${margemPct.toFixed(1)}%`, color: margemPct >= 0 ? '#22c55e' : '#f87171' },
+            { label: t('sectorGrossRevenue'),  value: shortBrl(financialSummary?.total_revenue ?? cur.revenue), color: '#00E5FF' },
+            { label: t('sectorMlFees'), value: shortBrl((financialSummary?.total_revenue ?? cur.revenue) * 0.115), color: '#f87171' },
+            { label: t('sectorNetRevenue'), value: shortBrl((financialSummary?.total_revenue ?? cur.revenue) * 0.885), color: '#34d399' },
+            { label: t('sectorEstMargin'), value: `${margemPct.toFixed(1)}%`, color: margemPct >= 0 ? '#22c55e' : '#f87171' },
           ]} />
 
-          <SectorCard title="Marketing" loading={loading} icon={
+          <SectorCard title={t('sectorMarketing')} loading={loading} icon={
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.75}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" /></svg>
           } items={[
-            { label: 'Investimento', value: adsSummary ? shortBrl(adsSummary.spend) : '—', color: '#f87171' },
-            { label: 'Cliques', value: adsSummary ? adsSummary.clicks.toLocaleString('pt-BR') : '—', color: '#a78bfa' },
-            { label: 'ROAS', value: adsSummary && adsSummary.roas > 0 ? `${adsSummary.roas.toFixed(2)}x` : '—', color: adsSummary && adsSummary.roas >= 3 ? '#34d399' : '#f59e0b' },
-            { label: 'Receita Ads', value: adsSummary ? shortBrl(adsSummary.revenue) : '—', color: '#22c55e' },
+            { label: t('sectorInvestment'), value: adsSummary ? shortBrl(adsSummary.spend) : '—', color: '#f87171' },
+            { label: t('sectorClicks'), value: adsSummary ? adsSummary.clicks.toLocaleString('pt-BR') : '—', color: '#a78bfa' },
+            { label: t('sectorRoas'), value: adsSummary && adsSummary.roas > 0 ? `${adsSummary.roas.toFixed(2)}x` : '—', color: adsSummary && adsSummary.roas >= 3 ? '#34d399' : '#f59e0b' },
+            { label: t('sectorAdsRevenue'), value: adsSummary ? shortBrl(adsSummary.revenue) : '—', color: '#22c55e' },
           ]} />
 
         </div>
@@ -1855,15 +1839,21 @@ export default function DashboardPage() {
           {/* Top 10 */}
           <div className="xl:col-span-3 rounded-2xl overflow-hidden" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
             <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid #1e1e24', background: '#0d0d10' }}>
-              <p className="text-white text-sm font-semibold">Top 10 Produtos</p>
-              <span className="text-zinc-500 text-xs">{period === 'today' ? 'Hoje' : period === '7d' ? '7 dias' : period === 'month' ? 'Mês' : '30 dias'}</span>
+              <p className="text-white text-sm font-semibold">{t('top10Products')}</p>
+              <span className="text-zinc-500 text-xs">{periodLabel(t, period)}</span>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full" style={{ minWidth: 480 }}>
                 <thead>
                   <tr style={{ borderBottom: '1px solid #1e1e24', background: '#0a0a0d' }}>
-                    {['#', 'Produto', 'Pedidos', 'Receita', 'Unidades'].map(h => (
-                      <th key={h} className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-widest" style={{ color: '#a1a1aa' }}>{h}</th>
+                    {[
+                      { k: 'rank', label: '#' },
+                      { k: 'product', label: t('thProduct') },
+                      { k: 'orders', label: t('thOrders') },
+                      { k: 'revenue', label: t('thRevenue') },
+                      { k: 'units', label: t('thUnits') },
+                    ].map(h => (
+                      <th key={h.k} className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-widest" style={{ color: '#a1a1aa' }}>{h.label}</th>
                     ))}
                   </tr>
                 </thead>
@@ -1876,7 +1866,7 @@ export default function DashboardPage() {
                     </tr>
                   )) : topProds.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="px-4 py-8 text-center text-zinc-600 text-sm">Sem vendas no período.</td>
+                      <td colSpan={5} className="px-4 py-8 text-center text-zinc-600 text-sm">{t('noSalesInPeriod')}</td>
                     </tr>
                   ) : topProds.map((p, i) => (
                     <tr key={p.title} style={{ borderBottom: '1px solid #1e1e24' }}
@@ -1906,34 +1896,34 @@ export default function DashboardPage() {
           {/* At-risk products */}
           <div className="xl:col-span-2 rounded-2xl overflow-hidden" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
             <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid #1e1e24', background: '#0d0d10' }}>
-              <p className="text-white text-sm font-semibold">Produtos em Risco</p>
+              <p className="text-white text-sm font-semibold">{t('atRiskProducts')}</p>
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'rgba(248,113,113,0.1)', color: '#f87171' }}>
                 {noStockProds.length + lowStockProds.length}
               </span>
             </div>
             <div className="p-4 space-y-2">
               {loading ? [...Array(4)].map((_, i) => <Skel key={i} h={44} className="rounded-xl" />) :
-                [...noStockProds.slice(0, 4).map(p => ({ ...p, risk: 'Sem estoque' as const, color: '#f87171' })),
-                 ...lowStockProds.slice(0, 4).map(p => ({ ...p, risk: 'Crítico' as const, color: '#f59e0b' }))
+                [...noStockProds.slice(0, 4).map(p => ({ ...p, riskKey: 'noStock' as const, color: '#f87171' })),
+                 ...lowStockProds.slice(0, 4).map(p => ({ ...p, riskKey: 'critical' as const, color: '#f59e0b' }))
                 ].slice(0, 8).length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-8">
-                    <p className="text-zinc-600 text-[12px]">Nenhum produto em risco.</p>
+                    <p className="text-zinc-600 text-[12px]">{t('noAtRiskProducts')}</p>
                   </div>
                 ) : (
-                  [...noStockProds.slice(0, 4).map(p => ({ ...p, risk: 'Sem estoque' as const, color: '#f87171' })),
-                   ...lowStockProds.slice(0, 4).map(p => ({ ...p, risk: 'Crítico' as const, color: '#f59e0b' }))
+                  [...noStockProds.slice(0, 4).map(p => ({ ...p, riskKey: 'noStock' as const, color: '#f87171' })),
+                   ...lowStockProds.slice(0, 4).map(p => ({ ...p, riskKey: 'critical' as const, color: '#f59e0b' }))
                   ].slice(0, 8).map(p => (
                     <div key={p.id} className="flex items-center gap-3 p-3 rounded-xl transition-colors"
                       style={{ background: 'rgba(255,255,255,0.02)', border: `1px solid ${p.color}20` }}>
                       <div className="w-1.5 h-8 rounded-full shrink-0" style={{ background: p.color }} />
                       <div className="flex-1 min-w-0">
                         <p className="text-white text-[12px] font-medium truncate">{p.name}</p>
-                        <p className="text-[10px] mt-0.5" style={{ color: p.color }}>{p.risk} · {p.stock ?? 0} un.</p>
+                        <p className="text-[10px] mt-0.5" style={{ color: p.color }}>{t(`risk.${p.riskKey}`)} · {t('unitsShort', { count: p.stock ?? 0 })}</p>
                       </div>
                       <Link href="/dashboard/produtos"
                         className="text-[10px] font-semibold px-2 py-1 rounded-lg transition-all"
                         style={{ background: `${p.color}15`, color: p.color }}>
-                        Ver
+                        {t('view')}
                       </Link>
                     </div>
                   ))
@@ -1948,15 +1938,23 @@ export default function DashboardPage() {
       <section>
         <div className="rounded-2xl overflow-hidden" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
           <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid #1e1e24', background: '#0d0d10' }}>
-            <p className="text-white text-sm font-semibold">Desempenho por Canal</p>
-            <span className="text-zinc-500 text-xs">Comparativo de marketplaces</span>
+            <p className="text-white text-sm font-semibold">{t('channelPerformance')}</p>
+            <span className="text-zinc-500 text-xs">{t('marketplaceComparison')}</span>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full" style={{ minWidth: 700 }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid #1e1e24', background: '#0a0a0d' }}>
-                  {['Canal', 'Faturamento', 'Pedidos', 'Ticket Médio', 'Unidades', 'Cancelamentos', 'Devoluções'].map(h => (
-                    <th key={h} className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-widest" style={{ color: '#a1a1aa' }}>{h}</th>
+                  {[
+                    { k: 'channel', label: t('thChannel') },
+                    { k: 'revenue', label: t('thRevenue') },
+                    { k: 'orders', label: t('thOrders') },
+                    { k: 'avgTicket', label: t('thAvgTicket') },
+                    { k: 'units', label: t('thUnits') },
+                    { k: 'cancellations', label: t('thCancellations') },
+                    { k: 'returns', label: t('thReturns') },
+                  ].map(h => (
+                    <th key={h.k} className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-widest" style={{ color: '#a1a1aa' }}>{h.label}</th>
                   ))}
                 </tr>
               </thead>
@@ -1989,7 +1987,7 @@ export default function DashboardPage() {
                         </td>
                         <td className="px-4 py-3">
                           <p className="text-[12px] font-bold" style={{ color: row.m.revenue > 0 ? '#00E5FF' : '#3f3f46' }}>{row.m.revenue > 0 ? brl(row.m.revenue) : '—'}</p>
-                          {totalRevenue > 0 && row.m.revenue > 0 && <p className="text-zinc-600 text-[10px]">{((row.m.revenue / totalRevenue) * 100).toFixed(0)}% do total</p>}
+                          {totalRevenue > 0 && row.m.revenue > 0 && <p className="text-zinc-600 text-[10px]">{t('pctOfTotal', { pct: ((row.m.revenue / totalRevenue) * 100).toFixed(0) })}</p>}
                         </td>
                         <td className="px-4 py-3 text-[12px]" style={{ color: row.m.count > 0 ? '#fff' : '#3f3f46' }}>{row.m.count || '—'}</td>
                         <td className="px-4 py-3 text-[12px]" style={{ color: row.m.avgTicket > 0 ? '#a1a1aa' : '#3f3f46' }}>{row.m.avgTicket > 0 ? brl(row.m.avgTicket) : '—'}</td>
@@ -2003,7 +2001,7 @@ export default function DashboardPage() {
                 {/* Total row */}
                 {!loading && (
                   <tr style={{ background: 'rgba(0,229,255,0.04)', borderTop: '1px solid rgba(0,229,255,0.1)' }}>
-                    <td className="px-4 py-3 text-[12px] font-bold text-white">Total</td>
+                    <td className="px-4 py-3 text-[12px] font-bold text-white">{t('total')}</td>
                     <td className="px-4 py-3"><p className="text-[13px] font-black" style={{ color: '#00E5FF' }}>{brl(cur.revenue)}</p></td>
                     <td className="px-4 py-3 text-[12px] font-bold text-white">{cur.count}</td>
                     <td className="px-4 py-3 text-[12px] font-semibold text-zinc-300">{brl(cur.avgTicket)}</td>
@@ -2021,7 +2019,7 @@ export default function DashboardPage() {
       {/* LINHA 9 — Priorities */}
       {(loading || priorities.length > 0) && (
         <section>
-          <p className="text-zinc-500 text-[10px] uppercase tracking-widest font-semibold mb-3">Prioridades do Dia</p>
+          <p className="text-zinc-500 text-[10px] uppercase tracking-widest font-semibold mb-3">{t('dailyPriorities')}</p>
           <div className="rounded-2xl overflow-hidden" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
             {loading ? (
               <div className="p-4 space-y-2">{[...Array(3)].map((_, i) => <Skel key={i} h={44} className="rounded-xl" />)}</div>
@@ -2034,7 +2032,7 @@ export default function DashboardPage() {
                     <Link href={p.href}
                       className="shrink-0 text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-all"
                       style={{ background: p.level === 'red' ? 'rgba(248,113,113,0.12)' : 'rgba(245,158,11,0.12)', color: p.level === 'red' ? '#f87171' : '#f59e0b' }}>
-                      Resolver →
+                      {t('resolveArrow')}
                     </Link>
                   </div>
                 ))}

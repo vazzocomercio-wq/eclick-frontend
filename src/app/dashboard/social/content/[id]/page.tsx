@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { useTranslations } from 'next-intl'
 import { useParams, useRouter } from 'next/navigation'
 import {
   ArrowLeft, Loader2, RefreshCcw, Check, Calendar, Archive,
@@ -13,6 +14,7 @@ import { CHANNEL_META } from '@/components/social/channels'
 import type { SocialContent } from '@/components/social/types'
 
 export default function SocialContentDetailPage() {
+  const t = useTranslations('social.detail')
   const params = useParams<{ id: string }>()
   const router = useRouter()
   const id = params.id
@@ -109,7 +111,7 @@ export default function SocialContentDetailPage() {
   }
 
   async function archive() {
-    if (!confirm('Arquivar esta peça? Pode ser desfeito alterando status manualmente.')) return
+    if (!confirm(t('confirmArchive'))) return
     setActing(true); setError(null)
     try {
       await SocialContentApi.archive(id)
@@ -122,15 +124,15 @@ export default function SocialContentDetailPage() {
   }
 
   async function publishNow() {
-    if (!confirm('Publicar agora? Vai disparar a mensagem WhatsApp imediatamente para todos os contatos do segmento selecionado.')) return
+    if (!confirm(t('confirmPublishNow'))) return
     setActing(true); setError(null)
     try {
       const r = await SocialContentApi.publishNow(id)
       const s = r.result
       if (s.skipped_no_bridge) {
-        alert('Bridge SaaS↔Active não configurado. Verifique as envs ACTIVE_AUTOMATION_BRIDGE_URL/SECRET no Railway.')
+        alert(t('publishNoBridge'))
       } else {
-        alert(`✓ Disparado! ${s.dispatched ?? 0} mensagens enviadas, ${s.skipped ?? 0} puladas, ${s.errors ?? 0} erros.`)
+        alert(t('publishDispatched', { dispatched: s.dispatched ?? 0, skipped: s.skipped ?? 0, errors: s.errors ?? 0 }))
       }
       await refresh()
     } catch (e) {
@@ -142,17 +144,17 @@ export default function SocialContentDetailPage() {
 
   if (loading) return (
     <div className="p-6 flex items-center gap-2 text-zinc-500 text-sm">
-      <Loader2 size={14} className="animate-spin" /> carregando…
+      <Loader2 size={14} className="animate-spin" /> {t('loading')}
     </div>
   )
 
   if (error || !item) return (
     <div className="p-6 space-y-3">
       <button onClick={() => router.back()} className="text-zinc-500 hover:text-zinc-300 text-sm flex items-center gap-1">
-        <ArrowLeft size={14} /> voltar
+        <ArrowLeft size={14} /> {t('back')}
       </button>
       <div className="rounded-lg border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-300">
-        ❌ {error ?? 'Conteúdo não encontrado'}
+        ❌ {error ?? t('notFound')}
       </div>
     </div>
   )
@@ -164,7 +166,7 @@ export default function SocialContentDetailPage() {
       {/* Header */}
       <div className="space-y-3">
         <button onClick={() => router.back()} className="text-zinc-500 hover:text-zinc-300 text-sm flex items-center gap-1">
-          <ArrowLeft size={14} /> voltar ao feed
+          <ArrowLeft size={14} /> {t('backToFeed')}
         </button>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="space-y-2 min-w-0">
@@ -175,9 +177,9 @@ export default function SocialContentDetailPage() {
             </div>
             <h1 className="text-lg sm:text-xl font-semibold text-zinc-100">{meta.label}</h1>
             <p className="text-[11px] text-zinc-500">
-              Criado em {new Date(item.created_at).toLocaleString('pt-BR')}
-              {item.scheduled_at && ` · agendado p/ ${new Date(item.scheduled_at).toLocaleString('pt-BR')}`}
-              {item.published_at && ` · publicado em ${new Date(item.published_at).toLocaleString('pt-BR')}`}
+              {t('createdAt', { date: new Date(item.created_at).toLocaleString('pt-BR') })}
+              {item.scheduled_at && t('scheduledForSuffix', { date: new Date(item.scheduled_at).toLocaleString('pt-BR') })}
+              {item.published_at && t('publishedAtSuffix', { date: new Date(item.published_at).toLocaleString('pt-BR') })}
             </p>
           </div>
 
@@ -189,7 +191,7 @@ export default function SocialContentDetailPage() {
                 disabled={acting}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-400 hover:bg-emerald-300 disabled:opacity-50 text-black text-xs font-medium"
               >
-                <Check size={12} /> Aprovar
+                <Check size={12} /> {t('approve')}
               </button>
             )}
             {/* Publicar agora — só pra whatsapp_broadcast aprovado/agendado */}
@@ -198,9 +200,9 @@ export default function SocialContentDetailPage() {
                 onClick={publishNow}
                 disabled={acting}
                 className="submit-glow inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#25D366] hover:bg-[#1da851] disabled:opacity-50 text-white text-xs font-medium"
-                title="Dispara WhatsApp Broadcast imediatamente via Active"
+                title={t('publishNowTitle')}
               >
-                <Send size={12} /> Publicar agora
+                <Send size={12} /> {t('publishNow')}
               </button>
             )}
             {(item.status === 'draft' || item.status === 'approved') && (
@@ -209,7 +211,7 @@ export default function SocialContentDetailPage() {
                 disabled={acting}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-cyan-400/40 hover:bg-cyan-400/10 text-cyan-300 text-xs"
               >
-                <Calendar size={12} /> Agendar
+                <Calendar size={12} /> {t('schedule')}
               </button>
             )}
             <button
@@ -217,12 +219,14 @@ export default function SocialContentDetailPage() {
               disabled={acting}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-700 hover:border-cyan-400/60 text-zinc-300 hover:text-cyan-300 text-xs"
             >
-              <RefreshCcw size={12} /> Regenerar
+              <RefreshCcw size={12} /> {t('regenerate')}
             </button>
             {item.status !== 'archived' && (
               <button
                 onClick={archive}
                 disabled={acting}
+                aria-label={t('archive')}
+                title={t('archive')}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-800 hover:border-red-400/40 text-zinc-500 hover:text-red-300 text-xs"
               >
                 <Archive size={12} />
@@ -247,7 +251,7 @@ export default function SocialContentDetailPage() {
             view === 'preview' ? 'border-cyan-400 text-cyan-300' : 'border-transparent text-zinc-500 hover:text-zinc-300',
           ].join(' ')}
         >
-          <Eye size={12} /> Preview
+          <Eye size={12} /> {t('preview')}
         </button>
         <button
           onClick={() => setView('json')}
@@ -256,7 +260,7 @@ export default function SocialContentDetailPage() {
             view === 'json' ? 'border-cyan-400 text-cyan-300' : 'border-transparent text-zinc-500 hover:text-zinc-300',
           ].join(' ')}
         >
-          <Code2 size={12} /> Editar JSON
+          <Code2 size={12} /> {t('editJson')}
         </button>
       </div>
 
@@ -267,7 +271,7 @@ export default function SocialContentDetailPage() {
       {view === 'json' && (
         <div className="space-y-2">
           <p className="text-[11px] text-zinc-500">
-            Edite o JSON do conteúdo. Mantenha a estrutura esperada pelo canal {meta.shortLabel}.
+            {t('jsonHint', { channel: meta.shortLabel })}
           </p>
           <textarea
             value={jsonDraft}
@@ -287,14 +291,14 @@ export default function SocialContentDetailPage() {
               className="glow-rainbow inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-400 hover:bg-cyan-300 disabled:opacity-50 text-black text-xs font-medium"
             >
               {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
-              Salvar
+              {t('save')}
             </button>
             <button
               onClick={() => { setJsonDraft(JSON.stringify(item.content, null, 2)); setJsonError(null) }}
               disabled={saving}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-700 hover:border-zinc-600 text-zinc-300 text-xs disabled:opacity-50"
             >
-              Reverter
+              {t('revert')}
             </button>
           </div>
         </div>
@@ -302,14 +306,14 @@ export default function SocialContentDetailPage() {
 
       {/* Regenerate dialog */}
       {regenOpen && (
-        <Dialog onClose={() => setRegenOpen(false)} title="Regenerar conteúdo">
+        <Dialog onClose={() => setRegenOpen(false)} title={t('regenDialogTitle')}>
           <p className="text-xs text-zinc-400">
-            Diga à IA o que mudar. A nova versão é salva como v{item.version + 1} (mantém a atual).
+            {t('regenDialogHint', { version: item.version + 1 })}
           </p>
           <textarea
             value={regenInstr}
             onChange={e => setRegenInstr(e.target.value)}
-            placeholder="Ex: 'mais curto e direto', 'foque em economia', 'troca o CTA por algo de urgência'…"
+            placeholder={t('regenPlaceholder')}
             rows={3}
             disabled={regenBusy}
             className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-sm text-zinc-200 outline-none focus:border-cyan-400/60 resize-none"
@@ -318,14 +322,14 @@ export default function SocialContentDetailPage() {
             <button
               onClick={() => setRegenOpen(false)}
               className="px-3 py-1.5 rounded border border-zinc-800 hover:border-zinc-700 text-zinc-300 text-xs"
-            >Cancelar</button>
+            >{t('cancel')}</button>
             <button
               onClick={regenerate}
               disabled={regenBusy || !regenInstr.trim()}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded bg-cyan-400 hover:bg-cyan-300 disabled:opacity-50 text-black text-xs font-medium"
             >
               {regenBusy ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
-              Regenerar
+              {t('regenerate')}
             </button>
           </div>
         </Dialog>
@@ -333,7 +337,7 @@ export default function SocialContentDetailPage() {
 
       {/* Schedule dialog */}
       {scheduleOpen && (
-        <Dialog onClose={() => setScheduleOpen(false)} title="Agendar publicação">
+        <Dialog onClose={() => setScheduleOpen(false)} title={t('scheduleDialogTitle')}>
           <input
             type="datetime-local"
             value={scheduleAt}
@@ -341,20 +345,19 @@ export default function SocialContentDetailPage() {
             className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2 text-sm text-zinc-200 outline-none focus:border-cyan-400/60"
           />
           <p className="text-[10px] text-zinc-500">
-            Publicação automática só acontecerá quando S2/S4 (sync com Meta/Google) estiverem ligados. Por
-            ora, agendar apenas marca o status pra controle interno.
+            {t('scheduleDialogHint')}
           </p>
           <div className="flex gap-2 justify-end">
             <button
               onClick={() => setScheduleOpen(false)}
               className="px-3 py-1.5 rounded border border-zinc-800 hover:border-zinc-700 text-zinc-300 text-xs"
-            >Cancelar</button>
+            >{t('cancel')}</button>
             <button
               onClick={schedule}
               disabled={!scheduleAt || acting}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded bg-cyan-400 hover:bg-cyan-300 disabled:opacity-50 text-black text-xs font-medium"
             >
-              <Calendar size={12} /> Agendar
+              <Calendar size={12} /> {t('schedule')}
             </button>
           </div>
         </Dialog>

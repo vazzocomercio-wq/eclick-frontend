@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import { getSocket } from '@/lib/socket'
 import OnboardingBanner from '@/components/inteligencia/OnboardingBanner'
@@ -51,20 +52,14 @@ interface AlertDelivery {
   created_at:     string
 }
 
-const ANALYZERS: { value: AnalyzerName | 'all'; label: string }[] = [
-  { value: 'all',         label: 'Todos' },
-  { value: 'cross_intel', label: 'Cross-Intel' },
-  { value: 'estoque',     label: 'Estoque' },
-  { value: 'compras',     label: 'Compras' },
-  { value: 'preco',       label: 'Preço' },
-  { value: 'margem',      label: 'Margem' },
-  { value: 'ads',         label: 'Ads' },
-]
+type Translator = ReturnType<typeof useTranslations<'inteligencia'>>
 
-const SEVERITY_META: Record<Severity, { color: string; icon: typeof AlertCircle; label: string }> = {
-  critical: { color: '#f87171', icon: AlertCircle,   label: 'Crítico' },
-  warning:  { color: '#f59e0b', icon: AlertTriangle, label: 'Atenção' },
-  info:     { color: '#60a5fa', icon: Activity,     label: 'Info' },
+const ANALYZER_VALUES: (AnalyzerName | 'all')[] = ['all', 'cross_intel', 'estoque', 'compras', 'preco', 'margem', 'ads']
+
+const SEVERITY_META: Record<Severity, { color: string; icon: typeof AlertCircle }> = {
+  critical: { color: '#f87171', icon: AlertCircle },
+  warning:  { color: '#f59e0b', icon: AlertTriangle },
+  info:     { color: '#60a5fa', icon: Activity },
 }
 
 // ── API ───────────────────────────────────────────────────────────────────────
@@ -104,31 +99,34 @@ function humanizeCategory(cat: string): string {
 // ── Components ────────────────────────────────────────────────────────────────
 
 function SeverityPill({ severity }: { severity: Severity }) {
+  const t = useTranslations('inteligencia')
   const meta = SEVERITY_META[severity]
   const Icon = meta.icon
   return (
     <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full inline-flex items-center gap-1"
       style={{ background: `${meta.color}1a`, color: meta.color, border: `1px solid ${meta.color}33` }}>
       <Icon size={10} />
-      {meta.label}
+      {t(`alertas.severity.${severity}`)}
     </span>
   )
 }
 
+const STATUS_COLOR: Record<SignalStatus, string> = {
+  new:        '#60a5fa',
+  dispatched: '#FFE600',
+  delivered:  '#a78bfa',
+  acted:      '#4ade80',
+  ignored:    '#71717a',
+  expired:    '#52525b',
+}
+
 function StatusBadge({ status }: { status: SignalStatus }) {
-  const map: Record<SignalStatus, { label: string; color: string }> = {
-    new:        { label: 'Novo',       color: '#60a5fa' },
-    dispatched: { label: 'Enviado',    color: '#FFE600' },
-    delivered:  { label: 'Entregue',   color: '#a78bfa' },
-    acted:      { label: 'Aprovado',   color: '#4ade80' },
-    ignored:    { label: 'Ignorado',   color: '#71717a' },
-    expired:    { label: 'Expirado',   color: '#52525b' },
-  }
-  const s = map[status]
+  const t = useTranslations('inteligencia')
+  const color = STATUS_COLOR[status]
   return (
     <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
-      style={{ background: `${s.color}1a`, color: s.color, border: `1px solid ${s.color}33` }}>
-      {s.label}
+      style={{ background: `${color}1a`, color, border: `1px solid ${color}33` }}>
+      {t(`alertas.signalStatus.${status}`)}
     </span>
   )
 }
@@ -151,6 +149,7 @@ function SignalCard({ signal, deliveries, relatedSignals, thumbnail, onClick }: 
   thumbnail?: string
   onClick: () => void
 }) {
+  const t = useTranslations('inteligencia')
   const meta = SEVERITY_META[signal.severity]
   const isCross = signal.analyzer === 'cross_intel'
   const responded = deliveries.filter(d => d.response_at).length
@@ -182,7 +181,7 @@ function SignalCard({ signal, deliveries, relatedSignals, thumbnail, onClick }: 
         <div className="-mb-1 flex items-center gap-1.5">
           <span className="text-[9px] font-bold uppercase tracking-[0.15em] px-2 py-0.5 rounded-full inline-flex items-center gap-1"
             style={{ background: `${crossColor}1a`, color: crossColor, border: `1px solid ${crossColor}55` }}>
-            <Sparkles size={10} /> Cross-Insight
+            <Sparkles size={10} /> {t('alertas.crossInsight')}
           </span>
         </div>
       )}
@@ -229,7 +228,7 @@ function SignalCard({ signal, deliveries, relatedSignals, thumbnail, onClick }: 
               {humanizeCategory(signal.category)}
             </span>
             <span className="text-[10px] text-zinc-600">·</span>
-            <span className="text-[10px] text-zinc-500 font-mono">score {signal.score}</span>
+            <span className="text-[10px] text-zinc-500 font-mono">{t('alertas.score', { score: signal.score })}</span>
           </div>
           {signal.entity_name && (
             <h3 className="text-white font-semibold text-sm mt-0.5 truncate">{signal.entity_name}</h3>
@@ -269,7 +268,7 @@ function SignalCard({ signal, deliveries, relatedSignals, thumbnail, onClick }: 
         <div className="px-3 py-2 rounded-lg space-y-1.5"
           style={{ background: '#18181b', border: '1px solid #27272a' }}>
           <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500 inline-flex items-center gap-1">
-            <Link2 size={10} /> Sinais relacionados ({relatedSignals.length})
+            <Link2 size={10} /> {t('alertas.relatedSignals', { count: relatedSignals.length })}
           </p>
           {relatedSignals.map(r => (
             <div key={r.id} className="flex items-start gap-2 text-[10px] text-zinc-400 leading-relaxed">
@@ -293,21 +292,21 @@ function SignalCard({ signal, deliveries, relatedSignals, thumbnail, onClick }: 
         <div className="flex items-center gap-3 pt-1 text-[10px] text-zinc-500 border-t" style={{ borderColor: '#1e1e24' }}>
           <span className="inline-flex items-center gap-1">
             <MessageSquare size={11} />
-            {deliveries.length} gestor{deliveries.length !== 1 ? 'es' : ''}
+            {t('alertas.managersCount', { count: deliveries.length })}
           </span>
           {sent > 0 && (
             <span className="inline-flex items-center gap-1" style={{ color: '#4ade80' }}>
-              <CheckCircle2 size={11} /> {sent} enviado{sent !== 1 ? 's' : ''}
+              <CheckCircle2 size={11} /> {t('alertas.sentCount', { count: sent })}
             </span>
           )}
           {failed > 0 && (
             <span className="inline-flex items-center gap-1" style={{ color: '#f87171' }}>
-              <XCircle size={11} /> {failed} falhou
+              <XCircle size={11} /> {t('alertas.failedCount', { count: failed })}
             </span>
           )}
           {responded > 0 && (
             <span className="inline-flex items-center gap-1" style={{ color: '#a78bfa' }}>
-              <CheckCircle2 size={11} /> {responded} respondeu
+              <CheckCircle2 size={11} /> {t('alertas.respondedCount', { count: responded })}
             </span>
           )}
         </div>
@@ -319,6 +318,7 @@ function SignalCard({ signal, deliveries, relatedSignals, thumbnail, onClick }: 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function AlertasPage() {
+  const t = useTranslations('inteligencia')
   const [signals, setSignals]       = useState<AlertSignal[]>([])
   const [deliveries, setDeliveries] = useState<AlertDelivery[]>([])
   const [loading, setLoading]       = useState(true)
@@ -345,11 +345,11 @@ export default function AlertasPage() {
       setDeliveries(d)
       setManagers(m)
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Erro ao carregar alertas')
+      setError(e instanceof Error ? e.message : t('alertas.loadError'))
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [t])
 
   useEffect(() => { load() }, [load])
 
@@ -467,9 +467,9 @@ export default function AlertasPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <p className="text-zinc-500 text-xs">Inteligência</p>
+          <p className="text-zinc-500 text-xs">{t('alertas.eyebrow')}</p>
           <div className="flex items-center gap-2 mt-0.5">
-            <h2 className="text-white text-lg font-semibold">Alertas</h2>
+            <h2 className="text-white text-lg font-semibold">{t('alertas.pageTitle')}</h2>
             <span className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full"
               style={{
                 background: liveStatus === 'live' ? 'rgba(74,222,128,0.1)' : 'rgba(161,161,170,0.1)',
@@ -478,30 +478,30 @@ export default function AlertasPage() {
               }}>
               <span className="w-1.5 h-1.5 rounded-full"
                 style={{ background: liveStatus === 'live' ? '#4ade80' : '#a1a1aa' }} />
-              {liveStatus === 'live' ? 'AO VIVO' : liveStatus === 'connecting' ? 'CONECTANDO' : 'OFFLINE'}
+              {liveStatus === 'live' ? t('alertas.liveStatus.live') : liveStatus === 'connecting' ? t('alertas.liveStatus.connecting') : t('alertas.liveStatus.offline')}
             </span>
           </div>
           <p className="text-[11px] text-zinc-600 mt-1">
-            {counts.critical > 0 && <span style={{ color: '#f87171' }}>{counts.critical} crítico{counts.critical !== 1 ? 's' : ''}</span>}
+            {counts.critical > 0 && <span style={{ color: '#f87171' }}>{t('alertas.countCritical', { count: counts.critical })}</span>}
             {counts.critical > 0 && counts.warning > 0 && ' · '}
-            {counts.warning > 0 && <span style={{ color: '#f59e0b' }}>{counts.warning} atenção</span>}
+            {counts.warning > 0 && <span style={{ color: '#f59e0b' }}>{t('alertas.countWarning', { count: counts.warning })}</span>}
             {(counts.critical > 0 || counts.warning > 0) && counts.info > 0 && ' · '}
-            {counts.info > 0 && <span style={{ color: '#60a5fa' }}>{counts.info} info</span>}
-            {signals.length === 0 && 'Sem alertas'}
+            {counts.info > 0 && <span style={{ color: '#60a5fa' }}>{t('alertas.countInfo', { count: counts.info })}</span>}
+            {signals.length === 0 && t('alertas.noAlertsShort')}
           </p>
         </div>
         <div className="flex items-center gap-2">
           <a href="/dashboard/inteligencia/gestores"
             className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border transition-all"
             style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>
-            Gestores
+            {t('alertas.managers')}
             <ExternalLink size={11} />
           </a>
           <button onClick={load} disabled={loading}
             className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border transition-all disabled:opacity-60"
             style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>
             <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
-            <span className="hidden sm:inline">Atualizar</span>
+            <span className="hidden sm:inline">{t('alertas.refresh')}</span>
           </button>
         </div>
       </div>
@@ -518,19 +518,19 @@ export default function AlertasPage() {
       <div className="flex flex-col sm:flex-row gap-2">
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">
           <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-600 shrink-0 mr-1 inline-flex items-center gap-1">
-            <Filter size={10} /> Analyzer
+            <Filter size={10} /> {t('alertas.analyzer')}
           </span>
-          {ANALYZERS.map(a => {
-            const active = filter === a.value
+          {ANALYZER_VALUES.map(value => {
+            const active = filter === value
             return (
-              <button key={a.value} onClick={() => setFilter(a.value)}
+              <button key={value} onClick={() => setFilter(value)}
                 className="shrink-0 px-3 py-1.5 rounded-full text-[11px] font-semibold transition-all"
                 style={{
                   background: active ? 'rgba(0,229,255,0.1)' : '#111114',
                   color:      active ? '#00E5FF' : '#a1a1aa',
                   border:     `1px solid ${active ? 'rgba(0,229,255,0.3)' : '#27272a'}`,
                 }}>
-                {a.label}
+                {t(`alertas.analyzers.${value}`)}
               </button>
             )
           })}
@@ -548,7 +548,7 @@ export default function AlertasPage() {
                   color:      active ? color : '#a1a1aa',
                   border:     `1px solid ${active ? color + '55' : '#27272a'}`,
                 }}>
-                {v === 'all' ? 'Todas severities' : meta?.label}
+                {v === 'all' ? t('alertas.allSeverities') : t(`alertas.severity.${v}`)}
               </button>
             )
           })}
@@ -570,17 +570,16 @@ export default function AlertasPage() {
             <Bell size={22} style={{ color: '#00E5FF' }} />
           </div>
           <div>
-            <h3 className="text-white font-semibold text-sm">Nenhum alerta gerado ainda</h3>
+            <h3 className="text-white font-semibold text-sm">{t('alertas.emptyTitle')}</h3>
             <p className="text-xs text-zinc-500 mt-1 max-w-sm">
-              Os analyzers rodam a cada 15 minutos. Cadastre gestores e ative o hub
-              em configurações pra começar a receber alertas inteligentes via WhatsApp.
+              {t('alertas.emptyDescription')}
             </p>
           </div>
         </div>
       ) : filtered.length === 0 ? (
         <div className="rounded-2xl px-4 py-8 text-center text-xs text-zinc-500"
           style={{ background: '#111114', border: '1px solid #27272a' }}>
-          Nenhum alerta com esses filtros.
+          {t('alertas.emptyFiltered')}
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
@@ -603,10 +602,7 @@ export default function AlertasPage() {
       )}
 
       <p className="text-[10px] text-zinc-700 leading-relaxed pt-2">
-        Os analyzers rodam a cada 15 minutos. Críticos vão direto pelo WhatsApp;
-        atenções e informações são compiladas em digests de manhã/tarde/noite.
-        Quando o gestor responde &quot;1&quot;, &quot;2&quot; ou &quot;3&quot; pelo WhatsApp, a ação é
-        registrada aqui em tempo real.
+        {t('alertas.footnote')}
       </p>
 
       {selectedSignal && (
@@ -627,12 +623,12 @@ export default function AlertasPage() {
 
 // ── SignalDetailDrawer ────────────────────────────────────────────────────────
 
-const RESPONSE_LABELS: Record<ResponseType, { label: string; color: string }> = {
-  approve:  { label: 'Aprovou',   color: '#4ade80' },
-  details:  { label: 'Detalhes',  color: '#60a5fa' },
-  ignore:   { label: 'Ignorou',   color: '#71717a' },
-  delegate: { label: 'Delegou',   color: '#a78bfa' },
-  custom:   { label: 'Resposta livre', color: '#a78bfa' },
+const RESPONSE_COLOR: Record<ResponseType, string> = {
+  approve:  '#4ade80',
+  details:  '#60a5fa',
+  ignore:   '#71717a',
+  delegate: '#a78bfa',
+  custom:   '#a78bfa',
 }
 
 function SignalDetailDrawer({
@@ -645,6 +641,7 @@ function SignalDetailDrawer({
   onClose: () => void
   onJumpToSignal: (s: AlertSignal) => void
 }) {
+  const t = useTranslations('inteligencia')
   const meta = SEVERITY_META[signal.severity]
   const isCross = signal.analyzer === 'cross_intel'
   const crossColor = '#a78bfa'
@@ -689,7 +686,7 @@ function SignalDetailDrawer({
             {isCross && (
               <span className="text-[9px] font-bold uppercase tracking-[0.15em] inline-flex items-center gap-1"
                 style={{ color: crossColor }}>
-                <Sparkles size={9} /> Cross-Insight
+                <Sparkles size={9} /> {t('alertas.crossInsight')}
               </span>
             )}
             <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: accent }}>
@@ -699,7 +696,7 @@ function SignalDetailDrawer({
               <h2 className="text-white font-semibold text-base mt-0.5 truncate">{signal.entity_name}</h2>
             )}
             <p className="text-[10px] text-zinc-500 mt-1">
-              {timeAgo(signal.created_at)} · {signal.analyzer} · score {signal.score}
+              {timeAgo(signal.created_at)} · {signal.analyzer} · {t('alertas.score', { score: signal.score })}
             </p>
           </div>
           <button onClick={onClose}
@@ -707,7 +704,7 @@ function SignalDetailDrawer({
             style={{ color: '#71717a' }}
             onMouseEnter={e => (e.currentTarget.style.color = '#fff')}
             onMouseLeave={e => (e.currentTarget.style.color = '#71717a')}
-            aria-label="Fechar">
+            aria-label={t('alertas.close')}>
             <X size={16} />
           </button>
         </div>
@@ -721,7 +718,7 @@ function SignalDetailDrawer({
 
           {/* Summary */}
           <div>
-            <p className="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold mb-1.5">Resumo</p>
+            <p className="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold mb-1.5">{t('alertas.summary')}</p>
             <p className="text-sm text-zinc-200 leading-relaxed">{signal.summary_pt}</p>
           </div>
 
@@ -741,7 +738,7 @@ function SignalDetailDrawer({
           {dataEntries.length > 0 && (
             <div>
               <p className="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold mb-1.5 inline-flex items-center gap-1">
-                <Code size={10} /> Dados do sinal
+                <Code size={10} /> {t('alertas.signalData')}
               </p>
               <div className="rounded-lg overflow-hidden" style={{ background: '#18181b', border: '1px solid #27272a' }}>
                 {dataEntries.map(([k, v], i) => (
@@ -761,7 +758,7 @@ function SignalDetailDrawer({
           {relatedSignals.length > 0 && (
             <div>
               <p className="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold mb-1.5 inline-flex items-center gap-1">
-                <Link2 size={10} /> Sinais relacionados ({relatedSignals.length})
+                <Link2 size={10} /> {t('alertas.relatedSignals', { count: relatedSignals.length })}
               </p>
               <div className="space-y-1.5">
                 {relatedSignals.map(r => {
@@ -791,12 +788,14 @@ function SignalDetailDrawer({
           {deliveries.length > 0 && (
             <div>
               <p className="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold mb-1.5 inline-flex items-center gap-1">
-                <Send size={10} /> Entregas ({deliveries.length})
+                <Send size={10} /> {t('alertas.deliveries', { count: deliveries.length })}
               </p>
               <div className="space-y-1.5">
                 {deliveries.map(d => {
                   const mgr = managerById.get(d.manager_id)
-                  const resp = d.response_type ? RESPONSE_LABELS[d.response_type] : null
+                  const resp = d.response_type
+                    ? { label: t(`alertas.responseLabels.${d.response_type}`), color: RESPONSE_COLOR[d.response_type] }
+                    : null
                   return (
                     <div key={d.id} className="px-3 py-2 rounded-lg space-y-1.5"
                       style={{ background: '#18181b', border: '1px solid #27272a' }}>
@@ -809,8 +808,8 @@ function SignalDetailDrawer({
                         <span className="ml-auto"><DeliveryStatusIcon status={d.status} /></span>
                       </div>
                       <div className="flex items-center gap-2 text-[10px] text-zinc-500">
-                        <span>{d.delivery_type === 'immediate' ? 'imediato' : d.delivery_type.replace('digest_', 'digest ')}</span>
-                        {d.sent_at && <span>· enviado {timeAgo(d.sent_at)}</span>}
+                        <span>{d.delivery_type === 'immediate' ? t('alertas.immediate') : d.delivery_type.replace('digest_', 'digest ')}</span>
+                        {d.sent_at && <span>· {t('alertas.sentAt', { time: timeAgo(d.sent_at) })}</span>}
                         {d.status === 'failed' && d.error_message && (
                           <span className="text-rose-400">· {d.error_message.slice(0, 40)}</span>
                         )}

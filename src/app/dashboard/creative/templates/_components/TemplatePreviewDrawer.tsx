@@ -12,6 +12,7 @@
  */
 
 import { useEffect, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { X, Loader2, AlertTriangle, ChevronDown, ChevronUp, ImageIcon, Wand2 } from 'lucide-react'
 import { CreativeApi } from '@/components/creative/api'
 import type {
@@ -29,6 +30,7 @@ export default function TemplatePreviewDrawer({
   templateId:        string | null
   initialProductId?: string
 }) {
+  const t = useTranslations('creative.templates')
   const [products, setProducts]   = useState<CreativeProduct[]>([])
   const [productId, setProductId] = useState<string>(initialProductId ?? '')
   const [preview, setPreview]     = useState<TemplatePreviewResponse | null>(null)
@@ -67,7 +69,7 @@ export default function TemplatePreviewDrawer({
         <div className="px-4 py-3 border-b border-zinc-800 flex items-center justify-between">
           <div className="flex items-center gap-2 min-w-0">
             <Wand2 size={14} className="text-cyan-400" />
-            <h2 className="text-sm font-semibold truncate">Preview do template</h2>
+            <h2 className="text-sm font-semibold truncate">{t('previewTitle')}</h2>
           </div>
           <button onClick={onClose} className="text-zinc-500 hover:text-zinc-200">
             <X size={16} />
@@ -76,13 +78,13 @@ export default function TemplatePreviewDrawer({
 
         {/* Product selector */}
         <div className="px-4 py-3 border-b border-zinc-800 bg-zinc-900/40">
-          <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1">Produto pra renderizar</label>
+          <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1">{t('productToRender')}</label>
           <select
             value={productId}
             onChange={e => setProductId(e.target.value)}
             className="w-full bg-zinc-950 border border-zinc-800 rounded-md px-2 py-1.5 text-xs text-zinc-200 outline-none focus:border-cyan-400"
           >
-            <option value="">— selecione —</option>
+            <option value="">{t('selectPlaceholder')}</option>
             {products.map(p => (
               <option key={p.id} value={p.id}>{p.name} ({p.category})</option>
             ))}
@@ -101,14 +103,14 @@ export default function TemplatePreviewDrawer({
           {!productId && !loading && (
             <div className="text-center py-12">
               <ImageIcon size={28} className="mx-auto text-zinc-700 mb-3" />
-              <p className="text-sm text-zinc-400">Selecione um produto pra ver o preview</p>
+              <p className="text-sm text-zinc-400">{t('previewSelectProduct')}</p>
             </div>
           )}
 
           {loading && (
             <div className="flex items-center gap-2 text-xs text-zinc-400">
               <Loader2 size={12} className="animate-spin text-cyan-400" />
-              Resolvendo prompts + refs…
+              {t('resolvingPrompts')}
             </div>
           )}
 
@@ -120,10 +122,10 @@ export default function TemplatePreviewDrawer({
         {/* Footer */}
         <div className="px-4 py-3 border-t border-zinc-800 bg-zinc-900/40">
           <p className="text-[10px] text-zinc-500">
-            {preview ? `${preview.positions.length} posições renderizadas` : 'aguardando produto…'}
+            {preview ? t('positionsRendered', { count: preview.positions.length }) : t('waitingProduct')}
             {preview?.briefing_id && (
               <span className="ml-2 px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 font-mono text-[9px]">
-                briefing ativo
+                {t('briefingActive')}
               </span>
             )}
           </p>
@@ -134,6 +136,7 @@ export default function TemplatePreviewDrawer({
 }
 
 function PreviewPositionCard({ position }: { position: ResolvedPositionPreview }) {
+  const t = useTranslations('creative.templates')
   const [expanded, setExpanded] = useState(true)
 
   const sourceColors: Record<string, string> = {
@@ -166,13 +169,13 @@ function PreviewPositionCard({ position }: { position: ResolvedPositionPreview }
         <div className="p-3 space-y-3">
           {/* Rendered prompt */}
           <div>
-            <p className="text-[9px] uppercase tracking-wider text-zinc-500 mb-1">Prompt resolvido</p>
+            <p className="text-[9px] uppercase tracking-wider text-zinc-500 mb-1">{t('previewResolvedPrompt')}</p>
             <div className="rounded-md bg-zinc-950 border border-zinc-800 p-2 max-h-32 overflow-y-auto">
               <p className="text-[11px] font-mono text-zinc-200 whitespace-pre-wrap">{position.prompt_resolved}</p>
             </div>
             {position.negative_prompt && (
               <div className="mt-1.5 rounded-md bg-zinc-950 border border-red-500/20 p-2">
-                <p className="text-[9px] uppercase tracking-wider text-red-300/60 mb-0.5">avoid</p>
+                <p className="text-[9px] uppercase tracking-wider text-red-300/60 mb-0.5">{t('avoid')}</p>
                 <p className="text-[10px] font-mono text-zinc-400">{position.negative_prompt}</p>
               </div>
             )}
@@ -181,10 +184,10 @@ function PreviewPositionCard({ position }: { position: ResolvedPositionPreview }
           {/* References */}
           <div>
             <p className="text-[9px] uppercase tracking-wider text-zinc-500 mb-1.5">
-              References ({position.references.length})
+              {t('references', { count: position.references.length })}
             </p>
             {position.references.length === 0 ? (
-              <p className="text-[10px] text-zinc-600 italic">nenhuma ref resolvida</p>
+              <p className="text-[10px] text-zinc-600 italic">{t('noRefResolved')}</p>
             ) : (
               <div className="grid grid-cols-3 gap-2">
                 {position.references.map((r, i) => (
@@ -214,7 +217,7 @@ function PreviewPositionCard({ position }: { position: ResolvedPositionPreview }
           {position.warnings.length > 0 && (
             <div className="rounded-md bg-amber-500/10 border border-amber-500/20 p-2">
               <p className="text-[9px] uppercase tracking-wider text-amber-300/80 mb-1">
-                Warnings ({position.warnings.length})
+                {t('previewWarnings', { count: position.warnings.length })}
               </p>
               <ul className="space-y-0.5">
                 {position.warnings.map((w, i) => (

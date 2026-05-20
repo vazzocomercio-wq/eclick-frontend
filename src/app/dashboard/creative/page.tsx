@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { Plus, Sparkles, Loader2, Image as ImageIcon, Clock, CheckCircle2, AlertCircle, Search, X, ArrowDownAZ, ArrowDown, Trash2, Archive } from 'lucide-react'
 import { CreativeApi } from '@/components/creative/api'
@@ -12,6 +13,7 @@ type StatusFilter = 'all' | 'draft' | 'analyzing' | 'ready' | 'archived'
 type SortOption   = 'recent' | 'name'
 
 export default function CreativeListPage() {
+  const t = useTranslations('creative.list')
   const [products, setProducts] = useState<CreativeProduct[]>([])
   const [loading, setLoading]   = useState(true)
   const [error, setError]       = useState<string | null>(null)
@@ -75,14 +77,14 @@ export default function CreativeListPage() {
     if (ids.length === 0) return
     const names = products.filter(p => selected.has(p.id)).map(p => `· ${p.name}`).join('\n')
     const ok = await confirmDialog({
-      title:        `Arquivar ${ids.length} produto${ids.length > 1 ? 's' : ''}`,
+      title:        t('archiveTitle', { count: ids.length }),
       message: (
         <div>
-          <p className="mb-2">Os produtos selecionados serão arquivados — saem da listagem principal mas o histórico (briefings, imagens, listings) é preservado:</p>
+          <p className="mb-2">{t('archiveMessage')}</p>
           <pre className="text-xs text-zinc-400 max-h-40 overflow-y-auto bg-zinc-900/50 p-2 rounded whitespace-pre-wrap">{names}</pre>
         </div>
       ),
-      confirmLabel: `Arquivar ${ids.length}`,
+      confirmLabel: t('archiveConfirm', { count: ids.length }),
       variant:      'danger',
     })
     if (!ok) return
@@ -94,15 +96,15 @@ export default function CreativeListPage() {
       const failed = results.filter(r => r.status === 'rejected').length
       if (failed > 0) {
         await alertDialog({
-          title:   'Atenção',
-          message: `${failed} produto${failed > 1 ? 's' : ''} não pôde ser arquivado. Os outros foram processados normalmente.`,
+          title:   t('warningTitle'),
+          message: t('archivePartialFail', { count: failed }),
           variant: 'warning',
         })
       }
       clearSelection()
       await load()
     } catch (e) {
-      await alertDialog({ title: 'Erro', message: (e as Error).message, variant: 'danger' })
+      await alertDialog({ title: t('errorTitle'), message: (e as Error).message, variant: 'danger' })
     } finally {
       setBulkBusy(false)
     }
@@ -116,23 +118,21 @@ export default function CreativeListPage() {
         <header className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-2">
             <Sparkles size={20} className="text-cyan-400" />
-            <h1 className="text-lg font-semibold">IA Criativo</h1>
+            <h1 className="text-lg font-semibold">{t('title')}</h1>
             <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-md bg-cyan-400/10 text-cyan-300 border border-cyan-400/20">
-              BETA
+              {t('beta')}
             </span>
           </div>
           <Link
             href="/dashboard/creative/new"
             className="flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan-400 hover:bg-cyan-300 text-black text-sm font-semibold transition-all shadow-[0_0_12px_rgba(0,229,255,0.25)]"
           >
-            <Plus size={14} /> Novo anúncio
+            <Plus size={14} /> {t('newAd')}
           </Link>
         </header>
 
         <p className="text-sm text-zinc-400 mb-6 max-w-2xl">
-          Esteira completa de criação de anúncios. Suba uma imagem do produto e a IA
-          gera título, descrição, bullets, ficha técnica e palavras-chave otimizados
-          pro marketplace que você escolher.
+          {t('intro')}
         </p>
 
         {error && (
@@ -153,7 +153,7 @@ export default function CreativeListPage() {
               type="text"
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Buscar por nome, SKU ou marca…"
+              placeholder={t('searchPlaceholder')}
               className="w-full pl-8 pr-8 py-1.5 bg-zinc-950 border border-zinc-800 rounded-lg text-xs text-zinc-200 outline-none focus:border-cyan-400 placeholder:text-zinc-600"
             />
             {search && (
@@ -170,11 +170,11 @@ export default function CreativeListPage() {
           {/* Status filter */}
           <div className="flex gap-1">
             {([
-              { value: 'all',       label: 'Todos' },
-              { value: 'ready',     label: 'Prontos' },
-              { value: 'draft',     label: 'Rascunhos' },
-              { value: 'analyzing', label: 'Analisando' },
-              { value: 'archived',  label: 'Arquivados' },
+              { value: 'all',       label: t('filterAll') },
+              { value: 'ready',     label: t('filterReady') },
+              { value: 'draft',     label: t('filterDraft') },
+              { value: 'analyzing', label: t('filterAnalyzing') },
+              { value: 'archived',  label: t('filterArchived') },
             ] as const).map(o => (
               <button
                 key={o.value}
@@ -197,10 +197,10 @@ export default function CreativeListPage() {
             type="button"
             onClick={() => setSort(s => s === 'recent' ? 'name' : 'recent')}
             className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] bg-zinc-950 text-zinc-400 border border-zinc-800 hover:border-zinc-700"
-            title={sort === 'recent' ? 'Ordenado por mais recente — clique pra mudar' : 'Ordenado por nome — clique pra mudar'}
+            title={sort === 'recent' ? t('sortRecentTooltip') : t('sortNameTooltip')}
           >
             {sort === 'recent' ? <ArrowDown size={11} /> : <ArrowDownAZ size={11} />}
-            {sort === 'recent' ? 'Recentes' : 'A-Z'}
+            {sort === 'recent' ? t('sortRecent') : t('sortName')}
           </button>
 
           {hasFilters && (
@@ -209,19 +209,19 @@ export default function CreativeListPage() {
               onClick={() => { setSearch(''); setStatus('all'); setSort('recent') }}
               className="text-[11px] text-zinc-500 hover:text-red-400"
             >
-              limpar filtros
+              {t('clearFilters')}
             </button>
           )}
 
           {/* Result count */}
           <span className="text-[11px] text-zinc-500 ml-auto">
-            {loading ? <Loader2 size={11} className="inline animate-spin" /> : `${products.length} resultado${products.length === 1 ? '' : 's'}`}
+            {loading ? <Loader2 size={11} className="inline animate-spin" /> : t('resultCount', { count: products.length })}
           </span>
         </div>
 
         {loading && products.length === 0 ? (
           <div className="flex items-center gap-2 text-zinc-500">
-            <Loader2 size={14} className="animate-spin" /> Carregando produtos…
+            <Loader2 size={14} className="animate-spin" /> {t('loadingProducts')}
           </div>
         ) : products.length === 0 ? (
           hasFilters ? <NoResultsState /> : <EmptyState />
@@ -244,7 +244,7 @@ export default function CreativeListPage() {
         <div className="fixed left-1/2 -translate-x-1/2 bottom-6 z-30 max-w-[95vw]">
           <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-zinc-950 border border-zinc-700 shadow-2xl">
             <span className="text-sm font-medium text-zinc-100 whitespace-nowrap">
-              {selected.size} selecionad{selected.size > 1 ? 'os' : 'o'}
+              {t('selectedCount', { count: selected.size })}
             </span>
             <div className="h-5 w-px bg-zinc-800" />
             <button
@@ -254,7 +254,7 @@ export default function CreativeListPage() {
               className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-red-300 hover:bg-red-500/10 disabled:opacity-50 transition-colors"
             >
               {bulkBusy ? <Loader2 size={12} className="animate-spin" /> : <Archive size={12} />}
-              Arquivar
+              {t('archive')}
             </button>
             <div className="h-5 w-px bg-zinc-800" />
             <button
@@ -263,7 +263,7 @@ export default function CreativeListPage() {
               disabled={bulkBusy}
               className="inline-flex items-center gap-1 px-2 py-1.5 rounded-md text-xs text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors"
             >
-              <X size={12} /> Limpar
+              <X size={12} /> {t('clear')}
             </button>
           </div>
         </div>
@@ -273,31 +273,33 @@ export default function CreativeListPage() {
 }
 
 function EmptyState() {
+  const t = useTranslations('creative.list')
   return (
     <div className="rounded-2xl border-2 border-dashed border-zinc-800 bg-zinc-900/30 p-12 text-center">
       <div className="inline-flex p-4 rounded-2xl bg-zinc-900 border border-zinc-800 mb-4">
         <Sparkles size={28} className="text-cyan-400" />
       </div>
-      <h2 className="text-base font-semibold text-zinc-200">Nenhum anúncio ainda</h2>
+      <h2 className="text-base font-semibold text-zinc-200">{t('emptyTitle')}</h2>
       <p className="text-sm text-zinc-500 mt-1 max-w-sm mx-auto">
-        Comece subindo a foto do seu primeiro produto. A IA cuida do resto.
+        {t('emptyText')}
       </p>
       <Link
         href="/dashboard/creative/new"
         className="inline-flex items-center gap-2 mt-5 px-4 py-2 rounded-lg bg-cyan-400 hover:bg-cyan-300 text-black text-sm font-semibold transition-all"
       >
-        <Plus size={14} /> Criar primeiro anúncio
+        <Plus size={14} /> {t('emptyCta')}
       </Link>
     </div>
   )
 }
 
 function NoResultsState() {
+  const t = useTranslations('creative.list')
   return (
     <div className="rounded-2xl border-2 border-dashed border-zinc-800 bg-zinc-900/30 p-10 text-center">
       <Search size={24} className="text-zinc-600 mx-auto mb-3" />
-      <h2 className="text-sm font-semibold text-zinc-300">Nenhum produto encontrado</h2>
-      <p className="text-xs text-zinc-500 mt-1">Tente ajustar os filtros ou a busca.</p>
+      <h2 className="text-sm font-semibold text-zinc-300">{t('noResultsTitle')}</h2>
+      <p className="text-xs text-zinc-500 mt-1">{t('noResultsText')}</p>
     </div>
   )
 }
@@ -309,6 +311,7 @@ function ProductCard({
   selected:        boolean
   onToggleSelect:  () => void
 }) {
+  const t = useTranslations('creative.list')
   const status = product.status
   return (
     <div
@@ -337,7 +340,7 @@ function ProductCard({
           <button
             type="button"
             onClick={e => { e.preventDefault(); e.stopPropagation(); onToggleSelect() }}
-            aria-label={selected ? 'Desmarcar produto' : 'Selecionar produto'}
+            aria-label={selected ? t('deselectProduct') : t('selectProduct')}
             className={[
               'absolute top-2 left-2 w-6 h-6 rounded-md border-2 flex items-center justify-center transition-all',
               selected
@@ -366,11 +369,12 @@ function ProductCard({
 }
 
 function StatusBadge({ status }: { status: CreativeProduct['status'] }) {
+  const t = useTranslations('creative.list')
   const config: Record<CreativeProduct['status'], { icon: React.ReactNode; label: string; className: string }> = {
-    draft:     { icon: <Clock size={10} />,        label: 'Rascunho',  className: 'bg-zinc-900 text-zinc-300 border-zinc-700' },
-    analyzing: { icon: <Loader2 size={10} className="animate-spin" />, label: 'Analisando', className: 'bg-cyan-400/10 text-cyan-300 border-cyan-400/30' },
-    ready:     { icon: <CheckCircle2 size={10} />, label: 'Pronto',    className: 'bg-emerald-400/10 text-emerald-300 border-emerald-400/30' },
-    archived:  { icon: <Clock size={10} />,        label: 'Arquivado', className: 'bg-zinc-900 text-zinc-500 border-zinc-700' },
+    draft:     { icon: <Clock size={10} />,        label: t('statusDraft'),     className: 'bg-zinc-900 text-zinc-300 border-zinc-700' },
+    analyzing: { icon: <Loader2 size={10} className="animate-spin" />, label: t('statusAnalyzing'), className: 'bg-cyan-400/10 text-cyan-300 border-cyan-400/30' },
+    ready:     { icon: <CheckCircle2 size={10} />, label: t('statusReady'),     className: 'bg-emerald-400/10 text-emerald-300 border-emerald-400/30' },
+    archived:  { icon: <Clock size={10} />,        label: t('statusArchived'),  className: 'bg-zinc-900 text-zinc-500 border-zinc-700' },
   }
   const c = config[status]
   return (

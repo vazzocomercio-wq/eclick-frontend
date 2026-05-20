@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import AccountSelector, { getStoredSellerId } from '@/components/ml/AccountSelector'
@@ -35,6 +36,7 @@ type Filter = 'all' | 'eligible' | 'active' | 'paused'
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
 export default function AutomationPage() {
+  const t = useTranslations('listings.pricingAutomation')
   const supabase = useMemo(() => createClient(), [])
   const toast = useToast()
 
@@ -47,9 +49,9 @@ export default function AutomationPage() {
 
   const getHeaders = useCallback(async (): Promise<Record<string, string>> => {
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session?.access_token) throw new Error('Não autenticado')
+    if (!session?.access_token) throw new Error(t('errors.notAuthenticated'))
     return { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' }
-  }, [supabase])
+  }, [supabase, t])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -62,18 +64,18 @@ export default function AutomationPage() {
       const body = await res.json()
       setRows(Array.isArray(body) ? body : [])
     } catch (e) {
-      toast({ message: e instanceof Error ? e.message : 'Erro ao carregar', tone: 'error' })
+      toast({ message: e instanceof Error ? e.message : t('errors.loadFailed'), tone: 'error' })
     } finally {
       setLoading(false)
     }
-  }, [getHeaders, filter, toast])
+  }, [getHeaders, filter, toast, t])
 
   useEffect(() => { load() }, [load])
 
   const runScan = async () => {
     const sellerId = getStoredSellerId()
     if (sellerId == null) {
-      toast({ message: 'Selecione uma conta ML', tone: 'error' })
+      toast({ message: t('errors.selectAccount'), tone: 'error' })
       return
     }
     setScanning(true)
@@ -84,10 +86,10 @@ export default function AutomationPage() {
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const r = await res.json()
-      toast({ message: `Scan automation · ${r.items_scanned} items, +${r.tasks_created} tarefas`, tone: 'success' })
+      toast({ message: t('scanDone', { items: r.items_scanned, tasks: r.tasks_created }), tone: 'success' })
       await load()
     } catch (e) {
-      toast({ message: e instanceof Error ? e.message : 'Erro', tone: 'error' })
+      toast({ message: e instanceof Error ? e.message : t('errors.generic'), tone: 'error' })
     } finally {
       setScanning(false)
     }
@@ -95,7 +97,7 @@ export default function AutomationPage() {
 
   const op = async (action: 'activate' | 'pause' | 'configure' | 'disable', row: AutomationRow, body: Record<string, unknown> = {}) => {
     const sellerId = getStoredSellerId()
-    if (sellerId == null) { toast({ message: 'Sem conta', tone: 'error' }); return }
+    if (sellerId == null) { toast({ message: t('errors.noAccount'), tone: 'error' }); return }
     setBusy(prev => new Set(prev).add(row.ml_item_id))
     try {
       const headers = await getHeaders()
@@ -104,11 +106,11 @@ export default function AutomationPage() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data?.message ?? `HTTP ${res.status}`)
-      toast({ message: `${action === 'activate' ? 'Automação ativada' : action === 'pause' ? 'Pausada' : action === 'configure' ? 'Limites configurados' : 'Desativada'}`, tone: 'success' })
+      toast({ message: t(`opDone.${action}`), tone: 'success' })
       setConfigModal(null)
       await load()
     } catch (e) {
-      toast({ message: e instanceof Error ? e.message : 'Erro', tone: 'error' })
+      toast({ message: e instanceof Error ? e.message : t('errors.generic'), tone: 'error' })
     } finally {
       setBusy(prev => { const n = new Set(prev); n.delete(row.ml_item_id); return n })
     }
@@ -125,16 +127,16 @@ export default function AutomationPage() {
       <div>
         <Link href="/dashboard/listings/pricing"
           className="text-zinc-500 hover:text-cyan-400 text-xs flex items-center gap-1 mb-2 transition-colors">
-          <ChevronLeft size={12} /> Voltar para Pricing IA
+          <ChevronLeft size={12} /> {t('backToPricing')}
         </Link>
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <p className="text-zinc-500 text-xs font-medium tracking-widest uppercase mb-1">Listing Center · Automação de preço</p>
-            <h1 className="text-white text-3xl font-semibold">Pricing Automation IA</h1>
+            <p className="text-zinc-500 text-xs font-medium tracking-widest uppercase mb-1">{t('eyebrow')}</p>
+            <h1 className="text-white text-3xl font-semibold">{t('title')}</h1>
             <p className="text-xs text-zinc-600 mt-1">
               {rows.length > 0
-                ? `${automatedCount} automatizados · ${eligibleCount} elegíveis · ${blockedCount} bloqueiam edição manual`
-                : 'Rode o scan pra ver status de automação'}
+                ? t('summary', { automated: automatedCount, eligible: eligibleCount, blocked: blockedCount })
+                : t('summaryEmpty')}
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
@@ -142,7 +144,7 @@ export default function AutomationPage() {
             <button onClick={runScan} disabled={scanning}
               className="text-[11px] font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors disabled:opacity-50"
               style={{ background: '#00E5FF', color: '#0d0d10' }}>
-              <RefreshCw size={11} className={scanning ? 'animate-spin' : ''} /> Rodar scan automation
+              <RefreshCw size={11} className={scanning ? 'animate-spin' : ''} /> {t('runScan')}
             </button>
           </div>
         </div>
@@ -151,21 +153,21 @@ export default function AutomationPage() {
       {/* Filter chips */}
       <section className="rounded-xl p-3 flex items-center gap-2 flex-wrap"
         style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
-        <FilterChip label="Todos"        active={filter === 'all'}      onClick={() => setFilter('all')} />
-        <FilterChip label="Elegíveis"    active={filter === 'eligible'} onClick={() => setFilter('eligible')} color="#3b82f6" />
-        <FilterChip label="Ativos"        active={filter === 'active'}   onClick={() => setFilter('active')} color="#22c55e" />
-        <FilterChip label="Pausados"     active={filter === 'paused'}   onClick={() => setFilter('paused')} color="#f59e0b" />
+        <FilterChip label={t('filter.all')}        active={filter === 'all'}      onClick={() => setFilter('all')} />
+        <FilterChip label={t('filter.eligible')}    active={filter === 'eligible'} onClick={() => setFilter('eligible')} color="#3b82f6" />
+        <FilterChip label={t('filter.active')}        active={filter === 'active'}   onClick={() => setFilter('active')} color="#22c55e" />
+        <FilterChip label={t('filter.paused')}     active={filter === 'paused'}   onClick={() => setFilter('paused')} color="#f59e0b" />
       </section>
 
       {/* Lista */}
       {loading ? (
         <div className="rounded-xl p-12 text-center text-zinc-500 text-xs"
-          style={{ background: '#111114', border: '1px solid #1a1a1f' }}>Carregando…</div>
+          style={{ background: '#111114', border: '1px solid #1a1a1f' }}>{t('loading')}</div>
       ) : rows.length === 0 ? (
         <div className="rounded-xl p-12 text-center" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
           <Bot size={32} className="text-zinc-700 mx-auto mb-2" />
-          <p className="text-zinc-400 text-sm">Nada por aqui</p>
-          <p className="text-zinc-600 text-xs mt-1">Rode o scan ou troque o filtro</p>
+          <p className="text-zinc-400 text-sm">{t('empty.title')}</p>
+          <p className="text-zinc-600 text-xs mt-1">{t('empty.desc')}</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -190,30 +192,30 @@ export default function AutomationPage() {
           <div onClick={e => e.stopPropagation()}
             className="rounded-2xl p-6 max-w-md w-full" style={{ background: '#111114', border: '1px solid #27272a' }}>
             <h3 className="text-white text-lg font-semibold mb-1">
-              {configModal.activating ? 'Ativar automação' : 'Configurar limites'}
+              {configModal.activating ? t('modal.activateTitle') : t('modal.configureTitle')}
             </h3>
             <p className="text-zinc-500 text-xs font-mono mb-4">{configModal.row.ml_item_id}</p>
 
             {configModal.activating && (
               <div className="mb-4">
-                <label className="text-xs text-zinc-400 block mb-1">Regra ML</label>
+                <label className="text-xs text-zinc-400 block mb-1">{t('modal.mlRule')}</label>
                 <select value={configModal.ruleId} onChange={e => setConfigModal(m => m ? { ...m, ruleId: e.target.value as 'INT' | 'INT_EXT' } : null)}
                   className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-200">
-                  <option value="INT">INT — Preço competitivo dentro do ML</option>
-                  <option value="INT_EXT">INT_EXT — Melhor preço dentro + fora do ML</option>
+                  <option value="INT">{t('modal.ruleInt')}</option>
+                  <option value="INT_EXT">{t('modal.ruleIntExt')}</option>
                 </select>
               </div>
             )}
 
             <div className="grid grid-cols-2 gap-3 mb-4">
               <div>
-                <label className="text-xs text-zinc-400 block mb-1">Preço mínimo</label>
+                <label className="text-xs text-zinc-400 block mb-1">{t('modal.minPrice')}</label>
                 <input type="number" step="0.01" value={configModal.min}
                   onChange={e => setConfigModal(m => m ? { ...m, min: Number(e.target.value) } : null)}
                   className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-200" />
               </div>
               <div>
-                <label className="text-xs text-zinc-400 block mb-1">Preço máximo</label>
+                <label className="text-xs text-zinc-400 block mb-1">{t('modal.maxPrice')}</label>
                 <input type="number" step="0.01" value={configModal.max}
                   onChange={e => setConfigModal(m => m ? { ...m, max: Number(e.target.value) } : null)}
                   className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-200" />
@@ -223,7 +225,7 @@ export default function AutomationPage() {
             <div className="flex justify-end gap-2">
               <button onClick={() => setConfigModal(null)}
                 className="text-xs px-3 py-2 rounded-lg border border-zinc-800 text-zinc-400 hover:text-zinc-200">
-                Cancelar
+                {t('modal.cancel')}
               </button>
               <button
                 onClick={() => {
@@ -240,7 +242,7 @@ export default function AutomationPage() {
                 disabled={configModal.min <= 0 || configModal.max <= configModal.min || busy.has(configModal.row.ml_item_id)}
                 className="glow-rainbow text-xs font-semibold px-3 py-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
                 style={{ background: '#00E5FF', color: '#0d0d10' }}>
-                {configModal.activating ? 'Ativar' : 'Salvar'}
+                {configModal.activating ? t('modal.activate') : t('modal.save')}
               </button>
             </div>
           </div>
@@ -271,11 +273,12 @@ function AutomationCard({ row, busy, onActivate, onPause, onUnpause, onConfigure
   onConfigure: () => void
   onDisable: () => void
 }) {
+  const t = useTranslations('listings.pricingAutomation')
   const statusInfo =
-    row.is_automated && row.automation_status === 'ACTIVE' ? { label: 'Ativa', color: '#22c55e', bg: 'rgba(34,197,94,0.1)', icon: Activity } :
-    row.is_automated && row.automation_status === 'PAUSED' ? { label: 'Pausada', color: '#f59e0b', bg: 'rgba(245,158,11,0.1)', icon: Pause } :
-    row.available_rules.length > 0                          ? { label: 'Elegível', color: '#3b82f6', bg: 'rgba(59,130,246,0.1)', icon: CheckCircle2 } :
-    { label: 'Sem regras', color: '#71717a', bg: 'rgba(113,113,122,0.1)', icon: AlertCircle }
+    row.is_automated && row.automation_status === 'ACTIVE' ? { key: 'active', color: '#22c55e', bg: 'rgba(34,197,94,0.1)', icon: Activity } :
+    row.is_automated && row.automation_status === 'PAUSED' ? { key: 'paused', color: '#f59e0b', bg: 'rgba(245,158,11,0.1)', icon: Pause } :
+    row.available_rules.length > 0                          ? { key: 'eligible', color: '#3b82f6', bg: 'rgba(59,130,246,0.1)', icon: CheckCircle2 } :
+    { key: 'noRules', color: '#71717a', bg: 'rgba(113,113,122,0.1)', icon: AlertCircle }
   const StatusIcon = statusInfo.icon
 
   return (
@@ -284,7 +287,7 @@ function AutomationCard({ row, busy, onActivate, onPause, onUnpause, onConfigure
         <div className="shrink-0">
           <div className="flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest"
             style={{ background: statusInfo.bg, color: statusInfo.color, border: `1px solid ${statusInfo.color}40` }}>
-            <StatusIcon size={11} /> {statusInfo.label}
+            <StatusIcon size={11} /> {t(`cardStatus.${statusInfo.key}`)}
           </div>
         </div>
 
@@ -301,25 +304,25 @@ function AutomationCard({ row, busy, onActivate, onPause, onUnpause, onConfigure
             {row.blocks_manual_edit && (
               <span className="text-[9px] flex items-center gap-1 px-1.5 py-0.5 rounded"
                 style={{ background: 'rgba(245,158,11,0.1)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.3)' }}>
-                <Lock size={9} /> Bloqueia edição manual
+                <Lock size={9} /> {t('blocksManualEdit')}
               </span>
             )}
           </div>
 
           {row.is_automated && (
             <div className="flex items-center gap-3 mt-1 text-xs text-zinc-400">
-              <span>Regra: <span className="font-mono text-cyan-400">{row.active_rule}</span></span>
+              <span>{t('rule')}: <span className="font-mono text-cyan-400">{row.active_rule}</span></span>
               {row.min_price != null && row.max_price != null && (
-                <span>Limites: {brl(row.min_price)} – {brl(row.max_price)}</span>
+                <span>{t('limits')}: {brl(row.min_price)} – {brl(row.max_price)}</span>
               )}
               {row.pause_cause && (
-                <span className="text-amber-400">Pausa: {row.pause_cause}</span>
+                <span className="text-amber-400">{t('pause')}: {row.pause_cause}</span>
               )}
             </div>
           )}
           {!row.is_automated && row.available_rules.length > 0 && (
             <p className="text-xs text-zinc-500 mt-1">
-              Regras disponíveis: {row.available_rules.map(r => r.rule_id).join(' · ')}
+              {t('availableRules', { rules: row.available_rules.map(r => r.rule_id).join(' · ') })}
             </p>
           )}
           {row.recommendation_reason && row.internal_recommendation !== 'no_action' && (
@@ -332,31 +335,31 @@ function AutomationCard({ row, busy, onActivate, onPause, onUnpause, onConfigure
             <button onClick={onActivate} disabled={busy}
               className="text-[10px] px-2.5 py-1.5 rounded font-semibold flex items-center gap-1 disabled:opacity-50"
               style={{ background: '#22c55e', color: '#0d0d10' }}>
-              <Play size={10} /> Ativar
+              <Play size={10} /> {t('btn.activate')}
             </button>
           )}
           {row.is_automated && row.automation_status === 'ACTIVE' && (
             <>
               <button onClick={onConfigure} disabled={busy}
                 className="text-[10px] px-2 py-1 rounded text-cyan-400 hover:bg-zinc-800 flex items-center gap-1">
-                <Settings size={10} /> Limites
+                <Settings size={10} /> {t('btn.limits')}
               </button>
               <button onClick={onPause} disabled={busy}
                 className="text-[10px] px-2 py-1 rounded text-amber-400 hover:bg-zinc-800 flex items-center gap-1">
-                <Pause size={10} /> Pausar
+                <Pause size={10} /> {t('btn.pause')}
               </button>
             </>
           )}
           {row.is_automated && row.automation_status === 'PAUSED' && (
             <button onClick={onUnpause} disabled={busy}
               className="text-[10px] px-2 py-1 rounded text-emerald-400 hover:bg-zinc-800 flex items-center gap-1">
-              <Play size={10} /> Retomar
+              <Play size={10} /> {t('btn.resume')}
             </button>
           )}
           {row.is_automated && (
             <button onClick={onDisable} disabled={busy}
               className="text-[10px] px-2 py-1 rounded text-rose-400 hover:bg-zinc-800 flex items-center gap-1">
-              <X size={10} /> Desativar
+              <X size={10} /> {t('btn.disable')}
             </button>
           )}
         </div>

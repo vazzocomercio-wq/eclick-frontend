@@ -8,6 +8,7 @@
  * só lida com lista filtrada vazia.
  */
 
+import { useTranslations } from 'next-intl'
 import { Loader2 } from 'lucide-react'
 import type { CreativeReference } from '@/components/creative/types'
 import ReferenceCard from './ReferenceCard'
@@ -25,6 +26,7 @@ export default function ReferencesGrid({
   onToggleActive: (ref: CreativeReference) => void
   onDelete:       (ref: CreativeReference) => void
 }) {
+  const t = useTranslations('creative.references')
   if (loading && references.length === 0) {
     return (
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
@@ -38,7 +40,7 @@ export default function ReferencesGrid({
   if (references.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-zinc-800 bg-zinc-900/30 p-8 text-center">
-        <p className="text-sm text-zinc-400">Nenhuma referência com esses filtros</p>
+        <p className="text-sm text-zinc-400">{t('gridLoadingEmpty')}</p>
       </div>
     )
   }
@@ -47,7 +49,7 @@ export default function ReferencesGrid({
     <div className="relative">
       {loading && (
         <div className="absolute top-0 right-0 z-10 flex items-center gap-1 text-[10px] text-cyan-300 px-2 py-1 rounded bg-zinc-900/80 backdrop-blur-sm">
-          <Loader2 size={10} className="animate-spin" /> atualizando…
+          <Loader2 size={10} className="animate-spin" /> {t('updating')}
         </div>
       )}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import { Users, Search, Loader2, X, Phone, Mail, Tag, MessageSquare, Save, ExternalLink, Filter, Sparkles, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react'
 
@@ -55,6 +56,7 @@ function ago(iso: string): string {
 }
 
 export default function ClientesPage() {
+  const t = useTranslations('atendenteIa')
   const supabase = useMemo(() => createClient(), [])
   const [customers, setCustomers] = useState<Customer[]>([])
   const [loading, setLoading] = useState(true)
@@ -87,9 +89,9 @@ export default function ClientesPage() {
   return (
     <div className="min-h-screen p-6 space-y-5" style={{ background: 'var(--background)' }}>
       <div>
-        <p className="text-zinc-500 text-xs font-medium tracking-widest uppercase mb-1">Atendente IA</p>
-        <h1 className="text-white text-2xl font-semibold flex items-center gap-2"><Users size={22} style={{ color: '#00E5FF' }} /> Clientes</h1>
-        <p className="text-zinc-500 text-sm mt-1">Perfis unificados cross-canal — WhatsApp, ML, Widget, etc.</p>
+        <p className="text-zinc-500 text-xs font-medium tracking-widest uppercase mb-1">{t('clientes.eyebrow')}</p>
+        <h1 className="text-white text-2xl font-semibold flex items-center gap-2"><Users size={22} style={{ color: '#00E5FF' }} /> {t('clientes.pageTitle')}</h1>
+        <p className="text-zinc-500 text-sm mt-1">{t('clientes.pageSubtitle')}</p>
       </div>
 
       {/* Search + filter */}
@@ -99,7 +101,7 @@ export default function ClientesPage() {
           <input value={search}
             onChange={e => setSearch(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && load()}
-            placeholder="Nome, telefone ou email…"
+            placeholder={t('clientes.searchPlaceholder')}
             className="w-full pl-9 pr-3 py-2 rounded-xl text-sm text-white placeholder-zinc-600"
             style={{ background: '#111114', border: '1px solid #1e1e24' }} />
         </div>
@@ -108,7 +110,7 @@ export default function ClientesPage() {
           <button onClick={() => setChannelFilter('')}
             className="px-2 py-0.5 rounded text-[11px] font-medium"
             style={{ background: !channelFilter ? '#1e1e24' : 'transparent', color: !channelFilter ? '#fff' : '#71717a' }}>
-            Todos
+            {t('clientes.all')}
           </button>
           {Object.entries(CHANNEL_LABEL).slice(0, 4).map(([id, cfg]) => (
             <button key={id} onClick={() => setChannelFilter(id)}
@@ -118,7 +120,7 @@ export default function ClientesPage() {
             </button>
           ))}
         </div>
-        <span className="text-[11px] text-zinc-600 ml-auto">{customers.length} cliente{customers.length !== 1 ? 's' : ''}</span>
+        <span className="text-[11px] text-zinc-600 ml-auto">{t('clientes.customerCount', { count: customers.length })}</span>
       </div>
 
       {/* Table */}
@@ -127,12 +129,12 @@ export default function ClientesPage() {
           <table className="w-full text-[12px]">
             <thead>
               <tr style={{ borderBottom: '1px solid #1a1a1f', background: '#0c0c10' }}>
-                <th className="text-left px-4 py-3 text-zinc-500 font-medium">Nome</th>
-                <th className="text-left px-4 py-3 text-zinc-500 font-medium">Telefone</th>
-                <th className="text-left px-4 py-3 text-zinc-500 font-medium">Canais</th>
-                <th className="text-right px-4 py-3 text-zinc-500 font-medium">Conversas</th>
-                <th className="text-left px-4 py-3 text-zinc-500 font-medium">Tags</th>
-                <th className="text-right px-4 py-3 text-zinc-500 font-medium">Último contato</th>
+                <th className="text-left px-4 py-3 text-zinc-500 font-medium">{t('clientes.table.name')}</th>
+                <th className="text-left px-4 py-3 text-zinc-500 font-medium">{t('clientes.table.phone')}</th>
+                <th className="text-left px-4 py-3 text-zinc-500 font-medium">{t('clientes.table.channels')}</th>
+                <th className="text-right px-4 py-3 text-zinc-500 font-medium">{t('clientes.table.conversations')}</th>
+                <th className="text-left px-4 py-3 text-zinc-500 font-medium">{t('clientes.table.tags')}</th>
+                <th className="text-right px-4 py-3 text-zinc-500 font-medium">{t('clientes.table.lastContact')}</th>
               </tr>
             </thead>
             <tbody>
@@ -150,9 +152,9 @@ export default function ClientesPage() {
                 <tr>
                   <td colSpan={6} className="px-4 py-16 text-center">
                     <Users size={32} className="mx-auto mb-2" style={{ color: '#27272a' }} />
-                    <p className="text-zinc-600 text-sm">Nenhum cliente encontrado</p>
+                    <p className="text-zinc-600 text-sm">{t('clientes.emptyTitle')}</p>
                     <p className="text-zinc-700 text-[11px] mt-1">
-                      Os clientes aparecem aqui quando recebem mensagens via WhatsApp, ML ou Widget.
+                      {t('clientes.emptyHint')}
                     </p>
                   </td>
                 </tr>
@@ -167,7 +169,7 @@ export default function ClientesPage() {
                       onClick={() => setSelected(c.id)}
                       className="cursor-pointer hover:bg-white/[0.02] transition-colors"
                       style={{ borderBottom: '1px solid #0f0f12' }}>
-                      <td className="px-4 py-3 text-zinc-200 font-medium">{c.display_name ?? '(sem nome)'}</td>
+                      <td className="px-4 py-3 text-zinc-200 font-medium">{c.display_name ?? t('clientes.noName')}</td>
                       <td className="px-4 py-3 text-zinc-400 font-mono text-[11px]">{formatPhone(c.phone)}</td>
                       <td className="px-4 py-3">
                         <div className="flex gap-1">
@@ -191,7 +193,7 @@ export default function ClientesPage() {
                           {c.tags.length > 2 && <span className="text-[10px] text-zinc-600">+{c.tags.length - 2}</span>}
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-right text-zinc-500 text-[11px]">há {ago(c.last_contact_at)}</td>
+                      <td className="px-4 py-3 text-right text-zinc-500 text-[11px]">{t('clientes.ago', { value: ago(c.last_contact_at) })}</td>
                     </tr>
                   )
                 })
@@ -216,6 +218,7 @@ function CustomerProfileModal({ customerId, onClose, onSaved, getHeaders }: {
   onSaved: () => void
   getHeaders: () => Promise<Record<string, string>>
 }) {
+  const t = useTranslations('atendenteIa')
   const [profile, setProfile] = useState<CustomerFull | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving]   = useState(false)
@@ -262,7 +265,7 @@ function CustomerProfileModal({ customerId, onClose, onSaved, getHeaders }: {
       <div className="w-full max-w-2xl rounded-2xl overflow-hidden shadow-2xl flex flex-col"
         style={{ background: '#111114', border: '1px solid #1e1e24', maxHeight: '85vh' }}>
         <div className="flex items-center justify-between px-5 py-4 shrink-0" style={{ borderBottom: '1px solid #1e1e24' }}>
-          <p className="text-sm font-semibold text-white">Perfil do Cliente</p>
+          <p className="text-sm font-semibold text-white">{t('clientes.profile.title')}</p>
           <button onClick={onClose} className="text-zinc-500 hover:text-white"><X size={16} /></button>
         </div>
 
@@ -277,7 +280,7 @@ function CustomerProfileModal({ customerId, onClose, onSaved, getHeaders }: {
                 {(profile.display_name ?? '?').charAt(0).toUpperCase()}
               </div>
               <div className="flex-1 min-w-0">
-                <input value={editName} onChange={e => setEditName(e.target.value)} placeholder="Nome do cliente"
+                <input value={editName} onChange={e => setEditName(e.target.value)} placeholder={t('clientes.profile.namePlaceholder')}
                   className="w-full bg-transparent text-lg font-bold text-white outline-none border-b border-transparent focus:border-cyan-400" />
                 <p className="text-xs text-zinc-500 font-mono">{profile.id.slice(0, 8)}…</p>
               </div>
@@ -285,9 +288,9 @@ function CustomerProfileModal({ customerId, onClose, onSaved, getHeaders }: {
 
             {/* Contact */}
             <div className="grid grid-cols-2 gap-3">
-              <ContactRow icon={<Phone size={12} />} label="Telefone" value={formatPhone(profile.phone)}
-                action={profile.phone ? { href: `tel:+${profile.phone.replace(/\D/g, '')}`, label: 'Ligar' } : undefined} />
-              <ContactRow icon={<Mail size={12} />} label="Email" value={profile.email ?? '—'} />
+              <ContactRow icon={<Phone size={12} />} label={t('clientes.profile.phone')} value={formatPhone(profile.phone)}
+                action={profile.phone ? { href: `tel:+${profile.phone.replace(/\D/g, '')}`, label: t('clientes.profile.call') } : undefined} />
+              <ContactRow icon={<Mail size={12} />} label={t('clientes.profile.email')} value={profile.email ?? '—'} />
             </div>
 
             {/* Enrichment status + action */}
@@ -295,26 +298,26 @@ function CustomerProfileModal({ customerId, onClose, onSaved, getHeaders }: {
 
             {/* Channel IDs */}
             <div className="rounded-xl p-3 space-y-1.5" style={{ background: '#0d0d10', border: '1px solid #1e1e24' }}>
-              <p className="text-[10px] uppercase tracking-widest text-zinc-500">Vínculos por canal</p>
+              <p className="text-[10px] uppercase tracking-widest text-zinc-500">{t('clientes.profile.channelLinks')}</p>
               {profile.whatsapp_id     && <ChannelLine label="WhatsApp"     value={profile.whatsapp_id}     color="#25D366" />}
               {profile.ml_buyer_id     && <ChannelLine label="Mercado Livre" value={profile.ml_buyer_id}    color="#FFE600" />}
               {profile.shopee_buyer_id && <ChannelLine label="Shopee"        value={profile.shopee_buyer_id} color="#EE4D2D" />}
               {!profile.whatsapp_id && !profile.ml_buyer_id && !profile.shopee_buyer_id && (
-                <p className="text-[11px] text-zinc-600">Nenhum vínculo registrado.</p>
+                <p className="text-[11px] text-zinc-600">{t('clientes.profile.noLinks')}</p>
               )}
             </div>
 
             {/* Stats */}
             <div className="grid grid-cols-3 gap-3">
-              <Stat label="Conversas"  value={String(profile.total_conversations)} />
-              <Stat label="Compras"    value={`R$ ${Number(profile.total_purchases ?? 0).toFixed(2)}`} />
-              <Stat label="Primeira"   value={ago(profile.first_contact_at)} sub="atrás" />
+              <Stat label={t('clientes.profile.statConversations')}  value={String(profile.total_conversations)} />
+              <Stat label={t('clientes.profile.statPurchases')}    value={`R$ ${Number(profile.total_purchases ?? 0).toFixed(2)}`} />
+              <Stat label={t('clientes.profile.statFirst')}   value={ago(profile.first_contact_at)} sub={t('clientes.profile.statFirstSub')} />
             </div>
 
             {/* Timeline */}
             <div>
               <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-2 inline-flex items-center gap-1.5">
-                <MessageSquare size={10} /> Histórico ({profile.history?.length ?? 0})
+                <MessageSquare size={10} /> {t('clientes.profile.history', { count: profile.history?.length ?? 0 })}
               </p>
               <div className="space-y-1.5">
                 {(profile.history ?? []).slice(0, 10).map(h => {
@@ -327,13 +330,13 @@ function CustomerProfileModal({ customerId, onClose, onSaved, getHeaders }: {
                         {cfg?.label ?? h.channel}
                       </span>
                       <span className="flex-1 text-[11px] text-zinc-400 truncate">{h.listing_title ?? h.status}</span>
-                      <span className="text-[10px] text-zinc-600 shrink-0">{h.total_messages} msgs</span>
+                      <span className="text-[10px] text-zinc-600 shrink-0">{t('clientes.profile.msgsCount', { count: h.total_messages })}</span>
                       <span className="text-[10px] text-zinc-600 shrink-0">{new Date(h.updated_at).toLocaleDateString('pt-BR')}</span>
                     </div>
                   )
                 })}
                 {(profile.history?.length ?? 0) === 0 && (
-                  <p className="text-[11px] text-zinc-600">Sem conversas anteriores.</p>
+                  <p className="text-[11px] text-zinc-600">{t('clientes.profile.noPreviousConversations')}</p>
                 )}
               </div>
             </div>
@@ -341,15 +344,15 @@ function CustomerProfileModal({ customerId, onClose, onSaved, getHeaders }: {
             {/* Tags + notes */}
             <div>
               <label className="block text-[10px] uppercase tracking-widest text-zinc-500 mb-1.5 inline-flex items-center gap-1.5">
-                <Tag size={10} /> Tags (separadas por vírgula)
+                <Tag size={10} /> {t('clientes.profile.tagsLabel')}
               </label>
-              <input value={editTags} onChange={e => setEditTags(e.target.value)} placeholder="vip, lead-quente, sp"
+              <input value={editTags} onChange={e => setEditTags(e.target.value)} placeholder={t('clientes.profile.tagsPlaceholder')}
                 className="w-full bg-[#0d0d10] border border-[#27272a] text-white text-sm rounded-lg px-3 py-2 outline-none focus:border-[#00E5FF]" />
             </div>
             <div>
-              <label className="block text-[10px] uppercase tracking-widest text-zinc-500 mb-1.5">Notas</label>
+              <label className="block text-[10px] uppercase tracking-widest text-zinc-500 mb-1.5">{t('clientes.profile.notesLabel')}</label>
               <textarea value={editNotes} onChange={e => setEditNotes(e.target.value)} rows={3}
-                placeholder="Anotações internas sobre este cliente"
+                placeholder={t('clientes.profile.notesPlaceholder')}
                 className="w-full bg-[#0d0d10] border border-[#27272a] text-white text-sm rounded-lg px-3 py-2 outline-none focus:border-[#00E5FF] resize-none" />
             </div>
           </div>
@@ -360,17 +363,17 @@ function CustomerProfileModal({ customerId, onClose, onSaved, getHeaders }: {
             <a href={`https://wa.me/${profile.phone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer"
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors"
               style={{ background: 'rgba(37,211,102,0.1)', color: '#25D366', border: '1px solid rgba(37,211,102,0.25)' }}>
-              <ExternalLink size={11} /> Iniciar WhatsApp
+              <ExternalLink size={11} /> {t('clientes.profile.startWhatsapp')}
             </a>
           )}
           <div className="ml-auto flex gap-2">
             <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm text-zinc-400 hover:text-white"
-              style={{ background: '#1e1e24', border: '1px solid #27272a' }}>Cancelar</button>
+              style={{ background: '#1e1e24', border: '1px solid #27272a' }}>{t('clientes.cancel')}</button>
             <button onClick={save} disabled={saving || !profile}
               className="glow-rainbow inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold disabled:opacity-50"
               style={{ background: '#00E5FF', color: '#000' }}>
               {saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
-              Salvar
+              {t('clientes.save')}
             </button>
           </div>
         </div>
@@ -421,6 +424,7 @@ function EnrichmentBlock({ customerId, phone, getHeaders }: {
   phone: string | null
   getHeaders: () => Promise<Record<string, string>>
 }) {
+  const t = useTranslations('atendenteIa')
   const [history, setHistory] = useState<EnrichLogRow[]>([])
   const [open, setOpen] = useState(false)
   const [running, setRunning] = useState(false)
@@ -447,12 +451,12 @@ function EnrichmentBlock({ customerId, phone, getHeaders }: {
   if (lastSuccess) {
     const partial = lastSuccess.final_status === 'partial'
     status = partial
-      ? { label: 'Parcial',    color: '#facc15', icon: <AlertTriangle size={11} /> }
-      : { label: 'Validado',   color: '#4ade80', icon: <CheckCircle2 size={11} /> }
+      ? { label: t('clientes.enrichment.statusPartial'),    color: '#facc15', icon: <AlertTriangle size={11} /> }
+      : { label: t('clientes.enrichment.statusValidated'),   color: '#4ade80', icon: <CheckCircle2 size={11} /> }
   } else if (lastFailed) {
-    status = { label: 'Falhou', color: '#f87171', icon: <XCircle size={11} /> }
+    status = { label: t('clientes.enrichment.statusFailed'), color: '#f87171', icon: <XCircle size={11} /> }
   } else {
-    status = { label: 'Pendente', color: '#a1a1aa', icon: <AlertTriangle size={11} /> }
+    status = { label: t('clientes.enrichment.statusPending'), color: '#a1a1aa', icon: <AlertTriangle size={11} /> }
   }
   const lastWhen = lastSuccess?.created_at ?? lastFailed?.created_at ?? null
   const lastAgo = lastWhen ? ago(lastWhen) : null
@@ -488,16 +492,16 @@ function EnrichmentBlock({ customerId, phone, getHeaders }: {
       <div className="rounded-xl p-3 flex items-center gap-3" style={{ background: '#0d0d10', border: '1px solid #1e1e24' }}>
         <Sparkles size={14} className="text-cyan-400 shrink-0" />
         <div className="flex-1">
-          <p className="text-[11px] text-zinc-300 font-medium">Enriquecimento</p>
+          <p className="text-[11px] text-zinc-300 font-medium">{t('clientes.enrichment.title')}</p>
           <p className="text-[10px] text-zinc-500">
             <span className="inline-flex items-center gap-1" style={{ color: status.color }}>{status.icon} {status.label}</span>
-            {lastAgo && <span className="ml-2 text-zinc-600">há {lastAgo}</span>}
+            {lastAgo && <span className="ml-2 text-zinc-600">{t('clientes.ago', { value: lastAgo })}</span>}
           </p>
         </div>
         <button onClick={() => setOpen(true)}
           className="text-[10px] font-semibold px-2 py-1 rounded-lg"
           style={{ background: '#00E5FF', color: '#000' }}>
-          Enriquecer dados
+          {t('clientes.enrichment.enrichButton')}
         </button>
       </div>
 
@@ -505,8 +509,8 @@ function EnrichmentBlock({ customerId, phone, getHeaders }: {
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={() => setOpen(false)}>
           <div onClick={e => e.stopPropagation()} className="w-full max-w-sm rounded-2xl p-5 space-y-3"
             style={{ background: '#111114', border: '1px solid #1e1e24' }}>
-            <h3 className="text-white text-sm font-semibold">Enriquecer este cliente</h3>
-            <p className="text-zinc-500 text-[11px]">Marque os dados que deseja consultar:</p>
+            <h3 className="text-white text-sm font-semibold">{t('clientes.enrichment.modalTitle')}</h3>
+            <p className="text-zinc-500 text-[11px]">{t('clientes.enrichment.modalSubtitle')}</p>
             <div className="space-y-1.5">
               {(['cpf','cnpj','phone','whatsapp','email'] as const).map(t => (
                 <label key={t} className="flex items-center gap-2 cursor-pointer">
@@ -518,11 +522,11 @@ function EnrichmentBlock({ customerId, phone, getHeaders }: {
             </div>
             <div className="flex gap-2 pt-1">
               <button onClick={() => setOpen(false)} className="flex-1 py-2 rounded-lg text-xs text-zinc-400 hover:text-white"
-                style={{ background: '#1a1a1f', border: '1px solid #27272a' }}>Cancelar</button>
+                style={{ background: '#1a1a1f', border: '1px solid #27272a' }}>{t('clientes.cancel')}</button>
               <button onClick={runEnrich} disabled={running}
                 className="flex-1 py-2 rounded-lg text-xs font-semibold disabled:opacity-60"
                 style={{ background: '#00E5FF', color: '#000' }}>
-                {running ? 'Consultando…' : 'Consultar'}
+                {running ? t('clientes.enrichment.querying') : t('clientes.enrichment.query')}
               </button>
             </div>
           </div>

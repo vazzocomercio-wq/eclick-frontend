@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import AccountSelector, { getStoredSellerId } from '@/components/ml/AccountSelector'
@@ -37,21 +38,22 @@ interface Suggestion {
   fetched_at: string
 }
 
-const STATUS_META: Record<BuyBoxStatus, { label: string; color: string; bg: string; icon: typeof Award }> = {
-  winning:              { label: 'Ganhando',          color: '#22c55e', bg: 'rgba(34,197,94,0.1)',   icon: Award },
-  losing:               { label: 'Perdendo',          color: '#ef4444', bg: 'rgba(239,68,68,0.1)',   icon: TrendingDown },
-  sharing_first_place:  { label: 'Compartilhando',   color: '#f59e0b', bg: 'rgba(245,158,11,0.1)',  icon: TrendingUp },
+const STATUS_META: Record<BuyBoxStatus, { color: string; bg: string; icon: typeof Award }> = {
+  winning:              { color: '#22c55e', bg: 'rgba(34,197,94,0.1)',   icon: Award },
+  losing:               { color: '#ef4444', bg: 'rgba(239,68,68,0.1)',   icon: TrendingDown },
+  sharing_first_place:  { color: '#f59e0b', bg: 'rgba(245,158,11,0.1)',  icon: TrendingUp },
 }
 
-const VISIT_META: Record<string, { label: string; color: string }> = {
-  maximum: { label: 'Máximo',  color: '#22c55e' },
-  medium:  { label: 'Médio',   color: '#f59e0b' },
-  low:     { label: 'Baixo',   color: '#ef4444' },
+const VISIT_COLORS: Record<string, string> = {
+  maximum: '#22c55e',
+  medium:  '#f59e0b',
+  low:     '#ef4444',
 }
 
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
 export default function PricingPage() {
+  const t = useTranslations('listings.pricing')
   const supabase = useMemo(() => createClient(), [])
   const toast = useToast()
 
@@ -68,9 +70,9 @@ export default function PricingPage() {
 
   const getHeaders = useCallback(async (): Promise<Record<string, string>> => {
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session?.access_token) throw new Error('Não autenticado')
+    if (!session?.access_token) throw new Error(t('errors.notAuthenticated'))
     return { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' }
-  }, [supabase])
+  }, [supabase, t])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -91,18 +93,18 @@ export default function PricingPage() {
       setSuggestions(body.suggestions ?? [])
       setTotal(body.total ?? 0)
     } catch (e) {
-      toast({ message: e instanceof Error ? e.message : 'Erro ao carregar', tone: 'error' })
+      toast({ message: e instanceof Error ? e.message : t('errors.loadFailed'), tone: 'error' })
     } finally {
       setLoading(false)
     }
-  }, [getHeaders, filterStatus, minDiffPct, toast])
+  }, [getHeaders, filterStatus, minDiffPct, toast, t])
 
   useEffect(() => { load() }, [load])
 
   const runScan = async () => {
     const sellerId = getStoredSellerId()
     if (sellerId == null) {
-      toast({ message: 'Selecione uma conta ML primeiro', tone: 'error' })
+      toast({ message: t('errors.selectAccount'), tone: 'error' })
       return
     }
     setScanning(true)
@@ -113,10 +115,10 @@ export default function PricingPage() {
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const result = await res.json()
-      toast({ message: `Scan pricing · ${result.items_scanned} anúncios analisados, +${result.tasks_created} tarefas`, tone: 'success' })
+      toast({ message: t('scanDone', { items: result.items_scanned, tasks: result.tasks_created }), tone: 'success' })
       await load()
     } catch (e) {
-      toast({ message: e instanceof Error ? e.message : 'Erro', tone: 'error' })
+      toast({ message: e instanceof Error ? e.message : t('errors.generic'), tone: 'error' })
     } finally {
       setScanning(false)
     }
@@ -124,8 +126,8 @@ export default function PricingPage() {
 
   const bulkApply = async (mode: 'safe' | 'best_effort' | 'dry_run' = 'safe') => {
     const sellerId = getStoredSellerId()
-    if (sellerId == null) { toast({ message: 'Selecione uma conta ML', tone: 'error' }); return }
-    if (selected.size === 0) { toast({ message: 'Selecione pelo menos 1 anúncio', tone: 'warn' }); return }
+    if (sellerId == null) { toast({ message: t('errors.selectAccount'), tone: 'error' }); return }
+    if (selected.size === 0) { toast({ message: t('errors.selectAtLeastOne'), tone: 'warn' }); return }
     setBulkApplying(true)
     try {
       const headers = await getHeaders()
@@ -141,15 +143,15 @@ export default function PricingPage() {
       if (!res.ok) throw new Error(body?.message ?? `HTTP ${res.status}`)
       toast({
         message: mode === 'dry_run'
-          ? `Dry-run de ${selected.size} anúncios iniciado · ver progresso em /bulk`
-          : `Aplicação em lote de ${selected.size} anúncios iniciada · ver progresso em /bulk`,
+          ? t('bulkDryRunStarted', { count: selected.size })
+          : t('bulkApplyStarted', { count: selected.size }),
         tone: 'success',
       })
       setSelected(new Set())
       // Refresh em 5s pra capturar os primeiros aplicados
       setTimeout(() => { void load() }, 5000)
     } catch (e) {
-      toast({ message: e instanceof Error ? e.message : 'Erro', tone: 'error' })
+      toast({ message: e instanceof Error ? e.message : t('errors.generic'), tone: 'error' })
     } finally {
       setBulkApplying(false)
     }
@@ -174,7 +176,7 @@ export default function PricingPage() {
   const applyPrice = async (s: Suggestion, mode: 'safe' | 'force' = 'safe') => {
     const sellerId = getStoredSellerId()
     if (sellerId == null) {
-      toast({ message: 'Selecione uma conta', tone: 'error' })
+      toast({ message: t('errors.selectAccountShort'), tone: 'error' })
       return
     }
     setApplying(prev => new Set(prev).add(s.ml_item_id))
@@ -189,18 +191,18 @@ export default function PricingPage() {
       if (body.skipped_reason) {
         toast({
           message: body.skipped_reason === 'price_below_cost'
-            ? 'Preço abaixo do custo · use mode=force pra forçar'
+            ? t('skipped.belowCost')
             : body.skipped_reason === 'below_min_margin'
-              ? 'Margem ficaria abaixo do mínimo · use mode=force'
-              : `Aplicação pulada: ${body.skipped_reason}`,
+              ? t('skipped.belowMinMargin')
+              : t('skipped.generic', { reason: body.skipped_reason }),
           tone: 'warn',
         })
       } else {
-        toast({ message: `Preço aplicado: ${brl(body.new_price)}`, tone: 'success' })
+        toast({ message: t('priceApplied', { price: brl(body.new_price) }), tone: 'success' })
         await load()
       }
     } catch (e) {
-      toast({ message: e instanceof Error ? e.message : 'Erro', tone: 'error' })
+      toast({ message: e instanceof Error ? e.message : t('errors.generic'), tone: 'error' })
     } finally {
       setApplying(prev => { const n = new Set(prev); n.delete(s.ml_item_id); return n })
     }
@@ -214,16 +216,16 @@ export default function PricingPage() {
       <div>
         <Link href="/dashboard/listings"
           className="text-zinc-500 hover:text-cyan-400 text-xs flex items-center gap-1 mb-2 transition-colors">
-          <ChevronLeft size={12} /> Voltar para Listing Center
+          <ChevronLeft size={12} /> {t('backToCenter')}
         </Link>
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <p className="text-zinc-500 text-xs font-medium tracking-widest uppercase mb-1">Listing Center · Pricing IA</p>
-            <h1 className="text-white text-3xl font-semibold">Inteligência de preço</h1>
+            <p className="text-zinc-500 text-xs font-medium tracking-widest uppercase mb-1">{t('eyebrow')}</p>
+            <h1 className="text-white text-3xl font-semibold">{t('title')}</h1>
             <p className="text-xs text-zinc-600 mt-1">
               {total > 0
-                ? `${total} anúncio${total !== 1 ? 's' : ''} com sugestão`
-                : 'Sem sugestões em cache. Rode o scan.'}
+                ? t('summary', { count: total })
+                : t('summaryEmpty')}
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
@@ -231,7 +233,7 @@ export default function PricingPage() {
             <button onClick={runScan} disabled={scanning}
               className="text-[11px] font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors disabled:opacity-50"
               style={{ background: '#00E5FF', color: '#0d0d10' }}>
-              <RefreshCw size={11} className={scanning ? 'animate-spin' : ''} /> Rodar scan pricing
+              <RefreshCw size={11} className={scanning ? 'animate-spin' : ''} /> {t('runScan')}
             </button>
           </div>
         </div>
@@ -241,15 +243,15 @@ export default function PricingPage() {
       <section className="rounded-xl p-3 flex items-center gap-2 flex-wrap"
         style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
         <Filter size={12} className="text-zinc-500" />
-        <span className="text-[11px] text-zinc-500 mr-1">Status Buy Box:</span>
-        <FilterChip label="Todos"          active={filterStatus === ''}                    onClick={() => setFilterStatus('')} />
-        <FilterChip label="Perdendo"        active={filterStatus === 'losing'}              onClick={() => setFilterStatus(filterStatus === 'losing' ? '' : 'losing')} color="#ef4444" />
-        <FilterChip label="Compartilhando"  active={filterStatus === 'sharing_first_place'} onClick={() => setFilterStatus(filterStatus === 'sharing_first_place' ? '' : 'sharing_first_place')} color="#f59e0b" />
-        <FilterChip label="Ganhando"        active={filterStatus === 'winning'}             onClick={() => setFilterStatus(filterStatus === 'winning' ? '' : 'winning')} color="#22c55e" />
-        <span className="ml-3 text-[11px] text-zinc-500">Diferença ≥</span>
+        <span className="text-[11px] text-zinc-500 mr-1">{t('buyBoxStatus')}:</span>
+        <FilterChip label={t('status.all')}          active={filterStatus === ''}                    onClick={() => setFilterStatus('')} />
+        <FilterChip label={t('status.losing')}        active={filterStatus === 'losing'}              onClick={() => setFilterStatus(filterStatus === 'losing' ? '' : 'losing')} color="#ef4444" />
+        <FilterChip label={t('status.sharing_first_place')}  active={filterStatus === 'sharing_first_place'} onClick={() => setFilterStatus(filterStatus === 'sharing_first_place' ? '' : 'sharing_first_place')} color="#f59e0b" />
+        <FilterChip label={t('status.winning')}        active={filterStatus === 'winning'}             onClick={() => setFilterStatus(filterStatus === 'winning' ? '' : 'winning')} color="#22c55e" />
+        <span className="ml-3 text-[11px] text-zinc-500">{t('diffAtLeast')}</span>
         <select value={minDiffPct} onChange={e => setMinDiffPct(Number(e.target.value))}
           className="bg-zinc-950 border border-zinc-800 rounded-lg px-2 py-1 text-[11px] text-zinc-200">
-          <option value={0}>Qualquer</option>
+          <option value={0}>{t('diffAny')}</option>
           <option value={5}>5%</option>
           <option value={10}>10%</option>
           <option value={20}>20%</option>
@@ -267,27 +269,27 @@ export default function PricingPage() {
               onChange={selectAll}
               className="accent-cyan-400"
             />
-            Selecionar todos os elegíveis ({suggestions.filter(s => !s.is_below_cost).length})
+            {t('selectAllEligible', { count: suggestions.filter(s => !s.is_below_cost).length })}
           </label>
           {selected.size > 0 && (
             <>
-              <span className="text-xs text-cyan-400 font-bold">{selected.size} selecionado{selected.size !== 1 ? 's' : ''}</span>
+              <span className="text-xs text-cyan-400 font-bold">{t('selectedCount', { count: selected.size })}</span>
               <div className="flex items-center gap-2 ml-auto">
                 <button onClick={() => bulkApply('dry_run')} disabled={bulkApplying}
                   className="text-[11px] px-2.5 py-1.5 rounded-lg disabled:opacity-50"
                   style={{ background: '#0d0d10', border: '1px solid #27272a', color: '#a1a1aa' }}>
-                  Simular (dry-run)
+                  {t('simulateDryRun')}
                 </button>
                 <Link href="/dashboard/listings/bulk"
                   className="text-[11px] px-2.5 py-1.5 rounded-lg flex items-center"
                   style={{ background: '#0d0d10', border: '1px solid #27272a', color: '#a1a1aa' }}>
-                  Histórico
+                  {t('history')}
                 </Link>
                 <button onClick={() => bulkApply('safe')} disabled={bulkApplying}
                   className="text-[11px] font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5 disabled:opacity-50"
                   style={{ background: '#00E5FF', color: '#0d0d10' }}>
                   {bulkApplying ? <RefreshCw size={11} className="animate-spin" /> : <Check size={11} />}
-                  Aplicar em lote (mode=safe)
+                  {t('bulkApplySafe')}
                 </button>
               </div>
             </>
@@ -296,7 +298,7 @@ export default function PricingPage() {
             <Link href="/dashboard/listings/bulk"
               className="ml-auto text-[11px] px-2.5 py-1.5 rounded-lg flex items-center"
               style={{ background: '#0d0d10', border: '1px solid #27272a', color: '#a1a1aa' }}>
-              Ver histórico de bulk
+              {t('viewBulkHistory')}
             </Link>
           )}
         </section>
@@ -305,12 +307,12 @@ export default function PricingPage() {
       {/* Lista */}
       {loading ? (
         <div className="rounded-xl p-12 text-center text-zinc-500 text-xs"
-          style={{ background: '#111114', border: '1px solid #1a1a1f' }}>Carregando…</div>
+          style={{ background: '#111114', border: '1px solid #1a1a1f' }}>{t('loading')}</div>
       ) : suggestions.length === 0 ? (
         <div className="rounded-xl p-12 text-center" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
           <Award size={32} className="text-zinc-700 mx-auto mb-2" />
-          <p className="text-zinc-400 text-sm">Sem sugestões com esses filtros</p>
-          <p className="text-zinc-600 text-xs mt-1">Tente rodar o scan ou limpar filtros</p>
+          <p className="text-zinc-400 text-sm">{t('empty.title')}</p>
+          <p className="text-zinc-600 text-xs mt-1">{t('empty.desc')}</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -349,9 +351,10 @@ function SuggestionCard({ s, applying, selected, onToggleSelect, onApply }: {
   onToggleSelect: () => void
   onApply: (s: Suggestion, mode?: 'safe' | 'force') => void
 }) {
+  const t = useTranslations('listings.pricing')
   const status = s.buy_box_status ? STATUS_META[s.buy_box_status] : null
   const StatusIcon = status?.icon ?? Award
-  const visit = s.visit_share ? VISIT_META[s.visit_share] : null
+  const visitColor = s.visit_share ? VISIT_COLORS[s.visit_share] : null
   const diffSign = s.price_difference_pct >= 0 ? '+' : ''
 
   return (
@@ -370,17 +373,17 @@ function SuggestionCard({ s, applying, selected, onToggleSelect, onApply }: {
             onChange={onToggleSelect}
             disabled={s.is_below_cost}
             className="accent-cyan-400 w-3.5 h-3.5"
-            title={s.is_below_cost ? 'Abaixo do custo — não selecionável' : 'Selecionar pra bulk apply'}
+            title={s.is_below_cost ? t('card.belowCostNotSelectable') : t('card.selectForBulk')}
           />
         </label>
 
         {/* Status pill */}
         <div className="shrink-0 mt-0.5">
-          {status && (
+          {status && s.buy_box_status && (
             <div className="flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest"
               style={{ background: status.bg, color: status.color, border: `1px solid ${status.color}40` }}>
               <StatusIcon size={11} />
-              {status.label}
+              {t(`status.${s.buy_box_status}`)}
             </div>
           )}
         </div>
@@ -398,7 +401,7 @@ function SuggestionCard({ s, applying, selected, onToggleSelect, onApply }: {
             </a>
             {s.catalog_product_id && (
               <span className="text-[9px] text-purple-400 px-1.5 py-0.5 rounded border border-purple-400/30 flex items-center gap-1">
-                <Star size={9} /> Catálogo {s.catalog_product_id}
+                <Star size={9} /> {t('card.catalog', { id: s.catalog_product_id })}
               </span>
             )}
           </div>
@@ -406,12 +409,12 @@ function SuggestionCard({ s, applying, selected, onToggleSelect, onApply }: {
           {/* Preços */}
           <div className="flex items-baseline gap-3 mt-1.5 flex-wrap">
             <div>
-              <span className="text-[10px] uppercase tracking-widest text-zinc-600">Atual</span>
+              <span className="text-[10px] uppercase tracking-widest text-zinc-600">{t('card.current')}</span>
               <p className="text-zinc-100 font-bold text-base">{brl(s.current_price)}</p>
             </div>
             <span className="text-zinc-700">→</span>
             <div>
-              <span className="text-[10px] uppercase tracking-widest text-zinc-600">Sugerido</span>
+              <span className="text-[10px] uppercase tracking-widest text-zinc-600">{t('card.suggested')}</span>
               <p className={`font-bold text-base ${s.is_below_cost ? 'text-rose-400' : 'text-emerald-400'}`}>
                 {brl(s.suggested_price)}
               </p>
@@ -423,22 +426,22 @@ function SuggestionCard({ s, applying, selected, onToggleSelect, onApply }: {
 
           {/* Métricas */}
           <div className="flex items-center gap-3 mt-2 text-[10px] flex-wrap">
-            {visit && (
-              <span className="flex items-center gap-1 px-1.5 py-0.5 rounded" style={{ color: visit.color, background: `${visit.color}10`, border: `1px solid ${visit.color}30` }}>
-                <Eye size={9} /> {visit.label}
+            {visitColor && s.visit_share && (
+              <span className="flex items-center gap-1 px-1.5 py-0.5 rounded" style={{ color: visitColor, background: `${visitColor}10`, border: `1px solid ${visitColor}30` }}>
+                <Eye size={9} /> {t(`visit.${s.visit_share}`)}
               </span>
             )}
             {s.competitors_sharing > 0 && (
-              <span className="text-amber-400">⚔ {s.competitors_sharing} competidor{s.competitors_sharing > 1 ? 'es' : ''}</span>
+              <span className="text-amber-400">⚔ {t('card.competitors', { count: s.competitors_sharing })}</span>
             )}
             {s.winner_item_id && s.winner_item_id !== s.ml_item_id && s.winner_price != null && (
               <span className="text-zinc-500">
-                Vencedor: <span className="font-mono text-zinc-400">{s.winner_item_id}</span> {brl(s.winner_price)}
+                {t('card.winner')}: <span className="font-mono text-zinc-400">{s.winner_item_id}</span> {brl(s.winner_price)}
               </span>
             )}
             {s.internal_margin_at_suggested_pct != null && (
               <span className={s.is_below_min_margin ? 'text-amber-400' : 'text-zinc-500'}>
-                Margem ao sugerido: {s.internal_margin_at_suggested_pct.toFixed(1)}%
+                {t('card.marginAtSuggested', { pct: s.internal_margin_at_suggested_pct.toFixed(1) })}
               </span>
             )}
           </div>
@@ -451,11 +454,11 @@ function SuggestionCard({ s, applying, selected, onToggleSelect, onApply }: {
           {/* Boosts */}
           {Object.values(s.boosts).some(Boolean) && (
             <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-              {s.boosts.fulfillment    && <BoostChip icon={<Package size={9} />}  label="Full" />}
-              {s.boosts.free_shipping  && <BoostChip icon={<Truck size={9} />}    label="Frete grátis" />}
-              {s.boosts.cross_docking  && <BoostChip icon={<Truck size={9} />}    label="Cross-docking" />}
-              {s.boosts.same_day_shipping && <BoostChip icon={<Truck size={9} />} label="Same-day" />}
-              {s.boosts.free_installments && <BoostChip icon={<Star size={9} />}  label="Sem juros" />}
+              {s.boosts.fulfillment    && <BoostChip icon={<Package size={9} />}  label={t('boost.full')} />}
+              {s.boosts.free_shipping  && <BoostChip icon={<Truck size={9} />}    label={t('boost.freeShipping')} />}
+              {s.boosts.cross_docking  && <BoostChip icon={<Truck size={9} />}    label={t('boost.crossDocking')} />}
+              {s.boosts.same_day_shipping && <BoostChip icon={<Truck size={9} />} label={t('boost.sameDay')} />}
+              {s.boosts.free_installments && <BoostChip icon={<Star size={9} />}  label={t('boost.freeInstallments')} />}
             </div>
           )}
         </div>
@@ -465,19 +468,19 @@ function SuggestionCard({ s, applying, selected, onToggleSelect, onApply }: {
           <button
             onClick={() => onApply(s)}
             disabled={applying || s.is_below_cost}
-            title={s.is_below_cost ? 'Sugestão abaixo do custo — usar Forçar' : 'Aplicar sugestão (mode=safe)'}
+            title={s.is_below_cost ? t('card.applyTitleBelowCost') : t('card.applyTitleSafe')}
             className="text-[10px] px-2.5 py-1.5 rounded font-semibold flex items-center gap-1 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             style={{ background: '#00E5FF', color: '#0d0d10' }}>
             {applying ? <RefreshCw size={10} className="animate-spin" /> : <Check size={10} />}
-            Aplicar
+            {t('card.apply')}
           </button>
           {s.is_below_cost && (
             <button
               onClick={() => onApply(s, 'force')}
               disabled={applying}
-              title="Aplicar mesmo abaixo do custo"
+              title={t('card.forceTitle')}
               className="text-[10px] px-2 py-1 rounded text-amber-400 hover:bg-zinc-800 transition-colors flex items-center gap-1">
-              <AlertTriangle size={9} /> Forçar
+              <AlertTriangle size={9} /> {t('card.force')}
             </button>
           )}
         </div>

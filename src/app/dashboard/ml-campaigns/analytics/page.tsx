@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { TrendingUp, Loader2, ChevronRight, Sparkles } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
@@ -47,6 +48,7 @@ function brl(v: number | null) {
 }
 
 export default function AnalyticsPage() {
+  const t = useTranslations('mlCampaigns.analytics')
   const { selected: selectedSellerId } = useMlAccount()
   const [analyses, setAnalyses] = useState<Analysis[]>([])
   const [learnings, setLearnings] = useState<Learning[]>([])
@@ -76,29 +78,29 @@ export default function AnalyticsPage() {
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
           <div className="flex items-center gap-2 text-xs text-zinc-500">
-            <Link href="/dashboard/ml-campaigns" className="hover:text-cyan-400">Campaign Center</Link>
+            <Link href="/dashboard/ml-campaigns" className="hover:text-cyan-400">{t('breadcrumb')}</Link>
             <span>/</span>
-            <span className="text-zinc-300">Analytics</span>
+            <span className="text-zinc-300">{t('breadcrumbCurrent')}</span>
           </div>
           <h1 className="text-2xl font-bold mt-1 flex items-center gap-2">
             <TrendingUp size={22} className="text-cyan-400" />
-            Pós-análise de Campanhas
+            {t('title')}
           </h1>
           <p className="text-xs text-zinc-500 mt-1">
-            ROI real, lift de vendas e aprendizados que ajustam o motor de decisão.
+            {t('subtitle')}
           </p>
         </div>
         <AccountSelector compact hideWhenEmpty />
       </div>
 
-      {loading && <div className="text-zinc-500 text-sm flex items-center gap-2"><Loader2 size={14} className="animate-spin" /> Carregando…</div>}
+      {loading && <div className="text-zinc-500 text-sm flex items-center gap-2"><Loader2 size={14} className="animate-spin" /> {t('loading')}</div>}
 
       {/* Learnings agregados */}
       {!loading && learnings.length > 0 && (
         <div className="rounded-xl p-5 space-y-3" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
           <h2 className="text-xs uppercase tracking-wider text-zinc-400 font-semibold flex items-center gap-1.5">
             <Sparkles size={12} />
-            Aprendizados agregados (ajustam score de futuras recomendações)
+            {t('learningsTitle')}
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
             {learnings.map(l => <LearningCard key={l.id} l={l} />)}
@@ -109,10 +111,9 @@ export default function AnalyticsPage() {
       {!loading && analyses.length === 0 && (
         <div className="rounded-xl p-8 text-center" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
           <TrendingUp size={48} className="mx-auto text-zinc-700 mb-3" />
-          <p className="text-zinc-300 font-medium">Nenhuma campanha analisada ainda</p>
+          <p className="text-zinc-300 font-medium">{t('empty.title')}</p>
           <p className="text-xs text-zinc-500 mt-2 max-w-md mx-auto">
-            Análises são geradas automaticamente 7 dias após o fim da campanha (cron 7h SP).
-            Você também pode disparar manualmente em qualquer campanha encerrada.
+            {t('empty.desc')}
           </p>
         </div>
       )}
@@ -120,7 +121,7 @@ export default function AnalyticsPage() {
       {analyses.length > 0 && (
         <div className="space-y-2">
           <h2 className="text-xs uppercase tracking-wider text-zinc-400 font-semibold mt-4">
-            Campanhas analisadas
+            {t('analyzedCampaigns')}
           </h2>
           {analyses.map(a => <AnalysisRow key={a.id} a={a} />)}
         </div>
@@ -130,6 +131,7 @@ export default function AnalyticsPage() {
 }
 
 function AnalysisRow({ a }: { a: Analysis }) {
+  const t = useTranslations('mlCampaigns.analytics')
   const roi = a.campaign_roi_pct
   const roiColor = roi == null ? '#71717a' : roi > 0 ? '#22c55e' : '#ef4444'
 
@@ -147,7 +149,7 @@ function AnalysisRow({ a }: { a: Analysis }) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <h3 className="font-semibold text-sm text-zinc-200">
-              {a.ml_campaigns?.name ?? `Campanha ${a.campaign_id.slice(0, 8)}`}
+              {a.ml_campaigns?.name ?? t('campaignFallback', { id: a.campaign_id.slice(0, 8) })}
             </h3>
             <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded"
               style={{ background: 'rgba(167,139,250,0.15)', color: '#c4b5fd', border: '1px solid rgba(167,139,250,0.4)' }}>
@@ -156,11 +158,11 @@ function AnalysisRow({ a }: { a: Analysis }) {
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-2 text-xs">
-            <Metric label="Itens"            value={a.participated_items_count.toString()} />
-            <Metric label="Lift unidades"    value={a.units_sold_lift_pct != null ? `${a.units_sold_lift_pct > 0 ? '+' : ''}${a.units_sold_lift_pct.toFixed(0)}%` : '—'}
+            <Metric label={t('metric.items')}            value={a.participated_items_count.toString()} />
+            <Metric label={t('metric.unitsLift')}    value={a.units_sold_lift_pct != null ? `${a.units_sold_lift_pct > 0 ? '+' : ''}${a.units_sold_lift_pct.toFixed(0)}%` : '—'}
               color={a.units_sold_lift_pct != null && a.units_sold_lift_pct > 0 ? '#22c55e' : a.units_sold_lift_pct != null && a.units_sold_lift_pct < 0 ? '#ef4444' : undefined} />
-            <Metric label="Subsídio recebido" value={brl(a.total_meli_subsidy_received)} color="#67e8f9" />
-            <Metric label="ROI R$"           value={brl(a.campaign_roi_brl)} color={roiColor} />
+            <Metric label={t('metric.subsidyReceived')} value={brl(a.total_meli_subsidy_received)} color="#67e8f9" />
+            <Metric label={t('metric.roiBrl')}           value={brl(a.campaign_roi_brl)} color={roiColor} />
           </div>
 
           {a.ai_summary && (
@@ -168,7 +170,7 @@ function AnalysisRow({ a }: { a: Analysis }) {
           )}
 
           <p className="text-[10px] text-zinc-600 mt-1.5">
-            Gerada em {new Date(a.generated_at).toLocaleDateString('pt-BR')} · seller {a.seller_id}
+            {t('generatedAt', { date: new Date(a.generated_at).toLocaleDateString('pt-BR'), seller: a.seller_id })}
           </p>
         </div>
 
@@ -179,23 +181,24 @@ function AnalysisRow({ a }: { a: Analysis }) {
 }
 
 function LearningCard({ l }: { l: Learning }) {
+  const t = useTranslations('mlCampaigns.analytics')
   const adj = l.recommended_score_adjustment
   const adjColor = adj > 0 ? '#22c55e' : adj < 0 ? '#ef4444' : '#71717a'
 
   return (
     <div className="rounded-lg p-3" style={{ background: '#09090b', border: '1px solid #1a1a1f' }}>
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <span className="text-sm font-semibold text-zinc-200">{l.ml_promotion_type ?? 'Geral'}</span>
+        <span className="text-sm font-semibold text-zinc-200">{l.ml_promotion_type ?? t('general')}</span>
         <span className="text-[10px] uppercase px-1.5 py-0.5 rounded font-bold"
           style={{ background: `${adjColor}15`, color: adjColor, border: `1px solid ${adjColor}40` }}>
-          {adj > 0 ? `+${adj}` : adj} score
+          {t('scoreAdj', { adj: adj > 0 ? `+${adj}` : adj })}
         </span>
       </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-2 text-[11px]">
-        <span className="text-zinc-500">N campanhas: <strong className="text-zinc-300">{l.campaigns_analyzed}</strong></span>
-        <span className="text-zinc-500">Lift médio: <strong className="text-zinc-300">{l.avg_units_lift_pct?.toFixed(0) ?? '—'}%</strong></span>
-        <span className="text-zinc-500">ROI médio: <strong className="text-zinc-300">{l.avg_roi_pct?.toFixed(0) ?? '—'}%</strong></span>
-        <span className="text-zinc-500">Sucesso: <strong className="text-zinc-300">{l.success_rate != null ? `${(l.success_rate * 100).toFixed(0)}%` : '—'}</strong></span>
+        <span className="text-zinc-500">{t('learning.nCampaigns')}: <strong className="text-zinc-300">{l.campaigns_analyzed}</strong></span>
+        <span className="text-zinc-500">{t('learning.avgLift')}: <strong className="text-zinc-300">{l.avg_units_lift_pct?.toFixed(0) ?? '—'}%</strong></span>
+        <span className="text-zinc-500">{t('learning.avgRoi')}: <strong className="text-zinc-300">{l.avg_roi_pct?.toFixed(0) ?? '—'}%</strong></span>
+        <span className="text-zinc-500">{t('learning.success')}: <strong className="text-zinc-300">{l.success_rate != null ? `${(l.success_rate * 100).toFixed(0)}%` : '—'}</strong></span>
       </div>
     </div>
   )

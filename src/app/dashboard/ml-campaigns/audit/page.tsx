@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import {
   History, Loader2, Check, X, ExternalLink, Filter,
@@ -39,6 +40,7 @@ function brl(v: number | undefined | null) {
 }
 
 export default function AuditPage() {
+  const t = useTranslations('mlCampaigns.audit')
   const { selected: selectedSellerId } = useMlAccount()
   const [entries, setEntries] = useState<AuditEntry[]>([])
   const [loading, setLoading] = useState(true)
@@ -75,15 +77,15 @@ export default function AuditPage() {
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
           <div className="flex items-center gap-2 text-xs text-zinc-500">
-            <Link href="/dashboard/ml-campaigns" className="hover:text-cyan-400">Campaign Center</Link>
+            <Link href="/dashboard/ml-campaigns" className="hover:text-cyan-400">{t('breadcrumb')}</Link>
             <span>/</span>
-            <span className="text-zinc-300">Auditoria</span>
+            <span className="text-zinc-300">{t('breadcrumbCurrent')}</span>
           </div>
           <h1 className="text-2xl font-bold mt-1 flex items-center gap-2">
             <History size={22} className="text-cyan-400" />
-            Auditoria de Aplicações
+            {t('title')}
           </h1>
-          <p className="text-xs text-zinc-500 mt-1">Histórico completo das operações no ML</p>
+          <p className="text-xs text-zinc-500 mt-1">{t('subtitle')}</p>
         </div>
         <AccountSelector compact hideWhenEmpty />
       </div>
@@ -91,9 +93,9 @@ export default function AuditPage() {
       {/* Filters */}
       <div className="rounded-xl p-3 flex items-center gap-2" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
         {[
-          { v: 'all',     label: `Todos (${entries.length})`,  color: '#fafafa' },
-          { v: 'success', label: `Sucesso (${successCount})`,   color: '#22c55e' },
-          { v: 'failed',  label: `Falhas (${failedCount})`,     color: '#ef4444' },
+          { v: 'all',     label: t('filterAll', { count: entries.length }),  color: '#fafafa' },
+          { v: 'success', label: t('filterSuccess', { count: successCount }),   color: '#22c55e' },
+          { v: 'failed',  label: t('filterFailed', { count: failedCount }),     color: '#ef4444' },
         ].map(f => (
           <button key={f.v} onClick={() => setFilter(f.v as any)}
             className="px-2.5 py-1 rounded-lg text-xs font-medium transition-all"
@@ -107,13 +109,13 @@ export default function AuditPage() {
         ))}
       </div>
 
-      {loading && <div className="text-zinc-500 text-sm flex items-center gap-2"><Loader2 size={14} className="animate-spin" /> Carregando…</div>}
+      {loading && <div className="text-zinc-500 text-sm flex items-center gap-2"><Loader2 size={14} className="animate-spin" /> {t('loading')}</div>}
 
       {!loading && filtered.length === 0 && (
         <div className="rounded-xl p-8 text-center" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
           <History size={48} className="mx-auto text-zinc-700 mb-3" />
-          <p className="text-zinc-300 font-medium">Nenhuma operação registrada</p>
-          <p className="text-xs text-zinc-500 mt-2">Aplique recomendações pra começar a popular o histórico.</p>
+          <p className="text-zinc-300 font-medium">{t('empty.title')}</p>
+          <p className="text-xs text-zinc-500 mt-2">{t('empty.desc')}</p>
         </div>
       )}
 
@@ -126,21 +128,15 @@ export default function AuditPage() {
   )
 }
 
+const AUDIT_ACTION_KEYS = ['join_campaign', 'leave_campaign', 'edit_offer', 'price_change', 'quantity_change', 'validate_only']
+
 function AuditRow({ entry }: { entry: AuditEntry }) {
+  const t = useTranslations('mlCampaigns.audit')
   const after = entry.values_after as { price?: number; quantity?: number }
   const before = entry.values_before as { price?: number } | null
   const success = entry.applied_successfully
   const color = success ? '#22c55e' : '#ef4444'
   const Icon = success ? Check : X
-
-  const actionLabel: Record<string, string> = {
-    join_campaign:   'Aderiu à campanha',
-    leave_campaign:  'Saiu da campanha',
-    edit_offer:      'Editou oferta',
-    price_change:    'Mudou preço',
-    quantity_change: 'Mudou qty',
-    validate_only:   'Validou (dry-run)',
-  }
 
   return (
     <div className="rounded-lg p-3"
@@ -149,7 +145,7 @@ function AuditRow({ entry }: { entry: AuditEntry }) {
         <Icon size={16} style={{ color }} className="flex-shrink-0 mt-0.5" />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm font-medium text-zinc-200">{actionLabel[entry.action] ?? entry.action}</span>
+            <span className="text-sm font-medium text-zinc-200">{AUDIT_ACTION_KEYS.includes(entry.action) ? t(`action.${entry.action}`) : entry.action}</span>
             <span className="font-mono text-xs text-zinc-300">{entry.ml_item_id}</span>
             <a href={`https://www.mercadolivre.com.br/${entry.ml_item_id}`} target="_blank" rel="noreferrer"
               className="text-cyan-400 text-[10px] hover:underline">
@@ -159,10 +155,10 @@ function AuditRow({ entry }: { entry: AuditEntry }) {
           </div>
 
           <div className="flex items-center gap-3 text-[11px] text-zinc-500 mt-1 flex-wrap">
-            {after.price && <span>Preço: <strong className="text-zinc-300">{brl(after.price)}</strong></span>}
-            {before?.price && <span className="text-zinc-600">(antes: {brl(before.price)})</span>}
-            {after.quantity && <span>· Qty: <strong className="text-zinc-300">{after.quantity}</strong></span>}
-            {entry.ml_offer_id_after && <span>· offer: <span className="font-mono">{entry.ml_offer_id_after.slice(0, 12)}…</span></span>}
+            {after.price && <span>{t('priceLabel')}: <strong className="text-zinc-300">{brl(after.price)}</strong></span>}
+            {before?.price && <span className="text-zinc-600">{t('beforeLabel', { price: brl(before.price) })}</span>}
+            {after.quantity && <span>· {t('qtyLabel')}: <strong className="text-zinc-300">{after.quantity}</strong></span>}
+            {entry.ml_offer_id_after && <span>· {t('offerLabel')}: <span className="font-mono">{entry.ml_offer_id_after.slice(0, 12)}…</span></span>}
           </div>
 
           {entry.error_message && (

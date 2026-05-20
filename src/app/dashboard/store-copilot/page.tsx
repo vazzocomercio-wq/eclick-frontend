@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import {
   Send, Loader2, Check, AlertCircle, Zap, Brain,
@@ -23,25 +24,23 @@ interface ChatTurn {
   awaiting_confirm?:     boolean
 }
 
-// Sugestões fluem em 3 rows alternadas no empty state — espelha o
-// padrão do FloatingCopilot/AdsAIChat. Mistura ícones quentes/frios pra
-// dar variedade visual e cobrir todas as áreas que o copilot atende
-// (kits, coleções, preços, ações, ranking, vendas, conteúdo, anúncios).
-const STORE_SUGGESTIONS: PromptSuggestion[] = [
-  { text: 'Crie 5 kits comerciais com IA',                label: 'Criar kits',           icon: Package,        accent: '#a78bfa' },
-  { text: 'Gere 3 coleções para o Dia das Mães',          label: 'Coleções sazonais',    icon: Layers,         accent: '#f472b6' },
-  { text: 'Analise os preços dos meus produtos',          label: 'Análise de preços',    icon: DollarSign,     accent: '#22c55e' },
-  { text: 'Quais ações estão pendentes?',                 label: 'Ações pendentes',      icon: ListChecks,     accent: '#f59e0b' },
-  { text: 'Top 10 produtos por score',                    label: 'Top produtos',         icon: Trophy,         accent: '#f59e0b' },
-  { text: 'Resumo de vendas dos últimos 7 dias',          label: 'Vendas 7 dias',        icon: BarChart3,      accent: '#00E5FF' },
-  { text: 'Quais produtos estão com estoque baixo?',      label: 'Estoque baixo',        icon: AlertTriangle,  accent: '#ef4444' },
-  { text: 'Sugira títulos otimizados pra meus anúncios',  label: 'Otimizar títulos',     icon: Sparkles,       accent: '#00E5FF' },
-  { text: 'Quem são meus clientes recorrentes?',          label: 'Clientes recorrentes', icon: ShoppingCart,   accent: '#22c55e' },
-  { text: 'Crie capas de campanha pro Dia dos Namorados', label: 'Capas de campanha',    icon: ImageIcon,      accent: '#f472b6' },
-  { text: 'Tendência de vendas do último mês',            label: 'Tendência mensal',     icon: TrendingUp,     accent: '#22c55e' },
-  { text: 'Responda perguntas pendentes no ML',           label: 'Perguntas ML',         icon: MessageSquare,  accent: '#00E5FF' },
-  { text: 'Gere descrição rica pra um produto',           label: 'Descrição IA',         icon: FileText,       accent: '#a78bfa' },
-  { text: 'Qual a melhor data pra campanha próxima?',     label: 'Calendário ideal',     icon: Calendar,       accent: '#f59e0b' },
+// Ícones quentes/frios das sugestões — espelha o padrão do
+// FloatingCopilot/AdsAIChat. Texto/label vêm das traduções.
+const SUGGESTION_ICONS: { icon: PromptSuggestion['icon']; accent: string }[] = [
+  { icon: Package,        accent: '#a78bfa' },
+  { icon: Layers,         accent: '#f472b6' },
+  { icon: DollarSign,     accent: '#22c55e' },
+  { icon: ListChecks,     accent: '#f59e0b' },
+  { icon: Trophy,         accent: '#f59e0b' },
+  { icon: BarChart3,      accent: '#00E5FF' },
+  { icon: AlertTriangle,  accent: '#ef4444' },
+  { icon: Sparkles,       accent: '#00E5FF' },
+  { icon: ShoppingCart,   accent: '#22c55e' },
+  { icon: ImageIcon,      accent: '#f472b6' },
+  { icon: TrendingUp,     accent: '#22c55e' },
+  { icon: MessageSquare,  accent: '#00E5FF' },
+  { icon: FileText,       accent: '#a78bfa' },
+  { icon: Calendar,       accent: '#f59e0b' },
 ]
 
 async function token(): Promise<string | null> {
@@ -64,10 +63,20 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export default function StoreCopilotPage() {
+  const t = useTranslations('storeCopilot')
   const [turns, setTurns] = useState<ChatTurn[]>([])
   const [input, setInput] = useState('')
   const [busy, setBusy]   = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
+
+  const STORE_SUGGESTIONS: PromptSuggestion[] = useMemo(
+    () => SUGGESTION_ICONS.map((s, i) => ({
+      ...s,
+      text:  t(`suggestions.${i}.text`),
+      label: t(`suggestions.${i}.label`),
+    })),
+    [t],
+  )
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
@@ -88,9 +97,9 @@ export default function StoreCopilotPage() {
     setBusy(true)
 
     try {
-      const history = turns.flatMap(t => [
-        { role: 'user' as const, content: t.user },
-        ...(t.assistant_message ? [{ role: 'assistant' as const, content: t.assistant_message }] : []),
+      const history = turns.flatMap(turn => [
+        { role: 'user' as const, content: turn.user },
+        ...(turn.assistant_message ? [{ role: 'assistant' as const, content: turn.assistant_message }] : []),
       ]).slice(-6)
 
       const res = await api<{
@@ -110,10 +119,10 @@ export default function StoreCopilotPage() {
         }),
       })
 
-      setTurns(prev => prev.map((t, i) =>
+      setTurns(prev => prev.map((turn, i) =>
         i === prev.length - 1
           ? {
-              ...t,
+              ...turn,
               assistant_message:     res.message,
               intent:                res.intent,
               requires_confirmation: res.requires_confirmation,
@@ -122,13 +131,13 @@ export default function StoreCopilotPage() {
               execution_result:      res.execution_result,
               awaiting_confirm:      res.requires_confirmation && !res.executed,
             }
-          : t,
+          : turn,
       ))
     } catch (e) {
-      setTurns(prev => prev.map((t, i) =>
+      setTurns(prev => prev.map((turn, i) =>
         i === prev.length - 1
-          ? { ...t, assistant_message: `❌ Erro: ${(e as Error).message}` }
-          : t,
+          ? { ...turn, assistant_message: t('errorPrefix', { message: (e as Error).message }) }
+          : turn,
       ))
     } finally {
       setBusy(false)
@@ -151,16 +160,16 @@ export default function StoreCopilotPage() {
           auto_confirm: true,
         }),
       })
-      setTurns(prev => prev.map((t, i) =>
+      setTurns(prev => prev.map((turn, i) =>
         i === prev.length - 1
-          ? { ...t, executed: res.executed, execution_result: res.execution_result, awaiting_confirm: false }
-          : t,
+          ? { ...turn, executed: res.executed, execution_result: res.execution_result, awaiting_confirm: false }
+          : turn,
       ))
     } catch (e) {
-      setTurns(prev => prev.map((t, i) =>
+      setTurns(prev => prev.map((turn, i) =>
         i === prev.length - 1
-          ? { ...t, execution_result: { error: (e as Error).message }, awaiting_confirm: false }
-          : t,
+          ? { ...turn, execution_result: { error: (e as Error).message }, awaiting_confirm: false }
+          : turn,
       ))
     } finally {
       setBusy(false)
@@ -179,8 +188,8 @@ export default function StoreCopilotPage() {
             <Brain size={18} className="text-black" />
           </div>
           <div>
-            <h1 className="text-lg font-bold text-zinc-100">Copiloto da Loja</h1>
-            <p className="text-xs text-zinc-500">Mande comandos em linguagem natural — eu executo via tools.</p>
+            <h1 className="text-lg font-bold text-zinc-100">{t('title')}</h1>
+            <p className="text-xs text-zinc-500">{t('subtitle')}</p>
           </div>
         </div>
       )}
@@ -195,10 +204,9 @@ export default function StoreCopilotPage() {
               style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.3)' }}>
               <Brain size={26} style={{ color: '#00E5FF' }} />
             </div>
-            <h1 className="text-xl font-bold text-zinc-100 mb-2">Como posso ajudar?</h1>
+            <h1 className="text-xl font-bold text-zinc-100 mb-2">{t('welcomeTitle')}</h1>
             <p className="text-zinc-500 text-sm max-w-md">
-              Pergunte sobre produtos, vendas, anúncios, performance ou peça pra criar kits, coleções e
-              tarefas direto pelo chat — eu executo via tools.
+              {t('welcomeText')}
             </p>
           </div>
 
@@ -206,7 +214,7 @@ export default function StoreCopilotPage() {
           <div className="px-3 pb-1">
             <AnimatedPromptSuggestions
               suggestions={STORE_SUGGESTIONS}
-              onSuggestionClick={(t) => { setInput(''); void send(t) }}
+              onSuggestionClick={(s) => { setInput(''); void send(s) }}
               speed={50}
               rows={3}
             >
@@ -223,7 +231,7 @@ export default function StoreCopilotPage() {
                     onKeyDown={e => {
                       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(input) }
                     }}
-                    placeholder="Pergunte ou comande... (Shift+Enter quebra linha)"
+                    placeholder={t('inputPlaceholder')}
                     rows={1}
                     disabled={busy}
                     className="flex-1 bg-transparent text-zinc-200 text-sm rounded-lg px-2 py-2 outline-none resize-none max-h-32 placeholder:text-zinc-600"
@@ -239,7 +247,7 @@ export default function StoreCopilotPage() {
               </div>
             </AnimatedPromptSuggestions>
             <p className="text-[10px] text-zinc-600 text-center mt-2">
-              Enter pra enviar · Shift+Enter pra nova linha
+              {t('inputHint')}
             </p>
           </div>
         </div>
@@ -250,7 +258,7 @@ export default function StoreCopilotPage() {
             {busy && (
               <div className="flex items-center gap-2 text-zinc-500 text-xs">
                 <Loader2 size={12} className="animate-spin text-cyan-400" />
-                <span>processando…</span>
+                <span>{t('processing')}</span>
               </div>
             )}
           </div>
@@ -263,7 +271,7 @@ export default function StoreCopilotPage() {
               onKeyDown={e => {
                 if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(input) }
               }}
-              placeholder="Pergunte ou comande... (Shift+Enter quebra linha)"
+              placeholder={t('inputPlaceholder')}
               rows={1}
               disabled={busy}
               className="flex-1 bg-transparent text-sm text-zinc-200 outline-none resize-none max-h-32 placeholder:text-zinc-600"
@@ -283,6 +291,7 @@ export default function StoreCopilotPage() {
 }
 
 function TurnView({ turn, onConfirm }: { turn: ChatTurn; onConfirm: () => void }) {
+  const t = useTranslations('storeCopilot')
   return (
     <div className="space-y-2">
       <div className="flex justify-end">
@@ -311,15 +320,15 @@ function TurnView({ turn, onConfirm }: { turn: ChatTurn; onConfirm: () => void }
                   onClick={onConfirm}
                   className="glow-rainbow inline-flex items-center gap-1.5 px-3 py-1.5 rounded bg-emerald-400 hover:bg-emerald-300 text-black text-xs font-medium"
                 >
-                  <Check size={11} /> Confirmar e executar
+                  <Check size={11} /> {t('confirmAndExecute')}
                 </button>
-                <span className="text-[10px] text-zinc-500">precisa da sua confirmação antes de executar</span>
+                <span className="text-[10px] text-zinc-500">{t('confirmHint')}</span>
               </div>
             )}
             {turn.executed && turn.execution_result && (
               <div className="ml-2 rounded border border-emerald-400/30 bg-emerald-400/[0.05] p-2 text-[11px]">
                 <div className="flex items-center gap-1 text-emerald-300 font-medium mb-1">
-                  <Check size={10} /> Executado
+                  <Check size={10} /> {t('executed')}
                 </div>
                 <pre className="text-zinc-400 font-mono text-[10px] overflow-x-auto">
                   {JSON.stringify(turn.execution_result, null, 2)}

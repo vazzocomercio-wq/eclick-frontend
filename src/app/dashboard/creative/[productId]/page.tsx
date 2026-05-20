@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import { useParams, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, Sparkles, Plus, Loader2, Image as ImageIcon, Check, RefreshCw, FileText, X, Wand2, AlertCircle, Film, FileStack, Briefcase, ChevronRight } from 'lucide-react'
@@ -24,6 +25,7 @@ import {
 type VideoModelInfo = Awaited<ReturnType<typeof CreativeApi.listVideoModels>>[number]
 
 export default function ProductDetailPage() {
+  const t = useTranslations('creative.detail')
   const params = useParams<{ productId: string }>()
   const searchParams = useSearchParams()
   const productId = params.productId
@@ -128,10 +130,10 @@ export default function ProductDetailPage() {
     return (
       <div className="min-h-screen bg-zinc-950 text-zinc-100 px-4 py-6">
         <Link href="/dashboard/creative" className="inline-flex items-center gap-2 text-zinc-400 hover:text-zinc-100 mb-4">
-          <ArrowLeft size={14} /> Voltar
+          <ArrowLeft size={14} /> {t('back')}
         </Link>
         <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200 max-w-2xl">
-          {error ?? 'Produto não encontrado'}
+          {error ?? t('productNotFound')}
         </div>
       </div>
     )
@@ -183,18 +185,18 @@ export default function ProductDetailPage() {
             </div>
 
             <div className="mt-3 space-y-1.5 text-xs text-zinc-400">
-              {product.brand    && <p><span className="text-zinc-600">Marca:</span> {product.brand}</p>}
-              {product.color    && <p><span className="text-zinc-600">Cor:</span> {product.color}</p>}
-              {product.material && <p><span className="text-zinc-600">Material:</span> {product.material}</p>}
-              {product.sku      && <p><span className="text-zinc-600">SKU:</span> {product.sku}</p>}
+              {product.brand    && <p><span className="text-zinc-600">{t('labelBrand')}</span> {product.brand}</p>}
+              {product.color    && <p><span className="text-zinc-600">{t('labelColor')}</span> {product.color}</p>}
+              {product.material && <p><span className="text-zinc-600">{t('labelMaterial')}</span> {product.material}</p>}
+              {product.sku      && <p><span className="text-zinc-600">{t('labelSku')}</span> {product.sku}</p>}
               {product.target_audience && (
-                <p><span className="text-zinc-600">Público:</span> {product.target_audience}</p>
+                <p><span className="text-zinc-600">{t('labelAudience')}</span> {product.target_audience}</p>
               )}
             </div>
 
             {!!product.differentials?.length && (
               <div className="mt-3">
-                <p className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1">Diferenciais</p>
+                <p className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1">{t('differentials')}</p>
                 <div className="flex flex-wrap gap-1">
                   {product.differentials.map((d, i) => (
                     <span key={i} className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-400/10 text-cyan-200 border border-cyan-400/30">
@@ -223,7 +225,7 @@ export default function ProductDetailPage() {
             />
 
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-zinc-200">Análise IA</h2>
+              <h2 className="text-sm font-semibold text-zinc-200">{t('aiAnalysis')}</h2>
               <button
                 type="button"
                 onClick={reanalyze}
@@ -231,7 +233,7 @@ export default function ProductDetailPage() {
                 className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-zinc-900 border border-zinc-800 hover:border-cyan-400/40 text-zinc-300 text-[11px]"
               >
                 <RefreshCw size={10} className={regenAnalyzing ? 'animate-spin' : ''} />
-                Re-analisar
+                {t('reanalyze')}
               </button>
             </div>
             <ProductAnalysisCard
@@ -242,13 +244,13 @@ export default function ProductDetailPage() {
             {/* Briefings + generate */}
             <div>
               <div className="flex items-center justify-between mb-2">
-                <h2 className="text-sm font-semibold text-zinc-200">Briefings</h2>
+                <h2 className="text-sm font-semibold text-zinc-200">{t('briefings')}</h2>
                 {briefings.length > 0 && (
                   <Link
                     href={`/dashboard/creative/new?productId=${product.id}`}
                     className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] bg-zinc-900 border border-zinc-800 hover:border-cyan-400/60 text-cyan-300 shrink-0"
                   >
-                    <Plus size={10} /> Novo briefing
+                    <Plus size={10} /> {t('newBriefing')}
                   </Link>
                 )}
               </div>
@@ -262,8 +264,8 @@ export default function ProductDetailPage() {
                       <Plus size={14} className="text-cyan-300" />
                     </div>
                     <div>
-                      <p className="text-xs font-medium text-cyan-100">Criar primeiro briefing</p>
-                      <p className="text-[10px] text-cyan-300/70">Define marketplace, estilo e tom — base pra gerar imagens e anúncio</p>
+                      <p className="text-xs font-medium text-cyan-100">{t('createFirstBriefing')}</p>
+                      <p className="text-[10px] text-cyan-300/70">{t('createFirstBriefingHint')}</p>
                     </div>
                   </div>
                   <ChevronRight size={14} className="text-cyan-300 shrink-0 group-hover:translate-x-0.5 transition-transform" />
@@ -280,7 +282,7 @@ export default function ProductDetailPage() {
                           <span className="text-[10px] text-zinc-500">· {b.visual_style}</span>
                           <span className="text-[10px] text-zinc-500">· {b.communication_tone}</span>
                           {b.is_active && (
-                            <span className="text-[10px] text-emerald-400">✓ ativo</span>
+                            <span className="text-[10px] text-emerald-400">{t('active')}</span>
                           )}
                         </div>
                         <button
@@ -288,7 +290,7 @@ export default function ProductDetailPage() {
                           onClick={() => generateNew(b.id)}
                           className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] bg-cyan-400 text-black font-semibold hover:bg-cyan-300 shrink-0"
                         >
-                          <Plus size={10} /> Novo anúncio
+                          <Plus size={10} /> {t('newAd')}
                         </button>
                       </div>
                     )
@@ -311,7 +313,7 @@ export default function ProductDetailPage() {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <h2 className="text-sm font-semibold text-zinc-200 flex items-center gap-2">
-                  <ImageIcon size={14} /> Imagens geradas
+                  <ImageIcon size={14} /> {t('generatedImages')}
                   <span className="text-[10px] text-zinc-500">({imageJobs.length})</span>
                 </h2>
                 {briefings.length > 0 && (
@@ -320,7 +322,7 @@ export default function ProductDetailPage() {
                     onClick={() => setImageModalOpen(true)}
                     className="glow-rainbow flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-cyan-400 hover:bg-cyan-300 text-black text-[11px] font-semibold transition-all shadow-[0_0_8px_rgba(0,229,255,0.25)]"
                   >
-                    <Wand2 size={11} /> Gerar imagens
+                    <Wand2 size={11} /> {t('generateImages')}
                   </button>
                 )}
               </div>
@@ -330,11 +332,11 @@ export default function ProductDetailPage() {
                     href={`/dashboard/creative/new?productId=${product.id}`}
                     className="inline-flex items-center gap-1 text-[11px] text-cyan-400 hover:text-cyan-300"
                   >
-                    Crie um briefing primeiro <ChevronRight size={11} />
+                    {t('createBriefingFirst')} <ChevronRight size={11} />
                   </Link>
                 ) : (
                   <p className="text-xs text-zinc-500">
-                    Nenhum job rodado ainda. Clique em &quot;Gerar imagens&quot; pra começar.
+                    {t('noImageJobs')}
                   </p>
                 )
               ) : (
@@ -348,13 +350,13 @@ export default function ProductDetailPage() {
                       <div className="flex items-center gap-2 min-w-0">
                         <JobStatusDot status={j.status} />
                         <p className="text-xs text-zinc-200 truncate">
-                          {j.requested_count} imagens · {JOB_STATUS_LABELS[j.status]}
+                          {t('jobImagesCount', { count: j.requested_count, status: JOB_STATUS_LABELS[j.status] })}
                         </p>
                       </div>
                       <div className="flex items-center gap-3 shrink-0">
                         {j.approved_count > 0 && (
                           <span className="flex items-center gap-1 text-[10px] text-emerald-400">
-                            <Check size={10} /> {j.approved_count} aprovadas
+                            <Check size={10} /> {t('approvedImages', { count: j.approved_count })}
                           </span>
                         )}
                         <span className="text-[10px] font-mono text-zinc-500">
@@ -374,7 +376,7 @@ export default function ProductDetailPage() {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <h2 className="text-sm font-semibold text-zinc-200 flex items-center gap-2">
-                  <Film size={14} /> Vídeos gerados
+                  <Film size={14} /> {t('generatedVideos')}
                   <span className="text-[10px] text-zinc-500">({videoJobs.length})</span>
                 </h2>
                 {briefings.length > 0 && (
@@ -383,7 +385,7 @@ export default function ProductDetailPage() {
                     onClick={() => setVideoModalOpen(true)}
                     className="glow-rainbow flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-cyan-400 hover:bg-cyan-300 text-black text-[11px] font-semibold transition-all shadow-[0_0_8px_rgba(0,229,255,0.25)]"
                   >
-                    <Wand2 size={11} /> Gerar vídeos
+                    <Wand2 size={11} /> {t('generateVideos')}
                   </button>
                 )}
               </div>
@@ -393,11 +395,11 @@ export default function ProductDetailPage() {
                     href={`/dashboard/creative/new?productId=${product.id}`}
                     className="inline-flex items-center gap-1 text-[11px] text-cyan-400 hover:text-cyan-300"
                   >
-                    Crie um briefing primeiro <ChevronRight size={11} />
+                    {t('createBriefingFirst')} <ChevronRight size={11} />
                   </Link>
                 ) : (
                   <p className="text-xs text-zinc-500">
-                    Nenhum job rodado ainda. Vídeo demora ~2-3 min por clip.
+                    {t('noVideoJobs')}
                   </p>
                 )
               ) : (
@@ -411,13 +413,13 @@ export default function ProductDetailPage() {
                       <div className="flex items-center gap-2 min-w-0">
                         <VideoStatusDot status={j.status} />
                         <p className="text-xs text-zinc-200 truncate">
-                          {j.requested_count} vídeos · {j.duration_seconds}s · {j.aspect_ratio} · {VIDEO_JOB_STATUS_LABELS[j.status]}
+                          {t('jobVideosCount', { count: j.requested_count, duration: j.duration_seconds, aspect: j.aspect_ratio, status: VIDEO_JOB_STATUS_LABELS[j.status] })}
                         </p>
                       </div>
                       <div className="flex items-center gap-3 shrink-0">
                         {j.approved_count > 0 && (
                           <span className="flex items-center gap-1 text-[10px] text-emerald-400">
-                            <Check size={10} /> {j.approved_count} aprovados
+                            <Check size={10} /> {t('approvedVideos', { count: j.approved_count })}
                           </span>
                         )}
                         <span className="text-[10px] font-mono text-zinc-500">
@@ -436,7 +438,7 @@ export default function ProductDetailPage() {
             {/* Listings */}
             <div>
               <h2 className="text-sm font-semibold text-zinc-200 mb-2 flex items-center gap-2">
-                <FileText size={14} /> Anúncios gerados
+                <FileText size={14} /> {t('generatedAds')}
                 <span className="text-[10px] text-zinc-500">({listings.length})</span>
               </h2>
               {listings.length === 0 ? (
@@ -445,10 +447,10 @@ export default function ProductDetailPage() {
                     href={`/dashboard/creative/new?productId=${product.id}`}
                     className="inline-flex items-center gap-1 text-[11px] text-cyan-400 hover:text-cyan-300"
                   >
-                    Crie um briefing primeiro <ChevronRight size={11} />
+                    {t('createBriefingFirst')} <ChevronRight size={11} />
                   </Link>
                 ) : (
-                  <p className="text-xs text-zinc-500">Nenhum anúncio gerado ainda. Use um briefing pra começar.</p>
+                  <p className="text-xs text-zinc-500">{t('noListings')}</p>
                 )
               ) : (
                 <div className="space-y-1.5">
@@ -467,7 +469,7 @@ export default function ProductDetailPage() {
                       <div className="flex items-center gap-2 shrink-0">
                         {l.status === 'approved' && (
                           <span className="flex items-center gap-1 text-[10px] text-emerald-400">
-                            <Check size={10} /> aprovado
+                            <Check size={10} /> {t('approved')}
                           </span>
                         )}
                         <span className="text-[10px] text-zinc-500">
@@ -544,6 +546,7 @@ function CreateVideoJobModal({
   onClose:    () => void
   onCreated:  (jobId: string) => void
 }) {
+  const t = useTranslations('creative.detail')
   const activeBriefings = briefings.filter(b => b.is_active).length > 0
     ? briefings.filter(b => b.is_active)
     : briefings
@@ -663,13 +666,13 @@ function CreateVideoJobModal({
   }, [estimatedCost, maxCostTouched])
 
   async function submit() {
-    if (!briefingId) { setError('Selecione um briefing.'); return }
+    if (!briefingId) { setError(t('selectBriefingError')); return }
     setError(null); setCreating(true)
     try {
       if (mode === 'long') {
         // Modo longo: chain 15-30s a partir de imagem aprovada — exige source_image_id
         if (!sourceImageId) {
-          setError('Modo longo exige escolher uma imagem-base aprovada.')
+          setError(t('longModeNeedsImageError'))
           setCreating(false)
           return
         }
@@ -712,7 +715,7 @@ function CreateVideoJobModal({
         <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800">
           <div className="flex items-center gap-2">
             <Film size={14} className="text-cyan-400" />
-            <h3 className="text-sm font-semibold">Gerar vídeos</h3>
+            <h3 className="text-sm font-semibold">{t('videoModalTitle')}</h3>
           </div>
           <button onClick={onClose} className="text-zinc-500 hover:text-zinc-200"><X size={16} /></button>
         </div>
@@ -720,7 +723,7 @@ function CreateVideoJobModal({
         <div className="p-4 space-y-4 max-h-[calc(100vh-12rem)] overflow-y-auto">
           {/* Modo: variações curtas OU vídeo longo encadeado */}
           <div>
-            <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">Modo</label>
+            <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">{t('mode')}</label>
             <div className="grid grid-cols-2 gap-1.5">
               <button
                 type="button"
@@ -732,8 +735,8 @@ function CreateVideoJobModal({
                     : 'bg-zinc-900 text-zinc-400 border border-zinc-800',
                 ].join(' ')}
               >
-                <span className="font-semibold">📹 Variações</span>
-                <span className={mode === 'variations' ? 'text-black/60' : 'text-zinc-500'}>1-5 vídeos curtos</span>
+                <span className="font-semibold">{t('modeVariations')}</span>
+                <span className={mode === 'variations' ? 'text-black/60' : 'text-zinc-500'}>{t('modeVariationsHint')}</span>
               </button>
               <button
                 type="button"
@@ -745,20 +748,20 @@ function CreateVideoJobModal({
                     : 'bg-zinc-900 text-zinc-400 border border-zinc-800',
                 ].join(' ')}
               >
-                <span className="font-semibold">🎬 Longo</span>
-                <span className={mode === 'long' ? 'text-black/60' : 'text-zinc-500'}>1 vídeo 15-30s encadeado</span>
+                <span className="font-semibold">{t('modeLong')}</span>
+                <span className={mode === 'long' ? 'text-black/60' : 'text-zinc-500'}>{t('modeLongHint')}</span>
               </button>
             </div>
           </div>
 
           <p className="text-xs text-zinc-400">
             {mode === 'variations'
-              ? 'IA gera prompts de motion (cinemagraph, zoom, rotação) e usa a imagem do produto como primeiro frame. Cada vídeo demora ~1-3 min.'
-              : 'IA gera UM vídeo longo encadeando partes (5-12s cada). Cada parte usa o último frame da anterior como primeiro frame da próxima — transição suave. Demora ~5-15 min.'}
+              ? t('videoVariationsIntro')
+              : t('videoLongIntro')}
           </p>
 
           <div>
-            <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">Briefing</label>
+            <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">{t('briefing')}</label>
             <select
               value={briefingId}
               onChange={e => setBriefingId(e.target.value)}
@@ -774,17 +777,17 @@ function CreateVideoJobModal({
           {/* Source image: imagem original do produto OU 1 das geradas (ready/approved) */}
           <div>
             <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">
-              Imagem base (1º frame do vídeo)
+              {t('baseImage')}
             </label>
             <select
               value={sourceImageId ?? ''}
               onChange={e => setSourceImageId(e.target.value || null)}
               className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-200 outline-none focus:border-cyan-400"
             >
-              <option value="">Imagem original do produto</option>
+              <option value="">{t('originalProductImage')}</option>
               {availableImages.map((img, i) => (
                 <option key={img.id} value={img.id}>
-                  Imagem gerada #{i + 1} ({img.status})
+                  {t('generatedImageOption', { n: i + 1, status: img.status })}
                 </option>
               ))}
             </select>
@@ -800,7 +803,7 @@ function CreateVideoJobModal({
             <>
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-[10px] uppercase tracking-wider text-zinc-500">Quantidade</label>
+                  <label className="text-[10px] uppercase tracking-wider text-zinc-500">{t('quantity')}</label>
                   <span className="text-xs font-mono text-zinc-200">{count}</span>
                 </div>
                 <input type="range" min={1} max={5} step={1} value={count}
@@ -810,7 +813,7 @@ function CreateVideoJobModal({
               </div>
 
               <div>
-                <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">Duração</label>
+                <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">{t('duration')}</label>
                 <div className="flex gap-1.5 flex-wrap">
                   {(selectedModel?.supportedDurations ?? [5, 10]).map(d => (
                     <button key={d} type="button" onClick={() => setDuration(d)}
@@ -826,7 +829,7 @@ function CreateVideoJobModal({
                 </div>
                 {selectedModel && (
                   <p className="text-[10px] text-zinc-500 mt-1">
-                    {selectedModel.label} suporta {selectedModel.supportedDurations.join('/')}s
+                    {t('modelSupports', { model: selectedModel.label, durations: selectedModel.supportedDurations.join('/') })}
                   </p>
                 )}
               </div>
@@ -835,7 +838,7 @@ function CreateVideoJobModal({
             <>
               {/* Modo longo: duração total alvo + movimento de câmera */}
               <div>
-                <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">Duração total</label>
+                <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">{t('totalDuration')}</label>
                 <div className="grid grid-cols-6 gap-1.5">
                   {[8, 12, 15, 20, 25, 30].map(d => (
                     <button key={d} type="button" onClick={() => setLongDuration(d)}
@@ -850,26 +853,26 @@ function CreateVideoJobModal({
                   ))}
                 </div>
                 <p className="text-[10px] text-zinc-500 mt-1">
-                  Backend encadeia partes do {selectedModel?.label ?? 'modelo'} ({selectedModel?.supportedDurations.join('/')}s cada).
+                  {t('chainHint', { model: selectedModel?.label ?? '', durations: selectedModel?.supportedDurations.join('/') ?? '' })}
                   {longDuration < (selectedModel?.supportedDurations?.[selectedModel.supportedDurations.length - 1] ?? 0) &&
-                    ' Single-shot.'}
+                    t('chainHintSingle')}
                 </p>
               </div>
 
               {selectedModel?.supportsCameraControl && (
                 <div>
-                  <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">Movimento de câmera</label>
+                  <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">{t('cameraMotion')}</label>
                   <select
                     value={cameraMotion}
                     onChange={e => setCameraMotion(e.target.value)}
                     className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-200 outline-none focus:border-cyan-400"
                   >
-                    <option value="dolly-in">Câmera em direção ao produto (recomendado)</option>
-                    <option value="dolly-out">Câmera afastando</option>
-                    <option value="pan-right">Panorâmica direita</option>
-                    <option value="pan-left">Panorâmica esquerda</option>
-                    <option value="orbit">Orbital</option>
-                    <option value="static">Estática (movimento sutil)</option>
+                    <option value="dolly-in">{t('cameraDollyIn')}</option>
+                    <option value="dolly-out">{t('cameraDollyOut')}</option>
+                    <option value="pan-right">{t('cameraPanRight')}</option>
+                    <option value="pan-left">{t('cameraPanLeft')}</option>
+                    <option value="orbit">{t('cameraOrbit')}</option>
+                    <option value="static">{t('cameraStatic')}</option>
                   </select>
                 </div>
               )}
@@ -877,14 +880,14 @@ function CreateVideoJobModal({
               {!sourceImageId && (
                 <div className="rounded-lg border border-amber-400/30 bg-amber-400/5 p-2.5 text-[11px] text-amber-200 flex items-start gap-1.5">
                   <AlertCircle size={12} className="shrink-0 mt-0.5" />
-                  <span>Modo longo exige imagem-base — escolha uma <strong>Imagem gerada</strong> aprovada acima.</span>
+                  <span>{t.rich('longModeNeedsImage', { b: (chunks) => <strong>{chunks}</strong> })}</span>
                 </div>
               )}
             </>
           )}
 
           <div>
-            <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">Proporção</label>
+            <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">{t('aspectRatio')}</label>
             <div className="grid grid-cols-3 gap-1.5">
               {VIDEO_ASPECT_OPTIONS.map(o => (
                 <button key={o.value} type="button" onClick={() => setAspect(o.value)}
@@ -902,14 +905,13 @@ function CreateVideoJobModal({
               detectedAspect === aspect ? (
                 <p className="mt-1.5 text-[10px] text-emerald-300/80 flex items-start gap-1">
                   <Check size={10} className="shrink-0 mt-0.5" />
-                  <span>Imagem-base é <strong>{detectedAspect}</strong> — match perfeito, sem corte.</span>
+                  <span>{t.rich('aspectMatch', { aspect: detectedAspect, b: (chunks) => <strong>{chunks}</strong> })}</span>
                 </p>
               ) : (
                 <p className="mt-1.5 text-[10px] text-amber-300/80 flex items-start gap-1">
                   <AlertCircle size={10} className="shrink-0 mt-0.5" />
                   <span>
-                    Imagem-base é <strong>{detectedAspect}</strong> e vídeo será <strong>{aspect}</strong> —
-                    {' '}IA vai recortar o centro da cena pra ajustar.
+                    {t.rich('aspectMismatch', { detected: detectedAspect, aspect, b: (chunks) => <strong>{chunks}</strong> })}
                   </span>
                 </p>
               )
@@ -917,13 +919,13 @@ function CreateVideoJobModal({
           </div>
 
           <div>
-            <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">Modelo de IA</label>
+            <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">{t('aiModel')}</label>
             {loadingModels ? (
               <div className="flex items-center gap-2 text-[11px] text-zinc-500 py-2">
-                <Loader2 size={12} className="animate-spin" /> carregando modelos…
+                <Loader2 size={12} className="animate-spin" /> {t('loadingModels')}
               </div>
             ) : models.length === 0 ? (
-              <p className="text-[11px] text-amber-400">Nenhum modelo disponível — verifique config de providers</p>
+              <p className="text-[11px] text-amber-400">{t('noModels')}</p>
             ) : (
               <div className="space-y-1">
                 {models.map(m => {
@@ -949,9 +951,9 @@ function CreateVideoJobModal({
                         <span className="font-mono text-[10px] text-zinc-500 shrink-0">${price.toFixed(2)}/{showDur}s</span>
                       </div>
                       <p className="text-[10px] text-zinc-500 mt-0.5">
-                        Provider: <span className="capitalize">{m.provider}</span> · {m.supportedDurations.join('/')}s
-                        {m.supportsTailImage && ' · encadeamento nativo'}
-                        {m.supportsCameraControl && ' · controle de câmera'}
+                        {t('providerLabel')} <span className="capitalize">{m.provider}</span> · {m.supportedDurations.join('/')}s
+                        {m.supportsTailImage && t('nativeChaining')}
+                        {m.supportsCameraControl && t('cameraControl')}
                       </p>
                     </button>
                   )
@@ -963,7 +965,7 @@ function CreateVideoJobModal({
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="text-[10px] uppercase tracking-wider text-zinc-500">
-                Limite de custo {!maxCostTouched && <span className="text-cyan-400/60 normal-case">(auto)</span>}
+                {t('costLimit')} {!maxCostTouched && <span className="text-cyan-400/60 normal-case">{t('costLimitAuto')}</span>}
               </label>
               <span className="text-xs font-mono text-zinc-200">${maxCost.toFixed(2)}</span>
             </div>
@@ -972,8 +974,8 @@ function CreateVideoJobModal({
               className="w-full accent-cyan-400" />
             <p className="mt-1 text-[10px] text-zinc-600">
               {maxCostTouched
-                ? <>Auto-ajuste desligado. <button type="button" onClick={() => setMaxCostTouched(false)} className="text-cyan-400 hover:underline">Voltar pra automático</button></>
-                : <>Sugerido: estimativa × 1.5 (cobre overshoot e re-tries).</>}
+                ? <>{t('autoSuggestOff')} <button type="button" onClick={() => setMaxCostTouched(false)} className="text-cyan-400 hover:underline">{t('backToAuto')}</button></>
+                : <>{t('autoSuggestHint')}</>}
             </p>
           </div>
 
@@ -982,13 +984,13 @@ function CreateVideoJobModal({
             willBlock ? 'border-red-500/30 bg-red-500/5 text-red-200' : 'border-zinc-800 bg-zinc-900/50 text-zinc-400',
           ].join(' ')}>
             <div className="flex items-center justify-between">
-              <span>Custo estimado:</span>
+              <span>{t('estimatedCost')}</span>
               <span className="font-mono">~${estimatedCost.toFixed(2)}</span>
             </div>
             {willBlock && (
               <p className="mt-1 text-[10px]">
                 <AlertCircle size={10} className="inline mr-1" />
-                Estimativa excede o limite — worker vai parar antes de completar.
+                {t('costExceedsLimit')}
               </p>
             )}
           </div>
@@ -1002,12 +1004,12 @@ function CreateVideoJobModal({
 
         <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-zinc-800">
           <button onClick={onClose} className="px-3 py-1.5 rounded-lg text-zinc-400 hover:text-zinc-200 text-xs">
-            Cancelar
+            {t('cancel')}
           </button>
           <button onClick={submit} disabled={creating || !briefingId}
             className="glow-rainbow flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-400 hover:bg-cyan-300 disabled:opacity-50 text-black text-xs font-semibold">
             {creating ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
-            Iniciar geração
+            {t('startGeneration')}
           </button>
         </div>
       </div>
@@ -1023,6 +1025,7 @@ function CreateImageJobModal({
   onClose:    () => void
   onCreated:  (jobId: string) => void
 }) {
+  const t = useTranslations('creative.detail')
   const activeBriefings = briefings.filter(b => b.is_active).length > 0
     ? briefings.filter(b => b.is_active)
     : briefings
@@ -1058,7 +1061,7 @@ function CreateImageJobModal({
   }, [product.id])
 
   async function submit() {
-    if (!briefingId) { setError('Selecione um briefing.'); return }
+    if (!briefingId) { setError(t('selectBriefingError')); return }
     setError(null)
     setCreating(true)
     try {
@@ -1084,7 +1087,7 @@ function CreateImageJobModal({
         <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800">
           <div className="flex items-center gap-2">
             <Wand2 size={14} className="text-cyan-400" />
-            <h3 className="text-sm font-semibold">Gerar imagens</h3>
+            <h3 className="text-sm font-semibold">{t('imageModalTitle')}</h3>
           </div>
           <button onClick={onClose} className="text-zinc-500 hover:text-zinc-200">
             <X size={16} />
@@ -1093,8 +1096,7 @@ function CreateImageJobModal({
 
         <div className="p-4 space-y-4">
           <p className="text-xs text-zinc-400">
-            A IA gera {count} prompts coerentes (hero, lifestyle, close-up, etc.) e
-            usa a imagem do produto como referência pra gerar cada uma.
+            {t('imageModalIntro', { count })}
           </p>
 
           {/* Template ativo */}
@@ -1103,11 +1105,11 @@ function CreateImageJobModal({
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5 mb-0.5">
                   <FileStack size={11} className="text-cyan-300 shrink-0" />
-                  <span className="text-[10px] uppercase tracking-wider text-cyan-300">Template ativo</span>
+                  <span className="text-[10px] uppercase tracking-wider text-cyan-300">{t('activeTemplate')}</span>
                   <span className="text-[9px] text-zinc-500 ml-auto">{matched.match_reason}</span>
                 </div>
                 <p className="text-xs text-zinc-200 truncate">{matched.name}</p>
-                <p className="text-[10px] text-zinc-500">{matched.positions_count} posições configuradas</p>
+                <p className="text-[10px] text-zinc-500">{t('positionsConfigured', { count: matched.positions_count })}</p>
               </div>
               <a
                 href={`/dashboard/creative/templates/${matched.template_id}`}
@@ -1115,7 +1117,7 @@ function CreateImageJobModal({
                 rel="noreferrer"
                 className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-md bg-zinc-900 border border-zinc-800 hover:border-cyan-400/60 text-cyan-300 text-[10px] transition-colors"
               >
-                Editar template
+                {t('editTemplate')}
               </a>
             </div>
           ) : (
@@ -1123,11 +1125,11 @@ function CreateImageJobModal({
               <div className="flex items-start gap-2">
                 <AlertCircle size={12} className="text-amber-300 shrink-0 mt-0.5" />
                 <div className="text-[11px] text-amber-200">
-                  Sem template configurado — IA vai gerar prompts via Claude Sonnet (fallback).{' '}
+                  {t('noTemplate')}
                   <a href="/dashboard/creative/templates/new" target="_blank" rel="noreferrer" className="text-cyan-300 underline">
-                    Crie um template
-                  </a>{' '}
-                  pra ter controle do estilo.
+                    {t('createTemplate')}
+                  </a>
+                  {t('noTemplateSuffix')}
                 </div>
               </div>
             </div>
@@ -1135,7 +1137,7 @@ function CreateImageJobModal({
 
           {/* Briefing selector */}
           <div>
-            <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">Briefing</label>
+            <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">{t('briefing')}</label>
             <select
               value={briefingId}
               onChange={e => setBriefingId(e.target.value)}
@@ -1145,7 +1147,7 @@ function CreateImageJobModal({
                 const opt = MARKETPLACE_OPTIONS.find(m => m.value === b.target_marketplace)
                 return (
                   <option key={b.id} value={b.id}>
-                    {opt?.emoji} {opt?.label} · {b.visual_style} · {b.image_count} img
+                    {t('imageBriefingOption', { emoji: opt?.emoji ?? '', label: opt?.label ?? '', style: b.visual_style, count: b.image_count })}
                   </option>
                 )
               })}
@@ -1155,7 +1157,7 @@ function CreateImageJobModal({
           {/* Count slider */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="text-[10px] uppercase tracking-wider text-zinc-500">Quantidade</label>
+              <label className="text-[10px] uppercase tracking-wider text-zinc-500">{t('quantity')}</label>
               <span className="text-xs font-mono text-zinc-200">{count}</span>
             </div>
             <input
@@ -1173,7 +1175,7 @@ function CreateImageJobModal({
           {/* Max cost */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="text-[10px] uppercase tracking-wider text-zinc-500">Limite de custo</label>
+              <label className="text-[10px] uppercase tracking-wider text-zinc-500">{t('costLimit')}</label>
               <span className="text-xs font-mono text-zinc-200">${maxCost.toFixed(2)}</span>
             </div>
             <input
@@ -1192,13 +1194,13 @@ function CreateImageJobModal({
               : 'border-zinc-800 bg-zinc-900/50 text-zinc-400',
           ].join(' ')}>
             <div className="flex items-center justify-between">
-              <span>Custo estimado:</span>
+              <span>{t('estimatedCost')}</span>
               <span className="font-mono">~${estimatedCost.toFixed(2)}</span>
             </div>
             {willBlock && (
               <p className="mt-1 text-[10px]">
                 <AlertCircle size={10} className="inline mr-1" />
-                Estimativa excede o limite — worker vai parar antes de completar.
+                {t('costExceedsLimit')}
               </p>
             )}
           </div>
@@ -1212,7 +1214,7 @@ function CreateImageJobModal({
 
         <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-zinc-800">
           <button onClick={onClose} className="px-3 py-1.5 rounded-lg text-zinc-400 hover:text-zinc-200 text-xs">
-            Cancelar
+            {t('cancel')}
           </button>
           <button
             onClick={submit}
@@ -1220,7 +1222,7 @@ function CreateImageJobModal({
             className="glow-rainbow flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-400 hover:bg-cyan-300 disabled:opacity-50 text-black text-xs font-semibold"
           >
             {creating ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
-            Iniciar geração
+            {t('startGeneration')}
           </button>
         </div>
       </div>
@@ -1246,39 +1248,40 @@ function OperatorMissionBanner({
   imagesCount:    number
   listingsCount:  number
 }) {
+  const t = useTranslations('creative.detail')
   const totalMissing = (completeness?.missing_universal.length ?? 0)
                      + (completeness?.missing_ml_attrs.length ?? 0)
 
   const steps: Array<{ key: string; label: string; done: boolean; hint: string }> = [
     {
       key: 'fields',
-      label: 'Completar campos faltantes',
+      label: t('stepFields'),
       done: !completeness || completeness.complete,
-      hint: totalMissing > 0 ? `${totalMissing} campo${totalMissing === 1 ? '' : 's'} pendente${totalMissing === 1 ? '' : 's'}` : 'Todos preenchidos ✓',
+      hint: totalMissing > 0 ? t('stepFieldsPending', { count: totalMissing }) : t('stepFieldsDone'),
     },
     {
       key: 'briefing',
-      label: 'Criar briefing',
+      label: t('stepBriefing'),
       done: briefingsCount > 0,
-      hint: briefingsCount > 0 ? `${briefingsCount} criado${briefingsCount === 1 ? '' : 's'}` : 'Sem briefing ainda',
+      hint: briefingsCount > 0 ? t('stepBriefingDone', { count: briefingsCount }) : t('stepBriefingPending'),
     },
     {
       key: 'images',
-      label: 'Gerar imagens IA',
+      label: t('stepImages'),
       done: imagesCount > 0,
-      hint: imagesCount > 0 ? `${imagesCount} job${imagesCount === 1 ? '' : 's'} de imagem` : 'Use IA pra gerar fotos',
+      hint: imagesCount > 0 ? t('stepImagesDone', { count: imagesCount }) : t('stepImagesPending'),
     },
     {
       key: 'listing',
-      label: 'Gerar anúncio (título/descrição/atributos)',
+      label: t('stepListing'),
       done: listingsCount > 0,
-      hint: listingsCount > 0 ? `${listingsCount} versão${listingsCount === 1 ? '' : 'ões'} criada${listingsCount === 1 ? '' : 's'}` : 'IA cria com base em concorrentes reais',
+      hint: listingsCount > 0 ? t('stepListingDone', { count: listingsCount }) : t('stepListingPending'),
     },
     {
       key: 'publish',
-      label: 'Publicar no Mercado Livre',
+      label: t('stepPublish'),
       done: false,
-      hint: 'Após aprovar o listing',
+      hint: t('stepPublishHint'),
     },
   ]
 
@@ -1296,13 +1299,13 @@ function OperatorMissionBanner({
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-3 mb-2">
             <div>
-              <h2 className="text-sm font-semibold text-cyan-100">Você foi designado a completar este produto</h2>
+              <h2 className="text-sm font-semibold text-cyan-100">{t('missionTitle')}</h2>
               <p className="text-[11px] text-cyan-300/70 mt-0.5">
-                Siga o fluxo guiado abaixo. Cada etapa usa IA pra acelerar o trabalho.
+                {t('missionSubtitle')}
               </p>
             </div>
             <div className="text-right shrink-0">
-              <div className="text-[10px] uppercase tracking-wider text-cyan-300/60">Progresso</div>
+              <div className="text-[10px] uppercase tracking-wider text-cyan-300/60">{t('progress')}</div>
               <div className="text-lg font-bold text-cyan-200">{doneCount}/{totalSteps}</div>
             </div>
           </div>
@@ -1340,24 +1343,24 @@ function OperatorMissionBanner({
           {completeness && !completeness.complete && (
             <details className="text-[11px] text-zinc-400 mt-2">
               <summary className="cursor-pointer text-cyan-300/80 hover:text-cyan-300 select-none">
-                Ver campos faltantes ({totalMissing})
+                {t('viewMissingFields', { count: totalMissing })}
               </summary>
               <div className="mt-2 pl-4 space-y-1">
                 {completeness.missing_universal.length > 0 && (
                   <div>
-                    <strong className="text-zinc-300">Universais:</strong> {completeness.missing_universal.join(' • ')}
+                    <strong className="text-zinc-300">{t('missingUniversal')}</strong> {completeness.missing_universal.join(' • ')}
                   </div>
                 )}
                 {completeness.missing_ml_attrs.length > 0 && (
                   <div>
-                    <strong className="text-zinc-300">Atributos ML:</strong> {completeness.missing_ml_attrs.map(a => a.name).join(' • ')}
+                    <strong className="text-zinc-300">{t('missingMlAttrs')}</strong> {completeness.missing_ml_attrs.map(a => a.name).join(' • ')}
                   </div>
                 )}
                 <Link
                   href={`/dashboard/produtos/${productId}/editar`}
                   className="inline-flex items-center gap-1 mt-1 text-cyan-400 hover:text-cyan-300"
                 >
-                  Editar dados básicos do produto <ChevronRight size={11} />
+                  {t('editBasicData')} <ChevronRight size={11} />
                 </Link>
               </div>
             </details>

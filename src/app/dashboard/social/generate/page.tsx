@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import { useRouter } from 'next/navigation'
 import {
   Sparkles, Loader2, Search, Check, ArrowLeft, ArrowRight,
@@ -34,16 +35,10 @@ interface ProductLite {
 
 type SourceTab = 'catalog' | 'ml_ads'
 
-const STYLES = [
-  { key: 'engaging',   label: 'Engajante',           hint: 'Storytelling, foco em conexão' },
-  { key: 'direct',     label: 'Direto',              hint: 'Sem rodeios, foco em conversão' },
-  { key: 'educational', label: 'Educativo',          hint: 'Explica como o produto resolve' },
-  { key: 'promotional', label: 'Promocional',        hint: 'Oferta, escassez, urgência' },
-  { key: 'lifestyle',  label: 'Lifestyle',           hint: 'Estilo de vida, aspiração' },
-  { key: 'humor',      label: 'Bem-humorado',        hint: 'Leve, descontraído' },
-]
+const STYLE_KEYS = ['engaging', 'direct', 'educational', 'promotional', 'lifestyle', 'humor'] as const
 
 export default function GenerateWizardPage() {
+  const t = useTranslations('social.generate')
   const router = useRouter()
 
   // Step state
@@ -68,7 +63,7 @@ export default function GenerateWizardPage() {
     void (async () => {
       const sb = createClient()
       const { data: { session } } = await sb.auth.getSession()
-      if (!session?.access_token) { setError('Não autenticado'); return }
+      if (!session?.access_token) { setError(t('notAuthenticated')); return }
       try {
         const res = await fetch(`${BACKEND}/products`, {
           headers: { Authorization: `Bearer ${session.access_token}` },
@@ -80,7 +75,7 @@ export default function GenerateWizardPage() {
         setError((e as Error).message)
       }
     })()
-  }, [])
+  }, [t])
 
   // Counts pra mostrar nos toggles
   const counts = useMemo(() => {
@@ -126,10 +121,9 @@ export default function GenerateWizardPage() {
 
   const styleStr = useMemo(() => {
     if (customStyle.trim()) return customStyle.trim()
-    const def = STYLES.find(s => s.key === styleKey)
-    if (!def) return undefined
-    return `${def.label} — ${def.hint}`
-  }, [styleKey, customStyle])
+    if (!STYLE_KEYS.includes(styleKey as typeof STYLE_KEYS[number])) return undefined
+    return `${t(`styles.${styleKey}.label`)} — ${t(`styles.${styleKey}.hint`)}`
+  }, [styleKey, customStyle, t])
 
   async function generate() {
     setGenerating(true); setError(null)
@@ -168,9 +162,9 @@ export default function GenerateWizardPage() {
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-zinc-100 flex items-center gap-2">
             <Sparkles size={20} className="text-cyan-400" />
-            Gerar Conteúdo Social
+            {t('title')}
           </h1>
-          <p className="text-xs text-zinc-500 mt-1">3 passos: produtos → canais → estilo → IA gera tudo</p>
+          <p className="text-xs text-zinc-500 mt-1">{t('subtitle')}</p>
         </div>
       </div>
 
@@ -187,7 +181,7 @@ export default function GenerateWizardPage() {
                 : 'bg-zinc-900 text-zinc-500 border border-zinc-800',
             ].join(' ')}>{step > n ? <Check size={11} /> : n}</span>
             <span className={step === n ? 'text-cyan-300' : 'text-zinc-500'}>
-              {n === 1 ? 'Produtos' : n === 2 ? 'Canais' : 'Estilo'}
+              {n === 1 ? t('stepProducts') : n === 2 ? t('stepChannels') : t('stepStyle')}
             </span>
             {n < 3 && <span className="text-zinc-700 mx-1">→</span>}
           </div>
@@ -214,7 +208,7 @@ export default function GenerateWizardPage() {
                   : 'text-zinc-400 hover:text-zinc-200',
               ].join(' ')}
             >
-              Catálogo {products && <span className="text-zinc-600">· {counts.catalog}</span>}
+              {t('sourceCatalog')} {products && <span className="text-zinc-600">· {counts.catalog}</span>}
             </button>
             <button
               onClick={() => setSource('ml_ads')}
@@ -225,7 +219,7 @@ export default function GenerateWizardPage() {
                   : 'text-zinc-400 hover:text-zinc-200',
               ].join(' ')}
             >
-              Anúncios ML {products && <span className="text-zinc-600">· {counts.ml_ads}</span>}
+              {t('sourceMlAds')} {products && <span className="text-zinc-600">· {counts.ml_ads}</span>}
             </button>
           </div>
 
@@ -235,26 +229,26 @@ export default function GenerateWizardPage() {
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder={source === 'ml_ads'
-                ? 'Buscar anúncio por título, marca, categoria…'
-                : 'Buscar produto por nome, marca, categoria…'}
+                ? t('searchMlPlaceholder')
+                : t('searchProductPlaceholder')}
               className="flex-1 bg-transparent text-sm text-zinc-200 outline-none placeholder:text-zinc-600"
             />
             {selected.length > 0 && (
               <span className="text-[11px] text-cyan-400 shrink-0">
-                {selected.length} selecionado{selected.length > 1 ? 's' : ''}
+                {t('selectedCount', { count: selected.length })}
               </span>
             )}
           </div>
 
           {!products ? (
             <div className="flex items-center gap-2 text-zinc-500 text-sm">
-              <Loader2 size={14} className="animate-spin" /> carregando…
+              <Loader2 size={14} className="animate-spin" /> {t('loading')}
             </div>
           ) : filtered.length === 0 ? (
             <p className="text-sm text-zinc-500">
               {source === 'ml_ads'
-                ? 'Nenhum anúncio sincronizado do ML. Conecte o Mercado Livre em /dashboard/integracoes pra começar.'
-                : 'Nenhum produto encontrado.'}
+                ? t('emptyMlAds')
+                : t('emptyProducts')}
             </p>
           ) : (
             <div className="space-y-1 max-h-[60vh] overflow-y-auto rounded-lg border border-zinc-800">
@@ -322,7 +316,7 @@ export default function GenerateWizardPage() {
               disabled={!canStep2}
               className="glow-rainbow inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan-400 hover:bg-cyan-300 disabled:opacity-40 disabled:cursor-not-allowed text-black text-sm font-medium"
             >
-              Próximo <ArrowRight size={14} />
+              {t('next')} <ArrowRight size={14} />
             </button>
           </div>
         </div>
@@ -332,7 +326,7 @@ export default function GenerateWizardPage() {
       {step === 2 && (
         <div className="space-y-3">
           <p className="text-xs text-zinc-400">
-            Escolha os canais. A IA gera o conteúdo otimizado para cada um em uma única passagem.
+            {t('channelsHint')}
           </p>
           <SocialChannelSelector value={channels} onChange={setChannels} disabled={generating} />
 
@@ -341,14 +335,14 @@ export default function GenerateWizardPage() {
               onClick={() => setStep(1)}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-zinc-800 hover:border-zinc-700 text-zinc-300 text-sm"
             >
-              <ArrowLeft size={14} /> Voltar
+              <ArrowLeft size={14} /> {t('back')}
             </button>
             <button
               onClick={() => setStep(3)}
               disabled={!canStep3}
               className="glow-rainbow inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan-400 hover:bg-cyan-300 disabled:opacity-40 disabled:cursor-not-allowed text-black text-sm font-medium"
             >
-              Próximo <ArrowRight size={14} />
+              {t('next')} <ArrowRight size={14} />
             </button>
           </div>
         </div>
@@ -357,23 +351,23 @@ export default function GenerateWizardPage() {
       {/* Step 3 — Style + Generate */}
       {step === 3 && !result && (
         <div className="space-y-3">
-          <p className="text-xs text-zinc-400">Escolha um tom (ou descreva à mão).</p>
+          <p className="text-xs text-zinc-400">{t('styleHint')}</p>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-            {STYLES.map(s => (
+            {STYLE_KEYS.map(sk => (
               <button
-                key={s.key}
-                onClick={() => { setStyleKey(s.key); setCustomStyle('') }}
+                key={sk}
+                onClick={() => { setStyleKey(sk); setCustomStyle('') }}
                 disabled={generating}
                 className={[
                   'rounded-lg border px-3 py-2 text-left transition-colors disabled:opacity-50',
-                  styleKey === s.key && !customStyle
+                  styleKey === sk && !customStyle
                     ? 'border-cyan-400/60 bg-cyan-400/5'
                     : 'border-zinc-800 bg-zinc-900/40 hover:border-zinc-700',
                 ].join(' ')}
               >
-                <p className="text-sm text-zinc-200">{s.label}</p>
-                <p className="text-[10px] text-zinc-500 mt-0.5">{s.hint}</p>
+                <p className="text-sm text-zinc-200">{t(`styles.${sk}.label`)}</p>
+                <p className="text-[10px] text-zinc-500 mt-0.5">{t(`styles.${sk}.hint`)}</p>
               </button>
             ))}
           </div>
@@ -382,21 +376,21 @@ export default function GenerateWizardPage() {
             value={customStyle}
             onChange={e => setCustomStyle(e.target.value)}
             disabled={generating}
-            placeholder="Ou descreva o tom em palavras suas (opcional)…"
+            placeholder={t('customStylePlaceholder')}
             rows={2}
             className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-200 outline-none focus:border-cyan-400/60 resize-none"
           />
 
           {/* Recap */}
           <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3 space-y-2 text-[11px]">
-            <p className="text-zinc-500 uppercase tracking-wider">Resumo</p>
+            <p className="text-zinc-500 uppercase tracking-wider">{t('recap')}</p>
             <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-zinc-300">{selected.length} produto{selected.length > 1 ? 's' : ''}</span>
+              <span className="text-zinc-300">{t('productCount', { count: selected.length })}</span>
               <span className="text-zinc-700">×</span>
               {channels.map(c => <ChannelBadge key={c} channel={c} size="xs" />)}
             </div>
             <p className="text-zinc-500">
-              Custo estimado: ~${(0.025 * selected.length).toFixed(3)} USD
+              {t('estimatedCost', { cost: (0.025 * selected.length).toFixed(3) })}
             </p>
           </div>
 
@@ -406,14 +400,14 @@ export default function GenerateWizardPage() {
               disabled={generating}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-zinc-800 hover:border-zinc-700 text-zinc-300 text-sm disabled:opacity-50"
             >
-              <ArrowLeft size={14} /> Voltar
+              <ArrowLeft size={14} /> {t('back')}
             </button>
             <button
               onClick={generate}
               disabled={!canGen || generating}
               className="glow-rainbow inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan-400 hover:bg-cyan-300 disabled:opacity-40 disabled:cursor-not-allowed text-black text-sm font-medium"
             >
-              {generating ? <><Loader2 size={14} className="animate-spin" /> Gerando…</> : <><Sparkles size={14} /> Gerar conteúdo</>}
+              {generating ? <><Loader2 size={14} className="animate-spin" /> {t('generating')}</> : <><Sparkles size={14} /> {t('generateContent')}</>}
             </button>
           </div>
         </div>
@@ -427,12 +421,12 @@ export default function GenerateWizardPage() {
               <Check size={18} className="text-emerald-400" />
             </div>
             <div>
-              <p className="text-sm font-medium text-zinc-100">Conteúdo gerado!</p>
+              <p className="text-sm font-medium text-zinc-100">{t('resultTitle')}</p>
               <p className="text-xs text-zinc-400">
-                {result.items.length} peça{result.items.length > 1 ? 's' : ''} criada{result.items.length > 1 ? 's' : ''}
-                {result.failed ? ` · ${result.failed} falharam` : ''}
+                {t('resultPiecesCreated', { count: result.items.length })}
+                {result.failed ? t('resultFailed', { failed: result.failed }) : ''}
                 {' · '}
-                custo: ${result.cost_usd.toFixed(4)}
+                {t('resultCost', { cost: result.cost_usd.toFixed(4) })}
               </p>
             </div>
           </div>
@@ -452,7 +446,7 @@ export default function GenerateWizardPage() {
                     ?? (it.content as { main_caption?: string }).main_caption
                     ?? (it.content as { message?: string }).message
                     ?? (it.content as { subject?: string }).subject
-                    ?? '(preview indisponível)'}
+                    ?? t('previewUnavailable')}
                 </p>
               </a>
             ))}
@@ -463,13 +457,13 @@ export default function GenerateWizardPage() {
               onClick={() => { setResult(null); setStep(1); setSelected([]); setChannels([]) }}
               className="px-4 py-2 rounded-lg border border-zinc-800 hover:border-zinc-700 text-zinc-300 text-sm"
             >
-              Gerar mais
+              {t('generateMore')}
             </button>
             <a
               href="/dashboard/social"
               className="px-4 py-2 rounded-lg bg-cyan-400 hover:bg-cyan-300 text-black text-sm font-medium"
             >
-              Ver feed completo
+              {t('viewFullFeed')}
             </a>
           </div>
         </div>

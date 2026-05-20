@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import { Loader2, Save, Brain, Sparkles, Eye, GraduationCap, Bell, CheckCircle2 } from 'lucide-react'
 import { AiModelSelector, AiModelSelectorValue } from '@/components/ai/AiModelSelector'
@@ -23,6 +24,7 @@ interface Settings {
 }
 
 export default function ConfiguracoesAiPage() {
+  const t = useTranslations('atendenteIa')
   const supabase = useMemo(() => createClient(), [])
   const [s,         setS]         = useState<Settings | null>(null)
   const [loading,   setLoading]   = useState(true)
@@ -47,9 +49,9 @@ export default function ConfiguracoesAiPage() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       setS(await res.json())
     } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : 'Erro ao carregar')
+      setErr(e instanceof Error ? e.message : t('config.errors.load'))
     } finally { setLoading(false) }
-  }, [getHeaders])
+  }, [getHeaders, t])
 
   useEffect(() => { load() }, [load])
 
@@ -69,7 +71,7 @@ export default function ConfiguracoesAiPage() {
       setSavedOk(true)
       setTimeout(() => setSavedOk(false), 2500)
     } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : 'Erro ao salvar')
+      setErr(e instanceof Error ? e.message : t('config.errors.save'))
     } finally { setSaving(false) }
   }
 
@@ -77,7 +79,7 @@ export default function ConfiguracoesAiPage() {
     return (
       <div className="p-6 space-y-6 min-h-full" style={{ background: 'var(--background)' }}>
         <div className="flex items-center gap-2 text-zinc-500 text-sm">
-          <Loader2 size={14} className="animate-spin" /> Carregando…
+          <Loader2 size={14} className="animate-spin" /> {t('config.loading')}
         </div>
       </div>
     )
@@ -95,14 +97,14 @@ export default function ConfiguracoesAiPage() {
   return (
     <div className="p-6 space-y-7 min-h-full" style={{ background: 'var(--background)' }}>
       <div>
-        <p className="text-zinc-500 text-xs">Atendente IA</p>
-        <h2 className="text-white text-lg font-semibold mt-0.5">Configurações</h2>
-        <p className="text-zinc-500 text-xs mt-1">Modelos usados pelo módulo de IA, limiares de auto-resposta e preferências de exibição.</p>
+        <p className="text-zinc-500 text-xs">{t('config.eyebrow')}</p>
+        <h2 className="text-white text-lg font-semibold mt-0.5">{t('config.pageTitle')}</h2>
+        <p className="text-zinc-500 text-xs mt-1">{t('config.pageSubtitle')}</p>
       </div>
 
       {/* Inteligência */}
-      <Section title="Inteligência" icon={<Brain size={13} />}>
-        <Card title="Classificador de intenção" subtitle="Modelo usado pra detectar a categoria da mensagem (vendas, pós-venda, etc). Recomendado: rápido e barato.">
+      <Section title={t('config.sections.intelligence')} icon={<Brain size={13} />}>
+        <Card title={t('config.cards.classifier.title')} subtitle={t('config.cards.classifier.subtitle')}>
           <AiModelSelector
             value={classifierVal}
             onChange={v => setS({ ...s, classifier_provider: v.provider, classifier_model: v.model })}
@@ -110,7 +112,7 @@ export default function ConfiguracoesAiPage() {
           />
         </Card>
 
-        <Card title="Embeddings" subtitle="Modelo usado pra busca semântica na base de conhecimento. Hoje só OpenAI tem API de embeddings.">
+        <Card title={t('config.cards.embeddings.title')} subtitle={t('config.cards.embeddings.subtitle')}>
           <AiModelSelector
             value={embeddingVal}
             onChange={v => setS({ ...s, embedding_provider: v.provider, embedding_model: v.model })}
@@ -118,16 +120,16 @@ export default function ConfiguracoesAiPage() {
           />
         </Card>
 
-        <Card title="Limiares de autonomia" subtitle="Quando a IA pode enviar resposta direto vs. mandar pra fila humana.">
+        <Card title={t('config.cards.autonomy.title')} subtitle={t('config.cards.autonomy.subtitle')}>
           <div className="space-y-4">
             <Slider
-              label="Threshold auto-envio (≥ envia direto)"
+              label={t('config.cards.autonomy.autoSendLabel')}
               value={s.auto_send_threshold ?? 80}
               onChange={v => setS({ ...s, auto_send_threshold: v })}
               min={50} max={100}
             />
             <Slider
-              label="Threshold queue humano (entre este e o anterior, vai pra fila)"
+              label={t('config.cards.autonomy.queueLabel')}
               value={s.queue_threshold ?? 50}
               onChange={v => setS({ ...s, queue_threshold: v })}
               min={0} max={90}
@@ -137,31 +139,31 @@ export default function ConfiguracoesAiPage() {
       </Section>
 
       {/* Exibição */}
-      <Section title="Exibição" icon={<Eye size={13} />}>
-        <Card title="Mostrar custos estimados nos seletores" subtitle="Mostra custo aproximado por mensagem ao escolher modelo.">
+      <Section title={t('config.sections.display')} icon={<Eye size={13} />}>
+        <Card title={t('config.cards.showCosts.title')} subtitle={t('config.cards.showCosts.subtitle')}>
           <Toggle value={!!s.show_cost_estimates} onChange={v => setS({ ...s, show_cost_estimates: v })} />
         </Card>
-        <Card title="Mostrar tokens consumidos nas mensagens" subtitle="Exibe contador de tokens dentro do card expandível de cada mensagem IA na tela de Conversas.">
+        <Card title={t('config.cards.showTokens.title')} subtitle={t('config.cards.showTokens.subtitle')}>
           <Toggle value={s.show_tokens ?? true} onChange={v => setS({ ...s, show_tokens: v })} />
         </Card>
       </Section>
 
       {/* Aprendizado */}
-      <Section title="Aprendizado" icon={<GraduationCap size={13} />}>
-        <Card title="Capturar edições humanas como treinamento" subtitle="Quando humano edita resposta da IA, abre modal pra salvar como exemplo de treinamento.">
+      <Section title={t('config.sections.learning')} icon={<GraduationCap size={13} />}>
+        <Card title={t('config.cards.captureEdits.title')} subtitle={t('config.cards.captureEdits.subtitle')}>
           <Toggle value={s.capture_edits ?? true} onChange={v => setS({ ...s, capture_edits: v })} />
         </Card>
-        <Card title="Re-treinar agentes automaticamente quando validar 10+ exemplos" subtitle="Anexa exemplos validados ao system_prompt do agente.">
+        <Card title={t('config.cards.autoRetrain.title')} subtitle={t('config.cards.autoRetrain.subtitle')}>
           <Toggle value={s.auto_retrain ?? false} onChange={v => setS({ ...s, auto_retrain: v })} />
         </Card>
       </Section>
 
       {/* Notificações */}
-      <Section title="Notificações" icon={<Bell size={13} />}>
-        <Card title="Notificar quando conversa for escalada" subtitle="Toast/email quando uma conversa vai pra fila humana.">
+      <Section title={t('config.sections.notifications')} icon={<Bell size={13} />}>
+        <Card title={t('config.cards.notifyEscalation.title')} subtitle={t('config.cards.notifyEscalation.subtitle')}>
           <Toggle value={s.notify_escalation ?? true} onChange={v => setS({ ...s, notify_escalation: v })} />
         </Card>
-        <Card title="Notificar resumo diário de IA" subtitle="Email diário com métricas (auto%, escalações, tokens).">
+        <Card title={t('config.cards.notifyDaily.title')} subtitle={t('config.cards.notifyDaily.subtitle')}>
           <Toggle value={s.notify_daily ?? false} onChange={v => setS({ ...s, notify_daily: v })} />
         </Card>
       </Section>
@@ -169,12 +171,12 @@ export default function ConfiguracoesAiPage() {
       {/* Footer */}
       <div className="flex items-center gap-3 pt-2">
         {err     && <p className="text-[11px] text-red-400">{err}</p>}
-        {savedOk && <p className="inline-flex items-center gap-1 text-[11px] text-green-400"><CheckCircle2 size={12}/> Salvo</p>}
+        {savedOk && <p className="inline-flex items-center gap-1 text-[11px] text-green-400"><CheckCircle2 size={12}/> {t('config.saved')}</p>}
         <button onClick={save} disabled={saving}
           className="glow-rainbow ml-auto inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all disabled:opacity-50"
           style={{ background: '#00E5FF', color: '#000' }}>
           {saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
-          {saving ? 'Salvando…' : 'Salvar configurações'}
+          {saving ? t('config.saving') : t('config.saveButton')}
         </button>
       </div>
     </div>

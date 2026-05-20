@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, use } from 'react'
+import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
@@ -76,6 +77,7 @@ function brl(v: number | null) {
 
 export default function CampaignDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
+  const t = useTranslations('mlCampaigns.campaignDetail')
   const router = useRouter()
   const { selected: selectedSellerId } = useMlAccount()
   const [campaign, setCampaign] = useState<Campaign | null>(null)
@@ -186,13 +188,13 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
     if (!campaign) return
     setSyncing(true)
     try {
-      const t = await getToken()
+      const token = await getToken()
       const sid = getStoredSellerId() ?? campaign.seller_id
 
       // Fase 1: recompute health (rápido, síncrono)
       const recRes = await fetch(`${BACKEND}/ml-campaigns/sync/recompute-health?seller_id=${sid}`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${t}` },
+        headers: { Authorization: `Bearer ${token}` },
       })
       if (!recRes.ok) {
         const body = await recRes.json().catch(() => ({} as { message?: string }))
@@ -206,17 +208,17 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
       // Fase 2: dispara sync ML em background (não espera)
       void fetch(`${BACKEND}/ml-campaigns/sync?seller_id=${sid}`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${t}` },
+        headers: { Authorization: `Bearer ${token}` },
       }).catch(() => { /* ignore */ })
 
       // Toast informativo (varia conforme houve auto-link ou não)
       const linkedNote = (rec.auto_linked ?? 0) > 0
-        ? `🔗 ${rec.auto_linked} items linkados a produtos via SKU. `
+        ? `🔗 ${t('toast.linkedNote', { count: rec.auto_linked ?? 0 })} `
         : ''
       const movedMsg = rec.moved_to_ready > 0
-        ? `✅ ${rec.moved_to_ready} item${rec.moved_to_ready === 1 ? '' : 's'} viraram READY`
-        : `✅ ${rec.updated}/${rec.total} health recalculados`
-      showToast(`${linkedNote}${movedMsg}. Sync ML rodando em background…`, 'success')
+        ? `✅ ${t('toast.movedToReady', { count: rec.moved_to_ready })}`
+        : `✅ ${t('toast.healthRecalculated', { updated: rec.updated, total: rec.total })}`
+      showToast(`${linkedNote}${movedMsg}. ${t('toast.syncRunning')}`, 'success')
 
       // Reload imediato pra refletir health novo
       void load()
@@ -233,11 +235,11 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
     if (!campaign) return
     setGenerating(true)
     try {
-      const t = await getToken()
+      const token = await getToken()
       const sid = getStoredSellerId() ?? campaign.seller_id
       const res = await fetch(`${BACKEND}/ml-campaigns/recommendations/generate?seller_id=${sid}`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${t}` },
+        headers: { Authorization: `Bearer ${token}` },
       })
       if (!res.ok) {
         const body = await res.json().catch(() => ({} as { message?: string }))
@@ -245,7 +247,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
       }
       const data = await res.json().catch(() => ({} as { generated?: number }))
       const n = data.generated ?? 0
-      showToast(`✨ ${n} recomendações geradas — redirecionando…`, 'success')
+      showToast(`✨ ${t('toast.recommendationsGenerated', { count: n })}`, 'success')
       setTimeout(() => {
         router.push(`/dashboard/ml-campaigns/recommendations?campaign_id=${id}`)
       }, 1200)
@@ -267,10 +269,10 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
     }
     setGeneratingItem(campaignItemId)
     try {
-      const t = await getToken()
+      const token = await getToken()
       const res = await fetch(`${BACKEND}/ml-campaigns/recommendations/generate-item/${campaignItemId}`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${t}` },
+        headers: { Authorization: `Bearer ${token}` },
       })
       if (!res.ok) {
         const errBody = await res.json().catch(() => ({} as { message?: string }))
@@ -280,7 +282,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
       if (data.id) {
         router.push(`/dashboard/ml-campaigns/recommendations/${data.id}`)
       } else {
-        showToast('Recomendação gerada, mas sem id retornado', 'error')
+        showToast(t('toast.noIdReturned'), 'error')
       }
     } catch (e) {
       showToast(`❌ ${(e as Error).message}`, 'error')
@@ -291,21 +293,21 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
 
   async function leaveCampaign(campaignItemId: string) {
     if (!campaign) return
-    if (!confirm('Sair da campanha pra esse anúncio? O item volta a Candidato.')) return
+    if (!confirm(t('confirmLeave'))) return
     setLeaving(campaignItemId)
     try {
-      const t = await getToken()
+      const token = await getToken()
       const sid = getStoredSellerId() ?? campaign.seller_id
       const res = await fetch(`${BACKEND}/ml-campaigns/leave/single`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' },
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ campaign_item_id: campaignItemId, seller_id: sid }),
       })
       if (!res.ok) {
         const body = await res.json().catch(() => ({} as { message?: string }))
         throw new Error(body.message ?? `HTTP ${res.status}`)
       }
-      showToast('✅ Item removido da campanha', 'success')
+      showToast(`✅ ${t('toast.itemRemoved')}`, 'success')
       void load()
     } catch (e) {
       showToast(`❌ ${(e as Error).message}`, 'error')
@@ -318,7 +320,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
     return (
       <div className="p-6 max-w-6xl mx-auto" style={{ background: 'var(--background)', minHeight: '100vh', color: 'var(--text)' }}>
         <div className="flex items-center gap-2 text-zinc-500 text-sm">
-          <Loader2 size={14} className="animate-spin" /> Carregando…
+          <Loader2 size={14} className="animate-spin" /> {t('loading')}
         </div>
       </div>
     )
@@ -328,10 +330,10 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
     return (
       <div className="p-6 max-w-6xl mx-auto" style={{ background: 'var(--background)', minHeight: '100vh', color: 'var(--text)' }}>
         <Link href="/dashboard/ml-campaigns/list" className="inline-flex items-center gap-1 text-cyan-400 text-xs mb-3">
-          <ArrowLeft size={12} /> Voltar
+          <ArrowLeft size={12} /> {t('back')}
         </Link>
         <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">
-          {error || 'Campanha não encontrada.'}
+          {error || t('notFound')}
         </div>
       </div>
     )
@@ -343,9 +345,9 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
     <div className="p-6 space-y-4 max-w-6xl mx-auto" style={{ background: 'var(--background)', minHeight: '100vh', color: 'var(--text)' }}>
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-xs text-zinc-500">
-        <Link href="/dashboard/ml-campaigns" className="hover:text-cyan-400">Campaign Center</Link>
+        <Link href="/dashboard/ml-campaigns" className="hover:text-cyan-400">{t('breadcrumb')}</Link>
         <span>/</span>
-        <Link href="/dashboard/ml-campaigns/list" className="hover:text-cyan-400">Campanhas</Link>
+        <Link href="/dashboard/ml-campaigns/list" className="hover:text-cyan-400">{t('breadcrumbCampaigns')}</Link>
         <span>/</span>
         <span className="text-zinc-300 font-mono">{campaign.ml_campaign_id}</span>
       </div>
@@ -360,7 +362,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] uppercase tracking-wider font-semibold"
                 style={{ background: 'rgba(0,229,255,0.1)', color: '#67e8f9', border: '1px solid rgba(0,229,255,0.3)' }}>
                 <Sparkles size={10} />
-                ML subsidia ~{campaign.avg_meli_subsidy_pct?.toFixed(1) ?? '?'}%
+                {t('mlSubsidizes', { pct: campaign.avg_meli_subsidy_pct?.toFixed(1) ?? '?' })}
               </span>
             )}
           </div>
@@ -369,14 +371,14 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
           </h1>
           <div className="flex items-center gap-4 text-[11px] text-zinc-500 mt-1 flex-wrap">
             <span className="font-mono">{campaign.ml_campaign_id}</span>
-            <span>seller {campaign.seller_id}</span>
+            <span>{t('seller', { id: campaign.seller_id })}</span>
             {campaign.deadline_date && (
               <span className="flex items-center gap-1 text-amber-400">
-                <Clock size={10} /> Aderir até {new Date(campaign.deadline_date).toLocaleDateString('pt-BR')}
+                <Clock size={10} /> {t('joinBy', { date: new Date(campaign.deadline_date).toLocaleDateString('pt-BR') })}
               </span>
             )}
             {campaign.finish_date && (
-              <span>Encerra em {new Date(campaign.finish_date).toLocaleDateString('pt-BR')}</span>
+              <span>{t('endsOn', { date: new Date(campaign.finish_date).toLocaleDateString('pt-BR') })}</span>
             )}
           </div>
         </div>
@@ -385,10 +387,10 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
 
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Counter label="Candidatos"   value={campaign.candidate_count} color="#00E5FF" />
-        <Counter label="Programados"  value={campaign.pending_count}   color="#a78bfa" />
-        <Counter label="Participando" value={campaign.started_count}   color="#22c55e" />
-        <Counter label="Total"        value={totalItems}                color="#fafafa" />
+        <Counter label={t('counter.candidates')}   value={campaign.candidate_count} color="#00E5FF" />
+        <Counter label={t('counter.scheduled')}  value={campaign.pending_count}   color="#a78bfa" />
+        <Counter label={t('counter.participating')} value={campaign.started_count}   color="#22c55e" />
+        <Counter label={t('counter.total')}        value={totalItems}                color="#fafafa" />
       </div>
 
       {/* Action panel — fluxo de adesão */}
@@ -399,20 +401,20 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
           <Sparkles size={16} className="text-cyan-300" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-zinc-100">Como participar dessa campanha</p>
+          <p className="text-sm font-semibold text-zinc-100">{t('howToParticipate')}</p>
           <p className="text-[11px] text-zinc-400 mt-1 leading-relaxed">
-            <strong className="text-cyan-300">1)</strong> Gere recomendações IA (analisa margem + subsídio ML por item) ·{' '}
-            <strong className="text-cyan-300">2)</strong> Aprove/edite as sugestões ·{' '}
-            <strong className="text-cyan-300">3)</strong> Aplique e o item entra na campanha.
+            <strong className="text-cyan-300">1)</strong> {t('steps.one')} ·{' '}
+            <strong className="text-cyan-300">2)</strong> {t('steps.two')} ·{' '}
+            <strong className="text-cyan-300">3)</strong> {t('steps.three')}
           </p>
           {campaign.candidate_count === 0 && campaign.started_count === 0 && (
-            <p className="text-[11px] text-amber-300 mt-2">Nenhum item candidato — clique "Atualizar dados" pra sincronizar com ML.</p>
+            <p className="text-[11px] text-amber-300 mt-2">{t('noCandidatesHint')}</p>
           )}
           {campaign.candidate_count > 0 && items.some(i => i.health_status && !['ready','missing_shipping'].includes(i.health_status)) && (
             <p className="text-[11px] text-amber-300 mt-2">
-              ⚠ Items com badges <strong className="text-red-400">vermelhos</strong> (Sem custo / Sem imposto / Sem vínculo): IA bloqueia.
-              Vincule em <Link href="/dashboard/catalogo/vinculos" className="underline text-cyan-300">/catalogo/vinculos</Link> ou cadastre custo nos produtos, depois clique <strong>"Atualizar dados"</strong>.
-              <br/>Items <strong className="text-amber-300">"Sem dimensões"</strong> a IA processa normalmente (ML calcula frete).
+              {t('redBadgesHintPrefix')}{' '}
+              <Link href="/dashboard/catalogo/vinculos" className="underline text-cyan-300">/catalogo/vinculos</Link>
+              {' '}{t('redBadgesHintSuffix')}
             </p>
           )}
         </div>
@@ -420,22 +422,22 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
           <button onClick={resync} disabled={syncing}
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all disabled:opacity-50"
             style={{ background: 'rgba(251,191,36,0.12)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.3)' }}
-            title="Re-sincroniza com ML — recomputa health_status com seus custos atualizados">
+            title={t('refreshDataTitle')}>
             {syncing ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-            {syncing ? 'Sincronizando…' : 'Atualizar dados'}
+            {syncing ? t('syncing') : t('refreshData')}
           </button>
           {campaign.candidate_count > 0 && (
             <button onClick={generateRecommendations} disabled={generating}
               className="glow-rainbow inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all disabled:opacity-50"
               style={{ background: '#00E5FF', color: '#000', border: '1px solid #00E5FF' }}>
               {generating ? <Loader2 size={12} className="animate-spin" /> : <Zap size={12} />}
-              {generating ? 'Gerando…' : `Gerar Recomendações IA (${campaign.candidate_count})`}
+              {generating ? t('generating') : t('generateRecommendations', { count: campaign.candidate_count })}
             </button>
           )}
           <Link href={`/dashboard/ml-campaigns/recommendations?campaign_id=${id}`}
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all"
             style={{ background: 'rgba(167,139,250,0.15)', color: '#c4b5fd', border: '1px solid rgba(167,139,250,0.35)' }}>
-            <Sparkles size={12} /> Ver Recomendações
+            <Sparkles size={12} /> {t('viewRecommendations')}
             <ChevronRight size={11} />
           </Link>
         </div>
@@ -443,12 +445,12 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
 
       {/* Items toolbar */}
       <div className="flex items-center justify-between flex-wrap gap-2 mt-4">
-        <h2 className="text-sm font-semibold">Anúncios</h2>
+        <h2 className="text-sm font-semibold">{t('listings')}</h2>
         <div className="flex items-center gap-1 text-xs">
           {[
-            { v: '',           label: 'Todos' },
-            { v: 'candidate',  label: `Candidatos (${campaign.candidate_count})` },
-            { v: 'started',    label: `Participando (${campaign.started_count})` },
+            { v: '',           label: t('itemFilter.all') },
+            { v: 'candidate',  label: t('itemFilter.candidates', { count: campaign.candidate_count }) },
+            { v: 'started',    label: t('itemFilter.participating', { count: campaign.started_count }) },
           ].map(opt => (
             <button key={opt.v}
               onClick={() => setStatusFilter(opt.v as any)}
@@ -466,12 +468,12 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
 
       {/* Listing status filter (ativo/pausado/catalogo) */}
       <div className="flex items-center gap-1 text-[11px] flex-wrap">
-        <span className="text-zinc-500 mr-1">Anúncio:</span>
+        <span className="text-zinc-500 mr-1">{t('listingFilter.label')}</span>
         {[
-          { v: '',         label: 'Todos',     color: '#a1a1aa' },
-          { v: 'active',   label: 'Ativos',    color: '#22c55e' },
-          { v: 'paused',   label: 'Pausados',  color: '#fbbf24' },
-          { v: 'catalog',  label: 'Catálogo',  color: '#a78bfa' },
+          { v: '',         label: t('listingFilter.all'),     color: '#a1a1aa' },
+          { v: 'active',   label: t('listingFilter.active'),    color: '#22c55e' },
+          { v: 'paused',   label: t('listingFilter.paused'),  color: '#fbbf24' },
+          { v: 'catalog',  label: t('listingFilter.catalog'),  color: '#a78bfa' },
         ].map(opt => (
           <button key={opt.v}
             onClick={() => setListingFilter(opt.v as any)}
@@ -490,7 +492,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
       {items.length === 0 && !loading && (
         <div className="rounded-xl p-6 text-center text-xs text-zinc-500"
           style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
-          Nenhum anúncio nesse status.
+          {t('noItemsInStatus')}
         </div>
       )}
 
@@ -510,7 +512,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
           ))}
           {total > items.length && (
             <p className="text-[11px] text-zinc-500 text-center pt-2">
-              Mostrando {items.length} de {total}
+              {t('showing', { shown: items.length, total })}
             </p>
           )}
         </div>
@@ -541,6 +543,7 @@ function ItemRow({ item, campaignId, recoId, onOpenEditor, onLeave, leaving, gen
   leaving: boolean
   generating: boolean
 }) {
+  const t = useTranslations('mlCampaigns.campaignDetail')
   const showcasePrice = item.current_price ?? item.suggested_discounted_price
   const discount = (item.original_price && showcasePrice)
     ? Math.round(((item.original_price - showcasePrice) / item.original_price) * 100)
@@ -555,11 +558,11 @@ function ItemRow({ item, campaignId, recoId, onOpenEditor, onLeave, leaving, gen
   const healthBadge = (() => {
     const h = item.health_status
     if (!h || h === 'ready') return null
-    if (h === 'missing_shipping') return { label: 'Sem dimensões', color: '#fbbf24', tip: 'Sem dimensões cadastradas. IA processa mesmo assim — ML calcula frete.' }
-    if (h === 'missing_cost')     return { label: 'Sem custo',     color: '#ef4444', tip: 'Custo não cadastrado no produto interno. IA bloqueia até preencher.' }
-    if (h === 'missing_tax')      return { label: 'Sem imposto',   color: '#ef4444', tip: 'Imposto não cadastrado no produto interno. IA bloqueia até preencher.' }
+    if (h === 'missing_shipping') return { label: t('health.missingDimensions'), color: '#fbbf24', tip: t('health.missingDimensionsTip') }
+    if (h === 'missing_cost')     return { label: t('health.missingCost'),     color: '#ef4444', tip: t('health.missingCostTip') }
+    if (h === 'missing_tax')      return { label: t('health.missingTax'),   color: '#ef4444', tip: t('health.missingTaxTip') }
     // 'incomplete' — sem produto interno OU produto não encontrado
-    return { label: 'Sem vínculo', color: '#ef4444', tip: 'Anúncio não vinculado a produto interno. Vincule em /catalogo/vinculos.' }
+    return { label: t('health.noLink'), color: '#ef4444', tip: t('health.noLinkTip') }
   })()
 
   const permalink = item.permalink ?? `https://www.mercadolivre.com.br/${item.ml_item_id}`
@@ -589,7 +592,7 @@ function ItemRow({ item, campaignId, recoId, onOpenEditor, onLeave, leaving, gen
       role={rowClickable ? 'button' : undefined}
       tabIndex={rowClickable ? 0 : undefined}
       onKeyDown={(e) => { if (rowClickable && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onOpenEditor() } }}
-      title={rowClickable ? 'Clique pra definir preço e participar' : undefined}>
+      title={rowClickable ? t('rowClickTitle') : undefined}>
       <div className="flex items-start gap-3 flex-wrap">
         {/* Thumbnail */}
         <a href={permalink} target="_blank" rel="noreferrer"
@@ -624,7 +627,7 @@ function ItemRow({ item, campaignId, recoId, onOpenEditor, onLeave, leaving, gen
               <CopyButton value={item.title} size={9} />
             </div>
           )}
-          <div className="flex items-center gap-0.5 mt-0.5" title={item.seller_sku ? `SKU: ${item.seller_sku}` : 'SKU não cadastrado no anúncio ML'}>
+          <div className="flex items-center gap-0.5 mt-0.5" title={item.seller_sku ? `SKU: ${item.seller_sku}` : t('skuNotRegistered')}>
             <span className="text-[9px] uppercase tracking-wider text-zinc-500">SKU:</span>
             {item.seller_sku ? (
               <>
@@ -632,7 +635,7 @@ function ItemRow({ item, campaignId, recoId, onOpenEditor, onLeave, leaving, gen
                 <CopyButton value={item.seller_sku} size={9} />
               </>
             ) : (
-              <span className="text-[10px] text-zinc-600 italic">— sem SKU no ML</span>
+              <span className="text-[10px] text-zinc-600 italic">{t('noSku')}</span>
             )}
           </div>
           <div className="flex items-center gap-1 flex-wrap mt-0.5">
@@ -644,12 +647,12 @@ function ItemRow({ item, campaignId, recoId, onOpenEditor, onLeave, leaving, gen
         {/* Preços */}
         <div className="flex-1 min-w-0 grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
           <div>
-            <p className="text-[9px] uppercase tracking-wider text-zinc-500">Preço original</p>
+            <p className="text-[9px] uppercase tracking-wider text-zinc-500">{t('priceOriginal')}</p>
             <p className="text-zinc-300 font-medium">{brl(item.original_price)}</p>
           </div>
           <div>
             <p className="text-[9px] uppercase tracking-wider text-zinc-500">
-              {isStarted ? 'Preço promocional' : 'Sugerido ML'}
+              {isStarted ? t('pricePromo') : t('priceSuggestedMl')}
             </p>
             <p className="font-medium" style={{ color: discount && discount > 0 ? '#22c55e' : '#fafafa' }}>
               {brl(showcasePrice)}
@@ -659,7 +662,7 @@ function ItemRow({ item, campaignId, recoId, onOpenEditor, onLeave, leaving, gen
             </p>
           </div>
           <div>
-            <p className="text-[9px] uppercase tracking-wider text-zinc-500">Mínimo aceito</p>
+            <p className="text-[9px] uppercase tracking-wider text-zinc-500">{t('priceMinAccepted')}</p>
             <p className="text-zinc-300 font-medium">{brl(item.min_discounted_price)}</p>
           </div>
         </div>
@@ -668,7 +671,7 @@ function ItemRow({ item, campaignId, recoId, onOpenEditor, onLeave, leaving, gen
         {item.has_meli_subsidy && (
           <div className="flex-shrink-0 px-2 py-1.5 rounded text-right"
             style={{ background: 'rgba(0,229,255,0.06)', border: '1px solid rgba(0,229,255,0.2)' }}>
-            <p className="text-[9px] uppercase tracking-wider text-cyan-300">ML reduz</p>
+            <p className="text-[9px] uppercase tracking-wider text-cyan-300">{t('mlReduces')}</p>
             <p className="text-cyan-400 font-bold text-sm">
               {item.meli_subsidy_amount ? brl(item.meli_subsidy_amount) : `${item.meli_percentage?.toFixed(1)}%`}
             </p>
@@ -679,7 +682,7 @@ function ItemRow({ item, campaignId, recoId, onOpenEditor, onLeave, leaving, gen
         {item.estimated_margin_pct != null && (
           <div className="flex-shrink-0 px-2 py-1.5 rounded text-right"
             style={{ background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.2)' }}>
-            <p className="text-[9px] uppercase tracking-wider text-emerald-300">M.C.</p>
+            <p className="text-[9px] uppercase tracking-wider text-emerald-300">{t('contributionMargin')}</p>
             <p className="text-emerald-400 font-bold text-sm">{item.estimated_margin_pct.toFixed(1)}%</p>
           </div>
         )}
@@ -709,14 +712,14 @@ function ItemRow({ item, campaignId, recoId, onOpenEditor, onLeave, leaving, gen
                   color:      recoId ? '#000'    : '#67e8f9',
                   border: '1px solid rgba(0,229,255,0.4)',
                 }}
-                title={recoId ? 'Definir preço e aderir (atalho — pula a lista)' : 'Gerar recomendação IA + abrir editor'}>
+                title={recoId ? t('definePriceTitle') : t('generateAiTitle')}>
                 {generating ? <Loader2 size={10} className="animate-spin" /> : <Sparkles size={10} />}
-                {generating ? 'Gerando…' : recoId ? '💰 Definir preço' : 'Gerar IA'}
+                {generating ? t('generating') : recoId ? t('definePrice') : t('generateAi')}
               </button>
               <Link href={`/dashboard/ml-campaigns/recommendations?campaign_id=${campaignId}`}
                 className="text-[10px] text-zinc-500 hover:text-cyan-300 underline-offset-2 hover:underline transition-colors"
-                title="Abrir lista completa de recomendações dessa campanha">
-                lista
+                title={t('listLinkTitle')}>
+                {t('listLink')}
               </Link>
             </>
           )}
@@ -724,9 +727,9 @@ function ItemRow({ item, campaignId, recoId, onOpenEditor, onLeave, leaving, gen
             <button onClick={onLeave} disabled={leaving}
               className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded text-[10px] font-semibold transition-all disabled:opacity-50"
               style={{ background: 'rgba(248,113,113,0.1)', color: '#f87171', border: '1px solid rgba(248,113,113,0.3)' }}
-              title="Sair da campanha pra esse item">
+              title={t('leaveTitle')}>
               {leaving ? <Loader2 size={10} className="animate-spin" /> : <LogOut size={10} />}
-              {leaving ? 'Saindo…' : 'Sair'}
+              {leaving ? t('leaving') : t('leave')}
             </button>
           )}
         </div>
@@ -753,61 +756,60 @@ function CampaignTypeBadge({ type }: { type: string }) {
   )
 }
 
+const CD_STATUS_COLORS: Record<string, string> = {
+  started: '#22c55e', pending: '#a78bfa', finished: '#71717a', paused: '#fbbf24', expired: '#ef4444',
+}
+
 function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, { label: string; color: string }> = {
-    started:  { label: 'ATIVA',       color: '#22c55e' },
-    pending:  { label: 'PROGRAMADA',  color: '#a78bfa' },
-    finished: { label: 'ENCERRADA',   color: '#71717a' },
-    paused:   { label: 'PAUSADA',     color: '#fbbf24' },
-    expired:  { label: 'EXPIRADA',    color: '#ef4444' },
-  }
-  const m = map[status] ?? { label: status, color: '#71717a' }
+  const t = useTranslations('mlCampaigns')
+  const color = CD_STATUS_COLORS[status] ?? '#71717a'
+  const label = CD_STATUS_COLORS[status] ? t(`statusBadge.${status}`) : status
   return (
     <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded font-bold"
-      style={{ background: `${m.color}15`, color: m.color, border: `1px solid ${m.color}40` }}>
-      {m.label}
+      style={{ background: `${color}15`, color, border: `1px solid ${color}40` }}>
+      {label}
     </span>
   )
 }
 
+const ITEM_STATUS_COLORS: Record<string, string> = {
+  candidate: '#00E5FF', pending: '#a78bfa', started: '#22c55e', finished: '#71717a',
+}
+
 function ItemStatusBadge({ status }: { status: string }) {
-  const map: Record<string, { label: string; color: string }> = {
-    candidate: { label: 'Candidato',    color: '#00E5FF' },
-    pending:   { label: 'Programado',   color: '#a78bfa' },
-    started:   { label: 'Participando', color: '#22c55e' },
-    finished:  { label: 'Encerrado',    color: '#71717a' },
-  }
-  const m = map[status] ?? { label: status, color: '#71717a' }
+  const t = useTranslations('mlCampaigns.campaignDetail')
+  const color = ITEM_STATUS_COLORS[status] ?? '#71717a'
+  const label = ITEM_STATUS_COLORS[status] ? t(`itemStatus.${status}`) : status
   return (
     <span className="text-[9px] inline-block px-1.5 py-0.5 rounded uppercase tracking-wider font-semibold"
-      style={{ background: `${m.color}15`, color: m.color, border: `1px solid ${m.color}40` }}>
-      {m.label}
+      style={{ background: `${color}15`, color, border: `1px solid ${color}40` }}>
+      {label}
     </span>
   )
+}
+
+const LISTING_STATUS_COLORS: Record<string, string> = {
+  active: '#22c55e', paused: '#fbbf24', closed: '#71717a', under_review: '#fb923c',
 }
 
 /** Badge do status do anúncio na ML (ativo/pausado/fechado) + flag catálogo. */
 function ListingStatusBadge({ listingStatus, catalog }: { listingStatus: string | null; catalog: boolean }) {
+  const t = useTranslations('mlCampaigns.campaignDetail')
   if (catalog) {
     return (
       <span className="text-[9px] inline-block px-1.5 py-0.5 rounded uppercase tracking-wider font-semibold"
         style={{ background: 'rgba(167,139,250,0.15)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.4)' }}>
-        Catálogo
+        {t('listingStatus.catalog')}
       </span>
     )
   }
   if (!listingStatus) return null
-  const map: Record<string, { label: string; color: string }> = {
-    active:       { label: 'Ativo',     color: '#22c55e' },
-    paused:       { label: 'Pausado',   color: '#fbbf24' },
-    closed:       { label: 'Fechado',   color: '#71717a' },
-    under_review: { label: 'Em revisão', color: '#fb923c' },
-  }
-  const m = map[listingStatus] ?? { label: listingStatus, color: '#71717a' }
+  const color = LISTING_STATUS_COLORS[listingStatus] ?? '#71717a'
+  const label = LISTING_STATUS_COLORS[listingStatus] ? t(`listingStatus.${listingStatus}`) : listingStatus
   return (
     <span className="text-[9px] inline-block px-1.5 py-0.5 rounded uppercase tracking-wider font-semibold"
-      style={{ background: `${m.color}15`, color: m.color, border: `1px solid ${m.color}40` }}>
-      {m.label}
+      style={{ background: `${color}15`, color, border: `1px solid ${color}40` }}>
+      {label}
     </span>
   )
 }

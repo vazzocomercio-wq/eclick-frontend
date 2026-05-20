@@ -6,6 +6,7 @@
  * "done" some após 2s pra não poluir a UI.
  */
 
+import { useTranslations } from 'next-intl'
 import { CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react'
 
 export type UploadItem = {
@@ -17,12 +18,13 @@ export type UploadItem = {
 }
 
 export default function UploadProgressList({ items }: { items: UploadItem[] }) {
+  const t = useTranslations('creative.references')
   if (items.length === 0) return null
 
   return (
     <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-3 space-y-2">
       <div className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wide">
-        Upload em andamento ({items.length})
+        {t('uploadInProgress', { count: items.length })}
       </div>
       <div className="space-y-1.5">
         {items.map(it => (
@@ -38,11 +40,11 @@ export default function UploadProgressList({ items }: { items: UploadItem[] }) {
               <div className="flex items-center justify-between gap-2">
                 <span className="text-zinc-200 truncate">{it.file_name}</span>
                 <span className="text-[10px] text-zinc-500 shrink-0">
-                  {it.status === 'pending'   && 'aguardando…'}
+                  {it.status === 'pending'   && t('uploadWaiting')}
                   {it.status === 'uploading' && `${it.progress}%`}
-                  {it.status === 'creating'  && 'gravando metadata…'}
-                  {it.status === 'done'      && 'ok'}
-                  {it.status === 'error'     && 'erro'}
+                  {it.status === 'creating'  && t('uploadCreating')}
+                  {it.status === 'done'      && t('uploadDone')}
+                  {it.status === 'error'     && t('uploadErrorShort')}
                 </span>
               </div>
               <div className="mt-1 h-1 rounded-full bg-zinc-800 overflow-hidden">

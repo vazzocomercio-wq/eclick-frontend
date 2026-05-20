@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import { MessageSquare, Plus, Code2, Loader2, X, Save, Copy, Check, Trash2, ToggleLeft, ToggleRight, Eye } from 'lucide-react'
 import { useConfirm } from '@/components/ui/dialog-provider'
@@ -29,6 +30,7 @@ interface Agent { id: string; name: string }
 interface Snippet { html: string; widget_token: string; preview_url: string }
 
 export default function WidgetPage() {
+  const t = useTranslations('atendenteIa')
   const supabase = useMemo(() => createClient(), [])
   const [widgets, setWidgets] = useState<ChatWidget[]>([])
   const [agents, setAgents]   = useState<Agent[]>([])
@@ -75,9 +77,9 @@ export default function WidgetPage() {
 
   async function deleteWidget(w: ChatWidget) {
     const ok = await confirm({
-      title:        'Excluir widget',
-      message:      `Excluir widget "${w.name}"? Sessões e conversas associadas continuam preservadas.`,
-      confirmLabel: 'Excluir',
+      title:        t('widget.deleteConfirm.title'),
+      message:      t('widget.deleteConfirm.message', { name: w.name }),
+      confirmLabel: t('widget.deleteConfirm.confirmLabel'),
       variant:      'danger',
     })
     if (!ok) return
@@ -103,14 +105,14 @@ export default function WidgetPage() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-            <MessageSquare size={22} style={{ color: '#00E5FF' }} /> Widget de Chat
+            <MessageSquare size={22} style={{ color: '#00E5FF' }} /> {t('widget.pageTitle')}
           </h1>
-          <p className="text-zinc-500 text-sm mt-1">Cole um snippet de JS no seu site e o chat aparece pronto.</p>
+          <p className="text-zinc-500 text-sm mt-1">{t('widget.pageSubtitle')}</p>
         </div>
         <button onClick={() => setCreateOpen(true)}
           className="glow-rainbow flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-colors"
           style={{ background: '#00E5FF', color: '#000' }}>
-          <Plus size={15} /> Criar Widget
+          <Plus size={15} /> {t('widget.createWidget')}
         </button>
       </div>
 
@@ -119,15 +121,16 @@ export default function WidgetPage() {
       ) : widgets.length === 0 ? (
         <div className="rounded-2xl p-10 text-center" style={{ background: '#0d0d10', border: '1px dashed #2a2a3f' }}>
           <div className="flex justify-center mb-3"><MessageSquare size={40} style={{ color: '#3f3f46' }} /></div>
-          <h3 className="text-base font-bold text-white mb-1">Nenhum widget criado</h3>
+          <h3 className="text-base font-bold text-white mb-1">{t('widget.emptyTitle')}</h3>
           <p className="text-xs text-zinc-500 max-w-md mx-auto leading-relaxed mb-4">
-            Crie um widget pra cada site/landing page onde quer expor o chat com IA.
-            Você gera um snippet HTML e cola antes do <code className="text-zinc-400">{'</body>'}</code>.
+            {t.rich('widget.emptyHint', {
+              code: () => <code className="text-zinc-400">{'</body>'}</code>,
+            })}
           </p>
           <button onClick={() => setCreateOpen(true)}
             className="glow-rainbow inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold"
             style={{ background: '#00E5FF', color: '#000' }}>
-            <Plus size={14} /> Criar primeiro widget
+            <Plus size={14} /> {t('widget.createFirst')}
           </button>
         </div>
       ) : (
@@ -162,7 +165,8 @@ function WidgetCard({ widget, agents, onSnippet, onToggle, onDelete }: {
   onToggle: () => void
   onDelete: () => void
 }) {
-  const agentName = agents.find(a => a.id === widget.agent_id)?.name ?? '— sem agente —'
+  const t = useTranslations('atendenteIa')
+  const agentName = agents.find(a => a.id === widget.agent_id)?.name ?? t('widget.noAgent')
   return (
     <div className="rounded-2xl p-4 space-y-3" style={{ background: '#111114', border: `1px solid ${widget.is_active ? 'rgba(0,229,255,0.15)' : '#1e1e24'}` }}>
       <div className="flex items-start justify-between gap-2">
@@ -172,19 +176,19 @@ function WidgetCard({ widget, agents, onSnippet, onToggle, onDelete }: {
           </div>
           <div className="min-w-0">
             <p className="text-sm font-semibold text-white truncate">{widget.name}</p>
-            <p className="text-[11px] text-zinc-500 truncate">Agente: {agentName}</p>
+            <p className="text-[11px] text-zinc-500 truncate">{t('widget.card.agent', { name: agentName })}</p>
           </div>
         </div>
-        <button onClick={onToggle} title={widget.is_active ? 'Desativar' : 'Ativar'} className="text-zinc-500 hover:text-white shrink-0">
+        <button onClick={onToggle} title={widget.is_active ? t('widget.card.deactivate') : t('widget.card.activate')} className="text-zinc-500 hover:text-white shrink-0">
           {widget.is_active ? <ToggleRight size={20} style={{ color: '#00E5FF' }} /> : <ToggleLeft size={20} />}
         </button>
       </div>
 
       <div className="text-[11px] text-zinc-600 space-y-0.5">
-        <div>Posição: <span className="text-zinc-400">{widget.position}</span></div>
-        <div>Cor: <span className="font-mono" style={{ color: widget.theme_color }}>{widget.theme_color}</span></div>
-        <div>Campos obrigatórios: <span className="text-zinc-400">
-          {[widget.require_name && 'nome', widget.require_email && 'email', widget.require_phone && 'telefone'].filter(Boolean).join(', ') || 'nenhum'}
+        <div>{t('widget.card.position')}: <span className="text-zinc-400">{widget.position}</span></div>
+        <div>{t('widget.card.color')}: <span className="font-mono" style={{ color: widget.theme_color }}>{widget.theme_color}</span></div>
+        <div>{t('widget.card.requiredFields')}: <span className="text-zinc-400">
+          {[widget.require_name && t('widget.card.fieldName'), widget.require_email && t('widget.card.fieldEmail'), widget.require_phone && t('widget.card.fieldPhone')].filter(Boolean).join(', ') || t('widget.card.none')}
         </span></div>
       </div>
 
@@ -192,9 +196,9 @@ function WidgetCard({ widget, agents, onSnippet, onToggle, onDelete }: {
         <button onClick={onSnippet}
           className="flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-semibold transition-colors"
           style={{ background: 'rgba(0,229,255,0.08)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.25)' }}>
-          <Code2 size={12} /> Ver snippet
+          <Code2 size={12} /> {t('widget.card.viewSnippet')}
         </button>
-        <button onClick={onDelete} title="Excluir"
+        <button onClick={onDelete} title={t('widget.card.delete')}
           className="p-1.5 rounded-lg transition-colors text-zinc-500 hover:text-red-400 hover:bg-red-400/10">
           <Trash2 size={13} />
         </button>
@@ -206,11 +210,12 @@ function WidgetCard({ widget, agents, onSnippet, onToggle, onDelete }: {
 // ── Create widget modal ─────────────────────────────────────────────────────
 
 function CreateWidgetModal({ agents, onClose, onCreated }: { agents: Agent[]; onClose: () => void; onCreated: (w: ChatWidget) => void }) {
+  const t = useTranslations('atendenteIa')
   const supabase = useMemo(() => createClient(), [])
   const [name,        setName]        = useState('')
   const [agentId,     setAgentId]     = useState(agents[0]?.id ?? '')
-  const [welcome,     setWelcome]     = useState('Olá! Como posso ajudar?')
-  const [placeholder, setPlaceholder] = useState('Digite sua mensagem...')
+  const [welcome,     setWelcome]     = useState(t('widget.modal.defaultWelcome'))
+  const [placeholder, setPlaceholder] = useState(t('widget.modal.defaultInputPlaceholder'))
   const [color,       setColor]       = useState('#00E5FF')
   const [position,    setPosition]    = useState<'bottom-right' | 'bottom-left'>('bottom-right')
   const [reqName,     setReqName]     = useState(false)
@@ -221,7 +226,7 @@ function CreateWidgetModal({ agents, onClose, onCreated }: { agents: Agent[]; on
   const [err,         setErr]         = useState<string | null>(null)
 
   async function save() {
-    if (!name.trim()) { setErr('Informe um nome'); return }
+    if (!name.trim()) { setErr(t('widget.modal.errors.nameRequired')); return }
     setSaving(true); setErr(null)
     try {
       const { data: { session } } = await supabase.auth.getSession()
@@ -240,7 +245,7 @@ function CreateWidgetModal({ agents, onClose, onCreated }: { agents: Agent[]; on
       if (!res.ok) throw new Error(data.message ?? `HTTP ${res.status}`)
       onCreated(data as ChatWidget)
     } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : 'Erro ao criar')
+      setErr(e instanceof Error ? e.message : t('widget.modal.errors.createFailed'))
     } finally { setSaving(false) }
   }
 
@@ -249,35 +254,35 @@ function CreateWidgetModal({ agents, onClose, onCreated }: { agents: Agent[]; on
       <div className="w-full max-w-xl rounded-2xl overflow-hidden shadow-2xl"
         style={{ background: '#111114', border: '1px solid #1e1e24' }}>
         <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid #1e1e24' }}>
-          <p className="text-sm font-semibold text-white">Novo Widget</p>
+          <p className="text-sm font-semibold text-white">{t('widget.modal.title')}</p>
           <button onClick={onClose} className="text-zinc-500 hover:text-white"><X size={16} /></button>
         </div>
         <div className="px-5 py-5 space-y-4 max-h-[70vh] overflow-y-auto">
-          <Field label="Nome">
-            <input value={name} onChange={e => setName(e.target.value)} placeholder="Ex: Chat Loja Principal"
+          <Field label={t('widget.modal.nameLabel')}>
+            <input value={name} onChange={e => setName(e.target.value)} placeholder={t('widget.modal.namePlaceholder')}
               className="w-full bg-[#0d0d10] border border-[#27272a] text-white text-sm rounded-lg px-3 py-2 outline-none focus:border-[#00E5FF]" />
           </Field>
 
-          <Field label="Agente">
+          <Field label={t('widget.modal.agentLabel')}>
             <select value={agentId} onChange={e => setAgentId(e.target.value)}
               className="w-full bg-[#0d0d10] border border-[#27272a] text-white text-sm rounded-lg px-3 py-2 outline-none focus:border-[#00E5FF] cursor-pointer">
-              <option value="">— sem agente —</option>
+              <option value="">{t('widget.noAgent')}</option>
               {agents.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
             </select>
           </Field>
 
-          <Field label="Mensagem de boas-vindas">
+          <Field label={t('widget.modal.welcomeLabel')}>
             <textarea value={welcome} onChange={e => setWelcome(e.target.value)} rows={2}
               className="w-full bg-[#0d0d10] border border-[#27272a] text-white text-sm rounded-lg px-3 py-2 outline-none focus:border-[#00E5FF] resize-none" />
           </Field>
 
-          <Field label="Placeholder do input">
+          <Field label={t('widget.modal.inputPlaceholderLabel')}>
             <input value={placeholder} onChange={e => setPlaceholder(e.target.value)}
               className="w-full bg-[#0d0d10] border border-[#27272a] text-white text-sm rounded-lg px-3 py-2 outline-none focus:border-[#00E5FF]" />
           </Field>
 
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Cor principal">
+            <Field label={t('widget.modal.colorLabel')}>
               <div className="flex gap-2">
                 <input type="color" value={color} onChange={e => setColor(e.target.value)}
                   className="w-10 h-10 rounded cursor-pointer" />
@@ -285,7 +290,7 @@ function CreateWidgetModal({ agents, onClose, onCreated }: { agents: Agent[]; on
                   className="flex-1 bg-[#0d0d10] border border-[#27272a] text-white text-sm rounded-lg px-3 py-2 outline-none focus:border-[#00E5FF] font-mono" />
               </div>
             </Field>
-            <Field label="Posição">
+            <Field label={t('widget.modal.positionLabel')}>
               <div className="grid grid-cols-2 gap-1.5">
                 {(['bottom-right', 'bottom-left'] as const).map(p => (
                   <button key={p} onClick={() => setPosition(p)}
@@ -295,24 +300,24 @@ function CreateWidgetModal({ agents, onClose, onCreated }: { agents: Agent[]; on
                       color:      position === p ? '#00E5FF' : '#71717a',
                       border:    `1px solid ${position === p ? 'rgba(0,229,255,0.3)' : '#27272a'}`,
                     }}>
-                    {p === 'bottom-right' ? '↘ Direita' : '↙ Esquerda'}
+                    {p === 'bottom-right' ? t('widget.modal.positionRight') : t('widget.modal.positionLeft')}
                   </button>
                 ))}
               </div>
             </Field>
           </div>
 
-          <Field label="Campos obrigatórios antes do chat">
+          <Field label={t('widget.modal.requiredFieldsLabel')}>
             <div className="flex gap-3">
-              <Toggle value={reqName}  onChange={setReqName}  label="Nome" />
-              <Toggle value={reqEmail} onChange={setReqEmail} label="Email" />
-              <Toggle value={reqPhone} onChange={setReqPhone} label="Telefone" />
+              <Toggle value={reqName}  onChange={setReqName}  label={t('widget.modal.fieldName')} />
+              <Toggle value={reqEmail} onChange={setReqEmail} label={t('widget.modal.fieldEmail')} />
+              <Toggle value={reqPhone} onChange={setReqPhone} label={t('widget.modal.fieldPhone')} />
             </div>
           </Field>
 
-          <Field label="Origens permitidas (separadas por vírgula)" hint="Vazio = qualquer origem. Ex: minhaloja.com.br, www.minhaloja.com.br">
+          <Field label={t('widget.modal.originsLabel')} hint={t('widget.modal.originsHint')}>
             <input value={origins} onChange={e => setOrigins(e.target.value)}
-              placeholder="exemplo.com, www.exemplo.com"
+              placeholder={t('widget.modal.originsPlaceholder')}
               className="w-full bg-[#0d0d10] border border-[#27272a] text-white text-sm rounded-lg px-3 py-2 outline-none focus:border-[#00E5FF]" />
           </Field>
 
@@ -320,12 +325,12 @@ function CreateWidgetModal({ agents, onClose, onCreated }: { agents: Agent[]; on
         </div>
         <div className="flex justify-end gap-2 px-5 py-4" style={{ borderTop: '1px solid #1e1e24' }}>
           <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm text-zinc-400 hover:text-white transition-colors"
-            style={{ background: '#1e1e24', border: '1px solid #27272a' }}>Cancelar</button>
+            style={{ background: '#1e1e24', border: '1px solid #27272a' }}>{t('widget.cancel')}</button>
           <button onClick={save} disabled={saving || !name.trim()}
             className="glow-rainbow inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-opacity disabled:opacity-50"
             style={{ background: '#00E5FF', color: '#000' }}>
             {saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
-            {saving ? 'Criando…' : 'Criar widget'}
+            {saving ? t('widget.modal.creating') : t('widget.modal.create')}
           </button>
         </div>
       </div>
@@ -339,6 +344,7 @@ function SnippetModal({ data, onClose }: {
   data: { widget: ChatWidget; snippet: Snippet | null; loading: boolean }
   onClose: () => void
 }) {
+  const t = useTranslations('atendenteIa')
   const [copied, setCopied] = useState(false)
   function copy() {
     if (!data.snippet) return
@@ -354,7 +360,7 @@ function SnippetModal({ data, onClose }: {
         <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid #1e1e24' }}>
           <div className="flex items-center gap-2">
             <Code2 size={15} style={{ color: '#00E5FF' }} />
-            <p className="text-sm font-semibold text-white">Snippet — {data.widget.name}</p>
+            <p className="text-sm font-semibold text-white">{t('widget.snippet.title', { name: data.widget.name })}</p>
           </div>
           <button onClick={onClose} className="text-zinc-500 hover:text-white"><X size={16} /></button>
         </div>
@@ -364,7 +370,7 @@ function SnippetModal({ data, onClose }: {
           ) : (
             <>
               <div>
-                <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-2">Código</p>
+                <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-2">{t('widget.snippet.code')}</p>
                 <div className="relative">
                   <pre className="p-4 rounded-lg text-[11px] font-mono text-zinc-300 overflow-x-auto leading-relaxed"
                     style={{ background: '#0d0d10', border: '1px solid #1e1e24' }}>{data.snippet.html}</pre>
@@ -372,23 +378,25 @@ function SnippetModal({ data, onClose }: {
                     className="absolute top-2 right-2 inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-semibold transition-colors"
                     style={{ background: copied ? 'rgba(74,222,128,0.15)' : 'rgba(0,229,255,0.1)', color: copied ? '#4ade80' : '#00E5FF' }}>
                     {copied ? <Check size={10} /> : <Copy size={10} />}
-                    {copied ? 'Copiado' : 'Copiar'}
+                    {copied ? t('widget.snippet.copied') : t('widget.snippet.copy')}
                   </button>
                 </div>
                 <p className="text-[11px] text-zinc-500 mt-2">
-                  Cole esse código antes do <code className="text-zinc-400">{'</body>'}</code> da sua página.
+                  {t.rich('widget.snippet.pasteHint', {
+                    code: () => <code className="text-zinc-400">{'</body>'}</code>,
+                  })}
                 </p>
               </div>
 
               <div>
-                <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-2">Preview</p>
+                <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-2">{t('widget.snippet.preview')}</p>
                 <div className="rounded-lg overflow-hidden" style={{ border: '1px solid #1e1e24' }}>
-                  <iframe src={data.snippet.preview_url} title="Widget preview" className="w-full" style={{ height: 540, background: 'var(--background)' }} />
+                  <iframe src={data.snippet.preview_url} title={t('widget.snippet.previewTitle')} className="w-full" style={{ height: 540, background: 'var(--background)' }} />
                 </div>
                 <a href={data.snippet.preview_url} target="_blank" rel="noreferrer"
                   className="inline-flex items-center gap-1 text-[11px] mt-2"
                   style={{ color: '#00E5FF' }}>
-                  <Eye size={11} /> Abrir preview em nova aba
+                  <Eye size={11} /> {t('widget.snippet.openPreview')}
                 </a>
               </div>
             </>

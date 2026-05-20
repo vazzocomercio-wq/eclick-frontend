@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import {
   Sparkles, AlertTriangle, AlertCircle, Info, Flame, Check, X, RefreshCw,
@@ -47,11 +48,11 @@ type Model = {
   notes?: string
 }
 
-const SEV: Record<string, { color: string; bg: string; icon: React.ReactNode; label: string }> = {
-  critical: { color: '#f87171', bg: 'rgba(248,113,113,0.10)', icon: <Flame size={14} />,         label: 'Crítico' },
-  high:     { color: '#facc15', bg: 'rgba(250,204,21,0.10)', icon: <AlertTriangle size={14} />, label: 'Alto'    },
-  medium:   { color: '#60a5fa', bg: 'rgba(96,165,250,0.10)', icon: <AlertCircle size={14} />,    label: 'Médio'   },
-  low:      { color: '#a1a1aa', bg: 'rgba(161,161,170,0.10)', icon: <Info size={14} />,           label: 'Info'    },
+const SEV: Record<string, { color: string; bg: string; icon: React.ReactNode }> = {
+  critical: { color: '#f87171', bg: 'rgba(248,113,113,0.10)', icon: <Flame size={14} /> },
+  high:     { color: '#facc15', bg: 'rgba(250,204,21,0.10)', icon: <AlertTriangle size={14} /> },
+  medium:   { color: '#60a5fa', bg: 'rgba(96,165,250,0.10)', icon: <AlertCircle size={14} /> },
+  low:      { color: '#a1a1aa', bg: 'rgba(161,161,170,0.10)', icon: <Info size={14} /> },
 }
 
 function ago(iso: string): string {
@@ -64,6 +65,7 @@ function ago(iso: string): string {
 }
 
 export default function AdsAiInteligenciaPage() {
+  const t = useTranslations('ads')
   const supabase = useMemo(() => createClient(), [])
   const [tab, setTab] = useState<'insights' | 'conversas' | 'config'>('insights')
 
@@ -85,8 +87,8 @@ export default function AdsAiInteligenciaPage() {
             <Sparkles size={18} style={{ color: '#00E5FF' }} />
           </div>
           <div>
-            <p className="text-zinc-500 text-xs font-medium uppercase tracking-widest">Ads</p>
-            <h1 className="text-white text-xl font-semibold">Inteligência de Ads</h1>
+            <p className="text-zinc-500 text-xs font-medium uppercase tracking-widest">{t('inteligencia.eyebrow')}</p>
+            <h1 className="text-white text-xl font-semibold">{t('inteligencia.pageTitle')}</h1>
           </div>
         </div>
       </div>
@@ -94,14 +96,14 @@ export default function AdsAiInteligenciaPage() {
       {/* Tabs */}
       <div className="flex items-center gap-1 p-1 rounded-xl w-fit" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
         {([
-          { k: 'insights',  l: 'Insights',     icon: <AlertTriangle size={12} /> },
-          { k: 'conversas', l: 'Conversas',    icon: <MessageSquare size={12} /> },
-          { k: 'config',    l: 'Configurações', icon: <Settings size={12} /> },
-        ] as const).map(t => (
-          <button key={t.k} onClick={() => setTab(t.k)}
+          { k: 'insights',  icon: <AlertTriangle size={12} /> },
+          { k: 'conversas', icon: <MessageSquare size={12} /> },
+          { k: 'config',    icon: <Settings size={12} /> },
+        ] as const).map(tab2 => (
+          <button key={tab2.k} onClick={() => setTab(tab2.k)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all"
-            style={{ background: tab === t.k ? '#00E5FF' : 'transparent', color: tab === t.k ? '#000' : '#a1a1aa' }}>
-            {t.icon}{t.l}
+            style={{ background: tab === tab2.k ? '#00E5FF' : 'transparent', color: tab === tab2.k ? '#000' : '#a1a1aa' }}>
+            {tab2.icon}{t(`inteligencia.tabs.${tab2.k}`)}
           </button>
         ))}
       </div>
@@ -116,6 +118,7 @@ export default function AdsAiInteligenciaPage() {
 // ── Insights Tab ──────────────────────────────────────────────────────────────
 
 function InsightsTab({ getHeaders }: { getHeaders: () => Promise<Record<string, string>> }) {
+  const t = useTranslations('ads')
   const [list, setList] = useState<Insight[]>([])
   const [loading, setLoading] = useState(true)
   const [detecting, setDetecting] = useState(false)
@@ -158,25 +161,25 @@ function InsightsTab({ getHeaders }: { getHeaders: () => Promise<Record<string, 
         <div className="flex items-center gap-2">
           <select value={filter.status} onChange={e => setFilter({ ...filter, status: e.target.value })}
             className="text-[11px] bg-[#111114] border border-[#27272a] text-zinc-300 rounded-lg px-2 py-1.5">
-            <option value="open">Abertos</option>
-            <option value="resolved">Resolvidos</option>
-            <option value="dismissed">Dispensados</option>
-            <option value="">Todos</option>
+            <option value="open">{t('inteligencia.status.open')}</option>
+            <option value="resolved">{t('inteligencia.status.resolved')}</option>
+            <option value="dismissed">{t('inteligencia.status.dismissed')}</option>
+            <option value="">{t('inteligencia.status.all')}</option>
           </select>
           <select value={filter.severity} onChange={e => setFilter({ ...filter, severity: e.target.value })}
             className="text-[11px] bg-[#111114] border border-[#27272a] text-zinc-300 rounded-lg px-2 py-1.5">
-            <option value="">Toda severidade</option>
-            <option value="critical">Crítico</option>
-            <option value="high">Alto</option>
-            <option value="medium">Médio</option>
-            <option value="low">Info</option>
+            <option value="">{t('inteligencia.allSeverity')}</option>
+            <option value="critical">{t('inteligencia.severity.critical')}</option>
+            <option value="high">{t('inteligencia.severity.high')}</option>
+            <option value="medium">{t('inteligencia.severity.medium')}</option>
+            <option value="low">{t('inteligencia.severity.low')}</option>
           </select>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={detect} disabled={detecting}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all disabled:opacity-60"
             style={{ background: 'rgba(167,139,250,0.12)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.3)' }}>
-            <Zap size={11} /> {detecting ? 'Detectando…' : 'Rodar detecção agora'}
+            <Zap size={11} /> {detecting ? t('inteligencia.detecting') : t('inteligencia.runDetection')}
           </button>
           <button onClick={load}
             className="p-1.5 rounded-lg" style={{ background: '#111114', border: '1px solid #27272a' }}>
@@ -187,9 +190,9 @@ function InsightsTab({ getHeaders }: { getHeaders: () => Promise<Record<string, 
 
       <div className="space-y-2">
         {loading ? (
-          <p className="text-xs text-zinc-600 text-center py-8">Carregando…</p>
+          <p className="text-xs text-zinc-600 text-center py-8">{t('inteligencia.loading')}</p>
         ) : list.length === 0 ? (
-          <p className="text-xs text-zinc-600 text-center py-8 italic">Nenhum insight {filter.status || 'em qualquer status'}.</p>
+          <p className="text-xs text-zinc-600 text-center py-8 italic">{t('inteligencia.noInsights')}</p>
         ) : list.map(ins => {
           const meta = SEV[ins.severity] ?? SEV.low
           const isOpen = expanded === ins.id
@@ -208,24 +211,24 @@ function InsightsTab({ getHeaders }: { getHeaders: () => Promise<Record<string, 
                   <p className="text-zinc-500 text-[11px] truncate">{ins.description}</p>
                 </div>
                 <span className="text-[10px] font-semibold px-2 py-0.5 rounded shrink-0"
-                  style={{ color: meta.color, background: meta.bg }}>{meta.label}</span>
+                  style={{ color: meta.color, background: meta.bg }}>{t(`inteligencia.severity.${ins.severity}`)}</span>
                 <span className="text-[10px] text-zinc-600 shrink-0 w-10 text-right">{ago(ins.created_at)}</span>
               </button>
               {isOpen && (
                 <div className="px-4 py-3 space-y-3 border-t border-[#1a1a1f]">
                   <div>
-                    <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-1">Recomendação</p>
+                    <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-1">{t('inteligencia.recommendation')}</p>
                     <p className="text-zinc-300 text-xs leading-relaxed">💡 {ins.recommendation}</p>
                   </div>
                   {ins.estimated_impact && (
                     <div>
-                      <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-1">Impacto estimado</p>
+                      <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-1">{t('inteligencia.estimatedImpact')}</p>
                       <p className="text-zinc-300 text-xs">📊 {ins.estimated_impact}</p>
                     </div>
                   )}
                   {ins.campaign_name && (
                     <div>
-                      <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-1">Campanha</p>
+                      <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-1">{t('inteligencia.campaign')}</p>
                       <p className="text-zinc-300 text-xs">{ins.campaign_name}</p>
                     </div>
                   )}
@@ -234,12 +237,12 @@ function InsightsTab({ getHeaders }: { getHeaders: () => Promise<Record<string, 
                       <button onClick={() => action(ins.id, 'dismiss')}
                         className="flex items-center gap-1.5 text-[11px] px-3 py-1.5 rounded-lg transition-colors"
                         style={{ background: '#1a1a1f', color: '#a1a1aa', border: '1px solid #27272a' }}>
-                        <X size={11} /> Dispensar
+                        <X size={11} /> {t('inteligencia.dismiss')}
                       </button>
                       <button onClick={() => action(ins.id, 'resolve')}
                         className="flex items-center gap-1.5 text-[11px] px-3 py-1.5 rounded-lg transition-colors"
                         style={{ background: 'rgba(74,222,128,0.10)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)' }}>
-                        <Check size={11} /> Marcar como resolvido
+                        <Check size={11} /> {t('inteligencia.markResolved')}
                       </button>
                     </div>
                   )}
@@ -256,6 +259,7 @@ function InsightsTab({ getHeaders }: { getHeaders: () => Promise<Record<string, 
 // ── Conversas Tab ─────────────────────────────────────────────────────────────
 
 function ConversasTab({ getHeaders }: { getHeaders: () => Promise<Record<string, string>> }) {
+  const t = useTranslations('ads')
   const [list, setList] = useState<Conversation[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -275,15 +279,15 @@ function ConversasTab({ getHeaders }: { getHeaders: () => Promise<Record<string,
   return (
     <div className="space-y-2">
       {loading ? (
-        <p className="text-xs text-zinc-600 text-center py-8">Carregando…</p>
+        <p className="text-xs text-zinc-600 text-center py-8">{t('inteligencia.loading')}</p>
       ) : list.length === 0 ? (
-        <p className="text-xs text-zinc-600 text-center py-8 italic">Nenhuma conversa ainda. Use o chat na página de ML Ads.</p>
+        <p className="text-xs text-zinc-600 text-center py-8 italic">{t('inteligencia.noConversations')}</p>
       ) : list.map(c => (
         <div key={c.id} className="px-4 py-3 rounded-xl flex items-center justify-between"
           style={{ background: '#111114', border: '1px solid #1e1e24' }}>
           <div>
-            <p className="text-zinc-200 text-sm font-medium">{c.title ?? '(sem título)'}</p>
-            <p className="text-zinc-500 text-[11px]">{ago(c.updated_at)} · {c.model_used ?? '—'} · {c.total_tokens.toLocaleString('pt-BR')} tokens</p>
+            <p className="text-zinc-200 text-sm font-medium">{c.title ?? t('inteligencia.untitled')}</p>
+            <p className="text-zinc-500 text-[11px]">{ago(c.updated_at)} · {c.model_used ?? '—'} · {t('inteligencia.tokens', { count: c.total_tokens.toLocaleString('pt-BR') })}</p>
           </div>
         </div>
       ))}
@@ -294,6 +298,7 @@ function ConversasTab({ getHeaders }: { getHeaders: () => Promise<Record<string,
 // ── Config Tab ────────────────────────────────────────────────────────────────
 
 function ConfigTab({ getHeaders }: { getHeaders: () => Promise<Record<string, string>> }) {
+  const t = useTranslations('ads')
   const [s, setS] = useState<Settings | null>(null)
   const [models, setModels] = useState<Model[]>([])
   const [saving, setSaving] = useState(false)
@@ -326,7 +331,7 @@ function ConfigTab({ getHeaders }: { getHeaders: () => Promise<Record<string, st
     } finally { setSaving(false) }
   }
 
-  if (!s) return <p className="text-xs text-zinc-600 text-center py-8">Carregando…</p>
+  if (!s) return <p className="text-xs text-zinc-600 text-center py-8">{t('inteligencia.loading')}</p>
 
   const inp = 'w-full bg-[#0c0c10] border border-[#27272a] text-zinc-200 text-sm rounded-lg px-3 py-2'
 
@@ -336,7 +341,7 @@ function ConfigTab({ getHeaders }: { getHeaders: () => Promise<Record<string, st
       <div className="rounded-2xl p-5 space-y-3" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
         <div className="flex items-center gap-2">
           <Brain size={14} className="text-cyan-400" />
-          <h3 className="text-[11px] font-bold uppercase tracking-widest text-zinc-400">Modelo de IA</h3>
+          <h3 className="text-[11px] font-bold uppercase tracking-widest text-zinc-400">{t('inteligencia.config.aiModel')}</h3>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           {models.map(m => {
@@ -369,35 +374,35 @@ function ConfigTab({ getHeaders }: { getHeaders: () => Promise<Record<string, st
       <div className="rounded-2xl p-5 space-y-3" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
         <div className="flex items-center gap-2">
           <AlertTriangle size={14} className="text-cyan-400" />
-          <h3 className="text-[11px] font-bold uppercase tracking-widest text-zinc-400">Thresholds de detecção</h3>
+          <h3 className="text-[11px] font-bold uppercase tracking-widest text-zinc-400">{t('inteligencia.config.thresholds')}</h3>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          <Field label="ACoS limite (%)">
+          <Field label={t('inteligencia.config.acosLimit')}>
             <input type="number" className={inp + ' tabular-nums'} value={s.acos_alert_threshold}
               onChange={e => setS({ ...s, acos_alert_threshold: Number(e.target.value) || 0 })} />
           </Field>
-          <Field label="ROAS mínimo (x)">
+          <Field label={t('inteligencia.config.roasMin')}>
             <input type="number" step="0.1" className={inp + ' tabular-nums'} value={s.roas_min_threshold}
               onChange={e => setS({ ...s, roas_min_threshold: Number(e.target.value) || 0 })} />
           </Field>
-          <Field label="Queda de CTR (%)">
+          <Field label={t('inteligencia.config.ctrDrop')}>
             <input type="number" className={inp + ' tabular-nums'} value={s.ctr_drop_threshold}
               onChange={e => setS({ ...s, ctr_drop_threshold: Number(e.target.value) || 0 })} />
           </Field>
-          <Field label="Burn de budget (%)">
+          <Field label={t('inteligencia.config.budgetBurn')}>
             <input type="number" className={inp + ' tabular-nums'} value={s.budget_burn_threshold}
               onChange={e => setS({ ...s, budget_burn_threshold: Number(e.target.value) || 0 })} />
           </Field>
-          <Field label="Estoque crítico (dias)">
+          <Field label={t('inteligencia.config.stockCritical')}>
             <input type="number" className={inp + ' tabular-nums'} value={s.stock_critical_days}
               onChange={e => setS({ ...s, stock_critical_days: Number(e.target.value) || 0 })} />
           </Field>
-          <Field label="Frequência detecção (min)">
+          <Field label={t('inteligencia.config.detectFrequency')}>
             <input type="number" className={inp + ' tabular-nums'} value={s.detect_cron_minutes}
               onChange={e => setS({ ...s, detect_cron_minutes: Number(e.target.value) || 60 })} />
           </Field>
         </div>
-        <Toggle label="Detecção automática (cron)" value={s.auto_detect_enabled}
+        <Toggle label={t('inteligencia.config.autoDetect')} value={s.auto_detect_enabled}
           onChange={v => setS({ ...s, auto_detect_enabled: v })} />
       </div>
 
@@ -405,23 +410,23 @@ function ConfigTab({ getHeaders }: { getHeaders: () => Promise<Record<string, st
       <div className="rounded-2xl p-5 space-y-3" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
         <div className="flex items-center gap-2">
           <MessageSquare size={14} className="text-cyan-400" />
-          <h3 className="text-[11px] font-bold uppercase tracking-widest text-zinc-400">Alertas WhatsApp</h3>
+          <h3 className="text-[11px] font-bold uppercase tracking-widest text-zinc-400">{t('inteligencia.config.whatsappAlerts')}</h3>
         </div>
-        <Toggle label="Enviar alertas via WhatsApp" value={s.whatsapp_alerts_enabled}
+        <Toggle label={t('inteligencia.config.sendWhatsapp')} value={s.whatsapp_alerts_enabled}
           onChange={v => setS({ ...s, whatsapp_alerts_enabled: v })} />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Field label="Telefone destino">
+          <Field label={t('inteligencia.config.destPhone')}>
             <input className={inp + ' font-mono'} placeholder="+55 11 99999-9999"
               value={s.whatsapp_alert_phone ?? ''}
               onChange={e => setS({ ...s, whatsapp_alert_phone: e.target.value })} />
           </Field>
-          <Field label="Severidade mínima">
+          <Field label={t('inteligencia.config.minSeverity')}>
             <select className={inp} value={s.whatsapp_alert_severity}
               onChange={e => setS({ ...s, whatsapp_alert_severity: e.target.value })}>
-              <option value="critical">Apenas crítico</option>
-              <option value="high">Alto e acima</option>
-              <option value="medium">Médio e acima</option>
-              <option value="low">Tudo</option>
+              <option value="critical">{t('inteligencia.config.severityCritical')}</option>
+              <option value="high">{t('inteligencia.config.severityHigh')}</option>
+              <option value="medium">{t('inteligencia.config.severityMedium')}</option>
+              <option value="low">{t('inteligencia.config.severityLow')}</option>
             </select>
           </Field>
         </div>
@@ -431,7 +436,7 @@ function ConfigTab({ getHeaders }: { getHeaders: () => Promise<Record<string, st
         <button onClick={save} disabled={saving}
           className="glow-rainbow flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold transition-all disabled:opacity-60"
           style={{ background: '#00E5FF', color: '#000' }}>
-          <Save size={12} /> {saving ? 'Salvando…' : savedAt ? 'Salvo ✓' : 'Salvar'}
+          <Save size={12} /> {saving ? t('inteligencia.config.saving') : savedAt ? t('inteligencia.config.saved') : t('inteligencia.config.save')}
         </button>
       </div>
     </div>

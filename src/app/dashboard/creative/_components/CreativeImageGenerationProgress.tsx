@@ -19,6 +19,7 @@
  */
 
 import { useState } from 'react'
+import { useTranslations } from 'next-intl'
 import {
   Check, X, RefreshCw, Loader2, AlertTriangle, ImageIcon, Film,
 } from 'lucide-react'
@@ -45,6 +46,7 @@ type Props = {
 export default function CreativeImageGenerationProgress({
   job, images, onApprove, onReject, onRegenerate, productId, briefingId,
 }: Props) {
+  const t = useTranslations('creative.imageProgress')
   const [videoModalImageId, setVideoModalImageId] = useState<string | null>(null)
   const canGenerateVideo = !!productId && !!briefingId
   if (!job) {
@@ -52,7 +54,7 @@ export default function CreativeImageGenerationProgress({
       <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-4">
         <div className="flex items-center gap-2 text-sm text-zinc-400">
           <Loader2 size={14} className="animate-spin text-cyan-400" />
-          Carregando progresso de imagens…
+          {t('loadingProgress')}
         </div>
       </div>
     )
@@ -81,7 +83,7 @@ export default function CreativeImageGenerationProgress({
       <div className="px-4 py-3 border-b border-zinc-800 flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-2 min-w-0">
           <ImageIcon size={14} className="text-cyan-400 shrink-0" />
-          <h3 className="text-sm font-semibold text-zinc-100">Geração de imagens</h3>
+          <h3 className="text-sm font-semibold text-zinc-100">{t('imageGeneration')}</h3>
           <span className={[
             'text-[10px] font-mono px-1.5 py-0.5 rounded-md border',
             active
@@ -94,10 +96,10 @@ export default function CreativeImageGenerationProgress({
           </span>
         </div>
         <div className="flex items-center gap-3 text-[11px] text-zinc-400 font-mono">
-          <span><span className="text-emerald-300">{approved}</span>/{requested} aprovadas</span>
-          <span><span className="text-cyan-300">{completed}</span>/{requested} prontas</span>
-          {rejected > 0 && <span className="text-amber-300">{rejected} rejeitadas</span>}
-          {failed > 0   && <span className="text-red-300">{failed} falharam</span>}
+          <span>{t('approvedCount', { approved, total: requested })}</span>
+          <span>{t('readyCount', { completed, total: requested })}</span>
+          {rejected > 0 && <span className="text-amber-300">{t('rejectedCount', { count: rejected })}</span>}
+          {failed > 0   && <span className="text-red-300">{t('failedCount', { count: failed })}</span>}
           <span className="text-zinc-500">${job.total_cost_usd.toFixed(2)} / ${job.max_cost_usd.toFixed(2)}</span>
         </div>
       </div>
@@ -166,6 +168,7 @@ function ImageSlot({
   onRegenerate:    (id: string) => void | Promise<void>
   onGenerateVideo?: (id: string) => void
 }) {
+  const t = useTranslations('creative.imageProgress')
   // Slot vazio (job ainda não criou linha pra esta posição)
   if (!image) {
     return (
@@ -186,7 +189,7 @@ function ImageSlot({
           /* eslint-disable-next-line @next/next/no-img-element */
           <img
             src={url}
-            alt={`Imagem ${position}`}
+            alt={t('imageAlt', { position })}
             className={[
               'h-full w-full object-cover',
               status === 'rejected' ? 'opacity-40 grayscale' : '',
@@ -219,9 +222,9 @@ function ImageSlot({
           type="button"
           onClick={() => onGenerateVideo(image.id)}
           className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 border-t border-zinc-800 bg-gradient-to-r from-cyan-400/10 to-cyan-400/5 hover:from-cyan-400/20 hover:to-cyan-400/10 text-cyan-300 text-[10px] uppercase tracking-wider transition-colors"
-          title="Gerar vídeo a partir desta imagem"
+          title={t('generateVideoTooltip')}
         >
-          <Film size={11} /> Gerar vídeo
+          <Film size={11} /> {t('generateVideo')}
         </button>
       )}
     </div>
@@ -229,6 +232,7 @@ function ImageSlot({
 }
 
 function SlotPlaceholder({ status }: { status: ImageStatus }) {
+  const t = useTranslations('creative.imageProgress')
   if (status === 'pending') {
     return (
       <div className="absolute inset-0 flex items-center justify-center text-zinc-700">
@@ -241,7 +245,7 @@ function SlotPlaceholder({ status }: { status: ImageStatus }) {
       <div className="absolute inset-0 flex items-center justify-center text-cyan-400">
         <div className="flex flex-col items-center gap-1">
           <Loader2 size={18} className="animate-spin" />
-          <span className="text-[9px] uppercase tracking-wider">gerando</span>
+          <span className="text-[9px] uppercase tracking-wider">{t('statusGenerating')}</span>
         </div>
       </div>
     )
@@ -251,7 +255,7 @@ function SlotPlaceholder({ status }: { status: ImageStatus }) {
       <div className="absolute inset-0 flex items-center justify-center text-red-400">
         <div className="flex flex-col items-center gap-1">
           <X size={18} />
-          <span className="text-[9px] uppercase tracking-wider">falhou</span>
+          <span className="text-[9px] uppercase tracking-wider">{t('statusFailed')}</span>
         </div>
       </div>
     )
@@ -290,13 +294,14 @@ function SlotActions({
   onReject:     (id: string) => void | Promise<void>
   onRegenerate: (id: string) => void | Promise<void>
 }) {
+  const t = useTranslations('creative.imageProgress')
   const { id, status } = image
 
   // Slot ainda não gerou → sem ações
   if (status === 'pending' || status === 'generating') {
     return (
       <div className="h-9 border-t border-zinc-800 flex items-center justify-center text-[10px] text-zinc-600">
-        aguardando…
+        {t('actionWaiting')}
       </div>
     )
   }
@@ -307,7 +312,7 @@ function SlotActions({
       <div className="h-9 border-t border-zinc-800 flex items-center">
         <ActionBtn
           icon={<RefreshCw size={11} />}
-          label="Regenerar"
+          label={t('actionRegenerate')}
           variant="neutral"
           onClick={() => void onRegenerate(id)}
         />
@@ -320,7 +325,7 @@ function SlotActions({
     return (
       <div className="h-9 border-t border-zinc-800 flex items-center divide-x divide-zinc-800">
         <div className="flex-1 flex items-center justify-center gap-1 text-emerald-300 text-[10px]">
-          <Check size={11} /> Aprovada
+          <Check size={11} /> {t('approved')}
         </div>
         <ActionBtn
           icon={<RefreshCw size={11} />}
@@ -337,7 +342,7 @@ function SlotActions({
     return (
       <div className="h-9 border-t border-zinc-800 flex items-center divide-x divide-zinc-800">
         <div className="flex-1 flex items-center justify-center gap-1 text-red-300 text-[10px]">
-          <X size={11} /> Rejeitada
+          <X size={11} /> {t('rejected')}
         </div>
         <ActionBtn
           icon={<RefreshCw size={11} />}

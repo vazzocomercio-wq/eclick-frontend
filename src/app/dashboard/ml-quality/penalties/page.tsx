@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { AlertOctagon, Loader2, ChevronRight, ShieldCheck } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
@@ -31,6 +32,7 @@ async function getToken(): Promise<string | null> {
 }
 
 export default function PenaltiesPage() {
+  const t = useTranslations('mlQuality.penalties')
   const { selected: selectedSellerId } = useMlAccount()
   const [items, setItems]     = useState<QualityItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -77,18 +79,17 @@ export default function PenaltiesPage() {
         <div>
           <div className="flex items-center gap-2 text-xs text-zinc-500">
             <Link href="/dashboard/ml-quality" className="hover:text-cyan-400 transition-colors">
-              Quality Center
+              {t('breadcrumb')}
             </Link>
             <span>/</span>
-            <span className="text-zinc-300">Penalizados</span>
+            <span className="text-zinc-300">{t('breadcrumbCurrent')}</span>
           </div>
           <h1 className="text-2xl font-bold mt-1 flex items-center gap-2">
             <AlertOctagon size={22} className="text-red-400" />
-            Anúncios penalizados
+            {t('title')}
           </h1>
           <p className="text-xs text-zinc-500 mt-1 max-w-xl">
-            Anúncios com perda de exposição no ML. Resolver os motivos abaixo
-            geralmente devolve o ranking imediatamente.
+            {t('subtitle')}
           </p>
         </div>
         <AccountSelector compact hideWhenEmpty />
@@ -97,19 +98,19 @@ export default function PenaltiesPage() {
       {/* KPI strip */}
       {!loading && items.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          <KpiBox label="Total penalizados" value={items.length.toString()} color="#ef4444" />
+          <KpiBox label={t('kpi.totalPenalized')} value={items.length.toString()} color="#ef4444" />
           <KpiBox
-            label="Score médio"
+            label={t('kpi.avgScore')}
             value={Math.round(items.reduce((s, i) => s + (i.ml_score ?? 0), 0) / items.length).toString()}
             color="#fbbf24"
           />
           <KpiBox
-            label="Fáceis de resolver"
+            label={t('kpi.easyToFix')}
             value={items.filter(i => i.fix_complexity === 'easy').length.toString()}
             color="#22c55e"
           />
           <KpiBox
-            label="Bloqueados"
+            label={t('kpi.blocked')}
             value={items.filter(i => i.fix_complexity === 'blocked').length.toString()}
             color="#52525b"
           />
@@ -120,7 +121,7 @@ export default function PenaltiesPage() {
       {topReasons.length > 0 && (
         <div className="rounded-xl p-4" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
           <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-3">
-            Principais motivos de penalização
+            {t('topReasons')}
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {topReasons.map(([reason, count]) => (
@@ -157,9 +158,9 @@ export default function PenaltiesPage() {
       {!loading && items.length === 0 && !error && (
         <div className="rounded-xl p-8 text-center" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
           <ShieldCheck size={48} className="mx-auto text-emerald-700 mb-3" />
-          <p className="text-zinc-300 font-medium">Nenhum anúncio penalizado!</p>
+          <p className="text-zinc-300 font-medium">{t('empty.title')}</p>
           <p className="text-xs text-zinc-500 mt-2 max-w-md mx-auto">
-            Sua conta está limpa. Continue monitorando — qualquer perda de exposição vai aparecer aqui.
+            {t('empty.desc')}
           </p>
         </div>
       )}
@@ -175,6 +176,7 @@ export default function PenaltiesPage() {
 }
 
 function PenaltyRow({ item }: { item: QualityItem }) {
+  const t = useTranslations('mlQuality.penalties')
   const { domainName } = useMlLabels()
   const score = item.ml_score ?? 0
   const color = score >= 60 ? '#fbbf24' : '#ef4444'
@@ -201,7 +203,7 @@ function PenaltyRow({ item }: { item: QualityItem }) {
               className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wider font-semibold"
               style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}
             >
-              <AlertOctagon size={9} /> Penalizado
+              <AlertOctagon size={9} /> {t('penalizedBadge')}
             </span>
           </div>
 
@@ -224,7 +226,7 @@ function PenaltyRow({ item }: { item: QualityItem }) {
 
           <div className="flex items-center gap-3 text-[11px] text-zinc-500 mt-1 flex-wrap">
             {item.ml_domain_id && <span>{domainName(item.ml_domain_id)}</span>}
-            <span>seller {item.seller_id}</span>
+            <span>{t('seller', { id: item.seller_id })}</span>
           </div>
         </div>
 

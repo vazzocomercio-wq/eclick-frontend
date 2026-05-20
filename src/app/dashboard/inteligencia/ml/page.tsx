@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useEffect, useState, useCallback } from 'react'
+import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import {
@@ -95,6 +96,7 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
 // ────────────────────────────────────────────────────────────────────────
 
 export default function IntelligenceMlPage() {
+  const t = useTranslations('inteligencia')
   const [latest, setLatest]         = useState<ReputationSnapshot | null>(null)
   const [history, setHistory]       = useState<ReputationSnapshot[]>([])
   const [claims, setClaims]         = useState<Claim[]>([])
@@ -117,13 +119,19 @@ export default function IntelligenceMlPage() {
     setClaims(clsRes.status === 'fulfilled' ? (clsRes.value ?? []) : [])
     setCandidates(cndRes.status === 'fulfilled' ? (cndRes.value ?? []) : [])
 
+    const failureLabels = [
+      t('ml.failure.reputation'),
+      t('ml.failure.history'),
+      t('ml.failure.claims'),
+      t('ml.failure.candidates'),
+    ]
     const failures = results
-      .map((r, i) => ({ r, label: ['reputação', 'histórico', 'reclamações', 'candidatos'][i]! }))
+      .map((r, i) => ({ r, label: failureLabels[i]! }))
       .filter(({ r }) => r.status === 'rejected')
       .map(({ r, label }) => `${label}: ${(r as PromiseRejectedResult).reason instanceof Error ? ((r as PromiseRejectedResult).reason as Error).message : String((r as PromiseRejectedResult).reason)}`)
     setError(failures.length > 0 ? failures.join(' · ') : null)
     setLoading(false)
-  }, [])
+  }, [t])
 
   useEffect(() => { void refresh() }, [refresh])
 
@@ -132,9 +140,9 @@ export default function IntelligenceMlPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold" style={{ color: 'var(--text)' }}>Intelligence Hub — Mercado Livre</h1>
+          <h1 className="text-xl font-semibold" style={{ color: 'var(--text)' }}>{t('ml.pageTitle')}</h1>
           <p className="text-xs mt-0.5" style={{ color: '#a1a1aa' }}>
-            Reputação, reclamações, atrasos e candidatos a exclusão de reclamação.
+            {t('ml.pageSubtitle')}
           </p>
         </div>
         <button
@@ -144,7 +152,7 @@ export default function IntelligenceMlPage() {
           style={{ background: '#1e1e24', color: '#a1a1aa' }}
         >
           {loading ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-          Atualizar
+          {t('ml.refresh')}
         </button>
       </div>
 
@@ -181,13 +189,14 @@ function ReputationOverview({ latest, history }: {
   latest:   ReputationSnapshot | null
   history:  ReputationSnapshot[]
 }) {
+  const t = useTranslations('inteligencia')
   if (!latest) {
     return (
       <div
         className="rounded-lg p-6 text-center text-sm"
         style={{ background: '#111114', border: '1px solid #1e1e24', color: '#a1a1aa' }}
       >
-        Nenhum snapshot de reputação ainda. O primeiro vai gerar amanhã às 6h, ou pode ser disparado manualmente.
+        {t('ml.noSnapshot')}
       </div>
     )
   }
@@ -202,20 +211,20 @@ function ReputationOverview({ latest, history }: {
             style={{ background: levelColor }}
           />
           <div>
-            <div className="text-xs" style={{ color: '#52525b' }}>Nível atual ML</div>
+            <div className="text-xs" style={{ color: '#52525b' }}>{t('ml.currentLevel')}</div>
             <div className="text-lg font-semibold" style={{ color: levelColor }}>
-              {latest.level_id ?? 'desconhecido'}
+              {latest.level_id ?? t('ml.unknown')}
             </div>
           </div>
         </div>
         <div className="text-xs text-right" style={{ color: '#a1a1aa' }}>
-          Snapshot: {new Date(latest.snapshot_date).toLocaleDateString('pt-BR')}
+          {t('ml.snapshot', { date: new Date(latest.snapshot_date).toLocaleDateString('pt-BR') })}
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <KpiCard
-          label="Reclamações"
+          label={t('ml.kpi.claims')}
           value={pct(latest.claims_rate)}
           sparkline={history.map(h => h.claims_rate ?? 0)}
           warning={0.015}
@@ -223,7 +232,7 @@ function ReputationOverview({ latest, history }: {
           current={latest.claims_rate ?? 0}
         />
         <KpiCard
-          label="Cancelamentos"
+          label={t('ml.kpi.cancellations')}
           value={pct(latest.cancellations_rate)}
           sparkline={history.map(h => h.cancellations_rate ?? 0)}
           warning={0.010}
@@ -231,7 +240,7 @@ function ReputationOverview({ latest, history }: {
           current={latest.cancellations_rate ?? 0}
         />
         <KpiCard
-          label="Atraso de envio"
+          label={t('ml.kpi.shippingDelay')}
           value={pct(latest.delayed_handling_rate)}
           sparkline={history.map(h => h.delayed_handling_rate ?? 0)}
           warning={0.07}
@@ -251,6 +260,7 @@ function KpiCard({ label, value, sparkline, warning, critical, current }: {
   critical:  number
   current:   number
 }) {
+  const t = useTranslations('inteligencia')
   const color =
     current >= critical ? '#ef4444'
       : current >= warning ? '#fbbf24'
@@ -276,8 +286,8 @@ function KpiCard({ label, value, sparkline, warning, critical, current }: {
       <div className="text-2xl font-semibold mt-1" style={{ color }}>{value}</div>
       <Sparkline values={sparkline} color={color} warning={warning} critical={critical} />
       <div className="flex justify-between text-[9px] mt-1" style={{ color: '#52525b' }}>
-        <span>aviso {pct(warning)}</span>
-        <span>crítico {pct(critical)}</span>
+        <span>{t('ml.warningLabel', { value: pct(warning) })}</span>
+        <span>{t('ml.criticalLabel', { value: pct(critical) })}</span>
       </div>
     </div>
   )
@@ -324,16 +334,17 @@ function Sparkline({ values, color, warning, critical }: {
 // ────────────────────────────────────────────────────────────────────────
 
 function ClaimsPanel({ claims }: { claims: Claim[] }) {
+  const t = useTranslations('inteligencia')
   const open = claims.filter(c => c.status !== 'closed')
   return (
     <div className="rounded-lg p-4" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
       <div className="flex items-center gap-2 mb-3 text-sm font-medium" style={{ color: '#f87171' }}>
-        <AlertTriangle size={14} /> Reclamações abertas ({open.length})
+        <AlertTriangle size={14} /> {t('ml.openClaims', { count: open.length })}
       </div>
 
       {open.length === 0 && (
         <div className="text-center py-6 text-xs" style={{ color: '#52525b' }}>
-          Nenhuma reclamação aberta no momento.
+          {t('ml.noOpenClaims')}
         </div>
       )}
 
@@ -347,10 +358,10 @@ function ClaimsPanel({ claims }: { claims: Claim[] }) {
             <Package size={12} className="flex-shrink-0 mt-0.5" style={{ color: '#a5f3fc' }} />
             <div className="flex-1 min-w-0">
               <div className="font-medium" style={{ color: 'var(--text)' }}>
-                {c.reason_name ?? c.type ?? 'Reclamação'}
+                {c.reason_name ?? c.type ?? t('ml.claimFallback')}
                 {c.stage === 'mediation' && (
                   <span className="ml-2 text-[9px] px-1.5 py-0.5 rounded" style={{ background: '#ef444422', color: '#f87171' }}>
-                    MEDIAÇÃO
+                    {t('ml.mediation')}
                   </span>
                 )}
               </div>
@@ -364,7 +375,7 @@ function ClaimsPanel({ claims }: { claims: Claim[] }) {
                 className="text-[10px] flex items-center gap-0.5 flex-shrink-0"
                 style={{ color: '#00E5FF' }}
               >
-                Inbox <ExternalLink size={10} />
+                {t('ml.inbox')} <ExternalLink size={10} />
               </Link>
             )}
           </div>
@@ -383,6 +394,7 @@ function RemovalCandidatesPanel({ candidates, onRefresh, onError }: {
   onRefresh:   () => Promise<void>
   onError:     (msg: string) => void
 }) {
+  const t = useTranslations('inteligencia')
   const [busy, setBusy] = useState<string | null>(null)
 
   const dismiss = useCallback(async (id: string) => {
@@ -419,12 +431,12 @@ function RemovalCandidatesPanel({ candidates, onRefresh, onError }: {
   return (
     <div className="rounded-lg p-4" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
       <div className="flex items-center gap-2 mb-3 text-sm font-medium" style={{ color: '#fbbf24' }}>
-        <Sparkles size={14} /> Candidatos a exclusão de reclamação ({candidates.length})
+        <Sparkles size={14} /> {t('ml.removalCandidates', { count: candidates.length })}
       </div>
 
       {candidates.length === 0 && (
         <div className="text-center py-6 text-xs" style={{ color: '#52525b' }}>
-          Nenhum candidato detectado. A IA monitora as conversas em tempo real.
+          {t('ml.noCandidates')}
         </div>
       )}
 
@@ -444,7 +456,7 @@ function RemovalCandidatesPanel({ candidates, onRefresh, onError }: {
             <div className="text-xs mb-1" style={{ color: 'var(--text)' }}>{c.llm_reason}</div>
             {c.llm_suggested_action && (
               <div className="text-[11px] mt-1" style={{ color: '#a1a1aa' }}>
-                Ação: {c.llm_suggested_action}
+                {t('ml.action', { action: c.llm_suggested_action })}
               </div>
             )}
             {c.suggested_request_text && (
@@ -463,7 +475,7 @@ function RemovalCandidatesPanel({ candidates, onRefresh, onError }: {
                 style={{ background: '#00E5FF', color: '#09090b' }}
               >
                 {busy === c.id ? <Loader2 size={10} className="animate-spin" /> : <Copy size={10} />}
-                Confirmar e copiar texto
+                {t('ml.confirmCopy')}
               </button>
               <button
                 onClick={() => void regenerate(c.id)}
@@ -471,7 +483,7 @@ function RemovalCandidatesPanel({ candidates, onRefresh, onError }: {
                 className="flex items-center gap-1 px-2 py-1 text-[11px] rounded transition disabled:opacity-50"
                 style={{ background: '#1e1e24', color: '#a1a1aa' }}
               >
-                <RefreshCw size={10} /> Regenerar texto
+                <RefreshCw size={10} /> {t('ml.regenerateText')}
               </button>
               <button
                 onClick={() => void dismiss(c.id)}
@@ -479,7 +491,7 @@ function RemovalCandidatesPanel({ candidates, onRefresh, onError }: {
                 className="flex items-center gap-1 px-2 py-1 text-[11px] rounded transition disabled:opacity-50"
                 style={{ background: '#1e1e24', color: '#f87171' }}
               >
-                <Trash2 size={10} /> Falso positivo
+                <Trash2 size={10} /> {t('ml.falsePositive')}
               </button>
               {c.conversation_id && (
                 <Link
@@ -487,7 +499,7 @@ function RemovalCandidatesPanel({ candidates, onRefresh, onError }: {
                   className="flex items-center gap-1 ml-auto text-[11px]"
                   style={{ color: '#00E5FF' }}
                 >
-                  <MessageSquare size={10} /> Ver conversa
+                  <MessageSquare size={10} /> {t('ml.viewConversation')}
                 </Link>
               )}
             </div>
@@ -499,18 +511,20 @@ function RemovalCandidatesPanel({ candidates, onRefresh, onError }: {
 }
 
 function ConfidenceBadge({ confidence }: { confidence: 'low' | 'medium' | 'high' | null }) {
-  const map = {
-    high:   { label: 'Alta confiança',  color: '#ef4444', bg: 'rgba(239,68,68,0.10)' },
-    medium: { label: 'Média confiança', color: '#fbbf24', bg: 'rgba(251,191,36,0.10)' },
-    low:    { label: 'Baixa confiança', color: '#52525b', bg: 'rgba(82,82,91,0.10)' },
+  const t = useTranslations('inteligencia')
+  const colorMap = {
+    high:   { color: '#ef4444', bg: 'rgba(239,68,68,0.10)' },
+    medium: { color: '#fbbf24', bg: 'rgba(251,191,36,0.10)' },
+    low:    { color: '#52525b', bg: 'rgba(82,82,91,0.10)' },
   }
-  const m = map[confidence ?? 'low']
+  const conf = confidence ?? 'low'
+  const m = colorMap[conf]
   return (
     <span
       className="text-[9px] px-1.5 py-0.5 rounded uppercase tracking-wider font-semibold"
       style={{ background: m.bg, color: m.color, border: `1px solid ${m.color}66` }}
     >
-      {m.label}
+      {t(`ml.confidence.${conf}`)}
     </span>
   )
 }

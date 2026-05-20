@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { ShieldAlert, Loader2, ExternalLink, AlertOctagon } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
@@ -25,6 +26,7 @@ async function getToken(): Promise<string | null> {
 }
 
 export default function CampaignsHealthPage() {
+  const t = useTranslations('mlCampaigns.health')
   const { selected: selectedSellerId } = useMlAccount()
   const [items, setItems]     = useState<MissingItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -69,18 +71,17 @@ export default function CampaignsHealthPage() {
         <div>
           <div className="flex items-center gap-2 text-xs text-zinc-500">
             <Link href="/dashboard/ml-campaigns" className="hover:text-cyan-400 transition-colors">
-              Campaign Center
+              {t('breadcrumb')}
             </Link>
             <span>/</span>
-            <span className="text-zinc-300">Health Check</span>
+            <span className="text-zinc-300">{t('breadcrumbCurrent')}</span>
           </div>
           <h1 className="text-2xl font-bold mt-1 flex items-center gap-2">
             <ShieldAlert size={22} className="text-amber-400" />
-            Health Check do Catálogo
+            {t('title')}
           </h1>
           <p className="text-xs text-zinc-500 mt-1 max-w-xl">
-            Anúncios elegíveis pra campanha que ainda não têm dados completos
-            pra calcular margem (custo, imposto, dimensões).
+            {t('subtitle')}
           </p>
         </div>
         <AccountSelector compact hideWhenEmpty />
@@ -89,10 +90,10 @@ export default function CampaignsHealthPage() {
       {/* KPIs */}
       {!loading && uniqueItems.length > 0 && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <KpiBox label="Sem custo"       value={missingCost} color="#ef4444" />
-          <KpiBox label="Sem imposto"     value={missingTax}  color="#fbbf24" />
-          <KpiBox label="Sem dimensões"   value={missingDim}  color="#fb923c" />
-          <KpiBox label="Sem produto interno" value={noProduct} color="#71717a" />
+          <KpiBox label={t('kpi.missingCost')}       value={missingCost} color="#ef4444" />
+          <KpiBox label={t('kpi.missingTax')}     value={missingTax}  color="#fbbf24" />
+          <KpiBox label={t('kpi.missingDimensions')}   value={missingDim}  color="#fb923c" />
+          <KpiBox label={t('kpi.noInternalProduct')} value={noProduct} color="#71717a" />
         </div>
       )}
 
@@ -113,10 +114,9 @@ export default function CampaignsHealthPage() {
       {!loading && uniqueItems.length === 0 && !error && (
         <div className="rounded-xl p-8 text-center" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
           <ShieldAlert size={48} className="mx-auto text-emerald-700 mb-3" />
-          <p className="text-zinc-300 font-medium">Catálogo saudável!</p>
+          <p className="text-zinc-300 font-medium">{t('empty.title')}</p>
           <p className="text-xs text-zinc-500 mt-2 max-w-md mx-auto">
-            Todos os anúncios em campanhas têm custo, imposto e dimensões cadastrados.
-            Margem é calculável.
+            {t('empty.desc')}
           </p>
         </div>
       )}
@@ -131,6 +131,7 @@ export default function CampaignsHealthPage() {
 }
 
 function HealthRow({ item }: { item: MissingItem }) {
+  const t = useTranslations('mlCampaigns.health')
   const warningColors: Record<string, string> = {
     missing_cost:        '#ef4444',
     missing_tax:         '#fbbf24',
@@ -169,7 +170,7 @@ function HealthRow({ item }: { item: MissingItem }) {
         {item.product_id && (
           <Link href={`/dashboard/produtos/${item.product_id}`}
             className="text-[11px] text-cyan-400 hover:underline flex-shrink-0">
-            Editar produto →
+            {t('editProduct')}
           </Link>
         )}
       </div>

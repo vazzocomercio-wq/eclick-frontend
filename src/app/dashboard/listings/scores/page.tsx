@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import AccountSelector, { getStoredSellerId } from '@/components/ml/AccountSelector'
@@ -33,29 +34,11 @@ interface HealthScore {
   calculated_at: string
 }
 
-const ISSUE_LABELS: Record<string, string> = {
-  quality_low:         'Qualidade baixa',
-  price_high:          'Preço alto',
-  losing_buy_box:      'Perdendo Buy Box',
-  fiscal_incomplete:   'Fiscal incompleto',
-  inactive:            'Pausado',
-  margin_low:          'Margem baixa',
-  low_sales:           'Poucas vendas',
-}
-
-const ACTION_LABELS: Record<string, string> = {
-  fix_fiscal:          'Corrigir fiscal',
-  improve_quality:     'Melhorar qualidade',
-  reduce_price:        'Reduzir preço',
-  activate_automation: 'Ativar automação',
-  replenish_stock:     'Repor estoque',
-  reactivate:          'Reativar',
-  improve_margin:      'Melhorar margem',
-  apply_promotion:     'Aplicar promoção',
-  none:                '—',
-}
+const ISSUE_KEYS = ['quality_low', 'price_high', 'losing_buy_box', 'fiscal_incomplete', 'inactive', 'margin_low', 'low_sales']
+const ACTION_KEYS = ['fix_fiscal', 'improve_quality', 'reduce_price', 'activate_automation', 'replenish_stock', 'reactivate', 'improve_margin', 'apply_promotion', 'none']
 
 export default function ScoresPage() {
+  const t = useTranslations('listings.scores')
   const supabase = useMemo(() => createClient(), [])
   const toast = useToast()
 
@@ -66,9 +49,9 @@ export default function ScoresPage() {
 
   const getHeaders = useCallback(async (): Promise<Record<string, string>> => {
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session?.access_token) throw new Error('Não autenticado')
+    if (!session?.access_token) throw new Error(t('errors.notAuthenticated'))
     return { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' }
-  }, [supabase])
+  }, [supabase, t])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -85,18 +68,18 @@ export default function ScoresPage() {
       const data = await res.json()
       setScores(Array.isArray(data) ? data : [])
     } catch (e) {
-      toast({ message: e instanceof Error ? e.message : 'Erro ao carregar', tone: 'error' })
+      toast({ message: e instanceof Error ? e.message : t('errors.loadFailed'), tone: 'error' })
     } finally {
       setLoading(false)
     }
-  }, [getHeaders, filter, toast])
+  }, [getHeaders, filter, toast, t])
 
   useEffect(() => { load() }, [load])
 
   const calculate = async () => {
     const sellerId = getStoredSellerId()
     if (sellerId == null) {
-      toast({ message: 'Selecione uma conta ML', tone: 'error' })
+      toast({ message: t('errors.selectAccount'), tone: 'error' })
       return
     }
     setCalculating(true)
@@ -108,12 +91,12 @@ export default function ScoresPage() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const r = await res.json()
       toast({
-        message: `Score calculado · ${r.items_scored} anúncios · Média ${r.avg_score}/100 · ${r.improved}↑ ${r.degraded}↓`,
+        message: t('calcDone', { items: r.items_scored, avg: r.avg_score, improved: r.improved, degraded: r.degraded }),
         tone: 'success',
       })
       await load()
     } catch (e) {
-      toast({ message: e instanceof Error ? e.message : 'Erro', tone: 'error' })
+      toast({ message: e instanceof Error ? e.message : t('errors.generic'), tone: 'error' })
     } finally {
       setCalculating(false)
     }
@@ -130,16 +113,16 @@ export default function ScoresPage() {
       <div>
         <Link href="/dashboard/listings"
           className="text-zinc-500 hover:text-cyan-400 text-xs flex items-center gap-1 mb-2 transition-colors">
-          <ChevronLeft size={12} /> Voltar para Listing Center
+          <ChevronLeft size={12} /> {t('backToCenter')}
         </Link>
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <p className="text-zinc-500 text-xs font-medium tracking-widest uppercase mb-1">Listing Center · Score consolidado</p>
-            <h1 className="text-white text-3xl font-semibold">Saúde dos anúncios</h1>
+            <p className="text-zinc-500 text-xs font-medium tracking-widest uppercase mb-1">{t('eyebrow')}</p>
+            <h1 className="text-white text-3xl font-semibold">{t('title')}</h1>
             <p className="text-xs text-zinc-600 mt-1">
               {scores.length > 0
-                ? `${scores.length} anúncios · Média ${avgScore}/100 · ${criticalCount} críticos · ${healthyCount} saudáveis`
-                : 'Rode o cálculo pra gerar scores'}
+                ? t('summary', { count: scores.length, avg: avgScore, critical: criticalCount, healthy: healthyCount })
+                : t('summaryEmpty')}
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
@@ -147,7 +130,7 @@ export default function ScoresPage() {
             <button onClick={calculate} disabled={calculating}
               className="text-[11px] font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors disabled:opacity-50"
               style={{ background: '#00E5FF', color: '#0d0d10' }}>
-              <RefreshCw size={11} className={calculating ? 'animate-spin' : ''} /> Recalcular scores
+              <RefreshCw size={11} className={calculating ? 'animate-spin' : ''} /> {t('recalculate')}
             </button>
           </div>
         </div>
@@ -155,19 +138,19 @@ export default function ScoresPage() {
 
       <section className="rounded-xl p-3 flex items-center gap-2 flex-wrap"
         style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
-        <FilterChip label="Críticos & atenção (<60)" active={filter === 'unhealthy'} onClick={() => setFilter('unhealthy')} color="#ef4444" />
-        <FilterChip label="Todos"                    active={filter === 'all'}       onClick={() => setFilter('all')} />
-        <FilterChip label="Saudáveis (≥80)"           active={filter === 'healthy'}   onClick={() => setFilter('healthy')} color="#22c55e" />
+        <FilterChip label={t('filter.unhealthy')} active={filter === 'unhealthy'} onClick={() => setFilter('unhealthy')} color="#ef4444" />
+        <FilterChip label={t('filter.all')}                    active={filter === 'all'}       onClick={() => setFilter('all')} />
+        <FilterChip label={t('filter.healthy')}           active={filter === 'healthy'}   onClick={() => setFilter('healthy')} color="#22c55e" />
       </section>
 
       {loading ? (
         <div className="rounded-xl p-12 text-center text-zinc-500 text-xs"
-          style={{ background: '#111114', border: '1px solid #1a1a1f' }}>Carregando…</div>
+          style={{ background: '#111114', border: '1px solid #1a1a1f' }}>{t('loading')}</div>
       ) : scores.length === 0 ? (
         <div className="rounded-xl p-12 text-center" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
           <Activity size={32} className="text-zinc-700 mx-auto mb-2" />
-          <p className="text-zinc-400 text-sm">Sem scores calculados pra esse filtro</p>
-          <p className="text-zinc-600 text-xs mt-1">Rode "Recalcular scores" pra gerar</p>
+          <p className="text-zinc-400 text-sm">{t('empty.title')}</p>
+          <p className="text-zinc-600 text-xs mt-1">{t('empty.desc')}</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -191,6 +174,7 @@ function FilterChip({ label, active, onClick, color }: { label: string; active: 
 }
 
 function ScoreCard({ score }: { score: HealthScore }) {
+  const t = useTranslations('listings.scores')
   const scoreColor =
     score.health_score >= 80 ? '#22c55e' :
     score.health_score >= 60 ? '#00E5FF' :
@@ -213,7 +197,7 @@ function ScoreCard({ score }: { score: HealthScore }) {
         {/* Score gigante */}
         <div className="shrink-0 text-center">
           <p className="text-3xl font-black tabular-nums" style={{ color: scoreColor }}>{score.health_score}</p>
-          <p className="text-[10px] text-zinc-500 uppercase tracking-widest">de 100</p>
+          <p className="text-[10px] text-zinc-500 uppercase tracking-widest">{t('outOf100')}</p>
           {score.score_change !== 0 && (
             <div className="flex items-center justify-center gap-0.5 mt-1 text-[10px] font-semibold" style={{ color: trendColor }}>
               <TrendIcon size={10} />
@@ -236,12 +220,12 @@ function ScoreCard({ score }: { score: HealthScore }) {
 
           {/* Breakdown bars */}
           <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 mb-2">
-            <ScoreBar label="QUALIDADE" value={score.quality_score} />
-            <ScoreBar label="PREÇO"     value={score.pricing_score} />
-            <ScoreBar label="FISCAL"    value={score.fiscal_score} />
-            <ScoreBar label="STATUS"    value={score.status_score} />
-            <ScoreBar label="MARGEM"    value={score.margin_score} />
-            <ScoreBar label="VENDAS"    value={score.sales_score} />
+            <ScoreBar label={t('bar.quality')} value={score.quality_score} />
+            <ScoreBar label={t('bar.price')}     value={score.pricing_score} />
+            <ScoreBar label={t('bar.fiscal')}    value={score.fiscal_score} />
+            <ScoreBar label={t('bar.status')}    value={score.status_score} />
+            <ScoreBar label={t('bar.margin')}    value={score.margin_score} />
+            <ScoreBar label={t('bar.sales')}    value={score.sales_score} />
           </div>
 
           {/* Recommendation */}
@@ -260,13 +244,13 @@ function ScoreCard({ score }: { score: HealthScore }) {
               {score.key_issues.map(k => (
                 <span key={k} className="text-[9px] px-1.5 py-0.5 rounded uppercase tracking-widest font-semibold text-rose-400"
                   style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}>
-                  {ISSUE_LABELS[k] ?? k}
+                  {ISSUE_KEYS.includes(k) ? t(`issue.${k}`) : k}
                 </span>
               ))}
               {score.top_recommendation_action && score.top_recommendation_action !== 'none' && (
                 <span className="text-[9px] px-1.5 py-0.5 rounded uppercase tracking-widest font-semibold text-cyan-400"
                   style={{ background: 'rgba(0,229,255,0.08)', border: '1px solid rgba(0,229,255,0.2)' }}>
-                  → {ACTION_LABELS[score.top_recommendation_action] ?? score.top_recommendation_action}
+                  → {ACTION_KEYS.includes(score.top_recommendation_action) ? t(`action.${score.top_recommendation_action}`) : score.top_recommendation_action}
                 </span>
               )}
             </div>

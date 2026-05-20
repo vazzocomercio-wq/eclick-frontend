@@ -17,6 +17,7 @@
  */
 
 import { useRef, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { ChevronDown, ChevronUp, GripVertical, Trash2, AlertTriangle, Play } from 'lucide-react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -48,6 +49,7 @@ export default function PositionCard({
   templateId?:       string
   templateName?:     string
 }) {
+  const t = useTranslations('creative.templates')
   const [expanded, setExpanded] = useState(defaultExpanded)
   const [testOpen, setTestOpen] = useState(false)
   const promptRef   = useRef<HTMLTextAreaElement | null>(null)
@@ -97,7 +99,7 @@ export default function PositionCard({
           {...sortable.listeners}
           disabled={disabled}
           className="text-zinc-500 hover:text-zinc-300 cursor-grab active:cursor-grabbing"
-          title="Arraste pra reordenar"
+          title={t('dragToReorder')}
         >
           <GripVertical size={14} />
         </button>
@@ -111,16 +113,16 @@ export default function PositionCard({
             #{position.position}
           </span>
           <span className="text-sm font-medium text-zinc-100 truncate">
-            {position.name || '(sem nome)'}
+            {position.name || t('noName')}
           </span>
           {!hasPrompt && (
             <span className="inline-flex items-center gap-1 text-[10px] text-amber-300 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/30">
-              <AlertTriangle size={9} /> sem prompt
+              <AlertTriangle size={9} /> {t('noPromptBadge')}
             </span>
           )}
           {position.use_reference_ids.length > 0 && (
             <span className="text-[10px] text-cyan-300 bg-cyan-400/10 px-1.5 py-0.5 rounded border border-cyan-400/30">
-              {position.use_reference_ids.length} refs
+              {t('refsCount', { count: position.use_reference_ids.length })}
             </span>
           )}
           <span className="ml-auto text-zinc-500">
@@ -134,9 +136,9 @@ export default function PositionCard({
             onClick={() => setTestOpen(true)}
             disabled={disabled}
             className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-cyan-400/10 border border-cyan-400/30 hover:bg-cyan-400/20 text-cyan-300 text-[10px] transition-colors disabled:opacity-40"
-            title="Gera 1 imagem de teste deste slot"
+            title={t('testTooltip')}
           >
-            <Play size={10} /> Testar
+            <Play size={10} /> {t('test')}
           </button>
         )}
 
@@ -145,9 +147,9 @@ export default function PositionCard({
           onClick={async () => {
             if (hasPrompt) {
               const ok = await confirmDialog({
-                title:        'Apagar posição',
-                message:      `Apagar posição "${position.name}"?`,
-                confirmLabel: 'Apagar',
+                title:        t('deletePositionTitle'),
+                message:      t('deletePositionMessage', { name: position.name }),
+                confirmLabel: t('deleteConfirm'),
                 variant:      'danger',
               })
               if (!ok) return
@@ -156,7 +158,7 @@ export default function PositionCard({
           }}
           disabled={disabled}
           className="text-zinc-500 hover:text-red-400 transition-colors disabled:opacity-40"
-          title="Apagar posição"
+          title={t('deletePositionTooltip')}
         >
           <Trash2 size={13} />
         </button>
@@ -167,9 +169,9 @@ export default function PositionCard({
         <div className="p-3 space-y-3">
           {/* Nome + Aspect + Ambient */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            <Field label="Nome" value={position.name} onChange={v => set({ name: v })} disabled={disabled} />
+            <Field label={t('fieldPositionName')} value={position.name} onChange={v => set({ name: v })} disabled={disabled} />
             <div>
-              <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1">Aspect ratio</label>
+              <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1">{t('aspectRatio')}</label>
               <select
                 value={position.aspect_ratio ?? '1:1'}
                 onChange={e => set({ aspect_ratio: e.target.value as AspectRatio })}
@@ -181,19 +183,19 @@ export default function PositionCard({
                 ))}
               </select>
             </div>
-            <Field label="Ambient hint" value={position.ambient_hint ?? ''} onChange={v => set({ ambient_hint: v || undefined })} placeholder="sala de estar, varanda, cozinha…" disabled={disabled} />
+            <Field label={t('ambientHint')} value={position.ambient_hint ?? ''} onChange={v => set({ ambient_hint: v || undefined })} placeholder={t('ambientHintPlaceholder')} disabled={disabled} />
           </div>
 
           {/* Prompt template */}
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="block text-[10px] uppercase tracking-wider text-zinc-500">Prompt template *</label>
+              <label className="block text-[10px] uppercase tracking-wider text-zinc-500">{t('promptTemplate')}</label>
               <span className={[
                 'text-[9px] font-mono',
                 overPromptLimit ? 'text-amber-300' : 'text-zinc-600',
               ].join(' ')}>
                 {promptLen}/{PROMPT_SOFT_LIMIT}
-                {overPromptLimit && ' · longo pode competir com refs'}
+                {overPromptLimit && t('promptLenLong')}
               </span>
             </div>
             <textarea
@@ -202,25 +204,25 @@ export default function PositionCard({
               onChange={e => set({ prompt_template: e.target.value })}
               disabled={disabled}
               rows={5}
-              placeholder="Diretrizes essenciais — refs visuais carregam o estilo. Ex: Sala de estar premium brasileira, produto aceso luz quente, logo VAZZO canto superior esquerdo. {product_name} sempre em destaque."
+              placeholder={t('promptPlaceholder')}
               className="w-full bg-zinc-950 border border-zinc-800 rounded-md px-2.5 py-2 text-xs text-zinc-100 outline-none focus:border-cyan-400 placeholder:text-zinc-600 resize-y font-mono"
             />
             <div className="mt-1.5">
-              <p className="text-[9px] uppercase tracking-wider text-zinc-500 mb-1">Vars (click insere no cursor):</p>
+              <p className="text-[9px] uppercase tracking-wider text-zinc-500 mb-1">{t('varsHint')}</p>
               <VariablesChips onInsert={insertAtCursor(promptRef, 'prompt_template')} disabled={disabled} />
             </div>
           </div>
 
           {/* Negative prompt */}
           <div>
-            <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1">Negative prompt</label>
+            <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1">{t('negativePrompt')}</label>
             <textarea
               ref={negativeRef}
               value={position.negative_prompt ?? ''}
               onChange={e => set({ negative_prompt: e.target.value || undefined })}
               disabled={disabled}
               rows={2}
-              placeholder="people, hands, text, watermark..."
+              placeholder={t('negativePromptPlaceholder')}
               className="w-full bg-zinc-950 border border-zinc-800 rounded-md px-2.5 py-2 text-xs text-zinc-100 outline-none focus:border-cyan-400 placeholder:text-zinc-600 resize-y font-mono"
             />
           </div>
@@ -228,15 +230,15 @@ export default function PositionCard({
           {/* Source toggles */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <Toggle
-              label="Usar foto-fonte do produto"
-              hint="anexa main_image_url do produto como ref"
+              label={t('useProductPhoto')}
+              hint={t('useProductPhotoHint')}
               checked={position.use_product_reference}
               onChange={v => set({ use_product_reference: v })}
               disabled={disabled}
             />
             <Toggle
-              label="Usar logo da marca"
-              hint="usa briefing.logo_url se use_logo=true"
+              label={t('useBrandLogo')}
+              hint={t('useBrandLogoHint')}
               checked={position.use_brand_logo}
               onChange={v => set({ use_brand_logo: v })}
               disabled={disabled}
@@ -267,7 +269,7 @@ export default function PositionCard({
           templateId={templateId}
           templateName={templateName ?? ''}
           positionNumber={position.position}
-          positionName={position.name || `Posição ${position.position}`}
+          positionName={position.name || t('defaultPositionName', { n: position.position })}
           onClose={() => setTestOpen(false)}
         />
       )}

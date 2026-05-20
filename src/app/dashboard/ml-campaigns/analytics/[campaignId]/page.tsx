@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, use } from 'react'
+import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { ArrowLeft, Loader2, RefreshCw, ExternalLink, Trophy, AlertOctagon } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
@@ -52,6 +53,7 @@ function brl(v: number | null) {
 
 export default function AnalysisDetailPage({ params }: { params: Promise<{ campaignId: string }> }) {
   const { campaignId } = use(params)
+  const t = useTranslations('mlCampaigns.campaignAnalysis')
   const [analysis, setAnalysis] = useState<Analysis | null>(null)
   const [loading, setLoading]   = useState(true)
   const [generating, setGenerating] = useState(false)
@@ -94,13 +96,13 @@ export default function AnalysisDetailPage({ params }: { params: Promise<{ campa
   }
 
   if (loading) {
-    return <div className="p-6 text-zinc-500"><Loader2 size={14} className="animate-spin inline mr-2" /> Carregando…</div>
+    return <div className="p-6 text-zinc-500"><Loader2 size={14} className="animate-spin inline mr-2" /> {t('loading')}</div>
   }
 
   if (error) {
     return (
       <div className="p-6 max-w-5xl mx-auto" style={{ background: 'var(--background)', minHeight: '100vh', color: 'var(--text)' }}>
-        <Link href="/dashboard/ml-campaigns/analytics" className="inline-flex items-center gap-1 text-cyan-400 text-xs mb-3"><ArrowLeft size={12} /> Voltar</Link>
+        <Link href="/dashboard/ml-campaigns/analytics" className="inline-flex items-center gap-1 text-cyan-400 text-xs mb-3"><ArrowLeft size={12} /> {t('back')}</Link>
         <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">{error}</div>
       </div>
     )
@@ -109,17 +111,17 @@ export default function AnalysisDetailPage({ params }: { params: Promise<{ campa
   if (!analysis) {
     return (
       <div className="p-6 max-w-5xl mx-auto space-y-4" style={{ background: 'var(--background)', minHeight: '100vh', color: 'var(--text)' }}>
-        <Link href="/dashboard/ml-campaigns/analytics" className="inline-flex items-center gap-1 text-cyan-400 text-xs"><ArrowLeft size={12} /> Voltar</Link>
+        <Link href="/dashboard/ml-campaigns/analytics" className="inline-flex items-center gap-1 text-cyan-400 text-xs"><ArrowLeft size={12} /> {t('back')}</Link>
         <div className="rounded-xl p-8 text-center" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
-          <p className="text-zinc-300 font-medium">Análise ainda não foi gerada</p>
+          <p className="text-zinc-300 font-medium">{t('notGenerated.title')}</p>
           <p className="text-xs text-zinc-500 mt-2 mb-4">
-            Pode disparar manualmente. Cron diário rodaria 7 dias após o fim da campanha.
+            {t('notGenerated.desc')}
           </p>
           <button onClick={generate} disabled={generating}
             className="px-4 py-2 rounded-lg text-sm font-semibold inline-flex items-center gap-1.5 disabled:opacity-50"
             style={{ background: '#00E5FF', color: '#000' }}>
             {generating ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
-            Gerar análise agora
+            {t('generateNow')}
           </button>
         </div>
       </div>
@@ -133,9 +135,9 @@ export default function AnalysisDetailPage({ params }: { params: Promise<{ campa
   return (
     <div className="p-6 space-y-4 max-w-5xl mx-auto" style={{ background: 'var(--background)', minHeight: '100vh', color: 'var(--text)' }}>
       <div className="flex items-center gap-2 text-xs text-zinc-500">
-        <Link href="/dashboard/ml-campaigns" className="hover:text-cyan-400">Campaign Center</Link>
+        <Link href="/dashboard/ml-campaigns" className="hover:text-cyan-400">{t('breadcrumb')}</Link>
         <span>/</span>
-        <Link href="/dashboard/ml-campaigns/analytics" className="hover:text-cyan-400">Analytics</Link>
+        <Link href="/dashboard/ml-campaigns/analytics" className="hover:text-cyan-400">{t('breadcrumbAnalytics')}</Link>
         <span>/</span>
         <span className="text-zinc-300 font-mono">{campaignId.slice(0, 8)}</span>
       </div>
@@ -147,10 +149,10 @@ export default function AnalysisDetailPage({ params }: { params: Promise<{ campa
           <span className="text-[10px] mt-1 opacity-70">ROI</span>
         </div>
         <div className="flex-1">
-          <h1 className="text-xl font-bold">Pós-análise da campanha</h1>
+          <h1 className="text-xl font-bold">{t('title')}</h1>
           <p className="text-xs text-zinc-500 mt-1">
             {new Date(a.campaign_start).toLocaleDateString('pt-BR')} → {new Date(a.campaign_end).toLocaleDateString('pt-BR')} ·
-            {' '}{a.participated_items_count} anúncios participaram
+            {' '}{t('itemsParticipated', { count: a.participated_items_count })}
           </p>
         </div>
       </div>
@@ -158,7 +160,7 @@ export default function AnalysisDetailPage({ params }: { params: Promise<{ campa
       {/* AI Summary */}
       {a.ai_summary && (
         <div className="rounded-xl p-4" style={{ background: 'rgba(0,229,255,0.04)', border: '1px solid rgba(0,229,255,0.25)' }}>
-          <p className="text-[10px] uppercase tracking-wider text-cyan-300 mb-2 font-semibold">Análise IA</p>
+          <p className="text-[10px] uppercase tracking-wider text-cyan-300 mb-2 font-semibold">{t('aiAnalysis')}</p>
           <p className="text-sm text-zinc-200 leading-relaxed whitespace-pre-line">{a.ai_summary}</p>
         </div>
       )}
@@ -172,30 +174,30 @@ export default function AnalysisDetailPage({ params }: { params: Promise<{ campa
 
       {/* KPIs principais */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Kpi label="ROI"               value={brl(a.campaign_roi_brl)} color={roiColor} />
-        <Kpi label="Subsídio recebido" value={brl(a.total_meli_subsidy_received)} color="#67e8f9" />
-        <Kpi label="Receita extra"     value={brl(a.incremental_revenue)} color="#a78bfa" />
-        <Kpi label="Margem total"      value={brl(a.total_margin_brl_during)} color="#22c55e" />
+        <Kpi label={t('kpi.roi')}               value={brl(a.campaign_roi_brl)} color={roiColor} />
+        <Kpi label={t('kpi.subsidyReceived')} value={brl(a.total_meli_subsidy_received)} color="#67e8f9" />
+        <Kpi label={t('kpi.extraRevenue')}     value={brl(a.incremental_revenue)} color="#a78bfa" />
+        <Kpi label={t('kpi.totalMargin')}      value={brl(a.total_margin_brl_during)} color="#22c55e" />
       </div>
 
       {/* Tabela antes/durante/depois */}
       <div className="rounded-xl p-4" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
-        <h2 className="text-xs uppercase tracking-wider text-zinc-400 font-semibold mb-3">Comparação por janela</h2>
+        <h2 className="text-xs uppercase tracking-wider text-zinc-400 font-semibold mb-3">{t('windowComparison')}</h2>
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead className="text-zinc-500">
               <tr>
                 <th className="text-left p-2"></th>
-                <th className="text-right p-2">Antes (30d)</th>
-                <th className="text-right p-2">Durante</th>
-                <th className="text-right p-2">Depois (30d)</th>
-                <th className="text-right p-2">Lift</th>
+                <th className="text-right p-2">{t('table.before')}</th>
+                <th className="text-right p-2">{t('table.during')}</th>
+                <th className="text-right p-2">{t('table.after')}</th>
+                <th className="text-right p-2">{t('table.lift')}</th>
               </tr>
             </thead>
             <tbody>
-              <Row label="Unidades" before={a.units_sold_before} during={a.units_sold_during} after={a.units_sold_after} lift={a.units_sold_lift_pct} format="number" />
-              <Row label="Receita" before={a.revenue_before} during={a.revenue_during} after={a.revenue_after} lift={a.revenue_lift_pct} format="brl" />
-              <Row label="Margem média" before={a.avg_margin_before_pct} during={a.avg_margin_during_pct} after={a.avg_margin_after_pct} lift={null} format="pct" />
+              <Row label={t('table.units')} before={a.units_sold_before} during={a.units_sold_during} after={a.units_sold_after} lift={a.units_sold_lift_pct} format="number" />
+              <Row label={t('table.revenue')} before={a.revenue_before} during={a.revenue_during} after={a.revenue_after} lift={a.revenue_lift_pct} format="brl" />
+              <Row label={t('table.avgMargin')} before={a.avg_margin_before_pct} during={a.avg_margin_during_pct} after={a.avg_margin_after_pct} lift={null} format="pct" />
             </tbody>
           </table>
         </div>
@@ -205,7 +207,7 @@ export default function AnalysisDetailPage({ params }: { params: Promise<{ campa
       {a.best_performers && a.best_performers.length > 0 && (
         <div className="rounded-xl p-4" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
           <h2 className="text-xs uppercase tracking-wider text-zinc-400 font-semibold mb-3 flex items-center gap-1.5">
-            <Trophy size={12} className="text-emerald-400" /> Top performers
+            <Trophy size={12} className="text-emerald-400" /> {t('topPerformers')}
           </h2>
           <div className="space-y-1.5">
             {a.best_performers.slice(0, 10).map(p => <PerformerRow key={p.ml_item_id} p={p} type="best" />)}
@@ -217,7 +219,7 @@ export default function AnalysisDetailPage({ params }: { params: Promise<{ campa
       {a.worst_performers && a.worst_performers.length > 0 && (
         <div className="rounded-xl p-4" style={{ background: '#0c0c10', border: '1px solid rgba(239,68,68,0.2)' }}>
           <h2 className="text-xs uppercase tracking-wider text-red-300 font-semibold mb-3 flex items-center gap-1.5">
-            <AlertOctagon size={12} /> Anúncios com problema
+            <AlertOctagon size={12} /> {t('problemListings')}
           </h2>
           <div className="space-y-1.5">
             {a.worst_performers.slice(0, 10).map(p => <PerformerRow key={p.ml_item_id} p={p} type="worst" />)}
@@ -262,6 +264,7 @@ function Row({ label, before, during, after, lift, format }: {
 }
 
 function PerformerRow({ p, type }: { p: { ml_item_id: string; units_during: number; revenue_during: number; margin_brl: number; margin_pct: number; units_lift_pct?: number }; type: 'best' | 'worst' }) {
+  const t = useTranslations('mlCampaigns.campaignAnalysis')
   const color = type === 'best' ? '#22c55e' : '#ef4444'
   return (
     <div className="rounded p-2 flex items-center gap-2 text-xs"
@@ -271,7 +274,7 @@ function PerformerRow({ p, type }: { p: { ml_item_id: string; units_during: numb
         <ExternalLink size={10} />
       </a>
       <span className="ml-auto flex items-center gap-3 text-[11px] text-zinc-400">
-        <span><strong className="text-zinc-200">{p.units_during}</strong> un</span>
+        <span><strong className="text-zinc-200">{p.units_during}</strong> {t('unitsShort')}</span>
         <span>{brl(p.revenue_during)}</span>
         <span style={{ color }}>{p.margin_pct.toFixed(1)}%</span>
         {p.units_lift_pct != null && (

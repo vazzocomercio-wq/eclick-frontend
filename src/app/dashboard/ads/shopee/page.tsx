@@ -1,12 +1,14 @@
 import { ShoppingCart } from 'lucide-react'
+import { getTranslations } from 'next-intl/server'
 import ComingSoonPage from '@/components/ui/ComingSoonPage'
 
-export default function Page() {
+export default async function Page() {
+  const t = await getTranslations('ads')
   return (
     <ComingSoonPage
       icon={<ShoppingCart size={64} />}
-      title="Shopee Ads"
-      description="Crie e gerencie campanhas patrocinadas na Shopee para ampliar o alcance dos seus anúncios."
+      title={t('shopee.title')}
+      description={t('shopee.description')}
     />
   )
 }

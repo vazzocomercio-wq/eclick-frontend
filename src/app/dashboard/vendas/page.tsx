@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -34,17 +35,18 @@ type KpisResponse = {
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
-const PT_MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
+type Translate = ReturnType<typeof useTranslations>
+const MONTH_KEYS = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'] as const
 
-function monthLabel(offset = 0) {
+function monthLabel(t: Translate, offset = 0) {
   const d = new Date()
   d.setMonth(d.getMonth() - offset)
-  return `${PT_MONTHS[d.getMonth()]}/${String(d.getFullYear()).slice(2)}`
+  return `${t(`months.${MONTH_KEYS[d.getMonth()]}`)}/${String(d.getFullYear()).slice(2)}`
 }
 
-function dayLabel(iso: string) {
+function dayLabel(iso: string, t: Translate) {
   const d = new Date(iso + 'T12:00:00')
-  return `${String(d.getDate()).padStart(2, '0')}/${PT_MONTHS[d.getMonth()]}`
+  return `${String(d.getDate()).padStart(2, '0')}/${t(`months.${MONTH_KEYS[d.getMonth()]}`)}`
 }
 
 function delta(cur: number, prv: number): number | null {
@@ -55,7 +57,7 @@ function delta(cur: number, prv: number): number | null {
 // ── chart tooltip ─────────────────────────────────────────────────────────────
 
 function ChartTooltip({ active, payload, label }: {
-  active?: boolean; payload?: { name: string; value: number; color: string; fill?: string }[]; label?: string
+  active?: boolean; payload?: { name: string; value: number; color: string; fill?: string; dataKey?: string }[]; label?: string
 }) {
   if (!active || !payload?.length) return null
   return (
@@ -65,7 +67,7 @@ function ChartTooltip({ active, payload, label }: {
         <div key={p.name} className="flex items-center gap-3 justify-between">
           <span className="text-xs" style={{ color: p.color ?? p.fill }}>{p.name}</span>
           <span className="text-xs font-semibold tabular-nums" style={{ color: p.color ?? p.fill }}>
-            {p.name.toLowerCase().includes('pedido') ? p.value : shortBrl(p.value)}
+            {String(p.dataKey ?? '').startsWith('orders') ? p.value : shortBrl(p.value)}
           </span>
         </div>
       ))}
@@ -108,6 +110,7 @@ function KpiCard({ icon, label, value, sub, deltaVal, loading }: {
 // ── page ──────────────────────────────────────────────────────────────────────
 
 export default function VendasPage() {
+  const t = useTranslations('vendas')
   const [kpis,    setKpis]    = useState<KpisResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [view,    setView]    = useState<'revenue' | 'orders'>('revenue')
@@ -134,8 +137,8 @@ export default function VendasPage() {
   const ticketCur = cur && cur.count > 0 ? cur.revenue / cur.count : null
   const ticketPrv = prv && prv.count > 0 ? prv.revenue / prv.count : null
 
-  const curLabel = monthLabel(0)
-  const prvLabel = monthLabel(1)
+  const curLabel = monthLabel(t, 0)
+  const prvLabel = monthLabel(t, 1)
 
   // Fill current-month days from day 1 up to today
   const today = new Date()
@@ -149,7 +152,7 @@ export default function VendasPage() {
   curByDay.forEach(d => { curMap[d.date] = d })
   prvByDay.forEach(d => { prvMap[d.date] = d })
 
-  // Build cumulative daily chart: day 1..N of the month
+  // Build cumulative daily chart: day 1..N of the month — chaves estáveis em inglês.
   const dailyChart = Array.from({ length: daysInMonth }, (_, i) => {
     const day = i + 1
     const curDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
@@ -159,22 +162,22 @@ export default function VendasPage() {
 
     return {
       dia: `${day}`,
-      [`Receita (${curLabel})`]: curMap[curDate]?.revenue ?? 0,
-      [`Receita (${prvLabel})`]: prvMap[prvDate]?.revenue ?? 0,
-      [`Pedidos (${curLabel})`]: curMap[curDate]?.count ?? 0,
-      [`Pedidos (${prvLabel})`]: prvMap[prvDate]?.count ?? 0,
+      revenueCur: curMap[curDate]?.revenue ?? 0,
+      revenuePrv: prvMap[prvDate]?.revenue ?? 0,
+      ordersCur:  curMap[curDate]?.count ?? 0,
+      ordersPrv:  prvMap[prvDate]?.count ?? 0,
     }
   })
 
   // Cumulative revenue chart
   let cumCur = 0, cumPrv = 0
   const cumulChart = dailyChart.map(d => {
-    cumCur += d[`Receita (${curLabel})`] as number
-    cumPrv += d[`Receita (${prvLabel})`] as number
+    cumCur += d.revenueCur
+    cumPrv += d.revenuePrv
     return {
       dia: d.dia,
-      [curLabel]: Math.round(cumCur * 100) / 100,
-      [prvLabel]: Math.round(cumPrv * 100) / 100,
+      cumCur: Math.round(cumCur * 100) / 100,
+      cumPrv: Math.round(cumPrv * 100) / 100,
     }
   })
 
@@ -186,14 +189,14 @@ export default function VendasPage() {
       {/* header */}
       <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
         <div>
-          <h1 className="text-xl font-bold text-white">Vendas</h1>
-          <p className="text-sm text-zinc-500 mt-0.5">{curLabel} — comparativo com {prvLabel}</p>
+          <h1 className="text-xl font-bold text-white">{t('title')}</h1>
+          <p className="text-sm text-zinc-500 mt-0.5">{t('subtitle', { cur: curLabel, prv: prvLabel })}</p>
         </div>
         <button onClick={load} disabled={loading}
           className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm transition-all"
           style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#a1a1aa' }}>
           <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
-          Atualizar
+          {t('refresh')}
         </button>
       </div>
 
@@ -201,40 +204,40 @@ export default function VendasPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
         <KpiCard
           icon={<DollarSign size={16} />}
-          label={`Faturamento ${curLabel}`}
+          label={t('kpiRevenue', { month: curLabel })}
           value={brl(cur?.revenue ?? 0)}
           deltaVal={delta(cur?.revenue ?? 0, prv?.revenue ?? 0)}
-          sub={`vs ${brl(prv?.revenue ?? 0)}`}
+          sub={t('kpiVs', { value: brl(prv?.revenue ?? 0) })}
           loading={loading}
         />
         <KpiCard
           icon={<ShoppingCart size={16} />}
-          label={`Pedidos ${curLabel}`}
+          label={t('kpiOrders', { month: curLabel })}
           value={String(cur?.count ?? 0)}
           deltaVal={delta(cur?.count ?? 0, prv?.count ?? 0)}
-          sub={`vs ${prv?.count ?? 0} no mês ant.`}
+          sub={t('kpiVsLastMonth', { count: prv?.count ?? 0 })}
           loading={loading}
         />
         <KpiCard
           icon={<Ticket size={16} />}
-          label="Ticket médio"
+          label={t('kpiAvgTicket')}
           value={ticketCur != null ? brl(ticketCur) : '—'}
           deltaVal={ticketCur != null && ticketPrv != null ? delta(ticketCur, ticketPrv) : null}
-          sub={ticketPrv != null ? `vs ${brl(ticketPrv)}` : undefined}
+          sub={ticketPrv != null ? t('kpiVs', { value: brl(ticketPrv) }) : undefined}
           loading={loading}
         />
         <KpiCard
           icon={<CalendarDays size={16} />}
-          label="Melhor dia do mês"
+          label={t('kpiBestDay')}
           value={topDay ? brl(topDay.revenue) : '—'}
-          sub={topDay ? `${dayLabel(topDay.date)} · ${topDay.count} pedido${topDay.count !== 1 ? 's' : ''}` : undefined}
+          sub={topDay ? t('kpiBestDaySub', { day: dayLabel(topDay.date, t), count: topDay.count }) : undefined}
           loading={loading}
         />
       </div>
 
       {!loading && !kpis && (
         <div className="flex items-center justify-center h-40 text-zinc-500 text-sm">
-          ML não conectado ou sem dados disponíveis.
+          {t('noData')}
         </div>
       )}
 
@@ -243,7 +246,7 @@ export default function VendasPage() {
           {/* Cumulative chart */}
           <div className="rounded-xl p-4 mb-4" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
             <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-              <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Receita acumulada no mês</p>
+              <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">{t('cumulativeRevenue')}</p>
             </div>
             {loading
               ? <div className="h-52 flex items-center justify-center text-zinc-600 text-sm gap-2">
@@ -268,8 +271,8 @@ export default function VendasPage() {
                     <YAxis tickFormatter={shortBrl} tick={{ fill: '#52525b', fontSize: 10 }} axisLine={false} tickLine={false} width={60} />
                     <Tooltip content={<ChartTooltip />} />
                     <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8, color: '#71717a' }} />
-                    <Area dataKey={curLabel} stroke="#00E5FF" strokeWidth={2} fill="url(#gradCur)" dot={false} activeDot={{ r: 4 }} />
-                    <Area dataKey={prvLabel} stroke="#6366f1" strokeWidth={1.5} fill="url(#gradPrv)" dot={false} strokeDasharray="4 4" activeDot={{ r: 3 }} />
+                    <Area dataKey="cumCur" name={curLabel} stroke="#00E5FF" strokeWidth={2} fill="url(#gradCur)" dot={false} activeDot={{ r: 4 }} />
+                    <Area dataKey="cumPrv" name={prvLabel} stroke="#6366f1" strokeWidth={1.5} fill="url(#gradPrv)" dot={false} strokeDasharray="4 4" activeDot={{ r: 3 }} />
                   </AreaChart>
                 </ResponsiveContainer>
               )
@@ -279,7 +282,7 @@ export default function VendasPage() {
           {/* Daily bar chart */}
           <div className="rounded-xl p-4 mb-6" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
             <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-              <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Por dia</p>
+              <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">{t('byDay')}</p>
               <div className="flex rounded-lg overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
                 {(['revenue', 'orders'] as const).map(v => (
                   <button
@@ -291,7 +294,7 @@ export default function VendasPage() {
                       : { background: 'rgba(255,255,255,0.03)', color: '#71717a' }
                     }
                   >
-                    {v === 'revenue' ? 'Receita' : 'Pedidos'}
+                    {v === 'revenue' ? t('revenue') : t('orders')}
                   </button>
                 ))}
               </div>
@@ -313,13 +316,13 @@ export default function VendasPage() {
                     <ReferenceLine y={0} stroke="#27272a" />
                     {view === 'revenue' ? (
                       <>
-                        <Bar dataKey={`Receita (${curLabel})`} fill="#00E5FF" radius={[3,3,0,0]} opacity={0.85} />
-                        <Bar dataKey={`Receita (${prvLabel})`} fill="#6366f1" radius={[3,3,0,0]} opacity={0.5} />
+                        <Bar dataKey="revenueCur" name={t('seriesRevenue', { month: curLabel })} fill="#00E5FF" radius={[3,3,0,0]} opacity={0.85} />
+                        <Bar dataKey="revenuePrv" name={t('seriesRevenue', { month: prvLabel })} fill="#6366f1" radius={[3,3,0,0]} opacity={0.5} />
                       </>
                     ) : (
                       <>
-                        <Bar dataKey={`Pedidos (${curLabel})`} fill="#22c55e" radius={[3,3,0,0]} opacity={0.85} />
-                        <Bar dataKey={`Pedidos (${prvLabel})`} fill="#84cc16" radius={[3,3,0,0]} opacity={0.5} />
+                        <Bar dataKey="ordersCur" name={t('seriesOrders', { month: curLabel })} fill="#22c55e" radius={[3,3,0,0]} opacity={0.85} />
+                        <Bar dataKey="ordersPrv" name={t('seriesOrders', { month: prvLabel })} fill="#84cc16" radius={[3,3,0,0]} opacity={0.5} />
                       </>
                     )}
                   </BarChart>
@@ -332,21 +335,21 @@ export default function VendasPage() {
           {!loading && curByDay.length > 0 && (
             <div className="rounded-xl overflow-hidden" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
               <div className="px-4 py-3 border-b border-zinc-800/60">
-                <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Detalhe por dia — {curLabel}</p>
+                <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">{t('dailyDetail', { month: curLabel })}</p>
               </div>
               <table className="w-full border-collapse">
                 <thead>
                   <tr className="border-b border-zinc-800">
-                    <th className="py-2 px-4 text-left text-[11px] font-semibold text-zinc-600 uppercase tracking-wide">Data</th>
-                    <th className="py-2 px-4 text-right text-[11px] font-semibold text-zinc-600 uppercase tracking-wide">Pedidos</th>
-                    <th className="py-2 px-4 text-right text-[11px] font-semibold text-zinc-600 uppercase tracking-wide">Receita</th>
-                    <th className="py-2 px-4 text-right text-[11px] font-semibold text-zinc-600 uppercase tracking-wide">Ticket médio</th>
+                    <th className="py-2 px-4 text-left text-[11px] font-semibold text-zinc-600 uppercase tracking-wide">{t('colDate')}</th>
+                    <th className="py-2 px-4 text-right text-[11px] font-semibold text-zinc-600 uppercase tracking-wide">{t('colOrders')}</th>
+                    <th className="py-2 px-4 text-right text-[11px] font-semibold text-zinc-600 uppercase tracking-wide">{t('colRevenue')}</th>
+                    <th className="py-2 px-4 text-right text-[11px] font-semibold text-zinc-600 uppercase tracking-wide">{t('colAvgTicket')}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {[...curByDay].sort((a, b) => b.date.localeCompare(a.date)).map(d => (
                     <tr key={d.date} className="border-b border-zinc-800/40 hover:bg-zinc-900/30 transition-colors">
-                      <td className="py-2.5 px-4 text-sm text-zinc-300">{dayLabel(d.date)}</td>
+                      <td className="py-2.5 px-4 text-sm text-zinc-300">{dayLabel(d.date, t)}</td>
                       <td className="py-2.5 px-4 text-sm text-right text-zinc-400 tabular-nums">{d.count}</td>
                       <td className="py-2.5 px-4 text-sm text-right font-semibold text-white tabular-nums">{brl(d.revenue)}</td>
                       <td className="py-2.5 px-4 text-sm text-right text-zinc-400 tabular-nums">
@@ -357,7 +360,7 @@ export default function VendasPage() {
                 </tbody>
                 <tfoot>
                   <tr style={{ background: 'rgba(255,255,255,0.03)', borderTop: '2px solid rgba(255,255,255,0.07)' }}>
-                    <td className="py-2.5 px-4 text-sm font-bold text-white">Total</td>
+                    <td className="py-2.5 px-4 text-sm font-bold text-white">{t('total')}</td>
                     <td className="py-2.5 px-4 text-sm text-right font-semibold text-zinc-200 tabular-nums">{cur?.count ?? 0}</td>
                     <td className="py-2.5 px-4 text-sm text-right font-bold text-white tabular-nums">{brl(cur?.revenue ?? 0)}</td>
                     <td className="py-2.5 px-4 text-sm text-right font-semibold text-zinc-200 tabular-nums">

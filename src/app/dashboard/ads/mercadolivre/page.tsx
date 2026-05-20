@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import Link from 'next/link'
 import {
@@ -91,10 +92,12 @@ type AdsSignal = {
   created_at:     string
 }
 
-const SIGNAL_SEVERITY: Record<AdsSignal['severity'], { icon: typeof AlertCircle; color: string; bg: string; label: string }> = {
-  critical: { icon: AlertCircle,   color: '#f87171', bg: 'rgba(248,113,113,0.1)', label: 'Crítico' },
-  warning:  { icon: AlertTriangle, color: '#f59e0b', bg: 'rgba(245,158,11,0.1)', label: 'Atenção' },
-  info:     { icon: Sparkles,      color: '#60a5fa', bg: 'rgba(96,165,250,0.1)', label: 'Info'    },
+type Translator = ReturnType<typeof useTranslations<'ads'>>
+
+const SIGNAL_SEVERITY: Record<AdsSignal['severity'], { icon: typeof AlertCircle; color: string; bg: string }> = {
+  critical: { icon: AlertCircle,   color: '#f87171', bg: 'rgba(248,113,113,0.1)' },
+  warning:  { icon: AlertTriangle, color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' },
+  info:     { icon: Sparkles,      color: '#60a5fa', bg: 'rgba(96,165,250,0.1)' },
 }
 
 function humanizeCategory(c: string) { return c.replace(/_/g, ' ') }
@@ -152,14 +155,14 @@ function roasColor(roas: number) {
   if (roas >= 1) return '#facc15'
   return '#f87171'
 }
-function statusBadge(s: string | null) {
+function statusBadge(t: Translator, s: string | null) {
   const v = (s ?? '').toLowerCase()
   if (v === 'active' || v === 'enabled' || v === 'ativo')
-    return { label: 'Ativa',    color: '#4ade80', bg: 'rgba(74,222,128,0.12)' }
+    return { label: t('mercadolivre.status.active'),    color: '#4ade80', bg: 'rgba(74,222,128,0.12)' }
   if (v === 'paused' || v === 'pausado')
-    return { label: 'Pausada',  color: '#facc15', bg: 'rgba(250,204,21,0.12)' }
+    return { label: t('mercadolivre.status.paused'),  color: '#facc15', bg: 'rgba(250,204,21,0.12)' }
   if (v === 'ended' || v === 'finished' || v === 'finalizado')
-    return { label: 'Finalizada', color: '#71717a', bg: 'rgba(113,113,122,0.12)' }
+    return { label: t('mercadolivre.status.ended'), color: '#71717a', bg: 'rgba(113,113,122,0.12)' }
   return { label: s ?? '—', color: '#a1a1aa', bg: 'rgba(161,161,170,0.10)' }
 }
 
@@ -244,7 +247,8 @@ function CampaignRow({
   busy: boolean
   signals: AdsSignal[]
 }) {
-  const sb = statusBadge(c.status)
+  const t = useTranslations('ads')
+  const sb = statusBadge(t, c.status)
   const [days, setDays] = useState<CampaignDayRow[]>([])
   const [items, setItems] = useState<CampaignItem[]>([])
   const [loading, setLoading] = useState(false)
@@ -305,14 +309,14 @@ function CampaignRow({
             {expanded ? <ChevronDown size={14} className="text-zinc-500" /> : <ChevronRight size={14} className="text-zinc-500" />}
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5 flex-wrap">
-                <p className="text-sm font-medium text-zinc-200 truncate max-w-[300px]">{c.name || '(sem nome)'}</p>
+                <p className="text-sm font-medium text-zinc-200 truncate max-w-[300px]">{c.name || t('mercadolivre.noName')}</p>
                 {signals.length > 0 && (() => {
                   const worst = signals[0].severity   // já ordenado por score desc
                   const meta = SIGNAL_SEVERITY[worst]
                   return (
                     <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold"
                       style={{ background: meta.bg, color: meta.color, border: `1px solid ${meta.color}33` }}
-                      title={`${signals.length} sugestão${signals.length !== 1 ? 'ões' : ''} da IA`}>
+                      title={t('mercadolivre.aiSuggestionsCount', { count: signals.length })}>
                       <Sparkles size={9} />
                       {signals.length}
                     </span>
@@ -342,19 +346,19 @@ function CampaignRow({
                 style={{ background: '#18181b', border: '1px solid #00E5FF' }} />
               <button onClick={commitBudget} disabled={busy}
                 className="p-0.5 rounded transition-colors disabled:opacity-40"
-                style={{ color: '#4ade80' }} title="Salvar (Enter)">
+                style={{ color: '#4ade80' }} title={t('mercadolivre.saveEnter')}>
                 <Check size={11} />
               </button>
               <button onClick={cancelBudget}
                 className="p-0.5 rounded transition-colors"
-                style={{ color: '#71717a' }} title="Cancelar (Esc)">
+                style={{ color: '#71717a' }} title={t('mercadolivre.cancelEsc')}>
                 <X size={11} />
               </button>
             </div>
           ) : (
             <button onClick={(e) => { e.stopPropagation(); setEditingBudget(true) }}
               className="text-xs text-zinc-300 tabular-nums hover:text-white transition-colors inline-flex items-center gap-1"
-              title="Clique pra editar">
+              title={t('mercadolivre.clickToEdit')}>
               {c.daily_budget != null ? fmtBRL(c.daily_budget) : '—'}
               <Edit2 size={9} className="opacity-30" />
             </button>
@@ -377,7 +381,7 @@ function CampaignRow({
                 color:      isPaused ? '#4ade80' : '#f59e0b',
                 border:     `1px solid ${isPaused ? 'rgba(74,222,128,0.25)' : 'rgba(245,158,11,0.25)'}`,
               }}
-              title={isPaused ? 'Reativar campanha' : 'Pausar campanha'}>
+              title={isPaused ? t('mercadolivre.reactivateCampaign') : t('mercadolivre.pauseCampaign')}>
               {isPaused ? <Play size={11} /> : <Pause size={11} />}
             </button>
           )}
@@ -390,7 +394,7 @@ function CampaignRow({
             {signals.length > 0 && (
               <div className="px-3">
                 <p className="text-[10px] uppercase tracking-wider text-zinc-600 font-semibold mb-1.5 inline-flex items-center gap-1">
-                  <Sparkles size={10} style={{ color: '#a78bfa' }} /> Sugestões da IA ({signals.length})
+                  <Sparkles size={10} style={{ color: '#a78bfa' }} /> {t('mercadolivre.aiSuggestions', { count: signals.length })}
                 </p>
                 <div className="space-y-2">
                   {signals.map(s => {
@@ -404,7 +408,7 @@ function CampaignRow({
                             {humanizeCategory(s.category)}
                           </span>
                           <span className="text-[10px] text-zinc-600">·</span>
-                          <span className="text-[10px] text-zinc-500 font-mono">score {s.score}</span>
+                          <span className="text-[10px] text-zinc-500 font-mono">{t('mercadolivre.score', { score: s.score })}</span>
                           <span className="ml-auto text-[10px] text-zinc-600">{s.status}</span>
                         </div>
                         <p className="text-xs text-zinc-300 leading-relaxed">{s.summary_pt}</p>
@@ -424,7 +428,7 @@ function CampaignRow({
             {items.length > 0 && (
               <div>
                 <p className="text-[10px] uppercase tracking-wider text-zinc-600 font-semibold mb-1.5 inline-flex items-center gap-1 px-3">
-                  <Package size={10} /> Anúncios vinculados ({items.length})
+                  <Package size={10} /> {t('mercadolivre.linkedListings', { count: items.length })}
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5 px-3">
                   {items.map(it => (
@@ -449,20 +453,20 @@ function CampaignRow({
 
             {/* Daily metrics */}
             {loading ? (
-              <p className="text-xs text-zinc-500 px-3">Carregando dias…</p>
+              <p className="text-xs text-zinc-500 px-3">{t('mercadolivre.loadingDays')}</p>
             ) : days.length === 0 ? (
-              <p className="text-xs text-zinc-600 px-3 italic">Sem métricas no período.</p>
+              <p className="text-xs text-zinc-600 px-3 italic">{t('mercadolivre.noMetrics')}</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-[11px]">
                   <thead>
                     <tr className="text-left text-[10px] uppercase tracking-wide text-zinc-600">
-                      <th className="px-3 py-1.5">Data</th>
-                      <th className="px-3 py-1.5 text-right">Imp.</th>
-                      <th className="px-3 py-1.5 text-right">Cliques</th>
+                      <th className="px-3 py-1.5">{t('mercadolivre.dayTable.date')}</th>
+                      <th className="px-3 py-1.5 text-right">{t('mercadolivre.dayTable.impressions')}</th>
+                      <th className="px-3 py-1.5 text-right">{t('mercadolivre.dayTable.clicks')}</th>
                       <th className="px-3 py-1.5 text-right">CTR</th>
-                      <th className="px-3 py-1.5 text-right">Gasto</th>
-                      <th className="px-3 py-1.5 text-right">Receita</th>
+                      <th className="px-3 py-1.5 text-right">{t('mercadolivre.dayTable.spend')}</th>
+                      <th className="px-3 py-1.5 text-right">{t('mercadolivre.dayTable.revenue')}</th>
                       <th className="px-3 py-1.5 text-right">ROAS</th>
                       <th className="px-3 py-1.5 text-right">ACoS</th>
                     </tr>
@@ -494,6 +498,7 @@ function CampaignRow({
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function MlAdsPage() {
+  const t = useTranslations('ads')
   const supabase = useMemo(() => createClient(), [])
 
   const [preset, setPreset] = useState<Preset>('30d')
@@ -533,9 +538,9 @@ export default function MlAdsPage() {
 
   const getHeaders = useCallback(async (): Promise<Record<string, string>> => {
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session?.access_token) throw new Error('Não autenticado')
+    if (!session?.access_token) throw new Error(t('mercadolivre.notAuthenticated'))
     return { Authorization: `Bearer ${session.access_token}` }
-  }, [supabase])
+  }, [supabase, t])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -590,11 +595,11 @@ export default function MlAdsPage() {
         setSignalsByCampaign(map)
       }
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Erro ao carregar')
+      setError(e instanceof Error ? e.message : t('mercadolivre.loadError'))
     } finally {
       setLoading(false)
     }
-  }, [getHeaders, range.from, range.to])
+  }, [getHeaders, range.from, range.to, t])
 
   // Depend on the primitive range strings (and supabase, which is stable),
   // NOT on `load` — the callback identity can churn and trigger refetch loops.
@@ -639,7 +644,7 @@ export default function MlAdsPage() {
         : x,
       ))
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Erro ao atualizar campanha')
+      setError(e instanceof Error ? e.message : t('mercadolivre.campaignUpdateError'))
     } finally {
       setCampaignBusy(prev => { const n = new Set(prev); n.delete(c.id); return n })
     }
@@ -658,10 +663,10 @@ export default function MlAdsPage() {
   function exportCSV() {
     if (campaigns.length === 0) return
     const lines: string[] = []
-    lines.push('Nome,Status,Tipo,Daily budget,Cliques,Impressões,CTR (%),Gasto,Conversões,Receita,ROAS (x),ACoS (%)')
+    lines.push(t('mercadolivre.csvHeader'))
     for (const c of campaigns) {
       lines.push([
-        csvEscape(c.name ?? '(sem nome)'),
+        csvEscape(c.name ?? t('mercadolivre.noName')),
         c.status ?? '',
         c.type ?? '',
         c.daily_budget ?? '',
@@ -703,11 +708,11 @@ export default function MlAdsPage() {
       if (d?.ok === false && d?.message) {
         setLastSyncMsg(d.message)
       } else {
-        setLastSyncMsg(`Sincronizado: ${d?.campaigns ?? 0} campanha(s) · ${d?.reports ?? 0} dias`)
+        setLastSyncMsg(t('mercadolivre.syncResult', { campaigns: d?.campaigns ?? 0, reports: d?.reports ?? 0 }))
       }
       await load()
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Erro ao sincronizar')
+      setError(e instanceof Error ? e.message : t('mercadolivre.syncError'))
     } finally {
       setSyncing(false)
     }
@@ -748,8 +753,8 @@ export default function MlAdsPage() {
             <Megaphone size={18} style={{ color: '#FFE600' }} />
           </div>
           <div>
-            <p className="text-zinc-500 text-xs font-medium uppercase tracking-widest">Ads</p>
-            <h1 className="text-white text-xl font-semibold">Mercado Livre Ads</h1>
+            <p className="text-zinc-500 text-xs font-medium uppercase tracking-widest">{t('mercadolivre.eyebrow')}</p>
+            <h1 className="text-white text-xl font-semibold">{t('mercadolivre.pageTitle')}</h1>
           </div>
         </div>
 
@@ -763,7 +768,7 @@ export default function MlAdsPage() {
                   background: preset === p ? '#FFE600' : 'transparent',
                   color:      preset === p ? '#000'    : '#a1a1aa',
                 }}>
-                {p === 'custom' ? 'Custom' : p === '7d' ? '7 dias' : '30 dias'}
+                {t(`mercadolivre.preset.${p}`)}
               </button>
             ))}
           </div>
@@ -782,7 +787,7 @@ export default function MlAdsPage() {
             <button onClick={exportCSV}
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-semibold transition-all border"
               style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}
-              title="Exportar tabela em CSV">
+              title={t('mercadolivre.exportCsv')}>
               <Download size={12} />
               <span className="hidden sm:inline">CSV</span>
             </button>
@@ -791,14 +796,14 @@ export default function MlAdsPage() {
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-semibold transition-all disabled:opacity-60"
             style={{ background: '#FFE600', color: '#000' }}>
             <RefreshCw size={12} className={syncing ? 'animate-spin' : ''} />
-            {syncing ? 'Sincronizando…' : 'Sincronizar'}
+            {syncing ? t('mercadolivre.syncing') : t('mercadolivre.sync')}
           </button>
         </div>
       </div>
 
       {lastSync && (
         <p className="text-[10px] text-zinc-600 inline-flex items-center gap-1">
-          <Clock size={10} /> Última sincronização: {timeAgoBR(lastSync)}
+          <Clock size={10} /> {t('mercadolivre.lastSync', { time: timeAgoBR(lastSync) })}
         </p>
       )}
 
@@ -813,7 +818,9 @@ export default function MlAdsPage() {
         <div className="px-4 py-3 rounded-xl text-xs text-amber-400 flex items-center gap-2"
           style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)' }}>
           <AlertCircle size={14} />
-          <span>Token ML expirado — reconecte em <a href="/dashboard/configuracoes/integracoes" className="underline font-semibold">Integrações</a>.</span>
+          <span>{t.rich('mercadolivre.tokenExpired', {
+            link: (chunks) => <a href="/dashboard/configuracoes/integracoes" className="underline font-semibold">{chunks}</a>,
+          })}</span>
         </div>
       )}
 
@@ -835,33 +842,31 @@ export default function MlAdsPage() {
           {mlConnected === false ? (
             <>
               <div>
-                <h2 className="text-white text-base font-semibold">Mercado Livre não conectado</h2>
+                <h2 className="text-white text-base font-semibold">{t('mercadolivre.notConnectedTitle')}</h2>
                 <p className="text-zinc-500 text-xs mt-1 max-w-md">
-                  Pra ver suas campanhas e métricas de ads, conecte sua conta ML em
-                  Configurações &gt; Integrações.
+                  {t('mercadolivre.notConnectedText')}
                 </p>
               </div>
               <Link href="/dashboard/configuracoes/integracoes"
                 className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all"
                 style={{ background: '#FFE600', color: '#000' }}>
-                Conectar ML
+                {t('mercadolivre.connectMl')}
                 <ArrowRight size={13} />
               </Link>
             </>
           ) : (
             <>
               <div>
-                <h2 className="text-white text-base font-semibold">Sem dados de campanhas ainda</h2>
+                <h2 className="text-white text-base font-semibold">{t('mercadolivre.noDataTitle')}</h2>
                 <p className="text-zinc-500 text-xs mt-1 max-w-md">
-                  Sincronize agora pra puxar suas campanhas e métricas dos últimos 30 dias
-                  direto do Mercado Livre Ads.
+                  {t('mercadolivre.noDataText')}
                 </p>
               </div>
               <button onClick={sync} disabled={syncing}
                 className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all disabled:opacity-60"
                 style={{ background: '#FFE600', color: '#000' }}>
                 <RefreshCw size={13} className={syncing ? 'animate-spin' : ''} />
-                {syncing ? 'Sincronizando…' : 'Sincronizar com ML Ads'}
+                {syncing ? t('mercadolivre.syncing') : t('mercadolivre.syncWithMlAds')}
               </button>
             </>
           )}
@@ -870,22 +875,22 @@ export default function MlAdsPage() {
         <>
           {/* KPIs com delta vs período anterior */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-            <KpiCard label="Gasto total"   value={loading ? '…' : fmtBRL(totals?.spend ?? 0)}
+            <KpiCard label={t('mercadolivre.kpi.totalSpend')}   value={loading ? '…' : fmtBRL(totals?.spend ?? 0)}
               delta={prevTotals ? deltaPct(totals?.spend ?? 0, prevTotals.spend) : null}
               invertDelta
               icon={<DollarSign size={13} />} color="#f87171" />
-            <KpiCard label="Receita"       value={loading ? '…' : fmtBRL(totals?.revenue ?? 0)}
+            <KpiCard label={t('mercadolivre.kpi.revenue')}       value={loading ? '…' : fmtBRL(totals?.revenue ?? 0)}
               delta={prevTotals ? deltaPct(totals?.revenue ?? 0, prevTotals.revenue) : null}
               icon={<TrendingUp size={13} />} color="#4ade80" />
             <KpiCard label="ROAS"          value={loading ? '…' : fmtRoas(totals?.roas ?? 0)}
               delta={prevTotals ? deltaPct(totals?.roas ?? 0, prevTotals.roas) : null}
               icon={<Target size={13} />}     color={roasColor(totals?.roas ?? 0)} />
-            <KpiCard label="Cliques"       value={loading ? '…' : fmtNum(totals?.clicks ?? 0)}
+            <KpiCard label={t('mercadolivre.kpi.clicks')}       value={loading ? '…' : fmtNum(totals?.clicks ?? 0)}
               delta={prevTotals ? deltaPct(totals?.clicks ?? 0, prevTotals.clicks) : null}
               icon={<MousePointerClick size={13} />} color="#60a5fa" />
             <KpiCard label="CTR"           value={loading ? '…' : fmtPct(totals?.ctr ?? 0)}
               delta={prevTotals ? deltaPct(totals?.ctr ?? 0, prevTotals.ctr) : null}
-              icon={<Eye size={13} />}        color="#a78bfa" sub={`${fmtNum(totals?.impressions ?? 0)} imp.`} />
+              icon={<Eye size={13} />}        color="#a78bfa" sub={t('mercadolivre.kpi.impressionsSub', { count: fmtNum(totals?.impressions ?? 0) })} />
             <KpiCard label="ACoS"          value={loading ? '…' : fmtPct(totals?.acos ?? 0)}
               delta={prevTotals ? deltaPct(totals?.acos ?? 0, prevTotals.acos) : null}
               invertDelta
@@ -893,8 +898,7 @@ export default function MlAdsPage() {
           </div>
           {prevTotals && summary?.previous && (
             <p className="text-[10px] text-zinc-700 -mt-2">
-              Δ vs período anterior {summary.previous.from} → {summary.previous.to} ·
-              gastou {fmtBRL(prevTotals.spend)}, ROAS {fmtRoas(prevTotals.roas)}
+              {t('mercadolivre.deltaInfo', { from: summary.previous.from, to: summary.previous.to, spend: fmtBRL(prevTotals.spend), roas: fmtRoas(prevTotals.roas) })}
             </p>
           )}
 
@@ -902,7 +906,7 @@ export default function MlAdsPage() {
           {top5.length > 0 && (
             <div className="rounded-2xl p-5 space-y-3" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
               <h3 className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 inline-flex items-center gap-1">
-                <Target size={11} /> Top 5 campanhas (por gasto)
+                <Target size={11} /> {t('mercadolivre.top5Campaigns')}
               </h3>
               <div className="space-y-2">
                 {top5.map(c => {
@@ -910,7 +914,7 @@ export default function MlAdsPage() {
                   return (
                     <div key={c.id} className="space-y-1">
                       <div className="flex items-center justify-between gap-3 text-[11px]">
-                        <span className="text-zinc-300 truncate">{c.name || '(sem nome)'}</span>
+                        <span className="text-zinc-300 truncate">{c.name || t('mercadolivre.noName')}</span>
                         <div className="flex items-center gap-3 shrink-0">
                           <span className="text-zinc-400 tabular-nums">{fmtBRL(c.spend)}</span>
                           <span className="text-zinc-500 tabular-nums">{fmtRoas(c.roas)}</span>
@@ -931,7 +935,7 @@ export default function MlAdsPage() {
             <div className="rounded-2xl p-5 space-y-3" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
               <div className="flex items-center gap-2">
                 <TrendingUp size={13} className="text-emerald-400" />
-                <h3 className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">Gasto · Receita · ROAS por dia</h3>
+                <h3 className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">{t('mercadolivre.chartTitle')}</h3>
               </div>
               <div style={{ height: 240 }}>
                 <ResponsiveContainer width="100%" height="100%">
@@ -944,8 +948,8 @@ export default function MlAdsPage() {
                       tickFormatter={v => `${v.toFixed(1)}x`} />
                     <Tooltip content={<ChartTooltip />} />
                     <Legend wrapperStyle={{ fontSize: 11, color: '#71717a' }} iconSize={10} />
-                    <Line yAxisId="brl"  type="monotone" dataKey="spend"   name="Gasto"   stroke="#f87171" strokeWidth={1.5} dot={false} />
-                    <Line yAxisId="brl"  type="monotone" dataKey="revenue" name="Receita" stroke="#4ade80" strokeWidth={1.5} dot={false} />
+                    <Line yAxisId="brl"  type="monotone" dataKey="spend"   name={t('mercadolivre.chart.spend')}   stroke="#f87171" strokeWidth={1.5} dot={false} />
+                    <Line yAxisId="brl"  type="monotone" dataKey="revenue" name={t('mercadolivre.chart.revenue')} stroke="#4ade80" strokeWidth={1.5} dot={false} />
                     <Line yAxisId="roas" type="monotone" dataKey="roas"    name="ROAS"    stroke="#FFE600" strokeWidth={1.5} dot={false} />
                   </LineChart>
                 </ResponsiveContainer>
@@ -956,7 +960,7 @@ export default function MlAdsPage() {
           {/* Campaigns table */}
           <div className="rounded-2xl overflow-hidden" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
             <div className="flex items-center justify-between px-5 py-3 flex-wrap gap-2" style={{ borderBottom: '1px solid #1a1a1f' }}>
-              <h3 className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">Campanhas</h3>
+              <h3 className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">{t('mercadolivre.campaigns')}</h3>
               <div className="flex items-center gap-2">
                 {/* Filtros */}
                 <span className="text-[10px] text-zinc-700 inline-flex items-center gap-1">
@@ -964,9 +968,9 @@ export default function MlAdsPage() {
                 </span>
                 {(['all', 'active', 'paused'] as const).map(s => {
                   const active = statusFilter === s
-                  const label = s === 'all' ? `Todas (${campaigns.length})`
-                    : s === 'active' ? `Ativas (${campaigns.filter(c => (c.status ?? '').toLowerCase() === 'active').length})`
-                    : `Pausadas (${campaigns.filter(c => (c.status ?? '').toLowerCase() === 'paused').length})`
+                  const label = s === 'all' ? t('mercadolivre.filter.all', { count: campaigns.length })
+                    : s === 'active' ? t('mercadolivre.filter.active', { count: campaigns.filter(c => (c.status ?? '').toLowerCase() === 'active').length })
+                    : t('mercadolivre.filter.paused', { count: campaigns.filter(c => (c.status ?? '').toLowerCase() === 'paused').length })
                   return (
                     <button key={s} onClick={() => setStatusFilter(s)}
                       className="px-2.5 py-1 rounded-md text-[10px] font-semibold transition-all"
@@ -986,23 +990,23 @@ export default function MlAdsPage() {
                 <thead>
                   <tr className="text-left text-[10px] uppercase tracking-wide text-zinc-600"
                     style={{ borderBottom: '1px solid #1a1a1f' }}>
-                    <th className="px-3 py-2 font-semibold">Campanha</th>
-                    <th className="px-3 py-2 font-semibold">Status</th>
-                    <th className="px-3 py-2 font-semibold text-right">Orçamento/dia</th>
-                    <th className="px-3 py-2 font-semibold text-right">Gasto</th>
-                    <th className="px-3 py-2 font-semibold text-right">Receita</th>
+                    <th className="px-3 py-2 font-semibold">{t('mercadolivre.table.campaign')}</th>
+                    <th className="px-3 py-2 font-semibold">{t('mercadolivre.table.status')}</th>
+                    <th className="px-3 py-2 font-semibold text-right">{t('mercadolivre.table.dailyBudget')}</th>
+                    <th className="px-3 py-2 font-semibold text-right">{t('mercadolivre.table.spend')}</th>
+                    <th className="px-3 py-2 font-semibold text-right">{t('mercadolivre.table.revenue')}</th>
                     <th className="px-3 py-2 font-semibold text-right">ROAS</th>
-                    <th className="px-3 py-2 font-semibold text-right">Cliques</th>
+                    <th className="px-3 py-2 font-semibold text-right">{t('mercadolivre.table.clicks')}</th>
                     <th className="px-3 py-2 font-semibold text-right">CTR</th>
                     <th className="px-3 py-2 font-semibold text-right w-[1%]"></th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading ? (
-                    <tr><td colSpan={9} className="px-3 py-8 text-center text-xs text-zinc-600">Carregando…</td></tr>
+                    <tr><td colSpan={9} className="px-3 py-8 text-center text-xs text-zinc-600">{t('mercadolivre.loading')}</td></tr>
                   ) : filteredCampaigns.length === 0 ? (
                     <tr><td colSpan={9} className="px-3 py-8 text-center text-xs text-zinc-600 italic">
-                      {campaigns.length === 0 ? 'Nenhuma campanha no período.' : `Nenhuma campanha ${statusFilter === 'active' ? 'ativa' : 'pausada'} no período.`}
+                      {campaigns.length === 0 ? t('mercadolivre.noCampaigns') : statusFilter === 'active' ? t('mercadolivre.noActiveCampaigns') : t('mercadolivre.noPausedCampaigns')}
                     </td></tr>
                   ) : filteredCampaigns.map(c => (
                     <CampaignRow
@@ -1031,7 +1035,7 @@ export default function MlAdsPage() {
                 className="w-full flex items-center justify-between px-5 py-3"
                 style={{ borderBottom: showBySku ? '1px solid #1a1a1f' : 'none' }}>
                 <h3 className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 inline-flex items-center gap-1">
-                  <Package size={11} /> Por anúncio · {bySkuRows.length} item{bySkuRows.length !== 1 ? 's' : ''}
+                  <Package size={11} /> {t('mercadolivre.bySku', { count: bySkuRows.length })}
                 </h3>
                 <span className="text-[10px] text-zinc-600 inline-flex items-center gap-1">
                   {showBySku ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
@@ -1043,12 +1047,12 @@ export default function MlAdsPage() {
                     <thead>
                       <tr className="text-left text-[10px] uppercase tracking-wide text-zinc-600"
                         style={{ borderBottom: '1px solid #1a1a1f' }}>
-                        <th className="px-3 py-2 font-semibold">Anúncio</th>
-                        <th className="px-3 py-2 font-semibold text-right">Campanhas</th>
-                        <th className="px-3 py-2 font-semibold text-right">Gasto</th>
-                        <th className="px-3 py-2 font-semibold text-right">Receita</th>
+                        <th className="px-3 py-2 font-semibold">{t('mercadolivre.skuTable.listing')}</th>
+                        <th className="px-3 py-2 font-semibold text-right">{t('mercadolivre.skuTable.campaigns')}</th>
+                        <th className="px-3 py-2 font-semibold text-right">{t('mercadolivre.skuTable.spend')}</th>
+                        <th className="px-3 py-2 font-semibold text-right">{t('mercadolivre.skuTable.revenue')}</th>
                         <th className="px-3 py-2 font-semibold text-right">ROAS</th>
-                        <th className="px-3 py-2 font-semibold text-right">Cliques</th>
+                        <th className="px-3 py-2 font-semibold text-right">{t('mercadolivre.skuTable.clicks')}</th>
                         <th className="px-3 py-2 font-semibold text-right">CTR</th>
                       </tr>
                     </thead>
@@ -1080,9 +1084,8 @@ export default function MlAdsPage() {
                     </tbody>
                   </table>
                   <p className="text-[9px] text-zinc-700 px-5 py-2 italic" style={{ borderTop: '1px solid #1a1a1f' }}>
-                    Quando 1 campanha tem N anúncios, o gasto/receita da campanha é atribuído a TODOS os anúncios — usa
-                    pra ranking de relevância, não pra contabilidade exata.
-                    {bySkuRows.length > 50 && ' Mostrando top 50 por gasto.'}
+                    {t('mercadolivre.skuFootnote')}
+                    {bySkuRows.length > 50 && ` ${t('mercadolivre.skuTop50')}`}
                   </p>
                 </div>
               )}

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { TrendingUp, Loader2, ChevronRight, ShieldCheck, Sparkles } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
@@ -32,6 +33,7 @@ async function getToken(): Promise<string | null> {
 }
 
 export default function QuickWinsPage() {
+  const t = useTranslations('mlQuality.quickWins')
   const { selected: selectedSellerId } = useMlAccount()
   const [items, setItems]     = useState<QualityItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -72,18 +74,17 @@ export default function QuickWinsPage() {
         <div>
           <div className="flex items-center gap-2 text-xs text-zinc-500">
             <Link href="/dashboard/ml-quality" className="hover:text-cyan-400 transition-colors">
-              Quality Center
+              {t('breadcrumb')}
             </Link>
             <span>/</span>
-            <span className="text-zinc-300">Quick wins</span>
+            <span className="text-zinc-300">{t('breadcrumbCurrent')}</span>
           </div>
           <h1 className="text-2xl font-bold mt-1 flex items-center gap-2">
             <TrendingUp size={22} className="text-cyan-400" />
-            Quick wins (90–99)
+            {t('title')}
           </h1>
           <p className="text-xs text-zinc-500 mt-1 max-w-xl">
-            Anúncios a poucos pontos do nível Profissional. Pequenos ajustes
-            (preenchimento de 1–3 atributos) costumam levar pra 100%.
+            {t('subtitle')}
           </p>
         </div>
         <AccountSelector compact hideWhenEmpty />
@@ -92,15 +93,15 @@ export default function QuickWinsPage() {
       {/* KPI strip */}
       {!loading && items.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <KpiBox label="Anúncios próximos do topo" value={items.length.toString()} icon={<TrendingUp size={14} />} color="#00E5FF" />
+          <KpiBox label={t('kpi.nearTop')} value={items.length.toString()} icon={<TrendingUp size={14} />} color="#00E5FF" />
           <KpiBox
-            label="Ganho potencial"
+            label={t('kpi.potentialGain')}
             value={totalGain > 0 ? `+${totalGain} pts` : '—'}
             icon={<Sparkles size={14} />}
             color="#22c55e"
           />
           <KpiBox
-            label="Fáceis de corrigir"
+            label={t('kpi.easyToFix')}
             value={items.filter(i => i.fix_complexity === 'easy').length.toString()}
             icon={<ShieldCheck size={14} />}
             color="#84cc16"
@@ -128,10 +129,10 @@ export default function QuickWinsPage() {
       {!loading && items.length === 0 && !error && (
         <div className="rounded-xl p-8 text-center" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
           <ShieldCheck size={48} className="mx-auto text-emerald-700 mb-3" />
-          <p className="text-zinc-300 font-medium">Nenhum quick win encontrado</p>
+          <p className="text-zinc-300 font-medium">{t('empty.title')}</p>
           <p className="text-xs text-zinc-500 mt-2 max-w-md mx-auto">
-            Ou os anúncios já estão completos, ou ainda não rodaram sync. Você pode ver
-            todos os anúncios em <Link href="/dashboard/ml-quality/items" className="text-cyan-400 hover:underline">Anúncios</Link>.
+            {t('empty.desc')}{' '}
+            <Link href="/dashboard/ml-quality/items" className="text-cyan-400 hover:underline">{t('empty.descLink')}</Link>.
           </p>
         </div>
       )}
@@ -147,6 +148,7 @@ export default function QuickWinsPage() {
 }
 
 function QuickWinRow({ item }: { item: QualityItem }) {
+  const t = useTranslations('mlQuality.quickWins')
   const { domainName, attributeName } = useMlLabels()
   const score = item.ml_score ?? 0
   const gain  = (item.estimated_score_after_fix ?? 100) - score
@@ -188,11 +190,11 @@ function QuickWinRow({ item }: { item: QualityItem }) {
             {item.ml_domain_id && <span>{domainName(item.ml_domain_id)}</span>}
             {missingNames.length > 0 && (
               <span>
-                Falta: <strong className="text-zinc-300">{missingNames.slice(0, 3).join(', ')}</strong>
+                {t('missing')}: <strong className="text-zinc-300">{missingNames.slice(0, 3).join(', ')}</strong>
                 {missingNames.length > 3 && <span className="text-zinc-500"> +{missingNames.length - 3}</span>}
               </span>
             )}
-            <span>seller {item.seller_id}</span>
+            <span>{t('seller', { id: item.seller_id })}</span>
           </div>
         </div>
 
@@ -203,19 +205,20 @@ function QuickWinRow({ item }: { item: QualityItem }) {
 }
 
 function ComplexityBadge({ c }: { c: 'easy' | 'medium' | 'hard' | 'blocked' }) {
-  const map = {
-    easy:    { label: 'Fácil',    color: '#22c55e' },
-    medium:  { label: 'Médio',    color: '#fbbf24' },
-    hard:    { label: 'Difícil',  color: '#f97316' },
-    blocked: { label: 'Bloqueado',color: '#ef4444' },
+  const t = useTranslations('mlQuality')
+  const colorMap = {
+    easy:    '#22c55e',
+    medium:  '#fbbf24',
+    hard:    '#f97316',
+    blocked: '#ef4444',
   } as const
-  const m = map[c]
+  const color = colorMap[c]
   return (
     <span
       className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-semibold"
-      style={{ background: `${m.color}15`, color: m.color, border: `1px solid ${m.color}40` }}
+      style={{ background: `${color}15`, color, border: `1px solid ${color}40` }}
     >
-      {m.label}
+      {t(`complexity.${c}`)}
     </span>
   )
 }

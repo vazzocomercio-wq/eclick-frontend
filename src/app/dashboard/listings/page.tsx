@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
@@ -69,9 +70,6 @@ interface Task {
   last_seen_at: string
 }
 
-const SEVERITY_LABELS: Record<Severity, string> = {
-  critical: 'Crítica', high: 'Alta', medium: 'Média', low: 'Baixa', info: 'Info',
-}
 const SEVERITY_COLORS: Record<Severity, { bg: string; border: string; text: string }> = {
   critical: { bg: 'rgba(239,68,68,0.1)',  border: 'rgba(239,68,68,0.3)',  text: '#ef4444' },
   high:     { bg: 'rgba(245,158,11,0.1)', border: 'rgba(245,158,11,0.3)', text: '#f59e0b' },
@@ -80,26 +78,28 @@ const SEVERITY_COLORS: Record<Severity, { bg: string; border: string; text: stri
   info:     { bg: 'rgba(59,130,246,0.1)',  border: 'rgba(59,130,246,0.3)',  text: '#3b82f6' },
 }
 
-const TASK_TYPE_LABELS: Record<string, { label: string; icon: typeof Package }> = {
-  OUT_OF_STOCK:                   { label: 'Sem estoque',         icon: Package },
-  INACTIVE_PAUSED:                { label: 'Pausado/inativo',     icon: Pause },
-  QUALITY_LOW:                    { label: 'Qualidade baixa',     icon: AlertCircle },
-  QUALITY_INCOMPLETE:             { label: 'Atributos faltando',  icon: AlertCircle },
-  PRICE_HIGH:                     { label: 'Preço alto',          icon: TrendingUp },
-  PRICE_AUTOMATION_AVAILABLE:     { label: 'Automação preço',     icon: Tag },
-  FISCAL_DATA_MISSING:            { label: 'Dados fiscais',       icon: FileText },
-  PROMOTION_AVAILABLE:            { label: 'Campanha disponível', icon: Tag },
-  PROMOTION_HIGH_OPPORTUNITY:     { label: 'Campanha alta',       icon: Tag },
-  DROPSHIP_PARTNER_OUT_OF_STOCK:  { label: 'Parceiro sem estoque', icon: Truck },
-  CATALOG_ELIGIBLE:               { label: 'Catálogo elegível',   icon: ShoppingCart },
-  LOSING_BUY_BOX:                 { label: 'Perdendo Buy Box',    icon: AlertTriangle },
-  SEO_LOW:                        { label: 'SEO baixo',           icon: Sparkles },
-  SEO_HIGH_VISITS_LOW_SCORE:      { label: 'Tráfego × SEO ruim',  icon: Eye },
+const TASK_TYPE_ICONS: Record<string, typeof Package> = {
+  OUT_OF_STOCK:                   Package,
+  INACTIVE_PAUSED:                Pause,
+  QUALITY_LOW:                    AlertCircle,
+  QUALITY_INCOMPLETE:             AlertCircle,
+  PRICE_HIGH:                     TrendingUp,
+  PRICE_AUTOMATION_AVAILABLE:     Tag,
+  FISCAL_DATA_MISSING:            FileText,
+  PROMOTION_AVAILABLE:            Tag,
+  PROMOTION_HIGH_OPPORTUNITY:     Tag,
+  DROPSHIP_PARTNER_OUT_OF_STOCK:  Truck,
+  CATALOG_ELIGIBLE:               ShoppingCart,
+  LOSING_BUY_BOX:                 AlertTriangle,
+  SEO_LOW:                        Sparkles,
+  SEO_HIGH_VISITS_LOW_SCORE:      Eye,
 }
+const TASK_TYPE_KEYS = Object.keys(TASK_TYPE_ICONS)
 
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
 export default function ListingsHomePage() {
+  const t = useTranslations('listings')
   const supabase = useMemo(() => createClient(), [])
   const toast = useToast()
   const searchParams = useSearchParams()
@@ -119,9 +119,9 @@ export default function ListingsHomePage() {
 
   const getHeaders = useCallback(async (): Promise<Record<string, string>> => {
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session?.access_token) throw new Error('Não autenticado')
+    if (!session?.access_token) throw new Error(t('errors.notAuthenticated'))
     return { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' }
-  }, [supabase])
+  }, [supabase, t])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -147,18 +147,18 @@ export default function ListingsHomePage() {
       }
       if (seoRes.ok)   setSeoTop((await seoRes.json()) as SeoOpportunity[])
     } catch (e) {
-      toast({ message: e instanceof Error ? e.message : 'Erro ao carregar', tone: 'error' })
+      toast({ message: e instanceof Error ? e.message : t('errors.loadFailed'), tone: 'error' })
     } finally {
       setLoading(false)
     }
-  }, [getHeaders, filterType, filterSeverity, toast])
+  }, [getHeaders, filterType, filterSeverity, toast, t])
 
   useEffect(() => { load() }, [load])
 
   const runScan = async (kind: 'full' | 'aggregation' | 'stock' | 'status') => {
     const sellerId = getStoredSellerId()
     if (kind !== 'aggregation' && sellerId == null) {
-      toast({ message: 'Selecione uma conta ML primeiro', tone: 'error' })
+      toast({ message: t('errors.selectAccount'), tone: 'error' })
       return
     }
     setScanning(true)
@@ -171,10 +171,10 @@ export default function ListingsHomePage() {
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const result = await res.json()
-      toast({ message: `Scan ${kind} concluído · +${result.tasks_created} criadas, ${result.tasks_updated} atualizadas, ${result.tasks_resolved_auto} resolvidas`, tone: 'success' })
+      toast({ message: t('scanDone', { kind, created: result.tasks_created, updated: result.tasks_updated, resolved: result.tasks_resolved_auto }), tone: 'success' })
       await load()
     } catch (e) {
-      toast({ message: e instanceof Error ? e.message : 'Erro ao rodar scan', tone: 'error' })
+      toast({ message: e instanceof Error ? e.message : t('errors.scanFailed'), tone: 'error' })
     } finally {
       setScanning(false)
     }
@@ -187,10 +187,10 @@ export default function ListingsHomePage() {
         method: 'PATCH', headers, body: JSON.stringify({ action, ...extra }),
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      toast({ message: `Tarefa ${action === 'snooze' ? 'adiada' : action === 'dismiss' ? 'descartada' : 'resolvida'}`, tone: 'success' })
+      toast({ message: t(`taskActionDone.${action}`), tone: 'success' })
       await load()
     } catch (e) {
-      toast({ message: e instanceof Error ? e.message : 'Erro', tone: 'error' })
+      toast({ message: e instanceof Error ? e.message : t('errors.generic'), tone: 'error' })
     }
   }
 
@@ -201,12 +201,12 @@ export default function ListingsHomePage() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <p className="text-zinc-500 text-xs font-medium tracking-widest uppercase mb-1">Listing Center · IA</p>
-          <h1 className="text-white text-3xl font-semibold">Anúncios — central de tarefas</h1>
+          <p className="text-zinc-500 text-xs font-medium tracking-widest uppercase mb-1">{t('eyebrow')}</p>
+          <h1 className="text-white text-3xl font-semibold">{t('title')}</h1>
           <p className="text-xs text-zinc-600 mt-1">
             {summary?.last_full_scan_at
-              ? `Último scan completo: ${new Date(summary.last_full_scan_at).toLocaleString('pt-BR')}`
-              : 'Nenhum scan completo ainda'}
+              ? t('lastFullScan', { date: new Date(summary.last_full_scan_at).toLocaleString('pt-BR') })
+              : t('noScanYet')}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -214,22 +214,22 @@ export default function ListingsHomePage() {
           <button onClick={() => runScan('aggregation')} disabled={scanning}
             className="text-[11px] font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors disabled:opacity-50"
             style={{ background: '#18181b', color: 'var(--text)', border: '1px solid #27272a' }}>
-            <RefreshCw size={11} className={scanning ? 'animate-spin' : ''} /> Atualizar agregação
+            <RefreshCw size={11} className={scanning ? 'animate-spin' : ''} /> {t('refreshAggregation')}
           </button>
           <button onClick={() => runScan('full')} disabled={scanning}
             className="text-[11px] font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors disabled:opacity-50"
             style={{ background: '#00E5FF', color: '#0d0d10' }}>
-            <RefreshCw size={11} className={scanning ? 'animate-spin' : ''} /> Scan completo
+            <RefreshCw size={11} className={scanning ? 'animate-spin' : ''} /> {t('fullScan')}
           </button>
         </div>
       </div>
 
       {/* KPI strip */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <KpiCard label="Tarefas abertas"   value={summary?.total_open_tasks ?? 0} color="#00E5FF" loading={loading} />
-        <KpiCard label="Críticas"           value={summary?.total_critical ?? 0}    color="#ef4444" loading={loading} />
-        <KpiCard label="Alto impacto (>R$1k)" value={summary?.high_impact_tasks_count ?? 0} color="#f59e0b" loading={loading} />
-        <KpiCard label="Impacto estimado total"
+        <KpiCard label={t('kpi.openTasks')}   value={summary?.total_open_tasks ?? 0} color="#00E5FF" loading={loading} />
+        <KpiCard label={t('kpi.critical')}           value={summary?.total_critical ?? 0}    color="#ef4444" loading={loading} />
+        <KpiCard label={t('kpi.highImpact')} value={summary?.high_impact_tasks_count ?? 0} color="#f59e0b" loading={loading} />
+        <KpiCard label={t('kpi.totalImpact')}
           value={summary ? brl(summary.total_estimated_impact_brl) : '—'} color="#22c55e" loading={loading} isCurrency />
       </div>
 
@@ -239,13 +239,13 @@ export default function ListingsHomePage() {
           <div className="flex items-center justify-between mb-3">
             <div>
               <p className="text-[10px] uppercase tracking-widest font-semibold flex items-center gap-1.5" style={{ color: '#00E5FF' }}>
-                <Sparkles size={11} /> Top ROI — otimizar agora
+                <Sparkles size={11} /> {t('topRoi.title')}
               </p>
-              <p className="text-xs text-zinc-400 mt-0.5">Anúncios com tráfego alto e score SEO baixo. Otimizar = converter o tráfego existente.</p>
+              <p className="text-xs text-zinc-400 mt-0.5">{t('topRoi.subtitle')}</p>
             </div>
             <Link href="/dashboard/listings/seo-optimizer"
               className="text-[11px] font-semibold px-2.5 py-1 rounded-lg" style={{ color: '#00E5FF', border: '1px solid rgba(0,229,255,0.3)' }}>
-              Abrir Otimizador →
+              {t('topRoi.openOptimizer')}
             </Link>
           </div>
           <div className="space-y-1.5">
@@ -277,13 +277,13 @@ export default function ListingsHomePage() {
       {/* Quick filters por tipo */}
       {summary && Object.keys(summary.tasks_by_type).length > 0 && (
         <section className="rounded-xl p-4" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
-          <p className="text-[10px] uppercase tracking-widest text-zinc-500 font-semibold mb-2">Por tipo</p>
+          <p className="text-[10px] uppercase tracking-widest text-zinc-500 font-semibold mb-2">{t('byType')}</p>
           <div className="flex flex-wrap gap-2">
-            <TypeChip label="Todos" count={summary.total_open_tasks} active={filterType === ''} onClick={() => setFilterType('')} />
+            <TypeChip label={t('allTypes')} count={summary.total_open_tasks} active={filterType === ''} onClick={() => setFilterType('')} />
             {Object.entries(summary.tasks_by_type).sort(([,a],[,b]) => b - a).map(([type, count]) => (
               <TypeChip
                 key={type}
-                label={TASK_TYPE_LABELS[type]?.label ?? type}
+                label={TASK_TYPE_KEYS.includes(type) ? t(`taskType.${type}`) : type}
                 count={count}
                 active={filterType === type}
                 onClick={() => setFilterType(filterType === type ? '' : (type as TaskType))}
@@ -297,25 +297,25 @@ export default function ListingsHomePage() {
       <section className="rounded-xl p-3" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
         <button onClick={() => setFiltersOpen(o => !o)}
           className="w-full flex items-center justify-between text-zinc-400 text-xs">
-          <span className="flex items-center gap-2"><Filter size={12} /> Filtros avançados</span>
+          <span className="flex items-center gap-2"><Filter size={12} /> {t('advancedFilters')}</span>
           <ChevronRight size={12} className={`transition-transform ${filtersOpen ? 'rotate-90' : ''}`} />
         </button>
         {filtersOpen && (
           <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
             <div>
-              <label className="block text-zinc-500 mb-1">Severidade</label>
+              <label className="block text-zinc-500 mb-1">{t('severityLabel')}</label>
               <select value={filterSeverity} onChange={e => setFilterSeverity(e.target.value as Severity | '')}
                 className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-2 py-1.5 text-zinc-200">
-                <option value="">Todas</option>
+                <option value="">{t('allSeverities')}</option>
                 {(['critical','high','medium','low','info'] as Severity[]).map(s =>
-                  <option key={s} value={s}>{SEVERITY_LABELS[s]}</option>,
+                  <option key={s} value={s}>{t(`severity.${s}`)}</option>,
                 )}
               </select>
             </div>
             <div className="flex items-end gap-2">
               <button onClick={() => { setFilterType(''); setFilterSeverity('') }}
                 className="text-[11px] px-2 py-1.5 rounded-lg border border-zinc-800 text-zinc-400 hover:text-zinc-200">
-                Limpar
+                {t('clear')}
               </button>
             </div>
           </div>
@@ -325,20 +325,20 @@ export default function ListingsHomePage() {
       {/* Lista de tarefas */}
       <section className="rounded-xl" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
         <div className="p-3 flex items-center justify-between border-b border-zinc-800/60">
-          <p className="text-zinc-300 text-sm font-semibold">Tarefas {total > 0 && <span className="text-zinc-500 text-xs">({total} no total)</span>}</p>
+          <p className="text-zinc-300 text-sm font-semibold">{t('tasks')} {total > 0 && <span className="text-zinc-500 text-xs">{t('totalCount', { total })}</span>}</p>
         </div>
 
         {loading ? (
-          <div className="p-8 text-center text-zinc-500 text-xs">Carregando…</div>
+          <div className="p-8 text-center text-zinc-500 text-xs">{t('loading')}</div>
         ) : tasks.length === 0 ? (
           <div className="p-12 text-center">
             <Check size={32} className="text-zinc-700 mx-auto mb-2" />
-            <p className="text-zinc-400 text-sm">Sem tarefas abertas</p>
-            <p className="text-zinc-600 text-xs mt-1">Rode o scan completo pra detectar problemas nos anúncios</p>
+            <p className="text-zinc-400 text-sm">{t('empty.title')}</p>
+            <p className="text-zinc-600 text-xs mt-1">{t('empty.desc')}</p>
           </div>
         ) : (
           <div className="divide-y divide-zinc-800/60">
-            {tasks.map(t => <TaskRow key={t.id} task={t} onAction={taskAction} />)}
+            {tasks.map(task => <TaskRow key={task.id} task={task} onAction={taskAction} />)}
           </div>
         )}
       </section>
@@ -374,9 +374,9 @@ function TypeChip({ label, count, active, onClick }: { label: string; count: num
 }
 
 function TaskRow({ task, onAction }: { task: Task; onAction: (id: string, action: 'snooze' | 'dismiss' | 'resolve', extra?: { days?: number; reason?: string; notes?: string }) => void }) {
+  const t = useTranslations('listings')
   const sev = SEVERITY_COLORS[task.severity]
-  const typeMeta = TASK_TYPE_LABELS[task.task_type]
-  const Icon = typeMeta?.icon ?? AlertCircle
+  const Icon = TASK_TYPE_ICONS[task.task_type] ?? AlertCircle
 
   return (
     <div className="p-3 hover:bg-zinc-900/40 transition-colors">
@@ -389,11 +389,11 @@ function TaskRow({ task, onAction }: { task: Task; onAction: (id: string, action
             <p className="text-zinc-200 text-sm font-medium leading-snug">{task.task_title}</p>
             <span className="text-[10px] uppercase tracking-widest font-bold px-1.5 py-0.5 rounded shrink-0"
               style={{ background: sev.bg, color: sev.text, border: `1px solid ${sev.border}` }}>
-              {SEVERITY_LABELS[task.severity]}
+              {t(`severity.${task.severity}`)}
             </span>
             {task.detection_count > 1 && (
               <span className="text-[9px] text-zinc-500 px-1.5 py-0.5 rounded border border-zinc-800">
-                detectada {task.detection_count}x
+                {t('detectedTimes', { count: task.detection_count })}
               </span>
             )}
           </div>
@@ -405,7 +405,7 @@ function TaskRow({ task, onAction }: { task: Task; onAction: (id: string, action
               {task.ml_item_id}
             </Link>
             {task.estimated_impact_brl ? (
-              <span className="text-emerald-500 font-medium">+R$ {Math.round(task.estimated_impact_brl).toLocaleString('pt-BR')}/mês</span>
+              <span className="text-emerald-500 font-medium">{t('impactPerMonth', { value: Math.round(task.estimated_impact_brl).toLocaleString('pt-BR') })}</span>
             ) : null}
             {task.suggested_action && (
               <span className="text-zinc-500 italic line-clamp-1">→ {task.suggested_action}</span>
@@ -416,23 +416,23 @@ function TaskRow({ task, onAction }: { task: Task; onAction: (id: string, action
           {task.deeplink_url && (
             <a href={task.deeplink_url}
               className="p-1.5 rounded hover:bg-zinc-800 text-zinc-500 hover:text-cyan-400 transition-colors"
-              title="Ir pra módulo de origem">
+              title={t('actions.goToSource')}>
               <ExternalLink size={12} />
             </a>
           )}
           <button onClick={() => onAction(task.id, 'snooze', { days: 7 })}
             className="p-1.5 rounded hover:bg-zinc-800 text-zinc-500 hover:text-amber-400 transition-colors"
-            title="Adiar 7 dias">
+            title={t('actions.snooze7')}>
             <Clock size={12} />
           </button>
           <button onClick={() => onAction(task.id, 'resolve')}
             className="p-1.5 rounded hover:bg-zinc-800 text-zinc-500 hover:text-emerald-400 transition-colors"
-            title="Marcar como resolvida">
+            title={t('actions.markResolved')}>
             <Check size={12} />
           </button>
-          <button onClick={() => onAction(task.id, 'dismiss', { reason: 'Descartada manualmente' })}
+          <button onClick={() => onAction(task.id, 'dismiss', { reason: t('dismissReason') })}
             className="p-1.5 rounded hover:bg-zinc-800 text-zinc-500 hover:text-rose-400 transition-colors"
-            title="Descartar">
+            title={t('actions.dismiss')}>
             <X size={12} />
           </button>
         </div>

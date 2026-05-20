@@ -7,6 +7,7 @@
  */
 
 import { useEffect, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
@@ -19,6 +20,7 @@ import EmptyTemplatesState from './EmptyTemplatesState'
 import { CANONICAL_POSITIONS } from './constants'
 
 export default function TemplatesList() {
+  const t = useTranslations('creative.templates')
   const router = useRouter()
   const [templates, setTemplates] = useState<CreativePromptTemplate[]>([])
   const [loading, setLoading]     = useState(true)
@@ -79,16 +81,16 @@ export default function TemplatesList() {
   const handleDelete = async (id: string, name: string, isDefault: boolean) => {
     if (isDefault) {
       await alertDialog({
-        title:   'Não é possível apagar',
-        message: 'Template default não pode ser apagado. Promova outro template a default antes.',
+        title:   t('cannotDeleteTitle'),
+        message: t('cannotDeleteMessage'),
         variant: 'warning',
       })
       return
     }
     const ok = await confirmDialog({
-      title:        'Apagar template',
-      message:      `Apagar template "${name}"? Esta ação não pode ser desfeita.`,
-      confirmLabel: 'Apagar',
+      title:        t('deleteTitle'),
+      message:      t('deleteMessage', { name }),
+      confirmLabel: t('deleteConfirm'),
       variant:      'danger',
     })
     if (!ok) return
@@ -107,8 +109,8 @@ export default function TemplatesList() {
   // Empty state: aplica canonical e cria via POST direto na navegação
   const handleApplyCanonical = async () => {
     const created = await CreativeApi.createPromptTemplate({
-      name:        `Template canônico — ${new Date().toLocaleDateString('pt-BR')}`,
-      description: 'Esqueleto de 11 posições — edite os prompts conforme sua marca',
+      name:        t('canonicalName', { date: new Date().toLocaleDateString('pt-BR') }),
+      description: t('canonicalDescription'),
       is_default:  false,
       positions:   CANONICAL_POSITIONS.map(p => ({
         ...p,
@@ -150,7 +152,7 @@ export default function TemplatesList() {
             type="text"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Buscar por nome ou descrição..."
+            placeholder={t('searchPlaceholder')}
             className="w-full pl-8 pr-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-sm text-zinc-200 outline-none focus:border-cyan-400 placeholder:text-zinc-600"
           />
         </div>
@@ -161,13 +163,13 @@ export default function TemplatesList() {
             onChange={e => setOnlyDefault(e.target.checked)}
             className="accent-cyan-400"
           />
-          Só defaults
+          {t('onlyDefaults')}
         </label>
         <input
           type="text"
           value={categoryFilter}
           onChange={e => setCategoryFilter(e.target.value)}
-          placeholder="Categoria ML (MLB...)"
+          placeholder={t('categoryFilterPlaceholder')}
           className="px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-xs text-zinc-200 outline-none focus:border-cyan-400 placeholder:text-zinc-600 w-44"
         />
       </div>
@@ -175,40 +177,40 @@ export default function TemplatesList() {
       {/* List */}
       {templates.length === 0 ? (
         <div className="rounded-xl border border-dashed border-zinc-800 bg-zinc-900/30 p-8 text-center">
-          <p className="text-sm text-zinc-400">Nenhum template com esses filtros</p>
+          <p className="text-sm text-zinc-400">{t('noTemplatesFiltered')}</p>
         </div>
       ) : (
         <div className="space-y-2">
-          {templates.map(t => (
+          {templates.map(tpl => (
             <div
-              key={t.id}
+              key={tpl.id}
               className="group rounded-xl border border-zinc-800 bg-zinc-900/40 hover:bg-zinc-900/70 hover:border-zinc-700 transition-all"
             >
               <div className="flex items-center gap-3 p-3">
-                <Link href={`/dashboard/creative/templates/${t.id}`} className="flex-1 min-w-0">
+                <Link href={`/dashboard/creative/templates/${tpl.id}`} className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
-                    <h3 className="text-sm font-semibold text-zinc-100 truncate">{t.name}</h3>
-                    {t.is_default && (
+                    <h3 className="text-sm font-semibold text-zinc-100 truncate">{tpl.name}</h3>
+                    {tpl.is_default && (
                       <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-cyan-400 text-black">
-                        default
+                        {t('defaultBadge')}
                       </span>
                     )}
                   </div>
                   <p className="text-[11px] text-zinc-400 mb-1 line-clamp-1">
-                    {t.description ?? '(sem descrição)'}
+                    {tpl.description ?? t('noDescription')}
                   </p>
                   <div className="flex items-center gap-3 text-[10px] text-zinc-500">
-                    <span>{t.positions.length} posiç{t.positions.length === 1 ? 'ão' : 'ões'}</span>
-                    {t.category_ml_ids.length > 0 && (
+                    <span>{t('positionsCount', { count: tpl.positions.length })}</span>
+                    {tpl.category_ml_ids.length > 0 && (
                       <span className="font-mono text-cyan-400/70">
-                        {t.category_ml_ids.slice(0, 2).join(', ')}{t.category_ml_ids.length > 2 ? '…' : ''}
+                        {tpl.category_ml_ids.slice(0, 2).join(', ')}{tpl.category_ml_ids.length > 2 ? '…' : ''}
                       </span>
                     )}
-                    {t.brand_voice && (
-                      <span className="italic truncate max-w-[180px]">"{t.brand_voice}"</span>
+                    {tpl.brand_voice && (
+                      <span className="italic truncate max-w-[180px]">"{tpl.brand_voice}"</span>
                     )}
                     <span className="ml-auto">
-                      atualizado {new Date(t.updated_at).toLocaleDateString('pt-BR')}
+                      {t('updatedAt', { date: new Date(tpl.updated_at).toLocaleDateString('pt-BR') })}
                     </span>
                   </div>
                 </Link>
@@ -217,27 +219,27 @@ export default function TemplatesList() {
                 <div className="relative">
                   <button
                     type="button"
-                    onClick={() => setActionId(actionId === t.id ? null : t.id)}
-                    disabled={busyId === t.id}
+                    onClick={() => setActionId(actionId === tpl.id ? null : tpl.id)}
+                    disabled={busyId === tpl.id}
                     className="p-1.5 rounded-md text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 transition-colors disabled:opacity-40"
                   >
-                    {busyId === t.id ? <Loader2 size={14} className="animate-spin" /> : <MoreVertical size={14} />}
+                    {busyId === tpl.id ? <Loader2 size={14} className="animate-spin" /> : <MoreVertical size={14} />}
                   </button>
-                  {actionId === t.id && (
+                  {actionId === tpl.id && (
                     <>
                       <div className="fixed inset-0 z-10" onClick={() => setActionId(null)} />
                       <div className="absolute right-0 top-full mt-1 w-44 rounded-lg border border-zinc-800 bg-zinc-950 shadow-xl z-20 overflow-hidden">
-                        <ActionItem icon={<Edit3 size={11} />} label="Editar" onClick={() => router.push(`/dashboard/creative/templates/${t.id}`)} />
-                        <ActionItem icon={<Copy size={11} />}  label="Clonar"  onClick={() => handleClone(t.id)} />
-                        {!t.is_default && (
-                          <ActionItem icon={<Star size={11} />} label="Definir como default" onClick={() => handleSetDefault(t.id)} />
+                        <ActionItem icon={<Edit3 size={11} />} label={t('actionEdit')} onClick={() => router.push(`/dashboard/creative/templates/${tpl.id}`)} />
+                        <ActionItem icon={<Copy size={11} />}  label={t('actionClone')}  onClick={() => handleClone(tpl.id)} />
+                        {!tpl.is_default && (
+                          <ActionItem icon={<Star size={11} />} label={t('actionSetDefault')} onClick={() => handleSetDefault(tpl.id)} />
                         )}
                         <ActionItem
                           icon={<Trash2 size={11} />}
-                          label="Apagar"
+                          label={t('actionDelete')}
                           danger
-                          disabled={t.is_default}
-                          onClick={() => handleDelete(t.id, t.name, t.is_default)}
+                          disabled={tpl.is_default}
+                          onClick={() => handleDelete(tpl.id, tpl.name, tpl.is_default)}
                         />
                       </div>
                     </>

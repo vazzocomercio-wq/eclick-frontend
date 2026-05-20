@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, Suspense } from 'react'
+import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import {
@@ -37,15 +38,21 @@ async function getToken(): Promise<string | null> {
   return data.session?.access_token ?? null
 }
 
+function ListFallback() {
+  const t = useTranslations('mlCampaigns.list')
+  return <div className="p-6 text-zinc-500 text-sm">{t('loading')}</div>
+}
+
 export default function CampaignsListPage() {
   return (
-    <Suspense fallback={<div className="p-6 text-zinc-500 text-sm">Carregando…</div>}>
+    <Suspense fallback={<ListFallback />}>
       <Inner />
     </Suspense>
   )
 }
 
 function Inner() {
+  const t        = useTranslations('mlCampaigns.list')
   const sp       = useSearchParams()
   const router   = useRouter()
   const pathname = usePathname()
@@ -105,14 +112,14 @@ function Inner() {
         <div>
           <div className="flex items-center gap-2 text-xs text-zinc-500">
             <Link href="/dashboard/ml-campaigns" className="hover:text-cyan-400 transition-colors">
-              Campaign Center
+              {t('breadcrumb')}
             </Link>
             <span>/</span>
-            <span className="text-zinc-300">Campanhas</span>
+            <span className="text-zinc-300">{t('breadcrumbCurrent')}</span>
           </div>
-          <h1 className="text-2xl font-bold mt-1">Campanhas</h1>
+          <h1 className="text-2xl font-bold mt-1">{t('title')}</h1>
           <p className="text-xs text-zinc-500 mt-1">
-            {loading ? 'Carregando…' : `${total} campanha${total === 1 ? '' : 's'}`}
+            {loading ? t('loading') : t('campaignsCount', { count: total })}
           </p>
         </div>
         <AccountSelector compact hideWhenEmpty />
@@ -121,41 +128,41 @@ function Inner() {
       {/* Filtros */}
       <div className="rounded-xl p-3" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
         <div className="flex flex-wrap items-center gap-2 text-xs">
-          <FilterChip label="Status" value={status}
+          <FilterChip label={t('filter.status')} value={status}
             options={[
-              { value: '',         label: 'Todos' },
-              { value: 'started',  label: 'Ativas' },
-              { value: 'pending',  label: 'Programadas' },
-              { value: 'finished', label: 'Encerradas' },
-              { value: 'paused',   label: 'Pausadas' },
+              { value: '',         label: t('filter.all') },
+              { value: 'started',  label: t('filter.statusStarted') },
+              { value: 'pending',  label: t('filter.statusPending') },
+              { value: 'finished', label: t('filter.statusFinished') },
+              { value: 'paused',   label: t('filter.statusPaused') },
             ]}
             onChange={v => updateFilter({ status: v || null })}
           />
-          <FilterChip label="Tipo" value={type}
+          <FilterChip label={t('filter.type')} value={type}
             options={[
-              { value: '',                     label: 'Todos' },
-              { value: 'DEAL',                 label: 'DEAL (campanhas tematicas)' },
-              { value: 'SMART',                label: 'SMART (impulsionadas)' },
-              { value: 'LIGHTNING',            label: 'LIGHTNING (relampago)' },
-              { value: 'PRICE_DISCOUNT',       label: 'PRICE_DISCOUNT (desconto individual)' },
-              { value: 'MARKETPLACE_CAMPAIGN', label: 'MARKETPLACE_CAMPAIGN' },
-              { value: 'DOD',                  label: 'DOD (do dia)' },
-              { value: 'VOLUME',               label: 'VOLUME (por quantidade)' },
+              { value: '',                     label: t('filter.all') },
+              { value: 'DEAL',                 label: t('filter.typeDeal') },
+              { value: 'SMART',                label: t('filter.typeSmart') },
+              { value: 'LIGHTNING',            label: t('filter.typeLightning') },
+              { value: 'PRICE_DISCOUNT',       label: t('filter.typePriceDiscount') },
+              { value: 'MARKETPLACE_CAMPAIGN', label: t('filter.typeMarketplace') },
+              { value: 'DOD',                  label: t('filter.typeDod') },
+              { value: 'VOLUME',               label: t('filter.typeVolume') },
             ]}
             onChange={v => updateFilter({ type: v || null })}
           />
-          <FilterChip label="Subsidio ML" value={hasSubsidy}
+          <FilterChip label={t('filter.subsidy')} value={hasSubsidy}
             options={[
-              { value: '',     label: 'Todos' },
-              { value: 'true', label: 'Com subsidio' },
-              { value: 'false',label: 'Sem subsidio' },
+              { value: '',     label: t('filter.all') },
+              { value: 'true', label: t('filter.withSubsidy') },
+              { value: 'false',label: t('filter.withoutSubsidy') },
             ]}
             onChange={v => updateFilter({ has_subsidy: v || null })}
           />
           {hasFilters && (
             <button onClick={() => router.replace(pathname)}
               className="ml-auto text-zinc-500 hover:text-red-400 transition-colors">
-              Limpar filtros
+              {t('clearFilters')}
             </button>
           )}
         </div>
@@ -178,9 +185,9 @@ function Inner() {
       {!loading && campaigns.length === 0 && (
         <div className="rounded-xl p-8 text-center" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
           <Megaphone size={48} className="mx-auto text-zinc-700 mb-3" />
-          <p className="text-zinc-300 font-medium">Nenhuma campanha encontrada</p>
+          <p className="text-zinc-300 font-medium">{t('empty.title')}</p>
           <p className="text-xs text-zinc-500 mt-2">
-            {hasFilters ? 'Ajusta os filtros pra ver mais resultados.' : 'Roda um sync no dashboard pra puxar campanhas.'}
+            {hasFilters ? t('empty.descFiltered') : t('empty.descNoSync')}
           </p>
         </div>
       )}
@@ -196,8 +203,10 @@ function Inner() {
 }
 
 function CampaignCard({ campaign }: { campaign: Campaign }) {
+  const t = useTranslations('mlCampaigns.list')
+  const td = useTranslations('mlCampaigns')
   const totalItems = campaign.candidate_count + campaign.pending_count + campaign.started_count
-  const deadline = campaign.deadline_date ? deadlineLabel(campaign.deadline_date) : null
+  const deadline = campaign.deadline_date ? deadlineLabel(campaign.deadline_date, td) : null
 
   return (
     <Link href={`/dashboard/ml-campaigns/${campaign.id}`}
@@ -220,17 +229,17 @@ function CampaignCard({ campaign }: { campaign: Campaign }) {
         <div className="mt-2 px-2 py-1 rounded inline-flex items-center gap-1 text-[10px] font-semibold"
           style={{ background: 'rgba(0,229,255,0.1)', color: '#67e8f9', border: '1px solid rgba(0,229,255,0.25)' }}>
           <Sparkles size={10} />
-          ML subsidia ~{campaign.avg_meli_subsidy_pct.toFixed(1)}%
+          {t('mlSubsidizes', { pct: campaign.avg_meli_subsidy_pct.toFixed(1) })}
           <span className="text-zinc-400">·</span>
-          <span className="text-zinc-300">{campaign.items_with_subsidy_count} itens</span>
+          <span className="text-zinc-300">{t('itemsCount', { n: campaign.items_with_subsidy_count })}</span>
         </div>
       )}
 
       {/* Counters */}
       <div className="grid grid-cols-3 gap-2 mt-3">
-        <Counter label="Candidatos"   value={campaign.candidate_count} color="#00E5FF" />
-        <Counter label="Programados"  value={campaign.pending_count}   color="#a78bfa" />
-        <Counter label="Participando" value={campaign.started_count}   color="#22c55e" />
+        <Counter label={t('counter.candidates')}   value={campaign.candidate_count} color="#00E5FF" />
+        <Counter label={t('counter.scheduled')}  value={campaign.pending_count}   color="#a78bfa" />
+        <Counter label={t('counter.participating')} value={campaign.started_count}   color="#22c55e" />
       </div>
 
       {/* Footer */}
@@ -241,51 +250,45 @@ function CampaignCard({ campaign }: { campaign: Campaign }) {
             <Clock size={10} /> {deadline.label}
           </span>
         ) : (
-          <span>{totalItems} itens elegíveis</span>
+          <span>{t('eligibleItems', { n: totalItems })}</span>
         )}
-        <span className="font-mono">seller {campaign.seller_id}</span>
+        <span className="font-mono">{td('seller', { id: campaign.seller_id })}</span>
       </div>
     </Link>
   )
 }
 
+const CAMPAIGN_TYPE_COLORS: Record<string, string> = {
+  DEAL: '#a78bfa', SMART: '#00E5FF', LIGHTNING: '#f97316', PRICE_DISCOUNT: '#22c55e',
+  MARKETPLACE_CAMPAIGN: '#fbbf24', DOD: '#ec4899', VOLUME: '#84cc16', PRE_NEGOTIATED: '#94a3b8',
+  SELLER_CAMPAIGN: '#94a3b8', PRICE_MATCHING: '#94a3b8', UNHEALTHY_STOCK: '#ef4444',
+  SELLER_COUPON_CAMPAIGN: '#94a3b8',
+}
+
 function CampaignTypeBadge({ type }: { type: string }) {
-  const map: Record<string, { label: string; color: string }> = {
-    DEAL:                 { label: 'Tradicional',     color: '#a78bfa' },
-    SMART:                { label: 'Smart',           color: '#00E5FF' },
-    LIGHTNING:            { label: 'Relâmpago',       color: '#f97316' },
-    PRICE_DISCOUNT:       { label: 'Desc. Individual',color: '#22c55e' },
-    MARKETPLACE_CAMPAIGN: { label: 'Marketplace',     color: '#fbbf24' },
-    DOD:                  { label: 'Do Dia',          color: '#ec4899' },
-    VOLUME:               { label: 'Volume',          color: '#84cc16' },
-    PRE_NEGOTIATED:       { label: 'Pré-negociada',   color: '#94a3b8' },
-    SELLER_CAMPAIGN:      { label: 'Seller',          color: '#94a3b8' },
-    PRICE_MATCHING:       { label: 'Preço competitivo', color: '#94a3b8' },
-    UNHEALTHY_STOCK:      { label: 'Liquidação',      color: '#ef4444' },
-    SELLER_COUPON_CAMPAIGN: { label: 'Cupom',         color: '#94a3b8' },
-  }
-  const m = map[type] ?? { label: type, color: '#71717a' }
+  const t = useTranslations('mlCampaigns')
+  const color = CAMPAIGN_TYPE_COLORS[type] ?? '#71717a'
+  const label = CAMPAIGN_TYPE_COLORS[type] ? t(`campaignType.${type}`) : type
   return (
     <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-semibold"
-      style={{ background: `${m.color}15`, color: m.color, border: `1px solid ${m.color}40` }}>
-      {m.label}
+      style={{ background: `${color}15`, color, border: `1px solid ${color}40` }}>
+      {label}
     </span>
   )
 }
 
+const STATUS_COLORS: Record<string, string> = {
+  started: '#22c55e', pending: '#a78bfa', finished: '#71717a', paused: '#fbbf24', expired: '#ef4444',
+}
+
 function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, { label: string; color: string }> = {
-    started:  { label: 'ATIVA',       color: '#22c55e' },
-    pending:  { label: 'PROGRAMADA',  color: '#a78bfa' },
-    finished: { label: 'ENCERRADA',   color: '#71717a' },
-    paused:   { label: 'PAUSADA',     color: '#fbbf24' },
-    expired:  { label: 'EXPIRADA',    color: '#ef4444' },
-  }
-  const m = map[status] ?? { label: status, color: '#71717a' }
+  const t = useTranslations('mlCampaigns')
+  const color = STATUS_COLORS[status] ?? '#71717a'
+  const label = STATUS_COLORS[status] ? t(`statusBadge.${status}`) : status
   return (
     <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded font-bold"
-      style={{ background: `${m.color}15`, color: m.color, border: `1px solid ${m.color}40` }}>
-      {m.label}
+      style={{ background: `${color}15`, color, border: `1px solid ${color}40` }}>
+      {label}
     </span>
   )
 }
@@ -306,7 +309,7 @@ function FilterChip({ label, value, options, onChange }: {
 }) {
   return (
     <div className="flex items-center gap-1">
-      <span className="text-zinc-500 text-[10px] uppercase tracking-wider">{label}:</span>
+      <span className="text-zinc-500 text-[10px] uppercase tracking-wider">{label}</span>
       <select
         value={value}
         onChange={e => onChange(e.target.value)}
@@ -323,13 +326,15 @@ function FilterChip({ label, value, options, onChange }: {
   )
 }
 
-function deadlineLabel(iso: string): { label: string; color: string } {
+type DeadlineT = (key: string, values?: Record<string, string | number>) => string
+
+function deadlineLabel(iso: string, t: DeadlineT): { label: string; color: string } {
   const ms = new Date(iso).getTime() - Date.now()
-  if (ms < 0)            return { label: 'Prazo expirado', color: '#ef4444' }
+  if (ms < 0)            return { label: t('deadline.expired'), color: '#ef4444' }
   const h = Math.floor(ms / 3_600_000)
-  if (h < 1)             return { label: 'Encerra em < 1h', color: '#ef4444' }
-  if (h < 24)            return { label: `Encerra em ${h}h`, color: '#ef4444' }
+  if (h < 1)             return { label: t('deadline.lessThanHour'), color: '#ef4444' }
+  if (h < 24)            return { label: t('deadline.hours', { h }), color: '#ef4444' }
   const d = Math.floor(h / 24)
-  if (d <= 2)            return { label: `${d} dia${d > 1 ? 's' : ''} pra aderir`, color: '#fbbf24' }
-  return { label: `${d} dias pra aderir`, color: '#71717a' }
+  if (d <= 2)            return { label: t('deadline.days', { d }), color: '#fbbf24' }
+  return { label: t('deadline.days', { d }), color: '#71717a' }
 }

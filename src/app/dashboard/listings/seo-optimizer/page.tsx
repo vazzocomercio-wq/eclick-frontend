@@ -8,6 +8,7 @@
  */
 
 import { useState, useEffect, useMemo, useRef, Suspense } from 'react'
+import { useTranslations } from 'next-intl'
 import { useSearchParams } from 'next/navigation'
 import {
   Search, Sparkles, Loader2, AlertCircle, CheckCircle2, Copy, ExternalLink,
@@ -117,23 +118,29 @@ function extractMlbId(input: string): string | null {
   return m ? m[0].toUpperCase().replace('-', '') : null
 }
 
-const MODE_BADGE: Record<EditMode, { label: string; cls: string; icon: typeof Lock }> = {
-  free:       { label: '🟢 Editável',     cls: 'bg-emerald-400/15 text-emerald-300 border-emerald-400/30', icon: CheckCircle2 },
-  restricted: { label: '🟡 Com cuidado',   cls: 'bg-amber-400/15 text-amber-300 border-amber-400/30',     icon: AlertTriangle },
-  locked:     { label: '🔴 Travado',       cls: 'bg-red-400/15 text-red-300 border-red-400/30',           icon: Lock },
+const MODE_BADGE: Record<EditMode, { cls: string; icon: typeof Lock }> = {
+  free:       { cls: 'bg-emerald-400/15 text-emerald-300 border-emerald-400/30', icon: CheckCircle2 },
+  restricted: { cls: 'bg-amber-400/15 text-amber-300 border-amber-400/30',       icon: AlertTriangle },
+  locked:     { cls: 'bg-red-400/15 text-red-300 border-red-400/30',             icon: Lock },
 }
 
 // ── Main page ──────────────────────────────────────────────────────────────
 
+function SuspenseFallback() {
+  const t = useTranslations('listings.seoOptimizer')
+  return <div className="min-h-screen bg-zinc-950 text-zinc-100 px-4 py-6 text-sm text-zinc-500">{t('loading')}</div>
+}
+
 export default function SeoOptimizerPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-zinc-950 text-zinc-100 px-4 py-6 text-sm text-zinc-500">Carregando…</div>}>
+    <Suspense fallback={<SuspenseFallback />}>
       <SeoOptimizerPageInner />
     </Suspense>
   )
 }
 
 function SeoOptimizerPageInner() {
+  const t = useTranslations('listings.seoOptimizer')
   const supabase = useMemo(() => createClient(), [])
   const toast = useToast()
   const searchParams = useSearchParams()
@@ -150,7 +157,7 @@ function SeoOptimizerPageInner() {
 
   async function getAuthHeaders(): Promise<HeadersInit> {
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session?.access_token) throw new Error('Não autenticado')
+    if (!session?.access_token) throw new Error(t('errors.notAuthenticated'))
     return { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json' }
   }
 
@@ -179,7 +186,7 @@ function SeoOptimizerPageInner() {
     setError(null)
     const mlbId = overrideId ?? extractMlbId(mlbInput)
     if (!mlbId) {
-      setError('MLB ID inválido. Cole o ID (ex: MLB1234567890) ou a URL do anúncio.')
+      setError(t('errors.invalidMlbId'))
       return
     }
     setLoading(true)
@@ -219,11 +226,10 @@ function SeoOptimizerPageInner() {
         <header className="mb-6">
           <div className="flex items-center gap-2 mb-1">
             <Sparkles size={18} className="text-cyan-400" />
-            <h1 className="text-xl font-semibold">e-Otimizer IA — Anúncios Existentes</h1>
+            <h1 className="text-xl font-semibold">{t('title')}</h1>
           </div>
           <p className="text-sm text-zinc-400">
-            Análise SEO + sugestões da IA respeitando as regras de edição do Mercado Livre.
-            Anúncios com vendas têm título travado pelo ML — sistema gera sugestão pra clonar.
+            {t('subtitle')}
           </p>
         </header>
 
@@ -231,49 +237,49 @@ function SeoOptimizerPageInner() {
         {feedback && feedback.total_applied > 0 && (
           <section className="mb-6">
             <h2 className="flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-zinc-500 mb-2">
-              <Activity size={12} /> ROI das otimizações aplicadas
+              <Activity size={12} /> {t('roiTitle')}
             </h2>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <StatCard
                 icon={<Sparkles size={14} />}
-                label="Otimizações aplicadas"
+                label={t('stat.appliedOptimizations')}
                 value={feedback.total_applied.toString()}
-                hint={`${feedback.total_with_metrics} com métricas capturadas`}
+                hint={t('stat.withMetricsHint', { count: feedback.total_with_metrics })}
                 color="cyan"
               />
               <StatCard
                 icon={<Award size={14} />}
-                label="Uplift médio do score"
+                label={t('stat.avgScoreUplift')}
                 value={feedback.score_uplift_avg != null ? `+${feedback.score_uplift_avg}` : '—'}
                 hint={feedback.avg_score_before != null && feedback.avg_score_after != null
                   ? `${feedback.avg_score_before} → ${feedback.avg_score_after}`
-                  : 'sem dados'}
+                  : t('stat.noData')}
                 color="emerald"
               />
               <StatCard
                 icon={<TrendingUp size={14} />}
-                label="Vendas T+30d (delta)"
+                label={t('stat.salesDelta30d')}
                 value={`+${feedback.total_sold_delta_t30d}`}
-                hint={`T+7: +${feedback.total_sold_delta_t7d} · T+14: +${feedback.total_sold_delta_t14d}`}
+                hint={t('stat.salesDeltaHint', { t7: feedback.total_sold_delta_t7d, t14: feedback.total_sold_delta_t14d })}
                 color="emerald"
               />
               <StatCard
                 icon={<Eye size={14} />}
-                label="Visitas T+7d"
+                label={t('stat.visits7d')}
                 value={feedback.total_visits_t7d.toLocaleString('pt-BR')}
-                hint="acumulado dos anúncios otimizados"
+                hint={t('stat.visitsHint')}
                 color="cyan"
               />
             </div>
             {feedback.top_winners.length > 0 && (
               <div className="mt-3 rounded-xl border border-emerald-400/20 bg-emerald-400/5 p-3">
                 <h3 className="text-[11px] uppercase tracking-wider text-emerald-300/80 mb-2 flex items-center gap-1.5">
-                  <Award size={12} /> Top 5 que mais venderam após otimização
+                  <Award size={12} /> {t('topWinnersTitle')}
                 </h3>
                 <ul className="space-y-1">
                   {feedback.top_winners.slice(0, 5).map(w => (
                     <li key={w.optimization_id} className="flex items-center gap-2 text-[11px]">
-                      <span className="text-emerald-300 font-bold w-12 shrink-0">+{w.sold_delta_t30d ?? 0} vendas</span>
+                      <span className="text-emerald-300 font-bold w-12 shrink-0">{t('salesDeltaShort', { count: w.sold_delta_t30d ?? 0 })}</span>
                       <span className="font-mono text-zinc-500 w-32 shrink-0 truncate">{w.mlb_id}</span>
                       <span className="text-zinc-300 truncate flex-1" title={w.title}>{w.title}</span>
                       {w.score_before != null && w.score_after != null && (
@@ -293,7 +299,7 @@ function SeoOptimizerPageInner() {
             {/* Search */}
             <section className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
               <label className="block text-[11px] uppercase tracking-wider text-zinc-500 mb-2">
-                Cole o MLB ID ou URL do anúncio
+                {t('inputLabel')}
               </label>
               <div className="flex gap-2">
                 <input
@@ -301,7 +307,7 @@ function SeoOptimizerPageInner() {
                   value={mlbInput}
                   onChange={e => setMlbInput(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter') void analyze() }}
-                  placeholder="MLB1234567890  OU  https://produto.mercadolivre.com.br/MLB-..."
+                  placeholder={t('inputPlaceholder')}
                   className="flex-1 bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm outline-none focus:border-cyan-400 placeholder:text-zinc-600"
                   disabled={loading}
                 />
@@ -312,7 +318,7 @@ function SeoOptimizerPageInner() {
                   className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-cyan-400 hover:bg-cyan-300 disabled:opacity-50 text-black text-sm font-semibold"
                 >
                   {loading ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
-                  Analisar
+                  {t('analyze')}
                 </button>
               </div>
               {error && (
@@ -322,7 +328,7 @@ function SeoOptimizerPageInner() {
               )}
               {loading && (
                 <p className="mt-2 text-[11px] text-zinc-500">
-                  Pesquisando concorrentes + analisando permissões + gerando sugestões… (~10-15s na primeira chamada)
+                  {t('analyzingHint')}
                 </p>
               )}
             </section>
@@ -336,7 +342,7 @@ function SeoOptimizerPageInner() {
                   await analyze()
                 }}
                 onApplied={async () => {
-                  toast({ message: 'Anúncio atualizado no ML.', tone: 'success' })
+                  toast({ message: t('listingUpdated'), tone: 'success' })
                   await loadHistory()
                   await loadFeedback()
                 }}
@@ -347,10 +353,10 @@ function SeoOptimizerPageInner() {
           {/* History sidebar */}
           <aside className="space-y-3">
             <h3 className="flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-zinc-500">
-              <History size={12} /> Histórico de otimizações
+              <History size={12} /> {t('historyTitle')}
             </h3>
             {history.length === 0 ? (
-              <p className="text-[11px] text-zinc-600 italic">Nenhuma otimização ainda.</p>
+              <p className="text-[11px] text-zinc-600 italic">{t('noHistory')}</p>
             ) : (
               <ul className="space-y-1.5">
                 {history.map(h => (
@@ -358,16 +364,16 @@ function SeoOptimizerPageInner() {
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-[10px] font-mono text-zinc-500">{h.mlb_id}</span>
                       {h.applied_at ? (
-                        <span className="text-[10px] text-emerald-400">✓ aplicada</span>
+                        <span className="text-[10px] text-emerald-400">{t('historyApplied')}</span>
                       ) : (
-                        <span className="text-[10px] text-zinc-500">só análise</span>
+                        <span className="text-[10px] text-zinc-500">{t('historyAnalysisOnly')}</span>
                       )}
                     </div>
                     <p className="text-[11px] text-zinc-300 truncate" title={h.before_snapshot?.title ?? ''}>
                       {h.before_snapshot?.title ?? '—'}
                     </p>
                     <div className="mt-1 flex items-center gap-2 text-[10px] text-zinc-500">
-                      <span>Score: {h.seo_score_before ?? '?'}{h.seo_score_after != null && ` → ${h.seo_score_after}`}</span>
+                      <span>{t('scoreLabel')}: {h.seo_score_before ?? '?'}{h.seo_score_after != null && ` → ${h.seo_score_after}`}</span>
                       {h.applied_fields && h.applied_fields.length > 0 && (
                         <span className="text-cyan-400">{h.applied_fields.join(', ')}</span>
                       )}
@@ -390,6 +396,7 @@ function AnalysisView({ analysis, onRefresh, onApplied }: {
   onRefresh: () => void | Promise<void>
   onApplied: () => void | Promise<void>
 }) {
+  const t = useTranslations('listings.seoOptimizer')
   const supabase = useMemo(() => createClient(), [])
   const { current, permissions, seo_score, suggestions, research_summary } = analysis
 
@@ -448,12 +455,12 @@ function AnalysisView({ analysis, onRefresh, onApplied }: {
               {analysis.mlb_id} <ExternalLink size={12} />
             </a>
             <p className="text-[11px] text-zinc-500 mt-0.5">
-              {current.sold_quantity} vendas · R$ {current.price.toFixed(2)} · {current.listing_type_id}
-              {current.catalog_listing && ' · catálogo'}
+              {t('soldCount', { count: current.sold_quantity })} · R$ {current.price.toFixed(2)} · {current.listing_type_id}
+              {current.catalog_listing && ` · ${t('catalog')}`}
             </p>
           </div>
           <div className="text-right">
-            <div className="text-[10px] uppercase tracking-wider text-zinc-500">SEO Score</div>
+            <div className="text-[10px] uppercase tracking-wider text-zinc-500">{t('seoScore')}</div>
             <div className={`text-3xl font-bold ${
               seo_score.current >= 70 ? 'text-emerald-300' :
               seo_score.current >= 40 ? 'text-amber-300' : 'text-red-300'
@@ -463,24 +470,24 @@ function AnalysisView({ analysis, onRefresh, onApplied }: {
 
         {/* Score breakdown */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          <ScoreCard label="Título" score={seo_score.breakdown.title.score} issues={seo_score.breakdown.title.issues} />
-          <ScoreCard label="Descrição" score={seo_score.breakdown.description.score} issues={seo_score.breakdown.description.issues} />
-          <ScoreCard label="Atributos" score={seo_score.breakdown.attributes.score} issues={[
-            ...(seo_score.breakdown.attributes.missing_required.length > 0 ? [`Faltam: ${seo_score.breakdown.attributes.missing_required.join(', ')}`] : []),
-            ...(seo_score.breakdown.attributes.missing_recommended.length > 0 ? [`Recomendados: ${seo_score.breakdown.attributes.missing_recommended.slice(0, 3).join(', ')}`] : []),
+          <ScoreCard label={t('breakdown.title')} score={seo_score.breakdown.title.score} issues={seo_score.breakdown.title.issues} />
+          <ScoreCard label={t('breakdown.description')} score={seo_score.breakdown.description.score} issues={seo_score.breakdown.description.issues} />
+          <ScoreCard label={t('breakdown.attributes')} score={seo_score.breakdown.attributes.score} issues={[
+            ...(seo_score.breakdown.attributes.missing_required.length > 0 ? [t('missingRequired', { list: seo_score.breakdown.attributes.missing_required.join(', ') })] : []),
+            ...(seo_score.breakdown.attributes.missing_recommended.length > 0 ? [t('missingRecommended', { list: seo_score.breakdown.attributes.missing_recommended.slice(0, 3).join(', ') })] : []),
           ]} />
-          <ScoreCard label="Imagens" score={seo_score.breakdown.pictures.score} issues={seo_score.breakdown.pictures.issues} />
+          <ScoreCard label={t('breakdown.pictures')} score={seo_score.breakdown.pictures.score} issues={seo_score.breakdown.pictures.issues} />
         </div>
       </section>
 
       {/* Permissions rationale */}
       <section className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
-        <h3 className="text-[11px] uppercase tracking-wider text-zinc-500 mb-2">Permissões de edição</h3>
+        <h3 className="text-[11px] uppercase tracking-wider text-zinc-500 mb-2">{t('editPermissions')}</h3>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
-          <PermBadge label="Título" mode={permissions.title} />
-          <PermBadge label="Descrição" mode={permissions.description} />
-          <PermBadge label="Imagens" mode={permissions.pictures} />
-          <PermBadge label="Atributos" mode={permissions.attributes_overall} />
+          <PermBadge label={t('field.title')} mode={permissions.title} />
+          <PermBadge label={t('field.description')} mode={permissions.description} />
+          <PermBadge label={t('field.pictures')} mode={permissions.pictures} />
+          <PermBadge label={t('field.attributes')} mode={permissions.attributes_overall} />
         </div>
         <ul className="text-[11px] text-zinc-400 space-y-0.5">
           {permissions.rationale.map((r, i) => <li key={i}>• {r}</li>)}
@@ -488,9 +495,9 @@ function AnalysisView({ analysis, onRefresh, onApplied }: {
       </section>
 
       {/* Title — applicable OR clone */}
-      <Section title="Título" badge={<PermBadge label="" mode={permissions.title} />}>
+      <Section title={t('field.title')} badge={<PermBadge label="" mode={permissions.title} />}>
         <div className="mb-3">
-          <div className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1">Atual</div>
+          <div className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1">{t('current')}</div>
           <div className="rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-300">
             {current.title} <span className="text-[10px] text-zinc-600">({current.title.length}/60)</span>
           </div>
@@ -499,7 +506,7 @@ function AnalysisView({ analysis, onRefresh, onApplied }: {
         {permissions.title === 'locked' && suggestions.clone_title && (
           <div className="rounded-lg border border-amber-400/30 bg-amber-400/5 p-3">
             <div className="flex items-center gap-1.5 text-[11px] text-amber-300 font-semibold mb-1.5">
-              <Copy size={12} /> Sugestão pra criar anúncio NOVO (atual está travado)
+              <Copy size={12} /> {t('cloneSuggestion')}
             </div>
             <div className="rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 mb-2">
               {suggestions.clone_title.value} <span className="text-[10px] text-zinc-600">({suggestions.clone_title.value.length}/60)</span>
@@ -512,7 +519,7 @@ function AnalysisView({ analysis, onRefresh, onApplied }: {
               }}
               className="flex items-center gap-1 px-2.5 py-1 rounded text-[11px] bg-zinc-800 hover:bg-zinc-700 text-zinc-200"
             >
-              <Copy size={11} /> Copiar título
+              <Copy size={11} /> {t('copyTitle')}
             </button>
           </div>
         )}
@@ -521,11 +528,11 @@ function AnalysisView({ analysis, onRefresh, onApplied }: {
           <div className="rounded-lg border border-cyan-400/30 bg-cyan-400/5 p-3">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-1.5 text-[11px] text-cyan-300 font-semibold">
-                <Sparkles size={12} /> Sugestão (aplicável)
+                <Sparkles size={12} /> {t('applicableSuggestion')}
               </div>
               <label className="flex items-center gap-1 text-[11px] text-zinc-400 cursor-pointer">
                 <input type="checkbox" checked={applyTitleChecked} onChange={e => setApplyTitleChecked(e.target.checked)} className="accent-cyan-400" />
-                Aplicar
+                {t('apply')}
               </label>
             </div>
             <textarea
@@ -541,16 +548,16 @@ function AnalysisView({ analysis, onRefresh, onApplied }: {
       </Section>
 
       {/* Description */}
-      <Section title="Descrição" badge={<PermBadge label="" mode={permissions.description} />}>
+      <Section title={t('field.description')} badge={<PermBadge label="" mode={permissions.description} />}>
         {suggestions.description && permissions.description !== 'locked' ? (
           <div className="rounded-lg border border-cyan-400/30 bg-cyan-400/5 p-3">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-1.5 text-[11px] text-cyan-300 font-semibold">
-                <Sparkles size={12} /> Descrição otimizada
+                <Sparkles size={12} /> {t('optimizedDescription')}
               </div>
               <label className="flex items-center gap-1 text-[11px] text-zinc-400 cursor-pointer">
                 <input type="checkbox" checked={applyDescriptionChecked} onChange={e => setApplyDescriptionChecked(e.target.checked)} className="accent-cyan-400" />
-                Aplicar
+                {t('apply')}
               </label>
             </div>
             <textarea
@@ -559,36 +566,36 @@ function AnalysisView({ analysis, onRefresh, onApplied }: {
               rows={10}
               className="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-[12px] text-zinc-100 outline-none focus:border-cyan-400"
             />
-            <p className="text-[10px] text-zinc-500 mt-1">{descriptionEdit.length} chars · {suggestions.description.rationale}</p>
+            <p className="text-[10px] text-zinc-500 mt-1">{t('charsCount', { count: descriptionEdit.length })} · {suggestions.description.rationale}</p>
           </div>
         ) : (
-          <p className="text-[11px] text-zinc-500">{permissions.description === 'locked' ? 'Travada (catálogo)' : 'Sem sugestão gerada'}</p>
+          <p className="text-[11px] text-zinc-500">{permissions.description === 'locked' ? t('lockedCatalog') : t('noSuggestion')}</p>
         )}
       </Section>
 
       {/* Attributes to fill */}
       {suggestions.attributes && suggestions.attributes.missing_to_fill.length > 0 && (
-        <Section title="Atributos faltando" badge={<PermBadge label="" mode={permissions.attributes_overall} />}>
+        <Section title={t('missingAttributesTitle')} badge={<PermBadge label="" mode={permissions.attributes_overall} />}>
           <div className="rounded-lg border border-cyan-400/30 bg-cyan-400/5 p-3">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-1.5 text-[11px] text-cyan-300 font-semibold">
-                <Sparkles size={12} /> {suggestions.attributes.missing_to_fill.length} atributos sugeridos
+                <Sparkles size={12} /> {t('suggestedAttributesCount', { count: suggestions.attributes.missing_to_fill.length })}
               </div>
               <label className="flex items-center gap-1 text-[11px] text-zinc-400 cursor-pointer">
                 <input type="checkbox" checked={applyAttributesChecked} onChange={e => setApplyAttributesChecked(e.target.checked)} className="accent-cyan-400" />
-                Aplicar
+                {t('apply')}
               </label>
             </div>
             <ul className="space-y-1">
               {suggestions.attributes.missing_to_fill.map(attr => (
                 <li key={attr.id} className="flex items-center gap-2 text-[12px]">
                   <span className={`text-[10px] px-1.5 py-0.5 rounded ${attr.required ? 'bg-red-400/15 text-red-300' : 'bg-zinc-800 text-zinc-400'}`}>
-                    {attr.required ? 'obrig.' : 'recom.'}
+                    {attr.required ? t('required') : t('recommended')}
                   </span>
                   <span className="text-zinc-300 min-w-[150px]">{attr.name}</span>
                   <span className="text-zinc-100">"{attr.suggested_value}"</span>
                   {permissions.attributes_locked_keys.includes(attr.id) && (
-                    <span className="text-[10px] text-amber-400">⚠ pode dar erro (campo crítico após venda)</span>
+                    <span className="text-[10px] text-amber-400">{t('attrCriticalWarning')}</span>
                   )}
                 </li>
               ))}
@@ -600,7 +607,7 @@ function AnalysisView({ analysis, onRefresh, onApplied }: {
       {/* Apply button */}
       <section className="sticky bottom-4 rounded-xl border border-zinc-700 bg-zinc-900/90 backdrop-blur p-3 flex items-center justify-between">
         <div className="text-[11px] text-zinc-400">
-          {research_summary.competitors_count} concorrentes analisados · {research_summary.top_keywords_count} keywords
+          {t('researchSummary', { competitors: research_summary.competitors_count, keywords: research_summary.top_keywords_count })}
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -608,9 +615,9 @@ function AnalysisView({ analysis, onRefresh, onApplied }: {
             onClick={() => void onRefresh()}
             disabled={applying}
             className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs"
-            title="Re-analisar (ignora cache)"
+            title={t('reanalyzeTitle')}
           >
-            <RotateCw size={12} /> Re-analisar
+            <RotateCw size={12} /> {t('reanalyze')}
           </button>
           <button
             type="button"
@@ -619,7 +626,7 @@ function AnalysisView({ analysis, onRefresh, onApplied }: {
             className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-cyan-400 hover:bg-cyan-300 disabled:opacity-50 text-black text-xs font-semibold"
           >
             {applying ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
-            Aplicar selecionados
+            {t('applySelected')}
           </button>
         </div>
       </section>
@@ -631,7 +638,7 @@ function AnalysisView({ analysis, onRefresh, onApplied }: {
       )}
       {appliedFields && appliedFields.length > 0 && (
         <div className="rounded-lg border border-emerald-400/30 bg-emerald-400/10 p-3 text-xs text-emerald-200 flex items-center gap-2">
-          <CheckCircle2 size={14} /> Aplicado: <strong>{appliedFields.join(', ')}</strong>
+          <CheckCircle2 size={14} /> {t('appliedLabel')}: <strong>{appliedFields.join(', ')}</strong>
         </div>
       )}
     </div>
@@ -670,10 +677,11 @@ function ScoreCard({ label, score, issues }: { label: string; score: number; iss
 }
 
 function PermBadge({ label, mode }: { label: string; mode: EditMode }) {
+  const t = useTranslations('listings.seoOptimizer')
   const cfg = MODE_BADGE[mode]
   return (
     <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] border ${cfg.cls}`}>
-      {label ? `${label}: ` : ''}{cfg.label}
+      {label ? `${label}: ` : ''}{t(`mode.${mode}`)}
     </span>
   )
 }

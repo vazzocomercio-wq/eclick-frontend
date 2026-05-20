@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import { useConfirm, useAlert } from '@/components/ui/dialog-provider'
 import {
@@ -29,12 +30,12 @@ interface Manager {
   updated_at: string
 }
 
-const DEPTS: { value: ManagerDepartment; label: string; color: string }[] = [
-  { value: 'compras',   label: 'Compras',    color: '#a78bfa' },
-  { value: 'comercial', label: 'Comercial',  color: '#4ade80' },
-  { value: 'marketing', label: 'Marketing',  color: '#f472b6' },
-  { value: 'logistica', label: 'Logística',  color: '#60a5fa' },
-  { value: 'diretoria', label: 'Diretoria',  color: '#FFE600' },
+const DEPTS: { value: ManagerDepartment; color: string }[] = [
+  { value: 'compras',   color: '#a78bfa' },
+  { value: 'comercial', color: '#4ade80' },
+  { value: 'marketing', color: '#f472b6' },
+  { value: 'logistica', color: '#60a5fa' },
+  { value: 'diretoria', color: '#FFE600' },
 ]
 
 const DEPT_MAP = Object.fromEntries(DEPTS.map(d => [d.value, d])) as Record<ManagerDepartment, (typeof DEPTS)[number]>
@@ -83,35 +84,38 @@ function normalizePhone(raw: string): string {
 
 // ── Badges ────────────────────────────────────────────────────────────────────
 
+const STATUS_COLOR: Record<ManagerStatus, string> = {
+  pending:  '#f59e0b',
+  active:   '#4ade80',
+  paused:   '#a1a1aa',
+  inactive: '#52525b',
+}
+
 function StatusPill({ status, verified }: { status: ManagerStatus; verified: boolean }) {
+  const t = useTranslations('inteligencia')
   if (!verified) return (
     <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full inline-flex items-center gap-1"
       style={{ background: 'rgba(245,158,11,0.1)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.2)' }}>
-      <AlertCircle size={10} /> Não verificado
+      <AlertCircle size={10} /> {t('gestores.notVerified')}
     </span>
   )
-  const map: Record<ManagerStatus, { label: string; color: string }> = {
-    pending:  { label: 'Pendente', color: '#f59e0b' },
-    active:   { label: 'Ativo',    color: '#4ade80' },
-    paused:   { label: 'Pausado',  color: '#a1a1aa' },
-    inactive: { label: 'Inativo',  color: '#52525b' },
-  }
-  const s = map[status]
+  const color = STATUS_COLOR[status]
   return (
     <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full inline-flex items-center gap-1"
-      style={{ background: `${s.color}1a`, color: s.color, border: `1px solid ${s.color}33` }}>
+      style={{ background: `${color}1a`, color, border: `1px solid ${color}33` }}>
       {status === 'active' && <ShieldCheck size={10} />}
-      {s.label}
+      {t(`gestores.status.${status}`)}
     </span>
   )
 }
 
 function DeptPill({ value }: { value: ManagerDepartment }) {
+  const t = useTranslations('inteligencia')
   const d = DEPT_MAP[value]
   return (
     <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
       style={{ background: `${d.color}1a`, color: d.color, border: `1px solid ${d.color}33` }}>
-      {d.label}
+      {t(`gestores.departments.${value}`)}
     </span>
   )
 }
@@ -125,6 +129,7 @@ function ManagerFormModal({
   onClose: () => void
   onSaved: (m: Manager) => void
 }) {
+  const t = useTranslations('inteligencia')
   const isEdit = !!manager
   const [name, setName]             = useState(manager?.name ?? '')
   const [phone, setPhone]           = useState(manager?.phone ?? '')
@@ -151,7 +156,7 @@ function ManagerFormModal({
         : await api<Manager>('/alert-managers', { method: 'POST', body: JSON.stringify(body) })
       onSaved(result)
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Erro ao salvar')
+      setError(e instanceof Error ? e.message : t('gestores.errors.save'))
     } finally {
       setSaving(false)
     }
@@ -162,7 +167,7 @@ function ManagerFormModal({
       <div className="w-full max-w-md rounded-2xl p-6 space-y-4" style={{ background: '#111114', border: '1px solid #27272a' }} onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between">
           <h3 className="text-white font-semibold text-base">
-            {isEdit ? 'Editar Gestor' : 'Novo Gestor'}
+            {isEdit ? t('gestores.form.editTitle') : t('gestores.form.newTitle')}
           </h3>
           <button onClick={onClose} className="p-1 rounded-lg hover:bg-white/5 transition-colors" style={{ color: '#71717a' }}>
             <X size={16} />
@@ -171,12 +176,12 @@ function ManagerFormModal({
 
         <div className="space-y-3">
           <div>
-            <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 block mb-1">Nome</label>
+            <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 block mb-1">{t('gestores.form.nameLabel')}</label>
             <input
               type="text"
               value={name}
               onChange={e => setName(e.target.value)}
-              placeholder="Maria Silva"
+              placeholder={t('gestores.form.namePlaceholder')}
               autoFocus
               className="w-full px-3 py-2 rounded-lg text-sm text-white outline-none transition-colors"
               style={{ background: '#18181b', border: '1px solid #27272a' }}
@@ -186,7 +191,7 @@ function ManagerFormModal({
           </div>
 
           <div>
-            <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 block mb-1">Telefone (WhatsApp)</label>
+            <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 block mb-1">{t('gestores.form.phoneLabel')}</label>
             <input
               type="tel"
               value={formatPhoneBR(phone)}
@@ -198,12 +203,12 @@ function ManagerFormModal({
               onBlur={e => (e.currentTarget.style.borderColor = '#27272a')}
             />
             {phone && !phoneValid && (
-              <p className="text-[10px] text-rose-400 mt-1">Telefone precisa ter pelo menos 10 dígitos com DDI.</p>
+              <p className="text-[10px] text-rose-400 mt-1">{t('gestores.form.phoneInvalid')}</p>
             )}
           </div>
 
           <div>
-            <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 block mb-1">Departamento</label>
+            <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 block mb-1">{t('gestores.form.departmentLabel')}</label>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
               {DEPTS.map(d => {
                 const active = department === d.value
@@ -218,7 +223,7 @@ function ManagerFormModal({
                       color:      active ? d.color : '#a1a1aa',
                       border:     `1px solid ${active ? d.color + '55' : '#27272a'}`,
                     }}>
-                    {d.label}
+                    {t(`gestores.departments.${d.value}`)}
                   </button>
                 )
               })}
@@ -227,13 +232,13 @@ function ManagerFormModal({
 
           <div>
             <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 block mb-1">
-              Cargo <span className="text-zinc-600 normal-case">(opcional)</span>
+              {t('gestores.form.roleLabel')} <span className="text-zinc-600 normal-case">{t('gestores.form.optional')}</span>
             </label>
             <input
               type="text"
               value={role}
               onChange={e => setRole(e.target.value)}
-              placeholder="Diretora de Compras"
+              placeholder={t('gestores.form.rolePlaceholder')}
               className="w-full px-3 py-2 rounded-lg text-sm text-white outline-none transition-colors"
               style={{ background: '#18181b', border: '1px solid #27272a' }}
               onFocus={e => (e.currentTarget.style.borderColor = '#00E5FF')}
@@ -253,21 +258,20 @@ function ManagerFormModal({
             onClick={onClose}
             className="flex-1 py-2 rounded-lg text-xs font-semibold transition-colors"
             style={{ background: '#18181b', color: '#a1a1aa', border: '1px solid #27272a' }}>
-            Cancelar
+            {t('gestores.cancel')}
           </button>
           <button
             onClick={handleSave}
             disabled={!canSave || saving}
             className="submit-glow flex-1 py-2 rounded-lg text-xs font-semibold transition-all disabled:opacity-40"
             style={{ background: 'rgba(0,229,255,0.12)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.3)' }}>
-            {saving ? 'Salvando…' : (isEdit ? 'Salvar alterações' : 'Criar gestor')}
+            {saving ? t('gestores.saving') : (isEdit ? t('gestores.form.saveChanges') : t('gestores.form.createManager'))}
           </button>
         </div>
 
         {!isEdit && (
           <p className="text-[10px] text-zinc-600 leading-relaxed">
-            Após criar, vamos enviar um código de 6 dígitos pelo WhatsApp pra confirmar
-            que o número é do gestor real.
+            {t('gestores.form.afterCreateHint')}
           </p>
         )}
       </div>
@@ -284,6 +288,7 @@ function VerifyPhoneModal({
   onClose: () => void
   onVerified: (m: Manager) => void
 }) {
+  const t = useTranslations('inteligencia')
   const [stage, setStage]       = useState<'send' | 'confirm'>('send')
   const [code, setCode]         = useState('')
   const [busy, setBusy]         = useState(false)
@@ -298,7 +303,7 @@ function VerifyPhoneModal({
       setStage('confirm')
       setSentAt(Date.now())
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Erro ao enviar código')
+      setError(e instanceof Error ? e.message : t('gestores.errors.sendCode'))
     } finally {
       setBusy(false)
     }
@@ -306,7 +311,7 @@ function VerifyPhoneModal({
 
   async function handleConfirm() {
     if (code.replace(/\D/g, '').length !== 6) {
-      setError('O código tem 6 dígitos.')
+      setError(t('gestores.errors.codeLength'))
       return
     }
     setBusy(true)
@@ -318,7 +323,7 @@ function VerifyPhoneModal({
       })
       onVerified(updated)
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Código inválido')
+      setError(e instanceof Error ? e.message : t('gestores.errors.invalidCode'))
     } finally {
       setBusy(false)
     }
@@ -332,7 +337,7 @@ function VerifyPhoneModal({
         <div className="flex items-center justify-between">
           <h3 className="text-white font-semibold text-base flex items-center gap-2">
             <ShieldCheck size={16} style={{ color: '#00E5FF' }} />
-            Verificar telefone
+            {t('gestores.verify.title')}
           </h3>
           <button onClick={onClose} className="p-1 rounded-lg hover:bg-white/5 transition-colors" style={{ color: '#71717a' }}>
             <X size={16} />
@@ -340,7 +345,7 @@ function VerifyPhoneModal({
         </div>
 
         <div className="px-3 py-2 rounded-lg" style={{ background: '#18181b', border: '1px solid #27272a' }}>
-          <p className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold">Gestor</p>
+          <p className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold">{t('gestores.verify.managerLabel')}</p>
           <p className="text-sm text-white font-medium mt-0.5">{manager.name}</p>
           <p className="text-xs text-zinc-400 font-mono mt-0.5">{formatPhoneBR(manager.phone)}</p>
         </div>
@@ -348,8 +353,7 @@ function VerifyPhoneModal({
         {stage === 'send' ? (
           <>
             <p className="text-xs text-zinc-400 leading-relaxed">
-              Vamos enviar um código de 6 dígitos para o WhatsApp acima.
-              O gestor precisa abrir o WhatsApp e nos passar o código pra confirmar.
+              {t('gestores.verify.sendHint')}
             </p>
             {error && (
               <div className="px-3 py-2 rounded-lg text-xs" style={{ background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.2)', color: '#f87171' }}>
@@ -362,16 +366,16 @@ function VerifyPhoneModal({
               className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-xs font-semibold transition-all disabled:opacity-40"
               style={{ background: 'rgba(0,229,255,0.12)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.3)' }}>
               <Send size={13} />
-              {busy ? 'Enviando…' : 'Enviar código por WhatsApp'}
+              {busy ? t('gestores.verify.sending') : t('gestores.verify.sendButton')}
             </button>
           </>
         ) : (
           <>
             <p className="text-xs text-zinc-400 leading-relaxed">
-              Código enviado. Digite os 6 dígitos que o gestor recebeu no WhatsApp.
+              {t('gestores.verify.confirmHint')}
               {ttlSec > 0 && (
                 <span className="block mt-1 text-zinc-500 inline-flex items-center gap-1">
-                  <Clock size={11} /> Expira em {Math.floor(ttlSec / 60)}:{String(ttlSec % 60).padStart(2, '0')}
+                  <Clock size={11} /> {t('gestores.verify.expiresIn', { time: `${Math.floor(ttlSec / 60)}:${String(ttlSec % 60).padStart(2, '0')}` })}
                 </span>
               )}
             </p>
@@ -397,14 +401,14 @@ function VerifyPhoneModal({
                 onClick={() => { setStage('send'); setCode(''); setError(null) }}
                 className="px-3 py-2 rounded-lg text-xs font-semibold transition-colors"
                 style={{ background: '#18181b', color: '#a1a1aa', border: '1px solid #27272a' }}>
-                Reenviar
+                {t('gestores.verify.resend')}
               </button>
               <button
                 onClick={handleConfirm}
                 disabled={busy || code.length !== 6}
                 className="flex-1 py-2 rounded-lg text-xs font-semibold transition-all disabled:opacity-40"
                 style={{ background: 'rgba(74,222,128,0.12)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)' }}>
-                {busy ? 'Verificando…' : 'Confirmar código'}
+                {busy ? t('gestores.verify.verifying') : t('gestores.verify.confirmButton')}
               </button>
             </div>
           </>
@@ -426,6 +430,7 @@ function ManagerCard({
   selected: boolean
   onToggleSelect: (m: Manager) => void
 }) {
+  const t = useTranslations('inteligencia')
   const dept = DEPT_MAP[m.department]
 
   return (
@@ -443,7 +448,7 @@ function ManagerCard({
             background: selected ? '#00E5FF' : 'transparent',
             border: `1px solid ${selected ? '#00E5FF' : '#3f3f46'}`,
           }}
-          title={selected ? 'Desmarcar' : 'Selecionar'}>
+          title={selected ? t('gestores.deselect') : t('gestores.select')}>
           {selected && <Check size={12} style={{ color: '#000' }} strokeWidth={3} />}
         </button>
         <div className="w-10 h-10 rounded-xl shrink-0 flex items-center justify-center text-base font-bold"
@@ -477,7 +482,7 @@ function ManagerCard({
             className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] font-semibold transition-all"
             style={{ background: 'rgba(0,229,255,0.1)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.25)' }}>
             <ShieldCheck size={12} />
-            Verificar
+            {t('gestores.verifyButton')}
           </button>
         )}
         <button
@@ -486,7 +491,7 @@ function ManagerCard({
           style={{ background: '#18181b', color: '#a1a1aa', border: '1px solid #27272a' }}
           onMouseEnter={e => (e.currentTarget.style.color = '#e4e4e7')}
           onMouseLeave={e => (e.currentTarget.style.color = '#a1a1aa')}
-          title="Editar">
+          title={t('gestores.edit')}>
           <Edit3 size={12} />
         </button>
         <button
@@ -495,7 +500,7 @@ function ManagerCard({
           style={{ background: '#18181b', color: '#71717a', border: '1px solid #27272a' }}
           onMouseEnter={e => (e.currentTarget.style.color = '#f87171')}
           onMouseLeave={e => (e.currentTarget.style.color = '#71717a')}
-          title="Remover">
+          title={t('gestores.remove')}>
           <Trash2 size={12} />
         </button>
       </div>
@@ -506,6 +511,7 @@ function ManagerCard({
 // ── Empty State ───────────────────────────────────────────────────────────────
 
 function EmptyState({ onCreate }: { onCreate: () => void }) {
+  const t = useTranslations('inteligencia')
   return (
     <div className="rounded-2xl p-10 flex flex-col items-center text-center gap-3"
       style={{ background: '#111114', border: '1px dashed #27272a' }}>
@@ -514,10 +520,9 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
         <UserIcon size={22} style={{ color: '#00E5FF' }} />
       </div>
       <div>
-        <h3 className="text-white font-semibold text-sm">Nenhum gestor cadastrado</h3>
+        <h3 className="text-white font-semibold text-sm">{t('gestores.emptyTitle')}</h3>
         <p className="text-xs text-zinc-500 mt-1 max-w-xs">
-          Cadastre os gestores que vão receber alertas inteligentes do hub. Cada departamento
-          pode ter um ou mais gestores.
+          {t('gestores.emptyDescription')}
         </p>
       </div>
       <button
@@ -525,7 +530,7 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
         className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-all"
         style={{ background: 'rgba(0,229,255,0.12)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.3)' }}>
         <Plus size={13} />
-        Cadastrar primeiro gestor
+        {t('gestores.createFirst')}
       </button>
     </div>
   )
@@ -534,6 +539,7 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function GestoresPage() {
+  const t = useTranslations('inteligencia')
   const [managers, setManagers]     = useState<Manager[]>([])
   const [loading, setLoading]       = useState(true)
   const [error, setError]           = useState<string | null>(null)
@@ -566,11 +572,11 @@ export default function GestoresPage() {
       const list = await api<Manager[]>('/alert-managers')
       setManagers(list)
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Erro ao carregar gestores')
+      setError(e instanceof Error ? e.message : t('gestores.errors.load'))
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [t])
 
   useEffect(() => { load() }, [load])
 
@@ -595,9 +601,9 @@ export default function GestoresPage() {
 
   async function handleDelete(m: Manager) {
     const ok = await confirm({
-      title:        'Remover gestor',
-      message:      `Remover "${m.name}"? Essa ação não pode ser desfeita.`,
-      confirmLabel: 'Remover',
+      title:        t('gestores.deleteConfirm.title'),
+      message:      t('gestores.deleteConfirm.message', { name: m.name }),
+      confirmLabel: t('gestores.deleteConfirm.confirmLabel'),
       variant:      'danger',
     })
     if (!ok) return
@@ -606,8 +612,8 @@ export default function GestoresPage() {
       setManagers(prev => prev.filter(x => x.id !== m.id))
     } catch (e: unknown) {
       await alert({
-        title:   'Erro ao remover',
-        message: e instanceof Error ? e.message : 'Erro desconhecido',
+        title:   t('gestores.errors.removeTitle'),
+        message: e instanceof Error ? e.message : t('gestores.errors.unknown'),
         variant: 'danger',
       })
     }
@@ -616,11 +622,12 @@ export default function GestoresPage() {
   async function bulkSetStatus(status: 'active' | 'paused') {
     const ids = [...selected]
     if (ids.length === 0) return
-    const verb = status === 'active' ? 'reativar' : 'pausar'
     const ok = await confirm({
-      title:        status === 'active' ? 'Reativar gestores' : 'Pausar gestores',
-      message:      `${verb.charAt(0).toUpperCase() + verb.slice(1)} ${ids.length} gestor${ids.length !== 1 ? 'es' : ''}?`,
-      confirmLabel: verb.charAt(0).toUpperCase() + verb.slice(1),
+      title:        status === 'active' ? t('gestores.bulk.reactivateTitle') : t('gestores.bulk.pauseTitle'),
+      message:      status === 'active'
+        ? t('gestores.bulk.reactivateMessage', { count: ids.length })
+        : t('gestores.bulk.pauseMessage', { count: ids.length }),
+      confirmLabel: status === 'active' ? t('gestores.bulk.reactivate') : t('gestores.bulk.pause'),
       variant:      status === 'paused' ? 'warning' : 'default',
     })
     if (!ok) return
@@ -638,7 +645,7 @@ export default function GestoresPage() {
       setManagers(prev => prev.map(m => updates.get(m.id) ?? m))
       clearSelection()
       if (failed > 0) {
-        await alert({ title: 'Bulk parcialmente concluído', message: `${failed} gestor(es) falharam.`, variant: 'warning' })
+        await alert({ title: t('gestores.bulk.partialTitle'), message: t('gestores.bulk.partialFailed', { count: failed }), variant: 'warning' })
       }
     } finally { setBulkBusy(false) }
   }
@@ -647,9 +654,9 @@ export default function GestoresPage() {
     const ids = [...selected]
     if (ids.length === 0) return
     const ok = await confirm({
-      title:        'Remover gestores',
-      message:      `Remover ${ids.length} gestor${ids.length !== 1 ? 'es' : ''}? Essa ação não pode ser desfeita.`,
-      confirmLabel: 'Remover',
+      title:        t('gestores.bulk.removeTitle'),
+      message:      t('gestores.bulk.removeMessage', { count: ids.length }),
+      confirmLabel: t('gestores.bulk.remove'),
       variant:      'danger',
     })
     if (!ok) return
@@ -667,7 +674,7 @@ export default function GestoresPage() {
       setManagers(prev => prev.filter(m => !successIds.has(m.id)))
       clearSelection()
       if (failed > 0) {
-        await alert({ title: 'Bulk parcialmente concluído', message: `${failed} gestor(es) não puderam ser removidos.`, variant: 'warning' })
+        await alert({ title: t('gestores.bulk.partialTitle'), message: t('gestores.bulk.partialRemoveFailed', { count: failed }), variant: 'warning' })
       }
     } finally { setBulkBusy(false) }
   }
@@ -693,12 +700,12 @@ export default function GestoresPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <p className="text-zinc-500 text-xs">Inteligência</p>
-          <h2 className="text-white text-lg font-semibold mt-0.5">Gestores</h2>
+          <p className="text-zinc-500 text-xs">{t('gestores.eyebrow')}</p>
+          <h2 className="text-white text-lg font-semibold mt-0.5">{t('gestores.pageTitle')}</h2>
           <p className="text-[11px] text-zinc-600 mt-1">
-            {managers.length} gestor{managers.length !== 1 ? 'es' : ''} cadastrado{managers.length !== 1 ? 's' : ''}
+            {t('gestores.registeredCount', { count: managers.length })}
             {' · '}
-            {verifiedCount} verificado{verifiedCount !== 1 ? 's' : ''}
+            {t('gestores.verifiedCount', { count: verifiedCount })}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -706,13 +713,13 @@ export default function GestoresPage() {
             className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border transition-all disabled:opacity-60"
             style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>
             <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
-            <span className="hidden sm:inline">Atualizar</span>
+            <span className="hidden sm:inline">{t('gestores.refresh')}</span>
           </button>
           <button onClick={() => setCreating(true)}
             className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all"
             style={{ background: 'rgba(0,229,255,0.12)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.3)' }}>
             <Plus size={13} />
-            Novo gestor
+            {t('gestores.newManager')}
           </button>
         </div>
       </div>
@@ -734,7 +741,7 @@ export default function GestoresPage() {
               color:      filter === 'all' ? '#fff' : '#a1a1aa',
               border:     '1px solid #27272a',
             }}>
-            Todos · {managers.length}
+            {t('gestores.allFilter', { count: managers.length })}
           </button>
           {DEPTS.map(d => {
             const active = filter === d.value
@@ -749,7 +756,7 @@ export default function GestoresPage() {
                   border:     `1px solid ${active ? d.color + '55' : '#27272a'}`,
                 }}>
                 <Briefcase size={11} />
-                {d.label}
+                {t(`gestores.departments.${d.value}`)}
                 {counts[d.value] > 0 && (
                   <span className="text-[10px] opacity-70">· {counts[d.value]}</span>
                 )}
@@ -768,33 +775,33 @@ export default function GestoresPage() {
             backdropFilter: 'blur(8px)',
           }}>
           <span className="text-xs font-semibold" style={{ color: '#00E5FF' }}>
-            {selected.size} selecionado{selected.size !== 1 ? 's' : ''}
+            {t('gestores.bulk.selectedCount', { count: selected.size })}
           </span>
           <div className="flex-1" />
           <button onClick={() => selectAllFiltered(filtered.map(m => m.id))} disabled={bulkBusy}
             className="text-[11px] px-2.5 py-1 rounded-md transition-colors disabled:opacity-40"
             style={{ color: '#a1a1aa' }}>
-            Selecionar todos ({filtered.length})
+            {t('gestores.bulk.selectAll', { count: filtered.length })}
           </button>
           <button onClick={() => bulkSetStatus('active')} disabled={bulkBusy}
             className="flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all disabled:opacity-40"
             style={{ background: 'rgba(74,222,128,0.1)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.25)' }}>
-            <Play size={11} /> Reativar
+            <Play size={11} /> {t('gestores.bulk.reactivate')}
           </button>
           <button onClick={() => bulkSetStatus('paused')} disabled={bulkBusy}
             className="flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all disabled:opacity-40"
             style={{ background: 'rgba(245,158,11,0.1)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.25)' }}>
-            <Pause size={11} /> Pausar
+            <Pause size={11} /> {t('gestores.bulk.pause')}
           </button>
           <button onClick={bulkDelete} disabled={bulkBusy}
             className="flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all disabled:opacity-40"
             style={{ background: 'rgba(248,113,113,0.1)', color: '#f87171', border: '1px solid rgba(248,113,113,0.25)' }}>
-            <Trash2 size={11} /> Remover
+            <Trash2 size={11} /> {t('gestores.bulk.remove')}
           </button>
           <button onClick={clearSelection} disabled={bulkBusy}
             className="p-1 rounded-md transition-colors disabled:opacity-40"
             style={{ color: '#71717a' }}
-            title="Limpar seleção">
+            title={t('gestores.bulk.clearSelection')}>
             <X size={13} />
           </button>
         </div>
@@ -812,9 +819,9 @@ export default function GestoresPage() {
       ) : filtered.length === 0 ? (
         <div className="rounded-2xl px-4 py-8 text-center text-xs text-zinc-500"
           style={{ background: '#111114', border: '1px solid #27272a' }}>
-          Nenhum gestor em <strong style={{ color: DEPT_MAP[filter as ManagerDepartment].color }}>
-            {DEPT_MAP[filter as ManagerDepartment].label}
-          </strong>.
+          {t.rich('gestores.emptyFiltered', {
+            dept: () => <strong style={{ color: DEPT_MAP[filter as ManagerDepartment].color }}>{t(`gestores.departments.${filter as ManagerDepartment}`)}</strong>,
+          })}
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
@@ -834,10 +841,7 @@ export default function GestoresPage() {
 
       {/* Footer info */}
       <p className="text-[10px] text-zinc-700 leading-relaxed pt-2">
-        Os gestores cadastrados aqui recebem alertas inteligentes do hub via WhatsApp.
-        Após cadastrar, é necessário verificar o telefone — o sistema envia um código de 6
-        dígitos pra confirmar que o número é do gestor real. Só gestores verificados
-        recebem alertas em produção.
+        {t('gestores.footnote')}
       </p>
 
       {/* Modals */}

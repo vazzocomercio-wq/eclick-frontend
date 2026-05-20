@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, ArrowRight, Sparkles, Check, Loader2, AlertTriangle, Plus, X } from 'lucide-react'
@@ -60,6 +61,7 @@ const EMPTY_DETAILS: DetailsForm = {
 }
 
 export default function CreativeNewPage() {
+  const t = useTranslations('creative.new')
   const router = useRouter()
   const searchParams = useSearchParams()
   // ?productId=X → continuar produto existente (pula direto pro step 3 Briefing)
@@ -115,7 +117,7 @@ export default function CreativeNewPage() {
         setStep(3)
       } catch (e: unknown) {
         if (!cancelled) {
-          setError(`Não consegui carregar o produto: ${(e as Error).message}`)
+          setError(t('loadProductError', { message: (e as Error).message }))
           setStep(1)
         }
       } finally {
@@ -176,7 +178,7 @@ export default function CreativeNewPage() {
         }
       } catch (e: unknown) {
         if (!cancelled) {
-          setError(`Não consegui carregar o produto do catálogo: ${(e as Error).message}`)
+          setError(t('loadCatalogError', { message: (e as Error).message }))
         }
       } finally {
         if (!cancelled) setLoadingCatalog(false)
@@ -191,9 +193,9 @@ export default function CreativeNewPage() {
   // ──────────────────────────────────────────────────────────────────────────
   async function goStep1to2() {
     setError(null)
-    if (!upload) { setError('Faça upload da imagem do produto.'); return }
-    if (!basic.name.trim())     { setError('Informe o nome do produto.'); return }
-    if (!basic.category.trim()) { setError('Informe a categoria.'); return }
+    if (!upload) { setError(t('uploadImageError')); return }
+    if (!basic.name.trim())     { setError(t('nameRequired')); return }
+    if (!basic.category.trim()) { setError(t('categoryRequired')); return }
 
     setSubmitting(true)
     try {
@@ -239,7 +241,7 @@ export default function CreativeNewPage() {
   // ──────────────────────────────────────────────────────────────────────────
   async function goStep2to3() {
     setError(null)
-    if (!product) { setError('Erro: produto perdido. Volte ao passo 1.'); return }
+    if (!product) { setError(t('productLost')); return }
 
     setSubmitting(true)
     try {
@@ -278,7 +280,7 @@ export default function CreativeNewPage() {
   async function submitFinal() {
     setError(null)
     setWarning(null)
-    if (!product) { setError('Erro: produto perdido. Volte ao passo 1.'); return }
+    if (!product) { setError(t('productLost')); return }
 
     setSubmitting(true)
     setPhase('briefing')
@@ -310,7 +312,7 @@ export default function CreativeNewPage() {
 
       // Texto é blocker — se falhou, aborta tudo
       if (listingResult.status === 'rejected') {
-        setError(`Falha ao gerar texto: ${(listingResult.reason as Error)?.message ?? 'erro desconhecido'}`)
+        setError(t('genTextFail', { message: (listingResult.reason as Error)?.message ?? t('genErrorUnknown') }))
         setSubmitting(false)
         setPhase('idle')
         return
@@ -327,9 +329,8 @@ export default function CreativeNewPage() {
       if (imageResult.status === 'rejected') {
         setWarning(
           useCatalogPhotos
-            ? `Texto gerado, mas a importação das fotos do catálogo falhou: ${(imageResult.reason as Error)?.message ?? 'erro'}.`
-            : `Texto gerado, mas imagens falharam: ${(imageResult.reason as Error)?.message ?? 'erro'}. ` +
-              `Tente regenerar manualmente na próxima tela.`,
+            ? t('warnCatalogImport', { message: (imageResult.reason as Error)?.message ?? t('genError') })
+            : t('warnImages', { message: (imageResult.reason as Error)?.message ?? t('genError') }),
         )
       }
 
@@ -368,7 +369,7 @@ export default function CreativeNewPage() {
           <div className="flex items-center gap-2 min-w-0">
             <Sparkles size={18} className="text-cyan-400 shrink-0" />
             <h1 className="text-lg font-semibold truncate">
-              {presetProductId ? 'Criar briefing' : 'Novo anúncio'}
+              {presetProductId ? t('createBriefing') : t('newAd')}
             </h1>
             {presetProductId && product?.name && (
               <span className="text-xs text-zinc-500 truncate">· {product.name}</span>
@@ -396,7 +397,7 @@ export default function CreativeNewPage() {
         {/* Loader enquanto resolve o produto do catálogo (?catalogProductId) */}
         {loadingCatalog && (
           <div className="mt-10 flex items-center justify-center gap-2 text-sm text-zinc-500">
-            <Loader2 size={14} className="animate-spin" /> Carregando produto do catálogo…
+            <Loader2 size={14} className="animate-spin" /> {t('loadingCatalog')}
           </div>
         )}
 
@@ -404,29 +405,29 @@ export default function CreativeNewPage() {
         {step === 1 && !loadingCatalog && (
           <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <h2 className="text-sm font-semibold text-zinc-300 mb-3">1. Imagem do produto</h2>
+              <h2 className="text-sm font-semibold text-zinc-300 mb-3">{t('step1Title')}</h2>
               <CreativeProductUpload value={upload} onChange={setUpload} disabled={submitting} />
             </div>
             <div>
-              <h2 className="text-sm font-semibold text-zinc-300 mb-3">2. Dados básicos</h2>
+              <h2 className="text-sm font-semibold text-zinc-300 mb-3">{t('step2Title')}</h2>
               <div className="space-y-3">
                 <Field
-                  label="Nome do produto *"
+                  label={t('fieldName')}
                   value={basic.name}
                   onChange={v => setBasic(b => ({ ...b, name: v }))}
-                  placeholder="Ex: Organizador de gaveta com divisórias"
+                  placeholder={t('fieldNamePlaceholder')}
                 />
                 <Field
-                  label="Categoria *"
+                  label={t('fieldCategory')}
                   value={basic.category}
                   onChange={v => setBasic(b => ({ ...b, category: v }))}
-                  placeholder="Ex: Casa & Cozinha"
+                  placeholder={t('fieldCategoryPlaceholder')}
                 />
                 <Field
-                  label="Marca"
+                  label={t('fieldBrand')}
                   value={basic.brand}
                   onChange={v => setBasic(b => ({ ...b, brand: v }))}
-                  placeholder="Opcional"
+                  placeholder={t('fieldBrandPlaceholder')}
                 />
               </div>
             </div>
@@ -436,7 +437,7 @@ export default function CreativeNewPage() {
                 disabled={submitting || !upload || !basic.name.trim() || !basic.category.trim()}
                 loading={submitting}
               >
-                Próximo <ArrowRight size={14} />
+                {t('next')} <ArrowRight size={14} />
               </PrimaryButton>
             </div>
           </div>
@@ -452,27 +453,27 @@ export default function CreativeNewPage() {
             />
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label="Cor"      value={details.color}    onChange={v => setDetails(d => ({ ...d, color: v }))}    placeholder="Ex: Branco fosco" />
-              <Field label="Material" value={details.material} onChange={v => setDetails(d => ({ ...d, material: v }))} placeholder="Ex: Plástico ABS" />
-              <Field label="Largura"      value={details.width}  onChange={v => setDetails(d => ({ ...d, width: v }))}  placeholder="Ex: 30cm" />
-              <Field label="Altura"       value={details.height} onChange={v => setDetails(d => ({ ...d, height: v }))} placeholder="Ex: 15cm" />
-              <Field label="Profundidade" value={details.depth}  onChange={v => setDetails(d => ({ ...d, depth: v }))}  placeholder="Ex: 10cm" />
-              <Field label="Peso"         value={details.weight} onChange={v => setDetails(d => ({ ...d, weight: v }))} placeholder="Ex: 500g" />
+              <Field label={t('fieldColor')}    value={details.color}    onChange={v => setDetails(d => ({ ...d, color: v }))}    placeholder={t('fieldColorPlaceholder')} />
+              <Field label={t('fieldMaterial')} value={details.material} onChange={v => setDetails(d => ({ ...d, material: v }))} placeholder={t('fieldMaterialPlaceholder')} />
+              <Field label={t('fieldWidth')}      value={details.width}  onChange={v => setDetails(d => ({ ...d, width: v }))}  placeholder={t('fieldWidthPlaceholder')} />
+              <Field label={t('fieldHeight')}     value={details.height} onChange={v => setDetails(d => ({ ...d, height: v }))} placeholder={t('fieldHeightPlaceholder')} />
+              <Field label={t('fieldDepth')}      value={details.depth}  onChange={v => setDetails(d => ({ ...d, depth: v }))}  placeholder={t('fieldDepthPlaceholder')} />
+              <Field label={t('fieldWeight')}     value={details.weight} onChange={v => setDetails(d => ({ ...d, weight: v }))} placeholder={t('fieldWeightPlaceholder')} />
               <Field
-                label="Público-alvo"
+                label={t('fieldAudience')}
                 value={details.target_audience}
                 onChange={v => setDetails(d => ({ ...d, target_audience: v }))}
-                placeholder="Ex: Donas de casa, profissionais autônomos"
+                placeholder={t('fieldAudiencePlaceholder')}
                 className="sm:col-span-2"
               />
-              <Field label="SKU" value={details.sku} onChange={v => setDetails(d => ({ ...d, sku: v }))} placeholder="Opcional" />
-              <Field label="EAN" value={details.ean} onChange={v => setDetails(d => ({ ...d, ean: v }))} placeholder="Opcional (código de barras)" />
+              <Field label={t('fieldSku')} value={details.sku} onChange={v => setDetails(d => ({ ...d, sku: v }))} placeholder={t('fieldSkuPlaceholder')} />
+              <Field label={t('fieldEan')} value={details.ean} onChange={v => setDetails(d => ({ ...d, ean: v }))} placeholder={t('fieldEanPlaceholder')} />
             </div>
 
             {/* Differentials chips */}
             <div>
               <label className="block text-xs text-zinc-400 mb-1.5">
-                Características <span className="text-[10px] text-zinc-600">(aparecem no card "Características / medidas")</span>
+                {t('characteristics')} <span className="text-[10px] text-zinc-600">{t('characteristicsHint')}</span>
               </label>
               <div className="flex flex-wrap gap-1.5 mb-2">
                 {details.differentials.map((d, i) => (
@@ -490,7 +491,7 @@ export default function CreativeNewPage() {
                   value={diffInput}
                   onChange={e => setDiffInput(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addDifferential() } }}
-                  placeholder="Ex: Antiderrapante, fácil de limpar…"
+                  placeholder={t('characteristicPlaceholder')}
                   className="flex-1 bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-200 outline-none focus:border-cyan-400"
                 />
                 <button
@@ -505,10 +506,10 @@ export default function CreativeNewPage() {
 
             <div className="flex justify-between">
               <SecondaryButton onClick={() => setStep(1)} disabled={submitting}>
-                <ArrowLeft size={14} /> Voltar
+                <ArrowLeft size={14} /> {t('back')}
               </SecondaryButton>
               <PrimaryButton onClick={goStep2to3} disabled={submitting} loading={submitting}>
-                Próximo <ArrowRight size={14} />
+                {t('next')} <ArrowRight size={14} />
               </PrimaryButton>
             </div>
           </div>
@@ -517,7 +518,7 @@ export default function CreativeNewPage() {
         {/* Loader enquanto carrega produto via ?productId */}
         {loadingPreset && (
           <div className="mt-10 flex items-center justify-center gap-2 text-sm text-zinc-500">
-            <Loader2 size={14} className="animate-spin" /> Carregando produto…
+            <Loader2 size={14} className="animate-spin" /> {t('loadingProduct')}
           </div>
         )}
 
@@ -536,11 +537,13 @@ export default function CreativeNewPage() {
               return (
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-2 border-t border-zinc-800">
                   <p className="text-[11px] text-zinc-500 leading-relaxed">
-                    Vai gerar <strong className="text-cyan-300">{s.count}</strong> imagens
-                    {' '}<span className="text-zinc-400">{s.format}</span>
-                    {' · '}<strong className="text-zinc-300">{s.marketplaceLabel}</strong>
-                    {' · '}{s.styleLabel}
-                    {' · tom '}{s.toneLabel}
+                    {t('summary', {
+                      count:       s.count,
+                      format:      s.format,
+                      marketplace: s.marketplaceLabel,
+                      style:       s.styleLabel,
+                      tone:        s.toneLabel,
+                    })}
                   </p>
                   <div className="flex justify-between sm:gap-3">
                     <SecondaryButton
@@ -552,13 +555,13 @@ export default function CreativeNewPage() {
                       }}
                       disabled={submitting}
                     >
-                      <ArrowLeft size={14} /> Voltar
+                      <ArrowLeft size={14} /> {t('back')}
                     </SecondaryButton>
                     <PrimaryButton onClick={submitFinal} disabled={submitting} loading={submitting}>
-                      {phase === 'idle'     && <>Gerar anúncio <Check size={14} /></>}
-                      {phase === 'briefing' && 'Preparando briefing…'}
-                      {phase === 'parallel' && 'Gerando texto + imagens…'}
-                      {phase === 'done'     && 'Pronto!'}
+                      {phase === 'idle'     && <>{t('phaseIdle')} <Check size={14} /></>}
+                      {phase === 'briefing' && t('phaseBriefing')}
+                      {phase === 'parallel' && t('phaseParallel')}
+                      {phase === 'done'     && t('phaseDone')}
                     </PrimaryButton>
                   </div>
                 </div>
@@ -574,7 +577,8 @@ export default function CreativeNewPage() {
 // ── Sub-components ─────────────────────────────────────────────────────────
 
 function Stepper({ current }: { current: Step }) {
-  const labels = ['Imagem & dados', 'Análise IA', 'Briefing']
+  const t = useTranslations('creative.new')
+  const labels = [t('stepperImage'), t('stepperAnalysis'), t('stepperBriefing')]
   return (
     <div className="flex items-center gap-2">
       {labels.map((label, i) => {

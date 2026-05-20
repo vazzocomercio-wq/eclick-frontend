@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -17,6 +18,7 @@ import {
 import { useConfirm, useAlert } from '@/components/ui/dialog-provider'
 
 export default function ImageJobPage() {
+  const t = useTranslations('creative.imageJob')
   const params = useParams<{ productId: string; jobId: string }>()
   const router = useRouter()
   const productId = params.productId
@@ -36,13 +38,13 @@ export default function ImageJobPage() {
     pollMs: 3000,
     onTerminal: (terminalJob) => {
       const title = terminalJob.status === 'completed'
-        ? 'Imagens prontas ✓'
+        ? t('imagesReady')
         : terminalJob.status === 'failed'
-          ? 'Geração falhou'
-          : 'Job cancelado'
+          ? t('generationFailed')
+          : t('jobCancelled')
       const body = terminalJob.status === 'completed'
-        ? `${terminalJob.completed_count}/${terminalJob.requested_count} imagens geradas — clique pra revisar.`
-        : terminalJob.error_message ?? 'Veja detalhes na página do job.'
+        ? t('completedBody', { done: terminalJob.completed_count, total: terminalJob.requested_count })
+        : terminalJob.error_message ?? t('seeDetails')
       notify.fire(title, body, { tag: `creative-img-${terminalJob.id}` })
     },
   })
@@ -86,10 +88,10 @@ export default function ImageJobPage() {
   async function cancelJob() {
     if (!job) return
     const ok = await confirmDialog({
-      title:        'Cancelar job',
-      message:      'Cancelar o job? Imagens já geradas serão preservadas.',
-      confirmLabel: 'Cancelar job',
-      cancelLabel:  'Voltar',
+      title:        t('cancelJobTitle'),
+      message:      t('cancelJobMessage'),
+      confirmLabel: t('cancelJobConfirm'),
+      cancelLabel:  t('back2'),
       variant:      'warning',
     })
     if (!ok) return
@@ -98,7 +100,7 @@ export default function ImageJobPage() {
       await CreativeApi.cancelImageJob(job.id)
       await refresh()
     } catch (e: unknown) {
-      await alertDialog({ title: 'Erro', message: (e as Error).message, variant: 'danger' })
+      await alertDialog({ title: t('errorTitle'), message: (e as Error).message, variant: 'danger' })
     } finally {
       setCancelling(false)
     }
@@ -109,9 +111,9 @@ export default function ImageJobPage() {
     const rejectedCount = visibleImages.filter(i => i.status === 'rejected').length
     if (rejectedCount === 0) return
     const ok = await confirmDialog({
-      title:        'Regerar rejeitadas',
-      message:      `Regerar ${rejectedCount} imagem${rejectedCount === 1 ? '' : 'ns'} rejeitada${rejectedCount === 1 ? '' : 's'}? Vai consumir mais cota de geração.`,
-      confirmLabel: 'Regerar',
+      title:        t('regenRejectedTitle'),
+      message:      t('regenRejectedMessage', { count: rejectedCount }),
+      confirmLabel: t('regenConfirm'),
       variant:      'default',
     })
     if (!ok) return
@@ -120,14 +122,14 @@ export default function ImageJobPage() {
       const res = await CreativeApi.regenerateAllRejectedImages(job.id)
       if (res.skipped_cost_cap) {
         await alertDialog({
-          title:   'Limite de custo atingido',
-          message: 'Limite de custo do job já foi atingido. Crie um novo job pra continuar.',
+          title:   t('costCapTitle'),
+          message: t('costCapMessage'),
           variant: 'warning',
         })
       }
       await refresh()
     } catch (e: unknown) {
-      await alertDialog({ title: 'Erro', message: (e as Error).message, variant: 'danger' })
+      await alertDialog({ title: t('errorTitle'), message: (e as Error).message, variant: 'danger' })
     } finally {
       setBulkRegen(false)
     }
@@ -137,8 +139,8 @@ export default function ImageJobPage() {
     const approved = visibleImages.filter(i => i.status === 'approved' && i.signed_image_url)
     if (approved.length === 0) {
       await alertDialog({
-        title:   'Nenhuma imagem aprovada',
-        message: 'Aprove pelo menos uma imagem antes de baixar.',
+        title:   t('noApprovedImagesTitle'),
+        message: t('noApprovedImagesMessage'),
         variant: 'warning',
       })
       return
@@ -168,10 +170,10 @@ export default function ImageJobPage() {
     return (
       <div className="min-h-screen bg-zinc-950 text-zinc-100 px-4 py-6">
         <Link href="/dashboard/creative" className="inline-flex items-center gap-2 text-zinc-400 hover:text-zinc-100 mb-4">
-          <ArrowLeft size={14} /> Voltar
+          <ArrowLeft size={14} /> {t('back')}
         </Link>
         <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200 max-w-2xl">
-          {productError ?? 'Produto não encontrado'}
+          {productError ?? t('productNotFound')}
         </div>
       </div>
     )
@@ -180,7 +182,7 @@ export default function ImageJobPage() {
     return (
       <div className="min-h-screen bg-zinc-950 text-zinc-100 px-4 py-6">
         <Link href={`/dashboard/creative/${productId}`} className="inline-flex items-center gap-2 text-zinc-400 hover:text-zinc-100 mb-4">
-          <ArrowLeft size={14} /> Voltar pro produto
+          <ArrowLeft size={14} /> {t('backToProduct')}
         </Link>
         <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200 max-w-2xl">
           {error}
@@ -212,7 +214,7 @@ export default function ImageJobPage() {
                 <h1 className="text-base font-semibold truncate" title={product.name}>{product.name}</h1>
               </div>
               <p className="text-[11px] text-zinc-500">
-                Job de imagens · {job?.requested_count ?? '?'} solicitadas
+                {t('imageJob')} · {job?.requested_count != null ? t('requestedCount', { count: job.requested_count }) : t('requestedUnknown')}
               </p>
             </div>
           </div>
@@ -222,7 +224,7 @@ export default function ImageJobPage() {
               <NotifyButton
                 permission={notify.permission}
                 onRequest={notify.requestPermission}
-                hintGranted="Avisaremos quando o job terminar"
+                hintGranted={t('notifyHint')}
               />
             )}
             {(() => {
@@ -235,7 +237,7 @@ export default function ImageJobPage() {
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-amber-400/30 text-amber-300 hover:bg-amber-400/10 text-xs font-semibold transition-all disabled:opacity-50"
                 >
                   {bulkRegen ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-                  Regerar {rejectedCt} rejeitada{rejectedCt > 1 ? 's' : ''}
+                  {t('regenRejectedBtn', { count: rejectedCt })}
                 </button>
               ) : null
             })()}
@@ -245,7 +247,7 @@ export default function ImageJobPage() {
                 onClick={downloadAllApproved}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-400 hover:bg-cyan-300 text-black text-xs font-semibold transition-all"
               >
-                <Download size={12} /> Baixar {approvedCt} aprovada{approvedCt > 1 ? 's' : ''}
+                <Download size={12} /> {t('downloadApproved', { count: approvedCt })}
               </button>
             )}
             {active && (
@@ -256,7 +258,7 @@ export default function ImageJobPage() {
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-red-400/40 text-zinc-300 hover:text-red-300 text-xs"
               >
                 {cancelling ? <Loader2 size={12} className="animate-spin" /> : <X size={12} />}
-                Cancelar job
+                {t('cancelJobConfirm')}
               </button>
             )}
           </div>
@@ -284,7 +286,7 @@ export default function ImageJobPage() {
         {cancelled && (
           <div className="mt-3 rounded-lg border border-zinc-700 bg-zinc-900 p-3 text-sm text-zinc-300 flex items-start gap-2">
             <X size={14} className="shrink-0 mt-0.5" />
-            <span>Job cancelado. Imagens já geradas continuam disponíveis abaixo.</span>
+            <span>{t('jobCancelledNotice')}</span>
           </div>
         )}
 
@@ -293,8 +295,8 @@ export default function ImageJobPage() {
           {images.length === 0 ? (
             <div className="rounded-2xl border-2 border-dashed border-zinc-800 bg-zinc-900/30 p-12 text-center">
               <Loader2 size={28} className="text-cyan-400 animate-spin mx-auto mb-3" />
-              <p className="text-sm text-zinc-300">Gerando prompts da IA…</p>
-              <p className="text-[11px] text-zinc-500 mt-1">As imagens aparecem aqui à medida que ficam prontas</p>
+              <p className="text-sm text-zinc-300">{t('generatingPrompts')}</p>
+              <p className="text-[11px] text-zinc-500 mt-1">{t('imagesAppearHint')}</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -334,6 +336,7 @@ function StatusBar({
   rejectedCount: number
   failedCount:   number
 }) {
+  const t = useTranslations('creative.imageJob')
   const costPct = maxCost > 0 ? Math.min(100, Math.round((Number(totalCost) / Number(maxCost)) * 100)) : 0
   const costNear = costPct >= 80
   return (
@@ -343,14 +346,14 @@ function StatusBar({
           <StatusPill status={status} />
           {progress.total > 0 && (
             <span className="text-xs text-zinc-400">
-              {progress.doneAt}/{progress.total} processadas
+              {t('processed', { done: progress.doneAt, total: progress.total })}
             </span>
           )}
         </div>
         <div className="flex items-center gap-3 text-[11px] text-zinc-400">
           {approvedCount > 0 && <span className="flex items-center gap-1 text-emerald-400"><Check size={10} /> {approvedCount}</span>}
           {rejectedCount > 0 && <span className="flex items-center gap-1 text-red-400"><X size={10} /> {rejectedCount}</span>}
-          {failedCount   > 0 && <span className="flex items-center gap-1 text-red-500"><AlertCircle size={10} /> {failedCount} falhas</span>}
+          {failedCount   > 0 && <span className="flex items-center gap-1 text-red-500"><AlertCircle size={10} /> {t('failures', { count: failedCount })}</span>}
         </div>
       </div>
 
@@ -367,7 +370,7 @@ function StatusBar({
       {/* Cost bar */}
       <div className="space-y-1">
         <div className="flex items-center justify-between text-[10px]">
-          <span className="text-zinc-500">Custo</span>
+          <span className="text-zinc-500">{t('cost')}</span>
           <span className={costNear ? 'text-amber-400 font-mono' : 'text-zinc-400 font-mono'}>
             ${Number(totalCost).toFixed(4)} / ${Number(maxCost).toFixed(2)}
           </span>

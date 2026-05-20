@@ -18,6 +18,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { ImageIcon, Upload, AlertTriangle, Loader2 } from 'lucide-react'
 import { CreativeApi } from '@/components/creative/api'
 import type { CreativeReference } from '@/components/creative/types'
@@ -31,6 +32,7 @@ import BulkActionsBar from './_components/BulkActionsBar'
 import ReferenceEditorDrawer from './_components/ReferenceEditorDrawer'
 
 export default function ReferencesPage() {
+  const t = useTranslations('creative.references')
   const [refs, setRefs]                   = useState<CreativeReference[]>([])
   const [loading, setLoading]             = useState(true)
   const [error, setError]                 = useState<string | null>(null)
@@ -204,9 +206,9 @@ export default function ReferencesPage() {
   const handleDelete = async (ref: CreativeReference) => {
     if (ref.is_curated) return
     const ok = await confirmDialog({
-      title:        'Apagar referência',
-      message:      `Apagar "${ref.name}"? Esta ação não pode ser desfeita.`,
-      confirmLabel: 'Apagar',
+      title:        t('deleteRefTitle'),
+      message:      t('deleteRefMessage', { name: ref.name }),
+      confirmLabel: t('delete'),
       variant:      'danger',
     })
     if (!ok) return
@@ -283,10 +285,10 @@ export default function ReferencesPage() {
   const handleBulkDelete = async () => {
     if (selectedRefs.length === 0) return
     const ok = await confirmDialog({
-      title:   `Apagar ${selectedRefs.length} referência${selectedRefs.length > 1 ? 's' : ''}`,
+      title:   t('bulkDeleteTitle', { count: selectedRefs.length }),
       message: (
         <div>
-          <p className="mb-2">As seguintes referências serão removidas — esta ação não pode ser desfeita:</p>
+          <p className="mb-2">{t('bulkDeleteMessage')}</p>
           <ul className="text-xs text-zinc-400 space-y-0.5 max-h-40 overflow-y-auto rounded-md border border-zinc-800 bg-zinc-900/50 p-2">
             {selectedRefs.map(r => (
               <li key={r.id} className="truncate" title={r.name}>· {r.name}</li>
@@ -294,7 +296,7 @@ export default function ReferencesPage() {
           </ul>
         </div>
       ),
-      confirmLabel: `Apagar ${selectedRefs.length}`,
+      confirmLabel: t('bulkDeleteConfirm', { count: selectedRefs.length }),
       variant:      'danger',
     })
     if (!ok) return
@@ -322,10 +324,9 @@ export default function ReferencesPage() {
           <div className="flex items-center gap-2">
             <ImageIcon size={18} className="text-cyan-400" />
             <div>
-              <h1 className="text-lg font-semibold">Referências</h1>
+              <h1 className="text-lg font-semibold">{t('title')}</h1>
               <p className="text-[11px] text-zinc-500">
-                Imagens que servem de inspiração estética pros prompts. Cadastre fotos de produtos
-                em ambientes, paletas, lighting — templates usam essas refs em cada posição.
+                {t('subtitle')}
               </p>
             </div>
           </div>
@@ -337,7 +338,7 @@ export default function ReferencesPage() {
             }}
             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-cyan-400 hover:bg-cyan-300 text-black text-sm font-semibold transition-colors"
           >
-            <Upload size={14} /> Subir imagens
+            <Upload size={14} /> {t('uploadImages')}
           </button>
         </div>
 
@@ -406,7 +407,7 @@ export default function ReferencesPage() {
         {/* Loading global (overlay leve quando refs já carregadas + recarrega) */}
         {loading && refs.length > 0 && (
           <div className="fixed top-3 right-3 z-30 flex items-center gap-1.5 text-xs text-cyan-300 px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 shadow-lg">
-            <Loader2 size={12} className="animate-spin" /> atualizando…
+            <Loader2 size={12} className="animate-spin" /> {t('updating')}
           </div>
         )}
       </div>

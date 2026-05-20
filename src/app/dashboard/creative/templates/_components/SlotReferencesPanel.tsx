@@ -19,6 +19,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { Upload, Library, X, Loader2, AlertTriangle, Plus } from 'lucide-react'
 import { CreativeApi } from '@/components/creative/api'
 import type { CreativeReference } from '@/components/creative/types'
@@ -38,6 +39,7 @@ export default function SlotReferencesPanel({
   onChange:       (next: string[]) => void
   disabled?:      boolean
 }) {
+  const t = useTranslations('creative.templates')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [thumbs, setThumbs] = useState<CreativeReference[]>([])
   const [uploads, setUploads] = useState<Array<{ id: string; name: string; progress: number; error?: string }>>([])
@@ -135,11 +137,11 @@ export default function SlotReferencesPanel({
     <div className="space-y-2">
       <div className="flex items-center gap-2">
         <label className="block text-[10px] uppercase tracking-wider text-zinc-500">
-          References visuais ({value.length}/{SOFT_LIMIT})
+          {t('visualRefs', { count: value.length, max: SOFT_LIMIT })}
         </label>
         {overSoftLimit && (
           <span className="inline-flex items-center gap-1 text-[9px] text-amber-300">
-            <AlertTriangle size={9} /> mais de {SOFT_LIMIT} pode confundir IA
+            <AlertTriangle size={9} /> {t('tooManyRefs', { max: SOFT_LIMIT })}
           </span>
         )}
       </div>
@@ -173,7 +175,7 @@ export default function SlotReferencesPanel({
                   type="button"
                   onClick={() => remove(r.id)}
                   className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/70 hover:bg-red-500 text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
-                  title="Desvincular"
+                  title={t('desvincular')}
                 >
                   <X size={11} />
                 </button>
@@ -212,10 +214,10 @@ export default function SlotReferencesPanel({
               type="button"
               onClick={() => fileInputRef.current?.click()}
               className="aspect-square rounded-md border border-dashed border-zinc-700 hover:border-cyan-400/60 hover:bg-cyan-400/5 transition-colors flex flex-col items-center justify-center gap-1 text-zinc-500 hover:text-cyan-300"
-              title="Subir imagens"
+              title={t('uploadImagesTooltip')}
             >
               <Upload size={16} />
-              <span className="text-[9px]">Subir</span>
+              <span className="text-[9px]">{t('uploadShort')}</span>
             </button>
           )}
         </div>
@@ -235,7 +237,7 @@ export default function SlotReferencesPanel({
 
         <div className="mt-2 flex items-center justify-between gap-2">
           <p className="text-[10px] text-zinc-500">
-            Arraste imagens ou clique em <span className="text-zinc-400">Subir</span>. Formatos: JPG, PNG, WEBP.
+            {t('dropHint')}<span className="text-zinc-400">{t('uploadWord')}</span>{t('dropHintSuffix')}
           </p>
           <button
             type="button"
@@ -243,7 +245,7 @@ export default function SlotReferencesPanel({
             disabled={disabled}
             className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-zinc-900 border border-zinc-800 hover:border-cyan-400/40 text-cyan-400 text-[10px] transition-colors disabled:opacity-40"
           >
-            <Plus size={10} /> Da galeria
+            <Plus size={10} /> {t('fromGallery')}
           </button>
         </div>
       </div>
@@ -273,6 +275,7 @@ function GalleryPickerModal({
   onClose:     () => void
   onApply:     (next: string[]) => void
 }) {
+  const t = useTranslations('creative.templates')
   const [refs, setRefs] = useState<CreativeReference[]>([])
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(false)
@@ -298,7 +301,7 @@ function GalleryPickerModal({
         <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800">
           <div className="flex items-center gap-2">
             <Library size={14} className="text-cyan-400" />
-            <h3 className="text-sm font-semibold">Galeria de referências</h3>
+            <h3 className="text-sm font-semibold">{t('galleryRefsTitle')}</h3>
           </div>
           <button onClick={onClose} className="text-zinc-500 hover:text-zinc-200">
             <X size={16} />
@@ -310,18 +313,18 @@ function GalleryPickerModal({
             type="text"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Buscar por nome, tag…"
+            placeholder={t('searchByNameTagEllipsis')}
             className="w-full px-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded-md text-xs text-zinc-200 outline-none focus:border-cyan-400 placeholder:text-zinc-600"
           />
         </div>
 
         <div className="flex-1 overflow-y-auto p-4">
-          {loading && <p className="text-xs text-zinc-500">Carregando…</p>}
+          {loading && <p className="text-xs text-zinc-500">{t('loading')}</p>}
           {error && (
             <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-200">{error}</div>
           )}
           {!loading && !error && refs.length === 0 && (
-            <p className="text-center text-xs text-zinc-500 py-8">Nenhuma referência encontrada.</p>
+            <p className="text-center text-xs text-zinc-500 py-8">{t('noRefsFound')}</p>
           )}
           {!loading && refs.length > 0 && (
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
@@ -361,19 +364,19 @@ function GalleryPickerModal({
         </div>
 
         <div className="px-4 py-3 border-t border-zinc-800 flex items-center justify-between">
-          <span className="text-[11px] text-zinc-500">{local.length} selecionada{local.length !== 1 ? 's' : ''}</span>
+          <span className="text-[11px] text-zinc-500">{t('selectedCountFem', { count: local.length })}</span>
           <div className="flex gap-2">
             <button
               onClick={onClose}
               className="px-3 py-1.5 rounded-md bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-zinc-300 text-xs"
             >
-              Cancelar
+              {t('cancel')}
             </button>
             <button
               onClick={() => onApply(local)}
               className="px-3 py-1.5 rounded-md bg-cyan-400 hover:bg-cyan-300 text-black text-xs font-semibold"
             >
-              Aplicar
+              {t('apply')}
             </button>
           </div>
         </div>

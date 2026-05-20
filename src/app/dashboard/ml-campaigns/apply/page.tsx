@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
@@ -43,6 +44,7 @@ function brl(v: number | null) {
 }
 
 export default function ApplyWizardPage() {
+  const t = useTranslations('mlCampaigns.apply')
   const router = useRouter()
   const { selected: selectedSellerId, connections } = useMlAccount()
   const [step, setStep]           = useState<1 | 2 | 3>(1)
@@ -123,7 +125,7 @@ export default function ApplyWizardPage() {
   }
 
   async function apply() {
-    if (!sid) { setError('Selecione uma conta ML'); return }
+    if (!sid) { setError(t('errors.selectAccount')); return }
     setApplying(true); setError(null)
     try {
       const t = await getToken()
@@ -156,9 +158,9 @@ export default function ApplyWizardPage() {
     <div className="p-6 space-y-4 max-w-6xl mx-auto" style={{ background: 'var(--background)', minHeight: '100vh', color: 'var(--text)' }}>
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-xs text-zinc-500">
-        <Link href="/dashboard/ml-campaigns" className="hover:text-cyan-400">Campaign Center</Link>
+        <Link href="/dashboard/ml-campaigns" className="hover:text-cyan-400">{t('breadcrumb')}</Link>
         <span>/</span>
-        <span className="text-zinc-300">Aplicar em Lote</span>
+        <span className="text-zinc-300">{t('breadcrumbCurrent')}</span>
       </div>
 
       {/* Header */}
@@ -166,20 +168,20 @@ export default function ApplyWizardPage() {
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <Send size={22} className="text-cyan-400" />
-            Aplicar Recomendações no ML
+            {t('title')}
           </h1>
-          <p className="text-xs text-zinc-500 mt-1">3 passos: selecionar → validar → aplicar</p>
+          <p className="text-xs text-zinc-500 mt-1">{t('subtitle')}</p>
         </div>
         <AccountSelector compact hideWhenEmpty />
       </div>
 
       {/* Steps indicator */}
       <div className="flex items-center gap-2">
-        <Step n={1} label="Selecionar"     active={step === 1} done={step > 1} />
+        <Step n={1} label={t('step.select')}     active={step === 1} done={step > 1} />
         <ChevronRight size={14} className="text-zinc-600" />
-        <Step n={2} label="Validar"        active={step === 2} done={step > 2} />
+        <Step n={2} label={t('step.validate')}        active={step === 2} done={step > 2} />
         <ChevronRight size={14} className="text-zinc-600" />
-        <Step n={3} label="Aplicar"        active={step === 3} done={false} />
+        <Step n={3} label={t('step.apply')}        active={step === 3} done={false} />
       </div>
 
       {error && (
@@ -191,21 +193,23 @@ export default function ApplyWizardPage() {
         <>
           <div className="rounded-xl p-3 flex flex-wrap items-center gap-3 text-xs"
             style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
-            <span className="text-zinc-400">{recos.length} aprovadas pendentes de aplicar</span>
+            <span className="text-zinc-400">{t('approvedPending', { count: recos.length })}</span>
             <span className="text-zinc-600">·</span>
-            <button onClick={selectAll} className="text-cyan-400 hover:underline">Selecionar todas</button>
-            <button onClick={clearAll} className="text-zinc-500 hover:text-red-400">Limpar</button>
-            <span className="ml-auto font-semibold text-zinc-200">{selected.size} selecionada{selected.size === 1 ? '' : 's'}</span>
+            <button onClick={selectAll} className="text-cyan-400 hover:underline">{t('selectAll')}</button>
+            <button onClick={clearAll} className="text-zinc-500 hover:text-red-400">{t('clear')}</button>
+            <span className="ml-auto font-semibold text-zinc-200">{t('selectedCount', { count: selected.size })}</span>
           </div>
 
-          {loading && <div className="text-zinc-500 text-sm flex items-center gap-2"><Loader2 size={14} className="animate-spin" /> Carregando…</div>}
+          {loading && <div className="text-zinc-500 text-sm flex items-center gap-2"><Loader2 size={14} className="animate-spin" /> {t('loading')}</div>}
 
           {!loading && recos.length === 0 && (
             <div className="rounded-xl p-8 text-center" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
               <Sparkles size={48} className="mx-auto text-zinc-700 mb-3" />
-              <p className="text-zinc-300 font-medium">Nenhuma recomendação aprovada</p>
+              <p className="text-zinc-300 font-medium">{t('empty.title')}</p>
               <p className="text-xs text-zinc-500 mt-2 max-w-md mx-auto">
-                Aprove recomendações na <Link href="/dashboard/ml-campaigns/recommendations" className="text-cyan-400 hover:underline">Inbox de Recomendações</Link> primeiro.
+                {t('empty.descPrefix')}{' '}
+                <Link href="/dashboard/ml-campaigns/recommendations" className="text-cyan-400 hover:underline">{t('empty.descLink')}</Link>
+                {' '}{t('empty.descSuffix')}
               </p>
             </div>
           )}
@@ -222,13 +226,13 @@ export default function ApplyWizardPage() {
             <div className="sticky bottom-4 rounded-xl p-3 flex items-center justify-between"
               style={{ background: 'rgba(12,12,16,0.95)', border: '1px solid #1a1a1f', backdropFilter: 'blur(8px)' }}>
               <span className="text-xs text-zinc-300">
-                <strong className="text-cyan-400">{selected.size}</strong> selecionada{selected.size === 1 ? '' : 's'} pra validar
+                <strong className="text-cyan-400">{selected.size}</strong> {t('selectedToValidate', { count: selected.size })}
               </span>
               <button onClick={validate} disabled={applying}
                 className="px-4 py-2 rounded-lg text-sm font-semibold inline-flex items-center gap-1.5 disabled:opacity-50"
                 style={{ background: '#00E5FF', color: '#000' }}>
                 {applying ? <Loader2 size={14} className="animate-spin" /> : <Eye size={14} />}
-                Validar selecionadas →
+                {t('validateSelected')}
               </button>
             </div>
           )}
@@ -239,9 +243,9 @@ export default function ApplyWizardPage() {
       {step === 2 && (
         <>
           <div className="grid grid-cols-3 gap-3">
-            <KpiBox label="Total"     value={validations.length} color="#fafafa" />
-            <KpiBox label="Validadas" value={validCount}          color="#22c55e" />
-            <KpiBox label="Erros"     value={invalidCount}        color="#ef4444" />
+            <KpiBox label={t('kpi.total')}     value={validations.length} color="#fafafa" />
+            <KpiBox label={t('kpi.validated')} value={validCount}          color="#22c55e" />
+            <KpiBox label={t('kpi.errors')}     value={invalidCount}        color="#ef4444" />
           </div>
 
           <div className="space-y-2">
@@ -250,26 +254,26 @@ export default function ApplyWizardPage() {
 
           {/* Apply mode toggle */}
           <div className="rounded-xl p-3" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
-            <p className="text-xs uppercase tracking-wider text-zinc-400 font-semibold mb-2">Modo de aplicação</p>
+            <p className="text-xs uppercase tracking-wider text-zinc-400 font-semibold mb-2">{t('applyMode')}</p>
             <label className="flex items-center gap-2 text-xs cursor-pointer mb-2">
               <input type="radio" checked={applyMode === 'safe'} onChange={() => setApplyMode('safe')} />
-              <span><strong>Safe:</strong> não aplica nada se houver QUALQUER erro</span>
+              <span><strong>{t('modeSafe')}</strong> {t('modeSafeDesc')}</span>
             </label>
             <label className="flex items-center gap-2 text-xs cursor-pointer">
               <input type="radio" checked={applyMode === 'best_effort'} onChange={() => setApplyMode('best_effort')} />
-              <span><strong>Best effort:</strong> aplica as válidas, ignora as com erro</span>
+              <span><strong>{t('modeBestEffort')}</strong> {t('modeBestEffortDesc')}</span>
             </label>
           </div>
 
           <div className="sticky bottom-4 rounded-xl p-3 flex items-center justify-between"
             style={{ background: 'rgba(12,12,16,0.95)', border: '1px solid #1a1a1f', backdropFilter: 'blur(8px)' }}>
-            <button onClick={() => setStep(1)} className="text-xs text-zinc-400 hover:text-zinc-200">← Voltar</button>
+            <button onClick={() => setStep(1)} className="text-xs text-zinc-400 hover:text-zinc-200">{t('back')}</button>
             <button onClick={apply}
               disabled={applying || (applyMode === 'safe' && invalidCount > 0) || validCount === 0}
               className="submit-glow px-4 py-2 rounded-lg text-sm font-semibold inline-flex items-center gap-1.5 disabled:opacity-50"
               style={{ background: '#22c55e', color: '#000' }}>
               {applying ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-              Aplicar {applyMode === 'best_effort' ? `${validCount} válidas` : `${validations.length} no ML`}
+              {applyMode === 'best_effort' ? t('applyValid', { count: validCount }) : t('applyAll', { count: validations.length })}
             </button>
           </div>
         </>
@@ -292,6 +296,7 @@ function Step({ n, label, active, done }: { n: number; label: string; active: bo
 }
 
 function SelectableRow({ reco, selected, onToggle }: { reco: ApprovedRec; selected: boolean; onToggle: () => void }) {
+  const t = useTranslations('mlCampaigns.apply')
   const item = reco.ml_campaign_items
   const discount = (item?.original_price && reco.recommended_price)
     ? Math.round(((item.original_price - reco.recommended_price) / item.original_price) * 100)
@@ -311,7 +316,7 @@ function SelectableRow({ reco, selected, onToggle }: { reco: ApprovedRec; select
             <span className="font-mono text-xs text-zinc-200">{item?.ml_item_id ?? '—'}</span>
             <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-semibold text-emerald-400"
               style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)' }}>
-              {reco.status === 'edited' ? 'EDITADA' : 'APROVADA'}
+              {reco.status === 'edited' ? t('statusEdited') : t('statusApproved')}
             </span>
           </div>
           <div className="flex items-center gap-3 text-[11px] text-zinc-500 mt-1 flex-wrap">
@@ -320,11 +325,11 @@ function SelectableRow({ reco, selected, onToggle }: { reco: ApprovedRec; select
           </div>
           <div className="flex items-center gap-3 text-xs mt-2">
             <span>
-              Preço: <strong className="text-zinc-200">{brl(reco.recommended_price)}</strong>
+              {t('priceLabel')}: <strong className="text-zinc-200">{brl(reco.recommended_price)}</strong>
               {discount && discount > 0 && <span className="ml-1 text-emerald-400">−{discount}%</span>}
             </span>
             <span>·</span>
-            <span>Qty: <strong className="text-zinc-200">{reco.recommended_quantity ?? '—'}</strong></span>
+            <span>{t('qtyLabel')}: <strong className="text-zinc-200">{reco.recommended_quantity ?? '—'}</strong></span>
           </div>
         </div>
       </div>
@@ -333,6 +338,7 @@ function SelectableRow({ reco, selected, onToggle }: { reco: ApprovedRec; select
 }
 
 function ValidationRow({ v }: { v: ValidationResult }) {
+  const t = useTranslations('mlCampaigns.apply')
   return (
     <div className="rounded-lg p-3"
       style={{
@@ -359,7 +365,7 @@ function ValidationRow({ v }: { v: ValidationResult }) {
             </ul>
           )}
           {v.is_valid && v.warnings.length === 0 && (
-            <p className="text-[11px] text-emerald-400">Pronto pra aplicar</p>
+            <p className="text-[11px] text-emerald-400">{t('readyToApply')}</p>
           )}
         </div>
       </div>

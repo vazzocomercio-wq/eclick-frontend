@@ -18,6 +18,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -32,6 +33,7 @@ import TemplatePreviewDrawer from './TemplatePreviewDrawer'
 type Mode = 'create' | 'edit'
 
 export default function TemplateEditor({ mode, templateId }: { mode: Mode; templateId?: string }) {
+  const t = useTranslations('creative.templates')
   const router = useRouter()
   const [loading, setLoading]   = useState(mode === 'edit')
   const [saving, setSaving]     = useState(false)
@@ -73,8 +75,8 @@ export default function TemplateEditor({ mode, templateId }: { mode: Mode; templ
 
   // Validation
   const errors: string[] = []
-  if (!name.trim()) errors.push('Nome obrigatório')
-  if (positions.length === 0) errors.push('Pelo menos 1 posição obrigatória')
+  if (!name.trim()) errors.push(t('nameRequiredError'))
+  if (positions.length === 0) errors.push(t('positionsRequiredError'))
   const positionsWithoutPrompt = positions.filter(p => !p.prompt_template.trim()).length
 
   const isDirty = original
@@ -110,7 +112,7 @@ export default function TemplateEditor({ mode, templateId }: { mode: Mode; templ
         router.push(`/dashboard/creative/templates/${created.id}`)
         return
       }
-      if (!templateId) throw new Error('templateId missing')
+      if (!templateId) throw new Error(t('templateIdMissing'))
       const updated = await CreativeApi.updatePromptTemplate(templateId, body)
       setOriginal(updated)
       lastSavedHash.current = JSON.stringify(updated.positions)
@@ -138,16 +140,16 @@ export default function TemplateEditor({ mode, templateId }: { mode: Mode; templ
     if (!templateId || !original) return
     if (original.is_default) {
       await alertDialog({
-        title:   'Não é possível apagar',
-        message: 'Template default não pode ser apagado. Promova outro template a default antes.',
+        title:   t('cannotDeleteTitle'),
+        message: t('cannotDeleteAlert'),
         variant: 'warning',
       })
       return
     }
     const ok = await confirmDialog({
-      title:        'Apagar template',
-      message:      `Apagar template "${name}"?`,
-      confirmLabel: 'Apagar',
+      title:        t('deleteTitle'),
+      message:      t('deleteTemplateMessage', { name }),
+      confirmLabel: t('deleteConfirm'),
       variant:      'danger',
     })
     if (!ok) return
@@ -187,12 +189,14 @@ export default function TemplateEditor({ mode, templateId }: { mode: Mode; templ
         </Link>
         <div>
           <h1 className="text-lg font-semibold">
-            {mode === 'create' ? 'Novo template' : (original?.name ?? 'Editar template')}
+            {mode === 'create' ? t('newTemplateTitle') : (original?.name ?? t('editTitle'))}
           </h1>
           {mode === 'edit' && original && (
             <p className="text-[11px] text-zinc-500">
-              criado em {new Date(original.created_at).toLocaleDateString('pt-BR')} ·
-              atualizado em {new Date(original.updated_at).toLocaleDateString('pt-BR')}
+              {t('createdUpdated', {
+                created: new Date(original.created_at).toLocaleDateString('pt-BR'),
+                updated: new Date(original.updated_at).toLocaleDateString('pt-BR'),
+              })}
             </p>
           )}
         </div>
@@ -208,18 +212,18 @@ export default function TemplateEditor({ mode, templateId }: { mode: Mode; templ
       {savedAt && !error && (
         <div className="flex items-start gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-200">
           <CheckCircle2 size={14} className="shrink-0 mt-0.5" />
-          <span>Salvo às {savedAt.toLocaleTimeString('pt-BR')}</span>
+          <span>{t('savedAt', { time: savedAt.toLocaleTimeString('pt-BR') })}</span>
         </div>
       )}
 
       {/* Meta fields */}
       <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-4 space-y-3">
-        <Field label="Nome *" value={name} onChange={setName} placeholder="Ex: Esteira Lustres Vazzo" />
-        <Field label="Descrição" value={description} onChange={setDescription} placeholder="Pra que serve esse template…" />
+        <Field label={t('fieldName')} value={name} onChange={setName} placeholder={t('fieldNamePlaceholder')} />
+        <Field label={t('fieldDescription')} value={description} onChange={setDescription} placeholder={t('fieldDescriptionPlaceholder')} />
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
-            <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1">Categorias ML</label>
+            <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1">{t('categoriesMl')}</label>
             <div className="flex flex-wrap gap-1.5 mb-1.5">
               {categoryIds.map(c => (
                 <span key={c} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono bg-cyan-400/10 text-cyan-200 border border-cyan-400/30">
@@ -230,7 +234,7 @@ export default function TemplateEditor({ mode, templateId }: { mode: Mode; templ
                 </span>
               ))}
               {categoryIds.length === 0 && (
-                <span className="text-[10px] text-zinc-600 italic">Vazio = template global (todas as categorias)</span>
+                <span className="text-[10px] text-zinc-600 italic">{t('categoriesEmpty')}</span>
               )}
             </div>
             <div className="flex gap-1.5">
@@ -239,7 +243,7 @@ export default function TemplateEditor({ mode, templateId }: { mode: Mode; templ
                 value={catInput}
                 onChange={e => setCatInput(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCategory() } }}
-                placeholder="MLB189195"
+                placeholder={t('categoryPlaceholder')}
                 className="flex-1 bg-zinc-950 border border-zinc-800 rounded-md px-2 py-1.5 text-xs font-mono text-zinc-200 outline-none focus:border-cyan-400 placeholder:text-zinc-600"
               />
               <button type="button" onClick={addCategory} className="px-2 rounded-md bg-zinc-900 border border-zinc-800 hover:border-cyan-400 text-cyan-400 transition-colors">
@@ -249,12 +253,12 @@ export default function TemplateEditor({ mode, templateId }: { mode: Mode; templ
           </div>
 
           <div>
-            <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1">Brand voice</label>
+            <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1">{t('brandVoice')}</label>
             <textarea
               value={brandVoice}
               onChange={e => setBrandVoice(e.target.value)}
               rows={2}
-              placeholder="Premium, refinado, minimalista..."
+              placeholder={t('brandVoicePlaceholder')}
               className="w-full bg-zinc-950 border border-zinc-800 rounded-md px-2 py-1.5 text-xs text-zinc-200 outline-none focus:border-cyan-400 placeholder:text-zinc-600 resize-y"
             />
           </div>
@@ -267,8 +271,8 @@ export default function TemplateEditor({ mode, templateId }: { mode: Mode; templ
             onChange={e => setIsDefault(e.target.checked)}
             className="accent-cyan-400"
           />
-          Definir como default da organização
-          <span className="text-[10px] text-zinc-500">(usado pra todos os produtos sem categoria match)</span>
+          {t('setAsDefault')}
+          <span className="text-[10px] text-zinc-500">{t('setAsDefaultHint')}</span>
         </label>
       </div>
 
@@ -284,7 +288,7 @@ export default function TemplateEditor({ mode, templateId }: { mode: Mode; templ
         {positionsWithoutPrompt > 0 && (
           <div className="mt-3 flex items-start gap-2 rounded-md bg-amber-500/10 border border-amber-500/20 px-3 py-2 text-xs text-amber-200">
             <AlertTriangle size={12} className="shrink-0 mt-0.5" />
-            <span>{positionsWithoutPrompt} posição{positionsWithoutPrompt !== 1 ? 'ões' : ''} sem prompt_template — preencha antes de usar em produção.</span>
+            <span>{t('positionsWithoutPrompt', { count: positionsWithoutPrompt })}</span>
           </div>
         )}
       </div>
@@ -299,7 +303,7 @@ export default function TemplateEditor({ mode, templateId }: { mode: Mode; templ
             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-cyan-400 hover:bg-cyan-300 text-black text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-all"
           >
             {saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
-            Salvar
+            {t('save')}
           </button>
 
           {mode === 'edit' && !isDefault && (
@@ -309,7 +313,7 @@ export default function TemplateEditor({ mode, templateId }: { mode: Mode; templ
               disabled={saving || errors.length > 0}
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-cyan-400/10 border border-cyan-400/30 hover:bg-cyan-400/20 text-cyan-300 text-xs disabled:opacity-40"
             >
-              Salvar + Definir default
+              {t('saveSetDefault')}
             </button>
           )}
 
@@ -318,10 +322,10 @@ export default function TemplateEditor({ mode, templateId }: { mode: Mode; templ
               type="button"
               onClick={() => setPreviewOpen(true)}
               disabled={saving || isDirty}
-              title={isDirty ? 'Salve antes de pré-visualizar' : 'Preview com produto'}
+              title={isDirty ? t('previewSaveFirst') : t('previewTooltip')}
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-zinc-300 text-xs disabled:opacity-40"
             >
-              <Eye size={12} /> Preview com produto
+              <Eye size={12} /> {t('previewWithProduct')}
             </button>
           )}
 
@@ -332,7 +336,7 @@ export default function TemplateEditor({ mode, templateId }: { mode: Mode; templ
               disabled={saving}
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-zinc-300 text-xs disabled:opacity-40 ml-auto"
             >
-              <Copy size={12} /> Clonar
+              <Copy size={12} /> {t('clone')}
             </button>
           )}
 
@@ -341,16 +345,16 @@ export default function TemplateEditor({ mode, templateId }: { mode: Mode; templ
               type="button"
               onClick={handleDelete}
               disabled={saving || original?.is_default}
-              title={original?.is_default ? 'Template default não pode ser apagado' : 'Apagar template'}
+              title={original?.is_default ? t('deleteDefaultTooltip') : t('deleteTooltip')}
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-800 hover:border-red-500/40 hover:text-red-300 text-zinc-400 text-xs disabled:opacity-40"
             >
-              <Trash2 size={12} /> Apagar
+              <Trash2 size={12} /> {t('delete')}
             </button>
           )}
 
           {errors.length > 0 && (
             <span className="text-[11px] text-red-300 ml-2">
-              {errors.length} pendência{errors.length !== 1 ? 's' : ''}
+              {t('pendingCount', { count: errors.length })}
             </span>
           )}
         </div>

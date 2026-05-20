@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, useMemo, Suspense } from 'react'
+import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import {
@@ -62,14 +63,16 @@ async function getToken(): Promise<string | null> {
 }
 
 export default function QualityItemsPage() {
+  const t = useTranslations('mlQuality.items')
   return (
-    <Suspense fallback={<div className="p-6 text-zinc-500 text-sm">Carregando…</div>}>
+    <Suspense fallback={<div className="p-6 text-zinc-500 text-sm">{t('loading')}</div>}>
       <ItemsPageInner />
     </Suspense>
   )
 }
 
 function ItemsPageInner() {
+  const t        = useTranslations('mlQuality.items')
   const sp       = useSearchParams()
   const router   = useRouter()
   const pathname = usePathname()
@@ -169,14 +172,14 @@ function ItemsPageInner() {
         <div>
           <div className="flex items-center gap-2 text-xs text-zinc-500">
             <Link href="/dashboard/ml-quality" className="hover:text-cyan-400 transition-colors">
-              Quality Center
+              {t('breadcrumb')}
             </Link>
             <span>/</span>
-            <span className="text-zinc-300">Anúncios</span>
+            <span className="text-zinc-300">{t('breadcrumbCurrent')}</span>
           </div>
-          <h1 className="text-2xl font-bold mt-1">Anúncios — Diagnóstico</h1>
+          <h1 className="text-2xl font-bold mt-1">{t('title')}</h1>
           <p className="text-xs text-zinc-500 mt-1">
-            {loading ? 'Carregando…' : `${total.toLocaleString('pt-BR')} anúncio${total === 1 ? '' : 's'} encontrado${total === 1 ? '' : 's'}`}
+            {loading ? t('loading') : t('resultsCount', { count: total })}
           </p>
         </div>
         <AccountSelector compact hideWhenEmpty />
@@ -191,7 +194,7 @@ function ItemsPageInner() {
             <input
               value={searchInput}
               onChange={e => setSearchInput(e.target.value)}
-              placeholder="Buscar por MLB ID…"
+              placeholder={t('searchPlaceholder')}
               className="w-full pl-9 pr-8 py-2 text-xs rounded-lg outline-none focus:border-cyan-400/50 transition-colors"
               style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)' }}
             />
@@ -213,10 +216,10 @@ function ItemsPageInner() {
               className="rounded-lg px-2 py-2 text-xs outline-none cursor-pointer"
               style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)' }}
             >
-              <option value="priority">Maior prioridade</option>
-              <option value="score_asc">Score ↑</option>
-              <option value="score_desc">Score ↓</option>
-              <option value="recent">Mais recentes</option>
+              <option value="priority">{t('sort.priority')}</option>
+              <option value="score_asc">{t('sort.scoreAsc')}</option>
+              <option value="score_desc">{t('sort.scoreDesc')}</option>
+              <option value="recent">{t('sort.recent')}</option>
             </select>
           </div>
         </div>
@@ -224,36 +227,36 @@ function ItemsPageInner() {
         {/* Linha 2: chips de filtro */}
         <div className="flex flex-wrap items-center gap-2 text-xs">
           <FilterChip
-            label="Nível"
+            label={t('filter.level')}
             value={level}
             options={[
-              { value: '',              label: 'Todos' },
-              { value: 'basic',         label: 'Básico' },
-              { value: 'satisfactory',  label: 'Satisfatório' },
-              { value: 'professional',  label: 'Profissional' },
+              { value: '',              label: t('filter.all') },
+              { value: 'basic',         label: t('level.basic') },
+              { value: 'satisfactory',  label: t('level.satisfactory') },
+              { value: 'professional',  label: t('level.professional') },
             ]}
             onChange={v => updateFilter({ level: v || null })}
           />
           <FilterChip
-            label="Penalidade"
+            label={t('filter.penalty')}
             value={penalty}
             options={[
-              { value: '',      label: 'Todos' },
-              { value: 'true',  label: 'Com penalidade' },
-              { value: 'false', label: 'Sem penalidade' },
+              { value: '',      label: t('filter.all') },
+              { value: 'true',  label: t('filter.withPenalty') },
+              { value: 'false', label: t('filter.withoutPenalty') },
             ]}
             onChange={v => updateFilter({ penalty: v || null })}
           />
 
           <FilterChip
-            label="Anúncio"
+            label={t('filter.listing')}
             value={catalog === 'true' ? 'catalog' : listingStatus}
             options={[
-              { value: '',         label: 'Todos' },
-              { value: 'active',   label: 'Ativos' },
-              { value: 'paused',   label: 'Pausados' },
-              { value: 'closed',   label: 'Fechados' },
-              { value: 'catalog',  label: 'Catálogo' },
+              { value: '',         label: t('filter.all') },
+              { value: 'active',   label: t('filter.active') },
+              { value: 'paused',   label: t('filter.paused') },
+              { value: 'closed',   label: t('filter.closed') },
+              { value: 'catalog',  label: t('filter.catalog') },
             ]}
             onChange={v => {
               if (v === 'catalog') {
@@ -291,7 +294,7 @@ function ItemsPageInner() {
               onClick={() => router.replace(pathname)}
               className="ml-auto text-zinc-500 hover:text-red-400 transition-colors"
             >
-              Limpar filtros
+              {t('clearFilters')}
             </button>
           )}
         </div>
@@ -317,11 +320,9 @@ function ItemsPageInner() {
       {!loading && items.length === 0 && (
         <div className="rounded-xl p-8 text-center" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
           <ShieldCheck size={48} className="mx-auto text-zinc-700 mb-3" />
-          <p className="text-zinc-300 font-medium">Nenhum anúncio encontrado</p>
+          <p className="text-zinc-300 font-medium">{t('empty.title')}</p>
           <p className="text-xs text-zinc-500 mt-2 max-w-md mx-auto">
-            {hasActiveFilters
-              ? 'Tenta ajustar os filtros, ou limpa todos pra ver tudo.'
-              : 'Roda um sync no dashboard pra puxar os anúncios.'}
+            {hasActiveFilters ? t('empty.descFiltered') : t('empty.descNoSync')}
           </p>
         </div>
       )}
@@ -337,7 +338,13 @@ function ItemsPageInner() {
       {total > LIMIT && (
         <div className="flex items-center justify-between text-xs text-zinc-400 pt-2">
           <span>
-            Página {currentPage} de {totalPages} · {offset + 1}–{Math.min(offset + LIMIT, total)} de {total.toLocaleString('pt-BR')}
+            {t('pagination', {
+              current: currentPage,
+              total: totalPages,
+              from: offset + 1,
+              to: Math.min(offset + LIMIT, total),
+              count: total,
+            })}
           </span>
           <div className="flex items-center gap-2">
             <button
@@ -346,7 +353,7 @@ function ItemsPageInner() {
               className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg disabled:opacity-30"
               style={{ background: '#0c0c10', border: '1px solid #1a1a1f', color: '#a1a1aa' }}
             >
-              <ChevronLeft size={12} /> Anterior
+              <ChevronLeft size={12} /> {t('previous')}
             </button>
             <button
               onClick={() => updateFilter({ offset: String(offset + LIMIT) })}
@@ -354,7 +361,7 @@ function ItemsPageInner() {
               className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg disabled:opacity-30"
               style={{ background: '#0c0c10', border: '1px solid #1a1a1f', color: '#a1a1aa' }}
             >
-              Próxima <ChevronRight size={12} />
+              {t('next')} <ChevronRight size={12} />
             </button>
           </div>
         </div>
@@ -368,6 +375,7 @@ function ItemsPageInner() {
 // ────────────────────────────────────────────────────────────────────────
 
 function ItemRow({ item }: { item: QualityItem }) {
+  const t = useTranslations('mlQuality.items')
   const { domainName, attributeName } = useMlLabels()
   const score      = item.ml_score ?? 0
   const color      = scoreColor(score)
@@ -400,12 +408,12 @@ function ItemRow({ item }: { item: QualityItem }) {
                 className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wider font-semibold"
                 style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}
               >
-                <AlertOctagon size={9} /> Penalizado
+                <AlertOctagon size={9} /> {t('penalizedBadge')}
               </span>
             )}
             {item.estimated_score_after_fix != null && item.estimated_score_after_fix > score && (
               <span className="text-[10px] text-cyan-400">
-                +{item.estimated_score_after_fix - score} pts potenciais
+                {t('potentialPoints', { pts: item.estimated_score_after_fix - score })}
               </span>
             )}
           </div>
@@ -416,15 +424,15 @@ function ItemRow({ item }: { item: QualityItem }) {
             )}
             {missingTot > 0 && (
               <span>
-                <strong className="text-zinc-300">{missingTot}</strong> atributos faltando
+                <strong className="text-zinc-300">{missingTot}</strong> {t('missingAttributes')}
               </span>
             )}
             {item.pending_count > 0 && (
               <span>
-                <strong className="text-amber-400">{item.pending_count}</strong> ações
+                <strong className="text-amber-400">{item.pending_count}</strong> {t('actions')}
               </span>
             )}
-            <span>seller {item.seller_id}</span>
+            <span>{t('seller', { id: item.seller_id })}</span>
           </div>
 
           {/* Missing attrs preview */}
@@ -491,9 +499,10 @@ function ScoreRangeFilter({ min, max, onChange }: {
   min: string; max: string;
   onChange: (min: string, max: string) => void
 }) {
+  const t = useTranslations('mlQuality.items')
   return (
     <div className="flex items-center gap-1.5">
-      <span className="text-zinc-500 text-[10px] uppercase tracking-wider">Score:</span>
+      <span className="text-zinc-500 text-[10px] uppercase tracking-wider">{t('filter.score')}:</span>
       <input
         type="number" min="0" max="100" placeholder="0"
         value={min}
@@ -514,20 +523,21 @@ function ScoreRangeFilter({ min, max, onChange }: {
 }
 
 function LevelBadge({ level }: { level: 'basic' | 'satisfactory' | 'professional' | null }) {
+  const t = useTranslations('mlQuality.items')
   if (!level) return null
-  const map = {
-    basic:        { label: 'Básico',       color: '#ef4444' },
-    satisfactory: { label: 'Satisfatório', color: '#fbbf24' },
-    professional: { label: 'Profissional', color: '#22c55e' },
+  const colorMap = {
+    basic:        '#ef4444',
+    satisfactory: '#fbbf24',
+    professional: '#22c55e',
   } as const
-  const m = map[level]
+  const color = colorMap[level]
   return (
     <span
       className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wider font-semibold"
-      style={{ background: `${m.color}15`, color: m.color, border: `1px solid ${m.color}40` }}
+      style={{ background: `${color}15`, color, border: `1px solid ${color}40` }}
     >
       {level === 'professional' ? <ShieldCheck size={9} /> : <ShieldAlert size={9} />}
-      {m.label}
+      {t(`level.${level}`)}
     </span>
   )
 }

@@ -14,6 +14,7 @@
  */
 
 import { useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { ChevronDown, ChevronUp, Plus, X } from 'lucide-react'
 import type { ReferenceMatchConfig as Config } from '@/components/creative/types'
 
@@ -28,6 +29,7 @@ export default function ReferenceMatchConfig({
   hasFixedRefs:  boolean
   disabled?:     boolean
 }) {
+  const t = useTranslations('creative.templates')
   const [expanded, setExpanded] = useState(false)
   const [tagInput, setTagInput] = useState('')
 
@@ -69,10 +71,10 @@ export default function ReferenceMatchConfig({
         className="w-full flex items-center justify-between gap-2 px-3 py-2 bg-zinc-900/60 hover:bg-zinc-900 transition-colors"
       >
         <span className="text-xs font-medium text-zinc-300">
-          Match dinâmico de refs
+          {t('matchDynamicRefs')}
           {enabledCount > 0 && (
             <span className="ml-2 px-1.5 py-0.5 rounded text-[9px] bg-cyan-400/15 text-cyan-300 border border-cyan-400/30">
-              {enabledCount} regra{enabledCount !== 1 ? 's' : ''}
+              {t('rulesCount', { count: enabledCount })}
             </span>
           )}
         </span>
@@ -83,7 +85,7 @@ export default function ReferenceMatchConfig({
         <div className="px-3 py-3 space-y-3 bg-zinc-950/40">
           {hasFixedRefs && (
             <p className="text-[10px] text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-md px-2 py-1.5">
-              Refs fixas têm prioridade. Match dinâmico preenche slots restantes até <code className="font-mono">limit</code>.
+              {t('fixedRefsPriority')}<code className="font-mono">limit</code>.
             </p>
           )}
 
@@ -96,8 +98,8 @@ export default function ReferenceMatchConfig({
               className="accent-cyan-400"
             />
             <span className="text-xs text-zinc-300">
-              Por categoria do produto
-              <span className="block text-[10px] text-zinc-500">filtra refs cujo <code className="font-mono">category_ml_ids</code> cobre a categoria do produto vinculado</span>
+              {t('byCategory')}
+              <span className="block text-[10px] text-zinc-500">{t('byCategoryHint')}</span>
             </span>
           </label>
 
@@ -110,13 +112,13 @@ export default function ReferenceMatchConfig({
               className="accent-cyan-400"
             />
             <span className="text-xs text-zinc-300">
-              Por position default
-              <span className="block text-[10px] text-zinc-500">refs marcadas como default desta position no cadastro</span>
+              {t('byPositionDefault')}
+              <span className="block text-[10px] text-zinc-500">{t('byPositionDefaultHint')}</span>
             </span>
           </label>
 
           <div>
-            <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1">Por tags</label>
+            <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1">{t('byTags')}</label>
             <div className="flex flex-wrap gap-1.5 mb-1.5">
               {(cur.by_tags ?? []).map(t => (
                 <span key={t} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] bg-cyan-400/10 text-cyan-200 border border-cyan-400/30">
@@ -134,7 +136,7 @@ export default function ReferenceMatchConfig({
                 onChange={e => setTagInput(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTag() } }}
                 disabled={disabled}
-                placeholder="ex: minimalista, premium..."
+                placeholder={t('byTagsPlaceholder')}
                 className="flex-1 bg-zinc-950 border border-zinc-800 rounded-md px-2 py-1 text-xs text-zinc-200 outline-none focus:border-cyan-400 placeholder:text-zinc-600"
               />
               <button
@@ -149,7 +151,7 @@ export default function ReferenceMatchConfig({
           </div>
 
           <div>
-            <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1">Limit (1-6, default 3)</label>
+            <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1">{t('limit')}</label>
             <input
               type="number"
               min={1}

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import { createBrowserClient } from '@supabase/ssr'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
@@ -33,20 +34,15 @@ function txnCount(val: number | { total?: number; paid?: number } | undefined | 
   return 0
 }
 
-type LevelInfo = { label: string; color: string; bgCard: string; borderCard: string; barColor: string; rank: number }
+type LevelInfo = { color: string; bgCard: string; borderCard: string; barColor: string; rank: number }
 
+// Estilo do card por level_id — o rótulo "Verde/Amarelo/…" é derivado em runtime.
 const LEVEL_MAP: Record<string, LevelInfo> = {
-  '5_green':       { label: 'Platinum', color: 'text-cyan-300',   bgCard: 'bg-cyan-900/20',   borderCard: 'border-cyan-500/30',   barColor: '#22d3ee', rank: 5 },
-  '4_light_green': { label: 'Ouro',     color: 'text-yellow-300', bgCard: 'bg-yellow-900/20', borderCard: 'border-yellow-500/30', barColor: '#facc15', rank: 4 },
-  '3_yellow':      { label: 'Prata',    color: 'text-zinc-300',   bgCard: 'bg-zinc-700/20',   borderCard: 'border-zinc-500/30',   barColor: '#a1a1aa', rank: 3 },
-  '2_orange':      { label: 'Bronze',   color: 'text-orange-300', bgCard: 'bg-orange-900/20', borderCard: 'border-orange-500/30', barColor: '#fb923c', rank: 2 },
-  '1_red':         { label: 'Basico',   color: 'text-red-300',    bgCard: 'bg-red-900/20',    borderCard: 'border-red-500/30',    barColor: '#f87171', rank: 1 },
-}
-
-const POWER_LABEL: Record<string, string> = {
-  platinum: 'MercadoLider Platinum',
-  gold:     'MercadoLider Gold',
-  silver:   'MercadoLider Silver',
+  '5_green':       { color: 'text-cyan-300',   bgCard: 'bg-cyan-900/20',   borderCard: 'border-cyan-500/30',   barColor: '#22d3ee', rank: 5 },
+  '4_light_green': { color: 'text-yellow-300', bgCard: 'bg-yellow-900/20', borderCard: 'border-yellow-500/30', barColor: '#facc15', rank: 4 },
+  '3_yellow':      { color: 'text-zinc-300',   bgCard: 'bg-zinc-700/20',   borderCard: 'border-zinc-500/30',   barColor: '#a1a1aa', rank: 3 },
+  '2_orange':      { color: 'text-orange-300', bgCard: 'bg-orange-900/20', borderCard: 'border-orange-500/30', barColor: '#fb923c', rank: 2 },
+  '1_red':         { color: 'text-red-300',    bgCard: 'bg-red-900/20',    borderCard: 'border-red-500/30',    barColor: '#f87171', rank: 1 },
 }
 
 function fmtPct(rate: number) { return (rate * 100).toFixed(2) + '%' }
@@ -57,26 +53,20 @@ function getMetricColor(value: number, warn: number, limit: number): '#22c55e' |
   return '#22c55e'
 }
 
-function metricMeta(value: number, warn: number, limit: number) {
+type MetricSeverity = 'critical' | 'warning' | 'good'
+
+/** Devolve cores + chave de severidade; o texto do badge/hint é traduzido no componente. */
+function metricMeta(value: number, warn: number, limit: number): {
+  color: string; badgeBg: string; badgeText: string; severity: MetricSeverity
+} {
   const color = getMetricColor(value, warn, limit)
-  if (color === '#ef4444') return {
-    color,
-    badgeBg: '#2d0a0a', badgeText: '#f87171', badge: 'Critico',
-    hint: 'Acima do limite! Impacta sua reputacao',
-  }
-  if (color === '#f97316') return {
-    color,
-    badgeBg: '#2d1400', badgeText: '#fb923c', badge: 'Atencao',
-    hint: `Proximo de ${(limit * 100).toFixed(1)}% permitido. Atencao!`,
-  }
-  return {
-    color,
-    badgeBg: '#0d1f17', badgeText: '#4ade80', badge: 'Otimo',
-    hint: `Muito bem! Abaixo de ${(limit * 100).toFixed(1)}% permitido`,
-  }
+  if (color === '#ef4444') return { color, badgeBg: '#2d0a0a', badgeText: '#f87171', severity: 'critical' }
+  if (color === '#f97316') return { color, badgeBg: '#2d1400', badgeText: '#fb923c', severity: 'warning' }
+  return { color, badgeBg: '#0d1f17', badgeText: '#4ade80', severity: 'good' }
 }
 
 export default function Page() {
+  const t = useTranslations('reputacao')
   const [rep,     setRep]     = useState<Reputation | null>(null)
   const [loading, setLoading] = useState(true)
   const [error,   setError]   = useState<string | null>(null)
@@ -92,7 +82,7 @@ export default function Page() {
     try {
       const { data: { session } } = await supabase.auth.getSession()
       const token = session?.access_token
-      if (!token) { setError('Nao autenticado'); setLoading(false); return }
+      if (!token) { setError(t('notAuthenticated')); setLoading(false); return }
 
       const headers = { Authorization: `Bearer ${token}` }
 
@@ -127,34 +117,34 @@ export default function Page() {
       console.log('MERGED metrics:', JSON.stringify(merged.metrics))
 
       if (!merged.level_id && !merged.transactions) {
-        setError('Nao foi possivel carregar dados de reputacao')
+        setError(t('couldNotLoad'))
         return
       }
 
       setRep(merged)
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Erro desconhecido')
+      setError(e instanceof Error ? e.message : t('unknownError'))
     } finally {
       setLoading(false)
     }
-  }, [supabase])
+  }, [supabase, t])
 
   useEffect(() => { load() }, [load])
 
   if (loading) return (
     <div className="p-8 flex items-center gap-3 text-zinc-400">
       <div className="w-5 h-5 border-2 border-zinc-600 border-t-blue-400 rounded-full animate-spin" />
-      Carregando reputacao...
+      {t('loading')}
     </div>
   )
 
   if (error) return (
     <div className="p-8">
       <div className="bg-red-900/20 border border-red-500/30 rounded-xl p-6">
-        <p className="text-red-400 font-semibold">Erro ao carregar reputacao</p>
+        <p className="text-red-400 font-semibold">{t('errorTitle')}</p>
         <p className="text-red-400/70 text-sm mt-1">{error}</p>
         <button onClick={load} className="mt-3 text-sm bg-red-900/40 hover:bg-red-900/60 text-red-300 px-4 py-2 rounded-lg transition-colors">
-          Tentar novamente
+          {t('tryAgain')}
         </button>
       </div>
     </div>
@@ -180,17 +170,17 @@ export default function Page() {
   const cancPct   = total > 0 ? ((cancTotal / total) * 100).toFixed(1) : '0'
 
   const levelId = rep.level_id ?? null
-  const level   = (levelId ? LEVEL_MAP[levelId] : null) ?? { label: 'Sem reputacao', color: 'text-zinc-400', bgCard: 'bg-zinc-800', borderCard: 'border-zinc-700', barColor: '#71717a', rank: 0 }
+  const level   = (levelId ? LEVEL_MAP[levelId] : null) ?? { color: 'text-zinc-400', bgCard: 'bg-zinc-800', borderCard: 'border-zinc-700', barColor: '#71717a', rank: 0 }
   const ps      = rep.power_seller_status ?? null
 
   const nivelTitulo =
-    ps === 'platinum'    ? 'MercadoLider Platinum' :
-    ps === 'gold'        ? 'MercadoLider Gold'     :
-    ps === 'normal'      ? 'MercadoLider'          :
-    levelId === '5_green' || levelId === '4_light_green' ? 'Verde' :
-    levelId === '3_yellow' ? 'Amarelo'   :
-    levelId === '2_orange' ? 'Laranja'   :
-    levelId === '1_red'    ? 'Vermelho'  : 'Sem reputacao'
+    ps === 'platinum'    ? t('mlPlatinum') :
+    ps === 'gold'        ? t('mlGold')     :
+    ps === 'normal'      ? t('mlNormal')   :
+    levelId === '5_green' || levelId === '4_light_green' ? t('levelGreen') :
+    levelId === '3_yellow' ? t('levelYellow') :
+    levelId === '2_orange' ? t('levelOrange') :
+    levelId === '1_red'    ? t('levelRed')    : t('noReputation')
 
   const nivelCor =
     ps === 'platinum' ? '#00E5FF' :
@@ -209,25 +199,25 @@ export default function Page() {
   const med = metrics.mediations ?? metrics.mediation
   // warn = threshold to turn orange | limit = ML Gold limit (turns red above)
   const qualMetrics = [
-    { label: 'Reclamacoes',        rate: metrics.claims?.excluded?.real_rate                ?? 0, value: metrics.claims?.excluded?.real_value                ?? 0, warn: 0.007,  limit: 0.01  },
-    { label: 'Mediacoes',          rate: med?.excluded?.real_rate                           ?? 0, value: med?.excluded?.real_value                           ?? 0, warn: 0.0035, limit: 0.005 },
-    { label: 'Cancelamentos',      rate: metrics.cancellations?.excluded?.real_rate         ?? 0, value: metrics.cancellations?.excluded?.real_value         ?? 0, warn: 0.01,   limit: 0.015 },
-    { label: 'Atraso no despacho', rate: metrics.delayed_handling_time?.excluded?.real_rate ?? 0, value: metrics.delayed_handling_time?.excluded?.real_value ?? 0, warn: 0.07,   limit: 0.10  },
-  ]
+    { key: 'claims',        rate: metrics.claims?.excluded?.real_rate                ?? 0, value: metrics.claims?.excluded?.real_value                ?? 0, warn: 0.007,  limit: 0.01  },
+    { key: 'mediations',    rate: med?.excluded?.real_rate                           ?? 0, value: med?.excluded?.real_value                           ?? 0, warn: 0.0035, limit: 0.005 },
+    { key: 'cancellations', rate: metrics.cancellations?.excluded?.real_rate         ?? 0, value: metrics.cancellations?.excluded?.real_value         ?? 0, warn: 0.01,   limit: 0.015 },
+    { key: 'delayedHandling', rate: metrics.delayed_handling_time?.excluded?.real_rate ?? 0, value: metrics.delayed_handling_time?.excluded?.real_value ?? 0, warn: 0.07,   limit: 0.10  },
+  ] as const
 
   return (
     <div className="p-8 space-y-6 max-w-5xl">
       <div className="flex items-center justify-between">
-        <h1 className="text-white text-2xl font-semibold">Reputacao</h1>
+        <h1 className="text-white text-2xl font-semibold">{t('title')}</h1>
         <button onClick={load} className="text-xs text-zinc-400 hover:text-white bg-zinc-800 hover:bg-zinc-700 px-3 py-1.5 rounded-lg transition-colors">
-          Atualizar
+          {t('refresh')}
         </button>
       </div>
 
       {/* ── Level hero ─────────────────────────────────────────── */}
       <div className={`rounded-2xl border p-6 ${level.bgCard} ${level.borderCard}`}>
         <div>
-          <p className="text-zinc-400 text-sm mb-1">Nivel de Reputacao</p>
+          <p className="text-zinc-400 text-sm mb-1">{t('reputationLevel')}</p>
           <p className="text-4xl font-bold" style={{ color: nivelCor }}>{nivelTitulo}</p>
         </div>
 
@@ -249,7 +239,7 @@ export default function Page() {
           </div>
           {ps && (
             <p className="text-zinc-500 text-xs mt-2">
-              Voce aparece em {nivelTitulo} para os compradores
+              {t('appearAs', { level: nivelTitulo })}
             </p>
           )}
         </div>
@@ -258,12 +248,12 @@ export default function Page() {
       {/* ── All-time stats ─────────────────────────────────────── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: 'Total de vendas',    value: total.toLocaleString('pt-BR'),    sub: 'historico completo' },
-          { label: 'Concluidas',         value: compTotal.toLocaleString('pt-BR'), sub: `${concPct}% de conclusao` },
-          { label: 'Canceladas',         value: cancTotal.toLocaleString('pt-BR'), sub: `${cancPct}% do total` },
-          { label: 'Avaliacao positiva', value: `${posPct}%`,                     sub: `${posCount.toLocaleString('pt-BR')} positivas` },
+          { key: 'totalSales',   label: t('statTotalSales'),    value: total.toLocaleString('pt-BR'),     sub: t('statTotalSalesSub') },
+          { key: 'completed',    label: t('statCompleted'),     value: compTotal.toLocaleString('pt-BR'), sub: t('statCompletedSub', { pct: concPct }) },
+          { key: 'canceled',     label: t('statCanceled'),      value: cancTotal.toLocaleString('pt-BR'), sub: t('statCanceledSub', { pct: cancPct }) },
+          { key: 'positive',     label: t('statPositive'),      value: `${posPct}%`,                      sub: t('statPositiveSub', { count: posCount.toLocaleString('pt-BR') }) },
         ].map(s => (
-          <div key={s.label} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+          <div key={s.key} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
             <p className="text-zinc-500 text-xs mb-1">{s.label}</p>
             <p className="text-white text-2xl font-bold">{s.value}</p>
             <p className="text-zinc-500 text-xs mt-1">{s.sub}</p>
@@ -273,14 +263,14 @@ export default function Page() {
 
       {/* ── Last 60 days ───────────────────────────────────────── */}
       <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
-        <h3 className="text-white font-semibold mb-5">Ultimos 60 Dias</h3>
+        <h3 className="text-white font-semibold mb-5">{t('last60Days')}</h3>
         <div className="grid grid-cols-3 divide-x divide-zinc-800 text-center">
           {[
-            { label: 'Vendas no periodo',     value: period.total ?? 0 },
-            { label: 'Com frete pago',        value: period.paid  ?? 0 },
-            { label: 'Concluidas (metricas)', value: metrics.sales?.completed ?? 0 },
+            { key: 'periodSales',   label: t('periodSales'),       value: period.total ?? 0 },
+            { key: 'paidShipping',  label: t('paidShipping'),      value: period.paid  ?? 0 },
+            { key: 'completedMet',  label: t('completedMetrics'),  value: metrics.sales?.completed ?? 0 },
           ].map(s => (
-            <div key={s.label} className="px-4 py-2">
+            <div key={s.key} className="px-4 py-2">
               <p className="text-white text-3xl font-bold">{s.value.toLocaleString('pt-BR')}</p>
               <p className="text-zinc-500 text-xs mt-1">{s.label}</p>
             </div>
@@ -290,22 +280,28 @@ export default function Page() {
 
       {/* ── Quality metrics ────────────────────────────────────── */}
       <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
-        <h3 className="text-white font-semibold mb-1">Metricas de Qualidade</h3>
-        <p className="text-zinc-500 text-xs mb-5">Calculadas sobre os ultimos 60 dias</p>
+        <h3 className="text-white font-semibold mb-1">{t('qualityMetrics')}</h3>
+        <p className="text-zinc-500 text-xs mb-5">{t('qualityMetricsSub')}</p>
         <div className="space-y-6">
-          {qualMetrics.map(({ label, rate, value, warn, limit }) => {
+          {qualMetrics.map(({ key, rate, value, warn, limit }) => {
             const meta = metricMeta(rate, warn, limit)
             const barW = limit > 0 ? Math.min((rate / limit) * 100, 100) : 0
+            const limitPct = (limit * 100).toFixed(1)
+            const hint = meta.severity === 'critical'
+              ? t('hintCritical')
+              : meta.severity === 'warning'
+                ? t('hintWarning', { limit: limitPct })
+                : t('hintGood', { limit: limitPct })
             return (
-              <div key={label}>
+              <div key={key}>
                 <div className="flex items-center justify-between mb-1.5 flex-wrap gap-2">
-                  <span className="text-zinc-300 text-sm font-medium">{label}</span>
+                  <span className="text-zinc-300 text-sm font-medium">{t(`metrics.${key}`)}</span>
                   <div className="flex items-center gap-2">
-                    <span className="text-zinc-500 text-xs">{value} ocorrencias</span>
+                    <span className="text-zinc-500 text-xs">{t('occurrences', { count: value })}</span>
                     <span className="text-sm font-bold" style={{ color: meta.color }}>{fmtPct(rate)}</span>
                     <span className="text-xs px-2 py-0.5 rounded-full font-semibold"
                       style={{ background: meta.badgeBg, color: meta.badgeText }}>
-                      {meta.badge}
+                      {t(`badge.${meta.severity}`)}
                     </span>
                   </div>
                 </div>
@@ -315,9 +311,9 @@ export default function Page() {
                 </div>
                 <div className="flex items-center justify-between mt-1">
                   <p className="text-xs" style={{ color: meta.color === '#22c55e' ? '#166534' : meta.color === '#f97316' ? '#7c2d12' : '#7f1d1d', opacity: 0.9 }}>
-                    {meta.hint}
+                    {hint}
                   </p>
-                  <p className="text-zinc-600 text-xs">limite {(limit * 100).toFixed(1)}%</p>
+                  <p className="text-zinc-600 text-xs">{t('limitLabel', { limit: limitPct })}</p>
                 </div>
               </div>
             )
@@ -327,16 +323,16 @@ export default function Page() {
 
       {/* ── Buyer ratings ──────────────────────────────────────── */}
       <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
-        <h3 className="text-white font-semibold mb-5">Avaliacoes dos Compradores</h3>
+        <h3 className="text-white font-semibold mb-5">{t('buyerRatings')}</h3>
         <div className="space-y-3">
           {[
-            { label: 'Positivas', value: posCount,  barCls: 'bg-emerald-500', txtCls: 'text-emerald-400' },
-            { label: 'Neutras',   value: neutCount,  barCls: 'bg-yellow-500',  txtCls: 'text-yellow-400'  },
-            { label: 'Negativas', value: negCount, barCls: 'bg-red-500',     txtCls: 'text-red-400'    },
+            { key: 'positive', label: t('ratingPositive'), value: posCount,  barCls: 'bg-emerald-500', txtCls: 'text-emerald-400' },
+            { key: 'neutral',  label: t('ratingNeutral'),  value: neutCount, barCls: 'bg-yellow-500',  txtCls: 'text-yellow-400'  },
+            { key: 'negative', label: t('ratingNegative'), value: negCount,  barCls: 'bg-red-500',     txtCls: 'text-red-400'    },
           ].map(r => {
             const w = totalRat > 0 ? (r.value / totalRat) * 100 : 0
             return (
-              <div key={r.label} className="flex items-center gap-3">
+              <div key={r.key} className="flex items-center gap-3">
                 <span className="text-zinc-400 text-sm w-20 shrink-0">{r.label}</span>
                 <div className="flex-1 h-2 bg-zinc-800 rounded-full overflow-hidden">
                   <div className={`h-full rounded-full ${r.barCls}`} style={{ width: `${w}%` }} />
@@ -347,7 +343,7 @@ export default function Page() {
               </div>
             )
           })}
-          <p className="text-zinc-600 text-xs mt-1">{totalRat.toLocaleString('pt-BR')} avaliacoes no total</p>
+          <p className="text-zinc-600 text-xs mt-1">{t('totalRatings', { count: totalRat.toLocaleString('pt-BR') })}</p>
         </div>
       </div>
     </div>

@@ -14,6 +14,7 @@
  */
 
 import { useEffect, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { CreativeApi } from '@/components/creative/api'
 import { VARIABLE_EXAMPLES } from './constants'
 
@@ -26,6 +27,7 @@ export default function VariablesChips({
   onInsert: (varToken: string) => void
   disabled?: boolean
 }) {
+  const t = useTranslations('creative.templates')
   const [vars, setVars] = useState<readonly string[]>(FALLBACK_VARS)
 
   useEffect(() => {
@@ -44,7 +46,7 @@ export default function VariablesChips({
           type="button"
           disabled={disabled}
           onClick={() => onInsert(`{${v}}`)}
-          title={VARIABLE_EXAMPLES[v] ? `ex: "${VARIABLE_EXAMPLES[v]}"` : v}
+          title={VARIABLE_EXAMPLES[v] ? t('varExampleTooltip', { example: VARIABLE_EXAMPLES[v] }) : v}
           className="px-2 py-0.5 rounded-md text-[10px] font-mono bg-zinc-800 text-cyan-300 hover:bg-cyan-400/15 hover:text-cyan-200 transition-colors border border-zinc-700 hover:border-cyan-400/40 disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {`{${v}}`}

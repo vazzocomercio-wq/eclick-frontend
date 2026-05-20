@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import {
   Activity, AlertOctagon, TrendingUp, RefreshCw, Loader2, ChevronRight,
@@ -36,17 +37,20 @@ async function getToken(): Promise<string | null> {
   return data.session?.access_token ?? null
 }
 
-function ago(iso: string | null): string {
-  if (!iso) return 'nunca'
+type AgoT = (key: string, values?: Record<string, string | number>) => string
+
+function ago(iso: string | null, t: AgoT): string {
+  if (!iso) return t('ago.never')
   const min = Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
-  if (min < 1) return 'agora'
-  if (min < 60) return `${min}min atrás`
+  if (min < 1) return t('ago.now')
+  if (min < 60) return t('ago.minutes', { n: min })
   const h = Math.floor(min / 60)
-  if (h < 24) return `${h}h atrás`
-  return `${Math.floor(h / 24)}d atrás`
+  if (h < 24) return t('ago.hours', { n: h })
+  return t('ago.days', { n: Math.floor(h / 24) })
 }
 
 export default function MlQualityDashboardPage() {
+  const t = useTranslations('mlQuality')
   const { selected: selectedSellerId } = useMlAccount()
   const { domainName, attributeName, refresh: refreshLabels } = useMlLabels()
   const [data, setData]       = useState<Dashboard | null>(null)
@@ -100,13 +104,13 @@ export default function MlQualityDashboardPage() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <p className="text-zinc-500 text-xs uppercase tracking-widest">Mercado Livre · Quality Center IA</p>
+          <p className="text-zinc-500 text-xs uppercase tracking-widest">{t('eyebrow')}</p>
           <h1 className="text-2xl font-bold mt-1 flex items-center gap-2">
             <ShieldCheck size={22} className="text-cyan-400" />
-            Diagnóstico de Anúncios
+            {t('title')}
           </h1>
           {data?.last_sync_at && (
-            <p className="text-[11px] text-zinc-500 mt-1">Última sync: {ago(data.last_sync_at)}</p>
+            <p className="text-[11px] text-zinc-500 mt-1">{t('lastSync', { time: ago(data.last_sync_at, t) })}</p>
           )}
         </div>
         <div className="flex items-center gap-2">
@@ -114,7 +118,7 @@ export default function MlQualityDashboardPage() {
           <button onClick={syncNow} disabled={syncing}
             className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-cyan-400 hover:bg-cyan-300 disabled:opacity-50 text-black text-xs font-semibold">
             {syncing ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-            {syncing ? 'Sincronizando…' : 'Sincronizar agora'}
+            {syncing ? t('syncing') : t('syncNow')}
           </button>
         </div>
       </div>
@@ -136,10 +140,9 @@ export default function MlQualityDashboardPage() {
       {data && data.total_items === 0 && !loading && (
         <div className="rounded-xl p-8 text-center" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
           <ShieldQuestion size={48} className="mx-auto text-zinc-700 mb-3" />
-          <p className="text-zinc-300 font-medium">Nenhum anúncio sincronizado ainda</p>
+          <p className="text-zinc-300 font-medium">{t('empty.title')}</p>
           <p className="text-xs text-zinc-500 mt-2 max-w-md mx-auto">
-            Clica em <strong className="text-cyan-400">Sincronizar agora</strong> pra puxar diagnóstico de qualidade
-            de todos os anúncios da{selectedSellerId ? ' conta selecionada' : 's contas conectadas'}.
+            {selectedSellerId ? t('empty.descSelected') : t('empty.descAll')}
           </p>
         </div>
       )}
@@ -149,28 +152,28 @@ export default function MlQualityDashboardPage() {
           {/* KPIs principais */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <KpiCard
-              label="Score médio"
+              label={t('kpi.avgScore')}
               value={data.avg_score != null ? `${Math.round(data.avg_score)}` : '—'}
               suffix="/100"
               color={scoreColor(data.avg_score ?? 0)}
               icon={<Activity size={14} />}
             />
             <KpiCard
-              label="Anúncios completos"
+              label={t('kpi.completeListings')}
               value={`${data.items_complete}`}
               suffix={` / ${data.total_items}`}
               color="#22c55e"
               icon={<ShieldCheck size={14} />}
             />
             <KpiCard
-              label="Quick wins (90-99)"
+              label={t('kpi.quickWins')}
               value={`${data.quick_wins_count}`}
               suffix={data.quick_wins_estimated_gain > 0 ? ` · +${data.quick_wins_estimated_gain}pts` : ''}
               color="#00E5FF"
               icon={<TrendingUp size={14} />}
             />
             <KpiCard
-              label="Com penalização"
+              label={t('kpi.withPenalty')}
               value={`${data.items_with_penalty}`}
               suffix=""
               color={data.items_with_penalty > 0 ? '#ef4444' : '#52525b'}
@@ -182,7 +185,7 @@ export default function MlQualityDashboardPage() {
           {/* Distribuição por nível */}
           <div className="rounded-xl p-5 space-y-3" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
             <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
-              Distribuição por nível
+              {t('levelDistribution')}
             </h2>
             <LevelBar
               total={data.total_items}
@@ -196,10 +199,10 @@ export default function MlQualityDashboardPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div className="rounded-xl p-5" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
               <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-3">
-                Categorias mais críticas
+                {t('criticalCategories')}
               </h2>
               {data.top_critical_domains.length === 0 ? (
-                <p className="text-xs text-zinc-500">Nada crítico — todas categorias bem.</p>
+                <p className="text-xs text-zinc-500">{t('noCritical')}</p>
               ) : (
                 <div className="space-y-2">
                   {data.top_critical_domains.slice(0, 8).map(d => (
@@ -212,7 +215,7 @@ export default function MlQualityDashboardPage() {
                       <div className="min-w-0 flex-1">
                         <p className="text-zinc-200 truncate">{domainName(d.domain_id)}</p>
                         <p className="text-[10px] text-zinc-500 mt-0.5">
-                          {d.items_incomplete} anúncios · score médio {d.avg_score}
+                          {t('domainStats', { count: d.items_incomplete, score: d.avg_score })}
                         </p>
                       </div>
                       <ChevronRight size={14} className="text-zinc-600 ml-2" />
@@ -224,10 +227,10 @@ export default function MlQualityDashboardPage() {
 
             <div className="rounded-xl p-5" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
               <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-3">
-                Atributos mais ausentes
+                {t('missingAttributes')}
               </h2>
               {data.top_missing_attributes.length === 0 ? (
-                <p className="text-xs text-zinc-500">Nenhum atributo faltando.</p>
+                <p className="text-xs text-zinc-500">{t('noMissingAttributes')}</p>
               ) : (
                 <div className="space-y-1.5">
                   {data.top_missing_attributes.slice(0, 10).map(a => (
@@ -247,22 +250,22 @@ export default function MlQualityDashboardPage() {
             <Link href="/dashboard/ml-quality/items"
               className="rounded-lg px-3 py-2.5 text-xs font-medium hover:border-cyan-400/40 transition-colors"
               style={{ background: '#0c0c10', border: '1px solid #1a1a1f', color: '#a1a1aa' }}>
-              Todos os anúncios →
+              {t('shortcuts.allListings')}
             </Link>
             <Link href="/dashboard/ml-quality/quick-wins"
               className="rounded-lg px-3 py-2.5 text-xs font-medium hover:border-cyan-400/40 transition-colors"
               style={{ background: '#0c0c10', border: '1px solid #1a1a1f', color: '#a1a1aa' }}>
-              Quick wins →
+              {t('shortcuts.quickWins')}
             </Link>
             <Link href="/dashboard/ml-quality/penalties"
               className="rounded-lg px-3 py-2.5 text-xs font-medium hover:border-cyan-400/40 transition-colors"
               style={{ background: '#0c0c10', border: '1px solid #1a1a1f', color: '#a1a1aa' }}>
-              Penalizados →
+              {t('shortcuts.penalized')}
             </Link>
             <Link href="/dashboard/ml-quality/items?level=basic"
               className="rounded-lg px-3 py-2.5 text-xs font-medium hover:border-cyan-400/40 transition-colors"
               style={{ background: '#0c0c10', border: '1px solid #1a1a1f', color: '#a1a1aa' }}>
-              Nível básico →
+              {t('shortcuts.basicLevel')}
             </Link>
           </div>
         </>
@@ -293,18 +296,19 @@ function KpiCard({ label, value, suffix, color, icon, href }: {
 function LevelBar({ total, basic, satisfactory, professional }: {
   total: number; basic: number; satisfactory: number; professional: number;
 }) {
+  const t = useTranslations('mlQuality')
   const pct = (n: number) => total > 0 ? (n / total) * 100 : 0
   return (
     <>
       <div className="flex h-3 rounded-full overflow-hidden" style={{ background: '#1a1a1f' }}>
-        {basic > 0        && <div style={{ width: `${pct(basic)}%`,        background: '#ef4444' }} title={`Básico: ${basic}`} />}
-        {satisfactory > 0 && <div style={{ width: `${pct(satisfactory)}%`, background: '#fbbf24' }} title={`Satisfatório: ${satisfactory}`} />}
-        {professional > 0 && <div style={{ width: `${pct(professional)}%`, background: '#22c55e' }} title={`Profissional: ${professional}`} />}
+        {basic > 0        && <div style={{ width: `${pct(basic)}%`,        background: '#ef4444' }} title={`${t('level.basic')}: ${basic}`} />}
+        {satisfactory > 0 && <div style={{ width: `${pct(satisfactory)}%`, background: '#fbbf24' }} title={`${t('level.satisfactory')}: ${satisfactory}`} />}
+        {professional > 0 && <div style={{ width: `${pct(professional)}%`, background: '#22c55e' }} title={`${t('level.professional')}: ${professional}`} />}
       </div>
       <div className="flex items-center gap-4 text-xs flex-wrap">
-        <Legend color="#ef4444" label={`Básico (${basic})`}        />
-        <Legend color="#fbbf24" label={`Satisfatório (${satisfactory})`} />
-        <Legend color="#22c55e" label={`Profissional (${professional})`} />
+        <Legend color="#ef4444" label={`${t('level.basic')} (${basic})`}        />
+        <Legend color="#fbbf24" label={`${t('level.satisfactory')} (${satisfactory})`} />
+        <Legend color="#22c55e" label={`${t('level.professional')} (${professional})`} />
       </div>
     </>
   )

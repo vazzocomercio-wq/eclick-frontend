@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import {
   Zap, AlertCircle, AlertTriangle, TrendingUp, TrendingDown, Sparkles,
@@ -16,25 +17,13 @@ import {
   type AutomationStats,
 } from '@/components/store-automation/storeAutomationApi'
 
-const TRIGGER_LABEL: Record<AutomationTrigger, string> = {
-  low_stock:              'Estoque crítico',
-  high_stock:             'Estoque parado',
-  sales_drop:             'Queda de vendas',
-  sales_spike:            'Aumento de vendas',
-  low_conversion:         'Conversão baixa',
-  high_conversion:        'Conversão alta',
-  competitor_price_drop:  'Concorrente baixou',
-  competitor_out_of_stock:'Concorrente sem estoque',
-  low_score:              'Score baixo',
-  no_content:             'Sem conteúdo',
-  no_ads:                 'Sem ads',
-  ads_underperforming:    'Ads ROAS baixo',
-  abandoned_carts_spike:  'Carrinhos abandonados',
-  new_product_ready:      'Produto novo pronto',
-  seasonal_opportunity:   'Oportunidade sazonal',
-  margin_erosion:         'Erosão de margem',
-  review_needed:          'Revisar manualmente',
-}
+/** Ordem dos triggers no filtro — labels via `t('triggers.<key>')`. */
+const TRIGGER_KEYS: AutomationTrigger[] = [
+  'low_stock', 'high_stock', 'sales_drop', 'sales_spike', 'low_conversion',
+  'high_conversion', 'competitor_price_drop', 'competitor_out_of_stock', 'low_score',
+  'no_content', 'no_ads', 'ads_underperforming', 'abandoned_carts_spike',
+  'new_product_ready', 'seasonal_opportunity', 'margin_erosion', 'review_needed',
+]
 
 const SEVERITY_COLOR: Record<AutomationSeverity, string> = {
   critical:    '#ef4444',
@@ -44,15 +33,8 @@ const SEVERITY_COLOR: Record<AutomationSeverity, string> = {
   opportunity: '#22c55e',
 }
 
-const SEVERITY_LABEL: Record<AutomationSeverity, string> = {
-  critical:    'crítico',
-  high:        'alto',
-  medium:      'médio',
-  low:         'baixo',
-  opportunity: 'oportunidade',
-}
-
 export default function AutomationInboxPage() {
+  const t = useTranslations('automation')
   const [items, setItems]   = useState<StoreAutomationAction[] | null>(null)
   const [stats, setStats]   = useState<AutomationStats | null>(null)
   const [loading, setLoading] = useState(true)
@@ -87,7 +69,7 @@ export default function AutomationInboxPage() {
     setAnalyzing(true); setError(null)
     try {
       const r = await StoreAutomationApi.analyze()
-      alert(`Análise: ${r.created} novas ações, ${r.deduped} já existiam`)
+      alert(t('analyzeResult', { created: r.created, deduped: r.deduped }))
       await refresh()
     } catch (e) {
       setError((e as Error).message)
@@ -98,10 +80,10 @@ export default function AutomationInboxPage() {
 
   async function approveBatch() {
     if (batch.length === 0) return
-    if (!confirm(`Aprovar ${batch.length} ${batch.length > 1 ? 'ações' : 'ação'}?`)) return
+    if (!confirm(t('confirmApproveBatch', { count: batch.length }))) return
     try {
       const r = await StoreAutomationApi.approveBatch(batch)
-      alert(`${r.approved} aprovadas · ${r.failed} falharam`)
+      alert(t('approveBatchResult', { approved: r.approved, failed: r.failed }))
       setBatch([])
       await refresh()
     } catch (e) {
@@ -115,15 +97,15 @@ export default function AutomationInboxPage() {
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-zinc-100 flex items-center gap-2">
             <Zap size={20} className="text-cyan-400" />
-            Automação da Loja
+            {t('title')}
           </h1>
           <p className="text-xs text-zinc-500 mt-1">
-            Inbox de ações que a IA detectou. Revise e aprove — ou configure auto-execução pra triggers confiáveis.
+            {t('subtitle')}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Link href="/dashboard/automation/config" className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-zinc-800 hover:border-zinc-700 text-zinc-300 text-xs">
-            <Settings size={12} /> Configuração
+            <Settings size={12} /> {t('configuration')}
           </Link>
           <button
             onClick={analyze}
@@ -131,7 +113,7 @@ export default function AutomationInboxPage() {
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-cyan-400 hover:bg-cyan-300 disabled:opacity-50 text-black text-xs font-medium"
           >
             {analyzing ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
-            Analisar agora
+            {t('analyzeNow')}
           </button>
         </div>
       </div>
@@ -145,10 +127,10 @@ export default function AutomationInboxPage() {
       {/* Stats */}
       {stats && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <StatsCard label="Pendentes" value={stats.pending} icon={<Inbox size={14} className="text-amber-400" />} accent={stats.pending > 0 ? '#f59e0b' : undefined} />
-          <StatsCard label="Aprovadas" value={stats.approved} icon={<Check size={14} className="text-emerald-400" />} />
-          <StatsCard label="Executadas" value={stats.executed} icon={<Zap size={14} className="text-purple-400" />} />
-          <StatsCard label="Rejeitadas" value={stats.rejected} icon={<X size={14} className="text-zinc-500" />} />
+          <StatsCard label={t('statsPending')} value={stats.pending} icon={<Inbox size={14} className="text-amber-400" />} accent={stats.pending > 0 ? '#f59e0b' : undefined} />
+          <StatsCard label={t('statsApproved')} value={stats.approved} icon={<Check size={14} className="text-emerald-400" />} />
+          <StatsCard label={t('statsExecuted')} value={stats.executed} icon={<Zap size={14} className="text-purple-400" />} />
+          <StatsCard label={t('statsRejected')} value={stats.rejected} icon={<X size={14} className="text-zinc-500" />} />
         </div>
       )}
 
@@ -159,9 +141,9 @@ export default function AutomationInboxPage() {
           onChange={e => setFilterStatus(e.target.value as AutomationStatus | '')}
           className="bg-zinc-950 border border-zinc-800 rounded px-2 py-2 text-xs text-zinc-200 outline-none focus:border-cyan-400/60"
         >
-          <option value="">Todos status</option>
+          <option value="">{t('allStatuses')}</option>
           {(['pending','approved','executing','completed','auto_executed','rejected','expired','failed'] as const).map(s => (
-            <option key={s} value={s}>{s}</option>
+            <option key={s} value={s}>{t(`status.${s}`)}</option>
           ))}
         </select>
         <select
@@ -169,16 +151,16 @@ export default function AutomationInboxPage() {
           onChange={e => setFilterTrigger(e.target.value as AutomationTrigger | '')}
           className="bg-zinc-950 border border-zinc-800 rounded px-2 py-2 text-xs text-zinc-200 outline-none focus:border-cyan-400/60"
         >
-          <option value="">Todos triggers</option>
-          {(Object.keys(TRIGGER_LABEL) as AutomationTrigger[]).map(t => (
-            <option key={t} value={t}>{TRIGGER_LABEL[t]}</option>
+          <option value="">{t('allTriggers')}</option>
+          {TRIGGER_KEYS.map(tk => (
+            <option key={tk} value={tk}>{t(`triggers.${tk}`)}</option>
           ))}
         </select>
         <button
           onClick={refresh}
           disabled={loading}
           className="p-2 rounded border border-zinc-800 hover:border-zinc-700 text-zinc-400 disabled:opacity-50"
-          title="Atualizar"
+          title={t('refresh')}
         >
           <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
         </button>
@@ -187,22 +169,22 @@ export default function AutomationInboxPage() {
             onClick={approveBatch}
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-400 hover:bg-emerald-300 text-black text-xs font-medium"
           >
-            <Check size={12} /> Aprovar {batch.length}
+            <Check size={12} /> {t('approveCount', { count: batch.length })}
           </button>
         )}
       </div>
 
       {loading && (
         <div className="flex items-center gap-2 text-zinc-500 text-sm">
-          <Loader2 size={14} className="animate-spin" /> carregando…
+          <Loader2 size={14} className="animate-spin" /> {t('loading')}
         </div>
       )}
 
       {!loading && items?.length === 0 && (
         <div className="rounded-lg border border-emerald-400/30 bg-emerald-400/[0.05] p-8 text-center space-y-2">
           <Check size={28} className="mx-auto text-emerald-400 opacity-80" />
-          <p className="text-sm text-zinc-200">Nenhuma ação pendente. Sua loja está em dia! 🎉</p>
-          <p className="text-xs text-zinc-500">Análise automática roda diariamente. Você pode forçar agora se quiser.</p>
+          <p className="text-sm text-zinc-200">{t('emptyTitle')}</p>
+          <p className="text-xs text-zinc-500">{t('emptyHint')}</p>
         </div>
       )}
 
@@ -245,6 +227,7 @@ function ActionCard({ action, selected, onToggle, onChanged }: {
   onToggle: () => void
   onChanged: () => void
 }) {
+  const t = useTranslations('automation')
   const [busy, setBusy] = useState(false)
 
   async function approve() {
@@ -289,21 +272,21 @@ function ActionCard({ action, selected, onToggle, onChanged }: {
           <div className="flex items-center gap-2 flex-wrap mb-1">
             <span className="rounded-full px-2 py-0.5 text-[10px] border whitespace-nowrap"
                   style={{ borderColor: `${sev}40`, background: `${sev}10`, color: sev }}>
-              {SEVERITY_LABEL[action.severity]}
+              {t(`severity.${action.severity}`)}
             </span>
             <span className="text-[10px] text-zinc-500">
-              {TRIGGER_LABEL[action.trigger_type]}
+              {t(`triggers.${action.trigger_type}`)}
             </span>
             <span className="text-[10px] text-zinc-600">·</span>
             <span className="text-[10px] text-zinc-500">{new Date(action.created_at).toLocaleDateString('pt-BR')}</span>
             {action.affected_count > 0 && (
               <>
                 <span className="text-[10px] text-zinc-600">·</span>
-                <span className="text-[10px] text-cyan-300">{action.affected_count} produto{action.affected_count > 1 ? 's' : ''}</span>
+                <span className="text-[10px] text-cyan-300">{t('productCount', { count: action.affected_count })}</span>
               </>
             )}
             {action.status !== 'pending' && (
-              <span className="text-[10px] text-zinc-500 italic">{action.status}</span>
+              <span className="text-[10px] text-zinc-500 italic">{t(`status.${action.status}`)}</span>
             )}
           </div>
           <p className="text-sm text-zinc-200 font-medium">{action.title}</p>
@@ -320,17 +303,17 @@ function ActionCard({ action, selected, onToggle, onChanged }: {
               disabled={busy}
               className="inline-flex items-center gap-1 px-2 py-1 rounded bg-emerald-400 hover:bg-emerald-300 disabled:opacity-50 text-black text-xs"
             >
-              <Check size={11} /> Aprovar
+              <Check size={11} /> {t('approve')}
             </button>
             <button
               onClick={() => {
-                const fb = prompt('Por quê está rejeitando? (util / nao_relevante / timing_ruim / acao_errada)') ?? 'nao_relevante'
+                const fb = prompt(t('rejectPrompt')) ?? 'nao_relevante'
                 void reject(fb)
               }}
               disabled={busy}
               className="inline-flex items-center gap-1 px-2 py-1 rounded border border-zinc-700 hover:border-red-400/40 text-zinc-400 hover:text-red-300 text-xs disabled:opacity-50"
             >
-              <X size={11} /> Rejeitar
+              <X size={11} /> {t('reject')}
             </button>
           </div>
         )}
@@ -340,15 +323,16 @@ function ActionCard({ action, selected, onToggle, onChanged }: {
 }
 
 function ProposedActionPreview({ action }: { action: Record<string, unknown> }) {
-  const t = action.type as string
-  if (!t) return null
+  const t = useTranslations('automation')
+  const actionType = action.type as string
+  if (!actionType) return null
   return (
     <div className="mt-2 px-2 py-1 rounded bg-zinc-950/60 border border-zinc-800/60 text-[11px] text-zinc-400 font-mono">
-      → {t}
-      {action.new_price != null && <> · novo preço R$ {Number(action.new_price).toFixed(2)}</>}
-      {action.budget != null && <> · budget R$ {Number(action.budget).toFixed(2)}</>}
+      → {actionType}
+      {action.new_price != null && <> · {t('previewNewPrice', { price: Number(action.new_price).toFixed(2) })}</>}
+      {action.budget != null && <> · {t('previewBudget', { budget: Number(action.budget).toFixed(2) })}</>}
       {action.platform != null && <> · {action.platform as string}</>}
-      {action.suggested_quantity != null && <> · sugerir {action.suggested_quantity as number} un</>}
+      {action.suggested_quantity != null && <> · {t('previewSuggestQuantity', { qty: action.suggested_quantity as number })}</>}
       {Array.isArray(action.channels) && (action.channels as string[]).length > 0 && (
         <> · {(action.channels as string[]).join(', ')}</>
       )}

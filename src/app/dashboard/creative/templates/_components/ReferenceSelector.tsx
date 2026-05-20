@@ -13,6 +13,7 @@
  */
 
 import { useEffect, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { Plus, X, Search, Library } from 'lucide-react'
 import { CreativeApi } from '@/components/creative/api'
 import type { CreativeReference } from '@/components/creative/types'
@@ -26,6 +27,7 @@ export default function ReferenceSelector({
   onChange: (next: string[]) => void
   disabled?: boolean
 }) {
+  const t = useTranslations('creative.templates')
   const [open, setOpen] = useState(false)
   const [refs, setRefs] = useState<CreativeReference[]>([])
   const [selectedDetails, setSelectedDetails] = useState<CreativeReference[]>([])
@@ -94,7 +96,7 @@ export default function ReferenceSelector({
           })}
         </div>
       ) : (
-        <p className="text-[10px] text-zinc-500 italic">Nenhuma ref fixa selecionada</p>
+        <p className="text-[10px] text-zinc-500 italic">{t('selectorNoneSelected')}</p>
       )}
 
       <button
@@ -103,7 +105,7 @@ export default function ReferenceSelector({
         disabled={disabled}
         className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-zinc-900 border border-zinc-800 hover:border-cyan-400/40 text-cyan-400 text-[11px] transition-colors disabled:opacity-40"
       >
-        <Plus size={11} /> Adicionar references fixas
+        <Plus size={11} /> {t('addFixedRefs')}
       </button>
 
       {/* Modal */}
@@ -113,7 +115,7 @@ export default function ReferenceSelector({
             <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800">
               <div className="flex items-center gap-2">
                 <Library size={14} className="text-cyan-400" />
-                <h3 className="text-sm font-semibold">Galeria de references</h3>
+                <h3 className="text-sm font-semibold">{t('galleryTitle')}</h3>
               </div>
               <button onClick={() => setOpen(false)} className="text-zinc-500 hover:text-zinc-200">
                 <X size={16} />
@@ -128,7 +130,7 @@ export default function ReferenceSelector({
                   type="text"
                   value={search}
                   onChange={e => setSearch(e.target.value)}
-                  placeholder="Buscar por nome, tag..."
+                  placeholder={t('searchByNameTag')}
                   className="w-full pl-8 pr-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded-md text-xs text-zinc-200 outline-none focus:border-cyan-400 placeholder:text-zinc-600"
                 />
               </div>
@@ -136,16 +138,16 @@ export default function ReferenceSelector({
 
             {/* Grid */}
             <div className="flex-1 overflow-y-auto p-4">
-              {loading && <p className="text-xs text-zinc-500">Carregando…</p>}
+              {loading && <p className="text-xs text-zinc-500">{t('loading')}</p>}
               {error && (
                 <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-200">{error}</div>
               )}
               {!loading && !error && refs.length === 0 && (
                 <div className="text-center py-12">
                   <Library size={32} className="mx-auto text-zinc-700 mb-3" />
-                  <p className="text-sm text-zinc-400 mb-1">Nenhuma reference cadastrada</p>
+                  <p className="text-sm text-zinc-400 mb-1">{t('noRefsRegistered')}</p>
                   <p className="text-[11px] text-zinc-600">
-                    Cadastre em <code className="font-mono bg-zinc-900 px-1 rounded">/dashboard/creative/references</code> (em breve)
+                    {t('registerInRefs')}
                   </p>
                 </div>
               )}
@@ -193,13 +195,13 @@ export default function ReferenceSelector({
 
             <div className="px-4 py-3 border-t border-zinc-800 flex items-center justify-between">
               <span className="text-[11px] text-zinc-500">
-                {value.length} selecionado{value.length !== 1 ? 's' : ''}
+                {t('selectedCountSel', { count: value.length })}
               </span>
               <button
                 onClick={() => setOpen(false)}
                 className="px-3 py-1.5 rounded-md bg-cyan-400 hover:bg-cyan-300 text-black text-xs font-semibold"
               >
-                Concluído
+                {t('done')}
               </button>
             </div>
           </div>

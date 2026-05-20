@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts'
 import { TrendingUp, MessageCircle, Zap, UserCheck, AlertTriangle, Loader2, Calendar, MessageSquare, Trophy, Sparkles, Plus } from 'lucide-react'
@@ -39,6 +40,7 @@ const CHART_TOOLTIP_STYLE = {
 }
 
 export default function AnalyticsPage() {
+  const t = useTranslations('atendenteIa')
   const [agents, setAgents]   = useState<Agent[]>([])
   const [agentId, setAgentId] = useState('')
   const [rows, setRows]       = useState<AnalyticsRow[]>([])
@@ -109,12 +111,17 @@ export default function AnalyticsPage() {
   const autoRate        = totalReceived > 0 ? Math.round((totalAuto / totalReceived) * 100) : 0
   const avgConf         = rows.length > 0 ? Math.round(rows.reduce((s, r) => s + r.avg_confidence, 0) / rows.length) : 0
 
+  const kReceived  = t('analytics.chart.received')
+  const kAuto      = t('analytics.chart.autoReplied')
+  const kEscalated = t('analytics.chart.escalated')
+  const kConf      = t('analytics.chart.confidence')
+
   const chartData = rows.map(r => ({
     date: r.date.slice(5),
-    Recebidas: r.messages_received,
-    'Auto-resp.': r.messages_auto_replied,
-    Escaladas: r.messages_escalated,
-    Confiança: r.avg_confidence,
+    [kReceived]: r.messages_received,
+    [kAuto]: r.messages_auto_replied,
+    [kEscalated]: r.messages_escalated,
+    [kConf]: r.avg_confidence,
   }))
 
   return (
@@ -123,9 +130,9 @@ export default function AnalyticsPage() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-            <TrendingUp size={22} style={{ color: '#00E5FF' }} /> Analytics
+            <TrendingUp size={22} style={{ color: '#00E5FF' }} /> {t('analytics.pageTitle')}
           </h1>
-          <p className="text-zinc-500 text-sm mt-1">Performance dos agentes de IA</p>
+          <p className="text-zinc-500 text-sm mt-1">{t('analytics.pageSubtitle')}</p>
         </div>
         <div className="flex items-center gap-2">
           {agents.length > 0 && (
@@ -154,17 +161,17 @@ export default function AnalyticsPage() {
       ) : rows.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 space-y-2">
           <TrendingUp size={36} style={{ color: '#27272a' }} />
-          <p className="text-zinc-500">{!agentId ? 'Selecione um agente' : 'Sem dados para o período'}</p>
+          <p className="text-zinc-500">{!agentId ? t('analytics.selectAgent') : t('analytics.noData')}</p>
         </div>
       ) : (
         <>
           {/* KPI cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
-              { icon: <MessageCircle size={18} />, label: 'Mensagens',         value: String(totalReceived), sub: `últimos ${range} dias` },
-              { icon: <Zap size={18} />,           label: 'Taxa auto-resposta', value: `${autoRate}%`,        sub: `${totalAuto} auto-respostas` },
-              { icon: <UserCheck size={18} />,     label: 'Confiança média',   value: `${avgConf}%`,         sub: 'da IA' },
-              { icon: <AlertTriangle size={18} />, label: 'Escaladas',         value: String(totalEscalated), sub: 'para humano' },
+              { icon: <MessageCircle size={18} />, label: t('analytics.kpi.messages'),         value: String(totalReceived), sub: t('analytics.kpi.lastDays', { range }) },
+              { icon: <Zap size={18} />,           label: t('analytics.kpi.autoReplyRate'),    value: `${autoRate}%`,        sub: t('analytics.kpi.autoReplies', { count: totalAuto }) },
+              { icon: <UserCheck size={18} />,     label: t('analytics.kpi.avgConfidence'),     value: `${avgConf}%`,         sub: t('analytics.kpi.fromAi') },
+              { icon: <AlertTriangle size={18} />, label: t('analytics.kpi.escalated'),         value: String(totalEscalated), sub: t('analytics.kpi.toHuman') },
             ].map(k => (
               <div key={k.label} className="rounded-2xl p-4 space-y-3" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
                 <div className="flex items-center justify-between">
@@ -179,7 +186,7 @@ export default function AnalyticsPage() {
 
           {/* Volume chart */}
           <div className="rounded-2xl p-5 space-y-4" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
-            <p className="text-sm font-semibold text-white">Volume de mensagens</p>
+            <p className="text-sm font-semibold text-white">{t('analytics.volumeTitle')}</p>
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={chartData} margin={{ top: 5, right: 5, bottom: 5, left: -20 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1e1e24" />
@@ -187,23 +194,23 @@ export default function AnalyticsPage() {
                 <YAxis tick={{ fill: '#52525b', fontSize: 10 }} />
                 <Tooltip {...CHART_TOOLTIP_STYLE} />
                 <Legend wrapperStyle={{ fontSize: 11, color: '#71717a' }} />
-                <Bar dataKey="Recebidas"  fill="#3f3f46" radius={[3,3,0,0]} />
-                <Bar dataKey="Auto-resp." fill="#00E5FF" radius={[3,3,0,0]} />
-                <Bar dataKey="Escaladas"  fill="#ef4444" radius={[3,3,0,0]} />
+                <Bar dataKey={kReceived}  fill="#3f3f46" radius={[3,3,0,0]} />
+                <Bar dataKey={kAuto} fill="#00E5FF" radius={[3,3,0,0]} />
+                <Bar dataKey={kEscalated}  fill="#ef4444" radius={[3,3,0,0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
 
           {/* Confidence chart */}
           <div className="rounded-2xl p-5 space-y-4" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
-            <p className="text-sm font-semibold text-white">Confiança da IA ao longo do tempo</p>
+            <p className="text-sm font-semibold text-white">{t('analytics.confidenceTitle')}</p>
             <ResponsiveContainer width="100%" height={180}>
               <LineChart data={chartData} margin={{ top: 5, right: 5, bottom: 5, left: -20 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1e1e24" />
                 <XAxis dataKey="date" tick={{ fill: '#52525b', fontSize: 10 }} />
                 <YAxis domain={[0, 100]} tick={{ fill: '#52525b', fontSize: 10 }} />
-                <Tooltip {...CHART_TOOLTIP_STYLE} formatter={(v) => [`${v}%`, 'Confiança']} />
-                <Line type="monotone" dataKey="Confiança" stroke="#00E5FF" strokeWidth={2} dot={false} />
+                <Tooltip {...CHART_TOOLTIP_STYLE} formatter={(v) => [`${v}%`, kConf]} />
+                <Line type="monotone" dataKey={kConf} stroke="#00E5FF" strokeWidth={2} dot={false} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -213,7 +220,14 @@ export default function AnalyticsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr style={{ background: '#111114' }}>
-                  {['Data','Recebidas','Auto','Humano','Escaladas','Conf. %'].map(h => (
+                  {[
+                    t('analytics.table.date'),
+                    t('analytics.table.received'),
+                    t('analytics.table.auto'),
+                    t('analytics.table.human'),
+                    t('analytics.table.escalated'),
+                    t('analytics.table.confPct'),
+                  ].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-zinc-500">{h}</th>
                   ))}
                 </tr>
@@ -237,13 +251,13 @@ export default function AnalyticsPage() {
           <div className="rounded-2xl p-5 space-y-3" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
             <div className="flex items-center gap-2">
               <MessageSquare size={14} style={{ color: '#00E5FF' }} />
-              <p className="text-sm font-semibold text-white">Top perguntas recorrentes</p>
-              <span className="text-[10px] text-zinc-500 ml-auto">últimas 2.000 mensagens</span>
+              <p className="text-sm font-semibold text-white">{t('analytics.topQuestions.title')}</p>
+              <span className="text-[10px] text-zinc-500 ml-auto">{t('analytics.topQuestions.subtitle')}</span>
             </div>
             {!topQ ? (
-              <div className="flex items-center gap-2 text-xs text-zinc-500"><Loader2 size={12} className="animate-spin" /> carregando…</div>
+              <div className="flex items-center gap-2 text-xs text-zinc-500"><Loader2 size={12} className="animate-spin" /> {t('analytics.loading')}</div>
             ) : topQ.length === 0 ? (
-              <p className="text-xs text-zinc-500 py-3">Sem perguntas suficientes pra agregar ainda.</p>
+              <p className="text-xs text-zinc-500 py-3">{t('analytics.topQuestions.empty')}</p>
             ) : (
               <div className="space-y-1.5">
                 {topQ.map((q, i) => (
@@ -252,7 +266,7 @@ export default function AnalyticsPage() {
                     <span className="text-[10px] font-bold tabular-nums w-6 text-zinc-600">#{i + 1}</span>
                     <p className="text-xs text-zinc-300 flex-1 truncate">{q.question}</p>
                     <span className="text-[11px] font-bold tabular-nums shrink-0" style={{ color: '#00E5FF' }}>{q.count}×</span>
-                    <button title="Criar item de conhecimento desta pergunta"
+                    <button title={t('analytics.topQuestions.createKnowledge')}
                       onClick={() => window.location.href = `/dashboard/atendente-ia/conhecimento?prefill=${encodeURIComponent(q.question)}`}
                       className="p-1 rounded transition-colors hover:bg-white/5 text-zinc-500 hover:text-cyan-400 shrink-0">
                       <Plus size={12} />
@@ -267,19 +281,25 @@ export default function AnalyticsPage() {
           <div className="rounded-2xl p-5 space-y-3" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
             <div className="flex items-center gap-2">
               <Trophy size={14} style={{ color: '#fbbf24' }} />
-              <p className="text-sm font-semibold text-white">Performance por agente</p>
-              <span className="text-[10px] text-zinc-500 ml-auto">últimos {range} dias</span>
+              <p className="text-sm font-semibold text-white">{t('analytics.byAgent.title')}</p>
+              <span className="text-[10px] text-zinc-500 ml-auto">{t('analytics.kpi.lastDays', { range })}</span>
             </div>
             {!byAgent ? (
-              <div className="flex items-center gap-2 text-xs text-zinc-500"><Loader2 size={12} className="animate-spin" /> carregando…</div>
+              <div className="flex items-center gap-2 text-xs text-zinc-500"><Loader2 size={12} className="animate-spin" /> {t('analytics.loading')}</div>
             ) : byAgent.length === 0 ? (
-              <p className="text-xs text-zinc-500 py-3">Nenhum dado de agentes ainda.</p>
+              <p className="text-xs text-zinc-500 py-3">{t('analytics.byAgent.empty')}</p>
             ) : (
               <div className="overflow-hidden rounded-lg" style={{ border: '1px solid #1e1e24' }}>
                 <table className="w-full text-xs">
                   <thead style={{ background: '#0d0d10' }}>
                     <tr>
-                      {['Agente','Mensagens','Auto%','Conf. média','Escaladas'].map(h => (
+                      {[
+                        t('analytics.byAgent.agent'),
+                        t('analytics.byAgent.messages'),
+                        t('analytics.byAgent.autoPct'),
+                        t('analytics.byAgent.avgConf'),
+                        t('analytics.byAgent.escalated'),
+                      ].map(h => (
                         <th key={h} className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wide text-zinc-500">{h}</th>
                       ))}
                     </tr>
@@ -307,16 +327,14 @@ export default function AnalyticsPage() {
           <div className="rounded-2xl p-5 space-y-3" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
             <div className="flex items-center gap-2">
               <Sparkles size={14} style={{ color: '#a78bfa' }} />
-              <p className="text-sm font-semibold text-white">Insights automáticos</p>
+              <p className="text-sm font-semibold text-white">{t('analytics.insights.title')}</p>
             </div>
             {!insights ? (
-              <div className="flex items-center gap-2 text-xs text-zinc-500"><Loader2 size={12} className="animate-spin" /> carregando…</div>
+              <div className="flex items-center gap-2 text-xs text-zinc-500"><Loader2 size={12} className="animate-spin" /> {t('analytics.loading')}</div>
             ) : insights.length === 0 ? (
               <div className="rounded-lg p-4 text-center" style={{ background: '#0d0d10', border: '1px dashed #2a2a3f' }}>
                 <p className="text-xs text-zinc-500">
-                  Nenhum insight gerado ainda. O sistema vai detectar padrões automáticos
-                  (anúncios com pico de perguntas, queda de sentiment, etc) conforme o
-                  volume de conversas crescer.
+                  {t('analytics.insights.empty')}
                 </p>
               </div>
             ) : (
