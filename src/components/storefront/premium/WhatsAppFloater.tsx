@@ -24,18 +24,20 @@ export function WhatsAppFloater({ store, message }: {
   message?: string
 }) {
   const [open, setOpen] = useState(false)
-  if (!store.whatsapp_widget_enabled || !store.whatsapp_number) return null
 
-  const chatHref    = whatsappLink(store.whatsapp_number, message)
-  const catalogHref = store.whatsapp_catalog?.enabled ? store.whatsapp_catalog.link : null
-
-  // ESC fecha o menu
+  // ESC fecha o menu. Hook ANTES de qualquer early return — rule of
+  // hooks exige ordem estavel entre renders.
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [open])
+
+  if (!store.whatsapp_widget_enabled || !store.whatsapp_number) return null
+
+  const chatHref    = whatsappLink(store.whatsapp_number, message)
+  const catalogHref = store.whatsapp_catalog?.enabled ? store.whatsapp_catalog.link : null
 
   // Sem catalogo → botao unico (comportamento legado)
   if (!catalogHref) {
