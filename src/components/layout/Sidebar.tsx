@@ -276,6 +276,7 @@ const SECTIONS: NavSection[] = [
         labelKey: 'items.socialShop', href: '/dashboard/social-commerce', icon: <ShoppingBag size={15} />,
         children: [
           { labelKey: 'items.socialShopInstagram', href: '/dashboard/social-commerce/instagram' },
+          { labelKey: 'items.socialShopWhatsapp',  href: '/dashboard/social-commerce/whatsapp' },
         ],
       },
     ],
