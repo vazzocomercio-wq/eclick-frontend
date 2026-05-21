@@ -16,6 +16,7 @@
 import type { ProductDetailLayoutSection } from '@/lib/storefront/v3/types'
 import type { RenderCtx } from '../RenderCtx'
 import { formatBRL } from '@/lib/storefront/v3/data'
+import { ProductGalleryClient } from './ProductGalleryClient'
 
 export function ProductDetailLayoutSectionView({ ctx, section }: { ctx: RenderCtx; section: ProductDetailLayoutSection }) {
   const { galleryPosition, stickyAddToCart, showShareButtons } = section.settings
@@ -29,9 +30,13 @@ export function ProductDetailLayoutSectionView({ ctx, section }: { ctx: RenderCt
   }
   void stickyAddToCart // marcador — vira AddToCartSticky em B.5
 
-  const photos = product.photo_urls ?? []
-  const main   = photos[0]
-  const thumbs = photos.slice(1, 5)
+  // Combina photo_urls (array principal) + images jsonb (legado) — dedup.
+  const photoUrls = product.photo_urls ?? []
+  const imagesJson = (product as unknown as { images?: unknown }).images
+  const extraUrls: string[] = Array.isArray(imagesJson)
+    ? (imagesJson as unknown[]).map(x => typeof x === 'string' ? x : (typeof x === 'object' && x && 'url' in x ? (x as { url: string }).url : null)).filter((u): u is string => typeof u === 'string')
+    : []
+  const photos: string[] = Array.from(new Set([...photoUrls, ...extraUrls].filter(u => u && u.startsWith('http'))))
   // Texto da descrição completa (resolvido fora do JSX pra contornar
   // inferência esquisita do TS quando concatenamos opcionais no JSX).
   const longDescText: string = String(
@@ -52,25 +57,9 @@ export function ProductDetailLayoutSectionView({ ctx, section }: { ctx: RenderCt
   return (
     <div className="container mx-auto px-4">
       <div className={`flex flex-col gap-6 md:gap-12 ${reverseClass}`}>
-        {/* Galeria */}
+        {/* Galeria interativa (todas as fotos, thumbs clicaveis) */}
         <div className="md:flex-1">
-          <div style={{ aspectRatio: '1 / 1', background: 'var(--c-surface)', borderRadius: 'var(--r)', overflow: 'hidden' }}>
-            {main && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={main} alt={product.name} loading="lazy"
-                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-            )}
-          </div>
-          {thumbs.length > 0 && (
-            <div className="grid grid-cols-4 gap-2 mt-3">
-              {thumbs.map((u, i) => (
-                <div key={i} style={{ aspectRatio: '1/1', borderRadius: 'var(--r)', overflow: 'hidden', background: 'var(--c-surface)' }}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={u} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                </div>
-              ))}
-            </div>
-          )}
+          <ProductGalleryClient photos={photos} alt={product.name} />
         </div>
 
         {/* Detalhes */}
