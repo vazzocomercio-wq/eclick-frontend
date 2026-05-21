@@ -15,6 +15,7 @@ import type { StorefrontProduct } from '@/lib/storefront/v3/data'
 import type { RenderCtx } from '../RenderCtx'
 import { PriceDisplay, SaleBadge } from '../PriceDisplay'
 import type { PaymentDisplaySettings } from '@/lib/storefront/v3/data'
+import { ReviewStars } from '@/components/storefront/ReviewStars'
 
 function pickProducts(all: StorefrontProduct[], src: ProductCarouselSection['settings']['source']): StorefrontProduct[] {
   if (src.kind === 'manual') {
@@ -87,6 +88,11 @@ function CarouselCard({ product, variant, paymentDisplay, cashback }: {
           </div>
         )}
         <div style={{ fontSize: 14, fontWeight: 500, lineHeight: 1.3 }}>{product.name}</div>
+        {typeof product.review_count === 'number' && product.review_count > 0 && (
+          <div style={{ marginTop: 4 }}>
+            <ReviewStars value={product.review_avg ?? 0} count={product.review_count} size={12} idSeed={product.id} />
+          </div>
+        )}
         <div style={{ marginTop: 6 }}>
           <PriceDisplay product={product} settings={paymentDisplay} cashback={cashback} variant="card" />
         </div>

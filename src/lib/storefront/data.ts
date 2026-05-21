@@ -114,6 +114,9 @@ export interface StorefrontProduct {
   on_sale?:              boolean | null
   discount_pct?:         number | null
   has_sale_set?:         boolean | null
+  // ─ Reviews (denormalizado — AD1) ─
+  review_count?:         number | null
+  review_avg?:           number | null
   created_at?:           string | null
   updated_at?:           string | null
 }

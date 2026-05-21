@@ -204,7 +204,7 @@ function SummaryHeader({ summary, total }: { summary: ProductReviewListing['summ
         <div style={{ fontSize: 40, fontWeight: 700, color: 'var(--text, #fafafa)', lineHeight: 1 }}>
           {avg ? avg.toFixed(1) : '–'}
         </div>
-        <div style={{ marginTop: 6 }}><ReviewStars value={avg} size={18} /></div>
+        <div style={{ marginTop: 6 }}><ReviewStars value={avg} size={18} idSeed="summary" /></div>
         <div style={{ marginTop: 4, fontSize: 12, color: 'var(--text-muted, #a1a1aa)' }}>
           {total} avaliaç{total === 1 ? 'ão' : 'ões'}
         </div>
@@ -242,7 +242,7 @@ function ReviewItem({ review }: { review: ProductReviewListing['items'][number] 
     }}>
       <header style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 8 }}>
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
-          <ReviewStars value={review.rating} size={14} />
+          <ReviewStars value={review.rating} size={14} idSeed={review.id} />
           <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text, #fafafa)' }}>
             {review.customer.display_name}
           </span>

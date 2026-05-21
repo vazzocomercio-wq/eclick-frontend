@@ -18,6 +18,7 @@ import type { RenderCtx } from '../RenderCtx'
 import { PriceDisplay } from '../PriceDisplay'
 import { ProductGalleryClient } from './ProductGalleryClient'
 import { WishlistButton } from '../WishlistButton'
+import { ReviewStars } from '@/components/storefront/ReviewStars'
 import { WhatsAppIcon } from '@/components/storefront/WhatsAppIcon'
 
 export function ProductDetailLayoutSectionView({ ctx, section }: { ctx: RenderCtx; section: ProductDetailLayoutSection }) {
@@ -94,6 +95,11 @@ export function ProductDetailLayoutSectionView({ ctx, section }: { ctx: RenderCt
             <div style={{ marginTop: 6, fontSize: 12, color: 'var(--c-text-muted)' }}>
               {codeLabel.label}: {codeLabel.value}
             </div>
+          )}
+          {typeof product.review_count === 'number' && product.review_count > 0 && (
+            <a href="#reviews-section" style={{ display: 'inline-block', marginTop: 8, textDecoration: 'none' }}>
+              <ReviewStars value={product.review_avg ?? 0} count={product.review_count} size={15} idSeed={`detail-${product.id}`} />
+            </a>
           )}
           <div style={{ marginTop: 16 }}>
             <PriceDisplay product={product} settings={ctx.paymentDisplay} cashback={ctx.cashback} variant="detail" inlineBadge />

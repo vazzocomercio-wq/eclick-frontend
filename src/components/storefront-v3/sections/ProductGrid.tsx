@@ -17,6 +17,7 @@ import type { RenderCtx } from '../RenderCtx'
 import { PriceDisplay, SaleBadge } from '../PriceDisplay'
 import { findBonusBadge, BonusBadge } from '../bonusBadge'
 import { WishlistButton } from '../WishlistButton'
+import { ReviewStars } from '@/components/storefront/ReviewStars'
 
 function pickProducts(all: StorefrontProduct[], src: ProductGridSection['settings']['source']): StorefrontProduct[] {
   switch (src.kind) {
@@ -150,6 +151,11 @@ function ProductCard({ ctx, product, variant }: {
         <h3 style={{ fontFamily: 'var(--f-body)', fontSize: 14, fontWeight: 500, lineHeight: 1.3, margin: 0 }}>
           {product.name}
         </h3>
+        {typeof product.review_count === 'number' && product.review_count > 0 && (
+          <div style={{ marginTop: 6 }}>
+            <ReviewStars value={product.review_avg ?? 0} count={product.review_count} size={13} idSeed={product.id} />
+          </div>
+        )}
         {showShort && (
           <p style={{ fontSize: 13, color: 'var(--c-text-muted)', marginTop: 4, lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
             {product.ai_short_description}

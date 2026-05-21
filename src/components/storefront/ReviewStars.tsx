@@ -17,22 +17,24 @@ interface Props {
   color?: string
   emptyColor?: string
   className?: string
+  /** Semente única e ESTÁVEL pros IDs de gradiente SVG (ex.: productId ou
+   *  reviewId). Evita IDs duplicados na mesma página + hydration mismatch.
+   *  Quando omitido, usa a própria value (suficiente quando só há 1 na tela). */
+  idSeed?: string
 }
 
-export function ReviewStars({ value, size = 14, count, color = '#fbbf24', emptyColor = '#3f3f46', className }: Props) {
+export function ReviewStars({ value, size = 14, count, color = '#fbbf24', emptyColor = '#3f3f46', className, idSeed }: Props) {
   const v = typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.min(5, value)) : 0
+  const seed = (idSeed ?? `v${v}`).replace(/[^a-zA-Z0-9]/g, '')
   // Render 5 estrelas, cada uma com preenchimento entre 0-100%
-  const stars = Array.from({ length: 5 }, (_, i) => {
-    const fill = Math.max(0, Math.min(1, v - i)) // 0..1
-    return fill
-  })
+  const stars = Array.from({ length: 5 }, (_, i) => Math.max(0, Math.min(1, v - i)))
 
   return (
     <span className={className}
       style={{ display: 'inline-flex', alignItems: 'center', gap: 4, lineHeight: 1 }}>
       <span style={{ display: 'inline-flex', gap: 1 }}>
         {stars.map((fill, i) => (
-          <Star key={i} fill={fill} size={size} color={color} emptyColor={emptyColor} />
+          <Star key={i} id={`rs-${seed}-${i}`} fill={fill} size={size} color={color} emptyColor={emptyColor} />
         ))}
       </span>
       {typeof count === 'number' && count > 0 && (
@@ -44,8 +46,7 @@ export function ReviewStars({ value, size = 14, count, color = '#fbbf24', emptyC
   )
 }
 
-function Star({ fill, size, color, emptyColor }: { fill: number; size: number; color: string; emptyColor: string }) {
-  const id = `s-${Math.random().toString(36).slice(2, 9)}`
+function Star({ id, fill, size, color, emptyColor }: { id: string; fill: number; size: number; color: string; emptyColor: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 20 20" style={{ display: 'block' }}>
       <defs>
