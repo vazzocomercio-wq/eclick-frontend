@@ -226,6 +226,13 @@ export default function LojaHubPage() {
             description="Regras autônomas · low stock · sales drop · concorrentes"
             color="#34d399"
           />
+          <ToolCard
+            href="/dashboard/pedidos?platform=storefront"
+            icon={<ShoppingCart size={20} />}
+            label="Pedidos da loja"
+            description="Pedidos da vitrine no módulo de pedidos · filtro Loja Própria"
+            color="#fb7185"
+          />
         </div>
       </div>
 
@@ -244,11 +251,6 @@ export default function LojaHubPage() {
             icon={<Gift size={20} />}
             label="Bônus & Brindes"
             description="Leve 2 pague 1 · brinde acima de R$ X · presente surpresa"
-          />
-          <ComingSoonCard
-            icon={<ShoppingCart size={20} />}
-            label="Pedidos da loja"
-            description="Gestão de pedidos com platform='store' · status · tracking"
           />
           <ComingSoonCard
             icon={<ImageIcon size={20} />}
@@ -275,6 +277,10 @@ export default function LojaHubPage() {
           <Link href="/dashboard/store/designer-v3" className="text-xs px-3 py-2 rounded"
             style={{ background: '#0a0a0e', color: '#fafafa', border: '1px solid #27272a', minHeight: 36 }}>
             🎨 Personalizar vitrine
+          </Link>
+          <Link href="/dashboard/pedidos?platform=storefront" className="text-xs px-3 py-2 rounded"
+            style={{ background: '#0a0a0e', color: '#fafafa', border: '1px solid #27272a', minHeight: 36 }}>
+            📦 Ver pedidos da loja
           </Link>
           {config?.store_slug && (
             <a href={`/loja/${config.store_slug}`} target="_blank" rel="noopener noreferrer"
