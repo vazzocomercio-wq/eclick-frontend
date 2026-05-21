@@ -251,9 +251,17 @@ export default function LojaHubPage() {
             href="/dashboard/loja/promocoes"
             icon={<Tag size={20} />}
             label="Promoções"
-            description="Desconto direto no produto · janela · badge OFERTA automática"
+            description="Desconto direto no produto · % bidirectional · bulk apply"
             badge="BETA"
             color="#ef4444"
+          />
+          <ToolCard
+            href="/dashboard/loja/campanhas"
+            icon={<Megaphone size={20} />}
+            label="Campanhas"
+            description="Agrupador de produtos · desconto comum · override individual"
+            badge="BETA"
+            color="#f472b6"
           />
           <ToolCard
             href="/dashboard/loja/cashback"
