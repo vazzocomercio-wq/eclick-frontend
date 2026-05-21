@@ -15,6 +15,7 @@ import { useTranslations } from 'next-intl'
 import { Loader2, CreditCard, AlertCircle, ShoppingBag, ArrowLeft, Wallet } from 'lucide-react'
 import { useCart } from '@/lib/storefront/cart'
 import { formatBRL } from '@/lib/storefront/data'
+import { getRefCode } from '@/lib/storefront/affiliate-auth'
 import type { StorefrontStore } from '@/lib/storefront/data'
 import type { StorefrontDesign } from '@/lib/storefront/types'
 import { buildCtx } from '../renderCtx'
@@ -148,6 +149,7 @@ export function CheckoutForm({ store, design, slug }: {
             notes: notes.trim() || undefined,
           },
           cashbackToUse: useCashback && cashbackToUseCents > 0 ? cashbackToUseCents : undefined,
+          affiliateCode: getRefCode(slug) ?? undefined,
         }),
       })
       if (!res.ok) {
