@@ -115,6 +115,7 @@ export function ModoFacil({ design, onSave, onLiveChange }: Props) {
             placeholder="https://… (ou envie acima)"
             previewMaxWidth={180}
             downscaleMaxWidth={800}
+            aiBannerEnabled={false}
           />
         </Field>
         <Field label="Tamanho da logo" hint="Altura máxima em pixels. Padrão 40.">

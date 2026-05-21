@@ -259,6 +259,7 @@ export default function StoreConfigPage() {
             placeholder="https://… (ou envie o arquivo acima)"
             previewMaxWidth={240}
             downscaleMaxWidth={800}
+            aiBannerEnabled={false}
           />
         </Field>
       </Section>

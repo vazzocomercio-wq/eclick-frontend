@@ -30,6 +30,10 @@ interface Props {
   downscaleMaxWidth?: number
   /** Aceita só imagens por default. */
   accept?: string
+  /** Habilita a tab "Gerar com IA" (banner generator). Default `true`.
+   * Passar `false` em campos como LOGO (não faz sentido gerar banner
+   * promocional usando produtos pra ser a logo da marca). */
+  aiBannerEnabled?: boolean
 }
 
 export function ImageUploadField({
@@ -37,8 +41,9 @@ export function ImageUploadField({
   previewMaxWidth = 200,
   downscaleMaxWidth = 1280,
   accept = 'image/*',
+  aiBannerEnabled = true,
 }: Props) {
-  const [mode, setMode] = useState<'url' | 'upload' | 'ai'>('upload')
+  const [mode, setMode] = useState<'url' | 'upload'>('upload')
   const [busy, setBusy] = useState(false)
   const [err, setErr]   = useState<string | null>(null)
   const [showAi, setShowAi] = useState(false)
@@ -104,7 +109,9 @@ export function ImageUploadField({
       <div className="flex gap-1">
         <TabBtn active={mode === 'upload'} onClick={() => setMode('upload')} icon={<Upload size={11} />} label="Enviar arquivo" />
         <TabBtn active={mode === 'url'}    onClick={() => setMode('url')}    icon={<LinkIcon size={11} />} label="Colar URL" />
-        <TabBtn active={mode === 'ai'}     onClick={() => { setMode('ai'); setShowAi(true) }} icon={<Sparkles size={11} />} label="Gerar com IA" />
+        {aiBannerEnabled && (
+          <TabBtn active={false} onClick={() => setShowAi(true)} icon={<Sparkles size={11} />} label="Gerar com IA" />
+        )}
       </div>
 
       {mode === 'upload' && (
@@ -143,19 +150,6 @@ export function ImageUploadField({
             fontSize: 13, fontFamily: 'monospace',
           }}
         />
-      )}
-
-      {mode === 'ai' && !showAi && (
-        <button onClick={() => setShowAi(true)}
-          style={{
-            width: '100%', padding: '14px 16px', minHeight: 56,
-            background: 'linear-gradient(135deg, #00E5FF, #6366f1)', color: '#0a0a0e',
-            border: 'none', borderRadius: 6, cursor: 'pointer',
-            display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-            fontSize: 13, fontWeight: 600,
-          }}>
-          <Sparkles size={14} /> Abrir gerador de banner com IA
-        </button>
       )}
 
       {err && (

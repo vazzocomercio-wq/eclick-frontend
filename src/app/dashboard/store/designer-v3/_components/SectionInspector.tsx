@@ -210,6 +210,7 @@ function SettingsEditor({ section, onChange, setSettings }: {
               placeholder="https://… (ou envie acima)"
               previewMaxWidth={180}
               downscaleMaxWidth={800}
+              aiBannerEnabled={false}
             />
           </Field>
           <Field label="Tamanho da logo" hint="Altura em pixels (24-120).">
