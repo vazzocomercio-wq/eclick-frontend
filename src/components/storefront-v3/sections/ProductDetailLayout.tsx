@@ -32,6 +32,17 @@ export function ProductDetailLayoutSectionView({ ctx, section }: { ctx: RenderCt
   const photos = product.photo_urls ?? []
   const main   = photos[0]
   const thumbs = photos.slice(1, 5)
+  // Texto da descrição completa (resolvido fora do JSX pra contornar
+  // inferência esquisita do TS quando concatenamos opcionais no JSX).
+  const longDescText: string = String(
+    (product as unknown as { ai_long_description?: unknown }).ai_long_description ??
+    (product as unknown as { description?: unknown }).description ?? ''
+  )
+  // Entries de atributos pra renderização (max 20)
+  const attrs = (product as unknown as { attributes?: unknown }).attributes
+  const attrEntries: Array<[string, string]> = (attrs && typeof attrs === 'object' && !Array.isArray(attrs))
+    ? Object.entries(attrs as Record<string, unknown>).slice(0, 20).map(([k, v]) => [k, String(v)])
+    : []
 
   const reverseClass =
     galleryPosition === 'right' ? 'md:flex-row-reverse'
@@ -64,21 +75,43 @@ export function ProductDetailLayoutSectionView({ ctx, section }: { ctx: RenderCt
 
         {/* Detalhes */}
         <div className="md:flex-1">
-          {product.category && (
+          {(product.brand || product.category) && (
             <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--c-text-muted)' }}>
-              {product.category}
+              {product.brand && <span>{product.brand}</span>}
+              {product.brand && product.category && ' · '}
+              {product.category && <span>{product.category}</span>}
             </div>
           )}
           <h1 style={{ marginTop: 8, fontFamily: 'var(--f-heading)', color: 'var(--c-text)', fontSize: '2rem', lineHeight: 1.2 }}>
             {product.name}
           </h1>
+          {(product.sku || product.model) && (
+            <div style={{ marginTop: 6, fontSize: 12, color: 'var(--c-text-muted)' }}>
+              {product.sku && <span>SKU: {product.sku}</span>}
+              {product.sku && product.model && ' · '}
+              {product.model && <span>Modelo: {product.model}</span>}
+            </div>
+          )}
           <div style={{ marginTop: 16, fontSize: '1.75rem', fontWeight: 700, color: 'var(--c-primary)' }}>
-            {formatBRL(product.price)}
+            {formatBRL(product.my_price ?? product.price)}
           </div>
+          {typeof product.stock === 'number' && product.stock > 0 && product.stock <= 5 && (
+            <div style={{ marginTop: 8, fontSize: 13, color: 'var(--c-warning, #eab308)', fontWeight: 600 }}>
+              ⚡ Apenas {product.stock} em estoque
+            </div>
+          )}
           {product.ai_short_description && (
             <p style={{ marginTop: 16, color: 'var(--c-text-muted)', lineHeight: 1.6 }}>
               {product.ai_short_description}
             </p>
+          )}
+          {/* Bullets (lista de destaques) */}
+          {Array.isArray(product.bullets) && product.bullets.length > 0 && (
+            <ul style={{ marginTop: 16, paddingLeft: 18, color: 'var(--c-text)' }}>
+              {(product.bullets as unknown[]).slice(0, 6).map((b, i) => (
+                <li key={i} style={{ marginBottom: 6, lineHeight: 1.5 }}>{String(b)}</li>
+              ))}
+            </ul>
           )}
 
           {/* CTA — sera substituida por AddToCartSticky client na B.5 */}
@@ -115,6 +148,41 @@ export function ProductDetailLayoutSectionView({ ctx, section }: { ctx: RenderCt
           )}
         </div>
       </div>
+
+      {/* Descrição completa + atributos abaixo da galeria */}
+      {longDescText.trim() ? (
+        <div className="mt-12 max-w-3xl">
+          <h2 style={{ fontFamily: 'var(--f-heading)', color: 'var(--c-text)', fontSize: '1.5rem', marginBottom: 12 }}>
+            Sobre este produto
+          </h2>
+          <div style={{ color: 'var(--c-text)', lineHeight: 1.7, whiteSpace: 'pre-line' }}>{longDescText}</div>
+        </div>
+      ) : null}
+
+      {/* Atributos (especificações técnicas) */}
+      <AttributesBlock attrs={attrEntries} />
     </div>
   )
 }
+
+function AttributesBlock({ attrs }: { attrs: Array<[string, string]> }) {
+  if (attrs.length === 0) return null
+  return (
+    <div className="mt-10 max-w-3xl">
+      <h3 style={{ fontFamily: 'var(--f-heading)', color: 'var(--c-text)', fontSize: '1.25rem', marginBottom: 12 }}>
+        Especificações
+      </h3>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+        <tbody>
+          {attrs.map(([k, v]) => (
+            <tr key={k} style={{ borderBottom: '1px solid var(--c-border)' }}>
+              <td style={{ padding: '10px 12px 10px 0', color: 'var(--c-text-muted)', textTransform: 'capitalize', width: '40%' }}>{k.replace(/_/g, ' ')}</td>
+              <td style={{ padding: '10px 0', color: 'var(--c-text)' }}>{v}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+

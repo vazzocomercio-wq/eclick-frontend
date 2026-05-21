@@ -36,6 +36,10 @@ export interface StorefrontStore {
   whatsapp_catalog?:       { enabled: boolean; phone: string | null; link: string | null } | null
 }
 
+/**
+ * Produto público da vitrine — agora com dados ricos (lista usa SELECT
+ * expandido em store-config.service.listPublicProducts).
+ */
 export interface StorefrontProduct {
   id:                   string
   name:                 string
@@ -44,19 +48,32 @@ export interface StorefrontProduct {
   category:             string | null
   ai_score:             number | null
   ai_short_description: string | null
+  // ─ Dados ricos (vem do SELECT expandido em listPublicProducts) ─
+  sku?:                 string | null
+  model?:                string | null
+  cost_price?:           number | null
+  my_price?:             number | null
+  images?:               unknown
+  brand?:                string | null
+  condition?:            string | null
+  stock?:                number | null
+  weight_kg?:            number | null
+  gtin?:                 string | null
+  ai_long_description?:  string | null
+  ai_keywords?:          string[] | null
+  bullets?:              string[] | null
+  description?:          string | null
+  attributes?:           unknown
+  wholesale_enabled?:    boolean | null
+  wholesale_levels?:     unknown
+  sale_format?:          string | null
+  created_at?:           string | null
+  updated_at?:           string | null
 }
 
-export interface StorefrontProductDetail extends StorefrontProduct {
-  brand:               string | null
-  description:         string | null
-  ai_long_description: string | null
-  bullets:             string[] | null
-  attributes:          unknown
-  gtin:                string | null
-  model:               string | null
-  condition:           string | null
-  stock:               number | null
-}
+/** Detalhe — herda do StorefrontProduct (mesmo shape, getPublicProduct já
+ *  faz SELECT *). Mantido por compat. */
+export type StorefrontProductDetail = StorefrontProduct
 
 async function fetchJson<T>(url: string): Promise<T | null> {
   try {

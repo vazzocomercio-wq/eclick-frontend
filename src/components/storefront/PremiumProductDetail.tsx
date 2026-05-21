@@ -48,7 +48,7 @@ export async function PremiumProductDetail({ design, store, product, slug, relat
   const description = resolveDescription(product)
   const bullets = productBullets(product)
   const attrs = pd.showAttributes ? attributeRows(product.attributes) : []
-  const condition = conditionLabel(product.condition)
+  const condition = conditionLabel(product.condition ?? null)
   const outOfStock = typeof product.stock === 'number' && product.stock <= 0
   const badges = [product.category, product.brand, condition].filter(Boolean) as string[]
 

@@ -90,7 +90,16 @@ function ProductCard({ ctx, product, variant }: {
 }) {
   const img = product.photo_urls?.[0]
   const showCategory = variant !== 'minimal' && product.category
+  const showBrand    = variant === 'detailed' && product.brand
   const showShort    = variant === 'detailed' && product.ai_short_description
+  // Badges baseados nos dados ricos
+  const isLowStock   = typeof product.stock === 'number' && product.stock > 0 && product.stock <= 3
+  const isNew = (() => {
+    if (!product.created_at) return false
+    const days = (Date.now() - new Date(product.created_at).getTime()) / (1000 * 60 * 60 * 24)
+    return days <= 30
+  })()
+  const displayPrice = product.my_price ?? product.price
 
   return (
     <a
@@ -102,23 +111,44 @@ function ProductCard({ ctx, product, variant }: {
           ? <img src={img} alt={product.name} loading="lazy"
               style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
           : null}
+        {/* Badges */}
+        {(isNew || isLowStock) && (
+          <div style={{ position: 'absolute', top: 8, left: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {isNew && (
+              <span style={{
+                padding: '3px 8px', fontSize: 10, fontWeight: 700, letterSpacing: '0.05em',
+                background: 'var(--c-primary)', color: 'var(--c-on-accent)',
+                borderRadius: 'var(--r)', textTransform: 'uppercase',
+              }}>Novo</span>
+            )}
+            {isLowStock && (
+              <span style={{
+                padding: '3px 8px', fontSize: 10, fontWeight: 700, letterSpacing: '0.05em',
+                background: 'var(--c-warning, #eab308)', color: '#0a0a0e',
+                borderRadius: 'var(--r)', textTransform: 'uppercase',
+              }}>Últimas {product.stock}</span>
+            )}
+          </div>
+        )}
       </div>
       <div style={{ padding: '12px 4px 0' }}>
-        {showCategory && (
+        {(showCategory || showBrand) && (
           <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--c-text-muted)', marginBottom: 4 }}>
-            {product.category}
+            {showBrand && product.brand}
+            {showBrand && showCategory && ' · '}
+            {showCategory && product.category}
           </div>
         )}
         <h3 style={{ fontFamily: 'var(--f-body)', fontSize: 14, fontWeight: 500, lineHeight: 1.3, margin: 0 }}>
           {product.name}
         </h3>
         {showShort && (
-          <p style={{ fontSize: 13, color: 'var(--c-text-muted)', marginTop: 4, lineHeight: 1.4 }}>
+          <p style={{ fontSize: 13, color: 'var(--c-text-muted)', marginTop: 4, lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
             {product.ai_short_description}
           </p>
         )}
         <div style={{ marginTop: 8, fontWeight: 600, color: 'var(--c-primary)', fontSize: 16 }}>
-          {formatBRL(product.price)}
+          {formatBRL(displayPrice)}
         </div>
       </div>
     </a>
