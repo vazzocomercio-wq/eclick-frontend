@@ -49,6 +49,14 @@ interface ProductLite {
   sku:   string | null
   price: number
   photo_urls: string[] | null
+  stock: number | null
+}
+
+function stockBadge(stock: number | null | undefined): { label: string; color: string } | null {
+  const n = typeof stock === 'number' ? stock : 0
+  if (n <= 0)  return { label: 'Sem estoque', color: '#ef4444' }
+  if (n <= 5)  return { label: `${n} un · baixo`, color: '#f59e0b' }
+  return null
 }
 
 const TYPE_LABELS: Record<BonusType, string> = {
@@ -92,7 +100,7 @@ export default function BonusPage() {
       const token = await fetchToken()
       const [{ data: prodData, error: prodErr }, rulesRes] = await Promise.all([
         supabase.from('products')
-          .select('id, name, sku, price, photo_urls')
+          .select('id, name, sku, price, photo_urls, stock')
           .eq('storefront_visible', true)
           .order('name')
           .limit(500),
@@ -572,7 +580,19 @@ function ProductPicker({ value, onChange, products }: {
                     <img src={p.photo_urls[0]} alt="" style={{ width: 28, height: 28, borderRadius: 4, objectFit: 'cover' }} />
                   )}
                   <div className="flex-1 min-w-0">
-                    <p className="text-zinc-100 line-clamp-1">{p.name}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-zinc-100 line-clamp-1">{p.name}</p>
+                      {(() => {
+                        const sb = stockBadge(p.stock)
+                        return sb ? (
+                          <span className="text-[9px] font-semibold uppercase px-1.5 py-0 rounded whitespace-nowrap"
+                            style={{ background: `${sb.color}20`, color: sb.color }}
+                            title={`Estoque: ${p.stock ?? 0} un`}>
+                            {sb.label}
+                          </span>
+                        ) : null
+                      })()}
+                    </div>
                     {p.sku && <p className="text-[10px] text-zinc-600">SKU: {p.sku}</p>}
                   </div>
                   <span className="text-xs text-zinc-500">R$ {p.price.toFixed(2)}</span>

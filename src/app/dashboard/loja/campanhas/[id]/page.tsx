@@ -36,7 +36,7 @@ interface CampaignProduct {
   discount_pct_override:    number | null
   sale_price_override:      number | null
   added_at:                 string
-  product?: { id: string; name: string; sku: string | null; price: number; photo_urls: string[] | null }
+  product?: { id: string; name: string; sku: string | null; price: number; photo_urls: string[] | null; stock: number | null }
 }
 
 interface ProductLite {
@@ -45,6 +45,15 @@ interface ProductLite {
   sku:   string | null
   price: number
   photo_urls: string[] | null
+  stock: number | null
+}
+
+function stockBadge(stock: number | null | undefined): { label: string; color: string; bg: string } | null {
+  const n = typeof stock === 'number' ? stock : 0
+  if (n <= 0)  return { label: 'Sem estoque', color: '#ef4444', bg: 'rgba(239,68,68,0.1)' }
+  if (n <= 5)  return { label: `${n} un · baixo`, color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' }
+  if (n <= 20) return { label: `${n} un`, color: '#22c55e', bg: 'rgba(34,197,94,0.1)' }
+  return { label: `${n} un`, color: '#71717a', bg: 'rgba(113,113,122,0.1)' }
 }
 
 const brl = (v: unknown) => {
@@ -324,8 +333,20 @@ function CampaignProductRow({ cp, defaultPct, onUpdate, onRemove }: {
 
       {/* Info */}
       <div className="flex-1 min-w-0">
-        <p className="text-sm text-zinc-100 line-clamp-1">{product.name}</p>
-        <p className="text-[11px] text-zinc-500">
+        <div className="flex items-center gap-2 flex-wrap">
+          <p className="text-sm text-zinc-100 line-clamp-1">{product.name}</p>
+          {(() => {
+            const sb = stockBadge(product.stock)
+            return sb ? (
+              <span className="text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded whitespace-nowrap"
+                style={{ background: sb.bg, color: sb.color, border: `1px solid ${sb.color}40` }}
+                title={`Estoque: ${product.stock ?? 0} un`}>
+                {sb.label}
+              </span>
+            ) : null
+          })()}
+        </div>
+        <p className="text-[11px] text-zinc-500 mt-0.5">
           {product.sku && <>SKU: {product.sku} · </>}
           <span className="line-through">{brl(product.price)}</span>
           {' → '}
@@ -383,7 +404,7 @@ function ProductPickerModal({ existingProductIds, onClose, onAdded, campaignId, 
         const supabase = createClient()
         const { data, error } = await supabase
           .from('products')
-          .select('id, name, sku, price, photo_urls')
+          .select('id, name, sku, price, photo_urls, stock')
           .eq('storefront_visible', true)
           .order('name')
           .limit(500)
@@ -505,7 +526,19 @@ function ProductPickerModal({ existingProductIds, onClose, onAdded, campaignId, 
                         <img src={p.photo_urls[0]} alt="" style={{ width: 32, height: 32, borderRadius: 4, objectFit: 'cover' }} />
                       )}
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm text-zinc-100 line-clamp-1">{p.name}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm text-zinc-100 line-clamp-1">{p.name}</p>
+                          {(() => {
+                            const sb = stockBadge(p.stock)
+                            return sb ? (
+                              <span className="text-[9px] font-semibold uppercase px-1.5 py-0 rounded whitespace-nowrap"
+                                style={{ background: sb.bg, color: sb.color }}
+                                title={`Estoque: ${p.stock ?? 0} un`}>
+                                {sb.label}
+                              </span>
+                            ) : null
+                          })()}
+                        </div>
                         <p className="text-[10px] text-zinc-500">
                           {p.sku && <>SKU: {p.sku} · </>}{brl(p.price)}
                           {already && ' · já na campanha'}

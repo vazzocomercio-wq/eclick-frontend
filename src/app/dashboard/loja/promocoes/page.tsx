@@ -38,6 +38,7 @@ interface Product {
 }
 
 type Filter = 'all' | 'active' | 'scheduled' | 'expired' | 'none'
+type StockFilter = 'any' | 'in_stock' | 'low_stock' | 'no_stock'
 
 const FILTER_LABELS: Record<Filter, string> = {
   all:       'Todos',
@@ -55,6 +56,22 @@ const FILTER_COLORS: Record<Filter, string> = {
   none:      '#71717a',
 }
 
+const STOCK_FILTER_LABELS: Record<StockFilter, string> = {
+  any:       'Qualquer estoque',
+  in_stock:  'Com estoque',
+  low_stock: 'Pouco (≤ 5)',
+  no_stock:  'Sem estoque',
+}
+
+/** Retorna { label, color } pro badge de estoque. */
+function stockBadge(stock: number | null | undefined): { label: string; color: string; bg: string } {
+  const n = typeof stock === 'number' ? stock : 0
+  if (n <= 0)  return { label: 'Sem estoque', color: '#ef4444', bg: 'rgba(239,68,68,0.1)' }
+  if (n <= 5)  return { label: `${n} un · baixo`, color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' }
+  if (n <= 20) return { label: `${n} un`, color: '#22c55e', bg: 'rgba(34,197,94,0.1)' }
+  return { label: `${n} un`, color: '#71717a', bg: 'rgba(113,113,122,0.1)' }
+}
+
 const brl = (v: unknown) => {
   const n = typeof v === 'number' ? v : Number(v ?? 0)
   if (!Number.isFinite(n)) return 'R$ 0,00'
@@ -67,6 +84,7 @@ export default function PromocoesPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<Filter>('all')
+  const [stockFilter, setStockFilter] = useState<StockFilter>('any')
   const [q, setQ] = useState('')
   const [editing, setEditing] = useState<Product | null>(null)
   // Bulk selection
@@ -103,7 +121,16 @@ export default function PromocoesPage() {
   useEffect(() => { void load() }, [load])
 
   // Limpa seleção quando muda filtro/busca (produtos podem sair da lista)
-  useEffect(() => { setSelectedIds(new Set()) }, [filter, q])
+  useEffect(() => { setSelectedIds(new Set()) }, [filter, q, stockFilter])
+
+  // Filtro client-side de estoque (backend não tem ainda)
+  const filteredProducts = products.filter(p => {
+    const stock = Number(p.stock ?? 0)
+    if (stockFilter === 'in_stock')  return stock > 0
+    if (stockFilter === 'low_stock') return stock > 0 && stock <= 5
+    if (stockFilter === 'no_stock')  return stock <= 0
+    return true
+  })
 
   const toggleSelect = (id: string) => {
     setSelectedIds(prev => {
@@ -116,11 +143,13 @@ export default function PromocoesPage() {
   const selectAllVisible = () => {
     setSelectedIds(prev => {
       const next = new Set(prev)
-      const allSelected = products.every(p => next.has(p.id))
+      // "Visíveis" considera o filtro de estoque também
+      const visible = filteredProducts
+      const allSelected = visible.length > 0 && visible.every(p => next.has(p.id))
       if (allSelected) {
-        for (const p of products) next.delete(p.id)
+        for (const p of visible) next.delete(p.id)
       } else {
-        for (const p of products) next.add(p.id)
+        for (const p of visible) next.add(p.id)
       }
       return next
     })
@@ -177,6 +206,37 @@ export default function PromocoesPage() {
         </span>
       </div>
 
+      {/* Filtro de estoque (linha 2) */}
+      <div className="flex items-center gap-2 flex-wrap text-xs">
+        <span className="text-zinc-500">Estoque:</span>
+        {(Object.keys(STOCK_FILTER_LABELS) as StockFilter[]).map(f => {
+          const colors: Record<StockFilter, string> = {
+            any:       '#a1a1aa',
+            in_stock:  '#22c55e',
+            low_stock: '#f59e0b',
+            no_stock:  '#ef4444',
+          }
+          const active = stockFilter === f
+          return (
+            <button key={f} onClick={() => setStockFilter(f)}
+              className="px-2.5 py-1 rounded font-medium transition-all"
+              style={{
+                background: active ? colors[f] : '#0a0a0e',
+                color:      active ? '#0a0a0e' : '#a1a1aa',
+                border:     `1px solid ${active ? colors[f] : '#27272a'}`,
+                minHeight: 30,
+              }}>
+              {STOCK_FILTER_LABELS[f]}
+            </button>
+          )
+        })}
+        {stockFilter !== 'any' && (
+          <span className="text-zinc-500 ml-auto">
+            {filteredProducts.length} de {products.length} produtos
+          </span>
+        )}
+      </div>
+
       {error && (
         <div className="p-3 rounded-lg" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)' }}>
           <p className="text-sm text-red-400 flex items-center gap-2">
@@ -203,12 +263,12 @@ export default function PromocoesPage() {
             <label className="inline-flex items-center gap-2 text-xs cursor-pointer" style={{ color: '#a1a1aa' }}>
               <input
                 type="checkbox"
-                checked={products.length > 0 && products.every(p => selectedIds.has(p.id))}
+                checked={filteredProducts.length > 0 && filteredProducts.every(p => selectedIds.has(p.id))}
                 onChange={selectAllVisible}
                 className="w-4 h-4 cursor-pointer"
                 style={{ accentColor: '#00E5FF' }}
               />
-              Selecionar todos ({products.length})
+              Selecionar todos ({filteredProducts.length})
             </label>
             {selectedIds.size > 0 && (
               <button onClick={clearSelection}
@@ -219,17 +279,26 @@ export default function PromocoesPage() {
             )}
           </div>
 
-          <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
-            {products.map(p => (
-              <ProductRow
-                key={p.id}
-                product={p}
-                selected={selectedIds.has(p.id)}
-                onToggle={() => toggleSelect(p.id)}
-                onEdit={() => setEditing(p)}
-              />
-            ))}
-          </div>
+          {filteredProducts.length === 0 ? (
+            <div className="text-center py-12 rounded-lg" style={{ background: '#0a0a0e', border: '1px dashed #27272a' }}>
+              <Tag size={32} className="mx-auto text-zinc-700 mb-2" />
+              <p className="text-sm text-zinc-500">
+                Nenhum produto bate com o filtro de estoque atual
+              </p>
+            </div>
+          ) : (
+            <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
+              {filteredProducts.map(p => (
+                <ProductRow
+                  key={p.id}
+                  product={p}
+                  selected={selectedIds.has(p.id)}
+                  onToggle={() => toggleSelect(p.id)}
+                  onEdit={() => setEditing(p)}
+                />
+              ))}
+            </div>
+          )}
         </>
       )}
 
@@ -340,7 +409,7 @@ function ProductRow({ product, selected, onToggle, onEdit }: {
             )}
           </div>
           {product.sku && <p className="text-[10px] text-zinc-600 mb-1">SKU: {product.sku}</p>}
-          <div className="text-xs">
+          <div className="text-xs flex items-center gap-2 flex-wrap">
             {onSale ? (
               <span>
                 <span className="text-zinc-500 line-through">{brl(product.price)}</span>
@@ -350,6 +419,17 @@ function ProductRow({ product, selected, onToggle, onEdit }: {
             ) : (
               <span className="text-zinc-300 font-medium">{brl(product.price)}</span>
             )}
+            {/* Badge de estoque */}
+            {(() => {
+              const sb = stockBadge(product.stock)
+              return (
+                <span className="text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded whitespace-nowrap"
+                  style={{ background: sb.bg, color: sb.color, border: `1px solid ${sb.color}40` }}
+                  title={`Estoque: ${product.stock ?? 0} unidades`}>
+                  {sb.label}
+                </span>
+              )
+            })()}
           </div>
         </div>
       </div>
