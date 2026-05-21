@@ -30,10 +30,11 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import {
   GripVertical, Copy, Trash2, EyeOff, Eye, Smartphone, Monitor, Plus, X,
-  Loader2, Check,
+  Loader2, Check, Settings,
 } from 'lucide-react'
 import type { StorefrontDesignV3, Section, SectionType } from '@/lib/storefront/v3/types'
 import { SECTION_TYPES_V3 } from '@/lib/storefront/v3/types'
+import { SectionInspector } from './SectionInspector'
 
 const SECTION_LABELS: Partial<Record<SectionType, string>> = {
   siteHeader:          'Cabeçalho',
@@ -75,9 +76,10 @@ interface Props {
 }
 
 export function ModoAvancado({ design, onSave, onLiveChange }: Props) {
-  const [local, setLocal]   = useState<StorefrontDesignV3>(design)
-  const [status, setStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
-  const [adding, setAdding] = useState(false)
+  const [local, setLocal]       = useState<StorefrontDesignV3>(design)
+  const [status, setStatus]     = useState<'idle' | 'saving' | 'saved'>('idle')
+  const [adding, setAdding]     = useState(false)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => { setLocal(design) }, [design])
@@ -143,6 +145,21 @@ export function ModoAvancado({ design, onSave, onLiveChange }: Props) {
     setAdding(false)
   }
 
+  const updateSection = (next: Section) =>
+    setSections(sections.map(s => s.id === next.id ? next : s))
+
+  // Se ha section selecionada, mostra o inspector em vez da lista.
+  const selected = selectedId ? sections.find(s => s.id === selectedId) : null
+  if (selected) {
+    return (
+      <SectionInspector
+        section={selected}
+        onChange={updateSection}
+        onBack={() => setSelectedId(null)}
+      />
+    )
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-3" style={{ minHeight: 20 }}>
@@ -157,6 +174,7 @@ export function ModoAvancado({ design, onSave, onLiveChange }: Props) {
         <SortableContext items={sections.map(s => s.id)} strategy={verticalListSortingStrategy}>
           {sections.map(s => (
             <SortableItem key={s.id} section={s}
+              onEdit={() => setSelectedId(s.id)}
               onDuplicate={() => duplicate(s.id)}
               onRemove={() => remove(s.id)}
               onToggleDesktop={() => toggleVisibility(s.id, 'desktop')}
@@ -185,8 +203,9 @@ export function ModoAvancado({ design, onSave, onLiveChange }: Props) {
 // Item arrastavel
 // ─────────────────────────────────────────────────────────────────────────
 
-function SortableItem({ section, onDuplicate, onRemove, onToggleDesktop, onToggleMobile }: {
+function SortableItem({ section, onEdit, onDuplicate, onRemove, onToggleDesktop, onToggleMobile }: {
   section: Section
+  onEdit:      () => void
   onDuplicate: () => void
   onRemove:    () => void
   onToggleDesktop: () => void
@@ -213,12 +232,16 @@ function SortableItem({ section, onDuplicate, onRemove, onToggleDesktop, onToggl
         style={{ cursor: 'grab', minHeight: 44, minWidth: 32, background: 'transparent', border: 'none', color: '#a1a1aa' }}>
         <GripVertical size={16} />
       </button>
-      <div className="flex-1 min-w-0">
+      <button onClick={onEdit}
+        className="flex-1 min-w-0 text-left"
+        style={{ background: 'transparent', border: 'none', cursor: 'pointer', minHeight: 44 }}>
         <div style={{ fontSize: 14, color: '#fafafa', fontWeight: 500 }}>
           {SECTION_LABELS[section.type] ?? section.type}
         </div>
         <div style={{ fontSize: 11, color: '#52525b' }}>{section.type}</div>
-      </div>
+      </button>
+      <button onClick={onEdit} aria-label="Editar"
+        style={{ ...iconBtnStyle(true), color: '#00E5FF' }}><Settings size={14} /></button>
       <button onClick={onToggleMobile}  aria-label="Mostrar/ocultar no mobile"
         style={iconBtnStyle(section.visibility.mobile)}><Smartphone size={14} /></button>
       <button onClick={onToggleDesktop} aria-label="Mostrar/ocultar no desktop"
