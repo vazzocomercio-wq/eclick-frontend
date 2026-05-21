@@ -317,22 +317,57 @@ function PromotionModal({ product, onClose, onSaved, fetchToken }: {
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-zinc-400 mb-1">
-              Preço promocional <span className="text-zinc-600">(deixe em branco pra remover promoção)</span>
+            <label className="block text-xs font-medium text-zinc-400 mb-2">
+              Desconto <span className="text-zinc-600">(deixe em branco pra remover promoção)</span>
             </label>
-            <input
-              type="number" step="0.01" min="0"
-              value={salePrice}
-              onChange={e => setSalePrice(e.target.value)}
-              placeholder="Ex: 799.90"
-              className="w-full text-sm px-3 py-2 rounded outline-none"
-              style={{ background: '#0a0a0e', color: '#fafafa', border: `1px solid ${!valid ? '#ef4444' : '#27272a'}`, minHeight: 44 }}
-            />
+            <div className="grid grid-cols-[1fr_120px] gap-2">
+              <div>
+                <label className="block text-[10px] uppercase tracking-wide text-zinc-600 mb-1">Preço promocional</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500">R$</span>
+                  <input
+                    type="number" step="0.01" min="0"
+                    value={salePrice}
+                    onChange={e => {
+                      setSalePrice(e.target.value)
+                    }}
+                    placeholder="Ex: 60,00"
+                    className="w-full text-sm pl-9 pr-3 py-2 rounded outline-none"
+                    style={{ background: '#0a0a0e', color: '#fafafa', border: `1px solid ${!valid ? '#ef4444' : '#27272a'}`, minHeight: 44 }}
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[10px] uppercase tracking-wide text-zinc-600 mb-1">% Desconto</label>
+                <div className="relative">
+                  <input
+                    type="number" step="1" min="0" max="99"
+                    value={discountPct || ''}
+                    onChange={e => {
+                      const pct = parseFloat(e.target.value)
+                      if (!Number.isFinite(pct) || pct <= 0) {
+                        setSalePrice('')
+                      } else {
+                        const newPrice = product.price * (1 - Math.min(99, pct) / 100)
+                        // 2 casas, mas evita "63.4399999"
+                        setSalePrice((Math.round(newPrice * 100) / 100).toFixed(2))
+                      }
+                    }}
+                    placeholder="Ex: 20"
+                    className="w-full text-sm pl-3 pr-8 py-2 rounded outline-none text-center font-semibold"
+                    style={{ background: '#0a0a0e', color: '#22c55e', border: `1px solid ${!valid ? '#ef4444' : '#27272a'}`, minHeight: 44 }}
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500">%</span>
+                </div>
+              </div>
+            </div>
             {!valid && (
               <p className="text-[11px] text-red-400 mt-1">Preço promocional deve ser maior que 0 e menor que {brl(product.price)}</p>
             )}
             {valid && discountPct > 0 && (
-              <p className="text-[11px] mt-1" style={{ color: '#22c55e' }}>-{discountPct}% de desconto · economia de {brl(product.price - (salePriceNum ?? 0))}</p>
+              <p className="text-[11px] mt-1" style={{ color: '#22c55e' }}>
+                Economia de {brl(product.price - (salePriceNum ?? 0))}
+              </p>
             )}
           </div>
 
