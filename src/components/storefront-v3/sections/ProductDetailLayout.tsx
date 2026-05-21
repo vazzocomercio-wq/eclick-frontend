@@ -17,6 +17,7 @@ import type { ProductDetailLayoutSection } from '@/lib/storefront/v3/types'
 import type { RenderCtx } from '../RenderCtx'
 import { formatBRL } from '@/lib/storefront/v3/data'
 import { ProductGalleryClient } from './ProductGalleryClient'
+import { WhatsAppIcon } from '@/components/storefront/WhatsAppIcon'
 
 export function ProductDetailLayoutSectionView({ ctx, section }: { ctx: RenderCtx; section: ProductDetailLayoutSection }) {
   const { galleryPosition, stickyAddToCart, showShareButtons } = section.settings
@@ -124,14 +125,17 @@ export function ProductDetailLayoutSectionView({ ctx, section }: { ctx: RenderCt
               Adicionar ao carrinho
             </button>
             {ctx.store.whatsapp_number && (
-              <a href={`https://wa.me/${ctx.store.whatsapp_number.replace(/\D/g, '')}`}
+              <a href={`https://wa.me/${ctx.store.whatsapp_number.replace(/\D/g, '')}?text=${encodeURIComponent(`Olá! Tenho interesse no ${product.name}.`)}`}
                 target="_blank" rel="noopener noreferrer"
                 style={{
-                  padding: '14px 24px', minHeight: 48,
-                  background: 'var(--c-surface)', color: 'var(--c-text)',
-                  border: '1px solid var(--c-border)', borderRadius: 'var(--r)',
-                  textDecoration: 'none', fontWeight: 500, textAlign: 'center',
+                  padding: '14px 20px', minHeight: 48,
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  background: '#25D366', color: '#ffffff',
+                  border: 0, borderRadius: 'var(--r)',
+                  textDecoration: 'none', fontWeight: 600, textAlign: 'center',
+                  boxShadow: '0 2px 8px rgba(37,211,102,0.25)',
                 }}>
+                <WhatsAppIcon size={18} color="#ffffff" />
                 Pedir pelo WhatsApp
               </a>
             )}

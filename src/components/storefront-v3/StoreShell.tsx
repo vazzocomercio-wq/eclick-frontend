@@ -17,6 +17,7 @@ import { StorefrontPixels } from './StorefrontPixels'
 import type { RenderCtx } from './RenderCtx'
 import { googleFontsHref, themeCssVars } from './helpers'
 import type { PageDesign } from '@/lib/storefront/v3/types'
+import { WhatsAppFloater } from '@/components/storefront/premium/WhatsAppFloater'
 
 export function StoreShell({ ctx }: { ctx: RenderCtx }) {
   const page: PageDesign = ctx.design.pages[ctx.page]
@@ -54,6 +55,12 @@ export function StoreShell({ ctx }: { ctx: RenderCtx }) {
       <div style={{ borderTop: '1px solid var(--c-border)', marginTop: 40 }}>
         <SectionRenderer ctx={ctx} section={footer} />
       </div>
+
+      {/* WhatsApp floater (botão flutuante bottom-right) — mostrado quando
+          a loja tem whatsapp_widget_enabled + whatsapp_number. */}
+      {ctx.store.whatsapp_widget_enabled && ctx.store.whatsapp_number && (
+        <WhatsAppFloater store={ctx.store} />
+      )}
     </div>
   )
 }
