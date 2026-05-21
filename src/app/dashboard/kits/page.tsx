@@ -6,6 +6,7 @@ import {
   Boxes, Sparkles, Loader2, Check, Pause, Play, Archive,
   AlertCircle, Tag, Plus,
 } from 'lucide-react'
+import { useAlert } from '@/components/ui/dialog-provider'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
@@ -72,6 +73,7 @@ export default function KitsPage() {
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const showAlert = useAlert()
   const [count, setCount] = useState(5)
 
   const refresh = useCallback(async () => {
@@ -94,7 +96,7 @@ export default function KitsPage() {
       const r = await api<{ kits: ProductKit[]; cost_usd: number }>('/kits/generate', {
         method: 'POST', body: JSON.stringify({ count }),
       })
-      alert(`${r.kits.length} kits gerados · custo $${r.cost_usd.toFixed(4)}`)
+      await showAlert({ message: `${r.kits.length} kits gerados · custo $${r.cost_usd.toFixed(4)}`, variant: 'info' })
       await refresh()
     } catch (e) {
       setError((e as Error).message)

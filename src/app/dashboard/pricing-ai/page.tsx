@@ -13,7 +13,7 @@ import {
   type PricingDashboard,
   type PricingSuggestionStatus,
 } from '@/components/pricing-ai/pricingAiApi'
-import { useConfirm, useAlert } from '@/components/ui/dialog-provider'
+import { useConfirm, useAlert, usePrompt } from '@/components/ui/dialog-provider'
 
 const STATUS_KEYS: PricingSuggestionStatus[] = ['pending', 'applied', 'auto_applied', 'approved', 'rejected', 'expired']
 const STATUS_COLOR: Record<PricingSuggestionStatus, string> = {
@@ -67,7 +67,7 @@ export default function PricingAiHomePage() {
     setAnalyzing(true); setError(null)
     try {
       const r = await PricingAiApi.analyzeAll({ max_items: 30 })
-      alert(t('analyzeDone', { analyzed: r.analyzed, failed: r.failed, cost: r.cost_usd.toFixed(4) }))
+      await showAlert({ message: t('analyzeDone', { analyzed: r.analyzed, failed: r.failed, cost: r.cost_usd.toFixed(4) }), variant: 'info' })
       await refresh()
     } catch (e) {
       setError((e as Error).message)
@@ -237,6 +237,8 @@ function SuggestionRow({
   const t = useTranslations('pricingAi')
   const [busy, setBusy] = useState(false)
   const [showScenarios, setShowScenarios] = useState(false)
+  const showAlert = useAlert()
+  const showPrompt = usePrompt()
 
   const analysis = s.analysis as { reasoning?: string; confidence?: number; scenarios?: PricingSuggestion['analysis'] extends infer T ? T : never; factors?: Record<string, unknown> } & Record<string, unknown>
   type Sc = { price: number; expected_margin: number; expected_sales_change: string }
@@ -244,14 +246,14 @@ function SuggestionRow({
 
   async function approve() {
     setBusy(true)
-    try { await PricingAiApi.approve(s.id); onChanged() } catch (e) { alert((e as Error).message) }
+    try { await PricingAiApi.approve(s.id); onChanged() } catch (e) { await showAlert({ message: (e as Error).message, variant: 'danger' }) }
     finally { setBusy(false) }
   }
 
   async function reject() {
-    const reason = prompt(t('rejectReasonPrompt')) ?? undefined
+    const reason = (await showPrompt({ message: t('rejectReasonPrompt'), required: false })) ?? undefined
     setBusy(true)
-    try { await PricingAiApi.reject(s.id, reason); onChanged() } catch (e) { alert((e as Error).message) }
+    try { await PricingAiApi.reject(s.id, reason); onChanged() } catch (e) { await showAlert({ message: (e as Error).message, variant: 'danger' }) }
     finally { setBusy(false) }
   }
 

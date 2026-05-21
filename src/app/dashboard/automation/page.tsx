@@ -72,7 +72,7 @@ export default function AutomationInboxPage() {
     setAnalyzing(true); setError(null)
     try {
       const r = await StoreAutomationApi.analyze()
-      alert(t('analyzeResult', { created: r.created, deduped: r.deduped }))
+      await showAlert({ message: t('analyzeResult', { created: r.created, deduped: r.deduped }), variant: 'info' })
       await refresh()
     } catch (e) {
       setError((e as Error).message)
@@ -233,18 +233,19 @@ function ActionCard({ action, selected, onToggle, onChanged }: {
 }) {
   const t = useTranslations('automation')
   const [busy, setBusy] = useState(false)
+  const showAlert = useAlert()
 
   async function approve() {
     setBusy(true)
     try { await StoreAutomationApi.approve(action.id); onChanged() }
-    catch (e) { alert((e as Error).message) }
+    catch (e) { await showAlert({ message: (e as Error).message, variant: 'danger' }) }
     finally { setBusy(false) }
   }
 
   async function reject(feedback: string) {
     setBusy(true)
     try { await StoreAutomationApi.reject(action.id, feedback); onChanged() }
-    catch (e) { alert((e as Error).message) }
+    catch (e) { await showAlert({ message: (e as Error).message, variant: 'danger' }) }
     finally { setBusy(false) }
   }
 

@@ -84,7 +84,7 @@ export default function ProductAiEnrichmentPage() {
       await CatalogApi.recomputeScore(productId)
       await load()
     } catch (e: unknown) {
-      alert((e as Error).message)
+      await showAlert({ message: (e as Error).message, variant: 'danger' })
     } finally {
       setRecomputing(false)
     }

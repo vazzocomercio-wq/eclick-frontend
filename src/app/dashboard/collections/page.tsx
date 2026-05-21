@@ -6,7 +6,7 @@ import {
   Layers, Sparkles, Loader2, Check, X, AlertCircle, Plus,
   Eye, Archive, Edit3,
 } from 'lucide-react'
-import { useConfirm } from '@/components/ui/dialog-provider'
+import { useConfirm, useAlert } from '@/components/ui/dialog-provider'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
@@ -62,6 +62,7 @@ export default function CollectionsPage() {
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const confirm = useConfirm()
+  const showAlert = useAlert()
 
   const refresh = useCallback(async () => {
     setLoading(true); setError(null)
@@ -83,7 +84,7 @@ export default function CollectionsPage() {
       const r = await api<{ collections: ProductCollection[]; cost_usd: number }>('/collections/generate', {
         method: 'POST', body: JSON.stringify({ count: 5 }),
       })
-      alert(`${r.collections.length} coleções geradas · custo $${r.cost_usd.toFixed(4)}`)
+      await showAlert({ message: `${r.collections.length} coleções geradas · custo $${r.cost_usd.toFixed(4)}`, variant: 'info' })
       await refresh()
     } catch (e) {
       setError((e as Error).message)
@@ -194,7 +195,7 @@ export default function CollectionsPage() {
                   {c.status === 'active' ? <><Archive size={10} /> Arquivar</> : <><Check size={10} /> Ativar</>}
                 </button>
                 <button
-                  onClick={() => alert('Editor visual em sprint futura. Use PATCH na API por ora.')}
+                  onClick={() => showAlert({ message: 'Editor visual em sprint futura. Use PATCH na API por ora.', variant: 'info' })}
                   className="inline-flex items-center gap-1 px-2 py-1 rounded border border-zinc-700 hover:border-cyan-400/60 text-zinc-400 hover:text-cyan-300 text-[11px]"
                 >
                   <Edit3 size={10} />

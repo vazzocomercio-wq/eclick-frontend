@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import { ImageUploadField } from '@/components/storefront/ImageUploadField'
+import { useAlert } from '@/components/ui/dialog-provider'
 import {
   Store, Loader2, Save, AlertCircle, Globe, Palette, Search,
   Share2, Check, ExternalLink, Settings, CreditCard, FileText, Plus, Trash2,
@@ -82,6 +83,7 @@ export default function StoreConfigPage() {
   const [saving, setSaving]   = useState(false)
   const [error, setError]     = useState<string | null>(null)
   const [verifying, setVerifying] = useState(false)
+  const showAlert = useAlert()
   const [presets, setPresets] = useState<Record<string, StoreTheme> | null>(null)
   const [createName, setCreateName] = useState('')
   const [creating, setCreating] = useState(false)
@@ -150,8 +152,8 @@ export default function StoreConfigPage() {
       const r = await api<{ verified: boolean; reason?: string; expected_target?: string }>(
         '/store/config/verify-domain', { method: 'POST' },
       )
-      if (r.verified) alert(t('domainVerifiedAlert', { target: r.expected_target ?? '' }))
-      else alert(t('domainNotVerifiedAlert', { reason: r.reason ?? '', target: r.expected_target ?? '' }))
+      if (r.verified) await showAlert({ message: t('domainVerifiedAlert', { target: r.expected_target ?? '' }), variant: 'info' })
+      else await showAlert({ message: t('domainNotVerifiedAlert', { reason: r.reason ?? '', target: r.expected_target ?? '' }), variant: 'warning' })
       await load()
     } catch (e) {
       setError((e as Error).message)

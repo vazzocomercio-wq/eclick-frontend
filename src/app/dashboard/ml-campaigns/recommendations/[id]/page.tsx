@@ -10,7 +10,7 @@ import {
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import { CopyButton } from '@/components/ui/copy-button'
-import { useConfirm } from '@/components/ui/dialog-provider'
+import { useConfirm, useAlert } from '@/components/ui/dialog-provider'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'https://eclick-backend-production-2a87.up.railway.app'
 
@@ -94,6 +94,7 @@ export default function RecoDetailPage({ params }: { params: Promise<{ id: strin
   const [error, setError]     = useState<string | null>(null)
   const [editing, setEditing] = useState(false)
   const confirm = useConfirm()
+  const showAlert = useAlert()
   const [editPrice, setEditPrice] = useState('')
   const [editQty, setEditQty]     = useState('')
   const [strategy, setStrategy]   = useState<'conservative' | 'competitive' | 'aggressive' | null>(null)
@@ -178,7 +179,7 @@ export default function RecoDetailPage({ params }: { params: Promise<{ id: strin
             && result.recent_attempts_count > result.audit_threshold) {
           extra = `\n\n${t('gateAlert.attemptsWarning', { count: result.recent_attempts_count, limit: result.audit_threshold })}`
         }
-        alert(t('gateAlert.message', { margin: m, threshold: thr }) + extra)
+        await showAlert({ message: t('gateAlert.message', { margin: m, threshold: thr }) + extra, variant: 'warning' })
       }
       router.push('/dashboard/ml-campaigns/recommendations')
     } catch (e) {
