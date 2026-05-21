@@ -29,7 +29,8 @@ import type {
   CartLayoutSection, CheckoutLayoutSection, ProductDetailLayoutSection,
   SiteHeaderSection, SiteFooterSection,
 } from '@/lib/storefront/v3/types'
-import { Acc, Field, Input, Textarea, NumberInput, Select, Toggle, ColorField } from './primitives'
+import { Acc, Field, Input, Textarea, NumberInput, Select, Toggle, ColorField, Slider } from './primitives'
+import { ImageUploadField } from '@/components/storefront/ImageUploadField'
 import { BlockListEditor } from './BlockListEditor'
 
 const SECTION_LABELS: Record<SectionType, string> = {
@@ -199,11 +200,22 @@ function SettingsEditor({ section, onChange, setSettings }: {
           <Field label="Mostrar busca"><Toggle value={s.settings.showSearch} onChange={v => setSettings({ showSearch: v })} /></Field>
           <Field label="Mostrar carrinho"><Toggle value={s.settings.showCart} onChange={v => setSettings({ showCart: v })} /></Field>
           <Field label="Mostrar conta"><Toggle value={s.settings.showAccount} onChange={v => setSettings({ showAccount: v })} /></Field>
-          <Field label="Texto do logo">
+          <Field label="Texto do logo (se não tiver imagem)">
             <Input value={s.settings.logoText ?? ''} onChange={v => setSettings({ logoText: v || undefined })} />
           </Field>
-          <Field label="URL do logo">
-            <Input value={s.settings.logoUrl ?? ''} onChange={v => setSettings({ logoUrl: v || undefined })} />
+          <Field label="Imagem do logo">
+            <ImageUploadField
+              value={s.settings.logoUrl ?? ''}
+              onChange={v => setSettings({ logoUrl: v || undefined })}
+              placeholder="https://… (ou envie acima)"
+              previewMaxWidth={180}
+              downscaleMaxWidth={800}
+            />
+          </Field>
+          <Field label="Tamanho da logo" hint="Altura em pixels (24-120).">
+            <Slider value={s.settings.logoMaxHeight ?? 40}
+              onChange={v => setSettings({ logoMaxHeight: v })}
+              min={24} max={120} step={2} unit="px" />
           </Field>
         </>
       )

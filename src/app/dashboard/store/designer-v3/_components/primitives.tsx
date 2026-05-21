@@ -101,6 +101,34 @@ export function Select<T extends string>({ value, options, onChange }: {
   )
 }
 
+export function Slider({ value, onChange, min, max, step, unit }: {
+  value: number; onChange: (v: number) => void
+  min: number; max: number; step?: number; unit?: string
+}) {
+  return (
+    <div className="flex items-center gap-3">
+      <input
+        type="range"
+        value={value}
+        onChange={e => onChange(parseFloat(e.target.value) || min)}
+        min={min} max={max} step={step ?? 1}
+        style={{
+          flex: 1, height: 6, accentColor: '#00E5FF',
+          background: '#0a0a0e', borderRadius: 3,
+          cursor: 'pointer',
+        }}
+      />
+      <span style={{
+        minWidth: 56, textAlign: 'right',
+        fontSize: 13, fontFamily: 'monospace',
+        color: '#fafafa',
+      }}>
+        {value}{unit ?? ''}
+      </span>
+    </div>
+  )
+}
+
 export function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
   return (
     <button

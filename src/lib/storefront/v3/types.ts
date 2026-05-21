@@ -270,6 +270,8 @@ export type SiteHeaderSection = SectionBase<'siteHeader', {
   showAccount: boolean
   logoUrl?:   string
   logoText?:  string                       // fallback texto se sem logo
+  /** Altura maxima da imagem do logo em px (default 40, range 24-120). */
+  logoMaxHeight?: number
   nav:        Array<{ label: string; href: string; submenu?: Array<{ label: string; href: string }> }>
 }>
 

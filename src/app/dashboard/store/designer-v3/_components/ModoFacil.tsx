@@ -20,6 +20,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { ChevronDown, ChevronUp, Loader2, Check } from 'lucide-react'
 import { ImageUploadField } from '@/components/storefront/ImageUploadField'
+import { Slider } from './primitives'
 import type {
   StorefrontDesignV3, ThemeV3, FontPair, Radius, Density,
   SiteHeaderSection, SiteFooterSection, Section,
@@ -120,6 +121,13 @@ export function ModoFacil({ design, onSave, onLiveChange }: Props) {
             placeholder="https://… (ou envie acima)"
             previewMaxWidth={180}
             downscaleMaxWidth={800}
+          />
+        </Field>
+        <Field label="Tamanho da logo" hint="Altura máxima em pixels. Padrão 40.">
+          <Slider
+            value={local.globals.header.settings.logoMaxHeight ?? 40}
+            onChange={v => updateHeader(h => ({ ...h, settings: { ...h.settings, logoMaxHeight: v } }))}
+            min={24} max={120} step={2} unit="px"
           />
         </Field>
       </Acc>
@@ -477,11 +485,12 @@ function Acc({ title, defaultOpen, children }: { title: string; defaultOpen?: bo
   )
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
     <div>
       <label className="block text-xs mb-1.5" style={{ color: '#a1a1aa' }}>{label}</label>
       {children}
+      {hint && <div className="text-[11px] mt-1" style={{ color: '#52525b' }}>{hint}</div>}
     </div>
   )
 }
