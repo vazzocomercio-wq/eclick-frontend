@@ -130,24 +130,35 @@ export function Slider({ value, onChange, min, max, step, unit }: {
 }
 
 export function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
+  // Wrapper com padding garante touch area >=44px sem inflar o visual do switch.
   return (
     <button
       onClick={() => onChange(!value)}
       role="switch" aria-checked={value}
       style={{
-        position: 'relative', width: 44, height: 24,
-        background: value ? '#00E5FF' : '#27272a',
-        border: 'none', borderRadius: 12, cursor: 'pointer',
-        minHeight: 44, padding: 0,
         display: 'inline-flex', alignItems: 'center',
+        padding: '10px 6px',  // touch area: 44px altura, 56px largura
+        background: 'transparent', border: 'none', cursor: 'pointer',
       }}>
-      <span style={{
-        position: 'absolute',
-        left: value ? 22 : 2, top: 2,
-        width: 20, height: 20,
-        background: '#fafafa', borderRadius: '50%',
-        transition: 'left 150ms',
-      }} />
+      <span
+        aria-hidden
+        style={{
+          position: 'relative',
+          display: 'inline-block',
+          width: 44, height: 24,
+          background: value ? '#00E5FF' : '#27272a',
+          borderRadius: 12,
+          transition: 'background 150ms',
+        }}>
+        <span style={{
+          position: 'absolute',
+          left: value ? 22 : 2, top: 2,
+          width: 20, height: 20,
+          background: '#fafafa', borderRadius: '50%',
+          transition: 'left 150ms',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.4)',
+        }} />
+      </span>
     </button>
   )
 }
