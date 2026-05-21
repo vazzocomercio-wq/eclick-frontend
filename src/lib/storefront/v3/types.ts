@@ -523,3 +523,24 @@ export interface StorefrontDesignV3 {
   pages:    PageMap
   meta:     DesignMeta
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// Arrays runtime (espelho do backend storefront-design-v3.types)
+// ─────────────────────────────────────────────────────────────────────────
+
+export const THEME_MODES_V3:        readonly ThemeMode[]   = ['dark', 'light']
+export const FONT_PAIRS_V3:         readonly FontPair[]    = ['elegant', 'modern', 'bold', 'classic', 'editorial', 'playful']
+export const RADII_V3:              readonly Radius[]      = ['none', 'sm', 'md', 'lg', 'full']
+export const DENSITIES_V3:          readonly Density[]     = ['compact', 'cozy', 'spacious']
+export const SECTION_TYPES_V3:      readonly SectionType[] = [
+  'siteHeader','siteFooter','announcementBar','breadcrumb',
+  'hero','slider','imageBanner','imageHotspot','imageWithText','marquee',
+  'productGrid','productCarousel','featuredProduct','collectionGrid','productDetailLayout',
+  'richText','testimonials','logoList','faq','newsletter','videoBlock','customHtml',
+  'cartLayout','checkoutLayout','whatsappCatalog',
+]
+export const BLOCK_TYPES_V3:        readonly BlockType[]   = [
+  'heading','subheading','paragraph','image','video','button','badge','countdown',
+  'divider','spacer','icon','productCardMini','collectionLink','socialIcon','slide',
+]
+export const PAGE_KEYS_V3:          readonly (keyof PageMap)[] = ['home','product','collection','cart','checkout']

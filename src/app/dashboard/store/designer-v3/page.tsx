@@ -23,6 +23,8 @@ import { createClient } from '@/lib/supabase'
 import { ArrowLeft, Loader2, Smartphone, Tablet, Monitor, AlertCircle, Save, Sparkles } from 'lucide-react'
 import type { StorefrontDesignV3 } from '@/lib/storefront/v3/types'
 import { DEFAULT_DESIGN_V3 } from '@/lib/storefront/v3/templates'
+import { ModoFacil } from './_components/ModoFacil'
+import { ModoAvancado } from './_components/ModoAvancado'
 
 const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'https://eclick-backend-production-2a87.up.railway.app'
 
@@ -173,8 +175,8 @@ export default function DesignerV3Page() {
           </div>
           <div className="flex-1 overflow-y-auto p-4">
             {tab === 'facil'
-              ? <ComingSoon label="Modo Fácil" hint="Formulário guiado: cores, fonte, banner, vitrine. Disponível em C.3." />
-              : <ComingSoon label="Modo Avançado" hint="Arrastar e soltar seções + sub-editores por tipo. Disponível em C.4." />}
+              ? <ModoFacil design={design} onSave={save} />
+              : <ModoAvancado design={design} onSave={save} />}
             <div className="mt-6 pt-6 border-t" style={{ borderColor: '#27272a' }}>
               <button
                 disabled
