@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
+import { ImageUploadField } from '@/components/storefront/ImageUploadField'
 import {
   Store, Loader2, Save, AlertCircle, Globe, Palette, Search,
   Share2, Check, ExternalLink, Settings, CreditCard, FileText, Plus, Trash2,
@@ -252,8 +253,13 @@ export default function StoreConfigPage() {
                     rows={2} className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-1.5 text-sm text-zinc-200 outline-none focus:border-cyan-400/60 resize-none" />
         </Field>
         <Field label={t('fieldLogoUrl')}>
-          <input value={String(getVal('logo_url') ?? '')} onChange={e => setVal('logo_url', e.target.value)} placeholder="https://..."
-                 className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-1.5 text-sm text-zinc-200 outline-none focus:border-cyan-400/60" />
+          <ImageUploadField
+            value={String(getVal('logo_url') ?? '')}
+            onChange={url => setVal('logo_url', url)}
+            placeholder="https://… (ou envie o arquivo acima)"
+            previewMaxWidth={240}
+            downscaleMaxWidth={800}
+          />
         </Field>
       </Section>
 
