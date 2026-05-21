@@ -305,7 +305,9 @@ export type BreadcrumbSection = SectionBase<'breadcrumb', {
 
 export type HeroSection = SectionBase<'hero', {
   layout:       'split' | 'centered' | 'overlay'
-  height:       'auto' | 'sm' | 'md' | 'lg' | 'fullscreen'
+  height:       'auto' | 'sm' | 'md' | 'lg' | 'fullscreen' | 'custom'
+  /** Altura em px quando `height='custom'`. Range 100-1200. */
+  customHeight?: number
   textAlign:    'left' | 'center' | 'right'
 }>
 
@@ -315,7 +317,8 @@ export type SliderSection = SectionBase<'slider', {
   showDots:     boolean
   showArrows:   boolean
   effect:       'fade' | 'slide' | 'coverflow'
-  height:       'auto' | 'sm' | 'md' | 'lg' | 'fullscreen'
+  height:       'auto' | 'sm' | 'md' | 'lg' | 'fullscreen' | 'custom'
+  customHeight?: number
 }>
 
 export type ImageBannerSection = SectionBase<'imageBanner', {
@@ -325,7 +328,8 @@ export type ImageBannerSection = SectionBase<'imageBanner', {
   ctaLabel?:    string
   ctaHref?:     string
   textPosition: 'top-left' | 'top-center' | 'top-right' | 'center' | 'bottom-left' | 'bottom-center' | 'bottom-right'
-  height:       'sm' | 'md' | 'lg' | 'fullscreen'
+  height:       'sm' | 'md' | 'lg' | 'fullscreen' | 'custom'
+  customHeight?: number
 }>
 
 export type ImageHotspotSection = SectionBase<'imageHotspot', {

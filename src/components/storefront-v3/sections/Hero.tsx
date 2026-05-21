@@ -17,7 +17,7 @@ import type { HeroSection } from '@/lib/storefront/v3/types'
 import type { RenderCtx } from '../RenderCtx'
 import { BlockRenderer } from '../BlockRenderer'
 
-const HEIGHT: Record<HeroSection['settings']['height'], string> = {
+const HEIGHT_PRESET: Record<Exclude<HeroSection['settings']['height'], 'custom'>, string> = {
   auto:       'auto',
   sm:         '240px',
   md:         '380px',
@@ -26,8 +26,10 @@ const HEIGHT: Record<HeroSection['settings']['height'], string> = {
 }
 
 export function HeroSectionView({ ctx, section }: { ctx: RenderCtx; section: HeroSection }) {
-  const { layout, height, textAlign } = section.settings
-  const minH = HEIGHT[height]
+  const { layout, height, customHeight, textAlign } = section.settings
+  const minH = height === 'custom'
+    ? `${Math.max(80, Math.min(1200, customHeight ?? 380))}px`
+    : HEIGHT_PRESET[height]
 
   const alignClass =
     textAlign === 'center' ? 'items-center text-center'

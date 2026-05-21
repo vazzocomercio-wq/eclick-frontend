@@ -13,7 +13,7 @@ import type {
 import type { RenderCtx } from '../RenderCtx'
 import { formatBRL } from '@/lib/storefront/v3/data'
 
-const HEIGHT_BANNER: Record<ImageBannerSection['settings']['height'], string> = {
+const HEIGHT_BANNER_PRESET: Record<Exclude<ImageBannerSection['settings']['height'], 'custom'>, string> = {
   sm:         '280px',
   md:         '400px',
   lg:         '560px',
@@ -21,12 +21,15 @@ const HEIGHT_BANNER: Record<ImageBannerSection['settings']['height'], string> = 
 }
 
 export function ImageBanner({ section }: { ctx: RenderCtx; section: ImageBannerSection }) {
-  const { imageUrl, headline, subheadline, ctaLabel, ctaHref, textPosition, height } = section.settings
+  const { imageUrl, headline, subheadline, ctaLabel, ctaHref, textPosition, height, customHeight } = section.settings
+  const minH = height === 'custom'
+    ? `${Math.max(80, Math.min(1200, customHeight ?? 400))}px`
+    : HEIGHT_BANNER_PRESET[height]
   const pos = textPosition.split('-') as [string, string]
   const align = pos[0]
   const just  = pos[1]
   return (
-    <div className="relative w-full overflow-hidden" style={{ minHeight: HEIGHT_BANNER[height] }}>
+    <div className="relative w-full overflow-hidden" style={{ minHeight: minH }}>
       {imageUrl && (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={imageUrl} alt={headline ?? ''} loading="lazy"
@@ -35,7 +38,7 @@ export function ImageBanner({ section }: { ctx: RenderCtx; section: ImageBannerS
       <div
         className="container mx-auto px-4 relative h-full flex flex-col"
         style={{
-          minHeight: HEIGHT_BANNER[height],
+          minHeight: minH,
           justifyContent: align === 'top' ? 'flex-start' : align === 'bottom' ? 'flex-end' : 'center',
           alignItems:     just  === 'left' ? 'flex-start' : just  === 'right'  ? 'flex-end' : 'center',
           textAlign:      just === 'center' ? 'center' : just === 'right' ? 'right' : 'left',

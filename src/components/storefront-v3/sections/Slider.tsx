@@ -18,7 +18,7 @@ import type { SliderSection } from '@/lib/storefront/v3/types'
 import type { RenderCtx } from '../RenderCtx'
 import { Slide as SlideBlockView } from '../blocks'
 
-const HEIGHT: Record<SliderSection['settings']['height'], string> = {
+const HEIGHT_PRESET: Record<Exclude<SliderSection['settings']['height'], 'custom'>, string> = {
   auto:       '360px',
   sm:         '280px',
   md:         '420px',
@@ -28,7 +28,10 @@ const HEIGHT: Record<SliderSection['settings']['height'], string> = {
 
 export function SliderSectionView({ ctx, section }: { ctx: RenderCtx; section: SliderSection }) {
   const slides = section.blocks.filter(b => b.type === 'slide')
-  const { autoplay, interval, showDots, showArrows, effect, height } = section.settings
+  const { autoplay, interval, showDots, showArrows, effect, height, customHeight } = section.settings
+  const minH = height === 'custom'
+    ? `${Math.max(80, Math.min(1200, customHeight ?? 420))}px`
+    : HEIGHT_PRESET[height]
   const [active, setActive] = useState(0)
   const total = slides.length
 
@@ -42,7 +45,7 @@ export function SliderSectionView({ ctx, section }: { ctx: RenderCtx; section: S
   if (total === 0) return null
 
   return (
-    <div className="relative" style={{ minHeight: HEIGHT[height], overflow: 'hidden' }}>
+    <div className="relative" style={{ minHeight: minH, overflow: 'hidden' }}>
       {/* Slides */}
       {effect === 'fade'
         ? slides.map((s, i) => (

@@ -278,9 +278,16 @@ function SettingsEditor({ section, onChange, setSettings }: {
           </Field>
           <Field label="Altura">
             <Select value={s.settings.height}
-              options={[['auto','Automática'],['sm','Pequena'],['md','Média'],['lg','Grande'],['fullscreen','Tela cheia']]}
-              onChange={v => setSettings({ height: v as 'sm' | 'md' | 'lg' | 'auto' | 'fullscreen' })} />
+              options={[['auto','Automática'],['sm','Pequena'],['md','Média'],['lg','Grande'],['fullscreen','Tela cheia'],['custom','Personalizada (slider)']]}
+              onChange={v => setSettings({ height: v as HeroSection['settings']['height'] })} />
           </Field>
+          {s.settings.height === 'custom' && (
+            <Field label="Altura personalizada (px)" hint="Arraste pra ajustar (80-1200px).">
+              <Slider value={s.settings.customHeight ?? 380}
+                onChange={v => setSettings({ customHeight: v })}
+                min={80} max={1200} step={10} unit="px" />
+            </Field>
+          )}
           <Field label="Alinhamento do texto">
             <Select value={s.settings.textAlign}
               options={[['left','Esquerda'],['center','Centro'],['right','Direita']]}
@@ -306,9 +313,16 @@ function SettingsEditor({ section, onChange, setSettings }: {
           </Field>
           <Field label="Altura">
             <Select value={s.settings.height}
-              options={[['auto','Automática'],['sm','Pequena'],['md','Média'],['lg','Grande'],['fullscreen','Tela cheia']]}
-              onChange={v => setSettings({ height: v as 'sm' | 'md' | 'lg' | 'auto' | 'fullscreen' })} />
+              options={[['auto','Automática'],['sm','Pequena'],['md','Média'],['lg','Grande'],['fullscreen','Tela cheia'],['custom','Personalizada (slider)']]}
+              onChange={v => setSettings({ height: v as SliderSection['settings']['height'] })} />
           </Field>
+          {s.settings.height === 'custom' && (
+            <Field label="Altura personalizada (px)" hint="Arraste pra ajustar (80-1200px).">
+              <Slider value={s.settings.customHeight ?? 420}
+                onChange={v => setSettings({ customHeight: v })}
+                min={80} max={1200} step={10} unit="px" />
+            </Field>
+          )}
         </>
       )
     }
@@ -335,9 +349,16 @@ function SettingsEditor({ section, onChange, setSettings }: {
           </Field>
           <Field label="Altura">
             <Select value={s.settings.height}
-              options={[['sm','Pequena'],['md','Média'],['lg','Grande'],['fullscreen','Tela cheia']]}
-              onChange={v => setSettings({ height: v as 'sm' | 'md' | 'lg' | 'fullscreen' })} />
+              options={[['sm','Pequena'],['md','Média'],['lg','Grande'],['fullscreen','Tela cheia'],['custom','Personalizada (slider)']]}
+              onChange={v => setSettings({ height: v as ImageBannerSection['settings']['height'] })} />
           </Field>
+          {s.settings.height === 'custom' && (
+            <Field label="Altura personalizada (px)" hint="Arraste pra ajustar (80-1200px).">
+              <Slider value={s.settings.customHeight ?? 400}
+                onChange={v => setSettings({ customHeight: v })}
+                min={80} max={1200} step={10} unit="px" />
+            </Field>
+          )}
         </>
       )
     }
