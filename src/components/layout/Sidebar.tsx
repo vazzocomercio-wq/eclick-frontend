@@ -15,6 +15,7 @@ import {
   GraduationCap, LineChart, Shield, Users2, TrendingDown,
   Zap, Map as MapIcon, Bell, Wand2, Layers, Store, Palette, Link2, Calendar, FileText, Eye,
   RotateCcw, CreditCard, Scale, Trophy, AlertTriangle as AlertTriangleIcon, Sparkles as SparklesIcon,
+  LayoutDashboard, Tag,
 } from 'lucide-react'
 import { CORE_MODULES } from '@/lib/modules'
 
@@ -266,8 +267,11 @@ const SECTIONS: NavSection[] = [
     key: 'loja',
     labelKey: 'sections.loja',
     items: [
+      { labelKey: 'items.lojaHub',       href: '/dashboard/loja',           icon: <LayoutDashboard size={15} /> },
       { labelKey: 'items.lojaConfig',    href: '/dashboard/store/config',   icon: <Store size={15} /> },
       { labelKey: 'items.lojaDesigner',  href: '/dashboard/store/designer', icon: <Palette size={15} /> },
+      { labelKey: 'items.lojaCupons',    href: '/dashboard/loja/cupons',    icon: <Tag size={15} /> },
+      { labelKey: 'items.lojaFrete',     href: '/dashboard/loja/frete',     icon: <Truck size={15} /> },
       { labelKey: 'items.lojaCopiloto',  href: '/dashboard/store-copilot',  icon: <Bot size={15} /> },
       { labelKey: 'items.lojaColecoes',  href: '/dashboard/collections',    icon: <Layers size={15} /> },
       { labelKey: 'items.lojaKits',      href: '/dashboard/kits',           icon: <Package size={15} /> },
