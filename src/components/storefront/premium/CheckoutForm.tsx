@@ -9,10 +9,10 @@
  * Stripe). Apos a resposta, o carrinho fica vazio (clear).
  */
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useTranslations } from 'next-intl'
-import { Loader2, CreditCard, AlertCircle, ShoppingBag, ArrowLeft } from 'lucide-react'
+import { Loader2, CreditCard, AlertCircle, ShoppingBag, ArrowLeft, Wallet } from 'lucide-react'
 import { useCart } from '@/lib/storefront/cart'
 import { formatBRL } from '@/lib/storefront/data'
 import type { StorefrontStore } from '@/lib/storefront/data'
@@ -47,6 +47,76 @@ export function CheckoutForm({ store, design, slug }: {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError]     = useState<string | null>(null)
 
+  // Cashback: saldo do cliente + opt-in pra usar
+  const [cashbackBalanceCents, setCashbackBalanceCents] = useState<number | null>(null)
+  const [cashbackMaxRedeemable, setCashbackMaxRedeemable] = useState<number>(0)
+  const [cashbackEarnPct, setCashbackEarnPct] = useState<number>(0)
+  const [useCashback, setUseCashback] = useState<boolean>(false)
+  const [cashbackToUseCents, setCashbackToUseCents] = useState<number>(0)
+
+  // Lookup do saldo quando email é preenchido (debounced 500ms)
+  useEffect(() => {
+    if (!email.trim() || !email.includes('@')) {
+      setCashbackBalanceCents(null)
+      return
+    }
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `${BACKEND}/public/cashback/by-slug/${encodeURIComponent(slug)}/balance?email=${encodeURIComponent(email.trim())}`,
+        )
+        if (!res.ok) return
+        const data = await res.json() as {
+          enabled: boolean; balance: number;
+          settings?: { minBalanceToUseCents: number; maxRedemptionPctPerOrder: number; earnPct: number }
+        }
+        if (!data.enabled) {
+          setCashbackBalanceCents(null)
+          return
+        }
+        setCashbackBalanceCents(data.balance ?? 0)
+        setCashbackEarnPct(data.settings?.earnPct ?? 0)
+      } catch { /* silent — cashback é opt-in */ }
+    }, 500)
+    return () => clearTimeout(t)
+  }, [email, slug])
+
+  // Preview redemption quando o cliente opta em usar (recalcula maxRedeemable)
+  useEffect(() => {
+    if (!useCashback || !email.trim() || !cashbackBalanceCents || cart.subtotal <= 0) {
+      setCashbackMaxRedeemable(0)
+      setCashbackToUseCents(0)
+      return
+    }
+    const orderTotalCents = Math.round(cart.subtotal * 100)
+    void (async () => {
+      try {
+        const res = await fetch(
+          `${BACKEND}/public/cashback/by-slug/${encodeURIComponent(slug)}/preview-redemption`,
+          {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ email: email.trim(), orderTotalCents }),
+          },
+        )
+        if (!res.ok) return
+        const data = await res.json() as { maxRedeemableCents: number; enabled: boolean }
+        if (!data.enabled) {
+          setCashbackMaxRedeemable(0)
+          setCashbackToUseCents(0)
+          return
+        }
+        setCashbackMaxRedeemable(data.maxRedeemableCents ?? 0)
+        // Por padrão, usa o máximo permitido
+        setCashbackToUseCents(prev => prev > 0 && prev <= (data.maxRedeemableCents ?? 0) ? prev : (data.maxRedeemableCents ?? 0))
+      } catch { /* silent */ }
+    })()
+  }, [useCashback, email, slug, cart.subtotal, cashbackBalanceCents])
+
+  const cashbackToUseReais = cashbackToUseCents / 100
+  const effectiveTotal = Math.max(0, cart.subtotal - (useCashback ? cashbackToUseReais : 0))
+  const cashbackToEarn  = effectiveTotal * (cashbackEarnPct / 100)
+
   const announce = design.sections.find(s => s.type === 'announcementBar')
   const header   = design.sections.find(s => s.type === 'siteHeader')
   const footer   = design.sections.find(s => s.type === 'siteFooter')
@@ -77,6 +147,7 @@ export function CheckoutForm({ store, design, slug }: {
             doc:   doc.trim() || undefined,
             notes: notes.trim() || undefined,
           },
+          cashbackToUse: useCashback && cashbackToUseCents > 0 ? cashbackToUseCents : undefined,
         }),
       })
       if (!res.ok) {
@@ -155,11 +226,80 @@ export function CheckoutForm({ store, design, slug }: {
                 </Field>
               </Card>
 
+              {/* Cashback (aparece só quando cliente tem saldo) */}
+              {cashbackBalanceCents != null && cashbackBalanceCents > 0 && (
+                <Card title={
+                  <span className="inline-flex items-center gap-2">
+                    <Wallet size={14} /> Cashback disponível
+                  </span>
+                } ctx={ctx}>
+                  <div className="p-3 rounded" style={{
+                    background: alpha('#22c55e', 0.08),
+                    border: '1px solid rgba(34,197,94,0.3)',
+                    borderRadius: ctx.radius,
+                  }}>
+                    <div className="flex items-center justify-between mb-2">
+                      <div>
+                        <p className="text-xs" style={{ color: colors.textMuted }}>Seu saldo</p>
+                        <p className="text-xl font-bold" style={{ color: '#22c55e' }}>
+                          {formatBRL(cashbackBalanceCents / 100)}
+                        </p>
+                      </div>
+                      <label className="inline-flex items-center gap-2 cursor-pointer" style={{ minHeight: 44 }}>
+                        <span className="text-sm" style={{ color: colors.text }}>
+                          Usar agora
+                        </span>
+                        <input
+                          type="checkbox"
+                          checked={useCashback}
+                          onChange={e => setUseCashback(e.target.checked)}
+                          className="w-5 h-5 cursor-pointer"
+                          style={{ accentColor: '#22c55e' }}
+                        />
+                      </label>
+                    </div>
+                    {useCashback && cashbackMaxRedeemable > 0 && (
+                      <>
+                        <div className="mt-3 mb-1 flex items-center justify-between">
+                          <span className="text-xs" style={{ color: colors.textMuted }}>Quanto usar</span>
+                          <span className="text-sm font-bold" style={{ color: '#22c55e' }}>
+                            {formatBRL(cashbackToUseCents / 100)}
+                          </span>
+                        </div>
+                        <input
+                          type="range"
+                          min={0}
+                          max={cashbackMaxRedeemable}
+                          step={100}
+                          value={cashbackToUseCents}
+                          onChange={e => setCashbackToUseCents(Number(e.target.value))}
+                          className="w-full"
+                          style={{ accentColor: '#22c55e' }}
+                        />
+                        <p className="text-[10px] mt-1" style={{ color: colors.textMuted }}>
+                          Máximo permitido nesse pedido: {formatBRL(cashbackMaxRedeemable / 100)}
+                        </p>
+                      </>
+                    )}
+                    {useCashback && cashbackMaxRedeemable === 0 && cashbackBalanceCents > 0 && (
+                      <p className="text-xs mt-2" style={{ color: colors.textMuted }}>
+                        Saldo abaixo do mínimo permitido nesse pedido.
+                      </p>
+                    )}
+                  </div>
+                </Card>
+              )}
+
               <Card title={t('checkout.payment.title')} ctx={ctx}>
                 <GatewayPick value={gateway} onChange={setGateway} ctx={ctx} />
                 <p className="text-[11px] mt-2" style={{ color: colors.textMuted }}>
                   {gateway === 'mercadopago' ? t('checkout.payment.redirectNoteMp') : t('checkout.payment.redirectNoteStripe')}
                 </p>
+                {useCashback && cashbackToUseCents > 0 && gateway === 'stripe' && (
+                  <p className="text-[11px] mt-2" style={{ color: '#f59e0b' }}>
+                    ⚠ Resgate de cashback ainda não disponível com Stripe. Use Mercado Pago.
+                  </p>
+                )}
               </Card>
 
               {error && (
@@ -178,7 +318,7 @@ export function CheckoutForm({ store, design, slug }: {
                 className="hidden lg:inline-flex w-full items-center justify-center gap-2 px-6 py-3.5 font-semibold text-sm transition-transform hover:scale-[1.01] disabled:opacity-50"
                 style={{ background: colors.primary, color: onAccentColor(ctx.theme), borderRadius: ctx.radius }}>
                 {submitting ? <Loader2 size={16} className="animate-spin" /> : <CreditCard size={16} />}
-                {submitting ? t('checkout.submit.redirecting') : t('checkout.submit.pay', { price: formatBRL(cart.subtotal) })}
+                {submitting ? t('checkout.submit.redirecting') : t('checkout.submit.pay', { price: formatBRL(effectiveTotal) })}
               </button>
             </div>
 
@@ -197,20 +337,40 @@ export function CheckoutForm({ store, design, slug }: {
                     </li>
                   ))}
                 </ul>
-                <div className="mt-4 pt-3 border-t flex justify-between items-baseline"
+                {/* Subtotal */}
+                <div className="mt-4 pt-3 border-t flex justify-between items-baseline text-sm"
+                  style={{ borderColor: colors.border }}>
+                  <span style={{ color: colors.textMuted }}>Subtotal</span>
+                  <span style={{ color: colors.text }}>{formatBRL(cart.subtotal)}</span>
+                </div>
+                {/* Cashback aplicado */}
+                {useCashback && cashbackToUseCents > 0 && (
+                  <div className="flex justify-between items-baseline text-sm">
+                    <span style={{ color: '#22c55e' }}>💰 Cashback aplicado</span>
+                    <span style={{ color: '#22c55e' }}>− {formatBRL(cashbackToUseCents / 100)}</span>
+                  </div>
+                )}
+                {/* Total */}
+                <div className="pt-3 border-t flex justify-between items-baseline"
                   style={{ borderColor: colors.border }}>
                   <span className="text-sm" style={{ color: colors.textMuted }}>{t('checkout.summary.total')}</span>
                   <span className="text-2xl font-bold" style={{ color: colors.primary, fontFamily: ctx.fontH }}>
-                    {formatBRL(cart.subtotal)}
+                    {formatBRL(effectiveTotal)}
                   </span>
                 </div>
+                {/* Cashback a ganhar */}
+                {cashbackEarnPct > 0 && effectiveTotal > 0 && (
+                  <div className="mt-1 text-[11px] text-right" style={{ color: '#22c55e' }}>
+                    Você vai ganhar {formatBRL(cashbackToEarn)} em cashback
+                  </div>
+                )}
               </Card>
 
               <button type="submit" disabled={submitting || empty}
                 className="lg:hidden w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 font-semibold text-sm transition-transform hover:scale-[1.01] disabled:opacity-50"
                 style={{ background: colors.primary, color: onAccentColor(ctx.theme), borderRadius: ctx.radius }}>
                 {submitting ? <Loader2 size={16} className="animate-spin" /> : <CreditCard size={16} />}
-                {submitting ? t('checkout.submit.redirecting') : t('checkout.submit.pay', { price: formatBRL(cart.subtotal) })}
+                {submitting ? t('checkout.submit.redirecting') : t('checkout.submit.pay', { price: formatBRL(effectiveTotal) })}
               </button>
             </aside>
           </form>
@@ -222,7 +382,7 @@ export function CheckoutForm({ store, design, slug }: {
   )
 }
 
-function Card({ title, children, ctx }: { title: string; children: React.ReactNode; ctx: ReturnType<typeof buildCtx> }) {
+function Card({ title, children, ctx }: { title: React.ReactNode; children: React.ReactNode; ctx: ReturnType<typeof buildCtx> }) {
   return (
     <section className="p-5 space-y-3"
       style={{ background: ctx.theme.colors.surface, border: `1px solid ${ctx.theme.colors.border}`, borderRadius: ctx.radius }}>
