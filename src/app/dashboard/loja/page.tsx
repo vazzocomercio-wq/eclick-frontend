@@ -19,7 +19,7 @@ import { createClient } from '@/lib/supabase'
 import {
   Store, Palette, Ticket, Truck, ShoppingCart, Layers, Package, Sparkles,
   Megaphone, Gift, BarChart3, Loader2, AlertCircle, ExternalLink, Plus,
-  ChevronRight, Settings, ImageIcon,
+  ChevronRight, Settings, ImageIcon, CreditCard, Tag,
 } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'https://eclick-backend-production-2a87.up.railway.app'
@@ -233,6 +233,21 @@ export default function LojaHubPage() {
             description="Pedidos da vitrine no módulo de pedidos · filtro Loja Própria"
             color="#fb7185"
           />
+          <ToolCard
+            href="/dashboard/loja/pagamentos"
+            icon={<CreditCard size={20} />}
+            label="Pagamentos"
+            description="Como mostrar preço · parcelas · desconto Pix · gateway"
+            color="#10b981"
+          />
+          <ToolCard
+            href="/dashboard/loja/promocoes"
+            icon={<Tag size={20} />}
+            label="Promoções"
+            description="Desconto direto no produto · janela · badge OFERTA automática"
+            badge="BETA"
+            color="#ef4444"
+          />
         </div>
       </div>
 
@@ -243,11 +258,6 @@ export default function LojaHubPage() {
         </h2>
         <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
           <ComingSoonCard
-            icon={<BarChart3 size={20} />}
-            label="Promoções por produto"
-            description="Desconto direto no produto sem precisar de cupom · cronograma"
-          />
-          <ComingSoonCard
             icon={<Gift size={20} />}
             label="Bônus & Brindes"
             description="Leve 2 pague 1 · brinde acima de R$ X · presente surpresa"
@@ -256,6 +266,11 @@ export default function LojaHubPage() {
             icon={<ImageIcon size={20} />}
             label="Banner Generator (página dedicada)"
             description="Hoje só dentro do Designer · página própria com histórico"
+          />
+          <ComingSoonCard
+            icon={<BarChart3 size={20} />}
+            label="Cashback inteligente"
+            description="Acúmulo automático · saldo do cliente · pode usar em compras futuras"
           />
         </div>
       </div>

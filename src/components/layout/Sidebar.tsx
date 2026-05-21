@@ -272,6 +272,8 @@ const SECTIONS: NavSection[] = [
       { labelKey: 'items.lojaDesigner',  href: '/dashboard/store/designer', icon: <Palette size={15} /> },
       { labelKey: 'items.lojaCupons',    href: '/dashboard/loja/cupons',    icon: <Tag size={15} /> },
       { labelKey: 'items.lojaFrete',     href: '/dashboard/loja/frete',     icon: <Truck size={15} /> },
+      { labelKey: 'items.lojaPagamentos', href: '/dashboard/loja/pagamentos', icon: <CreditCard size={15} /> },
+      { labelKey: 'items.lojaPromocoes', href: '/dashboard/loja/promocoes', icon: <Tag size={15} /> },
       { labelKey: 'items.lojaPedidos',   href: '/dashboard/pedidos?platform=storefront', icon: <ShoppingCart size={15} /> },
       { labelKey: 'items.lojaCopiloto',  href: '/dashboard/store-copilot',  icon: <Bot size={15} /> },
       { labelKey: 'items.lojaColecoes',  href: '/dashboard/collections',    icon: <Layers size={15} /> },
