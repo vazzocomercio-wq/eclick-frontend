@@ -42,23 +42,58 @@ export default async function ProductPage({ params }: Props) {
   const store = data.store as StorefrontStore
   const resolved = resolveDesign(store)
 
+  // JSON-LD Product (SEO — Google Rich Results)
+  const baseUrl = store.custom_domain
+    ? `https://${store.custom_domain}`
+    : `https://eclick.app.br/loja/${slug}`
+  const jsonLd = {
+    '@context':    'https://schema.org/',
+    '@type':       'Product',
+    name:          data.product.name,
+    description:   data.product.ai_short_description ?? data.product.description ?? undefined,
+    image:         data.product.photo_urls?.[0] ? [data.product.photo_urls[0]] : undefined,
+    brand:         data.product.brand ?? undefined,
+    sku:           data.product.id,
+    gtin:          data.product.gtin ?? undefined,
+    offers: {
+      '@type':         'Offer',
+      url:             `${baseUrl}/produto/${data.product.id}`,
+      priceCurrency:   'BRL',
+      price:           data.product.price,
+      availability:    (data.product.stock ?? 0) > 0
+        ? 'https://schema.org/InStock'
+        : 'https://schema.org/OutOfStock',
+      itemCondition:   'https://schema.org/NewCondition',
+    },
+  }
+  const jsonLdScript = (
+    <script type="application/ld+json"
+      dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+  )
+
   if (resolved.version === 3) {
     return (
-      <StoreShell ctx={{
-        store, design: resolved.design, theme: resolved.design.theme,
-        slug, page: 'product',
-        products: [data.product, ...related],
-      }} />
+      <>
+        {jsonLdScript}
+        <StoreShell ctx={{
+          store, design: resolved.design, theme: resolved.design.theme,
+          slug, page: 'product',
+          products: [data.product, ...related],
+        }} />
+      </>
     )
   }
   // Fallback v2
   return (
-    <PremiumProductDetail
-      design={store.design ?? DEFAULT_DESIGN}
-      store={data.store}
-      product={data.product}
-      slug={slug}
-      related={related}
-    />
+    <>
+      {jsonLdScript}
+      <PremiumProductDetail
+        design={store.design ?? DEFAULT_DESIGN}
+        store={data.store}
+        product={data.product}
+        slug={slug}
+        related={related}
+      />
+    </>
   )
 }

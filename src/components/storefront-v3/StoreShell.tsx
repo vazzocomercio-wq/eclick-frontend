@@ -13,6 +13,7 @@
  */
 
 import { SectionRenderer } from './SectionRenderer'
+import { StorefrontPixels } from './StorefrontPixels'
 import type { RenderCtx } from './RenderCtx'
 import { googleFontsHref, themeCssVars } from './helpers'
 import type { PageDesign } from '@/lib/storefront/v3/types'
@@ -30,6 +31,7 @@ export function StoreShell({ ctx }: { ctx: RenderCtx }) {
       minHeight:  '100vh',
     }}>
       <link rel="stylesheet" href={googleFontsHref(ctx.theme)} />
+      <StorefrontPixels store={ctx.store} />
 
       {/* Header global (sticky se configurado) */}
       <div style={{

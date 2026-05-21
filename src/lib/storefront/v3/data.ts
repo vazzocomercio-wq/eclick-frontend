@@ -22,7 +22,11 @@ export { getProducts, getProduct, formatBRL, whatsappLink }
 
 /** Store publica + design_v3 opcional (vem direto do select('*') do backend). */
 export interface StorefrontStore extends StorefrontStoreV2 {
-  design_v3?: StorefrontDesignV3 | null
+  design_v3?:           StorefrontDesignV3 | null
+  google_analytics_id?: string | null
+  meta_pixel_id?:       string | null
+  tiktok_pixel_id?:     string | null
+  gtm_id?:              string | null
 }
 
 export async function getStore(slug: string): Promise<StorefrontStore | null> {
