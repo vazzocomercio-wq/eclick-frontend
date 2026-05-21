@@ -6,6 +6,7 @@ import {
   Layers, Sparkles, Loader2, Check, X, AlertCircle, Plus,
   Eye, Archive, Edit3,
 } from 'lucide-react'
+import { useConfirm } from '@/components/ui/dialog-provider'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
@@ -60,6 +61,7 @@ export default function CollectionsPage() {
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const confirm = useConfirm()
 
   const refresh = useCallback(async () => {
     setLoading(true); setError(null)
@@ -101,7 +103,13 @@ export default function CollectionsPage() {
   }
 
   async function remove(id: string) {
-    if (!confirm('Remover coleção?')) return
+    const ok = await confirm({
+      title:        'Remover coleção',
+      message:      'A coleção será excluída. Produtos que faziam parte dela continuam no catálogo, só deixam de aparecer agrupados.',
+      confirmLabel: 'Remover',
+      variant:      'danger',
+    })
+    if (!ok) return
     try {
       await api(`/collections/${id}`, { method: 'DELETE' })
       await refresh()

@@ -13,6 +13,7 @@ import {
   type PricingDashboard,
   type PricingSuggestionStatus,
 } from '@/components/pricing-ai/pricingAiApi'
+import { useConfirm, useAlert } from '@/components/ui/dialog-provider'
 
 const STATUS_KEYS: PricingSuggestionStatus[] = ['pending', 'applied', 'auto_applied', 'approved', 'rejected', 'expired']
 const STATUS_COLOR: Record<PricingSuggestionStatus, string> = {
@@ -34,6 +35,8 @@ export default function PricingAiHomePage() {
   const [filterStatus, setFilterStatus] = useState<PricingSuggestionStatus | ''>('pending')
   const [search, setSearch]       = useState('')
   const [batch, setBatch]         = useState<string[]>([])
+  const confirm = useConfirm()
+  const showAlert = useAlert()
 
   const refresh = useCallback(async () => {
     setLoading(true); setError(null)
@@ -75,10 +78,11 @@ export default function PricingAiHomePage() {
 
   async function approveBatch() {
     if (batch.length === 0) return
-    if (!confirm(t('confirmApproveBatch', { count: batch.length }))) return
+    const ok = await confirm({ message: t('confirmApproveBatch', { count: batch.length }), confirmLabel: 'Aprovar' })
+    if (!ok) return
     try {
       const r = await PricingAiApi.approveBatch(batch)
-      alert(t('approveBatchResult', { approved: r.approved, failed: r.failed }))
+      await showAlert({ message: t('approveBatchResult', { approved: r.approved, failed: r.failed }), variant: 'info' })
       setBatch([])
       await refresh()
     } catch (e) {

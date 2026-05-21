@@ -10,6 +10,7 @@ import {
 import {
   AdsCampaignsApi, type AdsCampaign,
 } from '@/components/ads-campaigns/adsCampaignsApi'
+import { useConfirm } from '@/components/ui/dialog-provider'
 
 const PLATFORM_COLOR: Record<string, string> = {
   meta: '#0866FF', google: '#4285F4', tiktok: '#FF0050', mercado_livre_ads: '#FFE600',
@@ -29,6 +30,7 @@ export default function AdsCampaignDetail() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [acting, setActing] = useState(false)
+  const confirm = useConfirm()
 
   // Regenerate dialog
   const [regenOpen, setRegenOpen] = useState(false)
@@ -202,11 +204,11 @@ export default function AdsCampaignDetail() {
           </button>
           {c.status !== 'archived' && (
             <button
-              onClick={() => {
-                if (confirm(t('detail.archiveConfirm'))) {
-                  void action(() => AdsCampaignsApi.archive(id))
-                  router.push('/dashboard/ads-campaigns')
-                }
+              onClick={async () => {
+                const ok = await confirm({ message: t('detail.archiveConfirm'), confirmLabel: 'Arquivar', variant: 'warning' })
+                if (!ok) return
+                void action(() => AdsCampaignsApi.archive(id))
+                router.push('/dashboard/ads-campaigns')
               }}
               disabled={acting}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-800 hover:border-red-400/40 text-zinc-500 hover:text-red-300 text-xs"

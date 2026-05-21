@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import { CopyButton } from '@/components/ui/copy-button'
+import { useConfirm } from '@/components/ui/dialog-provider'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'https://eclick-backend-production-2a87.up.railway.app'
 
@@ -92,6 +93,7 @@ export default function RecoDetailPage({ params }: { params: Promise<{ id: strin
   const [busy, setBusy]       = useState<'approve' | 'reject' | 'edit' | null>(null)
   const [error, setError]     = useState<string | null>(null)
   const [editing, setEditing] = useState(false)
+  const confirm = useConfirm()
   const [editPrice, setEditPrice] = useState('')
   const [editQty, setEditQty]     = useState('')
   const [strategy, setStrategy]   = useState<'conservative' | 'competitive' | 'aggressive' | null>(null)
@@ -187,7 +189,9 @@ export default function RecoDetailPage({ params }: { params: Promise<{ id: strin
   }
 
   async function reject() {
-    if (!reco || !confirm(t('confirmReject'))) return
+    if (!reco) return
+    const ok = await confirm({ message: t('confirmReject'), confirmLabel: 'Rejeitar', variant: 'danger' })
+    if (!ok) return
     setBusy('reject')
     try {
       const token = await getToken()

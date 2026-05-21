@@ -14,6 +14,7 @@ async function getAuthToken(): Promise<string | null> {
   return data.session?.access_token ?? null
 }
 import { emptyForm, ProductForm } from '../../novo/types'
+import { useConfirm } from '@/components/ui/dialog-provider'
 import Tab1Basic from '../../novo/_components/Tab1Basic'
 import Tab2Description from '../../novo/_components/Tab2Description'
 import Tab3Attributes from '../../novo/_components/Tab3Attributes'
@@ -584,6 +585,7 @@ function TabVinculos({ productId, productName }: { productId: string; productNam
   const [qtyPerUnit, setQtyPerUnit] = useState('1')
   const [error, setError]         = useState<string | null>(null)
   const [success, setSuccess]     = useState<string | null>(null)
+  const confirm = useConfirm()
 
   // Carrega vínculos existentes
   const load = async () => {
@@ -657,7 +659,13 @@ function TabVinculos({ productId, productName }: { productId: string; productNam
   }
 
   async function removeVinculo(vid: string, listingId: string) {
-    if (!confirm(t('vinc.removeConfirm', { id: listingId }))) return
+    const ok = await confirm({
+      title:        'Remover vínculo',
+      message:      t('vinc.removeConfirm', { id: listingId }),
+      confirmLabel: 'Remover',
+      variant:      'danger',
+    })
+    if (!ok) return
     try {
       const token = await getAuthToken()
       const res = await fetch(`${BACKEND}/products/vinculos/${vid}`, {

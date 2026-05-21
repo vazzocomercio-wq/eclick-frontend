@@ -16,6 +16,7 @@ import {
   type AutomationStatus,
   type AutomationStats,
 } from '@/components/store-automation/storeAutomationApi'
+import { useConfirm, useAlert } from '@/components/ui/dialog-provider'
 
 /** Ordem dos triggers no filtro — labels via `t('triggers.<key>')`. */
 const TRIGGER_KEYS: AutomationTrigger[] = [
@@ -43,6 +44,8 @@ export default function AutomationInboxPage() {
   const [filterStatus, setFilterStatus] = useState<AutomationStatus | ''>('pending')
   const [filterTrigger, setFilterTrigger] = useState<AutomationTrigger | ''>('')
   const [batch, setBatch]   = useState<string[]>([])
+  const confirm = useConfirm()
+  const showAlert = useAlert()
 
   const refresh = useCallback(async () => {
     setLoading(true); setError(null)
@@ -80,10 +83,11 @@ export default function AutomationInboxPage() {
 
   async function approveBatch() {
     if (batch.length === 0) return
-    if (!confirm(t('confirmApproveBatch', { count: batch.length }))) return
+    const ok = await confirm({ message: t('confirmApproveBatch', { count: batch.length }), confirmLabel: 'Aprovar' })
+    if (!ok) return
     try {
       const r = await StoreAutomationApi.approveBatch(batch)
-      alert(t('approveBatchResult', { approved: r.approved, failed: r.failed }))
+      await showAlert({ message: t('approveBatchResult', { approved: r.approved, failed: r.failed }), variant: 'info' })
       setBatch([])
       await refresh()
     } catch (e) {

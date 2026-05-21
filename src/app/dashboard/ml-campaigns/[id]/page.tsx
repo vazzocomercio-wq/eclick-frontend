@@ -11,6 +11,7 @@ import {
 import { createClient } from '@/lib/supabase'
 import AccountSelector, { useMlAccount, getStoredSellerId } from '@/components/ml/AccountSelector'
 import { CopyButton } from '@/components/ui/copy-button'
+import { useConfirm } from '@/components/ui/dialog-provider'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'https://eclick-backend-production-2a87.up.railway.app'
 
@@ -93,6 +94,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   const [leaving, setLeaving]   = useState<string | null>(null)
   const [recoMap, setRecoMap]   = useState<Map<string, string>>(new Map()) // campaign_item_id → recommendation_id
   const [generatingItem, setGeneratingItem] = useState<string | null>(null)
+  const confirm = useConfirm()
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
@@ -293,7 +295,8 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
 
   async function leaveCampaign(campaignItemId: string) {
     if (!campaign) return
-    if (!confirm(t('confirmLeave'))) return
+    const ok = await confirm({ message: t('confirmLeave'), confirmLabel: 'Sair da campanha', variant: 'warning' })
+    if (!ok) return
     setLeaving(campaignItemId)
     try {
       const token = await getToken()

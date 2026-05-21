@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { CopilotApi, type CopilotMessage, type RouteContext } from './copilotApi'
 import { AnimatedPromptSuggestions, type PromptSuggestion } from '@/components/ui/animated-prompt-suggestions'
+import { useConfirm } from '@/components/ui/dialog-provider'
 
 const STORAGE_KEY_ENABLED = 'eclick.copilot.enabled'
 
@@ -43,6 +44,7 @@ export default function FloatingCopilot() {
   const [routeCtx, setRouteCtx] = useState<RouteContext | null>(null)
   const [allKb, setAllKb]       = useState<Record<string, Array<{ title: string; tags: string[]; routes: string[] }>> | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const confirm = useConfirm()
 
   // Hidrata localStorage
   useEffect(() => {
@@ -126,9 +128,15 @@ export default function FloatingCopilot() {
     }
   }
 
-  function clearChat() {
+  async function clearChat() {
     if (turns.length === 0) return
-    if (!confirm('Limpar toda a conversa?')) return
+    const ok = await confirm({
+      title:        'Limpar conversa',
+      message:      `Vou apagar as ${turns.length} mensagens desta sessão. Não dá pra recuperar depois.`,
+      confirmLabel: 'Limpar',
+      variant:      'warning',
+    })
+    if (!ok) return
     setTurns([])
   }
 

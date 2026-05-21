@@ -17,6 +17,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import { RefreshCw, Check, Search, Package, ChevronLeft, ChevronRight } from 'lucide-react'
+import { useConfirm } from '@/components/ui/dialog-provider'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 const PAGE = 50
@@ -122,6 +123,7 @@ export function IcarusIntegrationTab({ supplierId }: { supplierId: string }) {
   const [error,   setError]   = useState<string | null>(null)
   const [busy,    setBusy]    = useState(false)
   const [testRes, setTestRes] = useState<{ ok: boolean; message: string } | null>(null)
+  const confirm = useConfirm()
 
   const [accessToken, setAccessToken] = useState('')
   const [baseUrl,     setBaseUrl]     = useState('')
@@ -195,7 +197,8 @@ export function IcarusIntegrationTab({ supplierId }: { supplierId: string }) {
   }, [supplierId, t])
 
   const handleDisconnect = useCallback(async () => {
-    if (!confirm(t('disconnectConfirm'))) return
+    const ok = await confirm({ message: t('disconnectConfirm'), confirmLabel: 'Desconectar', variant: 'danger' })
+    if (!ok) return
     setBusy(true)
     try {
       const tok = await token()

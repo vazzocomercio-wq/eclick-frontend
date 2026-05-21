@@ -8,6 +8,7 @@ import {
   Package, TrendingDown, AlertTriangle, RefreshCw,
 } from 'lucide-react'
 import { CatalogApi, type EnrichmentSummary, type BulkEnrichmentResult, type CatalogHealth, type ProductEnrichmentJob, CATALOG_STATUS_LABELS, type CatalogStatus } from '@/components/catalog/catalogApi'
+import { useConfirm, useAlert } from '@/components/ui/dialog-provider'
 
 export default function CatalogBulkEnrichmentPage() {
   const t = useTranslations('produtos')
@@ -19,6 +20,8 @@ export default function CatalogBulkEnrichmentPage() {
   const [busyAction, setBusyAction] = useState<null | 'missing' | 'low-score' | 'very-low'>(null)
   const [lastResult, setLastResult] = useState<{ action: string; result: BulkEnrichmentResult } | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
+  const confirm = useConfirm()
+  const showAlert = useAlert()
 
   useEffect(() => { void load() }, [])
 
@@ -56,17 +59,19 @@ export default function CatalogBulkEnrichmentPage() {
 
   async function cancelActiveJob() {
     if (!activeJob) return
-    if (!confirm(t('aiBulk.cancelConfirm'))) return
+    const ok = await confirm({ message: t('aiBulk.cancelConfirm'), confirmLabel: 'Cancelar job', variant: 'warning' })
+    if (!ok) return
     try {
       const updated = await CatalogApi.cancelEnrichmentJob(activeJob.id)
       setActiveJob(updated)
     } catch (e: unknown) {
-      alert((e as Error).message)
+      await showAlert({ message: (e as Error).message, variant: 'danger' })
     }
   }
 
   async function runBulk(action: 'missing' | 'low-score' | 'very-low', payload: Parameters<typeof CatalogApi.enrichBulk>[0]) {
-    if (!confirm(buildConfirmMsg(action, summary, t))) return
+    const ok = await confirm({ message: buildConfirmMsg(action, summary, t), confirmLabel: 'Rodar' })
+    if (!ok) return
     setBusyAction(action); setActionError(null); setLastResult(null)
     try {
       const result = await CatalogApi.enrichBulk(payload)

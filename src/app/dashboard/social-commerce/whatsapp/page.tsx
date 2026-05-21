@@ -27,6 +27,7 @@ import {
   type MetaCatalog,
   type InstagramStatus,
 } from '@/components/social-commerce/socialCommerceApi'
+import { useConfirm } from '@/components/ui/dialog-provider'
 
 export default function WhatsappCatalogPage() {
   const [waStatus, setWaStatus]   = useState<WhatsappStatus | null>(null)
@@ -44,6 +45,7 @@ export default function WhatsappCatalogPage() {
 
   const [syncing, setSyncing] = useState(false)
   const [syncResult, setSyncResult] = useState<{ synced: number; failed: number; skipped: number } | null>(null)
+  const confirm = useConfirm()
 
   const refresh = useCallback(async () => {
     setLoading(true); setError(null)
@@ -103,15 +105,12 @@ export default function WhatsappCatalogPage() {
    *  a Verificacao aprovar. */
   async function confirmSetupManual() {
     if (!pickedWaba || !pickedCatalog) return
-    const ok = confirm(
-      'Marcar como vinculado manualmente?\n\n' +
-      'Use essa opção apenas se você já vinculou o catálogo no painel da Meta ' +
-      'OU se sua conta ainda está em Business Verification e a API recusa o ' +
-      'vínculo automático.\n\n' +
-      'O e-Click vai assumir que o catálogo está vinculado e habilitar o widget ' +
-      '"Ver catálogo" na sua loja. Quando a Verificação Comercial sair, clique ' +
-      'em "Reconfigurar" pra fazer o vínculo real via API.',
-    )
+    const ok = await confirm({
+      title:        'Marcar como vinculado manualmente',
+      message:      'Use essa opção apenas se você já vinculou o catálogo no painel da Meta OU se sua conta ainda está em Business Verification e a API recusa o vínculo automático. O e-Click vai assumir que o catálogo está vinculado e habilitar o widget "Ver catálogo" na sua loja. Quando a Verificação Comercial sair, clique em "Reconfigurar" pra fazer o vínculo real via API.',
+      confirmLabel: 'Marcar como vinculado',
+      variant:      'warning',
+    })
     if (!ok) return
     setSetupBusy(true); setError(null)
     try {
@@ -133,7 +132,13 @@ export default function WhatsappCatalogPage() {
   }
 
   async function disconnect() {
-    if (!confirm('Desvincular catálogo do WhatsApp Business? Os produtos deixam de aparecer no WhatsApp da loja.')) return
+    const ok = await confirm({
+      title:        'Desvincular catálogo',
+      message:      'Os produtos vão deixar de aparecer no WhatsApp Business da loja. O catálogo na Meta continua existindo — você pode revincular a qualquer momento.',
+      confirmLabel: 'Desvincular',
+      variant:      'danger',
+    })
+    if (!ok) return
     setError(null)
     try {
       await SocialCommerceApi.disconnectWhatsapp()

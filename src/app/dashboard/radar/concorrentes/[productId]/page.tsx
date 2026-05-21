@@ -10,6 +10,7 @@ import {
 import { ArrowLeft, Plus, Sparkles, Pencil, Trash2, Pause, Play, X } from 'lucide-react'
 import { api } from '../../_components/api'
 import { brl, severityOf, secureImg } from '../../_components/shared'
+import { useConfirm } from '@/components/ui/dialog-provider'
 
 interface SeriesPoint { date: string; price: number | null; visits: number }
 interface Movement { kind: string; severity: string; label: string }
@@ -223,6 +224,7 @@ function CompetitorCard({ comp, color, name, onChanged }: {
   const [editing, setEditing] = useState(false)
   const [priceInput, setPriceInput] = useState(comp.current_price != null ? String(comp.current_price) : '')
   const [busy, setBusy] = useState(false)
+  const confirm = useConfirm()
 
   const savePrice = async () => {
     setBusy(true)
@@ -246,7 +248,8 @@ function CompetitorCard({ comp, color, name, onChanged }: {
     } catch { setBusy(false) }
   }
   const remove = async () => {
-    if (!confirm(t('confirmRemoveLink', { name }))) return
+    const ok = await confirm({ message: t('confirmRemoveLink', { name }), confirmLabel: 'Remover', variant: 'danger' })
+    if (!ok) return
     setBusy(true)
     try {
       await api(`/radar/competitors/links/${comp.link_id}`, { method: 'DELETE' })

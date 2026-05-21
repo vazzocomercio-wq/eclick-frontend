@@ -14,6 +14,7 @@ import {
   type MetaPage,
   type MetaCatalog,
 } from '@/components/social-commerce/socialCommerceApi'
+import { useConfirm } from '@/components/ui/dialog-provider'
 
 export default function InstagramShopPage() {
   const t = useTranslations('socialCommerce')
@@ -24,6 +25,7 @@ export default function InstagramShopPage() {
   const [products, setProducts] = useState<SocialCommerceProduct[] | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const confirm = useConfirm()
 
   // Setup wizard state
   const [setupOpen, setSetupOpen] = useState(false)
@@ -67,7 +69,13 @@ export default function InstagramShopPage() {
   }
 
   async function disconnect() {
-    if (!confirm(t('confirmDisconnect'))) return
+    const ok = await confirm({
+      title:        'Desconectar Instagram',
+      message:      t('confirmDisconnect'),
+      confirmLabel: 'Desconectar',
+      variant:      'danger',
+    })
+    if (!ok) return
     try {
       await SocialCommerceApi.disconnectInstagram()
       await refresh()

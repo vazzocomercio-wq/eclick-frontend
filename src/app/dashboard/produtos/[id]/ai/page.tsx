@@ -13,6 +13,7 @@ import AiScoreBadge from '@/components/catalog/AiScoreBadge'
 import ProductAiSuggestions from '@/components/catalog/ProductAiSuggestions'
 import ProductSocialAnalyticsCard from '@/components/products-analytics/ProductSocialAnalyticsCard'
 import { CatalogApi, type CatalogProductLight, SCORE_PART_LABELS, CATALOG_STATUS_LABELS } from '@/components/catalog/catalogApi'
+import { useConfirm, useAlert } from '@/components/ui/dialog-provider'
 
 export default function ProductAiEnrichmentPage() {
   const t = useTranslations('produtos')
@@ -28,6 +29,8 @@ export default function ProductAiEnrichmentPage() {
   const [landingBusy, setLandingBusy] = useState(false)
   const [landingPublished, setLandingPublished] = useState<boolean>(false)
   const [landingViews, setLandingViews] = useState<number>(0)
+  const confirm = useConfirm()
+  const showAlert = useAlert()
 
   useEffect(() => { void load() }, [productId])
 
@@ -49,14 +52,15 @@ export default function ProductAiEnrichmentPage() {
     if (!product) return
     const next = !landingPublished
     if (next && !product.ai_enriched_at) {
-      if (!confirm(t('ai.publishNotEnrichedConfirm'))) return
+      const ok = await confirm({ message: t('ai.publishNotEnrichedConfirm'), variant: 'warning', confirmLabel: 'Publicar mesmo assim' })
+      if (!ok) return
     }
     setLandingBusy(true)
     try {
       const res = await CatalogApi.setLandingPublished(productId, next)
       setLandingPublished(res.landing_published)
     } catch (e: unknown) {
-      alert((e as Error).message)
+      await showAlert({ message: (e as Error).message, variant: 'danger' })
     } finally {
       setLandingBusy(false)
     }

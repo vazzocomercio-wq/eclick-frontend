@@ -12,6 +12,7 @@ import SocialContentPreview from '@/components/social/SocialContentPreview'
 import { ChannelBadge, StatusBadge } from '@/components/social/SocialBadges'
 import { CHANNEL_META } from '@/components/social/channels'
 import type { SocialContent } from '@/components/social/types'
+import { useConfirm, useAlert } from '@/components/ui/dialog-provider'
 
 export default function SocialContentDetailPage() {
   const t = useTranslations('social.detail')
@@ -22,6 +23,8 @@ export default function SocialContentDetailPage() {
   const [item, setItem]       = useState<SocialContent | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError]     = useState<string | null>(null)
+  const confirm = useConfirm()
+  const showAlert = useAlert()
 
   // Edit mode
   const [view, setView]       = useState<'preview' | 'json'>('preview')
@@ -111,7 +114,8 @@ export default function SocialContentDetailPage() {
   }
 
   async function archive() {
-    if (!confirm(t('confirmArchive'))) return
+    const ok = await confirm({ message: t('confirmArchive'), confirmLabel: 'Arquivar', variant: 'warning' })
+    if (!ok) return
     setActing(true); setError(null)
     try {
       await SocialContentApi.archive(id)
@@ -124,15 +128,16 @@ export default function SocialContentDetailPage() {
   }
 
   async function publishNow() {
-    if (!confirm(t('confirmPublishNow'))) return
+    const ok = await confirm({ message: t('confirmPublishNow'), confirmLabel: 'Publicar agora' })
+    if (!ok) return
     setActing(true); setError(null)
     try {
       const r = await SocialContentApi.publishNow(id)
       const s = r.result
       if (s.skipped_no_bridge) {
-        alert(t('publishNoBridge'))
+        await showAlert({ message: t('publishNoBridge'), variant: 'warning' })
       } else {
-        alert(t('publishDispatched', { dispatched: s.dispatched ?? 0, skipped: s.skipped ?? 0, errors: s.errors ?? 0 }))
+        await showAlert({ message: t('publishDispatched', { dispatched: s.dispatched ?? 0, skipped: s.skipped ?? 0, errors: s.errors ?? 0 }), variant: 'info' })
       }
       await refresh()
     } catch (e) {

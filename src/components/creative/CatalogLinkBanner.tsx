@@ -5,6 +5,7 @@ import { Link2, Link2Off, Loader2, Check, AlertCircle, ExternalLink } from 'luci
 import Link from 'next/link'
 import { CreativeApi } from './api'
 import type { CreativeProduct } from './types'
+import { useConfirm } from '@/components/ui/dialog-provider'
 
 interface Props {
   creative:   CreativeProduct
@@ -22,11 +23,17 @@ export default function CatalogLinkBanner({ creative, onChange }: Props) {
   const [busy, setBusy]     = useState<null | 'save' | 'unlink'>(null)
   const [error, setError]   = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  const confirm = useConfirm()
 
   const linked = !!creative.product_id
 
   async function saveToCatalog() {
-    if (!confirm('Criar este produto no catálogo mestre? Vai aparecer em /dashboard/produtos com os dados que a IA já levantou.')) return
+    const ok = await confirm({
+      title:        'Salvar no catálogo mestre',
+      message:      'Vou criar este produto em /dashboard/produtos usando os dados que a IA já levantou aqui no Criativo. Depois você pode ajustar manualmente, vincular ao Mercado Livre, etc.',
+      confirmLabel: 'Salvar no catálogo',
+    })
+    if (!ok) return
     setError(null); setSuccess(null); setBusy('save')
     try {
       const res = await CreativeApi.creativeToCatalog(creative.id)
@@ -40,7 +47,13 @@ export default function CatalogLinkBanner({ creative, onChange }: Props) {
   }
 
   async function unlink() {
-    if (!confirm('Desvincular este criativo do catálogo? O produto continua existindo no catálogo, só perde o link com este criativo.')) return
+    const ok = await confirm({
+      title:        'Desvincular do catálogo',
+      message:      'O produto continua existindo em /dashboard/produtos — só perde o link com este criativo. Você pode vincular outro criativo depois.',
+      confirmLabel: 'Desvincular',
+      variant:      'warning',
+    })
+    if (!ok) return
     setError(null); setSuccess(null); setBusy('unlink')
     try {
       const next = await CreativeApi.updateProduct(creative.id, { product_id: null })

@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import AccountSelector, { useMlAccount } from '@/components/ml/AccountSelector'
 import { fallbackFeeRate, computeContributionMargin, round2, estimateSaleFee } from '@/lib/margin'
+import { useConfirm } from '@/components/ui/dialog-provider'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 
@@ -1469,6 +1470,7 @@ export default function MLAnunciosPage() {
   const [items, setItems] = useState<MListing[]>([])
   const [catalogMap, setCatalogMap] = useState<Map<string, CatalogInfo>>(new Map())
   const [ceilingMap, setCeilingMap] = useState<Map<string, CeilingInfo>>(new Map())
+  const confirm = useConfirm()
   const [freightMap, setFreightMap] = useState<Map<string, number>>(new Map())
   const [total, setTotal] = useState(0)
   const [counts, setCounts] = useState<Counts>({})
@@ -2087,9 +2089,11 @@ export default function MLAnunciosPage() {
   async function unlinkListing(item: MListing) {
     const info = linkMap.get(item.id)
     if (!info) return
-    const ok = window.confirm(
-      t('ml.unlinkConfirm', { name: info.productName || t('ml.unlinkConfirmFallback') }),
-    )
+    const ok = await confirm({
+      message:      t('ml.unlinkConfirm', { name: info.productName || t('ml.unlinkConfirmFallback') }),
+      confirmLabel: 'Desvincular',
+      variant:      'warning',
+    })
     if (!ok) return
     try {
       const headers = await getHeaders()
