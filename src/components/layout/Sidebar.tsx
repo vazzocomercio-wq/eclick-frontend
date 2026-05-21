@@ -277,6 +277,7 @@ const SECTIONS: NavSection[] = [
       { labelKey: 'items.lojaCashback',  href: '/dashboard/loja/cashback',  icon: <Wallet size={15} /> },
       { labelKey: 'items.lojaBonus',     href: '/dashboard/loja/bonus',     icon: <Gift size={15} /> },
       { labelKey: 'items.lojaBanners',   href: '/dashboard/loja/banners',   icon: <ImageIcon size={15} /> },
+      { labelKey: 'items.lojaFidelidade', href: '/dashboard/loja/fidelidade', icon: <Trophy size={15} /> },
       { labelKey: 'items.lojaPedidos',   href: '/dashboard/pedidos?platform=storefront', icon: <ShoppingCart size={15} /> },
       { labelKey: 'items.lojaCopiloto',  href: '/dashboard/store-copilot',  icon: <Bot size={15} /> },
       { labelKey: 'items.lojaColecoes',  href: '/dashboard/collections',    icon: <Layers size={15} /> },

@@ -19,7 +19,7 @@ import { createClient } from '@/lib/supabase'
 import {
   Store, Palette, Ticket, Truck, ShoppingCart, Layers, Package, Sparkles,
   Megaphone, Gift, BarChart3, Loader2, AlertCircle, ExternalLink, Plus,
-  ChevronRight, Settings, ImageIcon, CreditCard, Tag, Wallet,
+  ChevronRight, Settings, ImageIcon, CreditCard, Tag, Wallet, Trophy,
 } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'https://eclick-backend-production-2a87.up.railway.app'
@@ -271,22 +271,18 @@ export default function LojaHubPage() {
             description="Galeria de banners gerados · 10 estilos · multi-formato"
             color="#fcd34d"
           />
-        </div>
-      </div>
-
-      {/* Em breve / pendentes */}
-      <div>
-        <h2 className="text-xs font-medium uppercase tracking-wide mb-3" style={{ color: '#a1a1aa' }}>
-          Em breve
-        </h2>
-        <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
-          <ComingSoonCard
-            icon={<BarChart3 size={20} />}
-            label="Programa de fidelidade"
-            description="Pontos por compra · níveis bronze/prata/ouro · benefícios escalonados"
+          <ToolCard
+            href="/dashboard/loja/fidelidade"
+            icon={<Trophy size={20} />}
+            label="Fidelidade"
+            description="Níveis bronze/prata/ouro · cliente sobe automaticamente"
+            badge="BETA"
+            color="#eab308"
           />
         </div>
       </div>
+
+      {/* Em breve / pendentes — vazio (todas as features entregues 🎉) */}
 
       {/* Quick actions */}
       <div className="rounded-lg p-4" style={{ background: 'rgba(0,229,255,0.05)', border: '1px solid rgba(0,229,255,0.2)' }}>
