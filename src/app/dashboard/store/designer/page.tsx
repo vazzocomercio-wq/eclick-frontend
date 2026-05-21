@@ -391,13 +391,22 @@ export default function StoreDesignerPage() {
 
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-5">
-      <div>
-        <h1 className="text-xl sm:text-2xl font-bold text-zinc-100 flex items-center gap-2">
-          <Palette size={20} className="text-cyan-400" /> {t('title')}
-        </h1>
-        <p className="text-xs text-zinc-500 mt-1">
-          {t('subtitle')}
-        </p>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold text-zinc-100 flex items-center gap-2">
+            <Palette size={20} className="text-cyan-400" /> {t('title')}
+          </h1>
+          <p className="text-xs text-zinc-500 mt-1">
+            {t('subtitle')}
+          </p>
+        </div>
+        <Link
+          href="/dashboard/store/designer-v3"
+          className="inline-flex items-center gap-2 px-3 py-2 text-xs font-medium rounded-lg border border-cyan-400/30 text-cyan-300 hover:bg-cyan-400/10 transition-colors"
+          style={{ minHeight: 36 }}
+        >
+          <Sparkles size={13} /> Experimentar novo Designer (v3 — beta)
+        </Link>
       </div>
 
       {error && (
