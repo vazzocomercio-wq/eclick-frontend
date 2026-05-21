@@ -4,16 +4,18 @@
  *  - Host customizado (loja.cliente.com.br) e resolvido pelo middleware
  *  - storefront.eclick.app.br/<slug> reescrito pra esta rota
  *
- *  Renderiza a partir da receita de design (store.design); se a loja
- *  ainda nao tem design, usa o modelo padrao.
+ *  Renderer:
+ *  - Loja com design_v3 → <StoreShell /> (renderizador novo)
+ *  - Loja com design v2 (legado) → <StorefrontHome /> (renderizador antigo)
+ *  - Loja sem design → DEFAULT_DESIGN v2 (mantem comportamento atual)
  */
 
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { getTranslations } from 'next-intl/server'
-import { getStore, getProducts } from '@/lib/storefront/data'
+import { getStore, getProducts, resolveDesign } from '@/lib/storefront/v3/data'
 import { StorefrontHome } from '@/components/storefront/StorefrontHome'
-import { DEFAULT_DESIGN } from '@/lib/storefront/templates'
+import { StoreShell } from '@/components/storefront-v3/StoreShell'
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -25,7 +27,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const t = await getTranslations('storefront')
   if (!store) return { title: t('errors.storeNotFound') }
   return {
-    title: store.seo_title ?? store.store_name,
+    title:       store.seo_title       ?? store.store_name,
     description: store.seo_description ?? store.store_description ?? undefined,
   }
 }
@@ -36,7 +38,16 @@ export default async function StorefrontPage({ params }: Props) {
   if (!store || store.status !== 'active') notFound()
 
   const products = await getProducts(slug, 24)
-  const design = store.design ?? DEFAULT_DESIGN
+  const resolved = resolveDesign(store)
 
-  return <StorefrontHome design={design} store={store} products={products} slug={slug} />
+  if (resolved.version === 3) {
+    return (
+      <StoreShell ctx={{
+        store, design: resolved.design, theme: resolved.design.theme,
+        slug, page: 'home', products,
+      }} />
+    )
+  }
+  // Fallback v2 (legado)
+  return <StorefrontHome design={resolved.design} store={store} products={products} slug={slug} />
 }

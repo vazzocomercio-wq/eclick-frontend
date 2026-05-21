@@ -1,0 +1,83 @@
+/**
+ * ProductCarousel v3 — carrossel horizontal de produtos.
+ *
+ * Implementacao CSS-only com scroll-snap (sem JS). Mobile: scroll lateral
+ * com 1.5 itens visiveis pra dar dica de "tem mais a direita". Desktop:
+ * scroll suave com setas opcionais (B.3b client component se quiser
+ * autoplay).
+ *
+ * Source: igual ProductGrid (storefront/manual resolvem 100%; outras
+ * sources caem em fallback storefront por ora).
+ */
+
+import type { ProductCarouselSection } from '@/lib/storefront/v3/types'
+import type { StorefrontProduct } from '@/lib/storefront/v3/data'
+import type { RenderCtx } from '../RenderCtx'
+import { formatBRL } from '@/lib/storefront/v3/data'
+
+function pickProducts(all: StorefrontProduct[], src: ProductCarouselSection['settings']['source']): StorefrontProduct[] {
+  if (src.kind === 'manual') {
+    const ids = new Set(src.productIds)
+    return all.filter(p => ids.has(p.id))
+  }
+  return all
+}
+
+export function ProductCarouselSectionView({ ctx, section }: { ctx: RenderCtx; section: ProductCarouselSection }) {
+  const { title, source, limit, cardStyle } = section.settings
+  const products = pickProducts(ctx.products ?? [], source).slice(0, limit)
+
+  if (products.length === 0) return null
+
+  return (
+    <div className="container mx-auto">
+      {title && (
+        <h2 className="px-4 mb-6"
+          style={{ fontFamily: 'var(--f-heading)', color: 'var(--c-text)', fontSize: '1.875rem' }}>
+          {title}
+        </h2>
+      )}
+      <div
+        className="flex gap-4 overflow-x-auto px-4 pb-4 snap-x snap-mandatory"
+        style={{ scrollbarWidth: 'thin', WebkitOverflowScrolling: 'touch' }}
+      >
+        {products.map(p => (
+          <a key={p.id}
+            href={`/loja/${ctx.slug}/produto/${p.id}`}
+            className="snap-start shrink-0"
+            style={{
+              // mobile: 2 itens caem (cada um ~45vw → 1.5 visiveis com gap)
+              // tablet/desktop: largura fixa pra cards padronizados
+              flex: '0 0 45vw',
+              maxWidth: 280,
+              textDecoration: 'none', color: 'var(--c-text)',
+            }}>
+            <CarouselCard product={p} variant={cardStyle} />
+          </a>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function CarouselCard({ product, variant }: { product: StorefrontProduct; variant: 'compact' | 'detailed' | 'minimal' }) {
+  const img = product.photo_urls?.[0]
+  return (
+    <>
+      <div style={{ aspectRatio: '1 / 1', borderRadius: 'var(--r)', overflow: 'hidden', background: 'var(--c-surface)' }}>
+        {img
+          ? <img src={img} alt={product.name} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          : null}
+      </div>
+      <div style={{ paddingTop: 8 }}>
+        {variant !== 'minimal' && product.category && (
+          <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--c-text-muted)', marginBottom: 2 }}>
+            {product.category}
+          </div>
+        )}
+        <div style={{ fontSize: 14, fontWeight: 500, lineHeight: 1.3 }}>{product.name}</div>
+        <div style={{ marginTop: 4, color: 'var(--c-primary)', fontWeight: 600 }}>{formatBRL(product.price)}</div>
+      </div>
+    </>
+  )
+}

@@ -1,15 +1,18 @@
 /**
  * Pagina de produto da Loja Propria (publica, sem auth).
  *
- * Rota linkada pelos cards da vitrine. Renderiza a partir da receita
- * de design da loja; usa o modelo padrao se nao houver design definido.
+ * Renderer:
+ *  - Loja com design_v3 → <StoreShell page="product" /> (ctx.products = [product])
+ *  - Loja com design v2 (legado) → <PremiumProductDetail />
+ *  - Loja sem design → DEFAULT_DESIGN v2 (mantem comportamento atual)
  */
 
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { getTranslations } from 'next-intl/server'
-import { getProduct, getProducts } from '@/lib/storefront/data'
+import { getProduct, getProducts, resolveDesign, type StorefrontStore } from '@/lib/storefront/v3/data'
 import { PremiumProductDetail } from '@/components/storefront/PremiumProductDetail'
+import { StoreShell } from '@/components/storefront-v3/StoreShell'
 import { DEFAULT_DESIGN } from '@/lib/storefront/templates'
 
 interface Props {
@@ -22,7 +25,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const t = await getTranslations('storefront')
   if (!data) return { title: t('errors.productNotFound') }
   return {
-    title: `${data.product.name} — ${data.store.store_name}`,
+    title:       `${data.product.name} — ${data.store.store_name}`,
     description: data.product.ai_short_description ?? data.store.store_description ?? undefined,
   }
 }
@@ -35,11 +38,23 @@ export default async function ProductPage({ params }: Props) {
   ])
   if (!data || data.store.status !== 'active') notFound()
 
-  const design = data.store.design ?? DEFAULT_DESIGN
+  // O backend retorna store v2; precisamos do tipo extended pra resolveDesign ler design_v3.
+  const store = data.store as StorefrontStore
+  const resolved = resolveDesign(store)
 
+  if (resolved.version === 3) {
+    return (
+      <StoreShell ctx={{
+        store, design: resolved.design, theme: resolved.design.theme,
+        slug, page: 'product',
+        products: [data.product, ...related],
+      }} />
+    )
+  }
+  // Fallback v2
   return (
     <PremiumProductDetail
-      design={design}
+      design={store.design ?? DEFAULT_DESIGN}
       store={data.store}
       product={data.product}
       slug={slug}

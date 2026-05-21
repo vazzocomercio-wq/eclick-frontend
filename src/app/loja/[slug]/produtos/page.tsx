@@ -1,14 +1,17 @@
 /**
  * Pagina de colecao / catalogo da Loja Propria (publica, sem auth).
  *
- * Lista os produtos publicos da loja; aceita ?categoria= pra pre-filtrar.
+ * Renderer:
+ *  - Loja com design_v3 → <StoreShell page="collection" />
+ *  - Loja com design v2 (legado) → <CollectionPage />
  */
 
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { getTranslations } from 'next-intl/server'
-import { getStore, getProducts } from '@/lib/storefront/data'
+import { getStore, getProducts, resolveDesign } from '@/lib/storefront/v3/data'
 import { CollectionPage } from '@/components/storefront/CollectionPage'
+import { StoreShell } from '@/components/storefront-v3/StoreShell'
 import { DEFAULT_DESIGN } from '@/lib/storefront/templates'
 
 interface Props {
@@ -22,7 +25,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const t = await getTranslations('storefront')
   if (!store) return { title: t('errors.storeNotFound') }
   return {
-    title: `${t('meta.products')} — ${store.store_name}`,
+    title:       `${t('meta.products')} — ${store.store_name}`,
     description: store.seo_description ?? store.store_description ?? undefined,
   }
 }
@@ -34,11 +37,19 @@ export default async function CollectionRoute({ params, searchParams }: Props) {
   if (!store || store.status !== 'active') notFound()
 
   const products = await getProducts(slug, 60)
-  const design = store.design ?? DEFAULT_DESIGN
+  const resolved = resolveDesign(store)
 
+  if (resolved.version === 3) {
+    return (
+      <StoreShell ctx={{
+        store, design: resolved.design, theme: resolved.design.theme,
+        slug, page: 'collection', products,
+      }} />
+    )
+  }
   return (
     <CollectionPage
-      design={design}
+      design={store.design ?? DEFAULT_DESIGN}
       store={store}
       products={products}
       slug={slug}
