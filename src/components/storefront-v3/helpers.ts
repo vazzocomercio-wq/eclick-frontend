@@ -94,6 +94,41 @@ export function sectionContainerStyle(s: Section): React.CSSProperties {
   }
 }
 
+/**
+ * Gera CSS `<style>` content com @media (max-width: 767px) pra aplicar
+ * mobileOverrides da section. Retorna null se nao ha override.
+ *
+ * Usa selector `[data-section-id="X"]` (que o SectionRenderer ja injeta
+ * no markup). Aplica !important pra vencer o style inline do desktop.
+ */
+export function mobileOverrideCss(s: Section): string | null {
+  const ov = s.mobileOverrides
+  if (!ov) return null
+  const rules: string[] = []
+
+  if (ov.spacing) {
+    if (typeof ov.spacing.paddingTop    === 'number') rules.push(`padding-top:    ${ov.spacing.paddingTop}px    !important;`)
+    if (typeof ov.spacing.paddingBottom === 'number') rules.push(`padding-bottom: ${ov.spacing.paddingBottom}px !important;`)
+    if (typeof ov.spacing.marginTop     === 'number') rules.push(`margin-top:     ${ov.spacing.marginTop}px     !important;`)
+    if (typeof ov.spacing.marginBottom  === 'number') rules.push(`margin-bottom:  ${ov.spacing.marginBottom}px  !important;`)
+  }
+  if (ov.background) {
+    if (ov.background.kind === 'color' && ov.background.color)   rules.push(`background: ${ov.background.color} !important;`)
+    if (ov.background.kind === 'image' && ov.background.imageUrl) {
+      rules.push(`background-image: url(${JSON.stringify(ov.background.imageUrl)}) !important;`)
+      rules.push(`background-size: cover !important;`)
+      rules.push(`background-position: ${ov.background.imageFocus ?? 'center'} !important;`)
+      rules.push(`background-repeat: no-repeat !important;`)
+    }
+    if (ov.background.kind === 'gradient' && ov.background.gradient) {
+      const { from, to, angle = 180 } = ov.background.gradient
+      rules.push(`background: linear-gradient(${angle}deg, ${from}, ${to}) !important;`)
+    }
+  }
+  if (rules.length === 0) return null
+  return `@media (max-width: 767px) { [data-section-id="${s.id}"] { ${rules.join(' ')} } }`
+}
+
 /** Overlay (image/video) — retorna { color, opacity } prontos. */
 export function backgroundOverlay(bg: BackgroundStyle): { color: string; opacity: number } | null {
   if ((bg.kind === 'image' || bg.kind === 'video') && bg.overlayColor && (bg.overlayOpacity ?? 0) > 0) {

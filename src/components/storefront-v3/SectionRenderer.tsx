@@ -10,7 +10,7 @@
 
 import type { Section } from '@/lib/storefront/v3/types'
 import type { RenderCtx } from './RenderCtx'
-import { sectionContainerStyle, backgroundOverlay } from './helpers'
+import { sectionContainerStyle, backgroundOverlay, mobileOverrideCss } from './helpers'
 
 // Imports dos componentes de section (preenchidos em B.3+).
 // Cada arquivo exporta default uma funcao (ctx, section) => JSX.
@@ -33,6 +33,7 @@ export function SectionRenderer({ ctx, section }: { ctx: RenderCtx; section: Sec
       : 'md:hidden'
 
   const overlay = backgroundOverlay(section.background)
+  const mobileCss = mobileOverrideCss(section)
 
   // Discriminated dispatch — TS pega o tipo certo em cada branch.
   let inner: React.ReactNode = null
@@ -71,6 +72,7 @@ export function SectionRenderer({ ctx, section }: { ctx: RenderCtx; section: Sec
       className={visCls}
       style={sectionContainerStyle(section)}
     >
+      {mobileCss && <style dangerouslySetInnerHTML={{ __html: mobileCss }} />}
       {overlay && (
         <div
           aria-hidden

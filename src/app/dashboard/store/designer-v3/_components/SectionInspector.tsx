@@ -122,7 +122,74 @@ export function SectionInspector({ section, onChange, onBack }: Props) {
         <BackgroundEditor bg={section.background}
           onChange={bg => onChange({ ...section, background: bg })} />
       </Acc>
+
+      {/* Ajustes pra mobile (override por dispositivo) */}
+      <Acc title="📱 Ajustes pra mobile">
+        <MobileOverrideEditor section={section} onChange={onChange} />
+      </Acc>
     </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// MobileOverrideEditor — edita section.mobileOverrides pra ajustar
+// background (cor/imagem/gradiente) e spacing diferentes em <768px.
+// ─────────────────────────────────────────────────────────────────────────
+
+function MobileOverrideEditor({ section, onChange }: { section: Section; onChange: (s: Section) => void }) {
+  const ov = section.mobileOverrides ?? {}
+
+  const updateOverride = (patch: Partial<NonNullable<Section['mobileOverrides']>>) => {
+    onChange({
+      ...section,
+      mobileOverrides: { ...ov, ...patch },
+    } as Section)
+  }
+
+  const updateMobileBg = (patch: Partial<BackgroundStyle>) => {
+    updateOverride({ background: { ...(ov.background ?? {}), ...patch } as Partial<BackgroundStyle> })
+  }
+
+  const mobileBg = ov.background as Partial<BackgroundStyle> | undefined
+  const useMobileBg = mobileBg?.kind != null && mobileBg.kind !== 'none'
+
+  return (
+    <>
+      <div className="p-3 rounded text-xs mb-2" style={{ background: 'rgba(0,229,255,0.05)', color: '#a5f3fc', border: '1px solid rgba(0,229,255,0.2)' }}>
+        Estes ajustes só aparecem em telas <strong>menores que 768px</strong> (mobile). Útil pra trocar a imagem ou altura no celular.
+      </div>
+
+      <Field label="Usar imagem diferente no mobile?">
+        <Toggle value={useMobileBg}
+          onChange={v => updateOverride({ background: v ? { kind: 'image', imageUrl: '' } : { kind: 'none' } })} />
+      </Field>
+
+      {useMobileBg && (
+        <>
+          <Field label="Imagem de fundo (mobile)">
+            <ImageUploadField value={mobileBg?.imageUrl ?? ''}
+              onChange={v => updateMobileBg({ kind: 'image', imageUrl: v })}
+              previewMaxWidth={200} downscaleMaxWidth={1200} />
+          </Field>
+          <Field label="Foco da imagem (mobile)">
+            <Select value={mobileBg?.imageFocus ?? 'center'}
+              options={[['center','Centro'],['top','Topo'],['bottom','Base'],['left','Esquerda'],['right','Direita']]}
+              onChange={v => updateMobileBg({ imageFocus: v as 'center' | 'top' | 'bottom' | 'left' | 'right' })} />
+          </Field>
+        </>
+      )}
+
+      <Field label="Espaçamento topo no mobile (px — opcional)">
+        <NumberInput value={ov.spacing?.paddingTop ?? section.spacing.paddingTop}
+          onChange={v => updateOverride({ spacing: { ...(ov.spacing ?? {}), paddingTop: v } })}
+          min={0} max={400} />
+      </Field>
+      <Field label="Espaçamento inferior no mobile (px — opcional)">
+        <NumberInput value={ov.spacing?.paddingBottom ?? section.spacing.paddingBottom}
+          onChange={v => updateOverride({ spacing: { ...(ov.spacing ?? {}), paddingBottom: v } })}
+          min={0} max={400} />
+      </Field>
+    </>
   )
 }
 
