@@ -25,6 +25,8 @@ import type { StorefrontDesignV3 } from '@/lib/storefront/v3/types'
 import { DEFAULT_DESIGN_V3 } from '@/lib/storefront/v3/templates'
 import { ModoFacil } from './_components/ModoFacil'
 import { ModoAvancado } from './_components/ModoAvancado'
+import { GenerateAIModal } from './_components/GenerateAIModal'
+import { TemplateGalleryModal } from './_components/TemplateGalleryModal'
 
 const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'https://eclick-backend-production-2a87.up.railway.app'
 
@@ -45,6 +47,9 @@ export default function DesignerV3Page() {
   const iframeRef                 = useRef<HTMLIFrameElement | null>(null)
   const previewReady              = useRef(false)
   const latestDesign              = useRef<StorefrontDesignV3 | null>(null)
+  const [generating, setGenerating] = useState(false)
+  const [showGenerate, setShowGenerate] = useState(false)
+  const [showTemplates, setShowTemplates] = useState(false)
 
   // ─ Carrega design + dados da loja ──────────────────────────────
   useEffect(() => {
@@ -194,6 +199,68 @@ export default function DesignerV3Page() {
         </div>
       )}
 
+      {showTemplates && (
+        <TemplateGalleryModal
+          onClose={() => setShowTemplates(false)}
+          onApply={async key => {
+            setShowTemplates(false)
+            setGenerating(true); setError(null)
+            try {
+              const supabase = createClient()
+              const { data: session } = await supabase.auth.getSession()
+              const token = session.session?.access_token
+              const res = await fetch(`${BACKEND}/store/config/design-v3/apply-template`, {
+                method:  'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body:    JSON.stringify({ templateKey: key }),
+              })
+              if (!res.ok) {
+                const err = await res.json().catch(() => null)
+                throw new Error(err?.message ?? `HTTP ${res.status}`)
+              }
+              const { design: applied } = await res.json()
+              setDesign(applied)
+              sendToPreview(applied)
+            } catch (e) {
+              setError(e instanceof Error ? e.message : 'Falha ao aplicar template.')
+            } finally {
+              setGenerating(false)
+            }
+          }}
+        />
+      )}
+
+      {showGenerate && (
+        <GenerateAIModal
+          onClose={() => setShowGenerate(false)}
+          onGenerate={async prompt => {
+            setShowGenerate(false)
+            setGenerating(true); setError(null)
+            try {
+              const supabase = createClient()
+              const { data: session } = await supabase.auth.getSession()
+              const token = session.session?.access_token
+              const res = await fetch(`${BACKEND}/store/config/design-v3/generate`, {
+                method:  'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body:    JSON.stringify({ prompt }),
+              })
+              if (!res.ok) {
+                const err = await res.json().catch(() => null)
+                throw new Error(err?.message ?? `HTTP ${res.status}`)
+              }
+              const { design: gen } = await res.json()
+              setDesign(gen)
+              sendToPreview(gen)
+            } catch (e) {
+              setError(e instanceof Error ? e.message : 'Falha ao gerar design.')
+            } finally {
+              setGenerating(false)
+            }
+          }}
+        />
+      )}
+
       {/* ── Workspace ── */}
       <div className="flex flex-1" style={{ height: 'calc(100vh - 60px)' }}>
         {/* Sidebar — tabs + conteúdo */}
@@ -212,13 +279,29 @@ export default function DesignerV3Page() {
               : <ModoAvancado design={design} onSave={save} onLiveChange={handleLiveChange} />}
             <div className="mt-6 pt-6 border-t" style={{ borderColor: '#27272a' }}>
               <button
-                disabled
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm rounded-lg"
+                onClick={() => setShowGenerate(true)}
+                disabled={generating}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium rounded-lg"
                 style={{
-                  background: '#1e1e24', color: '#52525b',
-                  minHeight: 44, cursor: 'not-allowed',
+                  background: 'linear-gradient(135deg, #00E5FF, #6366f1)',
+                  color: '#0a0a0e',
+                  minHeight: 44, cursor: generating ? 'wait' : 'pointer',
+                  opacity: generating ? 0.6 : 1,
                 }}>
-                <Sparkles size={14} /> Gerar com IA (C.7)
+                {generating
+                  ? <><Loader2 size={14} className="animate-spin" /> Gerando…</>
+                  : <><Sparkles size={14} /> Gerar com IA</>}
+              </button>
+              <button
+                onClick={() => setShowTemplates(true)}
+                disabled={generating}
+                className="w-full mt-2 flex items-center justify-center gap-2 px-4 py-2 text-xs font-medium rounded-lg"
+                style={{
+                  background: 'transparent', color: '#a1a1aa',
+                  border: '1px solid #27272a',
+                  minHeight: 40, cursor: 'pointer',
+                }}>
+                Aplicar template pronto
               </button>
             </div>
           </div>
