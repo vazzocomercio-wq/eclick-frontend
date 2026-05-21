@@ -2046,12 +2046,14 @@ export default function PedidosPage() {
   // useMemo([]) garante que rodará só na 1ª render — re-renders não
   // re-leem a URL (filtros viram state local depois).
   const initFromQs = useMemo(() => {
-    if (typeof window === 'undefined') return { missingCost: false, period: 'all' as const }
+    if (typeof window === 'undefined') return { missingCost: false, period: 'all' as const, platform: 'all' as const }
     const sp = new URLSearchParams(window.location.search)
     const p = sp.get('period')
+    const pl = sp.get('platform')
     return {
       missingCost: sp.get('missing_cost') === '1',
       period:      (p === 'today' || p === '7d' || p === '30d' ? p : 'all') as 'all' | 'today' | '7d' | '30d',
+      platform:    (pl === 'mercadolivre' || pl === 'manual' || pl === 'storefront' ? pl : 'all') as 'all' | 'mercadolivre' | 'manual' | 'storefront',
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -2075,6 +2077,9 @@ export default function PedidosPage() {
   // estar em qualquer aba (despachadas, encerradas, etc).
   // User troca de aba manualmente -> sai do modo cross-tab.
   const [crossTabMode, setCrossTabMode] = useState<boolean>(initFromQs.missingCost)
+  // Filtro de plataforma — Todas (ML+manual) / ML / Manual / Loja Própria.
+  // Storefront lê de storefront_orders no backend (shape unificado).
+  const [platformFilter, setPlatformFilter] = useState<'all' | 'mercadolivre' | 'manual' | 'storefront'>(initFromQs.platform)
   const [adItems, setAdItems] = useState<Set<string>>(new Set())
   const tid = useRef(0)
   const pageRef = useRef(0)
@@ -2099,16 +2104,19 @@ export default function PedidosPage() {
       const headers = await getHeaders()
       // /orders/list/kpis agrega SQL — instantaneo, sem ML calls.
       const sellerId = getStoredSellerId()
-      const sellerQs = sellerId != null ? `?seller_id=${sellerId}` : ''
+      const sp = new URLSearchParams()
+      if (sellerId != null)               sp.set('seller_id', String(sellerId))
+      if (platformFilter !== 'all')       sp.set('platform',  platformFilter)
+      const qs = sp.toString() ? `?${sp.toString()}` : ''
       const [kpiRes, tabRes] = await Promise.all([
-        fetch(`${BACKEND}/orders/list/kpis${sellerQs}`, { headers }),
-        fetch(`${BACKEND}/orders/list/tab-counts${sellerQs}`, { headers }),
+        fetch(`${BACKEND}/orders/list/kpis${qs}`, { headers }),
+        fetch(`${BACKEND}/orders/list/tab-counts${qs}`, { headers }),
       ])
       if (kpiRes.ok) setKpis(await kpiRes.json())
       if (tabRes.ok) setServerTabCounts(await tabRes.json())
     } catch { /* silent */ }
     finally { setKpiLoad(false) }
-  }, [getHeaders])
+  }, [getHeaders, platformFilter])
 
   // UI-1.1 — billingPending count + sync (movidos do PedidosToolsPanel deletado)
   const loadPending = useCallback(async () => {
@@ -2152,9 +2160,12 @@ export default function PedidosPage() {
       if (query.trim())  params.set('q', query.trim())
       const sellerId = getStoredSellerId()
       if (sellerId != null) params.set('seller_id', String(sellerId))
+      if (platformFilter !== 'all') params.set('platform', platformFilter)
       // Filtro por tab no servidor — evita reduzir N por pagina quando
       // a aba ativa nao bate com a maioria dos pedidos retornados.
       // Cross-tab mode: nao passa tab, backend retorna todos.
+      // Loja Própria: tabs marketplace não se aplicam (mediacao/flex/etc)
+      // — backend mapeia status próprios pras tabs equivalentes.
       if (currentTab !== null) params.set('tab', currentTab)
       const res  = await fetch(`${BACKEND}/orders/list?${params}`, { headers })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -2167,7 +2178,7 @@ export default function PedidosPage() {
       toast(e instanceof Error ? e.message : t('toast.loadOrdersError'), 'error')
       setOrders([])
     } finally { setLoading(false) }
-  }, [getHeaders, pageSize, t])
+  }, [getHeaders, pageSize, t, platformFilter])
 
   // Busca todos os vínculos uma vez — matching feito localmente em memória
   useEffect(() => {
@@ -2694,8 +2705,28 @@ export default function PedidosPage() {
         <p className="text-zinc-500 text-xs font-medium tracking-widest uppercase mb-1">{t('breadcrumb')}</p>
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <h1 className="text-white text-3xl font-semibold">{t('title')}</h1>
-          <div className="flex items-center gap-2">
-            <AccountSelector compact hideWhenEmpty />
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Filtro de plataforma: Todas (ML+manual) / ML / Manual / Loja Própria.
+                Quando "Loja Própria", lê de storefront_orders e tabs marketplace
+                ficam com 0 (exceto pgto_pendente, em_preparacao, encerradas, canceladas). */}
+            <div className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-lg"
+              style={{ background: '#18181b', border: '1px solid #27272a' }}>
+              <span className="text-zinc-500">Plataforma:</span>
+              <select
+                value={platformFilter}
+                onChange={e => {
+                  setPlatformFilter(e.target.value as typeof platformFilter)
+                  setPage(0)
+                }}
+                className="bg-transparent text-zinc-200 outline-none cursor-pointer"
+                style={{ minHeight: 28 }}>
+                <option value="all">Todas (ML + Manual)</option>
+                <option value="mercadolivre">Mercado Livre</option>
+                <option value="manual">Manual</option>
+                <option value="storefront">Loja Própria</option>
+              </select>
+            </div>
+            {platformFilter !== 'storefront' && <AccountSelector compact hideWhenEmpty />}
             <PulsingButton
               onClick={sync}
               loading={syncing}
