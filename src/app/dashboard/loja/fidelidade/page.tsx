@@ -49,17 +49,29 @@ interface Stats {
   byTier:          Array<{ tierId: string | null; tierName: string; count: number; totalSpentCents: number }>
 }
 
+interface Promotion {
+  id:                  string
+  customer_identifier: string
+  previous_tier_name:  string | null
+  new_tier_name:       string
+  new_tier_color:      string
+  new_tier_emoji:      string | null
+  total_spent_cents:   number
+  promoted_at:         string
+}
+
 const brl = (cents: number) => (cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
 export default function FidelidadePage() {
-  const [settings, setSettings] = useState<LoyaltySettings>({ enabled: false, currencyLabel: 'pontos', pointsPerReal: 1 })
-  const [tiers,    setTiers]    = useState<Tier[]>([])
-  const [stats,    setStats]    = useState<Stats | null>(null)
-  const [loading,  setLoading]  = useState(true)
-  const [saving,   setSaving]   = useState(false)
-  const [editing,  setEditing]  = useState<Tier | null>(null)
-  const [creating, setCreating] = useState(false)
-  const [error,    setError]    = useState<string | null>(null)
+  const [settings,   setSettings]   = useState<LoyaltySettings>({ enabled: false, currencyLabel: 'pontos', pointsPerReal: 1 })
+  const [tiers,      setTiers]      = useState<Tier[]>([])
+  const [stats,      setStats]      = useState<Stats | null>(null)
+  const [promotions, setPromotions] = useState<Promotion[]>([])
+  const [loading,    setLoading]    = useState(true)
+  const [saving,     setSaving]     = useState(false)
+  const [editing,    setEditing]    = useState<Tier | null>(null)
+  const [creating,   setCreating]   = useState(false)
+  const [error,      setError]      = useState<string | null>(null)
 
   const fetchToken = useCallback(async () => {
     const supabase = createClient()
@@ -71,14 +83,16 @@ export default function FidelidadePage() {
     try {
       const token = await fetchToken()
       const headers = { Authorization: `Bearer ${token}` }
-      const [sRes, tRes, stRes] = await Promise.all([
-        fetch(`${BACKEND}/loyalty/settings`, { headers }),
-        fetch(`${BACKEND}/loyalty/tiers`,    { headers }),
-        fetch(`${BACKEND}/loyalty/stats`,    { headers }),
+      const [sRes, tRes, stRes, pRes] = await Promise.all([
+        fetch(`${BACKEND}/loyalty/settings`,    { headers }),
+        fetch(`${BACKEND}/loyalty/tiers`,       { headers }),
+        fetch(`${BACKEND}/loyalty/stats`,       { headers }),
+        fetch(`${BACKEND}/loyalty/promotions?limit=10`, { headers }),
       ])
       if (sRes.ok)  setSettings(await sRes.json())
       if (tRes.ok)  setTiers(await tRes.json())
       if (stRes.ok) setStats(await stRes.json())
+      if (pRes.ok)  setPromotions(await pRes.json())
     } catch (e) {
       setError((e as Error).message)
     } finally {
@@ -231,6 +245,39 @@ export default function FidelidadePage() {
           </div>
         )}
       </div>
+
+      {/* Promoções recentes */}
+      {settings.enabled && promotions.length > 0 && (
+        <div>
+          <h2 className="text-sm font-medium text-zinc-100 mb-3 flex items-center gap-2">
+            <Sparkles size={14} /> Promoções recentes
+          </h2>
+          <div className="rounded-lg overflow-hidden" style={{ background: '#0a0a0e', border: '1px solid #27272a' }}>
+            <ul className="divide-y" style={{ borderColor: '#18181b' }}>
+              {promotions.map(p => (
+                <li key={p.id} className="flex items-center gap-3 p-3">
+                  <span style={{ fontSize: 28 }}>{p.new_tier_emoji ?? '⭐'}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-zinc-100 truncate">
+                      <strong>{p.customer_identifier}</strong> virou
+                      {' '}
+                      <span style={{ color: p.new_tier_color }} className="font-semibold">{p.new_tier_name}</span>
+                      {p.previous_tier_name && (
+                        <span className="text-zinc-500"> (era {p.previous_tier_name})</span>
+                      )}
+                    </p>
+                    <p className="text-[11px] text-zinc-500 mt-0.5">
+                      Total gasto: {(p.total_spent_cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      {' · '}
+                      {new Date(p.promoted_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
 
       {(editing || creating) && (
         <TierModal
