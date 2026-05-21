@@ -55,6 +55,7 @@ export function ClientPreview({ store, products, initialDesign, slug }: Props) {
     <StoreShell ctx={{
       store, design, theme: design.theme,
       slug, page, products,
+      paymentDisplay: store.payment_display_settings ?? null,
     }} />
   )
 }

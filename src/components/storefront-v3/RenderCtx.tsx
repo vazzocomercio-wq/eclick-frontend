@@ -7,7 +7,7 @@
  */
 
 import type { StorefrontDesignV3, ThemeV3 } from '@/lib/storefront/v3/types'
-import type { StorefrontStore, StorefrontProduct } from '@/lib/storefront/v3/data'
+import type { StorefrontStore, StorefrontProduct, PaymentDisplaySettings } from '@/lib/storefront/v3/data'
 
 export interface RenderCtx {
   store:  StorefrontStore
@@ -19,4 +19,8 @@ export interface RenderCtx {
   page:   keyof StorefrontDesignV3['pages']
   /** Produtos carregados (pre-fetched pela rota, pra ProductGrid/Carousel). */
   products?: StorefrontProduct[]
+  /** Settings de exibição de preço — vem de store.payment_display_settings.
+   *  Componentes PriceDisplay usam isso pra escolher formato (parcelas / Pix /
+   *  total em destaque). NULL/undefined = DEFAULT_PAYMENT_DISPLAY. */
+  paymentDisplay?: PaymentDisplaySettings | null
 }

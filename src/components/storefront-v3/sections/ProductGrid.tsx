@@ -14,7 +14,7 @@
 import type { ProductGridSection } from '@/lib/storefront/v3/types'
 import type { StorefrontProduct } from '@/lib/storefront/v3/data'
 import type { RenderCtx } from '../RenderCtx'
-import { formatBRL } from '@/lib/storefront/v3/data'
+import { PriceDisplay, SaleBadge } from '../PriceDisplay'
 
 function pickProducts(all: StorefrontProduct[], src: ProductGridSection['settings']['source']): StorefrontProduct[] {
   switch (src.kind) {
@@ -99,7 +99,6 @@ function ProductCard({ ctx, product, variant }: {
     const days = (Date.now() - new Date(product.created_at).getTime()) / (1000 * 60 * 60 * 24)
     return days <= 30
   })()
-  const displayPrice = product.my_price ?? product.price
 
   return (
     <a
@@ -112,9 +111,10 @@ function ProductCard({ ctx, product, variant }: {
               style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
           : null}
         {/* Badges */}
-        {(isNew || isLowStock) && (
+        {(isNew || isLowStock || product.on_sale) && (
           <div style={{ position: 'absolute', top: 8, left: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {isNew && (
+            {product.on_sale && <SaleBadge product={product} />}
+            {isNew && !product.on_sale && (
               <span style={{
                 padding: '3px 8px', fontSize: 10, fontWeight: 700, letterSpacing: '0.05em',
                 background: 'var(--c-primary)', color: 'var(--c-on-accent)',
@@ -147,8 +147,8 @@ function ProductCard({ ctx, product, variant }: {
             {product.ai_short_description}
           </p>
         )}
-        <div style={{ marginTop: 8, fontWeight: 600, color: 'var(--c-primary)', fontSize: 16 }}>
-          {formatBRL(displayPrice)}
+        <div style={{ marginTop: 8 }}>
+          <PriceDisplay product={product} settings={ctx.paymentDisplay} variant="card" />
         </div>
       </div>
     </a>

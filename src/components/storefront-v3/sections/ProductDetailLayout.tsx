@@ -15,7 +15,7 @@
 
 import type { ProductDetailLayoutSection } from '@/lib/storefront/v3/types'
 import type { RenderCtx } from '../RenderCtx'
-import { formatBRL } from '@/lib/storefront/v3/data'
+import { PriceDisplay } from '../PriceDisplay'
 import { ProductGalleryClient } from './ProductGalleryClient'
 import { WhatsAppIcon } from '@/components/storefront/WhatsAppIcon'
 
@@ -91,8 +91,8 @@ export function ProductDetailLayoutSectionView({ ctx, section }: { ctx: RenderCt
               {codeLabel.label}: {codeLabel.value}
             </div>
           )}
-          <div style={{ marginTop: 16, fontSize: '1.75rem', fontWeight: 700, color: 'var(--c-primary)' }}>
-            {formatBRL(product.my_price ?? product.price)}
+          <div style={{ marginTop: 16 }}>
+            <PriceDisplay product={product} settings={ctx.paymentDisplay} variant="detail" inlineBadge />
           </div>
           {typeof product.stock === 'number' && product.stock > 0 && product.stock <= 5 && (
             <div style={{ marginTop: 8, fontSize: 13, color: 'var(--c-warning, #eab308)', fontWeight: 600 }}>

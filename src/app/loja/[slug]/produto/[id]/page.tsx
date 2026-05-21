@@ -79,6 +79,7 @@ export default async function ProductPage({ params }: Props) {
           store, design: resolved.design, theme: resolved.design.theme,
           slug, page: 'product',
           products: [data.product, ...related],
+          paymentDisplay: store.payment_display_settings ?? null,
         }} />
       </>
     )

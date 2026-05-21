@@ -44,6 +44,7 @@ export default async function CollectionRoute({ params, searchParams }: Props) {
       <StoreShell ctx={{
         store, design: resolved.design, theme: resolved.design.theme,
         slug, page: 'collection', products,
+        paymentDisplay: store.payment_display_settings ?? null,
       }} />
     )
   }

@@ -13,7 +13,8 @@
 import type { ProductCarouselSection } from '@/lib/storefront/v3/types'
 import type { StorefrontProduct } from '@/lib/storefront/v3/data'
 import type { RenderCtx } from '../RenderCtx'
-import { formatBRL } from '@/lib/storefront/v3/data'
+import { PriceDisplay, SaleBadge } from '../PriceDisplay'
+import type { PaymentDisplaySettings } from '@/lib/storefront/v3/data'
 
 function pickProducts(all: StorefrontProduct[], src: ProductCarouselSection['settings']['source']): StorefrontProduct[] {
   if (src.kind === 'manual') {
@@ -52,7 +53,7 @@ export function ProductCarouselSectionView({ ctx, section }: { ctx: RenderCtx; s
               maxWidth: 280,
               textDecoration: 'none', color: 'var(--c-text)',
             }}>
-            <CarouselCard product={p} variant={cardStyle} />
+            <CarouselCard product={p} variant={cardStyle} paymentDisplay={ctx.paymentDisplay} />
           </a>
         ))}
       </div>
@@ -60,14 +61,23 @@ export function ProductCarouselSectionView({ ctx, section }: { ctx: RenderCtx; s
   )
 }
 
-function CarouselCard({ product, variant }: { product: StorefrontProduct; variant: 'compact' | 'detailed' | 'minimal' }) {
+function CarouselCard({ product, variant, paymentDisplay }: {
+  product: StorefrontProduct
+  variant: 'compact' | 'detailed' | 'minimal'
+  paymentDisplay?: PaymentDisplaySettings | null
+}) {
   const img = product.photo_urls?.[0]
   return (
     <>
-      <div style={{ aspectRatio: '1 / 1', borderRadius: 'var(--r)', overflow: 'hidden', background: 'var(--c-surface)' }}>
+      <div style={{ position: 'relative', aspectRatio: '1 / 1', borderRadius: 'var(--r)', overflow: 'hidden', background: 'var(--c-surface)' }}>
         {img
           ? <img src={img} alt={product.name} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           : null}
+        {product.on_sale && (
+          <div style={{ position: 'absolute', top: 8, left: 8 }}>
+            <SaleBadge product={product} />
+          </div>
+        )}
       </div>
       <div style={{ paddingTop: 8 }}>
         {variant !== 'minimal' && product.category && (
@@ -76,7 +86,9 @@ function CarouselCard({ product, variant }: { product: StorefrontProduct; varian
           </div>
         )}
         <div style={{ fontSize: 14, fontWeight: 500, lineHeight: 1.3 }}>{product.name}</div>
-        <div style={{ marginTop: 4, color: 'var(--c-primary)', fontWeight: 600 }}>{formatBRL(product.price)}</div>
+        <div style={{ marginTop: 6 }}>
+          <PriceDisplay product={product} settings={paymentDisplay} variant="card" />
+        </div>
       </div>
     </>
   )

@@ -34,6 +34,33 @@ export interface StorefrontStore {
    *  backend devolve este bloco — o widget da loja oferece "Ver
    *  catalogo no WhatsApp" alem de "Conversar". */
   whatsapp_catalog?:       { enabled: boolean; phone: string | null; link: string | null } | null
+  /** Settings de exibição de preço (parcelas, Pix discount, formato).
+   *  Vem de store_config.payment_display_settings. NULL = usa defaults. */
+  payment_display_settings?: PaymentDisplaySettings | null
+}
+
+/** Settings de exibição de preço + condições de pagamento. */
+export interface PaymentDisplaySettings {
+  installments: {
+    enabled:          boolean
+    max:              number    // 1..12
+    interestFreeUpTo: number    // 1..max
+  }
+  pix: {
+    enabled:      boolean
+    discountPct:  number        // 0..30
+  }
+  display: {
+    format:               'total_first' | 'installment_first' | 'pix_first'
+    showInstallmentLabel: boolean
+    showPixPrice:         boolean
+  }
+}
+
+export const DEFAULT_PAYMENT_DISPLAY: PaymentDisplaySettings = {
+  installments: { enabled: true, max: 12, interestFreeUpTo: 6 },
+  pix:          { enabled: true, discountPct: 5 },
+  display:      { format: 'installment_first', showInstallmentLabel: true, showPixPrice: true },
 }
 
 /**
@@ -67,6 +94,16 @@ export interface StorefrontProduct {
   wholesale_enabled?:    boolean | null
   wholesale_levels?:     unknown
   sale_format?:          string | null
+  // ─ Promoções por produto (migration 20260604) ─
+  sale_price?:           number | null
+  sale_start_at?:        string | null
+  sale_end_at?:          string | null
+  sale_badge_text?:      string | null
+  // ─ Campos derivados (server calcula em listPublicProducts) ─
+  effective_price?:      number | null
+  on_sale?:              boolean | null
+  discount_pct?:         number | null
+  has_sale_set?:         boolean | null
   created_at?:           string | null
   updated_at?:           string | null
 }

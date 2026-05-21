@@ -11,7 +11,7 @@ import type {
   FaqSection, NewsletterSection, VideoBlockSection, FeaturedProductSection,
 } from '@/lib/storefront/v3/types'
 import type { RenderCtx } from '../RenderCtx'
-import { formatBRL } from '@/lib/storefront/v3/data'
+import { PriceDisplay } from '../PriceDisplay'
 
 const HEIGHT_BANNER_PRESET: Record<Exclude<ImageBannerSection['settings']['height'], 'custom'>, string> = {
   sm:         '280px',
@@ -293,7 +293,9 @@ export function FeaturedProduct({ ctx, section }: { ctx: RenderCtx; section: Fea
           {showDescription && product.ai_short_description && (
             <p style={{ marginTop: 12, color: 'var(--c-text-muted)', lineHeight: 1.6 }}>{product.ai_short_description}</p>
           )}
-          <div style={{ marginTop: 20, fontSize: '1.5rem', fontWeight: 700, color: 'var(--c-primary)' }}>{formatBRL(product.price)}</div>
+          <div style={{ marginTop: 20 }}>
+            <PriceDisplay product={product} settings={ctx.paymentDisplay} variant="detail" inlineBadge />
+          </div>
           <a href={`/loja/${ctx.slug}/produto/${product.id}`}
             style={{ marginTop: 24, padding: '14px 28px', background: 'var(--c-primary)', color: 'var(--c-on-accent)', borderRadius: 'var(--r)', textDecoration: 'none', alignSelf: 'flex-start', minHeight: 44, display: 'inline-block', fontWeight: 500 }}>
             {ctaLabel ?? 'Ver produto'}

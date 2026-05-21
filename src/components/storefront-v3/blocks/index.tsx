@@ -6,6 +6,7 @@
  */
 
 import type { RenderCtx } from '../RenderCtx'
+import { PriceDisplay } from '../PriceDisplay'
 import type {
   HeadingBlock, SubheadingBlock, ParagraphBlock,
   ImageBlock, VideoBlock as VideoBlk,
@@ -143,8 +144,8 @@ export function ProductCardMini({ ctx, block }: { ctx: RenderCtx; block: Product
       <div style={{ padding: '8px 0' }}>
         <div style={{ fontFamily: 'var(--f-body)', fontSize: 14 }}>{product.name}</div>
         {block.settings.showPrice && (
-          <div style={{ fontWeight: 600, color: 'var(--c-primary)', marginTop: 4 }}>
-            {product.price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+          <div style={{ marginTop: 4 }}>
+            <PriceDisplay product={product} settings={ctx.paymentDisplay} variant="card" />
           </div>
         )}
       </div>

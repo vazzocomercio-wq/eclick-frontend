@@ -45,6 +45,7 @@ export default async function StorefrontPage({ params }: Props) {
       <StoreShell ctx={{
         store, design: resolved.design, theme: resolved.design.theme,
         slug, page: 'home', products,
+        paymentDisplay: store.payment_display_settings ?? null,
       }} />
     )
   }
