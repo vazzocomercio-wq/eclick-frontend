@@ -139,41 +139,26 @@ export function bestContrast(hex: string): string {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// Google Fonts URL (mantem mesma logica do v2)
+// Google Fonts URL — usa dicionario central de font-pairs.ts (30 pares).
 // ─────────────────────────────────────────────────────────────────────────
 
-const FONT_GOOGLE: Record<ThemeV3['fontPair'], string[]> = {
-  elegant:   ['Playfair+Display:wght@600;700', 'Lora:wght@400;500'],
-  modern:    ['Space+Grotesk:wght@500;700',    'Inter:wght@400;500'],
-  bold:      ['Archivo+Black',                  'Inter:wght@400;600'],
-  classic:   ['Libre+Baskerville:wght@700',     'Inter:wght@400;500'],
-  editorial: ['DM+Serif+Display',               'Inter:wght@400;500'],
-  playful:   ['Poppins:wght@600;700',           'Nunito+Sans:wght@400;600'],
-}
-
-const FONT_CSS: Record<ThemeV3['fontPair'], { heading: string; body: string }> = {
-  elegant:   { heading: "'Playfair Display', Georgia, serif",      body: "'Lora', Georgia, serif" },
-  modern:    { heading: "'Space Grotesk', system-ui, sans-serif",  body: "'Inter', system-ui, sans-serif" },
-  bold:      { heading: "'Archivo Black', 'Arial Black', sans-serif", body: "'Inter', system-ui, sans-serif" },
-  classic:   { heading: "'Libre Baskerville', Georgia, serif",     body: "'Inter', system-ui, sans-serif" },
-  editorial: { heading: "'DM Serif Display', Georgia, serif",      body: "'Inter', system-ui, sans-serif" },
-  playful:   { heading: "'Poppins', system-ui, sans-serif",        body: "'Nunito Sans', system-ui, sans-serif" },
-}
+import { getFontPairDef } from '@/lib/storefront/v3/font-pairs'
 
 export function fonts(theme: ThemeV3): { heading: string; body: string } {
+  const def = getFontPairDef(theme.fontPair)
   if (theme.customFonts?.heading || theme.customFonts?.body) {
     return {
-      heading: theme.customFonts.heading || FONT_CSS[theme.fontPair].heading,
-      body:    theme.customFonts.body    || FONT_CSS[theme.fontPair].body,
+      heading: theme.customFonts.heading || def.heading,
+      body:    theme.customFonts.body    || def.body,
     }
   }
-  return FONT_CSS[theme.fontPair] ?? FONT_CSS.modern
+  return { heading: def.heading, body: def.body }
 }
 
 export function googleFontsHref(theme: ThemeV3): string {
   const families = (theme.customFonts?.googleFamilies && theme.customFonts.googleFamilies.length > 0)
     ? theme.customFonts.googleFamilies
-    : (FONT_GOOGLE[theme.fontPair] ?? FONT_GOOGLE.modern)
+    : getFontPairDef(theme.fontPair).google
   return `https://fonts.googleapis.com/css2?${families.map(f => `family=${f}`).join('&')}&display=swap`
 }
 

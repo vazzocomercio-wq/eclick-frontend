@@ -29,14 +29,8 @@ import type {
   AnnouncementBarSection,
 } from '@/lib/storefront/v3/types'
 
-const FONT_LABELS: Record<FontPair, string> = {
-  elegant:   'Elegante (Playfair + Lora)',
-  modern:    'Moderna (Space Grotesk + Inter)',
-  bold:      'Marcante (Archivo Black + Inter)',
-  classic:   'Clássica (Libre Baskerville + Inter)',
-  editorial: 'Editorial (DM Serif + Inter)',
-  playful:   'Descontraída (Poppins + Nunito Sans)',
-}
+// FontPair labels e grupos vem do dicionario central — 30 pares.
+import { FONT_PAIRS_V3_DEFINITIONS, FONT_PAIRS_V3 } from '@/lib/storefront/v3/font-pairs'
 const RADIUS_LABELS:  Record<Radius,  string> = { none: 'Reto', sm: 'Pouco', md: 'Médio', lg: 'Bastante', full: 'Pílula' }
 const DENSITY_LABELS: Record<Density, string> = { compact: 'Compacto', cozy: 'Aconchegante', spacious: 'Espaçoso' }
 
@@ -153,10 +147,9 @@ export function ModoFacil({ design, onSave, onLiveChange }: Props) {
 
       {/* ─── Tipografia & visual ─── */}
       <Acc title="Tipografia e visual">
-        <Field label="Par de fontes">
-          <Select
+        <Field label="Par de fontes" hint={`${FONT_PAIRS_V3.length} estilos disponíveis, agrupados por categoria.`}>
+          <FontPairSelect
             value={local.theme.fontPair}
-            options={Object.entries(FONT_LABELS) as Array<[FontPair, string]>}
             onChange={v => updateTheme(t => ({ ...t, fontPair: v }))}
           />
         </Field>
@@ -482,6 +475,39 @@ function Acc({ title, defaultOpen, children }: { title: string; defaultOpen?: bo
       </button>
       {open && <div className="pb-4 space-y-3">{children}</div>}
     </div>
+  )
+}
+
+// Select agrupado por categoria com 30 fontes. <optgroup> nativo do HTML
+// pra simplificar (browsers renderizam decentemente em desktop/mobile).
+function FontPairSelect({ value, onChange }: { value: FontPair; onChange: (v: FontPair) => void }) {
+  // Agrupa por group
+  const byGroup = new Map<string, FontPair[]>()
+  for (const k of FONT_PAIRS_V3) {
+    const g = FONT_PAIRS_V3_DEFINITIONS[k].group
+    if (!byGroup.has(g)) byGroup.set(g, [])
+    byGroup.get(g)!.push(k)
+  }
+  return (
+    <select
+      value={value}
+      onChange={e => onChange(e.target.value as FontPair)}
+      style={{
+        width: '100%', padding: '10px 12px', minHeight: 44,
+        background: '#0a0a0e', color: '#fafafa',
+        border: '1px solid #27272a', borderRadius: 6,
+        fontSize: 14,
+      }}>
+      {Array.from(byGroup.entries()).map(([group, items]) => (
+        <optgroup key={group} label={group} style={{ color: '#a1a1aa', background: '#0a0a0e' }}>
+          {items.map(k => (
+            <option key={k} value={k} style={{ color: '#fafafa', background: '#0a0a0e' }}>
+              {FONT_PAIRS_V3_DEFINITIONS[k].label}
+            </option>
+          ))}
+        </optgroup>
+      ))}
+    </select>
   )
 }
 
