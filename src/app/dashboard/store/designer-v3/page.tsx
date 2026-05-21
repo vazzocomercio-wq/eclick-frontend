@@ -20,13 +20,14 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
-import { ArrowLeft, Loader2, Smartphone, Tablet, Monitor, AlertCircle, Save, Sparkles } from 'lucide-react'
+import { ArrowLeft, Loader2, Smartphone, Tablet, Monitor, AlertCircle, Save, Sparkles, History, Upload } from 'lucide-react'
 import type { StorefrontDesignV3 } from '@/lib/storefront/v3/types'
 import { DEFAULT_DESIGN_V3 } from '@/lib/storefront/v3/templates'
 import { ModoFacil } from './_components/ModoFacil'
 import { ModoAvancado } from './_components/ModoAvancado'
 import { GenerateAIModal } from './_components/GenerateAIModal'
 import { TemplateGalleryModal } from './_components/TemplateGalleryModal'
+import { VersionHistoryModal } from './_components/VersionHistoryModal'
 
 const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'https://eclick-backend-production-2a87.up.railway.app'
 
@@ -50,6 +51,8 @@ export default function DesignerV3Page() {
   const [generating, setGenerating] = useState(false)
   const [showGenerate, setShowGenerate] = useState(false)
   const [showTemplates, setShowTemplates] = useState(false)
+  const [showHistory, setShowHistory] = useState(false)
+  const [publishing, setPublishing] = useState(false)
 
   // ─ Carrega design + dados da loja ──────────────────────────────
   useEffect(() => {
@@ -180,15 +183,45 @@ export default function DesignerV3Page() {
             </a>
           )}
           <button
-            onClick={() => save(design)}
-            disabled={saving}
+            onClick={() => setShowHistory(true)}
+            className="hidden sm:flex items-center gap-1 px-3 py-2 text-xs font-medium rounded-lg"
+            style={{
+              background: 'transparent', color: '#a1a1aa',
+              border: '1px solid #27272a',
+              minHeight: 36, cursor: 'pointer',
+            }}>
+            <History size={12} /> Histórico
+          </button>
+          <button
+            onClick={async () => {
+              setPublishing(true); setError(null)
+              try {
+                const supabase = createClient()
+                const { data: session } = await supabase.auth.getSession()
+                const token = session.session?.access_token
+                const res = await fetch(`${BACKEND}/store/config/design-v3/publish`, {
+                  method:  'POST',
+                  headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                  body:    JSON.stringify({}),
+                })
+                if (!res.ok) throw new Error(`HTTP ${res.status}`)
+              } catch (e) {
+                setError(e instanceof Error ? e.message : 'Falha ao publicar.')
+              } finally {
+                setPublishing(false)
+              }
+            }}
+            disabled={publishing || saving}
             className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg"
             style={{
               background: '#00E5FF', color: '#0a0a0e',
-              minHeight: 44, cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.6 : 1,
+              minHeight: 44, cursor: publishing ? 'wait' : 'pointer', opacity: publishing ? 0.6 : 1,
             }}>
-            {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-            Salvar
+            {publishing
+              ? <><Loader2 size={14} className="animate-spin" /> Publicando…</>
+              : saving
+                ? <><Loader2 size={14} className="animate-spin" /> Salvando…</>
+                : <><Upload size={14} /> Publicar</>}
           </button>
         </div>
       </header>
@@ -197,6 +230,39 @@ export default function DesignerV3Page() {
         <div className="px-6 py-2 text-sm" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171' }}>
           {error}
         </div>
+      )}
+
+      {showHistory && (
+        <VersionHistoryModal
+          onClose={() => setShowHistory(false)}
+          fetchUrl={`${BACKEND}/store/config/design-v3/versions`}
+          authToken={async () => {
+            const supabase = createClient()
+            const { data: session } = await supabase.auth.getSession()
+            return session.session?.access_token
+          }}
+          onRevert={async versionId => {
+            setShowHistory(false)
+            setGenerating(true); setError(null)
+            try {
+              const supabase = createClient()
+              const { data: session } = await supabase.auth.getSession()
+              const token = session.session?.access_token
+              const res = await fetch(`${BACKEND}/store/config/design-v3/revert/${versionId}`, {
+                method:  'POST',
+                headers: { Authorization: `Bearer ${token}` },
+              })
+              if (!res.ok) throw new Error(`HTTP ${res.status}`)
+              const { design: reverted } = await res.json()
+              setDesign(reverted)
+              sendToPreview(reverted)
+            } catch (e) {
+              setError(e instanceof Error ? e.message : 'Falha ao restaurar versão.')
+            } finally {
+              setGenerating(false)
+            }
+          }}
+        />
       )}
 
       {showTemplates && (
