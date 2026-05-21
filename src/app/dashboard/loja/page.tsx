@@ -19,7 +19,7 @@ import { createClient } from '@/lib/supabase'
 import {
   Store, Palette, Ticket, Truck, ShoppingCart, Layers, Package, Sparkles,
   Megaphone, Gift, BarChart3, Loader2, AlertCircle, ExternalLink, Plus,
-  ChevronRight, Settings, ImageIcon, CreditCard, Tag, Wallet, Trophy,
+  ChevronRight, Settings, ImageIcon, CreditCard, Tag, Wallet, Trophy, Users,
 } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'https://eclick-backend-production-2a87.up.railway.app'
@@ -262,6 +262,14 @@ export default function LojaHubPage() {
             description="Agrupador de produtos · desconto comum · override individual"
             badge="BETA"
             color="#f472b6"
+          />
+          <ToolCard
+            href="/dashboard/loja/afiliados"
+            icon={<Users size={20} />}
+            label="Afiliados"
+            description="Pessoas indicam sua loja · ganham % por venda · estilo Shopee/TikTok"
+            badge="BETA"
+            color="#0ea5e9"
           />
           <ToolCard
             href="/dashboard/loja/cashback"
