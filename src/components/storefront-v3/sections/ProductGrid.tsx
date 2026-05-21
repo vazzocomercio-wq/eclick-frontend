@@ -16,6 +16,7 @@ import type { StorefrontProduct } from '@/lib/storefront/v3/data'
 import type { RenderCtx } from '../RenderCtx'
 import { PriceDisplay, SaleBadge } from '../PriceDisplay'
 import { findBonusBadge, BonusBadge } from '../bonusBadge'
+import { WishlistButton } from '../WishlistButton'
 
 function pickProducts(all: StorefrontProduct[], src: ProductGridSection['settings']['source']): StorefrontProduct[] {
   switch (src.kind) {
@@ -112,6 +113,10 @@ function ProductCard({ ctx, product, variant }: {
           ? <img src={img} alt={product.name} loading="lazy"
               style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
           : null}
+        {/* Wishlist heart no canto top-right */}
+        <div style={{ position: 'absolute', top: 8, right: 8, zIndex: 2 }}>
+          <WishlistButton slug={ctx.slug} productId={product.id} size="sm" />
+        </div>
         {/* Badges */}
         {(isNew || isLowStock || product.on_sale || bonusBadge) && (
           <div style={{ position: 'absolute', top: 8, left: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>

@@ -123,6 +123,63 @@ export async function fetchMyOrders(slug: string): Promise<CustomerOrder[]> {
   return await res.json() as CustomerOrder[]
 }
 
+// ── Wishlist ────────────────────────────────────────────────────────
+
+export async function fetchMyWishlist(slug: string): Promise<Array<{
+  id: string; name: string; price: number; sale_price: number | null;
+  sale_start_at: string | null; sale_end_at: string | null;
+  sale_badge_text: string | null; photo_urls: string[] | null;
+  category: string | null; brand: string | null;
+  stock: number | null; ai_short_description: string | null;
+  created_at: string | null;
+}>> {
+  const token = getCustomerToken(slug)
+  if (!token) return []
+  const res = await fetch(`${BACKEND}/public/store/auth/me/wishlist`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) return []
+  return await res.json()
+}
+
+export async function addToWishlist(slug: string, productId: string): Promise<boolean> {
+  const token = getCustomerToken(slug)
+  if (!token) return false
+  try {
+    const res = await fetch(`${BACKEND}/public/store/auth/me/wishlist/${encodeURIComponent(productId)}`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    return res.ok
+  } catch { return false }
+}
+
+export async function removeFromWishlist(slug: string, productId: string): Promise<boolean> {
+  const token = getCustomerToken(slug)
+  if (!token) return false
+  try {
+    const res = await fetch(`${BACKEND}/public/store/auth/me/wishlist/${encodeURIComponent(productId)}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    return res.ok
+  } catch { return false }
+}
+
+export async function checkWishlist(slug: string, productIds: string[]): Promise<Set<string>> {
+  const token = getCustomerToken(slug)
+  if (!token || productIds.length === 0) return new Set()
+  try {
+    const res = await fetch(
+      `${BACKEND}/public/store/auth/me/wishlist/check?ids=${encodeURIComponent(productIds.join(','))}`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    )
+    if (!res.ok) return new Set()
+    const data = await res.json() as { favorited: string[] }
+    return new Set(data.favorited ?? [])
+  } catch { return new Set() }
+}
+
 export async function updateMe(slug: string, patch: Partial<Customer>): Promise<Customer | null> {
   const token = getCustomerToken(slug)
   if (!token) return null

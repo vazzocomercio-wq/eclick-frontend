@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Loader2, LogOut, Package, User, Wallet, Trophy, ChevronLeft, ExternalLink } from 'lucide-react'
+import { Loader2, LogOut, Package, User, Wallet, Trophy, ChevronLeft, ExternalLink, Heart } from 'lucide-react'
 import {
   fetchCurrentCustomer, fetchMyOrders, clearCustomerToken,
   type Customer, type CustomerOrder,
@@ -157,6 +157,36 @@ export function ContaPageClient({ slug, storeName }: { slug: string; storeName: 
             </>
           )}
         </div>
+      </div>
+
+      {/* Atalhos */}
+      <div className="grid sm:grid-cols-2 gap-3">
+        <Link href={`/loja/${slug}/conta/favoritos`}
+          className="rounded-lg p-4 flex items-center gap-3 transition-all hover:scale-[1.02]"
+          style={{ background: 'var(--c-surface)', border: '1px solid var(--c-border)' }}>
+          <div className="w-10 h-10 rounded-full flex items-center justify-center"
+            style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444' }}>
+            <Heart size={18} fill="#ef4444" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold" style={{ color: 'var(--c-text)' }}>Meus favoritos</p>
+            <p className="text-[11px]" style={{ color: 'var(--c-text-muted)' }}>Produtos que você salvou</p>
+          </div>
+          <ExternalLink size={14} style={{ color: 'var(--c-text-muted)' }} />
+        </Link>
+        <Link href={`/loja/${slug}/fidelidade`}
+          className="rounded-lg p-4 flex items-center gap-3 transition-all hover:scale-[1.02]"
+          style={{ background: 'var(--c-surface)', border: '1px solid var(--c-border)' }}>
+          <div className="w-10 h-10 rounded-full flex items-center justify-center"
+            style={{ background: 'rgba(234,179,8,0.1)', color: '#eab308' }}>
+            <Trophy size={18} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold" style={{ color: 'var(--c-text)' }}>Programa de fidelidade</p>
+            <p className="text-[11px]" style={{ color: 'var(--c-text-muted)' }}>Veja níveis e benefícios</p>
+          </div>
+          <ExternalLink size={14} style={{ color: 'var(--c-text-muted)' }} />
+        </Link>
       </div>
 
       {/* Histórico de pedidos */}

@@ -17,6 +17,7 @@ import type { ProductDetailLayoutSection } from '@/lib/storefront/v3/types'
 import type { RenderCtx } from '../RenderCtx'
 import { PriceDisplay } from '../PriceDisplay'
 import { ProductGalleryClient } from './ProductGalleryClient'
+import { WishlistButton } from '../WishlistButton'
 import { WhatsAppIcon } from '@/components/storefront/WhatsAppIcon'
 
 export function ProductDetailLayoutSectionView({ ctx, section }: { ctx: RenderCtx; section: ProductDetailLayoutSection }) {
@@ -83,9 +84,12 @@ export function ProductDetailLayoutSectionView({ ctx, section }: { ctx: RenderCt
               {humanCategory && <span>{humanCategory}</span>}
             </div>
           )}
-          <h1 style={{ marginTop: 8, fontFamily: 'var(--f-heading)', color: 'var(--c-text)', fontSize: '2rem', lineHeight: 1.2 }}>
-            {product.name}
-          </h1>
+          <div style={{ marginTop: 8, display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+            <h1 style={{ flex: 1, fontFamily: 'var(--f-heading)', color: 'var(--c-text)', fontSize: '2rem', lineHeight: 1.2, margin: 0 }}>
+              {product.name}
+            </h1>
+            <WishlistButton slug={ctx.slug} productId={product.id} size="md" />
+          </div>
           {codeLabel && (
             <div style={{ marginTop: 6, fontSize: 12, color: 'var(--c-text-muted)' }}>
               {codeLabel.label}: {codeLabel.value}
