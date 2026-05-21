@@ -15,12 +15,21 @@ import type {
 // ── Navegação básica (inline aqui) ──
 
 export function SiteHeader({ ctx, section }: { ctx: RenderCtx; section: SiteHeaderSection }) {
-  const { logoText, nav } = section.settings
+  const { logoText, logoUrl, nav } = section.settings
+  // Fallback: se logoUrl do header v3 vazio, usa logo_url da store_config
+  // (campo principal de identidade da loja). Permite subir 1 vez e refletir.
+  const effectiveLogoUrl = logoUrl?.trim() || ctx.store.logo_url || null
+  const fallbackText     = logoText ?? ctx.store.store_name
+
   return (
     <header className="container mx-auto px-4 flex items-center justify-between"
       style={{ minHeight: 56, fontFamily: 'var(--f-body)' }}>
-      <a href={`/loja/${ctx.slug}`} style={{ color: 'var(--c-text)', fontWeight: 600, fontFamily: 'var(--f-heading)' }}>
-        {logoText ?? ctx.store.store_name}
+      <a href={`/loja/${ctx.slug}`}
+        style={{ color: 'var(--c-text)', fontWeight: 600, fontFamily: 'var(--f-heading)', display: 'inline-flex', alignItems: 'center' }}>
+        {effectiveLogoUrl
+          // eslint-disable-next-line @next/next/no-img-element
+          ? <img src={effectiveLogoUrl} alt={fallbackText} style={{ maxHeight: 40, maxWidth: 180, objectFit: 'contain', display: 'block' }} />
+          : fallbackText}
       </a>
       <nav className="hidden md:flex gap-6 text-sm" style={{ color: 'var(--c-text)' }}>
         {nav.map((n, i) => <a key={i} href={n.href} style={{ color: 'inherit' }}>{n.label}</a>)}

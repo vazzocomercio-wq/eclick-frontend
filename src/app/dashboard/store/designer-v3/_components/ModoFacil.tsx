@@ -19,6 +19,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { ChevronDown, ChevronUp, Loader2, Check } from 'lucide-react'
+import { ImageUploadField } from '@/components/storefront/ImageUploadField'
 import type {
   StorefrontDesignV3, ThemeV3, FontPair, Radius, Density,
   SiteHeaderSection, SiteFooterSection, Section,
@@ -112,11 +113,13 @@ export function ModoFacil({ design, onSave, onLiveChange }: Props) {
             placeholder="Minha Loja"
           />
         </Field>
-        <Field label="URL do logo (imagem)">
-          <Input
+        <Field label="Imagem do logo">
+          <ImageUploadField
             value={local.globals.header.settings.logoUrl ?? ''}
             onChange={v => updateHeader(h => ({ ...h, settings: { ...h.settings, logoUrl: v || undefined } }))}
-            placeholder="https://..."
+            placeholder="https://… (ou envie acima)"
+            previewMaxWidth={180}
+            downscaleMaxWidth={800}
           />
         </Field>
       </Acc>
