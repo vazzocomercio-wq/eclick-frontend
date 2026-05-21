@@ -15,7 +15,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase'
-import { X, Loader2, Search, Sparkles, ArrowLeft, ArrowRight, Check, AlertCircle, RotateCcw } from 'lucide-react'
+import { X, Loader2, Search, Sparkles, ArrowLeft, ArrowRight, Check, AlertCircle, RotateCcw, Monitor, Smartphone, Square } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'https://eclick-backend-production-2a87.up.railway.app'
 
@@ -65,12 +65,12 @@ export function BannerGeneratorModal({ onClose, onPick }: Props) {
 
   // Step 3 — customizações
   const [customAdditions, setCustomAdditions] = useState('')
-  const [format,          setFormat]          = useState<BannerFormat>('wide')
+  const [formats,         setFormats]         = useState<BannerFormat[]>(['wide'])
   const [variations,      setVariations]      = useState(2)
 
   // Step 4 — geração
   const [generating,    setGenerating]    = useState(false)
-  const [generatedImgs, setGeneratedImgs] = useState<string[]>([])
+  const [generatedImgs, setGeneratedImgs] = useState<Array<{ url: string; format: BannerFormat }>>([])
   const [chosenUrl,     setChosenUrl]     = useState<string | null>(null)
   const [promptUsed,    setPromptUsed]    = useState<string>('')
 
@@ -129,7 +129,7 @@ export function BannerGeneratorModal({ onClose, onPick }: Props) {
   // ── Auto-ajustes quando estilo muda ──────────────────────────
   useEffect(() => {
     if (selectedStyle) {
-      setFormat(selectedStyle.defaultFormat)
+      setFormats([selectedStyle.defaultFormat])
       // Se selecionou produtos demais pro estilo, trunca
       if (selectedIds.length > selectedStyle.productRange.max) {
         setSelectedIds(prev => prev.slice(0, selectedStyle.productRange.max))
@@ -166,7 +166,7 @@ export function BannerGeneratorModal({ onClose, onPick }: Props) {
           productIds:      selectedIds,
           styleKey,
           customAdditions: customAdditions.trim() || undefined,
-          format,
+          formats,
           variations,
         }),
       })
@@ -175,7 +175,7 @@ export function BannerGeneratorModal({ onClose, onPick }: Props) {
         throw new Error(err?.message ?? `HTTP ${res.status}`)
       }
       const data = await res.json()
-      setGeneratedImgs(data.images.map((i: { url: string }) => i.url))
+      setGeneratedImgs(data.images as Array<{ url: string; format: BannerFormat }>)
       setPromptUsed(data.promptUsed)
       setStep(4)
     } catch (e) {
@@ -266,8 +266,8 @@ export function BannerGeneratorModal({ onClose, onPick }: Props) {
           {step === 3 && selectedStyle && (
             <StepAdjust
               style={selectedStyle}
-              format={format}
-              onFormat={setFormat}
+              formats={formats}
+              onFormats={setFormats}
               variations={variations}
               onVariations={setVariations}
               customAdditions={customAdditions}
@@ -462,13 +462,26 @@ function StepStyle({ stylesByCategory, loading, selected, onPick, productCount }
 // Step 3 — Ajustes
 // ─────────────────────────────────────────────────────────────────────────
 
-function StepAdjust({ style, format, onFormat, variations, onVariations, customAdditions, onCustomAdditions, selectedProducts }: {
+function StepAdjust({ style, formats, onFormats, variations, onVariations, customAdditions, onCustomAdditions, selectedProducts }: {
   style: Style
-  format: BannerFormat; onFormat: (f: BannerFormat) => void
+  formats: BannerFormat[]; onFormats: (f: BannerFormat[]) => void
   variations: number; onVariations: (n: number) => void
   customAdditions: string; onCustomAdditions: (s: string) => void
   selectedProducts: Product[]
 }) {
+  const toggleFormat = (f: BannerFormat) => {
+    if (formats.includes(f)) {
+      // Não deixa zerar — sempre 1 mínimo
+      if (formats.length > 1) onFormats(formats.filter(x => x !== f))
+    } else {
+      onFormats([...formats, f])
+    }
+  }
+  const FORMAT_OPTS: Array<{ key: BannerFormat; label: string; sub: string; icon: React.ReactNode }> = [
+    { key: 'wide',   label: 'Desktop',  sub: 'Wide 16:9',     icon: <Monitor size={20} /> },
+    { key: 'square', label: 'Mobile',   sub: 'Quadrado 1:1',  icon: <Square size={20} /> },
+    { key: 'story',  label: 'Vertical', sub: 'Story 9:16',    icon: <Smartphone size={20} /> },
+  ]
   return (
     <div className="space-y-4">
       <div className="p-3 rounded text-xs" style={{ background: 'rgba(0,229,255,0.05)', color: '#a5f3fc', border: '1px solid rgba(0,229,255,0.2)' }}>
@@ -477,22 +490,32 @@ function StepAdjust({ style, format, onFormat, variations, onVariations, customA
       </div>
 
       <div>
-        <label className="block text-xs mb-1.5" style={{ color: '#a1a1aa' }}>Formato</label>
-        <div className="flex gap-2">
-          {(['wide', 'square', 'story'] as BannerFormat[]).map(f => (
-            <button key={f} onClick={() => onFormat(f)}
-              style={{
-                flex: 1, padding: '10px 12px', minHeight: 44,
-                background: format === f ? 'rgba(0,229,255,0.05)' : 'transparent',
-                border: `1px solid ${format === f ? '#00E5FF' : '#27272a'}`,
-                color: format === f ? '#00E5FF' : '#a1a1aa',
-                borderRadius: 6, cursor: 'pointer', fontSize: 12,
-              }}>
-              {f === 'wide' && 'Wide (16:9)'}
-              {f === 'square' && 'Quadrado (1:1)'}
-              {f === 'story' && 'Vertical (9:16)'}
-            </button>
-          ))}
+        <label className="block text-xs mb-1.5" style={{ color: '#a1a1aa' }}>
+          Formatos {formats.length > 1 ? `(${formats.length} selecionados — vai gerar pra cada um)` : ''}
+        </label>
+        <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+          {FORMAT_OPTS.map(opt => {
+            const active = formats.includes(opt.key)
+            return (
+              <button key={opt.key} onClick={() => toggleFormat(opt.key)}
+                style={{
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                  padding: '14px 8px', minHeight: 96,
+                  background: active ? 'rgba(0,229,255,0.08)' : 'transparent',
+                  border: `1px solid ${active ? '#00E5FF' : '#27272a'}`,
+                  color: active ? '#00E5FF' : '#a1a1aa',
+                  borderRadius: 6, cursor: 'pointer',
+                }}>
+                {opt.icon}
+                <div style={{ fontSize: 12, fontWeight: 600 }}>{opt.label}</div>
+                <div style={{ fontSize: 10, color: active ? '#a5f3fc' : '#52525b' }}>{opt.sub}</div>
+                {active && <Check size={12} style={{ color: '#00E5FF' }} />}
+              </button>
+            )
+          })}
+        </div>
+        <div className="text-[11px] mt-2" style={{ color: '#52525b' }}>
+          ⚡ Marque <strong>Desktop + Mobile</strong> pra gerar as 2 versões em paralelo (responsivo). Cada formato gera {variations} variação(ões).
         </div>
       </div>
 
@@ -542,7 +565,7 @@ function StepAdjust({ style, format, onFormat, variations, onVariations, customA
 // ─────────────────────────────────────────────────────────────────────────
 
 function StepResult({ generating, images, chosen, onChoose, promptUsed, onRegenerate }: {
-  generating: boolean; images: string[]
+  generating: boolean; images: Array<{ url: string; format: BannerFormat }>
   chosen: string | null; onChoose: (url: string) => void
   promptUsed: string
   onRegenerate: () => void
@@ -552,7 +575,7 @@ function StepResult({ generating, images, chosen, onChoose, promptUsed, onRegene
       <div className="flex flex-col items-center gap-3 py-12" style={{ color: '#a1a1aa' }}>
         <Loader2 size={32} className="animate-spin" style={{ color: '#00E5FF' }} />
         <div style={{ fontSize: 14, color: '#fafafa' }}>Gerando seus banners…</div>
-        <div style={{ fontSize: 12 }}>Isso leva de 10 a 30 segundos.</div>
+        <div style={{ fontSize: 12 }}>Cada formato leva de 10 a 30 segundos.</div>
       </div>
     )
   }
@@ -561,35 +584,59 @@ function StepResult({ generating, images, chosen, onChoose, promptUsed, onRegene
       Nenhuma imagem gerada ainda.
     </div>
   }
+
+  // Agrupa por formato
+  const byFormat = new Map<BannerFormat, Array<{ url: string; format: BannerFormat }>>()
+  for (const img of images) {
+    if (!byFormat.has(img.format)) byFormat.set(img.format, [])
+    byFormat.get(img.format)!.push(img)
+  }
+
+  const formatMeta: Record<BannerFormat, { label: string; icon: React.ReactNode }> = {
+    wide:   { label: 'Desktop · Wide 16:9',     icon: <Monitor size={14} /> },
+    square: { label: 'Mobile · Quadrado 1:1',   icon: <Square size={14} /> },
+    story:  { label: 'Vertical · Story 9:16',   icon: <Smartphone size={14} /> },
+  }
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <div className="text-xs" style={{ color: '#a1a1aa' }}>
-        Clique pra escolher a variação que você mais gostou:
+        Clique pra escolher a variação que você quer usar:
       </div>
-      <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
-        {images.map((url, i) => {
-          const isChosen = chosen === url
-          return (
-            <button key={i} onClick={() => onChoose(url)}
-              style={{
-                padding: 4,
-                background: isChosen ? 'rgba(0,229,255,0.1)' : 'transparent',
-                border: `2px solid ${isChosen ? '#00E5FF' : '#27272a'}`,
-                borderRadius: 8, cursor: 'pointer',
-              }}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={url} alt={`Variação ${i + 1}`} loading="lazy"
-                style={{ width: '100%', display: 'block', borderRadius: 4 }} />
-              {isChosen && (
-                <div className="mt-1 flex items-center justify-center gap-1 text-xs" style={{ color: '#00E5FF', fontWeight: 600 }}>
-                  <Check size={12} /> Escolhida
-                </div>
-              )}
-            </button>
-          )
-        })}
-      </div>
-      <div className="flex items-center justify-between">
+
+      {Array.from(byFormat.entries()).map(([fmt, imgs]) => (
+        <div key={fmt}>
+          <div className="flex items-center gap-2 mb-2" style={{ color: '#00E5FF', fontSize: 12, fontWeight: 600 }}>
+            {formatMeta[fmt].icon} {formatMeta[fmt].label}
+            <span style={{ color: '#52525b', fontWeight: 400, marginLeft: 4 }}>· {imgs.length} variação(ões)</span>
+          </div>
+          <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
+            {imgs.map((img, i) => {
+              const isChosen = chosen === img.url
+              return (
+                <button key={i} onClick={() => onChoose(img.url)}
+                  style={{
+                    padding: 4,
+                    background: isChosen ? 'rgba(0,229,255,0.1)' : 'transparent',
+                    border: `2px solid ${isChosen ? '#00E5FF' : '#27272a'}`,
+                    borderRadius: 8, cursor: 'pointer',
+                  }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={img.url} alt={`${fmt} ${i + 1}`} loading="lazy"
+                    style={{ width: '100%', display: 'block', borderRadius: 4 }} />
+                  {isChosen && (
+                    <div className="mt-1 flex items-center justify-center gap-1 text-xs" style={{ color: '#00E5FF', fontWeight: 600 }}>
+                      <Check size={12} /> Escolhida
+                    </div>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      ))}
+
+      <div className="flex items-center justify-between pt-2" style={{ borderTop: '1px solid #27272a' }}>
         <button onClick={onRegenerate}
           className="flex items-center gap-1 text-xs"
           style={{ background: 'transparent', border: 'none', color: '#00E5FF', cursor: 'pointer', minHeight: 36 }}>
