@@ -13,7 +13,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
-import { Tag, Loader2, ChevronLeft, Search, X, Save, AlertCircle, Calendar } from 'lucide-react'
+import { Tag, Loader2, ChevronLeft, Search, X, Save, AlertCircle, Calendar, Check, Trash2, Sparkles } from 'lucide-react'
 import Link from 'next/link'
 
 const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'https://eclick-backend-production-2a87.up.railway.app'
@@ -69,6 +69,9 @@ export default function PromocoesPage() {
   const [filter, setFilter] = useState<Filter>('all')
   const [q, setQ] = useState('')
   const [editing, setEditing] = useState<Product | null>(null)
+  // Bulk selection
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkModal, setBulkModal] = useState<null | 'apply' | 'clear'>(null)
 
   const fetchToken = useCallback(async () => {
     const supabase = createClient()
@@ -98,6 +101,32 @@ export default function PromocoesPage() {
   }, [fetchToken, filter, q])
 
   useEffect(() => { void load() }, [load])
+
+  // Limpa seleção quando muda filtro/busca (produtos podem sair da lista)
+  useEffect(() => { setSelectedIds(new Set()) }, [filter, q])
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+
+  const selectAllVisible = () => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      const allSelected = products.every(p => next.has(p.id))
+      if (allSelected) {
+        for (const p of products) next.delete(p.id)
+      } else {
+        for (const p of products) next.add(p.id)
+      }
+      return next
+    })
+  }
+
+  const clearSelection = () => setSelectedIds(new Set())
 
   return (
     <div className="p-6 max-w-[1400px] mx-auto space-y-5">
@@ -168,11 +197,79 @@ export default function PromocoesPage() {
           </p>
         </div>
       ) : (
-        <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
-          {products.map(p => (
-            <ProductRow key={p.id} product={p} onEdit={() => setEditing(p)} />
-          ))}
+        <>
+          {/* "Selecionar todos visíveis" + contador */}
+          <div className="flex items-center gap-3 pb-2">
+            <label className="inline-flex items-center gap-2 text-xs cursor-pointer" style={{ color: '#a1a1aa' }}>
+              <input
+                type="checkbox"
+                checked={products.length > 0 && products.every(p => selectedIds.has(p.id))}
+                onChange={selectAllVisible}
+                className="w-4 h-4 cursor-pointer"
+                style={{ accentColor: '#00E5FF' }}
+              />
+              Selecionar todos ({products.length})
+            </label>
+            {selectedIds.size > 0 && (
+              <button onClick={clearSelection}
+                className="text-xs px-2 py-1 rounded font-medium"
+                style={{ background: '#18181b', color: '#a1a1aa', border: '1px solid #27272a' }}>
+                Limpar seleção
+              </button>
+            )}
+          </div>
+
+          <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
+            {products.map(p => (
+              <ProductRow
+                key={p.id}
+                product={p}
+                selected={selectedIds.has(p.id)}
+                onToggle={() => toggleSelect(p.id)}
+                onEdit={() => setEditing(p)}
+              />
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* Bar flutuante de ações bulk */}
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 rounded-lg shadow-2xl p-3 flex items-center gap-3"
+          style={{ background: '#0a0a0e', border: '1px solid #00E5FF', boxShadow: '0 8px 32px rgba(0,229,255,0.2)' }}>
+          <span className="text-sm font-medium px-2" style={{ color: '#00E5FF' }}>
+            {selectedIds.size} selecionado{selectedIds.size === 1 ? '' : 's'}
+          </span>
+          <button onClick={() => setBulkModal('apply')}
+            className="text-xs px-3 py-2 rounded font-semibold inline-flex items-center gap-1.5"
+            style={{ background: '#00E5FF', color: '#0a0a0e', minHeight: 36 }}>
+            <Sparkles size={12} /> Aplicar desconto
+          </button>
+          <button onClick={() => setBulkModal('clear')}
+            className="text-xs px-3 py-2 rounded font-medium inline-flex items-center gap-1.5"
+            style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', minHeight: 36 }}>
+            <Trash2 size={12} /> Remover promoção
+          </button>
         </div>
+      )}
+
+      {bulkModal === 'apply' && (
+        <BulkApplyModal
+          count={selectedIds.size}
+          productIds={[...selectedIds]}
+          onClose={() => setBulkModal(null)}
+          onSaved={() => { setBulkModal(null); clearSelection(); void load() }}
+          fetchToken={fetchToken}
+        />
+      )}
+      {bulkModal === 'clear' && (
+        <BulkClearModal
+          count={selectedIds.size}
+          productIds={[...selectedIds]}
+          onClose={() => setBulkModal(null)}
+          onSaved={() => { setBulkModal(null); clearSelection(); void load() }}
+          fetchToken={fetchToken}
+        />
       )}
 
       {editing && (
@@ -187,7 +284,9 @@ export default function PromocoesPage() {
   )
 }
 
-function ProductRow({ product, onEdit }: { product: Product; onEdit: () => void }) {
+function ProductRow({ product, selected, onToggle, onEdit }: {
+  product: Product; selected: boolean; onToggle: () => void; onEdit: () => void
+}) {
   const img = Array.isArray(product.photo_urls) && product.photo_urls.length > 0 ? product.photo_urls[0] : null
   const onSale = Boolean(product.on_sale)
   const now = Date.now()
@@ -202,10 +301,27 @@ function ProductRow({ product, onEdit }: { product: Product; onEdit: () => void 
   else if (expired)   badge = { label: 'Expirada', color: '#f59e0b' }
 
   return (
-    <button
-      onClick={onEdit}
-      className="text-left rounded-lg overflow-hidden transition-all hover:border-cyan-400/50"
-      style={{ background: '#0a0a0e', border: '1px solid #27272a' }}>
+    <div
+      className="text-left rounded-lg overflow-hidden transition-all relative"
+      style={{
+        background: '#0a0a0e',
+        border: `1px solid ${selected ? '#00E5FF' : '#27272a'}`,
+        boxShadow: selected ? '0 0 0 1px #00E5FF inset' : 'none',
+      }}>
+      {/* Checkbox no canto */}
+      <div className="absolute top-2 right-2 z-10">
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={onToggle}
+          onClick={e => e.stopPropagation()}
+          className="w-5 h-5 cursor-pointer"
+          style={{ accentColor: '#00E5FF' }}
+        />
+      </div>
+      <button
+        onClick={onEdit}
+        className="w-full text-left hover:opacity-90 transition-opacity">
       <div className="flex gap-3 p-3">
         <div className="flex-shrink-0" style={{ width: 64, height: 64, borderRadius: 6, overflow: 'hidden', background: '#18181b' }}>
           {img
@@ -237,7 +353,8 @@ function ProductRow({ product, onEdit }: { product: Product; onEdit: () => void 
           </div>
         </div>
       </div>
-    </button>
+      </button>
+    </div>
   )
 }
 
@@ -438,6 +555,223 @@ function PromotionModal({ product, onClose, onSaved, fetchToken }: {
             style={{ background: '#00E5FF', color: '#0a0a0e', minHeight: 44 }}>
             {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
             Salvar
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Bulk Apply Modal ──────────────────────────────────────────────────
+
+function BulkApplyModal({ count, productIds, onClose, onSaved, fetchToken }: {
+  count: number
+  productIds: string[]
+  onClose: () => void
+  onSaved: () => void
+  fetchToken: () => Promise<string | undefined>
+}) {
+  const [pct, setPct] = useState<string>('20')
+  const [startAt, setStartAt] = useState<string>('')
+  const [endAt, setEndAt] = useState<string>('')
+  const [badgeText, setBadgeText] = useState<string>('')
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  const [result, setResult] = useState<{ updated: number; skipped: number } | null>(null)
+
+  const pctNum = parseFloat(pct)
+  const valid = Number.isFinite(pctNum) && pctNum > 0 && pctNum < 100
+
+  const apply = async () => {
+    if (!valid) { setErr('Informe um % entre 1 e 99'); return }
+    setSaving(true); setErr(null)
+    try {
+      const token = await fetchToken()
+      const res = await fetch(`${BACKEND}/store/config/promotions/bulk-apply`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productIds,
+          discountPct: pctNum,
+          startAt:     startAt ? new Date(startAt).toISOString() : null,
+          endAt:       endAt   ? new Date(endAt).toISOString()   : null,
+          badgeText:   badgeText.trim() || null,
+        }),
+      })
+      if (!res.ok) throw new Error(await res.text())
+      const data = await res.json() as { updated: number; skipped: number }
+      setResult(data)
+      // 1.5s pra mostrar resultado, depois fecha
+      setTimeout(onSaved, 1200)
+    } catch (e) {
+      setErr((e as Error).message)
+    } finally { setSaving(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }}>
+      <div className="w-full max-w-md rounded-lg p-5" style={{ background: '#09090b', border: '1px solid #00E5FF' }}>
+        <div className="flex items-start justify-between mb-4">
+          <div>
+            <h2 className="text-lg font-semibold text-zinc-100 flex items-center gap-2">
+              <Sparkles size={18} style={{ color: '#00E5FF' }} /> Aplicar desconto em massa
+            </h2>
+            <p className="text-xs text-zinc-500 mt-1">
+              <strong className="text-zinc-300">{count}</strong> produto{count === 1 ? '' : 's'} selecionado{count === 1 ? '' : 's'}
+            </p>
+          </div>
+          <button onClick={onClose} className="text-zinc-500 hover:text-zinc-100" style={{ minHeight: 44, minWidth: 44 }}>
+            <X size={20} />
+          </button>
+        </div>
+
+        {err && (
+          <div className="mb-4 p-2.5 rounded text-xs" style={{ background: 'rgba(239,68,68,0.1)', color: '#fca5a5', border: '1px solid rgba(239,68,68,0.3)' }}>
+            {err}
+          </div>
+        )}
+
+        {result ? (
+          <div className="p-4 rounded text-center" style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.3)' }}>
+            <Check size={32} className="mx-auto mb-2" style={{ color: '#22c55e' }} />
+            <p className="text-sm font-semibold text-zinc-100">
+              {result.updated} produto{result.updated === 1 ? '' : 's'} atualizado{result.updated === 1 ? '' : 's'}
+            </p>
+            {result.skipped > 0 && (
+              <p className="text-xs text-zinc-500 mt-1">{result.skipped} ignorado{result.skipped === 1 ? '' : 's'} (sem preço)</p>
+            )}
+          </div>
+        ) : (
+          <>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-zinc-400 mb-1">% Desconto</label>
+                <div className="relative">
+                  <input
+                    type="number" min="1" max="99" step="1"
+                    value={pct}
+                    onChange={e => setPct(e.target.value)}
+                    placeholder="20"
+                    className="w-full text-2xl px-3 py-3 rounded outline-none text-center font-bold"
+                    style={{
+                      background: '#0a0a0e', color: '#22c55e',
+                      border: `1px solid ${!valid && pct ? '#ef4444' : '#27272a'}`, minHeight: 60,
+                    }}
+                  />
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-base text-zinc-500">%</span>
+                </div>
+                <p className="text-[11px] text-zinc-500 mt-1">
+                  Será calculado preço × (1 - %/100) por produto
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-zinc-400 mb-1">
+                    <Calendar size={11} className="inline mr-1" /> Início (opcional)
+                  </label>
+                  <input type="datetime-local" value={startAt} onChange={e => setStartAt(e.target.value)}
+                    className="w-full text-sm px-3 py-2 rounded outline-none"
+                    style={{ background: '#0a0a0e', color: '#fafafa', border: '1px solid #27272a', minHeight: 44 }} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-zinc-400 mb-1">
+                    <Calendar size={11} className="inline mr-1" /> Fim (opcional)
+                  </label>
+                  <input type="datetime-local" value={endAt} onChange={e => setEndAt(e.target.value)}
+                    className="w-full text-sm px-3 py-2 rounded outline-none"
+                    style={{ background: '#0a0a0e', color: '#fafafa', border: '1px solid #27272a', minHeight: 44 }} />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-zinc-400 mb-1">
+                  Texto do badge (opcional)
+                </label>
+                <input
+                  value={badgeText}
+                  onChange={e => setBadgeText(e.target.value)}
+                  placeholder='Ex: "BLACK FRIDAY"' maxLength={20}
+                  className="w-full text-sm px-3 py-2 rounded outline-none"
+                  style={{ background: '#0a0a0e', color: '#fafafa', border: '1px solid #27272a', minHeight: 44 }}
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2 mt-5">
+              <div className="flex-1" />
+              <button onClick={onClose} disabled={saving}
+                className="text-sm px-4 py-2 rounded font-medium disabled:opacity-50"
+                style={{ background: '#18181b', color: '#a1a1aa', border: '1px solid #27272a', minHeight: 44 }}>
+                Cancelar
+              </button>
+              <button onClick={apply} disabled={saving || !valid}
+                className="text-sm px-4 py-2 rounded font-semibold disabled:opacity-50 inline-flex items-center gap-2"
+                style={{ background: '#00E5FF', color: '#0a0a0e', minHeight: 44 }}>
+                {saving ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                Aplicar em {count}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Bulk Clear Modal ──────────────────────────────────────────────────
+
+function BulkClearModal({ count, productIds, onClose, onSaved, fetchToken }: {
+  count: number
+  productIds: string[]
+  onClose: () => void
+  onSaved: () => void
+  fetchToken: () => Promise<string | undefined>
+}) {
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  const clear = async () => {
+    setSaving(true); setErr(null)
+    try {
+      const token = await fetchToken()
+      const res = await fetch(`${BACKEND}/store/config/promotions/bulk-clear`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productIds }),
+      })
+      if (!res.ok) throw new Error(await res.text())
+      onSaved()
+    } catch (e) {
+      setErr((e as Error).message)
+    } finally { setSaving(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }}>
+      <div className="w-full max-w-sm rounded-lg p-5" style={{ background: '#09090b', border: '1px solid #ef4444' }}>
+        <h2 className="text-lg font-semibold text-zinc-100 flex items-center gap-2 mb-2">
+          <Trash2 size={18} style={{ color: '#ef4444' }} /> Remover promoções
+        </h2>
+        <p className="text-sm text-zinc-400 mb-5">
+          Vai remover sale_price, janela e badge de <strong className="text-zinc-100">{count} produto{count === 1 ? '' : 's'}</strong>. Sem desfazer.
+        </p>
+        {err && (
+          <div className="mb-4 p-2.5 rounded text-xs" style={{ background: 'rgba(239,68,68,0.1)', color: '#fca5a5', border: '1px solid rgba(239,68,68,0.3)' }}>
+            {err}
+          </div>
+        )}
+        <div className="flex gap-2">
+          <button onClick={onClose} disabled={saving}
+            className="flex-1 text-sm px-4 py-2 rounded font-medium disabled:opacity-50"
+            style={{ background: '#18181b', color: '#a1a1aa', border: '1px solid #27272a', minHeight: 44 }}>
+            Cancelar
+          </button>
+          <button onClick={clear} disabled={saving}
+            className="flex-1 text-sm px-4 py-2 rounded font-semibold disabled:opacity-50 inline-flex items-center justify-center gap-2"
+            style={{ background: '#ef4444', color: '#fff', minHeight: 44 }}>
+            {saving ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+            Remover
           </button>
         </div>
       </div>
