@@ -55,7 +55,11 @@ const FILTER_COLORS: Record<Filter, string> = {
   none:      '#71717a',
 }
 
-const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+const brl = (v: unknown) => {
+  const n = typeof v === 'number' ? v : Number(v ?? 0)
+  if (!Number.isFinite(n)) return 'R$ 0,00'
+  return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+}
 
 export default function PromocoesPage() {
   const [products, setProducts] = useState<Product[]>([])
@@ -184,10 +188,13 @@ export default function PromocoesPage() {
 }
 
 function ProductRow({ product, onEdit }: { product: Product; onEdit: () => void }) {
-  const img = product.photo_urls?.[0]
+  const img = Array.isArray(product.photo_urls) && product.photo_urls.length > 0 ? product.photo_urls[0] : null
   const onSale = Boolean(product.on_sale)
-  const scheduled = !onSale && product.sale_price != null && product.sale_start_at && new Date(product.sale_start_at) > new Date()
-  const expired = !onSale && product.sale_price != null && product.sale_end_at && new Date(product.sale_end_at) < new Date()
+  const now = Date.now()
+  const startMs = product.sale_start_at ? Date.parse(product.sale_start_at) : 0
+  const endMs   = product.sale_end_at   ? Date.parse(product.sale_end_at)   : 0
+  const scheduled = !onSale && product.sale_price != null && startMs > 0 && Number.isFinite(startMs) && startMs > now
+  const expired   = !onSale && product.sale_price != null && endMs > 0 && Number.isFinite(endMs) && endMs < now
 
   let badge: { label: string; color: string } | null = null
   if (onSale)        badge = { label: `Ativa -${product.discount_pct ?? 0}%`, color: '#22c55e' }
