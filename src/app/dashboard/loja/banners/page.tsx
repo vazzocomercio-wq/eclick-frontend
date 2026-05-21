@@ -16,11 +16,12 @@
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import {
-  ImageIcon, Loader2, ChevronLeft, Plus, Trash2, Copy, Check,
-  Sparkles, AlertCircle, Monitor, Smartphone, Square,
+  ImageIcon, Loader2, ChevronLeft, Trash2, Copy, Check,
+  Sparkles, AlertCircle, Monitor, Smartphone, Square, Download,
 } from 'lucide-react'
 import Link from 'next/link'
 import { BannerGeneratorModal } from '@/components/storefront/BannerGeneratorModal'
+import { downloadImage, downloadAllImages, bannerFilename } from '@/lib/downloadImage'
 
 const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'https://eclick-backend-production-2a87.up.railway.app'
 
@@ -105,6 +106,22 @@ export default function BannersPage() {
     } catch { /* navigator.clipboard pode falhar — silent */ }
   }
 
+  const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number } | null>(null)
+  const [bulkDone, setBulkDone] = useState<{ ok: number; fail: number } | null>(null)
+
+  const downloadAll = async () => {
+    if (banners.length === 0) return
+    setBulkDone(null)
+    const list = banners.map((b, i) => ({
+      url: b.image_url,
+      filename: bannerFilename(b.format, i),
+    }))
+    const result = await downloadAllImages(list, (c, t) => setBulkProgress({ current: c, total: t }))
+    setBulkProgress(null)
+    setBulkDone(result)
+    setTimeout(() => setBulkDone(null), 3000)
+  }
+
   return (
     <div className="p-6 max-w-[1400px] mx-auto space-y-5">
       {/* Header */}
@@ -121,12 +138,29 @@ export default function BannersPage() {
               Galeria de banners gerados · estilos por produto · multi-formato
             </p>
           </div>
-          <button
-            onClick={() => setShowModal(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold"
-            style={{ background: '#00E5FF', color: '#0a0a0e', minHeight: 44 }}>
-            <Sparkles size={14} /> Gerar novo banner
-          </button>
+          <div className="flex items-center gap-2 flex-wrap">
+            {banners.length > 0 && (
+              <button
+                onClick={downloadAll}
+                disabled={bulkProgress !== null}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50"
+                style={{ background: '#18181b', color: '#fafafa', border: '1px solid #27272a', minHeight: 44 }}>
+                {bulkProgress ? (
+                  <><Loader2 size={14} className="animate-spin" /> {bulkProgress.current}/{bulkProgress.total}…</>
+                ) : bulkDone ? (
+                  <><Check size={14} /> Baixou {bulkDone.ok}{bulkDone.fail > 0 && ` (${bulkDone.fail} falhou)`}</>
+                ) : (
+                  <><Download size={14} /> Baixar todos ({banners.length})</>
+                )}
+              </button>
+            )}
+            <button
+              onClick={() => setShowModal(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold"
+              style={{ background: '#00E5FF', color: '#0a0a0e', minHeight: 44 }}>
+              <Sparkles size={14} /> Gerar novo banner
+            </button>
+          </div>
         </div>
       </div>
 
@@ -221,6 +255,15 @@ function BannerCard({ banner, copied, onCopy, onRemove }: {
 }) {
   const fmt = FORMAT_LABELS[banner.format] ?? { label: banner.format, icon: null, ratio: '1/1' }
   const date = new Date(banner.created_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+  const [dlBusy, setDlBusy] = useState(false)
+  const [dlDone, setDlDone] = useState(false)
+
+  const handleDownload = async () => {
+    setDlBusy(true)
+    const ok = await downloadImage(banner.image_url, bannerFilename(banner.format, 0))
+    setDlBusy(false)
+    if (ok) { setDlDone(true); setTimeout(() => setDlDone(false), 1500) }
+  }
 
   return (
     <div className="rounded-lg overflow-hidden transition-all"
@@ -266,6 +309,19 @@ function BannerCard({ banner, copied, onCopy, onRemove }: {
               minHeight: 36,
             }}>
             {copied ? <><Check size={12} /> Copiado</> : <><Copy size={12} /> Copiar URL</>}
+          </button>
+          <button
+            onClick={handleDownload}
+            disabled={dlBusy}
+            className="text-xs px-2 py-2 rounded font-medium inline-flex items-center gap-1 disabled:opacity-50"
+            title="Baixar imagem"
+            style={{
+              background: dlDone ? 'rgba(34,197,94,0.1)' : '#18181b',
+              color:      dlDone ? '#22c55e' : '#fafafa',
+              border:     `1px solid ${dlDone ? 'rgba(34,197,94,0.3)' : '#27272a'}`,
+              minHeight: 36, minWidth: 36,
+            }}>
+            {dlBusy ? <Loader2 size={12} className="animate-spin" /> : dlDone ? <Check size={12} /> : <Download size={12} />}
           </button>
           <a
             href={banner.image_url}

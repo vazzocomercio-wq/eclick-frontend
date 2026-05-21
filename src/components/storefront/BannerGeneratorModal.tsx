@@ -15,7 +15,8 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase'
-import { X, Loader2, Search, Sparkles, ArrowLeft, ArrowRight, Check, AlertCircle, RotateCcw, Monitor, Smartphone, Square } from 'lucide-react'
+import { X, Loader2, Search, Sparkles, ArrowLeft, ArrowRight, Check, AlertCircle, RotateCcw, Monitor, Smartphone, Square, Download } from 'lucide-react'
+import { downloadImage, downloadAllImages, bannerFilename } from '@/lib/downloadImage'
 
 const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'https://eclick-backend-production-2a87.up.railway.app'
 
@@ -600,8 +601,11 @@ function StepResult({ generating, images, chosen, onChoose, promptUsed, onRegene
 
   return (
     <div className="space-y-5">
-      <div className="text-xs" style={{ color: '#a1a1aa' }}>
-        Clique pra escolher a variação que você quer usar:
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="text-xs" style={{ color: '#a1a1aa' }}>
+          Clique pra escolher a variação que você quer usar:
+        </div>
+        <DownloadAllButton images={images} />
       </div>
 
       {Array.from(byFormat.entries()).map(([fmt, imgs]) => (
@@ -614,22 +618,26 @@ function StepResult({ generating, images, chosen, onChoose, promptUsed, onRegene
             {imgs.map((img, i) => {
               const isChosen = chosen === img.url
               return (
-                <button key={i} onClick={() => onChoose(img.url)}
-                  style={{
-                    padding: 4,
-                    background: isChosen ? 'rgba(0,229,255,0.1)' : 'transparent',
-                    border: `2px solid ${isChosen ? '#00E5FF' : '#27272a'}`,
-                    borderRadius: 8, cursor: 'pointer',
-                  }}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={img.url} alt={`${fmt} ${i + 1}`} loading="lazy"
-                    style={{ width: '100%', display: 'block', borderRadius: 4 }} />
-                  {isChosen && (
-                    <div className="mt-1 flex items-center justify-center gap-1 text-xs" style={{ color: '#00E5FF', fontWeight: 600 }}>
-                      <Check size={12} /> Escolhida
-                    </div>
-                  )}
-                </button>
+                <div key={i} className="relative group">
+                  <button onClick={() => onChoose(img.url)}
+                    style={{
+                      width: '100%', padding: 4,
+                      background: isChosen ? 'rgba(0,229,255,0.1)' : 'transparent',
+                      border: `2px solid ${isChosen ? '#00E5FF' : '#27272a'}`,
+                      borderRadius: 8, cursor: 'pointer',
+                    }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={img.url} alt={`${fmt} ${i + 1}`} loading="lazy"
+                      style={{ width: '100%', display: 'block', borderRadius: 4 }} />
+                    {isChosen && (
+                      <div className="mt-1 flex items-center justify-center gap-1 text-xs" style={{ color: '#00E5FF', fontWeight: 600 }}>
+                        <Check size={12} /> Escolhida
+                      </div>
+                    )}
+                  </button>
+                  {/* Botão download — sempre visível canto top-right */}
+                  <DownloadOneButton url={img.url} format={fmt} index={i} />
+                </div>
               )
             })}
           </div>
@@ -650,5 +658,82 @@ function StepResult({ generating, images, chosen, onChoose, promptUsed, onRegene
         </pre>
       </details>
     </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Download buttons (Step 4)
+// ─────────────────────────────────────────────────────────────────────────
+
+function DownloadOneButton({ url, format, index }: { url: string; format: BannerFormat; index: number }) {
+  const [busy, setBusy] = useState(false)
+  const [done, setDone] = useState(false)
+  const handle = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    e.preventDefault()
+    setBusy(true)
+    const ok = await downloadImage(url, bannerFilename(format, index))
+    setBusy(false)
+    if (ok) {
+      setDone(true)
+      setTimeout(() => setDone(false), 1500)
+    }
+  }
+  return (
+    <button onClick={handle} disabled={busy}
+      title="Baixar esta imagem"
+      style={{
+        position: 'absolute', top: 10, right: 10, zIndex: 2,
+        width: 32, height: 32, borderRadius: '50%',
+        background: done ? '#22c55e' : 'rgba(0,0,0,0.7)',
+        color: '#fff', border: 'none', cursor: busy ? 'wait' : 'pointer',
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+        backdropFilter: 'blur(4px)',
+      }}>
+      {busy ? <Loader2 size={14} className="animate-spin" /> : done ? <Check size={14} /> : <Download size={14} />}
+    </button>
+  )
+}
+
+function DownloadAllButton({ images }: { images: Array<{ url: string; format: BannerFormat }> }) {
+  const [progress, setProgress] = useState<{ current: number; total: number } | null>(null)
+  const [done, setDone] = useState<{ ok: number; fail: number } | null>(null)
+
+  if (images.length === 0) return null
+
+  const handle = async () => {
+    setDone(null)
+    const list = images.map((img, i) => ({
+      url: img.url,
+      filename: bannerFilename(img.format, i),
+    }))
+    const result = await downloadAllImages(list, (current, total) => setProgress({ current, total }))
+    setProgress(null)
+    setDone(result)
+    setTimeout(() => setDone(null), 3000)
+  }
+
+  return (
+    <button onClick={handle} disabled={progress !== null}
+      className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded disabled:opacity-50"
+      style={{ background: '#00E5FF', color: '#0a0a0e', minHeight: 36 }}>
+      {progress ? (
+        <>
+          <Loader2 size={12} className="animate-spin" />
+          Baixando {progress.current}/{progress.total}…
+        </>
+      ) : done ? (
+        <>
+          <Check size={12} />
+          Baixou {done.ok}{done.fail > 0 && ` (${done.fail} falhou)`}
+        </>
+      ) : (
+        <>
+          <Download size={12} />
+          Baixar todas ({images.length})
+        </>
+      )}
+    </button>
   )
 }
