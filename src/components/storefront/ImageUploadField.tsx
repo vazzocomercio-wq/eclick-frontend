@@ -13,8 +13,9 @@
  */
 
 import { useState, useRef } from 'react'
-import { Upload, Link as LinkIcon, X, Loader2, ImagePlus } from 'lucide-react'
+import { Upload, Link as LinkIcon, X, Loader2, ImagePlus, Sparkles } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
+import { BannerGeneratorModal } from './BannerGeneratorModal'
 
 const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'https://eclick-backend-production-2a87.up.railway.app'
 
@@ -37,9 +38,10 @@ export function ImageUploadField({
   downscaleMaxWidth = 1280,
   accept = 'image/*',
 }: Props) {
-  const [mode, setMode] = useState<'url' | 'upload'>('upload')
+  const [mode, setMode] = useState<'url' | 'upload' | 'ai'>('upload')
   const [busy, setBusy] = useState(false)
   const [err, setErr]   = useState<string | null>(null)
+  const [showAi, setShowAi] = useState(false)
   const inputRef        = useRef<HTMLInputElement>(null)
 
   async function handleFile(file: File) {
@@ -102,6 +104,7 @@ export function ImageUploadField({
       <div className="flex gap-1">
         <TabBtn active={mode === 'upload'} onClick={() => setMode('upload')} icon={<Upload size={11} />} label="Enviar arquivo" />
         <TabBtn active={mode === 'url'}    onClick={() => setMode('url')}    icon={<LinkIcon size={11} />} label="Colar URL" />
+        <TabBtn active={mode === 'ai'}     onClick={() => { setMode('ai'); setShowAi(true) }} icon={<Sparkles size={11} />} label="Gerar com IA" />
       </div>
 
       {mode === 'upload' && (
@@ -142,8 +145,28 @@ export function ImageUploadField({
         />
       )}
 
+      {mode === 'ai' && !showAi && (
+        <button onClick={() => setShowAi(true)}
+          style={{
+            width: '100%', padding: '14px 16px', minHeight: 56,
+            background: 'linear-gradient(135deg, #00E5FF, #6366f1)', color: '#0a0a0e',
+            border: 'none', borderRadius: 6, cursor: 'pointer',
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            fontSize: 13, fontWeight: 600,
+          }}>
+          <Sparkles size={14} /> Abrir gerador de banner com IA
+        </button>
+      )}
+
       {err && (
         <p className="text-xs" style={{ color: '#f87171' }}>⚠ {err}</p>
+      )}
+
+      {showAi && (
+        <BannerGeneratorModal
+          onClose={() => setShowAi(false)}
+          onPick={url => { onChange(url); setShowAi(false) }}
+        />
       )}
     </div>
   )
