@@ -13,6 +13,7 @@ import {
   Megaphone, Loader2, ChevronLeft, Plus, X, Save, AlertCircle,
   Trash2, Sparkles, Package, Search, Check, Power, PowerOff,
 } from 'lucide-react'
+import { useConfirm } from '@/components/ui/dialog-provider'
 
 const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'https://eclick-backend-production-2a87.up.railway.app'
 
@@ -73,6 +74,7 @@ export default function CampanhaDetalhePage() {
   const [showPicker, setShowPicker] = useState(false)
   const [busy, setBusy] = useState(false)
   const [applyResult, setApplyResult] = useState<string | null>(null)
+  const confirm = useConfirm()
 
   const fetchToken = useCallback(async () => {
     const supabase = createClient()
@@ -117,7 +119,13 @@ export default function CampanhaDetalhePage() {
   }
 
   const unapply = async () => {
-    if (!confirm('Remover sale_price dos produtos desta campanha?')) return
+    const ok = await confirm({
+      title:        'Desaplicar campanha',
+      message:      'Vai limpar o sale_price de todos os produtos desta campanha. Eles voltam pro preço cheio na vitrine. A campanha em si fica salva e pode ser reaplicada depois.',
+      confirmLabel: 'Desaplicar',
+      variant:      'warning',
+    })
+    if (!ok) return
     setBusy(true); setError(null); setApplyResult(null)
     try {
       const token = await fetchToken()

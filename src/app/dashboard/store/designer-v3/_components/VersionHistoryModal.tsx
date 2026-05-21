@@ -9,6 +9,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { X, History, Loader2, RotateCcw, Sparkles, LayoutTemplate, Save, Check } from 'lucide-react'
+import { useConfirm } from '@/components/ui/dialog-provider'
 
 interface Version {
   id:         string
@@ -36,6 +37,7 @@ export function VersionHistoryModal({ onClose, onRevert, fetchUrl, authToken }: 
   const [loading, setLoading]   = useState(true)
   const [error,   setError]     = useState<string | null>(null)
   const [busyId,  setBusyId]    = useState<string | null>(null)
+  const confirm = useConfirm()
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
@@ -55,7 +57,13 @@ export function VersionHistoryModal({ onClose, onRevert, fetchUrl, authToken }: 
   useEffect(() => { void load() }, [load])
 
   const revert = async (id: string) => {
-    if (!confirm('Restaurar esta versão? O design atual será sobrescrito (você pode reverter de novo depois).')) return
+    const ok = await confirm({
+      title:        'Restaurar versão',
+      message:      'O design atual será sobrescrito por esta versão. Você pode reverter de novo a qualquer momento pelo próprio histórico.',
+      confirmLabel: 'Restaurar',
+      variant:      'warning',
+    })
+    if (!ok) return
     setBusyId(id)
     await onRevert(id)
     // parent fecha o modal

@@ -22,6 +22,7 @@ import {
   Users, TrendingUp, Power, PowerOff, Edit3,
 } from 'lucide-react'
 import Link from 'next/link'
+import { useConfirm } from '@/components/ui/dialog-provider'
 
 const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'https://eclick-backend-production-2a87.up.railway.app'
 
@@ -72,6 +73,7 @@ export default function FidelidadePage() {
   const [editing,    setEditing]    = useState<Tier | null>(null)
   const [creating,   setCreating]   = useState(false)
   const [error,      setError]      = useState<string | null>(null)
+  const confirm = useConfirm()
 
   const fetchToken = useCallback(async () => {
     const supabase = createClient()
@@ -117,7 +119,12 @@ export default function FidelidadePage() {
   }
 
   const seedDefaults = async () => {
-    if (!confirm('Criar 3 níveis padrão (Bronze, Prata, Ouro)?')) return
+    const ok = await confirm({
+      title:        'Criar níveis padrão',
+      message:      'Vou criar os 3 níveis clássicos: Bronze (gasto R$ 0+), Prata (R$ 500+) e Ouro (R$ 2.000+). Você pode editar tudo depois.',
+      confirmLabel: 'Criar',
+    })
+    if (!ok) return
     setSaving(true)
     try {
       const token = await fetchToken()
@@ -131,7 +138,13 @@ export default function FidelidadePage() {
   }
 
   const deleteTier = async (tier: Tier) => {
-    if (!confirm(`Remover nível "${tier.name}"? Clientes nesse nível voltam pra Sem nível.`)) return
+    const ok = await confirm({
+      title:        'Remover nível',
+      message:      `O nível "${tier.name}" será excluído. Clientes que estavam nele voltam pra "Sem nível" até atingirem o gasto mínimo de outro nível existente.`,
+      confirmLabel: 'Remover',
+      variant:      'danger',
+    })
+    if (!ok) return
     try {
       const token = await fetchToken()
       const res = await fetch(`${BACKEND}/loyalty/tiers/${tier.id}`, {

@@ -11,6 +11,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { Ticket, Plus, Loader2, AlertCircle, Trash2, X, Check, Power, PowerOff } from 'lucide-react'
+import { useConfirm } from '@/components/ui/dialog-provider'
 
 const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'https://eclick-backend-production-2a87.up.railway.app'
 
@@ -41,6 +42,7 @@ export default function CuponsPage() {
   const [loading, setLoading] = useState(true)
   const [error,   setError]   = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
+  const confirm = useConfirm()
 
   const fetchToken = useCallback(async () => {
     const supabase = createClient()
@@ -75,7 +77,13 @@ export default function CuponsPage() {
   }
 
   const remove = async (c: Coupon) => {
-    if (!confirm(`Remover cupom "${c.code}"?`)) return
+    const ok = await confirm({
+      title:        'Remover cupom',
+      message:      `O cupom "${c.code}" será excluído. Quem tentar usar daqui em diante vai receber "cupom inválido".`,
+      confirmLabel: 'Remover',
+      variant:      'danger',
+    })
+    if (!ok) return
     const token = await fetchToken()
     await fetch(`${BACKEND}/coupons/${c.id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
     void load()

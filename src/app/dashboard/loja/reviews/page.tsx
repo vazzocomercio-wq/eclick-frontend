@@ -30,6 +30,7 @@ import {
   AlertCircle, Settings, Reply, Filter,
 } from 'lucide-react'
 import Link from 'next/link'
+import { useAlert } from '@/components/ui/dialog-provider'
 
 const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'https://eclick-backend-production-2a87.up.railway.app'
 
@@ -276,10 +277,17 @@ function ReviewRow({ review, onAction }: {
   const [replyText, setReplyText] = useState(review.store_reply ?? '')
   const [rejectMode, setRejectMode] = useState(false)
   const [rejectReason, setRejectReason] = useState('')
+  const showAlert = useAlert()
 
   const wrap = (action: string, fn: () => Promise<void>) => async () => {
     setBusy(action)
-    try { await fn() } catch (e) { alert((e as Error).message) } finally { setBusy(null) }
+    try {
+      await fn()
+    } catch (e) {
+      await showAlert({ title: 'Não deu certo', message: (e as Error).message, variant: 'danger' })
+    } finally {
+      setBusy(null)
+    }
   }
 
   const status = STATUS_LABEL[review.status] ?? { label: review.status, color: '#a1a1aa', bg: '#27272a' }

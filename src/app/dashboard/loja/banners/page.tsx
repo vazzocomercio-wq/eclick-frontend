@@ -22,6 +22,7 @@ import {
 import Link from 'next/link'
 import { BannerGeneratorModal } from '@/components/storefront/BannerGeneratorModal'
 import { downloadImage, downloadAllImages, bannerFilename } from '@/lib/downloadImage'
+import { useConfirm } from '@/components/ui/dialog-provider'
 
 const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'https://eclick-backend-production-2a87.up.railway.app'
 
@@ -56,6 +57,7 @@ export default function BannersPage() {
   const [filter, setFilter] = useState<FormatFilter>('')
   const [showModal, setShowModal] = useState(false)
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const confirm = useConfirm()
 
   const fetchToken = useCallback(async () => {
     const supabase = createClient()
@@ -86,7 +88,13 @@ export default function BannersPage() {
   useEffect(() => { void load() }, [load])
 
   const remove = async (id: string) => {
-    if (!confirm('Remover este banner do histórico?')) return
+    const ok = await confirm({
+      title:        'Remover banner',
+      message:      'O banner sai do histórico, mas a imagem em si continua disponível em qualquer seção da loja onde já tenha sido usada.',
+      confirmLabel: 'Remover',
+      variant:      'danger',
+    })
+    if (!ok) return
     try {
       const token = await fetchToken()
       const res = await fetch(`${BACKEND}/banner-generator/${id}`, {

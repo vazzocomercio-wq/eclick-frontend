@@ -21,6 +21,7 @@ import {
   Megaphone, Loader2, ChevronLeft, Plus, X, Save, AlertCircle,
   Trash2, Power, PowerOff, Sparkles, Package, Calendar,
 } from 'lucide-react'
+import { useConfirm } from '@/components/ui/dialog-provider'
 
 const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'https://eclick-backend-production-2a87.up.railway.app'
 
@@ -45,6 +46,7 @@ export default function CampanhasPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const confirm = useConfirm()
   const [creating, setCreating] = useState(false)
 
   const fetchToken = useCallback(async () => {
@@ -72,7 +74,13 @@ export default function CampanhasPage() {
   useEffect(() => { void load() }, [load])
 
   const remove = async (c: Campaign) => {
-    if (!confirm(`Remover campanha "${c.name}"? Os produtos terão sale_price limpo.`)) return
+    const ok = await confirm({
+      title:        'Remover campanha',
+      message:      `A campanha "${c.name}" será excluída e o sale_price será limpo em todos os produtos que faziam parte dela. Não dá pra desfazer.`,
+      confirmLabel: 'Remover',
+      variant:      'danger',
+    })
+    if (!ok) return
     try {
       const token = await fetchToken()
       const res = await fetch(`${BACKEND}/store/config/campaigns/${c.id}`, {

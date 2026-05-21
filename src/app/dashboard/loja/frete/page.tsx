@@ -10,6 +10,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { Truck, Plus, Loader2, AlertCircle, Trash2, X, Check, Power, PowerOff } from 'lucide-react'
+import { useConfirm } from '@/components/ui/dialog-provider'
 
 const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'https://eclick-backend-production-2a87.up.railway.app'
 
@@ -45,6 +46,7 @@ export default function FretePage() {
   const [loading, setLoading]   = useState(true)
   const [error,   setError]     = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
+  const confirm = useConfirm()
 
   const fetchToken = useCallback(async () => {
     const supabase = createClient()
@@ -79,7 +81,13 @@ export default function FretePage() {
   }
 
   const remove = async (r: ShippingRule) => {
-    if (!confirm(`Remover regra "${r.name}"?`)) return
+    const ok = await confirm({
+      title:        'Remover regra de frete',
+      message:      `A regra "${r.name}" será excluída. Pedidos novos vão usar a próxima regra elegível pela ordem de prioridade.`,
+      confirmLabel: 'Remover',
+      variant:      'danger',
+    })
+    if (!ok) return
     const token = await fetchToken()
     await fetch(`${BACKEND}/shipping-rules/${r.id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
     void load()

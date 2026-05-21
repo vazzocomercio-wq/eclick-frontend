@@ -22,6 +22,7 @@ import {
   Tag, Package, DollarSign,
 } from 'lucide-react'
 import Link from 'next/link'
+import { useConfirm } from '@/components/ui/dialog-provider'
 
 const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'https://eclick-backend-production-2a87.up.railway.app'
 
@@ -86,6 +87,7 @@ export default function BonusPage() {
   const [error, setError] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
   const [editing,  setEditing]  = useState<BonusRule | null>(null)
+  const confirm = useConfirm()
 
   const fetchToken = useCallback(async () => {
     const supabase = createClient()
@@ -131,7 +133,13 @@ export default function BonusPage() {
   }
 
   const removeRule = async (rule: BonusRule) => {
-    if (!confirm(`Remover regra "${rule.name}"?`)) return
+    const ok = await confirm({
+      title:        'Remover regra de bônus',
+      message:      `A regra "${rule.name}" será excluída. Os pedidos futuros não receberão mais esse bônus.`,
+      confirmLabel: 'Remover',
+      variant:      'danger',
+    })
+    if (!ok) return
     try {
       const token = await fetchToken()
       const res = await fetch(`${BACKEND}/bonus-rules/${rule.id}`, {

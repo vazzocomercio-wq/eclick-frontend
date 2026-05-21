@@ -34,6 +34,7 @@ import {
 } from 'lucide-react'
 import type { StorefrontDesignV3, Section, SectionType } from '@/lib/storefront/v3/types'
 import { SECTION_TYPES_V3 } from '@/lib/storefront/v3/types'
+import { useConfirm } from '@/components/ui/dialog-provider'
 import { SectionInspector } from './SectionInspector'
 
 const SECTION_LABELS: Partial<Record<SectionType, string>> = {
@@ -81,6 +82,7 @@ export function ModoAvancado({ design, onSave, onLiveChange }: Props) {
   const [adding, setAdding]     = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const confirm = useConfirm()
 
   useEffect(() => { setLocal(design) }, [design])
 
@@ -130,8 +132,14 @@ export function ModoAvancado({ design, onSave, onLiveChange }: Props) {
     setSections(next)
   }
 
-  const remove = (id: string) => {
-    if (!confirm('Remover esta seção?')) return
+  const remove = async (id: string) => {
+    const ok = await confirm({
+      title:        'Remover seção',
+      message:      'Tem certeza que quer remover esta seção da home? Você pode adicionar de novo depois pelo botão "+ Adicionar".',
+      confirmLabel: 'Remover',
+      variant:      'danger',
+    })
+    if (!ok) return
     setSections(sections.filter(s => s.id !== id))
   }
 
