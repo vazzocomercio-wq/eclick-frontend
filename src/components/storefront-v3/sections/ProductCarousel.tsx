@@ -53,7 +53,7 @@ export function ProductCarouselSectionView({ ctx, section }: { ctx: RenderCtx; s
               maxWidth: 280,
               textDecoration: 'none', color: 'var(--c-text)',
             }}>
-            <CarouselCard product={p} variant={cardStyle} paymentDisplay={ctx.paymentDisplay} />
+            <CarouselCard product={p} variant={cardStyle} paymentDisplay={ctx.paymentDisplay} cashback={ctx.cashback} />
           </a>
         ))}
       </div>
@@ -61,10 +61,11 @@ export function ProductCarouselSectionView({ ctx, section }: { ctx: RenderCtx; s
   )
 }
 
-function CarouselCard({ product, variant, paymentDisplay }: {
+function CarouselCard({ product, variant, paymentDisplay, cashback }: {
   product: StorefrontProduct
   variant: 'compact' | 'detailed' | 'minimal'
   paymentDisplay?: PaymentDisplaySettings | null
+  cashback?: { enabled: boolean; earnPct: number } | null
 }) {
   const img = product.photo_urls?.[0]
   return (
@@ -87,7 +88,7 @@ function CarouselCard({ product, variant, paymentDisplay }: {
         )}
         <div style={{ fontSize: 14, fontWeight: 500, lineHeight: 1.3 }}>{product.name}</div>
         <div style={{ marginTop: 6 }}>
-          <PriceDisplay product={product} settings={paymentDisplay} variant="card" />
+          <PriceDisplay product={product} settings={paymentDisplay} cashback={cashback} variant="card" />
         </div>
       </div>
     </>

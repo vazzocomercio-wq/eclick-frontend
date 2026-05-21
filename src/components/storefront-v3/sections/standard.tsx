@@ -294,7 +294,7 @@ export function FeaturedProduct({ ctx, section }: { ctx: RenderCtx; section: Fea
             <p style={{ marginTop: 12, color: 'var(--c-text-muted)', lineHeight: 1.6 }}>{product.ai_short_description}</p>
           )}
           <div style={{ marginTop: 20 }}>
-            <PriceDisplay product={product} settings={ctx.paymentDisplay} variant="detail" inlineBadge />
+            <PriceDisplay product={product} settings={ctx.paymentDisplay} cashback={ctx.cashback} variant="detail" inlineBadge />
           </div>
           <a href={`/loja/${ctx.slug}/produto/${product.id}`}
             style={{ marginTop: 24, padding: '14px 28px', background: 'var(--c-primary)', color: 'var(--c-on-accent)', borderRadius: 'var(--r)', textDecoration: 'none', alignSelf: 'flex-start', minHeight: 44, display: 'inline-block', fontWeight: 500 }}>

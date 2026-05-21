@@ -23,4 +23,6 @@ export interface RenderCtx {
    *  Componentes PriceDisplay usam isso pra escolher formato (parcelas / Pix /
    *  total em destaque). NULL/undefined = DEFAULT_PAYMENT_DISPLAY. */
   paymentDisplay?: PaymentDisplaySettings | null
+  /** Info de cashback pra mostrar badge "Ganhe R$ X em cashback". */
+  cashback?: { enabled: boolean; earnPct: number } | null
 }

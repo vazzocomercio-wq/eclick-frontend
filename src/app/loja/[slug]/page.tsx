@@ -46,6 +46,9 @@ export default async function StorefrontPage({ params }: Props) {
         store, design: resolved.design, theme: resolved.design.theme,
         slug, page: 'home', products,
         paymentDisplay: store.payment_display_settings ?? null,
+        cashback: store.cashback_settings
+          ? { enabled: store.cashback_settings.enabled, earnPct: store.cashback_settings.earnPct }
+          : null,
       }} />
     )
   }

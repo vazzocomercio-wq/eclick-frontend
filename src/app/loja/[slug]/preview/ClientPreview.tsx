@@ -56,6 +56,9 @@ export function ClientPreview({ store, products, initialDesign, slug }: Props) {
       store, design, theme: design.theme,
       slug, page, products,
       paymentDisplay: store.payment_display_settings ?? null,
+      cashback: store.cashback_settings
+        ? { enabled: store.cashback_settings.enabled, earnPct: store.cashback_settings.earnPct }
+        : null,
     }} />
   )
 }

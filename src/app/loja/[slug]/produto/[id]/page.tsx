@@ -80,6 +80,9 @@ export default async function ProductPage({ params }: Props) {
           slug, page: 'product',
           products: [data.product, ...related],
           paymentDisplay: store.payment_display_settings ?? null,
+          cashback: store.cashback_settings
+            ? { enabled: store.cashback_settings.enabled, earnPct: store.cashback_settings.earnPct }
+            : null,
         }} />
       </>
     )

@@ -145,7 +145,7 @@ export function ProductCardMini({ ctx, block }: { ctx: RenderCtx; block: Product
         <div style={{ fontFamily: 'var(--f-body)', fontSize: 14 }}>{product.name}</div>
         {block.settings.showPrice && (
           <div style={{ marginTop: 4 }}>
-            <PriceDisplay product={product} settings={ctx.paymentDisplay} variant="card" />
+            <PriceDisplay product={product} settings={ctx.paymentDisplay} cashback={ctx.cashback} variant="card" />
           </div>
         )}
       </div>

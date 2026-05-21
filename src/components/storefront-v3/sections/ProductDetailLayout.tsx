@@ -92,7 +92,7 @@ export function ProductDetailLayoutSectionView({ ctx, section }: { ctx: RenderCt
             </div>
           )}
           <div style={{ marginTop: 16 }}>
-            <PriceDisplay product={product} settings={ctx.paymentDisplay} variant="detail" inlineBadge />
+            <PriceDisplay product={product} settings={ctx.paymentDisplay} cashback={ctx.cashback} variant="detail" inlineBadge />
           </div>
           {typeof product.stock === 'number' && product.stock > 0 && product.stock <= 5 && (
             <div style={{ marginTop: 8, fontSize: 13, color: 'var(--c-warning, #eab308)', fontWeight: 600 }}>

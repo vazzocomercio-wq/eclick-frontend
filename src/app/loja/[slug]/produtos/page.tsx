@@ -45,6 +45,9 @@ export default async function CollectionRoute({ params, searchParams }: Props) {
         store, design: resolved.design, theme: resolved.design.theme,
         slug, page: 'collection', products,
         paymentDisplay: store.payment_display_settings ?? null,
+        cashback: store.cashback_settings
+          ? { enabled: store.cashback_settings.enabled, earnPct: store.cashback_settings.earnPct }
+          : null,
       }} />
     )
   }

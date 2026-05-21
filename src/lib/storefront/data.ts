@@ -37,6 +37,16 @@ export interface StorefrontStore {
   /** Settings de exibição de preço (parcelas, Pix discount, formato).
    *  Vem de store_config.payment_display_settings. NULL = usa defaults. */
   payment_display_settings?: PaymentDisplaySettings | null
+  /** Settings de cashback. Quando enabled=true, vitrine mostra badge
+   *  "Ganhe X% em cashback" perto do preço do produto. */
+  cashback_settings?: {
+    enabled:                  boolean
+    earnPct:                  number
+    expirationDays:           number
+    minBalanceToUseCents:     number
+    maxRedemptionPctPerOrder: number
+    earnDelay:                'immediate' | 'after_delivery' | 'after_7_days'
+  } | null
 }
 
 /** Settings de exibição de preço + condições de pagamento. */

@@ -23,6 +23,11 @@
 import type { StorefrontProduct, PaymentDisplaySettings } from '@/lib/storefront/data'
 import { DEFAULT_PAYMENT_DISPLAY } from '@/lib/storefront/data'
 
+interface CashbackInfo {
+  enabled: boolean
+  earnPct: number
+}
+
 const brl = (v: number) =>
   v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
@@ -32,9 +37,11 @@ interface Props {
   variant?: 'card' | 'detail'
   /** Se true, mostra também a "etiqueta" de desconto sobre o preço (badge inline). */
   inlineBadge?: boolean
+  /** Quando enabled=true e earnPct > 0, renderiza linha "Ganhe R$ X em cashback". */
+  cashback?: CashbackInfo | null
 }
 
-export function PriceDisplay({ product, settings, variant = 'card', inlineBadge = false }: Props) {
+export function PriceDisplay({ product, settings, variant = 'card', inlineBadge = false, cashback }: Props) {
   const s = settings ?? DEFAULT_PAYMENT_DISPLAY
   // Preço efetivo: server já calculou (effective_price); fallback pro price.
   const original  = Number(product.price ?? 0)
@@ -185,6 +192,22 @@ export function PriceDisplay({ product, settings, variant = 'card', inlineBadge 
       {showStandaloneInstallmentLabel && (
         <div style={{ fontSize: fontSize.secondary, color: 'var(--c-text-muted)' }}>
           {maxInst}x de {brl(installmentVal)} {interestFreeNote}
+        </div>
+      )}
+
+      {/* Cashback — "Ganhe R$ X em cashback" (verde, com ícone moeda) */}
+      {cashback?.enabled && cashback.earnPct > 0 && effective > 0 && (
+        <div style={{
+          marginTop: variant === 'detail' ? 6 : 2,
+          fontSize:  variant === 'detail' ? '0.875rem' : '0.72rem',
+          color:     '#22c55e',
+          fontWeight: 600,
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 4,
+        }}>
+          <span style={{ fontSize: '1.1em' }}>💰</span>
+          Ganhe {brl(effective * cashback.earnPct / 100)} em cashback
         </div>
       )}
     </div>

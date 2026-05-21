@@ -148,7 +148,7 @@ function ProductCard({ ctx, product, variant }: {
           </p>
         )}
         <div style={{ marginTop: 8 }}>
-          <PriceDisplay product={product} settings={ctx.paymentDisplay} variant="card" />
+          <PriceDisplay product={product} settings={ctx.paymentDisplay} cashback={ctx.cashback} variant="card" />
         </div>
       </div>
     </a>

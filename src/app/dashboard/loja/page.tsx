@@ -19,7 +19,7 @@ import { createClient } from '@/lib/supabase'
 import {
   Store, Palette, Ticket, Truck, ShoppingCart, Layers, Package, Sparkles,
   Megaphone, Gift, BarChart3, Loader2, AlertCircle, ExternalLink, Plus,
-  ChevronRight, Settings, ImageIcon, CreditCard, Tag,
+  ChevronRight, Settings, ImageIcon, CreditCard, Tag, Wallet,
 } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'https://eclick-backend-production-2a87.up.railway.app'
@@ -248,6 +248,14 @@ export default function LojaHubPage() {
             badge="BETA"
             color="#ef4444"
           />
+          <ToolCard
+            href="/dashboard/loja/cashback"
+            icon={<Wallet size={20} />}
+            label="Cashback inteligente"
+            description="% de cada pedido vira saldo · cliente usa em compras futuras"
+            badge="BETA"
+            color="#22c55e"
+          />
         </div>
       </div>
 
@@ -269,8 +277,8 @@ export default function LojaHubPage() {
           />
           <ComingSoonCard
             icon={<BarChart3 size={20} />}
-            label="Cashback inteligente"
-            description="Acúmulo automático · saldo do cliente · pode usar em compras futuras"
+            label="Programa de fidelidade"
+            description="Pontos por compra · níveis bronze/prata/ouro · benefícios escalonados"
           />
         </div>
       </div>
