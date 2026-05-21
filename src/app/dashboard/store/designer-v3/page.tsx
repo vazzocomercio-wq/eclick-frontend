@@ -17,7 +17,7 @@
  * em C.3+C.4. Aplicar template vem em C.8.
  */
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import { ArrowLeft, Loader2, Smartphone, Tablet, Monitor, AlertCircle, Save, Sparkles } from 'lucide-react'
@@ -42,6 +42,9 @@ export default function DesignerV3Page() {
   const [error,     setError]     = useState<string | null>(null)
   const [device,    setDevice]    = useState<Device>('mobile')
   const [tab,       setTab]       = useState<Tab>('facil')
+  const iframeRef                 = useRef<HTMLIFrameElement | null>(null)
+  const previewReady              = useRef(false)
+  const latestDesign              = useRef<StorefrontDesignV3 | null>(null)
 
   // ─ Carrega design + dados da loja ──────────────────────────────
   useEffect(() => {
@@ -75,7 +78,37 @@ export default function DesignerV3Page() {
     })()
   }, [])
 
-  // ─ Save (chamado por Modo Fácil/Avançado via prop) ─────────────
+  // ─ Live update: postMessage pro iframe (sem debounce). Chamado a cada
+  //   keystroke pelos Modos Facil/Avancado via prop `onLiveChange`.
+  const sendToPreview = useCallback((next: StorefrontDesignV3) => {
+    latestDesign.current = next
+    if (previewReady.current && iframeRef.current?.contentWindow) {
+      iframeRef.current.contentWindow.postMessage({ type: 'design:update', design: next }, '*')
+    }
+  }, [])
+
+  const handleLiveChange = useCallback((next: StorefrontDesignV3) => {
+    setDesign(next)
+    sendToPreview(next)
+  }, [sendToPreview])
+
+  // ─ Quando o preview iframe avisa que esta pronto, envia o design atual.
+  useEffect(() => {
+    function onMessage(e: MessageEvent) {
+      const data = e.data as { type?: string } | null
+      if (data?.type === 'preview:ready') {
+        previewReady.current = true
+        const d = latestDesign.current ?? design
+        if (d && iframeRef.current?.contentWindow) {
+          iframeRef.current.contentWindow.postMessage({ type: 'design:update', design: d }, '*')
+        }
+      }
+    }
+    window.addEventListener('message', onMessage)
+    return () => window.removeEventListener('message', onMessage)
+  }, [design])
+
+  // ─ Save (chamado por Modo Fácil/Avançado via prop, debounced no filho) ──
   const save = useCallback(async (next: StorefrontDesignV3) => {
     setSaving(true); setError(null)
     try {
@@ -175,8 +208,8 @@ export default function DesignerV3Page() {
           </div>
           <div className="flex-1 overflow-y-auto p-4">
             {tab === 'facil'
-              ? <ModoFacil design={design} onSave={save} />
-              : <ModoAvancado design={design} onSave={save} />}
+              ? <ModoFacil design={design} onSave={save} onLiveChange={handleLiveChange} />
+              : <ModoAvancado design={design} onSave={save} onLiveChange={handleLiveChange} />}
             <div className="mt-6 pt-6 border-t" style={{ borderColor: '#27272a' }}>
               <button
                 disabled
@@ -201,7 +234,13 @@ export default function DesignerV3Page() {
           <div className="flex-1 overflow-auto py-6 px-4 w-full flex justify-center">
             <iframe
               key={device}
-              src={storeSlug ? `/loja/${storeSlug}` : 'about:blank'}
+              ref={iframeRef}
+              src={storeSlug ? `/loja/${storeSlug}/preview` : 'about:blank'}
+              onLoad={() => {
+                // Quando o iframe (re)carrega — ex.: troca de device — reseta
+                // o flag pra esperar o `preview:ready` de novo.
+                previewReady.current = false
+              }}
               style={{
                 width: DEVICE_WIDTH[device], maxWidth: '100%',
                 height: '100%', minHeight: 600,

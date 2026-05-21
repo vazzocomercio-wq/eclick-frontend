@@ -67,11 +67,14 @@ const SECTION_LABELS: Partial<Record<SectionType, string>> = {
 const HOME_FORBIDDEN: SectionType[] = ['siteHeader', 'siteFooter', 'productDetailLayout', 'cartLayout', 'checkoutLayout', 'breadcrumb']
 
 interface Props {
-  design:   StorefrontDesignV3
-  onSave:   (next: StorefrontDesignV3) => Promise<void>
+  design:         StorefrontDesignV3
+  onSave:         (next: StorefrontDesignV3) => Promise<void>
+  /** Chamado IMEDIATO a cada mudanca (sem debounce) — usado pra postMessage
+   *  no iframe do preview. Sem efeito se omitido. */
+  onLiveChange?:  (next: StorefrontDesignV3) => void
 }
 
-export function ModoAvancado({ design, onSave }: Props) {
+export function ModoAvancado({ design, onSave, onLiveChange }: Props) {
   const [local, setLocal]   = useState<StorefrontDesignV3>(design)
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
   const [adding, setAdding] = useState(false)
@@ -82,6 +85,7 @@ export function ModoAvancado({ design, onSave }: Props) {
   const update = useCallback((mut: (d: StorefrontDesignV3) => StorefrontDesignV3) => {
     setLocal(prev => {
       const next = mut(prev)
+      onLiveChange?.(next)
       if (timer.current) clearTimeout(timer.current)
       setStatus('saving')
       timer.current = setTimeout(async () => {
@@ -91,7 +95,7 @@ export function ModoAvancado({ design, onSave }: Props) {
       }, 1500)
       return next
     })
-  }, [onSave])
+  }, [onSave, onLiveChange])
 
   const sections = local.pages.home.sections
 
