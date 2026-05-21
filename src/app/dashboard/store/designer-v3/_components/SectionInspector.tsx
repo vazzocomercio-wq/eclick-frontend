@@ -32,6 +32,7 @@ import type {
 import { Acc, Field, Input, Textarea, NumberInput, Select, Toggle, ColorField, Slider } from './primitives'
 import { ImageUploadField } from '@/components/storefront/ImageUploadField'
 import { BlockListEditor } from './BlockListEditor'
+import { CollectionsEditor } from './CollectionsEditor'
 
 const SECTION_LABELS: Record<SectionType, string> = {
   siteHeader: 'Cabeçalho', siteFooter: 'Rodapé', announcementBar: 'Faixa de anúncio', breadcrumb: 'Trilha',
@@ -544,10 +545,11 @@ function SettingsEditor({ section, onChange, setSettings }: {
       return (
         <>
           <Field label="Título"><Input value={s.settings.title ?? ''} onChange={v => setSettings({ title: v || undefined })} /></Field>
-          <Field label="Coleções (JSON)" hint='Ex.: [{"collectionId":"abc","label":"Sala","imageUrl":""}]'>
-            <Textarea value={JSON.stringify(s.settings.collections, null, 2)}
-              onChange={v => { try { setSettings({ collections: JSON.parse(v) }) } catch { /* invalid */ } }}
-              rows={8} />
+          <Field label="Categorias / coleções"
+            hint="Cada card vira um atalho na vitrine. Imagem por upload, URL ou geração com IA usando o nome da categoria.">
+            <CollectionsEditor
+              value={s.settings.collections}
+              onChange={next => setSettings({ collections: next })} />
           </Field>
         </>
       )
