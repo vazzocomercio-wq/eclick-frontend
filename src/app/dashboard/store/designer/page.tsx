@@ -16,7 +16,10 @@ import {
   Palette, Loader2, AlertCircle, Wand2, ExternalLink, Check, Store,
   Sparkles, SlidersHorizontal, Save, ImagePlus, X, Image as ImageIcon, LayoutTemplate,
 } from 'lucide-react'
-import { StorefrontHome } from '@/components/storefront/StorefrontHome'
+// StorefrontHome removido daqui: era importado como Server Component
+// dentro de um Client Component, o que React 19/Next 15 quebra em runtime
+// (erro #482). Preview agora e iframe (perde live preview — precisa
+// salvar pra refresh).
 import { STOREFRONT_TEMPLATES, DEFAULT_DESIGN } from '@/lib/storefront/templates'
 import { FONT_PAIRS } from '@/lib/storefront/theme'
 import type {
@@ -711,11 +714,12 @@ export default function StoreDesignerPage() {
               })}
             </p>
           )}
-          <div className="rounded-lg border border-zinc-800 overflow-x-hidden bg-zinc-950 h-[640px] overflow-y-auto">
-            <div className="pointer-events-none">
-              <StorefrontHome embedded design={design} store={storeForPreview}
-                products={products.length ? products : placeholderProducts} slug={config.store_slug} />
-            </div>
+          <div className="rounded-lg border border-zinc-800 overflow-hidden bg-zinc-950 h-[640px]">
+            <iframe
+              src={`/loja/${config.store_slug}`}
+              title="Preview da loja"
+              style={{ width: '100%', height: '100%', border: 0, background: '#fff' }}
+            />
           </div>
           <p className="text-[11px] text-zinc-600">
             {t('previewNote')}
