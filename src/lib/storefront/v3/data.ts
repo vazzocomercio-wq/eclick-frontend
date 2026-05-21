@@ -12,13 +12,13 @@
  */
 
 import type { StorefrontStore as StorefrontStoreV2, StorefrontProduct, StorefrontProductDetail, PaymentDisplaySettings } from '../data'
-import { getStore as getStoreV2, getProducts, getProduct, formatBRL, whatsappLink, DEFAULT_PAYMENT_DISPLAY } from '../data'
+import { getStore as getStoreV2, getProducts, getProduct, getActiveBonusRules, formatBRL, whatsappLink, DEFAULT_PAYMENT_DISPLAY } from '../data'
 import type { StorefrontDesignV3 } from './types'
 import { DEFAULT_DESIGN_V3 } from './templates'
 import type { StorefrontDesign as StorefrontDesignV2 } from '../types'
 
 export type { StorefrontProduct, StorefrontProductDetail, PaymentDisplaySettings }
-export { getProducts, getProduct, formatBRL, whatsappLink, DEFAULT_PAYMENT_DISPLAY }
+export { getProducts, getProduct, getActiveBonusRules, formatBRL, whatsappLink, DEFAULT_PAYMENT_DISPLAY }
 
 /** Store publica + design_v3 opcional (vem direto do select('*') do backend). */
 export interface StorefrontStore extends StorefrontStoreV2 {

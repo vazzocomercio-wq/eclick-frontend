@@ -25,4 +25,15 @@ export interface RenderCtx {
   paymentDisplay?: PaymentDisplaySettings | null
   /** Info de cashback pra mostrar badge "Ganhe R$ X em cashback". */
   cashback?: { enabled: boolean; earnPct: number } | null
+  /** Regras de bônus ATIVAS — usado pra mostrar badge "LEVE X PAGUE Y"
+   *  ou "GANHA BRINDE" no card do produto. */
+  bonusRules?: Array<{
+    id:                 string
+    name:               string
+    type:               'bogo' | 'free_above_value' | 'gift_with_product'
+    trigger_product_id: string | null
+    trigger_qty:        number
+    gift_product_id:    string | null
+    gift_qty:           number
+  }> | null
 }

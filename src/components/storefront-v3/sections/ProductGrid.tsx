@@ -15,6 +15,7 @@ import type { ProductGridSection } from '@/lib/storefront/v3/types'
 import type { StorefrontProduct } from '@/lib/storefront/v3/data'
 import type { RenderCtx } from '../RenderCtx'
 import { PriceDisplay, SaleBadge } from '../PriceDisplay'
+import { findBonusBadge, BonusBadge } from '../bonusBadge'
 
 function pickProducts(all: StorefrontProduct[], src: ProductGridSection['settings']['source']): StorefrontProduct[] {
   switch (src.kind) {
@@ -99,6 +100,7 @@ function ProductCard({ ctx, product, variant }: {
     const days = (Date.now() - new Date(product.created_at).getTime()) / (1000 * 60 * 60 * 24)
     return days <= 30
   })()
+  const bonusBadge = findBonusBadge(product.id, ctx.bonusRules)
 
   return (
     <a
@@ -111,9 +113,10 @@ function ProductCard({ ctx, product, variant }: {
               style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
           : null}
         {/* Badges */}
-        {(isNew || isLowStock || product.on_sale) && (
+        {(isNew || isLowStock || product.on_sale || bonusBadge) && (
           <div style={{ position: 'absolute', top: 8, left: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
             {product.on_sale && <SaleBadge product={product} />}
+            {bonusBadge && <BonusBadge badge={bonusBadge} />}
             {isNew && !product.on_sale && (
               <span style={{
                 padding: '3px 8px', fontSize: 10, fontWeight: 700, letterSpacing: '0.05em',

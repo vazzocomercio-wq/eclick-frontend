@@ -10,7 +10,7 @@
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { getTranslations } from 'next-intl/server'
-import { getProduct, getProducts, resolveDesign, type StorefrontStore } from '@/lib/storefront/v3/data'
+import { getProduct, getProducts, getActiveBonusRules, resolveDesign, type StorefrontStore } from '@/lib/storefront/v3/data'
 import { PremiumProductDetail } from '@/components/storefront/PremiumProductDetail'
 import { StoreShell } from '@/components/storefront-v3/StoreShell'
 import { DEFAULT_DESIGN } from '@/lib/storefront/templates'
@@ -32,9 +32,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function ProductPage({ params }: Props) {
   const { slug, id } = await params
-  const [data, related] = await Promise.all([
+  const [data, related, bonusRules] = await Promise.all([
     getProduct(slug, id),
     getProducts(slug, 12),
+    getActiveBonusRules(slug),
   ])
   if (!data || data.store.status !== 'active') notFound()
 
@@ -83,6 +84,7 @@ export default async function ProductPage({ params }: Props) {
           cashback: store.cashback_settings
             ? { enabled: store.cashback_settings.enabled, earnPct: store.cashback_settings.earnPct }
             : null,
+          bonusRules,
         }} />
       </>
     )

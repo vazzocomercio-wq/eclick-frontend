@@ -256,6 +256,14 @@ export default function LojaHubPage() {
             badge="BETA"
             color="#22c55e"
           />
+          <ToolCard
+            href="/dashboard/loja/bonus"
+            icon={<Gift size={20} />}
+            label="Bônus & Brindes"
+            description="Leve 2 pague 1 · brinde acima de R$ X · presente surpresa"
+            badge="BETA"
+            color="#a78bfa"
+          />
         </div>
       </div>
 
@@ -265,11 +273,6 @@ export default function LojaHubPage() {
           Em breve
         </h2>
         <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
-          <ComingSoonCard
-            icon={<Gift size={20} />}
-            label="Bônus & Brindes"
-            description="Leve 2 pague 1 · brinde acima de R$ X · presente surpresa"
-          />
           <ComingSoonCard
             icon={<ImageIcon size={20} />}
             label="Banner Generator (página dedicada)"

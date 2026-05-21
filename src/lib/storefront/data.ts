@@ -149,6 +149,28 @@ export async function getProducts(slug: string, limit = 24): Promise<StorefrontP
   return data.products ?? []
 }
 
+/** Regras de bônus ativas — vitrine usa pra renderizar badge "LEVE 2 PAGUE 1"
+ *  ou "GANHA BRINDE" no card do produto. Retorna [] em erro. */
+export async function getActiveBonusRules(slug: string): Promise<Array<{
+  id:                 string
+  name:               string
+  type:               'bogo' | 'free_above_value' | 'gift_with_product'
+  trigger_product_id: string | null
+  trigger_qty:        number
+  gift_product_id:    string | null
+  gift_qty:           number
+}>> {
+  const data = await fetchJson<{ rules?: Array<{
+    id: string; name: string;
+    type: 'bogo' | 'free_above_value' | 'gift_with_product';
+    trigger_product_id: string | null; trigger_qty: number;
+    gift_product_id: string | null; gift_qty: number;
+  }> }>(
+    `${BACKEND}/public/bonus/by-slug/${encodeURIComponent(slug)}/active-rules`,
+  )
+  return data?.rules ?? []
+}
+
 export async function getProduct(
   slug: string,
   productId: string,

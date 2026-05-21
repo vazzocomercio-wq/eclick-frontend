@@ -13,7 +13,7 @@
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { getTranslations } from 'next-intl/server'
-import { getStore, getProducts, resolveDesign } from '@/lib/storefront/v3/data'
+import { getStore, getProducts, getActiveBonusRules, resolveDesign } from '@/lib/storefront/v3/data'
 import { StorefrontHome } from '@/components/storefront/StorefrontHome'
 import { StoreShell } from '@/components/storefront-v3/StoreShell'
 
@@ -37,7 +37,10 @@ export default async function StorefrontPage({ params }: Props) {
   const store = await getStore(slug)
   if (!store || store.status !== 'active') notFound()
 
-  const products = await getProducts(slug, 24)
+  const [products, bonusRules] = await Promise.all([
+    getProducts(slug, 24),
+    getActiveBonusRules(slug),
+  ])
   const resolved = resolveDesign(store)
 
   if (resolved.version === 3) {
@@ -49,6 +52,7 @@ export default async function StorefrontPage({ params }: Props) {
         cashback: store.cashback_settings
           ? { enabled: store.cashback_settings.enabled, earnPct: store.cashback_settings.earnPct }
           : null,
+        bonusRules,
       }} />
     )
   }
