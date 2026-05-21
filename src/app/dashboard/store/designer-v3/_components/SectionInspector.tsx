@@ -142,7 +142,10 @@ function BackgroundEditor({ bg, onChange }: { bg: BackgroundStyle; onChange: (b:
       {bg.kind === 'color'    && <ColorField label="Cor" value={bg.color ?? '#ffffff'} onChange={v => setBg({ color: v })} />}
       {bg.kind === 'image'    && (
         <>
-          <Field label="URL da imagem"><Input value={bg.imageUrl ?? ''} onChange={v => setBg({ imageUrl: v })} /></Field>
+          <Field label="Imagem de fundo">
+            <ImageUploadField value={bg.imageUrl ?? ''} onChange={v => setBg({ imageUrl: v })}
+              previewMaxWidth={240} downscaleMaxWidth={1920} />
+          </Field>
           <Field label="Foco da imagem">
             <Select value={bg.imageFocus ?? 'center'}
               options={[['center','Centro'],['top','Topo'],['bottom','Base'],['left','Esquerda'],['right','Direita']]}
