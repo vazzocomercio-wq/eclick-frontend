@@ -83,9 +83,17 @@ function TemplateCard({ template, busy, confirming, onPick, onConfirm, onCancel 
 }) {
   const c = template.design.theme.colors
   return (
-    <div style={{ border: '1px solid #27272a', borderRadius: 8, background: '#0a0a0e', overflow: 'hidden' }}>
+    <div
+      style={{
+        border: confirming ? '1px solid #00E5FF' : '1px solid #27272a',
+        borderRadius: 8, background: '#0a0a0e',
+        display: 'flex', flexDirection: 'column',
+        cursor: busy ? 'wait' : 'pointer',
+        transition: 'border-color 150ms',
+      }}
+      onClick={() => !busy && !confirming && onPick()}>
       {/* Preview minimal — barras de cor + texto */}
-      <div style={{ padding: 16, background: c.background, color: c.text, minHeight: 120 }}>
+      <div style={{ padding: 16, background: c.background, color: c.text, minHeight: 120, borderRadius: '8px 8px 0 0' }}>
         <div style={{ fontFamily: template.design.theme.fontPair === 'editorial' ? 'serif' : 'sans-serif', fontSize: 16, fontWeight: 600 }}>
           {template.label}
         </div>
@@ -98,16 +106,16 @@ function TemplateCard({ template, busy, confirming, onPick, onConfirm, onCancel 
           <div style={{ width: 24, height: 16, background: c.surface, borderRadius: 4, border: `1px solid ${c.border}` }} title="Surface" />
         </div>
       </div>
-      <div className="p-3">
-        <div style={{ fontSize: 12, color: '#a1a1aa', minHeight: 36 }}>{template.description}</div>
-        <div className="mt-3 flex gap-2">
+      <div style={{ padding: 12, display: 'flex', flexDirection: 'column', flex: 1, gap: 10 }}>
+        <div style={{ fontSize: 12, color: '#a1a1aa', flex: 1 }}>{template.description}</div>
+        <div style={{ display: 'flex', gap: 8 }} onClick={e => e.stopPropagation()}>
           {!confirming ? (
             <button onClick={onPick} disabled={busy}
               style={{
-                flex: 1, padding: '8px 12px', minHeight: 40,
+                flex: 1, padding: '10px 12px', minHeight: 44,
                 background: '#1e1e24', color: '#fafafa',
-                border: 'none', borderRadius: 6,
-                cursor: busy ? 'wait' : 'pointer', fontSize: 13,
+                border: '1px solid #27272a', borderRadius: 6,
+                cursor: busy ? 'wait' : 'pointer', fontSize: 13, fontWeight: 500,
               }}>
               Aplicar este
             </button>
@@ -115,7 +123,7 @@ function TemplateCard({ template, busy, confirming, onPick, onConfirm, onCancel 
             <>
               <button onClick={onCancel} disabled={busy}
                 style={{
-                  padding: '8px 12px', minHeight: 40,
+                  padding: '10px 14px', minHeight: 44,
                   background: 'transparent', color: '#a1a1aa',
                   border: '1px solid #27272a', borderRadius: 6,
                   cursor: busy ? 'wait' : 'pointer', fontSize: 13,
@@ -123,16 +131,16 @@ function TemplateCard({ template, busy, confirming, onPick, onConfirm, onCancel 
                 Cancelar
               </button>
               <button onClick={onConfirm} disabled={busy}
-                className="flex-1 flex items-center justify-center gap-1"
                 style={{
-                  padding: '8px 12px', minHeight: 40,
+                  flex: 1, padding: '10px 14px', minHeight: 44,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                   background: '#00E5FF', color: '#0a0a0e',
                   border: 'none', borderRadius: 6,
-                  cursor: busy ? 'wait' : 'pointer', fontSize: 13, fontWeight: 500,
+                  cursor: busy ? 'wait' : 'pointer', fontSize: 13, fontWeight: 600,
                 }}>
                 {busy
-                  ? <><Loader2 size={12} className="animate-spin" /> Aplicando…</>
-                  : <><Check size={12} /> Confirmar</>}
+                  ? <><Loader2 size={14} className="animate-spin" /> Aplicando…</>
+                  : <><Check size={14} /> Confirmar</>}
               </button>
             </>
           )}
