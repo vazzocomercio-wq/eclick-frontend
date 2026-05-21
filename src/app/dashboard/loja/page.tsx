@@ -264,6 +264,13 @@ export default function LojaHubPage() {
             badge="BETA"
             color="#a78bfa"
           />
+          <ToolCard
+            href="/dashboard/loja/banners"
+            icon={<ImageIcon size={20} />}
+            label="Banners IA"
+            description="Galeria de banners gerados · 10 estilos · multi-formato"
+            color="#fcd34d"
+          />
         </div>
       </div>
 
@@ -273,11 +280,6 @@ export default function LojaHubPage() {
           Em breve
         </h2>
         <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
-          <ComingSoonCard
-            icon={<ImageIcon size={20} />}
-            label="Banner Generator (página dedicada)"
-            description="Hoje só dentro do Designer · página própria com histórico"
-          />
           <ComingSoonCard
             icon={<BarChart3 size={20} />}
             label="Programa de fidelidade"
