@@ -20,6 +20,7 @@ import {
   Store, Palette, Ticket, Truck, ShoppingCart, Layers, Package, Sparkles,
   Megaphone, Gift, BarChart3, Loader2, AlertCircle, ExternalLink, Plus,
   ChevronRight, Settings, ImageIcon, CreditCard, Tag, Wallet, Trophy, Users,
+  MessageSquare,
 } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'https://eclick-backend-production-2a87.up.railway.app'
@@ -286,6 +287,14 @@ export default function LojaHubPage() {
             description="Leve 2 pague 1 · brinde acima de R$ X · presente surpresa"
             badge="BETA"
             color="#a78bfa"
+          />
+          <ToolCard
+            href="/dashboard/loja/reviews"
+            icon={<MessageSquare size={20} />}
+            label="Avaliações"
+            description="Modere as estrelas dos clientes · responda em público · ganha confiança"
+            badge="BETA"
+            color="#fbbf24"
           />
           <ToolCard
             href="/dashboard/loja/banners"
