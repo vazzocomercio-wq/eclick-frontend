@@ -41,13 +41,14 @@ interface Cart {
   items:              Array<{ productId: string; name: string; price: number; qty: number; imageUrl?: string }>
   subtotal:           number
   items_count:        number
-  status:             'active' | 'sent_reminder' | 'recovered' | 'expired' | 'dismissed'
-  last_activity_at:   string
-  reminder_sent_at:   string | null
-  recovered_order_id: string | null
-  recovered_at:       string | null
-  created_at:         string
-  updated_at:         string
+  status:               'active' | 'sent_reminder' | 'recovered' | 'expired' | 'dismissed'
+  last_activity_at:     string
+  reminder_sent_at:     string | null
+  reminder_coupon_code: string | null
+  recovered_order_id:   string | null
+  recovered_at:         string | null
+  created_at:           string
+  updated_at:           string
 }
 
 interface Stats {
@@ -59,10 +60,13 @@ interface Stats {
 }
 
 interface Settings {
-  enabled:           boolean
-  minutes_after:     number
-  ttl_hours:         number
-  message_template:  string
+  enabled:               boolean
+  minutes_after:         number
+  ttl_hours:             number
+  message_template:      string
+  coupon_enabled:        boolean
+  coupon_discount_pct:   number
+  coupon_expires_hours:  number
 }
 
 type StatusFilter = '' | 'active' | 'sent_reminder' | 'recovered' | 'expired' | 'dismissed'
@@ -429,6 +433,12 @@ function CartRow({ cart, onSendNow, onDismiss }: {
             <CheckCircle2 size={10} /> Recuperado {formatRel(cart.recovered_at)}
           </span>
         )}
+        {cart.reminder_coupon_code && (
+          <span className="inline-flex items-center gap-1 font-mono px-1.5 py-0.5 rounded"
+            style={{ color: '#c084fc', background: 'rgba(168,85,247,0.1)', border: '1px solid rgba(168,85,247,0.3)' }}>
+            🎁 {cart.reminder_coupon_code}
+          </span>
+        )}
       </div>
 
       {/* Ações */}
@@ -518,6 +528,27 @@ function SettingsDrawer({ settings, onClose, onSave }: {
             onChange={v => setDraft(d => ({ ...d, ttl_hours: v }))}
             hint="Carrinhos antigos viram 'expired' sem enviar. Padrão 72h." />
 
+          {/* AB2 — cupom de incentivo */}
+          <div className="pt-2 mt-2" style={{ borderTop: '1px solid #27272a' }}>
+            <ToggleField label="Oferecer cupom de incentivo 🎁"
+              hint="Gera um cupom único (1 uso, validade curta) por carrinho e injeta no WhatsApp. Costuma aumentar bastante a conversão de recuperação."
+              value={draft.coupon_enabled}
+              onChange={v => setDraft(d => ({ ...d, coupon_enabled: v }))} />
+          </div>
+
+          {draft.coupon_enabled && (
+            <>
+              <NumberField label="Desconto do cupom (%)" min={1} max={90}
+                value={draft.coupon_discount_pct}
+                onChange={v => setDraft(d => ({ ...d, coupon_discount_pct: v }))}
+                hint="Percentual de desconto. Padrão 10%." />
+              <NumberField label="Validade do cupom (horas)" min={1} max={720}
+                value={draft.coupon_expires_hours}
+                onChange={v => setDraft(d => ({ ...d, coupon_expires_hours: v }))}
+                hint="Urgência ajuda a converter. Padrão 48h." />
+            </>
+          )}
+
           <div>
             <label className="block text-sm font-medium text-white mb-1">Mensagem custom (opcional)</label>
             <textarea value={draft.message_template} onChange={e => setDraft(d => ({ ...d, message_template: e.target.value }))}
@@ -545,7 +576,9 @@ function SettingsDrawer({ settings, onClose, onSave }: {
               <code style={{ color: '#00E5FF' }}>{'{{store}}'}</code>{' '}
               <code style={{ color: '#00E5FF' }}>{'{{items}}'}</code>{' '}
               <code style={{ color: '#00E5FF' }}>{'{{subtotal}}'}</code>{' '}
-              <code style={{ color: '#00E5FF' }}>{'{{link}}'}</code>
+              <code style={{ color: '#00E5FF' }}>{'{{link}}'}</code>{' '}
+              <code style={{ color: '#c084fc' }}>{'{{coupon}}'}</code>
+              {draft.coupon_enabled && ' — o cupom só aparece se você usar {{coupon}} aqui; na mensagem padrão ele já entra automático.'}
             </p>
           </div>
 
