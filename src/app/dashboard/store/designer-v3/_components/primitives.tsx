@@ -130,35 +130,43 @@ export function Slider({ value, onChange, min, max, step, unit }: {
 }
 
 export function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
-  // Wrapper com padding garante touch area >=44px sem inflar o visual do switch.
+  // <div> em vez de <button> pra escapar qualquer style padrao do dashboard
+  // que possa inflar o switch. Track + thumb explicitos, dimensoes fixas.
   return (
-    <button
+    <div
+      role="switch" aria-checked={value} tabIndex={0}
       onClick={() => onChange(!value)}
-      role="switch" aria-checked={value}
+      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onChange(!value) } }}
       style={{
-        display: 'inline-flex', alignItems: 'center',
-        padding: '10px 6px',  // touch area: 44px altura, 56px largura
-        background: 'transparent', border: 'none', cursor: 'pointer',
+        boxSizing: 'border-box',
+        display: 'inline-block',
+        position: 'relative',
+        width: '44px', height: '24px',
+        background: value ? '#00E5FF' : '#27272a',
+        borderRadius: '12px',
+        cursor: 'pointer',
+        verticalAlign: 'middle',
+        transition: 'background 150ms',
+        userSelect: 'none',
+        flexShrink: 0,
       }}>
       <span
         aria-hidden
         style={{
-          position: 'relative',
-          display: 'inline-block',
-          width: 44, height: 24,
-          background: value ? '#00E5FF' : '#27272a',
-          borderRadius: 12,
-          transition: 'background 150ms',
-        }}>
-        <span style={{
+          boxSizing: 'border-box',
           position: 'absolute',
-          left: value ? 22 : 2, top: 2,
-          width: 20, height: 20,
-          background: '#fafafa', borderRadius: '50%',
+          left: value ? '22px' : '2px',
+          top: '2px',
+          width: '20px',
+          height: '20px',
+          background: '#fafafa',
+          borderRadius: '50%',
           transition: 'left 150ms',
           boxShadow: '0 1px 3px rgba(0,0,0,0.4)',
-        }} />
-      </span>
-    </button>
+          display: 'block',
+          pointerEvents: 'none',
+        }}
+      />
+    </div>
   )
 }
