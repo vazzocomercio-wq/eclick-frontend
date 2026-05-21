@@ -14,6 +14,7 @@ import Link from 'next/link'
 import { useTranslations } from 'next-intl'
 import { Loader2, CreditCard, AlertCircle, ShoppingBag, ArrowLeft, Wallet } from 'lucide-react'
 import { useCart } from '@/lib/storefront/cart'
+import { useCartTracker } from '@/lib/storefront/cart-tracker'
 import { formatBRL } from '@/lib/storefront/data'
 import { getRefCode } from '@/lib/storefront/affiliate-auth'
 import type { StorefrontStore } from '@/lib/storefront/data'
@@ -47,6 +48,18 @@ export function CheckoutForm({ store, design, slug }: {
   const [gateway, setGateway] = useState<Gateway>('mercadopago')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError]     = useState<string | null>(null)
+
+  // AB1 — tracking de abandono. Pinga backend debounced quando o cliente
+  // preenche phone/email no checkout. Se ele sair antes de pagar e o
+  // lojista habilitou recovery, vai receber WhatsApp depois de N min.
+  useCartTracker({
+    slug,
+    items:    cart.items,
+    subtotal: cart.subtotal,
+    phone,
+    email,
+    name,
+  })
 
   // Cashback: saldo do cliente + opt-in pra usar
   const [cashbackBalanceCents, setCashbackBalanceCents] = useState<number | null>(null)

@@ -20,7 +20,7 @@ import {
   Store, Palette, Ticket, Truck, ShoppingCart, Layers, Package, Sparkles,
   Megaphone, Gift, BarChart3, Loader2, AlertCircle, ExternalLink, Plus,
   ChevronRight, Settings, ImageIcon, CreditCard, Tag, Wallet, Trophy, Users,
-  MessageSquare,
+  MessageSquare, RotateCcw,
 } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'https://eclick-backend-production-2a87.up.railway.app'
@@ -295,6 +295,14 @@ export default function LojaHubPage() {
             description="Modere as estrelas dos clientes · responda em público · ganha confiança"
             badge="BETA"
             color="#fbbf24"
+          />
+          <ToolCard
+            href="/dashboard/loja/recovery"
+            icon={<RotateCcw size={20} />}
+            label="Recovery de carrinho"
+            description="Clientes que abandonaram recebem WhatsApp pra finalizar · cron a cada 15 min"
+            badge="BETA"
+            color="#06b6d4"
           />
           <ToolCard
             href="/dashboard/loja/banners"
