@@ -70,6 +70,7 @@ interface Settings {
   max_photos:              number
   ask_after_days:          number
   hide_customer_full_name: boolean
+  invite_enabled:          boolean
 }
 
 type StatusFilter = '' | 'pending' | 'approved' | 'rejected'
@@ -512,8 +513,13 @@ function SettingsDrawer({ settings, onClose, onSave }: {
             value={draft.max_photos}
             onChange={v => setDraft(d => ({ ...d, max_photos: v }))} />
 
-          <NumberField label="Convidar pra avaliar após N dias da entrega" min={0} max={60}
-            hint="Usado por um cron futuro pra mandar WhatsApp/email convidando."
+          <ToggleField label="Convidar cliente a avaliar (WhatsApp pós-entrega)"
+            hint="Cron diário (11h) manda WhatsApp depois de N dias da entrega convidando pra avaliar."
+            value={draft.invite_enabled}
+            onChange={v => setDraft(d => ({ ...d, invite_enabled: v }))} />
+
+          <NumberField label="Enviar o convite quantos dias após a entrega" min={0} max={60}
+            hint="Tempo de espera depois que o pedido vira 'entregue'. Padrão 3 dias."
             value={draft.ask_after_days}
             onChange={v => setDraft(d => ({ ...d, ask_after_days: v }))} />
 
