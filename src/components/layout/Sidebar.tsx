@@ -279,6 +279,7 @@ const SECTIONS: NavSection[] = [
       { labelKey: 'items.lojaBanners',   href: '/dashboard/loja/banners',   icon: <ImageIcon size={15} /> },
       { labelKey: 'items.lojaFidelidade', href: '/dashboard/loja/fidelidade', icon: <Trophy size={15} /> },
       { labelKey: 'items.lojaPedidos',   href: '/dashboard/pedidos?platform=storefront', icon: <ShoppingCart size={15} /> },
+      { labelKey: 'items.lojaEntregas',  href: '/dashboard/loja/entregas',  icon: <Truck size={15} /> },
       { labelKey: 'items.lojaCopiloto',  href: '/dashboard/store-copilot',  icon: <Bot size={15} /> },
       { labelKey: 'items.lojaColecoes',  href: '/dashboard/collections',    icon: <Layers size={15} /> },
       { labelKey: 'items.lojaKits',      href: '/dashboard/kits',           icon: <Package size={15} /> },

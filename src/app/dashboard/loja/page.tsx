@@ -234,6 +234,13 @@ export default function LojaHubPage() {
             color="#fb7185"
           />
           <ToolCard
+            href="/dashboard/loja/entregas"
+            icon={<Truck size={20} />}
+            label="Entregas"
+            description="Tracking físico · marca enviado/entregue · código de rastreio"
+            color="#06b6d4"
+          />
+          <ToolCard
             href="/dashboard/loja/pagamentos"
             icon={<CreditCard size={20} />}
             label="Pagamentos"
