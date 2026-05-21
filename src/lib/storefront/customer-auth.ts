@@ -180,6 +180,110 @@ export async function checkWishlist(slug: string, productIds: string[]): Promise
   } catch { return new Set() }
 }
 
+// ── Reviews (avaliações) ────────────────────────────────────────────
+
+export interface EligibleReview {
+  orderId:     string
+  productId:   string
+  productName: string
+  imageUrl?:   string
+  deliveredAt: string | null
+}
+
+export interface CustomerReview {
+  id:                  string
+  product_id:          string
+  order_id:            string | null
+  rating:              number
+  title:               string | null
+  body:                string
+  photos:              Array<{ url: string }>
+  status:              'pending' | 'approved' | 'rejected'
+  store_reply:         string | null
+  store_reply_at:      string | null
+  created_at:          string
+}
+
+export async function fetchEligibleReviews(slug: string): Promise<EligibleReview[]> {
+  const token = getCustomerToken(slug)
+  if (!token) return []
+  try {
+    const res = await fetch(`${BACKEND}/public/store/auth/me/reviews/eligible`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (!res.ok) return []
+    return await res.json() as EligibleReview[]
+  } catch { return [] }
+}
+
+export async function fetchMyReviews(slug: string): Promise<CustomerReview[]> {
+  const token = getCustomerToken(slug)
+  if (!token) return []
+  try {
+    const res = await fetch(`${BACKEND}/public/store/auth/me/reviews`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (!res.ok) return []
+    return await res.json() as CustomerReview[]
+  } catch { return [] }
+}
+
+export async function submitReview(slug: string, body: {
+  orderId:   string
+  productId: string
+  rating:    number
+  title?:    string
+  body:      string
+  photos?:   Array<{ url: string }>
+}): Promise<CustomerReview> {
+  const token = getCustomerToken(slug)
+  if (!token) throw new Error('Faça login pra avaliar.')
+  const res = await fetch(`${BACKEND}/public/store/auth/me/reviews`, {
+    method:  'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body:    JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as { message?: string }
+    throw new Error(err.message ?? 'Erro ao enviar avaliação')
+  }
+  return await res.json() as CustomerReview
+}
+
+export interface PublicReview {
+  id:            string
+  rating:        number
+  title:         string | null
+  body:          string
+  photos:        Array<{ url: string }>
+  store_reply:   string | null
+  helpful_count: number
+  created_at:    string
+  customer:      { display_name: string }
+}
+
+export interface ProductReviewListing {
+  items:   PublicReview[]
+  total:   number
+  summary: { avg: number | null; count: number; distribution: Record<string, number> }
+}
+
+export async function fetchProductReviews(
+  slug: string, productId: string, opts: { limit?: number; offset?: number } = {},
+): Promise<ProductReviewListing> {
+  const params = new URLSearchParams()
+  if (opts.limit !== undefined)  params.set('limit',  String(opts.limit))
+  if (opts.offset !== undefined) params.set('offset', String(opts.offset))
+  const url = `${BACKEND}/public/store/by-slug/${encodeURIComponent(slug)}/products/${encodeURIComponent(productId)}/reviews?${params}`
+  try {
+    const res = await fetch(url, { cache: 'no-store' })
+    if (!res.ok) return { items: [], total: 0, summary: { avg: null, count: 0, distribution: {} } }
+    return await res.json() as ProductReviewListing
+  } catch {
+    return { items: [], total: 0, summary: { avg: null, count: 0, distribution: {} } }
+  }
+}
+
 export async function updateMe(slug: string, patch: Partial<Customer>): Promise<Customer | null> {
   const token = getCustomerToken(slug)
   if (!token) return null

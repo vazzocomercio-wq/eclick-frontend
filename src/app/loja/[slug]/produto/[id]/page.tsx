@@ -13,6 +13,7 @@ import { getTranslations } from 'next-intl/server'
 import { getProduct, getProducts, getActiveBonusRules, resolveDesign, type StorefrontStore } from '@/lib/storefront/v3/data'
 import { PremiumProductDetail } from '@/components/storefront/PremiumProductDetail'
 import { StoreShell } from '@/components/storefront-v3/StoreShell'
+import { ProductReviewsSection } from '@/components/storefront/ProductReviewsSection'
 import { DEFAULT_DESIGN } from '@/lib/storefront/templates'
 
 interface Props {
@@ -86,6 +87,13 @@ export default async function ProductPage({ params }: Props) {
             : null,
           bonusRules,
         }} />
+        <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 16px 48px' }}>
+          <ProductReviewsSection
+            slug={slug}
+            productId={data.product.id}
+            loginHref={`/loja/${slug}/conta/entrar?next=/loja/${slug}/produto/${data.product.id}`}
+          />
+        </div>
       </>
     )
   }
@@ -100,6 +108,13 @@ export default async function ProductPage({ params }: Props) {
         slug={slug}
         related={related}
       />
+      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 16px 48px' }}>
+        <ProductReviewsSection
+          slug={slug}
+          productId={data.product.id}
+          loginHref={`/loja/${slug}/conta/entrar?next=/loja/${slug}/produto/${data.product.id}`}
+        />
+      </div>
     </>
   )
 }

@@ -3,10 +3,10 @@
 import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Loader2, LogOut, Package, User, Wallet, Trophy, ChevronLeft, ExternalLink, Heart } from 'lucide-react'
+import { Loader2, LogOut, Package, User, Wallet, Trophy, ChevronLeft, ExternalLink, Heart, Star } from 'lucide-react'
 import {
-  fetchCurrentCustomer, fetchMyOrders, clearCustomerToken,
-  type Customer, type CustomerOrder,
+  fetchCurrentCustomer, fetchMyOrders, fetchEligibleReviews, clearCustomerToken,
+  type Customer, type CustomerOrder, type EligibleReview,
 } from '@/lib/storefront/customer-auth'
 
 const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'https://eclick-backend-production-2a87.up.railway.app'
@@ -43,6 +43,7 @@ export function ContaPageClient({ slug, storeName }: { slug: string; storeName: 
   const [orders, setOrders] = useState<CustomerOrder[]>([])
   const [cashback, setCashback] = useState<number>(0)
   const [tier, setTier] = useState<{ name: string; color: string; emoji: string | null } | null>(null)
+  const [reviewables, setReviewables] = useState<EligibleReview[]>([])
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
@@ -53,14 +54,16 @@ export function ContaPageClient({ slug, storeName }: { slug: string; storeName: 
     }
     setCustomer(cur)
 
-    // Paralelo: pedidos + cashback + loyalty
-    const [orderList, cashRes, loyalRes] = await Promise.all([
+    // Paralelo: pedidos + cashback + loyalty + reviews elegíveis
+    const [orderList, cashRes, loyalRes, eligible] = await Promise.all([
       fetchMyOrders(slug),
       fetch(`${BACKEND}/public/cashback/by-slug/${encodeURIComponent(slug)}/balance?email=${encodeURIComponent(cur.email)}`).then(r => r.ok ? r.json() : null).catch(() => null),
       fetch(`${BACKEND}/public/loyalty/by-slug/${encodeURIComponent(slug)}/customer?email=${encodeURIComponent(cur.email)}`).then(r => r.ok ? r.json() : null).catch(() => null),
+      fetchEligibleReviews(slug),
     ])
 
     setOrders(orderList)
+    setReviewables(eligible)
     if (cashRes && (cashRes as { enabled?: boolean }).enabled) {
       setCashback((cashRes as { balance: number }).balance ?? 0)
     }
@@ -253,6 +256,56 @@ export function ContaPageClient({ slug, storeName }: { slug: string; storeName: 
           </ul>
         )}
       </div>
+
+      {/* Avaliar produtos comprados */}
+      {reviewables.length > 0 && (
+        <div>
+          <h2 className="text-sm font-semibold uppercase tracking-wide mb-3 flex items-center gap-2"
+            style={{ color: 'var(--c-text-muted)' }}>
+            <Star size={14} /> Avalie suas compras
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold"
+              style={{ background: 'var(--c-primary)', color: 'var(--c-on-accent, #000)' }}>
+              {reviewables.length}
+            </span>
+          </h2>
+          <ul className="space-y-2">
+            {reviewables.slice(0, 8).map((r, i) => (
+              <li key={`${r.orderId}-${r.productId}-${i}`}
+                className="rounded-lg p-3 flex items-center gap-3"
+                style={{ background: 'var(--c-surface)', border: '1px solid var(--c-border)' }}>
+                {r.imageUrl && (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img src={r.imageUrl} alt=""
+                    style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 6, flexShrink: 0 }} />
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium truncate" style={{ color: 'var(--c-text)' }}>
+                    {r.productName || 'Produto'}
+                  </p>
+                  {r.deliveredAt && (
+                    <p className="text-[11px] mt-0.5" style={{ color: 'var(--c-text-muted)' }}>
+                      Entregue em {new Date(r.deliveredAt).toLocaleDateString('pt-BR')}
+                    </p>
+                  )}
+                </div>
+                <Link href={`/loja/${slug}/produto/${r.productId}?review=1`}
+                  className="text-xs font-semibold px-3 py-2 inline-flex items-center gap-1 flex-shrink-0"
+                  style={{
+                    background: 'var(--c-primary)', color: 'var(--c-on-accent, #000)',
+                    borderRadius: 'var(--r)', minHeight: 36,
+                  }}>
+                  <Star size={12} /> Avaliar
+                </Link>
+              </li>
+            ))}
+          </ul>
+          {reviewables.length > 8 && (
+            <p className="text-[11px] text-center mt-2" style={{ color: 'var(--c-text-muted)' }}>
+              + {reviewables.length - 8} aguardando sua avaliação
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Dados pessoais */}
       <div>
