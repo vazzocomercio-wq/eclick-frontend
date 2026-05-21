@@ -312,7 +312,10 @@ function SettingsEditor({ section, onChange, setSettings }: {
       const s = section as ImageBannerSection
       return (
         <>
-          <Field label="URL da imagem"><Input value={s.settings.imageUrl} onChange={v => setSettings({ imageUrl: v })} /></Field>
+          <Field label="Imagem do banner">
+            <ImageUploadField value={s.settings.imageUrl} onChange={v => setSettings({ imageUrl: v })}
+              previewMaxWidth={240} downscaleMaxWidth={1920} />
+          </Field>
           <Field label="Título"><Input value={s.settings.headline ?? ''} onChange={v => setSettings({ headline: v || undefined })} /></Field>
           <Field label="Subtítulo"><Input value={s.settings.subheadline ?? ''} onChange={v => setSettings({ subheadline: v || undefined })} /></Field>
           <Field label="Texto do botão"><Input value={s.settings.ctaLabel ?? ''} onChange={v => setSettings({ ctaLabel: v || undefined })} /></Field>
@@ -339,7 +342,10 @@ function SettingsEditor({ section, onChange, setSettings }: {
       return (
         <>
           <Field label="Título (opcional)"><Input value={s.settings.title ?? ''} onChange={v => setSettings({ title: v || undefined })} /></Field>
-          <Field label="URL da imagem"><Input value={s.settings.imageUrl} onChange={v => setSettings({ imageUrl: v })} /></Field>
+          <Field label="Imagem (com pontos clicáveis)">
+            <ImageUploadField value={s.settings.imageUrl} onChange={v => setSettings({ imageUrl: v })}
+              previewMaxWidth={240} downscaleMaxWidth={1920} />
+          </Field>
           <Field label="Hotspots" hint="Edite hotspots individualmente via JSON ou no modo dev (B.5b — pendente).">
             <Textarea value={JSON.stringify(s.settings.hotspots, null, 2)}
               onChange={v => { try { setSettings({ hotspots: JSON.parse(v) }) } catch { /* invalid JSON */ } }}
@@ -352,7 +358,10 @@ function SettingsEditor({ section, onChange, setSettings }: {
       const s = section as ImageWithTextSection
       return (
         <>
-          <Field label="URL da imagem"><Input value={s.settings.imageUrl} onChange={v => setSettings({ imageUrl: v })} /></Field>
+          <Field label="Imagem">
+            <ImageUploadField value={s.settings.imageUrl} onChange={v => setSettings({ imageUrl: v })}
+              previewMaxWidth={240} downscaleMaxWidth={1600} />
+          </Field>
           <Field label="Lado da imagem">
             <Select value={s.settings.imageSide}
               options={[['left','Esquerda'],['right','Direita']]}

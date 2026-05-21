@@ -11,6 +11,7 @@
 
 import type { Block } from '@/lib/storefront/v3/types'
 import { Field, Input, Textarea, NumberInput, Select, Toggle } from './primitives'
+import { ImageUploadField } from '@/components/storefront/ImageUploadField'
 
 type Align = 'left' | 'center' | 'right'
 
@@ -56,7 +57,10 @@ export function BlockEditor({ block, onChange }: Props) {
     case 'image':
       return (
         <>
-          <Field label="URL da imagem"><Input value={block.settings.url} onChange={v => setSettings({ url: v })} placeholder="https://..." /></Field>
+          <Field label="Imagem">
+            <ImageUploadField value={block.settings.url} onChange={v => setSettings({ url: v })}
+              previewMaxWidth={200} downscaleMaxWidth={1600} />
+          </Field>
           <Field label="Texto alternativo (alt)"><Input value={block.settings.alt} onChange={v => setSettings({ alt: v })} /></Field>
           <Field label="Link (opcional)"><Input value={block.settings.link ?? ''} onChange={v => setSettings({ link: v || undefined })} placeholder="/produtos" /></Field>
           <Field label="Proporção">
@@ -189,7 +193,10 @@ export function BlockEditor({ block, onChange }: Props) {
     case 'slide':
       return (
         <>
-          <Field label="URL da imagem"><Input value={block.settings.imageUrl} onChange={v => setSettings({ imageUrl: v })} placeholder="https://..." /></Field>
+          <Field label="Imagem do slide">
+            <ImageUploadField value={block.settings.imageUrl} onChange={v => setSettings({ imageUrl: v })}
+              previewMaxWidth={240} downscaleMaxWidth={1920} />
+          </Field>
           <Field label="Título"><Input value={block.settings.headline ?? ''} onChange={v => setSettings({ headline: v || undefined })} /></Field>
           <Field label="Subtítulo"><Input value={block.settings.subheadline ?? ''} onChange={v => setSettings({ subheadline: v || undefined })} /></Field>
           <Field label="Texto do botão (opcional)"><Input value={block.settings.ctaLabel ?? ''} onChange={v => setSettings({ ctaLabel: v || undefined })} /></Field>
