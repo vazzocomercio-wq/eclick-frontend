@@ -339,6 +339,16 @@ function SectionFontSelect({ value, onChange }: { value?: FontPair; onChange: (v
   )
 }
 
+/** Bloco visual agrupando controles relacionados no inspector. */
+function InspectorGroup({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div style={{ marginTop: 8, marginBottom: 8, paddingLeft: 10, borderLeft: '2px solid #27272a' }}>
+      <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#71717a', marginBottom: 4 }}>{label}</div>
+      {children}
+    </div>
+  )
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 // Settings editor — switch grande por section.type
 // ─────────────────────────────────────────────────────────────────────────
@@ -500,9 +510,52 @@ function SettingsEditor({ section, onChange, setSettings }: {
               previewMaxWidth={240} downscaleMaxWidth={1920} />
           </Field>
           <Field label="Título"><Input value={s.settings.headline ?? ''} onChange={v => setSettings({ headline: v || undefined })} /></Field>
+          <InspectorGroup label="Tipografia do título">
+            <ColorField label="Cor do título" value={s.settings.titleColor ?? '#ffffff'} onChange={v => setSettings({ titleColor: v })} />
+            <Field label="Tamanho do título">
+              <Slider value={s.settings.titleSizeRem ?? 2.25} onChange={v => setSettings({ titleSizeRem: v })} min={1} max={6} step={0.05} unit="rem" />
+            </Field>
+            <Field label="Fonte do título" hint="Vazio = fonte do tema.">
+              <SectionFontSelect value={s.settings.titleFontPair} onChange={fp => setSettings({ titleFontPair: fp })} />
+            </Field>
+          </InspectorGroup>
+
           <Field label="Subtítulo"><Input value={s.settings.subheadline ?? ''} onChange={v => setSettings({ subheadline: v || undefined })} /></Field>
+          <InspectorGroup label="Tipografia do subtítulo">
+            <ColorField label="Cor do subtítulo" value={s.settings.subtitleColor ?? '#ffffff'} onChange={v => setSettings({ subtitleColor: v })} />
+            <Field label="Tamanho do subtítulo">
+              <Slider value={s.settings.subtitleSizeRem ?? 1.1} onChange={v => setSettings({ subtitleSizeRem: v })} min={0.8} max={3} step={0.05} unit="rem" />
+            </Field>
+            <Field label="Fonte do subtítulo" hint="Vazio = fonte do tema.">
+              <SectionFontSelect value={s.settings.subtitleFontPair} onChange={fp => setSettings({ subtitleFontPair: fp })} />
+            </Field>
+          </InspectorGroup>
+
           <Field label="Texto do botão"><Input value={s.settings.ctaLabel ?? ''} onChange={v => setSettings({ ctaLabel: v || undefined })} /></Field>
           <Field label="Link do botão"><Input value={s.settings.ctaHref ?? ''} onChange={v => setSettings({ ctaHref: v || undefined })} /></Field>
+          <InspectorGroup label="Estilo do botão">
+            <Field label="Modelo">
+              <Select value={s.settings.buttonVariant ?? 'solid'}
+                options={[['solid','Preenchido'],['outline','Contorno'],['soft','Suave (translúcido)']]}
+                onChange={v => setSettings({ buttonVariant: v as ImageBannerSection['settings']['buttonVariant'] })} />
+            </Field>
+            <ColorField label="Cor do botão" value={s.settings.buttonColor ?? '#000000'} onChange={v => setSettings({ buttonColor: v })} />
+            <ColorField label="Cor do texto do botão" value={s.settings.buttonTextColor ?? '#ffffff'} onChange={v => setSettings({ buttonTextColor: v })} />
+            <Field label="Tamanho do botão">
+              <Select value={s.settings.buttonSize ?? 'md'}
+                options={[['sm','Pequeno'],['md','Médio'],['lg','Grande']]}
+                onChange={v => setSettings({ buttonSize: v as ImageBannerSection['settings']['buttonSize'] })} />
+            </Field>
+            <Field label="Posição do botão" hint="Vazio = acompanha o texto.">
+              <Select value={s.settings.buttonAlign ?? ''}
+                options={[['','Acompanha o texto'],['left','Esquerda'],['center','Centro'],['right','Direita']]}
+                onChange={v => setSettings({ buttonAlign: (v || undefined) as ImageBannerSection['settings']['buttonAlign'] })} />
+            </Field>
+            <Field label="Fonte do botão" hint="Vazio = fonte padrão.">
+              <SectionFontSelect value={s.settings.buttonFontPair} onChange={fp => setSettings({ buttonFontPair: fp })} />
+            </Field>
+          </InspectorGroup>
+
           <Field label="Posição do texto">
             <Select value={s.settings.textPosition}
               options={[

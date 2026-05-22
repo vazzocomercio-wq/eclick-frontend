@@ -354,6 +354,20 @@ export type ImageBannerSection = SectionBase<'imageBanner', {
   /** Overlay/transparência sobre a imagem (legibilidade do texto). */
   overlayColor?:   string
   overlayOpacity?: number   // 0..1
+  // Tipografia por campo (override do tema; cada campo independente)
+  titleColor?:       string
+  titleSizeRem?:     number      // tamanho do título em rem
+  titleFontPair?:    FontPair
+  subtitleColor?:    string
+  subtitleSizeRem?:  number      // tamanho do subtítulo em rem
+  subtitleFontPair?: FontPair
+  // Botão (CTA)
+  buttonVariant?:   'solid' | 'outline' | 'soft'
+  buttonColor?:     string       // cor base do botão
+  buttonTextColor?: string       // cor do texto (variante solid)
+  buttonSize?:      'sm' | 'md' | 'lg'
+  buttonAlign?:     'left' | 'center' | 'right'
+  buttonFontPair?:  FontPair
 }>
 
 export type ImageHotspotSection = SectionBase<'imageHotspot', {

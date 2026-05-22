@@ -232,8 +232,17 @@ export function googleFontsHrefForDesign(theme: ThemeV3, sectionFontPairs: FontP
  *  (deduplicados). Usado pra montar o href combinado de Google Fonts. */
 export function collectSectionFontPairs(sections: Section[]): FontPair[] {
   const set = new Set<FontPair>()
+  // Fontes por campo (ex.: ImageBanner título/subtítulo/botão). Scan genérico
+  // por chaves *FontPair no settings — assim qualquer seção que use fonte por
+  // campo tem a Google Font carregada.
+  const FIELD_FONT_KEYS = ['titleFontPair', 'subtitleFontPair', 'buttonFontPair']
   for (const s of sections) {
     if (s.typography?.fontPair) set.add(s.typography.fontPair)
+    const st = s.settings as Record<string, unknown>
+    for (const k of FIELD_FONT_KEYS) {
+      const v = st[k]
+      if (typeof v === 'string' && v) set.add(v as FontPair)
+    }
   }
   return Array.from(set)
 }

@@ -12,6 +12,7 @@ import type {
 } from '@/lib/storefront/v3/types'
 import type { RenderCtx } from '../RenderCtx'
 import { PriceDisplay } from '../PriceDisplay'
+import { getFontPairDef } from '@/lib/storefront/v3/font-pairs'
 
 const HEIGHT_BANNER_PRESET: Record<Exclude<ImageBannerSection['settings']['height'], 'custom'>, string> = {
   sm:         '280px',
@@ -20,8 +21,49 @@ const HEIGHT_BANNER_PRESET: Record<Exclude<ImageBannerSection['settings']['heigh
   fullscreen: '100svh',
 }
 
+function clampRem(v: number | undefined, fallback: number): number {
+  if (typeof v !== 'number' || !Number.isFinite(v) || v <= 0) return fallback
+  return Math.max(0.6, Math.min(8, v))
+}
+
+/** Converte #rrggbb → rgba(...,a). Fallback se não for hex 6 dígitos. */
+function hexToRgba(hex: string | undefined, a: number, fallback: string): string {
+  const m = /^#?([0-9a-fA-F]{6})$/.exec((hex ?? '').trim())
+  if (!m) return fallback
+  const n = parseInt(m[1], 16)
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`
+}
+
+/** Estilo do botão do banner por variante/cor/tamanho. */
+function bannerButtonStyle(
+  variant: ImageBannerSection['settings']['buttonVariant'],
+  color?: string,
+  textColor?: string,
+  size?: ImageBannerSection['settings']['buttonSize'],
+): React.CSSProperties {
+  const pad = size === 'sm' ? '8px 16px' : size === 'lg' ? '16px 34px' : '12px 26px'
+  const fs  = size === 'sm' ? 14 : size === 'lg' ? 18 : 16
+  const base: React.CSSProperties = {
+    padding: pad, fontSize: fs, fontWeight: 600, minHeight: 44,
+    borderRadius: 'var(--r)', cursor: 'pointer', whiteSpace: 'nowrap',
+  }
+  const c = color || 'var(--c-primary)'
+  if (variant === 'outline') {
+    return { ...base, background: 'transparent', color: color || '#fff', border: `2px solid ${color || '#fff'}` }
+  }
+  if (variant === 'soft') {
+    return { ...base, background: hexToRgba(color, 0.18, 'rgba(255,255,255,0.18)'), color: color || '#fff', border: 'none', backdropFilter: 'blur(2px)' }
+  }
+  // solid (default)
+  return { ...base, background: c, color: textColor || 'var(--c-on-accent)', border: 'none' }
+}
+
 export function ImageBanner({ section }: { ctx: RenderCtx; section: ImageBannerSection }) {
-  const { imageUrl, headline, subheadline, ctaLabel, ctaHref, textPosition, height, customHeight, overlayColor, overlayOpacity } = section.settings
+  const {
+    imageUrl, headline, subheadline, ctaLabel, ctaHref, textPosition, height, customHeight, overlayColor, overlayOpacity,
+    titleColor, titleSizeRem, titleFontPair, subtitleColor, subtitleSizeRem, subtitleFontPair,
+    buttonVariant, buttonColor, buttonTextColor, buttonSize, buttonAlign, buttonFontPair,
+  } = section.settings
   const minH = height === 'custom'
     ? `${Math.max(80, Math.min(1200, customHeight ?? 400))}px`
     : HEIGHT_BANNER_PRESET[height]
@@ -55,15 +97,31 @@ export function ImageBanner({ section }: { ctx: RenderCtx; section: ImageBannerS
           padding: '40px 16px',
         }}
       >
-        {headline    && <h2 style={{ fontFamily: 'var(--f-heading)', fontSize: '2.25rem', textShadow: '0 1px 4px rgba(0,0,0,0.4)' }}>{headline}</h2>}
-        {subheadline && <p style={{ marginTop: 12, maxWidth: 560, textShadow: '0 1px 4px rgba(0,0,0,0.4)' }}>{subheadline}</p>}
-        {ctaLabel && ctaHref && (
-          <a href={ctaHref}
+        {headline && (
+          <h2 style={{
+            fontFamily: titleFontPair ? getFontPairDef(titleFontPair).heading : 'var(--f-heading)',
+            fontSize:   `${clampRem(titleSizeRem, 2.25)}rem`,
+            color:      titleColor || textColor,
+            lineHeight: 1.15, margin: 0,
+            textShadow: '0 1px 4px rgba(0,0,0,0.4)',
+          }}>{headline}</h2>
+        )}
+        {subheadline && (
+          <p style={{
+            fontFamily: subtitleFontPair ? getFontPairDef(subtitleFontPair).body : 'var(--f-body)',
+            fontSize:   `${clampRem(subtitleSizeRem, 1.1)}rem`,
+            color:      subtitleColor || textColor,
+            marginTop: 12, maxWidth: 560, textShadow: '0 1px 4px rgba(0,0,0,0.4)',
+          }}>{subheadline}</p>
+        )}
+        {ctaLabel && (
+          <a href={ctaHref || '#'}
             style={{
-              marginTop: 20, padding: '12px 24px',
-              background: 'var(--c-primary)', color: 'var(--c-on-accent)',
-              borderRadius: 'var(--r)', textDecoration: 'none', minHeight: 44,
-              display: 'inline-block', fontWeight: 500,
+              ...bannerButtonStyle(buttonVariant, buttonColor, buttonTextColor, buttonSize),
+              marginTop: 20, textDecoration: 'none', display: 'inline-flex',
+              alignItems: 'center', justifyContent: 'center',
+              fontFamily: buttonFontPair ? getFontPairDef(buttonFontPair).heading : 'inherit',
+              alignSelf: buttonAlign === 'center' ? 'center' : buttonAlign === 'right' ? 'flex-end' : buttonAlign === 'left' ? 'flex-start' : undefined,
             }}>
             {ctaLabel}
           </a>
