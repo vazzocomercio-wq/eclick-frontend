@@ -13,7 +13,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import {
   Loader2, AlertCircle, ShoppingBag, Tag, X, Search, Check,
-  Image as ImageIcon, Film, Images, ChevronRight, ExternalLink,
+  Image as ImageIcon, Film, Images, ChevronRight, ExternalLink, Lock,
 } from 'lucide-react'
 import {
   SocialCommerceApi,
@@ -201,7 +201,6 @@ function TagModal({ media, onClose }: { media: IgMedia; onClose: (taggedCount?: 
   const isImage = media.media_type === 'IMAGE'
   const [tags, setTags]       = useState<PendingTag[]>([])
   const [loadingTags, setLoadingTags] = useState(true)
-  const [removedIds, setRemovedIds]   = useState<Set<string>>(new Set())
   const [search, setSearch]   = useState('')
   const [results, setResults] = useState<TaggableProduct[]>([])
   const [searching, setSearching] = useState(false)
@@ -255,14 +254,12 @@ function TagModal({ media, onClose }: { media: IgMedia; onClose: (taggedCount?: 
     setActiveId(p.id)
   }
 
+  // Só dá pra remover tag NÃO salva (pendente). Tag já publicada não pode
+  // ser removida via API (limitação da Meta) — só editando no app do IG.
   function removeTag(productId: string) {
+    const tag = tags.find(t => t.product_id === productId)
+    if (!tag || !tag.isNew) return
     setTags(prev => prev.filter(t => t.product_id !== productId))
-    setRemovedIds(prev => {
-      // só registra remoção se era uma tag existente (não-nova)
-      const wasExisting = tags.find(t => t.product_id === productId && !t.isNew)
-      if (!wasExisting) return prev
-      const next = new Set(prev); next.add(productId); return next
-    })
     if (activeId === productId) setActiveId(null)
   }
 
@@ -278,8 +275,6 @@ function TagModal({ media, onClose }: { media: IgMedia; onClose: (taggedCount?: 
     setSaving(true); setError(null)
     try {
       const adds = tags.filter(t => t.isNew).map(t => ({ product_id: t.product_id, x: t.x, y: t.y }))
-      const removals = Array.from(removedIds)
-      if (removals.length) await SocialCommerceApi.untagProducts(media.id, removals)
       let tagged = tags.length
       if (adds.length) {
         const r = await SocialCommerceApi.tagProducts(media.id, adds)
@@ -294,7 +289,7 @@ function TagModal({ media, onClose }: { media: IgMedia; onClose: (taggedCount?: 
   }
 
   const thumb = media.media_type === 'VIDEO' ? media.thumbnail_url : (media.media_url ?? media.thumbnail_url)
-  const dirty = tags.some(t => t.isNew) || removedIds.size > 0
+  const dirty = tags.some(t => t.isNew)
 
   return (
     <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
@@ -384,12 +379,19 @@ function TagModal({ media, onClose }: { media: IgMedia; onClose: (taggedCount?: 
                       <span className="block text-[11px] text-zinc-200 truncate">{t.name}</span>
                       {t.price && <span className="block text-[10px] text-zinc-500">{t.price}</span>}
                     </span>
-                    <span
-                      onClick={(e) => { e.stopPropagation(); removeTag(t.product_id) }}
-                      className="p-1 text-zinc-600 hover:text-red-400 shrink-0"
-                    >
-                      <X size={13} />
-                    </span>
+                    {t.isNew ? (
+                      <span
+                        onClick={(e) => { e.stopPropagation(); removeTag(t.product_id) }}
+                        className="p-1 text-zinc-600 hover:text-red-400 shrink-0"
+                        title="Remover (ainda não salvo)"
+                      >
+                        <X size={13} />
+                      </span>
+                    ) : (
+                      <span className="p-1 text-zinc-600 shrink-0" title="Já publicado — pra remover, edite a publicação no app do Instagram">
+                        <Lock size={12} />
+                      </span>
+                    )}
                   </button>
                 ))}
               </div>
