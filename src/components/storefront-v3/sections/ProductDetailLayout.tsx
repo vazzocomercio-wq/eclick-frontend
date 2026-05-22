@@ -20,6 +20,7 @@ import { ProductGalleryClient } from './ProductGalleryClient'
 import { WishlistButton } from '../WishlistButton'
 import { ReviewStars } from '@/components/storefront/ReviewStars'
 import { WhatsAppIcon } from '@/components/storefront/WhatsAppIcon'
+import { RoomVisualizerLauncher } from '../RoomVisualizerLauncher'
 
 export function ProductDetailLayoutSectionView({ ctx, section }: { ctx: RenderCtx; section: ProductDetailLayoutSection }) {
   const { galleryPosition, stickyAddToCart, showShareButtons } = section.settings
@@ -150,6 +151,9 @@ export function ProductDetailLayoutSectionView({ ctx, section }: { ctx: RenderCt
               </a>
             )}
           </div>
+
+          {/* Ambientador IA — "Veja no seu ambiente" (AH). Self-oculta se a loja não ativou. */}
+          <RoomVisualizerLauncher slug={ctx.slug} productId={product.id} productName={product.name} />
 
           {showShareButtons && (
             <div className="mt-6 text-sm" style={{ color: 'var(--c-text-muted)' }}>
