@@ -33,6 +33,8 @@ import { Acc, Field, Input, Textarea, NumberInput, Select, Toggle, ColorField, S
 import { ImageUploadField } from '@/components/storefront/ImageUploadField'
 import { BlockListEditor } from './BlockListEditor'
 import { CollectionsEditor } from './CollectionsEditor'
+import type { SectionTypography, FontPair } from '@/lib/storefront/v3/types'
+import { FONT_PAIRS_V3, FONT_PAIRS_V3_DEFINITIONS } from '@/lib/storefront/v3/font-pairs'
 
 const SECTION_LABELS: Record<SectionType, string> = {
   siteHeader: 'Cabeçalho', siteFooter: 'Rodapé', announcementBar: 'Faixa de anúncio', breadcrumb: 'Trilha',
@@ -122,6 +124,12 @@ export function SectionInspector({ section, onChange, onBack }: Props) {
       <Acc title="Fundo">
         <BackgroundEditor bg={section.background}
           onChange={bg => onChange({ ...section, background: bg })} />
+      </Acc>
+
+      {/* Tipografia (override por seção) */}
+      <Acc title="Tipografia">
+        <TypographyEditor typo={section.typography}
+          onChange={typo => onChange({ ...section, typography: typo })} />
       </Acc>
 
       {/* Ajustes pra mobile (override por dispositivo) */}
@@ -239,6 +247,91 @@ function BackgroundEditor({ bg, onChange }: { bg: BackgroundStyle; onChange: (b:
         </>
       )}
     </>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Tipografia por seção — override de cor + fonte (herdam o tema quando vazio)
+// ─────────────────────────────────────────────────────────────────────────
+
+function TypographyEditor({ typo, onChange }: {
+  typo?: SectionTypography
+  onChange: (t: SectionTypography | undefined) => void
+}) {
+  const t = typo ?? {}
+  // Mescla patch; se tudo ficar vazio, vira undefined (herda 100% do tema)
+  const update = (patch: Partial<SectionTypography>) => {
+    const next = { ...t, ...patch }
+    // limpa chaves vazias
+    const cleaned: SectionTypography = {}
+    if (next.textColor)  cleaned.textColor  = next.textColor
+    if (next.mutedColor) cleaned.mutedColor = next.mutedColor
+    if (next.fontPair)   cleaned.fontPair   = next.fontPair
+    onChange(Object.keys(cleaned).length > 0 ? cleaned : undefined)
+  }
+
+  return (
+    <>
+      <p className="text-[11px] mb-1" style={{ color: '#52525b' }}>
+        Vazio = herda do tema global. Use pra dar uma cor/fonte só nesta seção.
+      </p>
+
+      {/* Cor do texto */}
+      <Field label="Cor do texto (títulos + corpo)">
+        <div className="flex items-center gap-2">
+          <Toggle value={!!t.textColor}
+            onChange={v => update({ textColor: v ? (t.textColor || '#111111') : undefined })} />
+          {t.textColor
+            ? <div className="flex-1"><ColorField label="" value={t.textColor} onChange={v => update({ textColor: v })} /></div>
+            : <span className="text-xs" style={{ color: '#71717a' }}>herda do tema</span>}
+        </div>
+      </Field>
+
+      {/* Cor do texto secundário */}
+      <Field label="Cor do texto secundário">
+        <div className="flex items-center gap-2">
+          <Toggle value={!!t.mutedColor}
+            onChange={v => update({ mutedColor: v ? (t.mutedColor || '#666666') : undefined })} />
+          {t.mutedColor
+            ? <div className="flex-1"><ColorField label="" value={t.mutedColor} onChange={v => update({ mutedColor: v })} /></div>
+            : <span className="text-xs" style={{ color: '#71717a' }}>herda do tema</span>}
+        </div>
+      </Field>
+
+      {/* Fonte desta seção */}
+      <Field label="Fonte desta seção">
+        <SectionFontSelect value={t.fontPair} onChange={fp => update({ fontPair: fp })} />
+      </Field>
+    </>
+  )
+}
+
+/** Select de fonte com opção "(herdar do tema)" + agrupamento por categoria. */
+function SectionFontSelect({ value, onChange }: { value?: FontPair; onChange: (v: FontPair | undefined) => void }) {
+  const byGroup = new Map<string, FontPair[]>()
+  for (const k of FONT_PAIRS_V3) {
+    const g = FONT_PAIRS_V3_DEFINITIONS[k].group
+    if (!byGroup.has(g)) byGroup.set(g, [])
+    byGroup.get(g)!.push(k)
+  }
+  return (
+    <select
+      value={value ?? ''}
+      onChange={e => onChange(e.target.value ? (e.target.value as FontPair) : undefined)}
+      style={{
+        width: '100%', padding: '10px 12px', minHeight: 44,
+        background: '#0a0a0e', color: '#fafafa',
+        border: '1px solid #27272a', borderRadius: 6, fontSize: 14,
+      }}>
+      <option value="">(herdar do tema)</option>
+      {Array.from(byGroup.entries()).map(([group, keys]) => (
+        <optgroup key={group} label={group} style={{ color: '#a1a1aa', background: '#0a0a0e' }}>
+          {keys.map(k => (
+            <option key={k} value={k}>{FONT_PAIRS_V3_DEFINITIONS[k].label}</option>
+          ))}
+        </optgroup>
+      ))}
+    </select>
   )
 }
 
@@ -427,6 +520,12 @@ function SettingsEditor({ section, onChange, setSettings }: {
                 min={80} max={1200} step={10} unit="px" />
             </Field>
           )}
+          <ColorField label="Overlay (cor sobre a imagem)" value={s.settings.overlayColor ?? '#000000'}
+            onChange={v => setSettings({ overlayColor: v })} />
+          <Field label="Transparência do overlay (0-1)" hint="0 = sem overlay (imagem pura). 0.4 escurece um pouco pra dar contraste ao texto.">
+            <NumberInput value={s.settings.overlayOpacity ?? 0}
+              onChange={v => setSettings({ overlayOpacity: v })} min={0} max={1} step={0.1} />
+          </Field>
         </>
       )
     }

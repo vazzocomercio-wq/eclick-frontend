@@ -102,6 +102,18 @@ export interface Visibility {
   mobile:  boolean
 }
 
+/** Override de tipografia POR SEÇÃO (opcional). Quando setado, sobrescreve
+ *  as CSS vars do tema só dentro daquela seção:
+ *   - textColor   → --c-text       (cor de títulos + texto)
+ *   - mutedColor  → --c-text-muted (textos secundários / subtítulos)
+ *   - fontPair    → --f-heading + --f-body (modelo da fonte)
+ *  Campos vazios herdam o tema global. */
+export interface SectionTypography {
+  textColor?:  string
+  mutedColor?: string
+  fontPair?:   FontPair
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 // Blocks (átomos dentro das seções)
 // ─────────────────────────────────────────────────────────────────────────
@@ -256,6 +268,8 @@ export interface SectionBase<T extends SectionType, S> {
   visibility:   Visibility
   spacing:      Spacing
   background:   BackgroundStyle
+  /** Override de cor/fonte só desta seção (opcional). */
+  typography?:  SectionTypography
   mobileOverrides?: {
     settings?:   Partial<S>
     spacing?:    Partial<Spacing>
@@ -330,6 +344,9 @@ export type ImageBannerSection = SectionBase<'imageBanner', {
   textPosition: 'top-left' | 'top-center' | 'top-right' | 'center' | 'bottom-left' | 'bottom-center' | 'bottom-right'
   height:       'sm' | 'md' | 'lg' | 'fullscreen' | 'custom'
   customHeight?: number
+  /** Overlay/transparência sobre a imagem (legibilidade do texto). */
+  overlayColor?:   string
+  overlayOpacity?: number   // 0..1
 }>
 
 export type ImageHotspotSection = SectionBase<'imageHotspot', {

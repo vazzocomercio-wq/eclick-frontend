@@ -11,7 +11,7 @@
  */
 
 import type {
-  Section, Block, ThemeV3, BackgroundStyle, Spacing,
+  Section, Block, ThemeV3, BackgroundStyle, Spacing, SectionTypography, FontPair,
 } from '@/lib/storefront/v3/types'
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -86,10 +86,26 @@ function spacingStyle(sp: Spacing): React.CSSProperties {
   }
 }
 
+/** CSS vars de override de tipografia da seção (sobrescreve as do tema só
+ *  no escopo do <section>). Vazio quando não há override. */
+export function sectionTypographyVars(typo?: SectionTypography): React.CSSProperties {
+  if (!typo) return {}
+  const vars: Record<string, string> = {}
+  if (typo.textColor)  vars['--c-text']       = typo.textColor
+  if (typo.mutedColor) vars['--c-text-muted'] = typo.mutedColor
+  if (typo.fontPair) {
+    const def = getFontPairDef(typo.fontPair)
+    vars['--f-heading'] = def.heading
+    vars['--f-body']    = def.body
+  }
+  return vars as React.CSSProperties
+}
+
 export function sectionContainerStyle(s: Section): React.CSSProperties {
   return {
     ...bgStyle(s.background),
     ...spacingStyle(s.spacing),
+    ...sectionTypographyVars(s.typography),
     position: 'relative',
   }
 }
@@ -195,6 +211,31 @@ export function googleFontsHref(theme: ThemeV3): string {
     ? theme.customFonts.googleFamilies
     : getFontPairDef(theme.fontPair).google
   return `https://fonts.googleapis.com/css2?${families.map(f => `family=${f}`).join('&')}&display=swap`
+}
+
+/** Como googleFontsHref, mas também inclui as Google Fonts dos overrides
+ *  de tipografia por seção (typography.fontPair). Sem isso, uma seção que
+ *  escolhe outra fonte ficaria sem a família carregada. */
+export function googleFontsHrefForDesign(theme: ThemeV3, sectionFontPairs: FontPair[]): string {
+  const families = new Set<string>()
+  const themeFamilies = (theme.customFonts?.googleFamilies && theme.customFonts.googleFamilies.length > 0)
+    ? theme.customFonts.googleFamilies
+    : getFontPairDef(theme.fontPair).google
+  for (const f of themeFamilies) families.add(f)
+  for (const pair of sectionFontPairs) {
+    for (const f of getFontPairDef(pair).google) families.add(f)
+  }
+  return `https://fonts.googleapis.com/css2?${Array.from(families).map(f => `family=${f}`).join('&')}&display=swap`
+}
+
+/** Coleta os fontPairs de override de tipografia de uma lista de seções
+ *  (deduplicados). Usado pra montar o href combinado de Google Fonts. */
+export function collectSectionFontPairs(sections: Section[]): FontPair[] {
+  const set = new Set<FontPair>()
+  for (const s of sections) {
+    if (s.typography?.fontPair) set.add(s.typography.fontPair)
+  }
+  return Array.from(set)
 }
 
 /** Variaveis CSS pra usar em escopo do tema. */

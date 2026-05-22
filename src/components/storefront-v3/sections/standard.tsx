@@ -21,19 +21,28 @@ const HEIGHT_BANNER_PRESET: Record<Exclude<ImageBannerSection['settings']['heigh
 }
 
 export function ImageBanner({ section }: { ctx: RenderCtx; section: ImageBannerSection }) {
-  const { imageUrl, headline, subheadline, ctaLabel, ctaHref, textPosition, height, customHeight } = section.settings
+  const { imageUrl, headline, subheadline, ctaLabel, ctaHref, textPosition, height, customHeight, overlayColor, overlayOpacity } = section.settings
   const minH = height === 'custom'
     ? `${Math.max(80, Math.min(1200, customHeight ?? 400))}px`
     : HEIGHT_BANNER_PRESET[height]
   const pos = textPosition.split('-') as [string, string]
   const align = pos[0]
   const just  = pos[1]
+  // Cor do texto: override de tipografia da seção, com branco como padrão
+  // (banners costumam ter texto claro sobre a imagem).
+  const textColor = section.typography?.textColor ?? '#fff'
+  const ov = (overlayColor && (overlayOpacity ?? 0) > 0)
+    ? { color: overlayColor, opacity: Math.min(1, Math.max(0, overlayOpacity ?? 0)) }
+    : null
   return (
     <div className="relative w-full overflow-hidden" style={{ minHeight: minH }}>
       {imageUrl && (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={imageUrl} alt={headline ?? ''} loading="lazy"
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+      )}
+      {ov && (
+        <div aria-hidden style={{ position: 'absolute', inset: 0, background: ov.color, opacity: ov.opacity, pointerEvents: 'none' }} />
       )}
       <div
         className="container mx-auto px-4 relative h-full flex flex-col"
@@ -42,7 +51,7 @@ export function ImageBanner({ section }: { ctx: RenderCtx; section: ImageBannerS
           justifyContent: align === 'top' ? 'flex-start' : align === 'bottom' ? 'flex-end' : 'center',
           alignItems:     just  === 'left' ? 'flex-start' : just  === 'right'  ? 'flex-end' : 'center',
           textAlign:      just === 'center' ? 'center' : just === 'right' ? 'right' : 'left',
-          color: '#fff',
+          color: textColor,
           padding: '40px 16px',
         }}
       >

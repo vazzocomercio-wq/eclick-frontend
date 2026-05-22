@@ -16,13 +16,17 @@ import { SectionRenderer } from './SectionRenderer'
 import { StorefrontPixels } from './StorefrontPixels'
 import { AffiliateRefTracker } from './AffiliateRefTracker'
 import type { RenderCtx } from './RenderCtx'
-import { googleFontsHref, themeCssVars } from './helpers'
+import { googleFontsHrefForDesign, collectSectionFontPairs, themeCssVars } from './helpers'
 import type { PageDesign } from '@/lib/storefront/v3/types'
 import { WhatsAppFloater } from '@/components/storefront/premium/WhatsAppFloater'
 
 export function StoreShell({ ctx }: { ctx: RenderCtx }) {
   const page: PageDesign = ctx.design.pages[ctx.page]
   const { header, footer } = ctx.design.globals
+
+  // Coleta fontPairs de override de tipografia (página + globals) pra
+  // carregar as Google Fonts certas além da fonte do tema.
+  const sectionFontPairs = collectSectionFontPairs([header, footer, ...page.sections])
 
   return (
     <div style={{
@@ -32,7 +36,7 @@ export function StoreShell({ ctx }: { ctx: RenderCtx }) {
       fontFamily: 'var(--f-body)',
       minHeight:  '100vh',
     }}>
-      <link rel="stylesheet" href={googleFontsHref(ctx.theme)} />
+      <link rel="stylesheet" href={googleFontsHrefForDesign(ctx.theme, sectionFontPairs)} />
       <StorefrontPixels store={ctx.store} />
       <AffiliateRefTracker slug={ctx.slug} />
 
