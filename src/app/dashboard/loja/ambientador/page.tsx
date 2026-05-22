@@ -30,6 +30,7 @@ interface Settings {
   button_label?: string
   coupon_code?: string
   default_generations?: number
+  daily_cost_cap_usd?: number
   prompt_extra?: string
   pipeline_id?: string
   stage_id?: string
@@ -164,6 +165,9 @@ export default function AmbientadorPage() {
               </Field>
               <Field label="Gerações por cliente" hint="Cada geração cria 2 imagens.">
                 <Input type="number" value={String(settings.default_generations ?? 3)} onChange={v => set({ default_generations: Number(v) })} />
+              </Field>
+              <Field label="Teto de custo por dia (US$)" hint="Limite de gasto com IA por dia. Atingiu, pausa até amanhã.">
+                <Input type="number" value={String(settings.daily_cost_cap_usd ?? 15)} onChange={v => set({ daily_cost_cap_usd: Number(v) })} />
               </Field>
               <Field label="Cupom de incentivo" hint="Enviado junto das imagens no WhatsApp.">
                 <Input value={settings.coupon_code ?? ''} onChange={v => set({ coupon_code: v })} placeholder="(opcional) ex: AMBIENTE10" />

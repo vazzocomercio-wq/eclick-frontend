@@ -27,7 +27,7 @@ export function RoomVisualizerPromo({ ctx, section }: { ctx: RenderCtx; section:
         <p style={{ color: 'var(--c-text-muted)', marginTop: 10, lineHeight: 1.6 }}>{description}</p>
         {product ? (
           <div style={{ maxWidth: 360, margin: '18px auto 0' }}>
-            <RoomVisualizerLauncher slug={ctx.slug} productId={product.id} productName={product.name} />
+            <RoomVisualizerLauncher slug={ctx.slug} productId={product.id} productName={product.name} productCategory={product.category} />
           </div>
         ) : (
           <a href={`/loja/${ctx.slug}`}

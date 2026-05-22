@@ -153,7 +153,7 @@ export function ProductDetailLayoutSectionView({ ctx, section }: { ctx: RenderCt
           </div>
 
           {/* Ambientador IA — "Veja no seu ambiente" (AH). Self-oculta se a loja não ativou. */}
-          <RoomVisualizerLauncher slug={ctx.slug} productId={product.id} productName={product.name} />
+          <RoomVisualizerLauncher slug={ctx.slug} productId={product.id} productName={product.name} productCategory={product.category} />
 
           {showShareButtons && (
             <div className="mt-6 text-sm" style={{ color: 'var(--c-text-muted)' }}>

@@ -31,8 +31,8 @@ interface PublicCustomer {
   generationsAllowed: number; generationsUsed: number; generationsLeft: number
 }
 
-export function RoomVisualizerLauncher({ slug, productId, productName }: {
-  slug: string; productId: string; productName: string
+export function RoomVisualizerLauncher({ slug, productId, productName, productCategory }: {
+  slug: string; productId: string; productName: string; productCategory?: string | null
 }) {
   const [enabled, setEnabled] = useState(false)
   const [buttonLabel, setButtonLabel] = useState('Veja no seu ambiente')
@@ -71,7 +71,7 @@ export function RoomVisualizerLauncher({ slug, productId, productName }: {
       </button>
       {open && (
         <RoomVisualizerModal
-          slug={slug} productId={productId} productName={productName}
+          slug={slug} productId={productId} productName={productName} productCategory={productCategory}
           onClose={() => setOpen(false)}
         />
       )}
@@ -81,8 +81,8 @@ export function RoomVisualizerLauncher({ slug, productId, productName }: {
 
 function tokenKey(slug: string) { return `eclick_visualizer_token_${slug}` }
 
-function RoomVisualizerModal({ slug, productId, productName, onClose }: {
-  slug: string; productId: string; productName: string; onClose: () => void
+function RoomVisualizerModal({ slug, productId, productName, productCategory, onClose }: {
+  slug: string; productId: string; productName: string; productCategory?: string | null; onClose: () => void
 }) {
   const [step, setStep] = useState<Step>('intro')
   const [busy, setBusy] = useState(false)
@@ -94,6 +94,7 @@ function RoomVisualizerModal({ slug, productId, productName, onClose }: {
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
   const [code, setCode] = useState('')
+  const [consent, setConsent] = useState(false)
 
   // captura/resultado
   const [scene, setScene] = useState<{ dataUrl: string; width: number; height: number } | null>(null)
@@ -129,11 +130,12 @@ function RoomVisualizerModal({ slug, productId, productName, onClose }: {
       setError('Preencha nome, e-mail e WhatsApp com DDD.')
       return
     }
+    if (!consent) { setError('É preciso aceitar o uso dos seus dados e da foto para continuar.'); return }
     setBusy(true)
     try {
       const res = await fetch(`${BACKEND}/public/store/by-slug/${encodeURIComponent(slug)}/visualizer/register`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), email: email.trim(), phone: phone.replace(/\D/g, '') }),
+        body: JSON.stringify({ name: name.trim(), email: email.trim(), phone: phone.replace(/\D/g, ''), consent }),
       })
       const d = await res.json().catch(() => null)
       if (!res.ok) throw new Error(d?.message ?? 'Não foi possível enviar o código.')
@@ -250,10 +252,7 @@ function RoomVisualizerModal({ slug, productId, productName, onClose }: {
                   <Lightbulb size={15} style={{ color: 'var(--c-primary)' }} /> Como tirar a melhor foto
                 </p>
                 <ul style={{ margin: 0, paddingLeft: 18, color: 'var(--c-text-muted)', fontSize: 13.5, lineHeight: 1.7 }}>
-                  <li>Segure o celular na <strong>horizontal</strong> e capture a parede/cantinho inteiro.</li>
-                  <li>Afaste-se ~2 metros pra pegar todo o espaço onde o produto vai ficar.</li>
-                  <li>Boa iluminação: abra as cortinas ou acenda as luzes.</li>
-                  <li>Deixe o local <strong>livre</strong> onde quer ver o produto.</li>
+                  {captureTips(productCategory, productName).map((t, i) => <li key={i}>{t}</li>)}
                 </ul>
               </div>
               <p style={{ fontSize: 12.5, color: 'var(--c-text-muted)', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 16 }}>
@@ -274,7 +273,12 @@ function RoomVisualizerModal({ slug, productId, productName, onClose }: {
               <Inp value={email} onChange={setEmail} type="email" placeholder="voce@email.com" />
               <Label>WhatsApp (com DDD)</Label>
               <Inp value={phone} onChange={setPhone} type="tel" placeholder="(11) 99999-9999" />
-              <button onClick={submitRegister} disabled={busy} style={primaryBtn(busy)}>
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginTop: 14, fontSize: 12.5, color: 'var(--c-text-muted)', lineHeight: 1.5, cursor: 'pointer' }}>
+                <input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)}
+                  style={{ marginTop: 2, width: 16, height: 16, flexShrink: 0, accentColor: 'var(--c-primary)' }} />
+                <span>Autorizo o uso dos meus dados e da foto que eu enviar para gerar a ambientação e receber contato da loja pelo WhatsApp.</span>
+              </label>
+              <button onClick={submitRegister} disabled={busy || !consent} style={primaryBtn(busy || !consent)}>
                 {busy ? <Loader2 size={16} className="animate-spin" /> : null} Receber código no WhatsApp
               </button>
             </div>
@@ -356,24 +360,26 @@ function RoomVisualizerModal({ slug, productId, productName, onClose }: {
               <p style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600, marginBottom: 4 }}>
                 <CheckCircle2 size={18} style={{ color: '#22c55e' }} /> Prontinho!
               </p>
-              <p style={{ color: 'var(--c-text-muted)', fontSize: 13.5, marginBottom: 14 }}>
+              <p style={{ color: 'var(--c-text-muted)', fontSize: 13.5, marginBottom: 6 }}>
                 Também enviamos as imagens no seu WhatsApp 📲
               </p>
-              <div style={{ display: 'grid', gridTemplateColumns: results.length > 1 ? '1fr 1fr' : '1fr', gap: 10, marginBottom: 14 }}>
+              <p style={{ color: 'var(--c-text-muted)', fontSize: 12, marginBottom: 12 }}>
+                Arraste a barra pra comparar <strong style={{ color: 'var(--c-text)' }}>antes</strong> e <strong style={{ color: 'var(--c-text)' }}>depois</strong>.
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 14 }}>
                 {results.map((u, i) => (
-                  <a key={i} href={u} target="_blank" rel="noopener noreferrer" style={{ display: 'block' }}>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={u} alt={`Ambientação ${i + 1}`} style={{ width: '100%', borderRadius: 10, display: 'block' }} />
-                  </a>
+                  <div key={i}>
+                    {scene
+                      ? <BeforeAfter before={scene.dataUrl} after={u} />
+                      // eslint-disable-next-line @next/next/no-img-element
+                      : <img src={u} alt={`Ambientação ${i + 1}`} style={{ width: '100%', borderRadius: 10, display: 'block' }} />}
+                    <a href={u} target="_blank" rel="noopener noreferrer"
+                      style={{ display: 'inline-block', marginTop: 6, fontSize: 12.5, color: 'var(--c-primary)' }}>
+                      Abrir imagem {i + 1} em tamanho cheio
+                    </a>
+                  </div>
                 ))}
               </div>
-              {scene && (
-                <details style={{ marginBottom: 14 }}>
-                  <summary style={{ cursor: 'pointer', fontSize: 13, color: 'var(--c-text-muted)' }}>Ver foto original</summary>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={scene.dataUrl} alt="Original" style={{ width: '100%', borderRadius: 10, marginTop: 8, display: 'block' }} />
-                </details>
-              )}
               {typeof left === 'number' && left > 0 ? (
                 <button onClick={resetForAnother} style={primaryBtn()}>
                   <Sparkles size={16} /> Gerar outra ({left} {left === 1 ? 'restante' : 'restantes'})
@@ -450,4 +456,62 @@ function loadImage(file: File): Promise<HTMLImageElement> {
     img.onerror = reject
     img.src = URL.createObjectURL(file)
   })
+}
+
+/** Dicas de captura adaptadas à categoria/nome do produto. */
+function captureTips(category?: string | null, name?: string): string[] {
+  const hay = `${category ?? ''} ${name ?? ''}`.toLowerCase()
+  const has = (...ks: string[]) => ks.some(k => hay.includes(k))
+  const base = ['Boa iluminação: abra as cortinas ou acenda as luzes.', 'Segure o celular firme e na horizontal.']
+  if (has('lustre', 'pendente', 'plafon', 'luminár', 'luminar', 'arandela', 'spot', 'lâmpada', 'lampada', 'ilumin', 'abajur')) {
+    return ['Fotografe o ambiente incluindo o teto onde a luminária vai ficar.', 'Afaste-se pra pegar a altura (pé-direito) do cômodo.', ...base]
+  }
+  if (has('tapete', 'rug', 'carpete', 'piso')) {
+    return ['Fotografe o chão do ambiente, em pé, apontando levemente pra baixo.', 'Deixe livre o espaço do piso onde o item vai ficar.', ...base]
+  }
+  if (has('quadro', 'poster', 'pôster', 'painel', 'papel de parede', 'adesivo', 'espelho')) {
+    return ['Fotografe a parede inteira onde o item vai ficar.', 'Fique de frente pra parede, a uns 2 metros.', ...base]
+  }
+  if (has('sofá', 'sofa', 'mesa', 'cadeira', 'poltrona', 'estante', 'rack', 'cama', 'armár', 'armar', 'móvel', 'movel', 'aparador', 'buffet')) {
+    return ['Fotografe o canto do cômodo onde o móvel vai ficar.', 'Afaste-se ~2 metros pra pegar o espaço inteiro.', 'Deixe o local livre.', ...base]
+  }
+  return [
+    'Segure o celular na horizontal e capture a parede/cantinho inteiro.',
+    'Afaste-se ~2 metros pra pegar todo o espaço onde o produto vai ficar.',
+    'Deixe livre o local onde quer ver o produto.',
+    'Boa iluminação: abra as cortinas ou acenda as luzes.',
+  ]
+}
+
+/** Slider antes/depois: arrasta a barra pra revelar a foto original (antes)
+ *  sobre a ambientação gerada (depois). Toque + mouse. */
+function BeforeAfter({ before, after }: { before: string; after: string }) {
+  const [pos, setPos] = useState(50)
+  const ref = useRef<HTMLDivElement>(null)
+  const move = (clientX: number) => {
+    const el = ref.current
+    if (!el) return
+    const r = el.getBoundingClientRect()
+    setPos(Math.max(0, Math.min(100, ((clientX - r.left) / r.width) * 100)))
+  }
+  return (
+    <div ref={ref}
+      onPointerDown={e => { (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId); move(e.clientX) }}
+      onPointerMove={e => { if (e.buttons === 1) move(e.clientX) }}
+      style={{ position: 'relative', width: '100%', borderRadius: 10, overflow: 'hidden', touchAction: 'none', cursor: 'ew-resize', userSelect: 'none' }}>
+      {/* Depois (base) */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={after} alt="Depois" draggable={false} style={{ width: '100%', display: 'block' }} />
+      {/* Antes (recortado à esquerda) */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={before} alt="Antes" draggable={false}
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', clipPath: `inset(0 ${100 - pos}% 0 0)` }} />
+      {/* Divisor + alça */}
+      <div style={{ position: 'absolute', top: 0, bottom: 0, left: `${pos}%`, width: 2, background: '#fff', boxShadow: '0 0 0 1px rgba(0,0,0,0.25)' }}>
+        <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 34, height: 34, borderRadius: '50%', background: '#fff', boxShadow: '0 1px 6px rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: '#111' }}>⇄</div>
+      </div>
+      <span style={{ position: 'absolute', top: 8, left: 8, fontSize: 11, fontWeight: 700, color: '#fff', background: 'rgba(0,0,0,0.55)', padding: '2px 8px', borderRadius: 999 }}>Antes</span>
+      <span style={{ position: 'absolute', top: 8, right: 8, fontSize: 11, fontWeight: 700, color: '#fff', background: 'rgba(0,0,0,0.55)', padding: '2px 8px', borderRadius: 999 }}>Depois</span>
+    </div>
+  )
 }
