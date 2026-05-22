@@ -189,10 +189,14 @@ export function SocialIcon({ block }: { ctx: RenderCtx; block: SocialIconBlock }
 
 /** Slide — usado pelo Slider client component. Aqui so renderiza preview SSR. */
 export function Slide({ block }: { ctx: RenderCtx; block: SlideBlock }) {
-  const { imageUrl, headline, subheadline, ctaLabel, ctaHref, textColor, textAlign } = block.settings
+  const { imageUrl, headline, subheadline, ctaLabel, ctaHref, textColor, textAlign, overlayColor, overlayOpacity } = block.settings
+  const ov = (overlayColor && (overlayOpacity ?? 0) > 0)
+    ? { color: overlayColor, opacity: Math.min(1, Math.max(0, overlayOpacity ?? 0)) }
+    : null
   return (
     <div style={{ position: 'relative', width: '100%', aspectRatio: '16 / 9', background: 'var(--c-surface)' }}>
       {imageUrl && <img src={imageUrl} alt={headline ?? ''} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />}
+      {ov && <div aria-hidden style={{ position: 'absolute', inset: 0, background: ov.color, opacity: ov.opacity, pointerEvents: 'none' }} />}
       <div style={{ position: 'relative', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: 24, color: textColor ?? '#fff', textAlign: textAlign ?? 'left' }}>
         {headline && <h2 style={{ fontFamily: 'var(--f-heading)', fontSize: '2rem' }}>{headline}</h2>}
         {subheadline && <p style={{ fontFamily: 'var(--f-body)', marginTop: 8 }}>{subheadline}</p>}

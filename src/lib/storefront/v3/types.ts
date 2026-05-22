@@ -234,6 +234,9 @@ export type SlideBlock = BlockBase<'slide', {
   ctaHref?:     string
   textColor?:   string
   textAlign?:   'left' | 'center' | 'right'
+  /** Overlay/transparência sobre a imagem do slide (legibilidade do texto). */
+  overlayColor?:   string
+  overlayOpacity?: number   // 0..1
 }>
 
 export type Block =

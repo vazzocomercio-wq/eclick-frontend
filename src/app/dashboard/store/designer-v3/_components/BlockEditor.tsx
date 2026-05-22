@@ -209,6 +209,13 @@ export function BlockEditor({ block, onChange }: Props) {
               options={[['left','Esquerda'],['center','Centro'],['right','Direita']] as ReadonlyArray<readonly [Align, string]>}
               onChange={v => setSettings({ textAlign: v })} />
           </Field>
+          <Field label="Overlay (cor sobre a imagem — hex)">
+            <Input value={block.settings.overlayColor ?? ''} onChange={v => setSettings({ overlayColor: v || undefined })} placeholder="#000000" />
+          </Field>
+          <Field label="Transparência do overlay (0-1)" hint="0 = imagem pura. 0.4 escurece pra dar contraste ao texto.">
+            <NumberInput value={block.settings.overlayOpacity ?? 0}
+              onChange={v => setSettings({ overlayOpacity: v })} min={0} max={1} step={0.1} />
+          </Field>
         </>
       )
   }
