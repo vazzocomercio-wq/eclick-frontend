@@ -179,6 +179,71 @@ export const SocialCommerceApi = {
 
   disconnectWhatsapp: () =>
     api<{ ok: true }>('/social-commerce/whatsapp/disconnect', { method: 'POST' }),
+
+  // Instagram Shopping — Tag de produtos em posts/reels (Frente 2)
+  getIgAccount: () =>
+    api<IgAccount>('/social-commerce/instagram/ig-account'),
+
+  listIgMedia: (after?: string) => {
+    const qs = after ? `?after=${encodeURIComponent(after)}` : ''
+    return api<{ data: IgMedia[]; after?: string }>(`/social-commerce/instagram/media${qs}`)
+  },
+
+  listTaggableProducts: (search?: string) => {
+    const qs = search ? `?search=${encodeURIComponent(search)}` : ''
+    return api<TaggableProduct[]>(`/social-commerce/instagram/taggable-products${qs}`)
+  },
+
+  getMediaTags: (mediaId: string) =>
+    api<MediaProductTag[]>(`/social-commerce/instagram/media/${mediaId}/tags`),
+
+  tagProducts: (mediaId: string, tags: Array<{ product_id: string; x?: number; y?: number }>) =>
+    api<{ success: boolean; tagged: number }>(
+      `/social-commerce/instagram/media/${mediaId}/tag-products`,
+      { method: 'POST', body: JSON.stringify({ tags }) },
+    ),
+
+  untagProducts: (mediaId: string, productIds: string[]) =>
+    api<{ success: boolean }>(
+      `/social-commerce/instagram/media/${mediaId}/untag-products`,
+      { method: 'POST', body: JSON.stringify({ product_ids: productIds }) },
+    ),
+}
+
+export interface IgAccount {
+  id:                  string
+  username?:           string
+  name?:               string
+  profile_picture_url?: string
+}
+
+export interface IgMedia {
+  id:            string
+  media_type:    string
+  media_url?:    string
+  thumbnail_url?: string
+  caption?:      string
+  permalink?:    string
+  timestamp?:    string
+  tagged_count:  number
+}
+
+export interface TaggableProduct {
+  id:           string   // ID numérico do produto no catálogo Meta (vai pra tag)
+  retailer_id?: string   // SKU
+  name:         string
+  image?:       string
+  price?:       string
+}
+
+export interface MediaProductTag {
+  product_id:    string
+  name?:         string
+  price_string?: string
+  image_url?:    string
+  review_status?: string
+  x?:            number
+  y?:            number
 }
 
 export interface MetaWaba {
