@@ -255,6 +255,13 @@ export default function InstagramShopPage() {
               >
                 <Settings size={12} /> {t('reconfigure')}
               </button>
+              <button
+                onClick={connect}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-800 hover:border-fuchsia-400/50 text-zinc-300 hover:text-fuchsia-200 text-xs"
+                title="Refaz o login na Meta para conceder novas permissões (ex.: Instagram Shopping)"
+              >
+                <Plug size={12} /> Atualizar permissões
+              </button>
             </div>
             {syncResult && (
               <p className="text-[11px] text-zinc-300 pt-2 border-t border-zinc-800/60">
