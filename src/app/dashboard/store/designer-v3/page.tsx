@@ -329,9 +329,11 @@ export default function DesignerV3Page() {
 
       {/* ── Workspace ── */}
       <div className="flex flex-1" style={{ height: 'calc(100vh - 60px)' }}>
-        {/* Sidebar — tabs + conteúdo */}
-        <aside className="flex flex-col border-r" style={{ width: 380, borderColor: '#27272a', background: '#0d0d10' }}>
-          <div className="flex border-b" style={{ borderColor: '#27272a' }}>
+        {/* Sidebar — tabs + conteúdo. min-h-0 + overflow-hidden no aside garantem
+            que a coluna do editor role independente do preview (sem min-h-0 o
+            flex-1 cresce até a altura do conteúdo e o scroll nunca dispara). */}
+        <aside className="flex flex-col border-r min-h-0 overflow-hidden" style={{ width: 380, borderColor: '#27272a', background: '#0d0d10' }}>
+          <div className="flex border-b shrink-0" style={{ borderColor: '#27272a' }}>
             <TabButton active={tab === 'facil'}    onClick={() => setTab('facil')}>
               Fácil
             </TabButton>
@@ -339,7 +341,7 @@ export default function DesignerV3Page() {
               Avançado
             </TabButton>
           </div>
-          <div className="flex-1 overflow-y-auto p-4">
+          <div className="flex-1 min-h-0 overflow-y-auto p-4">
             {tab === 'facil'
               ? <ModoFacil design={design} onSave={save} onLiveChange={handleLiveChange} />
               : <ModoAvancado design={design} onSave={save} onLiveChange={handleLiveChange} />}
