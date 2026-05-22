@@ -105,6 +105,7 @@ export { HeroSectionView as Hero } from './Hero'
 export { SliderSectionView as Slider } from './Slider'
 export { ImageHotspotSectionView as ImageHotspot } from './ImageHotspot'
 export { ImageBanner, ImageWithText, Marquee } from './standard'
+export { LeadForm } from './LeadForm'
 
 // ── Produto/Coleção ──
 export { ProductGridSectionView as ProductGrid } from './ProductGrid'

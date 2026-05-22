@@ -33,7 +33,8 @@ import { Acc, Field, Input, Textarea, NumberInput, Select, Toggle, ColorField, S
 import { ImageUploadField } from '@/components/storefront/ImageUploadField'
 import { BlockListEditor } from './BlockListEditor'
 import { CollectionsEditor } from './CollectionsEditor'
-import type { SectionTypography, FontPair } from '@/lib/storefront/v3/types'
+import { LeadFormEditor } from './LeadFormEditor'
+import type { SectionTypography, FontPair, LeadFormSection } from '@/lib/storefront/v3/types'
 import { FONT_PAIRS_V3, FONT_PAIRS_V3_DEFINITIONS } from '@/lib/storefront/v3/font-pairs'
 
 const SECTION_LABELS: Record<SectionType, string> = {
@@ -44,6 +45,7 @@ const SECTION_LABELS: Record<SectionType, string> = {
   richText: 'Texto rico', testimonials: 'Depoimentos', logoList: 'Logos', faq: 'FAQ', newsletter: 'Newsletter',
   videoBlock: 'Vídeo', customHtml: 'HTML custom',
   cartLayout: 'Carrinho', checkoutLayout: 'Checkout', whatsappCatalog: 'Catálogo WhatsApp',
+  leadForm: 'Formulário (lead)',
 }
 
 interface Props {
@@ -651,6 +653,14 @@ function SettingsEditor({ section, onChange, setSettings }: {
               onChange={next => setSettings({ collections: next })} />
           </Field>
         </>
+      )
+    }
+    case 'leadForm': {
+      const s = section as LeadFormSection
+      return (
+        <LeadFormEditor
+          settings={s.settings}
+          onChange={patch => setSettings(patch)} />
       )
     }
     case 'productDetailLayout': {

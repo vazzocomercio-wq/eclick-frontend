@@ -63,6 +63,7 @@ const SECTION_LABELS: Partial<Record<SectionType, string>> = {
   cartLayout:          'Layout do carrinho',
   checkoutLayout:      'Layout do checkout',
   whatsappCatalog:     'Catálogo WhatsApp',
+  leadForm:            'Formulário de captação (lead)',
 }
 
 // Types que so fazem sentido em paginas especificas — escondidos do add manual na home.
@@ -373,6 +374,19 @@ function createDefaultSection(type: SectionType): Section {
       return { ...base, type, settings: { html: '<p>HTML custom aqui</p>' } }
     case 'whatsappCatalog':
       return { ...base, type, settings: { enabled: true, position: 'floating', label: 'Ver catálogo no WhatsApp' } }
+    case 'leadForm':
+      return { ...base, type, settings: {
+        title: 'Fale com a gente',
+        description: 'Preencha e nossa equipe entra em contato.',
+        submitLabel: 'Enviar',
+        successMessage: 'Recebemos seus dados! Em breve entramos em contato.',
+        fields: [
+          { key: 'name',    label: 'Nome',     type: 'text',     required: true,  enabled: true },
+          { key: 'phone',   label: 'WhatsApp', type: 'tel',      required: true,  enabled: true },
+          { key: 'email',   label: 'E-mail',   type: 'email',    required: false, enabled: true },
+          { key: 'message', label: 'Mensagem', type: 'textarea', required: false, enabled: true },
+        ],
+      } }
     // Defensive fallback — não deve ser alcançado (HOME_FORBIDDEN filtra esses)
     case 'siteHeader':
     case 'siteFooter':

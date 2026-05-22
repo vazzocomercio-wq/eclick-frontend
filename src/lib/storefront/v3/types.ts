@@ -262,6 +262,8 @@ export type SectionType =
   | 'richText' | 'testimonials' | 'logoList' | 'faq' | 'newsletter' | 'videoBlock' | 'customHtml'
   // Comércio
   | 'cartLayout' | 'checkoutLayout' | 'whatsappCatalog'
+  // Captação
+  | 'leadForm'
 
 export interface SectionBase<T extends SectionType, S> {
   id:           string  // uuid
@@ -504,12 +506,37 @@ export type WhatsappCatalogSection = SectionBase<'whatsappCatalog', {
   label:    string
 }>
 
+/** Campo configurável do formulário de captação de leads. */
+export interface LeadFormField {
+  key:       'name' | 'email' | 'phone' | 'message' | string  // 'custom_*' pra extras
+  label:     string
+  type:      'text' | 'email' | 'tel' | 'textarea'
+  required:  boolean
+  enabled:   boolean
+}
+
+/** Formulário editável que cria um lead (contato + card) num funil do Active. */
+export type LeadFormSection = SectionBase<'leadForm', {
+  title?:        string
+  description?:  string
+  fields:        LeadFormField[]
+  submitLabel:   string
+  successMessage: string
+  // Destino no Active CRM (escolhido no editor via picker)
+  pipelineId?:   string
+  stageId?:      string
+  assignedTo?:   string          // org_members.id (opcional)
+  // Rótulos legíveis pra exibir no editor (cache; não usados no envio)
+  pipelineName?: string
+  stageName?:    string
+}>
+
 export type Section =
   | SiteHeaderSection | SiteFooterSection | AnnouncementBarSection | BreadcrumbSection
   | HeroSection | SliderSection | ImageBannerSection | ImageHotspotSection | ImageWithTextSection | MarqueeSection
   | ProductGridSection | ProductCarouselSection | FeaturedProductSection | CollectionGridSection | ProductDetailLayoutSection
   | RichTextSection | TestimonialsSection | LogoListSection | FaqSection | NewsletterSection | VideoBlockSection | CustomHtmlSection
-  | CartLayoutSection | CheckoutLayoutSection | WhatsappCatalogSection
+  | CartLayoutSection | CheckoutLayoutSection | WhatsappCatalogSection | LeadFormSection
 
 // ─────────────────────────────────────────────────────────────────────────
 // Páginas e raiz
@@ -564,6 +591,7 @@ export const DENSITIES_V3:          readonly Density[]     = ['compact', 'cozy',
 export const SECTION_TYPES_V3:      readonly SectionType[] = [
   'siteHeader','siteFooter','announcementBar','breadcrumb',
   'hero','slider','imageBanner','imageHotspot','imageWithText','marquee',
+  'leadForm',
   'productGrid','productCarousel','featuredProduct','collectionGrid','productDetailLayout',
   'richText','testimonials','logoList','faq','newsletter','videoBlock','customHtml',
   'cartLayout','checkoutLayout','whatsappCatalog',

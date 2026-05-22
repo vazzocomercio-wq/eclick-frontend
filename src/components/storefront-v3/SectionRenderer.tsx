@@ -20,7 +20,7 @@ import {
   Hero, Slider, ImageBanner, ImageHotspot, ImageWithText, Marquee,
   ProductGrid, ProductCarousel, FeaturedProduct, CollectionGrid, ProductDetailLayout,
   RichText, Testimonials, LogoList, Faq, Newsletter, VideoBlock, CustomHtml,
-  CartLayout, CheckoutLayout, WhatsappCatalog,
+  CartLayout, CheckoutLayout, WhatsappCatalog, LeadForm,
 } from './sections'
 
 export function SectionRenderer({ ctx, section }: { ctx: RenderCtx; section: Section }) {
@@ -63,6 +63,7 @@ export function SectionRenderer({ ctx, section }: { ctx: RenderCtx; section: Sec
     case 'cartLayout':         inner = <CartLayout ctx={ctx} section={section} />; break
     case 'checkoutLayout':     inner = <CheckoutLayout ctx={ctx} section={section} />; break
     case 'whatsappCatalog':    inner = <WhatsappCatalog ctx={ctx} section={section} />; break
+    case 'leadForm':           inner = <LeadForm ctx={ctx} section={section} />; break
   }
 
   return (
