@@ -7,6 +7,7 @@
 
 import type { RenderCtx } from '../RenderCtx'
 import { PriceDisplay } from '../PriceDisplay'
+import { clampRem, ctaButtonStyle, fieldFontFamily } from '../helpers'
 import type {
   HeadingBlock, SubheadingBlock, ParagraphBlock,
   ImageBlock, VideoBlock as VideoBlk,
@@ -18,18 +19,20 @@ import type {
 type Align = 'left' | 'center' | 'right'
 
 export function Heading({ block }: { ctx: RenderCtx; block: HeadingBlock }) {
-  const { text, level, align } = block.settings
+  const { text, level, align, color, sizeRem, fontPair } = block.settings
   const Tag = (`h${level}`) as 'h1' | 'h2' | 'h3' | 'h4'
-  const sizes: Record<number, string> = { 1: '2.25rem', 2: '1.875rem', 3: '1.5rem', 4: '1.25rem' }
-  return <Tag style={{ textAlign: align, fontFamily: 'var(--f-heading)', color: 'var(--c-text)', fontSize: sizes[level] }}>{text}</Tag>
+  const sizes: Record<number, number> = { 1: 2.25, 2: 1.875, 3: 1.5, 4: 1.25 }
+  return <Tag style={{ textAlign: align, fontFamily: fieldFontFamily(fontPair, 'heading'), color: color || 'var(--c-text)', fontSize: `${clampRem(sizeRem, sizes[level])}rem` }}>{text}</Tag>
 }
 
 export function Subheading({ block }: { ctx: RenderCtx; block: SubheadingBlock }) {
-  return <p style={{ textAlign: block.settings.align as Align, fontFamily: 'var(--f-heading)', color: 'var(--c-text-muted)', fontSize: '1.125rem' }}>{block.settings.text}</p>
+  const { text, align, color, sizeRem, fontPair } = block.settings
+  return <p style={{ textAlign: align as Align, fontFamily: fieldFontFamily(fontPair, 'heading'), color: color || 'var(--c-text-muted)', fontSize: `${clampRem(sizeRem, 1.125)}rem` }}>{text}</p>
 }
 
 export function Paragraph({ block }: { ctx: RenderCtx; block: ParagraphBlock }) {
-  return <p style={{ textAlign: block.settings.align as Align, fontFamily: 'var(--f-body)', color: 'var(--c-text)' }}>{block.settings.text}</p>
+  const { text, align, color, sizeRem, fontPair } = block.settings
+  return <p style={{ textAlign: align as Align, fontFamily: fieldFontFamily(fontPair, 'body'), color: color || 'var(--c-text)', fontSize: `${clampRem(sizeRem, 1)}rem` }}>{text}</p>
 }
 
 export function Image({ block }: { ctx: RenderCtx; block: ImageBlock }) {
@@ -55,14 +58,16 @@ export function Video({ block }: { ctx: RenderCtx; block: VideoBlk }) {
 }
 
 export function Button({ block }: { ctx: RenderCtx; block: ButtonBlock }) {
-  const { label, href, style, size, newTab } = block.settings
+  const { label, href, style, size, newTab, color, textColor, fontPair } = block.settings
   const padH: Record<string, string> = { sm: '12px', md: '20px', lg: '28px' }
   const padV: Record<string, string> = { sm: '8px',  md: '12px', lg: '16px' }
+  // cor base: override do lojista, senão a cor primária do tema.
+  const c = color || 'var(--c-primary)'
   const sty = style === 'primary'
-    ? { background: 'var(--c-primary)', color: 'var(--c-on-accent)', border: 'none' }
+    ? { background: c, color: textColor || 'var(--c-on-accent)', border: 'none' }
     : style === 'secondary'
-      ? { background: 'transparent', color: 'var(--c-primary)', border: '1px solid var(--c-primary)' }
-      : { background: 'transparent', color: 'var(--c-text)', border: 'none' }
+      ? { background: 'transparent', color: color || 'var(--c-primary)', border: `1px solid ${c}` }
+      : { background: 'transparent', color: color || 'var(--c-text)', border: 'none' }
   return (
     <a
       href={href}
@@ -74,7 +79,7 @@ export function Button({ block }: { ctx: RenderCtx; block: ButtonBlock }) {
         borderRadius: 'var(--r)',
         display:      'inline-block',
         fontWeight:   500,
-        fontFamily:   'var(--f-body)',
+        fontFamily:   fontPair ? fieldFontFamily(fontPair, 'heading') : 'var(--f-body)',
         textDecoration: 'none',
         minHeight:    44,
         minWidth:     44,
@@ -189,7 +194,12 @@ export function SocialIcon({ block }: { ctx: RenderCtx; block: SocialIconBlock }
 
 /** Slide — usado pelo Slider client component. Aqui so renderiza preview SSR. */
 export function Slide({ block }: { ctx: RenderCtx; block: SlideBlock }) {
-  const { imageUrl, headline, subheadline, ctaLabel, ctaHref, textColor, textAlign, overlayColor, overlayOpacity } = block.settings
+  const {
+    imageUrl, headline, subheadline, ctaLabel, ctaHref, textColor, textAlign, overlayColor, overlayOpacity,
+    titleColor, titleSizeRem, titleFontPair, subtitleColor, subtitleSizeRem, subtitleFontPair,
+    buttonVariant, buttonColor, buttonTextColor, buttonSize, buttonFontPair,
+  } = block.settings
+  const baseColor = textColor ?? '#fff'
   const ov = (overlayColor && (overlayOpacity ?? 0) > 0)
     ? { color: overlayColor, opacity: Math.min(1, Math.max(0, overlayOpacity ?? 0)) }
     : null
@@ -197,11 +207,21 @@ export function Slide({ block }: { ctx: RenderCtx; block: SlideBlock }) {
     <div style={{ position: 'relative', width: '100%', aspectRatio: '16 / 9', background: 'var(--c-surface)' }}>
       {imageUrl && <img src={imageUrl} alt={headline ?? ''} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />}
       {ov && <div aria-hidden style={{ position: 'absolute', inset: 0, background: ov.color, opacity: ov.opacity, pointerEvents: 'none' }} />}
-      <div style={{ position: 'relative', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: 24, color: textColor ?? '#fff', textAlign: textAlign ?? 'left' }}>
-        {headline && <h2 style={{ fontFamily: 'var(--f-heading)', fontSize: '2rem' }}>{headline}</h2>}
-        {subheadline && <p style={{ fontFamily: 'var(--f-body)', marginTop: 8 }}>{subheadline}</p>}
-        {ctaLabel && ctaHref && (
-          <a href={ctaHref} style={{ marginTop: 16, display: 'inline-block', padding: '12px 20px', background: 'var(--c-primary)', color: 'var(--c-on-accent)', borderRadius: 'var(--r)', textDecoration: 'none', alignSelf: textAlign === 'center' ? 'center' : 'flex-start', minHeight: 44 }}>
+      <div style={{ position: 'relative', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: 24, color: baseColor, textAlign: textAlign ?? 'left' }}>
+        {headline && (
+          <h2 style={{ fontFamily: fieldFontFamily(titleFontPair, 'heading'), fontSize: `${clampRem(titleSizeRem, 2)}rem`, color: titleColor || baseColor, margin: 0 }}>{headline}</h2>
+        )}
+        {subheadline && (
+          <p style={{ fontFamily: fieldFontFamily(subtitleFontPair, 'body'), fontSize: `${clampRem(subtitleSizeRem, 1)}rem`, color: subtitleColor || baseColor, marginTop: 8 }}>{subheadline}</p>
+        )}
+        {ctaLabel && (
+          <a href={ctaHref || '#'}
+            style={{
+              ...ctaButtonStyle(buttonVariant, buttonColor, buttonTextColor, buttonSize),
+              marginTop: 16,
+              alignSelf: textAlign === 'center' ? 'center' : textAlign === 'right' ? 'flex-end' : 'flex-start',
+              fontFamily: buttonFontPair ? fieldFontFamily(buttonFontPair, 'heading') : 'inherit',
+            }}>
             {ctaLabel}
           </a>
         )}

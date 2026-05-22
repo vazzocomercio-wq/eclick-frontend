@@ -146,16 +146,25 @@ export type HeadingBlock = BlockBase<'heading', {
   text:  string
   level: 1 | 2 | 3 | 4
   align: 'left' | 'center' | 'right'
+  color?:    string
+  sizeRem?:  number
+  fontPair?: FontPair
 }>
 
 export type SubheadingBlock = BlockBase<'subheading', {
   text:  string
   align: 'left' | 'center' | 'right'
+  color?:    string
+  sizeRem?:  number
+  fontPair?: FontPair
 }>
 
 export type ParagraphBlock = BlockBase<'paragraph', {
   text:  string  // markdown leve aceito
   align: 'left' | 'center' | 'right'
+  color?:    string
+  sizeRem?:  number
+  fontPair?: FontPair
 }>
 
 export type ImageBlock = BlockBase<'image', {
@@ -182,6 +191,9 @@ export type ButtonBlock = BlockBase<'button', {
   size:   'sm' | 'md' | 'lg'
   icon?:  string                          // nome lucide
   newTab: boolean
+  color?:     string     // sobrescreve a cor base do botão
+  textColor?: string     // cor do texto (estilo primary)
+  fontPair?:  FontPair
 }>
 
 export type BadgeBlock = BlockBase<'badge', {
@@ -237,6 +249,19 @@ export type SlideBlock = BlockBase<'slide', {
   /** Overlay/transparência sobre a imagem do slide (legibilidade do texto). */
   overlayColor?:   string
   overlayOpacity?: number   // 0..1
+  // Tipografia por campo
+  titleColor?:      string
+  titleSizeRem?:    number
+  titleFontPair?:   FontPair
+  subtitleColor?:   string
+  subtitleSizeRem?: number
+  subtitleFontPair?: FontPair
+  // Botão (CTA)
+  buttonVariant?:   'solid' | 'outline' | 'soft'
+  buttonColor?:     string
+  buttonTextColor?: string
+  buttonSize?:      'sm' | 'md' | 'lg'
+  buttonFontPair?:  FontPair
 }>
 
 export type Block =
@@ -383,6 +408,19 @@ export type ImageWithTextSection = SectionBase<'imageWithText', {
   body:      string
   ctaLabel?: string
   ctaHref?:  string
+  // Tipografia por campo
+  titleColor?:     string
+  titleSizeRem?:   number
+  titleFontPair?:  FontPair
+  bodyColor?:      string
+  bodySizeRem?:    number
+  bodyFontPair?:   FontPair
+  // Botão (CTA)
+  buttonVariant?:   'solid' | 'outline' | 'soft'
+  buttonColor?:     string
+  buttonTextColor?: string
+  buttonSize?:      'sm' | 'md' | 'lg'
+  buttonFontPair?:  FontPair
 }>
 
 export type MarqueeSection = SectionBase<'marquee', {

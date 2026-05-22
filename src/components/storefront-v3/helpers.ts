@@ -232,19 +232,74 @@ export function googleFontsHrefForDesign(theme: ThemeV3, sectionFontPairs: FontP
  *  (deduplicados). Usado pra montar o href combinado de Google Fonts. */
 export function collectSectionFontPairs(sections: Section[]): FontPair[] {
   const set = new Set<FontPair>()
-  // Fontes por campo (ex.: ImageBanner título/subtítulo/botão). Scan genérico
-  // por chaves *FontPair no settings — assim qualquer seção que use fonte por
-  // campo tem a Google Font carregada.
-  const FIELD_FONT_KEYS = ['titleFontPair', 'subtitleFontPair', 'buttonFontPair']
-  for (const s of sections) {
-    if (s.typography?.fontPair) set.add(s.typography.fontPair)
-    const st = s.settings as Record<string, unknown>
+  // Fontes por campo (Banner/Slide/ImageWithText) + por bloco (Hero usa blocos
+  // heading/paragraph/button). Scan genérico por chaves *fontPair* no settings
+  // da seção E de cada bloco — assim a Google Font certa é sempre carregada.
+  const FIELD_FONT_KEYS = ['fontPair', 'titleFontPair', 'subtitleFontPair', 'bodyFontPair', 'buttonFontPair']
+  const scan = (obj: Record<string, unknown> | undefined) => {
+    if (!obj) return
     for (const k of FIELD_FONT_KEYS) {
-      const v = st[k]
+      const v = obj[k]
       if (typeof v === 'string' && v) set.add(v as FontPair)
     }
   }
+  for (const s of sections) {
+    if (s.typography?.fontPair) set.add(s.typography.fontPair)
+    scan(s.settings as Record<string, unknown>)
+    for (const b of (s.blocks ?? [])) scan(b.settings as Record<string, unknown>)
+  }
   return Array.from(set)
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Tipografia por campo / botão (compartilhado entre Banner, Slide, ImageWithText)
+// ─────────────────────────────────────────────────────────────────────────
+
+/** Clampa tamanho de fonte em rem (0.6–8). Fallback se inválido. */
+export function clampRem(v: number | undefined, fallback: number): number {
+  if (typeof v !== 'number' || !Number.isFinite(v) || v <= 0) return fallback
+  return Math.max(0.6, Math.min(8, v))
+}
+
+/** #rrggbb → rgba(...,a). Fallback se não for hex de 6 dígitos. */
+export function hexToRgba(hex: string | undefined, a: number, fallback: string): string {
+  const m = /^#?([0-9a-fA-F]{6})$/.exec((hex ?? '').trim())
+  if (!m) return fallback
+  const n = parseInt(m[1], 16)
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`
+}
+
+/** Família de fonte de um campo: usa o fontPair escolhido (heading/body) ou
+ *  cai pra var do tema. */
+export function fieldFontFamily(fontPair: string | undefined, role: 'heading' | 'body'): string {
+  if (fontPair) {
+    const d = getFontPairDef(fontPair as FontPair)
+    return role === 'body' ? d.body : d.heading
+  }
+  return role === 'body' ? 'var(--f-body)' : 'var(--f-heading)'
+}
+
+/** Estilo de botão (CTA) por variante/cor/tamanho — usado em banners/slides/etc. */
+export function ctaButtonStyle(
+  variant: 'solid' | 'outline' | 'soft' | undefined,
+  color?: string,
+  textColor?: string,
+  size?: 'sm' | 'md' | 'lg',
+): React.CSSProperties {
+  const pad = size === 'sm' ? '8px 16px' : size === 'lg' ? '16px 34px' : '12px 26px'
+  const fs  = size === 'sm' ? 14 : size === 'lg' ? 18 : 16
+  const base: React.CSSProperties = {
+    padding: pad, fontSize: fs, fontWeight: 600, minHeight: 44,
+    borderRadius: 'var(--r)', cursor: 'pointer', whiteSpace: 'nowrap',
+    textDecoration: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+  }
+  if (variant === 'outline') {
+    return { ...base, background: 'transparent', color: color || '#fff', border: `2px solid ${color || '#fff'}` }
+  }
+  if (variant === 'soft') {
+    return { ...base, background: hexToRgba(color, 0.18, 'rgba(255,255,255,0.18)'), color: color || '#fff', border: 'none', backdropFilter: 'blur(2px)' }
+  }
+  return { ...base, background: color || 'var(--c-primary)', color: textColor || 'var(--c-on-accent)', border: 'none' }
 }
 
 /** Variaveis CSS pra usar em escopo do tema. */

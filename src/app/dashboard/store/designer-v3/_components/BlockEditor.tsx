@@ -9,11 +9,34 @@
  * blocos sao simples). Reusa primitives.tsx.
  */
 
-import type { Block } from '@/lib/storefront/v3/types'
-import { Field, Input, Textarea, NumberInput, Select, Toggle } from './primitives'
+import type { Block, FontPair } from '@/lib/storefront/v3/types'
+import { Field, Input, Textarea, NumberInput, Select, Toggle, ColorField } from './primitives'
 import { ImageUploadField } from '@/components/storefront/ImageUploadField'
+import { FONT_PAIRS_V3, FONT_PAIRS_V3_DEFINITIONS } from '@/lib/storefront/v3/font-pairs'
 
 type Align = 'left' | 'center' | 'right'
+
+/** Dropdown de fonte (mesma lista do tema). Vazio = herda do tema. */
+function FontPairSelect({ value, onChange }: { value?: FontPair; onChange: (v: FontPair | undefined) => void }) {
+  const byGroup = new Map<string, FontPair[]>()
+  for (const k of FONT_PAIRS_V3) {
+    const g = FONT_PAIRS_V3_DEFINITIONS[k].group
+    if (!byGroup.has(g)) byGroup.set(g, [])
+    byGroup.get(g)!.push(k)
+  }
+  return (
+    <select value={value ?? ''}
+      onChange={e => onChange(e.target.value ? (e.target.value as FontPair) : undefined)}
+      style={{ width: '100%', padding: '10px 12px', minHeight: 44, background: '#0a0a0e', color: '#fafafa', border: '1px solid #27272a', borderRadius: 6, fontSize: 14 }}>
+      <option value="">(herdar do tema)</option>
+      {Array.from(byGroup.entries()).map(([group, keys]) => (
+        <optgroup key={group} label={group} style={{ color: '#a1a1aa', background: '#0a0a0e' }}>
+          {keys.map(k => <option key={k} value={k}>{FONT_PAIRS_V3_DEFINITIONS[k].label}</option>)}
+        </optgroup>
+      ))}
+    </select>
+  )
+}
 
 interface Props {
   block:    Block
@@ -40,6 +63,9 @@ export function BlockEditor({ block, onChange }: Props) {
               options={[['left','Esquerda'],['center','Centro'],['right','Direita']] as ReadonlyArray<readonly [Align, string]>}
               onChange={v => setSettings({ align: v })} />
           </Field>
+          <ColorField label="Cor" value={block.settings.color ?? '#ffffff'} onChange={v => setSettings({ color: v })} />
+          <Field label="Tamanho (rem)"><NumberInput value={block.settings.sizeRem ?? 2.25} onChange={v => setSettings({ sizeRem: v })} min={0.6} max={8} step={0.05} /></Field>
+          <Field label="Fonte" hint="Vazio = fonte do tema."><FontPairSelect value={block.settings.fontPair} onChange={fp => setSettings({ fontPair: fp })} /></Field>
         </>
       )
     case 'subheading':
@@ -52,6 +78,9 @@ export function BlockEditor({ block, onChange }: Props) {
               options={[['left','Esquerda'],['center','Centro'],['right','Direita']] as ReadonlyArray<readonly [Align, string]>}
               onChange={v => setSettings({ align: v })} />
           </Field>
+          <ColorField label="Cor" value={block.settings.color ?? '#ffffff'} onChange={v => setSettings({ color: v })} />
+          <Field label="Tamanho (rem)"><NumberInput value={block.settings.sizeRem ?? 1.1} onChange={v => setSettings({ sizeRem: v })} min={0.6} max={6} step={0.05} /></Field>
+          <Field label="Fonte" hint="Vazio = fonte do tema."><FontPairSelect value={block.settings.fontPair} onChange={fp => setSettings({ fontPair: fp })} /></Field>
         </>
       )
     case 'image':
@@ -100,6 +129,9 @@ export function BlockEditor({ block, onChange }: Props) {
               options={[['sm','Pequeno'],['md','Médio'],['lg','Grande']]}
               onChange={v => setSettings({ size: v as 'sm' | 'md' | 'lg' })} />
           </Field>
+          <ColorField label="Cor do botão" value={block.settings.color ?? '#000000'} onChange={v => setSettings({ color: v })} />
+          <ColorField label="Cor do texto" value={block.settings.textColor ?? '#ffffff'} onChange={v => setSettings({ textColor: v })} />
+          <Field label="Fonte" hint="Vazio = fonte padrão."><FontPairSelect value={block.settings.fontPair} onChange={fp => setSettings({ fontPair: fp })} /></Field>
           <Field label="Abrir em nova aba"><Toggle value={block.settings.newTab} onChange={v => setSettings({ newTab: v })} /></Field>
         </>
       )
@@ -198,10 +230,29 @@ export function BlockEditor({ block, onChange }: Props) {
               previewMaxWidth={240} downscaleMaxWidth={1920} />
           </Field>
           <Field label="Título"><Input value={block.settings.headline ?? ''} onChange={v => setSettings({ headline: v || undefined })} /></Field>
+          <Field label="Cor do título"><Input value={block.settings.titleColor ?? ''} onChange={v => setSettings({ titleColor: v || undefined })} placeholder="herda do texto" /></Field>
+          <Field label="Tamanho do título (rem)"><NumberInput value={block.settings.titleSizeRem ?? 2} onChange={v => setSettings({ titleSizeRem: v })} min={0.6} max={8} step={0.05} /></Field>
+          <Field label="Fonte do título" hint="Vazio = tema."><FontPairSelect value={block.settings.titleFontPair} onChange={fp => setSettings({ titleFontPair: fp })} /></Field>
           <Field label="Subtítulo"><Input value={block.settings.subheadline ?? ''} onChange={v => setSettings({ subheadline: v || undefined })} /></Field>
+          <Field label="Cor do subtítulo"><Input value={block.settings.subtitleColor ?? ''} onChange={v => setSettings({ subtitleColor: v || undefined })} placeholder="herda do texto" /></Field>
+          <Field label="Tamanho do subtítulo (rem)"><NumberInput value={block.settings.subtitleSizeRem ?? 1} onChange={v => setSettings({ subtitleSizeRem: v })} min={0.6} max={4} step={0.05} /></Field>
+          <Field label="Fonte do subtítulo" hint="Vazio = tema."><FontPairSelect value={block.settings.subtitleFontPair} onChange={fp => setSettings({ subtitleFontPair: fp })} /></Field>
           <Field label="Texto do botão (opcional)"><Input value={block.settings.ctaLabel ?? ''} onChange={v => setSettings({ ctaLabel: v || undefined })} /></Field>
           <Field label="Link do botão"><Input value={block.settings.ctaHref ?? ''} onChange={v => setSettings({ ctaHref: v || undefined })} /></Field>
-          <Field label="Cor do texto (hex — opcional)">
+          <Field label="Modelo do botão">
+            <Select value={block.settings.buttonVariant ?? 'solid'}
+              options={[['solid','Preenchido'],['outline','Contorno'],['soft','Suave']]}
+              onChange={v => setSettings({ buttonVariant: v as 'solid' | 'outline' | 'soft' })} />
+          </Field>
+          <Field label="Cor do botão"><Input value={block.settings.buttonColor ?? ''} onChange={v => setSettings({ buttonColor: v || undefined })} placeholder="#000000" /></Field>
+          <Field label="Cor do texto do botão"><Input value={block.settings.buttonTextColor ?? ''} onChange={v => setSettings({ buttonTextColor: v || undefined })} placeholder="#ffffff" /></Field>
+          <Field label="Tamanho do botão">
+            <Select value={block.settings.buttonSize ?? 'md'}
+              options={[['sm','Pequeno'],['md','Médio'],['lg','Grande']]}
+              onChange={v => setSettings({ buttonSize: v as 'sm' | 'md' | 'lg' })} />
+          </Field>
+          <Field label="Fonte do botão" hint="Vazio = padrão."><FontPairSelect value={block.settings.buttonFontPair} onChange={fp => setSettings({ buttonFontPair: fp })} /></Field>
+          <Field label="Cor do texto (geral — hex)">
             <Input value={block.settings.textColor ?? ''} onChange={v => setSettings({ textColor: v || undefined })} placeholder="#ffffff" />
           </Field>
           <Field label="Alinhamento">

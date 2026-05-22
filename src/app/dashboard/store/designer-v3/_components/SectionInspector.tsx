@@ -617,9 +617,34 @@ function SettingsEditor({ section, onChange, setSettings }: {
               onChange={v => setSettings({ imageSide: v as 'left' | 'right' })} />
           </Field>
           <Field label="Título"><Input value={s.settings.title} onChange={v => setSettings({ title: v })} /></Field>
+          <InspectorGroup label="Tipografia do título">
+            <ColorField label="Cor do título" value={s.settings.titleColor ?? '#ffffff'} onChange={v => setSettings({ titleColor: v })} />
+            <Field label="Tamanho do título"><Slider value={s.settings.titleSizeRem ?? 2} onChange={v => setSettings({ titleSizeRem: v })} min={1} max={5} step={0.05} unit="rem" /></Field>
+            <Field label="Fonte do título" hint="Vazio = fonte do tema."><SectionFontSelect value={s.settings.titleFontPair} onChange={fp => setSettings({ titleFontPair: fp })} /></Field>
+          </InspectorGroup>
           <Field label="Texto"><Textarea value={s.settings.body} onChange={v => setSettings({ body: v })} /></Field>
+          <InspectorGroup label="Tipografia do texto">
+            <ColorField label="Cor do texto" value={s.settings.bodyColor ?? '#ffffff'} onChange={v => setSettings({ bodyColor: v })} />
+            <Field label="Tamanho do texto"><Slider value={s.settings.bodySizeRem ?? 1} onChange={v => setSettings({ bodySizeRem: v })} min={0.8} max={3} step={0.05} unit="rem" /></Field>
+            <Field label="Fonte do texto" hint="Vazio = fonte do tema."><SectionFontSelect value={s.settings.bodyFontPair} onChange={fp => setSettings({ bodyFontPair: fp })} /></Field>
+          </InspectorGroup>
           <Field label="Texto do CTA"><Input value={s.settings.ctaLabel ?? ''} onChange={v => setSettings({ ctaLabel: v || undefined })} /></Field>
           <Field label="Link do CTA"><Input value={s.settings.ctaHref ?? ''} onChange={v => setSettings({ ctaHref: v || undefined })} /></Field>
+          <InspectorGroup label="Estilo do botão">
+            <Field label="Modelo">
+              <Select value={s.settings.buttonVariant ?? 'solid'}
+                options={[['solid','Preenchido'],['outline','Contorno'],['soft','Suave']]}
+                onChange={v => setSettings({ buttonVariant: v as ImageWithTextSection['settings']['buttonVariant'] })} />
+            </Field>
+            <ColorField label="Cor do botão" value={s.settings.buttonColor ?? '#000000'} onChange={v => setSettings({ buttonColor: v })} />
+            <ColorField label="Cor do texto do botão" value={s.settings.buttonTextColor ?? '#ffffff'} onChange={v => setSettings({ buttonTextColor: v })} />
+            <Field label="Tamanho do botão">
+              <Select value={s.settings.buttonSize ?? 'md'}
+                options={[['sm','Pequeno'],['md','Médio'],['lg','Grande']]}
+                onChange={v => setSettings({ buttonSize: v as ImageWithTextSection['settings']['buttonSize'] })} />
+            </Field>
+            <Field label="Fonte do botão" hint="Vazio = padrão."><SectionFontSelect value={s.settings.buttonFontPair} onChange={fp => setSettings({ buttonFontPair: fp })} /></Field>
+          </InspectorGroup>
         </>
       )
     }
