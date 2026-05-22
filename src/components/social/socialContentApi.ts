@@ -1,6 +1,22 @@
 import { createClient } from '@/lib/supabase'
 import type { SocialContent, SocialChannel, SocialContentStatus } from './types'
 
+export type SocialImageFormat = 'feed' | 'story' | 'wide'
+
+export interface SocialPostImage {
+  id:              string
+  organization_id: string
+  product_id:      string | null
+  format:          SocialImageFormat
+  style:           string | null
+  prompt:          string | null
+  image_url:       string
+  provider:        string | null
+  model:           string | null
+  cost_usd:        number
+  created_at:      string
+}
+
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
 async function token(): Promise<string | null> {
@@ -102,4 +118,25 @@ export const SocialContentApi = {
       `/social/content/${id}/publish-now`,
       { method: 'POST' },
     ),
+
+  // ── Social AI — geração visual de imagem (SV1) ──────────────────────
+
+  /** POST /social/products/:id/generate-image */
+  generatePostImage: (productId: string, body: {
+    format: SocialImageFormat; style?: string; n?: number; extra_prompt?: string
+  }) =>
+    api<{ images: SocialPostImage[]; cost_usd: number }>(
+      `/social/products/${productId}/generate-image`,
+      { method: 'POST', body: JSON.stringify(body) },
+    ),
+
+  /** GET /social/post-images?product_id= */
+  listPostImages: (productId?: string) => {
+    const qs = productId ? `?product_id=${productId}` : ''
+    return api<SocialPostImage[]>(`/social/post-images${qs}`)
+  },
+
+  /** DELETE /social/post-images/:id */
+  deletePostImage: (id: string) =>
+    api<{ ok: true }>(`/social/post-images/${id}`, { method: 'DELETE' }),
 }

@@ -249,6 +249,7 @@ const SECTIONS: NavSection[] = [
       { labelKey: 'items.producaoTarefas',   href: '/dashboard/producao/tarefas',    icon: <CheckSquare size={15} /> },
       { labelKey: 'items.producaoConteudoIa', href: '/dashboard/producao/conteudo',  icon: <Sparkles size={15} /> },
       { labelKey: 'items.producaoConteudoSocial', href: '/dashboard/social',         icon: <Megaphone size={15} /> },
+      { labelKey: 'items.producaoSocialImages', href: '/dashboard/social/images',    icon: <Sparkles size={15} /> },
       { labelKey: 'items.producaoAdsHub',     href: '/dashboard/ads-campaigns',       icon: <Megaphone size={15} /> },
       { labelKey: 'items.producaoPrecosIa',   href: '/dashboard/pricing-ai',          icon: <DollarSign size={15} /> },
       {
