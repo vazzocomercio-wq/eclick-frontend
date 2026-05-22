@@ -106,6 +106,7 @@ export { SliderSectionView as Slider } from './Slider'
 export { ImageHotspotSectionView as ImageHotspot } from './ImageHotspot'
 export { ImageBanner, ImageWithText, Marquee } from './standard'
 export { LeadForm } from './LeadForm'
+export { RoomVisualizerPromo as RoomVisualizer } from './RoomVisualizerPromo'
 
 // ── Produto/Coleção ──
 export { ProductGridSectionView as ProductGrid } from './ProductGrid'

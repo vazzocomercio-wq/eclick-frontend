@@ -64,6 +64,7 @@ const SECTION_LABELS: Partial<Record<SectionType, string>> = {
   checkoutLayout:      'Layout do checkout',
   whatsappCatalog:     'Catálogo WhatsApp',
   leadForm:            'Formulário de captação (lead)',
+  roomVisualizer:      'Ambientador IA (Veja no seu espaço)',
 }
 
 // Types que so fazem sentido em paginas especificas — escondidos do add manual na home.
@@ -386,6 +387,11 @@ function createDefaultSection(type: SectionType): Section {
           { key: 'email',   label: 'E-mail',   type: 'email',    required: false, enabled: true },
           { key: 'message', label: 'Mensagem', type: 'textarea', required: false, enabled: true },
         ],
+      } }
+    case 'roomVisualizer':
+      return { ...base, type, settings: {
+        title: 'Veja no seu ambiente',
+        description: 'Tire uma foto do seu espaço e veja, com IA, como os nossos produtos ficam aí.',
       } }
     // Defensive fallback — não deve ser alcançado (HOME_FORBIDDEN filtra esses)
     case 'siteHeader':

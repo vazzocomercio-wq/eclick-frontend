@@ -34,7 +34,8 @@ import { ImageUploadField } from '@/components/storefront/ImageUploadField'
 import { BlockListEditor } from './BlockListEditor'
 import { CollectionsEditor } from './CollectionsEditor'
 import { LeadFormEditor } from './LeadFormEditor'
-import type { SectionTypography, FontPair, LeadFormSection } from '@/lib/storefront/v3/types'
+import { RoomVisualizerEditor } from './RoomVisualizerEditor'
+import type { SectionTypography, FontPair, LeadFormSection, RoomVisualizerSection } from '@/lib/storefront/v3/types'
 import { FONT_PAIRS_V3, FONT_PAIRS_V3_DEFINITIONS } from '@/lib/storefront/v3/font-pairs'
 
 const SECTION_LABELS: Record<SectionType, string> = {
@@ -46,6 +47,7 @@ const SECTION_LABELS: Record<SectionType, string> = {
   videoBlock: 'Vídeo', customHtml: 'HTML custom',
   cartLayout: 'Carrinho', checkoutLayout: 'Checkout', whatsappCatalog: 'Catálogo WhatsApp',
   leadForm: 'Formulário (lead)',
+  roomVisualizer: 'Ambientador IA',
 }
 
 interface Props {
@@ -659,6 +661,14 @@ function SettingsEditor({ section, onChange, setSettings }: {
       const s = section as LeadFormSection
       return (
         <LeadFormEditor
+          settings={s.settings}
+          onChange={patch => setSettings(patch)} />
+      )
+    }
+    case 'roomVisualizer': {
+      const s = section as RoomVisualizerSection
+      return (
+        <RoomVisualizerEditor
           settings={s.settings}
           onChange={patch => setSettings(patch)} />
       )

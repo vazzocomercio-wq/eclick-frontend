@@ -20,7 +20,7 @@ import {
   Hero, Slider, ImageBanner, ImageHotspot, ImageWithText, Marquee,
   ProductGrid, ProductCarousel, FeaturedProduct, CollectionGrid, ProductDetailLayout,
   RichText, Testimonials, LogoList, Faq, Newsletter, VideoBlock, CustomHtml,
-  CartLayout, CheckoutLayout, WhatsappCatalog, LeadForm,
+  CartLayout, CheckoutLayout, WhatsappCatalog, LeadForm, RoomVisualizer,
 } from './sections'
 
 export function SectionRenderer({ ctx, section }: { ctx: RenderCtx; section: Section }) {
@@ -64,6 +64,7 @@ export function SectionRenderer({ ctx, section }: { ctx: RenderCtx; section: Sec
     case 'checkoutLayout':     inner = <CheckoutLayout ctx={ctx} section={section} />; break
     case 'whatsappCatalog':    inner = <WhatsappCatalog ctx={ctx} section={section} />; break
     case 'leadForm':           inner = <LeadForm ctx={ctx} section={section} />; break
+    case 'roomVisualizer':     inner = <RoomVisualizer ctx={ctx} section={section} />; break
   }
 
   return (

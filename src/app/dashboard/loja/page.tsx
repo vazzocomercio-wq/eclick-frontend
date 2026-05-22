@@ -313,6 +313,14 @@ export default function LojaHubPage() {
             color="#06b6d4"
           />
           <ToolCard
+            href="/dashboard/loja/ambientador"
+            icon={<Sparkles size={20} />}
+            label="Ambientador IA"
+            description="Cliente fotografa o ambiente e a IA mostra seu produto no espaço dele · vira lead no Active"
+            badge="NOVO"
+            color="#f472b6"
+          />
+          <ToolCard
             href="/dashboard/loja/banners"
             icon={<ImageIcon size={20} />}
             label="Banners IA"

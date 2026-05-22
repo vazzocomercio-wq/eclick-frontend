@@ -264,6 +264,8 @@ export type SectionType =
   | 'cartLayout' | 'checkoutLayout' | 'whatsappCatalog'
   // Captação
   | 'leadForm'
+  // Experiência
+  | 'roomVisualizer'
 
 export interface SectionBase<T extends SectionType, S> {
   id:           string  // uuid
@@ -531,12 +533,21 @@ export type LeadFormSection = SectionBase<'leadForm', {
   stageName?:    string
 }>
 
+/** Bloco promocional do Ambientador IA ("Veja no seu ambiente"). Em página
+ *  de produto abre o ambientador pro produto atual; em outras páginas leva
+ *  o cliente a escolher um produto na vitrine. */
+export type RoomVisualizerSection = SectionBase<'roomVisualizer', {
+  title?:       string
+  description?: string
+}>
+
 export type Section =
   | SiteHeaderSection | SiteFooterSection | AnnouncementBarSection | BreadcrumbSection
   | HeroSection | SliderSection | ImageBannerSection | ImageHotspotSection | ImageWithTextSection | MarqueeSection
   | ProductGridSection | ProductCarouselSection | FeaturedProductSection | CollectionGridSection | ProductDetailLayoutSection
   | RichTextSection | TestimonialsSection | LogoListSection | FaqSection | NewsletterSection | VideoBlockSection | CustomHtmlSection
   | CartLayoutSection | CheckoutLayoutSection | WhatsappCatalogSection | LeadFormSection
+  | RoomVisualizerSection
 
 // ─────────────────────────────────────────────────────────────────────────
 // Páginas e raiz
@@ -595,6 +606,7 @@ export const SECTION_TYPES_V3:      readonly SectionType[] = [
   'productGrid','productCarousel','featuredProduct','collectionGrid','productDetailLayout',
   'richText','testimonials','logoList','faq','newsletter','videoBlock','customHtml',
   'cartLayout','checkoutLayout','whatsappCatalog',
+  'roomVisualizer',
 ]
 export const BLOCK_TYPES_V3:        readonly BlockType[]   = [
   'heading','subheading','paragraph','image','video','button','badge','countdown',
