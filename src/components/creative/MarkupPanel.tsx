@@ -43,6 +43,8 @@ interface MarkupPanelProps {
   onApplyPrice: (price: number) => void
   /** Anúncio — usado para buscar o custo de frete no ML. */
   listingId: string
+  /** Produto (creative_products) — usado para persistir as medidas da embalagem. */
+  productId: string
   /** Tipo de anúncio (free / gold_special / gold_pro) — o ML usa para aplicar o desconto de frete. */
   listingType: string
   /** Dimensões da embalagem do produto, para pré-preencher os campos de frete. */
@@ -62,7 +64,7 @@ const dimStr = (d: Record<string, unknown> | undefined, key: string): string => 
 }
 
 export default function MarkupPanel({
-  defaultFeePercent, currentPrice, onApplyPrice, listingId, listingType, initialDimensions,
+  defaultFeePercent, currentPrice, onApplyPrice, listingId, productId, listingType, initialDimensions,
   onWholesaleChange,
 }: MarkupPanelProps) {
   const [targetMargin, setTargetMargin] = useState('')
@@ -95,6 +97,35 @@ export default function MarkupPanel({
   useEffect(() => {
     setShippingCost(0); setShippingMeta(null); setShippingError(null)
   }, [listingType])
+
+  // Persiste as medidas da embalagem em creative_products.dimensions (debounced).
+  // Sem isso o dado fica só no painel e a publicação no ML não monta os
+  // SELLER_PACKAGE_* (peso/dimensões) — o ML rejeita categorias com Mercado
+  // Envios. Só grava quando as 4 medidas são válidas E mudaram em relação ao
+  // que veio do produto (evita PATCH redundante no mount).
+  useEffect(() => {
+    const L = num(profund), W = num(largura), H = num(altura), wt = num(peso)
+    if (!L || !W || !H || !wt) return
+    const changed =
+      largura.trim() !== dimStr(initialDimensions, 'largura') ||
+      altura.trim()  !== dimStr(initialDimensions, 'altura') ||
+      profund.trim() !== dimStr(initialDimensions, 'profundidade') ||
+      peso.trim()    !== dimStr(initialDimensions, 'peso')
+    if (!changed) return
+    const id = setTimeout(() => {
+      void CreativeApi.updateProduct(productId, {
+        dimensions: {
+          ...(initialDimensions ?? {}),
+          largura:      largura.trim(),
+          altura:       altura.trim(),
+          profundidade: profund.trim(),
+          peso:         peso.trim(),
+        },
+      }).catch(() => { /* best-effort — não bloqueia o painel */ })
+    }, 1200)
+    return () => clearTimeout(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [largura, altura, profund, peso, productId])
 
   const calc = useMemo(() => {
     const m     = num(targetMargin)

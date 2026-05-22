@@ -529,6 +529,7 @@ export default function MLPublishPage() {
                 currentPrice={price}
                 onApplyPrice={p => setPrice(String(p))}
                 listingId={listingId}
+                productId={productId}
                 listingType={listingType}
                 initialDimensions={product.dimensions}
                 onWholesaleChange={setWholesale}
