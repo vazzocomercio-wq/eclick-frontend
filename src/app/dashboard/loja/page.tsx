@@ -305,6 +305,14 @@ export default function LojaHubPage() {
             color="#06b6d4"
           />
           <ToolCard
+            href="/dashboard/loja/analytics"
+            icon={<BarChart3 size={20} />}
+            label="Analytics da vitrine"
+            description="Funil de conversão · receita · produtos mais vistos × vendidos · origem do tráfego"
+            badge="NOVO"
+            color="#06b6d4"
+          />
+          <ToolCard
             href="/dashboard/loja/leads"
             icon={<Inbox size={20} />}
             label="Leads da loja"

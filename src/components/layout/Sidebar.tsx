@@ -281,6 +281,7 @@ const SECTIONS: NavSection[] = [
       { labelKey: 'items.lojaBonus',     href: '/dashboard/loja/bonus',     icon: <Gift size={15} /> },
       { labelKey: 'items.lojaBanners',   href: '/dashboard/loja/banners',   icon: <ImageIcon size={15} /> },
       { labelKey: 'items.lojaReviews',   href: '/dashboard/loja/reviews',   icon: <MessageSquare size={15} /> },
+      { labelKey: 'items.lojaAnalytics', href: '/dashboard/loja/analytics', icon: <BarChart3 size={15} /> },
       { labelKey: 'items.lojaLeads',     href: '/dashboard/loja/leads',     icon: <Inbox size={15} /> },
       { labelKey: 'items.lojaAmbientador', href: '/dashboard/loja/ambientador', icon: <Sparkles size={15} /> },
       { labelKey: 'items.lojaRecovery',  href: '/dashboard/loja/recovery',  icon: <ShoppingCart size={15} /> },

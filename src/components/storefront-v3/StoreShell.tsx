@@ -15,6 +15,7 @@
 import { SectionRenderer } from './SectionRenderer'
 import { StorefrontPixels } from './StorefrontPixels'
 import { AffiliateRefTracker } from './AffiliateRefTracker'
+import { StorefrontTracker } from './StorefrontTracker'
 import type { RenderCtx } from './RenderCtx'
 import { googleFontsHrefForDesign, collectSectionFontPairs, themeCssVars } from './helpers'
 import type { PageDesign } from '@/lib/storefront/v3/types'
@@ -39,6 +40,7 @@ export function StoreShell({ ctx }: { ctx: RenderCtx }) {
       <link rel="stylesheet" href={googleFontsHrefForDesign(ctx.theme, sectionFontPairs)} />
       <StorefrontPixels store={ctx.store} />
       <AffiliateRefTracker slug={ctx.slug} />
+      <StorefrontTracker slug={ctx.slug} page={ctx.page} productId={(ctx.products ?? [])[0]?.id} />
 
       {/* Header global (sticky se configurado) */}
       <div style={{
