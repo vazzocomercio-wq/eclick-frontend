@@ -102,6 +102,11 @@ export function useCart(slug: string): UseCartApi {
     } else {
       persist([...current, { ...item, qty }])
     }
+    // Analytics da Vitrine — dispara add_to_cart (helper exposto pelo StorefrontTracker)
+    try {
+      const w = window as unknown as { eclickTrack?: (type: string, productId?: string, value?: number) => void }
+      w.eclickTrack?.('add_to_cart', item.productId, (item.price ?? 0) * qty)
+    } catch { /* ignore */ }
   }, [slug, persist])
 
   const setQty = useCallback((productId: string, qty: number) => {
