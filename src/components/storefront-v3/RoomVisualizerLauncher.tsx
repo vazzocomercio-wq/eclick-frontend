@@ -95,6 +95,7 @@ function RoomVisualizerModal({ slug, productId, productName, productCategory, on
   const [phone, setPhone] = useState('')
   const [code, setCode] = useState('')
   const [consent, setConsent] = useState(false)
+  const [resendMsg, setResendMsg] = useState<string | null>(null)
 
   // captura/resultado
   const [scene, setScene] = useState<{ dataUrl: string; width: number; height: number } | null>(null)
@@ -124,8 +125,21 @@ function RoomVisualizerModal({ slug, productId, productName, productCategory, on
 
   const startRegister = () => { setError(null); setStep(token() ? 'capture' : 'register') }
 
+  /** Chama o register e devolve se o código de fato saiu pelo WhatsApp.
+   *  `otpSent === false` = código gerado, mas o canal de WhatsApp está
+   *  indisponível agora (ponte fora do ar). Não mentimos pro cliente. */
+  const doRegister = async (): Promise<{ otpSent: boolean }> => {
+    const res = await fetch(`${BACKEND}/public/store/by-slug/${encodeURIComponent(slug)}/visualizer/register`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name.trim(), email: email.trim(), phone: phone.replace(/\D/g, ''), consent }),
+    })
+    const d = await res.json().catch(() => null)
+    if (!res.ok) throw new Error(d?.message ?? 'Não foi possível enviar o código.')
+    return { otpSent: d?.otpSent !== false }
+  }
+
   const submitRegister = async () => {
-    setError(null)
+    setError(null); setResendMsg(null)
     if (!name.trim() || !email.trim() || phone.replace(/\D/g, '').length < 10) {
       setError('Preencha nome, e-mail e WhatsApp com DDD.')
       return
@@ -133,13 +147,28 @@ function RoomVisualizerModal({ slug, productId, productName, productCategory, on
     if (!consent) { setError('É preciso aceitar o uso dos seus dados e da foto para continuar.'); return }
     setBusy(true)
     try {
-      const res = await fetch(`${BACKEND}/public/store/by-slug/${encodeURIComponent(slug)}/visualizer/register`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), email: email.trim(), phone: phone.replace(/\D/g, ''), consent }),
-      })
-      const d = await res.json().catch(() => null)
-      if (!res.ok) throw new Error(d?.message ?? 'Não foi possível enviar o código.')
+      const { otpSent } = await doRegister()
+      if (!otpSent) {
+        // Código não saiu pelo WhatsApp — não jogamos o cliente numa tela de
+        // código vazia. Mantemos no cadastro com aviso honesto + opção de tentar.
+        setError('Não conseguimos enviar o código pelo seu WhatsApp agora. Confira o número e tente de novo em instantes.')
+        return
+      }
       setStep('otp')
+    } catch (e) { setError((e as Error).message) }
+    finally { setBusy(false) }
+  }
+
+  const resendCode = async () => {
+    setError(null); setResendMsg(null)
+    setBusy(true)
+    try {
+      const { otpSent } = await doRegister()
+      if (!otpSent) {
+        setError('Ainda não conseguimos enviar pelo WhatsApp. Tente mais tarde ou fale com a loja pelo WhatsApp.')
+        return
+      }
+      setResendMsg('Código reenviado! Confira seu WhatsApp.')
     } catch (e) { setError((e as Error).message) }
     finally { setBusy(false) }
   }
@@ -286,6 +315,11 @@ function RoomVisualizerModal({ slug, productId, productName, productCategory, on
 
           {step === 'otp' && (
             <div>
+              {resendMsg && (
+                <div style={{ marginBottom: 12, padding: 10, borderRadius: 8, fontSize: 13, background: 'rgba(34,197,94,0.12)', color: '#86efac', border: '1px solid rgba(34,197,94,0.3)' }}>
+                  {resendMsg}
+                </div>
+              )}
               <p style={{ color: 'var(--c-text-muted)', lineHeight: 1.6, marginBottom: 14, fontSize: 14 }}>
                 Enviamos um código de 6 dígitos no WhatsApp <strong style={{ color: 'var(--c-text)' }}>{phone}</strong>. Digite abaixo:
               </p>
@@ -295,7 +329,10 @@ function RoomVisualizerModal({ slug, productId, productName, productCategory, on
               <button onClick={submitOtp} disabled={busy} style={primaryBtn(busy)}>
                 {busy ? <Loader2 size={16} className="animate-spin" /> : null} Validar e continuar
               </button>
-              <button onClick={() => setStep('register')} style={ghostBtn()}>
+              <button onClick={resendCode} disabled={busy} style={ghostBtn()}>
+                <RefreshCcw size={14} /> Não recebi o código — reenviar
+              </button>
+              <button onClick={() => { setStep('register'); setResendMsg(null) }} style={ghostBtn()}>
                 <ArrowLeft size={14} /> Corrigir número
               </button>
             </div>
