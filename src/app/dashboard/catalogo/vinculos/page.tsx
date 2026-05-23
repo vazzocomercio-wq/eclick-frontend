@@ -42,6 +42,27 @@ type ProductRow = {
   product_stock: StockRow[]
 }
 
+// Anúncio ML vindo de /ml/listings (campos usados no vínculo em massa por SKU).
+type MlListingLite = {
+  id: string
+  sku?: string | null
+  title?: string | null
+  price?: number | null
+  thumbnail?: string | null
+  permalink?: string | null
+  account_seller_id?: number | null
+}
+
+// Resultado agregado do vínculo em massa por SKU (nível de produto).
+type BulkSkuResult = {
+  productsLinked:  number
+  listingsLinked:  number
+  productsExisted: number
+  productsNoMatch: number
+  productsNoSku:   number
+  productsError:   number
+}
+
 type Movement = {
   id: string
   type: string
@@ -1343,9 +1364,11 @@ function StockPanel({
 // ── Product Card ──────────────────────────────────────────────────────────────
 
 function ProductCard({
-  product, onAddVinculo, onAddKit, onStockPanel, onRemoveVinculo,
+  product, selected, onToggleSelect, onAddVinculo, onAddKit, onStockPanel, onRemoveVinculo,
 }: {
   product: ProductRow
+  selected: boolean
+  onToggleSelect: () => void
   onAddVinculo: (p: ProductRow) => void
   onAddKit:     (p: ProductRow) => void
   onStockPanel: (p: ProductRow) => void
@@ -1357,8 +1380,25 @@ function ProductCard({
   const stock = product.product_stock.find(s => s.platform === null)?.quantity ?? 0
 
   return (
-    <div className="rounded-xl" style={{ background: '#0f0f12', border: '1px solid #1a1a1f' }}>
+    <div className="rounded-xl" style={{ background: '#0f0f12', border: selected ? '1px solid rgba(0,229,255,0.5)' : '1px solid #1a1a1f' }}>
       <div className="p-5 flex gap-4">
+
+        {/* Selection checkbox */}
+        <button
+          type="button"
+          onClick={onToggleSelect}
+          aria-label="Selecionar produto"
+          className="shrink-0 self-start mt-1 flex items-center justify-center w-5 h-5 rounded transition-colors"
+          style={selected
+            ? { background: '#00E5FF', border: '1px solid #00E5FF' }
+            : { background: 'transparent', border: '1px solid #3f3f46' }}
+        >
+          {selected && (
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 13l4 4L19 7" />
+            </svg>
+          )}
+        </button>
 
         {/* Thumbnail */}
         <div className="w-16 h-16 rounded-xl shrink-0 overflow-hidden flex items-center justify-center"
@@ -1519,6 +1559,11 @@ export default function VinculosPage() {
   const [modalProduct, setModalProduct] = useState<ProductRow | null>(null)
   const [modalKitQty,  setModalKitQty]  = useState(1)
   const [stockProduct, setStockProduct] = useState<ProductRow | null>(null)
+  // Vínculo em massa por SKU
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkRunning, setBulkRunning] = useState(false)
+  const [bulkStatus,  setBulkStatus]  = useState<string | null>(null)
+  const [bulkResult,  setBulkResult]  = useState<BulkSkuResult | null>(null)
   const tid = { current: 0 }
 
   function toast(msg: string, type: Toast['type'] = 'info') {
@@ -1633,6 +1678,110 @@ export default function VinculosPage() {
     toast(t('links.stockSettingsSaved'), 'success')
   }
 
+  function toggleSelect(id: string) {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+  function selectAllUnlinked() {
+    setSelectedIds(new Set(filtered.filter(p => p.product_listings.length === 0).map(p => p.id)))
+  }
+  function clearSelection() { setSelectedIds(new Set()) }
+
+  /**
+   * Vínculo em massa por SKU: busca os anúncios ML da org (ao vivo, paginado),
+   * monta um mapa sku→anúncios e, pra cada produto selecionado, vincula os
+   * anúncios de mesmo SKU ainda não vinculados via /products/vinculos/bulk
+   * (idempotente). Não inventa nada — só casa SKU exato.
+   */
+  async function bulkLinkBySku() {
+    const targets = products.filter(p => selectedIds.has(p.id))
+    if (targets.length === 0) { toast(t('links.bulk.noSelection'), 'info'); return }
+    setBulkRunning(true); setBulkResult(null)
+    try {
+      const headers = await getHeaders()
+
+      // 1. Busca todos os anúncios ML (ativos + pausados), paginado.
+      setBulkStatus(t('links.bulk.fetchingListings'))
+      const PAGE = 50
+      const skuMap = new Map<string, MlListingLite[]>()
+      let anyListing = false
+      for (const status of ['active', 'paused']) {
+        let offset = 0
+        for (let guard = 0; guard < 60; guard++) { // cap defensivo (3000 anúncios)
+          const params = new URLSearchParams({ status, offset: String(offset), limit: String(PAGE) })
+          const res = await fetch(`${BACKEND}/ml/listings?${params}`, { headers })
+          if (!res.ok) break
+          const body = await res.json().catch(() => ({})) as { items?: MlListingLite[]; total?: number }
+          const list = body.items ?? []
+          for (const it of list) {
+            if (!it.sku) continue
+            anyListing = true
+            const key = it.sku.trim().toLowerCase()
+            const arr = skuMap.get(key) ?? []
+            arr.push(it); skuMap.set(key, arr)
+          }
+          offset += PAGE
+          if (list.length < PAGE || offset >= (body.total ?? 0)) break
+        }
+      }
+      if (!anyListing) { toast(t('links.bulk.noListings'), 'error'); return }
+
+      // 2. Casa cada produto por SKU e vincula os anúncios livres.
+      const r: BulkSkuResult = {
+        productsLinked: 0, listingsLinked: 0, productsExisted: 0,
+        productsNoMatch: 0, productsNoSku: 0, productsError: 0,
+      }
+      let done = 0
+      for (const p of targets) {
+        done++
+        setBulkStatus(t('links.bulk.matching', { done, total: targets.length }))
+        const sku = p.sku?.trim().toLowerCase()
+        if (!sku) { r.productsNoSku++; continue }
+        const matches = skuMap.get(sku) ?? []
+        if (matches.length === 0) { r.productsNoMatch++; continue }
+        const alreadyLinked = new Set(p.product_listings.map(v => v.listing_id))
+        const toLink = matches.filter(m => !alreadyLinked.has(m.id))
+        if (toLink.length === 0) { r.productsExisted++; continue }
+        try {
+          const payload = {
+            product_id: p.id,
+            platform: 'mercadolivre',
+            items: toLink.map(m => ({
+              listing_id:        m.id,
+              quantity_per_unit: 1,
+              account_id:        m.account_seller_id != null ? String(m.account_seller_id) : null,
+              listing_title:     m.title ?? null,
+              listing_price:     m.price ?? null,
+              listing_thumbnail: m.thumbnail ?? null,
+              listing_permalink: m.permalink ?? null,
+            })),
+          }
+          const res = await fetch(`${BACKEND}/products/vinculos/bulk`, {
+            method: 'POST',
+            headers: { ...headers, 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          })
+          const b = await res.json().catch(() => ({})) as { created?: number; skipped?: number; errors?: number }
+          if (!res.ok) { r.productsError++; continue }
+          const created = b.created ?? 0
+          if (created > 0) { r.productsLinked++; r.listingsLinked += created }
+          else r.productsExisted++
+        } catch { r.productsError++ }
+      }
+
+      setBulkResult(r)
+      clearSelection()
+      await loadProducts()
+    } catch (e: unknown) {
+      toast(e instanceof Error ? e.message : t('links.bulk.done'), 'error')
+    } finally {
+      setBulkRunning(false); setBulkStatus(null)
+    }
+  }
+
   const FILTER_BTNS: { key: Filter; label: string }[] = [
     { key: 'all',        label: t('links.filter.all')        },
     { key: 'vinculado',  label: t('links.filter.linked')     },
@@ -1715,6 +1864,14 @@ export default function VinculosPage() {
           {t('links.productCount', { count: filtered.length })}
         </span>
 
+        {/* Vínculo em massa — selecionar todos sem vínculo */}
+        <button onClick={selectAllUnlinked}
+          className="flex items-center gap-1.5 text-[11px] px-3 py-2 rounded-xl transition-colors hover:text-zinc-200"
+          style={{ color: '#a1a1aa', background: '#111114', border: '1px solid #1a1a1f' }}>
+          <CheckCircle2 size={12} />
+          {t('links.bulk.selectAllUnlinked')}
+        </button>
+
         {/* Atualizar — moved to far right, separated from filters */}
         <button onClick={loadProducts}
           className="ml-auto flex items-center gap-1.5 text-[11px] px-3 py-2 rounded-xl transition-colors hover:text-zinc-300"
@@ -1747,6 +1904,8 @@ export default function VinculosPage() {
             <ProductCard
               key={p.id}
               product={p}
+              selected={selectedIds.has(p.id)}
+              onToggleSelect={() => toggleSelect(p.id)}
               onAddVinculo={prod => { setModalKitQty(1); setModalProduct(prod) }}
               onAddKit={prod    => { setModalKitQty(2); setModalProduct(prod) }}
               onStockPanel={prod => setStockProduct(prod)}
@@ -1777,6 +1936,62 @@ export default function VinculosPage() {
           onUpdated={(pid, qty) => { handleStockUpdated(pid, qty); setStockProduct(null) }}
           onSettingsSaved={handleStockSettingsSaved}
         />
+      )}
+
+      {/* Barra de ação do vínculo em massa */}
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 px-4 py-3 rounded-2xl shadow-2xl"
+          style={{ background: '#161618', border: '1px solid #27272a' }}>
+          <span className="text-sm text-zinc-200 font-medium whitespace-nowrap">
+            {t('links.bulk.selectedCount', { count: selectedIds.size })}
+          </span>
+          <button onClick={bulkLinkBySku} disabled={bulkRunning}
+            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg disabled:opacity-60 whitespace-nowrap"
+            style={{ background: '#00E5FF', color: '#000' }}>
+            {bulkRunning ? <RefreshCw size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
+            {bulkRunning ? (bulkStatus ?? t('links.bulk.linkBySku')) : t('links.bulk.linkBySku')}
+          </button>
+          {!bulkRunning && (
+            <button onClick={clearSelection} className="text-xs text-zinc-400 hover:text-zinc-200 px-2 py-1.5">
+              {t('links.bulk.clear')}
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Resultado do vínculo em massa */}
+      {bulkResult && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+          onClick={() => setBulkResult(null)}>
+          <div className="w-full max-w-sm rounded-2xl p-5" style={{ background: '#0f0f12', border: '1px solid #27272a' }}
+            onClick={e => e.stopPropagation()}>
+            <h3 className="text-white text-base font-semibold mb-3">{t('links.bulk.resultTitle')}</h3>
+            <ul className="space-y-2 text-sm">
+              {bulkResult.productsLinked > 0 && (
+                <li className="flex items-center gap-2 text-emerald-300">
+                  <CheckCircle2 size={14} className="shrink-0" />
+                  {t('links.bulk.resultLinked', { products: bulkResult.productsLinked, listings: bulkResult.listingsLinked })}
+                </li>
+              )}
+              {bulkResult.productsExisted > 0 && (
+                <li className="text-zinc-400">{t('links.bulk.resultExisted', { count: bulkResult.productsExisted })}</li>
+              )}
+              {bulkResult.productsNoMatch > 0 && (
+                <li className="text-amber-300">{t('links.bulk.resultNoMatch', { count: bulkResult.productsNoMatch })}</li>
+              )}
+              {bulkResult.productsNoSku > 0 && (
+                <li className="text-amber-300">{t('links.bulk.resultNoSku', { count: bulkResult.productsNoSku })}</li>
+              )}
+              {bulkResult.productsError > 0 && (
+                <li className="text-red-400">{t('links.bulk.resultErrors', { count: bulkResult.productsError })}</li>
+              )}
+            </ul>
+            <button onClick={() => setBulkResult(null)}
+              className="mt-5 w-full py-2 rounded-lg text-sm font-semibold" style={{ background: '#00E5FF', color: '#000' }}>
+              {t('links.bulk.close')}
+            </button>
+          </div>
+        </div>
       )}
     </div>
   )
