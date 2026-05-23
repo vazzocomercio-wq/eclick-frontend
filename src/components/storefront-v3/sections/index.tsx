@@ -113,6 +113,7 @@ export { ProductGridSectionView as ProductGrid } from './ProductGrid'
 export { ProductCarouselSectionView as ProductCarousel } from './ProductCarousel'
 export { CollectionGridSectionView as CollectionGrid } from './CollectionGrid'
 export { ProductDetailLayoutSectionView as ProductDetailLayout } from './ProductDetailLayout'
+export { ProductKitsSectionView as ProductKits } from './ProductKits'
 export { FeaturedProduct } from './standard'
 
 // ── Conteúdo ──

@@ -18,7 +18,7 @@ import { sectionContainerStyle, backgroundOverlay, mobileOverrideCss } from './h
 import {
   SiteHeader, SiteFooter, AnnouncementBar, Breadcrumb,
   Hero, Slider, ImageBanner, ImageHotspot, ImageWithText, Marquee,
-  ProductGrid, ProductCarousel, FeaturedProduct, CollectionGrid, ProductDetailLayout,
+  ProductGrid, ProductCarousel, FeaturedProduct, CollectionGrid, ProductDetailLayout, ProductKits,
   RichText, Testimonials, LogoList, Faq, Newsletter, VideoBlock, CustomHtml,
   CartLayout, CheckoutLayout, WhatsappCatalog, LeadForm, RoomVisualizer,
 } from './sections'
@@ -53,6 +53,7 @@ export function SectionRenderer({ ctx, section }: { ctx: RenderCtx; section: Sec
     case 'featuredProduct':    inner = <FeaturedProduct ctx={ctx} section={section} />; break
     case 'collectionGrid':     inner = <CollectionGrid ctx={ctx} section={section} />; break
     case 'productDetailLayout':inner = <ProductDetailLayout ctx={ctx} section={section} />; break
+    case 'productKits':        inner = <ProductKits ctx={ctx} section={section} />; break
     case 'richText':           inner = <RichText ctx={ctx} section={section} />; break
     case 'testimonials':       inner = <Testimonials ctx={ctx} section={section} />; break
     case 'logoList':           inner = <LogoList ctx={ctx} section={section} />; break

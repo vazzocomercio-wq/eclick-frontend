@@ -35,14 +35,14 @@ import { BlockListEditor } from './BlockListEditor'
 import { CollectionsEditor } from './CollectionsEditor'
 import { LeadFormEditor } from './LeadFormEditor'
 import { RoomVisualizerEditor } from './RoomVisualizerEditor'
-import type { SectionTypography, FontPair, LeadFormSection, RoomVisualizerSection } from '@/lib/storefront/v3/types'
+import type { SectionTypography, FontPair, LeadFormSection, RoomVisualizerSection, ProductKitsSection } from '@/lib/storefront/v3/types'
 import { FONT_PAIRS_V3, FONT_PAIRS_V3_DEFINITIONS } from '@/lib/storefront/v3/font-pairs'
 
 const SECTION_LABELS: Record<SectionType, string> = {
   siteHeader: 'Cabeçalho', siteFooter: 'Rodapé', announcementBar: 'Faixa de anúncio', breadcrumb: 'Trilha',
   hero: 'Hero', slider: 'Carrossel', imageBanner: 'Banner', imageHotspot: 'Hotspots', imageWithText: 'Imagem + texto', marquee: 'Texto rolante',
   productGrid: 'Grade de produtos', productCarousel: 'Carrossel de produtos', featuredProduct: 'Produto em destaque',
-  collectionGrid: 'Grade de coleções', productDetailLayout: 'Layout do produto',
+  collectionGrid: 'Grade de coleções', productDetailLayout: 'Layout do produto', productKits: 'Monte o ambiente',
   richText: 'Texto rico', testimonials: 'Depoimentos', logoList: 'Logos', faq: 'FAQ', newsletter: 'Newsletter',
   videoBlock: 'Vídeo', customHtml: 'HTML custom',
   cartLayout: 'Carrinho', checkoutLayout: 'Checkout', whatsappCatalog: 'Catálogo WhatsApp',
@@ -749,6 +749,54 @@ function SettingsEditor({ section, onChange, setSettings }: {
         <RoomVisualizerEditor
           settings={s.settings}
           onChange={patch => setSettings(patch)} />
+      )
+    }
+    case 'productKits': {
+      const s = section as ProductKitsSection
+      const filter = s.settings.filter ?? 'all'
+      return (
+        <>
+          <Field label="Título"><Input value={s.settings.title ?? ''} onChange={v => setSettings({ title: v || undefined })} /></Field>
+          <Field label="Subtítulo"><Input value={s.settings.subtitle ?? ''} onChange={v => setSettings({ subtitle: v || undefined })} /></Field>
+          <Field label="Quais kits mostrar"
+            hint="Kits são gerados/curados em Loja → Kits & Combos. Só aparecem os ATIVOS e 100% disponíveis.">
+            <Select value={filter}
+              options={[
+                ['all','Todos os kits ativos'],
+                ['byType','Por tipo de kit'],
+                ['specific','Selecionar kits específicos'],
+                ['currentProduct','Kits do produto da página (Complete o ambiente)'],
+              ]}
+              onChange={v => setSettings({ filter: v as ProductKitsSection['settings']['filter'] })} />
+          </Field>
+          {filter === 'byType' && (
+            <Field label="Tipos de kit"
+              hint="Separe por vírgula. Ex: by_room, cross_sell, buy_together, combo, kit, upsell, by_occasion, clearance.">
+              <Input value={(s.settings.kitTypes ?? []).join(', ')}
+                onChange={v => setSettings({ kitTypes: v.split(',').map(t => t.trim()).filter(Boolean) })} />
+            </Field>
+          )}
+          {filter === 'specific' && (
+            <Field label="IDs dos kits"
+              hint="Cole os IDs (separados por vírgula) dos kits que quer fixar aqui.">
+              <Input value={(s.settings.kitIds ?? []).join(', ')}
+                onChange={v => setSettings({ kitIds: v.split(',').map(t => t.trim()).filter(Boolean) })} />
+            </Field>
+          )}
+          {filter !== 'currentProduct' && (
+            <Field label="Limite">
+              <NumberInput value={s.settings.limit ?? 6} onChange={v => setSettings({ limit: v })} min={1} max={24} />
+            </Field>
+          )}
+          <Field label="Colunas no desktop">
+            <Select value={String(s.settings.columns?.desktop ?? 3)}
+              options={[['2','2'],['3','3'],['4','4']]}
+              onChange={v => setSettings({ columns: { ...(s.settings.columns ?? { mobile: 1, tablet: 2, desktop: 3 }), desktop: Number(v) as 2 | 3 | 4 } })} />
+          </Field>
+          <Field label='Mostrar "por que combina" (IA)'>
+            <Toggle value={s.settings.showReasoning ?? true} onChange={v => setSettings({ showReasoning: v })} />
+          </Field>
+        </>
       )
     }
     case 'productDetailLayout': {

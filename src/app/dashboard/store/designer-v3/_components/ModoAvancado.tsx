@@ -53,6 +53,7 @@ const SECTION_LABELS: Partial<Record<SectionType, string>> = {
   featuredProduct:     'Produto em destaque',
   collectionGrid:      'Grade de coleções',
   productDetailLayout: 'Layout da página de produto',
+  productKits:         'Monte o ambiente (kits/combos IA)',
   richText:            'Texto rico',
   testimonials:        'Depoimentos',
   logoList:            'Lista de logos',
@@ -392,6 +393,15 @@ function createDefaultSection(type: SectionType): Section {
       return { ...base, type, settings: {
         title: 'Veja no seu ambiente',
         description: 'Tire uma foto do seu espaço e veja, com IA, como os nossos produtos ficam aí.',
+      } }
+    case 'productKits':
+      return { ...base, type, settings: {
+        title: 'Monte o ambiente',
+        subtitle: 'Combos que combinam — leve junto e economize.',
+        filter: 'all',
+        columns: { mobile: 1, tablet: 2, desktop: 3 },
+        limit: 6,
+        showReasoning: true,
       } }
     // Defensive fallback — não deve ser alcançado (HOME_FORBIDDEN filtra esses)
     case 'siteHeader':

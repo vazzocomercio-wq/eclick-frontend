@@ -282,7 +282,7 @@ export type SectionType =
   // Hero/Banners
   | 'hero' | 'slider' | 'imageBanner' | 'imageHotspot' | 'imageWithText' | 'marquee'
   // Produto/Coleção
-  | 'productGrid' | 'productCarousel' | 'featuredProduct' | 'collectionGrid' | 'productDetailLayout'
+  | 'productGrid' | 'productCarousel' | 'featuredProduct' | 'collectionGrid' | 'productDetailLayout' | 'productKits'
   // Conteúdo
   | 'richText' | 'testimonials' | 'logoList' | 'faq' | 'newsletter' | 'videoBlock' | 'customHtml'
   // Comércio
@@ -593,10 +593,25 @@ export type RoomVisualizerSection = SectionBase<'roomVisualizer', {
   description?: string
 }>
 
+/** Vitrine de kits/combos ("Monte o ambiente"). Mostra kits ATIVOS da loja:
+ *  todos, por tipo, uma seleção específica, ou — em página de produto — só os
+ *  que contêm o produto atual ("Complete o ambiente"). Reusa o módulo `kits`. */
+export type ProductKitsSection = SectionBase<'productKits', {
+  title?:        string
+  subtitle?:     string
+  filter:        'all' | 'byType' | 'specific' | 'currentProduct'
+  kitTypes?:     string[]   // quando filter='byType' (ex: ['by_room','cross_sell'])
+  kitIds?:       string[]   // quando filter='specific'
+  columns:       { mobile: 1 | 2; tablet: 2 | 3; desktop: 2 | 3 | 4 }
+  limit:         number
+  showReasoning: boolean    // mostra o "por que combina" gerado pela IA
+}>
+
 export type Section =
   | SiteHeaderSection | SiteFooterSection | AnnouncementBarSection | BreadcrumbSection
   | HeroSection | SliderSection | ImageBannerSection | ImageHotspotSection | ImageWithTextSection | MarqueeSection
   | ProductGridSection | ProductCarouselSection | FeaturedProductSection | CollectionGridSection | ProductDetailLayoutSection
+  | ProductKitsSection
   | RichTextSection | TestimonialsSection | LogoListSection | FaqSection | NewsletterSection | VideoBlockSection | CustomHtmlSection
   | CartLayoutSection | CheckoutLayoutSection | WhatsappCatalogSection | LeadFormSection
   | RoomVisualizerSection
@@ -655,7 +670,7 @@ export const SECTION_TYPES_V3:      readonly SectionType[] = [
   'siteHeader','siteFooter','announcementBar','breadcrumb',
   'hero','slider','imageBanner','imageHotspot','imageWithText','marquee',
   'leadForm',
-  'productGrid','productCarousel','featuredProduct','collectionGrid','productDetailLayout',
+  'productGrid','productCarousel','featuredProduct','collectionGrid','productDetailLayout','productKits',
   'richText','testimonials','logoList','faq','newsletter','videoBlock','customHtml',
   'cartLayout','checkoutLayout','whatsappCatalog',
   'roomVisualizer',
