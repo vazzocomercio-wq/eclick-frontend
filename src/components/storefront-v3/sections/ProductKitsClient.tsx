@@ -109,7 +109,7 @@ export function ProductKitsClient({ slug, settings }: { slug: string; settings: 
     const factor = kit.itemsTotal > 0 ? kit.kitPrice / kit.itemsTotal : 1
     for (const it of kit.items) {
       const price = Math.round(it.unitPrice * factor * 100) / 100
-      cart.add({ productId: it.productId, name: it.name, price, imageUrl: it.imageUrl ?? undefined }, it.qty)
+      cart.add({ productId: it.productId, name: it.name, price, imageUrl: it.imageUrl ?? undefined, kitId: kit.id }, it.qty)
     }
     setAdded(kit.id)
     window.setTimeout(() => setAdded(a => (a === kit.id ? null : a)), 2500)

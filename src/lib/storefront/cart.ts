@@ -18,6 +18,7 @@ export interface CartItem {
   price:     number   // preco unitario
   qty:       number
   imageUrl?: string
+  kitId?:    string    // se a linha veio de um kit ("Monte o ambiente")
 }
 
 const KEY = (slug: string) => `eclick-cart:${slug}`
@@ -97,7 +98,9 @@ export function useCart(slug: string): UseCartApi {
     const current = read(slug)
     const idx = current.findIndex(i => i.productId === item.productId)
     if (idx >= 0) {
-      const next = current.map((i, k) => k === idx ? { ...i, qty: i.qty + qty } : i)
+      // Preserva o kitId existente; se a linha ainda não tinha e a nova veio
+      // de kit, herda (ajuda o desconto de kit a validar no checkout).
+      const next = current.map((i, k) => k === idx ? { ...i, qty: i.qty + qty, kitId: i.kitId ?? item.kitId } : i)
       persist(next)
     } else {
       persist([...current, { ...item, qty }])
