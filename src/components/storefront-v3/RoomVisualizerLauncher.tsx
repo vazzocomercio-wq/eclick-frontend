@@ -103,9 +103,51 @@ function RoomVisualizerModal({ slug, productId, productName, productCategory, on
   const [results, setResults] = useState<string[]>([])
   const fileRef = useRef<HTMLInputElement>(null)
 
+  // provador de cor/acabamento (variantes)
+  const [variants, setVariants] = useState<Array<{ productId: string; name: string; label: string | null; imageUrl: string | null }>>([])
+  const [recoloring, setRecoloring] = useState<string | null>(null)
+
   const token = useCallback(() => {
     try { return localStorage.getItem(tokenKey(slug)) } catch { return null }
   }, [slug])
+
+  // Carrega as variantes de cor/acabamento ao chegar no resultado.
+  useEffect(() => {
+    if (step !== 'result') return
+    let cancel = false
+    void (async () => {
+      try {
+        const res = await fetch(`${BACKEND}/public/store/by-slug/${encodeURIComponent(slug)}/products/${encodeURIComponent(productId)}/variants`)
+        if (!res.ok) return
+        const d = await res.json() as Array<{ productId: string; name: string; label: string | null; imageUrl: string | null }>
+        if (!cancel) setVariants(Array.isArray(d) ? d : [])
+      } catch { /* silent */ }
+    })()
+    return () => { cancel = true }
+  }, [step, slug, productId])
+
+  // Provador: recolore a cena atual pra uma variante (gasta 1 crédito).
+  const doRecolor = async (variantProductId: string) => {
+    const t = token()
+    if (!t) { setStep('register'); return }
+    setError(null); setRecoloring(variantProductId)
+    try {
+      const res = await fetch(`${BACKEND}/public/store/by-slug/${encodeURIComponent(slug)}/visualizer/recolor`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Visualizer-Token': t },
+        body: JSON.stringify({ baseProductId: productId, variantProductId }),
+      })
+      const d = await res.json().catch(() => null)
+      if (!res.ok) throw new Error(d?.message ?? 'Não consegui trocar a cor agora.')
+      const imgs = (d.images ?? []) as string[]
+      setResults(prev => [...imgs, ...prev])   // variante recolorida aparece no topo
+      setCustomer(c => c ? { ...c, generationsLeft: d.generationsLeft, generationsUsed: c.generationsUsed + 1 } : c)
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setRecoloring(null)
+    }
+  }
 
   // Se já tem token válido, pula direto pra captura
   useEffect(() => {
@@ -418,6 +460,45 @@ function RoomVisualizerModal({ slug, productId, productName, productCategory, on
                   </div>
                 ))}
               </div>
+
+              {/* Provador: ver o produto em outra cor/acabamento (variantes da loja). */}
+              {variants.length > 0 && (
+                <div style={{ borderTop: '1px solid var(--c-border, #27272a)', marginTop: 6, paddingTop: 12, marginBottom: 6 }}>
+                  <p style={{ fontWeight: 600, fontSize: 14, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Sparkles size={15} style={{ color: 'var(--c-primary)' }} /> Ver em outra cor
+                  </p>
+                  {typeof left === 'number' && left <= 0 ? (
+                    <p style={{ fontSize: 12.5, color: 'var(--c-text-muted)' }}>Você usou suas gerações. Faça uma compra pra ver outras cores.</p>
+                  ) : (
+                    <>
+                      <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 4 }}>
+                        {variants.map(v => (
+                          <button key={v.productId} onClick={() => doRecolor(v.productId)} disabled={recoloring !== null}
+                            title={v.name}
+                            style={{ flex: '0 0 auto', width: 72, background: 'transparent', border: 0, padding: 0, cursor: recoloring ? 'wait' : 'pointer' }}>
+                            <div style={{ width: 72, height: 72, borderRadius: 10, overflow: 'hidden', border: '1px solid var(--c-border, #3f3f46)', position: 'relative', background: 'var(--c-surface, #18181b)' }}>
+                              {v.imageUrl
+                                // eslint-disable-next-line @next/next/no-img-element
+                                ? <img src={v.imageUrl} alt={v.label ?? v.name} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                                : null}
+                              {recoloring === v.productId && (
+                                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.5)' }}>
+                                  <Loader2 size={20} className="animate-spin" style={{ color: '#fff' }} />
+                                </div>
+                              )}
+                            </div>
+                            <span style={{ display: 'block', fontSize: 11, color: 'var(--c-text-muted)', marginTop: 4, textAlign: 'center', maxWidth: 72, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {v.label || v.name}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                      <p style={{ fontSize: 11, color: 'var(--c-text-muted)', marginTop: 6 }}>Cada troca de cor usa 1 geração.</p>
+                    </>
+                  )}
+                </div>
+              )}
+
               {/* Cross-sell: kits que contêm o produto ambientado. Some sozinho se não houver. */}
               <div style={{ borderTop: '1px solid var(--c-border, #27272a)', marginTop: 6, paddingTop: 12 }}>
                 <ProductKitsClient
