@@ -23,6 +23,7 @@ import Tab5Sales from '../../novo/_components/Tab5Sales'
 import Tab6Shipping from '../../novo/_components/Tab6Shipping'
 import Tab7Fiscal from '../../novo/_components/Tab7Fiscal'
 import Tab8Others from '../../novo/_components/Tab8Others'
+import VariantLinkerPanel from '../../_components/VariantLinkerPanel'
 
 // ── tab config ────────────────────────────────────────────────────────────────
 
@@ -809,6 +810,8 @@ function TabVinculos({ productId, productName }: { productId: string; productNam
           ))}
         </div>
       </div>
+
+      <VariantLinkerPanel productId={productId} />
     </div>
   )
 }
