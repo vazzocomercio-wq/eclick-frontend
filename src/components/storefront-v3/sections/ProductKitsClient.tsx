@@ -59,7 +59,7 @@ export interface ProductKitsSettings {
   showReasoning: boolean
 }
 
-export function ProductKitsClient({ slug, settings }: { slug: string; settings: ProductKitsSettings }) {
+export function ProductKitsClient({ slug, settings, productId }: { slug: string; settings: ProductKitsSettings; productId?: string }) {
   const [kits, setKits]       = useState<PublicKit[]>([])
   const [loading, setLoading] = useState(true)
   const [added, setAdded]     = useState<string | null>(null)
@@ -73,7 +73,7 @@ export function ProductKitsClient({ slug, settings }: { slug: string; settings: 
         const base = `${BACKEND}/public/store/by-slug/${encodeURIComponent(slug)}/kits`
         let url: string
         if (settings.filter === 'currentProduct') {
-          const pid = pathname?.match(/\/produto\/([^/?#]+)/)?.[1]
+          const pid = productId || pathname?.match(/\/produto\/([^/?#]+)/)?.[1]
           if (!pid) { if (!cancel) { setKits([]); setLoading(false) } return }
           url = `${base}/by-product/${encodeURIComponent(pid)}`
         } else {
@@ -99,7 +99,7 @@ export function ProductKitsClient({ slug, settings }: { slug: string; settings: 
       }
     })()
     return () => { cancel = true }
-  }, [slug, pathname, settings.filter, settings.kitTypes, settings.kitIds, settings.limit])
+  }, [slug, pathname, productId, settings.filter, settings.kitTypes, settings.kitIds, settings.limit])
 
   if (loading || kits.length === 0) return null
 

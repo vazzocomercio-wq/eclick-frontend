@@ -21,6 +21,7 @@ import {
   Sparkles, Camera, Loader2, X, CheckCircle2, ArrowLeft, RefreshCcw,
   ShieldCheck, Lightbulb,
 } from 'lucide-react'
+import { ProductKitsClient } from './sections/ProductKitsClient'
 
 const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'https://eclick-backend-production-2a87.up.railway.app'
 
@@ -417,6 +418,15 @@ function RoomVisualizerModal({ slug, productId, productName, productCategory, on
                   </div>
                 ))}
               </div>
+              {/* Cross-sell: kits que contêm o produto ambientado. Some sozinho se não houver. */}
+              <div style={{ borderTop: '1px solid var(--c-border, #27272a)', marginTop: 6, paddingTop: 12 }}>
+                <ProductKitsClient
+                  slug={slug}
+                  productId={productId}
+                  settings={{ filter: 'currentProduct', columns: { mobile: 1, tablet: 2, desktop: 2 }, limit: 3, showReasoning: false, title: 'Complete o ambiente' }}
+                />
+              </div>
+
               {typeof left === 'number' && left > 0 ? (
                 <button onClick={resetForAnother} style={primaryBtn()}>
                   <Sparkles size={16} /> Gerar outra ({left} {left === 1 ? 'restante' : 'restantes'})
