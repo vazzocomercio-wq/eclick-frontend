@@ -46,6 +46,19 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
 // ── Tipos ────────────────────────────────────────────────────────────────
 export interface Warehouse { id: string; name: string; code: string; is_active: boolean }
 
+export interface FulfillmentSettings {
+  organization_id?: string
+  ai_damage_triage_enabled: boolean
+  ai_pack_verification_enabled: boolean
+  ai_smart_queue_enabled: boolean
+  photo_required_always: boolean
+  photo_required_above_cents: number
+  photo_required_vip_channels: string[]
+  auto_ingest_enabled: boolean
+  auto_ingest_sources: string[]
+  default_warehouse_id: string | null
+}
+
 export interface PickTask {
   id: string
   fulfillment_order_id: string
@@ -83,6 +96,10 @@ export interface DashboardData {
 export const fulfillmentApi = {
   warehouses: () => api<Warehouse[]>('/fulfillment/warehouses'),
   dashboard: (wid?: string) => api<DashboardData>(`/fulfillment/dashboard${wid ? `?warehouse_id=${wid}` : ''}`),
+
+  getSettings: () => api<FulfillmentSettings>('/fulfillment/settings'),
+  updateSettings: (patch: Partial<FulfillmentSettings>) =>
+    api<FulfillmentSettings>('/fulfillment/settings', { method: 'PUT', body: JSON.stringify(patch) }),
 
   pickQueue: (wid?: string) => api<PickTask[]>(`/fulfillment/pick-tasks/queue${wid ? `?warehouse_id=${wid}` : ''}`),
   scanItem: (id: string, code: string) =>
