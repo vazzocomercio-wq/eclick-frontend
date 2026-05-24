@@ -114,6 +114,29 @@ export interface FulfillmentReturn {
   created_at: string
 }
 
+// ── Painel tempo real (Onda B — KDS "McDonald's") ──────────────────────────
+export type BoardUrgency = 'ok' | 'soon' | 'late' | 'none'
+export interface BoardCard {
+  id: string
+  reference: string
+  channel: string | null
+  platform: string | null
+  accountLabel: string | null
+  companyName: string | null
+  itemsCount: number
+  deadline: string | null
+  urgency: BoardUrgency
+  logisticType: string | null
+  customerName: string | null
+  status: string
+}
+export interface BoardData {
+  lanes: { received: BoardCard[]; picking: BoardCard[]; packing: BoardCard[]; awaiting_pickup: BoardCard[] }
+  blocked: BoardCard[]
+  counts: { received: number; picking: number; packing: number; awaiting_pickup: number; blocked: number; late: number; dueSoon: number }
+  generatedAt: string
+}
+
 // ── Empresas & Contas (Onda A — multi-CNPJ / multiconta) ────────────────────
 export type CompanyRole = 'matriz' | 'revendedora' | 'unica'
 export interface FulfillmentCompany {
@@ -171,6 +194,7 @@ export interface WaveSuggestResponse {
 export const fulfillmentApi = {
   warehouses: () => api<Warehouse[]>('/fulfillment/warehouses'),
   dashboard: (wid?: string) => api<DashboardData>(`/fulfillment/dashboard${wid ? `?warehouse_id=${wid}` : ''}`),
+  board: (wid?: string) => api<BoardData>(`/fulfillment/board${wid ? `?warehouse_id=${wid}` : ''}`),
 
   getSettings: () => api<FulfillmentSettings>('/fulfillment/settings'),
   updateSettings: (patch: Partial<FulfillmentSettings>) =>
