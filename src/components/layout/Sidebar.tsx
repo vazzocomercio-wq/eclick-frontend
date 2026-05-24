@@ -365,6 +365,7 @@ const ADMIN_SECTION: NavSection = {
   labelKey: 'sections.admin',
   items: [
     { labelKey: 'items.adminClientes', href: '/dashboard/admin', icon: <Building2 size={15} /> },
+    { labelKey: 'items.adminInsights', href: '/dashboard/insights', icon: <LineChart size={15} /> },
   ],
 }
 

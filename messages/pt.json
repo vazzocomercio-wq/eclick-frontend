@@ -311,7 +311,8 @@
       "configWhatsappRotas": "Rotas WhatsApp",
       "configIa": "IA",
       "configAgregador": "Agregador",
-      "adminClientes": "Clientes"
+      "adminClientes": "Clientes",
+      "adminInsights": "Insights"
     },
     "misc": {
       "comingSoon": "Em breve",
@@ -322,6 +323,68 @@
     "bell": {
       "notifications": "Notificações",
       "criticalAlerts": "{n, plural, =1 {# alerta crítico} other {# alertas críticos}}"
+    }
+  },
+  "insights": {
+    "title": "e-Click Insights",
+    "subtitle": "O que está sendo usado de verdade — visão de founder, todas as organizações.",
+    "period7": "7 dias",
+    "period30": "30 dias",
+    "refresh": "Atualizar",
+    "refreshing": "Atualizando…",
+    "loadError": "Erro ao carregar os insights.",
+    "kpi": {
+      "activeUsers": "Usuários ativos",
+      "sessions": "Sessões",
+      "avgSession": "Tempo médio/sessão",
+      "events": "Eventos capturados",
+      "minutes": "min",
+      "vsPrev": "vs período anterior"
+    },
+    "modulesCard": {
+      "title": "Módulos mais usados",
+      "usersEvents": "{users} usuários · {events} eventos",
+      "empty": "Sem dados de uso no período."
+    },
+    "matrix": {
+      "title": "Matriz usuário × módulo",
+      "user": "Usuário",
+      "empty": "Sem dados no período."
+    },
+    "engagement": {
+      "title": "Engajamento & risco de churn",
+      "power_user": "Power users",
+      "engaged": "Engajados",
+      "casual": "Casuais",
+      "at_risk": "Em risco",
+      "inactive": "Inativos",
+      "score": "Score",
+      "seen": "Visto",
+      "daysAgo": "{n, plural, =0 {hoje} =1 {há 1 dia} other {há # dias}}",
+      "never": "nunca visto",
+      "up": "subindo",
+      "down": "caindo",
+      "stable": "estável",
+      "empty": "Engajamento ainda não calculado (o worker roda de hora em hora)."
+    },
+    "funnels": {
+      "title": "Funis de tarefa",
+      "started": "Iniciou",
+      "completed": "Concluiu",
+      "abandoned": "Abandonou",
+      "completionRate": "Taxa de conclusão",
+      "abandonStep": "Abandona mais em",
+      "empty": "Nenhuma tarefa rastreada no período."
+    },
+    "ai": {
+      "title": "Insights da IA",
+      "empty": "Nenhum insight gerado ainda. Roda todo dia às 6h — ou gere agora.",
+      "generate": "Gerar agora",
+      "generating": "Gerando…",
+      "high": "Alta",
+      "medium": "Média",
+      "low": "Baixa",
+      "recommendation": "Recomendação"
     }
   },
   "admin": {
