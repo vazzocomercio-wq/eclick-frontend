@@ -1,0 +1,16 @@
+{
+  "name": "e-Click Separação",
+  "short_name": "e-Click CD",
+  "description": "Separação e conferência de pedidos no centro de distribuição",
+  "id": "/fulfillment",
+  "start_url": "/fulfillment",
+  "scope": "/fulfillment",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#09090b",
+  "theme_color": "#09090b",
+  "icons": [
+    { "src": "/fulfillment-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" },
+    { "src": "/logo.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

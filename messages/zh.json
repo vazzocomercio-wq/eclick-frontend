@@ -137,6 +137,7 @@
       "crm": "客户管理",
       "producao": "内容制作",
       "loja": "店铺",
+      "fulfillment": "拣货 / 配送中心",
       "atendenteIa": "AI 客服",
       "ads": "广告",
       "projeto": "项目",
@@ -145,6 +146,7 @@
       "admin": "E-CLICK 管理"
     },
     "items": {
+      "fulfillmentCd": "拣货 / 配送中心",
       "dashboard": "仪表盘",
       "executiveDashboard": "高管仪表盘",
       "executiveOverview": "概览",
