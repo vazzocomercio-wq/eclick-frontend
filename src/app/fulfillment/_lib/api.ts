@@ -117,6 +117,7 @@ export const fulfillmentApi = {
   removeOperator: (id: string) => api<{ ok: boolean }>(`/fulfillment/operators/${id}`, { method: 'DELETE' }),
   productivity: (days?: number, wid?: string) =>
     api<Productivity>(`/fulfillment/productivity?days=${days ?? 7}${wid ? `&warehouse_id=${wid}` : ''}`),
+  reconcile: () => api<{ storefront: number; marketplace: number; skipped?: boolean }>('/fulfillment/reconcile', { method: 'POST' }),
 
   pickQueue: (wid?: string) => api<PickTask[]>(`/fulfillment/pick-tasks/queue${wid ? `?warehouse_id=${wid}` : ''}`),
   scanItem: (id: string, code: string) =>
