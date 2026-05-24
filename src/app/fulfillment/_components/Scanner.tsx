@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
-import { ScanLine } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { ScanLine, Camera } from 'lucide-react'
+import { CameraScanner } from './CameraScanner'
 
 /**
  * Campo de bipagem. O leitor Bluetooth se comporta como teclado: digita o
@@ -22,6 +23,7 @@ export function Scanner({
   hint?: string
 }) {
   const ref = useRef<HTMLInputElement>(null)
+  const [cam, setCam] = useState(false)
 
   useEffect(() => {
     if (disabled) return
@@ -69,7 +71,25 @@ export function Scanner({
           style={{ color: '#fafafa' }}
         />
       </div>
+
+      <button
+        type="button"
+        onClick={() => setCam(true)}
+        disabled={disabled}
+        className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold disabled:opacity-50"
+        style={{ background: '#18181b', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.25)' }}
+      >
+        <Camera size={16} /> Ler com a câmera
+      </button>
+
       {hint && <p className="mt-2 text-center text-sm" style={{ color: '#71717a' }}>{hint}</p>}
+
+      {cam && (
+        <CameraScanner
+          onDetect={(code) => { setCam(false); onScan(code) }}
+          onClose={() => setCam(false)}
+        />
+      )}
     </div>
   )
 }
