@@ -114,6 +114,25 @@ export interface FulfillmentReturn {
   created_at: string
 }
 
+// ── Empresas & Contas (Onda A — multi-CNPJ / multiconta) ────────────────────
+export type CompanyRole = 'matriz' | 'revendedora' | 'unica'
+export interface FulfillmentCompany {
+  id: string
+  name: string
+  cnpj: string | null
+  role: CompanyRole
+  is_default: boolean
+  is_active: boolean
+}
+export interface FulfillmentAccount {
+  id: string
+  company_id: string | null
+  platform: string
+  external_account_id: string
+  label: string | null
+  is_active: boolean
+}
+
 // ── Wave IA (separação em ondas) ───────────────────────────────────────────
 export type WaveStatus = 'open' | 'released' | 'collecting' | 'sorting' | 'done' | 'cancelled'
 export interface WaveSummary {
@@ -167,6 +186,16 @@ export const fulfillmentApi = {
   productivity: (days?: number, wid?: string) =>
     api<Productivity>(`/fulfillment/productivity?days=${days ?? 7}${wid ? `&warehouse_id=${wid}` : ''}`),
   reconcile: () => api<{ storefront: number; marketplace: number; skipped?: boolean }>('/fulfillment/reconcile', { method: 'POST' }),
+
+  // Onda A — empresas & contas
+  companies: () => api<FulfillmentCompany[]>('/fulfillment/companies'),
+  createCompany: (body: { name: string; cnpj?: string | null; role?: CompanyRole }) =>
+    api<{ ok: boolean; id: string }>('/fulfillment/companies', { method: 'POST', body: JSON.stringify(body) }),
+  updateCompany: (id: string, patch: { name?: string; cnpj?: string | null; role?: CompanyRole; is_active?: boolean }) =>
+    api<{ ok: boolean }>(`/fulfillment/companies/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+  accounts: () => api<FulfillmentAccount[]>('/fulfillment/accounts'),
+  updateAccount: (id: string, patch: { company_id?: string | null; label?: string; is_active?: boolean }) =>
+    api<{ ok: boolean }>(`/fulfillment/accounts/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
 
   returns: (wid?: string) => api<FulfillmentReturn[]>(`/fulfillment/returns${wid ? `?warehouse_id=${wid}` : ''}`),
   registerReturn: (body: { warehouseId?: string; fulfillmentOrderId?: string; reference?: string; customer?: Record<string, unknown>; reason?: string; items?: Array<{ sku: string; productId?: string; qty: number; title?: string }> }) =>
