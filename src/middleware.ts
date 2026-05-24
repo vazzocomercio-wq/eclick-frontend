@@ -130,7 +130,8 @@ export async function middleware(request: NextRequest) {
   }
 
   // Gating de módulos — bloqueia rota de módulo que a org não tem liberado.
-  if (user && pathname.startsWith('/dashboard/')) {
+  // Cobre o dashboard e o app de fulfillment (rota standalone /fulfillment).
+  if (user && (pathname.startsWith('/dashboard/') || pathname === '/fulfillment' || pathname.startsWith('/fulfillment/'))) {
     const mod = moduleForPath(pathname)
     if (mod && !CORE_MODULES.includes(mod)) {
       const { data: m } = await supabase
