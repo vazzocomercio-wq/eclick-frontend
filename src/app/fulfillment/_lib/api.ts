@@ -114,6 +114,40 @@ export interface FulfillmentReturn {
   created_at: string
 }
 
+// ── Wave IA (separação em ondas) ───────────────────────────────────────────
+export type WaveStatus = 'open' | 'released' | 'collecting' | 'sorting' | 'done' | 'cancelled'
+export interface WaveSummary {
+  id: string
+  name: string | null
+  status: WaveStatus
+  warehouse_id: string | null
+  collected: Record<string, number>
+  created_at: string
+  released_at: string | null
+  closed_at: string | null
+  orders_count: number
+}
+export interface WaveConsolidatedItem {
+  sku: string
+  title: string | null
+  expected_barcode: string | null
+  totalQty: number
+  collectedQty: number
+  perOrder: Array<{ foId: string; ref: string | null; qty: number }>
+}
+export interface WaveOrderLink { fulfillmentOrderId: string; sorted: boolean; reference: string | null; channel: string | null }
+export interface WaveDetail extends WaveSummary {
+  orders: WaveOrderLink[]
+  consolidated: WaveConsolidatedItem[]
+}
+export interface WaveSuggestion { foId: string; reference: string | null; channel: string | null; score: number; reason: string }
+export interface WaveSuggestResponse {
+  majorityChannel: string | null
+  suggestions: WaveSuggestion[]
+  warnings: Array<{ foId: string; reference: string | null; reason: string }>
+  rationale: string | null
+}
+
 // ── Chamadas ─────────────────────────────────────────────────────────────
 export const fulfillmentApi = {
   warehouses: () => api<Warehouse[]>('/fulfillment/warehouses'),
@@ -162,4 +196,19 @@ export const fulfillmentApi = {
 
   reportDamage: (body: { warehouseId?: string; pickTaskId?: string; fulfillmentOrderId?: string; sku: string; severity: string; description?: string; photosBase64?: string[] }) =>
     api<{ ok: boolean; id?: string; aiSuggested?: unknown }>('/fulfillment/damage-reports', { method: 'POST', body: JSON.stringify(body) }),
+
+  // Wave IA
+  waves: (wid?: string) => api<WaveSummary[]>(`/fulfillment/waves${wid ? `?warehouse_id=${wid}` : ''}`),
+  wave: (id: string) => api<WaveDetail>(`/fulfillment/waves/${id}`),
+  createWave: (body: { warehouseId?: string; name?: string; fulfillmentOrderIds: string[] }) =>
+    api<{ ok: boolean; id: string; orders: number }>('/fulfillment/waves', { method: 'POST', body: JSON.stringify(body) }),
+  suggestWave: (body: { warehouseId?: string; selectedIds: string[] }) =>
+    api<WaveSuggestResponse>('/fulfillment/waves/suggest', { method: 'POST', body: JSON.stringify(body) }),
+  releaseWave: (id: string) => api<WaveDetail>(`/fulfillment/waves/${id}/release`, { method: 'POST' }),
+  scanWaveItem: (id: string, code: string) =>
+    api<{ ok: boolean; sku: string; collected: number; total: number; allCollected: boolean }>(
+      `/fulfillment/waves/${id}/scan-item`, { method: 'POST', body: JSON.stringify({ code }) }),
+  completeWaveOrder: (id: string, foId: string) =>
+    api<{ ok: boolean; allSorted?: boolean; alreadySorted?: boolean }>(`/fulfillment/waves/${id}/orders/${foId}/complete`, { method: 'POST' }),
+  cancelWave: (id: string) => api<{ ok: boolean }>(`/fulfillment/waves/${id}/cancel`, { method: 'POST' }),
 }
