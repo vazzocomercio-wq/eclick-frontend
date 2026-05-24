@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
-import { PackageSearch, PackageCheck, AlertTriangle, ScanLine, RefreshCw, Warehouse as WarehouseIcon, Settings, Users, Clock } from 'lucide-react'
+import { PackageSearch, PackageCheck, AlertTriangle, ScanLine, RefreshCw, Warehouse as WarehouseIcon, Settings, Users, Clock, RotateCcw } from 'lucide-react'
 import { fulfillmentApi, type Warehouse, type DashboardData } from './_lib/api'
 import { SettingsSheet } from './_components/SettingsSheet'
 import { TeamSheet } from './_components/TeamSheet'
@@ -149,6 +149,16 @@ export default function FulfillmentHub() {
             <div className="text-sm" style={{ color: '#a1a1aa' }}>Bipe o pedido, confira e feche</div>
           </div>
           {data && data.packQueue > 0 && <Badge n={data.packQueue} color="#4ADE50" />}
+        </Link>
+
+        <Link href="/fulfillment/returns" className="flex items-center gap-3 rounded-2xl p-4 active:scale-[0.99] transition-transform" style={{ background: '#0c0c10', border: '1px solid rgba(255,255,255,0.08)' }}>
+          <div className="grid h-10 w-10 place-items-center rounded-lg" style={{ background: '#a78bfa1a' }}>
+            <RotateCcw size={18} color="#a78bfa" />
+          </div>
+          <div className="flex-1">
+            <div className="font-semibold">Devoluções</div>
+            <div className="text-xs" style={{ color: '#71717a' }}>Registrar retorno + reestoque</div>
+          </div>
         </Link>
       </div>
 
