@@ -137,6 +137,7 @@
       "crm": "CRM",
       "producao": "PRODUCTION",
       "loja": "STORE",
+      "fulfillment": "FULFILLMENT / WAREHOUSE",
       "atendenteIa": "AI AGENT",
       "ads": "ADS",
       "projeto": "PROJECT",
@@ -145,6 +146,7 @@
       "admin": "E-CLICK MANAGEMENT"
     },
     "items": {
+      "fulfillmentCd": "Fulfillment / Warehouse",
       "dashboard": "Dashboard",
       "executiveDashboard": "Executive Dashboard",
       "executiveOverview": "Overview",

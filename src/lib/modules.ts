@@ -19,6 +19,7 @@ export const MODULE_CATALOG: ModuleDef[] = [
   { key: 'crm',           label: 'CRM' },
   { key: 'producao',      label: 'Produção' },
   { key: 'loja',          label: 'Loja' },
+  { key: 'fulfillment',   label: 'Separação / CD' },
   { key: 'atendente-ia',  label: 'Atendente IA' },
   { key: 'ads',           label: 'Ads' },
   { key: 'projeto',       label: 'Projeto' },
@@ -77,6 +78,7 @@ const ROUTE_MODULES: ReadonlyArray<readonly [string, string]> = [
   ['/dashboard/roadmap', 'projeto'],
   ['/dashboard/inteligencia', 'inteligencia'],
   ['/dashboard/admin', 'admin'],
+  ['/fulfillment', 'fulfillment'],
 ]
 
 /**

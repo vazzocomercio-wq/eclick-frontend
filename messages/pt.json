@@ -137,6 +137,7 @@
       "crm": "CRM",
       "producao": "PRODUÇÃO",
       "loja": "LOJA",
+      "fulfillment": "SEPARAÇÃO / CD",
       "atendenteIa": "ATENDENTE IA",
       "ads": "ADS",
       "projeto": "PROJETO",
@@ -145,6 +146,7 @@
       "admin": "GESTÃO E-CLICK"
     },
     "items": {
+      "fulfillmentCd": "Separação / Centro de Distribuição",
       "dashboard": "Dashboard",
       "executiveDashboard": "Executive Dashboard",
       "executiveOverview": "Visão geral",

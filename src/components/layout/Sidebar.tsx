@@ -303,6 +303,13 @@ const SECTIONS: NavSection[] = [
     ],
   },
   {
+    key: 'fulfillment',
+    labelKey: 'sections.fulfillment',
+    items: [
+      { labelKey: 'items.fulfillmentCd', href: '/fulfillment', icon: <Package size={15} /> },
+    ],
+  },
+  {
     key: 'atendente-ia',
     labelKey: 'sections.atendenteIa',
     items: [
