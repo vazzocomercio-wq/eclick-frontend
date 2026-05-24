@@ -2,8 +2,9 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
-import { PackageSearch, PackageCheck, AlertTriangle, ScanLine, RefreshCw, Warehouse as WarehouseIcon } from 'lucide-react'
+import { PackageSearch, PackageCheck, AlertTriangle, ScanLine, RefreshCw, Warehouse as WarehouseIcon, Settings } from 'lucide-react'
 import { fulfillmentApi, type Warehouse, type DashboardData } from './_lib/api'
+import { SettingsSheet } from './_components/SettingsSheet'
 
 const WID_KEY = 'eclick_fulfillment_wid'
 
@@ -13,6 +14,7 @@ export default function FulfillmentHub() {
   const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState<string | null>(null)
+  const [showSettings, setShowSettings] = useState(false)
 
   const load = useCallback(async (warehouseId: string | null) => {
     try {
@@ -55,10 +57,17 @@ export default function FulfillmentHub() {
           <h1 className="text-2xl font-bold tracking-tight">Separação</h1>
           <p className="text-sm" style={{ color: '#71717a' }}>Centro de distribuição</p>
         </div>
-        <button onClick={() => load(wid)} className="rounded-xl p-3" style={{ background: '#18181b' }} aria-label="Atualizar">
-          <RefreshCw size={18} color="#00E5FF" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setShowSettings(true)} className="rounded-xl p-3" style={{ background: '#18181b' }} aria-label="Configurações">
+            <Settings size={18} color="#a1a1aa" />
+          </button>
+          <button onClick={() => load(wid)} className="rounded-xl p-3" style={{ background: '#18181b' }} aria-label="Atualizar">
+            <RefreshCw size={18} color="#00E5FF" />
+          </button>
+        </div>
       </header>
+
+      {showSettings && <SettingsSheet warehouses={warehouses} onClose={() => { setShowSettings(false); load(wid) }} />}
 
       {warehouses.length > 1 && (
         <select
