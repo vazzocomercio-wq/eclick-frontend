@@ -2,9 +2,10 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
-import { PackageSearch, PackageCheck, AlertTriangle, ScanLine, RefreshCw, Warehouse as WarehouseIcon, Settings } from 'lucide-react'
+import { PackageSearch, PackageCheck, AlertTriangle, ScanLine, RefreshCw, Warehouse as WarehouseIcon, Settings, Users } from 'lucide-react'
 import { fulfillmentApi, type Warehouse, type DashboardData } from './_lib/api'
 import { SettingsSheet } from './_components/SettingsSheet'
+import { TeamSheet } from './_components/TeamSheet'
 
 const WID_KEY = 'eclick_fulfillment_wid'
 
@@ -15,6 +16,7 @@ export default function FulfillmentHub() {
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState<string | null>(null)
   const [showSettings, setShowSettings] = useState(false)
+  const [showTeam, setShowTeam] = useState(false)
 
   const load = useCallback(async (warehouseId: string | null) => {
     try {
@@ -58,6 +60,9 @@ export default function FulfillmentHub() {
           <p className="text-sm" style={{ color: '#71717a' }}>Centro de distribuição</p>
         </div>
         <div className="flex items-center gap-2">
+          <button onClick={() => setShowTeam(true)} className="rounded-xl p-3" style={{ background: '#18181b' }} aria-label="Equipe">
+            <Users size={18} color="#a1a1aa" />
+          </button>
           <button onClick={() => setShowSettings(true)} className="rounded-xl p-3" style={{ background: '#18181b' }} aria-label="Configurações">
             <Settings size={18} color="#a1a1aa" />
           </button>
@@ -68,6 +73,7 @@ export default function FulfillmentHub() {
       </header>
 
       {showSettings && <SettingsSheet warehouses={warehouses} onClose={() => { setShowSettings(false); load(wid) }} />}
+      {showTeam && <TeamSheet warehouseId={wid} onClose={() => setShowTeam(false)} />}
 
       {warehouses.length > 1 && (
         <select
