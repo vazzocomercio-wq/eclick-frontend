@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
-import { PackageSearch, PackageCheck, AlertTriangle, ScanLine, RefreshCw, Warehouse as WarehouseIcon, Settings, Users, Clock, RotateCcw, Layers, Building2 } from 'lucide-react'
+import { PackageSearch, PackageCheck, AlertTriangle, ScanLine, RefreshCw, Warehouse as WarehouseIcon, Settings, Users, Clock, RotateCcw, Layers, Building2, Tv } from 'lucide-react'
 import { fulfillmentApi, type Warehouse, type DashboardData } from './_lib/api'
 import { SettingsSheet } from './_components/SettingsSheet'
 import { TeamSheet } from './_components/TeamSheet'
@@ -71,6 +71,9 @@ export default function FulfillmentHub() {
           <button onClick={() => setShowSettings(true)} className="rounded-xl p-3" style={{ background: '#18181b' }} aria-label="Configurações">
             <Settings size={18} color="#a1a1aa" />
           </button>
+          <Link href="/fulfillment/painel" className="rounded-xl p-3" style={{ background: '#18181b' }} aria-label="Painel ao vivo">
+            <Tv size={18} color="#a78bfa" />
+          </Link>
           <button onClick={() => load(wid)} className="rounded-xl p-3" style={{ background: '#18181b' }} aria-label="Atualizar">
             <RefreshCw size={18} color="#00E5FF" />
           </button>
