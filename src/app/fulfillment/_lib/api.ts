@@ -207,7 +207,32 @@ export interface FulfillmentAccount {
   external_account_id: string
   label: string | null
   is_active: boolean
+  invoice_sale_pct: number | null      // % de faturamento por conta (null = usa o padrão da empresa)
+  invoice_purchase_pct: number | null
 }
+
+// Faturador F1 — config fiscal por empresa
+export type FiscalProvider = 'nfeio' | 'focusnfe' | 'plugnotas' | 'erp_externo'
+export type FiscalEnvironment = 'homologacao' | 'producao'
+export type RegimeTributario = 'simples' | 'presumido' | 'real'
+export interface CompanyFiscalConfig {
+  id: string
+  company_id: string
+  provider: FiscalProvider | null
+  environment: FiscalEnvironment
+  has_provider_token: boolean
+  provider_company_ref: string | null
+  inscricao_estadual: string | null
+  regime_tributario: RegimeTributario | null
+  cnae: string | null
+  fiscal_address: Record<string, unknown>
+  invoice_sale_pct: number
+  invoice_purchase_pct: number
+  certificate_status: 'pending' | 'uploaded' | 'expired'
+  certificate_expires_at: string | null
+  is_active: boolean
+}
+export interface FiscalReadiness { ready: boolean; missing: string[] }
 
 // ── Wave IA (separação em ondas) ───────────────────────────────────────────
 export type WaveStatus = 'open' | 'released' | 'collecting' | 'sorting' | 'done' | 'cancelled'
@@ -294,8 +319,14 @@ export const fulfillmentApi = {
   updateCompany: (id: string, patch: { name?: string; cnpj?: string | null; role?: CompanyRole; is_active?: boolean }) =>
     api<{ ok: boolean }>(`/fulfillment/companies/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
   accounts: () => api<FulfillmentAccount[]>('/fulfillment/accounts'),
-  updateAccount: (id: string, patch: { company_id?: string | null; label?: string; is_active?: boolean }) =>
+  updateAccount: (id: string, patch: { company_id?: string | null; label?: string; is_active?: boolean; invoice_sale_pct?: number | null; invoice_purchase_pct?: number | null }) =>
     api<{ ok: boolean }>(`/fulfillment/accounts/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+
+  // Faturador F1 — config fiscal
+  companyFiscal: (companyId: string) => api<CompanyFiscalConfig | null>(`/fulfillment/fiscal/companies/${companyId}`),
+  upsertCompanyFiscal: (companyId: string, body: Record<string, unknown>) =>
+    api<{ ok: boolean }>(`/fulfillment/fiscal/companies/${companyId}`, { method: 'PUT', body: JSON.stringify(body) }),
+  fiscalReadiness: (companyId: string) => api<FiscalReadiness>(`/fulfillment/fiscal/companies/${companyId}/readiness`),
 
   returns: (wid?: string) => api<FulfillmentReturn[]>(`/fulfillment/returns${wid ? `?warehouse_id=${wid}` : ''}`),
   registerReturn: (body: { warehouseId?: string; fulfillmentOrderId?: string; reference?: string; customer?: Record<string, unknown>; reason?: string; items?: Array<{ sku: string; productId?: string; qty: number; title?: string }> }) =>

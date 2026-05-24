@@ -1,8 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { X, Loader2, Plus, Building2, Store } from 'lucide-react'
+import { X, Loader2, Plus, Building2, Store, FileText, ChevronDown, ChevronRight } from 'lucide-react'
 import { fulfillmentApi, type FulfillmentCompany, type FulfillmentAccount, type CompanyRole } from '../_lib/api'
+import { CompanyFiscalPanel } from './CompanyFiscalPanel'
 
 const ROLES: Array<{ key: CompanyRole; label: string }> = [
   { key: 'matriz', label: 'Matriz (dona do estoque)' },
@@ -30,6 +31,7 @@ export function CompaniesSheet({ onClose }: { onClose: () => void }) {
   const [err, setErr] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [newName, setNewName] = useState('')
+  const [fiscalOpen, setFiscalOpen] = useState<Record<string, boolean>>({})
 
   async function reload() {
     setLoading(true)
@@ -54,6 +56,11 @@ export function CompaniesSheet({ onClose }: { onClose: () => void }) {
   async function linkAccount(id: string, companyId: string) {
     setAccounts((p) => p.map((a) => a.id === id ? { ...a, company_id: companyId } : a))
     try { await fulfillmentApi.updateAccount(id, { company_id: companyId }) } catch (e) { setErr((e as Error).message) }
+  }
+  async function setAccountPct(id: string, field: 'invoice_sale_pct' | 'invoice_purchase_pct', raw: string) {
+    const val = raw.trim() === '' ? null : Math.min(Math.max(Number(raw.replace(',', '.')) || 0, 0), 100)
+    setAccounts((p) => p.map((a) => a.id === id ? { ...a, [field]: val } : a))
+    try { await fulfillmentApi.updateAccount(id, { [field]: val }) } catch (e) { setErr((e as Error).message) }
   }
 
   const nameOf = (cid: string | null) => companies.find((c) => c.id === cid)?.name ?? '—'
@@ -102,6 +109,11 @@ export function CompaniesSheet({ onClose }: { onClose: () => void }) {
                         {ROLES.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
                       </select>
                     </div>
+                    {/* Config fiscal (NF-e) — Faturador F1 */}
+                    <button onClick={() => setFiscalOpen((p) => ({ ...p, [c.id]: !p[c.id] }))} className="mt-2 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold" style={{ background: '#00E5FF0f', color: '#00E5FF' }}>
+                      <FileText size={13} /> Config fiscal (NF-e) {fiscalOpen[c.id] ? <ChevronDown size={13} className="ml-auto" /> : <ChevronRight size={13} className="ml-auto" />}
+                    </button>
+                    {fiscalOpen[c.id] && <CompanyFiscalPanel companyId={c.id} />}
                   </div>
                 ))}
                 {/* nova empresa */}
@@ -125,21 +137,39 @@ export function CompaniesSheet({ onClose }: { onClose: () => void }) {
               <div className="flex flex-col gap-2">
                 {accounts.length === 0 && <p className="text-sm" style={{ color: '#71717a' }}>Nenhuma conta ainda. Elas aparecem sozinhas quando o 1º pedido entra.</p>}
                 {accounts.map((a) => (
-                  <div key={a.id} className="flex items-center gap-3 rounded-xl p-3" style={{ background: '#0c0c10' }}>
-                    <span className="rounded-full px-2 py-0.5 text-[11px] font-semibold" style={{ background: `${platformColor(a.platform)}1a`, color: platformColor(a.platform) }}>{a.platform}</span>
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-semibold">{a.label || a.external_account_id}</div>
-                      <div className="truncate text-xs" style={{ color: '#71717a' }}>empresa: {nameOf(a.company_id)}</div>
+                  <div key={a.id} className="rounded-xl p-3" style={{ background: '#0c0c10' }}>
+                    <div className="flex items-center gap-3">
+                      <span className="rounded-full px-2 py-0.5 text-[11px] font-semibold" style={{ background: `${platformColor(a.platform)}1a`, color: platformColor(a.platform) }}>{a.platform}</span>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-semibold">{a.label || a.external_account_id}</div>
+                        <div className="truncate text-xs" style={{ color: '#71717a' }}>empresa: {nameOf(a.company_id)}</div>
+                      </div>
+                      <select
+                        value={a.company_id ?? ''}
+                        onChange={(e) => e.target.value && linkAccount(a.id, e.target.value)}
+                        className="rounded-lg px-2 py-1.5 text-xs outline-none"
+                        style={{ background: '#18181b', color: '#fafafa', border: '1px solid rgba(255,255,255,0.12)' }}
+                      >
+                        <option value="">— empresa —</option>
+                        {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      </select>
                     </div>
-                    <select
-                      value={a.company_id ?? ''}
-                      onChange={(e) => e.target.value && linkAccount(a.id, e.target.value)}
-                      className="rounded-lg px-2 py-1.5 text-xs outline-none"
-                      style={{ background: '#18181b', color: '#fafafa', border: '1px solid rgba(255,255,255,0.12)' }}
-                    >
-                      <option value="">— empresa —</option>
-                      {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    </select>
+                    {/* % de faturamento por conta (sobrescreve o padrão da empresa; vazio = usa o padrão) */}
+                    <div className="mt-2 flex items-center gap-2">
+                      <span className="text-[10px]" style={{ color: '#52525b' }}>% faturamento desta conta:</span>
+                      <label className="flex items-center gap-1 text-[11px]" style={{ color: '#71717a' }}>
+                        venda
+                        <input type="number" min={0} max={100} defaultValue={a.invoice_sale_pct ?? ''} placeholder="padrão"
+                          onBlur={(e) => setAccountPct(a.id, 'invoice_sale_pct', e.target.value)}
+                          className="w-16 rounded-lg px-2 py-1 text-center text-xs outline-none" style={{ background: '#09090b', color: '#fafafa', border: '1px solid rgba(255,255,255,0.08)' }} />
+                      </label>
+                      <label className="flex items-center gap-1 text-[11px]" style={{ color: '#71717a' }}>
+                        compra
+                        <input type="number" min={0} max={100} defaultValue={a.invoice_purchase_pct ?? ''} placeholder="padrão"
+                          onBlur={(e) => setAccountPct(a.id, 'invoice_purchase_pct', e.target.value)}
+                          className="w-16 rounded-lg px-2 py-1 text-center text-xs outline-none" style={{ background: '#09090b', color: '#fafafa', border: '1px solid rgba(255,255,255,0.08)' }} />
+                      </label>
+                    </div>
                   </div>
                 ))}
               </div>
