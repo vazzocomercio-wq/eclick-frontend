@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
-import { PackageSearch, PackageCheck, AlertTriangle, ScanLine, RefreshCw, Warehouse as WarehouseIcon, Settings, Users, Clock, RotateCcw, Layers, Building2, Tv } from 'lucide-react'
+import { PackageSearch, PackageCheck, AlertTriangle, ScanLine, RefreshCw, Warehouse as WarehouseIcon, Settings, Users, Clock, RotateCcw, Layers, Building2, Tv, Truck } from 'lucide-react'
 import { fulfillmentApi, type Warehouse, type DashboardData } from './_lib/api'
 import { SettingsSheet } from './_components/SettingsSheet'
 import { TeamSheet } from './_components/TeamSheet'
@@ -167,6 +167,16 @@ export default function FulfillmentHub() {
           <div className="flex-1">
             <div className="font-semibold">Separação em ondas</div>
             <div className="text-xs" style={{ color: '#71717a' }}>Agrupe pedidos · coleta consolidada + IA</div>
+          </div>
+        </Link>
+
+        <Link href="/fulfillment/coleta" className="flex items-center gap-3 rounded-2xl p-4 active:scale-[0.99] transition-transform" style={{ background: '#0c0c10', border: '1px solid rgba(255,255,255,0.08)' }}>
+          <div className="grid h-10 w-10 place-items-center rounded-lg" style={{ background: '#4ADE501a' }}>
+            <Truck size={18} color="#4ADE50" />
+          </div>
+          <div className="flex-1">
+            <div className="font-semibold">Aguardando coleta</div>
+            <div className="text-xs" style={{ color: '#71717a' }}>Pronto pra transportadora · por empresa/conta</div>
           </div>
         </Link>
 

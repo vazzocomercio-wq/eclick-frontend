@@ -137,6 +137,26 @@ export interface BoardData {
   generatedAt: string
 }
 
+// ── Aguardando coleta (Onda C — staging por empresa → conta) ────────────────
+export interface CollectionOrder {
+  id: string
+  reference: string
+  status: string
+  channel: string | null
+  platform: string | null
+  logisticType: string | null
+  tracking: string | null
+  shipmentId: string | null
+  scheduledFrom: string | null
+  scheduledTo: string | null
+  deadline: string | null
+  itemsCount: number
+  customerName: string | null
+}
+export interface CollectionAccount { accountId: string | null; label: string; platform: string; orders: CollectionOrder[]; count: number }
+export interface CollectionGroup { companyId: string | null; companyName: string; accounts: CollectionAccount[]; count: number }
+export interface CollectionData { groups: CollectionGroup[]; total: number; generatedAt: string }
+
 // ── Empresas & Contas (Onda A — multi-CNPJ / multiconta) ────────────────────
 export type CompanyRole = 'matriz' | 'revendedora' | 'unica'
 export interface FulfillmentCompany {
@@ -195,6 +215,7 @@ export const fulfillmentApi = {
   warehouses: () => api<Warehouse[]>('/fulfillment/warehouses'),
   dashboard: (wid?: string) => api<DashboardData>(`/fulfillment/dashboard${wid ? `?warehouse_id=${wid}` : ''}`),
   board: (wid?: string) => api<BoardData>(`/fulfillment/board${wid ? `?warehouse_id=${wid}` : ''}`),
+  collection: (wid?: string) => api<CollectionData>(`/fulfillment/collection${wid ? `?warehouse_id=${wid}` : ''}`),
 
   getSettings: () => api<FulfillmentSettings>('/fulfillment/settings'),
   updateSettings: (patch: Partial<FulfillmentSettings>) =>
