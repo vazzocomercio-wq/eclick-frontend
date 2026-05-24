@@ -48,6 +48,13 @@ const PROVIDERS: ProviderDef[] = [
     helpLabel: 'platform.openai.com',
     helpText: 'Platform OpenAI → API Keys → Create new secret key',
   },
+  {
+    id: 'google', name: 'Google (Gemini)', keyName: 'GEMINI_API_KEY',
+    placeholder: 'AIza...',
+    helpUrl: 'https://aistudio.google.com/apikey',
+    helpLabel: 'aistudio.google.com',
+    helpText: 'Google AI Studio → Get API key → Create API key',
+  },
 ]
 
 interface Toast { id: number; message: string; type: 'success' | 'error' }
