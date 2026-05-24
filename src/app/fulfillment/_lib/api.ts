@@ -57,7 +57,14 @@ export interface FulfillmentSettings {
   auto_ingest_enabled: boolean
   auto_ingest_sources: string[]
   default_warehouse_id: string | null
+  enforce_roles: boolean
 }
+
+export type OperatorRole = 'picker' | 'packer' | 'supervisor' | 'admin'
+export interface OrgMember { user_id: string; org_role: string; email: string | null; name: string | null }
+export interface Operator { id: string; warehouse_id: string; user_id: string; role: OperatorRole; is_active: boolean; email: string | null; name: string | null }
+export interface ProductivityRow { userId: string; name: string | null; email: string | null; items: number; packs: number; mismatches: number; itemsPerHour: number | null }
+export interface Productivity { days: number; operators: ProductivityRow[] }
 
 export interface PickTask {
   id: string
@@ -100,6 +107,16 @@ export const fulfillmentApi = {
   getSettings: () => api<FulfillmentSettings>('/fulfillment/settings'),
   updateSettings: (patch: Partial<FulfillmentSettings>) =>
     api<FulfillmentSettings>('/fulfillment/settings', { method: 'PUT', body: JSON.stringify(patch) }),
+
+  orgMembers: () => api<OrgMember[]>('/fulfillment/org-members'),
+  operators: (wid?: string) => api<Operator[]>(`/fulfillment/operators${wid ? `?warehouse_id=${wid}` : ''}`),
+  addOperator: (body: { warehouseId: string; userId: string; role: OperatorRole }) =>
+    api<{ ok: boolean; id?: string }>('/fulfillment/operators', { method: 'POST', body: JSON.stringify(body) }),
+  updateOperator: (id: string, patch: { role?: OperatorRole; is_active?: boolean }) =>
+    api<{ ok: boolean }>(`/fulfillment/operators/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+  removeOperator: (id: string) => api<{ ok: boolean }>(`/fulfillment/operators/${id}`, { method: 'DELETE' }),
+  productivity: (days?: number, wid?: string) =>
+    api<Productivity>(`/fulfillment/productivity?days=${days ?? 7}${wid ? `&warehouse_id=${wid}` : ''}`),
 
   pickQueue: (wid?: string) => api<PickTask[]>(`/fulfillment/pick-tasks/queue${wid ? `?warehouse_id=${wid}` : ''}`),
   scanItem: (id: string, code: string) =>
