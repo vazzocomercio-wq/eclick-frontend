@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, RefreshCw, Building2, ChevronDown, ChevronRight, Truck, PackageCheck, Clock, Inbox } from 'lucide-react'
+import { ArrowLeft, RefreshCw, Building2, ChevronDown, ChevronRight, Truck, PackageCheck, Clock, Inbox, FileText } from 'lucide-react'
 import { fulfillmentApi, type CollectionData, type CollectionOrder } from '../_lib/api'
+import { InvoiceSheet } from '../_components/InvoiceSheet'
 
 const WID_KEY = 'eclick_fulfillment_wid'
 const platformColor = (p: string | null) => p === 'mercadolivre' ? '#FFE600' : p === 'loja' ? '#00E5FF' : p === 'b2b' ? '#4ADE50' : '#a1a1aa'
@@ -93,14 +94,19 @@ export default function ColetaPage() {
 
 function OrderRow({ o }: { o: CollectionOrder }) {
   const shipped = o.status === 'shipped'
+  const [nfe, setNfe] = useState(false)
   return (
     <li className="rounded-lg p-2.5" style={{ background: '#121214' }}>
+      {nfe && <InvoiceSheet fulfillmentOrderId={o.id} reference={o.reference} onClose={() => setNfe(false)} />}
       <div className="flex items-center gap-2">
         <span className="font-bold">#{o.reference}</span>
         <span className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: shipped ? '#4ADE5022' : '#a78bfa22', color: shipped ? '#4ADE50' : '#c4b5fd' }}>
           {shipped ? <Truck size={11} /> : <PackageCheck size={11} />} {shipped ? 'Etiquetado' : 'Embalado'}
         </span>
-        <span className="ml-auto text-xs" style={{ color: '#52525b' }}>{o.itemsCount} {o.itemsCount === 1 ? 'item' : 'itens'}</span>
+        <button onClick={() => setNfe(true)} className="ml-auto flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-semibold" style={{ background: '#00E5FF14', color: '#00E5FF' }}>
+          <FileText size={11} /> NF-e
+        </button>
+        <span className="text-xs" style={{ color: '#52525b' }}>{o.itemsCount} {o.itemsCount === 1 ? 'item' : 'itens'}</span>
       </div>
       <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px]" style={{ color: '#71717a' }}>
         <span>{logisticLabel(o.logisticType)}</span>

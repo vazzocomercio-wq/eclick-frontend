@@ -137,6 +137,29 @@ export interface BoardData {
   generatedAt: string
 }
 
+// ── NF-e (Onda D — preparação + validação fiscal) ───────────────────────────
+export type InvoiceKind = 'venda' | 'transferencia' | 'devolucao' | 'outra'
+export type InvoiceStatus = 'draft' | 'issued' | 'cancelled'
+export type InvoiceValidation = 'not_checked' | 'match' | 'mismatch'
+export interface InvoiceItem { sku: string; description?: string | null; qty: number; unit_value?: number | null }
+export interface InvoiceValidationDiffRow { sku: string; invoiceQty: number; pickedQty: number; ok: boolean }
+export interface FulfillmentInvoice {
+  id: string
+  fulfillment_order_id: string
+  company_id: string | null
+  kind: InvoiceKind
+  status: InvoiceStatus
+  number: string | null
+  series: string | null
+  access_key: string | null
+  danfe_url: string | null
+  provider: string | null
+  items: InvoiceItem[]
+  validation_status: InvoiceValidation
+  validation_diff: InvoiceValidationDiffRow[] | null
+  validated_at: string | null
+}
+
 // ── Aguardando coleta (Onda C — staging por empresa → conta) ────────────────
 export interface CollectionOrder {
   id: string
@@ -216,6 +239,14 @@ export const fulfillmentApi = {
   dashboard: (wid?: string) => api<DashboardData>(`/fulfillment/dashboard${wid ? `?warehouse_id=${wid}` : ''}`),
   board: (wid?: string) => api<BoardData>(`/fulfillment/board${wid ? `?warehouse_id=${wid}` : ''}`),
   collection: (wid?: string) => api<CollectionData>(`/fulfillment/collection${wid ? `?warehouse_id=${wid}` : ''}`),
+
+  // Onda D — NF-e
+  invoices: (foId: string) => api<FulfillmentInvoice[]>(`/fulfillment/orders/${foId}/invoices`),
+  upsertInvoice: (foId: string, body: { id?: string; companyId?: string | null; kind?: InvoiceKind; status?: InvoiceStatus; number?: string | null; series?: string | null; accessKey?: string | null; danfeUrl?: string | null; provider?: string | null; items?: InvoiceItem[] }) =>
+    api<{ ok: boolean; id: string }>(`/fulfillment/orders/${foId}/invoices`, { method: 'PUT', body: JSON.stringify(body) }),
+  validateInvoice: (id: string) =>
+    api<{ status: 'match' | 'mismatch'; diff: InvoiceValidationDiffRow[] }>(`/fulfillment/invoices/${id}/validate`, { method: 'POST' }),
+  removeInvoice: (id: string) => api<{ ok: boolean }>(`/fulfillment/invoices/${id}`, { method: 'DELETE' }),
 
   getSettings: () => api<FulfillmentSettings>('/fulfillment/settings'),
   updateSettings: (patch: Partial<FulfillmentSettings>) =>
