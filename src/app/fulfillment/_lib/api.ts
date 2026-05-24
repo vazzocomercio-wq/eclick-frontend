@@ -58,6 +58,7 @@ export interface FulfillmentSettings {
   auto_ingest_sources: string[]
   default_warehouse_id: string | null
   enforce_roles: boolean
+  default_sla_hours: number
 }
 
 export type OperatorRole = 'picker' | 'packer' | 'supervisor' | 'admin'
@@ -96,6 +97,8 @@ export interface DashboardData {
   packQueue: number
   damagesToday: number
   mismatch24h: number
+  lateCount: number
+  dueSoonCount: number
   recentActions: Array<{ id: string; action_type: string; created_at: string; fulfillment_order_id: string | null; payload?: Record<string, unknown> }>
 }
 

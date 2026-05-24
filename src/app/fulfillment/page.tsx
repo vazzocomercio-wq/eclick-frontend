@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
-import { PackageSearch, PackageCheck, AlertTriangle, ScanLine, RefreshCw, Warehouse as WarehouseIcon, Settings, Users } from 'lucide-react'
+import { PackageSearch, PackageCheck, AlertTriangle, ScanLine, RefreshCw, Warehouse as WarehouseIcon, Settings, Users, Clock } from 'lucide-react'
 import { fulfillmentApi, type Warehouse, type DashboardData } from './_lib/api'
 import { SettingsSheet } from './_components/SettingsSheet'
 import { TeamSheet } from './_components/TeamSheet'
@@ -99,10 +99,22 @@ export default function FulfillmentHub() {
         </div>
       )}
 
+      {/* Atrasados — destaque quando houver */}
+      {!loading && (data?.lateCount ?? 0) > 0 && (
+        <div className="flex items-center gap-3 rounded-2xl p-4" style={{ background: 'rgba(239,68,68,0.10)', border: '1px solid #EF444455' }}>
+          <Clock size={22} color="#f87171" />
+          <div className="flex-1">
+            <div className="text-lg font-bold" style={{ color: '#f87171' }}>{data?.lateCount} pedido(s) atrasado(s)</div>
+            <div className="text-xs" style={{ color: '#a1a1aa' }}>SLA de despacho vencido — priorize na fila</div>
+          </div>
+        </div>
+      )}
+
       {/* KPIs */}
       <div className="grid grid-cols-2 gap-3">
         <Stat label="Fila de separação" value={data?.pickQueue} icon={<PackageSearch size={18} color="#00E5FF" />} loading={loading} />
         <Stat label="Fila de conferência" value={data?.packQueue} icon={<PackageCheck size={18} color="#4ADE50" />} loading={loading} />
+        <Stat label="Vencendo (2h)" value={data?.dueSoonCount} icon={<Clock size={18} color="#fcd34d" />} loading={loading} danger={(data?.lateCount ?? 0) > 0} />
         <Stat label="Erros bipados (24h)" value={data?.mismatch24h} icon={<ScanLine size={18} color="#f87171" />} loading={loading} danger={(data?.mismatch24h ?? 0) > 0} />
         <Stat label="Avarias hoje" value={data?.damagesToday} icon={<AlertTriangle size={18} color="#fcd34d" />} loading={loading} />
       </div>

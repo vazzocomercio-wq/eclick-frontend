@@ -56,6 +56,7 @@ export function SettingsSheet({ warehouses, onClose }: { warehouses: Warehouse[]
         ai_smart_queue_enabled: s.ai_smart_queue_enabled,
         photo_required_always: s.photo_required_always,
         photo_required_above_cents: s.photo_required_above_cents,
+        default_sla_hours: s.default_sla_hours,
       })
       setSaved(true)
     } catch (e) {
@@ -130,6 +131,16 @@ export function SettingsSheet({ warehouses, onClose }: { warehouses: Warehouse[]
                 <span className="text-sm" style={{ color: '#a1a1aa' }}>Exigir foto acima de (R$)</span>
                 <input type="number" inputMode="numeric" value={Math.round(s.photo_required_above_cents / 100)}
                   onChange={(e) => patch({ photo_required_above_cents: Math.max(0, Number(e.target.value) || 0) * 100 })}
+                  className="w-24 rounded-lg px-3 py-2 text-right text-sm outline-none" style={{ background: '#0c0c10', color: '#fafafa', border: '1px solid rgba(255,255,255,0.08)' }} />
+              </div>
+            </Section>
+
+            {/* SLA */}
+            <Section title="Prazo de despacho (SLA)" hint="Pedidos além do prazo aparecem como ATRASADOS na fila.">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm" style={{ color: '#a1a1aa' }}>Prazo padrão (horas)</span>
+                <input type="number" inputMode="numeric" value={s.default_sla_hours}
+                  onChange={(e) => patch({ default_sla_hours: Math.max(0, Number(e.target.value) || 0) })}
                   className="w-24 rounded-lg px-3 py-2 text-right text-sm outline-none" style={{ background: '#0c0c10', color: '#fafafa', border: '1px solid rgba(255,255,255,0.08)' }} />
               </div>
             </Section>

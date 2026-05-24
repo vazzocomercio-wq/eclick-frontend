@@ -79,17 +79,19 @@ export default function PickingPage() {
         {groups.map((g) => {
           const total = g.tasks.length
           const done = g.tasks.filter((t) => t.status === 'picked').length
+          const late = g.tasks.some((t) => t.sla_deadline && t.status !== 'picked' && new Date(t.sla_deadline).getTime() < Date.now())
           return (
             <li key={g.foId}>
               <button
                 onClick={() => setActiveFo(g.foId)}
                 className="flex w-full items-center gap-3 rounded-2xl p-4 text-left active:scale-[0.99] transition-transform"
-                style={{ background: '#0c0c10', border: '1px solid rgba(255,255,255,0.08)' }}
+                style={{ background: '#0c0c10', border: `1px solid ${late ? '#EF444455' : 'rgba(255,255,255,0.08)'}` }}
               >
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
                     <span className="font-bold">#{g.reference}</span>
                     <ChannelPill channel={g.channel} />
+                    {late && <span className="rounded-full px-2 py-0.5 text-[11px] font-bold" style={{ background: '#EF444422', color: '#f87171' }}>ATRASADO</span>}
                   </div>
                   <div className="text-sm" style={{ color: '#a1a1aa' }}>{g.customer || 'Cliente'} · {total} {total === 1 ? 'item' : 'itens'}</div>
                 </div>
