@@ -137,6 +137,16 @@ export interface BoardData {
   generatedAt: string
 }
 
+// ── Embalagens (Onda E) ─────────────────────────────────────────────────────
+export type PackagingKind = 'caixa' | 'envelope' | 'sacola' | 'outro'
+export interface PackagingType {
+  id: string; name: string; kind: PackagingKind
+  width_cm: number | null; height_cm: number | null; depth_cm: number | null
+  weight_g: number | null; cost_cents: number | null; stock: number | null; is_active: boolean
+}
+export interface PackagingKitItem { packaging_type_id: string; qty: number }
+export interface PackagingKit { id: string; name: string; items: PackagingKitItem[]; is_active: boolean }
+
 // ── NF-e (Onda D — preparação + validação fiscal) ───────────────────────────
 export type InvoiceKind = 'venda' | 'transferencia' | 'devolucao' | 'outra'
 export type InvoiceStatus = 'draft' | 'issued' | 'cancelled'
@@ -247,6 +257,20 @@ export const fulfillmentApi = {
   validateInvoice: (id: string) =>
     api<{ status: 'match' | 'mismatch'; diff: InvoiceValidationDiffRow[] }>(`/fulfillment/invoices/${id}/validate`, { method: 'POST' }),
   removeInvoice: (id: string) => api<{ ok: boolean }>(`/fulfillment/invoices/${id}`, { method: 'DELETE' }),
+
+  // Onda E — embalagens
+  packagingTypes: () => api<PackagingType[]>('/fulfillment/packaging/types'),
+  createPackagingType: (body: { name: string; kind?: PackagingKind; width_cm?: number | null; height_cm?: number | null; depth_cm?: number | null; weight_g?: number | null; cost_cents?: number | null; stock?: number | null }) =>
+    api<{ ok: boolean; id: string }>('/fulfillment/packaging/types', { method: 'POST', body: JSON.stringify(body) }),
+  updatePackagingType: (id: string, patch: Record<string, unknown>) =>
+    api<{ ok: boolean }>(`/fulfillment/packaging/types/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+  removePackagingType: (id: string) => api<{ ok: boolean }>(`/fulfillment/packaging/types/${id}`, { method: 'DELETE' }),
+  packagingKits: () => api<PackagingKit[]>('/fulfillment/packaging/kits'),
+  createPackagingKit: (body: { name: string; items?: PackagingKitItem[] }) =>
+    api<{ ok: boolean; id: string }>('/fulfillment/packaging/kits', { method: 'POST', body: JSON.stringify(body) }),
+  updatePackagingKit: (id: string, patch: { name?: string; items?: PackagingKitItem[]; is_active?: boolean }) =>
+    api<{ ok: boolean }>(`/fulfillment/packaging/kits/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+  removePackagingKit: (id: string) => api<{ ok: boolean }>(`/fulfillment/packaging/kits/${id}`, { method: 'DELETE' }),
 
   getSettings: () => api<FulfillmentSettings>('/fulfillment/settings'),
   updateSettings: (patch: Partial<FulfillmentSettings>) =>
