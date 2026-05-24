@@ -102,6 +102,18 @@ export interface DashboardData {
   recentActions: Array<{ id: string; action_type: string; created_at: string; fulfillment_order_id: string | null; payload?: Record<string, unknown> }>
 }
 
+export type ReturnCondition = 'pending' | 'restock' | 'damaged' | 'discard'
+export interface ReturnItem { sku: string; product_id: string | null; qty: number; condition: ReturnCondition; restocked: boolean; title?: string | null }
+export interface FulfillmentReturn {
+  id: string
+  reference: string | null
+  reason: string | null
+  customer: { name?: string }
+  items: ReturnItem[]
+  status: 'registered' | 'inspecting' | 'resolved' | 'cancelled'
+  created_at: string
+}
+
 // ── Chamadas ─────────────────────────────────────────────────────────────
 export const fulfillmentApi = {
   warehouses: () => api<Warehouse[]>('/fulfillment/warehouses'),
@@ -121,6 +133,12 @@ export const fulfillmentApi = {
   productivity: (days?: number, wid?: string) =>
     api<Productivity>(`/fulfillment/productivity?days=${days ?? 7}${wid ? `&warehouse_id=${wid}` : ''}`),
   reconcile: () => api<{ storefront: number; marketplace: number; skipped?: boolean }>('/fulfillment/reconcile', { method: 'POST' }),
+
+  returns: (wid?: string) => api<FulfillmentReturn[]>(`/fulfillment/returns${wid ? `?warehouse_id=${wid}` : ''}`),
+  registerReturn: (body: { warehouseId?: string; fulfillmentOrderId?: string; reference?: string; customer?: Record<string, unknown>; reason?: string; items?: Array<{ sku: string; productId?: string; qty: number; title?: string }> }) =>
+    api<{ ok: boolean; id: string }>('/fulfillment/returns', { method: 'POST', body: JSON.stringify(body) }),
+  resolveReturn: (id: string, resolutions: Array<{ sku: string; condition: ReturnCondition }>) =>
+    api<{ ok: boolean; restocked: number }>(`/fulfillment/returns/${id}/resolve`, { method: 'POST', body: JSON.stringify({ resolutions }) }),
 
   pickQueue: (wid?: string) => api<PickTask[]>(`/fulfillment/pick-tasks/queue${wid ? `?warehouse_id=${wid}` : ''}`),
   scanItem: (id: string, code: string) =>
