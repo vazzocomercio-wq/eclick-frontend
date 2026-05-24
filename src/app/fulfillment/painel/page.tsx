@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, RefreshCw, Clock, AlertTriangle, Ban, Radio, PackageSearch, PackageCheck, Truck, Inbox } from 'lucide-react'
+import { ArrowLeft, RefreshCw, Clock, AlertTriangle, Ban, Radio, PackageSearch, PackageCheck, Truck, Inbox, Maximize2, Minimize2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import { fulfillmentApi, type BoardData, type BoardCard, type BoardUrgency } from '../_lib/api'
 
@@ -26,9 +26,25 @@ export default function PainelPage() {
   const [data, setData] = useState<BoardData | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [live, setLive] = useState(false)
+  const [tv, setTv] = useState(false)
   const [, setTick] = useState(0) // re-render p/ atualizar os contadores de tempo
   const wid = typeof window !== 'undefined' ? localStorage.getItem(WID_KEY) : null
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  async function enterTv() {
+    setTv(true)
+    try { await document.documentElement.requestFullscreen?.() } catch { /* alguns navegadores bloqueiam sem gesto — segue só com layout */ }
+  }
+  async function exitTv() {
+    setTv(false)
+    try { if (document.fullscreenElement) await document.exitFullscreen?.() } catch { /* noop */ }
+  }
+  // ESC / sair do fullscreen do navegador também sai do modo TV
+  useEffect(() => {
+    const onFs = () => { if (!document.fullscreenElement) setTv(false) }
+    document.addEventListener('fullscreenchange', onFs)
+    return () => document.removeEventListener('fullscreenchange', onFs)
+  }, [])
 
   const load = useCallback(async () => {
     try { setData(await fulfillmentApi.board(wid ?? undefined)); setErr(null) }
@@ -58,6 +74,8 @@ export default function PainelPage() {
 
   const c = data?.counts
 
+  if (tv) return <TvBoard data={data} live={live} onExit={() => void exitTv()} />
+
   return (
     <div className="flex flex-col gap-4">
       <header className="flex items-center gap-3 pt-1">
@@ -68,6 +86,7 @@ export default function PainelPage() {
             <Radio size={12} /> {live ? 'tempo real' : 'atualizando…'}
           </p>
         </div>
+        <button onClick={enterTv} className="rounded-xl p-2.5" style={{ background: '#18181b' }} aria-label="Tela cheia (TV)"><Maximize2 size={18} color="#a78bfa" /></button>
         <button onClick={() => void load()} className="rounded-xl p-2.5" style={{ background: '#18181b' }} aria-label="Atualizar"><RefreshCw size={18} color="#00E5FF" /></button>
       </header>
 
@@ -107,6 +126,63 @@ export default function PainelPage() {
       </div>
 
       {data && <p className="text-center text-[11px]" style={{ color: '#3f3f46' }}>atualizado {new Date(data.generatedAt).toLocaleTimeString('pt-BR')}</p>}
+    </div>
+  )
+}
+
+// ── Modo TV (tela cheia, fontes/colunas grandes pra monitor no CD) ──────────
+function TvBoard({ data, live, onExit }: { data: BoardData | null; live: boolean; onExit: () => void }) {
+  const c = data?.counts
+  return (
+    <div className="fixed inset-0 z-[100] flex flex-col p-5" style={{ background: '#09090b', color: '#fafafa' }}>
+      <div className="mb-4 flex items-center gap-4">
+        <div className="flex items-baseline gap-3">
+          <h1 className="text-3xl font-black tracking-tight">Painel ao vivo</h1>
+          <span className="flex items-center gap-1.5 text-sm font-semibold" style={{ color: live ? '#4ADE50' : '#71717a' }}><Radio size={14} /> {live ? 'tempo real' : 'atualizando…'}</span>
+        </div>
+        <div className="ml-auto flex items-center gap-3">
+          {(c?.late ?? 0) > 0 && <span className="rounded-xl px-4 py-2 text-xl font-black" style={{ background: 'rgba(239,68,68,0.16)', color: '#f87171' }}>{c?.late} atrasado(s)</span>}
+          {(c?.dueSoon ?? 0) > 0 && <span className="rounded-xl px-4 py-2 text-lg font-bold" style={{ background: 'rgba(245,158,11,0.14)', color: '#fcd34d' }}>{c?.dueSoon} vencendo</span>}
+          {(c?.blocked ?? 0) > 0 && <span className="flex items-center gap-1 rounded-xl px-4 py-2 text-lg font-bold" style={{ background: 'rgba(245,158,11,0.10)', color: '#fcd34d' }}><Ban size={18} /> {c?.blocked}</span>}
+          <span className="text-sm tabular-nums" style={{ color: '#52525b' }}>{data ? new Date(data.generatedAt).toLocaleTimeString('pt-BR') : ''}</span>
+          <button onClick={onExit} className="flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold" style={{ background: '#18181b', color: '#a1a1aa' }}><Minimize2 size={16} /> Sair</button>
+        </div>
+      </div>
+
+      <div className="grid min-h-0 flex-1 grid-cols-4 gap-4">
+        {LANES.map((lane) => {
+          const cards = data?.lanes[lane.key] ?? []
+          return (
+            <div key={lane.key} className="flex min-h-0 flex-col rounded-2xl" style={{ background: '#0a0a0e', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <div className="flex items-center justify-between rounded-t-2xl px-4 py-3" style={{ background: '#111114', borderBottom: `3px solid ${lane.color}66` }}>
+                <span className="flex items-center gap-2 text-xl font-black" style={{ color: lane.color }}>{lane.icon} {lane.label}</span>
+                <span className="rounded-full px-3 py-1 text-xl font-black tabular-nums" style={{ background: `${lane.color}22`, color: lane.color }}>{cards.length}</span>
+              </div>
+              <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto p-3">
+                {cards.length === 0 && <p className="px-2 py-8 text-center text-base" style={{ color: '#3f3f46' }}>vazio</p>}
+                {cards.map((card) => <TvCard key={card.id} card={card} />)}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function TvCard({ card }: { card: BoardCard }) {
+  const u = URGENCY[card.urgency]
+  return (
+    <div className="rounded-xl p-3.5" style={{ background: u.bg, border: `2px solid ${u.border}` }}>
+      <div className="flex items-center justify-between gap-2">
+        <span className="truncate text-2xl font-black">#{card.reference}</span>
+        <ChannelPill platform={card.platform} channel={card.channel} />
+      </div>
+      <div className="mt-1 truncate text-base" style={{ color: '#a1a1aa' }}>{card.customerName || 'Cliente'} · {card.itemsCount} {card.itemsCount === 1 ? 'item' : 'itens'}</div>
+      <div className="mt-2 flex items-center gap-2 text-lg font-bold" style={{ color: u.text }}>
+        <Clock size={18} /> {fmtDeadline(card.deadline, card.urgency)}
+      </div>
+      {(card.companyName || card.accountLabel) && <div className="mt-1 truncate text-sm" style={{ color: '#52525b' }}>{card.companyName ?? card.accountLabel}</div>}
     </div>
   )
 }
