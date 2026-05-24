@@ -7,6 +7,7 @@ import { DialogProvider } from '@/components/ui/dialog-provider'
 import FloatingCopilot from '@/components/copilot/FloatingCopilot'
 import AlertToastListener from '@/components/intelligence/AlertToastListener'
 import AiKeyGuard from '@/components/ai/AiKeyGuard'
+import TelemetryProvider from '@/components/telemetry/TelemetryProvider'
 import { isPlatformAdmin } from '@/lib/modules'
 
 export default async function DashboardLayout({
@@ -71,6 +72,7 @@ export default async function DashboardLayout({
         <FloatingCopilot />
         <AlertToastListener />
         <AiKeyGuard />
+        <TelemetryProvider />
       </div>
     </DialogProvider>
   )
