@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { X, Loader2, Check } from 'lucide-react'
+import { X, Loader2, Check, RefreshCcw } from 'lucide-react'
 import { fulfillmentApi, type FulfillmentSettings, type Warehouse } from '../_lib/api'
 
 const SOURCES: Array<{ key: string; label: string }> = [
@@ -16,6 +16,17 @@ export function SettingsSheet({ warehouses, onClose }: { warehouses: Warehouse[]
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  const [recon, setRecon] = useState<string | null>(null)
+  const [reconBusy, setReconBusy] = useState(false)
+
+  async function reconcile() {
+    setReconBusy(true); setRecon(null); setErr(null)
+    try {
+      const r = await fulfillmentApi.reconcile()
+      const n = (r.storefront ?? 0) + (r.marketplace ?? 0)
+      setRecon(r.skipped ? 'Auto-ingestão desligada.' : n === 0 ? 'Nada pendente — tudo em dia ✓' : `${n} pedido(s) reconciliado(s) (loja ${r.storefront}, ML ${r.marketplace})`)
+    } catch (e) { setErr((e as Error).message) } finally { setReconBusy(false) }
+  }
 
   useEffect(() => {
     fulfillmentApi.getSettings().then(setS).catch((e) => setErr((e as Error).message))
@@ -97,6 +108,10 @@ export function SettingsSheet({ warehouses, onClose }: { warehouses: Warehouse[]
                       </select>
                     </div>
                   )}
+                  <button onClick={reconcile} disabled={reconBusy} className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold disabled:opacity-50" style={{ background: '#18181b', color: '#00E5FF' }}>
+                    {reconBusy ? <Loader2 size={15} className="animate-spin" /> : <RefreshCcw size={15} />} Reconciliar pedidos pagos agora
+                  </button>
+                  {recon && <p className="mt-1 text-center text-xs" style={{ color: '#a1a1aa' }}>{recon}</p>}
                 </>
               )}
             </Section>
