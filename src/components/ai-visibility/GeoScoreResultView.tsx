@@ -1,9 +1,9 @@
 'use client'
 
-import { Sparkles, ExternalLink } from 'lucide-react'
+import { Sparkles, ExternalLink, PackageX } from 'lucide-react'
 import {
   GeoScoreData, GeoRecommendation,
-  dimensionLabel, scoreBand, dimensionColor, severityColor, severityLabel,
+  dimensionLabel, scoreBand, dimensionColor, severityColor, severityLabel, skipReasonLabel,
 } from './geo-labels'
 
 /** Medidor circular 0-100. */
@@ -131,6 +131,18 @@ export default function GeoScoreResultView({ data, onRecommendationClick }: {
   data: GeoScoreData
   onRecommendationClick?: (rec: GeoRecommendation) => void
 }) {
+  // Anúncio pulado (esgotado/bloqueado/inexistente) — sem score.
+  if (data.skip_reason) {
+    return (
+      <div className="rounded-xl p-6 flex items-center gap-4" style={{ background: '#18181b', border: '1px solid #27272a' }}>
+        <PackageX size={28} style={{ color: '#F59E0B' }} />
+        <div>
+          <div className="text-base font-semibold" style={{ color: '#fafafa' }}>Auditoria não realizada</div>
+          <p className="text-sm mt-1" style={{ color: '#a1a1aa' }}>{skipReasonLabel(data.skip_reason)} — este anúncio não pôde ser avaliado.</p>
+        </div>
+      </div>
+    )
+  }
   return (
     <div className="space-y-5">
       {typeof data.score === 'number' && <ScoreResultCard score={data.score} />}

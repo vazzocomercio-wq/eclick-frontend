@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { X, Eye, RefreshCw, ExternalLink } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import GeoScoreResultView from '@/components/ai-visibility/GeoScoreResultView'
-import { GeoScoreData, scoreBand, labelFromUrl, platformLabel } from '@/components/ai-visibility/geo-labels'
+import { GeoScoreData, scoreBand, labelFromUrl, platformLabel, skipReasonLabel } from '@/components/ai-visibility/geo-labels'
 
 const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'https://eclick-backend-production-2a87.up.railway.app'
 
@@ -17,7 +17,7 @@ interface Row {
   cost_usd: number | null
   created_at: string
   completed_at: string | null
-  ai_audit_results?: { geo_score: number | null }[]
+  ai_audit_results?: { geo_score: number | null; skip_reason?: string | null }[]
 }
 
 async function authHeaders(): Promise<Record<string, string> | null> {
@@ -25,7 +25,11 @@ async function authHeaders(): Promise<Record<string, string> | null> {
   return session ? { Authorization: `Bearer ${session.access_token}` } : null
 }
 
-function ScoreBadge({ score }: { score: number | null }) {
+function ScoreBadge({ score, skipReason }: { score: number | null; skipReason?: string | null }) {
+  if (skipReason) return (
+    <span title={skipReasonLabel(skipReason)} className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+      style={{ background: 'rgba(245,158,11,0.15)', color: '#F59E0B', border: '1px solid rgba(245,158,11,0.4)' }}>N/A</span>
+  )
   if (score == null) return <span className="text-xs" style={{ color: '#52525b' }}>—</span>
   const b = scoreBand(score)
   return (
@@ -162,6 +166,7 @@ export default function ScoresHistoryClient() {
             )}
             {!loading && filtered.map(row => {
               const score = row.ai_audit_results?.[0]?.geo_score ?? null
+              const skipReason = row.ai_audit_results?.[0]?.skip_reason ?? null
               const st = STATUS_LABEL[row.status] ?? { t: row.status, c: '#a1a1aa' }
               return (
                 <tr key={row.id} style={{ borderTop: '1px solid #1e1e24' }} className="hover:bg-white/[0.02] transition-colors">
@@ -171,7 +176,7 @@ export default function ScoresHistoryClient() {
                       abrir <ExternalLink size={10} />
                     </a>
                   </td>
-                  <td className="px-3 py-3 text-center"><ScoreBadge score={score} /></td>
+                  <td className="px-3 py-3 text-center"><ScoreBadge score={score} skipReason={skipReason} /></td>
                   <td className="px-3 py-3 hidden sm:table-cell" style={{ color: '#a1a1aa' }}>{platformLabel(row.platform)}</td>
                   <td className="px-3 py-3 hidden md:table-cell"><span style={{ color: st.c }}>{st.t}</span></td>
                   <td className="px-3 py-3 hidden md:table-cell tabular-nums" style={{ color: '#71717a' }}>

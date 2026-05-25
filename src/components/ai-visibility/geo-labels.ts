@@ -27,10 +27,21 @@ export interface GeoScoreData {
   score:           number | null
   breakdown:       GeoDimension[] | null
   recommendations: GeoRecommendation[] | null
+  skip_reason?:    string | null
   cost_usd?:       number | null
   error?:          string | null
   created_at?:     string
   completed_at?:   string | null
+}
+
+/** Motivo pelo qual a auditoria foi pulada (anúncio indisponível). */
+export function skipReasonLabel(reason: string | null | undefined): string {
+  const map: Record<string, string> = {
+    blocked_by_marketplace: 'Bloqueado pelo marketplace',
+    product_not_found:      'Anúncio não encontrado',
+    product_unavailable:    'Esgotado / pausado / finalizado',
+  }
+  return reason ? (map[reason] ?? reason) : ''
 }
 
 /** Label PT-BR de cada dimensão do GEO Score. */
