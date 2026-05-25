@@ -15,6 +15,7 @@ import { PremiumProductDetail } from '@/components/storefront/PremiumProductDeta
 import { StoreShell } from '@/components/storefront-v3/StoreShell'
 import { ProductReviewsSection } from '@/components/storefront/ProductReviewsSection'
 import { DEFAULT_DESIGN } from '@/lib/storefront/templates'
+import { storeBaseUrl, productJsonLd, breadcrumbJsonLd, productOpenGraph } from '@/lib/storefront/structured-data'
 
 interface Props {
   params: Promise<{ slug: string; id: string }>
@@ -25,9 +26,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const data = await getProduct(slug, id)
   const t = await getTranslations('storefront')
   if (!data) return { title: t('errors.productNotFound') }
+  const store = data.store as StorefrontStore
+  const description = data.product.ai_short_description ?? data.product.description ?? store.store_description ?? undefined
+  const baseUrl = storeBaseUrl(store, slug)
   return {
-    title:       `${data.product.name} — ${data.store.store_name}`,
-    description: data.product.ai_short_description ?? data.store.store_description ?? undefined,
+    title:       `${data.product.name} — ${store.store_name}`,
+    description,
+    ...productOpenGraph(store, data.product, baseUrl, description ?? undefined),
   }
 }
 
@@ -44,33 +49,15 @@ export default async function ProductPage({ params }: Props) {
   const store = data.store as StorefrontStore
   const resolved = resolveDesign(store)
 
-  // JSON-LD Product (SEO — Google Rich Results)
-  const baseUrl = store.custom_domain
-    ? `https://${store.custom_domain}`
-    : `https://eclick.app.br/loja/${slug}`
-  const jsonLd = {
-    '@context':    'https://schema.org/',
-    '@type':       'Product',
-    name:          data.product.name,
-    description:   data.product.ai_short_description ?? data.product.description ?? undefined,
-    image:         data.product.photo_urls?.[0] ? [data.product.photo_urls[0]] : undefined,
-    brand:         data.product.brand ?? undefined,
-    sku:           data.product.id,
-    gtin:          data.product.gtin ?? undefined,
-    offers: {
-      '@type':         'Offer',
-      url:             `${baseUrl}/produto/${data.product.id}`,
-      priceCurrency:   'BRL',
-      price:           data.product.price,
-      availability:    (data.product.stock ?? 0) > 0
-        ? 'https://schema.org/InStock'
-        : 'https://schema.org/OutOfStock',
-      itemCondition:   'https://schema.org/NewCondition',
-    },
-  }
+  // JSON-LD (SEO + GEO): Product/Offer (+ aggregateRating quando há reviews) e BreadcrumbList.
+  const baseUrl = storeBaseUrl(store, slug)
   const jsonLdScript = (
-    <script type="application/ld+json"
-      dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+    <>
+      <script type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd(store, data.product, baseUrl)) }} />
+      <script type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd(store, data.product, baseUrl)) }} />
+    </>
   )
 
   if (resolved.version === 3) {
