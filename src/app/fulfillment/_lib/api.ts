@@ -335,6 +335,8 @@ export const fulfillmentApi = {
     api<{ ok: boolean; expiresAt: string | null; subject: string | null }>(`/fulfillment/fiscal/companies/${companyId}/certificate`, { method: 'POST', body: JSON.stringify(body) }),
   certificateInfo: (companyId: string) =>
     api<{ status: string; expiresAt: string | null; daysToExpire: number | null; hasFile: boolean }>(`/fulfillment/fiscal/companies/${companyId}/certificate`),
+  sefazStatus: (companyId: string) =>
+    api<{ ok: boolean; cStat: string | null; xMotivo: string | null; uf: string; ambiente: string }>(`/fulfillment/fiscal/companies/${companyId}/sefaz-status`),
 
   returns: (wid?: string) => api<FulfillmentReturn[]>(`/fulfillment/returns${wid ? `?warehouse_id=${wid}` : ''}`),
   registerReturn: (body: { warehouseId?: string; fulfillmentOrderId?: string; reference?: string; customer?: Record<string, unknown>; reason?: string; items?: Array<{ sku: string; productId?: string; qty: number; title?: string }> }) =>
