@@ -34,12 +34,13 @@ export function CompanyFiscalPanel({ companyId }: { companyId: string }) {
   const [sefazBusy, setSefazBusy] = useState(false)
   const [emit, setEmit] = useState<{ authorized: boolean; cStat: string | null; xMotivo: string | null; chave: string | null; protocolo: string | null } | null>(null)
   const [emitBusy, setEmitBusy] = useState(false)
+  const [addr, setAddr] = useState<Record<string, string>>({})
 
   const reload = useCallback(async () => {
     setLoading(true)
     try {
       const [c, r, ci] = await Promise.all([fulfillmentApi.companyFiscal(companyId), fulfillmentApi.fiscalReadiness(companyId), fulfillmentApi.certificateInfo(companyId)])
-      setCfg(c); setReady(r); setCert(ci); setErr(null)
+      setCfg(c); setReady(r); setCert(ci); setAddr((c?.fiscal_address ?? {}) as Record<string, string>); setErr(null)
     } catch (e) { setErr((e as Error).message) } finally { setLoading(false) }
   }, [companyId])
 
@@ -71,12 +72,22 @@ export function CompanyFiscalPanel({ companyId }: { companyId: string }) {
   }
   useEffect(() => { void reload() }, [reload])
 
+  // Salva e REFETCHA o cfg — sem isso o <select> controlado (regime/provedor/
+  // ambiente) volta pro valor antigo, parecendo que "não salvou".
   async function save(patch: Record<string, unknown>) {
-    try { await fulfillmentApi.upsertCompanyFiscal(companyId, patch); setReady(await fulfillmentApi.fiscalReadiness(companyId)) }
-    catch (e) { setErr((e as Error).message) }
+    try {
+      await fulfillmentApi.upsertCompanyFiscal(companyId, patch)
+      const [c, r] = await Promise.all([fulfillmentApi.companyFiscal(companyId), fulfillmentApi.fiscalReadiness(companyId)])
+      setCfg(c); setReady(r); setErr(null)
+    } catch (e) { setErr((e as Error).message) }
   }
-  const addr = (cfg?.fiscal_address ?? {}) as Record<string, string>
-  const saveAddr = (k: string, v: string) => save({ fiscalAddress: { ...addr, [k]: v } })
+  // Endereço é jsonb único: acumula no estado local (síncrono) pra um campo não
+  // sobrescrever o outro, e salva o objeto inteiro.
+  function saveAddr(k: string, v: string) {
+    const next = { ...addr, [k]: v }
+    setAddr(next)
+    save({ fiscalAddress: next })
+  }
 
   if (loading) return <div className="grid place-items-center py-4"><Loader2 size={18} className="animate-spin" color="#00E5FF" /></div>
 
