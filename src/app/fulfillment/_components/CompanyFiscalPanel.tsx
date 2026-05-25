@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Loader2, CheckCircle2, AlertTriangle, ShieldCheck, Upload } from 'lucide-react'
+import { Loader2, CheckCircle2, AlertTriangle, ShieldCheck, Upload, FileText } from 'lucide-react'
 import { fulfillmentApi, type CompanyFiscalConfig, type FiscalReadiness, type FiscalProvider, type RegimeTributario } from '../_lib/api'
 
 type CertInfo = { status: string; expiresAt: string | null; daysToExpire: number | null; hasFile: boolean }
@@ -32,6 +32,8 @@ export function CompanyFiscalPanel({ companyId }: { companyId: string }) {
   const [certBusy, setCertBusy] = useState(false)
   const [sefaz, setSefaz] = useState<{ ok: boolean; cStat: string | null; xMotivo: string | null; uf: string; ambiente: string } | null>(null)
   const [sefazBusy, setSefazBusy] = useState(false)
+  const [emit, setEmit] = useState<{ authorized: boolean; cStat: string | null; xMotivo: string | null; chave: string | null; protocolo: string | null } | null>(null)
+  const [emitBusy, setEmitBusy] = useState(false)
 
   const reload = useCallback(async () => {
     setLoading(true)
@@ -61,6 +63,11 @@ export function CompanyFiscalPanel({ companyId }: { companyId: string }) {
     setSefazBusy(true); setErr(null); setSefaz(null)
     try { setSefaz(await fulfillmentApi.sefazStatus(companyId)) }
     catch (e) { setErr((e as Error).message) } finally { setSefazBusy(false) }
+  }
+  async function emitTestNfe() {
+    setEmitBusy(true); setErr(null); setEmit(null)
+    try { setEmit(await fulfillmentApi.emitTestNfe(companyId)) }
+    catch (e) { setErr((e as Error).message) } finally { setEmitBusy(false) }
   }
   useEffect(() => { void reload() }, [reload])
 
@@ -141,14 +148,35 @@ export function CompanyFiscalPanel({ companyId }: { companyId: string }) {
               )}
             </div>
           )}
+          {/* F2b-2 — emite uma NF-e de teste (homologação) ponta a ponta */}
+          {cert?.hasFile && (
+            <div className="mt-1 flex flex-col gap-1">
+              <button onClick={emitTestNfe} disabled={emitBusy} className="flex items-center gap-1.5 self-start rounded-lg px-3 py-1.5 text-xs font-semibold disabled:opacity-50" style={{ background: '#18181b', color: '#fcd34d', border: '1px solid rgba(252,211,77,0.3)' }}>
+                {emitBusy ? <Loader2 size={13} className="animate-spin" /> : <FileText size={13} />} Emitir NF-e de teste (homologação)
+              </button>
+              {emit && (
+                <span className="text-xs font-semibold leading-relaxed" style={{ color: emit.authorized ? '#4ADE50' : '#fcd34d' }}>
+                  {emit.authorized ? '✓ Autorizada!' : '⚠'} cStat {emit.cStat}: {emit.xMotivo}
+                  {emit.chave ? <><br />Chave: {emit.chave}</> : null}
+                  {emit.protocolo ? ` · Protocolo: ${emit.protocolo}` : ''}
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
       <div className="grid grid-cols-3 gap-2">
+        <Lbl t="Logradouro"><input defaultValue={addr.logradouro ?? ''} onBlur={(e) => saveAddr('logradouro', e.target.value)} className="w-full rounded-lg px-2 py-1.5 text-sm outline-none" style={inp} /></Lbl>
+        <Lbl t="Número"><input defaultValue={addr.numero ?? ''} onBlur={(e) => saveAddr('numero', e.target.value)} className="w-full rounded-lg px-2 py-1.5 text-sm outline-none" style={inp} /></Lbl>
+        <Lbl t="Bairro"><input defaultValue={addr.bairro ?? ''} onBlur={(e) => saveAddr('bairro', e.target.value)} className="w-full rounded-lg px-2 py-1.5 text-sm outline-none" style={inp} /></Lbl>
+      </div>
+      <div className="grid grid-cols-3 gap-2">
         <Lbl t="Cidade"><input defaultValue={addr.city ?? ''} onBlur={(e) => saveAddr('city', e.target.value)} className="w-full rounded-lg px-2 py-1.5 text-sm outline-none" style={inp} /></Lbl>
         <Lbl t="UF"><input defaultValue={addr.uf ?? ''} maxLength={2} onBlur={(e) => saveAddr('uf', e.target.value.toUpperCase())} className="w-full rounded-lg px-2 py-1.5 text-center text-sm uppercase outline-none" style={inp} /></Lbl>
-        <Lbl t="CEP"><input defaultValue={addr.zip ?? ''} onBlur={(e) => saveAddr('zip', e.target.value)} className="w-full rounded-lg px-2 py-1.5 text-sm outline-none" style={inp} /></Lbl>
+        <Lbl t="CEP"><input defaultValue={addr.cep ?? ''} onBlur={(e) => saveAddr('cep', e.target.value)} className="w-full rounded-lg px-2 py-1.5 text-sm outline-none" style={inp} /></Lbl>
       </div>
+      <Lbl t="Cód. IBGE do município (7 dígitos)"><input defaultValue={addr.cMun ?? ''} maxLength={7} onBlur={(e) => saveAddr('cMun', e.target.value.replace(/\D/g, ''))} placeholder="ex: 3518800 (Guarulhos)" className="w-full rounded-lg px-2 py-1.5 text-sm outline-none" style={inp} /></Lbl>
 
       <p className="flex items-center gap-1.5 text-[11px]" style={{ color: '#52525b' }}><ShieldCheck size={12} /> O token é guardado criptografado. O certificado A1 fica no painel do provedor — o e-Click não armazena o arquivo.</p>
     </div>
