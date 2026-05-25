@@ -30,6 +30,8 @@ export function CompanyFiscalPanel({ companyId }: { companyId: string }) {
   const [pfxName, setPfxName] = useState('')
   const [certPwd, setCertPwd] = useState('')
   const [certBusy, setCertBusy] = useState(false)
+  const [sefaz, setSefaz] = useState<{ ok: boolean; cStat: string | null; xMotivo: string | null; uf: string; ambiente: string } | null>(null)
+  const [sefazBusy, setSefazBusy] = useState(false)
 
   const reload = useCallback(async () => {
     setLoading(true)
@@ -54,6 +56,11 @@ export function CompanyFiscalPanel({ companyId }: { companyId: string }) {
       setPfxB64(''); setPfxName(''); setCertPwd('')
       await reload()
     } catch (e) { setErr((e as Error).message) } finally { setCertBusy(false) }
+  }
+  async function testSefaz() {
+    setSefazBusy(true); setErr(null); setSefaz(null)
+    try { setSefaz(await fulfillmentApi.sefazStatus(companyId)) }
+    catch (e) { setErr((e as Error).message) } finally { setSefazBusy(false) }
   }
   useEffect(() => { void reload() }, [reload])
 
@@ -119,6 +126,19 @@ export function CompanyFiscalPanel({ companyId }: { companyId: string }) {
             <div className="flex gap-2">
               <input type="password" value={certPwd} onChange={(e) => setCertPwd(e.target.value)} placeholder="senha do certificado" className="flex-1 rounded-lg px-2 py-1.5 text-sm outline-none" style={inp} />
               <button onClick={sendCert} disabled={certBusy} className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-bold disabled:opacity-50" style={{ background: '#00E5FF', color: '#04222a' }}>{certBusy ? <Loader2 size={13} className="animate-spin" /> : 'Enviar'}</button>
+            </div>
+          )}
+          {/* F2b — testa a conexão com a SEFAZ usando o certificado */}
+          {cert?.hasFile && (
+            <div className="mt-1 flex items-center gap-2">
+              <button onClick={testSefaz} disabled={sefazBusy} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold disabled:opacity-50" style={{ background: '#18181b', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.25)' }}>
+                {sefazBusy ? <Loader2 size={13} className="animate-spin" /> : <ShieldCheck size={13} />} Testar conexão SEFAZ
+              </button>
+              {sefaz && (
+                <span className="text-xs font-semibold" style={{ color: sefaz.ok ? '#4ADE50' : '#fcd34d' }}>
+                  {sefaz.ok ? '✓' : '⚠'} SEFAZ-{sefaz.uf} ({sefaz.ambiente}): {sefaz.cStat} {sefaz.xMotivo}
+                </span>
+              )}
             </div>
           )}
         </div>
