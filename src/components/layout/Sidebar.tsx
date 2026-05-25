@@ -352,6 +352,13 @@ const SECTIONS: NavSection[] = [
     ],
   },
   {
+    key: 'ai-visibility',
+    labelKey: 'sections.aiVisibility',
+    items: [
+      { labelKey: 'items.aiVisibility', href: '/dashboard/ai-visibility', icon: <Sparkles size={15} /> },
+    ],
+  },
+  {
     key: 'configuracoes',
     labelKey: 'sections.configuracoes',
     items: [
@@ -389,6 +396,7 @@ const SECTION_DEFAULT_OPEN: Record<string, boolean> = {
   'atendente-ia':  false,
   ads:             false,
   inteligencia:    false,
+  'ai-visibility': false,
   configuracoes:   false,
 }
 
