@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { Sparkles, ExternalLink, PackageX } from 'lucide-react'
 import {
   GeoScoreData, GeoRecommendation,
@@ -30,7 +31,7 @@ function ScoreGauge({ score }: { score: number }) {
   )
 }
 
-function ScoreResultCard({ score }: { score: number }) {
+function ScoreResultCard({ score, url }: { score: number; url: string }) {
   const band = scoreBand(score)
   return (
     <div className="rounded-xl p-6 flex flex-col sm:flex-row items-center gap-6"
@@ -44,14 +45,13 @@ function ScoreResultCard({ score }: { score: number }) {
         <p className="text-sm mt-2 max-w-md" style={{ color: '#a1a1aa' }}>
           Quanto maior a nota, mais provável que ChatGPT, Perplexity e Gemini citem e recomendem o seu produto.
         </p>
-        <button
-          disabled
-          title="Disponível no Sprint 2"
-          className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium"
-          style={{ background: 'rgba(0,229,255,0.08)', color: '#52525b', border: '1px solid #27272a', cursor: 'not-allowed' }}
+        <Link
+          href={`/dashboard/ai-visibility/optimizer?url=${encodeURIComponent(url)}`}
+          className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
+          style={{ background: '#00E5FF', color: '#06121a' }}
         >
           <Sparkles size={15} /> Otimizar com IA
-        </button>
+        </Link>
       </div>
     </div>
   )
@@ -145,7 +145,7 @@ export default function GeoScoreResultView({ data, onRecommendationClick }: {
   }
   return (
     <div className="space-y-5">
-      {typeof data.score === 'number' && <ScoreResultCard score={data.score} />}
+      {typeof data.score === 'number' && <ScoreResultCard score={data.score} url={data.url} />}
       <DimensionBreakdown dims={data.breakdown} />
       {!!data.recommendations?.length && (
         <div className="rounded-xl p-5" style={{ background: '#121214', border: '1px solid #27272a' }}>

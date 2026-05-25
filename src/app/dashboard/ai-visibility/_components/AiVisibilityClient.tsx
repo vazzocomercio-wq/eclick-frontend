@@ -20,7 +20,8 @@ const CARDS: ModuleCard[] = [
   {
     icon:  <Wand2 size={22} />,
     title: 'GEO Optimizer',
-    desc:  'Recomendações acionáveis pra fazer a IA citar e recomendar a sua marca.',
+    desc:  'A IA reescreve título e descrição, publica no anúncio e mede o impacto em vendas.',
+    href:  '/dashboard/ai-visibility/optimizer',
   },
   {
     icon:  <Radar size={22} />,
