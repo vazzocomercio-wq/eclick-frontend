@@ -28,6 +28,17 @@ interface QueuedEvent {
 
 type TokenGetter = () => Promise<string | null>
 
+export interface TaskAttemptSnapshot {
+  attempt_id:      string
+  task_name:       string
+  started_at:      string
+  steps_completed: string[]
+  completed_at?:   string
+  abandoned_at?:   string
+  abandoned_step?: string
+  outcome?:        string | null
+}
+
 class TelemetryClient {
   private queue: QueuedEvent[] = []
   private getToken: TokenGetter | null = null
@@ -102,6 +113,26 @@ class TelemetryClient {
 
   abandonTask(taskName: string, step?: string, properties: Record<string, unknown> = {}) {
     this.track('task.abandoned', { properties: { task_name: taskName, step, ...properties } })
+  }
+
+  /**
+   * Upsert do snapshot de uma tentativa de funil em telemetry_task_attempts
+   * (via backend, que tem o GRANT). Best-effort + keepalive (sobrevive a
+   * navegação/unmount, importante pro abandono automático).
+   */
+  async postTaskAttempt(snapshot: TaskAttemptSnapshot): Promise<void> {
+    if (typeof window === 'undefined' || !this.getToken) return
+    let token: string | null = null
+    try { token = await this.getToken() } catch { return }
+    if (!token) return
+    try {
+      await fetch(`${BACKEND}/telemetry/task-attempts`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body:    JSON.stringify(snapshot),
+        keepalive: true,
+      })
+    } catch { /* best-effort: telemetria nunca quebra a UI */ }
   }
 
   // ---- interno ----

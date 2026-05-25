@@ -51,8 +51,7 @@ export default function GeoScoreClient() {
 
   const task = useTaskTracking('geo_audit_complete')
   const track = useTrackEvent()
-  const phaseRef = useRef<Phase>('idle')
-  useEffect(() => { phaseRef.current = phase }, [phase])
+  const funnelStarted = useRef(false)
 
   // Rotaciona as mensagens de loading.
   useEffect(() => {
@@ -61,15 +60,20 @@ export default function GeoScoreClient() {
     return () => clearInterval(id)
   }, [phase])
 
-  // Abandono: se sair no meio da análise, marca o funil.
-  useEffect(() => () => { if (phaseRef.current === 'analyzing') task.abandon('analyzing') }, [task])
+  // url_pasted: inicia o funil na primeira digitação não-vazia. O abandono
+  // (se sair sem result_viewed) é automático no unmount via o hook.
+  const onUrlChange = (v: string) => {
+    setUrl(v)
+    if (!funnelStarted.current && v.trim()) { funnelStarted.current = true; task.start(); task.step('url_pasted') }
+  }
 
   const analyze = useCallback(async () => {
     const u = url.trim()
     if (!/^https?:\/\//i.test(u)) { setError('Cole uma URL válida (começando com http/https).'); return }
 
     setError(null); setData(null); setMsgIdx(0); setPhase('analyzing')
-    task.start({ url: u })
+    task.start({ url: u }) // idempotente (já iniciado no url_pasted)
+    task.step('analysis_started')
 
     try {
       const headers = await authHeaders()
@@ -88,6 +92,7 @@ export default function GeoScoreClient() {
           const d = await r.json() as GeoScoreData
           if (d.status === 'completed') {
             setData(d); setPhase('done')
+            task.step('result_viewed')
             task.complete('completed', { score: d.score })
             return
           }
@@ -108,6 +113,8 @@ export default function GeoScoreClient() {
   }, [url, task])
 
   const onRecClick = (rec: GeoRecommendation) => {
+    task.step('recommendation_clicked')
+    task.step('fix_applied') // o botão "Aplicar manualmente" é a interação de recomendação na UI
     track('geo_score.recommendation_clicked', { properties: { dimension: rec.dimension, severity: rec.severity, url: data?.url } })
   }
 
@@ -133,7 +140,7 @@ export default function GeoScoreClient() {
           <Search size={16} style={{ color: '#52525b' }} />
           <input
             value={url}
-            onChange={e => setUrl(e.target.value)}
+            onChange={e => onUrlChange(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && phase !== 'analyzing') analyze() }}
             placeholder="https://produto.mercadolivre.com.br/MLB-..."
             disabled={phase === 'analyzing'}
