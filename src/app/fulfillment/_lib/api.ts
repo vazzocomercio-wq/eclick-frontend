@@ -327,6 +327,10 @@ export const fulfillmentApi = {
   upsertCompanyFiscal: (companyId: string, body: Record<string, unknown>) =>
     api<{ ok: boolean }>(`/fulfillment/fiscal/companies/${companyId}`, { method: 'PUT', body: JSON.stringify(body) }),
   fiscalReadiness: (companyId: string) => api<FiscalReadiness>(`/fulfillment/fiscal/companies/${companyId}/readiness`),
+  uploadCertificate: (companyId: string, body: { pfxBase64: string; password: string }) =>
+    api<{ ok: boolean; expiresAt: string | null; subject: string | null }>(`/fulfillment/fiscal/companies/${companyId}/certificate`, { method: 'POST', body: JSON.stringify(body) }),
+  certificateInfo: (companyId: string) =>
+    api<{ status: string; expiresAt: string | null; daysToExpire: number | null; hasFile: boolean }>(`/fulfillment/fiscal/companies/${companyId}/certificate`),
 
   returns: (wid?: string) => api<FulfillmentReturn[]>(`/fulfillment/returns${wid ? `?warehouse_id=${wid}` : ''}`),
   registerReturn: (body: { warehouseId?: string; fulfillmentOrderId?: string; reference?: string; customer?: Record<string, unknown>; reason?: string; items?: Array<{ sku: string; productId?: string; qty: number; title?: string }> }) =>
