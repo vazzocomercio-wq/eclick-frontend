@@ -45,6 +45,8 @@ type NavItem = {
   /** Link pra fora do SaaS (ex.: o Active) — abre em nova aba. */
   external?: boolean
   badgeKey?: BadgeKey
+  /** Mostra um selo "Novo" cyan ao lado do label (lançamento recente). */
+  newBadge?: boolean
   children?: NavChild[]
 }
 
@@ -355,7 +357,7 @@ const SECTIONS: NavSection[] = [
     key: 'ai-visibility',
     labelKey: 'sections.aiVisibility',
     items: [
-      { labelKey: 'items.aiVisibility', href: '/dashboard/ai-visibility', icon: <Sparkles size={15} /> },
+      { labelKey: 'items.aiVisibility', href: '/dashboard/ai-visibility', icon: <Sparkles size={15} />, newBadge: true },
     ],
   },
   {
@@ -576,6 +578,12 @@ function NavLeafItem({ item, badges }: { item: NavItem; badges: Badges }) {
       {isActive && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 rounded-full" style={{ background: '#00E5FF' }} />}
       <span className="sidebar-icon" style={{ color: isActive ? '#00E5FF' : 'inherit' }}>{item.icon}</span>
       <span className="flex-1">{t(item.labelKey)}</span>
+      {item.newBadge && (
+        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0"
+          style={{ background: 'rgba(0,229,255,0.14)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.35)' }}>
+          Novo
+        </span>
+      )}
       {badge != null && <BadgePill count={badge} color="#ef4444" />}
     </Link>
   )

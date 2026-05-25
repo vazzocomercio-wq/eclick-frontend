@@ -66,6 +66,7 @@ export const MODULES = {
   ENRICHMENT: 'enrichment',
   PRICING:    'pricing',
   SETTINGS:   'settings',
+  AI_VISIBILITY: 'ai_visibility',
 } as const
 
 export const TRACKED_TASKS = {
@@ -103,6 +104,7 @@ const TELEMETRY_ROUTE_MODULES: ReadonlyArray<readonly [string, TelemetryModule]>
   ['/dashboard/pricing-ai',    MODULES.PRICING],
   ['/dashboard/pricing',       MODULES.PRICING],
   ['/dashboard/precos',        MODULES.PRICING],
+  ['/dashboard/ai-visibility', MODULES.AI_VISIBILITY],
   ['/dashboard/configuracoes', MODULES.SETTINGS],
 ]
 
