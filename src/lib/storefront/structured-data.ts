@@ -69,6 +69,25 @@ export function productJsonLd(store: StorefrontStore, product: StorefrontProduct
   return node
 }
 
+/**
+ * FAQPage a partir do FAQ REAL do produto (products.faq). Retorna null quando
+ * não há Q&A — emitir FAQPage sem conteúdo visível na página é penalizado.
+ * O conteúdo precisa estar VISÍVEL (ver ProductFaqSection).
+ */
+export function faqJsonLd(product: StorefrontProduct): Record<string, unknown> | null {
+  const items = (product.faq ?? []).filter(f => f?.q?.trim() && f?.a?.trim())
+  if (items.length === 0) return null
+  return {
+    '@context': 'https://schema.org/',
+    '@type':    'FAQPage',
+    mainEntity: items.map(f => ({
+      '@type':          'Question',
+      name:             f.q.trim(),
+      acceptedAnswer:   { '@type': 'Answer', text: f.a.trim() },
+    })),
+  }
+}
+
 /** BreadcrumbList: Início → Produtos → Produto (categoria crua do ML é omitida). */
 export function breadcrumbJsonLd(store: StorefrontStore, product: StorefrontProduct, baseUrl: string): Record<string, unknown> {
   return {

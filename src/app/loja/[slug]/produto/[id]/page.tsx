@@ -14,8 +14,9 @@ import { getProduct, getProducts, getActiveBonusRules, resolveDesign, type Store
 import { PremiumProductDetail } from '@/components/storefront/PremiumProductDetail'
 import { StoreShell } from '@/components/storefront-v3/StoreShell'
 import { ProductReviewsSection } from '@/components/storefront/ProductReviewsSection'
+import { ProductFaqSection } from '@/components/storefront/ProductFaqSection'
 import { DEFAULT_DESIGN } from '@/lib/storefront/templates'
-import { storeBaseUrl, productJsonLd, breadcrumbJsonLd, productOpenGraph } from '@/lib/storefront/structured-data'
+import { storeBaseUrl, productJsonLd, breadcrumbJsonLd, faqJsonLd, productOpenGraph } from '@/lib/storefront/structured-data'
 
 interface Props {
   params: Promise<{ slug: string; id: string }>
@@ -49,14 +50,20 @@ export default async function ProductPage({ params }: Props) {
   const store = data.store as StorefrontStore
   const resolved = resolveDesign(store)
 
-  // JSON-LD (SEO + GEO): Product/Offer (+ aggregateRating quando há reviews) e BreadcrumbList.
+  // JSON-LD (SEO + GEO): Product/Offer (+ aggregateRating quando há reviews),
+  // BreadcrumbList e FAQPage (só quando há FAQ real, casando com a seção visível).
   const baseUrl = storeBaseUrl(store, slug)
+  const faqLd = faqJsonLd(data.product)
   const jsonLdScript = (
     <>
       <script type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd(store, data.product, baseUrl)) }} />
       <script type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd(store, data.product, baseUrl)) }} />
+      {faqLd && (
+        <script type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(faqLd) }} />
+      )}
     </>
   )
 
@@ -75,6 +82,7 @@ export default async function ProductPage({ params }: Props) {
           bonusRules,
         }} />
         <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 16px 48px' }}>
+          <ProductFaqSection faq={data.product.faq} />
           <ProductReviewsSection
             slug={slug}
             productId={data.product.id}
@@ -96,6 +104,7 @@ export default async function ProductPage({ params }: Props) {
         related={related}
       />
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 16px 48px' }}>
+        <ProductFaqSection faq={data.product.faq} />
         <ProductReviewsSection
           slug={slug}
           productId={data.product.id}

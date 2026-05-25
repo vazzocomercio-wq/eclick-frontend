@@ -117,6 +117,8 @@ export interface StorefrontProduct {
   // ─ Reviews (denormalizado — AD1) ─
   review_count?:         number | null
   review_avg?:           number | null
+  // ─ FAQ (Q&A reais gerados/curados — products.faq jsonb) ─
+  faq?:                  Array<{ q: string; a: string }> | null
   created_at?:           string | null
   updated_at?:           string | null
 }
