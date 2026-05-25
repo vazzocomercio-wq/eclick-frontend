@@ -40,7 +40,11 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
     throw new ApiError(String(msg), res.status)
   }
   if (res.status === 204) return undefined as T
-  return res.json() as Promise<T>
+  // Corpo pode vir VAZIO quando o backend retorna null (ex.: config fiscal ainda
+  // não existe) — res.json() quebraria com "Unexpected end of JSON input".
+  const text = await res.text()
+  if (!text) return undefined as T
+  return JSON.parse(text) as T
 }
 
 // ── Tipos ────────────────────────────────────────────────────────────────
