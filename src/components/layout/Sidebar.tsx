@@ -106,6 +106,7 @@ const SECTIONS: NavSection[] = [
               { labelKey: 'items.produtosOperacao',       href: '/dashboard/produtos/operacao-cadastro' },
               { labelKey: 'items.produtosAiBulk',         href: '/dashboard/produtos/ai-bulk' },
               { labelKey: 'items.produtosRecomendacoes',  href: '/dashboard/produtos/recomendacoes-ia' },
+              { labelKey: 'items.produtosCategorias',     href: '/dashboard/produtos/categorias' },
             ],
           },
           {
