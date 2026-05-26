@@ -256,15 +256,35 @@ function FailedView() {
   )
 }
 
+const SKIP_MSG: Record<string, { title: string; body: string }> = {
+  not_a_product: {
+    title: 'Esse link é de uma loja, não de um produto',
+    body: 'Cole o link de UM anúncio (produto) específico — não o da sua loja, de uma categoria ou de uma busca. Ex.: a página de um item individual no Mercado Livre.',
+  },
+  blocked_by_marketplace: {
+    title: 'O marketplace bloqueou a leitura',
+    body: 'Essa página bloqueia leitura automática. Tente o link público direto do anúncio.',
+  },
+  product_not_found: {
+    title: 'Não encontramos esse produto',
+    body: 'O anúncio pode ter saído do ar. Confira o link e tente de novo.',
+  },
+  product_unavailable: {
+    title: 'Esse anúncio está indisponível',
+    body: 'Ele parece pausado ou sem estoque — a IA não consegue avaliá-lo agora.',
+  },
+}
+
 function SkippedView({ reason }: { reason: string }) {
+  const m = SKIP_MSG[reason] ?? {
+    title: 'Não conseguimos ler essa página automaticamente',
+    body: 'Algumas páginas bloqueiam leitura automática ou exigem login. Tente o link público direto do seu anúncio ou da página de produto.',
+  }
   return (
     <Shell>
       <div style={card({ textAlign: 'center', padding: 40 })}>
-        <h2 style={{ fontSize: 22, fontWeight: 800, margin: 0 }}>Não conseguimos ler essa página automaticamente</h2>
-        <p style={{ color: '#a1a1aa', fontSize: 15, lineHeight: 1.6, margin: '12px auto 0', maxWidth: 460 }}>
-          Algumas páginas bloqueiam leitura automática ou exigem login. Tente o link público direto do
-          seu anúncio ou da página de produto. {reason ? <span style={{ color: '#52525b' }}>({reason})</span> : null}
-        </p>
+        <h2 style={{ fontSize: 22, fontWeight: 800, margin: 0 }}>{m.title}</h2>
+        <p style={{ color: '#a1a1aa', fontSize: 15, lineHeight: 1.6, margin: '12px auto 0', maxWidth: 480 }}>{m.body}</p>
         <Link href="/auditoria-gratis" style={ctaLink}>Tentar outro link <ArrowRight size={17} /></Link>
       </div>
     </Shell>
