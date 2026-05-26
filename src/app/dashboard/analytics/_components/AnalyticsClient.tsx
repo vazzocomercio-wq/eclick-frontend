@@ -4,7 +4,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import {
   BarChart3, Loader2, RefreshCw, Eye, Users, TrendingUp,
-  Sparkles, ShoppingBag, AtSign, Share2, MessageCircle, Megaphone,
+  Sparkles, ShoppingBag, AtSign, Share2, MessageCircle, Megaphone, Radar,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 
@@ -34,6 +34,12 @@ interface Overview {
     account: { followers_count: number; reach: number; profile_views: number } | null
   }
   geo: { audits: number; avg_score: number; distribution: Record<string, number> }
+  geo_radar: {
+    latest_date: string | null
+    queries_measured: number
+    share_of_voice: number
+    by_engine: Record<string, { runs: number; mentioned: number; mention_rate: number }>
+  }
   paid: { connected: boolean; note: string }
   generated_at: string
 }
@@ -43,6 +49,7 @@ const NETWORK_LABEL: Record<string, string> = {
   whatsapp: 'WhatsApp', tiktok: 'TikTok', store: 'Loja', meta_ads: 'Meta Ads',
   google_ads: 'Google Ads', ai_engine: 'IA',
 }
+const ENGINE_LABEL: Record<string, string> = { gemini: 'Gemini', openai: 'ChatGPT', claude: 'Claude' }
 function netIcon(n: string) {
   const p = { size: 13 }
   if (n === 'instagram') return <AtSign {...p} />
@@ -91,6 +98,7 @@ export default function AnalyticsClient() {
   const [data, setData] = useState<Overview | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [radarBusy, setRadarBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
@@ -117,6 +125,21 @@ export default function AnalyticsClient() {
     }
     await load()
     setRefreshing(false)
+  }, [load])
+
+  // Mede a presença da marca nas IAs (gasta créditos). Semeia (idempotente) + roda.
+  const measureRadar = useCallback(async () => {
+    if (!window.confirm('Medir a presença da sua marca nas IAs consome créditos (~US$1,50–2,50 por rodada, 3 motores). Continuar?')) return
+    setRadarBusy(true)
+    const headers = await authHeaders()
+    if (headers) {
+      try {
+        await fetch(`${BACKEND}/analytics/geo-radar/seed`, { method: 'POST', headers })
+        await fetch(`${BACKEND}/analytics/geo-radar/run`, { method: 'POST', headers, body: JSON.stringify({}) })
+      } catch { /* segue */ }
+    }
+    await load()
+    setRadarBusy(false)
   }, [load])
 
   useEffect(() => { void load() }, [load])
@@ -224,6 +247,36 @@ export default function AnalyticsClient() {
                   <DistBar label="Ótimo (81–100)" v={data.geo.distribution.otimo_81_100} total={data.geo.audits} color="#4ade80" />
                 </div>
               </Card>
+
+              <Card
+                title="Citação em IA (Radar)"
+                badge={data.geo_radar.latest_date
+                  ? <span className="text-[11px]" style={{ color: '#52525b' }}>{new Date(data.geo_radar.latest_date).toLocaleDateString('pt-BR')}</span>
+                  : undefined}
+              >
+                {data.geo_radar.latest_date ? (
+                  <>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-3xl font-bold" style={{ color: '#00E5FF' }}>{pct(data.geo_radar.share_of_voice)}</span>
+                      <span className="text-[12px]" style={{ color: '#71717a' }}>share-of-voice · {data.geo_radar.queries_measured} buscas</span>
+                    </div>
+                    <div className="flex flex-col gap-1.5 text-[11px]" style={{ color: '#a1a1aa' }}>
+                      {Object.entries(data.geo_radar.by_engine).map(([eng, v]) => (
+                        <DistBar key={eng} label={ENGINE_LABEL[eng] ?? eng} v={v.mentioned} total={v.runs} color="#00E5FF" />
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-[13px]" style={{ color: '#71717a' }}>Ainda não medimos sua presença nas IAs (ChatGPT, Gemini, Claude).</p>
+                )}
+                <button onClick={measureRadar} disabled={radarBusy}
+                  className="flex items-center justify-center gap-2 text-[12px] font-medium px-3 py-2 rounded-lg transition-colors disabled:opacity-50"
+                  style={{ background: 'rgba(0,229,255,0.10)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.35)' }}>
+                  {radarBusy ? <Loader2 size={13} className="animate-spin" /> : <Radar size={13} />}
+                  {radarBusy ? 'Medindo nas IAs…' : 'Medir em IA (gasta créditos)'}
+                </button>
+              </Card>
+
               <Card title="Anúncios pagos">
                 <p className="text-[13px]" style={{ color: data.paid.connected ? '#a1a1aa' : '#71717a' }}>
                   {data.paid.connected ? 'Conectado' : data.paid.note}
