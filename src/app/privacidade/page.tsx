@@ -21,7 +21,7 @@ const ATUALIZACAO = '26 de maio de 2026'
 
 export default function PrivacidadePage() {
   return (
-    <div style={{ background: '#09090b', color: TXT, minHeight: '100vh', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+    <div className="geo-page" style={{ background: '#09090b', color: TXT, minHeight: '100vh', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
       <header style={{ maxWidth: 760, margin: '0 auto', padding: '20px' }}>
         <Link href="/auditoria-gratis" style={{ fontSize: 20, fontWeight: 900, letterSpacing: '-0.03em', color: TXT, textDecoration: 'none' }}>
           e<span style={{ color: CYAN }}>-</span>Click

@@ -94,7 +94,7 @@ export default function AuditoriaGratisPage() {
   }
 
   return (
-    <div style={{ background: BG, color: TXT, minHeight: '100vh', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+    <div className="geo-page" style={{ background: BG, color: TXT, minHeight: '100vh', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
       <ForceDarkTheme />
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
       <script type="application/ld+json"

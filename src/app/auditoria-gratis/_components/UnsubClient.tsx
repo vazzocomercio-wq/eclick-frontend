@@ -28,7 +28,7 @@ export function UnsubClient({ aid }: { aid: string }) {
   }
 
   return (
-    <div style={{ background: '#09090b', color: '#fafafa', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, fontFamily: 'system-ui, sans-serif' }}>
+    <div className="geo-page" style={{ background: '#09090b', color: '#fafafa', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, fontFamily: 'system-ui, sans-serif' }}>
       <ForceDarkTheme />
       <style dangerouslySetInnerHTML={{ __html: '.au-spin{animation:au-spin .8s linear infinite}@keyframes au-spin{to{transform:rotate(360deg)}}' }} />
       <div style={{ width: '100%', maxWidth: 460, background: '#121214', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 18, padding: 'clamp(24px,4vw,36px)', textAlign: 'center' }}>

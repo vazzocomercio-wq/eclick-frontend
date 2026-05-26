@@ -81,7 +81,7 @@ export function LoadingClient({ id }: { id: string }) {
   const pct = doneRef.current ? 100 : Math.min(92, Math.round(((stepIdx + 1) / STEPS.length) * 92))
 
   return (
-    <div style={{ background: '#09090b', color: '#fafafa', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, fontFamily: 'system-ui, sans-serif' }}>
+    <div className="geo-page" style={{ background: '#09090b', color: '#fafafa', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, fontFamily: 'system-ui, sans-serif' }}>
       <ForceDarkTheme />
       <style dangerouslySetInnerHTML={{ __html: '.au-spin{animation:au-spin .8s linear infinite}@keyframes au-spin{to{transform:rotate(360deg)}}' }} />
       <div style={{ width: '100%', maxWidth: 540, background: '#121214', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20, padding: 'clamp(24px,4vw,40px)' }}>

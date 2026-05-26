@@ -544,3 +544,31 @@ select option { background: #1c1c1f; }
 @media (prefers-reduced-motion: reduce) {
   .sidebar-icon::before { transition: none; }
 }
+
+/* ────────────────────────────────────────────────────────────
+   Clash Display (Fontshare — grátis p/ uso comercial), self-hosted.
+   Fonte de DISPLAY das páginas PÚBLICAS do AI Visibility OS (Auditoria
+   GEO): aproxima a Agrandir Grand. Aplicada SÓ em .geo-page (títulos,
+   banner) — corpo segue na sans legível; NÃO afeta o dashboard.
+   Trocar pela Agrandir real = só apontar estes @font-face pros arquivos dela.
+   ──────────────────────────────────────────────────────────── */
+@font-face {
+  font-family: 'Clash Display';
+  src: url('/fonts/ClashDisplay-Medium.woff2') format('woff2');
+  font-weight: 500; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'Clash Display';
+  src: url('/fonts/ClashDisplay-Semibold.woff2') format('woff2');
+  font-weight: 600; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'Clash Display';
+  src: url('/fonts/ClashDisplay-Bold.woff2') format('woff2');
+  font-weight: 700; font-style: normal; font-display: swap;
+}
+.geo-page :is(h1, h2, h3, h4),
+.geo-display {
+  font-family: 'Clash Display', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  letter-spacing: -0.02em;
+}

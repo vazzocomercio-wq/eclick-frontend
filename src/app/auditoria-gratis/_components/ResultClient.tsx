@@ -63,7 +63,7 @@ function DoneView({ result, id }: { result: PublicAuditResult; id: string }) {
       <div style={card({ textAlign: 'center', padding: 'clamp(28px,4vw,40px)' })}>
         <Gauge score={result.score} color={color} />
         <div style={{ marginTop: 8, fontSize: 13, fontWeight: 800, letterSpacing: '0.12em', color }}>{bandLabel(result.band)}</div>
-        <p style={{ fontSize: 'clamp(1.1rem,2.4vw,1.5rem)', fontWeight: 800, letterSpacing: '-0.02em', margin: '14px auto 0', maxWidth: 520, lineHeight: 1.25 }}>
+        <p className="geo-display" style={{ fontSize: 'clamp(1.1rem,2.4vw,1.5rem)', fontWeight: 800, margin: '14px auto 0', maxWidth: 520, lineHeight: 1.25 }}>
           {result.headline}
         </p>
       </div>
@@ -295,7 +295,7 @@ function SkippedView({ reason }: { reason: string }) {
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ background: '#09090b', color: '#fafafa', minHeight: '100vh', fontFamily: 'system-ui, sans-serif' }}>
+    <div className="geo-page" style={{ background: '#09090b', color: '#fafafa', minHeight: '100vh', fontFamily: 'system-ui, sans-serif' }}>
       <ForceDarkTheme />
       <style dangerouslySetInnerHTML={{ __html: '.au-spin{animation:au-spin .8s linear infinite}@keyframes au-spin{to{transform:rotate(360deg)}}' }} />
       <div style={{ maxWidth: 760, margin: '0 auto', padding: 'clamp(20px,4vw,40px) 20px 64px' }}>{children}</div>
@@ -305,7 +305,7 @@ function Shell({ children }: { children: React.ReactNode }) {
 
 function Centered({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ background: '#09090b', color: '#a1a1aa', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, fontFamily: 'system-ui, sans-serif' }}>
+    <div className="geo-page" style={{ background: '#09090b', color: '#a1a1aa', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, fontFamily: 'system-ui, sans-serif' }}>
       <ForceDarkTheme />
       <style dangerouslySetInnerHTML={{ __html: '.au-spin{animation:au-spin .8s linear infinite}@keyframes au-spin{to{transform:rotate(360deg)}}' }} />
       <div style={{ display: 'flex', alignItems: 'center' }}>{children}</div>
