@@ -118,7 +118,11 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/p/') ||
     pathname.startsWith('/auditoria-gratis') ||  // landing pública GEO + loading/resultado/OG/descadastro
     pathname.startsWith('/privacidade') ||
-    pathname === '/llms.txt'
+    pathname.startsWith('/blog') ||              // blog público GEO
+    pathname === '/llms.txt' ||
+    pathname === '/sitemap.xml' ||
+    pathname === '/rss.xml' ||
+    pathname === '/robots.txt'
 
   if (!user && !isPublicRoute) {
     const url = request.nextUrl.clone()
