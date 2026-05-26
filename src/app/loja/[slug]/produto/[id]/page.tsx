@@ -57,12 +57,12 @@ export default async function ProductPage({ params }: Props) {
   const jsonLdScript = (
     <>
       <script type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd(store, data.product, baseUrl)) }} />
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd(store, data.product, baseUrl)).replace(/</g, '\\u003c') }} />
       <script type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd(store, data.product, baseUrl)) }} />
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd(store, data.product, baseUrl)).replace(/</g, '\\u003c') }} />
       {faqLd && (
         <script type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(faqLd) }} />
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(faqLd).replace(/</g, '\\u003c') }} />
       )}
     </>
   )

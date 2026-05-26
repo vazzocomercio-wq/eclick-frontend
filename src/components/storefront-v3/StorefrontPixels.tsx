@@ -17,11 +17,20 @@ interface Props {
   store: StorefrontStore
 }
 
+// IDs de pixel são interpolados em <script> inline (dangerouslySetInnerHTML).
+// Validamos por allowlist estrita pra impedir XSS armazenado via store_config
+// (ex.: meta_pixel_id = "');<script>...">). Real IDs são só [A-Za-z0-9_-].
+const PIXEL_ID_RE = /^[A-Za-z0-9_-]{1,64}$/
+function safePixelId(v?: string | null): string | null {
+  const s = (v ?? '').trim()
+  return s && PIXEL_ID_RE.test(s) ? s : null
+}
+
 export function StorefrontPixels({ store }: Props) {
-  const ga       = store.google_analytics_id?.trim()
-  const meta     = store.meta_pixel_id?.trim()
-  const tiktok   = store.tiktok_pixel_id?.trim()
-  const gtm      = store.gtm_id?.trim()
+  const ga       = safePixelId(store.google_analytics_id)
+  const meta     = safePixelId(store.meta_pixel_id)
+  const tiktok   = safePixelId(store.tiktok_pixel_id)
+  const gtm      = safePixelId(store.gtm_id)
 
   if (!ga && !meta && !tiktok && !gtm) return null
 

@@ -50,9 +50,9 @@ export default async function StorefrontPage({ params }: Props) {
   const orgScripts = (
     <>
       <script type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd(store, baseUrl)) }} />
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd(store, baseUrl)).replace(/</g, '\\u003c') }} />
       <script type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd(store, baseUrl)) }} />
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd(store, baseUrl)).replace(/</g, '\\u003c') }} />
     </>
   )
 

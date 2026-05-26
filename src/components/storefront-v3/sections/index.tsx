@@ -36,7 +36,7 @@ export function SiteHeader({ ctx, section }: { ctx: RenderCtx; section: SiteHead
           : fallbackText}
       </a>
       <nav className="hidden md:flex gap-6 text-sm" style={{ color: 'var(--c-text)' }}>
-        {nav.map((n, i) => <a key={i} href={n.href} style={{ color: 'inherit' }}>{n.label}</a>)}
+        {(nav ?? []).map((n, i) => <a key={i} href={n.href} style={{ color: 'inherit' }}>{n.label}</a>)}
       </nav>
       <button className="md:hidden" aria-label="Menu" style={{ color: 'var(--c-text)', minHeight: 44, minWidth: 44, background: 'transparent', border: 0 }}>☰</button>
     </header>
