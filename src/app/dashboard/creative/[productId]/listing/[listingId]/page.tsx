@@ -10,6 +10,7 @@ import {
 import ListingEditor from '@/components/creative/ListingEditor'
 import ListingPreview from '@/components/creative/ListingPreview'
 import ListingSeoPanel, { scrollToSeoField } from '@/components/creative/ListingSeoPanel'
+import GeoVisibilityPanel from '@/components/creative/GeoVisibilityPanel'
 import MarketplaceVariantTabs from '@/components/creative/MarketplaceVariantTabs'
 import VersionHistory from '@/components/creative/VersionHistory'
 import CreativeImageGenerationProgress from '@/app/dashboard/creative/_components/CreativeImageGenerationProgress'
@@ -355,6 +356,8 @@ export default function ListingDetailPage() {
                 picturesCount={images.filter(i => i.status === 'approved').length || undefined}
                 onJumpToField={scrollToSeoField}
               />
+              {/* GEO — visibilidade nos motores de IA (complementa o SEO do ML) */}
+              <GeoVisibilityPanel listingId={listing.id} listingVersion={listing.version} />
             </div>
           </div>
         </div>
