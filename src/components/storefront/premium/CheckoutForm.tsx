@@ -12,7 +12,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useTranslations } from 'next-intl'
-import { Loader2, CreditCard, AlertCircle, ShoppingBag, ArrowLeft, Wallet } from 'lucide-react'
+import { Loader2, CreditCard, AlertCircle, ShoppingBag, ArrowLeft, Wallet, Tag } from 'lucide-react'
 import { useCart } from '@/lib/storefront/cart'
 import { useCartTracker } from '@/lib/storefront/cart-tracker'
 import { formatBRL } from '@/lib/storefront/data'
@@ -67,6 +67,43 @@ export function CheckoutForm({ store, design, slug }: {
   const [cashbackEarnPct, setCashbackEarnPct] = useState<number>(0)
   const [useCashback, setUseCashback] = useState<boolean>(false)
   const [cashbackToUseCents, setCashbackToUseCents] = useState<number>(0)
+
+  // Cupom — valida server-side via /coupons/apply (não incrementa uso aqui;
+  // o pagamento aprovado é que contabiliza). Só preview de desconto.
+  type AppliedCoupon = {
+    code: string; type: string; discount_cents: number; free_shipping: boolean; message: string
+  }
+  const [couponInput, setCouponInput]       = useState('')
+  const [couponApplying, setCouponApplying] = useState(false)
+  const [couponError, setCouponError]       = useState<string | null>(null)
+  const [appliedCoupon, setAppliedCoupon]   = useState<AppliedCoupon | null>(null)
+
+  async function applyCoupon() {
+    const code = couponInput.trim()
+    if (!code || couponApplying) return
+    setCouponApplying(true)
+    setCouponError(null)
+    try {
+      const subtotalCents = Math.round(cart.subtotal * 100)
+      const res = await fetch(
+        `${BACKEND}/coupons/apply?slug=${encodeURIComponent(slug)}&code=${encodeURIComponent(code)}&subtotal_cents=${subtotalCents}`,
+      )
+      const data = await res.json().catch(() => ({})) as Partial<AppliedCoupon> & { message?: string }
+      if (!res.ok) throw new Error(data?.message ?? 'Cupom inválido.')
+      setAppliedCoupon(data as AppliedCoupon)
+    } catch (e) {
+      setAppliedCoupon(null)
+      setCouponError((e as Error).message)
+    } finally {
+      setCouponApplying(false)
+    }
+  }
+
+  function removeCoupon() {
+    setAppliedCoupon(null)
+    setCouponInput('')
+    setCouponError(null)
+  }
 
   // Lookup do saldo quando email é preenchido (debounced 500ms)
   useEffect(() => {
@@ -128,7 +165,8 @@ export function CheckoutForm({ store, design, slug }: {
   }, [useCashback, email, slug, cart.subtotal, cashbackBalanceCents])
 
   const cashbackToUseReais = cashbackToUseCents / 100
-  const effectiveTotal = Math.max(0, cart.subtotal - (useCashback ? cashbackToUseReais : 0))
+  const couponDiscountReais = appliedCoupon ? appliedCoupon.discount_cents / 100 : 0
+  const effectiveTotal = Math.max(0, cart.subtotal - couponDiscountReais - (useCashback ? cashbackToUseReais : 0))
   const cashbackToEarn  = effectiveTotal * (cashbackEarnPct / 100)
 
   const announce = design.sections.find(s => s.type === 'announcementBar')
@@ -163,6 +201,7 @@ export function CheckoutForm({ store, design, slug }: {
           },
           cashbackToUse: useCashback && cashbackToUseCents > 0 ? cashbackToUseCents : undefined,
           affiliateCode: getRefCode(slug) ?? undefined,
+          couponCode: appliedCoupon?.code,
         }),
       })
       if (!res.ok) {
@@ -305,6 +344,56 @@ export function CheckoutForm({ store, design, slug }: {
                 </Card>
               )}
 
+              {/* Cupom de desconto */}
+              <Card title={
+                <span className="inline-flex items-center gap-2">
+                  <Tag size={14} /> Cupom de desconto
+                </span>
+              } ctx={ctx}>
+                {appliedCoupon ? (
+                  <div className="p-3 rounded flex items-center justify-between gap-3" style={{
+                    background: alpha('#22c55e', 0.08),
+                    border: '1px solid rgba(34,197,94,0.3)',
+                    borderRadius: ctx.radius,
+                  }}>
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold truncate" style={{ color: '#22c55e' }}>{appliedCoupon.code}</p>
+                      <p className="text-[11px]" style={{ color: colors.textMuted }}>{appliedCoupon.message}</p>
+                    </div>
+                    <button type="button" onClick={removeCoupon}
+                      className="text-xs underline shrink-0" style={{ color: colors.textMuted, minHeight: 44 }}>
+                      Remover
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex gap-2">
+                      <input
+                        value={couponInput}
+                        onChange={e => setCouponInput(e.target.value.toUpperCase())}
+                        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); void applyCoupon() } }}
+                        placeholder="DIGITE O CÓDIGO"
+                        className="flex-1 px-3 py-2 text-sm outline-none uppercase"
+                        style={{
+                          background: colors.surface, color: colors.text,
+                          border: `1px solid ${colors.border}`, borderRadius: ctx.radius,
+                        }}
+                      />
+                      <button type="button" onClick={() => void applyCoupon()} disabled={couponApplying || !couponInput.trim()}
+                        className="px-4 py-2 text-sm font-semibold transition-opacity hover:opacity-80 disabled:opacity-40 shrink-0 inline-flex items-center justify-center"
+                        style={{ background: colors.primary, color: onAccentColor(ctx.theme), borderRadius: ctx.radius, minHeight: 44 }}>
+                        {couponApplying ? <Loader2 size={14} className="animate-spin" /> : 'Aplicar'}
+                      </button>
+                    </div>
+                    {couponError && (
+                      <p className="text-[11px] mt-2 flex items-center gap-1" style={{ color: '#ef4444' }}>
+                        <AlertCircle size={12} /> {couponError}
+                      </p>
+                    )}
+                  </>
+                )}
+              </Card>
+
               <Card title={t('checkout.payment.title')} ctx={ctx}>
                 <GatewayPick value={gateway} onChange={setGateway} ctx={ctx} />
                 <p className="text-[11px] mt-2" style={{ color: colors.textMuted }}>
@@ -358,6 +447,19 @@ export function CheckoutForm({ store, design, slug }: {
                   <span style={{ color: colors.textMuted }}>Subtotal</span>
                   <span style={{ color: colors.text }}>{formatBRL(cart.subtotal)}</span>
                 </div>
+                {/* Cupom aplicado */}
+                {appliedCoupon && appliedCoupon.discount_cents > 0 && (
+                  <div className="flex justify-between items-baseline text-sm">
+                    <span style={{ color: '#22c55e' }}>🏷 Cupom {appliedCoupon.code}</span>
+                    <span style={{ color: '#22c55e' }}>− {formatBRL(appliedCoupon.discount_cents / 100)}</span>
+                  </div>
+                )}
+                {appliedCoupon && appliedCoupon.free_shipping && (
+                  <div className="flex justify-between items-baseline text-sm">
+                    <span style={{ color: '#22c55e' }}>🏷 Cupom {appliedCoupon.code}</span>
+                    <span style={{ color: '#22c55e' }}>Frete grátis</span>
+                  </div>
+                )}
                 {/* Cashback aplicado */}
                 {useCashback && cashbackToUseCents > 0 && (
                   <div className="flex justify-between items-baseline text-sm">
