@@ -115,7 +115,9 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/redefinir-senha') ||
     pathname.startsWith('/loja') ||
     pathname.startsWith('/lb') ||
-    pathname.startsWith('/p/')
+    pathname.startsWith('/p/') ||
+    pathname.startsWith('/auditoria-gratis') ||  // landing pública GEO + loading/resultado/OG
+    pathname === '/llms.txt'
 
   if (!user && !isPublicRoute) {
     const url = request.nextUrl.clone()
