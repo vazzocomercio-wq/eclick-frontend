@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import Image from 'next/image'
 import { ForceDarkTheme } from './_components/ForceDarkTheme'
 import { C, BLOG_CSS, SITE_URL } from './_components/tokens'
 
@@ -24,13 +25,15 @@ export default function BlogLayout({ children }: { children: React.ReactNode }) 
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         maxWidth: 1180, margin: '0 auto', padding: '20px 20px',
       }}>
-        <Link href="/blog" style={{ display: 'flex', alignItems: 'baseline', gap: 8, textDecoration: 'none' }}>
-          <span style={{ fontSize: 22, fontWeight: 900, letterSpacing: '-0.04em', color: C.TXT }}>
-            e<span style={{ color: C.CYAN }}>-</span>Click
-          </span>
-          <span style={{ fontSize: 11, color: C.DIM, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-            Blog
-          </span>
+        <Link href="/blog" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none' }} aria-label="e-Click Blog">
+          <Image
+            src="/blog-logo.png"
+            alt="e-Click Blog"
+            width={500}
+            height={200}
+            priority
+            style={{ height: 44, width: 'auto' }}
+          />
         </Link>
         <nav style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
           <Link href="/auditoria-gratis" className="bl-link" style={{ fontSize: 14, fontWeight: 600, color: C.CYAN }}>
