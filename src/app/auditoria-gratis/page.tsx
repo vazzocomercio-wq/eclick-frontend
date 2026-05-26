@@ -10,6 +10,7 @@
 
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import Image from 'next/image'
 import { CaptureForm } from './_components/CaptureForm'
 import { ForceDarkTheme } from './_components/ForceDarkTheme'
 
@@ -106,14 +107,14 @@ export default function AuditoriaGratisPage() {
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         maxWidth: 1180, margin: '0 auto', padding: '20px 20px',
       }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-          <span style={{ fontSize: 22, fontWeight: 900, letterSpacing: '-0.04em' }}>
-            e<span style={{ color: CYAN }}>-</span>Click
-          </span>
-          <span style={{ fontSize: 11, color: DIM, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-            Inteligência Comercial
-          </span>
-        </div>
+        <Image
+          src="/ai-visibility-logo.png"
+          alt="e-Click — IA Visibility OS"
+          width={150}
+          height={60}
+          priority
+          style={{ height: 44, width: 'auto', display: 'block' }}
+        />
         <Link href="/login" style={{ fontSize: 14, color: MUT, textDecoration: 'none' }} className="au-link">
           Entrar
         </Link>
