@@ -9,15 +9,16 @@
  * veio pre-fetched. 'collection', 'bestsellers', 'newest', 'promo' ainda
  * dependem de fetch adicional — por ora caem em 'storefront' como fallback
  * (a rota da pagina deve eventualmente pre-fetch por source).
+ *
+ * Na página de coleção (/produtos) o grid ganha a barra de categorias
+ * (Cat-2b) via CatalogFilterGrid. O card foi extraído pra ProductCard.tsx.
  */
 
 import type { ProductGridSection } from '@/lib/storefront/v3/types'
 import type { StorefrontProduct } from '@/lib/storefront/v3/data'
 import type { RenderCtx } from '../RenderCtx'
-import { PriceDisplay, SaleBadge } from '../PriceDisplay'
-import { findBonusBadge, BonusBadge } from '../bonusBadge'
-import { WishlistButton } from '../WishlistButton'
-import { ReviewStars } from '@/components/storefront/ReviewStars'
+import { ProductCard } from './ProductCard'
+import { CatalogFilterGrid } from './CatalogFilterGrid'
 
 function pickProducts(all: StorefrontProduct[], src: ProductGridSection['settings']['source']): StorefrontProduct[] {
   switch (src.kind) {
@@ -71,6 +72,11 @@ export function ProductGridSectionView({ ctx, section }: { ctx: RenderCtx; secti
     colClass(columns.desktop, 'md'),
   ].join(' ')
 
+  // Na página de coleção (/produtos) com a fonte do catálogo, mostra a barra
+  // de categorias (Cat-2b) + grid filtrável. Nos demais (home/destaques),
+  // mantém o grid estático de sempre.
+  const showCategoryFilter = ctx.page === 'collection' && (source.kind === 'storefront' || source.kind === 'collection')
+
   return (
     <div className="container mx-auto px-4">
       {title && (
@@ -79,92 +85,13 @@ export function ProductGridSectionView({ ctx, section }: { ctx: RenderCtx; secti
           {title}
         </h2>
       )}
-      <div className={gridCls}>
-        {products.map(p => <ProductCard key={p.id} ctx={ctx} product={p} variant={cardStyle} />)}
-      </div>
+      {showCategoryFilter ? (
+        <CatalogFilterGrid ctx={ctx} products={products} columns={columns} cardStyle={cardStyle} />
+      ) : (
+        <div className={gridCls}>
+          {products.map(p => <ProductCard key={p.id} ctx={ctx} product={p} variant={cardStyle} />)}
+        </div>
+      )}
     </div>
-  )
-}
-
-function ProductCard({ ctx, product, variant }: {
-  ctx: RenderCtx
-  product: StorefrontProduct
-  variant: 'compact' | 'detailed' | 'minimal'
-}) {
-  const img = product.photo_urls?.[0]
-  const showCategory = variant !== 'minimal' && product.category
-  const showBrand    = variant === 'detailed' && product.brand
-  const showShort    = variant === 'detailed' && product.ai_short_description
-  // Badges baseados nos dados ricos
-  const isLowStock   = typeof product.stock === 'number' && product.stock > 0 && product.stock <= 3
-  const isNew = (() => {
-    if (!product.created_at) return false
-    const days = (Date.now() - new Date(product.created_at).getTime()) / (1000 * 60 * 60 * 24)
-    return days <= 30
-  })()
-  const bonusBadge = findBonusBadge(product.id, ctx.bonusRules)
-
-  return (
-    <a
-      href={`/loja/${ctx.slug}/produto/${product.id}`}
-      style={{ display: 'block', textDecoration: 'none', color: 'var(--c-text)' }}
-    >
-      <div style={{ position: 'relative', aspectRatio: '1 / 1', overflow: 'hidden', borderRadius: 'var(--r)', background: 'var(--c-surface)' }}>
-        {img
-          ? <img src={img} alt={product.name} loading="lazy"
-              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-          : null}
-        {/* Wishlist heart no canto top-right */}
-        <div style={{ position: 'absolute', top: 8, right: 8, zIndex: 2 }}>
-          <WishlistButton slug={ctx.slug} productId={product.id} size="sm" />
-        </div>
-        {/* Badges */}
-        {(isNew || isLowStock || product.on_sale || bonusBadge) && (
-          <div style={{ position: 'absolute', top: 8, left: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {product.on_sale && <SaleBadge product={product} />}
-            {bonusBadge && <BonusBadge badge={bonusBadge} />}
-            {isNew && !product.on_sale && (
-              <span style={{
-                padding: '3px 8px', fontSize: 10, fontWeight: 700, letterSpacing: '0.05em',
-                background: 'var(--c-primary)', color: 'var(--c-on-accent)',
-                borderRadius: 'var(--r)', textTransform: 'uppercase',
-              }}>Novo</span>
-            )}
-            {isLowStock && (
-              <span style={{
-                padding: '3px 8px', fontSize: 10, fontWeight: 700, letterSpacing: '0.05em',
-                background: 'var(--c-warning, #eab308)', color: '#0a0a0e',
-                borderRadius: 'var(--r)', textTransform: 'uppercase',
-              }}>Últimas {product.stock}</span>
-            )}
-          </div>
-        )}
-      </div>
-      <div style={{ padding: '12px 4px 0' }}>
-        {(showCategory || showBrand) && (
-          <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--c-text-muted)', marginBottom: 4 }}>
-            {showBrand && product.brand}
-            {showBrand && showCategory && ' · '}
-            {showCategory && product.category}
-          </div>
-        )}
-        <h3 style={{ fontFamily: 'var(--f-body)', fontSize: 14, fontWeight: 500, lineHeight: 1.3, margin: 0 }}>
-          {product.name}
-        </h3>
-        {typeof product.review_count === 'number' && product.review_count > 0 && (
-          <div style={{ marginTop: 6 }}>
-            <ReviewStars value={product.review_avg ?? 0} count={product.review_count} size={13} idSeed={product.id} />
-          </div>
-        )}
-        {showShort && (
-          <p style={{ fontSize: 13, color: 'var(--c-text-muted)', marginTop: 4, lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-            {product.ai_short_description}
-          </p>
-        )}
-        <div style={{ marginTop: 8 }}>
-          <PriceDisplay product={product} settings={ctx.paymentDisplay} cashback={ctx.cashback} variant="card" />
-        </div>
-      </div>
-    </a>
   )
 }

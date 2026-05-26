@@ -83,6 +83,7 @@ export interface StorefrontProduct {
   price:                number
   photo_urls:           string[] | null
   category:             string | null
+  category_ml_id?:      string | null   // categoria do ML (Cat-2) — usada pro filtro de categorias
   ai_score:             number | null
   ai_short_description: string | null
   // ─ Dados ricos (vem do SELECT expandido em listPublicProducts) ─
@@ -152,6 +153,22 @@ export async function getProducts(slug: string, limit = 24): Promise<StorefrontP
   if (!data) return []
   if (Array.isArray(data)) return data
   return data.products ?? []
+}
+
+/** Categorias da loja (Cat-2) — só as que têm produto (vazia = oculta),
+ *  agrupadas por domínio do ML, com nome resolvido no espelho ml_categories. */
+export interface StoreCategoryGroup {
+  id:       string
+  name:     string
+  count:    number
+  children: Array<{ id: string; name: string; count: number }>
+}
+
+export async function getStoreCategories(slug: string): Promise<StoreCategoryGroup[]> {
+  const data = await fetchJson<{ groups?: StoreCategoryGroup[] }>(
+    `${BACKEND}/public/store/${encodeURIComponent(slug)}/categories`,
+  )
+  return data?.groups ?? []
 }
 
 /** Regras de bônus ativas — vitrine usa pra renderizar badge "LEVE 2 PAGUE 1"
