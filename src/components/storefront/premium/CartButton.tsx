@@ -12,7 +12,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useTranslations } from 'next-intl'
 import { X, ShoppingBag, Plus, Minus, Trash2, CreditCard } from 'lucide-react'
-import { useCart } from '@/lib/storefront/cart'
+import { useCart, cartLineKey } from '@/lib/storefront/cart'
 import { formatBRL } from '@/lib/storefront/data'
 import type { StorefrontStore } from '@/lib/storefront/data'
 import type { RenderCtx } from '../renderCtx'
@@ -108,7 +108,7 @@ export function CartButton({ store, slug, ctx }: {
               ) : (
                 <ul className="space-y-3">
                   {cart.items.map(item => (
-                    <li key={item.productId}
+                    <li key={cartLineKey(item)}
                       className="flex gap-3 p-3 rounded"
                       style={{ border: `1px solid ${colors.border}`, borderRadius: ctx.radius }}>
                       <div className="w-16 h-16 rounded overflow-hidden shrink-0"
@@ -131,13 +131,13 @@ export function CartButton({ store, slug, ctx }: {
                           <div className="flex items-center"
                             style={{ border: `1px solid ${colors.border}`, borderRadius: ctx.radius }}>
                             <button type="button" aria-label={t('product.decrease')}
-                              onClick={() => cart.setQty(item.productId, item.qty - 1)}
+                              onClick={() => cart.setQty(cartLineKey(item), item.qty - 1)}
                               className="px-2 py-1 hover:opacity-70" style={{ color: colors.text }}>
                               <Minus size={12} />
                             </button>
                             <span className="px-2 text-xs font-medium min-w-[24px] text-center">{item.qty}</span>
                             <button type="button" aria-label={t('product.increase')}
-                              onClick={() => cart.setQty(item.productId, item.qty + 1)}
+                              onClick={() => cart.setQty(cartLineKey(item), item.qty + 1)}
                               className="px-2 py-1 hover:opacity-70" style={{ color: colors.text }}>
                               <Plus size={12} />
                             </button>
@@ -148,7 +148,7 @@ export function CartButton({ store, slug, ctx }: {
                         </div>
                       </div>
                       <button type="button" aria-label={t('cart.remove')}
-                        onClick={() => cart.remove(item.productId)}
+                        onClick={() => cart.remove(cartLineKey(item))}
                         className="self-start p-1 hover:opacity-70" style={{ color: colors.textMuted }}>
                         <Trash2 size={14} />
                       </button>

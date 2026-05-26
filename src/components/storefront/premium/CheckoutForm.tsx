@@ -13,7 +13,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useTranslations } from 'next-intl'
 import { Loader2, CreditCard, AlertCircle, ShoppingBag, ArrowLeft, Wallet, Tag } from 'lucide-react'
-import { useCart } from '@/lib/storefront/cart'
+import { useCart, cartLineKey } from '@/lib/storefront/cart'
 import { useCartTracker } from '@/lib/storefront/cart-tracker'
 import { formatBRL } from '@/lib/storefront/data'
 import { getRefCode } from '@/lib/storefront/affiliate-auth'
@@ -431,7 +431,7 @@ export function CheckoutForm({ store, design, slug }: {
               <Card title={t('checkout.summary.title', { n: cart.count })} ctx={ctx}>
                 <ul className="space-y-3">
                   {cart.items.map(it => (
-                    <li key={it.productId} className="flex gap-2 text-xs">
+                    <li key={cartLineKey(it)} className="flex gap-2 text-xs">
                       <span className="flex-1 truncate" style={{ color: colors.text }}>
                         {it.name} <span style={{ color: colors.textMuted }}>{t('checkout.summary.qty', { qty: it.qty })}</span>
                       </span>

@@ -23,6 +23,17 @@ export interface CartItem {
 
 const KEY = (slug: string) => `eclick-cart:${slug}`
 
+/**
+ * Identidade de uma LINHA do carrinho. Linhas de kit ("Monte o ambiente")
+ * têm preço unitário proporcional ≠ do produto avulso, então NÃO podem
+ * fundir com a linha avulsa do mesmo produto (nem com outra de kit diferente)
+ * — senão o cliente paga o preço errado. Avulso = só productId; kit =
+ * productId::kitId.
+ */
+export function cartLineKey(item: Pick<CartItem, 'productId' | 'kitId'>): string {
+  return item.kitId ? `${item.productId}::${item.kitId}` : item.productId
+}
+
 function read(slug: string): CartItem[] {
   if (typeof window === 'undefined') return []
   try {
@@ -57,8 +68,8 @@ export interface UseCartApi {
   count:        number   // soma de qty
   subtotal:     number   // soma de price*qty
   add:          (item: Omit<CartItem, 'qty'>, qty?: number) => void
-  setQty:       (productId: string, qty: number) => void
-  remove:       (productId: string) => void
+  setQty:       (lineKey: string, qty: number) => void   // lineKey = cartLineKey(item)
+  remove:       (lineKey: string) => void                // lineKey = cartLineKey(item)
   clear:        () => void
   checkoutMsg:  (storeName: string) => string
   checkoutLink: (storeName: string, whatsappNumber: string | null) => string | null
@@ -96,11 +107,12 @@ export function useCart(slug: string): UseCartApi {
 
   const add = useCallback((item: Omit<CartItem, 'qty'>, qty = 1) => {
     const current = read(slug)
-    const idx = current.findIndex(i => i.productId === item.productId)
+    // Funde só com a MESMA linha (productId + kitId). Avulso e kit do mesmo
+    // produto ficam separados — preços unitários diferem.
+    const key = cartLineKey(item)
+    const idx = current.findIndex(i => cartLineKey(i) === key)
     if (idx >= 0) {
-      // Preserva o kitId existente; se a linha ainda não tinha e a nova veio
-      // de kit, herda (ajuda o desconto de kit a validar no checkout).
-      const next = current.map((i, k) => k === idx ? { ...i, qty: i.qty + qty, kitId: i.kitId ?? item.kitId } : i)
+      const next = current.map((i, k) => k === idx ? { ...i, qty: i.qty + qty } : i)
       persist(next)
     } else {
       persist([...current, { ...item, qty }])
@@ -112,16 +124,17 @@ export function useCart(slug: string): UseCartApi {
     } catch { /* ignore */ }
   }, [slug, persist])
 
-  const setQty = useCallback((productId: string, qty: number) => {
+  // lineKey = cartLineKey(item) — identifica a linha exata (avulso ou kit).
+  const setQty = useCallback((lineKey: string, qty: number) => {
     if (qty <= 0) {
-      persist(read(slug).filter(i => i.productId !== productId))
+      persist(read(slug).filter(i => cartLineKey(i) !== lineKey))
       return
     }
-    persist(read(slug).map(i => i.productId === productId ? { ...i, qty } : i))
+    persist(read(slug).map(i => cartLineKey(i) === lineKey ? { ...i, qty } : i))
   }, [slug, persist])
 
-  const remove = useCallback((productId: string) => {
-    persist(read(slug).filter(i => i.productId !== productId))
+  const remove = useCallback((lineKey: string) => {
+    persist(read(slug).filter(i => cartLineKey(i) !== lineKey))
   }, [slug, persist])
 
   const clear = useCallback(() => { persist([]) }, [persist])
