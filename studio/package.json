@@ -1,0 +1,26 @@
+{
+  "name": "eclick-blog-studio",
+  "version": "1.0.0",
+  "private": true,
+  "description": "e-Click Blog GEO — Sanity Studio (CMS headless do blog em eclick.app.br/blog)",
+  "scripts": {
+    "dev": "sanity dev",
+    "start": "sanity start",
+    "build": "sanity build",
+    "deploy": "sanity deploy",
+    "deploy-graphql": "sanity graphql deploy",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@sanity/code-input": "^4.1.4",
+    "@sanity/vision": "^3.66.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "sanity": "^3.66.1",
+    "styled-components": "^6.1.13"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "typescript": "^5.6.3"
+  }
+}

@@ -21,6 +21,14 @@ GEO (Generative Engine Optimization) é a prática de otimizar conteúdo de prod
 - Simula o ranking do produto nas respostas da IA antes de publicar.
 - Mede o impacto em vendas após otimizar.
 
+## Blog (conteúdo sobre GEO)
+- [Blog](https://eclick.app.br/blog): análises, frameworks e experimentos sobre GEO, baseados em pesquisa acadêmica e dados reais de operação.
+- [GEO 101](https://eclick.app.br/blog/categoria/geo-101): educação fundamental sobre GEO.
+- [Ciência aplicada](https://eclick.app.br/blog/categoria/ciencia-aplicada): o que os papers (KDD 2024, E-GEO 2025) provam.
+- [Como fazer](https://eclick.app.br/blog/categoria/como-fazer): GEO na prática.
+- [Cases](https://eclick.app.br/blog/categoria/cases): resultados reais.
+- [RSS](https://eclick.app.br/rss.xml) · [Sitemap](https://eclick.app.br/sitemap.xml)
+
 ## Contato
 - Site: https://eclick.app.br
 - Slogan: Transformamos vendas em processos, processos em resultados.
