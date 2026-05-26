@@ -3,12 +3,13 @@
 /**
  * Formulário de captura da landing "Auditoria GEO Grátis".
  * Lead deixa nome completo + email + WhatsApp (obrigatórios) + URL pra auditar.
- * No submit: POST /public/audits/start → lead nasce no funil "Captação GEO".
- * Worker de análise + tela de resultado são Sprint 2; aqui mostramos sucesso inline.
+ * No submit: POST /public/audits/start → lead nasce no funil "Captação GEO"
+ * e redirecionamos pra tela de loading (polling) → resultado.
  */
 
 import { useState, useEffect, type FormEvent } from 'react'
-import { ArrowRight, Loader2, CheckCircle2, ShieldCheck, Sparkles } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { ArrowRight, Loader2, ShieldCheck, Sparkles } from 'lucide-react'
 
 const BACKEND =
   process.env.NEXT_PUBLIC_BACKEND_URL ??
@@ -62,7 +63,7 @@ export function CaptureForm() {
   const [errors, setErrors] = useState<FieldErrors>({})
   const [submitting, setSubmitting] = useState(false)
   const [serverError, setServerError] = useState<string | null>(null)
-  const [done, setDone] = useState(false)
+  const router = useRouter()
 
   useEffect(() => {
     try {
@@ -106,52 +107,14 @@ export function CaptureForm() {
         setSubmitting(false)
         return
       }
-      setDone(true)
+      const ok = (await res.json().catch(() => null)) as { audit_id?: string } | null
+      if (ok?.audit_id) { router.push(`/auditoria-gratis/loading/${ok.audit_id}`); return }
+      setServerError('Não foi possível iniciar a auditoria. Tente de novo.')
+      setSubmitting(false)
     } catch {
       setServerError('Falha de conexão. Verifique sua internet e tente de novo.')
       setSubmitting(false)
     }
-  }
-
-  if (done) {
-    return (
-      <div
-        role="status"
-        style={{
-          background: 'rgba(74,222,128,0.06)',
-          border: `1px solid ${GREEN}55`,
-          borderRadius: 16,
-          padding: '28px 24px',
-          textAlign: 'center',
-        }}
-      >
-        <CheckCircle2 size={40} color={GREEN} style={{ margin: '0 auto 12px' }} />
-        <h3 style={{ fontSize: 22, fontWeight: 800, color: '#fafafa', letterSpacing: '-0.02em', margin: 0 }}>
-          Recebemos! Sua auditoria está sendo processada.
-        </h3>
-        <p style={{ color: '#a1a1aa', fontSize: 15, lineHeight: 1.6, margin: '12px auto 0', maxWidth: 460 }}>
-          Estamos analisando seu link em 8 dimensões. Assim que terminar, você recebe a
-          <strong style={{ color: '#fafafa' }}> nota GEO</strong> e os
-          <strong style={{ color: '#fafafa' }}> 3 problemas mais críticos</strong> no seu
-          email e WhatsApp. Costuma levar alguns minutos.
-        </p>
-        <button
-          type="button"
-          onClick={() => {
-            setDone(false); setSubmitting(false)
-            setUrl(''); setName(''); setEmail(''); setWhatsapp(''); setCategory(''); setLgpd(false)
-            setErrors({}); setServerError(null)
-          }}
-          style={{
-            marginTop: 20, background: 'transparent', color: CYAN,
-            border: `1px solid ${CYAN}66`, borderRadius: 10, padding: '10px 18px',
-            fontSize: 14, fontWeight: 600, cursor: 'pointer',
-          }}
-        >
-          Auditar outro link
-        </button>
-      </div>
-    )
   }
 
   return (
