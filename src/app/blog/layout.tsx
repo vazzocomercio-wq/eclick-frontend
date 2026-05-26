@@ -1,8 +1,26 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import Image from 'next/image'
+import localFont from 'next/font/local'
 import { ForceDarkTheme } from './_components/ForceDarkTheme'
 import { C, BLOG_CSS, SITE_URL } from './_components/tokens'
+
+/**
+ * Fonte de display do blog — Clash Display (Fontshare, grátis p/ uso comercial),
+ * análogo livre da Agrandir. Aplicada a títulos/banner via var(--font-display)
+ * (ver BLOG_CSS). Corpo do texto segue na fonte de leitura.
+ */
+const displayFont = localFont({
+  src: [
+    { path: './_fonts/clash-display-400.woff2', weight: '400', style: 'normal' },
+    { path: './_fonts/clash-display-500.woff2', weight: '500', style: 'normal' },
+    { path: './_fonts/clash-display-600.woff2', weight: '600', style: 'normal' },
+    { path: './_fonts/clash-display-700.woff2', weight: '700', style: 'normal' },
+  ],
+  variable: '--font-display',
+  display: 'swap',
+  fallback: ['system-ui', '-apple-system', 'sans-serif'],
+})
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -16,7 +34,7 @@ export const metadata: Metadata = {
 
 export default function BlogLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div id="top" style={{ background: C.BG, color: C.TXT, minHeight: '100vh', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+    <div id="top" className={displayFont.variable} style={{ background: C.BG, color: C.TXT, minHeight: '100vh', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
       <ForceDarkTheme />
       <style dangerouslySetInnerHTML={{ __html: BLOG_CSS }} />
 

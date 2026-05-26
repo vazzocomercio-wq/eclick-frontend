@@ -37,7 +37,7 @@ export default async function BlogHome() {
         <h1 style={{ fontSize: 'clamp(2.2rem, 5.5vw, 3.8rem)', fontWeight: 900, lineHeight: 1.05, letterSpacing: '-0.03em', margin: 0, maxWidth: 900 }}>
           Como vender quando a <span style={{ color: C.CYAN }}>IA</span> virou a vitrine
         </h1>
-        <p style={{ fontSize: 'clamp(1rem, 1.6vw, 1.18rem)', color: C.MUT, lineHeight: 1.6, margin: '20px 0 0', maxWidth: 620 }}>
+        <p className="bl-display" style={{ fontSize: 'clamp(1.05rem, 1.7vw, 1.25rem)', color: C.MUT, lineHeight: 1.55, margin: '20px 0 0', maxWidth: 640, fontWeight: 500 }}>
           Análises, frameworks e experimentos sobre GEO (Otimização para Mecanismos Generativos).
           Baseados em pesquisa acadêmica e em dados reais de operação.
         </p>

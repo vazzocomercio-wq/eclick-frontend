@@ -39,6 +39,9 @@ export function fmtDate(iso?: string): string {
 
 /** CSS global do blog (injetado 1x no layout). Prefixo bl- pra não colidir. */
 export const BLOG_CSS = `
+/* Fonte de display (Clash Display ~ Agrandir) nos títulos e banner */
+#top h1, #top h2, #top h3 { font-family: var(--font-display), system-ui, -apple-system, sans-serif; }
+.bl-display { font-family: var(--font-display), system-ui, -apple-system, sans-serif; }
 .bl-spin { animation: bl-spin 0.8s linear infinite; }
 @keyframes bl-spin { to { transform: rotate(360deg); } }
 .bl-reveal { opacity: 0; transform: translateY(14px); animation: bl-reveal 0.6s ease-out forwards; }
