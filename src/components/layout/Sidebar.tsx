@@ -362,6 +362,13 @@ const SECTIONS: NavSection[] = [
     ],
   },
   {
+    key: 'analytics',
+    labelKey: 'sections.analytics',
+    items: [
+      { labelKey: 'items.analytics', href: '/dashboard/analytics', icon: <LineChart size={15} />, newBadge: true },
+    ],
+  },
+  {
     key: 'configuracoes',
     labelKey: 'sections.configuracoes',
     items: [
@@ -400,6 +407,7 @@ const SECTION_DEFAULT_OPEN: Record<string, boolean> = {
   ads:             false,
   inteligencia:    false,
   'ai-visibility': false,
+  analytics:       false,
   configuracoes:   false,
 }
 

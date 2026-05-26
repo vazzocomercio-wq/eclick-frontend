@@ -143,6 +143,7 @@
       "projeto": "PROJETO",
       "inteligencia": "INTELIGÊNCIA",
       "aiVisibility": "AI VISIBILITY",
+      "analytics": "ANALYTICS",
       "configuracoes": "CONFIGURAÇÕES",
       "admin": "GESTÃO E-CLICK"
     },
@@ -309,6 +310,7 @@
       "inteligenciaRelatorios": "Relatórios",
       "inteligenciaConfiguracoes": "Configurações",
       "aiVisibility": "AI Visibility OS",
+      "analytics": "Analytics",
       "configGeral": "Geral",
       "configPreferencias": "Preferências",
       "configEquipe": "Equipe",

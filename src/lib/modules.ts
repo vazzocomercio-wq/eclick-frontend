@@ -25,6 +25,7 @@ export const MODULE_CATALOG: ModuleDef[] = [
   { key: 'projeto',       label: 'Projeto' },
   { key: 'inteligencia',  label: 'Inteligência' },
   { key: 'ai-visibility', label: 'AI Visibility' },
+  { key: 'analytics',     label: 'Analytics' },
   { key: 'configuracoes', label: 'Configurações' },
 ]
 
@@ -79,6 +80,7 @@ const ROUTE_MODULES: ReadonlyArray<readonly [string, string]> = [
   ['/dashboard/roadmap', 'projeto'],
   ['/dashboard/inteligencia', 'inteligencia'],
   ['/dashboard/ai-visibility', 'ai-visibility'],
+  ['/dashboard/analytics', 'analytics'],
   ['/dashboard/admin', 'admin'],
   ['/fulfillment', 'fulfillment'],
 ]
