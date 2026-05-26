@@ -44,10 +44,10 @@ export function ResultClient({ id }: { id: string }) {
   if (state === 'failed' || !result) return <FailedView />
   if (result.skipped) return <SkippedView reason={result.skipped.reason} />
 
-  return <DoneView result={result} />
+  return <DoneView result={result} id={id} />
 }
 
-function DoneView({ result }: { result: PublicAuditResult }) {
+function DoneView({ result, id }: { result: PublicAuditResult; id: string }) {
   const color = BAND_COLOR[result.band]
   return (
     <Shell>
@@ -143,12 +143,10 @@ function DoneView({ result }: { result: PublicAuditResult }) {
             </li>
           ))}
         </ul>
-        <a href={DEMO_URL} target="_blank" rel="noopener noreferrer" className="submit-glow"
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginTop: 24, background: CYAN, color: '#04141a', borderRadius: 12, padding: '15px 28px', fontSize: 16, fontWeight: 800, textDecoration: 'none' }}>
-          Conhecer o e-Click <ArrowRight size={18} />
-        </a>
+        <DemoCTA id={id} />
         <p style={{ fontSize: 13, color: '#71717a', margin: '16px 0 0' }}>
-          Também enviamos sua auditoria detalhada no seu email e WhatsApp.
+          Também enviamos sua auditoria detalhada no seu email e WhatsApp. Ou{' '}
+          <a href={DEMO_URL} target="_blank" rel="noopener noreferrer" style={{ color: CYAN }}>conheça o e-Click</a>.
         </p>
       </div>
 
@@ -188,6 +186,42 @@ function Gauge({ score, color }: { score: number; color: string }) {
         <span style={{ fontSize: 13, color: '#71717a', marginTop: 2 }}>/100 · Nota GEO</span>
       </div>
     </div>
+  )
+}
+
+function DemoCTA({ id }: { id: string }) {
+  const [state, setState] = useState<'idle' | 'loading' | 'sent' | 'queued'>('idle')
+  async function go() {
+    setState('loading')
+    try {
+      const r = await fetch(`${BACKEND}/public/audits/request-demo`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ audit_id: id }),
+      })
+      const b = await r.json().catch(() => null) as { proposed?: boolean } | null
+      setState(b?.proposed ? 'sent' : 'queued')
+    } catch { setState('queued') }
+  }
+  if (state === 'sent') {
+    return (
+      <p style={{ marginTop: 22, fontSize: 15, color: GREEN, fontWeight: 600, lineHeight: 1.6 }}>
+        ✅ Pronto! Te enviamos <strong>3 horários no seu WhatsApp</strong> agora — é só responder com o número que prefere.
+      </p>
+    )
+  }
+  if (state === 'queued') {
+    return (
+      <p style={{ marginTop: 22, fontSize: 15, color: GREEN, fontWeight: 600, lineHeight: 1.6 }}>
+        ✅ Recebido! Nosso time vai entrar em contato pra agendar sua demo.
+      </p>
+    )
+  }
+  return (
+    <button onClick={go} disabled={state === 'loading'} className="submit-glow"
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginTop: 24, background: CYAN, color: '#04141a', border: 'none', borderRadius: 12, padding: '15px 28px', fontSize: 16, fontWeight: 800, cursor: state === 'loading' ? 'wait' : 'pointer' }}>
+      {state === 'loading'
+        ? (<><Loader2 size={18} className="au-spin" /> Enviando…</>)
+        : (<>Agendar demo — recebo os horários no WhatsApp <ArrowRight size={18} /></>)}
+    </button>
   )
 }
 
