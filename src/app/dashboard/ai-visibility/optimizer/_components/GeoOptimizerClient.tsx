@@ -2,12 +2,13 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { Sparkles, Search, Loader2, Wand2, Check, AlertTriangle, RotateCcw, Lock, BarChart3 } from 'lucide-react'
+import { Sparkles, Search, Loader2, Wand2, Check, AlertTriangle, RotateCcw, Lock, BarChart3, Swords, TrendingUp, Minus } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import { useTaskTracking } from '@/lib/telemetry/hooks'
 import GeoImpactPanel from '@/components/ai-visibility/GeoImpactPanel'
 import {
   OptimizerDraft, ApplyResult, TitleVariation, variantTypeLabel,
+  RankSimReport, candidateSourceLabel, simNoteLabel,
 } from '@/components/ai-visibility/optimizer-labels'
 
 const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'https://eclick-backend-production-2a87.up.railway.app'
@@ -64,6 +65,62 @@ function VariantCard({ v, selected, onSelect }: { v: TitleVariation; selected: b
   )
 }
 
+function RankSimResult({ r }: { r: RankSimReport }) {
+  if (r.note) {
+    return (
+      <div className="mt-4 rounded-xl p-4 text-sm" style={{ background: '#18181b', border: '1px solid #27272a', color: '#a1a1aa' }}>
+        Não foi possível simular: {simNoteLabel(r.note)}.
+      </div>
+    )
+  }
+  const delta = r.rank_delta
+  const up = delta != null && delta > 0
+  const down = delta != null && delta < 0
+  const color = up ? '#4ADE80' : down ? '#EF4444' : '#A1A1AA'
+  const Icon = up ? TrendingUp : Minus
+  const label = up ? 'Subiu no ranking' : down ? 'Caiu no ranking' : 'Sem mudança de posição'
+  const fmt = (n: number | null) => n == null ? '—' : n.toFixed(2).replace(/\.00$/, '')
+  return (
+    <div className="mt-4 space-y-3">
+      <div className="rounded-xl p-5" style={{ background: '#18181b', border: `1px solid ${color}40` }}>
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-3">
+            <Icon size={22} style={{ color }} />
+            <div>
+              <div className="text-base font-bold" style={{ color }}>{label}</div>
+              <div className="text-[13px] mt-0.5 tabular-nums" style={{ color: '#a1a1aa' }}>
+                Posição média: <b style={{ color: '#fafafa' }}>{fmt(r.avg_rank_before)}</b> → <b style={{ color: '#fafafa' }}>{fmt(r.avg_rank_after)}</b>
+                {delta != null && <span style={{ color }}> ({delta > 0 ? '+' : ''}{delta})</span>}
+              </div>
+            </div>
+          </div>
+          <span className="inline-flex items-center gap-1.5 text-[11px] px-2 py-1 rounded-full" style={{ background: 'rgba(0,229,255,0.10)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.3)' }}>
+            <Swords size={12} /> páreo de {r.candidate_count} · {candidateSourceLabel(r.candidate_source)}
+          </span>
+        </div>
+      </div>
+      <div className="rounded-xl p-4" style={{ background: '#111114', border: '1px solid #27272a' }}>
+        <div className="text-[11px] uppercase tracking-wide mb-2" style={{ color: '#71717a' }}>Por pergunta de comprador (posição antes → depois)</div>
+        <div className="space-y-2">
+          {r.queries.map((q, i) => {
+            const qUp = q.rank_before != null && q.rank_after != null && q.rank_after < q.rank_before
+            const c = qUp ? '#4ADE80' : (q.rank_before != null && q.rank_after != null && q.rank_after > q.rank_before) ? '#EF4444' : '#a1a1aa'
+            return (
+              <div key={i} className="flex items-start justify-between gap-3 text-[13px]" style={{ borderTop: i ? '1px solid #1e1e24' : undefined, paddingTop: i ? 8 : 0 }}>
+                <span style={{ color: '#d4d4d8' }}>“{q.query}”</span>
+                <span className="tabular-nums whitespace-nowrap font-medium" style={{ color: c }}>{q.rank_before ?? '—'} → {q.rank_after ?? '—'}</span>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+      <p className="text-[11px]" style={{ color: '#52525b' }}>
+        Simula o motor de IA ranqueando seu produto contra concorrentes para perguntas reais de comprador, com a descrição atual × otimizada. Posição menor = melhor.
+      </p>
+    </div>
+  )
+}
+
 export default function GeoOptimizerClient() {
   const params = useSearchParams()
   const [tab, setTab] = useState<Tab>('optimize')
@@ -74,6 +131,10 @@ export default function GeoOptimizerClient() {
   const [applied, setApplied] = useState<ApplyResult | null>(null)
   const [confirming, setConfirming] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Rank Simulator
+  const [simPhase, setSimPhase] = useState<'idle' | 'running' | 'done' | 'error'>('idle')
+  const [simReport, setSimReport] = useState<RankSimReport | null>(null)
+  const [simError, setSimError] = useState<string | null>(null)
 
   const task = useTaskTracking('geo_optimize')
   const started = useRef(false)
@@ -142,7 +203,24 @@ export default function GeoOptimizerClient() {
     }
   }, [draft])
 
+  const simulate = useCallback(async () => {
+    const u = url.trim()
+    if (!/^https?:\/\//i.test(u)) { setError('Cole uma URL válida (http/https).'); return }
+    setSimError(null); setSimReport(null); setSimPhase('running')
+    try {
+      const headers = await authHeaders()
+      if (!headers) { setSimError('Sessão expirada — recarregue a página.'); setSimPhase('error'); return }
+      const res = await fetch(`${BACKEND}/ai-visibility/optimize/simulate`, { method: 'POST', headers, body: JSON.stringify({ url: u }) })
+      if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.message || 'Falha ao simular o ranking.')
+      const r = await res.json() as RankSimReport
+      setSimReport(r); setSimPhase('done')
+    } catch (e) {
+      setSimError((e as Error).message || 'Erro inesperado.'); setSimPhase('error')
+    }
+  }, [url])
+
   const busy = phase === 'generating' || phase === 'applying'
+  const simBusy = simPhase === 'running'
 
   return (
     <div className="px-4 sm:px-6 py-8 max-w-4xl mx-auto" style={{ color: '#fafafa' }}>
@@ -185,17 +263,38 @@ export default function GeoOptimizerClient() {
                 disabled={busy}
                 className="flex-1 bg-transparent outline-none px-2 py-2.5 text-sm" style={{ color: '#fafafa' }} />
             </div>
-            <button onClick={generate} disabled={busy}
+            <button onClick={generate} disabled={busy || simBusy}
               className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors"
-              style={{ background: busy ? '#1e1e24' : '#00E5FF', color: busy ? '#71717a' : '#06121a', cursor: busy ? 'not-allowed' : 'pointer' }}>
+              style={{ background: (busy || simBusy) ? '#1e1e24' : '#00E5FF', color: (busy || simBusy) ? '#71717a' : '#06121a', cursor: (busy || simBusy) ? 'not-allowed' : 'pointer' }}>
               {phase === 'generating' ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
               {phase === 'generating' ? 'Gerando…' : 'Gerar otimização'}
+            </button>
+            <button onClick={simulate} disabled={busy || simBusy} title="Simula o ranking do seu produto numa IA, antes e depois da otimização"
+              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors"
+              style={{ background: 'transparent', color: (busy || simBusy) ? '#52525b' : '#00E5FF', border: '1px solid rgba(0,229,255,0.4)', cursor: (busy || simBusy) ? 'not-allowed' : 'pointer' }}>
+              {simBusy ? <Loader2 size={16} className="animate-spin" /> : <Swords size={16} />}
+              {simBusy ? 'Simulando…' : 'Testar ranking na IA'}
             </button>
           </div>
 
           {error && (
             <div className="mt-4 rounded-lg p-3 text-sm" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>{error}</div>
           )}
+
+          {/* Rank Simulator */}
+          {simError && (
+            <div className="mt-4 rounded-lg p-3 text-sm" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>{simError}</div>
+          )}
+          {simPhase === 'running' && (
+            <div className="mt-4 rounded-xl p-6 flex items-center gap-4" style={{ background: '#18181b', border: '1px solid #27272a' }}>
+              <Loader2 size={26} className="animate-spin" style={{ color: '#00E5FF' }} />
+              <div>
+                <div className="text-sm font-medium">Simulando o ranking num motor de IA…</div>
+                <div className="text-xs mt-1" style={{ color: '#71717a' }}>Gerando perguntas de comprador e ranqueando seu produto vs concorrentes (antes × depois). Leva ~1 min.</div>
+              </div>
+            </div>
+          )}
+          {simPhase === 'done' && simReport && <RankSimResult r={simReport} />}
 
           {phase === 'generating' && (
             <div className="mt-6 rounded-xl p-6 flex items-center gap-4" style={{ background: '#18181b', border: '1px solid #27272a' }}>

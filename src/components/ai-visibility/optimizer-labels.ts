@@ -64,6 +64,41 @@ export interface ImpactReport {
   listings:     ListingImpact[]
 }
 
+// ── Rank Simulator (método E-GEO) ─────────────────────────────────────────
+
+export interface SimQueryResult { query: string; rank_before: number | null; rank_after: number | null }
+export interface RankSimReport {
+  product_id:       string | null
+  title:            string
+  category:         string | null
+  candidate_count:  number
+  candidate_source: 'radar' | 'synthetic' | 'catalog' | null
+  queries:          SimQueryResult[]
+  avg_rank_before:  number | null
+  avg_rank_after:   number | null
+  rank_delta:       number | null
+  optimized:        boolean
+  note:             string | null
+}
+
+export function candidateSourceLabel(s: string | null): string {
+  const map: Record<string, string> = {
+    radar:     'concorrentes reais (Radar)',
+    synthetic: 'concorrentes típicos de mercado (IA)',
+    catalog:   'produtos da mesma categoria do catálogo',
+  }
+  return s ? (map[s] ?? s) : '—'
+}
+
+export function simNoteLabel(note: string | null): string {
+  const map: Record<string, string> = {
+    no_category:             'produto sem categoria — não dá pra montar o páreo',
+    insufficient_candidates: 'não há concorrentes suficientes pra simular',
+    query_gen_failed:        'falha ao gerar as perguntas de teste',
+  }
+  return note ? (map[note] ?? note) : ''
+}
+
 export function variantTypeLabel(type: string): string {
   const map: Record<string, string> = {
     transacional:  'Transacional',
