@@ -116,7 +116,8 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/loja') ||
     pathname.startsWith('/lb') ||
     pathname.startsWith('/p/') ||
-    pathname.startsWith('/auditoria-gratis') ||  // landing pública GEO + loading/resultado/OG
+    pathname.startsWith('/auditoria-gratis') ||  // landing pública GEO + loading/resultado/OG/descadastro
+    pathname.startsWith('/privacidade') ||
     pathname === '/llms.txt'
 
   if (!user && !isPublicRoute) {
