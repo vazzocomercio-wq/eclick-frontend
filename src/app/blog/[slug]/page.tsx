@@ -17,6 +17,8 @@ import { CtaFinal } from '../_components/CtaFinal'
 import { NewsletterSignup } from '../_components/NewsletterSignup'
 import { extractHeadings } from '../_components/headings'
 import { C, fmtDate, pillarColor } from '../_components/tokens'
+import { fontCssVar } from '../_fonts/registry'
+import type { CSSProperties } from 'react'
 
 export const revalidate = 3600
 export const dynamicParams = true
@@ -86,8 +88,14 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
 
   const schemas = generatePostSchemas(post)
 
+  // Override de fonte deste post (se setado no Active) — sobrepõe o padrão do blog.
+  const mainStyle: CSSProperties = { maxWidth: 1180, margin: '0 auto', padding: '8px 20px 24px' }
+  if (post.displayFont) {
+    ;(mainStyle as Record<string, string | number>)['--font-display'] = fontCssVar(post.displayFont)
+  }
+
   return (
-    <main style={{ maxWidth: 1180, margin: '0 auto', padding: '8px 20px 24px' }}>
+    <main style={mainStyle}>
       {schemas.map((s, i) => (
         <script key={i} type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(s) }} />
       ))}

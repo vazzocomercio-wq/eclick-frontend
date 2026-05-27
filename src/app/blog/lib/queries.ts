@@ -52,6 +52,7 @@ const postBySlugQuery = /* groq */ `*[${PUBLISHED} && slug.current == $slug][0]{
   seoTitle,
   metaDescription,
   focusKeyword,
+  displayFont,
   aiPrompts,
   citationSources,
   publishedAt,

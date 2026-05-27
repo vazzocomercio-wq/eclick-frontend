@@ -86,6 +86,7 @@ export interface Post extends PostCardData {
   seoTitle?: string
   metaDescription?: string
   focusKeyword?: string
+  displayFont?: string
   aiPrompts?: string[]
   citationSources?: CitationSource[]
   tags?: Tag[]
