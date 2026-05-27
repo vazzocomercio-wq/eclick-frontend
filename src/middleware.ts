@@ -122,7 +122,8 @@ export async function middleware(request: NextRequest) {
     pathname === '/llms.txt' ||
     pathname === '/sitemap.xml' ||
     pathname === '/rss.xml' ||
-    pathname === '/robots.txt'
+    pathname === '/robots.txt' ||
+    pathname === '/api/revalidate'  // server-to-server (Active publica → revalida o blog)
 
   if (!user && !isPublicRoute) {
     const url = request.nextUrl.clone()
