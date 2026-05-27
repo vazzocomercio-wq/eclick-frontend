@@ -42,7 +42,7 @@ export default async function TagPage({ params }: { params: Promise<{ slug: stri
   return (
     <main style={{ maxWidth: 1180, margin: '0 auto', padding: '16px 20px 40px' }}>
       <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.DIM }}>Tag</span>
-      <h1 style={{ fontSize: 'clamp(1.8rem, 4vw, 2.6rem)', fontWeight: 900, letterSpacing: '-0.03em', margin: '8px 0 24px' }}>
+      <h1 style={{ fontSize: 'clamp(1.8rem, 4vw, 2.6rem)', fontWeight: 500, letterSpacing: '-0.02em', margin: '8px 0 24px' }}>
         #{tag.title}
       </h1>
       {posts.length === 0 ? (

@@ -7,7 +7,7 @@ export function RelatedPosts({ posts }: { posts?: PostCardData[] }) {
   if (!posts?.length) return null
   return (
     <section style={{ margin: '48px 0' }} aria-label="Posts relacionados">
-      <h2 style={{ fontSize: 'clamp(1.3rem, 3vw, 1.7rem)', fontWeight: 800, letterSpacing: '-0.02em', margin: '0 0 20px', color: C.TXT }}>
+      <h2 style={{ fontSize: 'clamp(1.3rem, 3vw, 1.7rem)', fontWeight: 600, letterSpacing: '-0.02em', margin: '0 0 20px', color: C.TXT }}>
         Continue lendo
       </h2>
       <div className="bl-grid-3">

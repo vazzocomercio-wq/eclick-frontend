@@ -64,8 +64,8 @@ export const BLOG_CSS = `
 .bl-faq[open] .bl-faq-plus { transform: rotate(45deg); }
 .bl-faq-plus { transition: transform .2s ease; display: inline-block; }
 .bl-prose p { margin: 0 0 18px; line-height: 1.75; color: #d4d4d8; font-size: 17px; }
-.bl-prose h2 { font-size: clamp(1.5rem, 3vw, 2rem); font-weight: 800; letter-spacing: -0.02em; margin: 40px 0 16px; scroll-margin-top: 90px; color: ${C.TXT}; }
-.bl-prose h3 { font-size: clamp(1.2rem, 2vw, 1.45rem); font-weight: 700; margin: 28px 0 12px; scroll-margin-top: 90px; color: ${C.TXT}; }
+.bl-prose h2 { font-size: clamp(1.5rem, 3vw, 2rem); font-weight: 600; letter-spacing: -0.02em; margin: 40px 0 16px; scroll-margin-top: 90px; color: ${C.TXT}; }
+.bl-prose h3 { font-size: clamp(1.2rem, 2vw, 1.45rem); font-weight: 600; margin: 28px 0 12px; scroll-margin-top: 90px; color: ${C.TXT}; }
 .bl-prose ul, .bl-prose ol { margin: 0 0 18px; padding-left: 22px; color: #d4d4d8; line-height: 1.75; }
 .bl-prose li { margin: 6px 0; }
 .bl-prose a { color: ${C.CYAN}; text-decoration: underline; text-underline-offset: 2px; }

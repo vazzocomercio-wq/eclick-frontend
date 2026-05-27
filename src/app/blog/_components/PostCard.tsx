@@ -50,7 +50,7 @@ export function PostCard({ post, featured = false }: { post: PostCardData; featu
         )}
         <h3 style={{
           fontSize: featured ? 'clamp(1.4rem, 2.6vw, 2rem)' : 18,
-          fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.2, margin: 0,
+          fontWeight: 600, letterSpacing: '-0.02em', lineHeight: 1.2, margin: 0,
         }}>
           {post.title}
         </h3>

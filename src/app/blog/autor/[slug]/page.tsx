@@ -43,7 +43,7 @@ export default async function AuthorPage({ params }: { params: Promise<{ slug: s
   return (
     <main style={{ maxWidth: 1180, margin: '0 auto', padding: '16px 20px 40px' }}>
       <AuthorBioBox author={author} />
-      <h2 style={{ fontSize: 'clamp(1.4rem, 3vw, 1.9rem)', fontWeight: 800, letterSpacing: '-0.02em', margin: '8px 0 20px' }}>
+      <h2 style={{ fontSize: 'clamp(1.4rem, 3vw, 1.9rem)', fontWeight: 600, letterSpacing: '-0.02em', margin: '8px 0 20px' }}>
         Posts de {author.name}
       </h2>
       {posts.length === 0 ? (

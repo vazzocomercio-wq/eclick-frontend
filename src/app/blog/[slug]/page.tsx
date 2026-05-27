@@ -114,7 +114,7 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
           </span>
         )}
 
-        <h1 style={{ fontSize: 'clamp(2rem, 5vw, 3.2rem)', fontWeight: 900, letterSpacing: '-0.03em', lineHeight: 1.08, margin: 0 }}>
+        <h1 style={{ fontSize: 'clamp(2rem, 5vw, 3.2rem)', fontWeight: 500, letterSpacing: '-0.02em', lineHeight: 1.1, margin: 0 }}>
           {post.title}
         </h1>
 

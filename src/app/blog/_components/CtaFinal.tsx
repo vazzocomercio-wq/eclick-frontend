@@ -10,7 +10,7 @@ export function CtaFinal() {
       background: 'linear-gradient(160deg, rgba(0,229,255,0.10), rgba(18,18,20,0.5))',
       border: `1px solid ${C.CYAN}44`,
     }}>
-      <h2 style={{ fontSize: 'clamp(1.6rem, 4vw, 2.4rem)', fontWeight: 900, letterSpacing: '-0.03em', lineHeight: 1.1, margin: 0, color: C.TXT }}>
+      <h2 style={{ fontSize: 'clamp(1.6rem, 4vw, 2.4rem)', fontWeight: 600, letterSpacing: '-0.02em', lineHeight: 1.15, margin: 0, color: C.TXT }}>
         Quer ver a nota <span style={{ color: C.CYAN }}>GEO</span> do SEU anúncio?
       </h2>
       <p style={{ fontSize: 16, color: C.MUT, lineHeight: 1.6, margin: '14px auto 24px', maxWidth: 520 }}>

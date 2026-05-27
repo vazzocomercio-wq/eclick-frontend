@@ -6,7 +6,7 @@ export function Faq({ items }: { items?: FaqItem[] }) {
   if (!items?.length) return null
   return (
     <section style={{ margin: '48px 0' }} aria-label="Perguntas frequentes">
-      <h2 style={{ fontSize: 'clamp(1.4rem, 3vw, 1.9rem)', fontWeight: 800, letterSpacing: '-0.02em', margin: '0 0 20px', color: C.TXT }}>
+      <h2 style={{ fontSize: 'clamp(1.4rem, 3vw, 1.9rem)', fontWeight: 600, letterSpacing: '-0.02em', margin: '0 0 20px', color: C.TXT }}>
         Perguntas frequentes
       </h2>
       {items.map((f, i) => (

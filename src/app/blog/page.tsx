@@ -34,7 +34,7 @@ export default async function BlogHome() {
         }}>
           BLOG · INTELIGÊNCIA COMERCIAL EM IA
         </span>
-        <h1 style={{ fontSize: 'clamp(2.2rem, 5.5vw, 3.8rem)', fontWeight: 900, lineHeight: 1.05, letterSpacing: '-0.03em', margin: 0, maxWidth: 900 }}>
+        <h1 style={{ fontSize: 'clamp(2.2rem, 5.5vw, 3.8rem)', fontWeight: 500, lineHeight: 1.08, letterSpacing: '-0.02em', margin: 0, maxWidth: 900 }}>
           Como vender quando a <span style={{ color: C.CYAN }}>IA</span> virou a vitrine
         </h1>
         <p className="bl-display" style={{ fontSize: 'clamp(1.05rem, 1.7vw, 1.25rem)', color: C.MUT, lineHeight: 1.55, margin: '20px 0 0', maxWidth: 640, fontWeight: 500 }}>

@@ -47,7 +47,7 @@ export default async function CategoryPage({ params }: { params: Promise<{ slug:
       <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color }}>
         {cat.icon ? `${cat.icon} ` : ''}Pilar editorial
       </span>
-      <h1 style={{ fontSize: 'clamp(2rem, 5vw, 3rem)', fontWeight: 900, letterSpacing: '-0.03em', margin: '10px 0 0' }}>
+      <h1 style={{ fontSize: 'clamp(2rem, 5vw, 3rem)', fontWeight: 500, letterSpacing: '-0.02em', margin: '10px 0 0' }}>
         {cat.title}
       </h1>
       {cat.description && <p style={{ fontSize: 16, color: C.MUT, lineHeight: 1.6, margin: '14px 0 0', maxWidth: 620 }}>{cat.description}</p>}
