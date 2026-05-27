@@ -4,7 +4,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { ForceDarkTheme } from './_components/ForceDarkTheme'
 import { C, BLOG_CSS, SITE_URL } from './_components/tokens'
-import { BLOG_FONT_CLASSNAMES, fontCssVar } from './_fonts/registry'
+import { CLASH_CLASSNAME, getBlogFont, googleFontsHref } from './_fonts/registry'
 import { getSiteSettings } from './lib/queries'
 
 /**
@@ -32,15 +32,18 @@ export default async function BlogLayout({ children }: { children: React.ReactNo
   } catch {
     // sem siteSettings ainda → cai no default do catálogo (Clash Display)
   }
+  const font = getBlogFont(defaultFont)
+  const fontHref = googleFontsHref([font.google])
   const containerStyle: CSSProperties = {
     background: C.BG,
     color: C.TXT,
     minHeight: '100vh',
     fontFamily: 'system-ui, -apple-system, sans-serif',
-    ['--font-display' as string]: fontCssVar(defaultFont),
+    ['--font-display' as string]: font.family,
   }
   return (
-    <div id="top" className={BLOG_FONT_CLASSNAMES} style={containerStyle}>
+    <div id="top" className={CLASH_CLASSNAME} style={containerStyle}>
+      {fontHref && <link rel="stylesheet" href={fontHref} />}
       <ForceDarkTheme />
       <style dangerouslySetInnerHTML={{ __html: BLOG_CSS }} />
 
