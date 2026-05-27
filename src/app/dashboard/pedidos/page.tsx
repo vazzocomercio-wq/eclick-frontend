@@ -961,6 +961,9 @@ function OrderCard({
 
   const moreItems  = (order.order_items?.length ?? 1) - 1
   const color     = avatarColor(order.buyer?.nickname ?? String(order.order_id))
+  // Canal do pedido (backend expõe source/platform). Linhas não-ML não têm
+  // deep-link/detalhe do Mercado Livre — mostram um selo do canal.
+  const isTikTok  = (order as unknown as { source?: string }).source === 'tiktok_shop'
   const ini       = initials(order)
   const buyer     = buyerDisplay(order)
   const lt        = order.shipping?.logistic_type
@@ -1035,19 +1038,28 @@ function OrderCard({
               />
             )}
             <div className="flex items-center gap-2 flex-wrap">
-              <a href={`https://www.mercadolivre.com.br/vendas/${order.order_id}`} target="_blank"
-                rel="noopener noreferrer"
-                className="text-[10px] font-mono text-cyan-400 hover:text-cyan-300 transition-colors">
-                {t('card.saleNumber', { id: order.order_id })}
-              </a>
-              <button
-                onClick={() => onOpenDetail(String(order.order_id))}
-                title={t('card.viewFullDetailTitle')}
-                className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-md transition-colors hover:bg-[rgba(0,229,255,0.08)]"
-                style={{ background: 'transparent', border: '1px solid #00E5FF', color: '#00E5FF' }}>
-                <Eye size={11} />
-                {t('card.viewDetail')}
-              </button>
+              {isTikTok ? (
+                <span className="inline-flex items-center gap-1 text-[10px] font-mono font-medium px-2 py-0.5 rounded-md"
+                  style={{ background: 'rgba(254,44,85,0.12)', border: '1px solid rgba(254,44,85,0.4)', color: '#FE2C55' }}>
+                  TikTok Shop · #{order.order_id}
+                </span>
+              ) : (
+                <>
+                  <a href={`https://www.mercadolivre.com.br/vendas/${order.order_id}`} target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[10px] font-mono text-cyan-400 hover:text-cyan-300 transition-colors">
+                    {t('card.saleNumber', { id: order.order_id })}
+                  </a>
+                  <button
+                    onClick={() => onOpenDetail(String(order.order_id))}
+                    title={t('card.viewFullDetailTitle')}
+                    className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-md transition-colors hover:bg-[rgba(0,229,255,0.08)]"
+                    style={{ background: 'transparent', border: '1px solid #00E5FF', color: '#00E5FF' }}>
+                    <Eye size={11} />
+                    {t('card.viewDetail')}
+                  </button>
+                </>
+              )}
             </div>
             {(order as unknown as { pack_id?: number | string | null }).pack_id && (
               <p className="text-[10px] font-mono text-zinc-500">
