@@ -56,7 +56,7 @@ export default async function BlogLayout({ children }: { children: React.ReactNo
             width={500}
             height={200}
             priority
-            style={{ height: 44, width: 'auto' }}
+            style={{ height: 64, width: 'auto' }}
           />
         </Link>
         <nav style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
