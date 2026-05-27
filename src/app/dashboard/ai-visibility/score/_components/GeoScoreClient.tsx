@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Sparkles, Search, Loader2 } from 'lucide-react'
+import { Sparkles, Search, Loader2, ShoppingBag, ChevronDown } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import { useTaskTracking, useTrackEvent } from '@/lib/telemetry/hooks'
 import GeoScoreResultView from '@/components/ai-visibility/GeoScoreResultView'
@@ -17,6 +17,8 @@ const LOADING_MSGS = [
 ]
 
 type Phase = 'idle' | 'analyzing' | 'done' | 'error'
+
+interface TtProduct { tts_product_id: string; title: string | null; status: string | null; main_image_url: string | null }
 
 async function authHeaders(): Promise<Record<string, string> | null> {
   const { data: { session } } = await createClient().auth.getSession()
@@ -48,6 +50,10 @@ export default function GeoScoreClient() {
   const [data, setData] = useState<GeoScoreData | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [msgIdx, setMsgIdx] = useState(0)
+  const [ttOpen, setTtOpen] = useState(false)
+  const [ttProducts, setTtProducts] = useState<TtProduct[]>([])
+  const [ttLoading, setTtLoading] = useState(false)
+  const [ttError, setTtError] = useState<string | null>(null)
 
   const task = useTaskTracking('geo_audit_complete')
   const track = useTrackEvent()
@@ -67,8 +73,8 @@ export default function GeoScoreClient() {
     if (!funnelStarted.current && v.trim()) { funnelStarted.current = true; task.start(); task.step('url_pasted') }
   }
 
-  const analyze = useCallback(async () => {
-    const u = url.trim()
+  const analyze = useCallback(async (urlArg?: string) => {
+    const u = (urlArg ?? url).trim()
     if (!/^https?:\/\//i.test(u)) { setError('Cole uma URL válida (começando com http/https).'); return }
 
     setError(null); setData(null); setMsgIdx(0); setPhase('analyzing')
@@ -112,6 +118,31 @@ export default function GeoScoreClient() {
     }
   }, [url, task])
 
+  // Abre o seletor e carrega os produtos TikTok da org (uma vez).
+  const toggleTt = async () => {
+    const opening = !ttOpen
+    setTtOpen(opening)
+    if (opening && ttProducts.length === 0 && !ttLoading) {
+      setTtLoading(true); setTtError(null)
+      try {
+        const headers = await authHeaders()
+        if (!headers) { setTtError('Sessão expirada — recarregue a página.'); return }
+        const r = await fetch(`${BACKEND}/tiktok-shop/products`, { headers })
+        if (!r.ok) throw new Error('Não consegui listar os produtos do TikTok Shop. A loja está conectada?')
+        setTtProducts((await r.json()) as TtProduct[])
+      } catch (e) { setTtError((e as Error).message) }
+      finally { setTtLoading(false) }
+    }
+  }
+
+  // Produto TikTok → URL sintética → reusa o mesmo fluxo de análise.
+  const pickTt = (p: TtProduct) => {
+    const synthetic = `https://shop.tiktok.com/product/${p.tts_product_id}`
+    setUrl(synthetic); setTtOpen(false)
+    if (!funnelStarted.current) { funnelStarted.current = true; task.start(); task.step('url_pasted') }
+    void analyze(synthetic)
+  }
+
   const onRecClick = (rec: GeoRecommendation) => {
     task.step('recommendation_clicked')
     task.step('fix_applied') // o botão "Aplicar manualmente" é a interação de recomendação na UI
@@ -129,7 +160,7 @@ export default function GeoScoreClient() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">GEO Score Auditor</h1>
           <p className="mt-1 text-sm" style={{ color: '#a1a1aa' }}>
-            Cole a URL de um listing do Mercado Livre ou Shopee para analisar a visibilidade nos motores de IA.
+            Cole a URL de um listing do Mercado Livre ou Shopee — ou escolha um produto do TikTok Shop — para analisar a visibilidade nos motores de IA.
           </p>
         </div>
       </div>
@@ -149,7 +180,7 @@ export default function GeoScoreClient() {
           />
         </div>
         <button
-          onClick={analyze}
+          onClick={() => analyze()}
           disabled={phase === 'analyzing'}
           className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors"
           style={{ background: phase === 'analyzing' ? '#1e1e24' : '#00E5FF', color: phase === 'analyzing' ? '#71717a' : '#06121a', cursor: phase === 'analyzing' ? 'not-allowed' : 'pointer' }}
@@ -157,6 +188,53 @@ export default function GeoScoreClient() {
           {phase === 'analyzing' ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
           {phase === 'analyzing' ? 'Analisando…' : 'Analisar agora'}
         </button>
+      </div>
+
+      {/* Seletor de produtos do TikTok Shop (não têm URL pública) */}
+      <div className="mt-3">
+        <button
+          onClick={toggleTt}
+          className="inline-flex items-center gap-2 text-sm font-medium rounded-lg px-3 py-2 transition-colors"
+          style={{ background: '#121214', border: '1px solid #27272a', color: '#a1a1aa' }}
+        >
+          <ShoppingBag size={15} style={{ color: '#00E5FF' }} />
+          Analisar um produto do TikTok Shop
+          <ChevronDown size={15} style={{ transform: ttOpen ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }} />
+        </button>
+
+        {ttOpen && (
+          <div className="mt-3 rounded-xl p-3 max-h-80 overflow-auto" style={{ background: '#0a0a0e', border: '1px solid #27272a' }}>
+            {ttLoading && (
+              <div className="flex items-center gap-2 text-sm p-2" style={{ color: '#a1a1aa' }}>
+                <Loader2 size={16} className="animate-spin" style={{ color: '#00E5FF' }} /> Carregando seus produtos…
+              </div>
+            )}
+            {ttError && <div className="text-sm p-2" style={{ color: '#f87171' }}>{ttError}</div>}
+            {!ttLoading && !ttError && ttProducts.length === 0 && (
+              <div className="text-sm p-2" style={{ color: '#71717a' }}>Nenhum produto importado. Importe em Integrações &gt; TikTok Shop.</div>
+            )}
+            <div className="space-y-1">
+              {ttProducts.map(p => (
+                <button
+                  key={p.tts_product_id}
+                  onClick={() => pickTt(p)}
+                  disabled={phase === 'analyzing'}
+                  className="w-full flex items-center gap-3 rounded-lg p-2 text-left"
+                  style={{ background: '#18181b', border: '1px solid #27272a', cursor: phase === 'analyzing' ? 'not-allowed' : 'pointer' }}
+                >
+                  {p.main_image_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={p.main_image_url} alt="" className="rounded object-cover shrink-0" style={{ width: 40, height: 40 }} />
+                  ) : (
+                    <div className="rounded shrink-0" style={{ width: 40, height: 40, background: '#27272a' }} />
+                  )}
+                  <span className="flex-1 text-sm truncate" style={{ color: '#fafafa' }}>{p.title || p.tts_product_id}</span>
+                  <Sparkles size={14} style={{ color: '#00E5FF' }} />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {error && (
