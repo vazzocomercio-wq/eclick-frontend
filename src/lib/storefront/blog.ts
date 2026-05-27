@@ -44,30 +44,30 @@ export interface StoreBlogPostFull extends StoreBlogCard {
   updated_at: string
 }
 
-export async function getStoreBlogPosts(slug: string): Promise<StoreBlogCard[]> {
+export async function getStoreBlogPosts(slug: string): Promise<{ posts: StoreBlogCard[]; blogFont: string | null }> {
   try {
     const res = await fetch(`${BACKEND}/public/store-blog/${encodeURIComponent(slug)}/posts`, {
       next: { revalidate: 60, tags: [`store-blog:${slug}`] },
     })
-    if (!res.ok) return []
-    const data = (await res.json()) as { posts?: StoreBlogCard[] }
-    return data.posts ?? []
+    if (!res.ok) return { posts: [], blogFont: null }
+    const data = (await res.json()) as { posts?: StoreBlogCard[]; blogFont?: string | null }
+    return { posts: data.posts ?? [], blogFont: data.blogFont ?? null }
   } catch {
-    return []
+    return { posts: [], blogFont: null }
   }
 }
 
 export async function getStoreBlogPost(
   slug: string,
   postSlug: string,
-): Promise<{ post: StoreBlogPostFull; products: StoreBlogProduct[] } | null> {
+): Promise<{ post: StoreBlogPostFull; products: StoreBlogProduct[]; blogFont: string | null } | null> {
   try {
     const res = await fetch(
       `${BACKEND}/public/store-blog/${encodeURIComponent(slug)}/posts/${encodeURIComponent(postSlug)}`,
       { next: { revalidate: 60, tags: [`store-blog:${slug}:${postSlug}`] } },
     )
     if (!res.ok) return null
-    return (await res.json()) as { post: StoreBlogPostFull; products: StoreBlogProduct[] }
+    return (await res.json()) as { post: StoreBlogPostFull; products: StoreBlogProduct[]; blogFont: string | null }
   } catch {
     return null
   }

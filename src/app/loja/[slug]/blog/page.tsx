@@ -35,8 +35,8 @@ export default async function StoreBlogIndex({ params }: Props) {
   const store = await getStore(slug)
   if (!store || store.status !== 'active') notFound()
 
-  const [posts, theme] = [await getStoreBlogPosts(slug), resolveBlogTheme(store)]
-  const { colors, background, headingFamily, bodyFamily, fontHref } = theme
+  const { posts, blogFont } = await getStoreBlogPosts(slug)
+  const { colors, background, headingFamily, bodyFamily, fontHref } = resolveBlogTheme(store, blogFont)
 
   const containerStyle: CSSProperties = {
     background,

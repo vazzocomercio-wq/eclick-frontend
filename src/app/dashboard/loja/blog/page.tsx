@@ -17,7 +17,8 @@ import Link from 'next/link'
 import Image from 'next/image'
 import {
   Sparkles, Loader2, Send, Archive, CheckCircle2, ExternalLink,
-  AlertCircle, Clock, Lightbulb, Newspaper, ChevronLeft,
+  AlertCircle, Clock, Lightbulb, Newspaper, ChevronLeft, ChevronRight,
+  Wand2, List, CalendarDays,
 } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'https://eclick-backend-production-2a87.up.railway.app'
@@ -70,6 +71,7 @@ export default function StoreBlogPage() {
   const [error, setError] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [storeSlug, setStoreSlug] = useState<string | null>(null)
+  const [view, setView] = useState<'list' | 'calendar'>('list')
 
   const token = useCallback(async () => {
     const supabase = createClient()
@@ -185,15 +187,20 @@ export default function StoreBlogPage() {
         <ChevronLeft size={16} /> Voltar pra Loja
       </Link>
 
-      <div className="mb-6">
-        <div className="flex items-center gap-2 text-cyan-400">
-          <Newspaper size={18} />
-          <span className="text-xs font-semibold uppercase tracking-wider">Blog da Loja</span>
+      <div className="mb-6 flex items-start justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2 text-cyan-400">
+            <Newspaper size={18} />
+            <span className="text-xs font-semibold uppercase tracking-wider">Blog da Loja</span>
+          </div>
+          <h1 className="mt-1 text-2xl font-bold text-zinc-50">Conteúdo que vende (GEO)</h1>
+          <p className="mt-1 text-sm text-zinc-400">
+            A IA escreve artigos otimizados pra IA/Google que apresentam seus produtos. Você revisa e publica no blog da sua loja.
+          </p>
         </div>
-        <h1 className="mt-1 text-2xl font-bold text-zinc-50">Conteúdo que vende (GEO)</h1>
-        <p className="mt-1 text-sm text-zinc-400">
-          A IA escreve artigos otimizados pra IA/Google que apresentam seus produtos. Você revisa e publica no blog da sua loja.
-        </p>
+        <Link href="/dashboard/loja/blog/estudio" className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-zinc-700 px-3 py-1.5 text-sm font-medium text-zinc-200 hover:bg-zinc-800">
+          <Wand2 size={16} className="text-cyan-400" /> Estúdio
+        </Link>
       </div>
 
       {/* Form */}
@@ -278,9 +285,17 @@ export default function StoreBlogPage() {
         </div>
       )}
 
-      <h2 className="mb-3 mt-8 text-sm font-semibold uppercase tracking-wider text-zinc-500">Posts</h2>
+      <div className="mb-3 mt-8 flex items-center justify-between gap-2">
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500">{view === 'calendar' ? 'Calendário' : 'Posts'}</h2>
+        <div className="inline-flex overflow-hidden rounded-md border border-zinc-700">
+          <button type="button" onClick={() => setView('list')} className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium ${view === 'list' ? 'bg-cyan-500 text-zinc-950' : 'text-zinc-400 hover:bg-zinc-800'}`}><List size={14} /> Lista</button>
+          <button type="button" onClick={() => setView('calendar')} className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium ${view === 'calendar' ? 'bg-cyan-500 text-zinc-950' : 'text-zinc-400 hover:bg-zinc-800'}`}><CalendarDays size={14} /> Calendário</button>
+        </div>
+      </div>
       {loading ? (
         <div className="flex items-center gap-2 text-sm text-zinc-400"><Loader2 size={16} className="animate-spin" /> …</div>
+      ) : view === 'calendar' ? (
+        <EditorialCalendar posts={posts} storeSlug={storeSlug} />
       ) : posts.length === 0 ? (
         <p className="rounded-lg border border-dashed border-zinc-800 p-6 text-center text-sm text-zinc-500">
           Nenhum post ainda. Gere o primeiro acima.
@@ -297,6 +312,64 @@ export default function StoreBlogPage() {
           ))}
         </ul>
       )}
+    </div>
+  )
+}
+
+/** Calendário editorial: agendados (âmbar) + publicados (verde) por dia. */
+function EditorialCalendar({ posts, storeSlug }: { posts: Post[]; storeSlug: string | null }) {
+  const [cursor, setCursor] = useState(() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1) })
+  const year = cursor.getFullYear(), month = cursor.getMonth()
+  const byDay = new Map<string, Array<{ post: Post; date: Date }>>()
+  for (const post of posts) {
+    const iso = post.status === 'scheduled' ? post.scheduled_for : post.status === 'published' ? post.published_at : null
+    if (!iso) continue
+    const d = new Date(iso); if (Number.isNaN(d.getTime())) continue
+    const k = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
+    if (!byDay.has(k)) byDay.set(k, [])
+    byDay.get(k)!.push({ post, date: d })
+  }
+  const firstWeekday = new Date(year, month, 1).getDay()
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  const today = new Date()
+  const isToday = (day: number) => today.getFullYear() === year && today.getMonth() === month && today.getDate() === day
+  const monthLabel = cursor.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+  const cells: Array<number | null> = [...Array.from({ length: firstWeekday }, () => null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)]
+
+  return (
+    <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-3 sm:p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <button type="button" onClick={() => setCursor(new Date(year, month - 1, 1))} className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-zinc-700 text-zinc-400 hover:bg-zinc-800"><ChevronLeft size={16} /></button>
+        <span className="text-sm font-semibold capitalize text-zinc-100">{monthLabel}</span>
+        <button type="button" onClick={() => setCursor(new Date(year, month + 1, 1))} className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-zinc-700 text-zinc-400 hover:bg-zinc-800"><ChevronRight size={16} /></button>
+      </div>
+      <div className="grid grid-cols-7 gap-1 text-center">
+        {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((w) => <div key={w} className="py-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">{w}</div>)}
+      </div>
+      <div className="grid grid-cols-7 gap-1">
+        {cells.map((day, i) => {
+          if (day === null) return <div key={`e-${i}`} className="min-h-[64px] rounded-md" />
+          const k = `${year}-${month}-${day}`
+          const items = byDay.get(k) ?? []
+          return (
+            <div key={k} className={`min-h-[64px] rounded-md border p-1 ${isToday(day) ? 'border-cyan-500/60 bg-cyan-500/5' : 'border-zinc-800 bg-zinc-950'}`}>
+              <div className={`mb-0.5 text-[11px] font-medium ${isToday(day) ? 'text-cyan-400' : 'text-zinc-500'}`}>{day}</div>
+              <div className="flex flex-col gap-0.5">
+                {items.slice(0, 3).map(({ post }) => {
+                  const cls = post.status === 'scheduled' ? 'bg-amber-500/15 text-amber-400' : 'bg-green-500/15 text-green-400'
+                  const chip = <span className={`block truncate rounded px-1 py-0.5 text-[10px] leading-tight ${cls}`} title={post.title}>{post.title}</span>
+                  return post.status === 'published' && storeSlug ? <a key={post.id} href={`/loja/${storeSlug}/blog/${post.slug}`} target="_blank" rel="noopener noreferrer">{chip}</a> : <span key={post.id}>{chip}</span>
+                })}
+                {items.length > 3 && <span className="px-1 text-[10px] text-zinc-500">+{items.length - 3}</span>}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+      <div className="mt-3 flex flex-wrap items-center gap-3 text-[11px] text-zinc-500">
+        <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-amber-500/40" /> Agendado</span>
+        <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-green-500/40" /> Publicado</span>
+      </div>
     </div>
   )
 }
