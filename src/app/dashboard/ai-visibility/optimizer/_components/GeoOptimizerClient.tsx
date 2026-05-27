@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { Sparkles, Search, Loader2, Wand2, Check, AlertTriangle, RotateCcw, Lock, BarChart3, Swords, TrendingUp, Minus } from 'lucide-react'
+import { Sparkles, Search, Loader2, Wand2, Check, AlertTriangle, RotateCcw, Lock, BarChart3, Swords, TrendingUp, Minus, ShoppingBag, ChevronDown } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import { useTaskTracking } from '@/lib/telemetry/hooks'
 import GeoImpactPanel from '@/components/ai-visibility/GeoImpactPanel'
@@ -15,6 +15,13 @@ const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'https://eclick-backend-produ
 
 type Phase = 'idle' | 'generating' | 'draft' | 'applying' | 'applied' | 'error'
 type Tab = 'optimize' | 'impact'
+
+interface TtProduct { tts_product_id: string; title: string | null; status: string | null; main_image_url: string | null }
+
+/** Plataforma derivada da URL (TikTok não tem URL pública → URL sintética). */
+function platformFromUrl(u: string): 'tiktok_shop' | 'mercadolivre' {
+  return /shop\.tiktok\.com\/product\//i.test(u) ? 'tiktok_shop' : 'mercadolivre'
+}
 
 async function authHeaders(): Promise<Record<string, string> | null> {
   const { data: { session } } = await createClient().auth.getSession()
@@ -131,10 +138,16 @@ export default function GeoOptimizerClient() {
   const [applied, setApplied] = useState<ApplyResult | null>(null)
   const [confirming, setConfirming] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [draftPlatform, setDraftPlatform] = useState<'tiktok_shop' | 'mercadolivre'>('mercadolivre')
   // Rank Simulator
   const [simPhase, setSimPhase] = useState<'idle' | 'running' | 'done' | 'error'>('idle')
   const [simReport, setSimReport] = useState<RankSimReport | null>(null)
   const [simError, setSimError] = useState<string | null>(null)
+  // Seletor de produtos do TikTok Shop (não têm URL pública).
+  const [ttOpen, setTtOpen] = useState(false)
+  const [ttProducts, setTtProducts] = useState<TtProduct[]>([])
+  const [ttLoading, setTtLoading] = useState(false)
+  const [ttError, setTtError] = useState<string | null>(null)
 
   const task = useTaskTracking('geo_optimize')
   const started = useRef(false)
@@ -150,10 +163,11 @@ export default function GeoOptimizerClient() {
     if (!started.current && v.trim()) { started.current = true; task.start(); task.step('url_pasted') }
   }
 
-  const generate = useCallback(async () => {
-    const u = url.trim()
+  const generate = useCallback(async (urlArg?: string) => {
+    const u = (urlArg ?? url).trim()
     if (!/^https?:\/\//i.test(u)) { setError('Cole uma URL válida (http/https).'); return }
     setError(null); setDraft(null); setApplied(null); setConfirming(false); setPhase('generating')
+    setDraftPlatform(platformFromUrl(u))
     task.start({ url: u }); task.step('generation_started')
     try {
       const headers = await authHeaders()
@@ -167,6 +181,31 @@ export default function GeoOptimizerClient() {
       setError((e as Error).message || 'Erro inesperado.'); setPhase('error'); task.complete('failed')
     }
   }, [url, task])
+
+  // Abre o seletor e carrega os produtos TikTok da org (uma vez).
+  const toggleTt = async () => {
+    const opening = !ttOpen
+    setTtOpen(opening)
+    if (opening && ttProducts.length === 0 && !ttLoading) {
+      setTtLoading(true); setTtError(null)
+      try {
+        const headers = await authHeaders()
+        if (!headers) { setTtError('Sessão expirada — recarregue a página.'); return }
+        const r = await fetch(`${BACKEND}/tiktok-shop/products`, { headers })
+        if (!r.ok) throw new Error('Não consegui listar os produtos do TikTok Shop. A loja está conectada?')
+        setTtProducts((await r.json()) as TtProduct[])
+      } catch (e) { setTtError((e as Error).message) }
+      finally { setTtLoading(false) }
+    }
+  }
+
+  // Produto TikTok → URL sintética → reusa o mesmo fluxo de geração.
+  const pickTt = (p: TtProduct) => {
+    const synthetic = `https://shop.tiktok.com/product/${p.tts_product_id}`
+    setUrl(synthetic); setTtOpen(false)
+    if (!started.current) { started.current = true; task.start(); task.step('url_pasted') }
+    void generate(synthetic)
+  }
 
   const apply = useCallback(async () => {
     if (!draft) return
@@ -263,7 +302,7 @@ export default function GeoOptimizerClient() {
                 disabled={busy}
                 className="flex-1 bg-transparent outline-none px-2 py-2.5 text-sm" style={{ color: '#fafafa' }} />
             </div>
-            <button onClick={generate} disabled={busy || simBusy}
+            <button onClick={() => generate()} disabled={busy || simBusy}
               className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors"
               style={{ background: (busy || simBusy) ? '#1e1e24' : '#00E5FF', color: (busy || simBusy) ? '#71717a' : '#06121a', cursor: (busy || simBusy) ? 'not-allowed' : 'pointer' }}>
               {phase === 'generating' ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
@@ -275,6 +314,47 @@ export default function GeoOptimizerClient() {
               {simBusy ? <Loader2 size={16} className="animate-spin" /> : <Swords size={16} />}
               {simBusy ? 'Simulando…' : 'Testar ranking na IA'}
             </button>
+          </div>
+
+          {/* Seletor de produtos do TikTok Shop (não têm URL pública) */}
+          <div className="mt-3">
+            <button onClick={toggleTt} disabled={busy || simBusy}
+              className="inline-flex items-center gap-2 text-sm font-medium rounded-lg px-3 py-2 transition-colors"
+              style={{ background: '#121214', border: '1px solid #27272a', color: '#a1a1aa', cursor: (busy || simBusy) ? 'not-allowed' : 'pointer' }}>
+              <ShoppingBag size={15} style={{ color: '#00E5FF' }} />
+              Otimizar um produto do TikTok Shop
+              <ChevronDown size={15} style={{ transform: ttOpen ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }} />
+            </button>
+
+            {ttOpen && (
+              <div className="mt-3 rounded-xl p-3 max-h-80 overflow-auto" style={{ background: '#0a0a0e', border: '1px solid #27272a' }}>
+                {ttLoading && (
+                  <div className="flex items-center gap-2 text-sm p-2" style={{ color: '#a1a1aa' }}>
+                    <Loader2 size={16} className="animate-spin" style={{ color: '#00E5FF' }} /> Carregando seus produtos…
+                  </div>
+                )}
+                {ttError && <div className="text-sm p-2" style={{ color: '#f87171' }}>{ttError}</div>}
+                {!ttLoading && !ttError && ttProducts.length === 0 && (
+                  <div className="text-sm p-2" style={{ color: '#71717a' }}>Nenhum produto importado. Importe em Integrações &gt; TikTok Shop.</div>
+                )}
+                <div className="space-y-1">
+                  {ttProducts.map(p => (
+                    <button key={p.tts_product_id} onClick={() => pickTt(p)} disabled={busy || simBusy}
+                      className="w-full flex items-center gap-3 rounded-lg p-2 text-left"
+                      style={{ background: '#18181b', border: '1px solid #27272a', cursor: (busy || simBusy) ? 'not-allowed' : 'pointer' }}>
+                      {p.main_image_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={p.main_image_url} alt="" className="rounded object-cover shrink-0" style={{ width: 40, height: 40 }} />
+                      ) : (
+                        <div className="rounded shrink-0" style={{ width: 40, height: 40, background: '#27272a' }} />
+                      )}
+                      <span className="flex-1 text-sm truncate" style={{ color: '#fafafa' }}>{p.title || p.tts_product_id}</span>
+                      <Wand2 size={14} style={{ color: '#00E5FF' }} />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {error && (
@@ -316,10 +396,11 @@ export default function GeoOptimizerClient() {
                     <span className="text-sm font-semibold" style={{ color: '#4ADE80' }}>Publicado no anúncio</span>
                   </div>
                   <p className="text-[13px] mt-1.5" style={{ color: '#a1a1aa' }}>
-                    Descrição atualizada no Mercado Livre.{' '}
+                    Descrição atualizada no {draftPlatform === 'tiktok_shop' ? 'TikTok Shop' : 'Mercado Livre'}.{' '}
                     {applied.titleLocked
                       ? <span><Lock size={11} className="inline mb-0.5" /> Título mantido — o ML trava o título de anúncios com vendas.</span>
                       : applied.titleApplied ? 'Título também atualizado.' : 'Título mantido.'}
+                    {draftPlatform === 'tiktok_shop' && <span> O TikTok pode reenviar o anúncio para revisão (status temporário) — normal e reversível.</span>}
                     {' '}O impacto começa a ser medido (veja na aba “Impacto do piloto”).
                   </p>
                   <button onClick={rollback} disabled={busy}
@@ -353,9 +434,13 @@ export default function GeoOptimizerClient() {
                     <div className="flex items-start gap-2">
                       <AlertTriangle size={18} style={{ color: '#F59E0B' }} className="shrink-0 mt-0.5" />
                       <div>
-                        <div className="text-sm font-semibold" style={{ color: '#F59E0B' }}>Publicar no seu anúncio real do Mercado Livre?</div>
+                        <div className="text-sm font-semibold" style={{ color: '#F59E0B' }}>Publicar no seu anúncio real do {draftPlatform === 'tiktok_shop' ? 'TikTok Shop' : 'Mercado Livre'}?</div>
                         <p className="text-[13px] mt-1" style={{ color: '#a1a1aa' }}>
-                          A descrição será substituída ao vivo. Dá pra reverter a qualquer momento com um clique. Título da variação <b>{variant}</b> só é aplicado se o anúncio não tiver vendas.
+                          {draftPlatform === 'tiktok_shop' ? (
+                            <>Título e descrição da variação <b>{variant}</b> serão publicados ao vivo (edição parcial — preço, estoque e imagens ficam intactos). Dá pra reverter com um clique. O TikTok pode reenviar o anúncio para revisão (status temporário).</>
+                          ) : (
+                            <>A descrição será substituída ao vivo. Dá pra reverter a qualquer momento com um clique. Título da variação <b>{variant}</b> só é aplicado se o anúncio não tiver vendas.</>
+                          )}
                         </p>
                       </div>
                     </div>
