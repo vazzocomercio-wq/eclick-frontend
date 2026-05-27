@@ -1,26 +1,18 @@
 import type { Metadata } from 'next'
+import type { CSSProperties } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import localFont from 'next/font/local'
 import { ForceDarkTheme } from './_components/ForceDarkTheme'
 import { C, BLOG_CSS, SITE_URL } from './_components/tokens'
+import { BLOG_FONT_CLASSNAMES, fontCssVar } from './_fonts/registry'
+import { getSiteSettings } from './lib/queries'
 
 /**
- * Fonte de display do blog — Clash Display (Fontshare, grátis p/ uso comercial),
- * análogo livre da Agrandir. Aplicada a títulos/banner via var(--font-display)
- * (ver BLOG_CSS). Corpo do texto segue na fonte de leitura.
+ * Fonte de display do blog — catálogo em _fonts/registry.ts. A família PADRÃO
+ * é escolhida no Estúdio do Active (siteSettings.blogDisplayFont) e aplicada
+ * aqui via a var CSS --font-display (que os títulos consomem; ver BLOG_CSS).
+ * Cada post pode sobrescrever a var no seu próprio layout.
  */
-const displayFont = localFont({
-  src: [
-    { path: './_fonts/clash-display-400.woff2', weight: '400', style: 'normal' },
-    { path: './_fonts/clash-display-500.woff2', weight: '500', style: 'normal' },
-    { path: './_fonts/clash-display-600.woff2', weight: '600', style: 'normal' },
-    { path: './_fonts/clash-display-700.woff2', weight: '700', style: 'normal' },
-  ],
-  variable: '--font-display',
-  display: 'swap',
-  fallback: ['system-ui', '-apple-system', 'sans-serif'],
-})
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -32,9 +24,23 @@ export const metadata: Metadata = {
     'Análises, frameworks e experimentos sobre GEO (Otimização para Mecanismos Generativos). Baseados em pesquisa acadêmica e em dados reais de operação.',
 }
 
-export default function BlogLayout({ children }: { children: React.ReactNode }) {
+export default async function BlogLayout({ children }: { children: React.ReactNode }) {
+  let defaultFont: string | undefined
+  try {
+    const settings = await getSiteSettings()
+    defaultFont = settings?.blogDisplayFont
+  } catch {
+    // sem siteSettings ainda → cai no default do catálogo (Clash Display)
+  }
+  const containerStyle: CSSProperties = {
+    background: C.BG,
+    color: C.TXT,
+    minHeight: '100vh',
+    fontFamily: 'system-ui, -apple-system, sans-serif',
+    ['--font-display' as string]: fontCssVar(defaultFont),
+  }
   return (
-    <div id="top" className={displayFont.variable} style={{ background: C.BG, color: C.TXT, minHeight: '100vh', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+    <div id="top" className={BLOG_FONT_CLASSNAMES} style={containerStyle}>
       <ForceDarkTheme />
       <style dangerouslySetInnerHTML={{ __html: BLOG_CSS }} />
 

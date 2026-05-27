@@ -76,6 +76,8 @@ const categoryBySlugQuery = /* groq */ `*[_type == "category" && slug.current ==
 const authorBySlugQuery = /* groq */ `*[_type == "author" && slug.current == $slug][0]{ _id, name, "slug": slug.current, role, bio, "avatar": avatar${IMG}, credentials, expertise, socialLinks }`
 const tagBySlugQuery = /* groq */ `*[_type == "tag" && slug.current == $slug][0]{ _id, title, "slug": slug.current, description }`
 
+const siteSettingsQuery = /* groq */ `*[_type == "siteSettings"][0]{ blogDisplayFont }`
+
 const allPublishedSlugsQuery = /* groq */ `*[${PUBLISHED}]{ "slug": slug.current, "updatedAt": coalesce(updatedAt, publishedAt) }`
 const allCategorySlugsQuery = /* groq */ `*[_type == "category"]{ "slug": slug.current }`
 const allAuthorSlugsQuery = /* groq */ `*[_type == "author"]{ "slug": slug.current }`
@@ -104,6 +106,10 @@ export const getAuthorBySlug = (slug: string) =>
   sanityFetch<Author | null>(authorBySlugQuery, { slug })
 export const getTagBySlug = (slug: string) =>
   sanityFetch<Tag | null>(tagBySlugQuery, { slug })
+
+/** Config global do blog (fonte de display padrão etc). Revalida rápido + tag. */
+export const getSiteSettings = () =>
+  sanityFetch<{ blogDisplayFont?: string } | null>(siteSettingsQuery, {}, { revalidate: 60, tags: ['siteSettings'] })
 
 export const getAllPublishedSlugs = () =>
   sanityFetch<Array<{ slug: string; updatedAt: string }>>(allPublishedSlugsQuery)

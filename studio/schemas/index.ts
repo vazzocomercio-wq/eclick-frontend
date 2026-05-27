@@ -3,6 +3,7 @@ import author from './documents/author'
 import category from './documents/category'
 import tag from './documents/tag'
 import series from './documents/series'
+import siteSettings from './documents/siteSettings'
 
 import callout from './blocks/callout'
 import paperQuote from './blocks/paperQuote'
@@ -18,6 +19,7 @@ export const schemaTypes = [
   category,
   tag,
   series,
+  siteSettings,
   // Blocks do Portable Text (corpo do post)
   callout,
   paperQuote,
