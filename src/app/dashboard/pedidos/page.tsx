@@ -2053,7 +2053,7 @@ export default function PedidosPage() {
     return {
       missingCost: sp.get('missing_cost') === '1',
       period:      (p === 'today' || p === '7d' || p === '30d' ? p : 'all') as 'all' | 'today' | '7d' | '30d',
-      platform:    (pl === 'mercadolivre' || pl === 'manual' || pl === 'storefront' ? pl : 'all') as 'all' | 'mercadolivre' | 'manual' | 'storefront',
+      platform:    (pl === 'mercadolivre' || pl === 'manual' || pl === 'tiktok_shop' || pl === 'storefront' ? pl : 'all') as 'all' | 'mercadolivre' | 'manual' | 'tiktok_shop' | 'storefront',
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -2079,7 +2079,7 @@ export default function PedidosPage() {
   const [crossTabMode, setCrossTabMode] = useState<boolean>(initFromQs.missingCost)
   // Filtro de plataforma — Todas (ML+manual) / ML / Manual / Loja Própria.
   // Storefront lê de storefront_orders no backend (shape unificado).
-  const [platformFilter, setPlatformFilter] = useState<'all' | 'mercadolivre' | 'manual' | 'storefront'>(initFromQs.platform)
+  const [platformFilter, setPlatformFilter] = useState<'all' | 'mercadolivre' | 'manual' | 'tiktok_shop' | 'storefront'>(initFromQs.platform)
   const [adItems, setAdItems] = useState<Set<string>>(new Set())
   const tid = useRef(0)
   const pageRef = useRef(0)
@@ -2711,7 +2711,7 @@ export default function PedidosPage() {
                 ficam com 0 (exceto pgto_pendente, em_preparacao, encerradas, canceladas). */}
             <div className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-lg"
               style={{ background: '#18181b', border: '1px solid #27272a' }}>
-              <span className="text-zinc-500">Plataforma:</span>
+              <span className="text-zinc-500">Canal de venda:</span>
               <select
                 value={platformFilter}
                 onChange={e => {
@@ -2720,13 +2720,14 @@ export default function PedidosPage() {
                 }}
                 className="bg-transparent text-zinc-200 outline-none cursor-pointer"
                 style={{ minHeight: 28 }}>
-                <option value="all">Todas (ML + Manual)</option>
+                <option value="all">Todos os canais</option>
                 <option value="mercadolivre">Mercado Livre</option>
                 <option value="manual">Manual</option>
+                <option value="tiktok_shop">TikTok Shop</option>
                 <option value="storefront">Loja Própria</option>
               </select>
             </div>
-            {platformFilter !== 'storefront' && <AccountSelector compact hideWhenEmpty />}
+            {platformFilter !== 'storefront' && platformFilter !== 'tiktok_shop' && <AccountSelector compact hideWhenEmpty />}
             <PulsingButton
               onClick={sync}
               loading={syncing}
