@@ -231,7 +231,7 @@ function MarginPanel({ price, commissionPct, info, orgTaxPct, onSave }: {
 
 // ── Listing card ───────────────────────────────────────────────────────────
 
-function ListingCard({ item, linked, linkedStock, marginInfo, orgTaxPct, commissionPct, matchedProduct, onLink, onLinkKnown, onUnlink, onSaveMargin }: {
+function ListingCard({ item, linked, linkedStock, marginInfo, orgTaxPct, commissionPct, matchedProduct, onLink, onLinkKnown, onUnlink, onSaveMargin, onUpdatePrice, onSetActive }: {
   item: TkListing
   linked: boolean
   linkedStock: number | null
@@ -243,10 +243,31 @@ function ListingCard({ item, linked, linkedStock, marginInfo, orgTaxPct, commiss
   onLinkKnown: (item: TkListing, product: { id: string; name: string }) => void
   onUnlink: (item: TkListing) => void
   onSaveMargin: (productId: string, patch: { cost: number | null; taxPct: number | null }) => Promise<boolean>
+  onUpdatePrice: (item: TkListing, price: number) => Promise<void>
+  onSetActive: (item: TkListing, active: boolean) => Promise<void>
 }) {
   const t = useTranslations('catalogo')
   const badge = statusBadge(item.status)
   const stock = linked && linkedStock != null ? linkedStock : item.stock
+  const tab = STATUS_TAB[(item.status ?? '').toUpperCase()] ?? 'under_review'
+
+  const [editingPrice, setEditingPrice] = useState(false)
+  const [priceDraft, setPriceDraft] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  async function confirmPrice() {
+    const v = parseFloat(priceDraft.replace(',', '.'))
+    if (!(v > 0)) { setEditingPrice(false); return }
+    setBusy(true)
+    await onUpdatePrice(item, v)
+    setBusy(false)
+    setEditingPrice(false)
+  }
+  async function toggleActive(active: boolean) {
+    setBusy(true)
+    await onSetActive(item, active)
+    setBusy(false)
+  }
 
   return (
     <div className="flex gap-4 p-4 rounded-xl" style={{ background: '#0f0f12', border: '1px solid #1a1a1f' }}>
@@ -300,9 +321,34 @@ function ListingCard({ item, linked, linkedStock, marginInfo, orgTaxPct, commiss
 
       {/* Right: price + actions + margin */}
       <div className="w-52 shrink-0 flex flex-col items-end">
-        <div className="text-right">
-          <p className="text-white text-lg font-bold tabular-nums">{item.price != null ? brl(item.price) : '—'}</p>
-        </div>
+        {/* Preço — clicável pra editar no TikTok (escrita real) */}
+        {editingPrice ? (
+          <div className="flex items-center gap-1 w-full justify-end">
+            <span className="text-zinc-600 text-sm">R$</span>
+            <input autoFocus value={priceDraft} inputMode="decimal" disabled={busy}
+              onChange={(e) => setPriceDraft(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') void confirmPrice(); if (e.key === 'Escape') setEditingPrice(false) }}
+              className="w-20 text-right text-white tabular-nums px-1.5 py-1 rounded outline-none focus:border-cyan-400"
+              style={{ background: '#0d0d10', border: '1px solid #27272a' }} />
+            <button onClick={() => void confirmPrice()} disabled={busy} title="Aplicar"
+              className="text-emerald-400 hover:text-emerald-300 disabled:opacity-40">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+            </button>
+            <button onClick={() => setEditingPrice(false)} disabled={busy} title="Cancelar"
+              className="text-zinc-500 hover:text-zinc-300 disabled:opacity-40">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => { setPriceDraft(item.price != null ? String(item.price) : ''); setEditingPrice(true) }}
+            className="group text-right flex items-center gap-1.5 hover:opacity-90" title={t('tk.editPrice')}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#52525b" strokeWidth={2} className="opacity-0 group-hover:opacity-100 transition-opacity">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+            <span className="text-white text-lg font-bold tabular-nums">{item.price != null ? brl(item.price) : '—'}</span>
+          </button>
+        )}
 
         <div className="mt-2 w-full flex flex-col gap-1.5">
           {linked ? (
@@ -323,6 +369,22 @@ function ListingCard({ item, linked, linkedStock, marginInfo, orgTaxPct, commiss
               className="w-full text-xs font-semibold py-1.5 rounded-lg border transition-colors"
               style={{ background: '#0d1f17', color: '#4ade80', borderColor: '#22c55e3a' }}>
               {t('tk.linkProduct')}
+            </button>
+          )}
+
+          {/* Ativar / Pausar no TikTok (escrita real) — só onde faz sentido */}
+          {tab === 'active' && (
+            <button onClick={() => void toggleActive(false)} disabled={busy}
+              className="w-full text-xs font-medium py-1.5 rounded-lg border transition-colors disabled:opacity-50"
+              style={{ background: '#1a1a1f', color: '#a1a1aa', borderColor: '#27272a' }}>
+              {t('tk.pauseListing')}
+            </button>
+          )}
+          {tab === 'paused' && (
+            <button onClick={() => void toggleActive(true)} disabled={busy}
+              className="w-full text-xs font-medium py-1.5 rounded-lg border transition-colors disabled:opacity-50"
+              style={{ background: '#0d1f17', color: '#4ade80', borderColor: '#22c55e3a' }}>
+              {t('tk.activateListing')}
             </button>
           )}
         </div>
@@ -739,6 +801,57 @@ export default function TikTokListingsPage() {
     }
   }
 
+  /** Edita o preço do SKU no TikTok (escrita ao vivo) — confirma antes. */
+  async function updatePrice(item: TkListing, price: number) {
+    const ok = await confirm({
+      message: t('tk.confirmPrice', { from: brl(item.price ?? 0), to: brl(price) }),
+      confirmLabel: t('tk.applyPrice'),
+      variant: 'warning',
+    })
+    if (!ok) return
+    try {
+      const headers = await getHeaders()
+      const res = await fetch(`${BACKEND}/tiktok-shop/listings/${item.tts_product_id}/price`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sku_id: item.sku_id, price, currency: item.currency ?? 'BRL' }),
+      })
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { message?: string }
+        throw new Error(body.message ?? `HTTP ${res.status}`)
+      }
+      toast(t('tk.toast.priceUpdated'), 'success')
+      await loadItems(tab, page, q)
+    } catch (e: unknown) {
+      toast(e instanceof Error ? e.message : t('tk.toast.priceFailed'), 'error')
+    }
+  }
+
+  /** Ativa/pausa o produto no TikTok (escrita ao vivo) — confirma antes. */
+  async function setActive(item: TkListing, active: boolean) {
+    const ok = await confirm({
+      message: active ? t('tk.confirmActivate') : t('tk.confirmPause'),
+      confirmLabel: active ? t('tk.activateListing') : t('tk.pauseListing'),
+      variant: 'warning',
+    })
+    if (!ok) return
+    try {
+      const headers = await getHeaders()
+      const res = await fetch(`${BACKEND}/tiktok-shop/listings/${item.tts_product_id}/${active ? 'activate' : 'deactivate'}`, {
+        method: 'POST',
+        headers,
+      })
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { message?: string }
+        throw new Error(body.message ?? `HTTP ${res.status}`)
+      }
+      toast(t('tk.toast.statusUpdated'), 'success')
+      await Promise.all([loadItems(tab, page, q), loadCounts()])
+    } catch (e: unknown) {
+      toast(e instanceof Error ? e.message : t('tk.toast.statusFailed'), 'error')
+    }
+  }
+
   async function syncFromTikTok() {
     setSyncing(true)
     try {
@@ -853,6 +966,8 @@ export default function TikTokListingsPage() {
               onLinkKnown={(it, product) => linkTo(product.id, product.name, 1, [it])}
               onUnlink={unlink}
               onSaveMargin={saveMargin}
+              onUpdatePrice={updatePrice}
+              onSetActive={setActive}
             />
           ))
         )}

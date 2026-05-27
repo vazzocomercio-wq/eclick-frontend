@@ -579,6 +579,13 @@
       "linkProduct": "Vincular Produto",
       "linkToProduct": "Vincular a {name}",
       "unlinkProduct": "Desvincular Produto",
+      "editPrice": "Editar preço no TikTok",
+      "applyPrice": "Aplicar preço",
+      "pauseListing": "Pausar no TikTok",
+      "activateListing": "Ativar no TikTok",
+      "confirmPrice": "Alterar o preço no TikTok de {from} para {to}? Isso muda o anúncio ao vivo.",
+      "confirmPause": "Pausar (desativar) este anúncio no TikTok? Ele deixa de aparecer pra compradores.",
+      "confirmActivate": "Ativar este anúncio no TikTok?",
       "ago": {
         "now": "agora",
         "hours": "{h}h atrás",
@@ -624,6 +631,10 @@
         "saveCostTaxFailed": "Falha ao salvar custo e imposto",
         "stockUpdated": "Estoque atualizado",
         "stockFailed": "Falha ao atualizar estoque",
+        "priceUpdated": "Preço atualizado no TikTok",
+        "priceFailed": "Falha ao atualizar o preço no TikTok",
+        "statusUpdated": "Status atualizado no TikTok",
+        "statusFailed": "Falha ao mudar o status no TikTok",
         "synced": "{count} produtos sincronizados do TikTok",
         "syncFailed": "Falha ao sincronizar com o TikTok"
       }
