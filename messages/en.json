@@ -1060,6 +1060,66 @@
       },
       "unlinkConfirm": "Unlink this listing from the product \"{name}\"?\n\nStock will stop syncing with this listing. You can link it to another product later.",
       "unlinkConfirmFallback": "linked"
+    },
+    "shopeeListingCenter": {
+      "breadcrumb": "Catalog · Listings",
+      "title": "Shopee — Listing Center",
+      "subtitle": "{total} listing(s) with Algorithm Score",
+      "refresh": "Refresh",
+      "searchPlaceholder": "Search by title…",
+      "score": "Score",
+      "moreIssues": "+ {n} other(s)",
+      "error": "Failed to load: {msg}",
+      "retry": "Try again",
+      "loading": "Loading listings…",
+      "severity": {
+        "high": "High",
+        "medium": "Medium",
+        "low": "Low"
+      },
+      "pillar": {
+        "relevance": {
+          "short": "Relev",
+          "label": "Relevance",
+          "desc": "Title, attributes, images, description."
+        },
+        "performance": {
+          "short": "Perf",
+          "label": "Performance",
+          "desc": "Sales, CTR, conversion, new-product boost."
+        },
+        "seller_quality": {
+          "short": "Shop",
+          "label": "Seller quality",
+          "desc": "Chat, prep, late ship, returns, rating, penalty."
+        },
+        "price_marketing": {
+          "short": "Price",
+          "label": "Price + marketing",
+          "desc": "Market comparison + voucher/flash/ads."
+        }
+      },
+      "empty": {
+        "title": "No Shopee listings synced yet",
+        "desc": "Connect your Shopee shop in Settings → Integrations. After connection, listings and scores appear here automatically.",
+        "searchTitle": "No listings found",
+        "searchDesc": "Try a different search term."
+      },
+      "drawer": {
+        "eyebrow": "Algorithm Score",
+        "shop": "Shop",
+        "close": "Close",
+        "totalScore": "Total score",
+        "pillars": "Pillars",
+        "issues": "Prioritized issues ({n})",
+        "moreHidden": "+ {n} issue(s) hidden",
+        "action": "Action",
+        "current": "Current",
+        "target": "Target",
+        "noIssues": "No issues — gold-standard listing",
+        "noIssuesHint": "Keep up the quality and metrics.",
+        "computedAt": "Computed at {d}"
+      }
     }
   },
   "compras": {

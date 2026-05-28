@@ -1060,6 +1060,66 @@
       },
       "unlinkConfirm": "确定将此刊登与产品 \"{name}\" 解除关联吗？\n\n库存将停止与此刊登同步。您之后可将其关联到其他产品。",
       "unlinkConfirmFallback": "已关联"
+    },
+    "shopeeListingCenter": {
+      "breadcrumb": "目录 · 商品",
+      "title": "Shopee — 商品中心",
+      "subtitle": "{total} 个商品，含算法评分",
+      "refresh": "刷新",
+      "searchPlaceholder": "按标题搜索…",
+      "score": "评分",
+      "moreIssues": "+ {n} 个其他",
+      "error": "加载失败：{msg}",
+      "retry": "重试",
+      "loading": "加载商品中…",
+      "severity": {
+        "high": "高",
+        "medium": "中",
+        "low": "低"
+      },
+      "pillar": {
+        "relevance": {
+          "short": "相关",
+          "label": "相关性",
+          "desc": "标题、属性、图片、描述。"
+        },
+        "performance": {
+          "short": "表现",
+          "label": "表现",
+          "desc": "销售、点击率、转化、新品加成。"
+        },
+        "seller_quality": {
+          "short": "店铺",
+          "label": "店铺质量",
+          "desc": "聊天、备货、延迟、退货、评分、处罚。"
+        },
+        "price_marketing": {
+          "short": "价格",
+          "label": "价格 + 营销",
+          "desc": "市场比较 + 代金券/限时/广告。"
+        }
+      },
+      "empty": {
+        "title": "尚未同步任何 Shopee 商品",
+        "desc": "在设置 → 集成中连接您的 Shopee 店铺。连接后，商品和评分将自动出现在这里。",
+        "searchTitle": "未找到商品",
+        "searchDesc": "尝试其他搜索词。"
+      },
+      "drawer": {
+        "eyebrow": "算法评分",
+        "shop": "店铺",
+        "close": "关闭",
+        "totalScore": "总分",
+        "pillars": "支柱",
+        "issues": "优先问题（{n}）",
+        "moreHidden": "+ {n} 个问题已隐藏",
+        "action": "行动",
+        "current": "当前",
+        "target": "目标",
+        "noIssues": "无问题 — 金标准商品",
+        "noIssuesHint": "继续保持店铺质量和指标。",
+        "computedAt": "计算于 {d}"
+      }
     }
   },
   "compras": {

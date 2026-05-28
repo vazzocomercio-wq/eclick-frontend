@@ -1,21 +1,9 @@
-import { getTranslations } from 'next-intl/server'
-import ChannelListingsPlaceholder from '@/components/ui/ChannelListingsPlaceholder'
+import ShopeeListingsCenter from './_components/ShopeeListingsCenter'
 
-export default async function Page() {
-  const t = await getTranslations('catalogo')
-  return (
-    <ChannelListingsPlaceholder channel={{
-      name:        'Shopee',
-      abbr:        'SH',
-      abbrBg:      'rgba(238,77,45,0.15)',
-      abbrColor:   '#EE4D2D',
-      description: t('shopee.description'),
-      features: [
-        t('shopee.feature1'),
-        t('shopee.feature2'),
-        t('shopee.feature3'),
-        t('shopee.feature4'),
-      ],
-    }} />
-  )
+/** F18 F1.2 — Listing Center Shopee.
+ *  Substitui o placeholder anterior. Renderiza grid de anúncios com
+ *  Algorithm Score (4 pilares + issues). Empty state quando loja não
+ *  conectada (F0.7 sync popula). */
+export default function Page() {
+  return <ShopeeListingsCenter />
 }

@@ -321,7 +321,7 @@
       "configIa": "IA",
       "configAgregador": "Agregador",
       "adminClientes": "Clientes",
-      "adminRoles":    "Roles & Permissões",
+      "adminRoles": "Roles & Permissões",
       "adminInsights": "Insights"
     },
     "misc": {
@@ -1229,6 +1229,66 @@
       },
       "unlinkConfirm": "Desvincular este anúncio do produto \"{name}\"?\n\nO estoque deixa de sincronizar com este anúncio. Você poderá vincular a outro produto depois.",
       "unlinkConfirmFallback": "vinculado"
+    },
+    "shopeeListingCenter": {
+      "breadcrumb": "Catálogo · Anúncios",
+      "title": "Shopee — Listing Center",
+      "subtitle": "{total} anúncio(s) com Algorithm Score",
+      "refresh": "Atualizar",
+      "searchPlaceholder": "Buscar por título…",
+      "score": "Score",
+      "moreIssues": "+ {n} outra(s)",
+      "error": "Erro ao carregar: {msg}",
+      "retry": "Tentar novamente",
+      "loading": "Carregando anúncios…",
+      "severity": {
+        "high": "Alta",
+        "medium": "Média",
+        "low": "Baixa"
+      },
+      "pillar": {
+        "relevance": {
+          "short": "Relev",
+          "label": "Relevância",
+          "desc": "Título, atributos, imagens, descrição."
+        },
+        "performance": {
+          "short": "Perf",
+          "label": "Performance",
+          "desc": "Vendas, CTR, conversão, boost de novo."
+        },
+        "seller_quality": {
+          "short": "Loja",
+          "label": "Qualidade da loja",
+          "desc": "Chat, prep, atraso, devolução, rating, punição."
+        },
+        "price_marketing": {
+          "short": "Preço",
+          "label": "Preço + marketing",
+          "desc": "Comparação de mercado + voucher/flash/ads."
+        }
+      },
+      "empty": {
+        "title": "Nenhum anúncio Shopee sincronizado ainda",
+        "desc": "Conecte sua loja Shopee em Configurações → Integrações. Após conexão, os anúncios e scores aparecem aqui automaticamente.",
+        "searchTitle": "Nenhum anúncio encontrado",
+        "searchDesc": "Tente outro termo de busca."
+      },
+      "drawer": {
+        "eyebrow": "Algorithm Score",
+        "shop": "Loja",
+        "close": "Fechar",
+        "totalScore": "Score total",
+        "pillars": "Pilares",
+        "issues": "Issues priorizadas ({n})",
+        "moreHidden": "+ {n} issue(s) ocultas",
+        "action": "Ação",
+        "current": "Atual",
+        "target": "Meta",
+        "noIssues": "Sem issues — anúncio em padrão ouro",
+        "noIssuesHint": "Continue mantendo qualidade da loja e métricas.",
+        "computedAt": "Calculado em {d}"
+      }
     }
   },
   "compras": {
