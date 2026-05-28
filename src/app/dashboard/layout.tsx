@@ -8,6 +8,7 @@ import FloatingCopilot from '@/components/copilot/FloatingCopilot'
 import AlertToastListener from '@/components/intelligence/AlertToastListener'
 import AiKeyGuard from '@/components/ai/AiKeyGuard'
 import TelemetryProvider from '@/components/telemetry/TelemetryProvider'
+import { PermissionsProvider } from '@/lib/rbac/permissions-context'
 import { isPlatformAdmin } from '@/lib/modules'
 
 export default async function DashboardLayout({
@@ -53,27 +54,29 @@ export default async function DashboardLayout({
     (orgRow as { enabled_modules?: string[] | null } | null | undefined)?.enabled_modules ?? null
 
   return (
-    <DialogProvider>
-      <div
-        className="flex h-screen overflow-hidden"
-        style={{ background: 'var(--background)', color: 'var(--text)' }}
-      >
-        <Sidebar enabledModules={enabledModules} platformAdmin={isPlatformAdmin(user.email)} />
+    <PermissionsProvider>
+      <DialogProvider>
+        <div
+          className="flex h-screen overflow-hidden"
+          style={{ background: 'var(--background)', color: 'var(--text)' }}
+        >
+          <Sidebar enabledModules={enabledModules} platformAdmin={isPlatformAdmin(user.email)} />
 
-        <div className="flex flex-col flex-1 overflow-hidden">
-          <Header
-            email={user.email!}
-            name={user.user_metadata?.full_name}
-          />
-          <main className="flex-1 overflow-y-auto">
-            {children}
-          </main>
+          <div className="flex flex-col flex-1 overflow-hidden">
+            <Header
+              email={user.email!}
+              name={user.user_metadata?.full_name}
+            />
+            <main className="flex-1 overflow-y-auto">
+              {children}
+            </main>
+          </div>
+          <FloatingCopilot />
+          <AlertToastListener />
+          <AiKeyGuard />
+          <TelemetryProvider />
         </div>
-        <FloatingCopilot />
-        <AlertToastListener />
-        <AiKeyGuard />
-        <TelemetryProvider />
-      </div>
-    </DialogProvider>
+      </DialogProvider>
+    </PermissionsProvider>
   )
 }
