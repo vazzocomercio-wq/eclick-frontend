@@ -822,12 +822,12 @@ export default function DashboardPage() {
     const sellerSuffix = sellerIdSel != null ? `&seller_id=${sellerIdSel}` : ''
     const sellerOnly = sellerIdSel != null ? `?seller_id=${sellerIdSel}` : ''
     const [ordersRes, questionsRes, claimsRes, sellerRes, myItemsRes, finRes, adsRes, convsRes] = await Promise.allSettled([
-      fetch(`${BACKEND}/ml/recent-orders?limit=200${sellerSuffix}`,  { headers: { Authorization: `Bearer ${token}` } }),
+      fetch(`${BACKEND}/orders/recent?limit=200${sellerSuffix}`,  { headers: { Authorization: `Bearer ${token}` } }),
       fetch(`${BACKEND}/ml/questions${sellerOnly}`,                  { headers: { Authorization: `Bearer ${token}` } }),
       fetch(`${BACKEND}/ml/claims${sellerOnly}`,                     { headers: { Authorization: `Bearer ${token}` } }),
       fetch(`${BACKEND}/ml/seller-info${sellerOnly}`,                { headers: { Authorization: `Bearer ${token}` } }),
       fetch(`${BACKEND}/ml/my-items?limit=1${sellerSuffix}`,         { headers: { Authorization: `Bearer ${token}` } }),
-      fetch(`${BACKEND}/ml/financial-summary?kpis_only=true&date_from=${encodeURIComponent(monthStart)}${sellerSuffix}`, { headers: { Authorization: `Bearer ${token}` } }),
+      fetch(`${BACKEND}/orders/financial-summary?kpis_only=true&date_from=${encodeURIComponent(monthStart)}${sellerSuffix}`, { headers: { Authorization: `Bearer ${token}` } }),
       fetch(`${BACKEND}/ml-ads/reports/summary?from=${monthStartStr}&to=${todayStr}`, { headers: { Authorization: `Bearer ${token}` } }),
       fetch(`${BACKEND}/atendente-ia/conversations?status=open`, { headers: { Authorization: `Bearer ${token}` } }),
     ])
@@ -986,7 +986,7 @@ export default function DashboardPage() {
         const sellerSuffix = sellerIdSel != null ? `&seller_id=${sellerIdSel}` : ''
         // limit=5000 cobre meses grandes (Vazzo abril/2026 = 1222 pedidos).
         // Backend agora pagina pela DB — sem cap de 500 do live ML antigo.
-        const url = `${BACKEND}/ml/recent-orders?date_from=${from}&date_to=${to}&limit=5000${sellerSuffix}`
+        const url = `${BACKEND}/orders/recent?date_from=${from}&date_to=${to}&limit=5000${sellerSuffix}`
         console.log('[period-fetch] URL:', url)
         const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
         if (!res.ok) {
@@ -1020,7 +1020,7 @@ export default function DashboardPage() {
         const sellerSuffix = sellerIdSel != null ? `&seller_id=${sellerIdSel}` : ''
         // limit=2000 pra cobrir todo o período anterior (clamping é JS-side,
         // precisamos do conjunto completo pra filtrar pelo cutoff de tempo).
-        const url = `${BACKEND}/ml/recent-orders?date_from=${prevDates.from}&date_to=${prevDates.to}&limit=2000${sellerSuffix}`
+        const url = `${BACKEND}/orders/recent?date_from=${prevDates.from}&date_to=${prevDates.to}&limit=2000${sellerSuffix}`
         const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
         if (!res.ok || cancelled) return
         const data = await res.json()
@@ -1126,7 +1126,7 @@ export default function DashboardPage() {
         const { from, to } = getPeriodDates(period)
         const sellerIdSel = getStoredSellerId()
         const sellerSuffix = sellerIdSel != null ? `&seller_id=${sellerIdSel}` : ''
-        const url = `${BACKEND}/ml/financial-summary?totals_only=true&date_from=${from}&date_to=${to}${sellerSuffix}`
+        const url = `${BACKEND}/orders/financial-summary?totals_only=true&date_from=${from}&date_to=${to}${sellerSuffix}`
         const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
         if (!res.ok || cancelled) { if (!cancelled) setSummaryLoading(false); return }
         const data = await res.json()

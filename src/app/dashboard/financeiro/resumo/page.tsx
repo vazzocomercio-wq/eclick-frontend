@@ -398,7 +398,7 @@ export default function FinancialSummaryPage() {
       ...(f.status !== 'all' ? { status: f.status } : {}),
     })
 
-    const res = await fetch(`${BACKEND}/ml/financial-summary?${qs}`, {
+    const res = await fetch(`${BACKEND}/orders/financial-summary?${qs}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
 
