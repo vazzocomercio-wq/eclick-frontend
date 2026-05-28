@@ -12774,6 +12774,14 @@
       "duplicateMessage": "Já tem um pedido pra esse e-mail. Nossa equipe vai analisar.",
       "alreadyHaveAccount": "Já tem acesso?",
       "loginLink": "Entrar"
+    },
+    "successPage": {
+      "title": "Pagamento confirmado!",
+      "message": "Recebemos seu pagamento. Sua conta está sendo preparada e em instantes você vai receber um e-mail com o link de acesso.",
+      "checkEmailTitle": "Verifique seu e-mail",
+      "checkEmailHint": "Olhe a caixa de entrada (e a pasta de spam) — o link expira em 24 horas.",
+      "goToLogin": "Ir pra tela de login",
+      "supportHint": "Não recebeu nada em 5 minutos? Fala com a gente:"
     }
   }
 }
