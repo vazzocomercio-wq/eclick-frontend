@@ -110,6 +110,7 @@ export async function middleware(request: NextRequest) {
   const isPublicRoute =
     pathname.startsWith('/login') ||
     pathname.startsWith('/register') ||
+    pathname.startsWith('/solicitar-acesso') ||
     pathname.startsWith('/auth') ||
     pathname.startsWith('/forgot-password') ||
     pathname.startsWith('/redefinir-senha') ||

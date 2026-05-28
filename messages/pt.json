@@ -12745,5 +12745,35 @@
     "footer": {
       "poweredBy": "Powered by"
     }
+  },
+  "accessGate": {
+    "page": {
+      "title": "Solicitar acesso",
+      "subtitle": "O e-Click é uma plataforma fechada. Conte um pouco sobre você e seu negócio — nosso time avalia e libera o acesso (gratuito ou pago, conforme o plano).",
+      "nameLabel": "Nome completo",
+      "namePlaceholder": "Seu nome",
+      "emailLabel": "E-mail",
+      "emailPlaceholder": "voce@empresa.com.br",
+      "phoneLabel": "Telefone / WhatsApp",
+      "phonePlaceholder": "(11) 99999-9999",
+      "companyLabel": "Empresa",
+      "companyPlaceholder": "Nome da empresa",
+      "messageLabel": "O que você vende? O que espera do e-Click?",
+      "messagePlaceholder": "Conte rapidamente seu produto, canais que usa hoje (Mercado Livre, Shopify, etc.) e o que está procurando…",
+      "planLabel": "Plano de interesse",
+      "planLoading": "Carregando planos…",
+      "planOptional": "(opcional — você pode escolher depois)",
+      "submit": "Enviar pedido",
+      "submitting": "Enviando…",
+      "successTitle": "Pedido recebido!",
+      "successMessage": "Sua solicitação foi registrada. Nossa equipe vai avaliar e você receberá um e-mail em até 24h úteis.",
+      "backToLogin": "Voltar pro login",
+      "errorRequired": "Preencha nome e e-mail.",
+      "errorEmailInvalid": "E-mail inválido.",
+      "errorSubmit": "Não foi possível enviar. Tente novamente em alguns minutos.",
+      "duplicateMessage": "Já tem um pedido pra esse e-mail. Nossa equipe vai analisar.",
+      "alreadyHaveAccount": "Já tem acesso?",
+      "loginLink": "Entrar"
+    }
   }
 }
