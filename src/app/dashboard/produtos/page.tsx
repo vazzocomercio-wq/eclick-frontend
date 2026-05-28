@@ -12,6 +12,7 @@ import { CopyButton } from '@/components/ui/copy-button'
 import { ProdutosTable } from './_components/ProdutosTable'
 import { useConfirm } from '@/components/ui/dialog-provider'
 import BulkCostUploadModal from '@/components/catalog/BulkCostUploadModal'
+import { Can, useCan } from '@/lib/rbac/permissions-context'
 
 const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
@@ -126,13 +127,15 @@ function BulkBar({
           onMouseLeave={e => { e.currentTarget.style.borderColor = '#3f3f46'; e.currentTarget.style.color = '#a1a1aa' }}>
           {t('page.pause')}
         </button>
-        <button onClick={onDelete}
-          className="px-3 py-1 rounded-lg text-[12px] font-medium border transition-all"
-          style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}
-          onMouseEnter={e => { e.currentTarget.style.borderColor = '#f87171'; e.currentTarget.style.color = '#f87171' }}
-          onMouseLeave={e => { e.currentTarget.style.borderColor = '#3f3f46'; e.currentTarget.style.color = '#a1a1aa' }}>
-          {t('page.delete')}
-        </button>
+        <Can permission="products.delete">
+          <button onClick={onDelete}
+            className="px-3 py-1 rounded-lg text-[12px] font-medium border transition-all"
+            style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = '#f87171'; e.currentTarget.style.color = '#f87171' }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = '#3f3f46'; e.currentTarget.style.color = '#a1a1aa' }}>
+            {t('page.delete')}
+          </button>
+        </Can>
       </div>
       <button onClick={onClear} className="ml-auto text-zinc-500 hover:text-zinc-300 transition-colors">
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
@@ -398,19 +401,22 @@ function RowMenu({ onEdit, onDuplicate, onDelete }: {
     setOpen(o => !o)
   }
 
+  const canUpdate = useCan('products.update')
+  const canDelete = useCan('products.delete')
+
   type Item = { label: string; tone?: 'danger'; onClick: () => void }
   const items: Item[] = [
-    { label: t('rowMenu.edit'),             onClick: onEdit },
-    { label: t('rowMenu.editPriceInline'), onClick: () => todoToast(t('rowMenu.editPriceInlineTodo')) },
-    { label: t('rowMenu.editCostInline'),  onClick: () => todoToast(t('rowMenu.editCostInlineTodo')) },
-    { label: t('rowMenu.updateStock'),     onClick: () => todoToast(t('rowMenu.updateStockTodo')) },
-    { label: t('rowMenu.addToAds'),        onClick: () => todoToast(t('rowMenu.addToAdsTodo')) },
-    { label: t('rowMenu.generateAi'),      onClick: () => todoToast(t('rowMenu.generateAiTodo')) },
-    { label: t('rowMenu.analyzeCompetitors'), onClick: () => todoToast(t('rowMenu.analyzeCompetitorsTodo')) },
-    { label: t('rowMenu.markRestock'),     onClick: () => todoToast(t('rowMenu.markRestockTodo')) },
-    { label: t('rowMenu.duplicate'),       onClick: onDuplicate },
-    { label: t('rowMenu.delete'),          tone: 'danger', onClick: onDelete },
-  ]
+    canUpdate && { label: t('rowMenu.edit'),             onClick: onEdit },
+    canUpdate && { label: t('rowMenu.editPriceInline'), onClick: () => todoToast(t('rowMenu.editPriceInlineTodo')) },
+    canUpdate && { label: t('rowMenu.editCostInline'),  onClick: () => todoToast(t('rowMenu.editCostInlineTodo')) },
+    canUpdate && { label: t('rowMenu.updateStock'),     onClick: () => todoToast(t('rowMenu.updateStockTodo')) },
+              { label: t('rowMenu.addToAds'),        onClick: () => todoToast(t('rowMenu.addToAdsTodo')) },
+              { label: t('rowMenu.generateAi'),      onClick: () => todoToast(t('rowMenu.generateAiTodo')) },
+              { label: t('rowMenu.analyzeCompetitors'), onClick: () => todoToast(t('rowMenu.analyzeCompetitorsTodo')) },
+              { label: t('rowMenu.markRestock'),     onClick: () => todoToast(t('rowMenu.markRestockTodo')) },
+    canUpdate && { label: t('rowMenu.duplicate'),       onClick: onDuplicate },
+    canDelete && { label: t('rowMenu.delete'),          tone: 'danger', onClick: onDelete },
+  ].filter((x): x is Item => Boolean(x))
 
   return (
     <>
