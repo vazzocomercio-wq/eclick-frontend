@@ -12893,5 +12893,53 @@
       "title": "Nenhuma loja Shopee monitorada ainda",
       "desc": "Conecte uma loja Shopee em Configurações → Integrações. Após o primeiro sync, as métricas aparecem aqui automaticamente."
     }
+  },
+  "shopeeCampaigns": {
+    "breadcrumb": "Marketplace · Campanhas",
+    "title": "Shopee — Campaign Center",
+    "subtitle": "Vouchers, flash sales e Shopee Ads — ROI agregado por loja",
+    "refresh": "Atualizar",
+    "roi": "ROI",
+    "error": "Erro ao carregar: {msg}",
+    "retry": "Tentar novamente",
+    "tabs": {
+      "all": "Todas",
+      "voucher": "Vouchers",
+      "flash_sale": "Flash Sales",
+      "ads": "Shopee Ads"
+    },
+    "summary": {
+      "active": "Ativas",
+      "revenue": "Receita",
+      "cost": "Custo",
+      "blendedROI": "ROI agregado"
+    },
+    "kind": {
+      "voucher": "Voucher",
+      "flash_sale": "Flash Sale",
+      "ads": "Shopee Ads"
+    },
+    "status": {
+      "planned": "Planejada",
+      "active": "Ativa",
+      "paused": "Pausada",
+      "ended": "Encerrada",
+      "cancelled": "Cancelada"
+    },
+    "metric": {
+      "revenue": "Receita",
+      "cost": "Custo",
+      "orders": "Pedidos"
+    },
+    "window": {
+      "range": "{from} → {to}",
+      "fromOpen": "Desde {d}"
+    },
+    "empty": {
+      "title": "Nenhuma campanha Shopee criada ainda",
+      "desc": "Após conectar uma loja, crie vouchers, flash sales e boost de produto. O ROI agregado por campanha aparece aqui.",
+      "filterTitle": "Nenhuma campanha neste filtro",
+      "filterDesc": "Selecione outra aba ou \"Todas\"."
+    }
   }
 }

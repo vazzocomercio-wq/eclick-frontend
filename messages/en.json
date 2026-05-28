@@ -12686,5 +12686,53 @@
       "title": "No Shopee shops monitored yet",
       "desc": "Connect a Shopee shop in Settings → Integrations. After the first sync, metrics will appear here automatically."
     }
+  },
+  "shopeeCampaigns": {
+    "breadcrumb": "Marketplace · Campaigns",
+    "title": "Shopee — Campaign Center",
+    "subtitle": "Vouchers, flash sales and Shopee Ads — aggregated ROI per shop",
+    "refresh": "Refresh",
+    "roi": "ROI",
+    "error": "Failed to load: {msg}",
+    "retry": "Try again",
+    "tabs": {
+      "all": "All",
+      "voucher": "Vouchers",
+      "flash_sale": "Flash Sales",
+      "ads": "Shopee Ads"
+    },
+    "summary": {
+      "active": "Active",
+      "revenue": "Revenue",
+      "cost": "Cost",
+      "blendedROI": "Blended ROI"
+    },
+    "kind": {
+      "voucher": "Voucher",
+      "flash_sale": "Flash Sale",
+      "ads": "Shopee Ads"
+    },
+    "status": {
+      "planned": "Planned",
+      "active": "Active",
+      "paused": "Paused",
+      "ended": "Ended",
+      "cancelled": "Cancelled"
+    },
+    "metric": {
+      "revenue": "Revenue",
+      "cost": "Cost",
+      "orders": "Orders"
+    },
+    "window": {
+      "range": "{from} → {to}",
+      "fromOpen": "Since {d}"
+    },
+    "empty": {
+      "title": "No Shopee campaigns yet",
+      "desc": "After connecting a shop, create vouchers, flash sales and product boosts. Aggregated ROI per campaign will show here.",
+      "filterTitle": "No campaigns in this filter",
+      "filterDesc": "Pick another tab or \"All\"."
+    }
   }
 }

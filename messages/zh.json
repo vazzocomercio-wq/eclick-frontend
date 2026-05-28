@@ -12686,5 +12686,53 @@
       "title": "尚未监控任何 Shopee 店铺",
       "desc": "在设置 → 集成中连接 Shopee 店铺。首次同步后，指标将自动出现在此处。"
     }
+  },
+  "shopeeCampaigns": {
+    "breadcrumb": "市场 · 活动",
+    "title": "Shopee — 活动中心",
+    "subtitle": "代金券、限时优惠和 Shopee Ads — 按店铺聚合 ROI",
+    "refresh": "刷新",
+    "roi": "ROI",
+    "error": "加载失败：{msg}",
+    "retry": "重试",
+    "tabs": {
+      "all": "全部",
+      "voucher": "代金券",
+      "flash_sale": "限时优惠",
+      "ads": "Shopee Ads"
+    },
+    "summary": {
+      "active": "活跃",
+      "revenue": "收入",
+      "cost": "成本",
+      "blendedROI": "总体 ROI"
+    },
+    "kind": {
+      "voucher": "代金券",
+      "flash_sale": "限时优惠",
+      "ads": "Shopee Ads"
+    },
+    "status": {
+      "planned": "计划",
+      "active": "活跃",
+      "paused": "暂停",
+      "ended": "已结束",
+      "cancelled": "已取消"
+    },
+    "metric": {
+      "revenue": "收入",
+      "cost": "成本",
+      "orders": "订单"
+    },
+    "window": {
+      "range": "{from} → {to}",
+      "fromOpen": "自 {d}"
+    },
+    "empty": {
+      "title": "尚未创建任何 Shopee 活动",
+      "desc": "连接店铺后，创建代金券、限时优惠和商品推广。每个活动的聚合 ROI 将显示在此处。",
+      "filterTitle": "此筛选下无活动",
+      "filterDesc": "请选择其他标签或\"全部\"。"
+    }
   }
 }
