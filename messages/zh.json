@@ -12637,5 +12637,54 @@
     "footer": {
       "poweredBy": "技术支持"
     }
+  },
+  "shopeeQuality": {
+    "breadcrumb": "市场 · 店铺健康",
+    "title": "Shopee — 质量中心",
+    "subtitle": "已监控 {count} 个店铺",
+    "refresh": "刷新",
+    "snapshotDate": "快照 {d}",
+    "coverage": "{f}/{t} 项指标",
+    "alertsTitle": "警报（{n}）",
+    "moreAlerts": "+ {n} 个其他",
+    "healthyHint": "所有指标均在 Shopee 限制内。",
+    "actionLabel": "操作",
+    "current": "当前",
+    "target": "目标",
+    "error": "加载失败：{msg}",
+    "retry": "重试",
+    "status": {
+      "healthy": "健康",
+      "attention": "注意",
+      "warning": "警告",
+      "critical": "严重"
+    },
+    "metric": {
+      "chat_response_rate": {
+        "label": "聊天响应"
+      },
+      "chat_response_time_min": {
+        "label": "响应时间"
+      },
+      "prep_time_days": {
+        "label": "备货时间"
+      },
+      "late_ship_rate": {
+        "label": "延迟发货"
+      },
+      "return_refund_rate": {
+        "label": "退款率"
+      },
+      "rating": {
+        "label": "评分"
+      },
+      "penalty_points": {
+        "label": "处罚分"
+      }
+    },
+    "empty": {
+      "title": "尚未监控任何 Shopee 店铺",
+      "desc": "在设置 → 集成中连接 Shopee 店铺。首次同步后，指标将自动出现在此处。"
+    }
   }
 }

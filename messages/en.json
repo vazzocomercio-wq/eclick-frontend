@@ -12637,5 +12637,54 @@
     "footer": {
       "poweredBy": "Powered by"
     }
+  },
+  "shopeeQuality": {
+    "breadcrumb": "Marketplace · Shop Health",
+    "title": "Shopee — Quality Center",
+    "subtitle": "{count} shop(s) monitored",
+    "refresh": "Refresh",
+    "snapshotDate": "Snapshot {d}",
+    "coverage": "{f}/{t} metrics",
+    "alertsTitle": "Alerts ({n})",
+    "moreAlerts": "+ {n} other(s)",
+    "healthyHint": "All indicators within Shopee limits.",
+    "actionLabel": "Action",
+    "current": "Current",
+    "target": "Target",
+    "error": "Failed to load: {msg}",
+    "retry": "Try again",
+    "status": {
+      "healthy": "Healthy",
+      "attention": "Attention",
+      "warning": "Warning",
+      "critical": "Critical"
+    },
+    "metric": {
+      "chat_response_rate": {
+        "label": "Chat rate"
+      },
+      "chat_response_time_min": {
+        "label": "Resp. time"
+      },
+      "prep_time_days": {
+        "label": "Prep time"
+      },
+      "late_ship_rate": {
+        "label": "Late ships"
+      },
+      "return_refund_rate": {
+        "label": "Returns"
+      },
+      "rating": {
+        "label": "Rating"
+      },
+      "penalty_points": {
+        "label": "Penalty"
+      }
+    },
+    "empty": {
+      "title": "No Shopee shops monitored yet",
+      "desc": "Connect a Shopee shop in Settings → Integrations. After the first sync, metrics will appear here automatically."
+    }
   }
 }

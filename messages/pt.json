@@ -12844,5 +12844,54 @@
       "goToLogin": "Ir pra tela de login",
       "supportHint": "Não recebeu nada em 5 minutos? Fala com a gente:"
     }
+  },
+  "shopeeQuality": {
+    "breadcrumb": "Marketplace · Saúde da Loja",
+    "title": "Shopee — Quality Center",
+    "subtitle": "{count} loja(s) monitorada(s)",
+    "refresh": "Atualizar",
+    "snapshotDate": "Snapshot {d}",
+    "coverage": "{f}/{t} métricas",
+    "alertsTitle": "Alertas ({n})",
+    "moreAlerts": "+ {n} outro(s)",
+    "healthyHint": "Todos os indicadores dentro dos limites Shopee.",
+    "actionLabel": "Ação",
+    "current": "Atual",
+    "target": "Meta",
+    "error": "Erro ao carregar: {msg}",
+    "retry": "Tentar novamente",
+    "status": {
+      "healthy": "Saudável",
+      "attention": "Atenção",
+      "warning": "Aviso",
+      "critical": "Crítico"
+    },
+    "metric": {
+      "chat_response_rate": {
+        "label": "Resp. chat"
+      },
+      "chat_response_time_min": {
+        "label": "Tempo resp."
+      },
+      "prep_time_days": {
+        "label": "Preparação"
+      },
+      "late_ship_rate": {
+        "label": "Atrasos"
+      },
+      "return_refund_rate": {
+        "label": "Devoluções"
+      },
+      "rating": {
+        "label": "Avaliação"
+      },
+      "penalty_points": {
+        "label": "Punição"
+      }
+    },
+    "empty": {
+      "title": "Nenhuma loja Shopee monitorada ainda",
+      "desc": "Conecte uma loja Shopee em Configurações → Integrações. Após o primeiro sync, as métricas aparecem aqui automaticamente."
+    }
   }
 }
