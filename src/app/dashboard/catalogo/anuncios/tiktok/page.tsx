@@ -9,9 +9,9 @@ import { useConfirm } from '@/components/ui/dialog-provider'
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 
 // Comissão TikTok padrão (% sobre o preço) usada no cálculo de margem. O
-// TikTok não expõe uma API de tarifa por categoria como o ML, então é um
-// controle editável (persistido no navegador). Aproximação razoável pra BR.
-const COMMISSION_LS = 'eclick.tt.commission_pct'
+// TikTok não expõe a comissão real por categoria como o ML, então é um
+// controle editável persistido por ORG (org_channel_settings via backend) —
+// o mesmo valor aparece em todos os browsers da equipe.
 const DEFAULT_COMMISSION = 8
 const PAGE_SIZE = 20
 
@@ -593,16 +593,36 @@ export default function TikTokListingsPage() {
     return { Authorization: `Bearer ${session?.access_token}` } as Record<string, string>
   }, [supabase])
 
-  // Comissão persistida no navegador
+  // Comissão lida da org (backend). Edição debounced salva no banco — o valor
+  // passa a ser compartilhado entre todos os usuários da org.
   useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(COMMISSION_LS)
-      if (raw != null) { const n = Number(raw); if (Number.isFinite(n)) setCommissionPct(n) }
-    } catch { /* noop */ }
-  }, [])
+    void (async () => {
+      try {
+        const headers = await getHeaders()
+        const res = await fetch(`${BACKEND}/channel-settings/tiktok_shop`, { headers })
+        if (res.ok) {
+          const d = (await res.json()) as { commission_pct?: number } | null
+          if (d && Number.isFinite(Number(d.commission_pct))) setCommissionPct(Number(d.commission_pct))
+        }
+      } catch { /* silencioso — usa o default */ }
+    })()
+  }, [getHeaders])
+
+  const commissionSaveTimer = useMemo(() => ({ id: 0 as number | ReturnType<typeof setTimeout> }), [])
   const updateCommission = (v: number) => {
     setCommissionPct(v)
-    try { window.localStorage.setItem(COMMISSION_LS, String(v)) } catch { /* noop */ }
+    // Debounce 600ms — evita PATCH a cada keystroke
+    if (commissionSaveTimer.id) clearTimeout(commissionSaveTimer.id as ReturnType<typeof setTimeout>)
+    commissionSaveTimer.id = setTimeout(async () => {
+      try {
+        const headers = await getHeaders()
+        await fetch(`${BACKEND}/channel-settings/tiktok_shop`, {
+          method: 'PATCH',
+          headers: { ...headers, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ commission_pct: v }),
+        })
+      } catch { /* silencioso */ }
+    }, 600) as unknown as number
   }
 
   const loadItems = useCallback(async (currentTab: Tab, currentPage: number, query: string) => {
