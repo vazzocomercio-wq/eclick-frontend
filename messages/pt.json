@@ -633,6 +633,7 @@
         "stockFailed": "Falha ao atualizar estoque",
         "priceUpdated": "Preço atualizado no TikTok",
         "priceFailed": "Falha ao atualizar o preço no TikTok",
+        "stockAssumed": "Estoque do catálogo aplicado em {count} SKU(s) no TikTok",
         "statusUpdated": "Status atualizado no TikTok",
         "statusFailed": "Falha ao mudar o status no TikTok",
         "synced": "{count} produtos sincronizados do TikTok",

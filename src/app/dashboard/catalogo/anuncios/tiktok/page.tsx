@@ -771,6 +771,22 @@ export default function TikTokListingsPage() {
       toast(t('tk.toast.linked', { name: productLabel }), 'success')
       setLinkTarget(null)
       await loadLinkMap()
+      // TT-4: ao vincular, o TikTok assume o estoque do catálogo. No-op
+      // enquanto o servidor estiver com o sync de estoque desligado (gate).
+      try {
+        const r = await fetch(`${BACKEND}/tiktok-shop/listings/sync-stock`, {
+          method: 'POST',
+          headers: { ...headers, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ product_id: productId }),
+        })
+        if (r.ok) {
+          const b = (await r.json().catch(() => ({}))) as { pushed?: number }
+          if ((b.pushed ?? 0) > 0) {
+            toast(t('tk.toast.stockAssumed', { count: b.pushed ?? 0 }), 'success')
+            await loadItems(tab, page, q)
+          }
+        }
+      } catch { /* não-fatal: vínculo já foi feito */ }
     } catch (e: unknown) {
       toast(e instanceof Error ? e.message : t('tk.toast.linkError'), 'error')
     } finally {
