@@ -296,6 +296,13 @@ export default function MLPublishPage() {
               <p className="text-[11px] text-zinc-500 truncate">{t('headerSubtitle', { name: product.name, version: listing.version })}</p>
             </div>
           </div>
+          <Link
+            href={`/dashboard/creative/${productId}/listing/${listingId}/publish/tiktok`}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-xs font-medium text-zinc-200 hover:border-zinc-500"
+          >
+            <span className="flex h-4 w-4 items-center justify-center rounded bg-black text-[9px] font-bold text-white">TT</span>
+            Publicar no TikTok Shop
+          </Link>
         </header>
 
         {/* Banner: estado da publicação */}

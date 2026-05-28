@@ -533,6 +533,32 @@ export const CreativeApi = {
   getMlContext: (listingId: string) =>
     api<MlPublishContext>(`/creative/listings/${listingId}/ml-context`),
 
+  // ── TikTok Shop — publicar produto (espelho do publish ML) ──
+  tiktokCategories: (keyword: string) =>
+    api<Array<{ id: string; name: string; is_leaf: boolean; parent_id: string }>>(
+      `/tiktok-shop/publish/categories?leaf=true&keyword=${encodeURIComponent(keyword)}`),
+
+  tiktokPublishPreview: (body: {
+    product_name: string; description?: string; images?: string[]
+    price?: number; sku?: string; stock?: number; category_id?: string
+  }) =>
+    api<{
+      category_id: string | null; recommended: boolean
+      attributes: Array<{ id: string; name: string; required: boolean }>
+      missing_required: Array<{ id: string; name: string }>
+    }>('/tiktok-shop/publish/preview', { method: 'POST', body: JSON.stringify(body) }),
+
+  tiktokPublish: (body: {
+    title: string; description?: string; category_id: string; image_urls: string[]
+    price: number; stock?: number; sku?: string
+    ml_attributes?: Array<{ id: string; value_name?: string; value_id?: string }>
+    brand_name?: string
+  }) =>
+    api<{
+      product_id: string | null; uploaded_images: number
+      mapped_attributes?: number; brand_id?: string | null
+    }>('/tiktok-shop/publish', { method: 'POST', body: JSON.stringify(body) }),
+
   predictMlCategory: (title: string) =>
     api<MlPredictedCategory>(`/creative/ml/predict-category?title=${encodeURIComponent(title)}`),
 
