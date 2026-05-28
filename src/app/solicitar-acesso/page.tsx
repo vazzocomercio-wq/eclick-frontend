@@ -69,6 +69,7 @@ export default function SolicitarAcessoPage() {
     }
     setLoading(true)
     try {
+      // 1. Cria o access_request
       const res = await fetch(`${BACKEND}/access/request`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -84,6 +85,27 @@ export default function SolicitarAcessoPage() {
       })
       if (!res.ok) throw new Error('HTTP ' + res.status)
       const data: { id: string; duplicated: boolean; status: string } = await res.json()
+
+      // 2. Se o plano tem preço > 0 e o pedido NÃO é duplicado, redireciona pro Stripe Checkout
+      const selectedPlan = plans.find(p => p.key === planKey)
+      const hasPrice = selectedPlan && Number(selectedPlan.price_brl ?? 0) > 0
+
+      if (hasPrice && !data.duplicated) {
+        const checkoutRes = await fetch(`${BACKEND}/access/checkout/stripe`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ request_id: data.id }),
+        })
+        if (checkoutRes.ok) {
+          const co: { checkout_url: string } = await checkoutRes.json()
+          window.location.href = co.checkout_url
+          return
+        }
+        // Falha no checkout: cai pra tela "recebido" + log
+        console.error('Falha no checkout Stripe', await checkoutRes.text().catch(() => ''))
+      }
+
+      // 3. Sem preço (ou duplicado ou erro de checkout): mostra tela "recebido"
       setSuccess({ duplicated: !!data.duplicated })
     } catch {
       setError(t('errorSubmit'))
@@ -184,11 +206,17 @@ export default function SolicitarAcessoPage() {
                         className="input-style" onFocus={inputFocus} onBlur={inputBlur}
                         style={{ ...inputBaseStyle, appearance: 'auto' }}>
                   <option value="">—</option>
-                  {plans.map(p => (
-                    <option key={p.key} value={p.key}>
-                      {p.name} {p.target === 'active' ? '(Active)' : p.target === 'combo' ? '(SaaS + Active)' : ''}
-                    </option>
-                  ))}
+                  {plans.map(p => {
+                    const priceTag = p.price_brl != null && p.price_brl > 0
+                      ? ` — R$ ${Number(p.price_brl).toFixed(0)}/mês`
+                      : ''
+                    const targetTag = p.target === 'active' ? ' (Active)' : p.target === 'combo' ? ' (SaaS + Active)' : ''
+                    return (
+                      <option key={p.key} value={p.key}>
+                        {p.name}{targetTag}{priceTag}
+                      </option>
+                    )
+                  })}
                 </select>
               )}
             </Field>
