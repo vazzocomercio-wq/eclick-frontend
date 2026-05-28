@@ -321,6 +321,7 @@
       "configIa": "IA",
       "configAgregador": "Agregador",
       "adminClientes": "Clientes",
+      "adminRoles":    "Roles & Permissões",
       "adminInsights": "Insights"
     },
     "misc": {
