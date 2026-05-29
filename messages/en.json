@@ -12759,5 +12759,46 @@
       "title": "Radar waiting for first collection",
       "desc": "After connecting your shop in Settings → Integrations, the daily collector populates trends, average prices and FBS adoption by category."
     }
+  },
+  "shopeeSimulator": {
+    "title": "Shopee Listing Simulator",
+    "subtitle": "Pre-check the Algorithm Score before publishing — fix issues ahead of time",
+    "score": "Score",
+    "error": "Error: {msg}",
+    "startHint": "Fill the draft on the left — evaluation appears here automatically.",
+    "blockers": "Publish blockers",
+    "issues": "Suggestions ({n})",
+    "action": "Action",
+    "perfect": "Gold-standard listing — ready to publish!",
+    "form": {
+      "title": "Listing draft"
+    },
+    "ready": {
+      "yes": "Ready to publish",
+      "no": "Not recommended yet",
+      "canPublish": "You can publish now",
+      "pendingCreds": "Direct publishing unlocks once Shopee approves the app",
+      "fixFirst": "Fix the blockers below first"
+    },
+    "pillar": {
+      "relevance": "Relev",
+      "performance": "Perf",
+      "seller_quality": "Shop",
+      "price_marketing": "Price"
+    },
+    "field": {
+      "titleLabel": "Title",
+      "titleHint": "60-120 chars with keyword + attributes",
+      "titlePlaceholder": "e.g. LED Crystal K9 Gold Wall Sconce 5W Warm Living Room",
+      "descLabel": "Description",
+      "descHint": "500+ chars with bullets and tech details",
+      "descPlaceholder": "Describe features, dimensions, warranty, compatibility...",
+      "imageCount": "Image count",
+      "imageDim": "Min dimension",
+      "attrsFilled": "Attributes filled",
+      "attrsTotal": "Mandatory attributes",
+      "price": "Your price",
+      "marketPrice": "Market median price"
+    }
   }
 }

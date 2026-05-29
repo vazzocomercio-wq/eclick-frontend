@@ -12966,5 +12966,46 @@
       "title": "Radar Shopee aguardando primeira coleta",
       "desc": "Após conectar sua loja em Configurações → Integrações, o coletor diário popula tendências, preços médios e adoção FBS por categoria."
     }
+  },
+  "shopeeSimulator": {
+    "title": "Simulador de Anúncio Shopee",
+    "subtitle": "Pré-avalie o Algorithm Score antes de publicar — corrija problemas com antecedência",
+    "score": "Score",
+    "error": "Erro: {msg}",
+    "startHint": "Preencha o rascunho ao lado — a avaliação aparece aqui automaticamente.",
+    "blockers": "Bloqueios pra publicar",
+    "issues": "Sugestões ({n})",
+    "action": "Ação",
+    "perfect": "Anúncio em padrão ouro — pronto pra publicar!",
+    "form": {
+      "title": "Rascunho do anúncio"
+    },
+    "ready": {
+      "yes": "Pronto pra publicar",
+      "no": "Ainda não recomendado",
+      "canPublish": "Você pode publicar agora",
+      "pendingCreds": "Publicação direta libera quando a Shopee aprovar o app",
+      "fixFirst": "Corrija os bloqueios abaixo primeiro"
+    },
+    "pillar": {
+      "relevance": "Relev",
+      "performance": "Perf",
+      "seller_quality": "Loja",
+      "price_marketing": "Preço"
+    },
+    "field": {
+      "titleLabel": "Título",
+      "titleHint": "60-120 chars com palavra-chave + atributos",
+      "titlePlaceholder": "Ex: Arandela LED Cristal K9 Dourada 5W Quente Sala Decoração",
+      "descLabel": "Descrição",
+      "descHint": "500+ chars com bullets e detalhes técnicos",
+      "descPlaceholder": "Descreva features, dimensões, garantia, compatibilidade...",
+      "imageCount": "Nº de fotos",
+      "imageDim": "Menor dimensão",
+      "attrsFilled": "Atributos preenchidos",
+      "attrsTotal": "Atributos obrigatórios",
+      "price": "Seu preço",
+      "marketPrice": "Preço médio mercado"
+    }
   }
 }

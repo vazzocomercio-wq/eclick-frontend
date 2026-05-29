@@ -12759,5 +12759,46 @@
       "title": "雷达等待首次收集",
       "desc": "在设置 → 集成中连接您的店铺后，每日收集器将按类别填充趋势、平均价格和 FBS 采用率。"
     }
+  },
+  "shopeeSimulator": {
+    "title": "Shopee 商品模拟器",
+    "subtitle": "发布前预先检查算法评分 — 提前修复问题",
+    "score": "评分",
+    "error": "错误：{msg}",
+    "startHint": "在左侧填写草稿 — 评估将自动显示在此处。",
+    "blockers": "发布障碍",
+    "issues": "建议（{n}）",
+    "action": "操作",
+    "perfect": "金标准商品 — 可以发布！",
+    "form": {
+      "title": "商品草稿"
+    },
+    "ready": {
+      "yes": "可以发布",
+      "no": "暂不推荐",
+      "canPublish": "您现在可以发布",
+      "pendingCreds": "Shopee 批准应用后即可直接发布",
+      "fixFirst": "请先修复以下障碍"
+    },
+    "pillar": {
+      "relevance": "相关",
+      "performance": "表现",
+      "seller_quality": "店铺",
+      "price_marketing": "价格"
+    },
+    "field": {
+      "titleLabel": "标题",
+      "titleHint": "60-120 字符，含关键词 + 属性",
+      "titlePlaceholder": "例如：LED 水晶 K9 金色壁灯 5W 暖光 客厅装饰",
+      "descLabel": "描述",
+      "descHint": "500+ 字符，含要点和技术细节",
+      "descPlaceholder": "描述功能、尺寸、保修、兼容性...",
+      "imageCount": "图片数量",
+      "imageDim": "最小尺寸",
+      "attrsFilled": "已填属性",
+      "attrsTotal": "必填属性",
+      "price": "您的价格",
+      "marketPrice": "市场中位价"
+    }
   }
 }
