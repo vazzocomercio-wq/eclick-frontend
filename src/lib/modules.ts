@@ -61,6 +61,7 @@ const ROUTE_MODULES: ReadonlyArray<readonly [string, string]> = [
   ['/dashboard/shopee-simulator', 'marketplace'],
   ['/dashboard/shopee-afiliado', 'marketplace'],
   ['/dashboard/shopee-comissoes', 'marketplace'],
+  ['/dashboard/shopee-matchmaker', 'marketplace'],
   ['/dashboard/listings', 'marketplace'], ['/dashboard/pedidos', 'marketplace'],
   ['/dashboard/atendimento', 'marketplace'], ['/dashboard/ml-postsale', 'marketplace'],
   ['/dashboard/logistica', 'marketplace'], ['/dashboard/financeiro', 'marketplace'],

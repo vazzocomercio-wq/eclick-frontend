@@ -13125,5 +13125,54 @@
       "title": "Nenhuma comissão ainda",
       "desc": "Quando seus links de afiliado gerarem vendas, as comissões aparecem aqui — pendentes até a entrega, confirmadas após pagamento."
     }
+  },
+  "shopeeMatchmaker": {
+    "title": "A Ponte — Matchmaker",
+    "subtitle": "Conecte seus produtos a afiliados por fit real (nicho × alcance × canal × histórico)",
+    "tab": {
+      "affiliates": "Encontrar afiliados",
+      "offers": "Propostas"
+    },
+    "match": "Match",
+    "propose": "Propor parceria",
+    "nichePlaceholder": "Nicho (ex: iluminacao)",
+    "rankHint": "Ranqueado por fit real, não só comissão.",
+    "comp": {
+      "niche": "Nicho",
+      "reach": "Alcance",
+      "channel": "Canal",
+      "history": "Hist"
+    },
+    "proposeTitle": "Propor parceria",
+    "proposeTo": "Proposta para {name}",
+    "itemId": "Item ID do produto",
+    "commission": "Comissão",
+    "sendPropose": "Enviar proposta",
+    "proposeSent": "Proposta enviada!",
+    "proposeSentHint": "{name} vai receber e pode aceitar.",
+    "done": "Fechar",
+    "offersHint": "Propostas de parceria vendedor↔afiliado.",
+    "refresh": "Atualizar",
+    "item": "Item",
+    "accept": "Aceitar",
+    "decline": "Recusar",
+    "status": {
+      "open": "Aberta",
+      "accepted": "Aceita",
+      "declined": "Recusada",
+      "active": "Ativa",
+      "paused": "Pausada"
+    },
+    "error": "Erro: {msg}",
+    "empty": {
+      "affiliates": {
+        "title": "Nenhum afiliado no diretório",
+        "desc": "Afiliados aparecem aqui após opt-in (consentimento). O motor ranqueia por fit com seu nicho."
+      },
+      "offers": {
+        "title": "Nenhuma proposta ainda",
+        "desc": "Proponha parcerias na aba Encontrar afiliados — elas aparecem aqui pra acompanhamento."
+      }
+    }
   }
 }

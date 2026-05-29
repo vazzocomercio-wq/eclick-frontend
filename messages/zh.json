@@ -12918,5 +12918,54 @@
       "title": "尚无佣金",
       "desc": "当您的联盟链接产生销售时，佣金将显示在此处 — 交货前待定，付款后确认。"
     }
+  },
+  "shopeeMatchmaker": {
+    "title": "桥梁 — 配对器",
+    "subtitle": "按真实契合度（细分 × 覆盖 × 渠道 × 历史）将您的产品与联盟会员连接",
+    "tab": {
+      "affiliates": "寻找联盟会员",
+      "offers": "提案"
+    },
+    "match": "匹配",
+    "propose": "提议合作",
+    "nichePlaceholder": "细分（如：照明）",
+    "rankHint": "按真实契合度排名，而非仅佣金。",
+    "comp": {
+      "niche": "细分",
+      "reach": "覆盖",
+      "channel": "渠道",
+      "history": "历史"
+    },
+    "proposeTitle": "提议合作",
+    "proposeTo": "向 {name} 提案",
+    "itemId": "产品 Item ID",
+    "commission": "佣金",
+    "sendPropose": "发送提案",
+    "proposeSent": "提案已发送！",
+    "proposeSentHint": "{name} 将收到并可接受。",
+    "done": "关闭",
+    "offersHint": "卖家↔联盟会员合作提案。",
+    "refresh": "刷新",
+    "item": "商品",
+    "accept": "接受",
+    "decline": "拒绝",
+    "status": {
+      "open": "开放",
+      "accepted": "已接受",
+      "declined": "已拒绝",
+      "active": "活跃",
+      "paused": "已暂停"
+    },
+    "error": "错误：{msg}",
+    "empty": {
+      "affiliates": {
+        "title": "目录中没有联盟会员",
+        "desc": "联盟会员在选择加入（同意）后显示在此。引擎按与您细分的契合度排名。"
+      },
+      "offers": {
+        "title": "尚无提案",
+        "desc": "在寻找联盟会员标签中提议合作 — 它们会显示在此处以供跟踪。"
+      }
+    }
   }
 }

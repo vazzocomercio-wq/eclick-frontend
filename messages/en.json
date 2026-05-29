@@ -12918,5 +12918,54 @@
       "title": "No commissions yet",
       "desc": "When your affiliate links generate sales, commissions appear here — pending until delivery, confirmed after payment."
     }
+  },
+  "shopeeMatchmaker": {
+    "title": "The Bridge — Matchmaker",
+    "subtitle": "Connect your products to affiliates by real fit (niche × reach × channel × history)",
+    "tab": {
+      "affiliates": "Find affiliates",
+      "offers": "Offers"
+    },
+    "match": "Match",
+    "propose": "Propose partnership",
+    "nichePlaceholder": "Niche (e.g. lighting)",
+    "rankHint": "Ranked by real fit, not just commission.",
+    "comp": {
+      "niche": "Niche",
+      "reach": "Reach",
+      "channel": "Channel",
+      "history": "Hist"
+    },
+    "proposeTitle": "Propose partnership",
+    "proposeTo": "Proposal to {name}",
+    "itemId": "Product Item ID",
+    "commission": "Commission",
+    "sendPropose": "Send proposal",
+    "proposeSent": "Proposal sent!",
+    "proposeSentHint": "{name} will receive and can accept.",
+    "done": "Close",
+    "offersHint": "Seller↔affiliate partnership proposals.",
+    "refresh": "Refresh",
+    "item": "Item",
+    "accept": "Accept",
+    "decline": "Decline",
+    "status": {
+      "open": "Open",
+      "accepted": "Accepted",
+      "declined": "Declined",
+      "active": "Active",
+      "paused": "Paused"
+    },
+    "error": "Error: {msg}",
+    "empty": {
+      "affiliates": {
+        "title": "No affiliates in directory",
+        "desc": "Affiliates appear here after opt-in (consent). The engine ranks by fit with your niche."
+      },
+      "offers": {
+        "title": "No proposals yet",
+        "desc": "Propose partnerships in the Find affiliates tab — they show here for tracking."
+      }
+    }
   }
 }
