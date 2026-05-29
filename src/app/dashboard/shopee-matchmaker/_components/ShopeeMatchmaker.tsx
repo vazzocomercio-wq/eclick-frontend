@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import {
-  AlertCircle, Check, Handshake, Loader2, RefreshCw, Search, Store, Users, X,
+  AlertCircle, BarChart3, Check, DollarSign, Handshake, Loader2, RefreshCw,
+  Search, Store, TrendingUp, Users, X,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 
@@ -40,7 +41,7 @@ interface MatchOffer {
   created_at:              string
 }
 
-type Tab = 'affiliates' | 'offers'
+type Tab = 'affiliates' | 'offers' | 'metrics'
 
 export default function ShopeeMatchmaker() {
   const t = useTranslations('shopeeMatchmaker')
@@ -50,9 +51,76 @@ export default function ShopeeMatchmaker() {
       <Header t={t} />
       <div className="flex items-center gap-1.5">
         <TabBtn active={tab === 'affiliates'} onClick={() => setTab('affiliates')} icon={<Users size={13} />} label={t('tab.affiliates')} />
+        <TabBtn active={tab === 'metrics'} onClick={() => setTab('metrics')} icon={<BarChart3 size={13} />} label={t('tab.metrics')} />
         <TabBtn active={tab === 'offers'}     onClick={() => setTab('offers')}     icon={<Handshake size={13} />} label={t('tab.offers')} />
       </div>
-      {tab === 'affiliates' ? <AffiliatesTab t={t} /> : <OffersTab t={t} />}
+      {tab === 'affiliates' ? <AffiliatesTab t={t} /> : tab === 'metrics' ? <MetricsTab t={t} /> : <OffersTab t={t} />}
+    </div>
+  )
+}
+
+// ── Tab: Métricas da Ponte (north-star) ──────────────────────────────────────
+
+interface PonteMetrics {
+  matches:     { total: number; active: number; open: number; active_affiliates: number; avg_match_score: number | null; acceptance_rate: number | null }
+  gmv:         { confirmed_cents: number; pending_cents: number; total_cents: number }
+  commission:  { confirmed_cents: number; pending_cents: number }
+  conversions: { confirmed: number; pending: number }
+}
+
+function MetricsTab({ t }: { t: ReturnType<typeof useTranslations> }) {
+  const [m, setM]       = useState<PonteMetrics | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    setError(null)
+    try {
+      const sb = createClient()
+      const { data: { session } } = await sb.auth.getSession()
+      const res = await fetch(`${BACKEND}/shopee/matchmaker/metrics`, { headers: { Authorization: `Bearer ${session?.access_token ?? ''}` } })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      setM(await res.json())
+    } catch (e) { setError((e as Error).message) }
+  }, [])
+  useEffect(() => { void load() }, [load])
+
+  if (error) return <Banner msg={t('error', { msg: error })} />
+  if (!m) return <Skel />
+
+  return (
+    <div className="space-y-5">
+      {/* North-star hero */}
+      <div className="rounded-2xl p-5" style={{ background: 'linear-gradient(135deg, rgba(0,229,255,0.08), rgba(238,77,45,0.06))', border: '1px solid #1e2a30' }}>
+        <p className="text-[10px] uppercase tracking-widest text-zinc-500 font-semibold">{t('metrics.northStar')}</p>
+        <p className="text-4xl font-black mt-1" style={{ color: CYAN }}>{formatBRL(m.gmv.total_cents)}</p>
+        <p className="text-xs text-zinc-500 mt-1">{t('metrics.gmvHint', { confirmed: formatBRL(m.gmv.confirmed_cents), pending: formatBRL(m.gmv.pending_cents) })}</p>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <Metric icon={<Handshake size={14} />} label={t('metrics.activeMatches')} value={String(m.matches.active)} sub={t('metrics.ofTotal', { n: m.matches.total })} accent="#34d399" />
+        <Metric icon={<Users size={14} />} label={t('metrics.activeAffiliates')} value={String(m.matches.active_affiliates)} sub={t('metrics.openOffers', { n: m.matches.open })} accent="#a78bfa" />
+        <Metric icon={<DollarSign size={14} />} label={t('metrics.commissionConfirmed')} value={formatBRL(m.commission.confirmed_cents)} sub={t('metrics.pendingComm', { v: formatBRL(m.commission.pending_cents) })} accent="#fbbf24" />
+        <Metric icon={<TrendingUp size={14} />} label={t('metrics.avgMatch')} value={m.matches.avg_match_score != null ? String(m.matches.avg_match_score) : '—'} sub={m.matches.acceptance_rate != null ? t('metrics.acceptRate', { p: (m.matches.acceptance_rate * 100).toFixed(0) }) : '—'} accent={CYAN} />
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <Metric icon={<Check size={14} />} label={t('metrics.convConfirmed')} value={String(m.conversions.confirmed)} sub="" accent="#34d399" />
+        <Metric icon={<RefreshCw size={14} />} label={t('metrics.convPending')} value={String(m.conversions.pending)} sub="" accent="#fbbf24" />
+      </div>
+
+      <p className="text-[10px] text-zinc-600 text-center">{t('metrics.attributionNote')}</p>
+    </div>
+  )
+}
+
+function Metric({ icon, label, value, sub, accent }: { icon: React.ReactNode; label: string; value: string; sub: string; accent: string }) {
+  return (
+    <div className="rounded-xl p-3" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+      <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-zinc-500 font-semibold">
+        <span style={{ color: accent }}>{icon}</span><span className="truncate">{label}</span>
+      </div>
+      <p className="text-xl font-black mt-1.5" style={{ color: accent }}>{value}</p>
+      {sub && <p className="text-[10px] text-zinc-600 mt-0.5">{sub}</p>}
     </div>
   )
 }
@@ -347,4 +415,7 @@ function matchColor(s: number): string {
 function formatReach(n: number): string {
   if (n >= 1000) return `${(n / 1000).toFixed(0)}k`
   return String(n)
+}
+function formatBRL(cents: number): string {
+  return (cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }

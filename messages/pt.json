@@ -13131,7 +13131,8 @@
     "subtitle": "Conecte seus produtos a afiliados por fit real (nicho × alcance × canal × histórico)",
     "tab": {
       "affiliates": "Encontrar afiliados",
-      "offers": "Propostas"
+      "offers": "Propostas",
+      "metrics": "Métricas"
     },
     "match": "Match",
     "propose": "Propor parceria",
@@ -13173,6 +13174,21 @@
         "title": "Nenhuma proposta ainda",
         "desc": "Proponha parcerias na aba Encontrar afiliados — elas aparecem aqui pra acompanhamento."
       }
+    },
+    "metrics": {
+      "northStar": "GMV via afiliados da plataforma",
+      "gmvHint": "{confirmed} confirmado · {pending} pendente",
+      "activeMatches": "Matches ativos",
+      "ofTotal": "de {n} total",
+      "activeAffiliates": "Afiliados ativos",
+      "openOffers": "{n} propostas abertas",
+      "commissionConfirmed": "Comissão confirmada",
+      "pendingComm": "{v} pendente",
+      "avgMatch": "Match score médio",
+      "acceptRate": "{p}% aceitação",
+      "convConfirmed": "Conversões confirmadas",
+      "convPending": "Conversões pendentes",
+      "attributionNote": "Atribuição fina conversão↔match liga via sub_id quando o ingestion real (F2.2) conectar."
     }
   }
 }

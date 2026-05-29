@@ -12924,7 +12924,8 @@
     "subtitle": "Connect your products to affiliates by real fit (niche × reach × channel × history)",
     "tab": {
       "affiliates": "Find affiliates",
-      "offers": "Offers"
+      "offers": "Offers",
+      "metrics": "Metrics"
     },
     "match": "Match",
     "propose": "Propose partnership",
@@ -12966,6 +12967,21 @@
         "title": "No proposals yet",
         "desc": "Propose partnerships in the Find affiliates tab — they show here for tracking."
       }
+    },
+    "metrics": {
+      "northStar": "GMV via platform affiliates",
+      "gmvHint": "{confirmed} confirmed · {pending} pending",
+      "activeMatches": "Active matches",
+      "ofTotal": "of {n} total",
+      "activeAffiliates": "Active affiliates",
+      "openOffers": "{n} open offers",
+      "commissionConfirmed": "Confirmed commission",
+      "pendingComm": "{v} pending",
+      "avgMatch": "Avg match score",
+      "acceptRate": "{p}% acceptance",
+      "convConfirmed": "Confirmed conversions",
+      "convPending": "Pending conversions",
+      "attributionNote": "Fine conversion↔match attribution links via sub_id once real ingestion (F2.2) connects."
     }
   }
 }

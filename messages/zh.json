@@ -12924,7 +12924,8 @@
     "subtitle": "按真实契合度（细分 × 覆盖 × 渠道 × 历史）将您的产品与联盟会员连接",
     "tab": {
       "affiliates": "寻找联盟会员",
-      "offers": "提案"
+      "offers": "提案",
+      "metrics": "指标"
     },
     "match": "匹配",
     "propose": "提议合作",
@@ -12966,6 +12967,21 @@
         "title": "尚无提案",
         "desc": "在寻找联盟会员标签中提议合作 — 它们会显示在此处以供跟踪。"
       }
+    },
+    "metrics": {
+      "northStar": "通过平台联盟会员的 GMV",
+      "gmvHint": "{confirmed} 已确认 · {pending} 待定",
+      "activeMatches": "活跃匹配",
+      "ofTotal": "共 {n} 个",
+      "activeAffiliates": "活跃联盟会员",
+      "openOffers": "{n} 个开放提案",
+      "commissionConfirmed": "已确认佣金",
+      "pendingComm": "{v} 待定",
+      "avgMatch": "平均匹配分",
+      "acceptRate": "{p}% 接受率",
+      "convConfirmed": "已确认转化",
+      "convPending": "待定转化",
+      "attributionNote": "精细的转化↔匹配归因将在真实接入（F2.2）连接后通过 sub_id 关联。"
     }
   }
 }
