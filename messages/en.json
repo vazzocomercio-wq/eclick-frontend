@@ -12734,5 +12734,30 @@
       "filterTitle": "No campaigns in this filter",
       "filterDesc": "Pick another tab or \"All\"."
     }
+  },
+  "shopeeRadar": {
+    "breadcrumb": "Marketplace · Radar",
+    "title": "Shopee — Market Radar",
+    "subtitle": "Trends, pricing and FBS adoption by category",
+    "refresh": "Refresh",
+    "error": "Failed to load: {msg}",
+    "retry": "Try again",
+    "sectionEmpty": "No signal collected for this category yet.",
+    "section": {
+      "trending": "Trending",
+      "price_benchmark": "Price — Market Leader",
+      "fbs_adoption": "FBS Adoption (Shopee Free Shipping)"
+    },
+    "label": {
+      "category": "Category",
+      "score": "Score",
+      "vs7d": "vs 7 days ago",
+      "topItems": "Top items",
+      "leaderPrice": "Leader price"
+    },
+    "empty": {
+      "title": "Radar waiting for first collection",
+      "desc": "After connecting your shop in Settings → Integrations, the daily collector populates trends, average prices and FBS adoption by category."
+    }
   }
 }

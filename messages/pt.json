@@ -12941,5 +12941,30 @@
       "filterTitle": "Nenhuma campanha neste filtro",
       "filterDesc": "Selecione outra aba ou \"Todas\"."
     }
+  },
+  "shopeeRadar": {
+    "breadcrumb": "Marketplace · Radar",
+    "title": "Shopee — Radar de Mercado",
+    "subtitle": "Tendências, preços e adoção FBS por categoria",
+    "refresh": "Atualizar",
+    "error": "Erro ao carregar: {msg}",
+    "retry": "Tentar novamente",
+    "sectionEmpty": "Nenhum sinal coletado nesta categoria ainda.",
+    "section": {
+      "trending": "Tendências",
+      "price_benchmark": "Preço — Líder de Mercado",
+      "fbs_adoption": "Adoção FBS (Frete Grátis Shopee)"
+    },
+    "label": {
+      "category": "Categoria",
+      "score": "Score",
+      "vs7d": "vs 7 dias atrás",
+      "topItems": "Top items",
+      "leaderPrice": "Preço líder"
+    },
+    "empty": {
+      "title": "Radar Shopee aguardando primeira coleta",
+      "desc": "Após conectar sua loja em Configurações → Integrações, o coletor diário popula tendências, preços médios e adoção FBS por categoria."
+    }
   }
 }

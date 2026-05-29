@@ -12734,5 +12734,30 @@
       "filterTitle": "此筛选下无活动",
       "filterDesc": "请选择其他标签或\"全部\"。"
     }
+  },
+  "shopeeRadar": {
+    "breadcrumb": "市场 · 雷达",
+    "title": "Shopee — 市场雷达",
+    "subtitle": "按类别的趋势、价格和 FBS 采用率",
+    "refresh": "刷新",
+    "error": "加载失败：{msg}",
+    "retry": "重试",
+    "sectionEmpty": "此类别尚未收集任何信号。",
+    "section": {
+      "trending": "趋势",
+      "price_benchmark": "价格 — 市场领导者",
+      "fbs_adoption": "FBS 采用率（Shopee 免运费）"
+    },
+    "label": {
+      "category": "类别",
+      "score": "评分",
+      "vs7d": "与 7 天前相比",
+      "topItems": "热门商品",
+      "leaderPrice": "领导者价格"
+    },
+    "empty": {
+      "title": "雷达等待首次收集",
+      "desc": "在设置 → 集成中连接您的店铺后，每日收集器将按类别填充趋势、平均价格和 FBS 采用率。"
+    }
   }
 }
