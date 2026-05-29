@@ -12820,13 +12820,30 @@
       "trend": "趋势"
     },
     "genLink": "生成链接",
-    "genLinkSoon": "链接工作室即将推出（F2.4）",
     "cantLink": "已排除的优惠 — 不推荐",
     "error": "加载失败：{msg}",
     "retry": "重试",
     "empty": {
       "title": "尚无联盟优惠",
       "desc": "连接您的 Shopee 联盟账户（App ID/Secret），以便发现引擎拉取佣金优惠并按机会排名。"
+    },
+    "linkStudio": {
+      "title": "链接工作室",
+      "close": "关闭",
+      "pickChannel": "选择渠道",
+      "generate": "生成跟踪链接",
+      "shortUrl": "短链接",
+      "subId": "Sub ID（归因）",
+      "trackingHint": "每个渠道都有自己的 sub_id — 点击和销售将分别归因。",
+      "generateAnother": "再生成一个",
+      "channel": {
+        "whatsapp": "WhatsApp",
+        "instagram": "Instagram",
+        "tiktok": "TikTok",
+        "shopee_video": "Shopee Video",
+        "shopee_live": "Shopee 直播",
+        "blog": "博客"
+      }
     }
   }
 }

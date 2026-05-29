@@ -12820,13 +12820,30 @@
       "trend": "Trend"
     },
     "genLink": "Generate link",
-    "genLinkSoon": "Link Studio coming soon (F2.4)",
     "cantLink": "Excluded offer — not recommended",
     "error": "Failed to load: {msg}",
     "retry": "Try again",
     "empty": {
       "title": "No affiliate offers yet",
       "desc": "Connect your Shopee Affiliate account (App ID/Secret) so Discovery can pull commission offers and rank by opportunity."
+    },
+    "linkStudio": {
+      "title": "Link Studio",
+      "close": "Close",
+      "pickChannel": "Pick the channel",
+      "generate": "Generate tracked link",
+      "shortUrl": "Short link",
+      "subId": "Sub ID (attribution)",
+      "trackingHint": "Each channel has its own sub_id — clicks and sales are attributed separately.",
+      "generateAnother": "Generate another",
+      "channel": {
+        "whatsapp": "WhatsApp",
+        "instagram": "Instagram",
+        "tiktok": "TikTok",
+        "shopee_video": "Shopee Video",
+        "shopee_live": "Shopee Live",
+        "blog": "Blog"
+      }
     }
   }
 }

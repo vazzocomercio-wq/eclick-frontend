@@ -13027,13 +13027,30 @@
       "trend": "Trend"
     },
     "genLink": "Gerar link",
-    "genLinkSoon": "Link Studio em breve (F2.4)",
     "cantLink": "Oferta excluída — não recomendada",
     "error": "Erro ao carregar: {msg}",
     "retry": "Tentar novamente",
     "empty": {
       "title": "Nenhuma oferta de afiliado ainda",
       "desc": "Conecte sua conta Shopee Affiliate (App ID/Secret) para o Discovery puxar ofertas com comissão e ranquear por oportunidade."
+    },
+    "linkStudio": {
+      "title": "Link Studio",
+      "close": "Fechar",
+      "pickChannel": "Escolha o canal",
+      "generate": "Gerar link rastreável",
+      "shortUrl": "Link encurtado",
+      "subId": "Sub ID (atribuição)",
+      "trackingHint": "Cada canal tem seu sub_id — os cliques e vendas são atribuídos separadamente.",
+      "generateAnother": "Gerar outro",
+      "channel": {
+        "whatsapp": "WhatsApp",
+        "instagram": "Instagram",
+        "tiktok": "TikTok",
+        "shopee_video": "Shopee Video",
+        "shopee_live": "Shopee Live",
+        "blog": "Blog"
+      }
     }
   }
 }

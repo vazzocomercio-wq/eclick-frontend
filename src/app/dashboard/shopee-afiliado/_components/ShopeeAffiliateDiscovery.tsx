@@ -6,6 +6,7 @@ import {
   AlertCircle, Ban, Link2, RefreshCw, Star, TrendingUp, Store, Zap,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
+import LinkStudioModal from './LinkStudioModal'
 
 /** F18 F2.3 — Discovery do lado Afiliado.
  *  Ofertas ranqueadas por Opportunity Score (comissão × conversão ×
@@ -46,6 +47,7 @@ export default function ShopeeAffiliateDiscovery() {
   const [offers, setOffers]   = useState<Offer[] | null>(null)
   const [error, setError]     = useState<string | null>(null)
   const [showExcluded, setShowExcluded] = useState(false)
+  const [linkFor, setLinkFor] = useState<Offer | null>(null)
 
   const load = useCallback(async (includeExcluded: boolean) => {
     setError(null)
@@ -78,8 +80,17 @@ export default function ShopeeAffiliateDiscovery() {
         <EmptyState t={t} />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {offers?.map(o => <OfferCard key={o.item_id} offer={o} t={t} />)}
+          {offers?.map(o => (
+            <OfferCard key={o.item_id} offer={o} t={t} onGenLink={() => setLinkFor(o)} />
+          ))}
         </div>
+      )}
+      {linkFor && (
+        <LinkStudioModal
+          itemId={linkFor.item_id}
+          itemName={linkFor.name}
+          onClose={() => setLinkFor(null)}
+        />
       )}
     </div>
   )
@@ -129,7 +140,7 @@ function Toolbar({ t, showExcluded, onToggleExcluded }: {
 
 // ── Offer Card ─────────────────────────────────────────────────────────────
 
-function OfferCard({ offer, t }: { offer: Offer; t: ReturnType<typeof useTranslations> }) {
+function OfferCard({ offer, t, onGenLink }: { offer: Offer; t: ReturnType<typeof useTranslations>; onGenLink: () => void }) {
   const opp = offer.opportunity
   const excluded = opp.excluded
   return (
@@ -188,7 +199,8 @@ function OfferCard({ offer, t }: { offer: Offer; t: ReturnType<typeof useTransla
       <div className="mt-auto pt-3">
         <button
           disabled={excluded}
-          title={excluded ? t('cantLink') : t('genLinkSoon')}
+          onClick={onGenLink}
+          title={excluded ? t('cantLink') : undefined}
           className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed"
           style={{ background: excluded ? '#18181b' : `${CYAN}15`, color: excluded ? '#52525b' : CYAN, border: `1px solid ${excluded ? '#27272a' : CYAN + '40'}` }}>
           <Link2 size={12} />
