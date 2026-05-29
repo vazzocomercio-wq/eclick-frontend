@@ -118,6 +118,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/lb') ||
     pathname.startsWith('/p/') ||
     pathname.startsWith('/auditoria-gratis') ||  // landing pública GEO + loading/resultado/OG/descadastro
+    pathname.startsWith('/sou-afiliado-shopee') || // F18 F4.3 — self-signup afiliado (opt-in LGPD)
     pathname.startsWith('/privacidade') ||
     pathname.startsWith('/blog') ||              // blog público GEO
     pathname === '/llms.txt' ||
