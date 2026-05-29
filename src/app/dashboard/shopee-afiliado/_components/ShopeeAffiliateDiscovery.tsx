@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import {
-  AlertCircle, Ban, Link2, RefreshCw, Star, TrendingUp, Store, Zap,
+  AlertCircle, Ban, Link2, RefreshCw, Star, TrendingUp, Store, Zap, Sparkles,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import LinkStudioModal from './LinkStudioModal'
+import ContentStudioModal from './ContentStudioModal'
 
 /** F18 F2.3 — Discovery do lado Afiliado.
  *  Ofertas ranqueadas por Opportunity Score (comissão × conversão ×
@@ -48,6 +49,7 @@ export default function ShopeeAffiliateDiscovery() {
   const [error, setError]     = useState<string | null>(null)
   const [showExcluded, setShowExcluded] = useState(false)
   const [linkFor, setLinkFor] = useState<Offer | null>(null)
+  const [contentFor, setContentFor] = useState<Offer | null>(null)
 
   const load = useCallback(async (includeExcluded: boolean) => {
     setError(null)
@@ -81,7 +83,7 @@ export default function ShopeeAffiliateDiscovery() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {offers?.map(o => (
-            <OfferCard key={o.item_id} offer={o} t={t} onGenLink={() => setLinkFor(o)} />
+            <OfferCard key={o.item_id} offer={o} t={t} onGenLink={() => setLinkFor(o)} onGenContent={() => setContentFor(o)} />
           ))}
         </div>
       )}
@@ -90,6 +92,13 @@ export default function ShopeeAffiliateDiscovery() {
           itemId={linkFor.item_id}
           itemName={linkFor.name}
           onClose={() => setLinkFor(null)}
+        />
+      )}
+      {contentFor && (
+        <ContentStudioModal
+          itemId={contentFor.item_id}
+          itemName={contentFor.name}
+          onClose={() => setContentFor(null)}
         />
       )}
     </div>
@@ -140,7 +149,7 @@ function Toolbar({ t, showExcluded, onToggleExcluded }: {
 
 // ── Offer Card ─────────────────────────────────────────────────────────────
 
-function OfferCard({ offer, t, onGenLink }: { offer: Offer; t: ReturnType<typeof useTranslations>; onGenLink: () => void }) {
+function OfferCard({ offer, t, onGenLink, onGenContent }: { offer: Offer; t: ReturnType<typeof useTranslations>; onGenLink: () => void; onGenContent: () => void }) {
   const opp = offer.opportunity
   const excluded = opp.excluded
   return (
@@ -197,15 +206,26 @@ function OfferCard({ offer, t, onGenLink }: { offer: Offer; t: ReturnType<typeof
 
       {/* Footer: link button (Link Studio F2.4 — stub por ora) */}
       <div className="mt-auto pt-3">
-        <button
-          disabled={excluded}
-          onClick={onGenLink}
-          title={excluded ? t('cantLink') : undefined}
-          className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-          style={{ background: excluded ? '#18181b' : `${CYAN}15`, color: excluded ? '#52525b' : CYAN, border: `1px solid ${excluded ? '#27272a' : CYAN + '40'}` }}>
-          <Link2 size={12} />
-          {t('genLink')}
-        </button>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            disabled={excluded}
+            onClick={onGenLink}
+            title={excluded ? t('cantLink') : undefined}
+            className="flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg text-xs font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ background: excluded ? '#18181b' : `${CYAN}15`, color: excluded ? '#52525b' : CYAN, border: `1px solid ${excluded ? '#27272a' : CYAN + '40'}` }}>
+            <Link2 size={12} />
+            {t('genLink')}
+          </button>
+          <button
+            disabled={excluded}
+            onClick={onGenContent}
+            title={excluded ? t('cantLink') : undefined}
+            className="flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg text-xs font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ background: excluded ? '#18181b' : 'rgba(167,139,250,0.12)', color: excluded ? '#52525b' : '#a78bfa', border: `1px solid ${excluded ? '#27272a' : 'rgba(167,139,250,0.35)'}` }}>
+            <Sparkles size={12} />
+            {t('genContent')}
+          </button>
+        </div>
       </div>
     </div>
   )

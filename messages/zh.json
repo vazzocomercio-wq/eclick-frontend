@@ -12844,7 +12844,31 @@
         "shopee_live": "Shopee 直播",
         "blog": "博客"
       }
-    }
+    },
+    "contentStudio": {
+      "title": "AI 内容工作室",
+      "close": "关闭",
+      "pickChannel": "渠道",
+      "tone": "语气（可选）",
+      "tonePlaceholder": "例如：休闲、紧迫、技术…",
+      "generate": "生成内容",
+      "generating": "生成中…",
+      "result": "生成的内容",
+      "copy": "复制",
+      "copied": "已复制！",
+      "linkIncluded": "已包含跟踪链接",
+      "hint": "发布前请审核。链接已嵌入按渠道的 sub_id。",
+      "generateAnother": "再生成一个",
+      "channel": {
+        "whatsapp": "WhatsApp",
+        "instagram": "Instagram",
+        "tiktok": "TikTok",
+        "shopee_video": "Shopee Video",
+        "shopee_live": "Shopee 直播",
+        "blog": "博客"
+      }
+    },
+    "genContent": "AI 内容"
   },
   "shopeeCommissions": {
     "breadcrumb": "市场 · 联盟",

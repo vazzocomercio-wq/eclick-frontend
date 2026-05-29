@@ -13051,7 +13051,31 @@
         "shopee_live": "Shopee Live",
         "blog": "Blog"
       }
-    }
+    },
+    "contentStudio": {
+      "title": "Content Studio IA",
+      "close": "Fechar",
+      "pickChannel": "Canal",
+      "tone": "Tom (opcional)",
+      "tonePlaceholder": "Ex: descontraído, urgência, técnico…",
+      "generate": "Gerar conteúdo",
+      "generating": "Gerando…",
+      "result": "Conteúdo gerado",
+      "copy": "Copiar",
+      "copied": "Copiado!",
+      "linkIncluded": "Link rastreável incluído",
+      "hint": "Revise antes de publicar. O link já está embutido com sub_id por canal.",
+      "generateAnother": "Gerar outro",
+      "channel": {
+        "whatsapp": "WhatsApp",
+        "instagram": "Instagram",
+        "tiktok": "TikTok",
+        "shopee_video": "Shopee Video",
+        "shopee_live": "Shopee Live",
+        "blog": "Blog"
+      }
+    },
+    "genContent": "Conteúdo IA"
   },
   "shopeeCommissions": {
     "breadcrumb": "Marketplace · Afiliado",

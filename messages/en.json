@@ -12844,7 +12844,31 @@
         "shopee_live": "Shopee Live",
         "blog": "Blog"
       }
-    }
+    },
+    "contentStudio": {
+      "title": "AI Content Studio",
+      "close": "Close",
+      "pickChannel": "Channel",
+      "tone": "Tone (optional)",
+      "tonePlaceholder": "e.g. casual, urgency, technical…",
+      "generate": "Generate content",
+      "generating": "Generating…",
+      "result": "Generated content",
+      "copy": "Copy",
+      "copied": "Copied!",
+      "linkIncluded": "Tracked link included",
+      "hint": "Review before publishing. The link is already embedded with per-channel sub_id.",
+      "generateAnother": "Generate another",
+      "channel": {
+        "whatsapp": "WhatsApp",
+        "instagram": "Instagram",
+        "tiktok": "TikTok",
+        "shopee_video": "Shopee Video",
+        "shopee_live": "Shopee Live",
+        "blog": "Blog"
+      }
+    },
+    "genContent": "AI Content"
   },
   "shopeeCommissions": {
     "breadcrumb": "Marketplace · Affiliate",
