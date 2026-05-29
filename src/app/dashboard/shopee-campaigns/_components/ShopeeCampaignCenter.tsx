@@ -4,9 +4,10 @@ import { useCallback, useEffect, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import {
   AlertCircle, AlertTriangle, RefreshCw, Tag, Zap, Megaphone,
-  TrendingUp, Calendar, ShoppingBag,
+  TrendingUp, Calendar, ShoppingBag, Calculator,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
+import MarginCalculatorModal from './MarginCalculatorModal'
 
 /** F18 F1.4 — Shopee Campaign Center (READ-ONLY).
  *  CRUD vem na Sprint 2 quando creds Shopee aprovarem. */
@@ -51,6 +52,7 @@ export default function ShopeeCampaignCenter() {
   const [items, setItems]     = useState<CampaignCard[] | null>(null)
   const [error, setError]     = useState<string | null>(null)
   const [filter, setFilter]   = useState<KindFilter>('all')
+  const [showCalc, setShowCalc] = useState(false)
 
   const load = useCallback(async () => {
     setError(null)
@@ -76,7 +78,8 @@ export default function ShopeeCampaignCenter() {
 
   return (
     <div className="p-6 space-y-6 min-h-full" style={{ background: '#09090b' }}>
-      <Header onRefresh={load} t={t} />
+      <Header onRefresh={load} onOpenCalc={() => setShowCalc(true)} t={t} />
+      {showCalc && <MarginCalculatorModal onClose={() => setShowCalc(false)} />}
       {error && <ErrorBanner error={error} onRetry={load} t={t} />}
       {items !== null && items.length > 0 && <SummaryCards summary={summary} t={t} />}
       <Tabs filter={filter} onChange={setFilter} counts={kindCounts(items ?? [])} t={t} />
@@ -95,7 +98,7 @@ export default function ShopeeCampaignCenter() {
 
 // ── Header ─────────────────────────────────────────────────────────────────
 
-function Header({ onRefresh, t }: { onRefresh: () => void; t: ReturnType<typeof useTranslations> }) {
+function Header({ onRefresh, onOpenCalc, t }: { onRefresh: () => void; onOpenCalc: () => void; t: ReturnType<typeof useTranslations> }) {
   return (
     <div className="flex items-center gap-3">
       <p className="text-zinc-500 text-xs">{t('breadcrumb')}</p>
@@ -106,8 +109,16 @@ function Header({ onRefresh, t }: { onRefresh: () => void; t: ReturnType<typeof 
         <p className="text-zinc-500 text-xs">{t('subtitle')}</p>
       </div>
       <button
+        onClick={onOpenCalc}
+        className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+        style={{ background: `${CYAN}15`, color: CYAN, border: `1px solid ${CYAN}40` }}
+      >
+        <Calculator size={12} />
+        {t('marginCalc.openBtn')}
+      </button>
+      <button
         onClick={onRefresh}
-        className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors"
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors"
         style={{ borderColor: '#2e2e33', color: '#a1a1aa', background: '#111114' }}
       >
         <RefreshCw size={12} />

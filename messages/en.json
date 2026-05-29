@@ -12733,6 +12733,27 @@
       "desc": "After connecting a shop, create vouchers, flash sales and product boosts. Aggregated ROI per campaign will show here.",
       "filterTitle": "No campaigns in this filter",
       "filterDesc": "Pick another tab or \"All\"."
+    },
+    "marginCalc": {
+      "openBtn": "Margin Calculator",
+      "title": "Campaign Margin Calculator",
+      "close": "Close",
+      "price": "List price",
+      "discount": "Discount",
+      "shopeeCom": "Shopee commission",
+      "affCom": "Affiliate commission",
+      "cost": "Product cost",
+      "netMargin": "Net margin",
+      "min": "min",
+      "br": {
+        "gross": "Gross price",
+        "discount": "Discount",
+        "shopee": "Shopee commission",
+        "affiliate": "Affiliate commission",
+        "cost": "Cost",
+        "tax": "Tax",
+        "net": "Net margin"
+      }
     }
   },
   "shopeeRadar": {

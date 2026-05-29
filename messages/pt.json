@@ -12940,6 +12940,27 @@
       "desc": "Após conectar uma loja, crie vouchers, flash sales e boost de produto. O ROI agregado por campanha aparece aqui.",
       "filterTitle": "Nenhuma campanha neste filtro",
       "filterDesc": "Selecione outra aba ou \"Todas\"."
+    },
+    "marginCalc": {
+      "openBtn": "Calculadora de Margem",
+      "title": "Calculadora de Margem de Campanha",
+      "close": "Fechar",
+      "price": "Preço de tabela",
+      "discount": "Desconto",
+      "shopeeCom": "Comissão Shopee",
+      "affCom": "Comissão afiliado",
+      "cost": "Custo do produto",
+      "netMargin": "Margem líquida",
+      "min": "mín",
+      "br": {
+        "gross": "Preço bruto",
+        "discount": "Desconto",
+        "shopee": "Comissão Shopee",
+        "affiliate": "Comissão afiliado",
+        "cost": "Custo",
+        "tax": "Imposto",
+        "net": "Margem líquida"
+      }
     }
   },
   "shopeeRadar": {

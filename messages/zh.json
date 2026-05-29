@@ -12733,6 +12733,27 @@
       "desc": "连接店铺后，创建代金券、限时优惠和商品推广。每个活动的聚合 ROI 将显示在此处。",
       "filterTitle": "此筛选下无活动",
       "filterDesc": "请选择其他标签或\"全部\"。"
+    },
+    "marginCalc": {
+      "openBtn": "利润计算器",
+      "title": "活动利润计算器",
+      "close": "关闭",
+      "price": "标价",
+      "discount": "折扣",
+      "shopeeCom": "Shopee 佣金",
+      "affCom": "联盟佣金",
+      "cost": "产品成本",
+      "netMargin": "净利润",
+      "min": "最低",
+      "br": {
+        "gross": "毛价",
+        "discount": "折扣",
+        "shopee": "Shopee 佣金",
+        "affiliate": "联盟佣金",
+        "cost": "成本",
+        "tax": "税",
+        "net": "净利润"
+      }
     }
   },
   "shopeeRadar": {
