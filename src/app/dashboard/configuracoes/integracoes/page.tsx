@@ -801,9 +801,28 @@ export default function IntegracoesPage() {
             : ch.is_integrated && ch.integration_status === 'connected' ? 'connected'
             : ch.integration_status === 'expired' ? 'expired'
             : 'not_connected'
+          // Shopee OAuth está LIVE (Open Platform aprovado). Demais marketplaces
+          // seguem com stub "em breve" até o backend de cada um ficar pronto.
           const onConnect = status === 'soon'
             ? undefined
-            : () => showToast(t('cfgPage.oauthNotAvailable', { name: m.name }), 'error')
+            : m.id === 'shopee'
+              ? async () => {
+                  const headers = await getHeaders()
+                  try {
+                    const res = await fetch(`${BACKEND}/marketplace/shopee/auth-url`, { headers })
+                    if (!res.ok) {
+                      const b = await res.json().catch(() => ({}))
+                      showToast(b?.message ?? t('cfgPage.oauthNotAvailable', { name: m.name }), 'error')
+                      return
+                    }
+                    const { url } = await res.json()
+                    if (url) { window.location.href = url }
+                    else { showToast(t('cfgPage.oauthNotAvailable', { name: m.name }), 'error') }
+                  } catch (e) {
+                    showToast(`${t('common.error')}: ${(e as Error).message}`, 'error')
+                  }
+                }
+              : () => showToast(t('cfgPage.oauthNotAvailable', { name: m.name }), 'error')
           return (
             <IntegCard key={m.id} name={m.name} abbr={m.abbr} abbrBg={m.bg} abbrColor={m.fg}
               status={status} description={m.desc} onConnect={onConnect} />
