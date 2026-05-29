@@ -12845,5 +12845,33 @@
         "blog": "博客"
       }
     }
+  },
+  "shopeeCommissions": {
+    "breadcrumb": "市场 · 联盟",
+    "title": "佣金 — Shopee 联盟",
+    "subtitle": "按渠道归因 · 待定 vs 已确认（7天窗口）",
+    "refresh": "刷新",
+    "pending": "待定",
+    "confirmed": "已确认",
+    "cancelled": "已取消",
+    "confirmRate": "确认率",
+    "nConv": "{n} 次转化",
+    "withdrawable": "可提现",
+    "belowMin": "最低 {v} 可提现",
+    "byChannel": "按渠道",
+    "col": {
+      "channel": "渠道",
+      "clicks": "点击",
+      "conv": "转化",
+      "rate": "比率",
+      "pending": "待定",
+      "confirmed": "已确认"
+    },
+    "error": "错误：{msg}",
+    "retry": "重试",
+    "empty": {
+      "title": "尚无佣金",
+      "desc": "当您的联盟链接产生销售时，佣金将显示在此处 — 交货前待定，付款后确认。"
+    }
   }
 }

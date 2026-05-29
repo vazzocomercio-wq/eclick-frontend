@@ -13052,5 +13052,33 @@
         "blog": "Blog"
       }
     }
+  },
+  "shopeeCommissions": {
+    "breadcrumb": "Marketplace · Afiliado",
+    "title": "Comissões — Afiliado Shopee",
+    "subtitle": "Atribuição por canal · pendente vs confirmada (janela 7d)",
+    "refresh": "Atualizar",
+    "pending": "Pendente",
+    "confirmed": "Confirmada",
+    "cancelled": "Cancelada",
+    "confirmRate": "Taxa de confirmação",
+    "nConv": "{n} conversão(ões)",
+    "withdrawable": "Disponível pra saque",
+    "belowMin": "Mínimo {v} pra sacar",
+    "byChannel": "Por canal",
+    "col": {
+      "channel": "Canal",
+      "clicks": "Cliques",
+      "conv": "Conv",
+      "rate": "Taxa",
+      "pending": "Pendente",
+      "confirmed": "Confirmada"
+    },
+    "error": "Erro: {msg}",
+    "retry": "Tentar novamente",
+    "empty": {
+      "title": "Nenhuma comissão ainda",
+      "desc": "Quando seus links de afiliado gerarem vendas, as comissões aparecem aqui — pendentes até a entrega, confirmadas após pagamento."
+    }
   }
 }

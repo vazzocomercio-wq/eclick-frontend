@@ -12845,5 +12845,33 @@
         "blog": "Blog"
       }
     }
+  },
+  "shopeeCommissions": {
+    "breadcrumb": "Marketplace · Affiliate",
+    "title": "Commissions — Shopee Affiliate",
+    "subtitle": "Attribution by channel · pending vs confirmed (7d window)",
+    "refresh": "Refresh",
+    "pending": "Pending",
+    "confirmed": "Confirmed",
+    "cancelled": "Cancelled",
+    "confirmRate": "Confirmation rate",
+    "nConv": "{n} conversion(s)",
+    "withdrawable": "Available to withdraw",
+    "belowMin": "Min {v} to withdraw",
+    "byChannel": "By channel",
+    "col": {
+      "channel": "Channel",
+      "clicks": "Clicks",
+      "conv": "Conv",
+      "rate": "Rate",
+      "pending": "Pending",
+      "confirmed": "Confirmed"
+    },
+    "error": "Error: {msg}",
+    "retry": "Try again",
+    "empty": {
+      "title": "No commissions yet",
+      "desc": "When your affiliate links generate sales, commissions appear here — pending until delivery, confirmed after payment."
+    }
   }
 }
