@@ -13007,5 +13007,33 @@
       "price": "Seu preço",
       "marketPrice": "Preço médio mercado"
     }
+  },
+  "shopeeAffiliate": {
+    "breadcrumb": "Marketplace · Afiliado",
+    "title": "Shopee Afiliado — Discovery",
+    "subtitle": "Ofertas ranqueadas por Opportunity Score (comissão × conversão × reputação × tendência)",
+    "refresh": "Atualizar",
+    "toggleExcluded": "Mostrar armadilhas",
+    "rankHint": "Ranqueado por oportunidade real — comissão alta em produto que não vende é armadilha.",
+    "opportunity": "Oportunidade",
+    "excluded": "Armadilha",
+    "commission": "Comissão",
+    "rating": "Nota",
+    "seller": "Vendedor",
+    "comp": {
+      "commission": "Comis",
+      "conversion": "Conv",
+      "seller": "Loja",
+      "trend": "Trend"
+    },
+    "genLink": "Gerar link",
+    "genLinkSoon": "Link Studio em breve (F2.4)",
+    "cantLink": "Oferta excluída — não recomendada",
+    "error": "Erro ao carregar: {msg}",
+    "retry": "Tentar novamente",
+    "empty": {
+      "title": "Nenhuma oferta de afiliado ainda",
+      "desc": "Conecte sua conta Shopee Affiliate (App ID/Secret) para o Discovery puxar ofertas com comissão e ranquear por oportunidade."
+    }
   }
 }

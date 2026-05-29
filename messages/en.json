@@ -12800,5 +12800,33 @@
       "price": "Your price",
       "marketPrice": "Market median price"
     }
+  },
+  "shopeeAffiliate": {
+    "breadcrumb": "Marketplace · Affiliate",
+    "title": "Shopee Affiliate — Discovery",
+    "subtitle": "Offers ranked by Opportunity Score (commission × conversion × reputation × trend)",
+    "refresh": "Refresh",
+    "toggleExcluded": "Show traps",
+    "rankHint": "Ranked by real opportunity — high commission on a non-selling product is a trap.",
+    "opportunity": "Opportunity",
+    "excluded": "Trap",
+    "commission": "Commission",
+    "rating": "Rating",
+    "seller": "Seller",
+    "comp": {
+      "commission": "Comm",
+      "conversion": "Conv",
+      "seller": "Shop",
+      "trend": "Trend"
+    },
+    "genLink": "Generate link",
+    "genLinkSoon": "Link Studio coming soon (F2.4)",
+    "cantLink": "Excluded offer — not recommended",
+    "error": "Failed to load: {msg}",
+    "retry": "Try again",
+    "empty": {
+      "title": "No affiliate offers yet",
+      "desc": "Connect your Shopee Affiliate account (App ID/Secret) so Discovery can pull commission offers and rank by opportunity."
+    }
   }
 }

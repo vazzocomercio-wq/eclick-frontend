@@ -12800,5 +12800,33 @@
       "price": "您的价格",
       "marketPrice": "市场中位价"
     }
+  },
+  "shopeeAffiliate": {
+    "breadcrumb": "市场 · 联盟",
+    "title": "Shopee 联盟 — 发现",
+    "subtitle": "按机会评分排名的优惠（佣金 × 转化 × 信誉 × 趋势）",
+    "refresh": "刷新",
+    "toggleExcluded": "显示陷阱",
+    "rankHint": "按真实机会排名 — 不畅销产品的高佣金是陷阱。",
+    "opportunity": "机会",
+    "excluded": "陷阱",
+    "commission": "佣金",
+    "rating": "评分",
+    "seller": "卖家",
+    "comp": {
+      "commission": "佣金",
+      "conversion": "转化",
+      "seller": "店铺",
+      "trend": "趋势"
+    },
+    "genLink": "生成链接",
+    "genLinkSoon": "链接工作室即将推出（F2.4）",
+    "cantLink": "已排除的优惠 — 不推荐",
+    "error": "加载失败：{msg}",
+    "retry": "重试",
+    "empty": {
+      "title": "尚无联盟优惠",
+      "desc": "连接您的 Shopee 联盟账户（App ID/Secret），以便发现引擎拉取佣金优惠并按机会排名。"
+    }
   }
 }
