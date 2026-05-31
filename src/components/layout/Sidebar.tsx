@@ -196,6 +196,7 @@ const SECTIONS: NavSection[] = [
         labelKey: 'items.financeiro', href: '/dashboard/financeiro', icon: <DollarSign size={15} />,
         children: [
           { labelKey: 'items.financeiroResumo',      href: '/dashboard/financeiro/resumo' },
+          { labelKey: 'items.financeiroResultado',   href: '/dashboard/financeiro/resultado' },
           { labelKey: 'items.financeiroContasPagar', href: '/dashboard/financeiro/contas-a-pagar' },
           { labelKey: 'items.financeiroFluxo',       href: '/dashboard/financeiro/fluxo' },
           { labelKey: 'items.financeiroDre',         href: '/dashboard/financeiro/dre' },
