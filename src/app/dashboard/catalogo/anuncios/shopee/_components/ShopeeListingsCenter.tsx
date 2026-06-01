@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl'
 import {
   AlertCircle, RefreshCw, Search, Sparkles, X,
   Link2, Link2Off, Package, TrendingUp, TrendingDown,
+  Boxes, DollarSign, Save, Pencil,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 
@@ -83,6 +84,8 @@ export default function ShopeeListingsCenter() {
   const [summary, setSummary]   = useState<{ linked: number; with_margin: number } | null>(null)
   const [autoBusy, setAutoBusy] = useState(false)
   const [notice, setNotice]     = useState<string | null>(null)
+  const [propagBusy, setPropagBusy]     = useState(false)
+  const [propagConfirm, setPropagConfirm] = useState(false)
 
   const load = useCallback(async () => {
     setError(null)
@@ -128,6 +131,25 @@ export default function ShopeeListingsCenter() {
     }
   }, [load])
 
+  // F18 Fase C — propaga o estoque virtual (físico+virtual) do catálogo pros
+  // anúncios Shopee vinculados (lote). Confirmação em 2 passos (muda a loja toda).
+  const propagateStock = useCallback(async () => {
+    if (!propagConfirm) { setPropagConfirm(true); return }
+    setPropagConfirm(false); setPropagBusy(true); setError(null); setNotice(null)
+    try {
+      const headers = await authHeaders()
+      const res = await fetch(`${BACKEND}/shopee/sync/stock`, { method: 'POST', headers })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const r = await res.json()
+      setNotice(`Estoque propagado: ${r.pushed} anúncios atualizados${r.failed ? `, ${r.failed} falharam` : ''}${r.skipped_no_stock ? `, ${r.skipped_no_stock} sem registro de estoque (pulados)` : ''}.`)
+      await load()
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setPropagBusy(false)
+    }
+  }, [load, propagConfirm])
+
   const linkProduct = useCallback(async (itemId: number, productId: string) => {
     const headers = await authHeaders()
     const res = await fetch(`${BACKEND}/shopee/listings/${itemId}/link`, {
@@ -150,7 +172,8 @@ export default function ShopeeListingsCenter() {
 
   return (
     <div className="p-6 space-y-6 min-h-full" style={{ background: '#09090b' }}>
-      <Header total={total} summary={summary} onRefresh={load} onAutoLink={autoLink} autoBusy={autoBusy} t={t} />
+      <Header total={total} summary={summary} onRefresh={load} onAutoLink={autoLink} autoBusy={autoBusy}
+        onPropagate={propagateStock} propagBusy={propagBusy} propagConfirm={propagConfirm} t={t} />
       <Toolbar query={query} onQuery={setQuery} t={t} />
       {notice && (
         <div className="rounded-xl p-3 flex items-start gap-2"
@@ -180,6 +203,7 @@ export default function ShopeeListingsCenter() {
           onClose={() => setSelected(null)}
           onLink={(pid) => linkProduct(selected.item_id, pid)}
           onUnlink={() => unlinkItem(selected.item_id)}
+          onSaved={load}
           t={t}
         />
       )}
@@ -189,12 +213,15 @@ export default function ShopeeListingsCenter() {
 
 // ── Subcomponents ──────────────────────────────────────────────────────────
 
-function Header({ total, summary, onRefresh, onAutoLink, autoBusy, t }: {
+function Header({ total, summary, onRefresh, onAutoLink, autoBusy, onPropagate, propagBusy, propagConfirm, t }: {
   total: number
   summary: { linked: number; with_margin: number } | null
   onRefresh: () => void
   onAutoLink: () => void
   autoBusy: boolean
+  onPropagate: () => void
+  propagBusy: boolean
+  propagConfirm: boolean
   t: ReturnType<typeof useTranslations>
 }) {
   return (
@@ -210,6 +237,19 @@ function Header({ total, summary, onRefresh, onAutoLink, autoBusy, t }: {
         </p>
       </div>
       <div className="ml-auto flex items-center gap-2">
+        {/* F18 Fase C — propagar estoque virtual (físico+virtual) → Shopee (lote) */}
+        <button
+          onClick={onPropagate}
+          disabled={propagBusy}
+          title="Propaga o estoque (real + virtual) do catálogo pros anúncios Shopee vinculados"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50"
+          style={propagConfirm
+            ? { background: 'rgba(251,191,36,0.15)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.4)' }
+            : { background: 'rgba(0,229,255,0.08)', color: CYAN, border: '1px solid rgba(0,229,255,0.3)' }}
+        >
+          <Boxes size={12} className={propagBusy ? 'animate-pulse' : ''} />
+          {propagBusy ? 'Propagando…' : propagConfirm ? 'Confirmar propagação?' : 'Propagar estoque'}
+        </button>
         <button
           onClick={onAutoLink}
           disabled={autoBusy}
@@ -332,12 +372,13 @@ function PillarBar({ value, label, weight }: { value: number; label: string; wei
   )
 }
 
-function Drawer({ card, link, onClose, onLink, onUnlink, t }: {
+function Drawer({ card, link, onClose, onLink, onUnlink, onSaved, t }: {
   card: ListingCard
   link: LinkInfo | null
   onClose: () => void
   onLink: (productId: string) => Promise<void>
   onUnlink: () => Promise<void>
+  onSaved: () => Promise<void> | void
   t: ReturnType<typeof useTranslations>
 }) {
   return (
@@ -369,6 +410,9 @@ function Drawer({ card, link, onClose, onLink, onUnlink, t }: {
 
           {/* F18 Fase A/B — Vínculo & Margem */}
           <LinkSection link={link} onLink={onLink} onUnlink={onUnlink} />
+
+          {/* F18 Fase C/D — Editar preço & estoque na Shopee (write-back inline) */}
+          <EditSection itemId={card.item_id} onSaved={onSaved} />
 
           <div className="rounded-2xl p-5 text-center" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
             <p className="text-[10px] uppercase tracking-widest text-zinc-600 font-semibold">{t('drawer.totalScore')}</p>
@@ -540,6 +584,165 @@ function LinkSection({ link, onLink, onUnlink }: {
         </button>
       )}
       {err && <p className="text-[11px] text-red-400">{err}</p>}
+    </div>
+  )
+}
+
+// F18 Fase C/D — edição inline de preço & estoque na Shopee, por variação.
+// Carrega os valores REAIS ao vivo (GET stock-inspect) e escreve via
+// POST :itemId/stock e :itemId/price (variation_id). Estoque = real+virtual
+// (mesma regra do catálogo). Preço = original_price (promoção aplica por cima).
+interface EditModel {
+  model_id:       number
+  name:           string
+  sku:            string | null
+  stock:          number
+  original_price: number | null
+  current_price:  number | null
+}
+
+function EditSection({ itemId, onSaved }: { itemId: number; onSaved: () => Promise<void> | void }) {
+  const [open, setOpen]       = useState(false)
+  const [models, setModels]   = useState<EditModel[] | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [err, setErr]         = useState<string | null>(null)
+
+  const loadInspect = useCallback(async () => {
+    setLoading(true); setErr(null)
+    try {
+      const headers = await authHeaders()
+      const res = await fetch(`${BACKEND}/shopee/listings/${itemId}/stock-inspect`, { headers })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const j = await res.json()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const raw = (j?.models?.model ?? []) as any[]
+      setModels(raw.map(m => ({
+        model_id:       Number(m?.model_id ?? 0),
+        name:           m?.model_name ?? '(único)',
+        sku:            m?.model_sku ?? null,
+        stock:          Number(m?.stock_info_v2?.seller_stock?.[0]?.stock ?? 0),
+        original_price: m?.price_info?.[0]?.original_price != null ? Number(m.price_info[0].original_price) : null,
+        current_price:  m?.price_info?.[0]?.current_price  != null ? Number(m.price_info[0].current_price)  : null,
+      })))
+    } catch (e) {
+      setErr((e as Error).message)
+      setModels([])
+    } finally {
+      setLoading(false)
+    }
+  }, [itemId])
+
+  const toggle = () => {
+    const next = !open
+    setOpen(next)
+    if (next && models === null) void loadInspect()
+  }
+
+  return (
+    <div className="rounded-2xl p-4 space-y-3" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+      <button onClick={toggle} className="w-full flex items-center gap-2">
+        <Pencil size={14} className="text-cyan-400" />
+        <h4 className="text-xs font-bold uppercase tracking-widest text-zinc-400">Editar preço &amp; estoque</h4>
+        <span className="ml-auto text-[10px] text-zinc-600">{open ? 'ocultar' : 'abrir'}</span>
+      </button>
+
+      {open && (
+        <>
+          <p className="text-[10px] text-zinc-600 -mt-1">
+            Escreve direto na Shopee. Estoque = real + virtual. Preço = preço de lista (promoção aplica por cima).
+          </p>
+          {loading ? (
+            <p className="text-[11px] text-zinc-500 py-2 text-center">Carregando da Shopee…</p>
+          ) : err ? (
+            <div className="space-y-2">
+              <p className="text-[11px] text-red-400">{err}</p>
+              <button onClick={loadInspect} className="text-[11px] text-zinc-400 underline">tentar de novo</button>
+            </div>
+          ) : models && models.length > 0 ? (
+            <div className="space-y-2">
+              {models.map(m => (
+                <EditRow key={m.model_id} itemId={itemId} model={m} onSaved={async () => { await loadInspect(); await onSaved() }} />
+              ))}
+            </div>
+          ) : (
+            <p className="text-[11px] text-zinc-600 py-2 text-center">Nenhuma variação encontrada.</p>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
+function EditRow({ itemId, model, onSaved }: { itemId: number; model: EditModel; onSaved: () => Promise<void> }) {
+  const [stock, setStock] = useState(String(model.stock))
+  const [price, setPrice] = useState(model.original_price != null ? String(model.original_price) : '')
+  const [busy, setBusy]   = useState(false)
+  const [err, setErr]     = useState<string | null>(null)
+  const [ok, setOk]       = useState(false)
+
+  const stockChanged = Number(stock) !== model.stock && stock.trim() !== ''
+  const priceChanged = price.trim() !== '' && Number(price) !== model.original_price
+  const dirty = stockChanged || priceChanged
+
+  const save = async () => {
+    setBusy(true); setErr(null); setOk(false)
+    try {
+      const headers = await authHeaders()
+      const vid = model.model_id ? String(model.model_id) : ''
+      if (stockChanged) {
+        const r = await fetch(`${BACKEND}/shopee/listings/${itemId}/stock`, {
+          method: 'POST', headers,
+          body: JSON.stringify({ quantity: Math.max(0, Math.round(Number(stock))), variation_id: vid }),
+        })
+        if (!r.ok) throw new Error(`estoque: HTTP ${r.status}`)
+      }
+      if (priceChanged) {
+        const r = await fetch(`${BACKEND}/shopee/listings/${itemId}/price`, {
+          method: 'POST', headers,
+          body: JSON.stringify({ price: Number(price), variation_id: vid }),
+        })
+        if (!r.ok) throw new Error(`preço: HTTP ${r.status}`)
+      }
+      setOk(true)
+      await onSaved()
+    } catch (e) {
+      setErr((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="rounded-xl p-3 space-y-2" style={{ background: '#18181b', border: '1px solid #27272a' }}>
+      <div className="flex items-center gap-2">
+        <span className="text-xs font-semibold text-zinc-200 truncate">{model.name}</span>
+        {model.sku && <span className="text-[10px] text-zinc-500">· {model.sku}</span>}
+        {model.current_price != null && model.original_price != null && model.current_price < model.original_price && (
+          <span className="ml-auto text-[10px] text-emerald-400">promo {brl(model.current_price)}</span>
+        )}
+      </div>
+      <div className="flex items-end gap-2">
+        <label className="flex-1">
+          <span className="text-[9px] uppercase tracking-wider text-zinc-600 flex items-center gap-1"><Boxes size={10} /> Estoque</span>
+          <input type="number" min={0} value={stock} onChange={e => setStock(e.target.value)}
+            className="w-full mt-1 px-2 py-1.5 rounded-lg text-xs text-zinc-200"
+            style={{ background: '#0d0d10', border: `1px solid ${stockChanged ? 'rgba(0,229,255,0.4)' : '#27272a'}`, outline: 'none' }} />
+        </label>
+        <label className="flex-1">
+          <span className="text-[9px] uppercase tracking-wider text-zinc-600 flex items-center gap-1"><DollarSign size={10} /> Preço (lista)</span>
+          <input type="number" min={0} step="0.01" value={price} onChange={e => setPrice(e.target.value)}
+            className="w-full mt-1 px-2 py-1.5 rounded-lg text-xs text-zinc-200"
+            style={{ background: '#0d0d10', border: `1px solid ${priceChanged ? 'rgba(0,229,255,0.4)' : '#27272a'}`, outline: 'none' }} />
+        </label>
+        <button onClick={save} disabled={!dirty || busy}
+          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-opacity disabled:opacity-40"
+          style={{ background: dirty ? CYAN : '#27272a', color: dirty ? '#06181c' : '#71717a' }}>
+          <Save size={12} /> {busy ? '…' : 'Salvar'}
+        </button>
+      </div>
+      {/* erro/sucesso DENTRO da seção, perto do botão (visível com drawer aberto) */}
+      {err && <p className="text-[11px] text-red-400">{err}</p>}
+      {ok && !err && <p className="text-[11px] text-emerald-400">✓ Atualizado na Shopee.</p>}
     </div>
   )
 }
