@@ -1,13 +1,14 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, useRef } from 'react'
 import { useTranslations } from 'next-intl'
 import {
   AlertCircle, RefreshCw, Search, Sparkles, X,
-  Link2, Link2Off, Package, TrendingUp, TrendingDown,
+  Link2, Link2Off, Package,
   Boxes, DollarSign, Save, Pencil, Type, FileText,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
+import { computeContributionMargin, round2 } from '@/lib/margin'
 
 /** F18 F1.2 — Listing Center Shopee.
  *  Consome GET /shopee/listings/scores (diagnóstico: Algorithm Score 4 pilares +
@@ -57,6 +58,7 @@ interface ListingCard {
 interface LinkedProduct {
   id: string; sku: string | null; name: string | null
   cost_price: number | null; price: number | null; stock: number | null
+  tax_percentage?: number | null; tax_on_freight?: boolean | null
 }
 interface MarginInfo {
   price: number; commission_pct: number; sale_fee: number; cost: number
@@ -166,6 +168,44 @@ export default function ShopeeListingsCenter() {
     await load()
   }, [load])
 
+  // ── inline edits no card (formato ML) ────────────────────────────────────
+  // Preço (Fase D — item-level, escreve todas as variações com o mesmo preço de
+  // lista). Pra preço por variação, usar o drawer.
+  const savePrice = useCallback(async (itemId: number, price: number): Promise<boolean> => {
+    try {
+      const headers = await authHeaders()
+      const res = await fetch(`${BACKEND}/shopee/listings/${itemId}/price`, {
+        method: 'POST', headers, body: JSON.stringify({ price }),
+      })
+      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.message ?? `HTTP ${res.status}`) }
+      await load(); return true
+    } catch (e) { setError((e as Error).message); return false }
+  }, [load])
+
+  // Estoque (Fase C/D — item-level). Pra estoque por variação, usar o drawer.
+  const saveStock = useCallback(async (itemId: number, quantity: number): Promise<boolean> => {
+    try {
+      const headers = await authHeaders()
+      const res = await fetch(`${BACKEND}/shopee/listings/${itemId}/stock`, {
+        method: 'POST', headers, body: JSON.stringify({ quantity }),
+      })
+      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.message ?? `HTTP ${res.status}`) }
+      await load(); return true
+    } catch (e) { setError((e as Error).message); return false }
+  }, [load])
+
+  // Custo + imposto → produto vinculado (mesmo padrão do ML: update products).
+  const saveMargin = useCallback(async (productId: string, patch: { cost: number | null; taxPct: number | null }): Promise<boolean> => {
+    try {
+      const sb = createClient()
+      const { error: e } = await sb.from('products')
+        .update({ cost_price: patch.cost, tax_percentage: patch.taxPct })
+        .eq('id', productId)
+      if (e) throw new Error(e.message)
+      await load(); return true
+    } catch (e) { setError((e as Error).message); return false }
+  }, [load])
+
   const filtered = (items ?? []).filter(it =>
     !query || (it.title ?? '').toLowerCase().includes(query.toLowerCase()),
   )
@@ -189,10 +229,15 @@ export default function ShopeeListingsCenter() {
       ) : filtered.length === 0 ? (
         <EmptyState t={t} hasQuery={!!query} />
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="flex flex-col gap-3">
           {filtered.map(it => (
-            <Card key={`${it.shop_id}:${it.item_id}`} card={it} link={links.get(it.item_id) ?? null}
-              onClick={() => setSelected(it)} t={t} />
+            <ListingRow key={`${it.shop_id}:${it.item_id}`} card={it} link={links.get(it.item_id) ?? null}
+              onOpen={() => setSelected(it)}
+              onUnlink={() => unlinkItem(it.item_id)}
+              onSavePrice={(p) => savePrice(it.item_id, p)}
+              onSaveStock={(q) => saveStock(it.item_id, q)}
+              onSaveMargin={saveMargin}
+              t={t} />
           ))}
         </div>
       )}
@@ -291,66 +336,298 @@ function Toolbar({ query, onQuery, t }: { query: string; onQuery: (s: string) =>
   )
 }
 
-function Card({ card, link, onClick, t }: { card: ListingCard; link: LinkInfo | null; onClick: () => void; t: ReturnType<typeof useTranslations> }) {
+// ── Card de anúncio no formato ML (horizontal) ──────────────────────────────
+// Espelha o ListingCard do ML: thumbnail + info (badges/título/ids/estoque/
+// diagnóstico) + painel financeiro à direita (preço editável, líquido, lucro
+// bruto, custo/imposto editáveis, margem contrib, tarifa Shopee). Mantém TODO o
+// dado Shopee: Algorithm Score (gauge + 4 pilares) + issues; clique abre o
+// drawer com a edição rica (preço/estoque por variação, conteúdo, issues).
+function ListingRow({ card, link, onOpen, onUnlink, onSavePrice, onSaveStock, onSaveMargin, t }: {
+  card: ListingCard
+  link: LinkInfo | null
+  onOpen: () => void
+  onUnlink: () => Promise<void>
+  onSavePrice: (price: number) => Promise<boolean>
+  onSaveStock: (qty: number) => Promise<boolean>
+  onSaveMargin: (productId: string, patch: { cost: number | null; taxPct: number | null }) => Promise<boolean>
+  t: ReturnType<typeof useTranslations>
+}) {
+  const linked  = !!link?.linked && !!link?.product
+  const product = link?.product ?? null
+  const m       = link?.margin ?? null
+  const commissionPct = m?.commission_pct ?? 0
+  const price = m?.price ?? product?.price ?? 0
+
+  // ── preço inline (Fase D, item-level, com modal de confirmação) ──
+  const [editingPrice, setEditingPrice] = useState(false)
+  const [priceDraft,   setPriceDraft]   = useState('')
+  const [confirmPrice, setConfirmPrice] = useState<number | null>(null)
+  const [priceSaving,  setPriceSaving]  = useState(false)
+  function commitPrice() {
+    const n = parseFloat(priceDraft.replace(',', '.'))
+    if (!isFinite(n) || n <= 0 || n === price) { setEditingPrice(false); return }
+    setConfirmPrice(n)
+  }
+  async function applyPrice() {
+    if (confirmPrice == null) return
+    setPriceSaving(true)
+    const ok = await onSavePrice(confirmPrice)
+    setPriceSaving(false); setConfirmPrice(null)
+    if (ok) setEditingPrice(false)
+  }
+
+  // ── estoque inline (Fase C/D, item-level) ──
+  const stockRef = useRef<HTMLInputElement>(null)
+  const [stockDraft, setStockDraft] = useState(product?.stock != null ? String(product.stock) : '')
+  const [stockState, setStockState] = useState<'idle' | 'saving' | 'success' | 'error'>('idle')
+  useEffect(() => { if (product?.stock != null) setStockDraft(String(product.stock)) }, [product?.stock])
+  async function commitStock() {
+    if (product?.stock == null) return
+    const next = parseInt(stockDraft, 10)
+    if (isNaN(next) || next < 0) { setStockDraft(String(product.stock)); return }
+    if (next === product.stock) return
+    setStockState('saving')
+    const ok = await onSaveStock(next)
+    setStockState(ok ? 'success' : 'error')
+    setTimeout(() => setStockState('idle'), 1200)
+  }
+
+  // ── custo + imposto inline (→ produto vinculado) ──
+  const costInit = product?.cost_price != null ? String(product.cost_price) : ''
+  const taxInit  = product?.tax_percentage != null ? String(product.tax_percentage) : ''
+  const [costDraft, setCostDraft] = useState(costInit)
+  const [taxDraft,  setTaxDraft]  = useState(taxInit)
+  const [marginSaving, setMarginSaving] = useState(false)
+  useEffect(() => { setCostDraft(product?.cost_price != null ? String(product.cost_price) : '') }, [product?.cost_price])
+  useEffect(() => { setTaxDraft(product?.tax_percentage != null ? String(product.tax_percentage) : '') }, [product?.tax_percentage])
+
+  const cost   = parseFloat(costDraft.replace(',', '.')) || 0
+  const taxPct = parseFloat(taxDraft.replace(',', '.')) || 0
+  const saleFee = round2(price * commissionPct / 100)
+  const mm = computeContributionMargin({ price, saleFee, shipping: 0, cost, taxPercentage: taxPct, taxOnFreight: product?.tax_on_freight ?? false })
+  const gross    = round2(price - saleFee)
+  const grossPct = price > 0 ? round2(gross / price * 100) : 0
+  const net      = round2(price - saleFee)
+  const marginOverCost = cost > 0 ? round2(mm.contributionMargin / cost * 100) : null
+  const noCost   = costDraft.trim() === ''
+  const dirtyMargin = costDraft !== costInit || taxDraft !== taxInit
+  const marginColor = noCost ? '#71717a' : mm.contributionMarginPct >= 15 ? '#4ade80' : mm.contributionMarginPct >= 5 ? '#fbbf24' : '#f87171'
+
+  async function saveMarginRow() {
+    if (!product) return
+    setMarginSaving(true)
+    await onSaveMargin(product.id, { cost: costDraft.trim() === '' ? null : cost, taxPct: taxDraft.trim() === '' ? null : taxPct })
+    setMarginSaving(false)
+  }
+
   const sColor = scoreColor(card.score)
-  const m = link?.margin ?? null
+  const fieldStyle = { background: '#0d0d10', border: '1px solid #27272a' }
+
   return (
-    <button
-      onClick={onClick}
-      className="text-left rounded-2xl p-4 transition-all hover:bg-[#15151a]"
-      style={{ background: '#111114', border: '1px solid #1e1e24' }}
-    >
-      <div className="flex gap-3">
-        <div className="w-16 h-16 rounded-lg overflow-hidden shrink-0"
-          style={{ background: '#18181b', border: '1px solid #27272a' }}>
-          {card.main_image_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={card.main_image_url} alt="" className="w-full h-full object-cover" />
+    <div className="flex gap-3 p-4 rounded-xl transition-colors"
+      style={{ background: '#0f0f12', border: '1px solid #1a1a1f' }}>
+
+      {/* Confirmação de mudança de preço (modal in-app) */}
+      {confirmPrice != null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={() => setConfirmPrice(null)}>
+          <div className="w-full max-w-sm rounded-xl p-5" style={{ background: '#111114', border: '1px solid #1a1a1f' }} onClick={e => e.stopPropagation()}>
+            <h2 className="text-sm font-semibold mb-1 text-zinc-100">Alterar preço na Shopee</h2>
+            <p className="text-xs mb-4 truncate text-zinc-500">#{card.item_id}</p>
+            <div className="flex items-center justify-center gap-3 mb-3">
+              <span className="text-sm tabular-nums line-through text-zinc-500">{brl(price)}</span>
+              <span className="text-zinc-600">→</span>
+              <span className="text-xl font-bold tabular-nums" style={{ color: SHOPEE }}>{brl(confirmPrice)}</span>
+            </div>
+            <p className="text-[10px] mb-4 text-center text-amber-400">Escreve o preço de lista REAL na Shopee (promoções aplicam por cima). Em item com variações, aplica a todas — pra preço por variação use o detalhe.</p>
+            <div className="flex gap-2">
+              <button onClick={() => setConfirmPrice(null)} className="flex-1 rounded-lg py-2 text-xs font-medium" style={{ border: '1px solid #27272a', color: '#a1a1aa' }}>Cancelar</button>
+              <button onClick={applyPrice} disabled={priceSaving} className="flex-1 rounded-lg py-2 text-xs font-medium transition-opacity disabled:opacity-50" style={{ background: SHOPEE, color: '#fff' }}>
+                {priceSaving ? 'Aplicando…' : 'Aplicar na Shopee'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Thumbnail */}
+      <button onClick={onOpen} className="shrink-0 w-16 h-16 rounded-lg overflow-hidden bg-zinc-800" title="Abrir detalhe / edição completa">
+        {card.main_image_url
+          // eslint-disable-next-line @next/next/no-img-element
+          ? <img src={card.main_image_url} alt="" className="w-full h-full object-cover" />
+          : <div className="w-full h-full flex items-center justify-center text-zinc-600 text-xs">SH</div>}
+      </button>
+
+      {/* Info */}
+      <div className="flex-1 min-w-0">
+        <div className="flex flex-wrap gap-1.5 mb-1.5 items-center">
+          <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full" style={{ background: 'rgba(238,77,45,0.12)', color: SHOPEE, border: '1px solid rgba(238,77,45,0.25)' }}>SHOPEE</span>
+          <span className="flex items-center gap-1 text-[10px] font-medium text-emerald-400">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Ativo
+          </span>
+          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: `${sColor}1a`, color: sColor, border: `1px solid ${sColor}33` }}>
+            Score {card.score}
+          </span>
+          {card.total_issues > 0 && (
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: '#1f1a00', color: '#fbbf24', border: '1px solid rgba(251,191,36,.2)' }}>
+              {card.total_issues} {card.total_issues === 1 ? 'alerta' : 'alertas'}
+            </span>
+          )}
+          {linked ? (
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-1" style={{ background: 'rgba(0,229,255,0.08)', color: CYAN, border: '1px solid rgba(0,229,255,0.2)' }}>
+              <Package size={10} /> Produto vinculado
+            </span>
           ) : (
-            <div className="w-full h-full flex items-center justify-center text-zinc-600 text-xs">SH</div>
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-1" style={{ background: '#1a1a1f', color: '#71717a', border: '1px solid #27272a' }}>
+              <Link2Off size={10} /> sem vínculo
+            </span>
           )}
         </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-[11px] text-zinc-600">#{card.item_id}</p>
-          <p className="text-sm font-semibold text-zinc-200 line-clamp-2 leading-tight mt-0.5">
+
+        <div className="flex items-start gap-1 mb-1.5">
+          <button onClick={onOpen} className="text-left text-zinc-100 text-sm font-medium hover:text-cyan-300 transition-colors line-clamp-2 block flex-1">
             {card.title ?? `Item ${card.item_id}`}
-          </p>
+          </button>
+          <Copy text={card.title ?? ''} />
         </div>
-        <div className="text-right shrink-0">
-          <p className="text-[9px] uppercase tracking-wider text-zinc-600 font-semibold">{t('score')}</p>
-          <p className="text-2xl font-black leading-none mt-1" style={{ color: sColor }}>
-            {card.score}
-          </p>
+
+        <div className="flex flex-wrap items-center gap-3 text-xs text-zinc-500 mb-2">
+          <span className="flex items-center font-mono text-zinc-400">{card.item_id}<Copy text={String(card.item_id)} /></span>
+          {product?.sku && (
+            <span className="flex items-center">SKU: <span className="text-zinc-400 ml-1">{product.sku}</span><Copy text={product.sku} /></span>
+          )}
         </div>
-      </div>
-      <div className="grid grid-cols-4 gap-1.5 mt-3">
-        <PillarBar value={card.pillars.relevance}        label={t('pillar.relevance.short')}        weight={40} />
-        <PillarBar value={card.pillars.performance}      label={t('pillar.performance.short')}      weight={30} />
-        <PillarBar value={card.pillars.seller_quality}   label={t('pillar.seller_quality.short')}   weight={20} />
-        <PillarBar value={card.pillars.price_marketing}  label={t('pillar.price_marketing.short')}  weight={10} />
+
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs mb-2">
+          {/* Estoque editável (escreve na Shopee — item-level) */}
+          <span className="inline-flex items-center gap-1.5 text-zinc-500">
+            Estoque
+            <input ref={stockRef} type="number" min={0}
+              value={product?.stock != null ? stockDraft : ''}
+              placeholder={product ? '' : '—'}
+              onChange={e => setStockDraft(e.target.value)}
+              onBlur={commitStock}
+              onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape' && product?.stock != null) { setStockDraft(String(product.stock)); (e.target as HTMLInputElement).blur() } }}
+              disabled={!product || stockState === 'saving'}
+              title={product ? 'Estoque enviado à Shopee (real+virtual). Por variação, use o detalhe.' : 'Vincule um produto para gerenciar o estoque'}
+              className="w-[70px] text-zinc-200 font-semibold tabular-nums text-xs px-2 py-1 rounded outline-none disabled:cursor-not-allowed disabled:text-zinc-700"
+              style={{ background: '#0d0d10', border: `1px solid ${stockState === 'success' ? '#22c55e' : stockState === 'error' ? '#ef4444' : '#27272a'}` }} />
+          </span>
+          <span className="text-zinc-600">Atualizado {ago(card.computed_at)}</span>
+        </div>
+
+        {/* Algorithm Score — diagnóstico (mantido): gauge + 4 pilares */}
+        <div className="flex items-center gap-3 mt-2 pt-2" style={{ borderTop: '1px solid #1e1e24' }}>
+          <SemiGauge score={card.score} label="Score" />
+          <div className="grid grid-cols-4 gap-1.5 flex-1">
+            <PillarBar value={card.pillars.relevance}       label={t('pillar.relevance.short')}       weight={40} />
+            <PillarBar value={card.pillars.performance}     label={t('pillar.performance.short')}     weight={30} />
+            <PillarBar value={card.pillars.seller_quality}  label={t('pillar.seller_quality.short')}  weight={20} />
+            <PillarBar value={card.pillars.price_marketing} label={t('pillar.price_marketing.short')} weight={10} />
+          </div>
+        </div>
       </div>
 
-      {/* F18 Fase A/B — vínculo + margem */}
-      <div className="mt-3 pt-3 border-t flex items-center gap-2" style={{ borderColor: '#1e1e24' }}>
-        {link?.linked && link.product ? (
-          <span className="flex items-center gap-1 text-[10px] text-zinc-400 min-w-0">
-            <Link2 size={11} className="text-emerald-400 shrink-0" />
-            <span className="truncate">{link.product.sku ?? link.product.name}</span>
-          </span>
-        ) : (
-          <span className="flex items-center gap-1 text-[10px] text-zinc-600">
-            <Link2Off size={11} /> sem vínculo
-          </span>
-        )}
-        {m && (
-          <span className="ml-auto flex items-center gap-1 text-[11px] font-semibold shrink-0"
-            style={{ color: marginHex(m.contribution_margin_pct) }}>
-            {m.contribution_margin_pct >= 10 ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
-            {m.contribution_margin_pct}%
-          </span>
-        )}
+      {/* Painel financeiro (formato ML) */}
+      <div className="shrink-0 w-56 flex flex-col items-end gap-1.5">
+        <div className="text-right w-full">
+          {editingPrice ? (
+            <div className="flex items-center gap-1 justify-end">
+              <span className="text-zinc-500 text-sm">R$</span>
+              {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
+              <input value={priceDraft} onChange={e => setPriceDraft(e.target.value)} inputMode="decimal" autoFocus
+                onKeyDown={e => { if (e.key === 'Enter') commitPrice(); if (e.key === 'Escape') setEditingPrice(false) }}
+                className="w-24 text-right text-white text-lg font-bold tabular-nums px-1.5 py-0.5 rounded outline-none"
+                style={{ background: '#0d0d10', border: `1px solid ${SHOPEE}` }} />
+            </div>
+          ) : (
+            <button onClick={() => { setPriceDraft(String(price)); setEditingPrice(true) }} disabled={!price}
+              className="group flex items-center gap-1.5 justify-end w-full disabled:cursor-default" title="Ajustar preço na Shopee">
+              <p className="text-white text-xl font-bold leading-tight">{price ? brl(price) : '—'}</p>
+              {!!price && <Pencil size={11} className="text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity" />}
+            </button>
+          )}
+          {!!price && <p className="text-emerald-400 text-xs font-semibold mt-0.5">Líquido: {brl(net)}</p>}
+        </div>
+
+        {/* Margem (custo/imposto editáveis) — só com produto vinculado */}
+        {linked && product ? (
+          <div className="w-full text-[11px] pt-2 mt-1 space-y-1.5" style={{ borderTop: '1px solid #1e1e24' }}>
+            <div className="flex justify-between text-zinc-500">
+              <span>Lucro bruto</span>
+              <span className="text-emerald-400/90">{brl(gross)} · {grossPct.toFixed(1)}%</span>
+            </div>
+            <div className="flex items-center justify-between gap-1 pt-1" style={{ borderTop: '1px dashed #1e1e24' }}>
+              <span className="text-zinc-500">Custo (CMV)</span>
+              <div className="flex items-center gap-0.5">
+                <span className="text-zinc-600">R$</span>
+                <input value={costDraft} onChange={e => setCostDraft(e.target.value)} placeholder="0,00" inputMode="decimal"
+                  className="w-16 text-right text-zinc-200 tabular-nums px-1.5 py-0.5 rounded outline-none focus:border-cyan-400" style={fieldStyle} />
+              </div>
+            </div>
+            <div className="flex items-center justify-between gap-1">
+              <span className="text-zinc-500">Imposto</span>
+              <div className="flex items-center gap-0.5">
+                <input value={taxDraft} onChange={e => setTaxDraft(e.target.value)} placeholder="0" inputMode="decimal"
+                  className="w-12 text-right text-zinc-200 tabular-nums px-1.5 py-0.5 rounded outline-none focus:border-cyan-400" style={fieldStyle} />
+                <span className="text-zinc-600">%</span>
+              </div>
+            </div>
+            <div className="flex justify-between items-start pt-1" style={{ borderTop: '1px dashed #1e1e24' }}>
+              <span className="text-zinc-400 font-medium">Margem contrib.</span>
+              <div className="text-right">
+                <div className="font-bold" style={{ color: marginColor }}>
+                  {noCost ? 'sem custo' : `${brl(mm.contributionMargin)} · ${mm.contributionMarginPct.toFixed(1)}%`}
+                </div>
+                {!noCost && marginOverCost != null && <div className="text-[10px] text-zinc-600">{marginOverCost.toFixed(1)}% do custo</div>}
+              </div>
+            </div>
+            {dirtyMargin && (
+              <button onClick={saveMarginRow} disabled={marginSaving}
+                className="w-full text-[10px] py-1 rounded-md font-semibold transition-opacity hover:opacity-90 disabled:opacity-60" style={{ background: CYAN, color: '#000' }}>
+                {marginSaving ? 'Salvando…' : 'Salvar custo/imposto'}
+              </button>
+            )}
+          </div>
+        ) : null}
+
+        {/* Detalhamento de tarifa */}
+        <div className="w-full text-[11px] pt-2 space-y-1" style={{ borderTop: '1px solid #1e1e24' }}>
+          <div className="flex justify-between text-zinc-600">
+            <span title={commissionPct === 0 ? 'Comissão Shopee não configurada — ajuste em Configurações › Canais' : ''}>
+              Tarifa Shopee ({commissionPct.toFixed(1)}%){commissionPct === 0 ? ' ⚠' : ''}
+            </span>
+            <span className="text-red-400/80">-{brl(saleFee)}</span>
+          </div>
+          <div className="flex justify-between text-zinc-600">
+            <span>Frete vendedor</span>
+            <span title="Na Shopee o frete varia por pedido (comprador costuma pagar)">Comprador</span>
+          </div>
+        </div>
+
+        {/* Ações */}
+        <div className="w-full flex flex-col gap-1 mt-1">
+          {linked ? (
+            <button onClick={onUnlink}
+              className="w-full flex items-center justify-center gap-1.5 text-xs px-2 py-1.5 rounded-lg font-medium transition-colors"
+              style={{ background: 'rgba(251,146,60,0.1)', border: '1px solid rgba(251,146,60,0.4)', color: '#fb923c' }}>
+              <Link2Off size={12} /> Desvincular produto
+            </button>
+          ) : (
+            <button onClick={onOpen}
+              className="w-full flex items-center justify-center gap-1.5 text-xs px-2 py-1.5 rounded-lg font-medium transition-colors"
+              style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.45)', color: '#4ade80' }}>
+              <Link2 size={12} /> Vincular produto
+            </button>
+          )}
+          <button onClick={onOpen}
+            className="w-full flex items-center justify-center gap-1.5 text-xs px-2 py-1.5 rounded-lg font-medium transition-colors"
+            style={{ background: 'rgba(0,229,255,0.08)', border: '1px solid rgba(0,229,255,0.25)', color: CYAN }}
+            title="Editar conteúdo, preço/estoque por variação, ver diagnóstico completo">
+            <Pencil size={12} /> Editar / Detalhes
+          </button>
+        </div>
       </div>
-    </button>
+    </div>
   )
 }
 
@@ -1017,4 +1294,53 @@ function pillarWeight(p: Pillar): number {
   if (p === 'performance')      return 30
   if (p === 'seller_quality')   return 20
   return 10
+}
+
+// "há X" a partir de um ISO (formato curto pt-BR).
+function ago(iso: string): string {
+  const d = new Date(iso).getTime()
+  if (!Number.isFinite(d)) return '—'
+  const min = Math.floor((Date.now() - d) / 60000)
+  if (min < 1)  return 'agora'
+  if (min < 60) return `${min}min atrás`
+  const h = Math.floor(min / 60)
+  if (h < 24)   return `${h}h atrás`
+  const days = Math.floor(h / 24)
+  return `${days}d atrás`
+}
+
+// Botão de copiar (mesmo padrão do card ML).
+function Copy({ text }: { text: string }) {
+  const [ok, setOk] = useState(false)
+  if (!text) return null
+  return (
+    <button onClick={() => { navigator.clipboard.writeText(text); setOk(true); setTimeout(() => setOk(false), 1500) }}
+      className="ml-1 opacity-40 hover:opacity-100 transition-opacity" title="Copiar">
+      {ok
+        ? <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+        : <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></svg>}
+    </button>
+  )
+}
+
+// Gauge semicircular do Algorithm Score (mantém o diagnóstico visível no card).
+function SemiGauge({ score, label }: { score: number | null; label: string }) {
+  const W = 64, H = 40, cx = W / 2, cy = H - 4, r = 26
+  const color = score == null ? '#3f3f46' : scoreColor(score)
+  const arcLen = Math.PI * r
+  const filled = score != null ? (score / 100) * arcLen : 0
+  const fullCirc = 2 * Math.PI * r
+  const offset = fullCirc * 0.75
+  return (
+    <div className="flex flex-col items-center shrink-0" style={{ width: W }}>
+      <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} overflow="visible">
+        <circle cx={cx} cy={cy} r={r} fill="none" stroke="#1e1e24" strokeWidth="5" strokeDasharray={`${arcLen} ${arcLen}`} strokeDashoffset={-offset} strokeLinecap="round" />
+        {score != null && (
+          <circle cx={cx} cy={cy} r={r} fill="none" stroke={color} strokeWidth="5" strokeDasharray={`${filled} ${fullCirc - filled}`} strokeDashoffset={-offset} strokeLinecap="round" style={{ transition: 'stroke-dasharray .5s' }} />
+        )}
+        <text x={cx} y={cy - 2} textAnchor="middle" fontSize="12" fontWeight="800" fill={score != null ? color : '#52525b'}>{score != null ? score : '—'}</text>
+      </svg>
+      <p className="text-[9px] font-semibold" style={{ color }}>{label}</p>
+    </div>
+  )
 }
