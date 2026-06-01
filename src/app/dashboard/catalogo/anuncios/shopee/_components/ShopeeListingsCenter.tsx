@@ -3,13 +3,16 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import {
-  AlertCircle, ChevronRight, RefreshCw, Search, Sparkles, X,
+  AlertCircle, RefreshCw, Search, Sparkles, X,
+  Link2, Link2Off, Package, TrendingUp, TrendingDown,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 
 /** F18 F1.2 — Listing Center Shopee.
- *  Consome GET /shopee/listings/scores (backend) e mostra grid + drawer
- *  de detalhe com Algorithm Score 4 pilares + issues priorizadas. */
+ *  Consome GET /shopee/listings/scores (diagnóstico: Algorithm Score 4 pilares +
+ *  issues) e, em paralelo, GET /shopee/listings/link-status (F18 Fase A/B:
+ *  vínculo ao produto + custo + margem). Funde por item_id → cada card mostra
+ *  diagnóstico + financeiro. Auto-vínculo por SKU + vínculo manual no drawer. */
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL
   ?? process.env.NEXT_PUBLIC_API_URL
@@ -49,6 +52,26 @@ interface ListingCard {
   computed_at:     string
 }
 
+// F18 Fase A/B — vínculo + margem por anúncio (de /shopee/listings/link-status)
+interface LinkedProduct {
+  id: string; sku: string | null; name: string | null
+  cost_price: number | null; price: number | null; stock: number | null
+}
+interface MarginInfo {
+  price: number; commission_pct: number; sale_fee: number; cost: number
+  tax_amount: number; contribution_margin: number; contribution_margin_pct: number
+}
+interface LinkInfo {
+  linked: boolean
+  product: LinkedProduct | null
+  margin: MarginInfo | null
+}
+interface LinkStatus {
+  shop_id: number; total: number; linked: number; unlinked: number; with_margin: number
+  items: Array<{ item_id: number; linked: boolean; product: LinkedProduct | null; margin: MarginInfo | null }>
+}
+interface ProductHit { id: string; name: string | null; sku: string | null; cost_price?: number | null }
+
 export default function ShopeeListingsCenter() {
   const t = useTranslations('catalogo.shopeeListingCenter')
   const [items, setItems]       = useState<ListingCard[] | null>(null)
@@ -56,19 +79,31 @@ export default function ShopeeListingsCenter() {
   const [error, setError]       = useState<string | null>(null)
   const [selected, setSelected] = useState<ListingCard | null>(null)
   const [query, setQuery]       = useState('')
+  const [links, setLinks]       = useState<Map<number, LinkInfo>>(new Map())
+  const [summary, setSummary]   = useState<{ linked: number; with_margin: number } | null>(null)
+  const [autoBusy, setAutoBusy] = useState(false)
+  const [notice, setNotice]     = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setError(null)
     try {
-      const sb = createClient()
-      const { data: { session } } = await sb.auth.getSession()
-      const res = await fetch(`${BACKEND}/shopee/listings/scores?limit=50`, {
-        headers: { Authorization: `Bearer ${session?.access_token ?? ''}` },
-      })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const body = await res.json() as { items: ListingCard[]; total: number }
+      const headers = await authHeaders()
+      const [scoresRes, linkRes] = await Promise.all([
+        fetch(`${BACKEND}/shopee/listings/scores?limit=200`, { headers }),
+        fetch(`${BACKEND}/shopee/listings/link-status`, { headers }),
+      ])
+      if (!scoresRes.ok) throw new Error(`HTTP ${scoresRes.status}`)
+      const body = await scoresRes.json() as { items: ListingCard[]; total: number }
       setItems(body.items ?? [])
       setTotal(body.total ?? 0)
+      // link-status é enriquecimento (não crítico): falha → segue sem margem
+      if (linkRes.ok) {
+        const ls = await linkRes.json() as LinkStatus
+        const m = new Map<number, LinkInfo>()
+        for (const it of ls.items ?? []) m.set(it.item_id, { linked: it.linked, product: it.product, margin: it.margin })
+        setLinks(m)
+        setSummary({ linked: ls.linked, with_margin: ls.with_margin })
+      }
     } catch (e) {
       setError((e as Error).message)
       setItems([])
@@ -77,14 +112,54 @@ export default function ShopeeListingsCenter() {
 
   useEffect(() => { void load() }, [load])
 
+  const autoLink = useCallback(async () => {
+    setAutoBusy(true); setError(null); setNotice(null)
+    try {
+      const headers = await authHeaders()
+      const res = await fetch(`${BACKEND}/shopee/listings/auto-link`, { method: 'POST', headers })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const r = await res.json()
+      setNotice(`Auto-vínculo: ${r.items_linked} anúncios vinculados (${r.products_matched} produtos). ${r.items - r.items_linked} sem vínculo — vincule manualmente no detalhe.`)
+      await load()
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setAutoBusy(false)
+    }
+  }, [load])
+
+  const linkProduct = useCallback(async (itemId: number, productId: string) => {
+    const headers = await authHeaders()
+    const res = await fetch(`${BACKEND}/shopee/listings/${itemId}/link`, {
+      method: 'POST', headers, body: JSON.stringify({ product_id: productId }),
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    await load()
+  }, [load])
+
+  const unlinkItem = useCallback(async (itemId: number) => {
+    const headers = await authHeaders()
+    const res = await fetch(`${BACKEND}/shopee/listings/${itemId}/unlink`, { method: 'POST', headers })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    await load()
+  }, [load])
+
   const filtered = (items ?? []).filter(it =>
     !query || (it.title ?? '').toLowerCase().includes(query.toLowerCase()),
   )
 
   return (
     <div className="p-6 space-y-6 min-h-full" style={{ background: '#09090b' }}>
-      <Header total={total} onRefresh={load} />
+      <Header total={total} summary={summary} onRefresh={load} onAutoLink={autoLink} autoBusy={autoBusy} t={t} />
       <Toolbar query={query} onQuery={setQuery} t={t} />
+      {notice && (
+        <div className="rounded-xl p-3 flex items-start gap-2"
+          style={{ background: 'rgba(52,211,153,0.08)', border: '1px solid rgba(52,211,153,0.25)' }}>
+          <Link2 size={14} className="text-emerald-400 mt-0.5 shrink-0" />
+          <p className="text-xs text-emerald-300 flex-1">{notice}</p>
+          <button onClick={() => setNotice(null)} className="text-emerald-400/70"><X size={14} /></button>
+        </div>
+      )}
       {error && <ErrorBanner error={error} onRetry={load} t={t} />}
       {items === null && !error ? (
         <LoadingState t={t} />
@@ -93,12 +168,20 @@ export default function ShopeeListingsCenter() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map(it => (
-            <Card key={`${it.shop_id}:${it.item_id}`} card={it} onClick={() => setSelected(it)} t={t} />
+            <Card key={`${it.shop_id}:${it.item_id}`} card={it} link={links.get(it.item_id) ?? null}
+              onClick={() => setSelected(it)} t={t} />
           ))}
         </div>
       )}
       {selected && (
-        <Drawer card={selected} onClose={() => setSelected(null)} t={t} />
+        <Drawer
+          card={selected}
+          link={links.get(selected.item_id) ?? null}
+          onClose={() => setSelected(null)}
+          onLink={(pid) => linkProduct(selected.item_id, pid)}
+          onUnlink={() => unlinkItem(selected.item_id)}
+          t={t}
+        />
       )}
     </div>
   )
@@ -106,26 +189,46 @@ export default function ShopeeListingsCenter() {
 
 // ── Subcomponents ──────────────────────────────────────────────────────────
 
-function Header({ total, onRefresh }: { total: number; onRefresh: () => void }) {
-  const t = useTranslations('catalogo.shopeeListingCenter')
+function Header({ total, summary, onRefresh, onAutoLink, autoBusy, t }: {
+  total: number
+  summary: { linked: number; with_margin: number } | null
+  onRefresh: () => void
+  onAutoLink: () => void
+  autoBusy: boolean
+  t: ReturnType<typeof useTranslations>
+}) {
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex flex-wrap items-center gap-3">
       <p className="text-zinc-500 text-xs">{t('breadcrumb')}</p>
       <div className="w-9 h-9 rounded-xl flex items-center justify-center text-xs font-black"
         style={{ background: 'rgba(238,77,45,0.15)', color: SHOPEE }}>SH</div>
       <div>
         <h2 className="text-white text-lg font-semibold">{t('title')}</h2>
-        <p className="text-zinc-500 text-xs">{t('subtitle', { total })}</p>
+        <p className="text-zinc-500 text-xs">
+          {t('subtitle', { total })}
+          {summary && <span className="text-zinc-600"> · {summary.linked} vinculados · {summary.with_margin} com margem</span>}
+        </p>
       </div>
-      <button
-        onClick={onRefresh}
-        className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors"
-        style={{ borderColor: '#2e2e33', color: '#a1a1aa', background: '#111114' }}
-        aria-label={t('refresh')}
-      >
-        <RefreshCw size={12} />
-        {t('refresh')}
-      </button>
+      <div className="ml-auto flex items-center gap-2">
+        <button
+          onClick={onAutoLink}
+          disabled={autoBusy}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white transition-opacity disabled:opacity-50"
+          style={{ background: SHOPEE }}
+        >
+          <Sparkles size={12} className={autoBusy ? 'animate-pulse' : ''} />
+          {autoBusy ? 'Vinculando…' : 'Auto-vincular por SKU'}
+        </button>
+        <button
+          onClick={onRefresh}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors"
+          style={{ borderColor: '#2e2e33', color: '#a1a1aa', background: '#111114' }}
+          aria-label={t('refresh')}
+        >
+          <RefreshCw size={12} />
+          {t('refresh')}
+        </button>
+      </div>
     </div>
   )
 }
@@ -148,8 +251,9 @@ function Toolbar({ query, onQuery, t }: { query: string; onQuery: (s: string) =>
   )
 }
 
-function Card({ card, onClick, t }: { card: ListingCard; onClick: () => void; t: ReturnType<typeof useTranslations> }) {
+function Card({ card, link, onClick, t }: { card: ListingCard; link: LinkInfo | null; onClick: () => void; t: ReturnType<typeof useTranslations> }) {
   const sColor = scoreColor(card.score)
+  const m = link?.margin ?? null
   return (
     <button
       onClick={onClick}
@@ -185,20 +289,27 @@ function Card({ card, onClick, t }: { card: ListingCard; onClick: () => void; t:
         <PillarBar value={card.pillars.seller_quality}   label={t('pillar.seller_quality.short')}   weight={20} />
         <PillarBar value={card.pillars.price_marketing}  label={t('pillar.price_marketing.short')}  weight={10} />
       </div>
-      {card.top_issues.length > 0 && (
-        <div className="mt-3 pt-3 border-t flex items-start gap-2" style={{ borderColor: '#1e1e24' }}>
-          <AlertCircle size={12} style={{ color: severityColor(card.top_issues[0].severity) }} className="mt-0.5 shrink-0" />
-          <div className="flex-1 min-w-0">
-            <p className="text-[11px] text-zinc-400 line-clamp-1">{card.top_issues[0].description}</p>
-            {card.total_issues > 1 && (
-              <p className="text-[10px] text-zinc-600 mt-0.5">
-                {t('moreIssues', { n: card.total_issues - 1 })}
-              </p>
-            )}
-          </div>
-          <ChevronRight size={14} className="text-zinc-600 shrink-0" />
-        </div>
-      )}
+
+      {/* F18 Fase A/B — vínculo + margem */}
+      <div className="mt-3 pt-3 border-t flex items-center gap-2" style={{ borderColor: '#1e1e24' }}>
+        {link?.linked && link.product ? (
+          <span className="flex items-center gap-1 text-[10px] text-zinc-400 min-w-0">
+            <Link2 size={11} className="text-emerald-400 shrink-0" />
+            <span className="truncate">{link.product.sku ?? link.product.name}</span>
+          </span>
+        ) : (
+          <span className="flex items-center gap-1 text-[10px] text-zinc-600">
+            <Link2Off size={11} /> sem vínculo
+          </span>
+        )}
+        {m && (
+          <span className="ml-auto flex items-center gap-1 text-[11px] font-semibold shrink-0"
+            style={{ color: marginHex(m.contribution_margin_pct) }}>
+            {m.contribution_margin_pct >= 10 ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
+            {m.contribution_margin_pct}%
+          </span>
+        )}
+      </div>
     </button>
   )
 }
@@ -221,7 +332,14 @@ function PillarBar({ value, label, weight }: { value: number; label: string; wei
   )
 }
 
-function Drawer({ card, onClose, t }: { card: ListingCard; onClose: () => void; t: ReturnType<typeof useTranslations> }) {
+function Drawer({ card, link, onClose, onLink, onUnlink, t }: {
+  card: ListingCard
+  link: LinkInfo | null
+  onClose: () => void
+  onLink: (productId: string) => Promise<void>
+  onUnlink: () => Promise<void>
+  t: ReturnType<typeof useTranslations>
+}) {
   return (
     <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
       <div className="absolute inset-0 bg-black/60" />
@@ -248,6 +366,9 @@ function Drawer({ card, onClose, t }: { card: ListingCard; onClose: () => void; 
               <img src={card.main_image_url} alt="" className="w-full aspect-square object-cover" />
             </div>
           )}
+
+          {/* F18 Fase A/B — Vínculo & Margem */}
+          <LinkSection link={link} onLink={onLink} onUnlink={onUnlink} />
 
           <div className="rounded-2xl p-5 text-center" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
             <p className="text-[10px] uppercase tracking-widest text-zinc-600 font-semibold">{t('drawer.totalScore')}</p>
@@ -295,6 +416,139 @@ function Drawer({ card, onClose, t }: { card: ListingCard; onClose: () => void; 
           </p>
         </div>
       </div>
+    </div>
+  )
+}
+
+// F18 Fase A/B — seção de vínculo + margem + picker de produto, dentro do drawer
+function LinkSection({ link, onLink, onUnlink }: {
+  link: LinkInfo | null
+  onLink: (productId: string) => Promise<void>
+  onUnlink: () => Promise<void>
+}) {
+  const [picking, setPicking] = useState(false)
+  const [busy, setBusy]       = useState(false)
+  const [err, setErr]         = useState<string | null>(null)
+  const [q, setQ]             = useState('')
+  const [hits, setHits]       = useState<ProductHit[]>([])
+  const [searching, setSrch]  = useState(false)
+
+  const search = useCallback(async (term: string) => {
+    if (!term.trim()) { setHits([]); return }
+    setSrch(true); setErr(null)
+    try {
+      const headers = await authHeaders()
+      const res = await fetch(`${BACKEND}/products?search=${encodeURIComponent(term)}&per_page=8`, { headers })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const j = await res.json()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const arr = (j.data ?? j.items ?? j.products ?? []) as any[]
+      setHits(arr.map(p => ({ id: p.id, name: p.name, sku: p.sku, cost_price: p.cost_price })))
+    } catch (e) {
+      setErr((e as Error).message)
+    } finally {
+      setSrch(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!picking) return
+    const id = setTimeout(() => search(q), 350)
+    return () => clearTimeout(id)
+  }, [q, picking, search])
+
+  const doLink = async (pid: string) => {
+    setBusy(true); setErr(null)
+    try { await onLink(pid); setPicking(false) }
+    catch (e) { setErr((e as Error).message) }
+    finally { setBusy(false) }
+  }
+  const doUnlink = async () => {
+    setBusy(true); setErr(null)
+    try { await onUnlink() }
+    catch (e) { setErr((e as Error).message) }
+    finally { setBusy(false) }
+  }
+
+  const m = link?.margin ?? null
+
+  return (
+    <div className="rounded-2xl p-4 space-y-3" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+      <div className="flex items-center gap-2">
+        <Package size={14} className="text-cyan-400" />
+        <h4 className="text-xs font-bold uppercase tracking-widest text-zinc-400">Vínculo &amp; Margem</h4>
+      </div>
+
+      {link?.linked && link.product ? (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <Link2 size={13} className="text-emerald-400 shrink-0" />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm text-zinc-200 truncate">{link.product.name ?? link.product.sku}</p>
+              <p className="text-[11px] text-zinc-500">SKU {link.product.sku ?? '—'} · custo {brl(link.product.cost_price)} · estoque {link.product.stock ?? '—'}</p>
+            </div>
+            <button onClick={doUnlink} disabled={busy}
+              className="flex items-center gap-1 text-[11px] text-zinc-500 hover:text-red-400 disabled:opacity-50 shrink-0">
+              <Link2Off size={13} /> desvincular
+            </button>
+          </div>
+          {m && (
+            <div className="grid grid-cols-3 gap-2 pt-1">
+              <Metric label="Preço" value={brl(m.price)} />
+              <Metric label={`Comissão ${m.commission_pct}%`} value={brl(m.sale_fee)} />
+              <Metric label="Margem" value={`${m.contribution_margin_pct}%`} color={marginHex(m.contribution_margin_pct)} />
+            </div>
+          )}
+          {m && m.commission_pct === 0 && (
+            <p className="text-[10px] text-amber-500/80">⚠ comissão Shopee não configurada — margem otimista. Ajuste em Configurações › Canais.</p>
+          )}
+        </div>
+      ) : picking ? (
+        <div className="space-y-2">
+          <div className="relative">
+            <Search size={13} className="absolute left-2.5 top-2.5 text-zinc-600" />
+            {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
+            <input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar produto por nome ou SKU…"
+              className="w-full pl-8 pr-3 py-2 rounded-lg text-xs text-zinc-200 placeholder:text-zinc-600"
+              style={{ background: '#18181b', border: '1px solid #27272a', outline: 'none' }} />
+          </div>
+          {searching ? (
+            <p className="text-[11px] text-zinc-500 py-2 text-center">Buscando…</p>
+          ) : hits.length > 0 ? (
+            <div className="space-y-1 max-h-52 overflow-y-auto">
+              {hits.map(p => (
+                <button key={p.id} onClick={() => doLink(p.id)} disabled={busy}
+                  className="w-full flex items-center gap-2 p-2 rounded-lg text-left hover:bg-[#18181b] disabled:opacity-50">
+                  <Package size={13} className="text-zinc-500 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-xs text-zinc-200 truncate">{p.name ?? '(sem nome)'}</p>
+                    <p className="text-[10px] text-zinc-500">SKU {p.sku ?? '—'} · custo {brl(p.cost_price ?? null)}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="text-[11px] text-zinc-600 py-2 text-center">Digite para buscar.</p>
+          )}
+          <button onClick={() => setPicking(false)} className="text-[11px] text-zinc-500 hover:text-zinc-300">cancelar</button>
+        </div>
+      ) : (
+        <button onClick={() => setPicking(true)}
+          className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium border transition-colors"
+          style={{ borderColor: 'rgba(0,229,255,0.3)', color: CYAN, background: 'rgba(0,229,255,0.05)' }}>
+          <Link2 size={13} /> Vincular a um produto
+        </button>
+      )}
+      {err && <p className="text-[11px] text-red-400">{err}</p>}
+    </div>
+  )
+}
+
+function Metric({ label, value, color }: { label: string; value: string; color?: string }) {
+  return (
+    <div className="rounded-lg p-2" style={{ background: '#18181b', border: '1px solid #27272a' }}>
+      <p className="text-[9px] uppercase tracking-wider text-zinc-600">{label}</p>
+      <p className="text-sm font-bold mt-0.5" style={{ color: color ?? '#e4e4e7' }}>{value}</p>
     </div>
   )
 }
@@ -388,6 +642,24 @@ function ErrorBanner({ error, onRetry, t }: { error: string; onRetry: () => void
 }
 
 // ── helpers ────────────────────────────────────────────────────────────────
+
+async function authHeaders(): Promise<Record<string, string>> {
+  const sb = createClient()
+  const { data: { session } } = await sb.auth.getSession()
+  return {
+    'Content-Type': 'application/json',
+    Authorization:  `Bearer ${session?.access_token ?? ''}`,
+  }
+}
+
+const brl = (n: number | null | undefined) =>
+  n == null ? '—' : n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+
+function marginHex(pct: number): string {
+  if (pct <= 0) return '#f87171'
+  if (pct < 10) return '#fbbf24'
+  return '#34d399'
+}
 
 function scoreColor(s: number): string {
   if (s >= 80) return '#34d399'  // emerald
