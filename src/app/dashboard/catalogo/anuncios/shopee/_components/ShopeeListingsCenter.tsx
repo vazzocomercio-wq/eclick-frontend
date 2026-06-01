@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl'
 import {
   AlertCircle, RefreshCw, Search, Sparkles, X,
   Link2, Link2Off, Package, TrendingUp, TrendingDown,
-  Boxes, DollarSign, Save, Pencil,
+  Boxes, DollarSign, Save, Pencil, Type, FileText,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 
@@ -411,6 +411,9 @@ function Drawer({ card, link, onClose, onLink, onUnlink, onSaved, t }: {
           {/* F18 Fase A/B — Vínculo & Margem */}
           <LinkSection link={link} onLink={onLink} onUnlink={onUnlink} />
 
+          {/* F18 Fase E — Editar conteúdo do anúncio (título/descrição) */}
+          <ItemContentSection itemId={card.item_id} onSaved={onSaved} />
+
           {/* F18 Fase C/D — Editar preço & estoque na Shopee (write-back inline) */}
           <EditSection itemId={card.item_id} onSaved={onSaved} />
 
@@ -584,6 +587,138 @@ function LinkSection({ link, onLink, onUnlink }: {
         </button>
       )}
       {err && <p className="text-[11px] text-red-400">{err}</p>}
+    </div>
+  )
+}
+
+// F18 Fase E — edição de conteúdo do anúncio (título + descrição), nível ITEM.
+// Carrega valores reais (GET :itemId/detail) e escreve (POST :itemId/item).
+// Descrição rica ('extended') não é editável por texto → bloqueia com aviso.
+interface ItemDetail {
+  item_name:        string | null
+  description:      string | null
+  description_type: string | null
+}
+
+function ItemContentSection({ itemId, onSaved }: { itemId: number; onSaved: () => Promise<void> | void }) {
+  const [open, setOpen]       = useState(false)
+  const [detail, setDetail]   = useState<ItemDetail | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [name, setName]       = useState('')
+  const [desc, setDesc]       = useState('')
+  const [busy, setBusy]       = useState(false)
+  const [err, setErr]         = useState<string | null>(null)
+  const [ok, setOk]           = useState(false)
+
+  const loadDetail = useCallback(async () => {
+    setLoading(true); setErr(null); setOk(false)
+    try {
+      const headers = await authHeaders()
+      const res = await fetch(`${BACKEND}/shopee/listings/${itemId}/detail`, { headers })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const j = await res.json() as ItemDetail
+      setDetail(j)
+      setName(j.item_name ?? '')
+      setDesc(j.description ?? '')
+    } catch (e) {
+      setErr((e as Error).message)
+      setDetail(null)
+    } finally {
+      setLoading(false)
+    }
+  }, [itemId])
+
+  const toggle = () => {
+    const next = !open
+    setOpen(next)
+    if (next && detail === null) void loadDetail()
+  }
+
+  const richDesc = !!detail?.description_type && detail.description_type !== 'normal'
+  const nameChanged = name.trim() !== '' && name.trim() !== (detail?.item_name ?? '')
+  const descChanged = !richDesc && desc !== (detail?.description ?? '')
+  const dirty = nameChanged || descChanged
+
+  const save = async () => {
+    setBusy(true); setErr(null); setOk(false)
+    try {
+      const headers = await authHeaders()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const payload: any = {}
+      if (nameChanged) payload.item_name = name.trim()
+      if (descChanged) payload.description = desc
+      const res = await fetch(`${BACKEND}/shopee/listings/${itemId}/item`, {
+        method: 'POST', headers, body: JSON.stringify(payload),
+      })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        throw new Error(d.message ?? `HTTP ${res.status}`)
+      }
+      setOk(true)
+      await loadDetail()
+      await onSaved()
+    } catch (e) {
+      setErr((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="rounded-2xl p-4 space-y-3" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+      <button onClick={toggle} className="w-full flex items-center gap-2">
+        <FileText size={14} className="text-cyan-400" />
+        <h4 className="text-xs font-bold uppercase tracking-widest text-zinc-400">Editar conteúdo</h4>
+        <span className="ml-auto text-[10px] text-zinc-600">{open ? 'ocultar' : 'abrir'}</span>
+      </button>
+
+      {open && (
+        loading ? (
+          <p className="text-[11px] text-zinc-500 py-2 text-center">Carregando da Shopee…</p>
+        ) : detail ? (
+          <div className="space-y-3">
+            <label className="block">
+              <span className="text-[9px] uppercase tracking-wider text-zinc-600 flex items-center gap-1"><Type size={10} /> Título</span>
+              <input value={name} onChange={e => setName(e.target.value)} maxLength={255}
+                className="w-full mt-1 px-2 py-1.5 rounded-lg text-xs text-zinc-200"
+                style={{ background: '#0d0d10', border: `1px solid ${nameChanged ? 'rgba(0,229,255,0.4)' : '#27272a'}`, outline: 'none' }} />
+              <span className="text-[9px] text-zinc-600">{name.length}/255</span>
+            </label>
+
+            <label className="block">
+              <span className="text-[9px] uppercase tracking-wider text-zinc-600 flex items-center gap-1"><FileText size={10} /> Descrição</span>
+              {richDesc ? (
+                <p className="mt-1 text-[11px] text-amber-500/90 rounded-lg p-2"
+                  style={{ background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.25)' }}>
+                  ⚠ Este anúncio usa descrição rica (imagens/blocos). A descrição não pode ser editada por texto aqui — edite título/atributos; a descrição rica é editada no Seller Center.
+                </p>
+              ) : (
+                <>
+                  <textarea value={desc} onChange={e => setDesc(e.target.value)} rows={6}
+                    className="w-full mt-1 px-2 py-1.5 rounded-lg text-xs text-zinc-200 resize-y"
+                    style={{ background: '#0d0d10', border: `1px solid ${descChanged ? 'rgba(0,229,255,0.4)' : '#27272a'}`, outline: 'none' }} />
+                  <span className="text-[9px] text-zinc-600">{desc.length} caracteres</span>
+                </>
+              )}
+            </label>
+
+            <div className="flex items-center gap-2">
+              <button onClick={save} disabled={!dirty || busy}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-opacity disabled:opacity-40"
+                style={{ background: dirty ? CYAN : '#27272a', color: dirty ? '#06181c' : '#71717a' }}>
+                <Save size={12} /> {busy ? 'Salvando…' : 'Salvar conteúdo'}
+              </button>
+              {err && <p className="text-[11px] text-red-400 flex-1">{err}</p>}
+              {ok && !err && <p className="text-[11px] text-emerald-400 flex-1">✓ Atualizado na Shopee.</p>}
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <p className="text-[11px] text-red-400">{err ?? 'Falha ao carregar'}</p>
+            <button onClick={loadDetail} className="text-[11px] text-zinc-400 underline">tentar de novo</button>
+          </div>
+        )
+      )}
     </div>
   )
 }
