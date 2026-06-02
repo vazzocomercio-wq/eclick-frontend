@@ -559,6 +559,17 @@ export const CreativeApi = {
       mapped_attributes?: number; brand_id?: string | null
     }>('/tiktok-shop/publish', { method: 'POST', body: JSON.stringify(body) }),
 
+  // ── Shopee — publicar produto do IA Criativo (Fase F) ──
+  shopeePublish: (body: {
+    title: string; description: string; price: number
+    image_urls: string[]; image_count?: number
+    weight_kg?: number; brand?: string
+  }) =>
+    api<{ ok: boolean; item_id?: number; category_id?: number | null; images?: number; blockers?: string[] }>(
+      '/shopee/creative/publish',
+      { method: 'POST', body: JSON.stringify({ shop_id: 0, ...body }) },
+    ),
+
   predictMlCategory: (title: string) =>
     api<MlPredictedCategory>(`/creative/ml/predict-category?title=${encodeURIComponent(title)}`),
 
