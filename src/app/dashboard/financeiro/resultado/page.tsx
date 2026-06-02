@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import {
   ArrowLeft, RefreshCw, Plus, Trash2, TrendingDown, TrendingUp, Target,
-  Wallet, Megaphone, Building2, Coins, AlertTriangle,
+  Wallet, Megaphone, Building2, Coins, AlertTriangle, Truck,
 } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
@@ -31,6 +31,17 @@ interface OperatingCost {
   id: string; label: string; category: string; amount: number; recurrence: string
   allocation_driver: string; valid_from: string; valid_to: string | null; active: boolean
 }
+interface ShippingRate {
+  id: string; platform: string; logistic_type: string; amount: number
+  valid_from: string; valid_to: string | null; active: boolean; notes: string | null
+}
+
+const LOGISTIC_TYPES: Record<string, string> = {
+  self_service: 'Flex',
+  cross_docking: 'Coleta/Agência',
+  drop_off: 'Pontos',
+  custom: 'Outro',
+}
 
 const brl = (n: number | null | undefined) =>
   n == null ? '—' : n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -44,12 +55,15 @@ export default function CentralResultadoPage() {
   const [con, setCon] = useState<Consolidated | null>(null)
   const [products, setProducts] = useState<ProductRow[]>([])
   const [costs, setCosts] = useState<OperatingCost[]>([])
+  const [rates, setRates] = useState<ShippingRate[]>([])
   const [target, setTarget] = useState<number>(15)
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
   // form de custo fixo
   const [nf, setNf] = useState({ label: '', category: 'aluguel', amount: '', recurrence: 'monthly' })
+  // form de tarifa de frete (Flex)
+  const [sr, setSr] = useState({ logistic_type: 'self_service', amount: '', valid_from: thisMonth() + '-01' })
 
   const getHeaders = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
@@ -61,14 +75,16 @@ export default function CentralResultadoPage() {
     setLoading(true); setErr('')
     try {
       const h = await getHeaders()
-      const [c, p, oc, cfg] = await Promise.all([
+      const [c, p, oc, cfg, srates] = await Promise.all([
         fetch(`${BACKEND}/financeiro/result/consolidated?month=${month}`, { headers: h }).then((r) => r.json()),
         fetch(`${BACKEND}/financeiro/result/by-product?month=${month}&limit=50`, { headers: h }).then((r) => r.json()),
         fetch(`${BACKEND}/financeiro/operating-costs?active=true`, { headers: h }).then((r) => r.json()),
         fetch(`${BACKEND}/financeiro/result-config`, { headers: h }).then((r) => r.json()),
+        fetch(`${BACKEND}/financeiro/shipping-rates`, { headers: h }).then((r) => r.json()),
       ])
       setCon(c); setProducts(p?.products ?? []); setCosts(Array.isArray(oc) ? oc : [])
       setTarget(Number(cfg?.target_net_margin_pct ?? 15))
+      setRates(Array.isArray(srates) ? srates : [])
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Falha ao carregar.')
     } finally { setLoading(false) }
@@ -98,6 +114,24 @@ export default function CentralResultadoPage() {
     setBusy(true)
     try { const h = await getHeaders(); await fetch(`${BACKEND}/financeiro/result-config`, { method: 'PATCH', headers: h, body: JSON.stringify({ target_net_margin_pct: v }) }); setTarget(v); await load() }
     catch (e) { setErr(e instanceof Error ? e.message : 'Falha ao salvar meta.') } finally { setBusy(false) }
+  }
+  const addRate = async () => {
+    if (!sr.amount) return
+    setBusy(true)
+    try {
+      const h = await getHeaders()
+      await fetch(`${BACKEND}/financeiro/shipping-rates`, {
+        method: 'POST', headers: h,
+        body: JSON.stringify({ platform: 'mercadolivre', logistic_type: sr.logistic_type, amount: Number(sr.amount), valid_from: sr.valid_from }),
+      })
+      setSr({ logistic_type: 'self_service', amount: '', valid_from: thisMonth() + '-01' })
+      await load()
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Falha ao cadastrar tarifa.') } finally { setBusy(false) }
+  }
+  const delRate = async (id: string) => {
+    setBusy(true)
+    try { const h = await getHeaders(); await fetch(`${BACKEND}/financeiro/shipping-rates/${id}`, { method: 'DELETE', headers: h }); await load() }
+    catch (e) { setErr(e instanceof Error ? e.message : 'Falha ao remover tarifa.') } finally { setBusy(false) }
   }
 
   const netOk = con?.net_margin_pct != null && con.net_margin_pct >= (con?.target_net_margin_pct ?? 15)
@@ -205,6 +239,59 @@ export default function CentralResultadoPage() {
                 )}
               </section>
             </div>
+
+            {/* Frete pago por fora (Flex) */}
+            <section className="mt-6 rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
+              <div className="mb-1 flex items-center gap-2">
+                <Truck className="h-4 w-4 text-cyan-300" />
+                <h2 className="text-sm font-semibold text-zinc-200">Frete pago por fora (Flex)</h2>
+              </div>
+              <p className="mb-3 text-[11px] text-zinc-500">
+                Custo fixo por venda que você paga à transportadora/motoboy e que <span className="text-zinc-400">não aparece em nenhuma API do ML/MP</span>.
+                Quando houver reajuste de tabela, cadastre o novo valor com a data — os pedidos antigos continuam usando a tarifa vigente na época.
+              </p>
+              {/* add / reajuste form */}
+              <div className="mb-3 grid grid-cols-12 gap-1.5">
+                <select value={sr.logistic_type} onChange={(e) => setSr({ ...sr, logistic_type: e.target.value })}
+                  className="col-span-3 rounded border border-zinc-800 bg-zinc-900 px-1 py-1 text-xs text-zinc-300 [color-scheme:dark]">
+                  {Object.entries(LOGISTIC_TYPES).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                </select>
+                <input type="number" placeholder="R$ por venda" value={sr.amount} onChange={(e) => setSr({ ...sr, amount: e.target.value })}
+                  className="col-span-3 rounded border border-zinc-800 bg-zinc-900 px-2 py-1 text-right text-xs tabular-nums text-zinc-200" />
+                <input type="date" value={sr.valid_from} onChange={(e) => setSr({ ...sr, valid_from: e.target.value })}
+                  className="col-span-4 rounded border border-zinc-800 bg-zinc-900 px-2 py-1 text-xs text-zinc-300 [color-scheme:dark]" />
+                <button onClick={() => void addRate()} disabled={busy || !sr.amount}
+                  className="col-span-2 inline-flex items-center justify-center gap-1 rounded border border-cyan-500/40 bg-cyan-500/10 px-1 py-1 text-xs font-medium text-cyan-300 hover:bg-cyan-500/20 disabled:opacity-40">
+                  <Plus className="h-3 w-3" /> Salvar
+                </button>
+              </div>
+              {rates.length === 0 ? (
+                <p className="rounded-lg border border-dashed border-zinc-800 p-4 text-center text-xs text-zinc-500">
+                  Nenhuma tarifa de frete cadastrada — cadastre o valor que você paga por venda Flex.
+                </p>
+              ) : (
+                <div className="flex flex-col gap-1">
+                  {rates.map((r) => {
+                    const vigente = r.active && !r.valid_to
+                    return (
+                      <div key={r.id} className="flex items-center justify-between rounded-lg bg-zinc-800/40 px-2.5 py-1.5 text-xs">
+                        <span className="flex items-center gap-2 truncate">
+                          <span className="text-zinc-200">{LOGISTIC_TYPES[r.logistic_type] ?? r.logistic_type}</span>
+                          {vigente
+                            ? <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-medium text-emerald-400">vigente</span>
+                            : <span className="rounded bg-zinc-700/40 px-1.5 py-0.5 text-[10px] text-zinc-500">encerrada</span>}
+                          <span className="text-zinc-500">desde {r.valid_from}{r.valid_to ? ` até ${r.valid_to}` : ''}</span>
+                        </span>
+                        <span className="flex items-center gap-2">
+                          <span className="tabular-nums text-zinc-200">{brl(r.amount)}</span>
+                          <button onClick={() => void delRate(r.id)} disabled={busy} className="text-zinc-500 hover:text-red-400"><Trash2 className="h-3.5 w-3.5" /></button>
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </section>
 
             {/* Lucro por SKU */}
             <section className="mt-6">
