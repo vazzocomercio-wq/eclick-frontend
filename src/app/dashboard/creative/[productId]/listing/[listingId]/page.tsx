@@ -49,6 +49,10 @@ export default function ListingDetailPage() {
   const [regenerating, setRegenerating]   = useState(false)
 
   const [approving, setApproving] = useState(false)
+  // Destrava o editor de um anúncio JÁ APROVADO sem precisar de endpoint de
+  // "reabrir": libera os campos localmente; o conteúdo segue salvável via PATCH
+  // (updateListing não mexe no status, então o anúncio continua aprovado).
+  const [forceEdit, setForceEdit] = useState(false)
 
   useEffect(() => {
     void loadAll()
@@ -288,6 +292,21 @@ export default function ListingDetailPage() {
                 <Check size={12} /> {t('approved')}
               </span>
             )}
+            {approved && !forceEdit && (
+              <button
+                type="button"
+                onClick={() => setForceEdit(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-cyan-400/40 text-zinc-200 text-xs transition-all"
+                title="Destrava os campos para editar este anúncio aprovado"
+              >
+                <Edit3 size={12} /> Reabrir para editar
+              </button>
+            )}
+            {approved && forceEdit && (
+              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-400/10 border border-amber-400/30 text-amber-200 text-xs">
+                <Edit3 size={12} /> Editando aprovado
+              </span>
+            )}
           </div>
         </header>
 
@@ -322,7 +341,7 @@ export default function ListingDetailPage() {
                 setListing(next)
                 setAllListings(prev => prev.map(x => x.id === next.id ? next : x))
               }}
-              disabled={approved}
+              disabled={approved && !forceEdit}
             />
           </div>
 
