@@ -139,7 +139,7 @@ export default function ListingEditor({ listing, onSaved, disabled }: Props) {
       <PublishReadinessBanner listing={listing} mlAttributes={state.ml_attributes} />
 
       <div data-seo-field="title">
-        <Field label="Título" value={state.title} onChange={v => update('title', v)} disabled={disabled} />
+        <Field label="Título" value={state.title} onChange={v => update('title', v)} disabled={disabled} maxLength={60} />
       </div>
       <div data-seo-field="subtitle">
         <Field label="Subtítulo" value={state.subtitle} onChange={v => update('subtitle', v)} disabled={disabled} placeholder="Opcional" />
@@ -238,13 +238,25 @@ function Label({ children }: { children: React.ReactNode }) {
 }
 
 function Field({
-  label, value, onChange, disabled, placeholder,
+  label, value, onChange, disabled, placeholder, maxLength,
 }: {
-  label: string; value: string; onChange: (v: string) => void; disabled?: boolean; placeholder?: string
+  label: string; value: string; onChange: (v: string) => void; disabled?: boolean; placeholder?: string; maxLength?: number
 }) {
+  const len = value.length
   return (
     <div>
-      <Label>{label}</Label>
+      <div className="flex items-center justify-between gap-2">
+        <Label>{label}</Label>
+        {maxLength != null && (
+          <span className={`text-[10px] font-mono tabular-nums ${
+            len > maxLength ? 'text-red-400'
+              : len > maxLength * 0.85 ? 'text-amber-400'
+                : 'text-zinc-500'
+          }`} title={`Limite recomendado: ${maxLength} caracteres`}>
+            {len}/{maxLength}
+          </span>
+        )}
+      </div>
       <input
         type="text"
         value={value}
