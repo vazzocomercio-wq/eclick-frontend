@@ -336,6 +336,7 @@ const SECTIONS: NavSection[] = [
       { labelKey: 'items.adsMlAds',        href: '/dashboard/ads/mercadolivre', icon: <Megaphone size={15} /> },
       { labelKey: 'items.adsInteligencia', href: '/dashboard/ads/inteligencia', icon: <Sparkles size={15} /> },
       { labelKey: 'items.adsShopee',       href: '/dashboard/ads/shopee',       icon: <ShoppingCart size={15} />, soon: true },
+      { labelKey: 'items.shopeeMarketing', href: '/dashboard/shopee-marketing',  icon: <Sparkles size={15} /> },
       { labelKey: 'items.adsPerformance',  href: '/dashboard/ads/performance',  icon: <TrendingUp size={15} /> },
     ],
   },
