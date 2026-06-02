@@ -61,6 +61,7 @@ export default function ShopeeMarketingCenter() {
   const [error, setError]   = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [objs, setObjs]     = useState<Set<ObjKey>>(new Set(OBJECTIVES.map(o => o.key)))
+  const [tab, setTab]       = useState<'recs' | 'outcomes'>('recs')
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
@@ -101,6 +102,19 @@ export default function ShopeeMarketingCenter() {
         </button>
       </div>
 
+      {/* Abas */}
+      <div className="flex items-center gap-1 border-b" style={{ borderColor: '#1e1e24' }}>
+        {([['recs', 'Recomendações'], ['outcomes', 'Resultados']] as const).map(([k, label]) => (
+          <button key={k} onClick={() => setTab(k)}
+            className="px-3 py-2 text-xs font-semibold transition-colors -mb-px border-b-2"
+            style={tab === k ? { color: CYAN, borderColor: CYAN } : { color: '#71717a', borderColor: 'transparent' }}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'outcomes' ? <OutcomesPanel /> : (
+      <>
       {/* Objetivos */}
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-[11px] text-zinc-500">Priorizar:</span>
@@ -148,8 +162,86 @@ export default function ShopeeMarketingCenter() {
           ))}
         </div>
       )}
+      </>
+      )}
     </div>
   )
+}
+
+// ── Aba Resultados (loop de outcome) ────────────────────────────────────────
+interface Outcome {
+  id: string; item_id: number; vehicle: string; discount_pct: number; status: string
+  window_start: string | null; window_end: string | null
+  baseline_units: number; promo_units: number; lift_units: number; lift_pct: number
+  margin_cost: number; verdict: 'pending' | 'positive' | 'neutral' | 'negative'
+}
+function OutcomesPanel() {
+  const [rows, setRows]   = useState<Outcome[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  useEffect(() => {
+    (async () => {
+      try {
+        const headers = await authHeaders()
+        const res = await fetch(`${BACKEND}/shopee/marketing/outcomes`, { headers })
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const j = await res.json() as { outcomes: Outcome[] }
+        setRows(j.outcomes ?? [])
+      } catch (e) { setError((e as Error).message); setRows([]) }
+    })()
+  }, [])
+
+  if (error) return <div className="rounded-xl p-3 text-xs text-red-300" style={{ background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.25)' }}>{error}</div>
+  if (rows === null) return <div className="flex items-center gap-2 text-zinc-500 text-sm py-12 justify-center"><Loader2 size={16} className="animate-spin" /> Medindo resultados…</div>
+  if (rows.length === 0) return (
+    <div className="flex flex-col items-center gap-2 py-12 rounded-2xl" style={{ background: '#111114', border: '1px dashed #2e2e33' }}>
+      <TrendingUp size={20} className="text-zinc-600" />
+      <p className="text-sm text-zinc-300">Nenhuma promoção aplicada ainda.</p>
+      <p className="text-xs text-zinc-500 text-center max-w-md">Aplique um desconto na aba Recomendações — depois o resultado (venda × custo de margem) aparece aqui.</p>
+    </div>
+  )
+  return (
+    <div className="rounded-xl overflow-hidden" style={{ background: '#0f0f12', border: '1px solid #1a1a1f' }}>
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="text-zinc-500" style={{ borderBottom: '1px solid #1e1e24' }}>
+            <th className="text-left font-medium px-3 py-2">Anúncio</th>
+            <th className="text-center font-medium px-3 py-2">Desconto</th>
+            <th className="text-center font-medium px-3 py-2">Status</th>
+            <th className="text-center font-medium px-3 py-2">Baseline</th>
+            <th className="text-center font-medium px-3 py-2">Na promo</th>
+            <th className="text-center font-medium px-3 py-2">Lift</th>
+            <th className="text-right font-medium px-3 py-2">Custo margem</th>
+            <th className="text-center font-medium px-3 py-2">Veredito</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(r => {
+            const v = verdictInfo(r.verdict)
+            return (
+              <tr key={r.id} style={{ borderBottom: '1px solid #15151a' }}>
+                <td className="px-3 py-2 font-mono text-zinc-400">#{r.item_id}</td>
+                <td className="px-3 py-2 text-center text-zinc-300">{r.discount_pct}%</td>
+                <td className="px-3 py-2 text-center text-zinc-500">{r.status}</td>
+                <td className="px-3 py-2 text-center text-zinc-400 tabular-nums">{r.baseline_units}</td>
+                <td className="px-3 py-2 text-center text-zinc-200 tabular-nums">{r.promo_units}</td>
+                <td className="px-3 py-2 text-center tabular-nums" style={{ color: r.lift_units > 0 ? '#4ade80' : r.lift_units < 0 ? '#f87171' : '#71717a' }}>
+                  {r.lift_units > 0 ? '+' : ''}{r.lift_units} ({r.lift_pct.toFixed(0)}%)
+                </td>
+                <td className="px-3 py-2 text-right text-amber-400/80 tabular-nums">{brl(r.margin_cost)}</td>
+                <td className="px-3 py-2 text-center"><span className="px-2 py-0.5 rounded-full text-[10px] font-semibold" style={{ background: `${v.color}1a`, color: v.color }}>{v.label}</span></td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+function verdictInfo(v: Outcome['verdict']) {
+  if (v === 'positive') return { label: 'positivo', color: '#4ade80' }
+  if (v === 'negative') return { label: 'negativo', color: '#f87171' }
+  if (v === 'neutral')  return { label: 'neutro', color: '#a1a1aa' }
+  return { label: 'aguardando', color: '#fbbf24' }
 }
 
 function RecCard({ rec, commissionPct, floorPct, onApplied }: { rec: Rec; commissionPct: number; floorPct: number; onApplied: () => void }) {
