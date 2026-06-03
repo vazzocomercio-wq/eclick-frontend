@@ -7,6 +7,10 @@ import { NewsletterSignup } from './_components/NewsletterSignup'
 import { C } from './_components/tokens'
 
 export const revalidate = 3600
+// Estático no CDN: o blog é público e PT-only e não lê cookie/searchParams.
+// force-static neutraliza o cookies() do i18n no layout raiz (que marcaria a
+// rota como dinâmica), servindo do edge + ISR. Idioma cai no default 'pt'.
+export const dynamic = 'force-static'
 
 /** Busca tolerante a falha (Sanity ainda não provisionado / sem posts) → build verde. */
 async function loadHome(): Promise<{ posts: PostCardData[]; categories: Category[] }> {

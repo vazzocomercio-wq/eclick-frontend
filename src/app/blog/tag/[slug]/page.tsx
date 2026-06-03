@@ -6,6 +6,7 @@ import { C, SITE_URL } from '../../_components/tokens'
 
 export const revalidate = 3600
 export const dynamicParams = true
+export const dynamic = 'force-static' // estático no CDN (ver app/blog/page.tsx)
 
 export async function generateStaticParams() {
   try {

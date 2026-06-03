@@ -22,6 +22,9 @@ import type { CSSProperties } from 'react'
 
 export const revalidate = 3600
 export const dynamicParams = true
+// Estático no CDN (ver app/blog/page.tsx): força render estático + ISR,
+// neutralizando o cookies() do i18n no layout raiz. Slugs novos = ISR on-demand.
+export const dynamic = 'force-static'
 
 export async function generateStaticParams() {
   try {
