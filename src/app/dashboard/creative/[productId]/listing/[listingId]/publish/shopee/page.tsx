@@ -27,6 +27,8 @@ export default function ShopeePublishPage() {
   const [result, setResult] = useState<{ item_id?: number; images?: number } | null>(null)
   const [blockers, setBlockers] = useState<string[] | null>(null)
   const [publishError, setPublishError] = useState<string | null>(null)
+  // nº de registro p/ campos numéricos obrigatórios da categoria (ex.: Inmetro)
+  const [regNumber, setRegNumber] = useState('')
 
   useEffect(() => {
     CreativeApi.getMlContext(listingId)
@@ -67,6 +69,7 @@ export default function ShopeePublishPage() {
         image_count: data.images.length,
         brand: data.brand ?? undefined,
         ml_attributes: data.ml_attributes ?? undefined,
+        registration_number: regNumber.trim() || undefined,
       })
       if (!r.ok) setBlockers(r.blockers ?? ['Anúncio não passou no gate de relevância.'])
       else setResult({ item_id: r.item_id, images: r.images })
@@ -131,8 +134,29 @@ export default function ShopeePublishPage() {
         <p className="font-medium">Como funciona</p>
         <p className="mt-1 text-xs text-muted-foreground">
           A Shopee recomenda a categoria pelo título e o IA Criativo preenche os atributos obrigatórios
-          (marca, etc.) automaticamente. As fotos são enviadas pro media space, e o anúncio nasce com
-          estoque 0 (ajuste o estoque depois na Central de Anúncios Shopee).
+          (marca, tensão, cor, material…) fazendo o de-para com os campos da categoria. As fotos são
+          enviadas pro media space, e o anúncio nasce com estoque 0 (ajuste o estoque depois na Central
+          de Anúncios Shopee).
+        </p>
+      </div>
+
+      {/* Número de registro — campos numéricos obrigatórios (ex.: Inmetro) */}
+      <div className="rounded-lg border border-border bg-card p-4">
+        <label htmlFor="shopee-regnum" className="text-sm font-medium">
+          Número de registro <span className="font-normal text-muted-foreground">(opcional)</span>
+        </label>
+        <input
+          id="shopee-regnum"
+          type="text"
+          inputMode="numeric"
+          value={regNumber}
+          onChange={(e) => setRegNumber(e.target.value)}
+          placeholder="Ex.: nº Inmetro (só números)"
+          className="mt-2 w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-[#ee4d2d]"
+        />
+        <p className="mt-1.5 text-xs text-muted-foreground">
+          Algumas categorias (eletro/iluminação) exigem um número de registro numérico (ex.: Inmetro).
+          Se a Shopee exigir e este campo estiver vazio, a publicação avisa exatamente qual campo preencher.
         </p>
       </div>
 

@@ -565,6 +565,7 @@ export const CreativeApi = {
     image_urls: string[]; image_count?: number
     weight_kg?: number; brand?: string
     ml_attributes?: Array<{ id: string; value_name?: string; value_id?: string }>
+    registration_number?: string
   }) =>
     api<{ ok: boolean; item_id?: number; category_id?: number | null; images?: number; blockers?: string[] }>(
       '/shopee/creative/publish',
