@@ -29,6 +29,8 @@ export default function ShopeePublishPage() {
   const [publishError, setPublishError] = useState<string | null>(null)
   // nº de registro p/ campos numéricos obrigatórios da categoria (ex.: Inmetro)
   const [regNumber, setRegNumber] = useState('')
+  // "não se aplica / não tenho" (espelho do "não se aplica" do ML)
+  const [regNotApplicable, setRegNotApplicable] = useState(false)
 
   useEffect(() => {
     CreativeApi.getMlContext(listingId)
@@ -69,7 +71,8 @@ export default function ShopeePublishPage() {
         image_count: data.images.length,
         brand: data.brand ?? undefined,
         ml_attributes: data.ml_attributes ?? undefined,
-        registration_number: regNumber.trim() || undefined,
+        registration_number: regNotApplicable ? undefined : (regNumber.trim() || undefined),
+        registration_not_applicable: regNotApplicable || undefined,
       })
       if (!r.ok) setBlockers(r.blockers ?? ['Anúncio não passou no gate de relevância.'])
       else setResult({ item_id: r.item_id, images: r.images })
@@ -151,13 +154,24 @@ export default function ShopeePublishPage() {
           inputMode="numeric"
           value={regNumber}
           onChange={(e) => setRegNumber(e.target.value)}
+          disabled={regNotApplicable}
           placeholder="Ex.: nº Inmetro (só números)"
-          className="mt-2 w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-[#ee4d2d]"
+          className="mt-2 w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-[#ee4d2d] disabled:opacity-50"
         />
-        <p className="mt-1.5 text-xs text-muted-foreground">
-          Algumas categorias (eletro/iluminação) exigem um número de registro numérico (ex.: Inmetro).
-          Se a Shopee exigir e este campo estiver vazio, a publicação avisa exatamente qual campo preencher.
-        </p>
+        <label className="mt-2 flex cursor-pointer items-start gap-2 text-xs text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={regNotApplicable}
+            onChange={(e) => setRegNotApplicable(e.target.checked)}
+            className="mt-0.5 accent-[#ee4d2d]"
+          />
+          <span>
+            <strong className="text-foreground">Não se aplica / não tenho esse registro.</strong>{' '}
+            Marca o produto como isento (igual ao &quot;não se aplica&quot; do Mercado Livre): nos campos de
+            certificação a Shopee recebe a opção de não-aplicável. A Shopee tem a palavra final — se a
+            categoria exigir mesmo assim, o aviso dirá qual campo falta.
+          </span>
+        </label>
       </div>
 
       {/* Bloqueios do gate de relevância */}
