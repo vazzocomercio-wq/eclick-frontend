@@ -567,8 +567,12 @@ export const CreativeApi = {
     ml_attributes?: Array<{ id: string; value_name?: string; value_id?: string }>
     registration_number?: string
     registration_not_applicable?: boolean
+    catalog_product_id?: string
   }) =>
-    api<{ ok: boolean; item_id?: number; category_id?: number | null; images?: number; blockers?: string[] }>(
+    api<{
+      ok: boolean; item_id?: number; category_id?: number | null; images?: number; blockers?: string[]
+      virtual_stock?: number; stock_paused?: boolean; attributes_count?: number
+    }>(
       '/shopee/creative/publish',
       { method: 'POST', body: JSON.stringify({ shop_id: 0, ...body }) },
     ),

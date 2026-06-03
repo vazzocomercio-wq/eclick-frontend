@@ -24,7 +24,7 @@ export default function ShopeePublishPage() {
   const [error, setError] = useState<string | null>(null)
 
   const [publishing, setPublishing] = useState(false)
-  const [result, setResult] = useState<{ item_id?: number; images?: number } | null>(null)
+  const [result, setResult] = useState<{ item_id?: number; images?: number; virtual_stock?: number; stock_paused?: boolean; attributes_count?: number } | null>(null)
   const [blockers, setBlockers] = useState<string[] | null>(null)
   const [publishError, setPublishError] = useState<string | null>(null)
   // nº de registro p/ campos numéricos obrigatórios da categoria (ex.: Inmetro)
@@ -56,6 +56,9 @@ export default function ShopeePublishPage() {
       // atributos do IA Criativo (formato ML) — backend faz o de-para pros
       // campos da categoria Shopee (tensão, potência, cor, material, marca…).
       ml_attributes: ctx.listing.ml_attributes ?? null,
+      // produto de catálogo (vínculo direto ou match de SKU) — backend usa pra
+      // aplicar o estoque virtual (físico+virtual) e respeitar a pausa no mínimo.
+      catalog_product_id: ctx.product?.product_id ?? ctx.sku_suggestion?.product_id ?? null,
     }
   }, [ctx])
 
@@ -73,9 +76,10 @@ export default function ShopeePublishPage() {
         ml_attributes: data.ml_attributes ?? undefined,
         registration_number: regNotApplicable ? undefined : (regNumber.trim() || undefined),
         registration_not_applicable: regNotApplicable || undefined,
+        catalog_product_id: data.catalog_product_id ?? undefined,
       })
       if (!r.ok) setBlockers(r.blockers ?? ['Anúncio não passou no gate de relevância.'])
-      else setResult({ item_id: r.item_id, images: r.images })
+      else setResult({ item_id: r.item_id, images: r.images, virtual_stock: r.virtual_stock, stock_paused: r.stock_paused, attributes_count: r.attributes_count })
     } catch (e) {
       setPublishError(e instanceof Error ? e.message : 'Falha ao publicar')
     } finally {
@@ -136,10 +140,11 @@ export default function ShopeePublishPage() {
       <div className="rounded-lg border border-border bg-card p-4 text-sm">
         <p className="font-medium">Como funciona</p>
         <p className="mt-1 text-xs text-muted-foreground">
-          A Shopee recomenda a categoria pelo título e o IA Criativo preenche os atributos obrigatórios
-          (marca, tensão, cor, material…) fazendo o de-para com os campos da categoria. As fotos são
-          enviadas pro media space, e o anúncio nasce com estoque 0 (ajuste o estoque depois na Central
-          de Anúncios Shopee).
+          A Shopee recomenda a categoria pelo título e o IA Criativo preenche o máximo de atributos
+          (obrigatórios + opcionais: tensão, cor, material, tipo de lâmpada…) fazendo o de-para com os
+          campos da categoria. As fotos vão pro media space. Se o produto estiver vinculado ao catálogo,
+          o anúncio já nasce com o <strong>estoque virtual (físico + virtual)</strong> e respeita a pausa
+          no mínimo — senão entra com estoque 0 (ajuste na Central de Anúncios Shopee).
         </p>
       </div>
 
@@ -194,8 +199,14 @@ export default function ShopeePublishPage() {
         <div className="rounded-md border border-green-300 bg-green-50 p-3 text-sm text-green-700">
           <p className="flex items-center gap-2 font-medium"><CheckCircle2 className="h-4 w-4" /> Publicado na Shopee!</p>
           <p className="mt-1 text-xs">
-            item_id: {result.item_id} · {result.images ?? 0} fotos enviadas.
-            {' '}Veja em Seller Center → Produtos (pode entrar em análise). Ajuste o estoque na Central de Anúncios Shopee.
+            item_id: {result.item_id} · {result.images ?? 0} fotos
+            {result.attributes_count != null && ` · ${result.attributes_count} atributos preenchidos`}.
+            {result.virtual_stock != null
+              ? (result.stock_paused
+                  ? ` Estoque virtual ${result.virtual_stock} ≤ mínimo → anúncio nasce pausado (esgotado).`
+                  : ` Estoque virtual aplicado: ${result.virtual_stock} un. (físico+virtual).`)
+              : ' Estoque entra como 0 (produto sem vínculo de catálogo) — ajuste na Central de Anúncios Shopee.'}
+            {' '}Veja em Seller Center → Produtos (pode entrar em análise).
           </p>
         </div>
       )}
