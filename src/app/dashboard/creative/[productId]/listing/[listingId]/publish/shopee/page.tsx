@@ -49,7 +49,11 @@ export default function ShopeePublishPage() {
     const brand = ctx.listing.ml_attributes?.find((a) => a.id === 'BRAND')?.value_name ?? null
     return {
       title: ctx.listing.title,
-      description: [ctx.listing.description, ...(ctx.listing.bullets ?? [])].filter(Boolean).join('\n'),
+      // descrição LIMPA — o backend junta destaques (bullets) + FAQ na descrição
+      // na hora de publicar (Shopee não tem campo separado pra isso).
+      description: ctx.listing.description ?? '',
+      bullets: ctx.listing.bullets ?? null,
+      faq: ctx.listing.faq ?? null,
       images,
       price: ctx.sku_suggestion?.price ?? null,
       brand,
@@ -74,6 +78,8 @@ export default function ShopeePublishPage() {
         image_count: data.images.length,
         brand: data.brand ?? undefined,
         ml_attributes: data.ml_attributes ?? undefined,
+        bullets: data.bullets ?? undefined,
+        faq: data.faq ?? undefined,
         registration_number: regNotApplicable ? undefined : (regNumber.trim() || undefined),
         registration_not_applicable: regNotApplicable || undefined,
         catalog_product_id: data.catalog_product_id ?? undefined,

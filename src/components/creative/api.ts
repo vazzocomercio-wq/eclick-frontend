@@ -553,6 +553,8 @@ export const CreativeApi = {
     price: number; stock?: number; sku?: string
     ml_attributes?: Array<{ id: string; value_name?: string; value_id?: string }>
     brand_name?: string
+    bullets?: string[]
+    faq?: Array<{ q: string; a: string }>
   }) =>
     api<{
       product_id: string | null; uploaded_images: number
@@ -565,6 +567,8 @@ export const CreativeApi = {
     image_urls: string[]; image_count?: number
     weight_kg?: number; brand?: string
     ml_attributes?: Array<{ id: string; value_name?: string; value_id?: string }>
+    bullets?: string[]
+    faq?: Array<{ q: string; a: string }>
     registration_number?: string
     registration_not_applicable?: boolean
     catalog_product_id?: string

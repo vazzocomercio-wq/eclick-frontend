@@ -60,6 +60,7 @@ export default function TikTokPublishPage() {
       title: ctx.listing.title,
       description: ctx.listing.description,
       bullets: ctx.listing.bullets ?? [],
+      faq: ctx.listing.faq ?? [],
       images,
       price: ctx.sku_suggestion?.price ?? null,
       stock: ctx.sku_suggestion?.stock ?? null,
@@ -112,7 +113,11 @@ export default function TikTokPublishPage() {
     try {
       const r = await CreativeApi.tiktokPublish({
         title: data.title,
-        description: [data.description, ...(data.bullets || [])].filter(Boolean).join('\n'),
+        // descrição LIMPA — backend junta destaques (bullets) + FAQ (mesma
+        // função do ML/Shopee).
+        description: data.description,
+        bullets: data.bullets,
+        faq: data.faq,
         category_id: category.id,
         image_urls: data.images,
         price: data.price,
