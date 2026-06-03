@@ -77,6 +77,34 @@ export async function middleware(request: NextRequest) {
   const sfRewrite = await resolveStorefrontRewrite(request)
   if (sfRewrite) return sfRewrite
 
+  // 2) Rotas de CONTEÚDO público (blog, loja, landing, sitemap…) NÃO precisam
+  //    de auth. Retornar antes de criar o client Supabase evita (a) uma ida e
+  //    volta de rede ao Supabase em cada visita e (b) a escrita de cookie de
+  //    sessão, que marcava a resposta como `private/no-store` e desligava o
+  //    cache de borda do Netlify (fwd=bypass) — forçando SSR completo a cada
+  //    request. Sem isso, ISR/`revalidate` voltam a servir do CDN.
+  //    NÃO inclui /login, /register e `/` de propósito: lá o usuário LOGADO
+  //    precisa ser redirecionado pro /dashboard (depende do getUser abaixo).
+  const { pathname: earlyPath } = request.nextUrl
+  const isPublicContentRoute =
+    earlyPath.startsWith('/loja') ||
+    earlyPath.startsWith('/lb') ||
+    earlyPath.startsWith('/p/') ||
+    earlyPath.startsWith('/auditoria-gratis') ||
+    earlyPath.startsWith('/sou-afiliado-shopee') ||
+    earlyPath.startsWith('/privacidade') ||
+    earlyPath.startsWith('/blog') ||
+    earlyPath.startsWith('/solicitar-acesso') ||
+    earlyPath.startsWith('/forgot-password') ||
+    earlyPath.startsWith('/redefinir-senha') ||
+    earlyPath.startsWith('/auth') ||
+    earlyPath === '/llms.txt' ||
+    earlyPath === '/sitemap.xml' ||
+    earlyPath === '/rss.xml' ||
+    earlyPath === '/robots.txt' ||
+    earlyPath === '/api/revalidate'
+  if (isPublicContentRoute) return NextResponse.next({ request })
+
   let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(
