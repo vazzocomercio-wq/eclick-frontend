@@ -895,6 +895,7 @@ function PublicationRow({ pub: initial, accountName }: { pub: CreativePublicatio
     shopee:        { label: 'Shopee',        className: 'bg-orange-500/10 text-orange-300 border-orange-500/30' },
     tiktok_shop:   { label: 'TikTok Shop',   className: 'bg-zinc-800 text-zinc-200 border-zinc-600' },
     tiktok:        { label: 'TikTok Shop',   className: 'bg-zinc-800 text-zinc-200 border-zinc-600' },
+    loja_propria:  { label: 'Loja própria',  className: 'bg-cyan-500/10 text-cyan-300 border-cyan-500/30' },
   }
   const mkt = MKT[pub.marketplace] ?? { label: String(pub.marketplace), className: 'bg-zinc-900 text-zinc-400 border-zinc-700' }
 
