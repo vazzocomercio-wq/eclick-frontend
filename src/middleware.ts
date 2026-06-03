@@ -194,7 +194,13 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
+  // Exclui do middleware as rotas de conteúdo público (blog, landing GEO,
+  // privacidade, sitemap/rss/robots/llms). No Netlify, QUALQUER rota que passa
+  // pelo middleware é servida dinâmica e some do cache de borda (fwd=bypass).
+  // Mantê-las FORA do matcher faz o ISR/`revalidate` voltar a ser servido do
+  // CDN — é o que reativa o cache (o early-return no corpo não basta, pois o
+  // simples fato de a rota ser coberta pelo middleware já força no-store).
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|woff2?|ttf|otf)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|blog|auditoria-gratis|privacidade|sitemap\\.xml|rss\\.xml|robots\\.txt|llms\\.txt|.*\\.(?:svg|png|jpg|jpeg|gif|webp|woff2?|ttf|otf)$).*)',
   ],
 }
