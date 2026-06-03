@@ -49,6 +49,9 @@ export default function ShopeePublishPage() {
       images,
       price: ctx.sku_suggestion?.price ?? null,
       brand,
+      // atributos do IA Criativo (formato ML) — backend faz o de-para pros
+      // campos da categoria Shopee (tensão, potência, cor, material, marca…).
+      ml_attributes: ctx.listing.ml_attributes ?? null,
     }
   }, [ctx])
 
@@ -63,6 +66,7 @@ export default function ShopeePublishPage() {
         image_urls: data.images,
         image_count: data.images.length,
         brand: data.brand ?? undefined,
+        ml_attributes: data.ml_attributes ?? undefined,
       })
       if (!r.ok) setBlockers(r.blockers ?? ['Anúncio não passou no gate de relevância.'])
       else setResult({ item_id: r.item_id, images: r.images })
