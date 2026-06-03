@@ -110,7 +110,34 @@ function renderInput(
   current:  AttributeValue | undefined,
   setValue: (id: string, patch: Partial<AttributeValue>) => void,
 ): React.ReactNode {
-  // List / string com opções → select
+  // String COM sugestões → COMBOBOX: escolhe uma opção OU digita o seu valor.
+  // O ML aceita valor livre quando value_type='string' (ex.: "Material da
+  // estrutura" = Madeira, que não está na lista de sugestões). datalist nativo.
+  if (attr.values && attr.values.length > 0 && attr.value_type === 'string') {
+    const listId = `dl-${attr.id}`
+    return (
+      <>
+        <input
+          type="text"
+          list={listId}
+          value={current?.value_name ?? ''}
+          onChange={e => {
+            const v = e.target.value
+            const opt = attr.values!.find(o => o.name.trim().toLowerCase() === v.trim().toLowerCase())
+            setValue(attr.id, { value_name: v, value_id: opt?.id })
+          }}
+          maxLength={attr.value_max_length}
+          placeholder="Escolha uma opção ou digite o seu valor"
+          className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-zinc-200 outline-none focus:border-cyan-400"
+        />
+        <datalist id={listId}>
+          {attr.values.map(o => <option key={o.id} value={o.name} />)}
+        </datalist>
+      </>
+    )
+  }
+
+  // List fechada (value_type='list') ou boolean com opções → select restrito
   if (attr.values && attr.values.length > 0) {
     return (
       <select

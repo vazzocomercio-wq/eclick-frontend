@@ -63,6 +63,8 @@ export default function ShopeePublishPage() {
       // produto de catálogo (vínculo direto ou match de SKU) — backend usa pra
       // aplicar o estoque virtual (físico+virtual) e respeitar a pausa no mínimo.
       catalog_product_id: ctx.product?.product_id ?? ctx.sku_suggestion?.product_id ?? null,
+      // creative_products.id — pra registrar a publicação em creative_publications.
+      creative_product_id: ctx.listing.product_id ?? null,
     }
   }, [ctx])
 
@@ -83,6 +85,8 @@ export default function ShopeePublishPage() {
         registration_number: regNotApplicable ? undefined : (regNumber.trim() || undefined),
         registration_not_applicable: regNotApplicable || undefined,
         catalog_product_id: data.catalog_product_id ?? undefined,
+        listing_id: listingId,
+        creative_product_id: data.creative_product_id ?? undefined,
       })
       if (!r.ok) setBlockers(r.blockers ?? ['Anúncio não passou no gate de relevância.'])
       else setResult({ item_id: r.item_id, images: r.images, virtual_stock: r.virtual_stock, stock_paused: r.stock_paused, attributes_count: r.attributes_count })

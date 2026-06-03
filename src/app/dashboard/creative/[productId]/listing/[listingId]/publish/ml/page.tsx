@@ -30,6 +30,7 @@ export default function MLPublishPage() {
   const params = useParams<{ productId: string; listingId: string }>()
   const productId = params.productId
   const listingId = params.listingId
+  const storeAlert = useAlert()
 
   const [ctx, setCtx]             = useState<MlPublishContext | null>(null)
   const [loading, setLoading]     = useState(true)
@@ -67,6 +68,22 @@ export default function MLPublishPage() {
   const [alsoStorefront, setAlsoStorefront]       = useState(true)
   const [publishing, setPublishing]   = useState(false)
   const [publishError, setPublishError] = useState<string | null>(null)
+  const [sendingStore, setSendingStore] = useState(false)
+
+  // Enviar este anúncio pra Loja própria (vitrine): sincroniza descrição +
+  // destaques + FAQ no produto de catálogo e o torna visível na loja.
+  const sendToStore = async () => {
+    setSendingStore(true)
+    try {
+      await CreativeApi.sendListingToStorefront(listingId)
+      setStorefrontAlready(true)
+      await storeAlert({ title: 'Enviado para a Loja', message: 'O produto agora aparece na sua Loja (vitrine) com a descrição, os destaques e o FAQ deste anúncio.' })
+    } catch (e) {
+      await storeAlert({ title: 'Não foi possível enviar para a Loja', message: e instanceof Error ? e.message : 'Erro', variant: 'danger' })
+    } finally {
+      setSendingStore(false)
+    }
+  }
 
   // Preço de atacado calculado no painel de markup — enviado ao ML pós-publicação.
   const [wholesale, setWholesale] = useState<{ price: number; minQty: number } | null>(null)
@@ -296,20 +313,32 @@ export default function MLPublishPage() {
               <p className="text-[11px] text-zinc-500 truncate">{t('headerSubtitle', { name: product.name, version: listing.version })}</p>
             </div>
           </div>
-          <Link
-            href={`/dashboard/creative/${productId}/listing/${listingId}/publish/tiktok`}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-xs font-medium text-zinc-200 hover:border-zinc-500"
-          >
-            <span className="flex h-4 w-4 items-center justify-center rounded bg-black text-[9px] font-bold text-white">TT</span>
-            Publicar no TikTok Shop
-          </Link>
-          <Link
-            href={`/dashboard/creative/${productId}/listing/${listingId}/publish/shopee`}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-xs font-medium text-zinc-200 hover:border-zinc-500"
-          >
-            <span className="flex h-4 w-4 items-center justify-center rounded bg-[#ee4d2d] text-[9px] font-bold text-white">SP</span>
-            Publicar na Shopee
-          </Link>
+          {/* Outros canais — agrupados à direita (TikTok / Shopee / Loja) */}
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href={`/dashboard/creative/${productId}/listing/${listingId}/publish/tiktok`}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-xs font-medium text-zinc-200 hover:border-zinc-500"
+            >
+              <span className="flex h-4 w-4 items-center justify-center rounded bg-black text-[9px] font-bold text-white">TT</span>
+              Publicar no TikTok Shop
+            </Link>
+            <Link
+              href={`/dashboard/creative/${productId}/listing/${listingId}/publish/shopee`}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-xs font-medium text-zinc-200 hover:border-zinc-500"
+            >
+              <span className="flex h-4 w-4 items-center justify-center rounded bg-[#ee4d2d] text-[9px] font-bold text-white">SP</span>
+              Publicar na Shopee
+            </Link>
+            <button
+              type="button"
+              onClick={sendToStore}
+              disabled={sendingStore}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-3 py-1.5 text-xs font-medium text-cyan-200 hover:border-cyan-400 disabled:opacity-50"
+            >
+              <span className="text-sm leading-none">🏪</span>
+              {sendingStore ? 'Enviando…' : 'Enviar para Loja'}
+            </button>
+          </div>
         </header>
 
         {/* Banner: estado da publicação */}
@@ -860,6 +889,15 @@ function PublicationRow({ pub: initial, accountName }: { pub: CreativePublicatio
   }
   const c = cfg[pub.status]
 
+  // Selo do marketplace (agora a lista é cross-plataforma: ML + Shopee + TikTok)
+  const MKT: Record<string, { label: string; className: string }> = {
+    mercado_livre: { label: 'Mercado Livre', className: 'bg-amber-400/10 text-amber-300 border-amber-400/30' },
+    shopee:        { label: 'Shopee',        className: 'bg-orange-500/10 text-orange-300 border-orange-500/30' },
+    tiktok_shop:   { label: 'TikTok Shop',   className: 'bg-zinc-800 text-zinc-200 border-zinc-600' },
+    tiktok:        { label: 'TikTok Shop',   className: 'bg-zinc-800 text-zinc-200 border-zinc-600' },
+  }
+  const mkt = MKT[pub.marketplace] ?? { label: String(pub.marketplace), className: 'bg-zinc-900 text-zinc-400 border-zinc-700' }
+
   async function sync() {
     if (syncing) return
     setSyncError(null); setSyncing(true)
@@ -904,6 +942,7 @@ function PublicationRow({ pub: initial, accountName }: { pub: CreativePublicatio
       )}
       <div className="flex items-center justify-between gap-2 text-xs">
         <div className="flex items-center gap-2 min-w-0 flex-wrap">
+          <span className={`px-2 py-0.5 rounded-full text-[10px] border ${mkt.className}`}>{mkt.label}</span>
           <span className={`px-2 py-0.5 rounded-full text-[10px] border ${c.className}`}>{c.label}</span>
           {accountName && (
             <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] border border-zinc-700 bg-zinc-900 text-zinc-300">

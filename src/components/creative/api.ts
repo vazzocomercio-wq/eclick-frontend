@@ -555,6 +555,8 @@ export const CreativeApi = {
     brand_name?: string
     bullets?: string[]
     faq?: Array<{ q: string; a: string }>
+    listing_id?: string
+    creative_product_id?: string
   }) =>
     api<{
       product_id: string | null; uploaded_images: number
@@ -572,6 +574,8 @@ export const CreativeApi = {
     registration_number?: string
     registration_not_applicable?: boolean
     catalog_product_id?: string
+    listing_id?: string
+    creative_product_id?: string
   }) =>
     api<{
       ok: boolean; item_id?: number; category_id?: number | null; images?: number; blockers?: string[]
@@ -638,6 +642,12 @@ export const CreativeApi = {
     api<{ updated: number; skipped: number }>('/products/storefront-visibility', {
       method: 'POST', body: JSON.stringify({ productIds: [productId], visible }),
     }),
+
+  /** Loja Propria — envia ESTE anuncio pra vitrine: resolve o produto de
+   *  catalogo (vinculo direto ou match de SKU), sincroniza descricao + destaques
+   *  + FAQ e torna visivel. */
+  sendListingToStorefront: (listingId: string) =>
+    api<{ product_id: string }>(`/creative/listings/${listingId}/send-to-storefront`, { method: 'POST' }),
 
   /** Preenche os atributos da categoria via IA a partir do produto. */
   suggestMlAttributes: (listingId: string, categoryId?: string) =>

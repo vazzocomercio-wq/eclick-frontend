@@ -67,6 +67,7 @@ export default function TikTokPublishPage() {
       sku: ctx.sku_suggestion?.sku ?? null,
       ml_attributes: ctx.listing.ml_attributes ?? [],
       brand,
+      creative_product_id: ctx.listing.product_id ?? null,
     }
   }, [ctx])
 
@@ -125,6 +126,8 @@ export default function TikTokPublishPage() {
         sku: data.sku ?? undefined,
         ml_attributes: data.ml_attributes,
         brand_name: data.brand ?? undefined,
+        listing_id: listingId,
+        creative_product_id: data.creative_product_id ?? undefined,
       })
       setResult(r)
     } catch (e) {
