@@ -36,13 +36,18 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function StorefrontPage({ params }: Props) {
   const { slug } = await params
-  const store = await getStore(slug)
-  if (!store || store.status !== 'active') notFound()
-
-  const [products, bonusRules] = await Promise.all([
+  // Os 3 fetches dependem só do slug — getProducts/getActiveBonusRules NÃO
+  // precisam do objeto `store`. Antes, getStore era aguardado ANTES dos
+  // produtos, criando um waterfall que somava ~1,2s no cold-start. Rodando
+  // em paralelo, a busca de produtos sobrepõe a da loja. notFound() é avaliado
+  // depois (fetch de produtos pra slug inválido é raro e barato).
+  const [store, products, bonusRules] = await Promise.all([
+    getStore(slug),
     getProducts(slug, 24),
     getActiveBonusRules(slug),
   ])
+  if (!store || store.status !== 'active') notFound()
+
   const resolved = resolveDesign(store)
 
   // JSON-LD (SEO + GEO): autoridade de marca + site.
