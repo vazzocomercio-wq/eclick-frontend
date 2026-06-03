@@ -21,6 +21,16 @@ interface Consolidated {
   fixed_cost: number; net_profit: number; net_margin_pct: number | null
   target_net_margin_pct: number; gap_pct: number | null
   ad_budget_envelope: number; ad_envelope_remaining: number; units: number; orders: number
+  // Fase 2.4 — custo real do ledger (platform_charges)
+  cmv?: number; cmv_imputed?: number; cmv_coverage_pct?: number | null; platform_fees?: number
+  cost_by_category?: Record<string, number>
+}
+
+// rótulos amigáveis das categorias de taxa (platform_charges)
+const CAT_LABELS: Record<string, string> = {
+  comissao: 'Comissão', frete: 'Frete / Envios', servico: 'Taxa de serviço (Shopee)',
+  parcelamento: 'Parcelamento', cobranca: 'Cobrança / recebimento', ads: 'Publicidade (ADS)',
+  imposto: 'Impostos (DIFAL)', outros: 'Outros',
 }
 interface ProductRow {
   product_id: string; name: string; sku: string | null; units: number; revenue: number
@@ -239,6 +249,61 @@ export default function CentralResultadoPage() {
                 )}
               </section>
             </div>
+
+            {/* Quebra real das taxas (platform_charges: fatura ML + escrow Shopee) */}
+            {con.cost_by_category && Object.keys(con.cost_by_category).length > 0 && (
+              <section className="mt-6 rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <h2 className="text-sm font-semibold text-zinc-200">
+                    Para onde vai o dinheiro <span className="text-zinc-500">(taxas reais da fatura/escrow)</span>
+                  </h2>
+                  {con.cmv_coverage_pct != null && (
+                    <span
+                      className="rounded-full px-2.5 py-0.5 text-[11px] font-medium"
+                      style={{
+                        background: con.cmv_coverage_pct >= 90 ? 'rgba(74,222,128,0.12)' : 'rgba(252,211,77,0.12)',
+                        color: con.cmv_coverage_pct >= 90 ? '#4ade80' : '#fcd34d',
+                      }}
+                      title="% da receita com custo cadastrado. O restante tem custo ESTIMADO pela média — cadastre mais custos pra precisão total."
+                    >
+                      custo cadastrado: {pct(con.cmv_coverage_pct)} {con.cmv_coverage_pct < 90 && '· resto estimado'}
+                    </span>
+                  )}
+                </div>
+                {(() => {
+                  const cats = Object.entries(con.cost_by_category!).filter(([, v]) => Math.abs(v) > 0.005)
+                  const max = Math.max(...cats.map(([, v]) => Math.abs(v)), 1)
+                  cats.sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
+                  return (
+                    <div className="flex flex-col gap-1.5">
+                      {cats.map(([k, v]) => (
+                        <div key={k} className="flex items-center gap-2">
+                          <span className="w-44 shrink-0 truncate text-xs text-zinc-400">
+                            {CAT_LABELS[k] ?? k}
+                            {k === 'ads' && <span className="ml-1 text-[10px] text-amber-400/70">marketing</span>}
+                          </span>
+                          <div className="h-4 flex-1 overflow-hidden rounded bg-zinc-800/40">
+                            <div className={`h-full ${k === 'ads' ? 'bg-amber-500/60' : 'bg-cyan-500/50'}`}
+                              style={{ width: `${Math.min(100, (Math.abs(v) / max) * 100)}%` }} />
+                          </div>
+                          <span className="w-24 shrink-0 text-right text-xs tabular-nums text-zinc-200">{brl(v)}</span>
+                          <span className="w-14 shrink-0 text-right text-[11px] tabular-nums text-zinc-500">
+                            {con.revenue > 0 ? `${(v / con.revenue * 100).toFixed(1)}%` : '—'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                })()}
+                <p className="mt-3 rounded-lg bg-zinc-800/40 p-2 text-[11px] text-zinc-400">
+                  Custo do produto (CMV): <span className="tabular-nums text-zinc-200">{brl(con.cmv)}</span>
+                  {con.cmv_imputed != null && con.cmv_imputed > 0 && (
+                    <> · <span className="text-zinc-500">sendo {brl(con.cmv_imputed)} estimado (pedidos sem custo cadastrado)</span></>
+                  )}
+                  {' · '}Taxas de plataforma: <span className="tabular-nums text-zinc-200">{brl(con.platform_fees)}</span>
+                </p>
+              </section>
+            )}
 
             {/* Frete pago por fora (Flex) */}
             <section className="mt-6 rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
