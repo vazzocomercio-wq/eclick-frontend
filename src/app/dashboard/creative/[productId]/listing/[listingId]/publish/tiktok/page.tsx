@@ -259,7 +259,7 @@ export default function TikTokPublishPage() {
         type="button"
         onClick={publish}
         disabled={!canPublish}
-        className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-black px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50"
+        className={`inline-flex w-full items-center justify-center gap-2 rounded-md bg-black px-4 py-2.5 text-sm font-medium disabled:opacity-50 ${category ? 'text-green-400' : 'text-white'}`}
       >
         {publishing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
         {result ? 'Publicado' : 'Publicar no TikTok Shop'}
