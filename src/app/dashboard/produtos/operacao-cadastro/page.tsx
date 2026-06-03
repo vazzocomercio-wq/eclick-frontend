@@ -59,6 +59,11 @@ type Assignment = {
     sku:        string | null
     photo_urls: string[] | null
   } | null
+  // Enriquecido pelo backend (list): fluxo Despachado / Anunciado / Incompleto
+  target_channels?:    string[]
+  announced?:          boolean   // TODOS os canais-alvo já publicados
+  announced_channels?: string[]
+  catalog_complete?:   boolean
 }
 
 type DispatchConfig = {
@@ -68,6 +73,7 @@ type DispatchConfig = {
   due_date:         string
   priority:         'low' | 'normal' | 'high' | 'urgent'
   notes:            string
+  target_channels:  string[]   // canais que o operador deve anunciar
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -80,6 +86,13 @@ function fmtDate(iso: string | null): string {
 function plusDays(days: number): string {
   const d = new Date(Date.now() + days * 24 * 3600_000)
   return d.toISOString().slice(0, 10)
+}
+
+const PUB_CHANNEL_LABEL: Record<string, string> = {
+  mercado_livre: 'Mercado Livre',
+  shopee:        'Shopee',
+  tiktok_shop:   'TikTok',
+  loja_propria:  'Loja',
 }
 
 const STATUS_PILL: Record<Assignment['status'], { bg: string; color: string }> = {
@@ -100,7 +113,7 @@ export default function OperacaoCadastroPage() {
   const [error, setError] = useState<string | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [showDispatchModal, setShowDispatchModal] = useState(false)
-  const [tab, setTab] = useState<'pending' | 'assignments' | 'coverage'>('pending')
+  const [tab, setTab] = useState<'pending' | 'assignments' | 'anunciado' | 'incompleto' | 'coverage'>('pending')
   const [dispatching, setDispatching] = useState(false)
   const [dispatchResult, setDispatchResult] = useState<{ dispatched: number; skipped_existing: number; errors: Array<{ product_id: string; message: string }> } | null>(null)
 
@@ -155,16 +168,42 @@ export default function OperacaoCadastroPage() {
 
   useEffect(() => { void load() }, [load])
 
+  // Separa os assignments no novo fluxo: Despachado → Anunciado → Incompleto.
+  // "Anunciado" = todos os canais-alvo publicados (backend já calcula). Catálogo
+  // incompleto + anunciado → aba Incompleto (lembrete de completar peso/dim/preço).
+  const buckets = useMemo(() => {
+    const announcedIds = new Set<string>()
+    const despachados: Assignment[] = []
+    const anunciados:  Assignment[] = []
+    const incompletos: Assignment[] = []
+    for (const a of assignments) {
+      if (a.status === 'cancelled') continue
+      if (a.announced) {
+        announcedIds.add(a.product_id)
+        if (a.catalog_complete) anunciados.push(a)
+        else incompletos.push(a)
+      } else if (a.status !== 'completed') {
+        despachados.push(a)
+      }
+    }
+    return { announcedIds, despachados, anunciados, incompletos }
+  }, [assignments])
+
+  // Pendentes = incompletos do catálogo que AINDA não foram anunciados.
+  const pendingList = useMemo(
+    () => (summary?.sample_incomplete ?? []).filter(p => !buckets.announcedIds.has(p.id)),
+    [summary, buckets],
+  )
+
   // ── selection ────────────────────────────────────────────────────────────
 
   const toggleAll = useCallback(() => {
-    if (!summary) return
-    if (selected.size === summary.sample_incomplete.length) {
+    if (selected.size === pendingList.length) {
       setSelected(new Set())
     } else {
-      setSelected(new Set(summary.sample_incomplete.map(p => p.id)))
+      setSelected(new Set(pendingList.map(p => p.id)))
     }
-  }, [summary, selected.size])
+  }, [pendingList, selected.size])
 
   const toggleOne = useCallback((id: string) => {
     setSelected(prev => {
@@ -192,6 +231,7 @@ export default function OperacaoCadastroPage() {
           operator_user_id: config.operator_user_id,
           pipeline_id:      config.pipeline_id,
           stage_id:         config.stage_id,
+          target_channels:  config.target_channels,
           due_date:         config.due_date ? new Date(config.due_date + 'T18:00:00').toISOString() : undefined,
           task_priority:    config.priority,
           notes:            config.notes || undefined,
@@ -216,19 +256,73 @@ export default function OperacaoCadastroPage() {
 
   // ── KPIs ────────────────────────────────────────────────────────────────
 
-  const kpis = useMemo(() => {
-    const open = assignments.filter(a => a.status === 'open').length
-    const inProgress = assignments.filter(a => a.status === 'in_progress').length
-    const completed7d = assignments.filter(a => a.status === 'completed' &&
-      a.completed_at &&
-      new Date(a.completed_at).getTime() > Date.now() - 7 * 24 * 3600_000).length
-    return {
-      pendentes:    summary?.incomplete_count ?? 0,
-      em_andamento: inProgress,
-      em_fila:      open,
-      concluidos_7d: completed7d,
-    }
-  }, [summary, assignments])
+  const kpis = useMemo(() => ({
+    // tira da contagem de pendentes os que já estão anunciados (foram pra Incompleto)
+    pendentes:   Math.max(0, (summary?.incomplete_count ?? 0) - buckets.incompletos.length),
+    despachados: buckets.despachados.length,
+    anunciados:  buckets.anunciados.length,
+    incompletos: buckets.incompletos.length,
+  }), [summary, buckets])
+
+  // Tabela de assignments reutilizada por Despachado / Anunciado / Incompleto.
+  const renderAssignTable = (rows: Assignment[], emptyIcon: string, emptyTitle: string) => (
+    rows.length === 0 ? (
+      <div className="text-center py-12 rounded-2xl" style={{ background: '#111114', border: '1px solid #27272a' }}>
+        <div className="text-4xl mb-2">{emptyIcon}</div>
+        <div className="text-base font-semibold">{emptyTitle}</div>
+      </div>
+    ) : (
+      <div className="rounded-2xl overflow-hidden" style={{ background: '#111114', border: '1px solid #27272a' }}>
+        <table className="w-full text-sm">
+          <thead style={{ background: '#0d0d10' }}>
+            <tr className="text-[11px] text-zinc-500 uppercase tracking-wider">
+              <th className="px-3 py-3 text-left">{t('ops.col.product')}</th>
+              <th className="px-3 py-3 text-left">Canais</th>
+              <th className="px-3 py-3 text-left">{t('ops.col.missing')}</th>
+              <th className="px-3 py-3 text-left">{t('ops.col.dispatchedAt')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(a => {
+              const chans = (a.target_channels && a.target_channels.length) ? a.target_channels : (a.announced_channels ?? [])
+              const doneSet = new Set(a.announced_channels ?? [])
+              return (
+                <tr key={a.id} className="border-t" style={{ borderColor: '#27272a' }}>
+                  <td className="px-3 py-2.5">
+                    <div className="text-sm font-medium">{a.products?.name ?? '—'}</div>
+                    <div className="text-[11px] text-zinc-500 font-mono">{a.products?.sku ?? '—'}</div>
+                  </td>
+                  <td className="px-3 py-2.5">
+                    <div className="flex flex-wrap gap-1">
+                      {chans.map(ch => {
+                        const done = doneSet.has(ch)
+                        return (
+                          <span key={ch} className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] border"
+                            style={done
+                              ? { background: 'rgba(52,211,153,0.12)', color: '#34d399', borderColor: 'rgba(52,211,153,0.3)' }
+                              : { background: '#0a0a0c', color: '#a1a1aa', borderColor: '#3f3f46' }}>
+                            {PUB_CHANNEL_LABEL[ch] ?? ch}{done ? ' ✓' : ''}
+                          </span>
+                        )
+                      })}
+                      {chans.length === 0 && <span className="text-[10px] text-zinc-600">—</span>}
+                    </div>
+                  </td>
+                  <td className="px-3 py-2.5">
+                    <div className="text-[11px] text-zinc-400">
+                      {a.missing_fields_snapshot.slice(0, 3).map(m => m.label).join(' • ')}
+                      {a.missing_fields_snapshot.length > 3 && ` +${a.missing_fields_snapshot.length - 3}`}
+                    </div>
+                  </td>
+                  <td className="px-3 py-2.5 text-[12px] text-zinc-400">{fmtDate(a.created_at)}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    )
+  )
 
   // ── UI ───────────────────────────────────────────────────────────────────
 
@@ -264,18 +358,22 @@ export default function OperacaoCadastroPage() {
 
         {/* KPIs */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-          <Kpi label={t('ops.kpi.pending')} value={kpis.pendentes} color="amber" />
-          <Kpi label={t('ops.kpi.inProgress')} value={kpis.em_andamento} color="cyan" />
-          <Kpi label={t('ops.kpi.queued')} value={kpis.em_fila} />
-          <Kpi label={t('ops.kpi.completed7d')} value={kpis.concluidos_7d} color="emerald" />
+          <Kpi label="Pendentes" value={kpis.pendentes} color="amber" />
+          <Kpi label="Despachados" value={kpis.despachados} color="cyan" />
+          <Kpi label="Anunciados" value={kpis.anunciados} color="emerald" />
+          <Kpi label="Incompletos" value={kpis.incompletos} color="amber" />
         </div>
 
         {/* Tabs */}
         <div className="flex items-center gap-1 mb-4 border-b" style={{ borderColor: '#27272a' }}>
           <TabBtn active={tab === 'pending'} onClick={() => setTab('pending')}
-            label={t('ops.tab.pending')} count={summary?.incomplete_count ?? 0} />
+            label={t('ops.tab.pending')} count={kpis.pendentes} />
           <TabBtn active={tab === 'assignments'} onClick={() => setTab('assignments')}
-            label={t('ops.tab.dispatched')} count={assignments.filter(a => a.status !== 'completed').length} />
+            label={t('ops.tab.dispatched')} count={buckets.despachados.length} />
+          <TabBtn active={tab === 'anunciado'} onClick={() => setTab('anunciado')}
+            label="Anunciado" count={buckets.anunciados.length} />
+          <TabBtn active={tab === 'incompleto'} onClick={() => setTab('incompleto')}
+            label="Incompleto" count={buckets.incompletos.length} />
           <TabBtn active={tab === 'coverage'} onClick={() => setTab('coverage')}
             label="Sem anúncio" count={0} />
         </div>
@@ -380,7 +478,7 @@ export default function OperacaoCadastroPage() {
                     <tr className="text-[11px] text-zinc-500 uppercase tracking-wider">
                       <th className="px-3 py-3 text-left w-10">
                         <input type="checkbox"
-                          checked={summary.sample_incomplete.length > 0 && selected.size === summary.sample_incomplete.length}
+                          checked={pendingList.length > 0 && selected.size === pendingList.length}
                           onChange={toggleAll}
                           className="w-4 h-4 cursor-pointer accent-cyan-400" />
                       </th>
@@ -392,7 +490,7 @@ export default function OperacaoCadastroPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {summary.sample_incomplete.map(p => {
+                    {pendingList.map(p => {
                       const stock = p.stock ?? 0
                       const stockColor = stock === 0 ? '#71717a' : stock <= 5 ? '#facc15' : stock <= 20 ? '#a1a1aa' : '#34d399'
                       return (
@@ -433,10 +531,10 @@ export default function OperacaoCadastroPage() {
                     })}
                   </tbody>
                 </table>
-                {summary.incomplete_count > summary.sample_incomplete.length && (
+                {kpis.pendentes > pendingList.length && (
                   <div className="px-4 py-3 text-center text-xs text-zinc-500"
                     style={{ borderTop: '1px solid #27272a' }}>
-                    {t('ops.showingOf', { shown: summary.sample_incomplete.length, total: summary.incomplete_count })}
+                    {t('ops.showingOf', { shown: pendingList.length, total: kpis.pendentes })}
                   </div>
                 )}
               </div>
@@ -445,54 +543,10 @@ export default function OperacaoCadastroPage() {
           </>
         )}
 
-        {/* ASSIGNMENTS tab */}
-        {tab === 'assignments' && (
-          assignments.length === 0 ? (
-            <div className="text-center py-12 rounded-2xl" style={{ background: '#111114', border: '1px solid #27272a' }}>
-              <div className="text-4xl mb-2">📋</div>
-              <div className="text-base font-semibold">{t('ops.noDispatches')}</div>
-              <div className="text-sm text-zinc-500 mt-1">{t('ops.noDispatchesHint')}</div>
-            </div>
-          ) : (
-            <div className="rounded-2xl overflow-hidden" style={{ background: '#111114', border: '1px solid #27272a' }}>
-              <table className="w-full text-sm">
-                <thead style={{ background: '#0d0d10' }}>
-                  <tr className="text-[11px] text-zinc-500 uppercase tracking-wider">
-                    <th className="px-3 py-3 text-left">{t('ops.col.product')}</th>
-                    <th className="px-3 py-3 text-left">{t('ops.col.status')}</th>
-                    <th className="px-3 py-3 text-left">{t('ops.col.missing')}</th>
-                    <th className="px-3 py-3 text-left">{t('ops.col.deadline')}</th>
-                    <th className="px-3 py-3 text-left">{t('ops.col.dispatchedAt')}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {assignments.map(a => (
-                    <tr key={a.id} className="border-t" style={{ borderColor: '#27272a' }}>
-                      <td className="px-3 py-2.5">
-                        <div className="text-sm font-medium">{a.products?.name ?? '—'}</div>
-                        <div className="text-[11px] text-zinc-500 font-mono">{a.products?.sku ?? '—'}</div>
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium"
-                          style={{ background: STATUS_PILL[a.status].bg, color: STATUS_PILL[a.status].color }}>
-                          {t(`ops.status.${a.status}`)}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <div className="text-[11px] text-zinc-400">
-                          {a.missing_fields_snapshot.slice(0, 3).map(m => m.label).join(' • ')}
-                          {a.missing_fields_snapshot.length > 3 && ` +${a.missing_fields_snapshot.length - 3}`}
-                        </div>
-                      </td>
-                      <td className="px-3 py-2.5 text-[12px] text-zinc-400">{fmtDate(a.due_date)}</td>
-                      <td className="px-3 py-2.5 text-[12px] text-zinc-400">{fmtDate(a.created_at)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )
-        )}
+        {/* DESPACHADOS / ANUNCIADO / INCOMPLETO — mesma tabela, listas diferentes */}
+        {tab === 'assignments' && renderAssignTable(buckets.despachados, '📋', t('ops.noDispatches'))}
+        {tab === 'anunciado'   && renderAssignTable(buckets.anunciados, '✅', 'Nenhum produto anunciado ainda')}
+        {tab === 'incompleto'  && renderAssignTable(buckets.incompletos, '⚠️', 'Nenhum produto incompleto (anunciado mas faltando peso/dimensão/preço)')}
 
         {/* COVERAGE tab — produtos sem anúncio / cobertura parcial */}
         {tab === 'coverage' && <CoverageTab />}
@@ -612,6 +666,7 @@ function DispatchModal({ count, onClose, onConfirm, loading, mode = 'cadastro' }
   const [dueDate, setDueDate] = useState(plusDays(3))
   const [priority, setPriority] = useState<DispatchConfig['priority']>('normal')
   const [notes, setNotes] = useState('')
+  const [channels, setChannels] = useState<string[]>(['mercado_livre'])
 
   // Dropdowns Active
   const [agents, setAgents]       = useState<ActiveAgent[]>([])
@@ -773,6 +828,24 @@ function DispatchModal({ count, onClose, onConfirm, loading, mode = 'cadastro' }
             </select>
           </Field>
 
+          <Field label="Canais a anunciar" hint="O produto vira 'Anunciado' quando TODOS os marcados forem publicados.">
+            <div className="flex flex-wrap gap-2">
+              {(['mercado_livre', 'shopee', 'tiktok_shop', 'loja_propria'] as const).map(ch => {
+                const on = channels.includes(ch)
+                return (
+                  <button key={ch} type="button"
+                    onClick={() => setChannels(prev => on ? prev.filter(c => c !== ch) : [...prev, ch])}
+                    className="px-2.5 py-1 rounded-lg text-xs border transition-all"
+                    style={on
+                      ? { background: 'rgba(0,229,255,0.12)', color: '#67e8f9', borderColor: 'rgba(0,229,255,0.4)' }
+                      : { background: '#0a0a0c', color: '#a1a1aa', borderColor: '#3f3f46' }}>
+                    {on ? '✓ ' : ''}{PUB_CHANNEL_LABEL[ch]}
+                  </button>
+                )
+              })}
+            </div>
+          </Field>
+
           <div className="grid grid-cols-2 gap-3">
             <Field label={t('ops.modal.deadline')}>
               <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)}
@@ -813,6 +886,7 @@ function DispatchModal({ count, onClose, onConfirm, loading, mode = 'cadastro' }
             due_date:         dueDate,
             priority,
             notes,
+            target_channels:  channels,
           })}
             disabled={!canSubmit || loading}
             className="px-4 py-2 rounded-lg text-sm font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed"
@@ -973,6 +1047,7 @@ function CoverageTab() {
           operator_user_id: config.operator_user_id,
           pipeline_id:      config.pipeline_id,
           stage_id:         config.stage_id,
+          target_channels:  config.target_channels,
           due_date:         config.due_date ? new Date(config.due_date + 'T18:00:00').toISOString() : undefined,
           task_priority:    config.priority,
           notes:            config.notes || undefined,
