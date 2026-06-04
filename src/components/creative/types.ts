@@ -490,7 +490,7 @@ export interface CreativePublication {
   product_id:                    string
   user_id:                       string | null
   seller_id:                     number | null
-  marketplace:                   'mercado_livre' | 'shopee' | 'amazon' | 'magalu'
+  marketplace:                   'mercado_livre' | 'shopee' | 'amazon' | 'magalu' | 'tiktok_shop' | 'tiktok' | 'loja_propria'
   status:                        'pending' | 'publishing' | 'published' | 'failed'
   idempotency_key:               string
   image_ids:                     string[]

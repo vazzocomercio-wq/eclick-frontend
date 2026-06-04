@@ -954,7 +954,7 @@ function PublicationRow({ pub: initial, accountName }: { pub: CreativePublicatio
             <span className="font-mono text-cyan-300 text-[10px]">{pub.external_id}</span>
           )}
           {pub.last_synced_status && pub.status === 'published' && (
-            <MlStatusBadge status={pub.last_synced_status} syncedAt={pub.last_synced_at} />
+            <PlatformStatusBadge marketplace={pub.marketplace} status={pub.last_synced_status} syncedAt={pub.last_synced_at} />
           )}
           <span className="text-zinc-500 text-[10px]">
             {new Date(pub.created_at).toLocaleString('pt-BR')}
@@ -980,7 +980,7 @@ function PublicationRow({ pub: initial, accountName }: { pub: CreativePublicatio
               rel="noopener noreferrer"
               className="flex items-center gap-1 text-[10px] text-amber-300 hover:text-amber-200"
             >
-              <ExternalLink size={10} /> {t('viewOnMl')}
+              <ExternalLink size={10} /> {pub.marketplace === 'mercado_livre' ? t('viewOnMl') : t('viewListing')}
             </a>
           )}
         </div>
@@ -997,7 +997,13 @@ function PublicationRow({ pub: initial, accountName }: { pub: CreativePublicatio
   )
 }
 
-function MlStatusBadge({ status, syncedAt }: { status: string; syncedAt: string | null }) {
+// Selo de status sincronizado, agora cross-plataforma. O prefixo é a marca
+// (ML/Shopee/TikTok/Loja) — independente de idioma; o status reusa os rótulos
+// i18n do ML (o backend normaliza todo mundo pro mesmo vocabulário).
+const STATUS_PREFIX: Record<string, string> = {
+  mercado_livre: 'ML', shopee: 'Shopee', tiktok_shop: 'TikTok', tiktok: 'TikTok', loja_propria: 'Loja',
+}
+function PlatformStatusBadge({ marketplace, status, syncedAt }: { marketplace: CreativePublication['marketplace']; status: string; syncedAt: string | null }) {
   const t = useTranslations('creative.publish')
   const cfg: Record<string, { label: string; className: string }> = {
     active:           { label: t('mlStatusActive'),          className: 'bg-emerald-400/10 text-emerald-300 border-emerald-400/30' },
@@ -1008,10 +1014,11 @@ function MlStatusBadge({ status, syncedAt }: { status: string; syncedAt: string 
     payment_required: { label: t('mlStatusPaymentRequired'), className: 'bg-red-500/10 text-red-300 border-red-500/30' },
   }
   const c = cfg[status] ?? { label: status, className: 'bg-zinc-900 text-zinc-300 border-zinc-700' }
+  const prefix = STATUS_PREFIX[marketplace] ?? ''
   const hint = syncedAt ? t('mlSyncedAt', { date: new Date(syncedAt).toLocaleString('pt-BR') }) : t('mlNotSynced')
   return (
     <span title={hint} className={`px-2 py-0.5 rounded-full text-[10px] border ${c.className}`}>
-      {t('mlStatusBadge', { status: c.label })}
+      {prefix ? `${prefix}: ${c.label}` : c.label}
     </span>
   )
 }

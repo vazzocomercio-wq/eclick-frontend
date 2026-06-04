@@ -9096,6 +9096,7 @@
       "sync": "sync",
       "syncTooltip": "Sync status with ML",
       "viewOnMl": "view on ML",
+      "viewListing": "view listing",
       "syncError": "sync: {error}",
       "mlStatusActive": "active",
       "mlStatusPaused": "paused",

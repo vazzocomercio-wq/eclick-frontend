@@ -1,5 +1,7 @@
 'use client'
 
+import { useState, useRef, useEffect } from 'react'
+import { ChevronDown, Search, Check } from 'lucide-react'
 import type { MlRequiredAttribute } from './types'
 
 interface AttributeValue {
@@ -137,23 +139,18 @@ function renderInput(
     )
   }
 
-  // List fechada (value_type='list') ou boolean com opções → select restrito
+  // List fechada (value_type='list') ou boolean com opções → dropdown nosso,
+  // estilizado + PESQUISÁVEL (substitui o <select> nativo, cuja barra de
+  // rolagem o navegador não deixa estilizar; e digitar filtra entre as cores).
   if (attr.values && attr.values.length > 0) {
     return (
-      <select
-        value={current?.value_id ?? ''}
-        onChange={e => {
-          const opt = attr.values!.find(o => o.id === e.target.value)
-          if (opt) setValue(attr.id, { value_id: opt.id, value_name: opt.name })
-          else setValue(attr.id, { value_id: undefined, value_name: undefined })
-        }}
-        className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-zinc-200 outline-none focus:border-cyan-400"
-      >
-        <option value="">— selecione —</option>
-        {attr.values.map(o => (
-          <option key={o.id} value={o.id}>{o.name}</option>
-        ))}
-      </select>
+      <SearchableSelect
+        options={attr.values}
+        value={current?.value_id}
+        onSelect={opt => opt
+          ? setValue(attr.id, { value_id: opt.id, value_name: opt.name })
+          : setValue(attr.id, { value_id: undefined, value_name: undefined })}
+      />
     )
   }
 
@@ -206,5 +203,104 @@ function renderInput(
       placeholder={attr.value_max_length ? `máx ${attr.value_max_length} caracteres` : 'preencha aqui'}
       className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-zinc-200 outline-none focus:border-cyan-400"
     />
+  )
+}
+
+/** Dropdown estilizado + pesquisável (substitui o <select> nativo). A lista é
+ *  um elemento nosso → herda a barra de rolagem do tema (globals.css). Digitar
+ *  filtra as opções — ótimo pra atributos com muitas opções (cor, voltagem…). */
+type SelectOption = { id: string; name: string }
+function SearchableSelect({
+  options, value, onSelect, placeholder = '— selecione —',
+}: {
+  options:     SelectOption[]
+  value:       string | undefined
+  onSelect:    (opt: SelectOption | null) => void
+  placeholder?: string
+}) {
+  const [open, setOpen]   = useState(false)
+  const [query, setQuery] = useState('')
+  const rootRef  = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const selected = options.find(o => o.id === value) ?? null
+  const q = query.trim().toLowerCase()
+  const filtered = q ? options.filter(o => o.name.toLowerCase().includes(q)) : options
+
+  // Fecha ao clicar fora.
+  useEffect(() => {
+    if (!open) return
+    const onDoc = (e: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [open])
+
+  // Ao abrir: limpa a busca e foca o campo.
+  useEffect(() => {
+    if (open) { setQuery(''); const id = setTimeout(() => inputRef.current?.focus(), 0); return () => clearTimeout(id) }
+  }, [open])
+
+  return (
+    <div ref={rootRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between gap-2 bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs outline-none focus:border-cyan-400 hover:border-zinc-700"
+      >
+        <span className={selected ? 'text-zinc-200 truncate' : 'text-zinc-500 truncate'}>
+          {selected ? selected.name : placeholder}
+        </span>
+        <ChevronDown size={13} className={`shrink-0 text-zinc-500 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {open && (
+        <div className="absolute z-30 mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-900 shadow-xl shadow-black/50 overflow-hidden">
+          <div className="p-1.5 border-b border-zinc-800">
+            <div className="flex items-center gap-1.5 bg-zinc-950 border border-zinc-800 rounded-md px-2 focus-within:border-cyan-400">
+              <Search size={12} className="shrink-0 text-zinc-500" />
+              <input
+                ref={inputRef}
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                placeholder="Buscar…"
+                className="w-full bg-transparent py-1.5 text-xs text-zinc-200 outline-none placeholder:text-zinc-600"
+              />
+            </div>
+          </div>
+          <div className="max-h-52 overflow-y-auto py-1">
+            <button
+              type="button"
+              onClick={() => { onSelect(null); setOpen(false) }}
+              className="w-full text-left px-3 py-1.5 text-xs text-zinc-500 hover:bg-zinc-800/70"
+            >
+              {placeholder}
+            </button>
+            {filtered.length === 0 ? (
+              <p className="px-3 py-2 text-[11px] text-zinc-600">Nenhuma opção encontrada</p>
+            ) : (
+              filtered.map(o => {
+                const active = o.id === value
+                return (
+                  <button
+                    key={o.id}
+                    type="button"
+                    onClick={() => { onSelect(o); setOpen(false) }}
+                    className={[
+                      'w-full text-left px-3 py-1.5 text-xs flex items-center justify-between gap-2 hover:bg-zinc-800/70',
+                      active ? 'text-cyan-300' : 'text-zinc-200',
+                    ].join(' ')}
+                  >
+                    <span className="truncate">{o.name}</span>
+                    {active && <Check size={12} className="shrink-0 text-cyan-300" />}
+                  </button>
+                )
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
   )
 }

@@ -9096,6 +9096,7 @@
       "sync": "同步",
       "syncTooltip": "与 ML 同步状态",
       "viewOnMl": "在 ML 上查看",
+      "viewListing": "查看商品",
       "syncError": "同步：{error}",
       "mlStatusActive": "在售",
       "mlStatusPaused": "已暂停",

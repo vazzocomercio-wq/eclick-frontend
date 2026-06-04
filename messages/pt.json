@@ -9265,6 +9265,7 @@
       "sync": "sync",
       "syncTooltip": "Sincronizar status com ML",
       "viewOnMl": "ver no ML",
+      "viewListing": "ver anúncio",
       "syncError": "sync: {error}",
       "mlStatusActive": "ativo",
       "mlStatusPaused": "pausado",
