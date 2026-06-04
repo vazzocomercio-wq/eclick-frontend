@@ -52,7 +52,7 @@ export function ProductGalleryClient({ photos, alt }: Props) {
       }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={mainImage} alt={alt} loading="lazy"
-          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+          style={{ width: '100%', height: '100%', objectFit: 'contain', padding: 16, boxSizing: 'border-box', display: 'block' }} />
 
         {/* Setas (só quando tem mais que 1) */}
         {total > 1 && (

@@ -41,7 +41,7 @@ export function PremiumProductCard({ product, slug, ctx, carousel = false }: {
           <img
             src={product.photo_urls[0]}
             alt={product.name}
-            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+            className="absolute inset-0 w-full h-full object-contain p-3 box-border transition-transform duration-500 group-hover:scale-105"
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-xs text-zinc-400">
@@ -54,7 +54,7 @@ export function PremiumProductCard({ product, slug, ctx, carousel = false }: {
             src={product.photo_urls![1]}
             alt=""
             aria-hidden
-            className="absolute inset-0 w-full h-full object-cover opacity-0 transition-opacity duration-500 group-hover:opacity-100"
+            className="absolute inset-0 w-full h-full object-contain p-3 box-border opacity-0 transition-opacity duration-500 group-hover:opacity-100"
           />
         )}
       </div>

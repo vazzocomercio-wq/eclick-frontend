@@ -73,7 +73,7 @@ function CarouselCard({ product, variant, paymentDisplay, cashback }: {
     <>
       <div style={{ position: 'relative', aspectRatio: '1 / 1', borderRadius: 'var(--r)', overflow: 'hidden', background: 'var(--c-surface)' }}>
         {img
-          ? <img src={img} alt={product.name} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          ? <img src={img} alt={product.name} loading="lazy" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', padding: 12, boxSizing: 'border-box' }} />
           : null}
         {product.on_sale && (
           <div style={{ position: 'absolute', top: 8, left: 8 }}>

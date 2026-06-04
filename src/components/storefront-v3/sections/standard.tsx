@@ -330,7 +330,7 @@ export function FeaturedProduct({ ctx, section }: { ctx: RenderCtx; section: Fea
         <div className="md:flex-1">
           {img
             // eslint-disable-next-line @next/next/no-img-element
-            ? <img src={img} alt={product.name} loading="lazy" style={{ width: '100%', aspectRatio: '1/1', objectFit: 'cover', borderRadius: 'var(--r)' }} />
+            ? <img src={img} alt={product.name} loading="lazy" style={{ width: '100%', aspectRatio: '1/1', objectFit: 'contain', background: 'var(--c-surface)', padding: 16, boxSizing: 'border-box', borderRadius: 'var(--r)' }} />
             : <div style={{ width: '100%', aspectRatio: '1/1', background: 'var(--c-surface)', borderRadius: 'var(--r)' }} />}
         </div>
         <div className="md:flex-1 flex flex-col justify-center">

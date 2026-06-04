@@ -39,7 +39,7 @@ export function ProductCard({ ctx, product, variant }: {
         {img
           ? /* eslint-disable-next-line @next/next/no-img-element */
             <img src={img} alt={product.name} loading="lazy"
-              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', padding: 12, boxSizing: 'border-box', display: 'block' }} />
           : null}
         <div style={{ position: 'absolute', top: 8, right: 8, zIndex: 2 }}>
           <WishlistButton slug={ctx.slug} productId={product.id} size="sm" />

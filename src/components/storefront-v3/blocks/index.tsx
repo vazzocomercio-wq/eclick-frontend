@@ -145,7 +145,7 @@ export function ProductCardMini({ ctx, block }: { ctx: RenderCtx; block: Product
   const img = product.photo_urls?.[0]
   return (
     <a href={`/loja/${ctx.slug}/produto/${product.id}`} style={{ display: 'block', textDecoration: 'none', color: 'var(--c-text)' }}>
-      {img ? <img src={img} alt={product.name} loading="lazy" style={{ width: '100%', aspectRatio: '1/1', objectFit: 'cover' }} /> : null}
+      {img ? <img src={img} alt={product.name} loading="lazy" style={{ width: '100%', aspectRatio: '1/1', objectFit: 'contain', background: 'var(--c-surface)', padding: 10, boxSizing: 'border-box' }} /> : null}
       <div style={{ padding: '8px 0' }}>
         <div style={{ fontFamily: 'var(--f-body)', fontSize: 14 }}>{product.name}</div>
         {block.settings.showPrice && (

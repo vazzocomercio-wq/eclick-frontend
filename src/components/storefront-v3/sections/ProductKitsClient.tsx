@@ -148,7 +148,7 @@ export function ProductKitsClient({ slug, settings, productId }: { slug: string;
                   style={{ flex: 1, aspectRatio: '1 / 1', display: 'block', overflow: 'hidden' }}>
                   {it.imageUrl
                     // eslint-disable-next-line @next/next/no-img-element
-                    ? <img src={it.imageUrl} alt={it.name} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                    ? <img src={it.imageUrl} alt={it.name} style={{ width: '100%', height: '100%', objectFit: 'contain', background: 'var(--c-surface, #111114)', padding: 6, boxSizing: 'border-box', display: 'block' }} />
                     : <span style={{ display: 'flex', width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center', color: 'var(--c-text-muted)', fontSize: 12 }}>sem foto</span>}
                 </a>
               ))}
