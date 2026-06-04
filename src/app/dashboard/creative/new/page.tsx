@@ -335,8 +335,14 @@ export default function CreativeNewPage() {
       }
 
       setPhase('done')
-      const qs = imageJobId ? `?job=${imageJobId}` : ''
-      router.push(`/dashboard/creative/${product.id}/listing/${listing.id}${qs}`)
+      // Gerou imagens com IA → abre DIRETO a tela de geração de imagens (o user
+      // quer ver as imagens nascendo, não cair no editor de texto). Sem IA
+      // (fotos do catálogo, já aprovadas) → vai pro editor do anúncio.
+      if (imageJobId) {
+        router.push(`/dashboard/creative/${product.id}/images/${imageJobId}`)
+      } else {
+        router.push(`/dashboard/creative/${product.id}/listing/${listing.id}`)
+      }
     } catch (e: unknown) {
       setError((e as Error).message)
       setSubmitting(false)
