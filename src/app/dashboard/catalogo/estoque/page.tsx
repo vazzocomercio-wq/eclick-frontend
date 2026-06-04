@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
-import { AlertTriangle, Package, TrendingDown, CheckCircle2, XCircle, RefreshCw, ChevronDown, ChevronUp, X } from 'lucide-react'
+import { AlertTriangle, Package, TrendingDown, CheckCircle2, XCircle, RefreshCw, ChevronDown, ChevronUp, X, Boxes, Layers } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -506,6 +506,91 @@ function StockDetailDrawer({ row, onClose }: { row: StockRow; onClose: () => voi
 type FilterKey = 'all' | 'zero' | 'critical' | 'low' | 'ok'
 type SortKey = 'name' | 'qty' | 'platformQty' | 'alert' | 'minStock'
 
+// ── Regra CENTRAL de estoque virtual (todos os canais) ─────────────────────
+// Define UMA regra (físico + N virtual, pausa quando o físico zera) e aplica a
+// TODOS os produtos com anúncio vinculado, em todos os canais (ML/Shopee/TikTok).
+function VirtualRuleCard({ onApplied }: { onApplied: () => void }) {
+  const [open, setOpen]     = useState(false)
+  const [units, setUnits]   = useState('1000')
+  const [confirm, setConfirm] = useState<'apply' | 'clear' | null>(null)
+  const [busy, setBusy]     = useState(false)
+  const [msg, setMsg]       = useState<string | null>(null)
+  const [err, setErr]       = useState<string | null>(null)
+
+  async function run(clear: boolean) {
+    setBusy(true); setErr(null); setMsg(null)
+    try {
+      const token = await getToken()
+      const res = await fetch(`${BACKEND}/stock/virtual-rule`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(clear ? { clear: true } : { virtual_units: Number(units) }),
+      })
+      const j = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(j.message ?? `HTTP ${res.status}`)
+      setMsg(clear
+        ? `Regra removida de ${j.products} produto(s). Voltando ao estoque clássico.`
+        : `Regra aplicada a ${j.products} produto(s): físico + ${Number(units)} virtual, pausa quando o físico zerar. Propagando pros canais…`)
+      setConfirm(null)
+      onApplied()
+    } catch (e) { setErr((e as Error).message) }
+    finally { setBusy(false) }
+  }
+
+  return (
+    <div className="rounded-xl" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+      <button onClick={() => setOpen(o => !o)} className="w-full flex items-center gap-2 p-4">
+        <Layers size={16} className="text-cyan-400" />
+        <div className="text-left">
+          <p className="text-sm font-semibold text-zinc-200">Regra central de estoque virtual</p>
+          <p className="text-[11px] text-zinc-500">Aplica a mesma regra (físico + virtual, pausa no físico-zero) a todos os anúncios de todos os canais</p>
+        </div>
+        {open ? <ChevronUp size={16} className="ml-auto text-zinc-500" /> : <ChevronDown size={16} className="ml-auto text-zinc-500" />}
+      </button>
+
+      {open && (
+        <div className="px-4 pb-4 space-y-3" style={{ borderTop: '1px solid #1e1e24' }}>
+          <div className="flex flex-wrap items-end gap-3 pt-3">
+            <label className="block">
+              <span className="text-[10px] uppercase tracking-wider text-zinc-600 flex items-center gap-1"><Boxes size={11} /> Estoque virtual (+N) por anúncio</span>
+              <input type="number" min={0} value={units} onChange={e => setUnits(e.target.value)}
+                className="w-32 mt-1 px-2 py-1.5 rounded-lg text-sm text-zinc-200 tabular-nums"
+                style={{ background: '#0d0d10', border: '1px solid #27272a', outline: 'none' }} />
+            </label>
+            <p className="text-[11px] text-zinc-500 flex-1 min-w-[200px]">
+              Cada anúncio passa a exibir <b className="text-zinc-300">físico + {Number(units) || 0}</b>, e <b className="text-zinc-300">pausa automaticamente quando o estoque físico zerar</b>. Vale pra ML, Shopee e TikTok.
+            </p>
+          </div>
+
+          {confirm === 'apply' ? (
+            <div className="flex flex-wrap items-center gap-2 rounded-lg p-2" style={{ background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.3)' }}>
+              <span className="text-[11px] text-amber-300 flex-1">⚠ Muda o estoque exibido em TODOS os canais (inclui o ML). Confirmar?</span>
+              <button onClick={() => setConfirm(null)} className="text-[11px] text-zinc-400 px-2 py-1">Cancelar</button>
+              <button onClick={() => run(false)} disabled={busy} className="text-[11px] font-semibold px-3 py-1 rounded-lg disabled:opacity-50" style={{ background: '#00E5FF', color: '#06181c' }}>{busy ? 'Aplicando…' : 'Confirmar e aplicar'}</button>
+            </div>
+          ) : confirm === 'clear' ? (
+            <div className="flex flex-wrap items-center gap-2 rounded-lg p-2" style={{ background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.3)' }}>
+              <span className="text-[11px] text-red-300 flex-1">Remover a regra de todos os produtos (voltar ao estoque clássico)?</span>
+              <button onClick={() => setConfirm(null)} className="text-[11px] text-zinc-400 px-2 py-1">Cancelar</button>
+              <button onClick={() => run(true)} disabled={busy} className="text-[11px] font-semibold px-3 py-1 rounded-lg disabled:opacity-50" style={{ background: '#f87171', color: '#1a0a0a' }}>{busy ? 'Removendo…' : 'Confirmar remoção'}</button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <button onClick={() => setConfirm('apply')} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: 'rgba(0,229,255,0.1)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.35)' }}>
+                <Layers size={12} /> Aplicar a todos os canais
+              </button>
+              <button onClick={() => setConfirm('clear')} className="px-3 py-1.5 rounded-lg text-xs font-medium" style={{ border: '1px solid #27272a', color: '#71717a' }}>Remover regra</button>
+            </div>
+          )}
+
+          {msg && <p className="text-[11px] text-emerald-400">{msg}</p>}
+          {err && <p className="text-[11px] text-red-400">{err}</p>}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function EstoquePage() {
   const t = useTranslations('catalogo')
   const [rows, setRows]         = useState<StockRow[]>([])
@@ -660,6 +745,9 @@ export default function EstoquePage() {
           </div>
         ))}
       </div>
+
+      {/* Regra CENTRAL de estoque virtual (todos os canais) */}
+      <VirtualRuleCard onApplied={load} />
 
       {/* Filter + Search */}
       <div className="flex flex-wrap items-center gap-2">
