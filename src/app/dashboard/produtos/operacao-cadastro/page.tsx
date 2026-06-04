@@ -38,8 +38,11 @@ type SortMode = 'stock_desc' | 'stock_asc' | 'name' | ''
 type CompletenessSummary = {
   total:             number
   incomplete_count:  number
+  total_pending:     number   // total REAL de pendentes (count, não capado pela amostra)
   by_missing:        Record<string, number>
   sample_incomplete: IncompleteProduct[]
+  page:              number
+  page_size:         number
 }
 
 type Assignment = {
@@ -122,12 +125,17 @@ export default function OperacaoCadastroPage() {
   const [stockMax, setStockMax] = useState('')
   const [search,   setSearch]   = useState('')
   const [sort,     setSort]     = useState<SortMode>('stock_desc')
+  // Paginação da aba Pendentes
+  const [page,     setPage]     = useState(1)
+  const [pageSize, setPageSize] = useState(50)
   // Debounce inputs pra não martelar o backend
   const [debounced, setDebounced] = useState({ stockMin: '', stockMax: '', search: '' })
   useEffect(() => {
     const t = setTimeout(() => setDebounced({ stockMin, stockMax, search }), 400)
     return () => clearTimeout(t)
   }, [stockMin, stockMax, search])
+  // Volta pra página 1 quando filtros/ordenação/tamanho mudam
+  useEffect(() => { setPage(1) }, [debounced, sort, pageSize])
 
   // ── load data ─────────────────────────────────────────────────────────────
 
@@ -137,7 +145,7 @@ export default function OperacaoCadastroPage() {
       const token = await getAuthToken()
       if (!token) throw new Error(t('ops.sessionExpired'))
 
-      const qs = new URLSearchParams({ limit: '500', sample_size: '200' })
+      const qs = new URLSearchParams({ limit: '500', page: String(page), page_size: String(pageSize) })
       if (debounced.stockMin.trim() && Number.isFinite(Number(debounced.stockMin))) qs.set('stock_min', String(parseInt(debounced.stockMin, 10)))
       if (debounced.stockMax.trim() && Number.isFinite(Number(debounced.stockMax))) qs.set('stock_max', String(parseInt(debounced.stockMax, 10)))
       if (debounced.search.trim()) qs.set('search', debounced.search.trim())
@@ -164,7 +172,7 @@ export default function OperacaoCadastroPage() {
     } finally {
       setLoading(false)
     }
-  }, [debounced, sort, t])
+  }, [debounced, sort, page, pageSize, t])
 
   useEffect(() => { void load() }, [load])
 
@@ -257,8 +265,8 @@ export default function OperacaoCadastroPage() {
   // ── KPIs ────────────────────────────────────────────────────────────────
 
   const kpis = useMemo(() => ({
-    // tira da contagem de pendentes os que já estão anunciados (foram pra Incompleto)
-    pendentes:   Math.max(0, (summary?.incomplete_count ?? 0) - buckets.incompletos.length),
+    // total REAL de pendentes (count do backend) menos os já anunciados (Incompleto)
+    pendentes:   Math.max(0, (summary?.total_pending ?? 0) - buckets.incompletos.length),
     despachados: buckets.despachados.length,
     anunciados:  buckets.anunciados.length,
     incompletos: buckets.incompletos.length,
@@ -531,12 +539,38 @@ export default function OperacaoCadastroPage() {
                     })}
                   </tbody>
                 </table>
-                {kpis.pendentes > pendingList.length && (
-                  <div className="px-4 py-3 text-center text-xs text-zinc-500"
-                    style={{ borderTop: '1px solid #27272a' }}>
-                    {t('ops.showingOf', { shown: pendingList.length, total: kpis.pendentes })}
+                {/* Paginação */}
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 text-xs text-zinc-500"
+                  style={{ borderTop: '1px solid #27272a' }}>
+                  <span>
+                    {pendingList.length > 0
+                      ? `${(page - 1) * pageSize + 1}–${(page - 1) * pageSize + pendingList.length} de ${summary?.total_pending ?? 0}`
+                      : 'Nada nesta página'}
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span>Por página:</span>
+                    {[20, 50, 100, 200].map(n => (
+                      <button key={n} type="button" onClick={() => setPageSize(n)}
+                        className="px-2 py-0.5 rounded border text-[11px] transition-all"
+                        style={pageSize === n
+                          ? { background: 'rgba(0,229,255,0.12)', color: '#67e8f9', borderColor: 'rgba(0,229,255,0.4)' }
+                          : { background: '#0a0a0c', color: '#a1a1aa', borderColor: '#3f3f46' }}>
+                        {n}
+                      </button>
+                    ))}
                   </div>
-                )}
+                  <div className="ml-auto flex items-center gap-2">
+                    <button type="button" disabled={page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}
+                      className="px-2.5 py-1 rounded-lg border text-[11px] disabled:opacity-40"
+                      style={{ background: '#0a0a0c', color: '#a1a1aa', borderColor: '#3f3f46' }}>← Anterior</button>
+                    <span>Pág. {page} de {Math.max(1, Math.ceil((summary?.total_pending ?? 0) / pageSize))}</span>
+                    <button type="button"
+                      disabled={page >= Math.ceil((summary?.total_pending ?? 0) / pageSize)}
+                      onClick={() => setPage(p => p + 1)}
+                      className="px-2.5 py-1 rounded-lg border text-[11px] disabled:opacity-40"
+                      style={{ background: '#0a0a0c', color: '#a1a1aa', borderColor: '#3f3f46' }}>Próxima →</button>
+                  </div>
+                </div>
               </div>
             </>
           )}
