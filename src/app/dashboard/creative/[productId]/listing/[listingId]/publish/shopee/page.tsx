@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -68,8 +68,14 @@ export default function ShopeePublishPage() {
     }
   }, [ctx])
 
+  const publishingRef = useRef(false)
   const publish = async () => {
     if (!data || data.price == null) return
+    // Trava SÍNCRONA contra duplo-clique: o `disabled` do botão só vale após o
+    // re-render, deixando uma fresta onde 2 cliques rápidos disparavam 2
+    // publicações (= 2 anúncios reais na Shopee). A ref bloqueia na hora.
+    if (publishingRef.current) return
+    publishingRef.current = true
     setPublishing(true); setPublishError(null); setBlockers(null); setResult(null)
     try {
       const r = await CreativeApi.shopeePublish({
@@ -94,6 +100,7 @@ export default function ShopeePublishPage() {
       setPublishError(e instanceof Error ? e.message : 'Falha ao publicar')
     } finally {
       setPublishing(false)
+      publishingRef.current = false
     }
   }
 
