@@ -112,31 +112,13 @@ function renderInput(
   current:  AttributeValue | undefined,
   setValue: (id: string, patch: Partial<AttributeValue>) => void,
 ): React.ReactNode {
-  // String COM sugestões → COMBOBOX: escolhe uma opção OU digita o seu valor.
-  // O ML aceita valor livre quando value_type='string' (ex.: "Material da
-  // estrutura" = Madeira, que não está na lista de sugestões). datalist nativo.
+  // String COM sugestões → COMBOBOX estilizado (tema escuro): escolhe uma
+  // opção da lista OU digita o seu próprio valor. O ML aceita valor livre
+  // quando value_type='string' (ex.: "Material da estrutura" = Madeira, fora
+  // da lista). Substitui o <datalist> nativo (dropdown branco do navegador,
+  // não estilizável) por um dropdown nosso, igual ao das listas fechadas.
   if (attr.values && attr.values.length > 0 && attr.value_type === 'string') {
-    const listId = `dl-${attr.id}`
-    return (
-      <>
-        <input
-          type="text"
-          list={listId}
-          value={current?.value_name ?? ''}
-          onChange={e => {
-            const v = e.target.value
-            const opt = attr.values!.find(o => o.name.trim().toLowerCase() === v.trim().toLowerCase())
-            setValue(attr.id, { value_name: v, value_id: opt?.id })
-          }}
-          maxLength={attr.value_max_length}
-          placeholder="Escolha uma opção ou digite o seu valor"
-          className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-zinc-200 outline-none focus:border-cyan-400"
-        />
-        <datalist id={listId}>
-          {attr.values.map(o => <option key={o.id} value={o.name} />)}
-        </datalist>
-      </>
-    )
+    return <StringCombobox attr={attr} current={current} setValue={setValue} />
   }
 
   // List fechada (value_type='list') ou boolean com opções → dropdown nosso,
@@ -299,6 +281,82 @@ function SearchableSelect({
               })
             )}
           </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** Combobox estilizado pra atributos string COM sugestões: input de texto livre
+ *  + dropdown nosso (tema escuro) que filtra pelo que foi digitado. Substitui o
+ *  <datalist> nativo (dropdown branco do navegador, não estilizável). Aceita
+ *  valor livre; se o texto casa uma opção, também grava o value_id. */
+function StringCombobox({
+  attr, current, setValue,
+}: {
+  attr:     MlRequiredAttribute
+  current:  AttributeValue | undefined
+  setValue: (id: string, patch: Partial<AttributeValue>) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const rootRef = useRef<HTMLDivElement>(null)
+  const value   = current?.value_name ?? ''
+  const options = attr.values ?? []
+
+  function commit(v: string) {
+    const opt = options.find(o => o.name.trim().toLowerCase() === v.trim().toLowerCase())
+    setValue(attr.id, { value_name: v, value_id: opt?.id })
+  }
+
+  // Fecha ao clicar fora.
+  useEffect(() => {
+    if (!open) return
+    const onDoc = (e: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [open])
+
+  const q = value.trim().toLowerCase()
+  const filtered = q ? options.filter(o => o.name.toLowerCase().includes(q)) : options
+
+  return (
+    <div ref={rootRef} className="relative">
+      <div className="flex items-center gap-1.5 bg-zinc-950 border border-zinc-800 rounded-lg px-3 focus-within:border-cyan-400">
+        <input
+          type="text"
+          value={value}
+          onChange={e => { commit(e.target.value); if (!open) setOpen(true) }}
+          onFocus={() => setOpen(true)}
+          maxLength={attr.value_max_length}
+          placeholder="Escolha uma opção ou digite o seu valor"
+          className="w-full bg-transparent py-1.5 text-xs text-zinc-200 outline-none placeholder:text-zinc-600"
+        />
+        <button type="button" onClick={() => setOpen(o => !o)} className="shrink-0 text-zinc-500 hover:text-zinc-300">
+          <ChevronDown size={13} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+        </button>
+      </div>
+
+      {open && filtered.length > 0 && (
+        <div className="absolute z-30 mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-900 shadow-xl shadow-black/50 max-h-52 overflow-y-auto py-1">
+          {filtered.map(o => {
+            const active = value.trim().toLowerCase() === o.name.trim().toLowerCase()
+            return (
+              <button
+                key={o.id}
+                type="button"
+                onClick={() => { commit(o.name); setOpen(false) }}
+                className={[
+                  'w-full text-left px-3 py-1.5 text-xs flex items-center justify-between gap-2 hover:bg-zinc-800/70',
+                  active ? 'text-cyan-300' : 'text-zinc-200',
+                ].join(' ')}
+              >
+                <span className="truncate">{o.name}</span>
+                {active && <Check size={12} className="shrink-0 text-cyan-300" />}
+              </button>
+            )
+          })}
         </div>
       )}
     </div>
