@@ -6997,6 +6997,7 @@
         "priorityNormal": "Normal",
         "priorityHigh": "Alta",
         "priorityUrgent": "Urgente",
+        "urgentNoWhatsapp": "Operador sem WhatsApp cadastrado — o alerta de tarefa urgente NÃO será enviado. Cadastre o número em Equipe (Active CRM).",
         "notes": "Observações (opcional)",
         "notesPlaceholder": "Instruções extras pro operador",
         "cancel": "Cancelar",

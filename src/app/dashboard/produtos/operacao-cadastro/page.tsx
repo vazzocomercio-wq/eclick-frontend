@@ -681,7 +681,7 @@ function TabBtn({ active, onClick, label, count }: { active: boolean; onClick: (
   )
 }
 
-type ActiveAgent    = { member_id: string; user_id: string; display_name: string | null; role: string; status: string }
+type ActiveAgent    = { member_id: string; user_id: string; display_name: string | null; role: string; status: string; whatsapp_phone: string | null }
 type ActivePipeline = { id: string; name: string; is_default: boolean; description: string | null; template_key: string | null }
 type ActiveStage    = { id: string; pipeline_id: string; name: string; position: number; color: string | null; is_won: boolean; is_lost: boolean }
 
@@ -898,6 +898,14 @@ function DispatchModal({ count, onClose, onConfirm, loading, mode = 'cadastro' }
               </select>
             </Field>
           </div>
+
+          {priority === 'urgent' && operator && !agents.find(a => a.user_id === operator)?.whatsapp_phone && (
+            <div className="rounded-lg p-2.5 text-xs flex items-start gap-2"
+              style={{ background: 'rgba(245,158,11,0.10)', color: '#fbbf24', border: '1px solid rgba(245,158,11,0.3)' }}>
+              <span className="shrink-0">⚠️</span>
+              <span>{t('ops.modal.urgentNoWhatsapp')}</span>
+            </div>
+          )}
 
           <Field label={t('ops.modal.notes')}>
             <textarea value={notes} onChange={e => setNotes(e.target.value)}

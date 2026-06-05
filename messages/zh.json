@@ -6828,6 +6828,7 @@
         "priorityNormal": "普通",
         "priorityHigh": "高",
         "priorityUrgent": "紧急",
+        "urgentNoWhatsapp": "操作员未登记 WhatsApp — 紧急任务提醒将不会发送。请在团队（Active CRM）中添加号码。",
         "notes": "备注（可选）",
         "notesPlaceholder": "给操作员的额外说明",
         "cancel": "取消",
