@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { GripVertical, Check, AlertCircle } from 'lucide-react'
+import Link from 'next/link'
+import { GripVertical, Check, AlertCircle, ArrowRight } from 'lucide-react'
 import type { MlPublishContext } from './types'
 
 interface Props {
@@ -10,6 +11,9 @@ interface Props {
   /** Lista ordenada de IDs selecionadas (capa = índice 0). */
   selected:  string[]
   onChange:  (next: string[]) => void
+  /** Link pra tela onde se aprova as imagens (job de imagens / produto) —
+   *  mostrado quando não há nenhuma imagem aprovada, pra não travar o operador. */
+  approveHref?: string
 }
 
 const ML_MAX_IMAGES = 10
@@ -20,7 +24,7 @@ const ML_MAX_IMAGES = 10
  * - Drag handle (☰) reordena
  * - Ordem importa: índice 0 vira capa do anúncio ML
  */
-export default function MLImageSelector({ available, selected, onChange }: Props) {
+export default function MLImageSelector({ available, selected, onChange, approveHref }: Props) {
   const [dragId, setDragId] = useState<string | null>(null)
   const [overId, setOverId] = useState<string | null>(null)
 
@@ -57,9 +61,19 @@ export default function MLImageSelector({ available, selected, onChange }: Props
 
   if (available.length === 0) {
     return (
-      <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-4 text-xs text-amber-200 flex items-start gap-2">
-        <AlertCircle size={14} className="shrink-0 mt-0.5" />
-        <span>Nenhuma imagem aprovada. Aprove imagens em <strong>"Imagens geradas"</strong> antes de publicar no ML.</span>
+      <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-4 text-xs text-amber-200">
+        <div className="flex items-start gap-2">
+          <AlertCircle size={14} className="shrink-0 mt-0.5" />
+          <span>Nenhuma imagem aprovada. Aprove imagens em <strong>"Imagens geradas"</strong> antes de publicar no ML.</span>
+        </div>
+        {approveHref && (
+          <Link
+            href={approveHref}
+            className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-400 hover:bg-cyan-300 text-black text-xs font-semibold transition-all"
+          >
+            Ir aprovar imagens <ArrowRight size={12} />
+          </Link>
+        )}
       </div>
     )
   }

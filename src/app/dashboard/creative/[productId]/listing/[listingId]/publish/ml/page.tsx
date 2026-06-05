@@ -19,7 +19,7 @@ import {
   ML_LISTING_TYPE_OPTIONS, ML_CONDITION_OPTIONS,
   type MlPublishContext, type MlPreviewResponse,
   type MlListingType, type MlCondition,
-  type CreativePublication, type MlAccount,
+  type CreativePublication, type MlAccount, type CreativeImageJob,
 } from '@/components/creative/types'
 import { useAlert } from '@/components/ui/dialog-provider'
 
@@ -35,6 +35,9 @@ export default function MLPublishPage() {
   const [ctx, setCtx]             = useState<MlPublishContext | null>(null)
   const [loading, setLoading]     = useState(true)
   const [error, setError]         = useState<string | null>(null)
+  /** Job de imagens mais recente do produto — pra linkar "Ir aprovar imagens"
+   *  quando não há nenhuma imagem aprovada (senão o operador fica travado). */
+  const [imageJobId, setImageJobId] = useState<string | null>(null)
 
   // Listing types vêm da API ML (cacheados 1h no backend)
   const [listingTypesFromApi, setListingTypesFromApi] = useState<Array<{ id: string; name: string }> | null>(null)
@@ -111,13 +114,19 @@ export default function MLPublishPage() {
   async function load() {
     setError(null); setLoading(true)
     try {
-      const [c, pubs, accs, sf] = await Promise.all([
+      const [c, pubs, accs, sf, jobs] = await Promise.all([
         CreativeApi.getMlContext(listingId),
         CreativeApi.listListingPublications(listingId).catch(() => []),
         CreativeApi.listMlAccounts().catch(() => [] as MlAccount[]),
         CreativeApi.getProductStorefront(productId).catch(() => false),
+        CreativeApi.listProductImageJobs(productId).catch(() => [] as CreativeImageJob[]),
       ])
       setCtx(c)
+      // Job de imagens mais recente — alvo do link "Ir aprovar imagens".
+      const latestJob = [...jobs].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      )[0]
+      setImageJobId(latestJob?.id ?? null)
       setTitle(c.listing.title ?? '')
       setPublications(pubs)
       setStorefrontAlready(sf)
@@ -458,6 +467,9 @@ export default function MLPublishPage() {
                   available={approved_images}
                   selected={imageIds}
                   onChange={setImageIds}
+                  approveHref={imageJobId
+                    ? `/dashboard/creative/${productId}/images/${imageJobId}`
+                    : `/dashboard/creative/${productId}`}
                 />
               </Section>
             </div>
