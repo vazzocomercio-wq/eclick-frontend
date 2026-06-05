@@ -223,9 +223,7 @@ export default function BriefingConfigurator({ value, onChange, autoDetectByCate
                   {' selecionados — 1 imagem por slot.'}
                 </>
               ) : (
-                <>
-                  Default: vai usar as <strong className="text-zinc-300">{value.image_count}</strong> primeiras do template.
-                </>
+                <strong className="text-amber-300/90">Selecione ao menos 1 slot pra continuar.</strong>
               )}
             </p>
 
@@ -323,7 +321,7 @@ export default function BriefingConfigurator({ value, onChange, autoDetectByCate
           <>
             <p className="text-[11px] text-zinc-500 mb-2">
               As <strong className="text-zinc-300">{value.image_count}</strong> imagens vão alternar entre os ambientes selecionados.
-              Sem nenhum: fundo neutro.
+              <strong className="text-amber-300/90"> Selecione ao menos um pra continuar.</strong>
             </p>
             {ambientLoading && ambientOptions.length === 0 ? (
               <div className="flex items-center gap-1.5 text-[11px] text-zinc-500">
@@ -673,6 +671,21 @@ export function briefingSummary(form: BriefingFormState): {
   const toneLabel =
     TONE_OPTIONS.find(t => t.value === form.communication_tone)?.label ?? form.communication_tone
   return { count, format: form.image_format, marketplaceLabel, styleLabel, toneLabel }
+}
+
+/**
+ * Valida que o operador escolheu ao menos 1 ambiente/slot. Sem isso, o backend
+ * gera as imagens sem ambiente definido (a IA escolhe sozinha → "aleatório").
+ * Usado pra bloquear o avanço no Step 3.
+ *  - Modo template: precisa de ao menos 1 slot em `selected_positions`.
+ *  - Modo legado: precisa de ao menos 1 ambiente real, OU "Personalizado" com
+ *    descrição preenchida.
+ */
+export function briefingHasEnvironment(form: BriefingFormState): boolean {
+  if (form.template_id) return form.selected_positions.length > 0
+  const realEnvs = form.environments.filter(e => e !== 'custom')
+  const customOk  = form.environments.includes('custom') && form.custom_environment.trim().length > 0
+  return realEnvs.length > 0 || customOk
 }
 
 // ── Helper pra montar o body que vai pra POST /briefings ──────────────────

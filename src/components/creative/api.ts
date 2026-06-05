@@ -182,12 +182,26 @@ export const CreativeApi = {
 
   /**
    * Resolve o deeplink de cadastro: dado um produto do catálogo, retorna os
-   * anúncios já vinculados + dados básicos pra pré-preencher o Step 1.
+   * anúncios já vinculados + TODOS os dados aproveitáveis pra pré-preencher
+   * o Step 1 (nome/categoria/marca/fotos) e o Step 2 (cor/material/dimensões/
+   * peso/público/características/SKU/EAN) + custo de referência.
    */
   getCatalogPrefill: (catalogProductId: string) =>
     api<{
       existing: Array<{ id: string; name: string; status: string }>
-      catalog:  { id: string; name: string; category: string | null; brand: string | null; photo_urls: string[] }
+      catalog:  {
+        id: string; name: string; category: string | null; brand: string | null; photo_urls: string[]
+        sku: string | null; ean: string | null
+        color: string | null; material: string | null
+        width: string | null; height: string | null; depth: string | null; weight: string | null
+        target_audience: string | null; differentials: string[]
+        cost: {
+          net: number | null; gross: number | null
+          discount_type: 'percent' | 'fixed' | 'override' | null; discount_value: number | null
+          tax_percentage: number | null; tax_on_freight: boolean
+          supplier_name: string | null
+        }
+      }
     }>(`/creative/products/catalog-prefill/${catalogProductId}`),
 
   updateProduct: (id: string, body: Partial<CreateProductBody>) =>

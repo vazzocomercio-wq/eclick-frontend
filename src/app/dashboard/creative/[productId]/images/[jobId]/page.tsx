@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
-  ArrowLeft, Sparkles, Loader2, X, Check, Download, AlertCircle, Image as ImageIcon, RefreshCw,
+  ArrowLeft, ArrowRight, Sparkles, Loader2, X, Check, Download, AlertCircle, Image as ImageIcon, RefreshCw,
 } from 'lucide-react'
 import CreativeImageCard from '@/components/creative/CreativeImageCard'
 import { useImageJob } from '@/components/creative/useImageJob'
@@ -13,7 +13,7 @@ import NotifyButton, { useNotifyOnComplete } from '@/components/creative/NotifyB
 import { CreativeApi } from '@/components/creative/api'
 import {
   JOB_STATUS_LABELS, isJobActive,
-  type CreativeProduct, type JobStatus, type CreativeImage,
+  type CreativeProduct, type JobStatus, type CreativeImage, type CreativeListing,
 } from '@/components/creative/types'
 import { useConfirm, useAlert } from '@/components/ui/dialog-provider'
 
@@ -27,6 +27,9 @@ export default function ImageJobPage() {
   const [product, setProduct] = useState<CreativeProduct | null>(null)
   const [productLoading, setProductLoading] = useState(true)
   const [productError, setProductError]     = useState<string | null>(null)
+  /** Anúncio (texto) do produto — gerado em paralelo com as imagens. Usado pra
+   *  oferecer "avançar pro editor de dados" sem precisar voltar. */
+  const [listingId, setListingId] = useState<string | null>(null)
   const [cancelling, setCancelling] = useState(false)
   const [bulkRegen, setBulkRegen]   = useState(false)
   const confirmDialog = useConfirm()
@@ -52,8 +55,17 @@ export default function ImageJobPage() {
   useEffect(() => {
     void (async () => {
       try {
-        const p = await CreativeApi.getProduct(productId)
+        const [p, listings] = await Promise.all([
+          CreativeApi.getProduct(productId),
+          CreativeApi.listProductListings(productId).catch(() => [] as CreativeListing[]),
+        ])
         setProduct(p)
+        // Pega o anúncio base (sem parent) mais recente pra linkar "avançar".
+        const sorted = [...listings].sort(
+          (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+        )
+        const chosen = sorted.find(l => l.parent_listing_id == null) ?? sorted[0]
+        if (chosen) setListingId(chosen.id)
       } catch (e: unknown) {
         setProductError((e as Error).message)
       } finally {
@@ -245,9 +257,18 @@ export default function ImageJobPage() {
               <button
                 type="button"
                 onClick={downloadAllApproved}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-400 hover:bg-cyan-300 text-black text-xs font-semibold transition-all"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-200 text-xs font-semibold transition-all"
               >
                 <Download size={12} /> {t('downloadApproved', { count: approvedCt })}
+              </button>
+            )}
+            {listingId && (
+              <button
+                type="button"
+                onClick={() => router.push(`/dashboard/creative/${productId}/listing/${listingId}`)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-400 hover:bg-cyan-300 text-black text-xs font-semibold transition-all"
+              >
+                {t('continueToListing')} <ArrowRight size={12} />
               </button>
             )}
             {active && (

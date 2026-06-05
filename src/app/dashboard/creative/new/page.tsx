@@ -11,6 +11,7 @@ import BriefingConfigurator, {
   DEFAULT_BRIEFING,
   briefingFormToApiBody,
   briefingSummary,
+  briefingHasEnvironment,
   type BriefingFormState,
 } from '@/components/creative/BriefingConfigurator'
 import { CreativeApi, uploadProductImage, getMyOrgId } from '@/components/creative/api'
@@ -60,6 +61,16 @@ const EMPTY_DETAILS: DetailsForm = {
   sku: '', ean: '',
 }
 
+interface CatalogCost {
+  net:            number | null
+  gross:          number | null
+  discount_type:  'percent' | 'fixed' | 'override' | null
+  discount_value: number | null
+  tax_percentage: number | null
+  tax_on_freight: boolean
+  supplier_name:  string | null
+}
+
 export default function CreativeNewPage() {
   const t = useTranslations('creative.new')
   const router = useRouter()
@@ -88,6 +99,11 @@ export default function CreativeNewPage() {
   /** Fotos do produto do catálogo. Se houver, no submit o anúncio importa
    *  essas fotos como imagens aprovadas em vez de gerar com IA. */
   const [catalogPhotos, setCatalogPhotos] = useState<string[]>([])
+  /** Custo de referência do catálogo (líquido já com o desconto do fornecedor).
+   *  Só exibido no Step 2 pra orientar o operador — NÃO é salvo no anúncio. */
+  const [catalogCost, setCatalogCost] = useState<CatalogCost | null>(null)
+  /** Step 2 nasceu pré-preenchido a partir do catálogo → mostra o hint. */
+  const [prefilledFromCatalog, setPrefilledFromCatalog] = useState(false)
 
   // ── Step 2 ──
   const [product, setProduct]   = useState<CreativeProduct | null>(null)
@@ -156,6 +172,26 @@ export default function CreativeNewPage() {
         })
         setCatalogLinkId(catalogProductId)
         setCatalogPhotos(prefill.catalog.photo_urls)
+
+        // Pré-preenche o Step 2 com tudo que o catálogo tem (cor, material,
+        // dimensões, peso, público, características, SKU, EAN). Mantém o valor
+        // atual quando o catálogo não tem o campo. Tudo editável pelo operador.
+        const cat = prefill.catalog
+        setDetails(d => ({
+          ...d,
+          color:           cat.color           ?? d.color,
+          material:        cat.material         ?? d.material,
+          width:           cat.width            ?? d.width,
+          height:          cat.height           ?? d.height,
+          depth:           cat.depth            ?? d.depth,
+          weight:          cat.weight           ?? d.weight,
+          target_audience: cat.target_audience  ?? d.target_audience,
+          differentials:   cat.differentials.length > 0 ? cat.differentials : d.differentials,
+          sku:             cat.sku              ?? d.sku,
+          ean:             cat.ean              ?? d.ean,
+        }))
+        setCatalogCost(cat.cost)
+        setPrefilledFromCatalog(true)
 
         // Importa a 1ª foto do catálogo pro bucket do anúncio (best-effort —
         // se falhar, o operador sobe a imagem manualmente no Step 1).
@@ -281,6 +317,9 @@ export default function CreativeNewPage() {
     setError(null)
     setWarning(null)
     if (!product) { setError(t('productLost')); return }
+    // Trava: sem ambiente/slot escolhido o backend gera imagens sem ambiente
+    // definido (a IA escolhe sozinha → aleatório). Exige seleção explícita.
+    if (!briefingHasEnvironment(briefing)) { setError(t('selectEnvironmentRequired')); return }
 
     setSubmitting(true)
     setPhase('briefing')
@@ -458,6 +497,15 @@ export default function CreativeNewPage() {
               error={analysisError}
             />
 
+            {prefilledFromCatalog && (
+              <div className="flex items-center gap-2 rounded-lg border border-cyan-400/20 bg-cyan-400/[0.06] px-3 py-2 text-xs text-cyan-200/90">
+                <Sparkles size={13} className="shrink-0 text-cyan-400" />
+                <span>{t('prefilledHint')}</span>
+              </div>
+            )}
+
+            {catalogCost && catalogCost.net != null && <CostRefChip cost={catalogCost} />}
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label={t('fieldColor')}    value={details.color}    onChange={v => setDetails(d => ({ ...d, color: v }))}    placeholder={t('fieldColorPlaceholder')} />
               <Field label={t('fieldMaterial')} value={details.material} onChange={v => setDetails(d => ({ ...d, material: v }))} placeholder={t('fieldMaterialPlaceholder')} />
@@ -540,17 +588,25 @@ export default function CreativeNewPage() {
             {/* Summary line + ações */}
             {(() => {
               const s = briefingSummary(briefing)
+              const noEnv = !briefingHasEnvironment(briefing)
               return (
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-2 border-t border-zinc-800">
-                  <p className="text-[11px] text-zinc-500 leading-relaxed">
-                    {t('summary', {
-                      count:       s.count,
-                      format:      s.format,
-                      marketplace: s.marketplaceLabel,
-                      style:       s.styleLabel,
-                      tone:        s.toneLabel,
-                    })}
-                  </p>
+                  {noEnv ? (
+                    <p className="flex items-center gap-1.5 text-[11px] text-amber-300 leading-relaxed">
+                      <AlertTriangle size={13} className="shrink-0" />
+                      {t('selectEnvironmentRequired')}
+                    </p>
+                  ) : (
+                    <p className="text-[11px] text-zinc-500 leading-relaxed">
+                      {t('summary', {
+                        count:       s.count,
+                        format:      s.format,
+                        marketplace: s.marketplaceLabel,
+                        style:       s.styleLabel,
+                        tone:        s.toneLabel,
+                      })}
+                    </p>
+                  )}
                   <div className="flex justify-between sm:gap-3">
                     <SecondaryButton
                       onClick={() => {
@@ -563,7 +619,7 @@ export default function CreativeNewPage() {
                     >
                       <ArrowLeft size={14} /> {t('back')}
                     </SecondaryButton>
-                    <PrimaryButton onClick={submitFinal} disabled={submitting} loading={submitting}>
+                    <PrimaryButton onClick={submitFinal} disabled={submitting || noEnv} loading={submitting}>
                       {phase === 'idle'     && <>{t('phaseIdle')} <Check size={14} /></>}
                       {phase === 'briefing' && t('phaseBriefing')}
                       {phase === 'parallel' && t('phaseParallel')}
@@ -613,6 +669,33 @@ function Stepper({ current }: { current: Step }) {
           </div>
         )
       })}
+    </div>
+  )
+}
+
+/** Chip read-only com o custo de referência do catálogo (líquido já com o
+ *  desconto do fornecedor + bruto/% e imposto pra transparência). Só orienta o
+ *  operador — não é persistido no anúncio. */
+function CostRefChip({ cost }: { cost: CatalogCost }) {
+  const t = useTranslations('creative.new')
+  const brl = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+  let discount: string | null = null
+  if (cost.discount_type === 'percent' && cost.discount_value != null) discount = t('costDiscountPct', { value: cost.discount_value })
+  else if (cost.discount_type === 'fixed' && cost.discount_value != null) discount = t('costDiscountFix', { value: brl(cost.discount_value) })
+  else if (cost.discount_type === 'override') discount = t('costDiscountOverride')
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-zinc-800 bg-zinc-900/40 px-3 py-2 text-xs">
+      <span className="text-zinc-500">{t('costRefLabel')}</span>
+      <span className="font-semibold text-cyan-300">{brl(cost.net ?? 0)} {t('costNetSuffix')}</span>
+      {cost.gross != null && (
+        <span className="text-zinc-500">
+          {t('costGross', { value: brl(cost.gross) })}
+          {discount ? ` · ${discount}` : ''}
+          {cost.supplier_name ? ` (${cost.supplier_name})` : ''}
+        </span>
+      )}
+      {cost.tax_percentage ? <span className="text-zinc-500">· {t('costTax', { value: cost.tax_percentage })}</span> : null}
+      <span className="text-[10px] text-zinc-600">— {t('costHint')}</span>
     </div>
   )
 }
