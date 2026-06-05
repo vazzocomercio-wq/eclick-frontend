@@ -56,6 +56,7 @@ interface Anuncio {
   thumbnail_url: string | null
   permalink:     string | null
   listing_status: string | null
+  original_price: number | null
   available:     PromoOption[]
   participating: PromoOption[]
 }
@@ -79,6 +80,9 @@ function discountInfo(original: number | null, final: number | null): { pct: num
   if (off <= 0) return null
   return { pct: Math.round((off / original) * 100), brl: Math.round(off * 100) / 100 }
 }
+function dayStr(offsetDays = 0): string {
+  return new Date(Date.now() + offsetDays * 86_400_000).toISOString().slice(0, 10)
+}
 
 export default function AnuncioPromotionsPage() {
   const params = useParams<{ productId: string }>()
@@ -90,6 +94,8 @@ export default function AnuncioPromotionsPage() {
   const [toast, setToast]     = useState<string | null>(null)
   // modal de participação
   const [joinOpt, setJoinOpt] = useState<{ opt: PromoOption; anuncio: Anuncio } | null>(null)
+  // modal de criar promoção própria
+  const [createOwn, setCreateOwn] = useState<Anuncio | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
@@ -162,7 +168,9 @@ export default function AnuncioPromotionsPage() {
       {/* Anúncios */}
       <div className="space-y-6">
         {data?.anuncios.map(an => (
-          <AnuncioSection key={an.ml_item_id} anuncio={an} onParticipar={(opt) => setJoinOpt({ opt, anuncio: an })} />
+          <AnuncioSection key={an.ml_item_id} anuncio={an}
+            onParticipar={(opt) => setJoinOpt({ opt, anuncio: an })}
+            onCreateOwn={() => setCreateOwn(an)} />
         ))}
       </div>
 
@@ -173,6 +181,16 @@ export default function AnuncioPromotionsPage() {
           anuncio={joinOpt.anuncio}
           onClose={() => setJoinOpt(null)}
           onJoined={onJoined}
+        />
+      )}
+
+      {/* Modal criar promoção própria */}
+      {createOwn && (
+        <CreateOwnModal
+          anuncio={createOwn}
+          productId={productId}
+          onClose={() => setCreateOwn(null)}
+          onCreated={onJoined}
         />
       )}
 
@@ -187,7 +205,7 @@ export default function AnuncioPromotionsPage() {
   )
 }
 
-function AnuncioSection({ anuncio, onParticipar }: { anuncio: Anuncio; onParticipar: (o: PromoOption) => void }) {
+function AnuncioSection({ anuncio, onParticipar, onCreateOwn }: { anuncio: Anuncio; onParticipar: (o: PromoOption) => void; onCreateOwn: () => void }) {
   return (
     <div className="rounded-2xl overflow-hidden" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
       {/* Cabeçalho do anúncio */}
@@ -242,12 +260,11 @@ function AnuncioSection({ anuncio, onParticipar }: { anuncio: Anuncio; onPartici
         ) : (
           <div className="rounded-lg p-4 text-center" style={{ background: 'rgba(255,255,255,0.02)', border: '1px dashed #27272a' }}>
             <p className="text-xs text-zinc-400">Nenhuma campanha do ML disponível pra este anúncio agora.</p>
-            <a href={anuncio.permalink ?? 'https://www.mercadolivre.com.br/anuncios/promocoes'}
-              target="_blank" rel="noopener noreferrer"
+            <button onClick={onCreateOwn}
               className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
               style={{ background: 'rgba(0,229,255,0.10)', color: '#67e8f9', border: '1px solid rgba(0,229,255,0.3)' }}>
-              <Sparkles size={12} /> Criar promoção própria no ML <ExternalLink size={11} />
-            </a>
+              <Sparkles size={12} /> Criar promoção própria
+            </button>
           </div>
         )}
       </div>
@@ -357,19 +374,35 @@ function JoinModal({
           <Row label="Preço original" value={brl(original)} />
 
           <div>
-            <label className="block text-[11px] text-zinc-400 mb-1">Preço final na promoção</label>
-            <div className="flex items-center gap-2">
-              <span className="text-zinc-500 text-sm">R$</span>
-              <input
-                type="number" step="0.01" min={min} max={max}
-                value={Number.isFinite(price) ? price : ''}
-                onChange={e => setPrice(parseFloat(e.target.value))}
-                className="flex-1 bg-zinc-950 border rounded-lg px-3 py-2 text-sm text-zinc-200 outline-none focus:border-cyan-400"
-                style={{ borderColor: outOfRange ? 'rgba(248,113,113,0.5)' : '#27272a' }}
-              />
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-[11px] text-zinc-400 mb-1">Desconto (%)</label>
+                <input
+                  type="number" step="1" min={0} max={100}
+                  value={disc ? disc.pct : ''}
+                  onChange={e => {
+                    const pct = parseFloat(e.target.value)
+                    if (Number.isFinite(pct)) setPrice(Math.round(original * (1 - pct / 100) * 100) / 100)
+                    else setPrice(NaN)
+                  }}
+                  placeholder="ex: 10"
+                  className="w-full bg-zinc-950 border rounded-lg px-3 py-2 text-sm text-zinc-200 outline-none focus:border-cyan-400"
+                  style={{ borderColor: outOfRange ? 'rgba(248,113,113,0.5)' : '#27272a' }}
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] text-zinc-400 mb-1">Preço final (R$)</label>
+                <input
+                  type="number" step="0.01" min={min} max={max}
+                  value={Number.isFinite(price) ? price : ''}
+                  onChange={e => setPrice(parseFloat(e.target.value))}
+                  className="w-full bg-zinc-950 border rounded-lg px-3 py-2 text-sm text-zinc-200 outline-none focus:border-cyan-400"
+                  style={{ borderColor: outOfRange ? 'rgba(248,113,113,0.5)' : '#27272a' }}
+                />
+              </div>
             </div>
             <p className="mt-1 text-[10px] text-zinc-600">
-              Faixa permitida pela campanha: {brl(min)} – {brl(max)}
+              Faixa permitida pela campanha: {brl(min)} – {brl(max)} · edite o % ou o preço, o outro recalcula.
             </p>
           </div>
 
@@ -400,6 +433,138 @@ function JoinModal({
             className="px-4 py-2 rounded-lg text-sm font-semibold bg-cyan-400 hover:bg-cyan-300 disabled:opacity-40 disabled:cursor-not-allowed text-black flex items-center gap-1.5">
             {submitting ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
             Participar
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function CreateOwnModal({
+  anuncio, productId, onClose, onCreated,
+}: {
+  anuncio: Anuncio
+  productId: string
+  onClose: () => void
+  onCreated: (msg: string) => void
+}) {
+  const original = anuncio.original_price
+  const [dealPrice, setDealPrice] = useState<number>(original != null ? Math.round(original * 0.9 * 100) / 100 : NaN)
+  const [start, setStart]   = useState<string>(dayStr(0))
+  const [finish, setFinish] = useState<string>(dayStr(14))
+  const [submitting, setSubmitting] = useState(false)
+  const [err, setErr]       = useState<string | null>(null)
+
+  const disc = discountInfo(original, dealPrice)
+  const over80 = disc != null && disc.pct > 80
+  const badDates = !start || !finish || finish < start
+  const badPrice = !(dealPrice > 0) || (original != null && dealPrice >= original)
+
+  async function confirm() {
+    setErr(null)
+    if (over80) { setErr('O Mercado Livre permite no máximo 80% de desconto.'); return }
+    if (badPrice) { setErr('Informe um preço com desconto menor que o preço atual.'); return }
+    if (badDates) { setErr('Confira as datas de início e fim.'); return }
+    setSubmitting(true)
+    try {
+      const tk = await getToken()
+      if (!tk) throw new Error('Sessão expirada — recarregue a página.')
+      const r = await fetch(`${BACKEND}/ml-campaigns/listing/create-promotion`, {
+        method:  'POST',
+        headers: { Authorization: `Bearer ${tk}`, 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          product_id:  productId,
+          ml_item_id:  anuncio.ml_item_id,
+          seller_id:   anuncio.seller_id,
+          deal_price:  dealPrice,
+          start_date:  start,
+          finish_date: finish,
+        }),
+      })
+      const body = await r.json().catch(() => ({}))
+      if (!r.ok) throw new Error(body?.message || `HTTP ${r.status}`)
+      onCreated(`Promoção própria criada (${brl(dealPrice)}) para o anúncio.`)
+    } catch (e) {
+      setErr((e as Error).message)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const inputCls = 'w-full bg-zinc-950 border rounded-lg px-3 py-2 text-sm text-zinc-200 outline-none focus:border-cyan-400'
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={onClose}>
+      <div className="w-full max-w-md rounded-2xl p-5" style={{ background: '#0d0d10', border: '1px solid #27272a' }}
+        onClick={e => e.stopPropagation()}>
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div className="min-w-0">
+            <h2 className="text-base font-bold flex items-center gap-1.5"><Sparkles size={15} className="text-cyan-400" /> Criar promoção própria</h2>
+            <p className="text-xs text-zinc-500 mt-0.5">Desconto por porcentagem definido por você (sem campanha do ML).</p>
+          </div>
+          <button onClick={onClose} className="text-zinc-500 hover:text-zinc-300 shrink-0"><X size={18} /></button>
+        </div>
+
+        <div className="rounded-lg p-3 mb-3 flex items-center gap-3" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid #1a1a1f' }}>
+          {anuncio.thumbnail_url
+            ? <img src={anuncio.thumbnail_url} alt="" className="h-10 w-10 rounded object-cover bg-zinc-900 border border-zinc-800" />
+            : <div className="h-10 w-10 rounded bg-zinc-900 border border-zinc-800" />}
+          <p className="text-xs text-zinc-300 truncate">{anuncio.title ?? anuncio.ml_item_id}</p>
+        </div>
+
+        <div className="space-y-3">
+          <Row label="Preço atual" value={brl(original)} />
+
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-[11px] text-zinc-400 mb-1">Desconto (%)</label>
+              <input type="number" step="1" min={0} max={80}
+                value={disc ? disc.pct : ''}
+                disabled={original == null}
+                onChange={e => {
+                  const pct = parseFloat(e.target.value)
+                  if (original != null && Number.isFinite(pct)) setDealPrice(Math.round(original * (1 - pct / 100) * 100) / 100)
+                  else if (!Number.isFinite(pct)) setDealPrice(NaN)
+                }}
+                placeholder={original == null ? '—' : 'ex: 10'}
+                className={inputCls} style={{ borderColor: over80 ? 'rgba(248,113,113,0.5)' : '#27272a' }} />
+            </div>
+            <div>
+              <label className="block text-[11px] text-zinc-400 mb-1">Preço com desconto (R$)</label>
+              <input type="number" step="0.01" min={0}
+                value={Number.isFinite(dealPrice) ? dealPrice : ''}
+                onChange={e => setDealPrice(parseFloat(e.target.value))}
+                className={inputCls} style={{ borderColor: badPrice ? 'rgba(248,113,113,0.5)' : '#27272a' }} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-[11px] text-zinc-400 mb-1">Início</label>
+              <input type="date" value={start} min={dayStr(0)} onChange={e => setStart(e.target.value)} className={inputCls} style={{ borderColor: '#27272a' }} />
+            </div>
+            <div>
+              <label className="block text-[11px] text-zinc-400 mb-1">Fim</label>
+              <input type="date" value={finish} min={start} onChange={e => setFinish(e.target.value)} className={inputCls} style={{ borderColor: badDates ? 'rgba(248,113,113,0.5)' : '#27272a' }} />
+            </div>
+          </div>
+
+          <div className="rounded-lg p-3" style={{ background: over80 ? 'rgba(248,113,113,0.06)' : 'rgba(0,229,255,0.04)', border: `1px solid ${over80 ? 'rgba(248,113,113,0.3)' : 'rgba(0,229,255,0.15)'}` }}>
+            <Row label="Desconto" value={disc ? `-${disc.pct}%  (${brl(disc.brl)})` : '—'} accent={!over80} />
+          </div>
+          {over80 && <p className="text-[11px] text-red-400">O Mercado Livre permite no máximo 80% de desconto.</p>}
+
+          {err && (
+            <div className="rounded-lg p-2.5 text-xs" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>{err}</div>
+          )}
+        </div>
+
+        <div className="flex items-center justify-end gap-2 mt-5">
+          <button onClick={onClose} disabled={submitting}
+            className="px-4 py-2 rounded-lg text-sm border" style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>Cancelar</button>
+          <button onClick={confirm} disabled={submitting || over80 || badPrice || badDates}
+            className="px-4 py-2 rounded-lg text-sm font-semibold bg-cyan-400 hover:bg-cyan-300 disabled:opacity-40 disabled:cursor-not-allowed text-black flex items-center gap-1.5">
+            {submitting ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+            Criar promoção
           </button>
         </div>
       </div>
