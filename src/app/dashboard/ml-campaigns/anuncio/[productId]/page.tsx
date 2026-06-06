@@ -59,6 +59,9 @@ interface Anuncio {
   original_price: number | null
   available:     PromoOption[]
   participating: PromoOption[]
+  own_min_price:       number | null
+  own_max_price:       number | null
+  own_suggested_price: number | null
 }
 interface Result {
   product:  { id: string; sku: string | null; name: string }
@@ -467,7 +470,11 @@ function CreateOwnModal({
   onCreated: (msg: string) => void
 }) {
   const original = anuncio.original_price
-  const [dealPrice, setDealPrice] = useState<number>(original != null ? Math.round(original * 0.9 * 100) / 100 : NaN)
+  const ownMin = anuncio.own_min_price
+  const ownMax = anuncio.own_max_price
+  const [dealPrice, setDealPrice] = useState<number>(
+    anuncio.own_suggested_price ?? (original != null ? Math.round(original * 0.9 * 100) / 100 : NaN),
+  )
   const [start, setStart]   = useState<string>(dayStr(0))
   const [finish, setFinish] = useState<string>(dayStr(14))
   const [submitting, setSubmitting] = useState(false)
@@ -476,11 +483,14 @@ function CreateOwnModal({
   const disc = discountInfo(original, dealPrice)
   const over80 = disc != null && disc.pct > 80
   const badDates = !start || !finish || finish < start
-  const badPrice = !(dealPrice > 0) || (original != null && dealPrice >= original)
+  const belowMin = ownMin != null && dealPrice < ownMin
+  const aboveMax = ownMax != null && dealPrice > ownMax
+  const badPrice = !(dealPrice > 0) || (original != null && dealPrice >= original) || belowMin || aboveMax
 
   async function confirm() {
     setErr(null)
     if (over80) { setErr('O Mercado Livre permite no máximo 80% de desconto.'); return }
+    if (belowMin || aboveMax) { setErr(`Preço deve ficar entre ${brl(ownMin)} e ${brl(ownMax)} (faixa permitida pela ML).`); return }
     if (badPrice) { setErr('Informe um preço com desconto menor que o preço atual.'); return }
     if (badDates) { setErr('Confira as datas de início e fim.'); return }
     setSubmitting(true)
@@ -554,6 +564,13 @@ function CreateOwnModal({
                 className={inputCls} style={{ borderColor: badPrice ? 'rgba(248,113,113,0.5)' : '#27272a' }} />
             </div>
           </div>
+
+          {(ownMin != null || ownMax != null) && (
+            <p className="text-[10px] text-zinc-600">
+              Faixa permitida pela ML: {brl(ownMin)} – {brl(ownMax)}
+              {anuncio.own_suggested_price != null && <> · sugerido {brl(anuncio.own_suggested_price)}</>}
+            </p>
+          )}
 
           <div className="grid grid-cols-2 gap-2">
             <div>
