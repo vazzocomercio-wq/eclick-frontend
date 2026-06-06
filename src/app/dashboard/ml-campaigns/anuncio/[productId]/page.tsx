@@ -29,7 +29,7 @@ async function getToken(): Promise<string | null> {
 }
 
 interface PromoOption {
-  campaign_item_id: string
+  campaign_item_id: string | null
   ml_item_id:       string
   ml_campaign_id:   string
   promotion_type:   string
@@ -234,7 +234,7 @@ function AnuncioSection({ anuncio, onParticipar, onCreateOwn }: { anuncio: Anunc
             <p className="text-[10px] uppercase tracking-wider text-zinc-600 mb-2">Já participando</p>
             <div className="flex flex-wrap gap-2">
               {anuncio.participating.map(o => (
-                <span key={o.campaign_item_id}
+                <span key={o.ml_campaign_id}
                   className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px]"
                   style={{ background: 'rgba(52,211,153,0.10)', color: '#34d399', border: '1px solid rgba(52,211,153,0.3)' }}>
                   <CheckCircle2 size={11} /> {o.campaign_name ?? o.ml_campaign_id}
@@ -246,27 +246,35 @@ function AnuncioSection({ anuncio, onParticipar, onCreateOwn }: { anuncio: Anunc
         )}
 
         {/* Disponíveis */}
-        {anuncio.available.length > 0 ? (
+        {anuncio.available.length > 0 && (
           <div>
             <p className="text-[10px] uppercase tracking-wider text-zinc-600 mb-2">
               Campanhas disponíveis ({anuncio.available.length})
             </p>
             <div className="space-y-2">
               {anuncio.available.map(o => (
-                <PromoCard key={o.campaign_item_id} opt={o} onParticipar={() => onParticipar(o)} />
+                <PromoCard key={o.ml_campaign_id} opt={o} onParticipar={() => onParticipar(o)} />
               ))}
             </div>
           </div>
-        ) : (
-          <div className="rounded-lg p-4 text-center" style={{ background: 'rgba(255,255,255,0.02)', border: '1px dashed #27272a' }}>
-            <p className="text-xs text-zinc-400">Nenhuma campanha do ML disponível pra este anúncio agora.</p>
-            <button onClick={onCreateOwn}
-              className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
-              style={{ background: 'rgba(0,229,255,0.10)', color: '#67e8f9', border: '1px solid rgba(0,229,255,0.3)' }}>
-              <Sparkles size={12} /> Criar promoção própria
-            </button>
-          </div>
         )}
+
+        {anuncio.available.length === 0 && (
+          <p className="text-xs text-zinc-500">
+            Nenhuma campanha do ML elegível pra este anúncio agora — anúncio novo pode levar um tempo
+            pra propagar a elegibilidade. Você pode criar sua própria campanha abaixo.
+          </p>
+        )}
+
+        {/* Criar campanha própria — SEMPRE disponível (anúncio novo pode não estar
+            elegível na hora, ou a elegibilidade da ML pode demorar a propagar). */}
+        <div className="pt-1">
+          <button onClick={onCreateOwn}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
+            style={{ background: 'rgba(0,229,255,0.10)', color: '#67e8f9', border: '1px solid rgba(0,229,255,0.3)' }}>
+            <Sparkles size={12} /> Criar campanha própria
+          </button>
+        </div>
       </div>
     </div>
   )
@@ -337,7 +345,17 @@ function JoinModal({
       const r = await fetch(`${BACKEND}/ml-campaigns/listing/join`, {
         method:  'POST',
         headers: { Authorization: `Bearer ${tk}`, 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ campaign_item_id: opt.campaign_item_id, offer_price: price }),
+        body:    JSON.stringify({
+          // Campanha ao vivo (sem linha sincronizada) → manda ids crus; se houver
+          // campaign_item_id (sincronizada), o backend usa ele.
+          campaign_item_id: opt.campaign_item_id ?? undefined,
+          ml_item_id:       anuncio.ml_item_id,
+          seller_id:        anuncio.seller_id,
+          ml_campaign_id:   opt.ml_campaign_id,
+          promotion_type:   opt.promotion_type,
+          original_price:   opt.original_price,
+          offer_price:      price,
+        }),
       })
       const body = await r.json().catch(() => ({}))
       if (!r.ok) throw new Error(body?.message || `HTTP ${r.status}`)
