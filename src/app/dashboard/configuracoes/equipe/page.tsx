@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
-import { UserCog, Crown, User, Copy, Check, Mail, Shield, Trash2, Plus, RefreshCw } from 'lucide-react'
+import { UserCog, Crown, User, Copy, Check, Mail, Shield, Trash2, Plus, RefreshCw, MessageCircle, Pencil, X } from 'lucide-react'
 import { useConfirm } from '@/components/ui/dialog-provider'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -12,11 +12,12 @@ type Role = 'owner' | 'admin' | 'member' | 'viewer'
 
 type Member = {
   user_id: string
-  organization_id: string
+  organization_id?: string
   role: Role | null
   created_at: string | null
   email?: string | null
   name?: string | null
+  whatsapp_phone?: string | null
 }
 
 type CurrentUser = {
@@ -63,13 +64,19 @@ export default function EquipePage() {
   const [me, setMe]             = useState<CurrentUser | null>(null)
   const [members, setMembers]   = useState<Member[]>([])
   const [orgId, setOrgId]       = useState<string | null>(null)
+  const [myRole, setMyRole]     = useState<Role | null>(null)
   const [loading, setLoading]   = useState(true)
   const [inviteEmail, setInvite] = useState('')
+  const [inviteWhatsapp, setInviteWhatsapp] = useState('')
   const [inviteRole, setInviteRole] = useState<Role>('member')
   const [inviting, setInviting] = useState(false)
   const [inviteMsg, setInviteMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [copied, setCopied]     = useState(false)
   const [removing, setRemoving] = useState<string | null>(null)
+  // edição inline de WhatsApp por membro
+  const [editingWa, setEditingWa] = useState<string | null>(null)
+  const [waDraft, setWaDraft]     = useState('')
+  const [savingWa, setSavingWa]   = useState(false)
   const confirm = useConfirm()
 
   const load = useCallback(async () => {
@@ -95,19 +102,20 @@ export default function EquipePage() {
 
     if (!mem) { setLoading(false); return }
     setOrgId(mem.organization_id)
+    setMyRole((mem.role as Role) ?? null)
 
-    // Get all members
-    const { data: allMem } = await sb
-      .from('organization_members')
-      .select('user_id, organization_id, role, created_at')
-      .eq('organization_id', mem.organization_id)
-      .order('created_at', { ascending: true })
-
-    setMembers((allMem ?? []).map((m: any) => ({
-      ...m,
-      email: m.user_id === user.id ? user.email : null,
-      name:  m.user_id === user.id ? (user.user_metadata?.full_name ?? null) : null,
-    })))
+    // Lista enriquecida (nome/e-mail/WhatsApp) via API server-side (service-role)
+    try {
+      const res = await fetch('/api/teams/list')
+      if (res.ok) {
+        const json = await res.json()
+        setMembers((json.members ?? []) as Member[])
+      } else {
+        setMembers([])
+      }
+    } catch {
+      setMembers([])
+    }
     setLoading(false)
   }, [])
 
@@ -122,11 +130,12 @@ export default function EquipePage() {
       const res = await fetch('/api/teams/invite', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
-        body: JSON.stringify({ email: inviteEmail.trim(), role: inviteRole, organization_id: orgId }),
+        body: JSON.stringify({ email: inviteEmail.trim(), role: inviteRole, whatsapp_phone: inviteWhatsapp.trim(), organization_id: orgId }),
       })
       if (res.ok) {
         setInviteMsg({ ok: true, text: t('equipe.inviteSent', { email: inviteEmail.trim() }) })
         setInvite('')
+        setInviteWhatsapp('')
         load()
       } else {
         const err = await res.json().catch(() => ({}))
@@ -158,6 +167,33 @@ export default function EquipePage() {
   function copyOrgId() {
     if (!orgId) return
     navigator.clipboard.writeText(orgId).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000) })
+  }
+
+  function startEditWa(m: Member) {
+    setEditingWa(m.user_id)
+    setWaDraft(m.whatsapp_phone ?? '')
+  }
+
+  async function handleSaveWhatsapp(userId: string) {
+    setSavingWa(true)
+    try {
+      const sb = createClient()
+      const { data: { session } } = await sb.auth.getSession()
+      const res = await fetch('/api/teams/member', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
+        body: JSON.stringify({ user_id: userId, whatsapp_phone: waDraft.trim() }),
+      })
+      if (res.ok) {
+        const json = await res.json().catch(() => ({}))
+        const saved = (json?.whatsapp_phone ?? null) as string | null
+        setMembers(ms => ms.map(m => (m.user_id === userId ? { ...m, whatsapp_phone: saved } : m)))
+        setEditingWa(null)
+        setWaDraft('')
+      }
+    } finally {
+      setSavingWa(false)
+    }
   }
 
   // ── Render ──────────────────────────────────────────────────────────────────
@@ -211,14 +247,15 @@ export default function EquipePage() {
                 {members.map(m => {
                   const isMe   = m.user_id === me?.id
                   const color  = avatarColor(m.user_id)
-                  const label  = isMe ? (me?.name ?? me?.email ?? m.user_id) : m.name ?? t('equipe.unnamedUser', { id: m.user_id.slice(0, 8) })
-                  const sub    = isMe ? me?.email : null
+                  const label  = m.name ?? m.email ?? t('equipe.unnamedUser', { id: m.user_id.slice(0, 8) })
+                  const sub    = m.email && m.email !== label ? m.email : null
+                  const canEditWa = myRole === 'owner' || myRole === 'admin'
                   return (
                     <div key={m.user_id} className="flex items-center gap-3 px-4 py-3">
                       {/* Avatar */}
                       <div className="w-9 h-9 rounded-full shrink-0 flex items-center justify-center text-xs font-bold"
                         style={{ background: `${color}18`, color, border: `1px solid ${color}30` }}>
-                        {initials(isMe ? me?.name : m.name, isMe ? me?.email : null)}
+                        {initials(m.name, m.email)}
                       </div>
 
                       {/* Info */}
@@ -229,6 +266,43 @@ export default function EquipePage() {
                         </div>
                         {sub && <p className="text-[10px] text-zinc-500 truncate">{sub}</p>}
                         {m.created_at && <p className="text-[9px] text-zinc-700">{t('equipe.since', { date: new Date(m.created_at).toLocaleDateString('pt-BR') })}</p>}
+                      </div>
+
+                      {/* WhatsApp (alerta de tarefa urgente) */}
+                      <div className="hidden sm:flex items-center gap-1.5 shrink-0">
+                        {editingWa === m.user_id ? (
+                          <>
+                            <input
+                              autoFocus
+                              value={waDraft}
+                              onChange={e => setWaDraft(e.target.value)}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') handleSaveWhatsapp(m.user_id)
+                                if (e.key === 'Escape') { setEditingWa(null); setWaDraft('') }
+                              }}
+                              placeholder={t('equipe.whatsappPlaceholder')}
+                              className="w-36 rounded-lg px-2 py-1 text-[11px] text-white outline-none"
+                              style={{ background: '#1c1c1f', border: '1px solid #3f3f46' }}
+                            />
+                            <button onClick={() => handleSaveWhatsapp(m.user_id)} disabled={savingWa}
+                              className="p-1 rounded text-emerald-400 hover:bg-emerald-400/10 disabled:opacity-40" title={t('equipe.save')}>
+                              <Check size={13} />
+                            </button>
+                            <button onClick={() => { setEditingWa(null); setWaDraft('') }}
+                              className="p-1 rounded text-zinc-500 hover:bg-zinc-700/40" title={t('equipe.cancel')}>
+                              <X size={13} />
+                            </button>
+                          </>
+                        ) : (
+                          <button onClick={() => canEditWa && startEditWa(m)} disabled={!canEditWa}
+                            className="flex items-center gap-1 text-[11px] disabled:cursor-default"
+                            title={canEditWa ? t('equipe.whatsappEdit') : undefined}
+                            style={{ color: m.whatsapp_phone ? '#a1a1aa' : '#52525b' }}>
+                            <MessageCircle size={12} className={m.whatsapp_phone ? 'text-emerald-400' : 'text-zinc-600'} />
+                            <span className="truncate max-w-[120px]">{m.whatsapp_phone ?? t('equipe.whatsappAdd')}</span>
+                            {canEditWa && <Pencil size={10} className="text-zinc-600" />}
+                          </button>
+                        )}
                       </div>
 
                       <RoleBadge role={m.role} />
@@ -280,6 +354,22 @@ export default function EquipePage() {
                   <option value="viewer">{t('roles.viewer')}</option>
                 </select>
               </div>
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-medium text-zinc-500 mb-1.5">{t('equipe.whatsappLabel')}</label>
+              <input
+                type="tel"
+                value={inviteWhatsapp}
+                onChange={e => setInviteWhatsapp(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleInvite()}
+                placeholder={t('equipe.whatsappPlaceholder')}
+                className="w-full rounded-lg px-3 py-2 text-xs text-white outline-none transition-all"
+                style={{ background: '#1c1c1f', border: '1px solid #3f3f46' }}
+                onFocus={e => (e.target.style.borderColor = '#00E5FF')}
+                onBlur={e => (e.target.style.borderColor  = '#3f3f46')}
+              />
+              <p className="text-[10px] text-zinc-700 mt-1">{t('equipe.whatsappHint')}</p>
             </div>
 
             {inviteMsg && (

@@ -17,6 +17,16 @@ function fail(message: string, status: number) {
   return NextResponse.json({ message }, { status })
 }
 
+/** Normaliza WhatsApp: mantém '+' inicial e só dígitos. Vazio/curto → null. */
+function normalizeWhatsapp(raw: string): string | null {
+  const trimmed = (raw ?? '').trim()
+  if (!trimmed) return null
+  const hasPlus = trimmed.startsWith('+')
+  const digits = trimmed.replace(/\D/g, '')
+  if (digits.length < 8) return null
+  return hasPlus ? `+${digits}` : digits
+}
+
 export async function POST(req: NextRequest) {
   // ── 1. Caller autenticado ──────────────────────────────────────────────
   const cookieStore = await cookies()
@@ -39,6 +49,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null)
   const email = String(body?.email ?? '').trim().toLowerCase()
   const role  = String(body?.role ?? 'member')
+  const whatsapp = normalizeWhatsapp(String(body?.whatsapp_phone ?? ''))
   if (!email || !email.includes('@')) return fail('E-mail inválido.', 400)
   if (!VALID_ROLES.has(role)) return fail('Função inválida.', 400)
 
@@ -89,7 +100,7 @@ export async function POST(req: NextRequest) {
   // ── 7. Cria a associação ───────────────────────────────────────────────
   const { error: memberErr } = await admin
     .from('organization_members')
-    .insert({ organization_id: orgId, user_id: invitedId, role })
+    .insert({ organization_id: orgId, user_id: invitedId, role, ...(whatsapp ? { whatsapp_phone: whatsapp } : {}) })
   if (memberErr) return fail(`Erro ao adicionar membro: ${memberErr.message}`, 500)
 
   return NextResponse.json({ ok: true })
