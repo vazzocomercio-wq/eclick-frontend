@@ -102,25 +102,25 @@ export function SectionInspector({ section, onChange, onBack }: Props) {
 
       {/* Espaçamento */}
       <Acc title="Espaçamento">
-        <Field label="Padding topo (px)">
-          <NumberInput value={section.spacing.paddingTop}
+        <Field label="Padding topo">
+          <Slider value={section.spacing.paddingTop}
             onChange={v => onChange({ ...section, spacing: { ...section.spacing, paddingTop: v } })}
-            min={0} max={400} />
+            min={0} max={200} step={2} unit="px" />
         </Field>
-        <Field label="Padding inferior (px)">
-          <NumberInput value={section.spacing.paddingBottom}
+        <Field label="Padding inferior">
+          <Slider value={section.spacing.paddingBottom}
             onChange={v => onChange({ ...section, spacing: { ...section.spacing, paddingBottom: v } })}
-            min={0} max={400} />
+            min={0} max={200} step={2} unit="px" />
         </Field>
-        <Field label="Margin topo (px)">
-          <NumberInput value={section.spacing.marginTop}
+        <Field label="Margin topo">
+          <Slider value={section.spacing.marginTop}
             onChange={v => onChange({ ...section, spacing: { ...section.spacing, marginTop: v } })}
-            min={0} max={400} />
+            min={0} max={200} step={2} unit="px" />
         </Field>
-        <Field label="Margin inferior (px)">
-          <NumberInput value={section.spacing.marginBottom}
+        <Field label="Margin inferior">
+          <Slider value={section.spacing.marginBottom}
             onChange={v => onChange({ ...section, spacing: { ...section.spacing, marginBottom: v } })}
-            min={0} max={400} />
+            min={0} max={200} step={2} unit="px" />
         </Field>
       </Acc>
 
@@ -192,15 +192,15 @@ function MobileOverrideEditor({ section, onChange }: { section: Section; onChang
         </>
       )}
 
-      <Field label="Espaçamento topo no mobile (px — opcional)">
-        <NumberInput value={ov.spacing?.paddingTop ?? section.spacing.paddingTop}
+      <Field label="Espaçamento topo no mobile (opcional)">
+        <Slider value={ov.spacing?.paddingTop ?? section.spacing.paddingTop}
           onChange={v => updateOverride({ spacing: { ...(ov.spacing ?? {}), paddingTop: v } })}
-          min={0} max={400} />
+          min={0} max={200} step={2} unit="px" />
       </Field>
-      <Field label="Espaçamento inferior no mobile (px — opcional)">
-        <NumberInput value={ov.spacing?.paddingBottom ?? section.spacing.paddingBottom}
+      <Field label="Espaçamento inferior no mobile (opcional)">
+        <Slider value={ov.spacing?.paddingBottom ?? section.spacing.paddingBottom}
           onChange={v => updateOverride({ spacing: { ...(ov.spacing ?? {}), paddingBottom: v } })}
-          min={0} max={400} />
+          min={0} max={200} step={2} unit="px" />
       </Field>
     </>
   )
