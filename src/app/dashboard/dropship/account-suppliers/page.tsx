@@ -32,7 +32,7 @@ interface PartnerOption {
 
 interface NewLinkForm {
   supplier_id: string
-  marketplace: 'mercado_livre' | 'shopee' | 'amazon' | 'magalu' | 'others'
+  marketplace: 'mercado_livre' | 'shopee' | 'amazon' | 'magalu' | 'tiktok_shop' | 'storefront' | 'others'
   seller_id: string
   shopee_shop_id: string
   amazon_seller_id: string
@@ -52,8 +52,14 @@ const MARKETPLACE_LABELS: Record<string, string> = {
   shopee: 'Shopee',
   amazon: 'Amazon',
   magalu: 'Magalu',
+  tiktok_shop: 'TikTok Shop',
+  storefront: 'Loja Própria',
   others: 'Outros',
 }
+
+// Canais de "loja única": sem conta OAuth multi-conta aqui — vinculam sem id e
+// o identify resolve pelo único parceiro ativo do canal.
+const CONTA_UNICA_CHANNELS = ['tiktok_shop', 'storefront', 'magalu', 'others']
 
 export default function AccountSuppliersPage() {
   const t = useTranslations('dropship.accountSuppliers')
@@ -154,7 +160,10 @@ export default function AccountSuppliersPage() {
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
     if (!form.supplier_id) { setFormErr(t('errors.choosePartner')); return }
-    if (!form.seller_id && !form.shopee_shop_id && !form.amazon_seller_id) {
+    if (
+      !form.seller_id && !form.shopee_shop_id && !form.amazon_seller_id &&
+      !CONTA_UNICA_CHANNELS.includes(form.marketplace)
+    ) {
       setFormErr(t('errors.provideAccountId'))
       return
     }
@@ -252,7 +261,7 @@ export default function AccountSuppliersPage() {
       {/* filters */}
       <div className="flex items-center gap-3 mb-4 flex-wrap">
         <div className="flex rounded-lg overflow-hidden flex-wrap" style={{ border: '1px solid #27272a' }}>
-          {(['all', 'mercado_livre', 'shopee', 'amazon', 'magalu', 'others'] as const).map(m => (
+          {(['all', 'mercado_livre', 'shopee', 'amazon', 'magalu', 'tiktok_shop', 'storefront', 'others'] as const).map(m => (
             <button
               key={m}
               onClick={() => setFilterMarketplace(m)}
@@ -390,6 +399,18 @@ export default function AccountSuppliersPage() {
                     <Loader2 size={14} className="animate-spin" />
                     {t('form.searchingAccounts')}
                   </div>
+                ) : CONTA_UNICA_CHANNELS.includes(form.marketplace) ? (
+                  <div className="rounded-lg p-3 text-xs flex items-start gap-2" style={{
+                    background: 'rgba(0,229,255,0.06)',
+                    color: '#a5f3fc',
+                    border: '1px solid rgba(0,229,255,0.25)',
+                  }}>
+                    <Link2 size={14} className="mt-0.5 shrink-0" style={{ color: '#00E5FF' }} />
+                    <div className="flex-1">
+                      <p className="font-medium text-white">{t('form.singleStoreTitle', { marketplace: MARKETPLACE_LABELS[form.marketplace] ?? form.marketplace })}</p>
+                      <p className="text-zinc-400 mt-1">{t('form.singleStoreHint')}</p>
+                    </div>
+                  </div>
                 ) : connectedAccounts.length === 0 ? (
                   <div className="rounded-lg p-3 text-xs flex items-start gap-2" style={{
                     background: 'rgba(252,211,77,0.10)',
@@ -487,6 +508,8 @@ function MarketplacePill({ marketplace, label }: { marketplace: string; label?: 
     shopee:        { bg: 'rgba(255,107,53,0.10)', fg: '#fb923c' },  // Shopee laranja
     amazon:        { bg: 'rgba(255,153,0,0.10)',  fg: '#fb923c' },  // Amazon laranja
     magalu:        { bg: 'rgba(0,116,255,0.10)',  fg: '#60a5fa' },  // Magalu azul
+    tiktok_shop:   { bg: 'rgba(255,255,255,0.08)', fg: '#e5e7eb' }, // TikTok branco/escuro
+    storefront:    { bg: 'rgba(0,229,255,0.10)',  fg: '#00E5FF' },  // Loja própria ciano
     others:        { bg: 'rgba(113,113,122,0.10)', fg: '#a1a1aa' },
   }
   const c = colors[marketplace] ?? colors.others

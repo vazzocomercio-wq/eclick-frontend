@@ -2987,6 +2987,8 @@
         "connectedAccount": "Connected account *",
         "searchingAccounts": "Searching for connected accounts...",
         "noAccount": "No {marketplace} account connected",
+        "singleStoreTitle": "{marketplace} — single store",
+        "singleStoreHint": "This channel links without an account: the chosen supplier becomes the default for all sales on this channel.",
         "connectFirst": "Connect an account first in",
         "settingsIntegrations": "Settings > Integrations",
         "selectAccount": "— Select the account —",

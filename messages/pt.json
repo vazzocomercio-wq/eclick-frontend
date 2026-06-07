@@ -3156,6 +3156,8 @@
         "connectedAccount": "Conta conectada *",
         "searchingAccounts": "Buscando contas conectadas...",
         "noAccount": "Nenhuma conta {marketplace} conectada",
+        "singleStoreTitle": "{marketplace} — loja única",
+        "singleStoreHint": "Este canal vincula sem precisar de conta: o fornecedor escolhido vira o padrão de todas as vendas deste canal.",
         "connectFirst": "Conecte uma conta primeiro em",
         "settingsIntegrations": "Configurações > Integrações",
         "selectAccount": "— Selecione a conta —",
