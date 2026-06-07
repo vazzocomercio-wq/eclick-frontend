@@ -28,6 +28,7 @@ interface StoreConfig {
   store_slug: string
   store_description: string | null
   logo_url: string | null
+  favicon_url: string | null
   custom_domain: string | null
   domain_verified: boolean
   ssl_status: string
@@ -263,6 +264,17 @@ export default function StoreConfigPage() {
             downscaleMaxWidth={800}
             aiBannerEnabled={false}
           />
+        </Field>
+        <Field label="Favicon (ícone da aba do navegador)">
+          <ImageUploadField
+            value={String(getVal('favicon_url') ?? '')}
+            onChange={url => setVal('favicon_url', url)}
+            placeholder="https://… (ou envie o arquivo acima)"
+            previewMaxWidth={64}
+            downscaleMaxWidth={256}
+            aiBannerEnabled={false}
+          />
+          <p className="text-[10px] text-zinc-500 mt-1">Imagem quadrada (ex: o monograma da marca). Se vazio, usa o logo. Não afeta o ícone da e-Click.</p>
         </Field>
       </Section>
 

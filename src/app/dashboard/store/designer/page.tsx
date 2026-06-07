@@ -381,6 +381,7 @@ export default function StoreDesignerPage() {
     store_slug:              config.store_slug,
     store_description:       config.store_description,
     logo_url:                config.logo_url,
+    favicon_url:             null,
     custom_domain:           config.custom_domain,
     whatsapp_widget_enabled: config.whatsapp_widget_enabled,
     whatsapp_number:         config.whatsapp_number,

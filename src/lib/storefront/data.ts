@@ -15,6 +15,8 @@ export interface StorefrontStore {
   store_slug:              string
   store_description:       string | null
   logo_url:                string | null
+  /** Favicon da loja (ícone na aba do navegador). NULL = usa o logo_url. */
+  favicon_url:             string | null
   custom_domain:           string | null
   whatsapp_widget_enabled: boolean
   whatsapp_number:         string | null
