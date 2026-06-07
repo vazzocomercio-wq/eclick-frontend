@@ -12,7 +12,7 @@ import type {
 } from '@/lib/storefront/v3/types'
 import type { RenderCtx } from '../RenderCtx'
 import { PriceDisplay } from '../PriceDisplay'
-import { clampRem, ctaButtonStyle, fieldFontFamily } from '../helpers'
+import { clampRem, ctaButtonStyle, fieldFontFamily, fluidRem } from '../helpers'
 
 const HEIGHT_BANNER_PRESET: Record<Exclude<ImageBannerSection['settings']['height'], 'custom'>, string> = {
   sm:         '280px',
@@ -63,7 +63,7 @@ export function ImageBanner({ section }: { ctx: RenderCtx; section: ImageBannerS
         {headline && (
           <h2 style={{
             fontFamily: fieldFontFamily(titleFontPair, 'heading'),
-            fontSize:   `${clampRem(titleSizeRem, 2.25)}rem`,
+            fontSize:   fluidRem(clampRem(titleSizeRem, 2.25)),
             color:      titleColor || textColor,
             lineHeight: 1.15, margin: 0,
             textShadow: '0 1px 4px rgba(0,0,0,0.4)',
@@ -72,7 +72,7 @@ export function ImageBanner({ section }: { ctx: RenderCtx; section: ImageBannerS
         {subheadline && (
           <p style={{
             fontFamily: fieldFontFamily(subtitleFontPair, 'body'),
-            fontSize:   `${clampRem(subtitleSizeRem, 1.1)}rem`,
+            fontSize:   fluidRem(clampRem(subtitleSizeRem, 1.1)),
             color:      subtitleColor || textColor,
             marginTop: 12, maxWidth: 560, textShadow: '0 1px 4px rgba(0,0,0,0.4)',
           }}>{subheadline}</p>
@@ -114,12 +114,12 @@ export function ImageWithText({ section }: { ctx: RenderCtx; section: ImageWithT
           <h2 style={{
             fontFamily: fieldFontFamily(titleFontPair, 'heading'),
             color: titleColor || 'var(--c-text)',
-            fontSize: `${clampRem(titleSizeRem, 2)}rem`,
+            fontSize: fluidRem(clampRem(titleSizeRem, 2)),
           }}>{title}</h2>
           <p style={{
             fontFamily: fieldFontFamily(bodyFontPair, 'body'),
             marginTop: 16, color: bodyColor || 'var(--c-text-muted)', lineHeight: 1.6,
-            fontSize: `${clampRem(bodySizeRem, 1)}rem`,
+            fontSize: fluidRem(clampRem(bodySizeRem, 1)),
           }}>{body}</p>
           {ctaLabel && (
             <a href={ctaHref || '#'}

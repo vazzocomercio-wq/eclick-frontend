@@ -273,6 +273,16 @@ export function clampRem(v: number | undefined, fallback: number): number {
   return Math.max(0.6, Math.min(8, v))
 }
 
+/** Tamanho de fonte FLUIDO: mantém `base` (rem) no mobile e escala pra cima
+ *  no desktop (~1.35× no máximo), via clamp + vw. Resolve o "texto pequeno no
+ *  desktop" sem mexer no que já fica bom no celular. */
+export function fluidRem(base: number): string {
+  const min  = base
+  const pref = +(base - 0.35).toFixed(2)   // calibrado p/ clampar em `base` no mobile
+  const max  = +(base * 1.35).toFixed(2)
+  return `clamp(${min}rem, ${pref}rem + 1.4vw, ${max}rem)`
+}
+
 /** #rrggbb → rgba(...,a). Fallback se não for hex de 6 dígitos. */
 export function hexToRgba(hex: string | undefined, a: number, fallback: string): string {
   const m = /^#?([0-9a-fA-F]{6})$/.exec((hex ?? '').trim())

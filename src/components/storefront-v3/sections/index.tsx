@@ -25,15 +25,21 @@ export function SiteHeader({ ctx, section }: { ctx: RenderCtx; section: SiteHead
   const h = Math.max(24, Math.min(120, logoMaxHeight ?? 40))
   // Largura max proporcional (~4.5x a altura — proporção comum de logos).
   const w = Math.round(h * 4.5)
+  // Logo fluido: mantém `h` no mobile e cresce ~1.5× no desktop (mesma ideia
+  // do texto). Cap pela altura máxima do desktop (h*1.5).
+  const hMax = Math.round(h * 1.5)
+  const wMax = Math.round(w * 1.5)
+  const logoH = `clamp(${h}px, calc(${Math.round(h * 0.85)}px + 1.4vw), ${hMax}px)`
+  const logoW = `clamp(${w}px, calc(${Math.round(w * 0.85)}px + 6.3vw), ${wMax}px)`
 
   return (
     <header className="container mx-auto px-4 flex items-center justify-between"
-      style={{ minHeight: Math.max(56, h + 16), fontFamily: 'var(--f-body)' }}>
+      style={{ minHeight: `clamp(${Math.max(56, h + 16)}px, calc(${Math.max(56, h + 16)}px + 1.4vw), ${hMax + 16}px)`, fontFamily: 'var(--f-body)' }}>
       <a href={`/loja/${ctx.slug}`}
         style={{ color: 'var(--c-text)', fontWeight: 600, fontFamily: 'var(--f-heading)', display: 'inline-flex', alignItems: 'center' }}>
         {effectiveLogoUrl
           // eslint-disable-next-line @next/next/no-img-element
-          ? <img src={effectiveLogoUrl} alt={fallbackText} style={{ maxHeight: h, maxWidth: w, objectFit: 'contain', display: 'block' }} />
+          ? <img src={effectiveLogoUrl} alt={fallbackText} style={{ maxHeight: logoH, maxWidth: logoW, objectFit: 'contain', display: 'block' }} />
           : fallbackText}
       </a>
       <nav className="hidden md:flex gap-6 text-sm" style={{ color: 'var(--c-text)' }}>

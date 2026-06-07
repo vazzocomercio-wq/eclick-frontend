@@ -7,7 +7,7 @@
 
 import type { RenderCtx } from '../RenderCtx'
 import { PriceDisplay } from '../PriceDisplay'
-import { clampRem, ctaButtonStyle, fieldFontFamily } from '../helpers'
+import { clampRem, ctaButtonStyle, fieldFontFamily, fluidRem } from '../helpers'
 import type {
   HeadingBlock, SubheadingBlock, ParagraphBlock,
   ImageBlock, VideoBlock as VideoBlk,
@@ -22,17 +22,17 @@ export function Heading({ block }: { ctx: RenderCtx; block: HeadingBlock }) {
   const { text, level, align, color, sizeRem, fontPair } = block.settings
   const Tag = (`h${level}`) as 'h1' | 'h2' | 'h3' | 'h4'
   const sizes: Record<number, number> = { 1: 2.25, 2: 1.875, 3: 1.5, 4: 1.25 }
-  return <Tag style={{ textAlign: align, fontFamily: fieldFontFamily(fontPair, 'heading'), color: color || 'var(--c-text)', fontSize: `${clampRem(sizeRem, sizes[level])}rem` }}>{text}</Tag>
+  return <Tag style={{ textAlign: align, fontFamily: fieldFontFamily(fontPair, 'heading'), color: color || 'var(--c-text)', fontSize: fluidRem(clampRem(sizeRem, sizes[level])) }}>{text}</Tag>
 }
 
 export function Subheading({ block }: { ctx: RenderCtx; block: SubheadingBlock }) {
   const { text, align, color, sizeRem, fontPair } = block.settings
-  return <p style={{ textAlign: align as Align, fontFamily: fieldFontFamily(fontPair, 'heading'), color: color || 'var(--c-text-muted)', fontSize: `${clampRem(sizeRem, 1.125)}rem` }}>{text}</p>
+  return <p style={{ textAlign: align as Align, fontFamily: fieldFontFamily(fontPair, 'heading'), color: color || 'var(--c-text-muted)', fontSize: fluidRem(clampRem(sizeRem, 1.125)) }}>{text}</p>
 }
 
 export function Paragraph({ block }: { ctx: RenderCtx; block: ParagraphBlock }) {
   const { text, align, color, sizeRem, fontPair } = block.settings
-  return <p style={{ textAlign: align as Align, fontFamily: fieldFontFamily(fontPair, 'body'), color: color || 'var(--c-text)', fontSize: `${clampRem(sizeRem, 1)}rem` }}>{text}</p>
+  return <p style={{ textAlign: align as Align, fontFamily: fieldFontFamily(fontPair, 'body'), color: color || 'var(--c-text)', fontSize: fluidRem(clampRem(sizeRem, 1)) }}>{text}</p>
 }
 
 export function Image({ block }: { ctx: RenderCtx; block: ImageBlock }) {

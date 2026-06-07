@@ -40,11 +40,11 @@ export function HeaderActions({ nav, slug }: { nav: NavItem[]; slug: string }) {
 
   return (
     <div className="flex items-center gap-2">
-      {/* Busca desktop (inline) */}
-      <form onSubmit={goSearch} className="hidden md:flex" style={{ ...boxStyle, width: 200 }}>
-        <Search size={15} style={{ color: 'var(--c-text-muted)', flexShrink: 0 }} />
+      {/* Busca desktop (inline) — maior em telas grandes */}
+      <form onSubmit={goSearch} className="hidden md:flex md:w-64 lg:w-80" style={{ ...boxStyle, padding: '9px 14px' }}>
+        <Search size={18} style={{ color: 'var(--c-text-muted)', flexShrink: 0 }} />
         <input value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar produtos…"
-          aria-label="Buscar produtos" style={fieldStyle} />
+          aria-label="Buscar produtos" style={{ ...fieldStyle, fontSize: 15 }} />
       </form>
 
       {/* Hambúrguer (mobile) */}
