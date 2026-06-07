@@ -17,6 +17,7 @@ interface AccountSupplier {
   amazon_seller_id: string | null
   account_label: string | null
   is_default: boolean
+  dedicated: boolean
   active_since: string
   active_until: string | null
   notes: string | null
@@ -38,13 +39,14 @@ interface NewLinkForm {
   amazon_seller_id: string
   account_label: string
   is_default: boolean
+  dedicated: boolean
   notes: string
 }
 
 const EMPTY_FORM: NewLinkForm = {
   supplier_id: '', marketplace: 'mercado_livre',
   seller_id: '', shopee_shop_id: '', amazon_seller_id: '',
-  account_label: '', is_default: true, notes: '',
+  account_label: '', is_default: true, dedicated: true, notes: '',
 }
 
 const MARKETPLACE_LABELS: Record<string, string> = {
@@ -178,6 +180,7 @@ export default function AccountSuppliersPage() {
         amazon_seller_id: form.amazon_seller_id || null,
         account_label: form.account_label || null,
         is_default: form.is_default,
+        dedicated: form.dedicated,
         notes: form.notes || null,
       }
       const res = await fetch(`${BACKEND}/dropship/account-suppliers`, {
@@ -193,6 +196,19 @@ export default function AccountSuppliersPage() {
     } catch (e) {
       setFormErr(e instanceof Error ? e.message : t('errors.saveFailed'))
     } finally { setSaving(false) }
+  }
+
+  async function handleToggleDedicated(linkId: string, current: boolean) {
+    try {
+      const headers = await getHeaders()
+      const res = await fetch(`${BACKEND}/dropship/account-suppliers/${linkId}`, {
+        method: 'PATCH', headers, body: JSON.stringify({ dedicated: !current }),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      await load()
+    } catch (e) {
+      setPageErr(e instanceof Error ? e.message : t('errors.saveFailed'))
+    }
   }
 
   async function handleUnlink(linkId: string) {
@@ -315,7 +331,19 @@ export default function AccountSuppliersPage() {
                     label={l.marketplace === 'others' ? t('marketplace.others') : undefined}
                   />
                 </td>
-                <td className="px-4 py-3 text-zinc-300 text-xs">{l.account_label ?? '—'}</td>
+                <td className="px-4 py-3 text-zinc-300 text-xs">
+                  <div>{l.account_label ?? '—'}</div>
+                  <button
+                    onClick={() => handleToggleDedicated(l.id, l.dedicated)}
+                    className="mt-1 inline-block px-1.5 py-0.5 rounded text-[10px] transition-opacity hover:opacity-80"
+                    style={l.dedicated
+                      ? { background: 'rgba(34,197,94,0.10)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.3)' }
+                      : { background: 'rgba(252,211,77,0.10)', color: '#fcd34d', border: '1px solid rgba(252,211,77,0.3)' }}
+                    title="Clique para alternar dedicada/mista"
+                  >
+                    {l.dedicated ? 'Dedicada' : 'Mista'}
+                  </button>
+                </td>
                 <td className="px-4 py-3 text-zinc-400 text-xs font-mono">
                   {l.seller_id ?? l.shopee_shop_id ?? l.amazon_seller_id ?? '—'}
                 </td>
@@ -471,6 +499,22 @@ export default function AccountSuppliersPage() {
                 />
                 <label htmlFor="default" className="text-sm text-zinc-400 cursor-pointer">
                   {t('form.defaultLink')}
+                </label>
+              </div>
+
+              <div className="flex items-start gap-2">
+                <input
+                  type="checkbox"
+                  id="dedicated"
+                  checked={form.dedicated}
+                  onChange={e => setForm(f => ({ ...f, dedicated: e.target.checked }))}
+                  className="w-4 h-4 mt-0.5 accent-[#00E5FF]"
+                />
+                <label htmlFor="dedicated" className="text-sm text-zinc-400 cursor-pointer">
+                  Conta dedicada a este parceiro
+                  <span className="block text-xs text-zinc-600">
+                    Desmarque se a conta também vende estoque próprio (mista) — aí produtos fora do catálogo do parceiro são ignorados.
+                  </span>
                 </label>
               </div>
 
