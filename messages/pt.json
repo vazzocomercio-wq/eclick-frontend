@@ -3598,6 +3598,9 @@
         "product": "Produto",
         "partnerSku": "SKU Parceiro",
         "mlOrder": "Pedido ML",
+        "purchaseDate": "Compra",
+        "shipDate": "Postagem",
+        "modal": "Modal",
         "qty": "Qtd",
         "cost": "Custo",
         "packaging": "Embal.",
@@ -3688,6 +3691,7 @@
         "colLineTotal": "Total Linha",
         "colSaleDate": "Data Venda",
         "colShipDate": "Data Envio",
+        "colModal": "Modal",
         "colStatus": "Status"
       },
       "errors": {

@@ -3429,6 +3429,9 @@
         "product": "Product",
         "partnerSku": "Partner SKU",
         "mlOrder": "ML Order",
+        "purchaseDate": "Purchase",
+        "shipDate": "Posted",
+        "modal": "Mode",
         "qty": "Qty",
         "cost": "Cost",
         "packaging": "Pkg.",
@@ -3519,6 +3522,7 @@
         "colLineTotal": "Line Total",
         "colSaleDate": "Sale Date",
         "colShipDate": "Ship Date",
+        "colModal": "Mode",
         "colStatus": "Status"
       },
       "errors": {

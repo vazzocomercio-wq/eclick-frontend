@@ -31,6 +31,7 @@ interface OCItem {
   ml_pack_id: string | null
   sale_date: string
   shipped_at: string | null
+  logistic_type: string | null
   status: string
   products: { id: string; name: string; photo_urls: string[] | null } | null
 }
@@ -219,7 +220,7 @@ export default function OCDetailPage() {
       t('excel.colPartnerSku'), t('excel.colMasterSku'), t('excel.colProduct'), t('excel.colVariation'),
       t('excel.colMarketplace'), t('excel.colMlOrder'), t('excel.colPackId'),
       t('excel.colQty'), t('excel.colUnitCost'), t('excel.colPackaging'), t('excel.colHandling'), t('excel.colLineTotal'),
-      t('excel.colSaleDate'), t('excel.colShipDate'), t('excel.colStatus'),
+      t('excel.colSaleDate'), t('excel.colShipDate'), t('excel.colModal'), t('excel.colStatus'),
     ]
     const itemRows = oc.items.map(it => [
       it.partner_sku,
@@ -236,6 +237,7 @@ export default function OCDetailPage() {
       Number(it.line_total),
       fmtDate(it.sale_date),
       it.shipped_at ? fmtDate(it.shipped_at) : '',
+      modalLabel(it.logistic_type),
       it.status,
     ])
     const itemsSheet = XLSX.utils.aoa_to_sheet([itemHeaders, ...itemRows])
@@ -243,7 +245,7 @@ export default function OCDetailPage() {
       { wch: 18 }, { wch: 18 }, { wch: 40 }, { wch: 15 },
       { wch: 15 }, { wch: 18 }, { wch: 15 },
       { wch: 6 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 12 },
-      { wch: 12 }, { wch: 12 }, { wch: 12 },
+      { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 },
     ]
 
     // Compose workbook
@@ -464,14 +466,14 @@ export default function OCDetailPage() {
         <table className="w-full text-sm">
           <thead>
             <tr style={{ background: '#111114', borderBottom: '1px solid #1a1a1f' }}>
-              {[t('table.product'), t('table.partnerSku'), t('table.mlOrder'), t('table.qty'), t('table.cost'), t('table.packaging'), t('table.handling'), t('table.lineTotal'), t('table.status')].map((h, i) => (
+              {[t('table.product'), t('table.partnerSku'), t('table.mlOrder'), t('table.purchaseDate'), t('table.shipDate'), t('table.modal'), t('table.qty'), t('table.cost'), t('table.packaging'), t('table.handling'), t('table.lineTotal'), t('table.status')].map((h, i) => (
                 <th key={i} className="text-left px-4 py-3 text-xs font-medium text-zinc-500">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {oc.items.length === 0 ? (
-              <tr><td colSpan={9} className="px-4 py-12 text-center text-zinc-500 text-sm">{t('noItems')}</td></tr>
+              <tr><td colSpan={12} className="px-4 py-12 text-center text-zinc-500 text-sm">{t('noItems')}</td></tr>
             ) : oc.items.map(it => (
               <tr key={it.id} style={{ borderBottom: '1px solid #1a1a1f' }}>
                 <td className="px-4 py-3">
@@ -489,6 +491,9 @@ export default function OCDetailPage() {
                 </td>
                 <td className="px-4 py-3 text-zinc-300 font-mono text-xs">{it.partner_sku}</td>
                 <td className="px-4 py-3 text-zinc-400 text-xs font-mono">{it.ml_order_id ?? '—'}</td>
+                <td className="px-4 py-3 text-zinc-300 text-xs whitespace-nowrap">{fmtDate(it.sale_date)}</td>
+                <td className="px-4 py-3 text-xs whitespace-nowrap" style={{ color: it.shipped_at ? '#a1a1aa' : '#52525b' }}>{it.shipped_at ? fmtDate(it.shipped_at) : '—'}</td>
+                <td className="px-4 py-3 text-zinc-300 text-xs whitespace-nowrap">{modalLabel(it.logistic_type)}</td>
                 <td className="px-4 py-3 text-zinc-300">{it.quantity}</td>
                 <td className="px-4 py-3 text-zinc-300 text-xs">{fmtBrl(it.unit_cost)}</td>
                 <td className="px-4 py-3 text-zinc-500 text-xs">{it.packaging_cost > 0 ? fmtBrl(it.packaging_cost) : '—'}</td>
@@ -612,4 +617,17 @@ function fmtBrl(v: number) {
 
 function fmtDate(d: string) {
   return new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+}
+
+// Rótulo amigável do modal de envio (logistic_type do ML). Termos do domínio
+// logístico BR — mantidos iguais em pt/en.
+function modalLabel(lt: string | null | undefined): string {
+  switch (lt) {
+    case 'self_service':  return 'Flex'
+    case 'cross_docking': return 'Coletas'
+    case 'drop_off':      return 'Agência'
+    case 'xd_drop_off':   return 'Agência'
+    case 'fulfillment':   return 'Full'
+    default:              return '—'
+  }
 }
