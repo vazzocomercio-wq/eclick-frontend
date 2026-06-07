@@ -35,11 +35,11 @@ export function ProductCard({ ctx, product, variant }: {
       href={`/loja/${ctx.slug}/produto/${product.id}`}
       style={{ display: 'block', textDecoration: 'none', color: 'var(--c-text)' }}
     >
-      <div style={{ position: 'relative', aspectRatio: '1 / 1', overflow: 'hidden', borderRadius: 'var(--r)', background: 'var(--c-surface)' }}>
+      <div style={{ position: 'relative', aspectRatio: '1 / 1', overflow: 'hidden', borderRadius: 'var(--r)', background: 'transparent' }}>
         {img
           ? /* eslint-disable-next-line @next/next/no-img-element */
             <img src={img} alt={product.name} loading="lazy"
-              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', padding: 12, boxSizing: 'border-box', display: 'block' }} />
+              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', padding: 4, boxSizing: 'border-box', display: 'block' }} />
           : null}
         <div style={{ position: 'absolute', top: 8, right: 8, zIndex: 2 }}>
           <WishlistButton slug={ctx.slug} productId={product.id} size="sm" />
