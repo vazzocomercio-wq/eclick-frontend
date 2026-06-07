@@ -203,7 +203,12 @@ export default function OCsListPage() {
               >
                 <td className="px-4 py-3 font-mono text-xs text-zinc-300">{o.oc_number}</td>
                 <td className="px-4 py-3 text-white">{o.suppliers?.name ?? '—'}</td>
-                <td className="px-4 py-3 text-zinc-400 text-xs">{o.marketplace_account_label ?? o.marketplace}</td>
+                <td className="px-4 py-3 text-xs">
+                  <div className="text-zinc-300">{mktLabel(o.marketplace)}</div>
+                  {o.marketplace_account_label && o.marketplace_account_label !== o.marketplace && (
+                    <div className="text-zinc-500">{o.marketplace_account_label}</div>
+                  )}
+                </td>
                 <td className="px-4 py-3 text-zinc-400 text-xs">{fmtDate(o.reference_date)}</td>
                 <td className="px-4 py-3 text-zinc-300 text-xs">{fmtDate(o.due_date)}</td>
                 <td className="px-4 py-3 text-zinc-300">{o.items_count}</td>
@@ -372,4 +377,17 @@ function fmtBrl(v: number) {
 
 function fmtDate(d: string) {
   return new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' })
+}
+
+/** Nome amigável do marketplace (o valor cru vem como mercado_livre etc). */
+function mktLabel(m: string | null): string {
+  switch (m) {
+    case 'mercado_livre': return 'Mercado Livre'
+    case 'shopee':        return 'Shopee'
+    case 'tiktok_shop':   return 'TikTok Shop'
+    case 'storefront':    return 'Loja Própria'
+    case 'amazon':        return 'Amazon'
+    case 'magalu':        return 'Magalu'
+    default:              return m ?? '—'
+  }
 }
