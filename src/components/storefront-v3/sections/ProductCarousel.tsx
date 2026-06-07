@@ -82,7 +82,7 @@ function CarouselCard({ product, variant, paymentDisplay, cashback }: {
         )}
       </div>
       <div style={{ paddingTop: 8 }}>
-        {variant !== 'minimal' && product.category && (
+        {variant !== 'minimal' && product.category && !/^MLB\d+$/i.test(product.category) && (
           <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--c-text-muted)', marginBottom: 2 }}>
             {product.category}
           </div>

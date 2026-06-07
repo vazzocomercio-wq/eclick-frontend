@@ -19,7 +19,9 @@ export function ProductCard({ ctx, product, variant }: {
   variant: 'compact' | 'detailed' | 'minimal'
 }) {
   const img = product.photo_urls?.[0]
-  const showCategory = variant !== 'minimal' && product.category
+  // Categoria só quando é nome legível — esconde código cru do ML (MLB1586 etc).
+  const humanCategory = product.category && !/^MLB\d+$/i.test(product.category) ? product.category : null
+  const showCategory = variant !== 'minimal' && !!humanCategory
   const showBrand    = variant === 'detailed' && product.brand
   const showShort    = variant === 'detailed' && product.ai_short_description
   const isLowStock   = typeof product.stock === 'number' && product.stock > 0 && product.stock <= 3
@@ -70,7 +72,7 @@ export function ProductCard({ ctx, product, variant }: {
           <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--c-text-muted)', marginBottom: 4 }}>
             {showBrand && product.brand}
             {showBrand && showCategory && ' · '}
-            {showCategory && product.category}
+            {showCategory && humanCategory}
           </div>
         )}
         <h3 style={{ fontFamily: 'var(--f-body)', fontSize: 14, fontWeight: 500, lineHeight: 1.3, margin: 0 }}>
