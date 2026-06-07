@@ -83,7 +83,7 @@ export interface BackgroundStyle {
   kind:        BackgroundKind
   color?:      string                // kind = 'color'
   imageUrl?:   string                // kind = 'image'
-  imageFocus?: 'center' | 'top' | 'bottom' | 'left' | 'right'
+  imageFocus?: string                // 'center'|'top'|'bottom'|'left'|'right' OU "x% y%" (ponto focal por clique) — usado direto como background-position
   videoUrl?:   string                // kind = 'video' (mp4 ou youtube)
   gradient?:   { from: string; to: string; angle?: number }  // kind = 'gradient'
   overlayColor?: string              // overlay sobre image/video
@@ -354,6 +354,8 @@ export type HeroSection = SectionBase<'hero', {
   height:       'auto' | 'sm' | 'md' | 'lg' | 'fullscreen' | 'custom'
   /** Altura em px quando `height='custom'`. Range 100-1200. */
   customHeight?: number
+  /** Altura mínima em px SÓ no mobile (<768px). Sobrescreve a altura acima no celular. */
+  heightMobile?: number
   textAlign:    'left' | 'center' | 'right'
 }>
 
@@ -365,6 +367,8 @@ export type SliderSection = SectionBase<'slider', {
   effect:       'fade' | 'slide' | 'coverflow'
   height:       'auto' | 'sm' | 'md' | 'lg' | 'fullscreen' | 'custom'
   customHeight?: number
+  /** Altura mínima em px SÓ no mobile (<768px). */
+  heightMobile?: number
 }>
 
 export type ImageBannerSection = SectionBase<'imageBanner', {
@@ -376,6 +380,8 @@ export type ImageBannerSection = SectionBase<'imageBanner', {
   textPosition: 'top-left' | 'top-center' | 'top-right' | 'center' | 'bottom-left' | 'bottom-center' | 'bottom-right'
   height:       'sm' | 'md' | 'lg' | 'fullscreen' | 'custom'
   customHeight?: number
+  /** Altura mínima em px SÓ no mobile (<768px). */
+  heightMobile?: number
   /** Overlay/transparência sobre a imagem (legibilidade do texto). */
   overlayColor?:   string
   overlayOpacity?: number   // 0..1

@@ -45,7 +45,7 @@ export function SliderSectionView({ ctx, section }: { ctx: RenderCtx; section: S
   if (total === 0) return null
 
   return (
-    <div className="relative" style={{ minHeight: minH, overflow: 'hidden' }}>
+    <div data-bannerbody className="relative" style={{ minHeight: minH, overflow: 'hidden' }}>
       {/* Slides */}
       {effect === 'fade'
         ? slides.map((s, i) => (

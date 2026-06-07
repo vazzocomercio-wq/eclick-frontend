@@ -43,6 +43,7 @@ export function HeroSectionView({ ctx, section }: { ctx: RenderCtx; section: Her
 
   return (
     <div
+      data-bannerbody
       className={`container mx-auto px-4 flex flex-col gap-4 ${alignClass} ${layoutClass}`}
       style={{ minHeight: minH, maxWidth: layout === 'split' ? 720 : undefined }}
     >

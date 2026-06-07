@@ -40,7 +40,7 @@ export function ImageBanner({ section }: { ctx: RenderCtx; section: ImageBannerS
     ? { color: overlayColor, opacity: Math.min(1, Math.max(0, overlayOpacity ?? 0)) }
     : null
   return (
-    <div className="relative w-full overflow-hidden" style={{ minHeight: minH }}>
+    <div data-bannerbody className="relative w-full overflow-hidden" style={{ minHeight: minH }}>
       {imageUrl && (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={imageUrl} alt={headline ?? ''} loading="lazy"

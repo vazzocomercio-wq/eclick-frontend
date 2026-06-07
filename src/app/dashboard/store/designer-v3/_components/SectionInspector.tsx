@@ -17,6 +17,7 @@
  * proprios.
  */
 
+import type React from 'react'
 import { ArrowLeft } from 'lucide-react'
 import type {
   Section, SectionType, BackgroundStyle,
@@ -169,25 +170,28 @@ function MobileOverrideEditor({ section, onChange }: { section: Section; onChang
   return (
     <>
       <div className="p-3 rounded text-xs mb-2" style={{ background: 'rgba(0,229,255,0.05)', color: '#a5f3fc', border: '1px solid rgba(0,229,255,0.2)' }}>
-        Estes ajustes só aparecem em telas <strong>menores que 768px</strong> (mobile). Útil pra trocar a imagem ou altura no celular.
+        Estes ajustes só aparecem em telas <strong>menores que 768px</strong> (mobile).
       </div>
 
-      <Field label="Usar imagem diferente no mobile?">
+      <div className="p-3 rounded text-xs mb-2" style={{ background: 'rgba(234,179,8,0.06)', color: '#fcd34d', border: '1px solid rgba(234,179,8,0.25)' }}>
+        💡 <strong>Banner ficando ruim no celular?</strong> O melhor resultado vem de usar uma <strong>imagem vertical</strong> (recortada em pé, ~4:5 ou 9:16) só pro mobile — assim o produto aparece inteiro em vez de cortado. Ative abaixo. Como alternativa, ajuste o <strong>ponto focal</strong> e a <strong>altura no mobile</strong> nas configurações da seção.
+      </div>
+
+      <Field label="Usar imagem diferente no mobile? (recomendado pra banners)">
         <Toggle value={useMobileBg}
           onChange={v => updateOverride({ background: v ? { kind: 'image', imageUrl: '' } : { kind: 'none' } })} />
       </Field>
 
       {useMobileBg && (
         <>
-          <Field label="Imagem de fundo (mobile)">
+          <Field label="Imagem de fundo (mobile)" hint="Suba uma versão vertical da foto — assim o banner fica em pé no celular.">
             <ImageUploadField value={mobileBg?.imageUrl ?? ''}
               onChange={v => updateMobileBg({ kind: 'image', imageUrl: v })}
               previewMaxWidth={200} downscaleMaxWidth={1200} />
           </Field>
-          <Field label="Foco da imagem (mobile)">
-            <Select value={mobileBg?.imageFocus ?? 'center'}
-              options={[['center','Centro'],['top','Topo'],['bottom','Base'],['left','Esquerda'],['right','Direita']]}
-              onChange={v => updateMobileBg({ imageFocus: v as 'center' | 'top' | 'bottom' | 'left' | 'right' })} />
+          <Field label="Ponto focal (mobile)" hint="Clique no ponto que deve ficar sempre visível.">
+            <FocalPointPicker imageUrl={mobileBg?.imageUrl} value={mobileBg?.imageFocus}
+              onChange={v => updateMobileBg({ imageFocus: v })} />
           </Field>
         </>
       )}
@@ -226,10 +230,9 @@ function BackgroundEditor({ bg, onChange }: { bg: BackgroundStyle; onChange: (b:
             <ImageUploadField value={bg.imageUrl ?? ''} onChange={v => setBg({ imageUrl: v })}
               previewMaxWidth={240} downscaleMaxWidth={1920} />
           </Field>
-          <Field label="Foco da imagem">
-            <Select value={bg.imageFocus ?? 'center'}
-              options={[['center','Centro'],['top','Topo'],['bottom','Base'],['left','Esquerda'],['right','Direita']]}
-              onChange={v => setBg({ imageFocus: v as 'center' | 'top' | 'bottom' | 'left' | 'right' })} />
+          <Field label="Ponto focal" hint="Clique na imagem no ponto que deve ficar SEMPRE visível (ex: o produto). É o que o banner mantém ao cortar nos diferentes tamanhos de tela.">
+            <FocalPointPicker imageUrl={bg.imageUrl} value={bg.imageFocus}
+              onChange={v => setBg({ imageFocus: v })} />
           </Field>
           <ColorField label="Overlay (cor)" value={bg.overlayColor ?? '#000000'} onChange={v => setBg({ overlayColor: v })} />
           <Field label="Overlay (opacidade 0-1)">
@@ -251,6 +254,71 @@ function BackgroundEditor({ bg, onChange }: { bg: BackgroundStyle; onChange: (b:
         </>
       )}
     </>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// FocalPointPicker — clique na imagem define o ponto que fica sempre visível.
+// Salva imageFocus como "x% y%" (usado direto como background-position no
+// renderizador). Chips de atalho mantêm os presets clássicos.
+// ─────────────────────────────────────────────────────────────────────────
+
+function FocalPointPicker({ imageUrl, value, onChange }: {
+  imageUrl?: string
+  value?: string
+  onChange: (v: string) => void
+}) {
+  const PRESETS: Array<[string, string]> = [
+    ['center', 'Centro'], ['top', 'Topo'], ['bottom', 'Base'], ['left', 'Esq.'], ['right', 'Dir.'],
+  ]
+  const PRESET_XY: Record<string, [number, number]> = {
+    center: [50, 50], top: [50, 0], bottom: [50, 100], left: [0, 50], right: [100, 50],
+  }
+  const [x, y]: [number, number] = (() => {
+    const v = value ?? 'center'
+    if (PRESET_XY[v]) return PRESET_XY[v]
+    const m = /^([\d.]+)%\s+([\d.]+)%$/.exec(v)
+    return m ? [parseFloat(m[1]), parseFloat(m[2])] : [50, 50]
+  })()
+
+  const pick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const r = e.currentTarget.getBoundingClientRect()
+    const px = Math.round(Math.max(0, Math.min(100, ((e.clientX - r.left) / r.width) * 100)))
+    const py = Math.round(Math.max(0, Math.min(100, ((e.clientY - r.top) / r.height) * 100)))
+    onChange(`${px}% ${py}%`)
+  }
+
+  if (!imageUrl) {
+    return <p className="text-[11px]" style={{ color: '#52525b' }}>Envie uma imagem acima pra escolher o ponto focal.</p>
+  }
+
+  return (
+    <div>
+      <div onClick={pick}
+        style={{ position: 'relative', cursor: 'crosshair', borderRadius: 6, overflow: 'hidden', border: '1px solid #27272a', lineHeight: 0 }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={imageUrl} alt="Ponto focal" style={{ width: '100%', height: 'auto', display: 'block', pointerEvents: 'none', userSelect: 'none' }} />
+        <div style={{
+          position: 'absolute', left: `${x}%`, top: `${y}%`, transform: 'translate(-50%, -50%)',
+          width: 20, height: 20, borderRadius: '50%',
+          border: '2px solid #00E5FF', boxShadow: '0 0 0 2px rgba(0,0,0,0.5)', pointerEvents: 'none',
+        }} />
+      </div>
+      <div className="flex flex-wrap gap-1 mt-2">
+        {PRESETS.map(([key, label]) => {
+          const active = (value ?? 'center') === key
+          return (
+            <button key={key} type="button" onClick={() => onChange(key)}
+              style={{
+                padding: '3px 8px', fontSize: 11, borderRadius: 4, cursor: 'pointer', minHeight: 26,
+                background: active ? '#00E5FF' : '#0a0a0e',
+                color: active ? '#0a0a0e' : '#a1a1aa',
+                border: `1px solid ${active ? '#00E5FF' : '#27272a'}`,
+              }}>{label}</button>
+          )
+        })}
+      </div>
+    </div>
   )
 }
 
@@ -463,6 +531,11 @@ function SettingsEditor({ section, onChange, setSettings }: {
                 min={80} max={1200} step={10} unit="px" />
             </Field>
           )}
+          <Field label="📱 Altura no mobile (px)" hint="0 = usa a mesma altura do desktop. No celular, mais alto dá mais espaço pra imagem aparecer.">
+            <Slider value={s.settings.heightMobile ?? 0}
+              onChange={v => setSettings({ heightMobile: v > 0 ? v : undefined })}
+              min={0} max={800} step={10} unit="px" />
+          </Field>
           <Field label="Alinhamento do texto">
             <Select value={s.settings.textAlign}
               options={[['left','Esquerda'],['center','Centro'],['right','Direita']]}
@@ -498,6 +571,11 @@ function SettingsEditor({ section, onChange, setSettings }: {
                 min={80} max={1200} step={10} unit="px" />
             </Field>
           )}
+          <Field label="📱 Altura no mobile (px)" hint="0 = mesma altura do desktop.">
+            <Slider value={s.settings.heightMobile ?? 0}
+              onChange={v => setSettings({ heightMobile: v > 0 ? v : undefined })}
+              min={0} max={800} step={10} unit="px" />
+          </Field>
         </>
       )
     }
@@ -577,6 +655,11 @@ function SettingsEditor({ section, onChange, setSettings }: {
                 min={80} max={1200} step={10} unit="px" />
             </Field>
           )}
+          <Field label="📱 Altura no mobile (px)" hint="0 = mesma altura do desktop.">
+            <Slider value={s.settings.heightMobile ?? 0}
+              onChange={v => setSettings({ heightMobile: v > 0 ? v : undefined })}
+              min={0} max={800} step={10} unit="px" />
+          </Field>
           <ColorField label="Overlay (cor sobre a imagem)" value={s.settings.overlayColor ?? '#000000'}
             onChange={v => setSettings({ overlayColor: v })} />
           <Field label="Transparência do overlay (0-1)" hint="0 = sem overlay (imagem pura). 0.4 escurece um pouco pra dar contraste ao texto.">

@@ -145,6 +145,18 @@ export function mobileOverrideCss(s: Section): string | null {
   return `@media (max-width: 767px) { [data-section-id="${s.id}"] { ${rules.join(' ')} } }`
 }
 
+/**
+ * CSS de altura mínima SÓ no mobile pros banners (hero/slider/imageBanner).
+ * Lê `settings.heightMobile` (px). Mira o container de altura, marcado com
+ * `[data-bannerbody]` dentro do <section>. Retorna null se não houver.
+ */
+export function bannerMobileHeightCss(s: Section): string | null {
+  const hm = (s.settings as { heightMobile?: number }).heightMobile
+  if (typeof hm !== 'number' || hm <= 0) return null
+  const px = Math.max(80, Math.min(1200, hm))
+  return `@media (max-width: 767px) { [data-section-id="${s.id}"] [data-bannerbody] { min-height: ${px}px !important; } }`
+}
+
 /** Overlay (image/video) — retorna { color, opacity } prontos. */
 export function backgroundOverlay(bg: BackgroundStyle): { color: string; opacity: number } | null {
   if ((bg.kind === 'image' || bg.kind === 'video') && bg.overlayColor && (bg.overlayOpacity ?? 0) > 0) {
