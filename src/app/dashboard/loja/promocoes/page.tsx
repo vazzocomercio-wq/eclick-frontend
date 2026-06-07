@@ -104,6 +104,7 @@ export default function PromocoesPage() {
       const token = await fetchToken()
       const params = new URLSearchParams({ filter, limit: '50' })
       if (q.trim()) params.set('q', q.trim())
+      if (stockFilter !== 'any') params.set('stock', stockFilter)
       const res = await fetch(`${BACKEND}/store/config/promotions?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
       })
@@ -116,21 +117,15 @@ export default function PromocoesPage() {
     } finally {
       setLoading(false)
     }
-  }, [fetchToken, filter, q])
+  }, [fetchToken, filter, q, stockFilter])
 
   useEffect(() => { void load() }, [load])
 
   // Limpa seleção quando muda filtro/busca (produtos podem sair da lista)
   useEffect(() => { setSelectedIds(new Set()) }, [filter, q, stockFilter])
 
-  // Filtro client-side de estoque (backend não tem ainda)
-  const filteredProducts = products.filter(p => {
-    const stock = Number(p.stock ?? 0)
-    if (stockFilter === 'in_stock')  return stock > 0
-    if (stockFilter === 'low_stock') return stock > 0 && stock <= 5
-    if (stockFilter === 'no_stock')  return stock <= 0
-    return true
-  })
+  // Filtro de estoque agora é server-side (param ?stock=) — paginação correta.
+  const filteredProducts = products
 
   const toggleSelect = (id: string) => {
     setSelectedIds(prev => {
@@ -232,7 +227,7 @@ export default function PromocoesPage() {
         })}
         {stockFilter !== 'any' && (
           <span className="text-zinc-500 ml-auto">
-            {filteredProducts.length} de {products.length} produtos
+            {total} produto{total === 1 ? '' : 's'} nesse filtro
           </span>
         )}
       </div>

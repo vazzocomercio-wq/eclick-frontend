@@ -275,7 +275,7 @@ const SECTIONS: NavSection[] = [
     items: [
       { labelKey: 'items.lojaHub',       href: '/dashboard/loja',           icon: <LayoutDashboard size={15} /> },
       { labelKey: 'items.lojaConfig',    href: '/dashboard/store/config',   icon: <Store size={15} /> },
-      { labelKey: 'items.lojaDesigner',  href: '/dashboard/store/designer', icon: <Palette size={15} /> },
+      { labelKey: 'items.lojaDesigner',  href: '/dashboard/store/designer-v3', icon: <Palette size={15} /> },
       { labelKey: 'items.lojaCupons',    href: '/dashboard/loja/cupons',    icon: <Tag size={15} /> },
       { labelKey: 'items.lojaFrete',     href: '/dashboard/loja/frete',     icon: <Truck size={15} /> },
       { labelKey: 'items.lojaPagamentos', href: '/dashboard/loja/pagamentos', icon: <CreditCard size={15} /> },

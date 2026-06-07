@@ -65,20 +65,22 @@ export default function LojaHubPage() {
       try {
         const token = await fetchToken()
         const headers = { Authorization: `Bearer ${token}` }
-        const [cfgRes, couponsRes, shippingRes] = await Promise.all([
-          fetch(`${BACKEND}/store/config`,    { headers }),
-          fetch(`${BACKEND}/coupons`,         { headers }),
-          fetch(`${BACKEND}/shipping-rules`,  { headers }),
+        const [cfgRes, couponsRes, shippingRes, countRes] = await Promise.all([
+          fetch(`${BACKEND}/store/config`,            { headers }),
+          fetch(`${BACKEND}/coupons`,                 { headers }),
+          fetch(`${BACKEND}/shipping-rules`,          { headers }),
+          fetch(`${BACKEND}/store/config/products-count`, { headers }),
         ])
         if (cfgRes.ok) setConfig(await cfgRes.json())
         const coupons = couponsRes.ok ? await couponsRes.json() : []
         const shipping = shippingRes.ok ? await shippingRes.json() : []
+        const count = countRes.ok ? await countRes.json() : { visible: 0 }
         setStats({
           couponsActive:   coupons.filter((c: { active: boolean }) => c.active).length,
           couponsTotal:    coupons.length,
           shippingActive:  shipping.filter((r: { active: boolean }) => r.active).length,
           shippingTotal:   shipping.length,
-          productsVisible: 0,  // TODO: endpoint de contagem
+          productsVisible: Number(count?.visible ?? 0),
         })
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Falha ao carregar.')

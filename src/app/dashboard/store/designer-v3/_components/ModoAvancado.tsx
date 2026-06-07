@@ -7,7 +7,7 @@
  *  - Drag handle (reorder via @dnd-kit/sortable)
  *  - Icone do type + label traduzido
  *  - Acoes: duplicar, remover, ocultar mobile/desktop
- *  - Click no item abre sub-editor (TODO: C.5 — por enquanto so destaca)
+ *  - Click no item abre o sub-editor (SectionInspector) da section
  *
  * Adicionar nova section via botao "+ Adicionar" — modal com galeria
  * dos 25 types disponiveis.

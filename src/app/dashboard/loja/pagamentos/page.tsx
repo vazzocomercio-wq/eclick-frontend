@@ -42,9 +42,13 @@ const DEFAULT: PaymentDisplaySettings = {
 
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
+interface GatewayState { configured: boolean; scope: 'org' | 'global' | null }
+interface GatewayStatus { mercadopago: GatewayState; stripe: GatewayState }
+
 export default function PagamentosPage() {
   const [settings, setSettings] = useState<PaymentDisplaySettings>(DEFAULT)
   const [paymentsEnabled, setPaymentsEnabled] = useState<boolean>(false)
+  const [gateways, setGateways] = useState<GatewayStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving,  setSaving]  = useState(false)
   const [savedAt, setSavedAt] = useState<number | null>(null)
@@ -60,11 +64,16 @@ export default function PagamentosPage() {
     void (async () => {
       try {
         const token = await fetchToken()
-        const res = await fetch(`${BACKEND}/store/config`, { headers: { Authorization: `Bearer ${token}` } })
+        const headers = { Authorization: `Bearer ${token}` }
+        const [res, gwRes] = await Promise.all([
+          fetch(`${BACKEND}/store/config`, { headers }),
+          fetch(`${BACKEND}/storefront-orders/gateway-status`, { headers }),
+        ])
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         const cfg = await res.json()
         setSettings(cfg.payment_display_settings ?? DEFAULT)
         setPaymentsEnabled(Boolean(cfg.payments_enabled))
+        if (gwRes.ok) setGateways(await gwRes.json())
       } catch (e) {
         setError((e as Error).message)
       } finally {
@@ -268,9 +277,35 @@ export default function PagamentosPage() {
                 Config
               </Link>
             </div>
+            {/* Status real de conexão por gateway */}
+            <div className="mt-3 space-y-2">
+              {([
+                { key: 'mercadopago' as const, label: 'Mercado Pago' },
+                { key: 'stripe' as const,      label: 'Stripe' },
+              ]).map(({ key, label }) => {
+                const st = gateways?.[key]
+                const ok = Boolean(st?.configured)
+                return (
+                  <div key={key} className="flex items-center gap-2 text-xs">
+                    <div style={{ width: 7, height: 7, borderRadius: '50%', background: ok ? '#22c55e' : '#52525b' }} />
+                    <span className="text-zinc-300 font-medium">{label}</span>
+                    <span style={{ color: ok ? '#22c55e' : '#71717a' }}>
+                      {ok
+                        ? (st?.scope === 'org' ? 'conectado' : 'conectado (chave global e-Click)')
+                        : 'não conectado'}
+                    </span>
+                    {!ok && (
+                      <Link href="/dashboard/store/config" className="ml-auto text-cyan-400 hover:underline">
+                        conectar →
+                      </Link>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
             <p className="text-xs text-zinc-500 mt-3">
-              💡 Quando o gateway (MP/Stripe) tiver integração via API, as condições configuradas aqui serão
-              propagadas no checkout (mostrando exatamente o que você configurou no gateway).
+              💡 As condições de exibição acima (parcelas, Pix) controlam como o preço aparece na vitrine.
+              O processamento do pagamento usa o gateway conectado acima.
             </p>
           </Card>
         </div>
