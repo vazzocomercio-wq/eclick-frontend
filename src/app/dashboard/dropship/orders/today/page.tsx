@@ -40,6 +40,7 @@ interface TodayResponse {
 
 export default function TodayPage() {
   const t = useTranslations('dropship.today')
+  const ts = useTranslations('dropship.orders')  // rótulos de status (reusa statusPill.*)
   const supabase = useMemo(() => createClient(), [])
 
   const [data, setData] = useState<TodayResponse | null>(null)
@@ -159,7 +160,7 @@ export default function TodayPage() {
                     <td className="px-4 py-3 text-xs" style={{ color: Number(o.estimated_margin ?? 0) > 0 ? '#22c55e' : '#f87171' }}>
                       {fmtBrl(Number(o.estimated_margin ?? 0))}
                     </td>
-                    <td className="px-4 py-3 text-xs text-zinc-400">{o.dropship_status}</td>
+                    <td className="px-4 py-3 text-xs"><DropshipStatusPill status={o.dropship_status} t={ts} /></td>
                   </tr>
                 ))}
               </tbody>
@@ -218,6 +219,32 @@ function Kpi({ label, value, accent }: { label: string; value: string | number; 
       <p className="text-xs text-zinc-500 mb-1">{label}</p>
       <p className="text-xl font-semibold" style={{ color: accent ?? '#fff' }}>{value}</p>
     </div>
+  )
+}
+
+/** Status do pedido dropship humanizado (reusa statusPill.* de dropship.orders). */
+function DropshipStatusPill({ status, t }: { status: string; t: (key: string) => string }) {
+  const map: Record<string, { bg: string; fg: string; key: string }> = {
+    identified:        { bg: 'rgba(0,229,255,0.10)',   fg: '#00E5FF', key: 'statusPill.identified' },
+    awaiting_shipment: { bg: 'rgba(252,211,77,0.10)',  fg: '#fcd34d', key: 'statusPill.awaitingShipment' },
+    shipped:           { bg: 'rgba(96,165,250,0.10)',  fg: '#60a5fa', key: 'statusPill.shipped' },
+    shipped_confirmed: { bg: 'rgba(34,197,94,0.10)',   fg: '#22c55e', key: 'statusPill.shippedConfirmed' },
+    eligible_for_oc:   { bg: 'rgba(34,197,94,0.10)',   fg: '#22c55e', key: 'statusPill.eligibleForOc' },
+    in_oc_draft:       { bg: 'rgba(252,211,77,0.10)',  fg: '#fcd34d', key: 'statusPill.inOcDraft' },
+    in_oc_generated:   { bg: 'rgba(252,211,77,0.10)',  fg: '#fcd34d', key: 'statusPill.inOcGenerated' },
+    in_oc_approved:    { bg: 'rgba(34,197,94,0.10)',   fg: '#22c55e', key: 'statusPill.inOcApproved' },
+    in_payable:        { bg: 'rgba(96,165,250,0.10)',  fg: '#60a5fa', key: 'statusPill.inPayable' },
+    paid:              { bg: 'rgba(34,197,94,0.10)',   fg: '#22c55e', key: 'statusPill.paid' },
+    cancelled:         { bg: 'rgba(113,113,122,0.10)', fg: '#71717a', key: 'statusPill.cancelled' },
+    returned:          { bg: 'rgba(248,113,113,0.10)', fg: '#f87171', key: 'statusPill.returned' },
+    on_hold:           { bg: 'rgba(252,211,77,0.10)',  fg: '#fcd34d', key: 'statusPill.onHold' },
+  }
+  const x = map[status]
+  return (
+    <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap"
+      style={{ background: x?.bg ?? 'rgba(113,113,122,0.10)', color: x?.fg ?? '#a1a1aa', border: `1px solid ${(x?.fg ?? '#a1a1aa')}33` }}>
+      {x ? t(x.key) : status}
+    </span>
   )
 }
 

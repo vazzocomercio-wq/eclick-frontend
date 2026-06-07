@@ -3032,11 +3032,11 @@
         "revenueToday": "Receita Hoje",
         "cmvToday": "CMV Hoje",
         "marginToday": "Margem Hoje",
-        "onHold": "Em Hold",
+        "onHold": "Em espera",
         "outOfStock": "Sem Estoque"
       },
       "alert": {
-        "onHold": "<strong>{count, plural, one {# pedido} other {# pedidos}}</strong> em hold — clique pra revisar",
+        "onHold": "<strong>{count, plural, one {# pedido} other {# pedidos}}</strong> em espera — clique pra revisar",
         "outOfStock": "<strong>{count} SKUs</strong> ativos sem estoque do parceiro — anúncios podem ficar pendurados"
       },
       "nav": {
@@ -3501,7 +3501,7 @@
         "paid": "Paga",
         "partiallyPaid": "Pago parcial",
         "cancelled": "Cancelada",
-        "onHold": "Em hold"
+        "onHold": "Em espera"
       },
       "generateConfirm": {
         "title": "Gerar OCs fora do horário",
@@ -3721,7 +3721,7 @@
       "kpi": {
         "total": "Total",
         "shipped": "Despachados",
-        "onHold": "Em hold",
+        "onHold": "Em espera",
         "revenue": "Receita"
       },
       "filter": {
@@ -3738,7 +3738,7 @@
         "paid": "Pagos",
         "cancelled": "Cancelados",
         "returned": "Devolvidos",
-        "onHold": "Em hold",
+        "onHold": "Em espera",
         "excluded": "Excluídos"
       },
       "table": {
@@ -3765,7 +3765,7 @@
         "paid": "Pago",
         "cancelled": "Cancelado",
         "returned": "Devolvido",
-        "onHold": "Em hold",
+        "onHold": "Em espera",
         "excluded": "Excluído"
       },
       "holdPrompt": {
