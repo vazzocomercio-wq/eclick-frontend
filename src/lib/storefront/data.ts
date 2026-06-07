@@ -146,9 +146,10 @@ export async function getStore(slug: string): Promise<StorefrontStore | null> {
   )
 }
 
-export async function getProducts(slug: string, limit = 24): Promise<StorefrontProduct[]> {
+export async function getProducts(slug: string, limit = 24, q?: string): Promise<StorefrontProduct[]> {
+  const qs = q?.trim() ? `&q=${encodeURIComponent(q.trim())}` : ''
   const data = await fetchJson<{ products?: StorefrontProduct[] } | StorefrontProduct[]>(
-    `${BACKEND}/public/store/${encodeURIComponent(slug)}/products?limit=${limit}`,
+    `${BACKEND}/public/store/${encodeURIComponent(slug)}/products?limit=${limit}${qs}`,
   )
   if (!data) return []
   if (Array.isArray(data)) return data

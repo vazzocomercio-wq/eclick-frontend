@@ -16,7 +16,7 @@ import { DEFAULT_DESIGN } from '@/lib/storefront/templates'
 
 interface Props {
   params: Promise<{ slug: string }>
-  searchParams: Promise<{ categoria?: string }>
+  searchParams: Promise<{ categoria?: string; q?: string }>
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -32,12 +32,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function CollectionRoute({ params, searchParams }: Props) {
   const { slug } = await params
-  const { categoria } = await searchParams
+  const { categoria, q } = await searchParams
   const store = await getStore(slug)
   if (!store || store.status !== 'active') notFound()
 
   const [products, bonusRules] = await Promise.all([
-    getProducts(slug, 60),
+    getProducts(slug, 60, q),
     getActiveBonusRules(slug),
   ])
   const resolved = resolveDesign(store)
