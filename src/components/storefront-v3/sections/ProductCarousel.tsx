@@ -94,7 +94,7 @@ function CarouselCard({ product, variant, paymentDisplay, cashback }: {
           </div>
         )}
         <div style={{ marginTop: 6 }}>
-          <PriceDisplay product={product} settings={paymentDisplay} cashback={cashback} variant="card" />
+          <PriceDisplay product={product} settings={paymentDisplay} cashback={cashback} variant="card" inlineBadge />
         </div>
       </div>
     </>
