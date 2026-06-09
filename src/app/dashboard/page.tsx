@@ -6,9 +6,11 @@ import { useTranslations } from 'next-intl'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
-import { useTodayOrders } from '@/hooks/useTodayOrders'
 import HubSummaryCard from '@/components/inteligencia/HubSummaryCard'
-import AccountSelector, { useMlAccount, getStoredSellerId } from '@/components/ml/AccountSelector'
+import DashAccountSelector, {
+  useDashScope, getStoredScope, buildScopeQuery, PLATFORM_META,
+  type DashScope,
+} from '@/components/dashboard/DashAccountSelector'
 import {
   AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip,
@@ -70,7 +72,28 @@ type ProdutoCusto = {
 }
 
 type Period = 'today' | '7d' | '30d' | 'month'
-type Channel = 'all' | 'ml' | 'shopee' | 'amazon' | 'magalu'
+
+/** KPIs agregados server-side (multi-plataforma) — /orders/financial-summary.
+ *  `faturamento_ml` é o faturamento total de TODAS as plataformas (nome legado). */
+type FinKpis = {
+  faturamento_ml: number
+  canceladas: number
+  custo_total: number
+  imposto_total: number
+  tarifa_total: number
+  frete_vendedor: number
+  frete_comprador: number
+  margem_contribuicao: number
+  margem_pct: number
+  vendas_aprovadas: number
+  qtd_aprovadas: number
+  qtd_canceladas: number
+  qtd_com_custo: number
+  qtd_sem_custo: number
+  ticket_medio: number
+  margem_projetada: number
+  margem_projetada_pct: number
+}
 
 type SellerInfo = {
   power_seller_status: string | null
@@ -384,17 +407,10 @@ function topProductsFromOrders(orders: Order[]) {
 
 const PERIOD_KEYS: Period[] = ['today', '7d', '30d', 'month']
 
-const CHANNELS: Array<{ key: Channel; label: string; color: string }> = [
-  { key: 'all',    label: '',        color: '#00E5FF' },
-  { key: 'ml',     label: 'ML',      color: '#ffe600' },
-  { key: 'shopee', label: 'Shopee',  color: '#EE4D2D' },
-  { key: 'amazon', label: 'Amazon',  color: '#FF9900' },
-  { key: 'magalu', label: 'Magalu',  color: '#0086FF' },
-]
-
-function DashHeader({ period, setPeriod, channel, setChannel, onRefresh, refreshing, lastUpdated }: {
+function DashHeader({ period, setPeriod, scope, setScope, platforms, onRefresh, refreshing, lastUpdated }: {
   period: Period; setPeriod: (p: Period) => void
-  channel: Channel; setChannel: (c: Channel) => void
+  scope: DashScope; setScope: (s: DashScope) => void
+  platforms: string[]
   onRefresh: () => void; refreshing: boolean; lastUpdated: Date | null
 }) {
   const t = useTranslations('dashboardHome')
@@ -412,16 +428,23 @@ function DashHeader({ period, setPeriod, channel, setChannel, onRefresh, refresh
         ))}
       </div>
 
-      {/* Channel pills */}
-      <div className="flex gap-1 p-1 rounded-lg" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-        {CHANNELS.map(c => (
-          <button key={c.key} onClick={() => setChannel(c.key)}
-            className="px-3 py-1.5 rounded-md text-[12px] font-semibold transition-all"
-            style={{ background: channel === c.key ? `${c.color}18` : 'transparent', color: channel === c.key ? c.color : 'var(--text-muted)' }}>
-            {c.key === 'all' ? t('channelAll') : c.label}
-          </button>
-        ))}
-      </div>
+      {/* Platform pills — data-driven: só plataformas que têm venda na org */}
+      {platforms.length >= 2 && (
+        <div className="flex gap-1 p-1 rounded-lg" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+          {['all', ...platforms].map(p => {
+            const meta = p === 'all' ? null : PLATFORM_META[p]
+            const active = scope.platform === p
+            const color = meta?.color ?? '#00E5FF'
+            return (
+              <button key={p} onClick={() => setScope({ platform: p, seller_id: null })}
+                className="px-3 py-1.5 rounded-md text-[12px] font-semibold transition-all"
+                style={{ background: active ? `${color}18` : 'transparent', color: active ? color : 'var(--text-muted)' }}>
+                {p === 'all' ? t('channelAll') : (meta?.label ?? p)}
+              </button>
+            )
+          })}
+        </div>
+      )}
 
       <div className="ml-auto flex items-center gap-3">
         {minAgo !== null && (
@@ -709,7 +732,14 @@ function prevPeriodClamped(t: Translate, p: Period) { return t(`prevPeriodClampe
 export default function DashboardPage() {
   const t = useTranslations('dashboardHome')
   const [period, setPeriod] = useState<Period>('today')
-  const [channel] = useState<Channel>('all')
+  // Escopo unificado multi-plataforma (plataforma + conta). Substitui o
+  // antigo filtro ML-only do dashboard. scopeK serve de dep pra refetch.
+  const { scope, setScope, accounts: dashAccounts, scopeKey: scopeK } = useDashScope()
+  const dashPlatforms = useMemo(() => {
+    const seen: string[] = []
+    for (const a of dashAccounts) if (!seen.includes(a.platform)) seen.push(a.platform)
+    return seen
+  }, [dashAccounts])
   const [orders, setOrders] = useState<Order[]>([])
   const [products, setProducts] = useState<DBProduct[]>([])
   const [questions, setQuestions] = useState(0)
@@ -718,7 +748,6 @@ export default function DashboardPage() {
   const [refreshing, setRefreshing] = useState(false)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [mlConnected, setMlConnected] = useState(false)
-  const { selected: mlSelectedAccount } = useMlAccount()
   const [sellerInfo, setSellerInfo] = useState<SellerInfo | null>(null)
   const [mlItemsTotal, setMlItemsTotal] = useState<number | null>(null)
   const [aboveConcPrice, setAboveConcPrice] = useState(0)
@@ -741,7 +770,9 @@ export default function DashboardPage() {
   // Estrutura: { revenue, profit } — ambos derivados pra match com o
   // período corrente (monthly target ÷ days_in_month × elapsed_days etc).
   const [goalData, setGoalData] = useState<{ revenue: number | null; profit: number | null }>({ revenue: null, profit: null })
-  const [financialSummary, setFinancialSummary] = useState<{ total_revenue: number; total_orders: number; ml_total: number; average_ticket: number } | null>(null)
+  // KPIs server-side (multi-plataforma) de /orders/financial-summary.
+  // `faturamento_ml` engloba TODAS as plataformas (nome legado mantido no backend).
+  const [financialSummary, setFinancialSummary] = useState<{ kpis: FinKpis } | null>(null)
   const [summaryLoading, setSummaryLoading] = useState(false)
   const [produtos, setProdutos] = useState<ProdutoCusto[]>([])
   // Ads (mês atual) — investimento mídia + ROAS / ROI
@@ -753,16 +784,6 @@ export default function DashboardPage() {
 
   const supabase = useMemo(() => createClient(), [])
 
-  // Shared hook: today's revenue/count. faturamento já vem LÍQUIDO (sem
-  // cancelados); faturamentoCancelado e pedidosCancelados surfaceiam o
-  // que foi descontado pra UI mostrar.
-  const {
-    faturamento:           hookTodayRevenue,
-    faturamentoCancelado:  hookTodayCancelled,
-    pedidos:               hookTodayCount,
-    pedidosCancelados:     hookTodayCancelledCount,
-    loading:               hookTodayLoading,
-  } = useTodayOrders()
 
   const refresh = useCallback(async (isInitial = false) => {
     if (!isInitial) setRefreshing(true)
@@ -813,21 +834,22 @@ export default function DashboardPage() {
       return
     }
 
-    const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
-    // Range pra Ads — mês atual em YYYY-MM-DD
+    // Mês atual em YYYY-MM-DD (Ads + financial-summary inicial)
     const monthStartStr = brazilDateStr(new Date(new Date().getFullYear(), new Date().getMonth(), 1))
     const todayStr = brazilDateStr()
-    // Multi-conta: append ?seller_id=X quando user selecionou conta especifica
-    const sellerIdSel = getStoredSellerId()
-    const sellerSuffix = sellerIdSel != null ? `&seller_id=${sellerIdSel}` : ''
-    const sellerOnly = sellerIdSel != null ? `?seller_id=${sellerIdSel}` : ''
+    // Escopo unificado: /orders/* recebe seller_id + platforms; os endpoints
+    // ML-específicos (questions/claims/reputação) recebem só o seller_id ML.
+    const sc = getStoredScope()
+    const scopeSuffix = buildScopeQuery(sc)
+    const mlSellerSuffix = sc.seller_id != null ? `&seller_id=${sc.seller_id}` : ''
+    const mlSellerOnly   = sc.seller_id != null ? `?seller_id=${sc.seller_id}` : ''
     const [ordersRes, questionsRes, claimsRes, sellerRes, myItemsRes, finRes, adsRes, convsRes] = await Promise.allSettled([
-      fetch(`${BACKEND}/orders/recent?limit=200${sellerSuffix}`,  { headers: { Authorization: `Bearer ${token}` } }),
-      fetch(`${BACKEND}/ml/questions${sellerOnly}`,                  { headers: { Authorization: `Bearer ${token}` } }),
-      fetch(`${BACKEND}/ml/claims${sellerOnly}`,                     { headers: { Authorization: `Bearer ${token}` } }),
-      fetch(`${BACKEND}/ml/seller-info${sellerOnly}`,                { headers: { Authorization: `Bearer ${token}` } }),
-      fetch(`${BACKEND}/ml/my-items?limit=1${sellerSuffix}`,         { headers: { Authorization: `Bearer ${token}` } }),
-      fetch(`${BACKEND}/orders/financial-summary?kpis_only=true&date_from=${encodeURIComponent(monthStart)}${sellerSuffix}`, { headers: { Authorization: `Bearer ${token}` } }),
+      fetch(`${BACKEND}/orders/recent?limit=200${scopeSuffix}`,  { headers: { Authorization: `Bearer ${token}` } }),
+      fetch(`${BACKEND}/ml/questions${mlSellerOnly}`,                  { headers: { Authorization: `Bearer ${token}` } }),
+      fetch(`${BACKEND}/ml/claims${mlSellerOnly}`,                     { headers: { Authorization: `Bearer ${token}` } }),
+      fetch(`${BACKEND}/ml/seller-info${mlSellerOnly}`,                { headers: { Authorization: `Bearer ${token}` } }),
+      fetch(`${BACKEND}/ml/my-items?limit=1${mlSellerSuffix}`,         { headers: { Authorization: `Bearer ${token}` } }),
+      fetch(`${BACKEND}/orders/financial-summary?date_from=${monthStartStr}&date_to=${todayStr}${scopeSuffix}`, { headers: { Authorization: `Bearer ${token}` } }),
       fetch(`${BACKEND}/ml-ads/reports/summary?from=${monthStartStr}&to=${todayStr}`, { headers: { Authorization: `Bearer ${token}` } }),
       fetch(`${BACKEND}/atendente-ia/conversations?status=open`, { headers: { Authorization: `Bearer ${token}` } }),
     ])
@@ -921,9 +943,9 @@ export default function DashboardPage() {
 
   useEffect(() => { refresh(true) }, [refresh])
 
-  // Refetch ao trocar conta ML selecionada
+  // Refetch ao trocar escopo (plataforma/conta) no seletor ou nas pills
   useEffect(() => { refresh(false) /* silent reload */ // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mlSelectedAccount])
+  }, [scopeK])
 
   useEffect(() => {
     supabase
@@ -982,11 +1004,10 @@ export default function DashboardPage() {
         const token = await getToken()
         if (!token || cancelled) { if (!cancelled) setPeriodLoading(false); return }
         const { from, to } = getPeriodDates(period)
-        const sellerIdSel = getStoredSellerId()
-        const sellerSuffix = sellerIdSel != null ? `&seller_id=${sellerIdSel}` : ''
+        const scopeSuffix = buildScopeQuery(getStoredScope())
         // limit=5000 cobre meses grandes (Vazzo abril/2026 = 1222 pedidos).
         // Backend agora pagina pela DB — sem cap de 500 do live ML antigo.
-        const url = `${BACKEND}/orders/recent?date_from=${from}&date_to=${to}&limit=5000${sellerSuffix}`
+        const url = `${BACKEND}/orders/recent?date_from=${from}&date_to=${to}&limit=5000${scopeSuffix}`
         console.log('[period-fetch] URL:', url)
         const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
         if (!res.ok) {
@@ -1004,7 +1025,7 @@ export default function DashboardPage() {
       }
     })()
     return () => { cancelled = true }
-  }, [period, mlSelectedAccount])
+  }, [period, scopeK])
 
   // ── Period data (prev) — previous period for comparison, independent ─────────
   useEffect(() => {
@@ -1016,11 +1037,10 @@ export default function DashboardPage() {
         if (!prevDates) return
         const token = await getToken()
         if (!token || cancelled) return
-        const sellerIdSel = getStoredSellerId()
-        const sellerSuffix = sellerIdSel != null ? `&seller_id=${sellerIdSel}` : ''
+        const scopeSuffix = buildScopeQuery(getStoredScope())
         // limit=2000 pra cobrir todo o período anterior (clamping é JS-side,
         // precisamos do conjunto completo pra filtrar pelo cutoff de tempo).
-        const url = `${BACKEND}/orders/recent?date_from=${prevDates.from}&date_to=${prevDates.to}&limit=2000${sellerSuffix}`
+        const url = `${BACKEND}/orders/recent?date_from=${prevDates.from}&date_to=${prevDates.to}&limit=2000${scopeSuffix}`
         const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
         if (!res.ok || cancelled) return
         const data = await res.json()
@@ -1059,7 +1079,7 @@ export default function DashboardPage() {
       }
     })()
     return () => { cancelled = true }
-  }, [period, mlSelectedAccount])
+  }, [period, scopeK])
 
   // ── Goals (meta) — fetch from `goals` table per type + current period ────────
   // Tabela `goals` é nova (módulo /dashboard/metas). Defensivo contra a
@@ -1124,9 +1144,8 @@ export default function DashboardPage() {
         const token = await getToken()
         if (!token || cancelled) { if (!cancelled) setSummaryLoading(false); return }
         const { from, to } = getPeriodDates(period)
-        const sellerIdSel = getStoredSellerId()
-        const sellerSuffix = sellerIdSel != null ? `&seller_id=${sellerIdSel}` : ''
-        const url = `${BACKEND}/orders/financial-summary?totals_only=true&date_from=${from}&date_to=${to}${sellerSuffix}`
+        const scopeSuffix = buildScopeQuery(getStoredScope())
+        const url = `${BACKEND}/orders/financial-summary?date_from=${from}&date_to=${to}${scopeSuffix}`
         const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
         if (!res.ok || cancelled) { if (!cancelled) setSummaryLoading(false); return }
         const data = await res.json()
@@ -1137,13 +1156,14 @@ export default function DashboardPage() {
       }
     })()
     return () => { cancelled = true }
-  }, [period, mlSelectedAccount])
+  }, [period, scopeK])
 
   // ── Derived ──────────────────────────────────────────────────────────────────
 
-  // For "Hoje" period use hook values (no status filter, identical to Vendas ao Vivo)
-  const displayPedidos = period === 'today' ? hookTodayCount : (financialSummary?.total_orders ?? periodOrders.length)
-  const displaySummaryLoading = period === 'today' ? hookTodayLoading : (summaryLoading || loading)
+  // Pedidos/loading vêm do mesmo KPI server-side (multi-plataforma) pra todos
+  // os períodos. Fallback: contagem dos periodOrders quando summary indisponível.
+  const displayPedidos = financialSummary?.kpis?.qtd_aprovadas ?? periodOrders.length
+  const displaySummaryLoading = summaryLoading || loading
 
   // periodOrders is now a state (fetched from backend per period)
   const yestOrders   = useMemo(() => orders.filter(o => brazilDateStr(new Date(o.date_created)) === brazilDateStr(daysAgoDate(1))), [orders])
@@ -1151,15 +1171,28 @@ export default function DashboardPage() {
   const cur  = useMemo(() => calcMetrics(periodOrders), [periodOrders])
 
   const { faturamento, lucroEstimado, margemPct, pedidosComCusto, pedidosSemCusto, faturamentoCancelado, pedidosCancelados } = useMemo(() => {
+    // Caminho preferido: KPIs agregados server-side (TODAS as plataformas,
+    // margem de contribuição oficial, cancelados já separados). Vale pra
+    // todos os períodos, inclusive Hoje — fim do híbrido ML-only + escala.
+    const fk = financialSummary?.kpis
+    if (fk) {
+      return {
+        faturamento:          fk.faturamento_ml,
+        lucroEstimado:        fk.margem_contribuicao,
+        margemPct:            fk.margem_pct,
+        pedidosComCusto:      fk.qtd_com_custo,
+        pedidosSemCusto:      fk.qtd_sem_custo,
+        faturamentoCancelado: fk.canceladas,
+        pedidosCancelados:    fk.qtd_canceladas,
+      }
+    }
+
+    // Fallback resiliente (summary indisponível): calcula do periodOrders.
     // Separa cancelados — não entram no faturamento nem no lucro.
     const validOrders     = periodOrders.filter(o => (o as { status?: string }).status !== 'cancelled')
     const cancelledOrders = periodOrders.filter(o => (o as { status?: string }).status === 'cancelled')
     const fatCancelado    = cancelledOrders.reduce((s, o) => s + (o.total_amount ?? 0), 0)
-
-    // Faturamento — pra 'today' usa hook. Demais usa financialSummary.
-    const fat = period === 'today'
-      ? hookTodayRevenue
-      : (financialSummary?.total_revenue ?? validOrders.reduce((s, o) => s + (o.total_amount ?? 0), 0)) - fatCancelado
+    const fat = validOrders.reduce((s, o) => s + (o.total_amount ?? 0), 0)
 
     if (validOrders.length === 0) {
       // Sem dados: zero, NÃO chuta margem mágica de 88,5%
@@ -1242,12 +1275,12 @@ export default function DashboardPage() {
       faturamentoCancelado: fatCancelado,
       pedidosCancelados: cancelledOrders.length,
     }
-  }, [financialSummary, periodOrders, period, hookTodayRevenue, produtos])
+  }, [financialSummary, periodOrders, produtos])
 
-  // Pra hoje: prioriza dados do hook (mesma fonte do "Vendas ao Vivo").
-  // Pra outros períodos: usa o calculado dos periodOrders.
-  const fatCanceladoFinal = period === 'today' ? (hookTodayCancelled ?? 0) : faturamentoCancelado
-  const pedCanceladosFinal = period === 'today' ? (hookTodayCancelledCount ?? 0) : pedidosCancelados
+  // Cancelados vêm do mesmo cálculo (KPI server-side ou fallback) — sem
+  // ramo especial pra Hoje, que antes vinha do hook ML-only.
+  const fatCanceladoFinal = faturamentoCancelado
+  const pedCanceladosFinal = pedidosCancelados
   const yest = useMemo(() => calcMetrics(yestOrders), [yestOrders])
   const todayOrdersBR = useMemo(() => orders.filter(o => isPaid(o) && brazilDateStr(new Date(o.date_created)) === todayBR()), [orders])
   const todayM = useMemo(() => calcMetrics(todayOrdersBR), [todayOrdersBR])
@@ -1257,14 +1290,14 @@ export default function DashboardPage() {
 
   // Chart-header KPIs — no status filter, consistent with faturamento source
   const curAll = useMemo(() => calcMetricsAll(periodOrders), [periodOrders])
-  const chartPedidos = period === 'today' ? hookTodayCount : displayPedidos
+  const chartPedidos = displayPedidos
   const chartAvgTicket = chartPedidos > 0 ? faturamento / chartPedidos : 0
 
   const topProds = useMemo(() => topProductsFromOrders(periodOrders), [periodOrders])
 
   const { topEstados, topCidades } = useMemo(() => {
     // Use exact financialSummary total as denominator so % reflects full period revenue
-    const denominator = financialSummary?.total_revenue
+    const denominator = financialSummary?.kpis?.faturamento_ml
       ?? periodOrders.filter(o => o.shipping_state).reduce((sum, o) => sum + (o.total_amount ?? 0), 0)
     const stateMap: Record<string, { count: number; revenue: number }> = {}
     const cityMap:  Record<string, { count: number; revenue: number }> = {}
@@ -1393,7 +1426,7 @@ export default function DashboardPage() {
               {t('mlConnected')}
             </span>
           )}
-          <AccountSelector compact hideWhenEmpty />
+          <DashAccountSelector compact scope={scope} setScope={setScope} accounts={dashAccounts} />
         </div>
       </div>
 
@@ -1403,7 +1436,7 @@ export default function DashboardPage() {
       {/* LINHA 1 — Filters */}
       <DashHeader
         period={period} setPeriod={setPeriod}
-        channel={channel} setChannel={() => {}}
+        scope={scope} setScope={setScope} platforms={dashPlatforms}
         onRefresh={() => refresh(false)} refreshing={refreshing}
         lastUpdated={lastUpdated}
       />
@@ -1566,7 +1599,7 @@ export default function DashboardPage() {
         <p className="text-[10px] uppercase tracking-widest font-semibold mb-3" style={{ color: 'var(--text-dim)' }}>{t('executiveKpis')}</p>
         <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-2.5">
           <KpiCard label={t('kpiOrders', { period: periodLabel(t, period) })} value={String(displayPedidos)} vsYest={period === 'today' ? pct(cur.count, yest.count) : null} color="#a78bfa" loading={displaySummaryLoading || periodLoading} />
-          <KpiCard label={t('kpiAvgTicket')}  value={brl(financialSummary?.average_ticket ?? cur.avgTicket)} color="#fb923c" loading={summaryLoading || periodLoading || loading} />
+          <KpiCard label={t('kpiAvgTicket')}  value={brl(financialSummary?.kpis?.ticket_medio ?? cur.avgTicket)} color="#fb923c" loading={summaryLoading || periodLoading || loading} />
           <ReputacaoMlCard sellerInfo={sellerInfo} mlConnected={mlConnected} loading={loading} />
           <KpiCard label={t('kpiApprovedSales')} value={finKpis ? shortBrl(finKpis.vendas_aprovadas) : '—'} sub={t('kpiApprovedSalesSub')} color="#22c55e" loading={loading} />
           <KpiCard label={t('kpiMargin', { period: periodLabel(t, period) })} value={`${margemPct.toFixed(1)}%`} sub={shortBrl(lucroEstimado)} color={margemPct >= 0 ? '#22c55e' : '#f87171'} loading={periodLoading || summaryLoading} />
@@ -1778,9 +1811,9 @@ export default function DashboardPage() {
           <SectorCard title={t('sectorCommercial')} loading={summaryLoading || loading} icon={
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.75}><path strokeLinecap="round" strokeLinejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>
           } items={[
-            { label: t('sectorPeriodRevenue'), value: shortBrl(financialSummary?.total_revenue ?? cur.revenue), color: '#00E5FF' },
-            { label: t('sectorOrders'), value: financialSummary?.total_orders ?? cur.count },
-            { label: t('sectorAvgTicket'), value: brl(financialSummary?.average_ticket ?? cur.avgTicket) },
+            { label: t('sectorPeriodRevenue'), value: shortBrl(financialSummary?.kpis?.faturamento_ml ?? cur.revenue), color: '#00E5FF' },
+            { label: t('sectorOrders'), value: financialSummary?.kpis?.qtd_aprovadas ?? cur.count },
+            { label: t('sectorAvgTicket'), value: brl(financialSummary?.kpis?.ticket_medio ?? cur.avgTicket) },
             { label: t('sectorUnitsSold'), value: cur.units },
           ]} />
 
@@ -1814,9 +1847,10 @@ export default function DashboardPage() {
           <SectorCard title={t('sectorFinancial')} loading={summaryLoading || loading} icon={
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.75}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
           } items={[
-            { label: t('sectorGrossRevenue'),  value: shortBrl(financialSummary?.total_revenue ?? cur.revenue), color: '#00E5FF' },
-            { label: t('sectorMlFees'), value: shortBrl((financialSummary?.total_revenue ?? cur.revenue) * 0.115), color: '#f87171' },
-            { label: t('sectorNetRevenue'), value: shortBrl((financialSummary?.total_revenue ?? cur.revenue) * 0.885), color: '#34d399' },
+            { label: t('sectorGrossRevenue'),  value: shortBrl(financialSummary?.kpis?.faturamento_ml ?? cur.revenue), color: '#00E5FF' },
+            // Tarifa REAL da fatura (todas as plataformas) — não mais 11,5% chutado de ML.
+            { label: t('sectorMlFees'), value: shortBrl(financialSummary?.kpis?.tarifa_total ?? (cur.revenue * 0.115)), color: '#f87171' },
+            { label: t('sectorNetRevenue'), value: shortBrl(financialSummary?.kpis ? (financialSummary.kpis.faturamento_ml - financialSummary.kpis.tarifa_total) : (cur.revenue * 0.885)), color: '#34d399' },
             { label: t('sectorEstMargin'), value: `${margemPct.toFixed(1)}%`, color: margemPct >= 0 ? '#22c55e' : '#f87171' },
           ]} />
 
