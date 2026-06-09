@@ -578,7 +578,13 @@ export const CreativeApi = {
     }>('/tiktok-shop/publish', { method: 'POST', body: JSON.stringify(body) }),
 
   // ── Shopee — publicar produto do IA Criativo (Fase F) ──
+  /** Lojas Shopee conectadas (multi-conta) — alimenta o seletor do publish. */
+  shopeeShops: () =>
+    api<Array<{ shop_id: number; nickname: string | null }>>('/shopee/creative/shops'),
+
   shopeePublish: (body: {
+    /** Loja de destino (obrigatória com 2+ contas conectadas). */
+    shop_id: number
     title: string; description: string; price: number
     image_urls: string[]; image_count?: number
     weight_kg?: number; brand?: string
@@ -596,7 +602,7 @@ export const CreativeApi = {
       virtual_stock?: number; stock_paused?: boolean; attributes_count?: number
     }>(
       '/shopee/creative/publish',
-      { method: 'POST', body: JSON.stringify({ shop_id: 0, ...body }) },
+      { method: 'POST', body: JSON.stringify(body) },
     ),
 
   predictMlCategory: (title: string) =>

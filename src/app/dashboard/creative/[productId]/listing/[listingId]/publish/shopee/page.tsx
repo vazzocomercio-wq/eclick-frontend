@@ -27,6 +27,9 @@ export default function ShopeePublishPage() {
   const [result, setResult] = useState<{ item_id?: number; images?: number; virtual_stock?: number; stock_paused?: boolean; attributes_count?: number } | null>(null)
   const [blockers, setBlockers] = useState<string[] | null>(null)
   const [publishError, setPublishError] = useState<string | null>(null)
+  // multi-loja: lojas Shopee conectadas; com 1 só, seleciona sozinho.
+  const [shops, setShops] = useState<Array<{ shop_id: number; nickname: string | null }>>([])
+  const [shopId, setShopId] = useState<number | null>(null)
   // nº de registro p/ campos numéricos obrigatórios da categoria (ex.: Inmetro)
   const [regNumber, setRegNumber] = useState('')
   // "não se aplica / não tenho" (espelho do "não se aplica" do ML)
@@ -38,6 +41,15 @@ export default function ShopeePublishPage() {
       .catch((e) => setError(e instanceof Error ? e.message : 'Falha ao carregar o anúncio'))
       .finally(() => setLoading(false))
   }, [listingId])
+
+  useEffect(() => {
+    CreativeApi.shopeeShops()
+      .then((list) => {
+        setShops(list)
+        if (list.length === 1) setShopId(list[0].shop_id)
+      })
+      .catch(() => setShops([]))
+  }, [])
 
   // dados derivados do contexto (mesma fonte do ML/TikTok)
   const data = useMemo(() => {
@@ -70,7 +82,7 @@ export default function ShopeePublishPage() {
 
   const publishingRef = useRef(false)
   const publish = async () => {
-    if (!data || data.price == null) return
+    if (!data || data.price == null || shopId == null) return
     // Trava SÍNCRONA contra duplo-clique: o `disabled` do botão só vale após o
     // re-render, deixando uma fresta onde 2 cliques rápidos disparavam 2
     // publicações (= 2 anúncios reais na Shopee). A ref bloqueia na hora.
@@ -79,6 +91,7 @@ export default function ShopeePublishPage() {
     setPublishing(true); setPublishError(null); setBlockers(null); setResult(null)
     try {
       const r = await CreativeApi.shopeePublish({
+        shop_id: shopId,
         title: data.title,
         description: data.description,
         price: data.price,
@@ -117,7 +130,7 @@ export default function ShopeePublishPage() {
     )
   }
 
-  const canPublish = data.images.length > 0 && data.price != null && !publishing && !result
+  const canPublish = data.images.length > 0 && data.price != null && shopId != null && !publishing && !result
 
   return (
     <div className="mx-auto max-w-2xl space-y-5 p-6">
@@ -151,6 +164,38 @@ export default function ShopeePublishPage() {
         </div>
         {data.price == null && (
           <p className="mt-2 text-xs text-amber-600">⚠️ Defina o preço no publish do Mercado Livre antes de publicar na Shopee.</p>
+        )}
+      </div>
+
+      {/* Loja de destino — multi-conta: obrigatório escolher quando há 2+ */}
+      <div className="rounded-lg border border-border bg-card p-4">
+        <p className="text-sm font-medium">Loja Shopee de destino</p>
+        {shops.length === 0 ? (
+          <p className="mt-1 text-xs text-amber-600">Nenhuma loja Shopee conectada — conecte em Configurações › Integrações.</p>
+        ) : shops.length === 1 ? (
+          <p className="mt-1 text-xs text-muted-foreground">
+            {shops[0].nickname ?? `Shopee #${shops[0].shop_id}`} <span className="text-green-600">· conectada</span>
+          </p>
+        ) : (
+          <div className="mt-2 space-y-1.5">
+            {shops.map((s) => (
+              <label key={s.shop_id} className="flex cursor-pointer items-center gap-2 rounded-md border border-border px-3 py-2 text-sm hover:border-[#ee4d2d]/60"
+                style={shopId === s.shop_id ? { borderColor: '#ee4d2d', background: 'rgba(238,77,45,0.06)' } : undefined}>
+                <input
+                  type="radio"
+                  name="shopee-shop"
+                  checked={shopId === s.shop_id}
+                  onChange={() => setShopId(s.shop_id)}
+                  className="accent-[#ee4d2d]"
+                />
+                <span>{s.nickname ?? `Shopee #${s.shop_id}`}</span>
+                <span className="ml-auto text-[10px] text-muted-foreground">#{s.shop_id}</span>
+              </label>
+            ))}
+            {shopId == null && (
+              <p className="text-xs text-amber-600">Escolha em qual loja o anúncio será publicado.</p>
+            )}
+          </div>
         )}
       </div>
 
