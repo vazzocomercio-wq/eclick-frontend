@@ -20,8 +20,19 @@ export async function generateMetadata(
   const store = await getStore(slug)
   const icon = store?.favicon_url || store?.logo_url
   if (!icon) return {}
+  // Declara o ícone da loja nos tamanhos exatos da aba (16/32) + 'any'. Assim
+  // o navegador prefere este em vez do /favicon.ico da e-Click (40x40), que
+  // ganharia por proximidade de tamanho se o nosso não tivesse size.
   return {
-    icons: { icon, shortcut: icon, apple: icon },
+    icons: {
+      icon: [
+        { url: icon, type: 'image/png', sizes: '32x32' },
+        { url: icon, type: 'image/png', sizes: '16x16' },
+        { url: icon, type: 'image/png', sizes: 'any' },
+      ],
+      shortcut: [{ url: icon }],
+      apple:    [{ url: icon }],
+    },
   }
 }
 
