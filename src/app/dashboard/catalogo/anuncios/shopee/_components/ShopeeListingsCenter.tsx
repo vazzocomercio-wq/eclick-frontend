@@ -88,13 +88,14 @@ export default function ShopeeListingsCenter() {
   const [notice, setNotice]     = useState<string | null>(null)
   const [propagBusy, setPropagBusy]     = useState(false)
   const [propagConfirm, setPropagConfirm] = useState(false)
+  const [shopFilter, setShopFilter]     = useState<number | 'all'>('all')
 
   const load = useCallback(async () => {
     setError(null)
     try {
       const headers = await authHeaders()
       const [scoresRes, linkRes] = await Promise.all([
-        fetch(`${BACKEND}/shopee/listings/scores?limit=200`, { headers }),
+        fetch(`${BACKEND}/shopee/listings/scores?limit=1000`, { headers }),
         fetch(`${BACKEND}/shopee/listings/link-status`, { headers }),
       ])
       if (!scoresRes.ok) throw new Error(`HTTP ${scoresRes.status}`)
@@ -206,14 +207,36 @@ export default function ShopeeListingsCenter() {
     } catch (e) { setError((e as Error).message); return false }
   }, [load])
 
+  // lojas distintas (multi-conta) — pro filtro por loja
+  const shopIds = [...new Set((items ?? []).map(it => it.shop_id).filter((n): n is number => n != null))].sort()
   const filtered = (items ?? []).filter(it =>
-    !query || (it.title ?? '').toLowerCase().includes(query.toLowerCase()),
+    (!query || (it.title ?? '').toLowerCase().includes(query.toLowerCase())) &&
+    (shopFilter === 'all' || it.shop_id === shopFilter),
   )
 
   return (
     <div className="p-6 space-y-6 min-h-full" style={{ background: '#09090b' }}>
       <Header total={total} summary={summary} onRefresh={load} onAutoLink={autoLink} autoBusy={autoBusy}
         onPropagate={propagateStock} propagBusy={propagBusy} propagConfirm={propagConfirm} t={t} />
+      {shopIds.length > 1 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[11px] text-zinc-500">Loja:</span>
+          {(['all', ...shopIds] as Array<number | 'all'>).map(sid => {
+            const on = shopFilter === sid
+            const p = sid === 'all' ? null : shopPalette(sid as number)
+            const count = sid === 'all' ? (items?.length ?? 0) : (items ?? []).filter(it => it.shop_id === sid).length
+            return (
+              <button key={String(sid)} onClick={() => setShopFilter(sid)}
+                className="text-[11px] font-mono font-semibold px-2.5 py-1 rounded-full transition-colors"
+                style={on
+                  ? (p ? { background: p.bg, color: p.color, border: `1px solid ${p.border}` } : { background: 'rgba(238,77,45,0.15)', color: SHOPEE, border: '1px solid rgba(238,77,45,0.4)' })
+                  : { background: '#111114', color: '#71717a', border: '1px solid #27272a' }}>
+                {sid === 'all' ? 'Todas' : `#${sid}`} <span className="opacity-60">({count})</span>
+              </button>
+            )
+          })}
+        </div>
+      )}
       <Toolbar query={query} onQuery={setQuery} t={t} />
       {notice && (
         <div className="rounded-xl p-3 flex items-start gap-2"
@@ -461,6 +484,10 @@ function ListingRow({ card, link, onOpen, onUnlink, onSavePrice, onSaveStock, on
       <div className="flex-1 min-w-0">
         <div className="flex flex-wrap gap-1.5 mb-1.5 items-center">
           <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full" style={{ background: 'rgba(238,77,45,0.12)', color: SHOPEE, border: '1px solid rgba(238,77,45,0.25)' }}>SHOPEE</span>
+          {card.shop_id != null && (() => { const p = shopPalette(card.shop_id); return (
+            <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full" title={`Loja Shopee ${card.shop_id}`}
+              style={{ background: p.bg, color: p.color, border: `1px solid ${p.border}` }}>#{card.shop_id}</span>
+          ) })()}
           <span className="flex items-center gap-1 text-[10px] font-medium text-emerald-400">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Ativo
           </span>
@@ -1274,6 +1301,17 @@ function marginHex(pct: number): string {
   if (pct <= 0) return '#f87171'
   if (pct < 10) return '#fbbf24'
   return '#34d399'
+}
+
+// cor por loja (multi-conta) — distingue visualmente os anúncios de cada conta.
+const SHOP_COLORS = [
+  { color: '#a78bfa', bg: 'rgba(167,139,250,0.12)', border: 'rgba(124,58,237,0.3)' },
+  { color: '#34d399', bg: 'rgba(52,211,153,0.12)',  border: 'rgba(34,197,94,0.3)' },
+  { color: '#fb923c', bg: 'rgba(251,146,60,0.12)',  border: 'rgba(249,115,22,0.3)' },
+  { color: '#f472b6', bg: 'rgba(244,114,182,0.12)', border: 'rgba(236,72,153,0.3)' },
+]
+function shopPalette(shopId: number) {
+  return SHOP_COLORS[Math.abs(shopId) % SHOP_COLORS.length]
 }
 
 function scoreColor(s: number): string {
