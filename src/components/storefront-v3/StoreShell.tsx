@@ -29,6 +29,17 @@ export function StoreShell({ ctx }: { ctx: RenderCtx }) {
   // carregar as Google Fonts certas além da fonte do tema.
   const sectionFontPairs = collectSectionFontPairs([header, footer, ...page.sections])
 
+  // Barra de rolagem na paleta da loja (track cor de fundo, thumb taupe,
+  // hover na cor de destaque). Aplica no documento só nas páginas da vitrine.
+  const c = ctx.theme.colors
+  const scrollbarCss = `
+    html { scrollbar-width: thin; scrollbar-color: ${c.textMuted} ${c.background}; }
+    ::-webkit-scrollbar { width: 12px; height: 12px; }
+    ::-webkit-scrollbar-track { background: ${c.background}; }
+    ::-webkit-scrollbar-thumb { background: ${c.textMuted}; border-radius: 8px; border: 3px solid ${c.background}; }
+    ::-webkit-scrollbar-thumb:hover { background: ${c.primary}; }
+  `
+
   return (
     <div style={{
       ...themeCssVars(ctx.theme),
@@ -37,6 +48,7 @@ export function StoreShell({ ctx }: { ctx: RenderCtx }) {
       fontFamily: 'var(--f-body)',
       minHeight:  '100vh',
     }}>
+      <style dangerouslySetInnerHTML={{ __html: scrollbarCss }} />
       <link rel="stylesheet" href={googleFontsHrefForDesign(ctx.theme, sectionFontPairs)} />
       <StorefrontPixels store={ctx.store} />
       <AffiliateRefTracker slug={ctx.slug} />
