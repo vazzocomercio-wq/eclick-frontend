@@ -120,6 +120,7 @@ export default function MultiplicadorPage() {
   const [error, setError]       = useState('')
   const [notice, setNotice]     = useState('')
   const [review, setReview]     = useState<Draft | null>(null)    // modal de revisão
+  const [importOpen, setImportOpen] = useState(false)             // modal importar concorrente
 
   // ── carregamento ──────────────────────────────────────────────────────────
 
@@ -227,11 +228,18 @@ export default function MultiplicadorPage() {
             Copie um produto que já vende em um canal pra outro canal — título, descrição, preço e fotos adaptados, estoque sincronizado.
           </p>
         </div>
-        <button onClick={() => { setError(''); void loadDrafts(); if (sel) void loadCandidates(sel, q) }}
-          className="ml-auto flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold"
-          style={{ background: '#111114', border: '1px solid #27272a', color: '#a1a1aa' }}>
-          <RefreshCw size={12} /> Atualizar
-        </button>
+        <div className="ml-auto flex items-center gap-2">
+          <button onClick={() => setImportOpen(true)}
+            className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold"
+            style={{ background: 'rgba(0,229,255,0.10)', border: '1px solid rgba(0,229,255,0.3)', color: '#00E5FF' }}>
+            <ExternalLink size={12} /> Importar de concorrente
+          </button>
+          <button onClick={() => { setError(''); void loadDrafts(); if (sel) void loadCandidates(sel, q) }}
+            className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold"
+            style={{ background: '#111114', border: '1px solid #27272a', color: '#a1a1aa' }}>
+            <RefreshCw size={12} /> Atualizar
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -386,6 +394,112 @@ export default function MultiplicadorPage() {
       {review && (
         <ReviewModal draft={review} onClose={() => setReview(null)} onChanged={afterReviewChange} />
       )}
+      {importOpen && targets && (
+        <ImportCompetitorModal
+          targets={targets}
+          defaultSel={sel}
+          onClose={() => setImportOpen(false)}
+          onImported={async (draft, msg) => {
+            setImportOpen(false)
+            setNotice(msg)
+            await loadDrafts()
+            if (draft) setReview(draft)
+          }} />
+      )}
+    </div>
+  )
+}
+
+// ── modal: importar anúncio de concorrente ───────────────────────────────────
+
+function ImportCompetitorModal({ targets, defaultSel, onClose, onImported }: {
+  targets: Targets
+  defaultSel: TargetSel | null
+  onClose: () => void
+  onImported: (draft: Draft | null, msg: string) => Promise<void>
+}) {
+  const [url, setUrl]   = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr]   = useState('')
+  const [target, setTarget] = useState<TargetSel | null>(defaultSel)
+
+  const options: TargetSel[] = [
+    ...targets.mercadolivre.map(c => ({ platform: 'mercadolivre' as const, accountId: String(c.seller_id), label: c.nickname ? `ML ${c.nickname}` : `ML ${c.seller_id}` })),
+    ...targets.shopee.map(s => ({ platform: 'shopee' as const, accountId: String(s.shop_id), label: s.nickname ?? `Shopee ${s.shop_id}` })),
+    ...(targets.tiktok_shop.connected ? [{ platform: 'tiktok_shop' as const, accountId: null, label: 'TikTok Shop' }] : []),
+    { platform: 'storefront' as const, accountId: null, label: 'Loja própria' },
+  ]
+
+  const run = async () => {
+    if (!url.trim()) { setErr('Cole a URL do anúncio (Mercado Livre ou Shopee).'); return }
+    setBusy(true); setErr('')
+    try {
+      const h = await authHeaders()
+      const res = await fetch(`${BACKEND}/multiplier/import-competitor`, {
+        method: 'POST', headers: h,
+        body: JSON.stringify({
+          url: url.trim(),
+          target_platform: target?.platform ?? null,
+          target_account_id: target?.accountId ?? null,
+        }),
+      })
+      const out = await res.json()
+      if (!res.ok) throw new Error(out?.message ?? `HTTP ${res.status}`)
+      const d = (out as { draft: Draft | null; scraped: { title: string; images: number }; reused: boolean }).draft
+      await onImported(d,
+        `Importado: "${(out as { scraped: { title: string } }).scraped.title.slice(0, 60)}" (${(out as { scraped: { images: number } }).scraped.images} fotos)` +
+        `${(out as { reused: boolean }).reused ? ' — produto já existia, reusado' : ' — produto criado como rascunho no catálogo'}.` +
+        (d ? ' Revise e publique.' : ''))
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Falha ao importar.')
+    } finally { setBusy(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={onClose}>
+      <div className="w-full max-w-lg rounded-2xl p-5" style={{ background: '#111114', border: '1px solid #27272a' }} onClick={e => e.stopPropagation()}>
+        <div className="mb-3 flex items-center gap-2">
+          <ExternalLink size={15} className="text-cyan-400" />
+          <h3 className="text-sm font-bold text-white">Importar anúncio de concorrente</h3>
+          <button onClick={onClose} className="ml-auto" style={{ color: '#71717a' }}><X size={16} /></button>
+        </div>
+
+        {err && (
+          <div className="mb-3 whitespace-pre-line rounded-lg p-3 text-sm" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>{err}</div>
+        )}
+
+        <Field label="URL do anúncio (Mercado Livre ou Shopee)">
+          <input value={url} onChange={e => setUrl(e.target.value)} onKeyDown={e => e.key === 'Enter' && void run()}
+            placeholder="https://produto.mercadolivre.com.br/MLB-…"
+            className="w-full rounded-lg px-3 py-2 text-sm outline-none"
+            style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }} />
+        </Field>
+
+        <div className="mt-3">
+          <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide" style={{ color: '#52525b' }}>Publicar para (opcional)</p>
+          <div className="flex flex-wrap gap-1.5">
+            <TargetChip icon={<Copy size={11} />} label="Só importar" active={target === null} onClick={() => setTarget(null)} />
+            {options.map(o => (
+              <TargetChip key={`${o.platform}:${o.accountId ?? ''}`} icon={<Store size={11} />} label={o.label}
+                active={target?.platform === o.platform && target?.accountId === o.accountId}
+                onClick={() => setTarget(o)} />
+            ))}
+          </div>
+        </div>
+
+        <p className="mt-3 rounded-lg p-2 text-[11px]" style={{ background: 'rgba(252,211,77,0.07)', color: '#fcd34d', border: '1px solid rgba(252,211,77,0.25)' }}>
+          ⚠ Conteúdo de terceiro: fotos e textos podem ter direitos autorais — revise/edite antes de publicar.
+        </p>
+
+        <div className="mt-4 flex justify-end">
+          <button onClick={() => void run()} disabled={busy}
+            className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-bold disabled:opacity-50"
+            style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}>
+            {busy ? <Loader2 size={12} className="animate-spin" /> : <Copy size={12} />}
+            {busy ? 'Importando…' : 'Importar'}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
