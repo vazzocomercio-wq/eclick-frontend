@@ -119,6 +119,7 @@ const SECTIONS: NavSection[] = [
               { labelKey: 'items.anunciosMagalu',       href: '/dashboard/catalogo/anuncios/magalu' },
             ],
           },
+          { labelKey: 'items.multiplicador', href: '/dashboard/catalogo/multiplicador' },
           { labelKey: 'items.vinculos',  href: '/dashboard/catalogo/vinculos',  badgeKey: 'vinculos' as BadgeKey },
           {
             labelKey: 'items.estoque', href: '/dashboard/catalogo/estoque',
