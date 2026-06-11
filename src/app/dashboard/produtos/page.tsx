@@ -58,6 +58,93 @@ const PM: Record<string, { abbr: string; bg: string; fg: string }> = {
   magalu:       { abbr: 'MG', bg: '#0086FF', fg: '#fff' },
 }
 
+// ── Cobertura por conta (Multiplicador) ──────────────────────────────────────
+// Cada produto mostra em quais CONTAS/lojas já tem anúncio ativo e quais
+// faltam; clicar na faltante cria um rascunho no Multiplicador (1 clique).
+
+type MultiTargets = {
+  mercadolivre: Array<{ seller_id: number; nickname: string | null }>
+  shopee:       Array<{ shop_id: number; nickname: string | null }>
+  tiktok_shop:  { connected: boolean }
+  storefront:   { connected: boolean }
+}
+
+type MultiDestino = { key: string; platform: string; accountId: string | null; label: string }
+
+function destinosOf(t: MultiTargets | null): MultiDestino[] {
+  if (!t) return []
+  const out: MultiDestino[] = []
+  for (const c of t.mercadolivre ?? []) out.push({
+    key: `mercadolivre:${c.seller_id}`, platform: 'mercadolivre', accountId: String(c.seller_id),
+    label: c.nickname ? `ML ${c.nickname}` : `ML …${String(c.seller_id).slice(-4)}`,
+  })
+  for (const s of t.shopee ?? []) out.push({
+    key: `shopee:${s.shop_id}`, platform: 'shopee', accountId: String(s.shop_id),
+    label: s.nickname ?? `Shopee …${String(s.shop_id).slice(-4)}`,
+  })
+  if (t.tiktok_shop?.connected) out.push({ key: 'tiktok_shop', platform: 'tiktok_shop', accountId: null, label: 'TikTok' })
+  out.push({ key: 'storefront:loja', platform: 'storefront', accountId: null, label: 'Loja' })
+  return out
+}
+
+function CoverageChips({ productId, covered, targets }: {
+  productId: string
+  covered: string[] | undefined
+  targets: MultiTargets | null
+}) {
+  const router = useRouter()
+  const [busyKey, setBusyKey]   = useState<string | null>(null)
+  const [sentKeys, setSentKeys] = useState<Set<string>>(new Set())
+  if (!targets || covered === undefined) return null
+
+  const cov = new Set(covered)
+  const isCovered = (d: MultiDestino) => cov.has(d.key) || cov.has(d.platform)
+
+  const send = async (d: MultiDestino) => {
+    setBusyKey(d.key)
+    try {
+      const token = await getAuthToken()
+      const res = await fetch(`${BACKEND}/multiplier/drafts`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ product_id: productId, target_platform: d.platform, target_account_id: d.accountId }),
+      })
+      const out = await res.json()
+      if (!res.ok) throw new Error(out?.message ?? `HTTP ${res.status}`)
+      setSentKeys(prev => new Set([...prev, d.key]))
+      pushToast({ message: `Rascunho criado pra ${d.label} — revise no Multiplicador.`, tone: 'success' })
+    } catch (e) {
+      pushToast({ message: e instanceof Error ? e.message : 'Falha ao criar rascunho.', tone: 'error' })
+    } finally { setBusyKey(null) }
+  }
+
+  return (
+    <div className="flex flex-wrap gap-1 mt-1.5" onClick={e => e.stopPropagation()}>
+      {destinosOf(targets).map(d => isCovered(d) ? (
+        <span key={d.key} title="Anúncio ativo nesta conta"
+          className="text-[9px] font-semibold px-1.5 py-0.5 rounded"
+          style={{ background: 'rgba(0,229,255,0.08)', color: '#a5f3fc', border: '1px solid rgba(0,229,255,0.25)' }}>
+          {d.label}
+        </span>
+      ) : sentKeys.has(d.key) ? (
+        <button key={d.key} onClick={() => router.push('/dashboard/catalogo/multiplicador')}
+          title="Rascunho criado — clique pra revisar no Multiplicador"
+          className="text-[9px] font-semibold px-1.5 py-0.5 rounded"
+          style={{ background: 'rgba(74,222,128,0.10)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)' }}>
+          ✓ {d.label}
+        </button>
+      ) : (
+        <button key={d.key} disabled={busyKey === d.key} onClick={() => void send(d)}
+          title={`Sem anúncio nesta conta — clique pra enviar (cria rascunho no Multiplicador)`}
+          className="text-[9px] font-semibold px-1.5 py-0.5 rounded disabled:opacity-50"
+          style={{ background: 'transparent', color: '#71717a', border: '1px dashed #3f3f46' }}>
+          {busyKey === d.key ? '…' : `+ ${d.label}`}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 const SM: Record<string, { bg: string; color: string }> = {
   active: { bg: 'rgba(52,211,153,0.12)',  color: '#34d399' },
   draft:  { bg: 'rgba(245,158,11,0.12)',  color: '#f59e0b' },
@@ -480,7 +567,7 @@ function RowMenu({ onEdit, onDuplicate, onDelete }: {
 // ── table row ─────────────────────────────────────────────────────────────────
 
 function TableRow({
-  product, selected, onSelect, onStatusChange, onDelete, onDuplicate, stockInfo,
+  product, selected, onSelect, onStatusChange, onDelete, onDuplicate, stockInfo, covered, multiTargets,
 }: {
   product: Product
   selected: boolean
@@ -489,6 +576,8 @@ function TableRow({
   onDelete: (id: string) => void
   onDuplicate: (id: string) => void
   stockInfo?: StockSummary
+  covered?: string[]
+  multiTargets?: MultiTargets | null
 }) {
   const t = useTranslations('produtos')
   const router = useRouter()
@@ -671,6 +760,9 @@ function TableRow({
             <span className="text-[10px]" style={{ color: '#00E5FF' }}>{t('page.mlFlex')}</span>
           )}
         </div>
+        {/* Cobertura por conta: onde JÁ tem anúncio ativo (cheio) e onde falta
+            (tracejado, 1 clique = rascunho no Multiplicador) */}
+        <CoverageChips productId={product.id} covered={covered} targets={multiTargets ?? null} />
       </td>
 
       {/* Métricas */}
@@ -1031,6 +1123,10 @@ export default function ProdutosPage() {
   const [showTaxConfig, setShowTaxConfig] = useState(false)
   const [mlConnected, setMlConnected]   = useState(false)
   const [stockMap, setStockMap]         = useState<Record<string, StockSummary>>({})
+  // Cobertura por conta (Multiplicador): destinos conectados + mapa
+  // product_id → ['platform:account'] de anúncios ATIVOS.
+  const [multiTargets, setMultiTargets] = useState<MultiTargets | null>(null)
+  const [coverage, setCoverage]         = useState<Record<string, string[]>>({})
   // Filtros avançados (toggle do painel + 5+3 critérios)
   const [advOpen, setAdvOpen]       = useState(false)
   const [filterStock, setFilterStock] = useState<'all' | 'zero' | 'critical' | 'normal'>('all')
@@ -1321,6 +1417,33 @@ export default function ProdutosPage() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / perPage))
   const page = Math.min(pageNum, totalPages - 1)
   const paged = filtered.slice(page * perPage, page * perPage + perPage)
+
+  // Destinos conectados (1x) + cobertura dos produtos da PÁGINA visível.
+  // Ids sem anúncio entram como [] (mostra todos os destinos como faltantes).
+  useEffect(() => {
+    void (async () => {
+      const token = await getAuthToken()
+      if (!token) return
+      const r = await fetch(`${BACKEND}/multiplier/targets`, { headers: { Authorization: `Bearer ${token}` } })
+      if (r.ok) setMultiTargets(await r.json())
+    })()
+  }, [])
+  const pagedIds = paged.map(p => p.id).join(',')
+  useEffect(() => {
+    if (!pagedIds) return
+    void (async () => {
+      const token = await getAuthToken()
+      if (!token) return
+      const r = await fetch(`${BACKEND}/multiplier/coverage?ids=${pagedIds}`, { headers: { Authorization: `Bearer ${token}` } })
+      if (!r.ok) return
+      const data = (await r.json()) as Record<string, string[]>
+      setCoverage(prev => {
+        const next = { ...prev }
+        for (const id of pagedIds.split(',')) next[id] = data[id] ?? []
+        return next
+      })
+    })()
+  }, [pagedIds])
 
   // Contadores pra mostrar ao lado de cada chip de filtro (quantos passariam SE
   // só esse filtro estivesse ativo). Calculados apenas em produtos que já
@@ -1757,6 +1880,8 @@ export default function ProdutosPage() {
                         onDelete={handleDelete}
                         onDuplicate={handleDuplicate}
                         stockInfo={stockMap[p.id]}
+                        covered={coverage[p.id]}
+                        multiTargets={multiTargets}
                       />
                     ))
                 }
