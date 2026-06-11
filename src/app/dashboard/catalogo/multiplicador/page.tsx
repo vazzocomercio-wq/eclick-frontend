@@ -36,6 +36,15 @@ type Candidate = {
   warnings:    string[]
 }
 
+type Variation = {
+  product_id: string
+  label:      string
+  price:      number | null
+  sku:        string | null
+  name?:      string | null
+  stock?:     number | null
+}
+
 type DraftPayload = {
   title:       string
   description: string | null
@@ -49,6 +58,8 @@ type DraftPayload = {
   category_id?: string | null
   listing_type?: string | null
   condition?:   string | null
+  variations?:  Variation[] | null
+  variation_tier_name?: string | null
 }
 
 type Draft = {
@@ -391,6 +402,9 @@ function ReviewModal({ draft, onClose, onChanged }: {
   const [price, setPrice]       = useState(draft.payload?.price != null ? String(draft.payload.price) : '')
   const [categoryId, setCategoryId] = useState(draft.payload?.category_id ?? '')
   const [listingType, setListingType] = useState(draft.payload?.listing_type ?? 'gold_special')
+  const [variations, setVariations]   = useState<Variation[]>(draft.payload?.variations ?? [])
+  const [tierName, setTierName]       = useState(draft.payload?.variation_tier_name ?? 'Cor')
+  const [varsDirty, setVarsDirty]     = useState(false)
   const [saving, setSaving]     = useState(false)
   const [publishing, setPublishing] = useState(false)
   const [confirm, setConfirm]   = useState(false)
@@ -401,7 +415,8 @@ function ReviewModal({ draft, onClose, onChanged }: {
     desc !== (draft.payload?.description ?? '') ||
     price !== (draft.payload?.price != null ? String(draft.payload.price) : '') ||
     categoryId !== (draft.payload?.category_id ?? '') ||
-    listingType !== (draft.payload?.listing_type ?? 'gold_special')
+    listingType !== (draft.payload?.listing_type ?? 'gold_special') ||
+    varsDirty
 
   const save = async (): Promise<Draft> => {
     const h = await authHeaders()
@@ -412,6 +427,12 @@ function ReviewModal({ draft, onClose, onChanged }: {
       body.category_id = categoryId || null
     }
     if (draft.target_platform === 'mercadolivre') body.listing_type = listingType || null
+    if (draft.target_platform === 'shopee' && varsDirty) {
+      body.variations = variations.length > 0
+        ? variations.map(v => ({ product_id: v.product_id, label: v.label }))
+        : null
+      body.variation_tier_name = tierName.trim() || 'Cor'
+    }
     const res = await fetch(`${BACKEND}/multiplier/drafts/${draft.id}`, { method: 'PATCH', headers: h, body: JSON.stringify(body) })
     const out = await res.json()
     if (!res.ok) throw new Error(out?.message ?? `HTTP ${res.status}`)
@@ -527,6 +548,54 @@ function ReviewModal({ draft, onClose, onChanged }: {
               </Field>
             )}
           </div>
+          {/* VARIAÇÕES (só Shopee): cada opção = um produto do catálogo */}
+          {draft.target_platform === 'shopee' && (
+            <div className="rounded-lg p-3" style={{ background: '#0d0d10', border: '1px solid #27272a' }}>
+              <div className="mb-2 flex items-center gap-2">
+                <span className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: '#52525b' }}>
+                  Variações (opcional)
+                </span>
+                {variations.length > 0 && (
+                  <input value={tierName} onChange={e => { setTierName(e.target.value); setVarsDirty(true) }}
+                    placeholder="Cor" title="Nome da dimensão (ex.: Cor, Tamanho)"
+                    className="w-24 rounded px-2 py-1 text-[11px] outline-none"
+                    style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }} />
+                )}
+                <span className="ml-auto text-[10px]" style={{ color: '#52525b' }}>
+                  {variations.length > 0 ? `${variations.length} opção(ões) — venda baixa o produto da opção` : 'anúncio simples (sem variação)'}
+                </span>
+              </div>
+              {variations.map(v => (
+                <div key={v.product_id} className="mb-1.5 flex items-center gap-2 rounded px-2 py-1.5" style={{ background: '#0a0a0e', border: '1px solid #27272a' }}>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs text-white">{v.name ?? v.product_id}</p>
+                    <p className="text-[10px]" style={{ color: '#71717a' }}>SKU {v.sku ?? '—'} · R$ {v.price ?? '—'} · estq {v.stock ?? 0}</p>
+                  </div>
+                  <input value={v.label}
+                    onChange={e => { setVariations(prev => prev.map(x => x.product_id === v.product_id ? { ...x, label: e.target.value } : x)); setVarsDirty(true) }}
+                    placeholder="rótulo (ex.: Dourado)"
+                    className="w-32 rounded px-2 py-1 text-[11px] outline-none"
+                    style={{ background: '#111114', border: '1px solid #27272a', color: '#fafafa' }} />
+                  <button onClick={() => { setVariations(prev => prev.filter(x => x.product_id !== v.product_id)); setVarsDirty(true) }}
+                    style={{ color: '#71717a' }}><X size={13} /></button>
+                </div>
+              ))}
+              <VariationSearch
+                exclude={[...variations.map(v => v.product_id)]}
+                onPick={h => {
+                  setVariations(prev => [...prev, {
+                    product_id: h.id, label: '', price: h.price, sku: h.sku, name: h.name, stock: h.stock,
+                  }])
+                  setVarsDirty(true)
+                }} />
+              {variations.length === 1 && (
+                <p className="mt-1 text-[10px]" style={{ color: '#fcd34d' }}>
+                  ⚠ Adicione pelo menos 2 opções (o produto deste rascunho entra automático como “Principal” se não estiver na lista).
+                </p>
+              )}
+            </div>
+          )}
+
           <p className="text-[11px]" style={{ color: '#52525b' }}>
             Origem: {draft.source_platform ? `${PLATFORM_LABEL[draft.source_platform] ?? draft.source_platform} ${draft.source_listing_id ?? ''}` : 'catálogo'} ·
             SKU {draft.payload?.sku ?? '—'} · estoque inicial {draft.payload?.stock ?? 0} (depois o motor central assume) ·
@@ -556,6 +625,58 @@ function ReviewModal({ draft, onClose, onChanged }: {
           </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+/** Busca de produto pro grupo de variações (usa /composition/search-products). */
+function VariationSearch({ exclude, onPick }: {
+  exclude: string[]
+  onPick: (h: { id: string; name: string | null; sku: string | null; price: number | null; stock: number | null }) => void
+}) {
+  const [q, setQ]       = useState('')
+  const [hits, setHits] = useState<Array<{ id: string; name: string | null; sku: string | null; price: number | null; stock: number | null; is_kit: boolean }>>([])
+  const [busy, setBusy] = useState(false)
+  const [open, setOpen] = useState(false)
+
+  const search = async () => {
+    if (!q.trim()) { setHits([]); setOpen(false); return }
+    setBusy(true)
+    try {
+      const h = await authHeaders()
+      const res = await fetch(`${BACKEND}/composition/search-products?q=${encodeURIComponent(q.trim())}`, { headers: h })
+      if (res.ok) {
+        const all = (await res.json()) as Array<{ id: string; name: string | null; sku: string | null; price: number | null; stock: number | null; is_kit: boolean }>
+        setHits(all.filter(x => !exclude.includes(x.id)))
+        setOpen(true)
+      }
+    } finally { setBusy(false) }
+  }
+
+  return (
+    <div className="relative">
+      <div className="flex items-center gap-2 rounded px-2 py-1.5" style={{ background: '#0a0a0e', border: '1px dashed #27272a' }}>
+        <Search size={12} style={{ color: '#52525b' }} />
+        <input value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && void search()}
+          placeholder="Adicionar opção: buscar produto por nome ou SKU…"
+          className="w-full bg-transparent text-xs outline-none" style={{ color: '#fafafa' }} />
+        <button onClick={() => void search()} className="text-[11px] font-semibold" style={{ color: '#00E5FF' }}>
+          {busy ? <Loader2 size={11} className="animate-spin" /> : 'Buscar'}
+        </button>
+      </div>
+      {open && hits.length > 0 && (
+        <div className="absolute z-10 mt-1 max-h-48 w-full overflow-y-auto rounded-lg" style={{ background: '#111114', border: '1px solid #27272a' }}>
+          {hits.map(h => (
+            <button key={h.id} onClick={() => { onPick(h); setOpen(false); setQ(''); setHits([]) }}
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-white/5">
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-xs text-white">{h.name}</p>
+                <p className="text-[10px]" style={{ color: '#71717a' }}>SKU {h.sku ?? '—'} · estq {h.stock ?? 0}{h.is_kit ? ' · kit' : ''}</p>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
