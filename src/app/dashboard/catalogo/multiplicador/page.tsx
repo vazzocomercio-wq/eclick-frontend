@@ -73,6 +73,23 @@ const PLATFORM_LABEL: Record<string, string> = {
   storefront: 'Loja própria', amazon: 'Amazon', magalu: 'Magalu',
 }
 
+/** Rótulo de um canal coberto ('platform:account_id') com o NOME da conta/loja
+ *  (apelidos vêm dos destinos carregados) — não só a plataforma. */
+function channelLabel(ch: string, targets: Targets | null): string {
+  const [plat, acct] = ch.split(':')
+  const base = PLATFORM_LABEL[plat] ?? plat
+  if (!acct || acct === 'loja') return base
+  if (plat === 'mercadolivre') {
+    const c = targets?.mercadolivre.find(m => String(m.seller_id) === acct)
+    return c?.nickname ? `ML ${c.nickname}` : `ML …${acct.slice(-4)}`
+  }
+  if (plat === 'shopee') {
+    const s = targets?.shopee.find(x => String(x.shop_id) === acct)
+    return s?.nickname ?? `Shopee …${acct.slice(-4)}`
+  }
+  return `${base} …${acct.slice(-4)}`
+}
+
 const STATUS_STYLE: Record<Draft['status'], { label: string; color: string; bg: string }> = {
   draft:      { label: 'Rascunho',   color: '#a5f3fc', bg: 'rgba(0,229,255,0.10)' },
   publishing: { label: 'Publicando', color: '#fcd34d', bg: 'rgba(252,211,77,0.10)' },
@@ -283,7 +300,7 @@ export default function MultiplicadorPage() {
                     <span>{c.photo_count} foto(s)</span>
                     {c.covered.map(ch => (
                       <span key={ch} className="rounded px-1.5 py-0.5" style={{ background: 'rgba(0,229,255,0.07)', color: '#a5f3fc' }}>
-                        {PLATFORM_LABEL[ch.split(':')[0]] ?? ch.split(':')[0]}
+                        {channelLabel(ch, targets)}
                       </span>
                     ))}
                     {c.warnings.map(w => (
@@ -323,7 +340,7 @@ export default function MultiplicadorPage() {
                     <p className="truncate text-sm text-white">{d.payload?.title ?? '(sem título)'}</p>
                     <p className="text-[11px]" style={{ color: '#71717a' }}>
                       {d.source_platform ? `${PLATFORM_LABEL[d.source_platform] ?? d.source_platform} ${d.source_listing_id ?? ''}` : 'do catálogo'}
-                      {' → '}{PLATFORM_LABEL[d.target_platform] ?? d.target_platform}{d.target_account_id && d.target_platform === 'shopee' ? ` (${d.target_account_id})` : ''}
+                      {' → '}{channelLabel(d.target_account_id ? `${d.target_platform}:${d.target_account_id}` : d.target_platform, targets)}
                       {d.external_id && d.status === 'published' ? ` · criado: ${d.external_id}` : ''}
                     </p>
                     {d.status === 'failed' && d.error_message && (
