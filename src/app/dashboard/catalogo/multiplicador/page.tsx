@@ -18,9 +18,10 @@ const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 // ── tipos (espelham o backend /multiplier) ──────────────────────────────────
 
 type Targets = {
-  shopee:      Array<{ shop_id: number; nickname: string | null }>
-  tiktok_shop: { connected: boolean }
-  storefront:  { connected: boolean }
+  mercadolivre: Array<{ seller_id: number; nickname: string | null }>
+  shopee:       Array<{ shop_id: number; nickname: string | null }>
+  tiktok_shop:  { connected: boolean }
+  storefront:   { connected: boolean }
 }
 
 type Candidate = {
@@ -46,6 +47,8 @@ type DraftPayload = {
   package_dimensions_cm: { length: number; width: number; height: number } | null
   stock:       number | null
   category_id?: string | null
+  listing_type?: string | null
+  condition?:   string | null
 }
 
 type Draft = {
@@ -63,7 +66,7 @@ type Draft = {
   published_at: string | null
 }
 
-type TargetSel = { platform: 'shopee' | 'tiktok_shop' | 'storefront'; accountId: string | null; label: string }
+type TargetSel = { platform: 'mercadolivre' | 'shopee' | 'tiktok_shop' | 'storefront'; accountId: string | null; label: string }
 
 const PLATFORM_LABEL: Record<string, string> = {
   mercadolivre: 'Mercado Livre', shopee: 'Shopee', tiktok_shop: 'TikTok Shop',
@@ -208,6 +211,12 @@ export default function MultiplicadorPage() {
       {targets && (
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#52525b' }}>Destino:</span>
+          {targets.mercadolivre.map(c => (
+            <TargetChip key={`ml-${c.seller_id}`} icon={<ShoppingBag size={12} />}
+              label={c.nickname ? `ML ${c.nickname}` : `ML ${c.seller_id}`}
+              active={sel?.platform === 'mercadolivre' && sel.accountId === String(c.seller_id)}
+              onClick={() => setSel({ platform: 'mercadolivre', accountId: String(c.seller_id), label: c.nickname ? `ML ${c.nickname}` : `ML ${c.seller_id}` })} />
+          ))}
           {targets.shopee.map(s => (
             <TargetChip key={`shopee-${s.shop_id}`} icon={<ShoppingBag size={12} />}
               label={s.nickname ?? `Shopee ${s.shop_id}`}
@@ -353,6 +362,7 @@ function ReviewModal({ draft, onClose, onChanged }: {
   const [desc, setDesc]         = useState(draft.payload?.description ?? '')
   const [price, setPrice]       = useState(draft.payload?.price != null ? String(draft.payload.price) : '')
   const [categoryId, setCategoryId] = useState(draft.payload?.category_id ?? '')
+  const [listingType, setListingType] = useState(draft.payload?.listing_type ?? 'gold_special')
   const [saving, setSaving]     = useState(false)
   const [publishing, setPublishing] = useState(false)
   const [confirm, setConfirm]   = useState(false)
@@ -362,14 +372,18 @@ function ReviewModal({ draft, onClose, onChanged }: {
     title !== (draft.payload?.title ?? '') ||
     desc !== (draft.payload?.description ?? '') ||
     price !== (draft.payload?.price != null ? String(draft.payload.price) : '') ||
-    categoryId !== (draft.payload?.category_id ?? '')
+    categoryId !== (draft.payload?.category_id ?? '') ||
+    listingType !== (draft.payload?.listing_type ?? 'gold_special')
 
   const save = async (): Promise<Draft> => {
     const h = await authHeaders()
     const body: Record<string, unknown> = { title, description: desc || null }
     const p = Number(price.replace(',', '.'))
     if (Number.isFinite(p) && p > 0) body.price = Math.round(p * 100) / 100
-    if (draft.target_platform === 'tiktok_shop') body.category_id = categoryId || null
+    if (draft.target_platform === 'tiktok_shop' || draft.target_platform === 'mercadolivre') {
+      body.category_id = categoryId || null
+    }
+    if (draft.target_platform === 'mercadolivre') body.listing_type = listingType || null
     const res = await fetch(`${BACKEND}/multiplier/drafts/${draft.id}`, { method: 'PATCH', headers: h, body: JSON.stringify(body) })
     const out = await res.json()
     if (!res.ok) throw new Error(out?.message ?? `HTTP ${res.status}`)
@@ -393,7 +407,10 @@ function ReviewModal({ draft, onClose, onChanged }: {
       const res = await fetch(`${BACKEND}/multiplier/drafts/${current.id}/publish`, { method: 'POST', headers: h })
       const out = await res.json()
       if (!res.ok) throw new Error(out?.message ?? `HTTP ${res.status}`)
-      await onChanged(null, `Anúncio publicado em ${PLATFORM_LABEL[draft.target_platform] ?? draft.target_platform} (${(out as Draft).external_id ?? 'ok'}). O canal pode levar alguns minutos pra aprovar.`)
+      const extra = draft.target_platform === 'mercadolivre'
+        ? ' O anúncio nasce PAUSADO — revise e ative no painel do ML.'
+        : ' O canal pode levar alguns minutos pra aprovar.'
+      await onChanged(null, `Anúncio publicado em ${PLATFORM_LABEL[draft.target_platform] ?? draft.target_platform} (${(out as Draft).external_id ?? 'ok'}).${extra}`)
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Falha ao publicar.')
       await onChanged(draft)
@@ -458,6 +475,27 @@ function ReviewModal({ draft, onClose, onChanged }: {
                   placeholder="recomendada automaticamente"
                   className="w-full rounded-lg px-3 py-2 text-sm outline-none"
                   style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }} />
+              </Field>
+            )}
+            {draft.target_platform === 'mercadolivre' && (
+              <Field label="Categoria ML (id)">
+                <input value={categoryId} onChange={e => setCategoryId(e.target.value)}
+                  placeholder="prevista automaticamente"
+                  className="w-full rounded-lg px-3 py-2 text-sm outline-none"
+                  style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }} />
+              </Field>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            {draft.target_platform === 'mercadolivre' && (
+              <Field label="Tipo de anúncio ML">
+                <select value={listingType} onChange={e => setListingType(e.target.value)}
+                  className="w-full rounded-lg px-3 py-2 text-sm outline-none"
+                  style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }}>
+                  <option value="gold_special">Clássico (gold_special)</option>
+                  <option value="gold_pro">Premium (gold_pro)</option>
+                  <option value="free">Grátis (free)</option>
+                </select>
               </Field>
             )}
           </div>
