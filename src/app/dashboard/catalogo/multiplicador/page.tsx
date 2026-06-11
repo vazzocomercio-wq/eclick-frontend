@@ -147,6 +147,17 @@ export default function MultiplicadorPage() {
     })()
   }, [loadTargets, loadDrafts])
 
+  // Deep-link: /multiplicador?draft=<id> abre direto o modal de revisão
+  // (vindo do clique "Revisar" na lista de Produtos). Só na chegada.
+  const deepLinkDone = useState(() => ({ done: false }))[0]
+  useEffect(() => {
+    if (deepLinkDone.done || drafts.length === 0) return
+    const id = new URLSearchParams(window.location.search).get('draft')
+    if (!id) { deepLinkDone.done = true; return }
+    const d = drafts.find(x => x.id === id && (x.status === 'draft' || x.status === 'failed'))
+    if (d) { setReview(d); deepLinkDone.done = true }
+  }, [drafts, deepLinkDone])
+
   useEffect(() => {
     if (!sel) return
     setCands(null); setError('')

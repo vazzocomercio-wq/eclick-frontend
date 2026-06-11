@@ -94,7 +94,8 @@ function CoverageChips({ productId, covered, targets }: {
 }) {
   const router = useRouter()
   const [busyKey, setBusyKey]   = useState<string | null>(null)
-  const [sentKeys, setSentKeys] = useState<Set<string>>(new Set())
+  // destino → id do rascunho criado (pra abrir direto a revisão no Multiplicador)
+  const [sentDrafts, setSentDrafts] = useState<Record<string, string>>({})
   if (!targets || covered === undefined) return null
 
   const cov = new Set(covered)
@@ -111,8 +112,8 @@ function CoverageChips({ productId, covered, targets }: {
       })
       const out = await res.json()
       if (!res.ok) throw new Error(out?.message ?? `HTTP ${res.status}`)
-      setSentKeys(prev => new Set([...prev, d.key]))
-      pushToast({ message: `Rascunho criado pra ${d.label} — revise no Multiplicador.`, tone: 'success' })
+      setSentDrafts(prev => ({ ...prev, [d.key]: (out as { id: string }).id }))
+      pushToast({ message: `Rascunho criado pra ${d.label} — clique em "Revisar" pra publicar.`, tone: 'success' })
     } catch (e) {
       pushToast({ message: e instanceof Error ? e.message : 'Falha ao criar rascunho.', tone: 'error' })
     } finally { setBusyKey(null) }
@@ -126,12 +127,13 @@ function CoverageChips({ productId, covered, targets }: {
           style={{ background: 'rgba(0,229,255,0.08)', color: '#a5f3fc', border: '1px solid rgba(0,229,255,0.25)' }}>
           {d.label}
         </span>
-      ) : sentKeys.has(d.key) ? (
-        <button key={d.key} onClick={() => router.push('/dashboard/catalogo/multiplicador')}
-          title="Rascunho criado — clique pra revisar no Multiplicador"
+      ) : sentDrafts[d.key] ? (
+        <button key={d.key}
+          onClick={() => router.push(`/dashboard/catalogo/multiplicador?draft=${sentDrafts[d.key]}`)}
+          title="Rascunho criado, AINDA NÃO PUBLICADO — clique pra revisar e publicar"
           className="text-[9px] font-semibold px-1.5 py-0.5 rounded"
-          style={{ background: 'rgba(74,222,128,0.10)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)' }}>
-          ✓ {d.label}
+          style={{ background: 'rgba(252,211,77,0.10)', color: '#fcd34d', border: '1px solid rgba(252,211,77,0.35)' }}>
+          Revisar: {d.label} →
         </button>
       ) : (
         <button key={d.key} disabled={busyKey === d.key} onClick={() => void send(d)}
