@@ -18,11 +18,23 @@ import type { PaymentDisplaySettings } from '@/lib/storefront/v3/data'
 import { ReviewStars } from '@/components/storefront/ReviewStars'
 
 function pickProducts(all: StorefrontProduct[], src: ProductCarouselSection['settings']['source']): StorefrontProduct[] {
-  if (src.kind === 'manual') {
-    const ids = new Set(src.productIds)
-    return all.filter(p => ids.has(p.id))
+  switch (src.kind) {
+    case 'manual': {
+      const ids = new Set(src.productIds)
+      return all.filter(p => ids.has(p.id))
+    }
+    case 'promo':
+      return all.filter(p => p.on_sale)
+    case 'newest':
+      return [...all].sort((a, b) =>
+        new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime())
+    case 'bestsellers':
+      return [...all].sort((a, b) =>
+        (Number(b.review_count ?? 0) - Number(a.review_count ?? 0)) ||
+        (Number(b.ai_score ?? 0) - Number(a.ai_score ?? 0)))
+    default:
+      return all
   }
-  return all
 }
 
 export function ProductCarouselSectionView({ ctx, section }: { ctx: RenderCtx; section: ProductCarouselSection }) {

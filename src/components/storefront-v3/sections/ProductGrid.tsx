@@ -26,11 +26,20 @@ function pickProducts(all: StorefrontProduct[], src: ProductGridSection['setting
       const ids = new Set(src.productIds)
       return all.filter(p => ids.has(p.id))
     }
+    case 'promo':
+      // Em promoção: só os que estão com desconto ativo
+      return all.filter(p => p.on_sale)
+    case 'newest':
+      // Novidades: mais recentes primeiro (created_at desc)
+      return [...all].sort((a, b) =>
+        new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime())
+    case 'bestsellers':
+      // Mais vendidos: proxy por nº de avaliações + score (sem dado de vendas no front)
+      return [...all].sort((a, b) =>
+        (Number(b.review_count ?? 0) - Number(a.review_count ?? 0)) ||
+        (Number(b.ai_score ?? 0) - Number(a.ai_score ?? 0)))
     case 'storefront':
     case 'collection':   // TODO pre-fetch por coleção na rota
-    case 'bestsellers':  // TODO pre-fetch ranking
-    case 'newest':       // TODO order by created_at
-    case 'promo':        // TODO filter discount > 0
     default:
       return all
   }
