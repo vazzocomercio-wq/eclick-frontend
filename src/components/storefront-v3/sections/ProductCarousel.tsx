@@ -16,30 +16,11 @@ import type { RenderCtx } from '../RenderCtx'
 import { PriceDisplay, SaleBadge } from '../PriceDisplay'
 import type { PaymentDisplaySettings } from '@/lib/storefront/v3/data'
 import { ReviewStars } from '@/components/storefront/ReviewStars'
-
-function pickProducts(all: StorefrontProduct[], src: ProductCarouselSection['settings']['source']): StorefrontProduct[] {
-  switch (src.kind) {
-    case 'manual': {
-      const ids = new Set(src.productIds)
-      return all.filter(p => ids.has(p.id))
-    }
-    case 'promo':
-      return all.filter(p => p.on_sale)
-    case 'newest':
-      return [...all].sort((a, b) =>
-        new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime())
-    case 'bestsellers':
-      return [...all].sort((a, b) =>
-        (Number(b.review_count ?? 0) - Number(a.review_count ?? 0)) ||
-        (Number(b.ai_score ?? 0) - Number(a.ai_score ?? 0)))
-    default:
-      return all
-  }
-}
+import { resolveSectionProducts } from '../resolveSectionProducts'
 
 export function ProductCarouselSectionView({ ctx, section }: { ctx: RenderCtx; section: ProductCarouselSection }) {
   const { title, source, limit, cardStyle } = section.settings
-  const products = pickProducts(ctx.products ?? [], source).slice(0, limit)
+  const products = resolveSectionProducts(ctx, source, limit)
 
   if (products.length === 0) return null
 

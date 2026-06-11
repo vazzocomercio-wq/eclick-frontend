@@ -33,6 +33,33 @@ export async function getStore(slug: string): Promise<StorefrontStore | null> {
   return (await getStoreV2(slug)) as StorefrontStore | null
 }
 
+/** Pré-busca produtos por ORIGEM dinâmica (newest/promo/bestsellers) usadas nas
+ *  seções da página, cada uma do catálogo VINCULADO inteiro (storefront_visible
+ *  + estoque). Usado pela rota (SSR) pra alimentar `ctx.productsBySource`. */
+export async function getProductsBySourceForPage(
+  slug: string,
+  design: StorefrontDesignV3,
+  pageKey: keyof StorefrontDesignV3['pages'],
+  limit = 24,
+): Promise<Record<string, StorefrontProduct[]>> {
+  const sections = design.pages[pageKey]?.sections ?? []
+  const kinds = new Set<string>()
+  for (const s of sections) {
+    const src = (s.settings as { source?: { kind?: string } } | undefined)?.source
+    if (src?.kind && (src.kind === 'newest' || src.kind === 'promo' || src.kind === 'bestsellers')) {
+      kinds.add(src.kind)
+    }
+  }
+  const map: Record<string, StorefrontProduct[]> = {}
+  await Promise.all([...kinds].map(async kind => {
+    map[kind] = await getProducts(slug, limit,
+      kind === 'newest'      ? { sort: 'newest' } :
+      kind === 'bestsellers' ? { sort: 'bestsellers' } :
+                               { onSale: true })
+  }))
+  return map
+}
+
 /**
  * Resolve qual versao de design usar pra renderizar.
  *

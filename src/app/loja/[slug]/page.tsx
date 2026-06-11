@@ -13,7 +13,7 @@
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { getTranslations } from 'next-intl/server'
-import { getStore, getProducts, getActiveBonusRules, resolveDesign } from '@/lib/storefront/v3/data'
+import { getStore, getProducts, getActiveBonusRules, resolveDesign, getProductsBySourceForPage } from '@/lib/storefront/v3/data'
 import { StorefrontHome } from '@/components/storefront/StorefrontHome'
 import { StoreShell } from '@/components/storefront-v3/StoreShell'
 import { storeBaseUrl, organizationJsonLd, websiteJsonLd, storeOpenGraph } from '@/lib/storefront/structured-data'
@@ -62,12 +62,15 @@ export default async function StorefrontPage({ params }: Props) {
   )
 
   if (resolved.version === 3) {
+    // Pré-busca por origem (Novidades/Em promoção/Mais vendidos) do catálogo
+    // vinculado inteiro — só as origens realmente usadas nas seções da home.
+    const productsBySource = await getProductsBySourceForPage(slug, resolved.design, 'home', 24)
     return (
       <>
         {orgScripts}
         <StoreShell ctx={{
           store, design: resolved.design, theme: resolved.design.theme,
-          slug, page: 'home', products,
+          slug, page: 'home', products, productsBySource,
           paymentDisplay: store.payment_display_settings ?? null,
           cashback: store.cashback_settings
             ? { enabled: store.cashback_settings.enabled, earnPct: store.cashback_settings.earnPct }

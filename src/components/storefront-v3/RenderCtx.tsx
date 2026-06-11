@@ -19,6 +19,10 @@ export interface RenderCtx {
   page:   keyof StorefrontDesignV3['pages']
   /** Produtos carregados (pre-fetched pela rota, pra ProductGrid/Carousel). */
   products?: StorefrontProduct[]
+  /** Produtos pré-buscados POR ORIGEM dinâmica (newest/promo/bestsellers),
+   *  cada um do catálogo VINCULADO inteiro. A rota preenche; o preview do
+   *  designer não (cai no fallback client-side). */
+  productsBySource?: Record<string, StorefrontProduct[]>
   /** Settings de exibição de preço — vem de store.payment_display_settings.
    *  Componentes PriceDisplay usam isso pra escolher formato (parcelas / Pix /
    *  total em destaque). NULL/undefined = DEFAULT_PAYMENT_DISPLAY. */

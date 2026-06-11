@@ -37,7 +37,7 @@ export default async function CollectionRoute({ params, searchParams }: Props) {
   if (!store || store.status !== 'active') notFound()
 
   const [products, bonusRules] = await Promise.all([
-    getProducts(slug, 60, q),
+    getProducts(slug, 60, { q }),
     getActiveBonusRules(slug),
   ])
   const resolved = resolveDesign(store)

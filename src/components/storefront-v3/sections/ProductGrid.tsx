@@ -19,31 +19,7 @@ import type { StorefrontProduct } from '@/lib/storefront/v3/data'
 import type { RenderCtx } from '../RenderCtx'
 import { ProductCard } from './ProductCard'
 import { CatalogFilterGrid } from './CatalogFilterGrid'
-
-function pickProducts(all: StorefrontProduct[], src: ProductGridSection['settings']['source']): StorefrontProduct[] {
-  switch (src.kind) {
-    case 'manual': {
-      const ids = new Set(src.productIds)
-      return all.filter(p => ids.has(p.id))
-    }
-    case 'promo':
-      // Em promoção: só os que estão com desconto ativo
-      return all.filter(p => p.on_sale)
-    case 'newest':
-      // Novidades: mais recentes primeiro (created_at desc)
-      return [...all].sort((a, b) =>
-        new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime())
-    case 'bestsellers':
-      // Mais vendidos: proxy por nº de avaliações + score (sem dado de vendas no front)
-      return [...all].sort((a, b) =>
-        (Number(b.review_count ?? 0) - Number(a.review_count ?? 0)) ||
-        (Number(b.ai_score ?? 0) - Number(a.ai_score ?? 0)))
-    case 'storefront':
-    case 'collection':   // TODO pre-fetch por coleção na rota
-    default:
-      return all
-  }
-}
+import { resolveSectionProducts } from '../resolveSectionProducts'
 
 function colClass(n: number, breakpoint: '' | 'sm' | 'md' | 'lg'): string {
   // Tailwind precisa de classes literais — mapeamos manualmente os valores
@@ -62,8 +38,7 @@ function colClass(n: number, breakpoint: '' | 'sm' | 'md' | 'lg'): string {
 
 export function ProductGridSectionView({ ctx, section }: { ctx: RenderCtx; section: ProductGridSection }) {
   const { title, source, columns, limit, cardStyle } = section.settings
-  const all = ctx.products ?? []
-  const products = pickProducts(all, source).slice(0, limit)
+  const products = resolveSectionProducts(ctx, source, limit)
 
   if (products.length === 0) {
     return (

@@ -148,10 +148,17 @@ export async function getStore(slug: string): Promise<StorefrontStore | null> {
   )
 }
 
-export async function getProducts(slug: string, limit = 24, q?: string): Promise<StorefrontProduct[]> {
-  const qs = q?.trim() ? `&q=${encodeURIComponent(q.trim())}` : ''
+export async function getProducts(
+  slug: string,
+  limit = 24,
+  opts: { q?: string; sort?: 'newest' | 'bestsellers'; onSale?: boolean } = {},
+): Promise<StorefrontProduct[]> {
+  const p = new URLSearchParams({ limit: String(limit) })
+  if (opts.q?.trim()) p.set('q', opts.q.trim())
+  if (opts.sort)      p.set('sort', opts.sort)
+  if (opts.onSale)    p.set('onSale', 'true')
   const data = await fetchJson<{ products?: StorefrontProduct[] } | StorefrontProduct[]>(
-    `${BACKEND}/public/store/${encodeURIComponent(slug)}/products?limit=${limit}${qs}`,
+    `${BACKEND}/public/store/${encodeURIComponent(slug)}/products?${p.toString()}`,
   )
   if (!data) return []
   if (Array.isArray(data)) return data
