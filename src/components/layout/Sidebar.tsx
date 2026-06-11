@@ -120,6 +120,7 @@ const SECTIONS: NavSection[] = [
             ],
           },
           { labelKey: 'items.multiplicador', href: '/dashboard/catalogo/multiplicador' },
+          { labelKey: 'items.composicao', href: '/dashboard/catalogo/composicao' },
           { labelKey: 'items.vinculos',  href: '/dashboard/catalogo/vinculos',  badgeKey: 'vinculos' as BadgeKey },
           {
             labelKey: 'items.estoque', href: '/dashboard/catalogo/estoque',
