@@ -53,6 +53,76 @@ type ClaimMessage = {
 
 type FilterKey = 'all' | 'opened' | 'closed'
 
+type ChannelKey = 'ml' | 'shopee'
+
+// ── Shopee returns (devoluções) ───────────────────────────────────────────────
+
+type ShopeeReturnItem = {
+  item_id?:   number
+  name?:      string
+  item_sku?:  string
+  amount?:    number
+  item_price?: number
+  images?:    string[]
+}
+
+type ShopeeReturn = {
+  id:               string
+  shop_id:          string | null
+  return_sn:        string
+  order_sn:         string | null
+  status:           string | null
+  reason:           string | null
+  text_reason:      string | null
+  refund_amount:    number | null
+  currency:         string | null
+  needs_logistics:  boolean | null
+  tracking_number:  string | null
+  buyer_username:   string | null
+  due_date:         string | null
+  return_create_at: string | null
+  return_update_at: string | null
+  raw?: {
+    image?:        string[]
+    buyer_videos?: Array<{ thumbnail_url?: string; video_url?: string }>
+    item?:         ShopeeReturnItem[]
+  } | null
+}
+
+// status em aberto = seller ainda pode/precisa agir
+const SHOPEE_OPEN_STATUSES = ['REQUESTED', 'PROCESSING', 'JUDGING', 'SELLER_DISPUTE']
+
+const SHOPEE_STATUS_COLOR: Record<string, { color: string; bg: string }> = {
+  REQUESTED:      { color: '#f87171', bg: 'rgba(248,113,113,0.1)' },
+  PROCESSING:     { color: '#fb923c', bg: 'rgba(251,146,60,0.1)' },
+  JUDGING:        { color: '#facc15', bg: 'rgba(250,204,21,0.1)' },
+  SELLER_DISPUTE: { color: '#c084fc', bg: 'rgba(192,132,252,0.1)' },
+  ACCEPTED:       { color: '#60a5fa', bg: 'rgba(96,165,250,0.1)' },
+  REFUND_PAID:    { color: '#4ade80', bg: 'rgba(74,222,128,0.1)' },
+  CLOSED:         { color: '#71717a', bg: 'rgba(161,161,170,0.1)' },
+  CANCELLED:      { color: '#71717a', bg: 'rgba(161,161,170,0.1)' },
+}
+
+const SHOPEE_REASON_KEYS = [
+  'NOT_RECEIPT', 'WRONG_ITEM', 'ITEM_DAMAGED', 'ITEM_MISSING', 'DIFFERENT_DESCRIPTION',
+  'CHANGE_MIND', 'FUNCTIONAL_DAMAGE', 'PHYSICAL_DAMAGE', 'ITEM_FAKE', 'NOT_FIT', 'OTHER', 'NONE',
+]
+
+function getShopeeStatusCfg(t: Translator, s?: string | null) {
+  const cfg = SHOPEE_STATUS_COLOR[s ?? '']
+  if (s && cfg) return { label: t(`reclamacoes.shopee.status.${s}`), ...cfg }
+  return { label: s ?? '—', color: '#a1a1aa', bg: 'rgba(161,161,170,0.1)' }
+}
+
+function getShopeeReasonLabel(t: Translator, r: ShopeeReturn): string {
+  const code = r.reason ?? ''
+  if (SHOPEE_REASON_KEYS.includes(code)) return t(`reclamacoes.shopee.reason.${code}`)
+  return code || t('reclamacoes.reasonFallback')
+}
+
+const brlFmt = (v: number | null | undefined) =>
+  v == null ? '—' : v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const REASON_IDS = ['PNR', 'PDD', 'PNDA', 'WP']
@@ -411,14 +481,204 @@ function ClaimDrawer({ claim, onClose }: { claim: Claim; onClose: () => void }) 
   )
 }
 
+// ── Shopee return card ────────────────────────────────────────────────────────
+
+function ShopeeReturnCard({ ret, shopName, onOpen }: { ret: ShopeeReturn; shopName: string; onOpen: () => void }) {
+  const t = useTranslations('atendimento')
+  const stCfg = getShopeeStatusCfg(t, ret.status)
+  const reasonLbl = getShopeeReasonLabel(t, ret)
+  const isOpen = SHOPEE_OPEN_STATUSES.includes(ret.status ?? '')
+
+  return (
+    <button onClick={onOpen}
+      className="text-left rounded-2xl p-4 space-y-3 transition-all hover:border-zinc-700"
+      style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-mono text-zinc-500">{ret.return_sn}</span>
+          <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
+            style={{ background: stCfg.bg, color: stCfg.color }}>
+            {stCfg.label}
+          </span>
+        </div>
+        <span className="text-[10px] text-zinc-600">{timeAgo(ret.return_update_at ?? ret.return_create_at)}</span>
+      </div>
+
+      <p className="text-sm text-zinc-200 font-medium leading-tight">{reasonLbl}</p>
+      {ret.text_reason && (
+        <p className="text-xs text-zinc-500 leading-snug line-clamp-2">“{ret.text_reason}”</p>
+      )}
+
+      <div className="flex items-center gap-2 flex-wrap text-[10px] text-zinc-500">
+        <span className="px-1.5 py-0.5 rounded bg-zinc-900">🏬 {shopName}</span>
+        {ret.buyer_username && <span>{ret.buyer_username}</span>}
+        <span className="font-semibold text-zinc-400">{brlFmt(ret.refund_amount)}</span>
+      </div>
+
+      <div className="flex items-center justify-between pt-1 border-t border-zinc-800">
+        <span className="text-[10px]" style={{ color: isOpen ? dueDateColor(ret.due_date) : '#52525b' }}>
+          {isOpen && ret.due_date
+            ? t('reclamacoes.shopee.dueBy', { date: fmtDate(ret.due_date) })
+            : fmtDate(ret.return_create_at)}
+        </span>
+        <span className="text-[10px] text-[#00E5FF] flex items-center gap-1">
+          {t('reclamacoes.viewDetails')} <MessageSquare size={10} />
+        </span>
+      </div>
+    </button>
+  )
+}
+
+// ── Shopee return drawer ──────────────────────────────────────────────────────
+
+function ShopeeReturnDrawer({ ret, shopName, onClose }: { ret: ShopeeReturn; shopName: string; onClose: () => void }) {
+  const t = useTranslations('atendimento')
+  const stCfg = getShopeeStatusCfg(t, ret.status)
+  const reasonLbl = getShopeeReasonLabel(t, ret)
+  const photos = ret.raw?.image ?? []
+  const videos = ret.raw?.buyer_videos ?? []
+  const items  = ret.raw?.item ?? []
+  const sellerUrl = ret.order_sn ? `https://seller.shopee.com.br/portal/sale/${ret.order_sn}` : null
+
+  return (
+    <>
+      <div onClick={onClose} className="fixed inset-0 bg-black/60 z-40" />
+      <div className="fixed top-0 right-0 bottom-0 z-50 w-full md:w-[640px] bg-[#0a0a0c] border-l border-[#1e1e24] flex flex-col"
+        style={{ boxShadow: '-8px 0 32px rgba(0,0,0,0.5)' }}>
+        {/* Header */}
+        <div className="px-5 py-4 border-b border-[#1e1e24] flex items-start justify-between gap-3 flex-shrink-0">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
+              <span className="text-[10px] font-mono text-zinc-500">{ret.return_sn}</span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
+                style={{ background: stCfg.bg, color: stCfg.color }}>
+                {stCfg.label}
+              </span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-900 text-zinc-400">🏬 {shopName}</span>
+              {ret.needs_logistics && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-900 text-zinc-400">
+                  {t('reclamacoes.shopee.needsLogistics')}
+                </span>
+              )}
+            </div>
+            <p className="text-base font-semibold text-white">{reasonLbl}</p>
+            <p className="text-xs text-zinc-500 mt-1">
+              {t('reclamacoes.openedUpdated', { opened: fmtDate(ret.return_create_at), updated: timeAgo(ret.return_update_at) })}
+            </p>
+            {sellerUrl && (
+              <a href={sellerUrl} target="_blank" rel="noreferrer"
+                className="inline-flex items-center gap-1 text-[11px] text-[#00E5FF] hover:underline mt-2">
+                {t('reclamacoes.shopee.openOrder', { order: ret.order_sn ?? '' })} <ExternalLink size={10} />
+              </a>
+            )}
+          </div>
+          <button onClick={onClose} className="text-zinc-500 hover:text-white p-1">
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          {/* O que o comprador disse */}
+          {ret.text_reason && (
+            <div className="rounded-xl p-4" style={{ background: '#0e0e11', border: '1px solid #1e1e24' }}>
+              <p className="text-[10px] uppercase tracking-widest text-zinc-600">{t('reclamacoes.shopee.buyerSaid')}</p>
+              <p className="text-sm text-zinc-200 mt-2 leading-relaxed whitespace-pre-wrap">“{ret.text_reason}”</p>
+              {ret.buyer_username && <p className="text-[11px] text-zinc-500 mt-2">— {ret.buyer_username}</p>}
+            </div>
+          )}
+
+          {/* Valores + prazos */}
+          <div className="rounded-xl p-4 grid grid-cols-2 gap-3" style={{ background: '#0e0e11', border: '1px solid #1e1e24' }}>
+            <div>
+              <p className="text-[10px] uppercase tracking-widest text-zinc-600">{t('reclamacoes.shopee.refund')}</p>
+              <p className="text-base font-bold text-white mt-1">{brlFmt(ret.refund_amount)}</p>
+            </div>
+            <div>
+              <p className="text-[10px] uppercase tracking-widest text-zinc-600 flex items-center gap-1">
+                <Clock size={9} /> {t('reclamacoes.detail.deadline')}
+              </p>
+              <p className="text-xs font-semibold mt-1" style={{ color: dueDateColor(ret.due_date) }}>
+                {fmtDate(ret.due_date)}
+              </p>
+            </div>
+            {ret.tracking_number && (
+              <div className="col-span-2 pt-2 border-t border-zinc-800">
+                <p className="text-[10px] uppercase tracking-widest text-zinc-600">{t('reclamacoes.shopee.tracking')}</p>
+                <p className="text-xs font-mono text-zinc-300 mt-1">{ret.tracking_number}</p>
+              </div>
+            )}
+          </div>
+
+          {/* Itens devolvidos */}
+          {items.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-[10px] uppercase tracking-widest text-zinc-600">{t('reclamacoes.shopee.items')}</p>
+              {items.map((it, i) => (
+                <div key={it.item_id ?? i} className="rounded-lg p-3 flex items-center gap-3"
+                  style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}>
+                  {it.images?.[0] && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={it.images[0]} alt="" className="w-10 h-10 rounded object-cover flex-shrink-0" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-zinc-200 truncate">{it.name ?? '—'}</p>
+                    <p className="text-[10px] text-zinc-500 mt-0.5">
+                      {it.item_sku ? `SKU ${it.item_sku} · ` : ''}{it.amount ?? 1}× {brlFmt(it.item_price)}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Fotos do comprador */}
+          {photos.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-[10px] uppercase tracking-widest text-zinc-600">{t('reclamacoes.shopee.photos')}</p>
+              <div className="grid grid-cols-4 gap-2">
+                {photos.map((url, i) => (
+                  <a key={i} href={url} target="_blank" rel="noreferrer" className="block">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={url} alt="" className="w-full aspect-square rounded-lg object-cover border border-zinc-800 hover:border-zinc-600 transition-all" />
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Vídeos do comprador */}
+          {videos.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-[10px] uppercase tracking-widest text-zinc-600">{t('reclamacoes.shopee.videos')}</p>
+              <div className="flex flex-wrap gap-2">
+                {videos.map((v, i) => (
+                  <a key={i} href={v.video_url ?? '#'} target="_blank" rel="noreferrer"
+                    className="text-[11px] text-[#00E5FF] hover:underline px-2 py-1 rounded bg-[#00E5FF11]">
+                    ▶ {t('reclamacoes.shopee.video')} {i + 1}
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  )
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function ReclamacoesPage() {
   const t = useTranslations('atendimento')
+  const [channel,  setChannel]  = useState<ChannelKey>('ml')
   const [claims,   setClaims]   = useState<Claim[]>([])
+  const [returns,  setReturns]  = useState<ShopeeReturn[]>([])
+  const [shops,    setShops]    = useState<Array<{ shop_id: string; nickname: string }>>([])
   const [loading,  setLoading]  = useState(true)
   const [filter,   setFilter]   = useState<FilterKey>('opened')
   const [selected, setSelected] = useState<Claim | null>(null)
+  const [selectedReturn, setSelectedReturn] = useState<ShopeeReturn | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -427,10 +687,18 @@ export default function ReclamacoesPage() {
     if (!session) { setLoading(false); return }
     const h = { Authorization: `Bearer ${session.access_token}` }
     try {
-      const res = await fetch(`${BACKEND}/ml/claims`, { headers: h })
-      if (res.ok) {
-        const d = await res.json()
+      const [mlRes, shRes] = await Promise.allSettled([
+        fetch(`${BACKEND}/ml/claims`, { headers: h }),
+        fetch(`${BACKEND}/shopee/sync/returns`, { headers: h }),
+      ])
+      if (mlRes.status === 'fulfilled' && mlRes.value.ok) {
+        const d = await mlRes.value.json()
         setClaims(d?.data ?? d ?? [])
+      }
+      if (shRes.status === 'fulfilled' && shRes.value.ok) {
+        const d = await shRes.value.json()
+        setReturns(d?.returns ?? [])
+        setShops(d?.shops ?? [])
       }
     } catch { /* silent */ }
     setLoading(false)
@@ -438,14 +706,27 @@ export default function ReclamacoesPage() {
 
   useEffect(() => { load() }, [load])
 
+  const shopName = useCallback((shopId: string | null) =>
+    shops.find(s => s.shop_id === shopId)?.nickname ?? 'Shopee', [shops])
+
   const filtered = claims.filter(c => {
     if (filter === 'all')    return true
     if (filter === 'opened') return (c.status ?? 'opened') === 'opened'
     return (c.status ?? '') !== 'opened'
   })
 
-  const openCount   = claims.filter(c => (c.status ?? 'opened') === 'opened').length
-  const closedCount = claims.length - openCount
+  const filteredReturns = returns.filter(r => {
+    const isOpen = SHOPEE_OPEN_STATUSES.includes(r.status ?? '')
+    if (filter === 'all')    return true
+    if (filter === 'opened') return isOpen
+    return !isOpen
+  })
+
+  const openCount   = channel === 'ml'
+    ? claims.filter(c => (c.status ?? 'opened') === 'opened').length
+    : returns.filter(r => SHOPEE_OPEN_STATUSES.includes(r.status ?? '')).length
+  const totalCount  = channel === 'ml' ? claims.length : returns.length
+  const closedCount = totalCount - openCount
 
   return (
     <div className="p-6 space-y-7 min-h-full" style={{ background: 'var(--background)' }}>
@@ -464,11 +745,35 @@ export default function ReclamacoesPage() {
         </button>
       </div>
 
+      {/* Canal: Mercado Livre | Shopee */}
+      <div className="flex items-center gap-1.5">
+        {([
+          { key: 'ml' as ChannelKey,     label: 'Mercado Livre', count: claims.length },
+          { key: 'shopee' as ChannelKey, label: 'Shopee',        count: returns.length },
+        ]).map(({ key, label, count }) => (
+          <button key={key} onClick={() => setChannel(key)}
+            className="px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all flex items-center gap-1.5"
+            style={{
+              background: channel === key ? 'rgba(0,229,255,0.1)' : 'transparent',
+              color:      channel === key ? '#00E5FF' : '#52525b',
+              border:     `1px solid ${channel === key ? 'rgba(0,229,255,0.25)' : '#1e1e24'}`,
+            }}>
+            {label}
+            {count > 0 && (
+              <span className="text-[9px] px-1.5 rounded-full"
+                style={{ background: channel === key ? 'rgba(0,229,255,0.15)' : '#1e1e24' }}>
+                {count}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
       <div className="grid grid-cols-3 gap-3">
         {[
-          { label: t('reclamacoes.kpi.total'),    value: claims.length,  color: '#a1a1aa' },
-          { label: t('reclamacoes.kpi.opened'),  value: openCount,       color: openCount > 0 ? '#f87171' : '#4ade80' },
-          { label: t('reclamacoes.kpi.closed'), value: closedCount,     color: '#71717a' },
+          { label: t('reclamacoes.kpi.total'),   value: totalCount,  color: '#a1a1aa' },
+          { label: t('reclamacoes.kpi.opened'),  value: openCount,   color: openCount > 0 ? '#f87171' : '#4ade80' },
+          { label: t('reclamacoes.kpi.closed'),  value: closedCount, color: '#71717a' },
         ].map(({ label, value, color }) => (
           <div key={label} className="rounded-2xl p-4 space-y-1" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
             <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">{label}</p>
@@ -493,20 +798,36 @@ export default function ReclamacoesPage() {
 
       {loading ? (
         <div className="flex items-center justify-center py-20 text-zinc-600 text-xs">{t('reclamacoes.loading')}</div>
-      ) : filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 gap-3">
-          <CheckCircle2 size={32} className="text-green-500" />
-          <p className="text-sm text-zinc-400">
-            {filter === 'opened' ? t('reclamacoes.emptyOpened') : t('reclamacoes.empty')}
-          </p>
-        </div>
+      ) : channel === 'ml' ? (
+        filtered.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 gap-3">
+            <CheckCircle2 size={32} className="text-green-500" />
+            <p className="text-sm text-zinc-400">
+              {filter === 'opened' ? t('reclamacoes.emptyOpened') : t('reclamacoes.empty')}
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+            {filtered.map(c => <ClaimCard key={c.id} claim={c} onOpen={() => setSelected(c)} />)}
+          </div>
+        )
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-          {filtered.map(c => <ClaimCard key={c.id} claim={c} onOpen={() => setSelected(c)} />)}
-        </div>
+        filteredReturns.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 gap-3">
+            <CheckCircle2 size={32} className="text-green-500" />
+            <p className="text-sm text-zinc-400">{t('reclamacoes.shopee.empty')}</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+            {filteredReturns.map(r => (
+              <ShopeeReturnCard key={r.id} ret={r} shopName={shopName(r.shop_id)}
+                onOpen={() => setSelectedReturn(r)} />
+            ))}
+          </div>
+        )
       )}
 
-      {!loading && openCount > 0 && (
+      {!loading && channel === 'ml' && openCount > 0 && (
         <div className="rounded-2xl p-4 space-y-2" style={{ background: 'rgba(248,113,113,0.04)', border: '1px solid rgba(248,113,113,0.12)' }}>
           <div className="flex items-center gap-2">
             <ShieldAlert size={13} className="text-red-400" />
@@ -527,6 +848,10 @@ export default function ReclamacoesPage() {
       )}
 
       {selected && <ClaimDrawer claim={selected} onClose={() => setSelected(null)} />}
+      {selectedReturn && (
+        <ShopeeReturnDrawer ret={selectedReturn} shopName={shopName(selectedReturn.shop_id)}
+          onClose={() => setSelectedReturn(null)} />
+      )}
     </div>
   )
 }

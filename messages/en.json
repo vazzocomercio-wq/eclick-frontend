@@ -8511,6 +8511,43 @@
         "tip1": "Respond within 48h to avoid a reputation penalty.",
         "tip2": "Offer a refund or reshipment before ML intervenes.",
         "tip3": "Record the protocol number of each resolved case."
+      },
+      "shopee": {
+        "status": {
+          "REQUESTED": "Requested",
+          "PROCESSING": "Processing",
+          "JUDGING": "Under review",
+          "SELLER_DISPUTE": "In dispute",
+          "ACCEPTED": "Accepted",
+          "REFUND_PAID": "Refunded",
+          "CLOSED": "Closed",
+          "CANCELLED": "Cancelled"
+        },
+        "reason": {
+          "NOT_RECEIPT": "Order not received",
+          "WRONG_ITEM": "Wrong item received",
+          "ITEM_DAMAGED": "Damaged item",
+          "ITEM_MISSING": "Missing item",
+          "DIFFERENT_DESCRIPTION": "Different from description",
+          "CHANGE_MIND": "Changed mind",
+          "FUNCTIONAL_DAMAGE": "Functional defect",
+          "PHYSICAL_DAMAGE": "Physical damage",
+          "ITEM_FAKE": "Suspected counterfeit",
+          "NOT_FIT": "Did not fit",
+          "OTHER": "Other reason",
+          "NONE": "No reason given"
+        },
+        "dueBy": "Reply by {date}",
+        "needsLogistics": "Reverse logistics",
+        "openOrder": "View order {order} on Shopee",
+        "buyerSaid": "What the buyer said",
+        "refund": "Refund",
+        "tracking": "Return tracking",
+        "items": "Returned items",
+        "photos": "Buyer photos",
+        "videos": "Buyer videos",
+        "video": "Video",
+        "empty": "No Shopee returns found"
       }
     }
   },

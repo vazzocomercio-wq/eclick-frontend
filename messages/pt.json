@@ -8680,6 +8680,43 @@
         "tip1": "Responda dentro de 48h para evitar penalização na reputação.",
         "tip2": "Ofereça reembolso ou reenvio antes que o ML intervenha.",
         "tip3": "Registre o número de protocolo de cada caso resolvido."
+      },
+      "shopee": {
+        "status": {
+          "REQUESTED": "Solicitada",
+          "PROCESSING": "Em andamento",
+          "JUDGING": "Em análise",
+          "SELLER_DISPUTE": "Em disputa",
+          "ACCEPTED": "Aceita",
+          "REFUND_PAID": "Reembolsada",
+          "CLOSED": "Encerrada",
+          "CANCELLED": "Cancelada"
+        },
+        "reason": {
+          "NOT_RECEIPT": "Não recebeu o pedido",
+          "WRONG_ITEM": "Recebeu item errado",
+          "ITEM_DAMAGED": "Item danificado",
+          "ITEM_MISSING": "Item faltando",
+          "DIFFERENT_DESCRIPTION": "Diferente da descrição",
+          "CHANGE_MIND": "Desistiu da compra",
+          "FUNCTIONAL_DAMAGE": "Defeito de funcionamento",
+          "PHYSICAL_DAMAGE": "Dano físico",
+          "ITEM_FAKE": "Suspeita de falsificação",
+          "NOT_FIT": "Não serviu",
+          "OTHER": "Outro motivo",
+          "NONE": "Sem motivo informado"
+        },
+        "dueBy": "Responder até {date}",
+        "needsLogistics": "Logística reversa",
+        "openOrder": "Ver pedido {order} na Shopee",
+        "buyerSaid": "O que o comprador disse",
+        "refund": "Reembolso",
+        "tracking": "Rastreio da devolução",
+        "items": "Itens devolvidos",
+        "photos": "Fotos do comprador",
+        "videos": "Vídeos do comprador",
+        "video": "Vídeo",
+        "empty": "Nenhuma devolução Shopee encontrada"
       }
     }
   },

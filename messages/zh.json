@@ -8505,6 +8505,43 @@
         "tip1": "在 48 小时内回复以避免信誉受罚。",
         "tip2": "在 ML 介入之前提供退款或重新发货。",
         "tip3": "记录每个已解决案例的协议编号。"
+      },
+      "shopee": {
+        "status": {
+          "REQUESTED": "已申请",
+          "PROCESSING": "处理中",
+          "JUDGING": "审核中",
+          "SELLER_DISPUTE": "争议中",
+          "ACCEPTED": "已接受",
+          "REFUND_PAID": "已退款",
+          "CLOSED": "已关闭",
+          "CANCELLED": "已取消"
+        },
+        "reason": {
+          "NOT_RECEIPT": "未收到订单",
+          "WRONG_ITEM": "收到错误商品",
+          "ITEM_DAMAGED": "商品损坏",
+          "ITEM_MISSING": "商品缺失",
+          "DIFFERENT_DESCRIPTION": "与描述不符",
+          "CHANGE_MIND": "改变主意",
+          "FUNCTIONAL_DAMAGE": "功能故障",
+          "PHYSICAL_DAMAGE": "物理损坏",
+          "ITEM_FAKE": "疑似假货",
+          "NOT_FIT": "不合适",
+          "OTHER": "其他原因",
+          "NONE": "未提供原因"
+        },
+        "dueBy": "请在 {date} 前回复",
+        "needsLogistics": "退货物流",
+        "openOrder": "在 Shopee 查看订单 {order}",
+        "buyerSaid": "买家留言",
+        "refund": "退款",
+        "tracking": "退货追踪",
+        "items": "退货商品",
+        "photos": "买家照片",
+        "videos": "买家视频",
+        "video": "视频",
+        "empty": "未找到 Shopee 退货"
       }
     }
   },
