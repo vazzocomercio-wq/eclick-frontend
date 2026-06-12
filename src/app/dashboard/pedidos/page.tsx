@@ -887,11 +887,14 @@ function OrderCard({
     if (!expanded) return
     if (liveBuyer.billing_fetched_at) return
     if (autoTriedRef.current) return
+    // billing-info é fluxo do ML — não dispara pra pedido de outro canal
+    const src = (order as unknown as { source?: string }).source ?? 'mercadolivre'
+    if (src !== 'mercadolivre' && src !== 'manual_test') { autoTriedRef.current = true; return }
     autoTriedRef.current = true
     // 100ms delay pra permitir que o skeleton renderize antes do request
     const t = setTimeout(() => { void refetchBilling() }, 100)
     return () => clearTimeout(t)
-  }, [expanded, liveBuyer.billing_fetched_at, refetchBilling])
+  }, [expanded, liveBuyer.billing_fetched_at, refetchBilling, order])
 
   const [criando,     setCriando]     = useState(false)
   const [editando,    setEditando]    = useState(true)
@@ -1498,10 +1501,10 @@ function OrderCard({
               <div className="flex items-center justify-between mb-2 gap-2">
                 <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">{t('card.buyerSection')}</p>
                 <div className="flex items-center gap-1.5">
-                  {/* Botão "📥 Buscar dados" só quando billing nunca foi tentado.
-                      Se já tentou e voltou sem CPF (ML 404 / LGPD), nada de
-                      botão amarelo — vira o banner abaixo. */}
-                  {!liveBuyer.billing_fetched_at && (
+                  {/* Botão "📥 Buscar dados" só pra ML (billing-info é fluxo do
+                      ML) e quando billing nunca foi tentado. Se já tentou e
+                      voltou sem CPF (404 / LGPD), vira o banner abaixo. */}
+                  {isMl && !liveBuyer.billing_fetched_at && (
                     <button onClick={refetchBilling} disabled={refetching}
                       aria-busy={refetching || undefined}
                       className={`text-[10px] font-semibold px-2 py-0.5 rounded-md transition-opacity disabled:opacity-50 ${pulseClass(refetching)}`}
@@ -1509,7 +1512,7 @@ function OrderCard({
                       {t('card.fetchBillingData')}
                     </button>
                   )}
-                  {liveBuyer.billing_fetched_at && (
+                  {isMl && liveBuyer.billing_fetched_at && (
                     <button onClick={refetchBilling} disabled={refetching}
                       aria-busy={refetching || undefined}
                       className={`text-[10px] text-zinc-500 hover:text-zinc-300 disabled:opacity-50 px-1.5 ${pulseClass(refetching)}`}
@@ -1523,10 +1526,22 @@ function OrderCard({
               {/* Banner: ML respondeu mas não veio CPF (vendas pré-LGPD ou
                   buyer optou por não compartilhar). Próximo passo: enrichment
                   cascade via /enrichment/customer/:id na tela /clientes. */}
-              {liveBuyer.billing_fetched_at && !liveBuyer.doc_number && (
+              {isMl && liveBuyer.billing_fetched_at && !liveBuyer.doc_number && (
                 <div className="rounded-md px-2 py-1.5 mb-1 text-[10px] leading-snug"
                   style={{ background: 'rgba(96,165,250,0.08)', border: '1px solid rgba(96,165,250,0.25)', color: '#93c5fd' }}>
                   {t.rich('card.noDocBanner', { mono: (chunks) => <span className="font-mono">{chunks}</span> })}
+                </div>
+              )}
+              {/* Shopee: CPF/endereço só ficam abertos na API enquanto o pedido
+                  está EM PREPARAÇÃO (janela da NF-e/etiqueta) — capturamos
+                  automaticamente nessa janela; pedidos antigos já despachados
+                  vieram mascarados e não têm como ser recuperados via API. */}
+              {isShopee && !liveBuyer.doc_number && (
+                <div className="rounded-md px-2 py-1.5 mb-1 text-[10px] leading-snug"
+                  style={{ background: 'rgba(238,77,45,0.08)', border: '1px solid rgba(238,77,45,0.25)', color: '#fdba74' }}>
+                  ⓘ A Shopee libera CPF/endereço só enquanto o pedido está em preparação.
+                  Pedidos novos são capturados automaticamente nessa janela; este foi
+                  sincronizado depois do despacho, com os dados já mascarados pela Shopee.
                 </div>
               )}
 
@@ -1628,7 +1643,7 @@ function OrderCard({
                 </div>
               )}
 
-              {!liveBuyer.doc_number && liveBuyer.billing_fetched_at && (
+              {isMl && !liveBuyer.doc_number && liveBuyer.billing_fetched_at && (
                 <p className="text-[10px] text-zinc-600 mt-2 leading-tight">
                   {t('card.lgpdNote')}
                 </p>
