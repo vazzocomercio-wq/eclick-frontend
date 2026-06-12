@@ -2223,26 +2223,6 @@ export default function PedidosPage() {
     } catch { setBillingPending(0) }
   }, [getHeaders])
 
-  const sync = useCallback(async () => {
-    if (syncing) return
-    setSyncing(true)
-    try {
-      const headers = await getHeaders()
-      // Endpoint Supabase-auth (JWT do usuário). NÃO usamos /admin/sync-now
-      // do browser pra não expor ADMIN_SECRET no cliente — esse fica
-      // reservado pra GitHub Action / cron OS sem session token.
-      const res = await fetch(`${BACKEND}/sales-aggregator/sync-now`, {
-        method: 'POST',
-        headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ days: 7 }),
-      })
-      const body = await res.json().catch(() => null) as { runId?: string; message?: string } | null
-      if (!res.ok || !body?.runId) toast(body?.message ?? t('toast.syncFail'), 'error')
-      else toast(t('toast.syncStarted', { runId: body.runId.slice(0, 8) }), 'success')
-      setTimeout(loadPending, 30_000)
-    } catch { toast(t('toast.syncNetworkError'), 'error') }
-    finally { setSyncing(false) }
-  }, [syncing, getHeaders, loadPending, t])
 
   const loadOrders = useCallback(async (currentPage: number, query: string, currentTab: TabKey | null) => {
     setLoading(true)
@@ -2277,6 +2257,56 @@ export default function PedidosPage() {
       setOrders([])
     } finally { setLoading(false) }
   }, [getHeaders, pageSize, t, platformFilter, accountFilter])
+
+  const sync = useCallback(async () => {
+    if (syncing) return
+    setSyncing(true)
+    try {
+      const headers = await getHeaders()
+      // Sincroniza o(s) canal(is) visível(is). Shopee: janela curta (3 dias)
+      // pra responder dentro do timeout do proxy — o histórico fica com o
+      // cron horário. ML: sales-aggregator (job assíncrono com runId).
+      const wantMl     = platformFilter === 'all' || platformFilter === 'mercadolivre' || platformFilter === 'manual'
+      const wantShopee = platformFilter === 'all' || platformFilter === 'shopee'
+
+      const jobs: Promise<void>[] = []
+      if (wantMl) {
+        // Endpoint Supabase-auth (JWT do usuário). NÃO usamos /admin/sync-now
+        // do browser pra não expor ADMIN_SECRET no cliente.
+        jobs.push((async () => {
+          const res = await fetch(`${BACKEND}/sales-aggregator/sync-now`, {
+            method: 'POST',
+            headers: { ...headers, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ days: 7 }),
+          })
+          const body = await res.json().catch(() => null) as { runId?: string; message?: string } | null
+          if (!res.ok || !body?.runId) toast(body?.message ?? t('toast.syncFail'), 'error')
+          else toast(t('toast.syncStarted', { runId: body.runId.slice(0, 8) }), 'success')
+        })())
+      }
+      if (wantShopee) {
+        jobs.push((async () => {
+          const res = await fetch(`${BACKEND}/shopee/sync/orders`, {
+            method: 'POST',
+            headers: { ...headers, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ days: 3 }),
+          })
+          const body = await res.json().catch(() => null) as Array<{ orders?: number; lines?: number }> | null
+          if (!res.ok) toast('Sync Shopee falhou', 'error')
+          else {
+            const tot = Array.isArray(body) ? body.reduce((s, r) => s + (r.orders ?? 0), 0) : 0
+            toast(`Shopee sincronizada: ${tot} pedidos verificados`, 'success')
+          }
+        })())
+      }
+      await Promise.all(jobs)
+      // recarrega a tela com o que acabou de entrar
+      loadKpis()
+      loadOrders(pageRef.current, qRef.current, crossTabMode ? null : tabRef.current)
+      setTimeout(loadPending, 30_000)
+    } catch { toast(t('toast.syncNetworkError'), 'error') }
+    finally { setSyncing(false) }
+  }, [syncing, getHeaders, loadPending, t, platformFilter, loadKpis, loadOrders, crossTabMode])
 
   // Busca todos os vínculos uma vez — matching feito localmente em memória
   useEffect(() => {
