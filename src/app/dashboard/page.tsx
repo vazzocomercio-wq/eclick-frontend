@@ -849,7 +849,7 @@ export default function DashboardPage() {
       fetch(`${BACKEND}/ml/claims${mlSellerOnly}`,                     { headers: { Authorization: `Bearer ${token}` } }),
       fetch(`${BACKEND}/ml/seller-info${mlSellerOnly}`,                { headers: { Authorization: `Bearer ${token}` } }),
       fetch(`${BACKEND}/ml/my-items?limit=1${mlSellerSuffix}`,         { headers: { Authorization: `Bearer ${token}` } }),
-      fetch(`${BACKEND}/orders/financial-summary?date_from=${monthStartStr}&date_to=${todayStr}${scopeSuffix}`, { headers: { Authorization: `Bearer ${token}` } }),
+      fetch(`${BACKEND}/orders/financial-summary?date_from=${monthStartStr}&date_to=${todayStr}${scopeSuffix}&kpis_only=true`, { headers: { Authorization: `Bearer ${token}` } }),
       fetch(`${BACKEND}/ml-ads/reports/summary?from=${monthStartStr}&to=${todayStr}`, { headers: { Authorization: `Bearer ${token}` } }),
       fetch(`${BACKEND}/atendente-ia/conversations?status=open`, { headers: { Authorization: `Bearer ${token}` } }),
     ])
@@ -1145,7 +1145,9 @@ export default function DashboardPage() {
         if (!token || cancelled) { if (!cancelled) setSummaryLoading(false); return }
         const { from, to } = getPeriodDates(period)
         const scopeSuffix = buildScopeQuery(getStoredScope())
-        const url = `${BACKEND}/orders/financial-summary?date_from=${from}&date_to=${to}${scopeSuffix}`
+        // kpis_only: o dashboard só lê `.kpis` (nunca .orders/.donutData) — evita
+        // o backend montar/serializar o array de pedidos do período inteiro.
+        const url = `${BACKEND}/orders/financial-summary?date_from=${from}&date_to=${to}${scopeSuffix}&kpis_only=true`
         const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
         if (!res.ok || cancelled) { if (!cancelled) setSummaryLoading(false); return }
         const data = await res.json()
