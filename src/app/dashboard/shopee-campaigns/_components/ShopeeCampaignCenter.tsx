@@ -4,13 +4,14 @@ import { useCallback, useEffect, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import {
   AlertCircle, AlertTriangle, RefreshCw, Tag, Zap, Megaphone,
-  TrendingUp, Calendar, ShoppingBag, Calculator,
+  TrendingUp, Calendar, ShoppingBag, Calculator, Plus,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import MarginCalculatorModal from './MarginCalculatorModal'
+import PromoWizardModal from './PromoWizardModal'
 
-/** F18 F1.4 — Shopee Campaign Center (READ-ONLY).
- *  CRUD vem na Sprint 2 quando creds Shopee aprovarem. */
+/** F18 F1.4 — Shopee Campaign Center. READ (cards + ROI) e agora ESCRITA:
+ *  wizard de Voucher / Oferta Relâmpago com trava de margem (F18 promo write). */
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL
   ?? process.env.NEXT_PUBLIC_API_URL
@@ -53,6 +54,7 @@ export default function ShopeeCampaignCenter() {
   const [error, setError]     = useState<string | null>(null)
   const [filter, setFilter]   = useState<KindFilter>('all')
   const [showCalc, setShowCalc] = useState(false)
+  const [wizard, setWizard]   = useState<'voucher' | 'flash_sale' | null>(null)
 
   const load = useCallback(async () => {
     setError(null)
@@ -78,8 +80,9 @@ export default function ShopeeCampaignCenter() {
 
   return (
     <div className="p-6 space-y-6 min-h-full" style={{ background: '#09090b' }}>
-      <Header onRefresh={load} onOpenCalc={() => setShowCalc(true)} t={t} />
+      <Header onRefresh={load} onOpenCalc={() => setShowCalc(true)} onCreate={setWizard} t={t} />
       {showCalc && <MarginCalculatorModal onClose={() => setShowCalc(false)} />}
+      {wizard && <PromoWizardModal vehicle={wizard} onClose={() => setWizard(null)} onCreated={load} />}
       {error && <ErrorBanner error={error} onRetry={load} t={t} />}
       {items !== null && items.length > 0 && <SummaryCards summary={summary} t={t} />}
       <Tabs filter={filter} onChange={setFilter} counts={kindCounts(items ?? [])} t={t} />
@@ -98,9 +101,13 @@ export default function ShopeeCampaignCenter() {
 
 // ── Header ─────────────────────────────────────────────────────────────────
 
-function Header({ onRefresh, onOpenCalc, t }: { onRefresh: () => void; onOpenCalc: () => void; t: ReturnType<typeof useTranslations> }) {
+function Header({ onRefresh, onOpenCalc, onCreate, t }: {
+  onRefresh: () => void; onOpenCalc: () => void
+  onCreate: (v: 'voucher' | 'flash_sale') => void
+  t: ReturnType<typeof useTranslations>
+}) {
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-3 flex-wrap">
       <p className="text-zinc-500 text-xs">{t('breadcrumb')}</p>
       <div className="w-9 h-9 rounded-xl flex items-center justify-center text-xs font-black"
         style={{ background: 'rgba(238,77,45,0.15)', color: SHOPEE }}>SH</div>
@@ -109,8 +116,24 @@ function Header({ onRefresh, onOpenCalc, t }: { onRefresh: () => void; onOpenCal
         <p className="text-zinc-500 text-xs">{t('subtitle')}</p>
       </div>
       <button
+        onClick={() => onCreate('voucher')}
+        className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
+        style={{ background: 'rgba(167,139,250,0.12)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.4)' }}
+      >
+        <Plus size={12} />
+        {t('createVoucher')}
+      </button>
+      <button
+        onClick={() => onCreate('flash_sale')}
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
+        style={{ background: 'rgba(251,191,36,0.12)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.4)' }}
+      >
+        <Zap size={12} />
+        {t('createFlash')}
+      </button>
+      <button
         onClick={onOpenCalc}
-        className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
         style={{ background: `${CYAN}15`, color: CYAN, border: `1px solid ${CYAN}40` }}
       >
         <Calculator size={12} />
