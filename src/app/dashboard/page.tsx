@@ -1165,7 +1165,11 @@ export default function DashboardPage() {
   // Pedidos/loading vêm do mesmo KPI server-side (multi-plataforma) pra todos
   // os períodos. Fallback: contagem dos periodOrders quando summary indisponível.
   const displayPedidos = financialSummary?.kpis?.qtd_aprovadas ?? periodOrders.length
-  const displaySummaryLoading = summaryLoading || loading
+  // Gate do skeleton do Faturamento: só os dados que o card USA (summary
+  // dedicado + periodOrders do fallback) — mesmo fix já aplicado no card de
+  // Lucro. Antes era `|| loading` (o lote de 8 fetches do refresh) e o
+  // faturamento ficava refém do endpoint mais lento da página.
+  const displaySummaryLoading = summaryLoading || periodLoading
 
   // periodOrders is now a state (fetched from backend per period)
   const yestOrders   = useMemo(() => orders.filter(o => brazilDateStr(new Date(o.date_created)) === brazilDateStr(daysAgoDate(1))), [orders])
