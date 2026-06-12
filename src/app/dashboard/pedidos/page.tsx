@@ -246,6 +246,21 @@ function OrderActionsMenu({ order, t }: { order: MOrder; t: Translator }) {
   )
 }
 
+/** ML às vezes retorna campos do receiver_address como objeto {id, name} em
+ *  vez de string — normaliza pra texto (objeto como filho de JSX = React #31,
+ *  derruba a página inteira). Mesma classe de bug do 51a7a85 (state). */
+function addrText(v: unknown): string | null {
+  if (v == null) return null
+  if (typeof v === 'string') return v
+  if (typeof v === 'object') {
+    const o = v as { name?: unknown; id?: unknown }
+    if (o.name != null) return String(o.name)
+    if (o.id   != null) return String(o.id)
+    return null
+  }
+  return String(v)
+}
+
 function deadlineInfo(deadline: string | null, t: Translator) {
   if (!deadline) return null
   const ms = new Date(deadline).getTime() - Date.now()
@@ -1069,7 +1084,7 @@ function OrderCard({
             {order.shipping?.receiver_address?.zip_code && (
               <p className="text-[10px] text-zinc-500">
                 {t('card.zipLabel')} {order.shipping?.receiver_address?.zip_code}
-                {order.shipping?.receiver_address?.city ? ` · ${order.shipping?.receiver_address?.city}` : ''}
+                {addrText(order.shipping?.receiver_address?.city) ? ` · ${addrText(order.shipping?.receiver_address?.city)}` : ''}
               </p>
             )}
             <p className="text-[10px] text-zinc-500" title={`Pedido criado em ${new Date(order.date_created).toLocaleString('pt-BR')}`}>
@@ -1643,28 +1658,28 @@ function OrderCard({
                   <div className="flex items-start gap-1.5">
                     <span className="text-[11px] text-zinc-600 w-14 shrink-0">{t('card.fieldStreet')}</span>
                     <span className="text-[11px] text-zinc-200 leading-tight">
-                      {order.shipping?.receiver_address?.street_name}
-                      {order.shipping?.receiver_address?.street_number ? `, ${order.shipping?.receiver_address?.street_number}` : ''}
+                      {addrText(order.shipping?.receiver_address?.street_name)}
+                      {addrText(order.shipping?.receiver_address?.street_number) ? `, ${addrText(order.shipping?.receiver_address?.street_number)}` : ''}
                     </span>
                   </div>
-                  {order.shipping?.receiver_address?.complement && (
+                  {addrText(order.shipping?.receiver_address?.complement) && (
                     <div className="flex items-start gap-1.5">
                       <span className="text-[11px] text-zinc-600 w-14 shrink-0">{t('card.fieldComplement')}</span>
-                      <span className="text-[11px] text-zinc-300">{order.shipping?.receiver_address?.complement}</span>
+                      <span className="text-[11px] text-zinc-300">{addrText(order.shipping?.receiver_address?.complement)}</span>
                     </div>
                   )}
-                  {order.shipping?.receiver_address?.neighborhood && (
+                  {addrText(order.shipping?.receiver_address?.neighborhood) && (
                     <div className="flex items-start gap-1.5">
                       <span className="text-[11px] text-zinc-600 w-14 shrink-0">{t('card.fieldNeighborhood')}</span>
-                      <span className="text-[11px] text-zinc-300">{order.shipping?.receiver_address?.neighborhood}</span>
+                      <span className="text-[11px] text-zinc-300">{addrText(order.shipping?.receiver_address?.neighborhood)}</span>
                     </div>
                   )}
-                  {order.shipping?.receiver_address?.city && (
+                  {addrText(order.shipping?.receiver_address?.city) && (
                     <div className="flex items-start gap-1.5">
                       <span className="text-[11px] text-zinc-600 w-14 shrink-0">{t('card.fieldCity')}</span>
                       <span className="text-[11px] text-zinc-300">
-                        {order.shipping?.receiver_address?.city}
-                        {order.shipping?.receiver_address?.state ? ` / ${order.shipping?.receiver_address?.state}` : ''}
+                        {addrText(order.shipping?.receiver_address?.city)}
+                        {addrText(order.shipping?.receiver_address?.state) ? ` / ${addrText(order.shipping?.receiver_address?.state)}` : ''}
                       </span>
                     </div>
                   )}
@@ -1674,10 +1689,10 @@ function OrderCard({
                       <span className="text-[11px] text-zinc-300 font-mono">{order.shipping?.receiver_address?.zip_code}</span>
                     </div>
                   )}
-                  {order.shipping?.receiver_address?.address_line && (
+                  {addrText(order.shipping?.receiver_address?.address_line) && (
                     <div className="flex items-start gap-1.5">
                       <span className="text-[11px] text-zinc-600 w-14 shrink-0">{t('card.fieldLine')}</span>
-                      <span className="text-[11px] text-zinc-500 italic">{order.shipping?.receiver_address?.address_line}</span>
+                      <span className="text-[11px] text-zinc-500 italic">{addrText(order.shipping?.receiver_address?.address_line)}</span>
                     </div>
                   )}
                 </>
