@@ -8611,7 +8611,32 @@
       "publish": "Publish reply",
       "confirmPublish": "Confirm publish?",
       "publishing": "Publishing…",
-      "replyFailed": "Failed to publish"
+      "replyFailed": "Failed to publish",
+      "autopilot": "Autopilot",
+      "allPlatforms": "All",
+      "comingSoon": "coming soon",
+      "anonymous": "buyer (anonymous)",
+      "sensitive": "Sensitive",
+      "autoReplied": "AI replied",
+      "inFunnel": "In Active funnel",
+      "mlNoReply": "Mercado Livre does not allow public seller replies to reviews. Negatives become a task in the Active funnel for handling.",
+      "config": {
+        "title": "Reviews autopilot",
+        "autopilot": "Autopilot ON",
+        "autopilotHint": "Positives: AI replies and publishes automatically. Negatives/sensitive: operator WhatsApp + task in the Active funnel.",
+        "positiveRules": "Auto-reply (positives)",
+        "minRating": "Auto-reply reviews rated",
+        "windowDays": "Window (days)",
+        "maxPerHour": "Max replies/hour",
+        "negativeRules": "Negatives & sensitive words",
+        "negativeHint": "Never auto-replied: the operator gets a WhatsApp alert and a card in the Active \"Reviews Center\" funnel.",
+        "phone": "Operator WhatsApp",
+        "sensitiveWords": "Sensitive words (comma-separated)",
+        "sensitiveHint": "Reviews containing any of these words (even 5 stars) go to the operator.",
+        "save": "Save settings",
+        "saving": "Saving…",
+        "saved": "Saved!"
+      }
     }
   },
   "automation": {

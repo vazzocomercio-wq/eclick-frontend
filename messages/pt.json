@@ -8780,7 +8780,32 @@
       "publish": "Publicar resposta",
       "confirmPublish": "Confirmar publicação?",
       "publishing": "Publicando…",
-      "replyFailed": "Falha ao publicar"
+      "replyFailed": "Falha ao publicar",
+      "autopilot": "Piloto automático",
+      "allPlatforms": "Todas",
+      "comingSoon": "em breve",
+      "anonymous": "comprador (anônimo)",
+      "sensitive": "Sensível",
+      "autoReplied": "IA respondeu",
+      "inFunnel": "No funil do Active",
+      "mlNoReply": "O Mercado Livre não permite resposta pública do vendedor às avaliações. Negativas viram tarefa no funil do Active pra tratamento (ex.: acionar o comprador via mensagem pós-venda).",
+      "config": {
+        "title": "Piloto automático de avaliações",
+        "autopilot": "Piloto automático LIGADO",
+        "autopilotHint": "Positivas: IA responde e publica sozinha. Negativas/sensíveis: WhatsApp do operador + tarefa no funil do Active.",
+        "positiveRules": "Resposta automática (positivas)",
+        "minRating": "Responder sozinho avaliações com nota",
+        "windowDays": "Janela (dias)",
+        "maxPerHour": "Máx. respostas/hora",
+        "negativeRules": "Negativas e palavras sensíveis",
+        "negativeHint": "Nunca respondidas pela IA: o operador recebe alerta no WhatsApp e um card no funil \"Central de Avaliações\" do Active.",
+        "phone": "WhatsApp do operador",
+        "sensitiveWords": "Palavras sensíveis (separadas por vírgula)",
+        "sensitiveHint": "Avaliação com qualquer destas palavras (mesmo 5 estrelas) vai pro operador.",
+        "save": "Salvar configuração",
+        "saving": "Salvando…",
+        "saved": "Salvo!"
+      }
     }
   },
   "automation": {

@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import {
   RefreshCw, Star, CheckCircle2, X, Send, AlertCircle, Sparkles, MessageSquare, ShieldAlert,
+  Settings2, Bot, ClipboardList,
 } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
@@ -13,6 +14,7 @@ const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
 type Review = {
   id:                 string
+  platform:           string
   shop_id:            string | null
   external_review_id: string
   item_id:            string | null
@@ -26,6 +28,23 @@ type Review = {
   editable:           string | null
   review_create_at:   string | null
   product_title:      string | null
+  automation_status:  string | null
+  sensitive_terms:    string[] | null
+}
+
+type CentralConfig = {
+  autopilot_enabled:      boolean
+  auto_reply_min_rating:  number
+  auto_reply_window_days: number
+  max_auto_per_hour:      number
+  sensitive_words:        string[]
+  notification_phone:     string | null
+}
+
+type PlatformFilter = 'all' | 'shopee' | 'mercadolivre'
+
+const PLATFORM_LABEL: Record<string, string> = {
+  shopee: 'Shopee', mercadolivre: 'Mercado Livre', tiktok_shop: 'TikTok',
 }
 
 type Kpis = {
@@ -69,7 +88,9 @@ export default function AvaliacoesPage() {
   const [starF,     setStarF]     = useState<StarFilter>(0)
   const [unreplied, setUnreplied] = useState(false)
   const [shopF,     setShopF]     = useState<string>('')
+  const [platF,     setPlatF]     = useState<PlatformFilter>('all')
   const [selected,  setSelected]  = useState<Review | null>(null)
+  const [configOpen, setConfigOpen] = useState(false)
 
   const supabase = useMemo(() => createClient(), [])
 
@@ -88,6 +109,7 @@ export default function AvaliacoesPage() {
       if (starF)     qs.set('rating', String(starF))
       if (unreplied) qs.set('unreplied', 'true')
       if (shopF)     qs.set('shop_id', shopF)
+      if (platF !== 'all') qs.set('platform', platF)
       const res = await fetch(`${BACKEND}/shopee/reviews?${qs}`, { headers: h })
       if (res.ok) {
         const d = await res.json()
@@ -98,7 +120,7 @@ export default function AvaliacoesPage() {
       }
     } catch { /* silent */ }
     setLoading(false)
-  }, [getHeaders, starF, unreplied, shopF])
+  }, [getHeaders, starF, unreplied, shopF, platF])
 
   useEffect(() => { load() }, [load])
 
@@ -107,7 +129,10 @@ export default function AvaliacoesPage() {
     try {
       const h = await getHeaders()
       if (!h) return
-      await fetch(`${BACKEND}/shopee/reviews/sync`, { method: 'POST', headers: h, body: JSON.stringify({}) })
+      await Promise.allSettled([
+        fetch(`${BACKEND}/shopee/reviews/sync`, { method: 'POST', headers: h, body: JSON.stringify({}) }),
+        fetch(`${BACKEND}/reviews/central/sync-ml`, { method: 'POST', headers: h }),
+      ])
       await load()
     } catch { /* silent */ } finally {
       setSyncing(false)
@@ -130,6 +155,12 @@ export default function AvaliacoesPage() {
           <p className="text-zinc-500 text-xs mt-1">{t('avaliacoes.pageSubtitle')}</p>
         </div>
         <div className="flex items-center gap-2">
+          <button onClick={() => setConfigOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border transition-all"
+            style={{ borderColor: 'rgba(192,132,252,0.35)', color: '#c084fc' }}>
+            <Bot size={13} />
+            {t('avaliacoes.autopilot')}
+          </button>
           <button onClick={sync} disabled={syncing || loading}
             className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border transition-all disabled:opacity-60"
             style={{ borderColor: 'rgba(0,229,255,0.3)', color: '#00E5FF' }}>
@@ -143,6 +174,29 @@ export default function AvaliacoesPage() {
             {t('avaliacoes.refresh')}
           </button>
         </div>
+      </div>
+
+      {/* Plataforma */}
+      <div className="flex items-center gap-1.5 flex-wrap">
+        {([
+          { key: 'all' as PlatformFilter,          label: t('avaliacoes.allPlatforms') },
+          { key: 'shopee' as PlatformFilter,       label: 'Shopee' },
+          { key: 'mercadolivre' as PlatformFilter, label: 'Mercado Livre' },
+        ]).map(({ key, label }) => (
+          <button key={key} onClick={() => { setPlatF(key); setShopF('') }}
+            className="px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all"
+            style={{
+              background: platF === key ? 'rgba(0,229,255,0.1)' : 'transparent',
+              color:      platF === key ? '#00E5FF' : '#52525b',
+              border:     `1px solid ${platF === key ? 'rgba(0,229,255,0.25)' : '#1e1e24'}`,
+            }}>
+            {label}
+          </button>
+        ))}
+        <span className="px-3 py-1.5 rounded-lg text-[11px] font-semibold"
+          style={{ color: '#3f3f46', border: '1px dashed #1e1e24' }}>
+          TikTok · {t('avaliacoes.comingSoon')}
+        </span>
       </div>
 
       {/* KPIs */}
@@ -252,12 +306,31 @@ export default function AvaliacoesPage() {
                     {r.comment ? `“${r.comment}”` : <span className="text-zinc-600 italic">{t('avaliacoes.noText')}</span>}
                   </p>
                   <p className="text-[11px] text-zinc-500 mt-1 truncate">
-                    {r.buyer_username ?? '—'} · 🏬 {shopName(r.shop_id)}
+                    {r.buyer_username ?? (r.platform === 'mercadolivre' ? t('avaliacoes.anonymous') : '—')}
+                    {' · '}
+                    {r.platform === 'shopee' ? <>🏬 {shopName(r.shop_id)}</> : (PLATFORM_LABEL[r.platform] ?? r.platform)}
                     {r.product_title && <> · {r.product_title}</>}
                   </p>
                 </div>
                 <div className="flex-shrink-0 flex flex-col items-end gap-1.5">
                   <span className="text-[10px] text-zinc-600">{fmtDate(r.review_create_at)}</span>
+                  {(r.sensitive_terms?.length ?? 0) > 0 && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
+                      style={{ background: 'rgba(252,211,77,0.1)', color: '#fcd34d' }}>
+                      ⚠️ {t('avaliacoes.sensitive')}
+                    </span>
+                  )}
+                  {r.automation_status === 'auto_replied' ? (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold flex items-center gap-1"
+                      style={{ background: 'rgba(192,132,252,0.1)', color: '#c084fc' }}>
+                      <Bot size={9} /> {t('avaliacoes.autoReplied')}
+                    </span>
+                  ) : r.automation_status === 'task_created' ? (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold flex items-center gap-1"
+                      style={{ background: 'rgba(0,229,255,0.1)', color: '#00E5FF' }}>
+                      <ClipboardList size={9} /> {t('avaliacoes.inFunnel')}
+                    </span>
+                  ) : null}
                   {r.reply_text ? (
                     <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
                       style={{ background: 'rgba(74,222,128,0.1)', color: '#4ade80' }}>
@@ -281,12 +354,176 @@ export default function AvaliacoesPage() {
       )}
 
       {selected && (
-        <ReviewDrawer review={selected} shopName={shopName(selected.shop_id)}
+        <ReviewDrawer review={selected}
+          shopName={selected.platform === 'shopee' ? shopName(selected.shop_id) : (PLATFORM_LABEL[selected.platform] ?? selected.platform)}
           onClose={() => setSelected(null)}
           onReplied={() => { setSelected(null); load() }}
           getHeaders={getHeaders} />
       )}
+      {configOpen && (
+        <ConfigDrawer onClose={() => setConfigOpen(false)} getHeaders={getHeaders} />
+      )}
     </div>
+  )
+}
+
+// ── Config do piloto automático ───────────────────────────────────────────────
+
+function ConfigDrawer({ onClose, getHeaders }: {
+  onClose: () => void
+  getHeaders: () => Promise<Record<string, string> | null>
+}) {
+  const t = useTranslations('atendimento')
+  const [cfg,     setCfg]     = useState<CentralConfig | null>(null)
+  const [words,   setWords]   = useState('')
+  const [saving,  setSaving]  = useState(false)
+  const [saved,   setSaved]   = useState(false)
+  const [error,   setError]   = useState('')
+
+  useEffect(() => {
+    (async () => {
+      const h = await getHeaders()
+      if (!h) return
+      try {
+        const res = await fetch(`${BACKEND}/reviews/central/config`, { headers: h })
+        if (res.ok) {
+          const d = await res.json()
+          setCfg(d)
+          setWords((d?.sensitive_words ?? []).join(', '))
+        }
+      } catch { /* silent */ }
+    })()
+  }, [getHeaders])
+
+  const save = async () => {
+    if (!cfg) return
+    setSaving(true)
+    setError('')
+    try {
+      const h = await getHeaders()
+      if (!h) return
+      const res = await fetch(`${BACKEND}/reviews/central/config`, {
+        method: 'PUT', headers: h,
+        body: JSON.stringify({
+          ...cfg,
+          sensitive_words: words.split(',').map(w => w.trim()).filter(Boolean),
+        }),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 1800)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'erro')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <>
+      <div onClick={onClose} className="fixed inset-0 bg-black/60 z-40" />
+      <div className="fixed top-0 right-0 bottom-0 z-50 w-full md:w-[520px] bg-[#0a0a0c] border-l border-[#1e1e24] flex flex-col"
+        style={{ boxShadow: '-8px 0 32px rgba(0,0,0,0.5)' }}>
+        <div className="px-5 py-4 border-b border-[#1e1e24] flex items-center justify-between flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <Bot size={16} className="text-[#c084fc]" />
+            <p className="text-base font-semibold text-white">{t('avaliacoes.config.title')}</p>
+          </div>
+          <button onClick={onClose} className="text-zinc-500 hover:text-white p-1"><X size={18} /></button>
+        </div>
+
+        {!cfg ? (
+          <div className="flex-1 flex items-center justify-center text-xs text-zinc-600">{t('avaliacoes.loading')}</div>
+        ) : (
+          <div className="flex-1 overflow-y-auto p-5 space-y-5">
+            {/* Liga/desliga */}
+            <button onClick={() => setCfg({ ...cfg, autopilot_enabled: !cfg.autopilot_enabled })}
+              className="w-full rounded-xl p-4 flex items-center justify-between transition-all"
+              style={{
+                background: cfg.autopilot_enabled ? 'rgba(192,132,252,0.08)' : '#111114',
+                border: `1px solid ${cfg.autopilot_enabled ? 'rgba(192,132,252,0.4)' : '#1e1e24'}`,
+              }}>
+              <div className="text-left">
+                <p className="text-sm font-semibold" style={{ color: cfg.autopilot_enabled ? '#c084fc' : '#a1a1aa' }}>
+                  {t('avaliacoes.config.autopilot')}
+                </p>
+                <p className="text-[11px] text-zinc-500 mt-0.5">{t('avaliacoes.config.autopilotHint')}</p>
+              </div>
+              <div className="w-10 h-5.5 rounded-full relative flex-shrink-0 transition-all"
+                style={{ background: cfg.autopilot_enabled ? '#c084fc' : '#27272a', height: 22 }}>
+                <div className="absolute top-0.5 w-4.5 h-4.5 rounded-full bg-white transition-all"
+                  style={{ width: 18, height: 18, left: cfg.autopilot_enabled ? 20 : 2 }} />
+              </div>
+            </button>
+
+            {/* Regras */}
+            <div className="rounded-xl p-4 space-y-4" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+              <p className="text-[10px] uppercase tracking-widest text-zinc-600 font-bold">{t('avaliacoes.config.positiveRules')}</p>
+              <div>
+                <p className="text-xs text-zinc-400 mb-1.5">{t('avaliacoes.config.minRating')}</p>
+                <div className="flex gap-1.5">
+                  {[4, 5].map(n => (
+                    <button key={n} onClick={() => setCfg({ ...cfg, auto_reply_min_rating: n })}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1"
+                      style={{
+                        background: cfg.auto_reply_min_rating === n ? 'rgba(0,229,255,0.1)' : 'transparent',
+                        color: cfg.auto_reply_min_rating === n ? '#00E5FF' : '#52525b',
+                        border: `1px solid ${cfg.auto_reply_min_rating === n ? 'rgba(0,229,255,0.25)' : '#1e1e24'}`,
+                      }}>
+                      ≥ {n} <Star size={10} fill="currentColor" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-xs text-zinc-400 mb-1.5">{t('avaliacoes.config.windowDays')}</p>
+                  <input type="number" min={1} max={90} value={cfg.auto_reply_window_days}
+                    onChange={e => setCfg({ ...cfg, auto_reply_window_days: Number(e.target.value) })}
+                    className="w-full bg-[#09090b] border border-[#1e1e24] rounded-lg p-2 text-sm text-white focus:outline-none focus:border-[#00E5FF44]" />
+                </div>
+                <div>
+                  <p className="text-xs text-zinc-400 mb-1.5">{t('avaliacoes.config.maxPerHour')}</p>
+                  <input type="number" min={1} max={100} value={cfg.max_auto_per_hour}
+                    onChange={e => setCfg({ ...cfg, max_auto_per_hour: Number(e.target.value) })}
+                    className="w-full bg-[#09090b] border border-[#1e1e24] rounded-lg p-2 text-sm text-white focus:outline-none focus:border-[#00E5FF44]" />
+                </div>
+              </div>
+            </div>
+
+            {/* Negativas */}
+            <div className="rounded-xl p-4 space-y-4" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+              <p className="text-[10px] uppercase tracking-widest text-zinc-600 font-bold">{t('avaliacoes.config.negativeRules')}</p>
+              <p className="text-[11px] text-zinc-500">{t('avaliacoes.config.negativeHint')}</p>
+              <div>
+                <p className="text-xs text-zinc-400 mb-1.5">{t('avaliacoes.config.phone')}</p>
+                <input type="text" placeholder="+55 11 99999-9999" value={cfg.notification_phone ?? ''}
+                  onChange={e => setCfg({ ...cfg, notification_phone: e.target.value })}
+                  className="w-full bg-[#09090b] border border-[#1e1e24] rounded-lg p-2 text-sm text-white placeholder-zinc-700 focus:outline-none focus:border-[#00E5FF44]" />
+              </div>
+              <div>
+                <p className="text-xs text-zinc-400 mb-1.5">{t('avaliacoes.config.sensitiveWords')}</p>
+                <textarea value={words} onChange={e => setWords(e.target.value)}
+                  className="w-full bg-[#09090b] border border-[#1e1e24] rounded-lg p-2 text-xs text-white focus:outline-none focus:border-[#00E5FF44] resize-y min-h-[70px]" />
+                <p className="text-[10px] text-zinc-600 mt-1">{t('avaliacoes.config.sensitiveHint')}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="p-4 border-t border-[#1e1e24] flex items-center justify-between flex-shrink-0">
+          <div className="text-[10px]">
+            {error && <span className="text-red-400 flex items-center gap-1"><AlertCircle size={11} /> {error}</span>}
+            {saved && <span className="text-green-400 flex items-center gap-1"><CheckCircle2 size={11} /> {t('avaliacoes.config.saved')}</span>}
+          </div>
+          <button onClick={save} disabled={saving || !cfg}
+            className="px-4 py-2 rounded-xl text-sm font-semibold transition-all disabled:opacity-40"
+            style={{ background: 'linear-gradient(135deg, #00E5FF 0%, #00b8cc 100%)', color: '#000' }}>
+            {saving ? t('avaliacoes.config.saving') : t('avaliacoes.config.save')}
+          </button>
+        </div>
+      </div>
+    </>
   )
 }
 
@@ -307,7 +544,7 @@ function ReviewDrawer({ review, shopName, onClose, onReplied, getHeaders }: {
   const [error,      setError]      = useState('')
 
   const photos = review.media?.image_url_list ?? []
-  const canReply = !review.reply_text && review.editable === 'EDITABLE'
+  const canReply = review.platform === 'shopee' && !review.reply_text && review.editable === 'EDITABLE'
 
   const suggest = async () => {
     setSuggesting(true)
@@ -403,6 +640,12 @@ function ReviewDrawer({ review, shopName, onClose, onReplied, getHeaders }: {
             <div className="rounded-xl p-4" style={{ background: 'rgba(74,222,128,0.05)', border: '1px solid rgba(74,222,128,0.25)' }}>
               <p className="text-[10px] uppercase tracking-widest" style={{ color: '#4ade80' }}>{t('avaliacoes.yourReply')}</p>
               <p className="text-sm text-zinc-200 mt-2 leading-relaxed whitespace-pre-wrap">{review.reply_text}</p>
+            </div>
+          )}
+
+          {review.platform === 'mercadolivre' && (
+            <div className="rounded-xl p-3 text-[11px] text-zinc-500" style={{ background: '#0e0e11', border: '1px solid #1e1e24' }}>
+              {t('avaliacoes.mlNoReply')}
             </div>
           )}
         </div>
