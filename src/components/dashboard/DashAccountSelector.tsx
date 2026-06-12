@@ -109,7 +109,21 @@ export function useDashScope() {
             : a.platform === 'tiktok_shop' ? 'TikTok Shop' : prev.nickname
         } else merged.set(k, { ...a })
       }
-      setAccounts([...merged.values()].sort((x, y) => y.orders - x.orders))
+      const list = [...merged.values()].sort((x, y) => y.orders - x.orders)
+      setAccounts(list)
+      // F17-C: /orders/accounts agora vem filtrado pelo escopo do user no
+      // backend. Se o escopo salvo no LS aponta pra conta/plataforma que o
+      // user não enxerga (mais), reseta pra "todas" — evita 403 nos KPIs.
+      const stored = getStoredScope()
+      if (stored.platform !== 'all') {
+        const stillValid = list.some(a =>
+          a.platform === stored.platform
+          && (stored.seller_id == null || a.seller_id === stored.seller_id))
+        if (!stillValid) {
+          setScopeRaw(ALL_SCOPE)
+          setStoredScope(ALL_SCOPE)
+        }
+      }
     } catch {
       setAccounts([])
     } finally {

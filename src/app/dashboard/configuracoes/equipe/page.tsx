@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import { UserCog, Crown, User, Copy, Check, Mail, Shield, Trash2, Plus, RefreshCw, MessageCircle, Pencil, X } from 'lucide-react'
 import { useConfirm } from '@/components/ui/dialog-provider'
+import MemberAccountScope from './_components/MemberAccountScope'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -333,6 +334,12 @@ export default function EquipePage() {
                           </button>
                         )}
                       </div>
+
+                      {/* F17-C: contas sob responsabilidade do membro
+                          (owner edita; admin vê; owner sempre tem tudo) */}
+                      {canEditWa && m.role !== 'owner' && (
+                        <MemberAccountScope userId={m.user_id} canEdit={myRole === 'owner'} />
+                      )}
 
                       <RoleBadge role={m.role} />
 

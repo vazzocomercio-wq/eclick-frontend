@@ -28,11 +28,20 @@ const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL
   ?? process.env.NEXT_PUBLIC_API_URL
   ?? 'http://localhost:3001'
 
+/** F17-C: uma conta de marketplace sob responsabilidade do user. */
+export interface AccountScopeEntry {
+  platform:      string
+  account_key:   string
+  account_label: string | null
+}
+
 interface PermissionsState {
   loaded:      boolean
   error:       string | null
   permissions: Set<string>
   roles:       string[]
+  /** null = irrestrito (vê todas as contas da org). Array = whitelist. */
+  accountScope: AccountScopeEntry[] | null
 }
 
 interface PermissionsContextValue extends PermissionsState {
@@ -50,6 +59,7 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
     error:       null,
     permissions: new Set(),
     roles:       [],
+    accountScope: null,
   })
 
   const load = useCallback(async () => {
@@ -59,27 +69,31 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
       const token = data.session?.access_token
       if (!token) {
         // Sem sessão = visitante. Não erra, só não tem perms.
-        setState({ loaded: true, error: null, permissions: new Set(), roles: [] })
+        setState({ loaded: true, error: null, permissions: new Set(), roles: [], accountScope: null })
         return
       }
       const res = await fetch(`${BACKEND}/access/me/permissions`, {
         headers: { Authorization: `Bearer ${token}` },
       })
       if (!res.ok) {
-        setState({ loaded: true, error: `HTTP ${res.status}`, permissions: new Set(), roles: [] })
+        setState({ loaded: true, error: `HTTP ${res.status}`, permissions: new Set(), roles: [], accountScope: null })
         return
       }
-      const body = await res.json() as { permissions?: string[]; roles?: string[] }
+      const body = await res.json() as {
+        permissions?: string[]; roles?: string[]
+        account_scope?: AccountScopeEntry[] | null
+      }
       setState({
         loaded:      true,
         error:       null,
         permissions: new Set(body.permissions ?? []),
         roles:       body.roles ?? [],
+        accountScope: body.account_scope ?? null,
       })
     } catch (e) {
       setState({
         loaded: true, error: (e as Error).message,
-        permissions: new Set(), roles: [],
+        permissions: new Set(), roles: [], accountScope: null,
       })
     }
   }, [])
@@ -105,12 +119,18 @@ export function usePermissionsContext(): PermissionsContextValue {
     // Não está dentro do Provider: assume liberado pra não quebrar UI legada
     // que não passa pelo dashboard layout. Backend continua sendo a barreira.
     return {
-      loaded: true, error: null, permissions: new Set(), roles: [],
+      loaded: true, error: null, permissions: new Set(), roles: [], accountScope: null,
       refresh: async () => {},
       can: () => true,
     }
   }
   return v
+}
+
+/** F17-C: escopo por conta do user. null = irrestrito; array = whitelist
+ *  de contas (o backend já restringe os dados — isto é só pra UX). */
+export function useAccountScope(): AccountScopeEntry[] | null {
+  return usePermissionsContext().accountScope
 }
 
 /** Hook compacto: `const canPublish = useCan('products.publish_ml')`. */
