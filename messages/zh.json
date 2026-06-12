@@ -2055,7 +2055,10 @@
       "roleDescOwner": "完全访问权限，不可移除",
       "roleDescAdmin": "管理成员和集成",
       "roleDescMember": "完整功能访问权限",
-      "roleDescViewer": "只读"
+      "roleDescViewer": "只读",
+      "resendInvite": "重发邀请（设置密码邮件）",
+      "resendSent": "邮件已发送！",
+      "resendFailed": "重发失败"
     },
     "preferencias": {
       "breadcrumb": "设置",

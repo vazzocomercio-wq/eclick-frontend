@@ -2055,7 +2055,10 @@
       "roleDescOwner": "Full access, cannot be removed",
       "roleDescAdmin": "Manages members and integrations",
       "roleDescMember": "Full access to features",
-      "roleDescViewer": "Read-only"
+      "roleDescViewer": "Read-only",
+      "resendInvite": "Resend invite (password setup email)",
+      "resendSent": "Email sent!",
+      "resendFailed": "Failed to resend"
     },
     "preferencias": {
       "breadcrumb": "Settings",

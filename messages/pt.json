@@ -2224,7 +2224,10 @@
       "roleDescOwner": "Acesso total, não pode ser removido",
       "roleDescAdmin": "Gerencia membros e integrações",
       "roleDescMember": "Acesso completo às funcionalidades",
-      "roleDescViewer": "Somente leitura"
+      "roleDescViewer": "Somente leitura",
+      "resendInvite": "Reenviar convite (e-mail pra definir a senha)",
+      "resendSent": "E-mail enviado!",
+      "resendFailed": "Falha ao reenviar"
     },
     "preferencias": {
       "breadcrumb": "Configurações",

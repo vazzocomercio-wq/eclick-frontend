@@ -73,6 +73,9 @@ export default function EquipePage() {
   const [inviteMsg, setInviteMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [copied, setCopied]     = useState(false)
   const [removing, setRemoving] = useState<string | null>(null)
+  // reenvio de convite (e-mail de definição de senha)
+  const [resending, setResending] = useState<string | null>(null)
+  const [resentMsg, setResentMsg] = useState<{ userId: string; ok: boolean; text: string } | null>(null)
   // edição inline de WhatsApp por membro
   const [editingWa, setEditingWa] = useState<string | null>(null)
   const [waDraft, setWaDraft]     = useState('')
@@ -162,6 +165,32 @@ export default function EquipePage() {
     await sb.from('organization_members').delete().eq('user_id', userId).eq('organization_id', orgId!)
     setMembers(ms => ms.filter(m => m.user_id !== userId))
     setRemoving(null)
+  }
+
+  async function handleReinvite(m: Member) {
+    if (!m.email) return
+    setResending(m.user_id)
+    setResentMsg(null)
+    try {
+      const sb = createClient()
+      const { data: { session } } = await sb.auth.getSession()
+      const res = await fetch('/api/teams/reinvite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
+        body: JSON.stringify({ email: m.email }),
+      })
+      if (res.ok) {
+        setResentMsg({ userId: m.user_id, ok: true, text: t('equipe.resendSent') })
+      } else {
+        const err = await res.json().catch(() => ({}))
+        setResentMsg({ userId: m.user_id, ok: false, text: err.message ?? t('equipe.resendFailed') })
+      }
+    } catch {
+      setResentMsg({ userId: m.user_id, ok: false, text: t('equipe.resendFailed') })
+    } finally {
+      setResending(null)
+      setTimeout(() => setResentMsg(null), 5000)
+    }
   }
 
   function copyOrgId() {
@@ -306,6 +335,23 @@ export default function EquipePage() {
                       </div>
 
                       <RoleBadge role={m.role} />
+
+                      {/* Reenviar convite (e-mail de definição de senha) */}
+                      {!isMe && canEditWa && m.email && (
+                        <div className="flex items-center gap-1.5">
+                          {resentMsg?.userId === m.user_id && (
+                            <span className="text-[9px] font-semibold"
+                              style={{ color: resentMsg.ok ? '#4ade80' : '#f87171' }}>
+                              {resentMsg.text}
+                            </span>
+                          )}
+                          <button onClick={() => handleReinvite(m)} disabled={resending === m.user_id}
+                            className="p-1.5 rounded-lg text-zinc-700 hover:text-[#00E5FF] transition-colors disabled:opacity-40"
+                            title={t('equipe.resendInvite')}>
+                            <Mail size={13} className={resending === m.user_id ? 'animate-pulse' : ''} />
+                          </button>
+                        </div>
+                      )}
 
                       {/* Remove (not self) */}
                       {!isMe && (
