@@ -1,0 +1,36 @@
+# Keep-warm da loja própria (decisão: /loja é 100% dinâmica, sem ISR).
+# O cold-start ruim (~19s) acontece quando a lambda do Netlify pra rota
+# /loja esfria E o data-cache (revalidate 60s dos fetches ao backend)
+# expirou ao mesmo tempo. Este cron pinga a página a cada 5 min pra:
+#   1. manter a function do Netlify quente;
+#   2. manter o data-cache dos fetches populado (visitante real pega cache);
+#   3. manter pool/planos de query do backend Railway aquecidos.
+# Desligar: deletar este arquivo ou desabilitar o workflow na aba Actions.
+name: keep-warm
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch: {}
+
+permissions: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Ping storefront + backend público
+        run: |
+          set +e  # ping é best-effort; falha de um alvo não derruba o job
+          BACKEND="https://eclick-backend-production-2a87.up.railway.app"
+          for url in \
+            "https://eclick.app.br/loja/vazzo" \
+            "$BACKEND/public/store/by-slug/vazzo" \
+            "$BACKEND/public/store/vazzo/products?limit=24" \
+            "$BACKEND/public/bonus/by-slug/vazzo/active-rules"
+          do
+            code=$(curl -s -o /dev/null -m 30 -w "%{http_code} ttfb=%{time_starttransfer}s" "$url")
+            echo "$code  $url"
+          done
+          exit 0
