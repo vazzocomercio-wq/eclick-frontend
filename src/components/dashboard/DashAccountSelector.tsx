@@ -94,7 +94,22 @@ export function useDashScope() {
         headers: { Authorization: `Bearer ${session?.access_token}` },
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      setAccounts(await res.json() as DashAccount[])
+      const raw = await res.json() as DashAccount[]
+      // /orders/accounts agora separa LOJAS do canal (account_id Shopee/TikTok)
+      // pro filtro da tela de pedidos. O escopo do dashboard é por
+      // (platform, seller_id) — agrega de volta pra não duplicar pills.
+      const merged = new Map<string, DashAccount>()
+      for (const a of raw) {
+        const k = `${a.platform}|${a.seller_id ?? ''}`
+        const prev = merged.get(k)
+        if (prev) {
+          prev.orders += a.orders
+          // várias lojas agregadas → rótulo genérico da plataforma
+          prev.nickname = a.platform === 'shopee' ? 'Shopee'
+            : a.platform === 'tiktok_shop' ? 'TikTok Shop' : prev.nickname
+        } else merged.set(k, { ...a })
+      }
+      setAccounts([...merged.values()].sort((x, y) => y.orders - x.orders))
     } catch {
       setAccounts([])
     } finally {
