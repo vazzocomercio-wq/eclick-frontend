@@ -2224,8 +2224,11 @@ export default function PedidosPage() {
   }, [getHeaders])
 
 
-  const loadOrders = useCallback(async (currentPage: number, query: string, currentTab: TabKey | null) => {
-    setLoading(true)
+  // opts.silent = refresh em SEGUNDO PLANO (polling 2min, realtime, pós-sync):
+  // não liga o skeleton nem apaga a lista — troca os dados quando chegarem.
+  // Sem isso a tela "piscava" a cada refresh automático.
+  const loadOrders = useCallback(async (currentPage: number, query: string, currentTab: TabKey | null, opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true)
     try {
       const headers = await getHeaders()
       // Em cross-tab mode pedimos mais por pagina (200 max do backend) pra
@@ -2253,9 +2256,13 @@ export default function PedidosPage() {
       setLastUpdate(new Date())
       setMinsSince(0)
     } catch (e: unknown) {
-      toast(e instanceof Error ? e.message : t('toast.loadOrdersError'), 'error')
-      setOrders([])
-    } finally { setLoading(false) }
+      // refresh silencioso que falhou NÃO apaga a lista nem mostra toast —
+      // mantém o que está na tela e tenta de novo no próximo ciclo
+      if (!opts?.silent) {
+        toast(e instanceof Error ? e.message : t('toast.loadOrdersError'), 'error')
+        setOrders([])
+      }
+    } finally { if (!opts?.silent) setLoading(false) }
   }, [getHeaders, pageSize, t, platformFilter, accountFilter])
 
   const sync = useCallback(async () => {
@@ -2300,9 +2307,9 @@ export default function PedidosPage() {
         })())
       }
       await Promise.all(jobs)
-      // recarrega a tela com o que acabou de entrar
+      // recarrega a tela com o que acabou de entrar (sem piscar a lista)
       loadKpis()
-      loadOrders(pageRef.current, qRef.current, crossTabMode ? null : tabRef.current)
+      loadOrders(pageRef.current, qRef.current, crossTabMode ? null : tabRef.current, { silent: true })
       setTimeout(loadPending, 30_000)
     } catch { toast(t('toast.syncNetworkError'), 'error') }
     finally { setSyncing(false) }
@@ -2549,7 +2556,7 @@ export default function PedidosPage() {
   useEffect(() => {
     const interval = setInterval(() => {
       console.log('[pedidos] refetch automático de status')
-      loadOrders(pageRef.current, qRef.current, effectiveTab(tabRef.current))
+      loadOrders(pageRef.current, qRef.current, effectiveTab(tabRef.current), { silent: true })
     }, 120_000)
     return () => clearInterval(interval)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2566,7 +2573,7 @@ export default function PedidosPage() {
       if (debounceTimer) clearTimeout(debounceTimer)
       debounceTimer = setTimeout(() => {
         if (!active) return
-        loadOrders(pageRef.current, qRef.current, effectiveTab(tabRef.current))
+        loadOrders(pageRef.current, qRef.current, effectiveTab(tabRef.current), { silent: true })
       }, 1500)
     }
     void (async () => {
