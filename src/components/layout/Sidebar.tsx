@@ -15,7 +15,7 @@ import {
   GraduationCap, LineChart, Shield, Users2, TrendingDown,
   Zap, Map as MapIcon, Bell, Wand2, Layers, Store, Palette, Link2, Calendar, FileText, Eye,
   RotateCcw, CreditCard, Scale, Trophy, AlertTriangle as AlertTriangleIcon, Sparkles as SparklesIcon,
-  LayoutDashboard, Tag, Wallet, Gift,
+  LayoutDashboard, Tag, Wallet, Gift, Rocket,
 } from 'lucide-react'
 import { CORE_MODULES } from '@/lib/modules'
 
@@ -340,6 +340,7 @@ const SECTIONS: NavSection[] = [
       { labelKey: 'items.adsInteligencia', href: '/dashboard/ads/inteligencia', icon: <Sparkles size={15} /> },
       { labelKey: 'items.adsShopee',       href: '/dashboard/ads/shopee',       icon: <ShoppingCart size={15} />, soon: true },
       { labelKey: 'items.shopeeMarketing', href: '/dashboard/shopee-marketing',  icon: <Sparkles size={15} /> },
+      { labelKey: 'items.shopeeBoost',     href: '/dashboard/shopee-boost',      icon: <Rocket size={15} /> },
       { labelKey: 'items.adsPerformance',  href: '/dashboard/ads/performance',  icon: <TrendingUp size={15} /> },
     ],
   },
