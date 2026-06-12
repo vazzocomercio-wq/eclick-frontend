@@ -33,6 +33,28 @@ type SalesKpis = {
   avg_ticket: number
 }
 
+type ChannelAccount = {
+  id: string
+  name: string
+  status: string
+  expires_at: string | null
+  listings: number
+}
+
+type ChannelOverviewEntry = {
+  connected: boolean
+  accounts: ChannelAccount[]
+  listings: { total: number; active: number | null }
+  month: { orders: number; revenue: number }
+}
+
+type ChannelsOverview = {
+  month_start: string
+  shopee: ChannelOverviewEntry
+  tiktok_shop: ChannelOverviewEntry
+  storefront: ChannelOverviewEntry
+}
+
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
 async function getToken() {
@@ -150,6 +172,142 @@ function FutureChannelCard({ name, color, abbr, bg }: { name: string; color: str
   )
 }
 
+// ── Live channel card (Shopee / TikTok / Loja Própria) ───────────────────────
+
+/** Conta conectada = status connected E token não vencido (expires_at null = sem expiração). */
+function accountOk(a: ChannelAccount): boolean {
+  if (a.status && a.status !== 'connected') return false
+  if (a.expires_at && new Date(a.expires_at).getTime() < Date.now()) return false
+  return true
+}
+
+function LiveChannelCard({
+  name, abbr, bg, color, data, loading, listingsLabel, panelUrl, panelLabel, manageHref, manageLabel, connectHref,
+}: {
+  name: string
+  abbr: string
+  bg: string
+  color: string
+  data: ChannelOverviewEntry | null
+  loading: boolean
+  /** rótulo do KPI de anúncios (ex: "Anúncios ativos" / "Produtos na vitrine") */
+  listingsLabel: string
+  /** link externo do painel do canal (header) */
+  panelUrl?: string
+  panelLabel?: string
+  /** link interno de gestão quando conectado (footer) */
+  manageHref: string
+  manageLabel: string
+  /** link interno pra conectar quando NÃO conectado (footer) */
+  connectHref: string
+}) {
+  const t = useTranslations('canais')
+  const connected = !!data?.connected
+  const listingsValue = data ? (data.listings.active ?? data.listings.total) : null
+
+  return (
+    <div className="rounded-2xl p-5 flex flex-col gap-4" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+      {/* Header */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-10 h-10 rounded-xl shrink-0 flex items-center justify-center text-sm font-black"
+            style={{ background: bg, color }}>
+            {abbr}
+          </div>
+          <div className="min-w-0">
+            <h3 className="text-white font-semibold text-sm truncate">{name}</h3>
+            {loading ? (
+              <span className="text-[10px] text-zinc-600">…</span>
+            ) : connected ? (
+              <span className="text-[10px] font-medium" style={{ color: '#4ade80' }}>
+                {t('accountsConnected', { count: data!.accounts.length })}
+              </span>
+            ) : (
+              <span className="text-[10px] font-medium text-zinc-600">{t('notConnected')}</span>
+            )}
+          </div>
+        </div>
+        {connected && panelUrl && (
+          <a href={panelUrl} target="_blank" rel="noopener noreferrer"
+            className="flex items-center gap-1 text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors shrink-0">
+            {panelLabel} <ExternalLink size={11} />
+          </a>
+        )}
+      </div>
+
+      {/* KPIs */}
+      {loading ? (
+        <div className="grid grid-cols-3 gap-2">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="h-14 rounded-xl animate-pulse" style={{ background: '#18181b' }} />
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            { key: 'listings', label: listingsLabel,           value: listingsValue ?? '—',                          color: '#4ade80' },
+            { key: 'sales',    label: t('kpiSalesThisMonth'),  value: data?.month.orders ?? '—',                     color: '#00E5FF' },
+            { key: 'revenue',  label: t('kpiRevenueThisMonth'),value: data ? brl(data.month.revenue) : '—',          color: '#a78bfa' },
+          ].map(kpi => (
+            <div key={kpi.key} className="rounded-xl p-2.5 min-w-0" style={{ background: '#18181b', border: '1px solid #27272a' }}>
+              <p className="text-[9px] text-zinc-500 font-medium leading-tight">{kpi.label}</p>
+              <p className="text-sm font-black mt-1 truncate" style={{ color: kpi.color }} title={String(kpi.value)}>{kpi.value}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Contas conectadas */}
+      {!loading && connected && (
+        <div className="space-y-1.5 flex-1">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-600">{t('connectedAccounts')}</p>
+          {data!.accounts.map(a => {
+            const ok = accountOk(a)
+            return (
+              <div key={a.id} className="flex items-center gap-2 px-3 py-2 rounded-xl" style={{ background: '#18181b', border: '1px solid #27272a' }}>
+                <div className="w-6 h-6 rounded-full shrink-0 flex items-center justify-center text-[10px] font-bold"
+                  style={{ background: bg, color }}>
+                  {a.name.charAt(0).toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-white truncate">{a.name}</p>
+                  <p className="text-[9px] text-zinc-500">{t('listingsShort', { count: a.listings })}</p>
+                </div>
+                <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold shrink-0"
+                  style={{
+                    background: ok ? 'rgba(74,222,128,0.1)' : 'rgba(248,113,113,0.1)',
+                    color: ok ? '#4ade80' : '#f87171',
+                  }}>
+                  <CheckCircle2 size={9} /> {ok ? t('connected') : t('expired')}
+                </span>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Footer CTA */}
+      {!loading && (
+        connected ? (
+          <a href={manageHref}
+            className="flex items-center justify-center gap-1.5 w-full py-2 rounded-xl text-xs font-semibold transition-colors mt-auto"
+            style={{ background: '#1c1c1f', color: '#a1a1aa', border: '1px solid #2e2e33' }}
+            onMouseEnter={e => (e.currentTarget.style.color = '#fafafa')}
+            onMouseLeave={e => (e.currentTarget.style.color = '#a1a1aa')}>
+            {manageLabel}
+          </a>
+        ) : (
+          <a href={connectHref}
+            className="flex items-center justify-center gap-2 w-full py-2 rounded-xl text-xs font-semibold transition-all mt-auto"
+            style={{ background: bg, color, opacity: 0.9 }}>
+            <Plus size={13} /> {t('connectChannel', { name })}
+          </a>
+        )
+      )}
+    </div>
+  )
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function CanaisPage() {
@@ -157,6 +315,7 @@ export default function CanaisPage() {
   const [connections, setConnections] = useState<MlConnection[]>([])
   const [counts, setCounts]           = useState<ListingCounts | null>(null)
   const [kpis, setKpis]               = useState<SalesKpis | null>(null)
+  const [overview, setOverview]       = useState<ChannelsOverview | null>(null)
   const [loading, setLoading]         = useState(true)
   const [error, setError]             = useState<string | null>(null)
   const [disconnecting, setDisconn]   = useState(false)
@@ -172,10 +331,11 @@ export default function CanaisPage() {
       if (!token) throw new Error(t('sessionExpired'))
       const h = { Authorization: `Bearer ${token}` }
 
-      const [connRes, countsRes, kpisRes] = await Promise.allSettled([
-        fetch(`${BACKEND}/ml/connections`,     { headers: h }),
-        fetch(`${BACKEND}/ml/listings/counts`, { headers: h }),
-        fetch(`${BACKEND}/ml/orders/kpis`,     { headers: h }),
+      const [connRes, countsRes, kpisRes, overviewRes] = await Promise.allSettled([
+        fetch(`${BACKEND}/ml/connections`,          { headers: h }),
+        fetch(`${BACKEND}/ml/listings/counts`,      { headers: h }),
+        fetch(`${BACKEND}/ml/orders/kpis`,          { headers: h }),
+        fetch(`${BACKEND}/orders/channels-overview`,{ headers: h }),
       ])
 
       if (connRes.status === 'fulfilled' && connRes.value.ok) {
@@ -188,6 +348,9 @@ export default function CanaisPage() {
         const d = await kpisRes.value.json()
         const cm = d?.current_month ?? {}
         setKpis({ count: cm.count ?? 0, revenue: cm.revenue ?? 0, avg_ticket: cm.count > 0 ? (cm.revenue ?? 0) / cm.count : 0 })
+      }
+      if (overviewRes.status === 'fulfilled' && overviewRes.value.ok) {
+        setOverview(await overviewRes.value.json())
       }
     } catch (e: any) {
       setError(e.message ?? t('errorLoad'))
@@ -381,16 +544,43 @@ export default function CanaisPage() {
         </div>
 
         {/* ── Shopee ── */}
-        <FutureChannelCard name="Shopee" color="#fff" abbr="SH" bg="#EE4D2D" />
+        <LiveChannelCard
+          name="Shopee" abbr="SH" bg="#EE4D2D" color="#fff"
+          data={overview?.shopee ?? null} loading={loading}
+          listingsLabel={t('kpiListings')}
+          panelUrl="https://seller.shopee.com.br" panelLabel={t('sellerPanel')}
+          manageHref="/dashboard/catalogo/anuncios/shopee" manageLabel={t('manageListings')}
+          connectHref="/dashboard/configuracoes/integracoes"
+        />
 
-        {/* ── Amazon ── */}
-        <FutureChannelCard name="Amazon" color="#111" abbr="AZ" bg="#FF9900" />
+        {/* ── TikTok Shop ── */}
+        <LiveChannelCard
+          name="TikTok Shop" abbr="TK" bg="rgba(255,255,255,0.10)" color="#fff"
+          data={overview?.tiktok_shop ?? null} loading={loading}
+          listingsLabel={t('kpiActiveListings')}
+          panelUrl="https://seller-br.tiktok.com" panelLabel={t('sellerPanel')}
+          manageHref="/dashboard/catalogo/anuncios/tiktok" manageLabel={t('manageListings')}
+          connectHref="/dashboard/configuracoes/integracoes"
+        />
 
       </div>
 
-      {/* Second row: Magalu + more future */}
+      {/* Second row: Loja Própria + future channels */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <LiveChannelCard
+          name={t('storeChannelName')} abbr="LP" bg="rgba(0,229,255,0.12)" color="#00E5FF"
+          data={overview?.storefront ?? null} loading={loading}
+          listingsLabel={t('kpiStoreProducts')}
+          panelUrl="/loja" panelLabel={t('viewStore')}
+          manageHref="/dashboard/loja" manageLabel={t('manageStore')}
+          connectHref="/dashboard/loja"
+        />
+        <FutureChannelCard name="Amazon" color="#111" abbr="AZ" bg="#FF9900" />
         <FutureChannelCard name="Magalu" color="#fff" abbr="MG" bg="#0086FF" />
+      </div>
+
+      {/* Third row: more future */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <FutureChannelCard name="Americanas" color="#fff" abbr="AM" bg="#e8002d" />
         <FutureChannelCard name="Via Varejo" color="#fff" abbr="VV" bg="#e31212" />
       </div>
