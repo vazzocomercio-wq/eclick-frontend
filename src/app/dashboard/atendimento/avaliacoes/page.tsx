@@ -33,12 +33,20 @@ type Review = {
 }
 
 type CentralConfig = {
-  autopilot_enabled:      boolean
-  auto_reply_min_rating:  number
-  auto_reply_window_days: number
-  max_auto_per_hour:      number
-  sensitive_words:        string[]
-  notification_phone:     string | null
+  autopilot_enabled:        boolean
+  auto_reply_min_rating:    number
+  auto_reply_window_days:   number
+  max_auto_per_hour:        number
+  sensitive_words:          string[]
+  notification_phone:       string | null
+  notification_operator_id: string | null
+}
+
+type Operator = {
+  user_id:        string
+  display_name:   string | null
+  whatsapp_phone: string | null
+  status:         string | null
 }
 
 type PlatformFilter = 'all' | 'shopee' | 'mercadolivre'
@@ -374,22 +382,30 @@ function ConfigDrawer({ onClose, getHeaders }: {
   getHeaders: () => Promise<Record<string, string> | null>
 }) {
   const t = useTranslations('atendimento')
-  const [cfg,     setCfg]     = useState<CentralConfig | null>(null)
-  const [words,   setWords]   = useState('')
-  const [saving,  setSaving]  = useState(false)
-  const [saved,   setSaved]   = useState(false)
-  const [error,   setError]   = useState('')
+  const [cfg,       setCfg]       = useState<CentralConfig | null>(null)
+  const [operators, setOperators] = useState<Operator[]>([])
+  const [words,     setWords]     = useState('')
+  const [saving,    setSaving]    = useState(false)
+  const [saved,     setSaved]     = useState(false)
+  const [error,     setError]     = useState('')
 
   useEffect(() => {
     (async () => {
       const h = await getHeaders()
       if (!h) return
       try {
-        const res = await fetch(`${BACKEND}/reviews/central/config`, { headers: h })
-        if (res.ok) {
-          const d = await res.json()
+        const [cRes, oRes] = await Promise.allSettled([
+          fetch(`${BACKEND}/reviews/central/config`, { headers: h }),
+          fetch(`${BACKEND}/reviews/central/operators`, { headers: h }),
+        ])
+        if (cRes.status === 'fulfilled' && cRes.value.ok) {
+          const d = await cRes.value.json()
           setCfg(d)
           setWords((d?.sensitive_words ?? []).join(', '))
+        }
+        if (oRes.status === 'fulfilled' && oRes.value.ok) {
+          const d = await oRes.value.json()
+          setOperators(d?.operators ?? [])
         }
       } catch { /* silent */ }
     })()
@@ -496,10 +512,27 @@ function ConfigDrawer({ onClose, getHeaders }: {
               <p className="text-[10px] uppercase tracking-widest text-zinc-600 font-bold">{t('avaliacoes.config.negativeRules')}</p>
               <p className="text-[11px] text-zinc-500">{t('avaliacoes.config.negativeHint')}</p>
               <div>
-                <p className="text-xs text-zinc-400 mb-1.5">{t('avaliacoes.config.phone')}</p>
-                <input type="text" placeholder="+55 11 99999-9999" value={cfg.notification_phone ?? ''}
-                  onChange={e => setCfg({ ...cfg, notification_phone: e.target.value })}
-                  className="w-full bg-[#09090b] border border-[#1e1e24] rounded-lg p-2 text-sm text-white placeholder-zinc-700 focus:outline-none focus:border-[#00E5FF44]" />
+                <p className="text-xs text-zinc-400 mb-1.5">{t('avaliacoes.config.operator')}</p>
+                <select value={cfg.notification_operator_id ?? ''}
+                  onChange={e => setCfg({ ...cfg, notification_operator_id: e.target.value || null })}
+                  className="w-full bg-[#09090b] border border-[#1e1e24] rounded-lg p-2 text-sm text-white focus:outline-none focus:border-[#00E5FF44]">
+                  <option value="">{t('avaliacoes.config.operatorNone')}</option>
+                  {operators.map(o => (
+                    <option key={o.user_id} value={o.user_id}>
+                      {o.display_name ?? o.user_id.slice(0, 8)}
+                      {o.whatsapp_phone ? ` — ${o.whatsapp_phone}` : ` — ${t('avaliacoes.config.noPhone')}`}
+                    </option>
+                  ))}
+                </select>
+                {(() => {
+                  const sel = operators.find(o => o.user_id === cfg.notification_operator_id)
+                  if (sel && !sel.whatsapp_phone) return (
+                    <p className="text-[10px] text-amber-400 mt-1.5 flex items-center gap-1">
+                      <AlertCircle size={10} /> {t('avaliacoes.config.noPhoneHint')}
+                    </p>
+                  )
+                  return <p className="text-[10px] text-zinc-600 mt-1.5">{t('avaliacoes.config.operatorHint')}</p>
+                })()}
               </div>
               <div>
                 <p className="text-xs text-zinc-400 mb-1.5">{t('avaliacoes.config.sensitiveWords')}</p>

@@ -8804,7 +8804,12 @@
         "sensitiveHint": "Avaliação com qualquer destas palavras (mesmo 5 estrelas) vai pro operador.",
         "save": "Salvar configuração",
         "saving": "Salvando…",
-        "saved": "Salvo!"
+        "saved": "Salvo!",
+        "operator": "Operador responsável (time do Active)",
+        "operatorNone": "— escolher operador —",
+        "noPhone": "sem WhatsApp cadastrado",
+        "noPhoneHint": "Este operador não tem WhatsApp no cadastro do Active (Equipe → membro → WhatsApp). O card no funil é criado mesmo assim; o alerta passa a sair quando o número for cadastrado.",
+        "operatorHint": "O número vem do cadastro do operador no Active — atualizou lá, vale aqui na hora."
       }
     }
   },

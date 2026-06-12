@@ -8635,7 +8635,12 @@
         "sensitiveHint": "Reviews containing any of these words (even 5 stars) go to the operator.",
         "save": "Save settings",
         "saving": "Saving…",
-        "saved": "Saved!"
+        "saved": "Saved!",
+        "operator": "Assigned operator (Active team)",
+        "operatorNone": "— choose operator —",
+        "noPhone": "no WhatsApp registered",
+        "noPhoneHint": "This operator has no WhatsApp in their Active profile (Team → member → WhatsApp). The funnel card is still created; alerts start once the number is registered.",
+        "operatorHint": "The number comes from the operator profile in Active — update there, applies here instantly."
       }
     }
   },

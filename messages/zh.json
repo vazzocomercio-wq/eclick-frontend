@@ -8629,7 +8629,12 @@
         "sensitiveHint": "包含这些词的评价（即使五星）也会转给运营。",
         "save": "保存设置",
         "saving": "保存中…",
-        "saved": "已保存！"
+        "saved": "已保存！",
+        "operator": "负责运营（Active 团队）",
+        "operatorNone": "— 选择运营 —",
+        "noPhone": "未登记 WhatsApp",
+        "noPhoneHint": "该运营在 Active 档案中没有 WhatsApp（团队 → 成员 → WhatsApp）。漏斗卡片仍会创建；登记号码后提醒即生效。",
+        "operatorHint": "号码来自 Active 中的运营档案 — 在那里更新，这里立即生效。"
       }
     }
   },
