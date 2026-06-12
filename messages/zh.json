@@ -8321,6 +8321,17 @@
         "tooShort": "消息太短",
         "tooLong": "最多 350 个字符",
         "generic": "错误"
+      },
+      "shopee": {
+        "emptyTitle": "暂无 Shopee 会话",
+        "emptyHint": "应用获得 Shopee 聊天 API 权限并开启同步后，会话将显示在此处。",
+        "noPreview": "（无消息）",
+        "orderRef": "订单 {order}",
+        "openOrder": "查看订单",
+        "openMedia": "打开媒体",
+        "suggest": "AI 建议",
+        "suggesting": "生成中…",
+        "suggestFailed": "生成建议失败"
       }
     },
     "perguntas": {

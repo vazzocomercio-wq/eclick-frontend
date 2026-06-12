@@ -8327,6 +8327,17 @@
         "tooShort": "Message too short",
         "tooLong": "Maximum 350 characters",
         "generic": "Error"
+      },
+      "shopee": {
+        "emptyTitle": "No Shopee conversations yet",
+        "emptyHint": "Conversations appear here once the app gets the Shopee Chat API permission and the sync turns on.",
+        "noPreview": "(no message)",
+        "orderRef": "order {order}",
+        "openOrder": "View order",
+        "openMedia": "Open media",
+        "suggest": "Suggest with AI",
+        "suggesting": "Generating…",
+        "suggestFailed": "Failed to generate suggestion"
       }
     },
     "perguntas": {

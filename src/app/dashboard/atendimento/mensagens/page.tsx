@@ -8,6 +8,8 @@ import {
   MessageCircle, Search,
 } from 'lucide-react'
 
+import ShopeeChatWorkspace from './_components/ShopeeChatWorkspace'
+
 const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -79,6 +81,7 @@ export default function MensagensPage() {
   const [error,     setError]     = useState('')
   const [search,    setSearch]    = useState('')
   const [filter,    setFilter]    = useState<'all' | 'unread'>('all')
+  const [channel,   setChannel]   = useState<'ml' | 'shopee'>('ml')
 
   const supabase = useMemo(() => createClient(), [])
 
@@ -177,15 +180,33 @@ export default function MensagensPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => loadConvos()} disabled={loading}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#111114] border border-[#1a1a1f] text-xs text-gray-400 hover:text-white hover:border-[#00E5FF44] transition-colors disabled:opacity-50">
-            <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
-            {t('mensagens.refresh')}
-          </button>
+          {/* Canal: Mercado Livre | Shopee */}
+          {(['ml', 'shopee'] as const).map(ch => (
+            <button key={ch} onClick={() => setChannel(ch)}
+              className="px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all"
+              style={{
+                background: channel === ch ? 'rgba(0,229,255,0.1)' : 'transparent',
+                color:      channel === ch ? '#00E5FF' : '#52525b',
+                border:     `1px solid ${channel === ch ? 'rgba(0,229,255,0.25)' : '#1e1e24'}`,
+              }}>
+              {ch === 'ml' ? 'Mercado Livre' : 'Shopee'}
+            </button>
+          ))}
+          {channel === 'ml' && (
+            <button onClick={() => loadConvos()} disabled={loading}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#111114] border border-[#1a1a1f] text-xs text-gray-400 hover:text-white hover:border-[#00E5FF44] transition-colors disabled:opacity-50">
+              <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
+              {t('mensagens.refresh')}
+            </button>
+          )}
         </div>
       </div>
 
-      {/* 2-col workspace */}
+      {channel === 'shopee' ? (
+        <ShopeeChatWorkspace />
+      ) : (
+
+      /* 2-col workspace */
       <div className="flex-1 grid grid-cols-1 md:grid-cols-[320px_1fr] gap-3 px-6 py-3 min-h-0"
         style={{ minHeight: 'calc(100vh - 80px)' }}>
 
@@ -415,6 +436,7 @@ export default function MensagensPage() {
           )}
         </div>
       </div>
+      )}
     </div>
   )
 }
