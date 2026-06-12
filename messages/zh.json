@@ -8540,7 +8540,12 @@
           "ITEM_FAKE": "疑似假货",
           "NOT_FIT": "不合适",
           "OTHER": "其他原因",
-          "NONE": "未提供原因"
+          "NONE": "未提供原因",
+          "FUNCTIONAL_DMG": "功能故障",
+          "DAMAGED_OTHERS": "商品损坏（其他）",
+          "BROKEN_PRODUCTS": "商品破损",
+          "SUSPICIOUS_PARCEL": "包裹可疑/被拆",
+          "OUTER_DAMAGED_PACKAGE": "外包装损坏"
         },
         "dueBy": "请在 {date} 前回复",
         "needsLogistics": "退货物流",
@@ -8553,6 +8558,12 @@
         "videos": "买家视频",
         "video": "视频",
         "empty": "未找到 Shopee 退货"
+      },
+      "reason": {
+        "PNR": "未收到商品",
+        "PDD": "商品有缺陷或与描述不符",
+        "PNDA": "商品不可用",
+        "WP": "错误的商品/包裹"
       }
     }
   },

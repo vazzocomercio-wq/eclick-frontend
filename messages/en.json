@@ -8546,7 +8546,12 @@
           "ITEM_FAKE": "Suspected counterfeit",
           "NOT_FIT": "Did not fit",
           "OTHER": "Other reason",
-          "NONE": "No reason given"
+          "NONE": "No reason given",
+          "FUNCTIONAL_DMG": "Functional defect",
+          "DAMAGED_OTHERS": "Damaged product (other)",
+          "BROKEN_PRODUCTS": "Broken product",
+          "SUSPICIOUS_PARCEL": "Suspicious/tampered parcel",
+          "OUTER_DAMAGED_PACKAGE": "Damaged outer packaging"
         },
         "dueBy": "Reply by {date}",
         "needsLogistics": "Reverse logistics",
@@ -8559,6 +8564,12 @@
         "videos": "Buyer videos",
         "video": "Video",
         "empty": "No Shopee returns found"
+      },
+      "reason": {
+        "PNR": "Product not received",
+        "PDD": "Defective product or not as described",
+        "PNDA": "Product not available",
+        "WP": "Wrong product/package"
       }
     }
   },

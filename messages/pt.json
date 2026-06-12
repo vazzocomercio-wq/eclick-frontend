@@ -8715,7 +8715,12 @@
           "ITEM_FAKE": "Suspeita de falsificação",
           "NOT_FIT": "Não serviu",
           "OTHER": "Outro motivo",
-          "NONE": "Sem motivo informado"
+          "NONE": "Sem motivo informado",
+          "FUNCTIONAL_DMG": "Defeito de funcionamento",
+          "DAMAGED_OTHERS": "Produto danificado (outros)",
+          "BROKEN_PRODUCTS": "Produto quebrado",
+          "SUSPICIOUS_PARCEL": "Pacote suspeito/violado",
+          "OUTER_DAMAGED_PACKAGE": "Embalagem externa danificada"
         },
         "dueBy": "Responder até {date}",
         "needsLogistics": "Logística reversa",
@@ -8728,6 +8733,12 @@
         "videos": "Vídeos do comprador",
         "video": "Vídeo",
         "empty": "Nenhuma devolução Shopee encontrada"
+      },
+      "reason": {
+        "PNR": "Produto não recebido",
+        "PDD": "Produto com defeito ou diferente do anunciado",
+        "PNDA": "Produto não disponível",
+        "WP": "Produto/pacote errado"
       }
     }
   },

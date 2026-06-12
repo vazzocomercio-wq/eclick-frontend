@@ -103,9 +103,12 @@ const SHOPEE_STATUS_COLOR: Record<string, { color: string; bg: string }> = {
   CANCELLED:      { color: '#71717a', bg: 'rgba(161,161,170,0.1)' },
 }
 
+// códigos REAIS vistos nas 245 devoluções da Vazzo (consulta no DB)
 const SHOPEE_REASON_KEYS = [
   'NOT_RECEIPT', 'WRONG_ITEM', 'ITEM_DAMAGED', 'ITEM_MISSING', 'DIFFERENT_DESCRIPTION',
-  'CHANGE_MIND', 'FUNCTIONAL_DAMAGE', 'PHYSICAL_DAMAGE', 'ITEM_FAKE', 'NOT_FIT', 'OTHER', 'NONE',
+  'CHANGE_MIND', 'FUNCTIONAL_DMG', 'FUNCTIONAL_DAMAGE', 'PHYSICAL_DAMAGE', 'DAMAGED_OTHERS',
+  'BROKEN_PRODUCTS', 'SUSPICIOUS_PARCEL', 'OUTER_DAMAGED_PACKAGE', 'ITEM_FAKE', 'NOT_FIT',
+  'OTHER', 'NONE',
 ]
 
 function getShopeeStatusCfg(t: Translator, s?: string | null) {
