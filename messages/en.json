@@ -13056,7 +13056,8 @@
       "verdictWarning": "Warning: near-zero margin on some items",
       "verdictBlocked": "Blocked by the margin guard",
       "floorInfo": "Company recommended floor: {pct}%. Projected margin already deducts real Shopee commission, cost and tax.",
-      "acceptWarning": "I understand some items end up with 0-5% margin and want to create anyway."
+      "acceptWarning": "I understand some items end up with 0-5% margin and want to create anyway.",
+      "autoIfZero": "0 = automatic (covers the priciest item)"
     }
   },
   "shopeeRadar": {

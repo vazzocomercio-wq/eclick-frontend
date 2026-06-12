@@ -339,7 +339,7 @@ export default function PromoWizardModal({ vehicle, onClose, onCreated }: {
                             <Field label={t('vPct')}>
                               <input type="number" min={1} max={99} value={vPct} onChange={e => { setVPct(Number(e.target.value)); setPreview(null) }} style={inp} />
                             </Field>
-                            <Field label={t('vMaxPrice')} hint={t('optional')}>
+                            <Field label={t('vMaxPrice')} hint={t('autoIfZero')}>
                               <input type="number" min={0} value={vMaxPrice} onChange={e => setVMaxPrice(Number(e.target.value))} style={inp} />
                             </Field>
                           </>

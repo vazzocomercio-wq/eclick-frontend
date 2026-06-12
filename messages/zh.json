@@ -13050,7 +13050,8 @@
       "verdictWarning": "注意：部分商品利润接近零",
       "verdictBlocked": "已被利润保护拦截",
       "floorInfo": "公司建议下限：{pct}%。预测利润已扣除 Shopee 实际佣金、成本和税费。",
-      "acceptWarning": "我了解部分商品利润在 0-5% 之间，仍要创建。"
+      "acceptWarning": "我了解部分商品利润在 0-5% 之间，仍要创建。",
+      "autoIfZero": "0 = 自动（覆盖最高价商品）"
     }
   },
   "shopeeRadar": {

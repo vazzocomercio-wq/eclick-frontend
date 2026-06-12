@@ -13263,7 +13263,8 @@
       "verdictWarning": "Atenção: margem quase zero em alguns itens",
       "verdictBlocked": "Bloqueado pela trava de margem",
       "floorInfo": "Piso recomendado da empresa: {pct}%. Margem projetada já desconta comissão Shopee real, custo e imposto.",
-      "acceptWarning": "Entendo que alguns itens ficam com margem entre 0% e 5% e quero criar mesmo assim."
+      "acceptWarning": "Entendo que alguns itens ficam com margem entre 0% e 5% e quero criar mesmo assim.",
+      "autoIfZero": "0 = automático (cobre o maior item)"
     }
   },
   "shopeeRadar": {
