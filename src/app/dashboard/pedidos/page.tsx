@@ -2181,9 +2181,12 @@ export default function PedidosPage() {
     try {
       const headers = await getHeaders()
       // /orders/list/kpis agrega SQL — instantaneo, sem ML calls.
+      // seller_id é a CONTA ML (AccountSelector) — só vale em canal ML;
+      // mandar junto com Shopee/TikTok/Loja zera tudo (seller_id deles é null).
       const sellerId = getStoredSellerId()
+      const mlScoped = platformFilter === 'all' || platformFilter === 'mercadolivre' || platformFilter === 'manual'
       const sp = new URLSearchParams()
-      if (sellerId != null)               sp.set('seller_id', String(sellerId))
+      if (mlScoped && sellerId != null)   sp.set('seller_id', String(sellerId))
       if (platformFilter !== 'all')       sp.set('platform',  platformFilter)
       if (accountFilter)                  sp.set('account_id', accountFilter)
       const qs = sp.toString() ? `?${sp.toString()}` : ''
@@ -2250,8 +2253,10 @@ export default function PedidosPage() {
       const effectiveLimit = currentTab === null ? Math.max(pageSize, 200) : pageSize
       const params  = new URLSearchParams({ offset: String(currentPage * effectiveLimit), limit: String(effectiveLimit) })
       if (query.trim())  params.set('q', query.trim())
+      // seller_id (conta ML) só em canal ML — em Shopee/TikTok/Loja zera tudo
       const sellerId = getStoredSellerId()
-      if (sellerId != null) params.set('seller_id', String(sellerId))
+      const mlScoped = platformFilter === 'all' || platformFilter === 'mercadolivre' || platformFilter === 'manual'
+      if (mlScoped && sellerId != null) params.set('seller_id', String(sellerId))
       if (platformFilter !== 'all') params.set('platform', platformFilter)
       if (accountFilter)            params.set('account_id', accountFilter)
       // Filtro por tab no servidor — evita reduzir N por pagina quando
