@@ -191,6 +191,7 @@ const SECTIONS: NavSection[] = [
           { labelKey: 'items.atendimentoPosVenda',    href: '/dashboard/ml-postsale' },
           { labelKey: 'items.atendimentoReclamacoes', href: '/dashboard/atendimento/reclamacoes', badgeKey: 'atendimento-reclamacoes' as BadgeKey },
           { labelKey: 'items.atendimentoMensagens',   href: '/dashboard/atendimento/mensagens' },
+          { labelKey: 'items.atendimentoAvaliacoes',  href: '/dashboard/atendimento/avaliacoes' },
         ],
       },
       { labelKey: 'items.logistica',  href: '/dashboard/logistica',  icon: <Truck size={15} /> },

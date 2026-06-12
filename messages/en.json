@@ -319,7 +319,8 @@
       "configWhatsappRotas": "WhatsApp Routes",
       "configIa": "AI",
       "configAgregador": "Aggregator",
-      "adminClientes": "Customers"
+      "adminClientes": "Customers",
+      "atendimentoAvaliacoes": "Reviews"
     },
     "misc": {
       "comingSoon": "Coming soon",
@@ -8571,6 +8572,46 @@
         "PNDA": "Product not available",
         "WP": "Wrong product/package"
       }
+    },
+    "avaliacoes": {
+      "eyebrow": "Support",
+      "pageTitle": "Reviews Center",
+      "pageSubtitle": "Product reviews across your Shopee stores — reply with AI and protect your reputation.",
+      "sync": "Sync",
+      "syncing": "Syncing…",
+      "refresh": "Refresh",
+      "loading": "Loading reviews…",
+      "empty": "No reviews found",
+      "emptyHint": "Click Sync to import reviews from your stores.",
+      "showing": "Showing {n} of {total}",
+      "noText": "(rating only, no comment)",
+      "replied": "Replied",
+      "needsReply": "Reply!",
+      "open": "open",
+      "expired": "Window expired",
+      "kpi": {
+        "media": "Average rating",
+        "total": "Total reviews",
+        "respondidas": "Replied",
+        "negativasPendentes": "Negative unreplied"
+      },
+      "filter": {
+        "all": "All",
+        "unreplied": "Unreplied",
+        "allShops": "All stores"
+      },
+      "buyerSaid": "What the buyer said",
+      "photos": "Buyer photos",
+      "yourReply": "Your reply (public)",
+      "publicWarning": "The reply is PUBLIC on the listing and cannot be edited after publishing.",
+      "replyPlaceholder": "Write the public reply…",
+      "suggest": "Suggest with AI",
+      "suggesting": "Generating…",
+      "suggestFailed": "Failed to generate suggestion",
+      "publish": "Publish reply",
+      "confirmPublish": "Confirm publish?",
+      "publishing": "Publishing…",
+      "replyFailed": "Failed to publish"
     }
   },
   "automation": {

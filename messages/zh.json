@@ -319,7 +319,8 @@
       "configWhatsappRotas": "WhatsApp 路由",
       "configIa": "AI",
       "configAgregador": "聚合器",
-      "adminClientes": "客户"
+      "adminClientes": "客户",
+      "atendimentoAvaliacoes": "评价"
     },
     "misc": {
       "comingSoon": "即将推出",
@@ -8565,6 +8566,46 @@
         "PNDA": "商品不可用",
         "WP": "错误的商品/包裹"
       }
+    },
+    "avaliacoes": {
+      "eyebrow": "客服",
+      "pageTitle": "评价中心",
+      "pageSubtitle": "Shopee 店铺的商品评价 — 用 AI 回复，保护店铺声誉。",
+      "sync": "同步",
+      "syncing": "同步中…",
+      "refresh": "刷新",
+      "loading": "加载评价中…",
+      "empty": "未找到评价",
+      "emptyHint": "点击同步以导入店铺评价。",
+      "showing": "显示 {n} / {total}",
+      "noText": "（仅评分，无评论）",
+      "replied": "已回复",
+      "needsReply": "需回复！",
+      "open": "打开",
+      "expired": "回复窗口已过期",
+      "kpi": {
+        "media": "平均评分",
+        "total": "评价总数",
+        "respondidas": "已回复",
+        "negativasPendentes": "未回复差评"
+      },
+      "filter": {
+        "all": "全部",
+        "unreplied": "未回复",
+        "allShops": "全部店铺"
+      },
+      "buyerSaid": "买家留言",
+      "photos": "买家照片",
+      "yourReply": "您的回复（公开）",
+      "publicWarning": "回复将公开显示在商品页，发布后无法编辑。",
+      "replyPlaceholder": "撰写公开回复…",
+      "suggest": "AI 建议",
+      "suggesting": "生成中…",
+      "suggestFailed": "生成建议失败",
+      "publish": "发布回复",
+      "confirmPublish": "确认发布？",
+      "publishing": "发布中…",
+      "replyFailed": "发布失败"
     }
   },
   "automation": {

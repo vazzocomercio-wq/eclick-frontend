@@ -326,7 +326,8 @@
       "configAgregador": "Agregador",
       "adminClientes": "Clientes",
       "adminRoles": "Roles & Permissões",
-      "adminInsights": "Insights"
+      "adminInsights": "Insights",
+      "atendimentoAvaliacoes": "Avaliações"
     },
     "misc": {
       "comingSoon": "Em breve",
@@ -8740,6 +8741,46 @@
         "PNDA": "Produto não disponível",
         "WP": "Produto/pacote errado"
       }
+    },
+    "avaliacoes": {
+      "eyebrow": "Atendimento",
+      "pageTitle": "Central de Avaliações",
+      "pageSubtitle": "Avaliações dos produtos nas lojas Shopee — responda com IA e proteja sua reputação.",
+      "sync": "Sincronizar",
+      "syncing": "Sincronizando…",
+      "refresh": "Atualizar",
+      "loading": "Carregando avaliações…",
+      "empty": "Nenhuma avaliação encontrada",
+      "emptyHint": "Clique em Sincronizar pra importar as avaliações das lojas.",
+      "showing": "Mostrando {n} de {total}",
+      "noText": "(só a nota, sem comentário)",
+      "replied": "Respondida",
+      "needsReply": "Responder!",
+      "open": "abrir",
+      "expired": "Janela expirada",
+      "kpi": {
+        "media": "Nota média",
+        "total": "Total de avaliações",
+        "respondidas": "Respondidas",
+        "negativasPendentes": "Negativas sem resposta"
+      },
+      "filter": {
+        "all": "Todas",
+        "unreplied": "Sem resposta",
+        "allShops": "Todas as lojas"
+      },
+      "buyerSaid": "O que o comprador disse",
+      "photos": "Fotos do comprador",
+      "yourReply": "Sua resposta (pública)",
+      "publicWarning": "A resposta é PÚBLICA no anúncio e não pode ser editada depois de publicada.",
+      "replyPlaceholder": "Escreva a resposta pública…",
+      "suggest": "Sugerir com IA",
+      "suggesting": "Gerando…",
+      "suggestFailed": "Falha ao gerar sugestão",
+      "publish": "Publicar resposta",
+      "confirmPublish": "Confirmar publicação?",
+      "publishing": "Publicando…",
+      "replyFailed": "Falha ao publicar"
     }
   },
   "automation": {
