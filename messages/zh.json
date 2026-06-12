@@ -5614,7 +5614,10 @@
       "todoPostSale": "售后活动",
       "todoCancel": "ML取消",
       "todoSac": "客服 ↔ AI客服桥接",
-      "todoMargin": "毛利下钻"
+      "todoMargin": "毛利下钻",
+      "sacCreated": "已在 Active 的\"SAC — Devoluções\"漏斗中创建卡片",
+      "sacAlready": "该订单在 Active 的 SAC 漏斗中已有卡片",
+      "sacError": "无法创建客服卡片"
     },
     "filters": {
       "removeChip": "移除筛选 {label}",

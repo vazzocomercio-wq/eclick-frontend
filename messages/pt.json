@@ -5789,7 +5789,10 @@
       "todoPostSale": "Campanha pós-venda",
       "todoCancel": "Cancelamento ML",
       "todoSac": "Bridge SAC ↔ Atendente IA",
-      "todoMargin": "Drill-down de margem"
+      "todoMargin": "Drill-down de margem",
+      "sacCreated": "Card criado no funil \"SAC — Devoluções\" do Active",
+      "sacAlready": "Este pedido já tem card no funil SAC do Active",
+      "sacError": "Não foi possível criar o card no SAC"
     },
     "filters": {
       "removeChip": "Remover filtro {label}",

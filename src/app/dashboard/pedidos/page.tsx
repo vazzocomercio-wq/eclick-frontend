@@ -10,7 +10,7 @@ import {
   MoreHorizontal, Truck, Printer, Send, AlertOctagon, Megaphone, Ban,
   Headphones, BarChart2, Eye,
 } from 'lucide-react'
-import { ToastViewport, todoToast } from '@/hooks/useToast'
+import { ToastViewport, todoToast, pushToast } from '@/hooks/useToast'
 import { ensurePulseStyles, pulseClass, PulsingButton } from '@/components/ui/pulsing-button'
 import { CopyButton } from '@/components/ui/copy-button'
 import { PedidosTable } from './_components/PedidosTable'
@@ -191,7 +191,34 @@ function orderDateTime(iso: string) {
 
 function OrderActionsMenu({ order, t }: { order: MOrder; t: Translator }) {
   const [open, setOpen] = useState(false)
+  const [sacBusy, setSacBusy] = useState(false)
   const ref = useRef<HTMLDivElement | null>(null)
+
+  // "Vincular ao SAC" — cria card manual no funil "SAC — Devoluções" do Active
+  // pro pedido (dedup order-sac:{id}: clicar de novo só acha o card existente).
+  async function linkSac() {
+    if (sacBusy) return
+    setSacBusy(true)
+    try {
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) throw new Error(t('notAuthenticated'))
+      const source = (order as unknown as { source?: string }).source ?? 'mercadolivre'
+      const res = await fetch(`${BACKEND}/returns-sac/order-card`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ source, external_order_id: String(order.order_id) }),
+      })
+      const body = await res.json().catch(() => null) as { created?: boolean; pipeline?: string; message?: string } | null
+      if (!res.ok) throw new Error(body?.message ?? `HTTP ${res.status}`)
+      pushToast({
+        tone: 'success',
+        message: body?.created ? t('actions.sacCreated') : t('actions.sacAlready'),
+      })
+    } catch (e) {
+      pushToast({ tone: 'error', message: e instanceof Error ? e.message : t('actions.sacError') })
+    } finally { setSacBusy(false) }
+  }
   useEffect(() => {
     function h(e: MouseEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
@@ -210,7 +237,7 @@ function OrderActionsMenu({ order, t }: { order: MOrder; t: Translator }) {
     { key: 'problema',  label: t('actions.markProblem'),         icon: <AlertOctagon size={12} />, tone: 'warn',  onClick: () => todoToast(t('actions.todoMarkProblem')) },
     { key: 'posvenda',  label: t('actions.startPostSale'),       icon: <Megaphone size={12} />,  onClick: () => todoToast(t('actions.todoPostSale')) },
     { key: 'cancelar',  label: t('actions.cancelRefund'),   icon: <Ban size={12} />,  tone: 'danger', onClick: () => todoToast(t('actions.todoCancel')) },
-    { key: 'sac',       label: t('actions.linkSac'),         icon: <Headphones size={12} />, onClick: () => todoToast(t('actions.todoSac')) },
+    { key: 'sac',       label: t('actions.linkSac'),         icon: <Headphones size={12} />, onClick: () => { void linkSac() } },
     { key: 'margem',    label: t('actions.marginAnalysis'),       icon: <BarChart2 size={12} />,  onClick: () => todoToast(t('actions.todoMargin')) },
     { key: 'detalhes',  label: t('actions.viewDetailsMl'),       icon: <Eye size={12} />,
       onClick: () => window.open(`https://www.mercadolibre.com.br/orders/${order.order_id}`, '_blank') },

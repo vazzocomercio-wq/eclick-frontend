@@ -5620,7 +5620,10 @@
       "todoPostSale": "Post-sale campaign",
       "todoCancel": "ML cancellation",
       "todoSac": "Support ↔ AI Agent bridge",
-      "todoMargin": "Margin drill-down"
+      "todoMargin": "Margin drill-down",
+      "sacCreated": "Card created in Active's \"SAC — Devoluções\" pipeline",
+      "sacAlready": "This order already has a card in Active's SAC pipeline",
+      "sacError": "Could not create the SAC card"
     },
     "filters": {
       "removeChip": "Remove filter {label}",
