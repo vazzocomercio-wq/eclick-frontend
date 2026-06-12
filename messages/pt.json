@@ -6097,7 +6097,8 @@
         "in_process": "Processando",
         "cancelled": "Cancelado",
         "refunded": "Reembolsado",
-        "rejected": "Rejeitado"
+        "rejected": "Rejeitado",
+        "paid": "Pago"
       },
       "shipping": {
         "pending": "Pendente",
@@ -6105,7 +6106,8 @@
         "shipped": "Enviado",
         "delivered": "Entregue",
         "cancelled": "Cancelado",
-        "not_delivered": "Não entregue"
+        "not_delivered": "Não entregue",
+        "in_transit": "Em trânsito"
       }
     },
     "toast": {

@@ -5928,7 +5928,8 @@
         "in_process": "Processing",
         "cancelled": "Cancelled",
         "refunded": "Refunded",
-        "rejected": "Rejected"
+        "rejected": "Rejected",
+        "paid": "Paid"
       },
       "shipping": {
         "pending": "Pending",
@@ -5936,7 +5937,8 @@
         "shipped": "Shipped",
         "delivered": "Delivered",
         "cancelled": "Cancelled",
-        "not_delivered": "Not delivered"
+        "not_delivered": "Not delivered",
+        "in_transit": "In transit"
       }
     },
     "toast": {

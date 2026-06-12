@@ -976,9 +976,17 @@ function OrderCard({
 
   const moreItems  = (order.order_items?.length ?? 1) - 1
   const color     = avatarColor(order.buyer?.nickname ?? String(order.order_id))
-  // Canal do pedido (backend expõe source/platform). Linhas não-ML não têm
-  // deep-link/detalhe do Mercado Livre — mostram um selo do canal.
-  const isTikTok  = (order as unknown as { source?: string }).source === 'tiktok_shop'
+  // Canal do pedido (backend expõe source/platform + account_label = nome da
+  // conta/loja). ML mantém deep-link/Venda #X; os outros canais ganham selo
+  // próprio + mesmo botão "Ver detalhe" (o full-detail lê do orders unificado).
+  const source       = (order as unknown as { source?: string }).source ?? 'mercadolivre'
+  const isTikTok     = source === 'tiktok_shop'
+  const isShopee     = source === 'shopee'
+  const isMl         = source === 'mercadolivre' || source === 'manual_test'
+  const accountLabel = (order as unknown as { account_label?: string }).account_label ?? null
+  // Drawer funciona pra qualquer pedido que vive na tabela unificada
+  const canOpenDetail = source !== 'storefront'
+  const channelName  = isMl ? 'ML' : isShopee ? 'Shopee' : isTikTok ? 'TikTok' : source === 'manual' ? 'Manual' : 'Loja'
   const ini       = initials(order)
   const buyer     = buyerDisplay(order)
   const lt        = order.shipping?.logistic_type
@@ -1053,29 +1061,49 @@ function OrderCard({
               />
             )}
             <div className="flex items-center gap-2 flex-wrap">
-              {isTikTok ? (
+              {isTikTok && (
                 <span className="inline-flex items-center gap-1 text-[10px] font-mono font-medium px-2 py-0.5 rounded-md"
                   style={{ background: 'rgba(254,44,85,0.12)', border: '1px solid rgba(254,44,85,0.4)', color: '#FE2C55' }}>
                   TikTok Shop · #{order.order_id}
                 </span>
-              ) : (
-                <>
-                  <a href={`https://www.mercadolivre.com.br/vendas/${order.order_id}`} target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-[10px] font-mono text-cyan-400 hover:text-cyan-300 transition-colors">
-                    {t('card.saleNumber', { id: order.order_id })}
-                  </a>
-                  <button
-                    onClick={() => onOpenDetail(String(order.order_id))}
-                    title={t('card.viewFullDetailTitle')}
-                    className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-md transition-colors hover:bg-[rgba(0,229,255,0.08)]"
-                    style={{ background: 'transparent', border: '1px solid #00E5FF', color: '#00E5FF' }}>
-                    <Eye size={11} />
-                    {t('card.viewDetail')}
-                  </button>
-                </>
+              )}
+              {isShopee && (
+                <a href={`https://seller.shopee.com.br/portal/sale/${order.order_id}`} target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-[10px] font-mono font-medium px-2 py-0.5 rounded-md hover:opacity-80 transition-opacity"
+                  style={{ background: 'rgba(238,77,45,0.12)', border: '1px solid rgba(238,77,45,0.4)', color: '#EE4D2D' }}>
+                  Shopee · #{order.order_id}
+                </a>
+              )}
+              {isMl && (
+                <a href={`https://www.mercadolivre.com.br/vendas/${order.order_id}`} target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[10px] font-mono text-cyan-400 hover:text-cyan-300 transition-colors">
+                  {t('card.saleNumber', { id: order.order_id })}
+                </a>
+              )}
+              {!isMl && !isTikTok && !isShopee && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-mono font-medium px-2 py-0.5 rounded-md"
+                  style={{ background: 'rgba(0,229,255,0.08)', border: '1px solid rgba(0,229,255,0.3)', color: '#00E5FF' }}>
+                  {channelName} · #{String(order.order_id).slice(0, 14)}
+                </span>
+              )}
+              {canOpenDetail && (
+                <button
+                  onClick={() => onOpenDetail(String(order.order_id))}
+                  title={t('card.viewFullDetailTitle')}
+                  className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-md transition-colors hover:bg-[rgba(0,229,255,0.08)]"
+                  style={{ background: 'transparent', border: '1px solid #00E5FF', color: '#00E5FF' }}>
+                  <Eye size={11} />
+                  {t('card.viewDetail')}
+                </button>
               )}
             </div>
+            {accountLabel && (
+              <p className="text-[10px] text-zinc-500 truncate" title={`Conta/loja: ${accountLabel}`}>
+                🏬 {accountLabel}
+              </p>
+            )}
             {(order as unknown as { pack_id?: number | string | null }).pack_id && (
               <p className="text-[10px] font-mono text-zinc-500">
                 {t('card.cartNumber', { id: (order as unknown as { pack_id: number | string }).pack_id })}
@@ -1198,7 +1226,9 @@ function OrderCard({
               tooltip={t('card.finMlShippingRefundTooltip')} />
           )}
 
-          <FinRow icon="🏪" label={t('card.finMlFee')}           value={`-${brl(order.tarifa_ml)}`} color="#f87171"
+          {/* Rótulo da tarifa por canal — fora do ML é a comissão da plataforma
+              (Shopee/TikTok: estimada via configuração até a fatura real). */}
+          <FinRow icon="🏪" label={isMl ? t('card.finMlFee') : `Tarifa ${channelName}`} value={`-${brl(order.tarifa_ml)}`} color="#f87171"
             tooltip={t('card.finMlFeeTooltip', { value: brl(order.tarifa_ml), pct: order.total_amount > 0 ? Math.round((order.tarifa_ml / order.total_amount) * 1000) / 10 : 0 })} />
 
           <FinRow icon="🚚" label={t('card.finSellerShipping')}
@@ -2080,7 +2110,7 @@ export default function PedidosPage() {
     return {
       missingCost: sp.get('missing_cost') === '1',
       period:      (p === 'today' || p === '7d' || p === '30d' ? p : 'all') as 'all' | 'today' | '7d' | '30d',
-      platform:    (pl === 'mercadolivre' || pl === 'manual' || pl === 'tiktok_shop' || pl === 'storefront' ? pl : 'all') as 'all' | 'mercadolivre' | 'manual' | 'tiktok_shop' | 'storefront',
+      platform:    (pl === 'mercadolivre' || pl === 'manual' || pl === 'tiktok_shop' || pl === 'shopee' || pl === 'storefront' ? pl : 'all') as 'all' | 'mercadolivre' | 'manual' | 'tiktok_shop' | 'shopee' | 'storefront',
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -2106,7 +2136,13 @@ export default function PedidosPage() {
   const [crossTabMode, setCrossTabMode] = useState<boolean>(initFromQs.missingCost)
   // Filtro de plataforma — Todas (ML+manual) / ML / Manual / Loja Própria.
   // Storefront lê de storefront_orders no backend (shape unificado).
-  const [platformFilter, setPlatformFilter] = useState<'all' | 'mercadolivre' | 'manual' | 'tiktok_shop' | 'storefront'>(initFromQs.platform)
+  const [platformFilter, setPlatformFilter] = useState<'all' | 'mercadolivre' | 'manual' | 'tiktok_shop' | 'shopee' | 'storefront'>(initFromQs.platform)
+  // Filtro por LOJA do canal (Shopee/TikTok multi-loja): channel_account_id.
+  // Lista vem de /orders/accounts (data-driven: só lojas com venda).
+  const [accountFilter, setAccountFilter] = useState<string>('')
+  const [channelAccounts, setChannelAccounts] = useState<Array<{
+    platform: string; seller_id: number | null; account_id: string | null; nickname: string; orders: number
+  }>>([])
   const [adItems, setAdItems] = useState<Set<string>>(new Set())
   const tid = useRef(0)
   const pageRef = useRef(0)
@@ -2134,6 +2170,7 @@ export default function PedidosPage() {
       const sp = new URLSearchParams()
       if (sellerId != null)               sp.set('seller_id', String(sellerId))
       if (platformFilter !== 'all')       sp.set('platform',  platformFilter)
+      if (accountFilter)                  sp.set('account_id', accountFilter)
       const qs = sp.toString() ? `?${sp.toString()}` : ''
       const [kpiRes, tabRes] = await Promise.all([
         fetch(`${BACKEND}/orders/list/kpis${qs}`, { headers }),
@@ -2143,7 +2180,20 @@ export default function PedidosPage() {
       if (tabRes.ok) setServerTabCounts(await tabRes.json())
     } catch { /* silent */ }
     finally { setKpiLoad(false) }
-  }, [getHeaders, platformFilter])
+  }, [getHeaders, platformFilter, accountFilter])
+
+  // Lojas/contas com venda (alimenta o seletor de loja por canal)
+  useEffect(() => {
+    let alive = true
+    ;(async () => {
+      try {
+        const headers = await getHeaders()
+        const res = await fetch(`${BACKEND}/orders/accounts`, { headers })
+        if (res.ok && alive) setChannelAccounts(await res.json())
+      } catch { /* silent */ }
+    })()
+    return () => { alive = false }
+  }, [getHeaders])
 
   // UI-1.1 — billingPending count + sync (movidos do PedidosToolsPanel deletado)
   const loadPending = useCallback(async () => {
@@ -2188,6 +2238,7 @@ export default function PedidosPage() {
       const sellerId = getStoredSellerId()
       if (sellerId != null) params.set('seller_id', String(sellerId))
       if (platformFilter !== 'all') params.set('platform', platformFilter)
+      if (accountFilter)            params.set('account_id', accountFilter)
       // Filtro por tab no servidor — evita reduzir N por pagina quando
       // a aba ativa nao bate com a maioria dos pedidos retornados.
       // Cross-tab mode: nao passa tab, backend retorna todos.
@@ -2205,7 +2256,7 @@ export default function PedidosPage() {
       toast(e instanceof Error ? e.message : t('toast.loadOrdersError'), 'error')
       setOrders([])
     } finally { setLoading(false) }
-  }, [getHeaders, pageSize, t, platformFilter])
+  }, [getHeaders, pageSize, t, platformFilter, accountFilter])
 
   // Busca todos os vínculos uma vez — matching feito localmente em memória
   useEffect(() => {
@@ -2743,18 +2794,44 @@ export default function PedidosPage() {
                 value={platformFilter}
                 onChange={e => {
                   setPlatformFilter(e.target.value as typeof platformFilter)
+                  setAccountFilter('')  // loja pertence ao canal — troca de canal limpa
                   setPage(0)
                 }}
                 className="bg-transparent text-zinc-200 outline-none cursor-pointer"
                 style={{ minHeight: 28 }}>
                 <option value="all">Todos os canais</option>
                 <option value="mercadolivre">Mercado Livre</option>
-                <option value="manual">Manual</option>
+                <option value="shopee">Shopee</option>
                 <option value="tiktok_shop">TikTok Shop</option>
                 <option value="storefront">Loja Própria</option>
+                <option value="manual">Manual</option>
               </select>
             </div>
-            {platformFilter !== 'storefront' && platformFilter !== 'tiktok_shop' && <AccountSelector compact hideWhenEmpty />}
+            {platformFilter !== 'storefront' && platformFilter !== 'tiktok_shop' && platformFilter !== 'shopee' && <AccountSelector compact hideWhenEmpty />}
+            {/* Seletor de LOJA do canal (Shopee/TikTok multi-loja) — só aparece
+                quando o canal selecionado tem loja identificada com venda. */}
+            {(platformFilter === 'shopee' || platformFilter === 'tiktok_shop') && (() => {
+              const shops = channelAccounts.filter(a => a.platform === platformFilter && a.account_id)
+              if (!shops.length) return null
+              return (
+                <div className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-lg"
+                  style={{ background: '#18181b', border: '1px solid #27272a' }}>
+                  <span className="text-zinc-500">Loja:</span>
+                  <select
+                    value={accountFilter}
+                    onChange={e => { setAccountFilter(e.target.value); setPage(0) }}
+                    className="bg-transparent text-zinc-200 outline-none cursor-pointer"
+                    style={{ minHeight: 28 }}>
+                    <option value="">Todas as lojas</option>
+                    {shops.map(s => (
+                      <option key={s.account_id} value={s.account_id!}>
+                        {s.nickname} ({s.orders})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )
+            })()}
             <PulsingButton
               onClick={sync}
               loading={syncing}

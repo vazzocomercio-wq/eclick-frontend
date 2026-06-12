@@ -5922,7 +5922,8 @@
         "in_process": "处理中",
         "cancelled": "已取消",
         "refunded": "已退款",
-        "rejected": "已拒绝"
+        "rejected": "已拒绝",
+        "paid": "已支付"
       },
       "shipping": {
         "pending": "待处理",
@@ -5930,7 +5931,8 @@
         "shipped": "已发货",
         "delivered": "已送达",
         "cancelled": "已取消",
-        "not_delivered": "未送达"
+        "not_delivered": "未送达",
+        "in_transit": "运输中"
       }
     },
     "toast": {

@@ -17,6 +17,7 @@ const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 interface OrderBlock {
   id:                string
   external_order_id: string
+  source?:           string | null
   buyer_name:        string | null
   buyer_doc_number:  string | null
   buyer_doc_type:    string | null
@@ -137,6 +138,7 @@ const OCJ_BADGES: Record<string, { fg: string }> = {
 
 const PAYMENT_BADGES: Record<string, { fg: string }> = {
   approved:    { fg: '#22c55e' },
+  paid:        { fg: '#22c55e' },
   pending:     { fg: '#fbbf24' },
   in_process:  { fg: '#fbbf24' },
   cancelled:   { fg: '#ef4444' },
@@ -148,6 +150,7 @@ const SHIPPING_BADGES: Record<string, { fg: string }> = {
   pending:        { fg: '#fbbf24' },
   ready_to_ship:  { fg: '#00E5FF' },
   shipped:        { fg: '#00E5FF' },
+  in_transit:     { fg: '#00E5FF' },
   delivered:      { fg: '#22c55e' },
   cancelled:      { fg: '#ef4444' },
   not_delivered:  { fg: '#ef4444' },
@@ -669,14 +672,25 @@ export function OrderDetailDrawer({ externalOrderId, onClose, getHeaders }: Orde
         {/* Footer sticky */}
         <footer className="shrink-0 px-4 py-3 flex items-center justify-between gap-2"
           style={{ background: '#0a0a0c', borderTop: '1px solid #1a1a1f' }}>
-          {order ? (
-            <a href={`https://www.mercadolibre.com.br/orders/${order.external_order_id}`}
-              target="_blank" rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md transition-colors"
-              style={{ background: '#0c0c10', border: '1px solid #1a1a1f', color: '#00E5FF' }}>
-              {t('drawer.viewOnMl')} <ExternalLink size={11} />
-            </a>
-          ) : <span />}
+          {order ? (() => {
+            // Link "ver na plataforma" por canal — ML mantém o atual; Shopee
+            // abre o pedido no Seller Center; TikTok não tem deep-link estável.
+            const src = order.source ?? 'mercadolivre'
+            const link =
+              src === 'shopee'      ? { href: `https://seller.shopee.com.br/portal/sale/${order.external_order_id}`, label: 'Ver na Shopee' } :
+              src === 'tiktok_shop' ? null :
+              src === 'mercadolivre' || src === 'manual_test'
+                ? { href: `https://www.mercadolibre.com.br/orders/${order.external_order_id}`, label: t('drawer.viewOnMl') }
+                : null
+            return link ? (
+              <a href={link.href}
+                target="_blank" rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md transition-colors"
+                style={{ background: '#0c0c10', border: '1px solid #1a1a1f', color: '#00E5FF' }}>
+                {link.label} <ExternalLink size={11} />
+              </a>
+            ) : <span />
+          })() : <span />}
           <button disabled
             className="text-xs px-3 py-1.5 rounded-md cursor-not-allowed"
             style={{ background: '#0c0c10', border: '1px solid #1a1a1f', color: '#52525b' }}

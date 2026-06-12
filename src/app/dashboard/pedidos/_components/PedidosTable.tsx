@@ -235,12 +235,21 @@ export function PedidosTable({
       },
     },
     {
-      key: 'marketplace', label: t('table.colMp'), width: '50px',
-      render: () => (
-        // /pedidos hoje é ML-only (sync via /orders/search). Quando Shopee/
-        // Amazon entrarem, ler de o.platform/o.source na PedidoRow.
-        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ background: '#FFE600', color: '#111' }}>ML</span>
-      ),
+      key: 'marketplace', label: t('table.colMp'), width: '64px',
+      render: o => {
+        const src = (o as unknown as { source?: string }).source ?? 'mercadolivre'
+        const meta =
+          src === 'shopee'      ? { label: 'Shopee', bg: '#EE4D2D', fg: '#fff' } :
+          src === 'tiktok_shop' ? { label: 'TikTok', bg: '#FE2C55', fg: '#fff' } :
+          src === 'storefront'  ? { label: 'Loja',   bg: '#00E5FF', fg: '#111' } :
+          src === 'manual'      ? { label: 'Manual', bg: '#52525b', fg: '#fff' } :
+                                  { label: 'ML',     bg: '#FFE600', fg: '#111' }
+        const accountLabel = (o as unknown as { account_label?: string }).account_label
+        return (
+          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" title={accountLabel ?? undefined}
+            style={{ background: meta.bg, color: meta.fg }}>{meta.label}</span>
+        )
+      },
     },
     {
       key: 'status', label: t('table.colStatus'),
