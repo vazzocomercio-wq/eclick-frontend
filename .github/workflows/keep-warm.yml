@@ -18,19 +18,26 @@ permissions: {}
 jobs:
   ping:
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 6
     steps:
-      - name: Ping storefront + backend público
+      - name: Ping storefront + backend público (loop ~1/min)
         run: |
           set +e  # ping é best-effort; falha de um alvo não derruba o job
           BACKEND="https://eclick-backend-production-2a87.up.railway.app"
-          for url in \
-            "https://eclick.app.br/loja/vazzo" \
-            "$BACKEND/public/store/by-slug/vazzo" \
-            "$BACKEND/public/store/vazzo/products?limit=24" \
-            "$BACKEND/public/bonus/by-slug/vazzo/active-rules"
-          do
-            code=$(curl -s -o /dev/null -m 30 -w "%{http_code} ttfb=%{time_starttransfer}s" "$url")
-            echo "$code  $url"
+          # Loop interno: o cron mínimo do GH é 5min, mas o data-cache da loja
+          # revalida a cada 60s — pingar 1x/5min deixaria o cache expirado na
+          # maior parte do tempo. 5 rodadas com ~55s de intervalo cobrem a
+          # janela inteira até o próximo cron (repo público = minutos grátis).
+          for round in 1 2 3 4 5; do
+            for url in \
+              "https://eclick.app.br/loja/vazzo" \
+              "$BACKEND/public/store/by-slug/vazzo" \
+              "$BACKEND/public/store/vazzo/products?limit=24" \
+              "$BACKEND/public/bonus/by-slug/vazzo/active-rules"
+            do
+              code=$(curl -s -o /dev/null -m 30 -w "%{http_code} ttfb=%{time_starttransfer}s" "$url")
+              echo "round=$round $code  $url"
+            done
+            [ "$round" -lt 5 ] && sleep 55
           done
           exit 0
