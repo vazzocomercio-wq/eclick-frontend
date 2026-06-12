@@ -8572,6 +8572,43 @@
         "PDD": "商品有缺陷或与描述不符",
         "PNDA": "商品不可用",
         "WP": "错误的商品/包裹"
+      },
+      "playbook": {
+        "title": "e-Click 推荐",
+        "analyzeAll": "AI 分析",
+        "analyzing": "分析中…",
+        "noRecommendation": "暂无推荐 — 点击顶部的\"AI 分析\"。",
+        "confidence": "置信度 {pct}%",
+        "executedAt": "已执行操作：{action} · {date}",
+        "offerPending": "买家报价待处理：{amount}",
+        "badge": {
+          "accept": "接受退款",
+          "accept_offer": "接受报价",
+          "dispute": "发起争议",
+          "collect_evidence": "收集证据",
+          "monitor": "标准流程"
+        },
+        "actions": {
+          "accept": "接受退货",
+          "acceptOffer": "接受报价",
+          "dispute": "凭证据发起争议"
+        },
+        "confirmTitle": "确认在 Shopee 执行真实操作",
+        "confirmAccept": "这将在 Shopee 接受退货并批准 {amount} 退款。不可撤销。确认？",
+        "confirmAcceptOffer": "这将在 Shopee 接受买家报价（{amount}）。不可撤销。确认？",
+        "confirm": "是，执行",
+        "cancel": "取消",
+        "working": "发送中…",
+        "done": "完成！状态已更新。",
+        "disputeTitle": "发起争议",
+        "disputeReason": "争议原因（来自 Shopee）",
+        "disputeReasonN": "原因 {code}",
+        "disputeText": "您的理由",
+        "disputeTextPh": "说明退货为何不成立（例如：物流显示已签收…）",
+        "disputeUsePhotos": "附上买家照片作为证据",
+        "disputeSubmit": "在 Shopee 发起争议",
+        "loadingDossier": "正在加载 Shopee 档案…",
+        "dossierFail": "无法加载档案 — 请重试。"
       }
     },
     "avaliacoes": {

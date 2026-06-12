@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase'
 import {
   RefreshCw, CheckCircle2, ExternalLink,
   Clock, ShieldAlert, X, MessageSquare, Send, AlertCircle,
+  Sparkles, Scale, ShieldCheck, Camera, Eye,
 } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
@@ -66,6 +67,26 @@ type ShopeeReturnItem = {
   images?:    string[]
 }
 
+type PlaybookAction = 'accept' | 'accept_offer' | 'dispute' | 'collect_evidence' | 'monitor'
+
+type PlaybookMeta = {
+  negotiation?: {
+    negotiation_status?:  string
+    latest_offer_amount?: number
+    latest_solution?:     string
+  } | null
+  economics?: {
+    recoverable_value?: number | null
+    cost_to_recover?:   number
+  } | null
+  ai?: { classification?: string; dispute_win_probability?: number } | null
+} | null
+
+type DisputeReason = {
+  dispute_reason:      number
+  dispute_requirement: string
+}
+
 type ShopeeReturn = {
   id:               string
   shop_id:          string | null
@@ -82,11 +103,27 @@ type ShopeeReturn = {
   due_date:         string | null
   return_create_at: string | null
   return_update_at: string | null
+  playbook_action?:          PlaybookAction | null
+  playbook_rationale?:       string | null
+  playbook_confidence?:      number | null
+  playbook_processed_at?:    string | null
+  playbook_meta?:            PlaybookMeta
+  playbook_executed_action?: string | null
+  playbook_executed_at?:     string | null
   raw?: {
     image?:        string[]
     buyer_videos?: Array<{ thumbnail_url?: string; video_url?: string }>
     item?:         ShopeeReturnItem[]
   } | null
+}
+
+// selo da recomendação do playbook (cor + ícone por ação)
+const PLAYBOOK_BADGE: Record<PlaybookAction, { color: string; bg: string; Icon: typeof Sparkles }> = {
+  accept:           { color: '#4ade80', bg: 'rgba(74,222,128,0.1)',  Icon: CheckCircle2 },
+  accept_offer:     { color: '#4ade80', bg: 'rgba(74,222,128,0.1)',  Icon: CheckCircle2 },
+  dispute:          { color: '#c084fc', bg: 'rgba(192,132,252,0.1)', Icon: Scale },
+  collect_evidence: { color: '#facc15', bg: 'rgba(250,204,21,0.1)',  Icon: Camera },
+  monitor:          { color: '#a1a1aa', bg: 'rgba(161,161,170,0.1)', Icon: Eye },
 }
 
 // status em aberto = seller ainda pode/precisa agir
@@ -512,6 +549,17 @@ function ShopeeReturnCard({ ret, shopName, onOpen }: { ret: ShopeeReturn; shopNa
         <p className="text-xs text-zinc-500 leading-snug line-clamp-2">“{ret.text_reason}”</p>
       )}
 
+      {/* selo da recomendação do playbook IA */}
+      {isOpen && ret.playbook_action && PLAYBOOK_BADGE[ret.playbook_action] && (() => {
+        const pb = PLAYBOOK_BADGE[ret.playbook_action]
+        return (
+          <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold"
+            style={{ background: pb.bg, color: pb.color, border: `1px solid ${pb.color}33` }}>
+            <Sparkles size={9} /> {t(`reclamacoes.playbook.badge.${ret.playbook_action}`)}
+          </span>
+        )
+      })()}
+
       <div className="flex items-center gap-2 flex-wrap text-[10px] text-zinc-500">
         <span className="px-1.5 py-0.5 rounded bg-zinc-900">🏬 {shopName}</span>
         {ret.buyer_username && <span>{ret.buyer_username}</span>}
@@ -532,9 +580,263 @@ function ShopeeReturnCard({ ret, shopName, onOpen }: { ret: ShopeeReturn; shopNa
   )
 }
 
+// ── Playbook IA (recomendação + ações reais na Shopee) ──────────────────────
+
+function authHeaders(token: string | undefined): Record<string, string> {
+  return { Authorization: `Bearer ${token ?? ''}`, 'Content-Type': 'application/json' }
+}
+
+function ShopeePlaybookSection({ ret, onActed }: { ret: ShopeeReturn; onActed: () => void }) {
+  const t = useTranslations('atendimento')
+  const [confirming,  setConfirming]  = useState<'accept' | 'accept_offer' | null>(null)
+  const [disputing,   setDisputing]   = useState(false)
+  const [reasons,     setReasons]     = useState<DisputeReason[]>([])
+  const [reasonCode,  setReasonCode]  = useState<number | null>(null)
+  const [disputeText, setDisputeText] = useState('')
+  const [usePhotos,   setUsePhotos]   = useState(true)
+  const [working,     setWorking]     = useState(false)
+  const [loadingDoss, setLoadingDoss] = useState(false)
+  const [error,       setError]       = useState('')
+  const [done,        setDone]        = useState(false)
+
+  const isOpen = SHOPEE_OPEN_STATUSES.includes(ret.status ?? '') && ret.status !== 'SELLER_DISPUTE'
+  const action = ret.playbook_action
+  const pb = action ? PLAYBOOK_BADGE[action] : null
+  const negotiation = ret.playbook_meta?.negotiation
+  const offerPending = negotiation?.negotiation_status === 'PENDING_RESPOND'
+
+  const call = async (path: string, body?: unknown) => {
+    const sb = createClient()
+    const { data: { session } } = await sb.auth.getSession()
+    const res = await fetch(`${BACKEND}${path}`, {
+      method: 'POST',
+      headers: authHeaders(session?.access_token),
+      body: body != null ? JSON.stringify(body) : undefined,
+    })
+    if (!res.ok) {
+      const txt = await res.text()
+      let msg = txt.slice(0, 300)
+      try { msg = JSON.parse(txt)?.message ?? msg } catch { /* texto cru */ }
+      throw new Error(msg || `HTTP ${res.status}`)
+    }
+    return res.json()
+  }
+
+  const execute = async (kind: 'accept' | 'accept_offer') => {
+    setWorking(true)
+    setError('')
+    try {
+      await call(`/shopee/returns-playbook/${ret.return_sn}/${kind === 'accept' ? 'accept' : 'accept-offer'}`)
+      setDone(true)
+      setConfirming(null)
+      setTimeout(onActed, 1200)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setWorking(false)
+    }
+  }
+
+  const openDispute = async () => {
+    setDisputing(true)
+    setLoadingDoss(true)
+    setError('')
+    try {
+      const sb = createClient()
+      const { data: { session } } = await sb.auth.getSession()
+      const res = await fetch(`${BACKEND}/shopee/returns-playbook/${ret.return_sn}/dossier`, {
+        headers: authHeaders(session?.access_token),
+      })
+      if (!res.ok) throw new Error(t('reclamacoes.playbook.dossierFail'))
+      const d = await res.json()
+      const list: DisputeReason[] = d?.dispute_reasons ?? []
+      setReasons(list)
+      if (list.length) setReasonCode(list[0].dispute_reason)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setLoadingDoss(false)
+    }
+  }
+
+  const submitDispute = async () => {
+    if (reasonCode == null) return
+    setWorking(true)
+    setError('')
+    try {
+      await call(`/shopee/returns-playbook/${ret.return_sn}/dispute`, {
+        dispute_reason: reasonCode,
+        text:           disputeText.trim() || undefined,
+        images:         usePhotos ? (ret.raw?.image ?? []).slice(0, 5) : undefined,
+      })
+      setDone(true)
+      setDisputing(false)
+      setTimeout(onActed, 1200)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setWorking(false)
+    }
+  }
+
+  return (
+    <div className="rounded-xl p-4 space-y-3"
+      style={{ background: 'rgba(0,229,255,0.03)', border: '1px solid rgba(0,229,255,0.15)' }}>
+      <div className="flex items-center gap-2">
+        <Sparkles size={13} className="text-[#00E5FF]" />
+        <p className="text-xs font-semibold text-zinc-200">{t('reclamacoes.playbook.title')}</p>
+        {action && pb && (
+          <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold"
+            style={{ background: pb.bg, color: pb.color }}>
+            <pb.Icon size={9} /> {t(`reclamacoes.playbook.badge.${action}`)}
+          </span>
+        )}
+        {ret.playbook_confidence != null && (
+          <span className="text-[10px] text-zinc-500">
+            {t('reclamacoes.playbook.confidence', { pct: Math.round(Number(ret.playbook_confidence) * 100) })}
+          </span>
+        )}
+      </div>
+
+      {ret.playbook_rationale
+        ? <p className="text-xs text-zinc-400 leading-relaxed">{ret.playbook_rationale}</p>
+        : <p className="text-xs text-zinc-600 italic">{t('reclamacoes.playbook.noRecommendation')}</p>}
+
+      {offerPending && negotiation?.latest_offer_amount != null && (
+        <p className="text-[11px] text-amber-300/90 flex items-center gap-1">
+          <AlertCircle size={11} /> {t('reclamacoes.playbook.offerPending', { amount: brlFmt(negotiation.latest_offer_amount) })}
+        </p>
+      )}
+
+      {ret.playbook_executed_at && (
+        <p className="text-[11px] text-green-400 flex items-center gap-1">
+          <ShieldCheck size={11} />
+          {t('reclamacoes.playbook.executedAt', {
+            action: t(`reclamacoes.playbook.badge.${(ret.playbook_executed_action ?? 'accept') as PlaybookAction}`),
+            date:   fmtDate(ret.playbook_executed_at),
+          })}
+        </p>
+      )}
+
+      {error && (
+        <div className="rounded-lg p-3 text-xs"
+          style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>
+          {error}
+        </div>
+      )}
+      {done && (
+        <p className="text-xs text-green-400 flex items-center gap-1">
+          <CheckCircle2 size={12} /> {t('reclamacoes.playbook.done')}
+        </p>
+      )}
+
+      {/* botões de ação — só devolução aberta e ainda não executada */}
+      {isOpen && !ret.playbook_executed_at && !done && (
+        confirming ? (
+          <div className="rounded-lg p-3 space-y-2" style={{ background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.2)' }}>
+            <p className="text-xs font-semibold text-zinc-200">{t('reclamacoes.playbook.confirmTitle')}</p>
+            <p className="text-xs text-zinc-400">
+              {confirming === 'accept'
+                ? t('reclamacoes.playbook.confirmAccept', { amount: brlFmt(ret.refund_amount) })
+                : t('reclamacoes.playbook.confirmAcceptOffer', { amount: brlFmt(negotiation?.latest_offer_amount ?? ret.refund_amount) })}
+            </p>
+            <div className="flex items-center gap-2">
+              <button onClick={() => execute(confirming)} disabled={working}
+                className="px-3 py-1.5 rounded-lg text-[11px] font-bold disabled:opacity-50"
+                style={{ background: '#f87171', color: '#000' }}>
+                {working ? t('reclamacoes.playbook.working') : t('reclamacoes.playbook.confirm')}
+              </button>
+              <button onClick={() => setConfirming(null)} disabled={working}
+                className="px-3 py-1.5 rounded-lg text-[11px] font-semibold border border-zinc-700 text-zinc-400">
+                {t('reclamacoes.playbook.cancel')}
+              </button>
+            </div>
+          </div>
+        ) : disputing ? (
+          <div className="rounded-lg p-3 space-y-3" style={{ background: 'rgba(192,132,252,0.05)', border: '1px solid rgba(192,132,252,0.2)' }}>
+            <p className="text-xs font-semibold text-zinc-200 flex items-center gap-1">
+              <Scale size={12} /> {t('reclamacoes.playbook.disputeTitle')}
+            </p>
+            {loadingDoss ? (
+              <p className="text-xs text-zinc-500">{t('reclamacoes.playbook.loadingDossier')}</p>
+            ) : (
+              <>
+                <div className="space-y-1.5">
+                  <p className="text-[10px] uppercase tracking-widest text-zinc-600">{t('reclamacoes.playbook.disputeReason')}</p>
+                  {reasons.map(r => (
+                    <label key={r.dispute_reason} className="flex items-start gap-2 cursor-pointer rounded-lg p-2"
+                      style={{ background: reasonCode === r.dispute_reason ? 'rgba(192,132,252,0.1)' : 'transparent' }}>
+                      <input type="radio" name="disputeReason" className="mt-0.5"
+                        checked={reasonCode === r.dispute_reason}
+                        onChange={() => setReasonCode(r.dispute_reason)} />
+                      <span className="flex-1">
+                        <span className="text-xs text-zinc-200 font-semibold">
+                          {t('reclamacoes.playbook.disputeReasonN', { code: r.dispute_reason })}
+                        </span>
+                        {r.dispute_requirement && (
+                          <span className="block text-[10px] text-zinc-500 mt-0.5 whitespace-pre-wrap leading-snug">
+                            {r.dispute_requirement}
+                          </span>
+                        )}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-widest text-zinc-600 mb-1">{t('reclamacoes.playbook.disputeText')}</p>
+                  <textarea value={disputeText} onChange={e => setDisputeText(e.target.value)}
+                    placeholder={t('reclamacoes.playbook.disputeTextPh')} maxLength={500}
+                    className="w-full bg-[#09090b] border border-[#1e1e24] rounded-lg p-2.5 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-[#c084fc44] resize-y min-h-[60px]" />
+                </div>
+                {(ret.raw?.image?.length ?? 0) > 0 && (
+                  <label className="flex items-center gap-2 cursor-pointer text-[11px] text-zinc-400">
+                    <input type="checkbox" checked={usePhotos} onChange={e => setUsePhotos(e.target.checked)} />
+                    {t('reclamacoes.playbook.disputeUsePhotos')} ({ret.raw?.image?.length})
+                  </label>
+                )}
+                <div className="flex items-center gap-2">
+                  <button onClick={submitDispute} disabled={working || reasonCode == null}
+                    className="px-3 py-1.5 rounded-lg text-[11px] font-bold disabled:opacity-50"
+                    style={{ background: '#c084fc', color: '#000' }}>
+                    {working ? t('reclamacoes.playbook.working') : t('reclamacoes.playbook.disputeSubmit')}
+                  </button>
+                  <button onClick={() => setDisputing(false)} disabled={working}
+                    className="px-3 py-1.5 rounded-lg text-[11px] font-semibold border border-zinc-700 text-zinc-400">
+                    {t('reclamacoes.playbook.cancel')}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 flex-wrap pt-1">
+            <button onClick={() => setConfirming('accept')}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold"
+              style={{ background: 'rgba(74,222,128,0.12)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)' }}>
+              <CheckCircle2 size={12} /> {t('reclamacoes.playbook.actions.accept')}
+            </button>
+            {offerPending && (
+              <button onClick={() => setConfirming('accept_offer')}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold"
+                style={{ background: 'rgba(74,222,128,0.12)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)' }}>
+                <CheckCircle2 size={12} /> {t('reclamacoes.playbook.actions.acceptOffer')}
+              </button>
+            )}
+            <button onClick={openDispute}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold"
+              style={{ background: 'rgba(192,132,252,0.12)', color: '#c084fc', border: '1px solid rgba(192,132,252,0.3)' }}>
+              <Scale size={12} /> {t('reclamacoes.playbook.actions.dispute')}
+            </button>
+          </div>
+        )
+      )}
+    </div>
+  )
+}
+
 // ── Shopee return drawer ──────────────────────────────────────────────────────
 
-function ShopeeReturnDrawer({ ret, shopName, onClose }: { ret: ShopeeReturn; shopName: string; onClose: () => void }) {
+function ShopeeReturnDrawer({ ret, shopName, onClose, onActed }: { ret: ShopeeReturn; shopName: string; onClose: () => void; onActed: () => void }) {
   const t = useTranslations('atendimento')
   const stCfg = getShopeeStatusCfg(t, ret.status)
   const reasonLbl = getShopeeReasonLabel(t, ret)
@@ -582,6 +884,9 @@ function ShopeeReturnDrawer({ ret, shopName, onClose }: { ret: ShopeeReturn; sho
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          {/* Playbook IA — recomendação + ações */}
+          <ShopeePlaybookSection ret={ret} onActed={onActed} />
+
           {/* O que o comprador disse */}
           {ret.text_reason && (
             <div className="rounded-xl p-4" style={{ background: '#0e0e11', border: '1px solid #1e1e24' }}>
@@ -682,6 +987,7 @@ export default function ReclamacoesPage() {
   const [filter,   setFilter]   = useState<FilterKey>('opened')
   const [selected, setSelected] = useState<Claim | null>(null)
   const [selectedReturn, setSelectedReturn] = useState<ShopeeReturn | null>(null)
+  const [analyzing, setAnalyzing] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -708,6 +1014,21 @@ export default function ReclamacoesPage() {
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  // roda o motor do playbook (gera/atualiza recomendações IA) e recarrega
+  const analyzeAll = useCallback(async () => {
+    setAnalyzing(true)
+    try {
+      const sb = createClient()
+      const { data: { session } } = await sb.auth.getSession()
+      await fetch(`${BACKEND}/shopee/returns-playbook/run?force=true`, {
+        method:  'POST',
+        headers: { Authorization: `Bearer ${session?.access_token ?? ''}` },
+      })
+      await load()
+    } catch { /* silent */ }
+    setAnalyzing(false)
+  }, [load])
 
   const shopName = useCallback((shopId: string | null) =>
     shops.find(s => s.shop_id === shopId)?.nickname ?? 'Shopee', [shops])
@@ -740,12 +1061,22 @@ export default function ReclamacoesPage() {
           <h2 className="text-white text-lg font-semibold mt-0.5">{t('reclamacoes.pageTitle')}</h2>
           <p className="text-zinc-500 text-xs mt-1">{t('reclamacoes.pageSubtitle')}</p>
         </div>
-        <button onClick={load} disabled={loading}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border transition-all disabled:opacity-60"
-          style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>
-          <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
-          {t('reclamacoes.refresh')}
-        </button>
+        <div className="flex items-center gap-2">
+          {channel === 'shopee' && (
+            <button onClick={analyzeAll} disabled={analyzing || loading}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border transition-all disabled:opacity-60"
+              style={{ borderColor: 'rgba(0,229,255,0.3)', color: '#00E5FF', background: 'rgba(0,229,255,0.06)' }}>
+              <Sparkles size={13} className={analyzing ? 'animate-pulse' : ''} />
+              {analyzing ? t('reclamacoes.playbook.analyzing') : t('reclamacoes.playbook.analyzeAll')}
+            </button>
+          )}
+          <button onClick={load} disabled={loading}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border transition-all disabled:opacity-60"
+            style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>
+            <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
+            {t('reclamacoes.refresh')}
+          </button>
+        </div>
       </div>
 
       {/* Canal: Mercado Livre | Shopee */}
@@ -853,7 +1184,8 @@ export default function ReclamacoesPage() {
       {selected && <ClaimDrawer claim={selected} onClose={() => setSelected(null)} />}
       {selectedReturn && (
         <ShopeeReturnDrawer ret={selectedReturn} shopName={shopName(selectedReturn.shop_id)}
-          onClose={() => setSelectedReturn(null)} />
+          onClose={() => setSelectedReturn(null)}
+          onActed={() => { setSelectedReturn(null); load() }} />
       )}
     </div>
   )

@@ -8578,6 +8578,43 @@
         "PDD": "Defective product or not as described",
         "PNDA": "Product not available",
         "WP": "Wrong product/package"
+      },
+      "playbook": {
+        "title": "e-Click Recommendation",
+        "analyzeAll": "Analyze with AI",
+        "analyzing": "Analyzing…",
+        "noRecommendation": "No recommendation yet — click \"Analyze with AI\" at the top.",
+        "confidence": "{pct}% confidence",
+        "executedAt": "Action executed: {action} · {date}",
+        "offerPending": "Buyer offer pending: {amount}",
+        "badge": {
+          "accept": "Accept refund",
+          "accept_offer": "Accept offer",
+          "dispute": "Dispute",
+          "collect_evidence": "Collect evidence",
+          "monitor": "Standard flow"
+        },
+        "actions": {
+          "accept": "Accept return",
+          "acceptOffer": "Accept offer",
+          "dispute": "Dispute with dossier"
+        },
+        "confirmTitle": "Confirm real action on Shopee",
+        "confirmAccept": "This ACCEPTS the return on Shopee and approves the {amount} refund. Cannot be undone. Confirm?",
+        "confirmAcceptOffer": "This accepts the buyer offer on Shopee ({amount}). Cannot be undone. Confirm?",
+        "confirm": "Yes, execute",
+        "cancel": "Cancel",
+        "working": "Sending…",
+        "done": "Done! Status updated.",
+        "disputeTitle": "Open dispute",
+        "disputeReason": "Dispute reason (from Shopee)",
+        "disputeReasonN": "Reason {code}",
+        "disputeText": "Your justification",
+        "disputeTextPh": "Explain why the return is invalid (e.g. tracking shows delivered on…)",
+        "disputeUsePhotos": "Attach buyer photos as evidence",
+        "disputeSubmit": "Open dispute on Shopee",
+        "loadingDossier": "Loading Shopee dossier…",
+        "dossierFail": "Could not load the dossier — try again."
       }
     },
     "avaliacoes": {

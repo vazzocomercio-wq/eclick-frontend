@@ -8747,6 +8747,43 @@
         "PDD": "Produto com defeito ou diferente do anunciado",
         "PNDA": "Produto não disponível",
         "WP": "Produto/pacote errado"
+      },
+      "playbook": {
+        "title": "Recomendação e-Click",
+        "analyzeAll": "Analisar com IA",
+        "analyzing": "Analisando…",
+        "noRecommendation": "Sem recomendação ainda — clique em \"Analisar com IA\" no topo da tela.",
+        "confidence": "confiança {pct}%",
+        "executedAt": "Ação executada: {action} · {date}",
+        "offerPending": "Oferta do comprador pendente: {amount}",
+        "badge": {
+          "accept": "Aceitar reembolso",
+          "accept_offer": "Aceitar oferta",
+          "dispute": "Disputar",
+          "collect_evidence": "Coletar evidência",
+          "monitor": "Fluxo padrão"
+        },
+        "actions": {
+          "accept": "Aceitar devolução",
+          "acceptOffer": "Aceitar oferta",
+          "dispute": "Disputar com dossiê"
+        },
+        "confirmTitle": "Confirmar ação real na Shopee",
+        "confirmAccept": "Isso ACEITA a devolução na Shopee e aprova o reembolso de {amount}. Não dá pra desfazer. Confirmar?",
+        "confirmAcceptOffer": "Isso aceita a OFERTA do comprador na Shopee ({amount}). Não dá pra desfazer. Confirmar?",
+        "confirm": "Sim, executar",
+        "cancel": "Cancelar",
+        "working": "Enviando…",
+        "done": "Feito! Status atualizado.",
+        "disputeTitle": "Abrir disputa",
+        "disputeReason": "Motivo da disputa (da Shopee)",
+        "disputeReasonN": "Motivo {code}",
+        "disputeText": "Sua justificativa",
+        "disputeTextPh": "Explique por que a devolução não procede (ex.: rastreio consta entregue em…)",
+        "disputeUsePhotos": "Anexar as fotos do comprador como evidência",
+        "disputeSubmit": "Abrir disputa na Shopee",
+        "loadingDossier": "Carregando dossiê da Shopee…",
+        "dossierFail": "Não consegui carregar o dossiê — tente de novo."
       }
     },
     "avaliacoes": {
