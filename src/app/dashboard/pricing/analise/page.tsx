@@ -42,6 +42,8 @@ export default function PricingAnalisePage() {
   const [filterType, setType]       = useState<TypeFilter>('all')
   const [filterChannel, setChannel] = useState<string>('all')
   const [filterStatus, setStatus]   = useState<StatusFilter>('active')
+  const [perPage, setPerPage]       = useState(50)   // 20/50/100/200
+  const [page, setPage]             = useState(1)
 
   function pushToast(msg: string, type: Toast['type'] = 'success') {
     const id = Date.now() + Math.random()
@@ -68,6 +70,8 @@ export default function PricingAnalisePage() {
   }, [filterSeverity, filterType, filterChannel, filterStatus])
 
   useEffect(() => { load() }, [load])
+  // volta pra página 1 quando muda filtro/quantidade
+  useEffect(() => { setPage(1) }, [filterSeverity, filterType, filterChannel, filterStatus, perPage])
 
   async function handleScan() {
     setScanning(true)
@@ -107,6 +111,14 @@ export default function PricingAnalisePage() {
 
   const totalActive = summary?.total ?? 0
   const waEnabled   = !!notif?.whatsapp_enabled
+
+  // paginação no cliente (a lista já vem filtrada do servidor, até 200)
+  const totalPages = Math.max(1, Math.ceil(signals.length / perPage))
+  const safePage   = Math.min(page, totalPages)
+  const pageStart  = (safePage - 1) * perPage
+  const pagedSignals = signals.slice(pageStart, pageStart + perPage)
+  const pageFrom   = signals.length === 0 ? 0 : pageStart + 1
+  const pageTo     = Math.min(pageStart + perPage, signals.length)
 
   return (
     <div className="flex flex-col h-full" style={{ background: 'var(--background)' }}>
@@ -232,7 +244,10 @@ export default function PricingAnalisePage() {
             : signals.length === 0
               ? <EmptyState onScan={handleScan} scanning={scanning} />
               : <div className="space-y-3">
-                  {signals.map(s => (
+                  <PricingPagination page={safePage} totalPages={totalPages} perPage={perPage}
+                    total={signals.length} from={pageFrom} to={pageTo}
+                    onPage={setPage} onPerPage={setPerPage} />
+                  {pagedSignals.map(s => (
                     <SignalCard
                       key={s.id}
                       signal={s}
@@ -240,6 +255,11 @@ export default function PricingAnalisePage() {
                       onOpen={() => setDrawer(s)}
                     />
                   ))}
+                  {totalPages > 1 && (
+                    <PricingPagination page={safePage} totalPages={totalPages} perPage={perPage}
+                      total={signals.length} from={pageFrom} to={pageTo}
+                      onPage={setPage} onPerPage={setPerPage} />
+                  )}
                 </div>}
         </div>
       </div>
@@ -298,4 +318,68 @@ function EmptyState({ onScan, scanning }: { onScan: () => void; scanning: boolea
       </button>
     </div>
   )
+}
+
+// Paginação no cliente: contador + seletor de quantidade (20/50/100/200) +
+// navegação numerada com reticências.
+function PricingPagination({ page, totalPages, perPage, total, from, to, onPage, onPerPage }: {
+  page: number; totalPages: number; perPage: number; total: number; from: number; to: number
+  onPage: (p: number) => void; onPerPage: (n: number) => void
+}) {
+  const CY = '#00E5FF'
+  const nums = pricingPageWindow(page, totalPages)
+  const navStyle = { background: '#111114', color: '#a1a1aa', border: '1px solid #27272a' }
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 py-1">
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="text-[11px] text-zinc-500">
+          {total === 0 ? 'Nenhum sinal' : `Mostrando ${from}–${to} de ${total}`}
+        </span>
+        <div className="flex items-center gap-1">
+          <span className="text-[11px] text-zinc-600">por página:</span>
+          {[20, 50, 100, 200].map(n => {
+            const on = perPage === n
+            return (
+              <button key={n} onClick={() => onPerPage(n)}
+                className="text-[11px] font-mono font-semibold px-2 py-1 rounded-md transition-colors"
+                style={on
+                  ? { background: 'rgba(0,229,255,0.12)', color: CY, border: '1px solid rgba(0,229,255,0.35)' }
+                  : { background: '#111114', color: '#71717a', border: '1px solid #27272a' }}>
+                {n}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+      {totalPages > 1 && (
+        <div className="flex items-center gap-1">
+          <button onClick={() => onPage(page - 1)} disabled={page <= 1}
+            className="min-w-[28px] text-sm px-2 py-1 rounded-md transition-colors disabled:opacity-30 disabled:cursor-not-allowed" style={navStyle}>‹</button>
+          {nums.map((n, i) =>
+            n === '…'
+              ? <span key={`gap-${i}`} className="px-1.5 text-[11px] text-zinc-600">…</span>
+              : <button key={n} onClick={() => onPage(n as number)}
+                  className="min-w-[28px] text-[11px] font-semibold px-2 py-1 rounded-md transition-colors"
+                  style={n === page ? { background: CY, color: '#06181c', border: `1px solid ${CY}` } : navStyle}>
+                  {n}
+                </button>,
+          )}
+          <button onClick={() => onPage(page + 1)} disabled={page >= totalPages}
+            className="min-w-[28px] text-sm px-2 py-1 rounded-md transition-colors disabled:opacity-30 disabled:cursor-not-allowed" style={navStyle}>›</button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function pricingPageWindow(current: number, total: number): Array<number | '…'> {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1)
+  const out: Array<number | '…'> = [1]
+  const start = Math.max(2, current - 1)
+  const end   = Math.min(total - 1, current + 1)
+  if (start > 2) out.push('…')
+  for (let i = start; i <= end; i++) out.push(i)
+  if (end < total - 1) out.push('…')
+  out.push(total)
+  return out
 }
