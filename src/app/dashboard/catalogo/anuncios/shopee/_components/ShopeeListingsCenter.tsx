@@ -89,6 +89,8 @@ export default function ShopeeListingsCenter() {
   const [propagBusy, setPropagBusy]     = useState(false)
   const [propagConfirm, setPropagConfirm] = useState(false)
   const [shopFilter, setShopFilter]     = useState<number | 'all'>('all')
+  const [perPage, setPerPage]   = useState(50)   // quantidade por página: 20/50/100/200
+  const [page, setPage]         = useState(1)
 
   const load = useCallback(async () => {
     setError(null)
@@ -117,6 +119,8 @@ export default function ShopeeListingsCenter() {
   }, [])
 
   useEffect(() => { void load() }, [load])
+  // volta pra primeira página quando muda busca/loja/quantidade por página
+  useEffect(() => { setPage(1) }, [query, shopFilter, perPage])
 
   const autoLink = useCallback(async () => {
     setAutoBusy(true); setError(null); setNotice(null)
@@ -214,6 +218,14 @@ export default function ShopeeListingsCenter() {
     (shopFilter === 'all' || it.shop_id === shopFilter),
   )
 
+  // paginação no cliente (os dados já vêm completos do backend)
+  const totalPages = Math.max(1, Math.ceil(filtered.length / perPage))
+  const safePage   = Math.min(page, totalPages)
+  const pageStart  = (safePage - 1) * perPage
+  const paged      = filtered.slice(pageStart, pageStart + perPage)
+  const pageFrom   = filtered.length === 0 ? 0 : pageStart + 1
+  const pageTo     = Math.min(pageStart + perPage, filtered.length)
+
   return (
     <div className="p-6 space-y-6 min-h-full" style={{ background: '#09090b' }}>
       <Header total={total} summary={summary} onRefresh={load} onAutoLink={autoLink} autoBusy={autoBusy}
@@ -252,16 +264,26 @@ export default function ShopeeListingsCenter() {
       ) : filtered.length === 0 ? (
         <EmptyState t={t} hasQuery={!!query} />
       ) : (
-        <div className="flex flex-col gap-3">
-          {filtered.map(it => (
-            <ListingRow key={`${it.shop_id}:${it.item_id}`} card={it} link={links.get(it.item_id) ?? null}
-              onOpen={() => setSelected(it)}
-              onUnlink={() => unlinkItem(it.item_id)}
-              onSavePrice={(p) => savePrice(it.item_id, p)}
-              onSaveStock={(q) => saveStock(it.item_id, q)}
-              onSaveMargin={saveMargin}
-              t={t} />
-          ))}
+        <div className="space-y-3">
+          <Pagination page={safePage} totalPages={totalPages} perPage={perPage}
+            total={filtered.length} from={pageFrom} to={pageTo}
+            onPage={setPage} onPerPage={setPerPage} showPerPage />
+          <div className="flex flex-col gap-3">
+            {paged.map(it => (
+              <ListingRow key={`${it.shop_id}:${it.item_id}`} card={it} link={links.get(it.item_id) ?? null}
+                onOpen={() => setSelected(it)}
+                onUnlink={() => unlinkItem(it.item_id)}
+                onSavePrice={(p) => savePrice(it.item_id, p)}
+                onSaveStock={(q) => saveStock(it.item_id, q)}
+                onSaveMargin={saveMargin}
+                t={t} />
+            ))}
+          </div>
+          {totalPages > 1 && (
+            <Pagination page={safePage} totalPages={totalPages} perPage={perPage}
+              total={filtered.length} from={pageFrom} to={pageTo}
+              onPage={setPage} onPerPage={setPerPage} showPerPage={false} />
+          )}
         </div>
       )}
       {selected && (
@@ -357,6 +379,81 @@ function Toolbar({ query, onQuery, t }: { query: string; onQuery: (s: string) =>
       </div>
     </div>
   )
+}
+
+// Paginação no cliente: contador "Mostrando X–Y de Z" + seletor de quantidade
+// por página (20/50/100/200) + navegação numerada com janela e reticências.
+function Pagination({ page, totalPages, perPage, total, from, to, onPage, onPerPage, showPerPage = true }: {
+  page: number; totalPages: number; perPage: number; total: number; from: number; to: number
+  onPage: (p: number) => void; onPerPage: (n: number) => void; showPerPage?: boolean
+}) {
+  const nums = pageWindow(page, totalPages)
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 py-1">
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="text-[11px] text-zinc-500">
+          {total === 0 ? 'Nenhum anúncio' : `Mostrando ${from}–${to} de ${total}`}
+        </span>
+        {showPerPage && (
+          <div className="flex items-center gap-1">
+            <span className="text-[11px] text-zinc-600">por página:</span>
+            {[20, 50, 100, 200].map(n => {
+              const on = perPage === n
+              return (
+                <button key={n} onClick={() => onPerPage(n)}
+                  className="text-[11px] font-mono font-semibold px-2 py-1 rounded-md transition-colors"
+                  style={on
+                    ? { background: 'rgba(0,229,255,0.12)', color: CYAN, border: '1px solid rgba(0,229,255,0.35)' }
+                    : { background: '#111114', color: '#71717a', border: '1px solid #27272a' }}>
+                  {n}
+                </button>
+              )
+            })}
+          </div>
+        )}
+      </div>
+      {totalPages > 1 && (
+        <div className="flex items-center gap-1">
+          <PageBtn disabled={page <= 1} onClick={() => onPage(page - 1)} label="‹" />
+          {nums.map((n, i) =>
+            n === '…'
+              ? <span key={`gap-${i}`} className="px-1.5 text-[11px] text-zinc-600">…</span>
+              : <button key={n} onClick={() => onPage(n as number)}
+                  className="min-w-[28px] text-[11px] font-semibold px-2 py-1 rounded-md transition-colors"
+                  style={n === page
+                    ? { background: SHOPEE, color: '#fff', border: `1px solid ${SHOPEE}` }
+                    : { background: '#111114', color: '#a1a1aa', border: '1px solid #27272a' }}>
+                  {n}
+                </button>,
+          )}
+          <PageBtn disabled={page >= totalPages} onClick={() => onPage(page + 1)} label="›" />
+        </div>
+      )}
+    </div>
+  )
+}
+
+function PageBtn({ disabled, onClick, label }: { disabled: boolean; onClick: () => void; label: string }) {
+  return (
+    <button onClick={onClick} disabled={disabled}
+      className="min-w-[28px] text-sm px-2 py-1 rounded-md transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+      style={{ background: '#111114', color: '#a1a1aa', border: '1px solid #27272a' }}>
+      {label}
+    </button>
+  )
+}
+
+// janela de páginas com reticências: 1 … 4 5 6 … 20
+function pageWindow(current: number, total: number): Array<number | '…'> {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1)
+  const out: Array<number | '…'> = [1]
+  const start = Math.max(2, current - 1)
+  const end   = Math.min(total - 1, current + 1)
+  if (start > 2) out.push('…')
+  for (let i = start; i <= end; i++) out.push(i)
+  if (end < total - 1) out.push('…')
+  out.push(total)
+  return out
 }
 
 // ── Card de anúncio no formato ML (horizontal) ──────────────────────────────
