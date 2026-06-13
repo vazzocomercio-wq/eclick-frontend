@@ -602,6 +602,8 @@ export default function EstoquePage() {
   const [sortAsc, setSortAsc]   = useState(true)
   const [adjusting, setAdjusting] = useState<StockRow | null>(null)
   const [detail, setDetail]       = useState<StockRow | null>(null)
+  const [perPage, setPerPage]     = useState(50)   // 20/50/100/200
+  const [page, setPage]           = useState(1)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -647,6 +649,8 @@ export default function EstoquePage() {
   }, [t])
 
   useEffect(() => { load() }, [load])
+  // volta pra página 1 quando muda filtro/busca/quantidade
+  useEffect(() => { setPage(1) }, [filter, search, perPage])
 
   // ── KPIs ────────────────────────────────────────────────────────────────────
 
@@ -677,6 +681,14 @@ export default function EstoquePage() {
       return sortAsc ? diff : -diff
     })
   }, [rows, filter, search, sortKey, sortAsc])
+
+  // paginação no cliente (a lista já vem completa)
+  const totalPages = Math.max(1, Math.ceil(visible.length / perPage))
+  const safePage   = Math.min(page, totalPages)
+  const pageStart  = (safePage - 1) * perPage
+  const pagedRows  = visible.slice(pageStart, pageStart + perPage)
+  const pageFrom   = visible.length === 0 ? 0 : pageStart + 1
+  const pageTo     = Math.min(pageStart + perPage, visible.length)
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) setSortAsc(v => !v)
@@ -813,7 +825,7 @@ export default function EstoquePage() {
                       </td>
                     </tr>
                   )
-                  : visible.map(row => {
+                  : pagedRows.map(row => {
                       const thumb = row.product.photo_urls?.[0] ?? null
                       return (
                         <tr key={row.product.id}
@@ -894,9 +906,9 @@ export default function EstoquePage() {
         </div>
 
         {!loading && visible.length > 0 && (
-          <div className="px-4 py-2 border-t" style={{ borderColor: '#1e1e24' }}>
-            <p className="text-[10px] text-zinc-600">{t('stock.shownCount', { count: visible.length })}</p>
-          </div>
+          <StockPagination page={safePage} totalPages={totalPages} perPage={perPage}
+            total={visible.length} from={pageFrom} to={pageTo}
+            onPage={setPage} onPerPage={setPerPage} />
         )}
       </section>
 
@@ -920,4 +932,68 @@ export default function EstoquePage() {
       )}
     </div>
   )
+}
+
+// Paginação no cliente: contador + seletor de quantidade (20/50/100/200) +
+// navegação numerada com reticências. Rodapé do card da tabela.
+function StockPagination({ page, totalPages, perPage, total, from, to, onPage, onPerPage }: {
+  page: number; totalPages: number; perPage: number; total: number; from: number; to: number
+  onPage: (p: number) => void; onPerPage: (n: number) => void
+}) {
+  const CY = '#00E5FF'
+  const nums = stockPageWindow(page, totalPages)
+  const navStyle = { background: '#1c1c1f', color: '#a1a1aa', border: '1px solid #2e2e33' }
+  return (
+    <div className="px-4 py-2.5 border-t flex flex-wrap items-center justify-between gap-3" style={{ borderColor: '#1e1e24' }}>
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="text-[11px] text-zinc-500">
+          {total === 0 ? 'Nenhum item' : `Mostrando ${from}–${to} de ${total}`}
+        </span>
+        <div className="flex items-center gap-1">
+          <span className="text-[11px] text-zinc-600">por página:</span>
+          {[20, 50, 100, 200].map(n => {
+            const on = perPage === n
+            return (
+              <button key={n} onClick={() => onPerPage(n)}
+                className="text-[11px] font-mono font-semibold px-2 py-1 rounded-md transition-colors"
+                style={on
+                  ? { background: 'rgba(0,229,255,0.12)', color: CY, border: '1px solid rgba(0,229,255,0.35)' }
+                  : { background: '#1c1c1f', color: '#71717a', border: '1px solid #2e2e33' }}>
+                {n}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+      {totalPages > 1 && (
+        <div className="flex items-center gap-1">
+          <button onClick={() => onPage(page - 1)} disabled={page <= 1}
+            className="min-w-[28px] text-sm px-2 py-1 rounded-md transition-colors disabled:opacity-30 disabled:cursor-not-allowed" style={navStyle}>‹</button>
+          {nums.map((n, i) =>
+            n === '…'
+              ? <span key={`gap-${i}`} className="px-1.5 text-[11px] text-zinc-600">…</span>
+              : <button key={n} onClick={() => onPage(n as number)}
+                  className="min-w-[28px] text-[11px] font-semibold px-2 py-1 rounded-md transition-colors"
+                  style={n === page ? { background: CY, color: '#06181c', border: `1px solid ${CY}` } : navStyle}>
+                  {n}
+                </button>,
+          )}
+          <button onClick={() => onPage(page + 1)} disabled={page >= totalPages}
+            className="min-w-[28px] text-sm px-2 py-1 rounded-md transition-colors disabled:opacity-30 disabled:cursor-not-allowed" style={navStyle}>›</button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function stockPageWindow(current: number, total: number): Array<number | '…'> {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1)
+  const out: Array<number | '…'> = [1]
+  const start = Math.max(2, current - 1)
+  const end   = Math.min(total - 1, current + 1)
+  if (start > 2) out.push('…')
+  for (let i = start; i <= end; i++) out.push(i)
+  if (end < total - 1) out.push('…')
+  out.push(total)
+  return out
 }
