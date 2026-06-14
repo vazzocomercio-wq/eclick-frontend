@@ -100,6 +100,16 @@ export default function PickingPage() {
                     {late && <span className="rounded-full px-2 py-0.5 text-[11px] font-bold" style={{ background: '#EF444422', color: '#f87171' }}>ATRASADO</span>}
                   </div>
                   <div className="text-sm" style={{ color: '#a1a1aa' }}>{g.customer || 'Cliente'} · {total} {total === 1 ? 'item' : 'itens'}{g.company ? ` · ${g.company}` : ''}</div>
+                  <ul className="mt-1.5 flex flex-col gap-0.5">
+                    {g.tasks.slice(0, 3).map((t) => (
+                      <li key={t.id} className="truncate text-xs">
+                        <span className="tabular-nums" style={{ color: '#71717a' }}>{t.expected_qty}×</span>{' '}
+                        <span className="font-mono" style={{ color: '#d4d4d8' }}>{t.sku}</span>
+                        {t.title ? <span style={{ color: '#71717a' }}> · {t.title}</span> : null}
+                      </li>
+                    ))}
+                    {g.tasks.length > 3 && <li className="text-xs" style={{ color: '#52525b' }}>+{g.tasks.length - 3} produto(s)</li>}
+                  </ul>
                 </div>
                 <div className="text-sm font-semibold tabular-nums" style={{ color: done === total ? '#4ADE50' : '#71717a' }}>{done}/{total}</div>
                 <ChevronRight size={18} color="#52525b" />
