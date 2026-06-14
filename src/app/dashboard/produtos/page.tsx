@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react'
 import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -431,10 +431,176 @@ function KpiRow({ label, value, color }: { label: string; value: string; color: 
   )
 }
 
-function RowMenu({ onEdit, onDuplicate, onDelete }: {
-  onEdit: () => void; onDuplicate: () => void; onDelete: () => void
+// ── modais do RowMenu (preço / custo / estoque / ads) ──────────────────────────
+// Casca compartilhada: overlay escuro + card central. Fecha no clique fora.
+function ModalShell({ title, onClose, children, width = 'max-w-sm' }: {
+  title: string; onClose: () => void; children: ReactNode; width?: string
+}) {
+  return (
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4"
+      style={{ background: 'rgba(0,0,0,0.6)' }} onMouseDown={onClose}>
+      <div className={`w-full ${width} rounded-2xl border p-5`}
+        style={{ background: '#111114', borderColor: '#27272a' }}
+        onMouseDown={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-white text-sm font-semibold">{title}</h3>
+          <button onClick={onClose} className="text-zinc-500 hover:text-white transition-colors text-xl leading-none">×</button>
+        </div>
+        {children}
+      </div>
+    </div>
+  )
+}
+
+function ModalActions({ onClose, onConfirm, confirmLabel, saving, disabled }: {
+  onClose: () => void; onConfirm: () => void; confirmLabel: string; saving?: boolean; disabled?: boolean
 }) {
   const t = useTranslations('produtos')
+  return (
+    <div className="flex justify-end gap-2 mt-5">
+      <button onClick={onClose}
+        className="px-3 py-2 rounded-lg text-[12px] font-medium border transition-colors"
+        style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>
+        {t('rowMenu.quick.cancel')}
+      </button>
+      <button onClick={onConfirm} disabled={saving || disabled}
+        className="px-4 py-2 rounded-lg text-[12px] font-semibold transition-colors disabled:opacity-50"
+        style={{ background: '#00E5FF', color: '#06182b' }}>
+        {saving ? '…' : confirmLabel}
+      </button>
+    </div>
+  )
+}
+
+const QUICK_INPUT_CLS = 'w-full px-3 py-2 rounded-lg text-white border outline-none transition-colors focus:border-cyan-500/60 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none'
+
+// Edição rápida de preço OU custo (1 campo). Salva via Supabase direto no
+// parent — não toca nos campos de imposto (evita o bug do PATCH /products/:id).
+function QuickFieldModal({ field, currentValue, onClose, onSave }: {
+  field: 'price' | 'cost'; currentValue: number | null
+  onClose: () => void; onSave: (value: number) => Promise<void> | void
+}) {
+  const t = useTranslations('produtos')
+  const [val, setVal] = useState(currentValue != null ? String(currentValue) : '')
+  const [saving, setSaving] = useState(false)
+  const title = field === 'price' ? t('rowMenu.quick.priceTitle') : t('rowMenu.quick.costTitle')
+  const label = field === 'price' ? t('rowMenu.quick.priceLabel') : t('rowMenu.quick.costLabel')
+
+  async function submit() {
+    const n = parseFloat(val.replace(',', '.'))
+    if (isNaN(n) || n < 0) return
+    setSaving(true)
+    await onSave(n)
+    setSaving(false)
+  }
+
+  return (
+    <ModalShell title={title} onClose={onClose}>
+      <label className="block text-[12px] mb-1.5" style={{ color: '#a1a1aa' }}>{label}</label>
+      <input autoFocus type="number" inputMode="decimal" value={val}
+        onChange={e => setVal(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter') void submit() }}
+        className={QUICK_INPUT_CLS} style={{ background: '#0a0a0e', borderColor: '#27272a' }} />
+      <ModalActions onClose={onClose} onConfirm={() => void submit()}
+        confirmLabel={t('rowMenu.quick.save')} saving={saving} disabled={val.trim() === ''} />
+    </ModalShell>
+  )
+}
+
+// Atualização de estoque real + virtual. Só abre quando já existe linha de
+// product_stock (senão o parent manda pro editor completo, que cria a linha).
+function StockEditModal({ current, onClose, onSave }: {
+  current: StockSummary
+  onClose: () => void; onSave: (quantity: number, virtual: number) => Promise<void> | void
+}) {
+  const t = useTranslations('produtos')
+  const [q, setQ] = useState(String(current.quantity))
+  const [v, setV] = useState(String(current.virtual_quantity))
+  const [saving, setSaving] = useState(false)
+  const total = (parseInt(q || '0', 10) || 0) + (parseInt(v || '0', 10) || 0)
+
+  async function submit() {
+    const qn = parseInt(q || '0', 10); const vn = parseInt(v || '0', 10)
+    if (isNaN(qn) || isNaN(vn) || qn < 0 || vn < 0) return
+    setSaving(true)
+    await onSave(qn, vn)
+    setSaving(false)
+  }
+
+  return (
+    <ModalShell title={t('rowMenu.quick.stockTitle')} onClose={onClose}>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-[12px] mb-1.5" style={{ color: '#a1a1aa' }}>{t('rowMenu.quick.stockReal')}</label>
+          <input autoFocus type="number" value={q} onChange={e => setQ(e.target.value)}
+            className={QUICK_INPUT_CLS} style={{ background: '#0a0a0e', borderColor: '#27272a' }} />
+        </div>
+        <div>
+          <label className="block text-[12px] mb-1.5" style={{ color: '#a1a1aa' }}>{t('rowMenu.quick.stockVirtual')}</label>
+          <input type="number" value={v} onChange={e => setV(e.target.value)}
+            className={QUICK_INPUT_CLS} style={{ background: '#0a0a0e', borderColor: '#27272a' }} />
+        </div>
+      </div>
+      <p className="text-[11px] mt-2" style={{ color: '#52525b' }}>{t('rowMenu.quick.stockTotal', { total })}</p>
+      <ModalActions onClose={onClose} onConfirm={() => void submit()}
+        confirmLabel={t('rowMenu.quick.save')} saving={saving} />
+    </ModalShell>
+  )
+}
+
+const ADS_PLATFORMS: Array<{ value: string; label: string }> = [
+  { value: 'meta',              label: 'Meta (Facebook / Instagram)' },
+  { value: 'google',            label: 'Google' },
+  { value: 'tiktok',            label: 'TikTok' },
+  { value: 'mercado_livre_ads', label: 'Mercado Livre Ads' },
+]
+const ADS_OBJECTIVES = ['conversions', 'traffic', 'catalog_sales', 'engagement', 'awareness', 'leads'] as const
+
+// Gera campanha de Ads (rascunho) pro produto. Não publica nem gasta — só
+// cria o draft no Ads Hub, que o user revisa/publica na tela de campanhas.
+function AdsCampaignModal({ product, onClose, onCreate }: {
+  product: Product
+  onClose: () => void; onCreate: (platform: string, objective: string) => Promise<void> | void
+}) {
+  const t = useTranslations('produtos')
+  const [platform, setPlatform] = useState('meta')
+  const [objective, setObjective] = useState('conversions')
+  const [saving, setSaving] = useState(false)
+
+  async function submit() {
+    setSaving(true)
+    await onCreate(platform, objective)
+    setSaving(false)
+  }
+
+  const selectCls = QUICK_INPUT_CLS + ' cursor-pointer'
+  return (
+    <ModalShell title={t('rowMenu.quick.adsTitle')} onClose={onClose}>
+      <p className="text-[12px] mb-1 text-white font-medium line-clamp-1">{product.name}</p>
+      <p className="text-[11px] mb-4" style={{ color: '#52525b' }}>{t('rowMenu.quick.adsHint')}</p>
+      <label className="block text-[12px] mb-1.5" style={{ color: '#a1a1aa' }}>{t('rowMenu.quick.adsPlatform')}</label>
+      <select value={platform} onChange={e => setPlatform(e.target.value)}
+        className={selectCls} style={{ background: '#0a0a0e', borderColor: '#27272a' }}>
+        {ADS_PLATFORMS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+      </select>
+      <label className="block text-[12px] mb-1.5 mt-3" style={{ color: '#a1a1aa' }}>{t('rowMenu.quick.adsObjective')}</label>
+      <select value={objective} onChange={e => setObjective(e.target.value)}
+        className={selectCls} style={{ background: '#0a0a0e', borderColor: '#27272a' }}>
+        {ADS_OBJECTIVES.map(o => <option key={o} value={o}>{t(`rowMenu.quick.obj.${o}`)}</option>)}
+      </select>
+      <ModalActions onClose={onClose} onConfirm={() => void submit()}
+        confirmLabel={t('rowMenu.quick.adsGenerate')} saving={saving} />
+    </ModalShell>
+  )
+}
+
+function RowMenu({ product, onEdit, onDuplicate, onDelete, onModal }: {
+  product: Product
+  onEdit: () => void; onDuplicate: () => void; onDelete: () => void
+  onModal: (action: 'price' | 'cost' | 'stock' | 'ads', product: Product) => void
+}) {
+  const t = useTranslations('produtos')
+  const router = useRouter()
   const [open, setOpen] = useState(false)
   // placement: 'bottom' = abre pra baixo do botão (default).
   //            'top'    = abre pra cima (quando não há espaço abaixo).
@@ -496,13 +662,13 @@ function RowMenu({ onEdit, onDuplicate, onDelete }: {
   type Item = { label: string; tone?: 'danger'; onClick: () => void }
   const items: Item[] = [
     canUpdate && { label: t('rowMenu.edit'),             onClick: onEdit },
-    canUpdate && { label: t('rowMenu.editPriceInline'), onClick: () => todoToast(t('rowMenu.editPriceInlineTodo')) },
-    canUpdate && { label: t('rowMenu.editCostInline'),  onClick: () => todoToast(t('rowMenu.editCostInlineTodo')) },
-    canUpdate && { label: t('rowMenu.updateStock'),     onClick: () => todoToast(t('rowMenu.updateStockTodo')) },
-              { label: t('rowMenu.addToAds'),        onClick: () => todoToast(t('rowMenu.addToAdsTodo')) },
-              { label: t('rowMenu.generateAi'),      onClick: () => todoToast(t('rowMenu.generateAiTodo')) },
-              { label: t('rowMenu.analyzeCompetitors'), onClick: () => todoToast(t('rowMenu.analyzeCompetitorsTodo')) },
-              { label: t('rowMenu.markRestock'),     onClick: () => todoToast(t('rowMenu.markRestockTodo')) },
+    canUpdate && { label: t('rowMenu.editPriceInline'), onClick: () => onModal('price', product) },
+    canUpdate && { label: t('rowMenu.editCostInline'),  onClick: () => onModal('cost', product) },
+    canUpdate && { label: t('rowMenu.updateStock'),     onClick: () => onModal('stock', product) },
+              { label: t('rowMenu.addToAds'),        onClick: () => onModal('ads', product) },
+              { label: t('rowMenu.generateAi'),      onClick: () => router.push(`/dashboard/produtos/${product.id}/ai`) },
+              { label: t('rowMenu.analyzeCompetitors'), onClick: () => router.push(`/dashboard/radar/concorrentes/${product.id}`) },
+              { label: t('rowMenu.markRestock'),     onClick: () => router.push(`/dashboard/compras/inteligencia?product=${product.id}`) },
     canUpdate && { label: t('rowMenu.duplicate'),       onClick: onDuplicate },
     canDelete && { label: t('rowMenu.delete'),          tone: 'danger', onClick: onDelete },
   ].filter((x): x is Item => Boolean(x))
@@ -569,7 +735,7 @@ function RowMenu({ onEdit, onDuplicate, onDelete }: {
 // ── table row ─────────────────────────────────────────────────────────────────
 
 function TableRow({
-  product, selected, onSelect, onStatusChange, onDelete, onDuplicate, stockInfo, covered, multiTargets,
+  product, selected, onSelect, onStatusChange, onDelete, onDuplicate, onModal, stockInfo, covered, multiTargets,
 }: {
   product: Product
   selected: boolean
@@ -577,6 +743,7 @@ function TableRow({
   onStatusChange: (id: string, status: Product['status']) => void
   onDelete: (id: string) => void
   onDuplicate: (id: string) => void
+  onModal: (action: 'price' | 'cost' | 'stock' | 'ads', product: Product) => void
   stockInfo?: StockSummary
   covered?: string[]
   multiTargets?: MultiTargets | null
@@ -807,6 +974,8 @@ function TableRow({
       {/* Actions */}
       <td className="pr-4 py-3 w-12">
         <RowMenu
+          product={product}
+          onModal={onModal}
           onEdit={() => router.push(`/dashboard/produtos/${product.id}/editar`)}
           onDuplicate={() => onDuplicate(product.id)}
           onDelete={() => onDelete(product.id)}
@@ -848,11 +1017,12 @@ function TableSkeleton() {
 
 // ── card (grid view) ───────────────────────────────────────────────────────────
 
-function ProductCard({ product, onDelete, onStatusChange, onDuplicate }: {
+function ProductCard({ product, onDelete, onStatusChange, onDuplicate, onModal }: {
   product: Product
   onDelete: (id: string) => void
   onStatusChange: (id: string, s: Product['status']) => void
   onDuplicate: (id: string) => void
+  onModal: (action: 'price' | 'cost' | 'stock' | 'ads', product: Product) => void
 }) {
   const t = useTranslations('produtos')
   const router = useRouter()
@@ -941,6 +1111,8 @@ function ProductCard({ product, onDelete, onStatusChange, onDuplicate }: {
           </button>
         )}
         <RowMenu
+          product={product}
+          onModal={onModal}
           onEdit={() => router.push(`/dashboard/produtos/${product.id}/editar`)}
           onDuplicate={() => onDuplicate(product.id)}
           onDelete={() => onDelete(product.id)}
@@ -1095,6 +1267,7 @@ function MlImportModal({ onClose, onImported }: { onClose: () => void; onImporte
 // ── main page ─────────────────────────────────────────────────────────────────
 
 type StockSummary = {
+  id:                string
   quantity:          number
   virtual_quantity:  number
   min_stock_to_pause: number
@@ -1147,6 +1320,11 @@ export default function ProdutosPage() {
   const [perPage, setPerPage] = useState(50)
   const [pageNum, setPageNum] = useState(0)
   const confirm = useConfirm()
+  const router = useRouter()
+  // Estado dos modais do RowMenu (edição rápida de preço/custo, estoque, ads).
+  const [quickEdit, setQuickEdit] = useState<{ product: Product; field: 'price' | 'cost' } | null>(null)
+  const [stockModal, setStockModal] = useState<Product | null>(null)
+  const [adsModal, setAdsModal]     = useState<Product | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
@@ -1171,12 +1349,13 @@ export default function ProdutosPage() {
     if (products.length === 0) return
     const sb = createClient()
     sb.from('product_stock')
-      .select('product_id, quantity, virtual_quantity, min_stock_to_pause, auto_pause_enabled')
+      .select('id, product_id, quantity, virtual_quantity, min_stock_to_pause, auto_pause_enabled')
       .is('platform', null)
       .then(({ data }) => {
         const map: Record<string, StockSummary> = {}
         for (const row of (data ?? [])) {
           map[row.product_id] = {
+            id:                row.id,
             quantity:          row.quantity           ?? 0,
             virtual_quantity:  row.virtual_quantity   ?? 0,
             min_stock_to_pause: row.min_stock_to_pause ?? 0,
@@ -1311,6 +1490,85 @@ export default function ProdutosPage() {
       .select()
       .single()
     if (data) setProducts(prev => [data as Product, ...prev])
+  }
+
+  // ── RowMenu: roteia a ação do menu pro modal certo ────────────────────────────
+  // Estoque sem linha cadastrada → manda pro editor completo (que cria a linha).
+  function handleRowModal(action: 'price' | 'cost' | 'stock' | 'ads', product: Product) {
+    if (action === 'price')      setQuickEdit({ product, field: 'price' })
+    else if (action === 'cost')  setQuickEdit({ product, field: 'cost' })
+    else if (action === 'ads')   setAdsModal(product)
+    else if (action === 'stock') {
+      if (!stockMap[product.id]) {
+        pushToast({ tone: 'info', message: t('rowMenu.quick.stockNoRow') })
+        router.push(`/dashboard/produtos/${product.id}/editar`)
+      } else {
+        setStockModal(product)
+      }
+    }
+  }
+
+  /** Salva preço OU custo via Supabase direto (RLS por org). Atualiza só a
+   *  coluna alvo — não toca em tax_percentage/tax_on_freight (o PATCH
+   *  /products/:id zeraria esses campos se omitidos). */
+  async function saveQuickField(product: Product, field: 'price' | 'cost', value: number) {
+    const sb = createClient()
+    const col = field === 'price' ? 'price' : 'cost_price'
+    const { error } = await sb.from('products').update({ [col]: value }).eq('id', product.id)
+    if (error) { pushToast({ tone: 'error', message: t('rowMenu.quick.saveError') }); return }
+    if (field === 'price') {
+      setProducts(prev => prev.map(p => p.id === product.id ? { ...p, price: value } : p))
+    } else {
+      setProductMeta(prev => ({
+        ...prev,
+        [product.id]: {
+          competitorsCount:  prev[product.id]?.competitorsCount ?? 0,
+          listingsCount:     prev[product.id]?.listingsCount ?? 0,
+          distinctPlatforms: prev[product.id]?.distinctPlatforms ?? [],
+          costPrice:         value,
+        },
+      }))
+    }
+    pushToast({ tone: 'success', message: '✓ ' + t('rowMenu.quick.saved') })
+    setQuickEdit(null)
+  }
+
+  /** Atualiza estoque real + virtual via endpoint próprio. O backend chama
+   *  recalcAndPropagate → sincroniza os anúncios respeitando auto-pause. */
+  async function saveStock(product: Product, quantity: number, virtual: number) {
+    const sm = stockMap[product.id]
+    if (!sm) { router.push(`/dashboard/produtos/${product.id}/editar`); return }
+    const token = await getAuthToken()
+    if (!token) return
+    const res = await fetch(`${BACKEND}/products/stock/${sm.id}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ quantity, virtual_quantity: virtual }),
+    })
+    if (!res.ok) { pushToast({ tone: 'error', message: t('rowMenu.quick.saveError') }); return }
+    setStockMap(prev => ({ ...prev, [product.id]: { ...sm, quantity, virtual_quantity: virtual } }))
+    setProducts(prev => prev.map(p => p.id === product.id ? { ...p, stock: quantity } : p))
+    pushToast({ tone: 'success', message: '✓ ' + t('rowMenu.quick.saved') })
+    setStockModal(null)
+  }
+
+  /** Gera uma campanha de Ads (rascunho) pro produto. Não publica nem gasta —
+   *  cria o draft no Ads Hub pra revisão/publicação na tela de campanhas. */
+  async function generateAdsCampaign(product: Product, platform: string, objective: string) {
+    const token = await getAuthToken()
+    if (!token) return
+    const res = await fetch(`${BACKEND}/ads/products/${product.id}/generate-campaign`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ platform, objective }),
+    })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({})) as { message?: string }
+      pushToast({ tone: 'error', message: body?.message ?? t('rowMenu.quick.adsError') })
+      return
+    }
+    pushToast({ tone: 'success', message: '✓ ' + t('rowMenu.quick.adsCreated') })
+    setAdsModal(null)
   }
 
   /** Pausa N produtos. Aceita ids explícito (DataTable bulk actions);
@@ -1881,6 +2139,7 @@ export default function ProdutosPage() {
                         onStatusChange={handleStatusChange}
                         onDelete={handleDelete}
                         onDuplicate={handleDuplicate}
+                        onModal={handleRowModal}
                         stockInfo={stockMap[p.id]}
                         covered={coverage[p.id]}
                         multiTargets={multiTargets}
@@ -1901,6 +2160,7 @@ export default function ProdutosPage() {
               onDelete={handleDelete}
               onStatusChange={handleStatusChange}
               onDuplicate={handleDuplicate}
+              onModal={handleRowModal}
             />
           ))}
         </div>
@@ -1934,6 +2194,33 @@ export default function ProdutosPage() {
         <MlImportModal
           onClose={() => setShowMlImport(false)}
           onImported={() => { load() }}
+        />
+      )}
+
+      {quickEdit && (
+        <QuickFieldModal
+          field={quickEdit.field}
+          currentValue={quickEdit.field === 'price'
+            ? quickEdit.product.price
+            : (productMeta[quickEdit.product.id]?.costPrice ?? null)}
+          onClose={() => setQuickEdit(null)}
+          onSave={(v) => saveQuickField(quickEdit.product, quickEdit.field, v)}
+        />
+      )}
+
+      {stockModal && stockMap[stockModal.id] && (
+        <StockEditModal
+          current={stockMap[stockModal.id]}
+          onClose={() => setStockModal(null)}
+          onSave={(q, v) => saveStock(stockModal, q, v)}
+        />
+      )}
+
+      {adsModal && (
+        <AdsCampaignModal
+          product={adsModal}
+          onClose={() => setAdsModal(null)}
+          onCreate={(platform, objective) => generateAdsCampaign(adsModal, platform, objective)}
         />
       )}
 

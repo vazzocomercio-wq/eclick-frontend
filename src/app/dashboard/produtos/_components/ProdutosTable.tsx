@@ -387,8 +387,8 @@ export function ProdutosTable({
       })
     }
     acts.push(
-      { key: 'ads',     label: t('table.row.addToAds'),      icon: <Megaphone size={12} />, onClick: () => todoToast(t('table.row.adsTodo')) },
-      { key: 'ai',      label: t('table.row.generateAi'),    icon: <Sparkles  size={12} />, onClick: () => todoToast(t('table.row.aiTodo')) },
+      { key: 'ads',     label: t('table.row.addToAds'),      icon: <Megaphone size={12} />, onClick: () => router.push('/dashboard/ads-campaigns/new') },
+      { key: 'ai',      label: t('table.row.generateAi'),    icon: <Sparkles  size={12} />, onClick: () => router.push(`/dashboard/produtos/${p.id}/ai`) },
       { key: 'dup',     label: t('table.row.duplicate'),     icon: <Copy size={12} />,    onClick: () => onDuplicate?.(p.id) ?? todoToast(t('table.row.duplicateTodo')) },
       { key: 'delete',  label: t('table.row.delete'),        icon: <Trash2 size={12} />, tone: 'danger',
         onClick: () => onDelete?.(p.id) ?? todoToast(t('table.row.deleteTodo')) },

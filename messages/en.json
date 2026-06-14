@@ -7198,7 +7198,37 @@
       "markRestock": "Mark for restock",
       "markRestockTodo": "Bridge → Purchasing module",
       "duplicate": "Duplicate (another marketplace)",
-      "delete": "Delete"
+      "delete": "Delete",
+      "quick": {
+        "save": "Save",
+        "cancel": "Cancel",
+        "saved": "Saved",
+        "saveError": "Failed to save",
+        "priceTitle": "Edit price",
+        "priceLabel": "New price (R$)",
+        "costTitle": "Edit cost",
+        "costLabel": "New cost (R$)",
+        "stockTitle": "Update stock",
+        "stockReal": "Real stock",
+        "stockVirtual": "Virtual stock",
+        "stockTotal": "Total: {total} units",
+        "stockNoRow": "Product has no stock record — opening the full editor.",
+        "adsTitle": "Add to Ads campaign",
+        "adsHint": "Creates a draft campaign — nothing is published or spent. You review and publish it on the Ads screen.",
+        "adsPlatform": "Platform",
+        "adsObjective": "Objective",
+        "adsGenerate": "Generate draft",
+        "adsCreated": "Campaign draft created",
+        "adsError": "Failed to generate campaign",
+        "obj": {
+          "conversions": "Conversions",
+          "traffic": "Traffic",
+          "catalog_sales": "Catalog sales",
+          "engagement": "Engagement",
+          "awareness": "Awareness",
+          "leads": "Leads"
+        }
+      }
     },
     "mlImport": {
       "sessionExpired": "Session expired.",

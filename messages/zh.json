@@ -7192,7 +7192,37 @@
       "markRestock": "标记补货",
       "markRestockTodo": "桥接 → 采购模块",
       "duplicate": "复制（其他市场）",
-      "delete": "删除"
+      "delete": "删除",
+      "quick": {
+        "save": "保存",
+        "cancel": "取消",
+        "saved": "已保存",
+        "saveError": "保存失败",
+        "priceTitle": "编辑价格",
+        "priceLabel": "新价格 (R$)",
+        "costTitle": "编辑成本",
+        "costLabel": "新成本 (R$)",
+        "stockTitle": "更新库存",
+        "stockReal": "实际库存",
+        "stockVirtual": "虚拟库存",
+        "stockTotal": "总计：{total} 件",
+        "stockNoRow": "产品没有库存记录 — 正在打开完整编辑器。",
+        "adsTitle": "添加到广告活动",
+        "adsHint": "创建草稿活动 — 不会发布也不会花费。您可在广告页面审核并发布。",
+        "adsPlatform": "平台",
+        "adsObjective": "目标",
+        "adsGenerate": "生成草稿",
+        "adsCreated": "已创建活动草稿",
+        "adsError": "生成活动失败",
+        "obj": {
+          "conversions": "转化",
+          "traffic": "流量",
+          "catalog_sales": "目录销售",
+          "engagement": "互动",
+          "awareness": "认知",
+          "leads": "潜在客户"
+        }
+      }
     },
     "mlImport": {
       "sessionExpired": "会话已过期。",

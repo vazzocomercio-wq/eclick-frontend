@@ -7367,7 +7367,37 @@
       "markRestock": "Marcar para repor",
       "markRestockTodo": "Bridge → módulo Compras",
       "duplicate": "Duplicar (outro marketplace)",
-      "delete": "Excluir"
+      "delete": "Excluir",
+      "quick": {
+        "save": "Salvar",
+        "cancel": "Cancelar",
+        "saved": "Salvo",
+        "saveError": "Falha ao salvar",
+        "priceTitle": "Editar preço",
+        "priceLabel": "Novo preço (R$)",
+        "costTitle": "Editar custo",
+        "costLabel": "Novo custo (R$)",
+        "stockTitle": "Atualizar estoque",
+        "stockReal": "Estoque real",
+        "stockVirtual": "Estoque virtual",
+        "stockTotal": "Total: {total} un.",
+        "stockNoRow": "Produto sem estoque cadastrado — abrindo o editor completo.",
+        "adsTitle": "Adicionar a campanha Ads",
+        "adsHint": "Cria um rascunho de campanha — nada é publicado nem gasto. Você revisa e publica na tela de Ads.",
+        "adsPlatform": "Plataforma",
+        "adsObjective": "Objetivo",
+        "adsGenerate": "Gerar rascunho",
+        "adsCreated": "Rascunho de campanha criado",
+        "adsError": "Falha ao gerar campanha",
+        "obj": {
+          "conversions": "Conversões",
+          "traffic": "Tráfego",
+          "catalog_sales": "Vendas do catálogo",
+          "engagement": "Engajamento",
+          "awareness": "Reconhecimento",
+          "leads": "Leads"
+        }
+      }
     },
     "mlImport": {
       "sessionExpired": "Sessão expirada.",
