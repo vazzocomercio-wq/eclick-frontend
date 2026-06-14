@@ -15,6 +15,9 @@ interface OrderGroup {
   foId: string
   reference: string
   channel: string
+  accountLabel: string | null
+  platform: string | null
+  company: string | null
   customer: string
   tasks: PickTask[]
 }
@@ -37,6 +40,9 @@ export default function PickingPage() {
           foId: t.fulfillment_order_id,
           reference: t.order?.reference ?? t.fulfillment_order_id.slice(0, 8),
           channel: t.order?.channel ?? '—',
+          accountLabel: t.order?.accountLabel ?? null,
+          platform: t.order?.platform ?? null,
+          company: t.order?.companyName ?? null,
           customer: t.order?.customer?.name ?? '',
           tasks: [],
         }
@@ -90,10 +96,10 @@ export default function PickingPage() {
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
                     <span className="font-bold">#{g.reference}</span>
-                    <ChannelPill channel={g.channel} />
+                    <ChannelPill platform={g.platform} channel={g.channel} label={g.accountLabel} />
                     {late && <span className="rounded-full px-2 py-0.5 text-[11px] font-bold" style={{ background: '#EF444422', color: '#f87171' }}>ATRASADO</span>}
                   </div>
-                  <div className="text-sm" style={{ color: '#a1a1aa' }}>{g.customer || 'Cliente'} · {total} {total === 1 ? 'item' : 'itens'}</div>
+                  <div className="text-sm" style={{ color: '#a1a1aa' }}>{g.customer || 'Cliente'} · {total} {total === 1 ? 'item' : 'itens'}{g.company ? ` · ${g.company}` : ''}</div>
                 </div>
                 <div className="text-sm font-semibold tabular-nums" style={{ color: done === total ? '#4ADE50' : '#71717a' }}>{done}/{total}</div>
                 <ChevronRight size={18} color="#52525b" />
@@ -161,8 +167,11 @@ function PickSession({ group, onExit, onChange }: { group: OrderGroup; onExit: (
       <header className="flex items-center gap-3 pt-1">
         <button onClick={onExit} className="rounded-xl p-2.5" style={{ background: '#18181b' }}><ArrowLeft size={20} /></button>
         <div>
-          <h1 className="text-lg font-bold">#{group.reference}</h1>
-          <p className="text-xs" style={{ color: '#71717a' }}>{group.customer || 'Cliente'}</p>
+          <div className="flex items-center gap-2">
+            <h1 className="text-lg font-bold">#{group.reference}</h1>
+            <ChannelPill platform={group.platform} channel={group.channel} label={group.accountLabel} />
+          </div>
+          <p className="text-xs" style={{ color: '#71717a' }}>{group.customer || 'Cliente'}{group.company ? ` · ${group.company}` : ''}</p>
         </div>
       </header>
 
@@ -250,9 +259,17 @@ function DamageSheet({ sku, onClose, onSubmit }: { sku: string; onClose: () => v
   )
 }
 
-function ChannelPill({ channel }: { channel: string }) {
-  const c = channel === 'mercadolivre' ? '#FFE600' : channel === 'loja' ? '#00E5FF' : channel === 'b2b' ? '#4ADE50' : '#a1a1aa'
-  return <span className="rounded-full px-2 py-0.5 text-[11px] font-semibold" style={{ background: `${c}1a`, color: c }}>{channel}</span>
+function ChannelPill({ platform, channel, label }: { platform?: string | null; channel?: string | null; label?: string | null }) {
+  const key = (platform ?? channel ?? '').toLowerCase()
+  const c = key.includes('mercado') ? '#FFE600'
+    : key === 'loja' || key === 'storefront' ? '#00E5FF'
+    : key === 'b2b' ? '#4ADE50'
+    : key.includes('shopee') ? '#EE4D2D'
+    : key.includes('tiktok') ? '#fafafa'
+    : '#a1a1aa'
+  // Mostra o apelido da conta (ex.: VAZZO_) quando houver — nunca só "mercadolivre".
+  const text = label || channel || platform || '—'
+  return <span className="rounded-full px-2 py-0.5 text-[11px] font-semibold" style={{ background: `${c}1a`, color: c }}>{text}</span>
 }
 function ErrBox({ msg }: { msg: string }) {
   return <div className="rounded-xl p-3 text-sm" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>{msg}</div>

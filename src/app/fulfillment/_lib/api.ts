@@ -82,7 +82,7 @@ export interface PickTask {
   status: string
   priority: number
   sla_deadline: string | null
-  order?: { reference?: string | null; channel?: string | null; customer?: { name?: string } } | null
+  order?: { reference?: string | null; channel?: string | null; customer?: { name?: string }; accountLabel?: string | null; platform?: string | null; companyName?: string | null } | null
 }
 
 export interface PackTask {
@@ -92,7 +92,7 @@ export interface PackTask {
   requires_photo: boolean
   photo_url: string | null
   scanned_order_at: string | null
-  order?: { reference?: string | null; channel?: string | null; customer?: { name?: string }; items_count?: number } | null
+  order?: { reference?: string | null; channel?: string | null; customer?: { name?: string }; items_count?: number; accountLabel?: string | null; platform?: string | null; companyName?: string | null } | null
   items?: Array<{ sku: string; title: string | null; qty: number }>
 }
 

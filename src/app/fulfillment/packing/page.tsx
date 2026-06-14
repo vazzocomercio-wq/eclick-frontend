@@ -54,10 +54,11 @@ export default function PackingPage() {
               <div className="flex-1">
                 <div className="flex items-center gap-2">
                   <span className="font-bold">#{t.order?.reference ?? t.fulfillment_order_id.slice(0, 8)}</span>
+                  <ChannelPill platform={t.order?.platform} channel={t.order?.channel} label={t.order?.accountLabel} />
                   {t.requires_photo && <span className="rounded-full px-2 py-0.5 text-[11px] font-semibold" style={{ background: '#00E5FF1a', color: '#00E5FF' }}>foto</span>}
                   {t.status === 'in_progress' && <span className="rounded-full px-2 py-0.5 text-[11px] font-semibold" style={{ background: '#4ADE501a', color: '#4ADE50' }}>em conferência</span>}
                 </div>
-                <div className="text-sm" style={{ color: '#a1a1aa' }}>{t.order?.customer?.name ?? 'Cliente'} · {t.items?.length ?? t.order?.items_count ?? 0} itens</div>
+                <div className="text-sm" style={{ color: '#a1a1aa' }}>{t.order?.customer?.name ?? 'Cliente'} · {t.items?.length ?? t.order?.items_count ?? 0} itens{t.order?.companyName ? ` · ${t.order.companyName}` : ''}</div>
               </div>
               <ChevronRight size={18} color="#52525b" />
             </button>
@@ -66,6 +67,19 @@ export default function PackingPage() {
       </ul>
     </div>
   )
+}
+
+function ChannelPill({ platform, channel, label }: { platform?: string | null; channel?: string | null; label?: string | null }) {
+  const key = (platform ?? channel ?? '').toLowerCase()
+  const c = key.includes('mercado') ? '#FFE600'
+    : key === 'loja' || key === 'storefront' ? '#00E5FF'
+    : key === 'b2b' ? '#4ADE50'
+    : key.includes('shopee') ? '#EE4D2D'
+    : key.includes('tiktok') ? '#fafafa'
+    : '#a1a1aa'
+  // Mostra o apelido da conta (ex.: VAZZO_) quando houver — nunca só "mercadolivre".
+  const text = label || channel || platform || '—'
+  return <span className="rounded-full px-2 py-0.5 text-[11px] font-semibold" style={{ background: `${c}1a`, color: c }}>{text}</span>
 }
 
 type Step = 'scan' | 'check' | 'done'
@@ -126,8 +140,11 @@ function PackSession({ task, onExit }: { task: PackTask; onExit: () => void }) {
       <header className="flex items-center gap-3 pt-1">
         <button onClick={onExit} className="rounded-xl p-2.5" style={{ background: '#18181b' }}><ArrowLeft size={20} /></button>
         <div>
-          <h1 className="text-lg font-bold">#{task.order?.reference ?? task.fulfillment_order_id.slice(0, 8)}</h1>
-          <p className="text-xs" style={{ color: '#71717a' }}>{task.order?.customer?.name ?? 'Cliente'}</p>
+          <div className="flex items-center gap-2">
+            <h1 className="text-lg font-bold">#{task.order?.reference ?? task.fulfillment_order_id.slice(0, 8)}</h1>
+            <ChannelPill platform={task.order?.platform} channel={task.order?.channel} label={task.order?.accountLabel} />
+          </div>
+          <p className="text-xs" style={{ color: '#71717a' }}>{task.order?.customer?.name ?? 'Cliente'}{task.order?.companyName ? ` · ${task.order.companyName}` : ''}</p>
         </div>
       </header>
 
