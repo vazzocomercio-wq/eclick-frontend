@@ -13,10 +13,13 @@ const CYAN = '#00E5FF'
 interface Bucket {
   bucket: string; orders: number; revenue: number; fees: number; observed_take_pct: number | null
 }
+interface CategoryRow {
+  category: string; orders: number; revenue: number; fees: number; observed_take_pct: number | null
+}
 interface Reconciliation {
   channel: string; period_key: string; revenue: number; fees: number
   observed_take_pct: number | null; configured_take_pct: number | null; diff_pct: number | null
-  flagged: boolean; by_bucket: Bucket[]; computed_at: string
+  flagged: boolean; by_bucket: Bucket[]; by_category?: CategoryRow[]; computed_at: string
 }
 
 const CHANNELS: Array<{ key: string; label: string }> = [
@@ -194,6 +197,38 @@ export default function ReconciliacaoPage() {
                 </tbody>
               </table>
             </div>
+
+            {/* quebra por categoria */}
+            {rec.by_category && rec.by_category.length > 0 && (
+              <div className="rounded-2xl overflow-hidden" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+                <div className="px-5 py-3" style={{ borderBottom: '1px solid #1e1e24' }}>
+                  <h2 className="text-sm font-semibold">Take real por categoria de produto</h2>
+                  <p className="text-xs text-zinc-600 mt-0.5">Take medido por categoria (top 12 por receita) — use pra cadastrar regras por categoria onde o desvio for grande.</p>
+                </div>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-xs text-zinc-500">
+                      <th className="px-5 py-2 font-medium">Categoria</th>
+                      <th className="px-5 py-2 font-medium text-right">Pedidos</th>
+                      <th className="px-5 py-2 font-medium text-right">Receita</th>
+                      <th className="px-5 py-2 font-medium text-right">Taxas</th>
+                      <th className="px-5 py-2 font-medium text-right">Take real</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rec.by_category.map(c => (
+                      <tr key={c.category} style={{ borderTop: '1px solid #18181b' }}>
+                        <td className="px-5 py-2.5 text-zinc-300">{c.category}</td>
+                        <td className="px-5 py-2.5 text-right text-zinc-400 tabular-nums">{c.orders}</td>
+                        <td className="px-5 py-2.5 text-right text-zinc-400 tabular-nums">{brl(c.revenue)}</td>
+                        <td className="px-5 py-2.5 text-right text-zinc-400 tabular-nums">{brl(c.fees)}</td>
+                        <td className="px-5 py-2.5 text-right font-semibold tabular-nums" style={{ color: CYAN }}>{pct(c.observed_take_pct)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
 
             <p className="text-xs text-zinc-600">
               Mês {rec.period_key} · calculado em {new Date(rec.computed_at).toLocaleString('pt-BR')} ·
