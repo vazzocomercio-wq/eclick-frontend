@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import {
   ArrowLeft, RefreshCw, Plus, Trash2, TrendingDown, TrendingUp, Target,
-  Wallet, Megaphone, Building2, Coins, AlertTriangle, Truck,
+  Wallet, Megaphone, Building2, Coins, AlertTriangle, Truck, Scale,
 } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
@@ -163,6 +163,10 @@ export default function CentralResultadoPage() {
           <div className="flex items-center gap-2">
             <input type="month" value={month} onChange={(e) => setMonth(e.target.value)}
               className="rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm text-zinc-200 [color-scheme:dark]" />
+            <Link href="/dashboard/financeiro/reconciliacao"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm text-zinc-300 hover:bg-zinc-800">
+              <Scale className="h-3.5 w-3.5" /> Reconciliação
+            </Link>
             <button onClick={() => void load()} disabled={loading}
               className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm text-zinc-300 hover:bg-zinc-800 disabled:opacity-40">
               <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} /> Atualizar
