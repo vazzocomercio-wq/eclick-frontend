@@ -3,10 +3,11 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
+import { useMlAccount } from '@/components/ml/AccountSelector'
 import {
   RefreshCw, CheckCircle2, ExternalLink,
   Clock, ShieldAlert, X, MessageSquare, Send, AlertCircle,
-  Sparkles, Scale, ShieldCheck, Camera, Eye,
+  Sparkles, Scale, ShieldCheck, Camera, Eye, Store,
 } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
@@ -15,11 +16,13 @@ type Translator = ReturnType<typeof useTranslations<'atendimento'>>
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type ClaimPlayer = { role: string; user_id: number; available_actions?: string[] }
+type ClaimAction = { action: string; mandatory?: boolean; due_date?: string | null }
+type ClaimPlayer = { role: string; user_id: number; available_actions?: ClaimAction[] }
 
 type Claim = {
   id:             string | number
   resource_id?:   string | number
+  seller_id?:     number          // conta ML dona (carimbada pelo backend no fan-out)
   reason?:        { id?: string; label?: string } | null
   reason_id?:     string | null
   reason_name?:   string | null
@@ -31,6 +34,27 @@ type Claim = {
   players?:       ClaimPlayer[]
   resolution?:    { reason?: string } | null
 }
+
+// Resolução ML — ações disponíveis + recomendação da IA e-Click
+type MlResolutionAction = { action: string; label: string; mandatory: boolean; due_date: string | null }
+type MlRecommendation = { recommended_action: string; rationale: string; confidence: number; watch_out: string } | null
+type MlResolution = { seller_id: number; actions: MlResolutionAction[]; recommendation: MlRecommendation } | null
+
+// consequência mostrada na confirmação, por código de ação do ML
+const ML_ACTION_CONFIRM: Record<string, string> = {
+  refund:                     'Isso REEMBOLSA o comprador (100% do valor) e encerra a reclamação a favor dele. Não dá pra desfazer.',
+  open_dispute:               'Isso ABRE uma disputa: o Mercado Livre vai analisar as evidências e decidir o caso. Use quando você tem provas a seu favor (rastreio, fotos).',
+  allow_return:               'Isso AUTORIZA a devolução do produto pelo comprador.',
+  return_review_ok:           'Isso confirma que o produto devolvido chegou OK e LIBERA o reembolso ao comprador.',
+  return_review_fail:         'Isso RECUSA o produto devolvido (chegou errado/danificado). O Mercado Livre vai mediar o caso.',
+  return_review_unified_ok:   'Isso aprova a devolução (chegou OK) e libera o reembolso.',
+  return_review_unified_fail: 'Isso recusa a devolução (chegou errado/danificado). O Mercado Livre vai mediar.',
+}
+const mlActionConfirm = (a: string, label: string) =>
+  ML_ACTION_CONFIRM[a] ?? `Confirmar a ação "${label}" no Mercado Livre? Essa decisão é enviada direto pra plataforma.`
+
+// ações que mexem em dinheiro / abrem litígio → confirmação em vermelho
+const ML_ACTION_DANGER = new Set(['refund', 'open_dispute', 'return_review_ok', 'return_review_unified_ok'])
 
 type ClaimDetail = {
   due_date?:           string | null
@@ -241,9 +265,24 @@ function dueDateColor(due?: string | null): string {
   return '#a1a1aa'
 }
 
+// conta ML dona do claim (carimbada pelo backend; fallback no player respondent)
+const claimSellerId = (c: Claim): number | null =>
+  c.seller_id ?? (c.players ?? []).find(p => p.role === 'respondent')?.user_id ?? null
+
+// chip do nome da conta/loja — identidade visível em card e drawer
+function AccountChip({ name }: { name?: string | null }) {
+  if (!name) return null
+  return (
+    <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold flex items-center gap-1"
+      style={{ background: 'rgba(0,229,255,0.1)', color: '#00E5FF' }}>
+      <Store size={9} /> {name}
+    </span>
+  )
+}
+
 // ── Claim card ────────────────────────────────────────────────────────────────
 
-function ClaimCard({ claim, onOpen }: { claim: Claim; onOpen: () => void }) {
+function ClaimCard({ claim, accountName, onOpen }: { claim: Claim; accountName?: string | null; onOpen: () => void }) {
   const t = useTranslations('atendimento')
   const reasonLbl = getReasonLabel(t, claim)
   const stCfg     = getStatusCfg(t, claim.status)
@@ -256,12 +295,13 @@ function ClaimCard({ claim, onOpen }: { claim: Claim; onOpen: () => void }) {
       className="text-left rounded-2xl p-4 space-y-3 transition-all hover:border-zinc-700"
       style={{ background: '#111114', border: '1px solid #1e1e24' }}>
       <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <span className="text-[10px] font-mono text-zinc-500">#{claim.id}</span>
           <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
             style={{ background: stCfg.bg, color: stCfg.color }}>
             {stCfg.label}
           </span>
+          <AccountChip name={accountName} />
         </div>
         <span className="text-[10px] text-zinc-600">{timeAgo(claim.last_updated ?? claim.date_created)}</span>
       </div>
@@ -284,9 +324,173 @@ function ClaimCard({ claim, onOpen }: { claim: Claim; onOpen: () => void }) {
   )
 }
 
+// ── Resolução ML (recomendação IA + executar ação real no ML) ───────────────
+
+function MlResolutionSection({ claimId, sellerId, onActed }: { claimId: string | number; sellerId?: number; onActed: () => void }) {
+  const t = useTranslations('atendimento')
+  const [res,        setRes]        = useState<MlResolution>(null)
+  const [loading,    setLoading]    = useState(true)
+  const [confirming, setConfirming] = useState<MlResolutionAction | null>(null)
+  const [working,    setWorking]    = useState(false)
+  const [error,      setError]      = useState('')
+  const [done,       setDone]       = useState(false)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const sb = createClient()
+      const { data: { session } } = await sb.auth.getSession()
+      const qs = sellerId != null ? `?seller_id=${sellerId}` : ''
+      const r = await fetch(`${BACKEND}/ml/claims/${claimId}/resolution${qs}`, {
+        headers: { Authorization: `Bearer ${session?.access_token ?? ''}` },
+      })
+      if (r.ok) setRes(await r.json() as MlResolution)
+    } catch { /* silent */ }
+    setLoading(false)
+  }, [claimId, sellerId])
+
+  useEffect(() => { load() }, [load])
+
+  const execute = async (act: MlResolutionAction) => {
+    setWorking(true)
+    setError('')
+    try {
+      const sb = createClient()
+      const { data: { session } } = await sb.auth.getSession()
+      const r = await fetch(`${BACKEND}/ml/claims/${claimId}/action`, {
+        method:  'POST',
+        headers: { Authorization: `Bearer ${session?.access_token ?? ''}`, 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ action: act.action, seller_id: res?.seller_id ?? sellerId }),
+      })
+      if (!r.ok) {
+        const txt = await r.text()
+        let msg = txt.slice(0, 300)
+        try { msg = JSON.parse(txt)?.message ?? msg } catch { /* texto cru */ }
+        throw new Error(msg || `HTTP ${r.status}`)
+      }
+      setDone(true)
+      setConfirming(null)
+      setTimeout(onActed, 1400)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setWorking(false)
+    }
+  }
+
+  // só ações de DECISÃO (mensagens vão pela caixa de resposta abaixo)
+  const decisionActions = (res?.actions ?? []).filter(a => !a.action.startsWith('send_message'))
+  const rec = res?.recommendation ?? null
+
+  if (loading) {
+    return (
+      <div className="rounded-xl p-4" style={{ background: 'rgba(0,229,255,0.03)', border: '1px solid rgba(0,229,255,0.15)' }}>
+        <p className="text-xs text-zinc-500 flex items-center gap-1.5">
+          <Sparkles size={13} className="text-[#00E5FF] animate-pulse" /> {t('reclamacoes.mlResolution.loading')}
+        </p>
+      </div>
+    )
+  }
+
+  if (decisionActions.length === 0 && !rec) {
+    return (
+      <div className="rounded-xl p-4" style={{ background: '#0e0e11', border: '1px solid #1e1e24' }}>
+        <p className="text-xs text-zinc-500">{t('reclamacoes.mlResolution.noActions')}</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="rounded-xl p-4 space-y-3" style={{ background: 'rgba(0,229,255,0.03)', border: '1px solid rgba(0,229,255,0.15)' }}>
+      <div className="flex items-center gap-2">
+        <Sparkles size={13} className="text-[#00E5FF]" />
+        <p className="text-xs font-semibold text-zinc-200">{t('reclamacoes.mlResolution.title')}</p>
+        {rec && (
+          <span className="text-[10px] text-zinc-500">
+            {t('reclamacoes.playbook.confidence', { pct: Math.round(rec.confidence * 100) })}
+          </span>
+        )}
+      </div>
+
+      {rec && (
+        <div className="space-y-1.5">
+          <p className="text-xs text-zinc-300 leading-relaxed">{rec.rationale}</p>
+          {rec.watch_out && (
+            <p className="text-[11px] text-amber-300/90 flex items-start gap-1">
+              <AlertCircle size={11} className="mt-0.5 flex-shrink-0" /> {rec.watch_out}
+            </p>
+          )}
+        </div>
+      )}
+
+      {error && (
+        <div className="rounded-lg p-3 text-xs"
+          style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>
+          {error}
+        </div>
+      )}
+      {done && (
+        <p className="text-xs text-green-400 flex items-center gap-1">
+          <CheckCircle2 size={12} /> {t('reclamacoes.mlResolution.done')}
+        </p>
+      )}
+
+      {!done && (confirming ? (() => {
+        const danger = ML_ACTION_DANGER.has(confirming.action)
+        const accent = danger ? '#f87171' : '#00E5FF'
+        return (
+          <div className="rounded-lg p-3 space-y-2"
+            style={{ background: danger ? 'rgba(239,68,68,0.05)' : 'rgba(0,229,255,0.05)', border: `1px solid ${accent}33` }}>
+            <p className="text-xs font-semibold text-zinc-200">{t('reclamacoes.mlResolution.confirmTitle')}</p>
+            <p className="text-xs text-zinc-400 leading-relaxed">{mlActionConfirm(confirming.action, confirming.label)}</p>
+            <div className="flex items-center gap-2">
+              <button onClick={() => execute(confirming)} disabled={working}
+                className="px-3 py-1.5 rounded-lg text-[11px] font-bold disabled:opacity-50"
+                style={{ background: accent, color: '#000' }}>
+                {working ? t('reclamacoes.mlResolution.working') : t('reclamacoes.mlResolution.confirm')}
+              </button>
+              <button onClick={() => setConfirming(null)} disabled={working}
+                className="px-3 py-1.5 rounded-lg text-[11px] font-semibold border border-zinc-700 text-zinc-400">
+                {t('reclamacoes.mlResolution.cancel')}
+              </button>
+            </div>
+          </div>
+        )
+      })() : (
+        <div className="flex flex-col gap-1.5 pt-1">
+          {decisionActions.map(a => {
+            const isRec = rec?.recommended_action === a.action
+            return (
+              <button key={a.action} onClick={() => { setConfirming(a); setError('') }}
+                className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-xs font-semibold transition-all text-left"
+                style={{
+                  background: isRec ? 'rgba(74,222,128,0.10)' : 'rgba(255,255,255,0.03)',
+                  border:     `1px solid ${isRec ? 'rgba(74,222,128,0.35)' : '#1e1e24'}`,
+                  color:      isRec ? '#4ade80' : '#d4d4d8',
+                }}>
+                <span className="flex items-center gap-2">
+                  {ML_ACTION_DANGER.has(a.action) ? <Scale size={13} /> : <CheckCircle2 size={13} />}
+                  {a.label}
+                </span>
+                {isRec && (
+                  <span className="text-[9px] px-2 py-0.5 rounded-full font-bold flex items-center gap-1 flex-shrink-0"
+                    style={{ background: 'rgba(74,222,128,0.15)', color: '#4ade80' }}>
+                    <Sparkles size={9} /> {t('reclamacoes.mlResolution.bestOption')}
+                  </span>
+                )}
+              </button>
+            )
+          })}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // ── Drawer ────────────────────────────────────────────────────────────────────
 
-function ClaimDrawer({ claim, onClose }: { claim: Claim; onClose: () => void }) {
+function ClaimDrawer({ claim, accountName, onClose, onActed }: { claim: Claim; accountName?: string | null; onClose: () => void; onActed?: () => void }) {
   const t = useTranslations('atendimento')
   const [detail,   setDetail]   = useState<ClaimDetail>(null)
   const [messages, setMessages] = useState<ClaimMessage[]>([])
@@ -296,6 +500,10 @@ function ClaimDrawer({ claim, onClose }: { claim: Claim; onClose: () => void }) 
   const [error,    setError]    = useState('')
   const [sent,     setSent]     = useState(false)
 
+  // conta ML dona do claim — direciona detalhe/mensagens/ações pra conta certa (multi-conta)
+  const sellerId = claim.seller_id ?? (claim.players ?? []).find(p => p.role === 'respondent')?.user_id
+  const sq = sellerId != null ? `?seller_id=${sellerId}` : ''
+
   const load = useCallback(async () => {
     setLoading(true)
     const sb = createClient()
@@ -304,8 +512,8 @@ function ClaimDrawer({ claim, onClose }: { claim: Claim; onClose: () => void }) 
     const h = { Authorization: `Bearer ${session.access_token}` }
     try {
       const [dRes, mRes] = await Promise.allSettled([
-        fetch(`${BACKEND}/ml/claims/${claim.id}/detail`, { headers: h }),
-        fetch(`${BACKEND}/ml/claims/${claim.id}/messages`, { headers: h }),
+        fetch(`${BACKEND}/ml/claims/${claim.id}/detail${sq}`, { headers: h }),
+        fetch(`${BACKEND}/ml/claims/${claim.id}/messages${sq}`, { headers: h }),
       ])
       if (dRes.status === 'fulfilled' && dRes.value.ok) {
         const d = await dRes.value.json()
@@ -317,7 +525,7 @@ function ClaimDrawer({ claim, onClose }: { claim: Claim; onClose: () => void }) 
       }
     } catch { /* silent */ }
     setLoading(false)
-  }, [claim.id])
+  }, [claim.id, sq])
 
   useEffect(() => { load() }, [load])
 
@@ -335,7 +543,7 @@ function ClaimDrawer({ claim, onClose }: { claim: Claim; onClose: () => void }) 
       const res = await fetch(`${BACKEND}/ml/claims/${claim.id}/messages`, {
         method: 'POST',
         headers: h,
-        body: JSON.stringify({ receiver_role: 'complainant', message: reply.trim() }),
+        body: JSON.stringify({ receiver_role: 'complainant', message: reply.trim(), seller_id: sellerId }),
       })
       if (!res.ok) {
         const t = await res.text()
@@ -379,6 +587,7 @@ function ClaimDrawer({ claim, onClose }: { claim: Claim; onClose: () => void }) 
               </span>
               {typeLbl && <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-900 text-zinc-400">{typeLbl}</span>}
               {stageLbl && <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-900 text-zinc-400">{stageLbl}</span>}
+              <AccountChip name={accountName} />
             </div>
             <p className="text-base font-semibold text-white">{reasonLbl}</p>
             <p className="text-xs text-zinc-500 mt-1">
@@ -435,6 +644,11 @@ function ClaimDrawer({ claim, onClose }: { claim: Claim; onClose: () => void }) 
                 </div>
               </div>
             </div>
+          )}
+
+          {/* Resolução IA + ações reais no ML (só reclamações abertas) */}
+          {!loading && (claim.status === 'opened' || !claim.status) && (
+            <MlResolutionSection claimId={claim.id} sellerId={sellerId} onActed={onActed ?? load} />
           )}
 
           {/* Messages thread */}
@@ -979,15 +1193,24 @@ function ShopeeReturnDrawer({ ret, shopName, onClose, onActed }: { ret: ShopeeRe
 
 export default function ReclamacoesPage() {
   const t = useTranslations('atendimento')
+  const { connections } = useMlAccount()
   const [channel,  setChannel]  = useState<ChannelKey>('ml')
   const [claims,   setClaims]   = useState<Claim[]>([])
   const [returns,  setReturns]  = useState<ShopeeReturn[]>([])
   const [shops,    setShops]    = useState<Array<{ shop_id: string; nickname: string }>>([])
   const [loading,  setLoading]  = useState(true)
   const [filter,   setFilter]   = useState<FilterKey>('opened')
+  const [accountFilter, setAccountFilter] = useState<string>('all')  // 'all' | seller_id | shop_id (string)
   const [selected, setSelected] = useState<Claim | null>(null)
   const [selectedReturn, setSelectedReturn] = useState<ShopeeReturn | null>(null)
   const [analyzing, setAnalyzing] = useState(false)
+
+  // troca de canal zera o filtro de conta (contas de ML ≠ lojas Shopee)
+  useEffect(() => { setAccountFilter('all') }, [channel])
+
+  // nome da conta ML (mesma identidade do resto do sistema — via /ml/connections)
+  const mlAccountName = useCallback((id?: number | null) =>
+    id == null ? null : (connections.find(c => c.seller_id === id)?.nickname ?? `Conta ${id}`), [connections])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -1033,13 +1256,30 @@ export default function ReclamacoesPage() {
   const shopName = useCallback((shopId: string | null) =>
     shops.find(s => s.shop_id === shopId)?.nickname ?? 'Shopee', [shops])
 
-  const filtered = claims.filter(c => {
+  // opções do filtro de conta do canal atual (só contas que têm casos)
+  const accountOptions: Array<{ id: string; name: string }> = (() => {
+    if (channel === 'ml') {
+      const ids = Array.from(new Set(claims.map(c => claimSellerId(c)).filter((x): x is number => x != null)))
+      return ids.map(id => ({ id: String(id), name: mlAccountName(id) ?? `Conta ${id}` }))
+    }
+    const ids = Array.from(new Set(returns.map(r => r.shop_id).filter((x): x is string => x != null)))
+    return ids.map(id => ({ id, name: shopName(id) }))
+  })()
+
+  // por conta selecionada
+  const claimByAccount = (c: Claim) => accountFilter === 'all' || String(claimSellerId(c)) === accountFilter
+  const returnByAccount = (r: ShopeeReturn) => accountFilter === 'all' || String(r.shop_id) === accountFilter
+
+  const accountClaims  = claims.filter(claimByAccount)
+  const accountReturns = returns.filter(returnByAccount)
+
+  const filtered = accountClaims.filter(c => {
     if (filter === 'all')    return true
     if (filter === 'opened') return (c.status ?? 'opened') === 'opened'
     return (c.status ?? '') !== 'opened'
   })
 
-  const filteredReturns = returns.filter(r => {
+  const filteredReturns = accountReturns.filter(r => {
     const isOpen = SHOPEE_OPEN_STATUSES.includes(r.status ?? '')
     if (filter === 'all')    return true
     if (filter === 'opened') return isOpen
@@ -1047,9 +1287,9 @@ export default function ReclamacoesPage() {
   })
 
   const openCount   = channel === 'ml'
-    ? claims.filter(c => (c.status ?? 'opened') === 'opened').length
-    : returns.filter(r => SHOPEE_OPEN_STATUSES.includes(r.status ?? '')).length
-  const totalCount  = channel === 'ml' ? claims.length : returns.length
+    ? accountClaims.filter(c => (c.status ?? 'opened') === 'opened').length
+    : accountReturns.filter(r => SHOPEE_OPEN_STATUSES.includes(r.status ?? '')).length
+  const totalCount  = channel === 'ml' ? accountClaims.length : accountReturns.length
   const closedCount = totalCount - openCount
 
   return (
@@ -1130,6 +1370,26 @@ export default function ReclamacoesPage() {
         ))}
       </div>
 
+      {/* Filtro por conta/loja — só quando há mais de uma */}
+      {accountOptions.length > 1 && (
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="text-[10px] uppercase tracking-widest text-zinc-600 mr-1 flex items-center gap-1">
+            <Store size={11} /> {t('reclamacoes.account')}:
+          </span>
+          {[{ id: 'all', name: t('reclamacoes.allAccounts') }, ...accountOptions].map(opt => (
+            <button key={opt.id} onClick={() => setAccountFilter(opt.id)}
+              className="px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all"
+              style={{
+                background: accountFilter === opt.id ? 'rgba(0,229,255,0.1)' : 'transparent',
+                color:      accountFilter === opt.id ? '#00E5FF' : '#52525b',
+                border:     `1px solid ${accountFilter === opt.id ? 'rgba(0,229,255,0.25)' : '#1e1e24'}`,
+              }}>
+              {opt.name}
+            </button>
+          ))}
+        </div>
+      )}
+
       {loading ? (
         <div className="flex items-center justify-center py-20 text-zinc-600 text-xs">{t('reclamacoes.loading')}</div>
       ) : channel === 'ml' ? (
@@ -1142,7 +1402,8 @@ export default function ReclamacoesPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-            {filtered.map(c => <ClaimCard key={c.id} claim={c} onOpen={() => setSelected(c)} />)}
+            {filtered.map(c => <ClaimCard key={c.id} claim={c}
+              accountName={mlAccountName(claimSellerId(c))} onOpen={() => setSelected(c)} />)}
           </div>
         )
       ) : (
@@ -1181,7 +1442,9 @@ export default function ReclamacoesPage() {
         </div>
       )}
 
-      {selected && <ClaimDrawer claim={selected} onClose={() => setSelected(null)} />}
+      {selected && <ClaimDrawer claim={selected} accountName={mlAccountName(claimSellerId(selected))}
+        onClose={() => setSelected(null)}
+        onActed={() => { setSelected(null); load() }} />}
       {selectedReturn && (
         <ShopeeReturnDrawer ret={selectedReturn} shopName={shopName(selectedReturn.shop_id)}
           onClose={() => setSelectedReturn(null)}

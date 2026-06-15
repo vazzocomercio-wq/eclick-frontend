@@ -8497,6 +8497,8 @@
       "emptyOpened": "No open claims",
       "buyer": "Buyer #{id}",
       "viewDetails": "view details",
+      "account": "Account",
+      "allAccounts": "All accounts",
       "reasonFallback": "Claim",
       "attachment": "attachment",
       "openedUpdated": "Opened on {opened} · Updated {updated}",
@@ -8645,6 +8647,17 @@
         "disputeSubmit": "Open dispute on Shopee",
         "loadingDossier": "Loading Shopee dossier…",
         "dossierFail": "Could not load the dossier — try again."
+      },
+      "mlResolution": {
+        "title": "e-Click recommendation",
+        "loading": "Analyzing the best resolution…",
+        "noActions": "No resolution action available right now (ML is waiting on the buyer or the case is already resolved).",
+        "bestOption": "BEST OPTION",
+        "done": "Done! Decision sent to Mercado Livre.",
+        "confirmTitle": "Confirm resolution on Mercado Livre",
+        "confirm": "Yes, send to ML",
+        "cancel": "Cancel",
+        "working": "Sending…"
       }
     },
     "avaliacoes": {

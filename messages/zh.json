@@ -8491,6 +8491,8 @@
       "emptyOpened": "无未结投诉",
       "buyer": "买家 #{id}",
       "viewDetails": "查看详情",
+      "account": "账户",
+      "allAccounts": "所有账户",
       "reasonFallback": "投诉",
       "attachment": "附件",
       "openedUpdated": "开启于 {opened} · 更新于 {updated}",
@@ -8639,6 +8641,17 @@
         "disputeSubmit": "在 Shopee 发起争议",
         "loadingDossier": "正在加载 Shopee 档案…",
         "dossierFail": "无法加载档案 — 请重试。"
+      },
+      "mlResolution": {
+        "title": "e-Click 建议",
+        "loading": "正在分析最佳处理方案…",
+        "noActions": "目前没有可用的处理操作（美客多正在等待买家，或该案件已解决）。",
+        "bestOption": "最佳选择",
+        "done": "完成！决定已发送至美客多。",
+        "confirmTitle": "在美客多确认处理方案",
+        "confirm": "是的，发送至 ML",
+        "cancel": "取消",
+        "working": "正在发送…"
       }
     },
     "avaliacoes": {

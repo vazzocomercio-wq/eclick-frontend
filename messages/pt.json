@@ -8666,6 +8666,8 @@
       "emptyOpened": "Nenhuma reclamação aberta",
       "buyer": "Comprador #{id}",
       "viewDetails": "ver detalhes",
+      "account": "Conta",
+      "allAccounts": "Todas as contas",
       "reasonFallback": "Reclamação",
       "attachment": "anexo",
       "openedUpdated": "Aberta em {opened} · Atualizada {updated}",
@@ -8814,6 +8816,17 @@
         "disputeSubmit": "Abrir disputa na Shopee",
         "loadingDossier": "Carregando dossiê da Shopee…",
         "dossierFail": "Não consegui carregar o dossiê — tente de novo."
+      },
+      "mlResolution": {
+        "title": "Recomendação e-Click",
+        "loading": "Analisando a melhor resolução…",
+        "noActions": "Nenhuma ação de resolução disponível agora (o ML está aguardando o comprador ou o caso já foi resolvido).",
+        "bestOption": "MELHOR OPÇÃO",
+        "done": "Feito! Decisão enviada ao Mercado Livre.",
+        "confirmTitle": "Confirmar resolução no Mercado Livre",
+        "confirm": "Sim, enviar ao ML",
+        "cancel": "Cancelar",
+        "working": "Enviando…"
       }
     },
     "avaliacoes": {
