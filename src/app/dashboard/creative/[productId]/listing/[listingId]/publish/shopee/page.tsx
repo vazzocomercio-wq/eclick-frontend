@@ -14,7 +14,24 @@ import type { MlPublishContext } from '@/components/creative/types'
  *  obrigatórios automaticamente (não precisa escolher categoria aqui). NÃO
  *  publica sozinho — só na confirmação do usuário. ⚠️ A publicação real depende
  *  do escopo de produto da Shopee (get_attributes/add_item) estar liberado no
- *  Open Platform Console + re-OAuth; até lá o backend devolve um 403 acionável. */
+ *  Open Platform Console + re-OAuth; até lá o backend devolve um 403 acionável.
+ *
+ *  Multi-loja: o usuário pode marcar VÁRIAS lojas e publicar nas duas de uma vez
+ *  (uma chamada por loja). Cada loja tem status próprio — uma pode publicar e a
+ *  outra falhar (ex.: categoria que exige atributo que só sai numa das contas). */
+
+// estado da publicação POR loja (multi-conta)
+type ShopPub = {
+  status: 'publishing' | 'done' | 'blocked' | 'error'
+  item_id?: number
+  images?: number
+  virtual_stock?: number | null
+  stock_paused?: boolean
+  attributes_count?: number
+  blockers?: string[]
+  error?: string
+}
+
 export default function ShopeePublishPage() {
   const params = useParams<{ productId: string; listingId: string }>()
   const { productId, listingId } = params
@@ -24,12 +41,11 @@ export default function ShopeePublishPage() {
   const [error, setError] = useState<string | null>(null)
 
   const [publishing, setPublishing] = useState(false)
-  const [result, setResult] = useState<{ item_id?: number; images?: number; virtual_stock?: number; stock_paused?: boolean; attributes_count?: number } | null>(null)
-  const [blockers, setBlockers] = useState<string[] | null>(null)
-  const [publishError, setPublishError] = useState<string | null>(null)
-  // multi-loja: lojas Shopee conectadas; com 1 só, seleciona sozinho.
+  // multi-loja: lojas Shopee conectadas + seleção (marca TODAS por padrão, pra
+  // publicar nas duas de uma vez) + resultado por loja.
   const [shops, setShops] = useState<Array<{ shop_id: number; nickname: string | null }>>([])
-  const [shopId, setShopId] = useState<number | null>(null)
+  const [selected, setSelected] = useState<Set<number>>(new Set())
+  const [pub, setPub] = useState<Record<number, ShopPub>>({})
   // nº de registro p/ campos numéricos obrigatórios da categoria (ex.: Inmetro)
   const [regNumber, setRegNumber] = useState('')
   // "não se aplica / não tenho" (espelho do "não se aplica" do ML)
@@ -46,7 +62,8 @@ export default function ShopeePublishPage() {
     CreativeApi.shopeeShops()
       .then((list) => {
         setShops(list)
-        if (list.length === 1) setShopId(list[0].shop_id)
+        // por padrão marca TODAS as lojas conectadas (intenção = publicar em todas)
+        setSelected(new Set(list.map((s) => s.shop_id)))
       })
       .catch(() => setShops([]))
   }, [])
@@ -80,41 +97,62 @@ export default function ShopeePublishPage() {
     }
   }, [ctx])
 
+  const toggleShop = (id: number) => setSelected((prev) => {
+    const next = new Set(prev)
+    if (next.has(id)) next.delete(id); else next.add(id)
+    return next
+  })
+
+  // lojas marcadas que ainda NÃO foram publicadas com sucesso (pra não duplicar
+  // anúncio se o usuário clicar de novo após um erro parcial).
+  const pendingTargets = useMemo(
+    () => shops.filter((s) => selected.has(s.shop_id) && pub[s.shop_id]?.status !== 'done'),
+    [shops, selected, pub],
+  )
+
   const publishingRef = useRef(false)
   const publish = async () => {
-    if (!data || data.price == null || shopId == null) return
+    if (!data || data.price == null || pendingTargets.length === 0) return
     // Trava SÍNCRONA contra duplo-clique: o `disabled` do botão só vale após o
     // re-render, deixando uma fresta onde 2 cliques rápidos disparavam 2
     // publicações (= 2 anúncios reais na Shopee). A ref bloqueia na hora.
     if (publishingRef.current) return
     publishingRef.current = true
-    setPublishing(true); setPublishError(null); setBlockers(null); setResult(null)
-    try {
-      const r = await CreativeApi.shopeePublish({
-        shop_id: shopId,
-        title: data.title,
-        description: data.description,
-        price: data.price,
-        image_urls: data.images,
-        image_count: data.images.length,
-        brand: data.brand ?? undefined,
-        ml_attributes: data.ml_attributes ?? undefined,
-        bullets: data.bullets ?? undefined,
-        faq: data.faq ?? undefined,
-        registration_number: regNotApplicable ? undefined : (regNumber.trim() || undefined),
-        registration_not_applicable: regNotApplicable || undefined,
-        catalog_product_id: data.catalog_product_id ?? undefined,
-        listing_id: listingId,
-        creative_product_id: data.creative_product_id ?? undefined,
-      })
-      if (!r.ok) setBlockers(r.blockers ?? ['Anúncio não passou no gate de relevância.'])
-      else setResult({ item_id: r.item_id, images: r.images, virtual_stock: r.virtual_stock, stock_paused: r.stock_paused, attributes_count: r.attributes_count })
-    } catch (e) {
-      setPublishError(e instanceof Error ? e.message : 'Falha ao publicar')
-    } finally {
-      setPublishing(false)
-      publishingRef.current = false
+    setPublishing(true)
+    // publica em CADA loja marcada (sequencial pra feedback claro por loja).
+    // pula as que já publicaram (status 'done') — evita anúncio duplicado.
+    const targets = shops.filter((s) => selected.has(s.shop_id) && pub[s.shop_id]?.status !== 'done')
+    for (const s of targets) {
+      setPub((p) => ({ ...p, [s.shop_id]: { status: 'publishing' } }))
+      try {
+        const r = await CreativeApi.shopeePublish({
+          shop_id: s.shop_id,
+          title: data.title,
+          description: data.description,
+          price: data.price,
+          image_urls: data.images,
+          image_count: data.images.length,
+          brand: data.brand ?? undefined,
+          ml_attributes: data.ml_attributes ?? undefined,
+          bullets: data.bullets ?? undefined,
+          faq: data.faq ?? undefined,
+          registration_number: regNotApplicable ? undefined : (regNumber.trim() || undefined),
+          registration_not_applicable: regNotApplicable || undefined,
+          catalog_product_id: data.catalog_product_id ?? undefined,
+          listing_id: listingId,
+          creative_product_id: data.creative_product_id ?? undefined,
+        })
+        if (!r.ok) {
+          setPub((p) => ({ ...p, [s.shop_id]: { status: 'blocked', blockers: r.blockers ?? ['Anúncio não passou no gate de relevância.'] } }))
+        } else {
+          setPub((p) => ({ ...p, [s.shop_id]: { status: 'done', item_id: r.item_id, images: r.images, virtual_stock: r.virtual_stock, stock_paused: r.stock_paused, attributes_count: r.attributes_count } }))
+        }
+      } catch (e) {
+        setPub((p) => ({ ...p, [s.shop_id]: { status: 'error', error: e instanceof Error ? e.message : 'Falha ao publicar' } }))
+      }
     }
+    setPublishing(false)
+    publishingRef.current = false
   }
 
   if (loading) {
@@ -130,7 +168,9 @@ export default function ShopeePublishPage() {
     )
   }
 
-  const canPublish = data.images.length > 0 && data.price != null && shopId != null && !publishing && !result
+  const canPublish = data.images.length > 0 && data.price != null && pendingTargets.length > 0 && !publishing
+  const doneCount = shops.filter((s) => pub[s.shop_id]?.status === 'done').length
+  const allSelectedDone = selected.size > 0 && [...selected].every((id) => pub[id]?.status === 'done')
 
   return (
     <div className="mx-auto max-w-2xl space-y-5 p-6">
@@ -167,33 +207,57 @@ export default function ShopeePublishPage() {
         )}
       </div>
 
-      {/* Loja de destino — multi-conta: obrigatório escolher quando há 2+ */}
+      {/* Lojas de destino — MULTI-SELEÇÃO: marque uma ou as duas pra publicar de
+          uma vez. Cada loja mostra o próprio status (publicando / publicado / erro). */}
       <div className="rounded-lg border border-border bg-card p-4">
-        <p className="text-sm font-medium">Loja Shopee de destino</p>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm font-medium">Lojas Shopee de destino</p>
+          {shops.length > 1 && (
+            <div className="flex items-center gap-2 text-[11px]">
+              <button type="button" onClick={() => setSelected(new Set(shops.map((s) => s.shop_id)))}
+                disabled={publishing} className="text-muted-foreground hover:text-[#ee4d2d] disabled:opacity-50">
+                Marcar todas
+              </button>
+              <span className="text-border">·</span>
+              <button type="button" onClick={() => setSelected(new Set())}
+                disabled={publishing} className="text-muted-foreground hover:text-[#ee4d2d] disabled:opacity-50">
+                Limpar
+              </button>
+            </div>
+          )}
+        </div>
+
         {shops.length === 0 ? (
           <p className="mt-1 text-xs text-amber-600">Nenhuma loja Shopee conectada — conecte em Configurações › Integrações.</p>
-        ) : shops.length === 1 ? (
-          <p className="mt-1 text-xs text-muted-foreground">
-            {shops[0].nickname ?? `Shopee #${shops[0].shop_id}`} <span className="text-green-600">· conectada</span>
-          </p>
         ) : (
           <div className="mt-2 space-y-1.5">
-            {shops.map((s) => (
-              <label key={s.shop_id} className="flex cursor-pointer items-center gap-2 rounded-md border border-border px-3 py-2 text-sm hover:border-[#ee4d2d]/60"
-                style={shopId === s.shop_id ? { borderColor: '#ee4d2d', background: 'rgba(238,77,45,0.06)' } : undefined}>
-                <input
-                  type="radio"
-                  name="shopee-shop"
-                  checked={shopId === s.shop_id}
-                  onChange={() => setShopId(s.shop_id)}
-                  className="accent-[#ee4d2d]"
-                />
-                <span>{s.nickname ?? `Shopee #${s.shop_id}`}</span>
-                <span className="ml-auto text-[10px] text-muted-foreground">#{s.shop_id}</span>
-              </label>
-            ))}
-            {shopId == null && (
-              <p className="text-xs text-amber-600">Escolha em qual loja o anúncio será publicado.</p>
+            {shops.map((s) => {
+              const st = pub[s.shop_id]
+              const checked = selected.has(s.shop_id)
+              return (
+                <label key={s.shop_id}
+                  className="flex cursor-pointer items-center gap-2 rounded-md border border-border px-3 py-2 text-sm hover:border-[#ee4d2d]/60"
+                  style={checked ? { borderColor: '#ee4d2d', background: 'rgba(238,77,45,0.06)' } : undefined}>
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    // não deixa desmarcar/mudar durante a publicação, nem a loja já publicada
+                    disabled={publishing || st?.status === 'done'}
+                    onChange={() => toggleShop(s.shop_id)}
+                    className="accent-[#ee4d2d]"
+                  />
+                  <span>{s.nickname ?? `Shopee #${s.shop_id}`}</span>
+                  <span className="ml-auto text-[10px] text-muted-foreground">#{s.shop_id}</span>
+                  {/* status por loja */}
+                  {st?.status === 'publishing' && <Loader2 className="h-3.5 w-3.5 animate-spin text-[#ee4d2d]" />}
+                  {st?.status === 'done' && <span className="flex items-center gap-1 text-[11px] font-medium text-green-600"><CheckCircle2 className="h-3.5 w-3.5" /> #{st.item_id}</span>}
+                  {st?.status === 'blocked' && <span className="text-[11px] font-medium text-amber-600">ajustar ↓</span>}
+                  {st?.status === 'error' && <span className="text-[11px] font-medium text-red-600">erro ↓</span>}
+                </label>
+              )
+            })}
+            {selected.size === 0 && !allSelectedDone && (
+              <p className="text-xs text-amber-600">Marque pelo menos uma loja.</p>
             )}
           </div>
         )}
@@ -206,7 +270,8 @@ export default function ShopeePublishPage() {
           (obrigatórios + opcionais: tensão, cor, material, tipo de lâmpada…) fazendo o de-para com os
           campos da categoria. As fotos vão pro media space. Se o produto estiver vinculado ao catálogo,
           o anúncio já nasce com o <strong>estoque virtual (físico + virtual)</strong> e respeita a pausa
-          no mínimo — senão entra com estoque 0 (ajuste na Central de Anúncios Shopee).
+          no mínimo — senão entra com estoque 0 (ajuste na Central de Anúncios Shopee). Marcando as duas
+          lojas, o anúncio é criado <strong>em cada uma</strong> (uma publicação por loja).
         </p>
       </div>
 
@@ -241,37 +306,44 @@ export default function ShopeePublishPage() {
         </label>
       </div>
 
-      {/* Bloqueios do gate de relevância */}
-      {blockers && blockers.length > 0 && (
-        <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
-          <p className="flex items-center gap-2 font-medium"><AlertCircle className="h-4 w-4" /> Ajuste antes de publicar:</p>
-          <ul className="mt-1 list-disc pl-5 text-xs">
-            {blockers.map((b, i) => <li key={i}>{b}</li>)}
-          </ul>
-        </div>
-      )}
-
-      {/* Erro (inclui o 403 acionável de escopo da Shopee) */}
-      {publishError && (
-        <div className="flex items-start gap-2 rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-700">
-          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /> <span>{publishError}</span>
-        </div>
-      )}
-      {result && (
-        <div className="rounded-md border border-green-300 bg-green-50 p-3 text-sm text-green-700">
-          <p className="flex items-center gap-2 font-medium"><CheckCircle2 className="h-4 w-4" /> Publicado na Shopee!</p>
-          <p className="mt-1 text-xs">
-            item_id: {result.item_id} · {result.images ?? 0} fotos
-            {result.attributes_count != null && ` · ${result.attributes_count} atributos preenchidos`}.
-            {result.virtual_stock != null
-              ? (result.stock_paused
-                  ? ` Estoque virtual ${result.virtual_stock} ≤ mínimo → anúncio nasce pausado (esgotado).`
-                  : ` Estoque virtual aplicado: ${result.virtual_stock} un. (físico+virtual).`)
-              : ' Estoque entra como 0 (produto sem vínculo de catálogo) — ajuste na Central de Anúncios Shopee.'}
-            {' '}Veja em Seller Center → Produtos (pode entrar em análise).
-          </p>
-        </div>
-      )}
+      {/* Resultado POR loja — sucesso, bloqueios do gate, ou erro (inclui o 403
+          acionável de escopo da Shopee). Só mostra as lojas que já tentaram. */}
+      {shops.filter((s) => pub[s.shop_id] && pub[s.shop_id].status !== 'publishing').map((s) => {
+        const st = pub[s.shop_id]!
+        const name = s.nickname ?? `Shopee #${s.shop_id}`
+        if (st.status === 'done') {
+          return (
+            <div key={s.shop_id} className="rounded-md border border-green-300 bg-green-50 p-3 text-sm text-green-700">
+              <p className="flex items-center gap-2 font-medium"><CheckCircle2 className="h-4 w-4" /> {name}: publicado!</p>
+              <p className="mt-1 text-xs">
+                item_id: {st.item_id} · {st.images ?? 0} fotos
+                {st.attributes_count != null && ` · ${st.attributes_count} atributos preenchidos`}.
+                {st.virtual_stock != null
+                  ? (st.stock_paused
+                      ? ` Estoque virtual ${st.virtual_stock} ≤ mínimo → anúncio nasce pausado (esgotado).`
+                      : ` Estoque virtual aplicado: ${st.virtual_stock} un. (físico+virtual).`)
+                  : ' Estoque entra como 0 (produto sem vínculo de catálogo) — ajuste na Central de Anúncios Shopee.'}
+                {' '}Veja em Seller Center → Produtos (pode entrar em análise).
+              </p>
+            </div>
+          )
+        }
+        if (st.status === 'blocked') {
+          return (
+            <div key={s.shop_id} className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
+              <p className="flex items-center gap-2 font-medium"><AlertCircle className="h-4 w-4" /> {name}: ajuste antes de publicar</p>
+              <ul className="mt-1 list-disc pl-5 text-xs">
+                {(st.blockers ?? []).map((b, i) => <li key={i}>{b}</li>)}
+              </ul>
+            </div>
+          )
+        }
+        return (
+          <div key={s.shop_id} className="flex items-start gap-2 rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-700">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /> <span><strong>{name}:</strong> {st.error}</span>
+          </div>
+        )
+      })}
 
       {/* Ação */}
       <button
@@ -281,11 +353,15 @@ export default function ShopeePublishPage() {
         className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-[#ee4d2d] px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50"
       >
         {publishing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-        {result ? 'Publicado' : 'Publicar na Shopee'}
+        {allSelectedDone
+          ? `Publicado em ${doneCount} loja${doneCount > 1 ? 's' : ''}`
+          : pendingTargets.length > 1
+            ? `Publicar na Shopee (${pendingTargets.length} lojas)`
+            : 'Publicar na Shopee'}
       </button>
       <p className="text-center text-[11px] text-muted-foreground">
         Sobe as fotos pra Shopee, recomenda a categoria e cria o anúncio com os atributos do IA Criativo.
-        Ação irreversível (cria anúncio público).
+        Ação irreversível (cria um anúncio público em cada loja marcada).
       </p>
     </div>
   )
