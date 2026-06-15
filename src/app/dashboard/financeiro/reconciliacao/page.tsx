@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import {
-  ArrowLeft, RefreshCw, Play, CheckCircle2, AlertTriangle, Scale,
+  ArrowLeft, RefreshCw, Play, CheckCircle2, AlertTriangle, Scale, Plus, Trash2, SlidersHorizontal,
 } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
@@ -20,6 +20,10 @@ interface Reconciliation {
   channel: string; period_key: string; revenue: number; fees: number
   observed_take_pct: number | null; configured_take_pct: number | null; diff_pct: number | null
   flagged: boolean; by_bucket: Bucket[]; by_category?: CategoryRow[]; computed_at: string
+}
+interface FeeRule {
+  id: string; category_id: string | null; min_price: number | null; max_price: number | null
+  estimated_take_rate_pct: number; effective_from: string; effective_to: string | null
 }
 
 const CHANNELS: Array<{ key: string; label: string }> = [
@@ -43,6 +47,11 @@ export default function ReconciliacaoPage() {
   const [loading, setLoading] = useState(true)
   const [running, setRunning] = useState(false)
   const [err, setErr] = useState('')
+  // regras de take rate (channel_fee_rules)
+  const [rules, setRules] = useState<FeeRule[]>([])
+  const [savingRule, setSavingRule] = useState(false)
+  const emptyRuleForm = { category_id: '', min_price: '', max_price: '', estimated_take_rate_pct: '' }
+  const [ruleForm, setRuleForm] = useState(emptyRuleForm)
 
   const getHeaders = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
@@ -62,7 +71,44 @@ export default function ReconciliacaoPage() {
     } finally { setLoading(false) }
   }, [getHeaders, channel])
 
-  useEffect(() => { void loadLatest() }, [loadLatest])
+  const loadRules = useCallback(async () => {
+    try {
+      const h = await getHeaders()
+      const r = await fetch(`${BACKEND}/channel-settings/${channel}/fee-rules`, { headers: h }).then(x => x.json())
+      setRules(Array.isArray(r) ? r : [])
+    } catch { /* mantém */ }
+  }, [getHeaders, channel])
+
+  useEffect(() => { void loadLatest(); void loadRules() }, [loadLatest, loadRules])
+
+  const createRule = useCallback(async () => {
+    const take = Number(ruleForm.estimated_take_rate_pct)
+    if (!Number.isFinite(take) || take < 0 || take > 100) { setErr('Informe um take entre 0 e 100%.'); return }
+    setSavingRule(true); setErr('')
+    try {
+      const h = await getHeaders()
+      const body = {
+        category_id: ruleForm.category_id.trim() || null,
+        min_price: ruleForm.min_price === '' ? null : Number(ruleForm.min_price),
+        max_price: ruleForm.max_price === '' ? null : Number(ruleForm.max_price),
+        estimated_take_rate_pct: take,
+      }
+      const res = await fetch(`${BACKEND}/channel-settings/${channel}/fee-rules`, { method: 'POST', headers: h, body: JSON.stringify(body) })
+      if (!res.ok) throw new Error((await res.json())?.message ?? `HTTP ${res.status}`)
+      setRuleForm(emptyRuleForm)
+      await loadRules()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Falha ao criar regra.')
+    } finally { setSavingRule(false) }
+  }, [getHeaders, channel, ruleForm, loadRules]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const deleteRule = useCallback(async (id: string) => {
+    try {
+      const h = await getHeaders()
+      await fetch(`${BACKEND}/channel-settings/fee-rules/${id}`, { method: 'DELETE', headers: h })
+      await loadRules()
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Falha ao remover.') }
+  }, [getHeaders, loadRules])
 
   const run = useCallback(async () => {
     setRunning(true); setErr('')
@@ -236,7 +282,80 @@ export default function ReconciliacaoPage() {
             </p>
           </div>
         )}
+
+        {/* gestão de regras de take rate */}
+        <div className="mt-6 rounded-2xl overflow-hidden" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+          <div className="px-5 py-3 flex items-center gap-2" style={{ borderBottom: '1px solid #1e1e24' }}>
+            <SlidersHorizontal size={15} style={{ color: CYAN }} />
+            <div>
+              <h2 className="text-sm font-semibold">Regras de take rate ({CHANNELS.find(c => c.key === channel)?.label})</h2>
+              <p className="text-xs text-zinc-600 mt-0.5">Por faixa de preço e/ou categoria. A regra mais específica vale; sem regra, usa o take achatado da config do canal.</p>
+            </div>
+          </div>
+
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs text-zinc-500">
+                <th className="px-5 py-2 font-medium">Categoria</th>
+                <th className="px-5 py-2 font-medium">Faixa (R$)</th>
+                <th className="px-5 py-2 font-medium text-right">Take</th>
+                <th className="px-5 py-2 font-medium text-right">Desde</th>
+                <th className="px-5 py-2 font-medium text-right"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {rules.length === 0 && (
+                <tr><td colSpan={5} className="px-5 py-4 text-center text-xs text-zinc-600">Nenhuma regra — usa o take achatado do canal. Adicione abaixo.</td></tr>
+              )}
+              {rules.map(r => (
+                <tr key={r.id} style={{ borderTop: '1px solid #18181b' }}>
+                  <td className="px-5 py-2.5 text-zinc-300">{r.category_id ?? <span className="text-zinc-600">(qualquer)</span>}</td>
+                  <td className="px-5 py-2.5 text-zinc-400 tabular-nums">{r.min_price ?? 0}–{r.max_price ?? '∞'}</td>
+                  <td className="px-5 py-2.5 text-right font-semibold tabular-nums" style={{ color: CYAN }}>{pct(r.estimated_take_rate_pct)}</td>
+                  <td className="px-5 py-2.5 text-right text-zinc-500 tabular-nums">{r.effective_from}</td>
+                  <td className="px-5 py-2.5 text-right">
+                    <button onClick={() => deleteRule(r.id)} className="text-zinc-600 hover:text-red-400" aria-label="Remover regra"><Trash2 size={14} /></button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          {/* form de adicionar */}
+          <div className="px-5 py-3 flex flex-wrap items-end gap-2" style={{ borderTop: '1px solid #1e1e24', background: '#0d0d10' }}>
+            <Field label="Categoria (opcional)">
+              <input value={ruleForm.category_id} onChange={e => setRuleForm(f => ({ ...f, category_id: e.target.value }))}
+                placeholder="ex: VENTILADOR DE TETO" className="w-44 px-2 py-1.5 rounded-lg text-sm" style={{ background: '#0a0a0e', border: '1px solid #1e1e24', color: '#fafafa' }} />
+            </Field>
+            <Field label="Min R$">
+              <input type="number" value={ruleForm.min_price} onChange={e => setRuleForm(f => ({ ...f, min_price: e.target.value }))}
+                className="w-20 px-2 py-1.5 rounded-lg text-sm" style={{ background: '#0a0a0e', border: '1px solid #1e1e24', color: '#fafafa' }} />
+            </Field>
+            <Field label="Max R$">
+              <input type="number" value={ruleForm.max_price} onChange={e => setRuleForm(f => ({ ...f, max_price: e.target.value }))}
+                placeholder="∞" className="w-20 px-2 py-1.5 rounded-lg text-sm" style={{ background: '#0a0a0e', border: '1px solid #1e1e24', color: '#fafafa' }} />
+            </Field>
+            <Field label="Take %">
+              <input type="number" value={ruleForm.estimated_take_rate_pct} onChange={e => setRuleForm(f => ({ ...f, estimated_take_rate_pct: e.target.value }))}
+                className="w-20 px-2 py-1.5 rounded-lg text-sm" style={{ background: '#0a0a0e', border: '1px solid #1e1e24', color: '#fafafa' }} />
+            </Field>
+            <button onClick={createRule} disabled={savingRule}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold disabled:opacity-50"
+              style={{ background: CYAN, color: '#09090b' }}>
+              <Plus size={14} /> Adicionar
+            </button>
+          </div>
+        </div>
       </div>
+    </div>
+  )
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <label className="text-[10px] uppercase tracking-wide text-zinc-500">{label}</label>
+      {children}
     </div>
   )
 }
