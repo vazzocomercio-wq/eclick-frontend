@@ -571,6 +571,107 @@ function CanvaCard({ getHeaders, onToast }: {
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
+// ── Nomes das contas (identidade em todo o sistema) ─────────────────────────
+
+type AcctRow = { platform: string; seller_id: number | null; account_id: string | null; nickname: string; orders: number }
+
+const ACCT_PLAT: Record<string, { label: string; abbr: string; bg: string; fg: string }> = {
+  mercadolivre: { label: 'Mercado Livre', abbr: 'ML', bg: 'rgba(255,230,0,0.15)',  fg: '#FFE600' },
+  shopee:       { label: 'Shopee',        abbr: 'SH', bg: 'rgba(238,77,45,0.15)',  fg: '#EE4D2D' },
+  tiktok_shop:  { label: 'TikTok Shop',   abbr: 'TT', bg: 'rgba(255,59,92,0.15)',  fg: '#ff3b5c' },
+}
+const acctKey = (a: AcctRow) => String(a.seller_id ?? a.account_id ?? '')
+const acctRowId = (a: AcctRow) => `${a.platform}:${acctKey(a)}`
+
+function AccountNamesSection({ getHeaders, onToast }: {
+  getHeaders: () => Promise<{ Authorization: string }>
+  onToast: (m: string, t?: 'success' | 'error') => void
+}) {
+  const [accounts, setAccounts] = useState<AcctRow[]>([])
+  const [drafts,   setDrafts]   = useState<Record<string, string>>({})
+  const [saving,   setSaving]   = useState<string | null>(null)
+  const [loading,  setLoading]  = useState(true)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const headers = await getHeaders()
+      const res = await fetch(`${BACKEND}/orders/accounts`, { headers })
+      if (res.ok) {
+        const data = (await res.json()) as AcctRow[]
+        const rows = data.filter(a => ACCT_PLAT[a.platform] && (a.seller_id != null || a.account_id != null))
+        setAccounts(rows)
+        setDrafts(Object.fromEntries(rows.map(a => [acctRowId(a), a.nickname ?? ''])))
+      }
+    } catch { /* silent */ } finally { setLoading(false) }
+  }, [getHeaders])
+
+  useEffect(() => { void load() }, [load])
+
+  const save = async (a: AcctRow) => {
+    const id = acctRowId(a)
+    const name = (drafts[id] ?? '').trim()
+    if (!name) { onToast('Digite um nome', 'error'); return }
+    setSaving(id)
+    try {
+      const headers = await getHeaders()
+      const res = await fetch(`${BACKEND}/orders/account-labels`, {
+        method:  'PUT',
+        headers:  { ...headers, 'Content-Type': 'application/json' },
+        body:     JSON.stringify({ platform: a.platform, account_key: acctKey(a), display_name: name }),
+      })
+      if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.message ?? `HTTP ${res.status}`)
+      onToast('Nome salvo', 'success')
+      void load()
+    } catch (e) {
+      onToast(`Erro: ${(e as Error).message}`, 'error')
+    } finally { setSaving(null) }
+  }
+
+  if (loading) {
+    return <div className="flex items-center gap-2 text-xs text-zinc-500 py-2"><Loader2 size={12} className="animate-spin" /> Carregando contas…</div>
+  }
+  if (accounts.length === 0) {
+    return <p className="text-xs text-zinc-500 py-2">Nenhuma conta com vendas ainda. Conecte um marketplace acima.</p>
+  }
+
+  return (
+    <div className="space-y-2">
+      <p className="text-[11px] text-zinc-500">
+        Dê um nome a cada conta/loja. Esse nome aparece como identidade em todo o sistema (seletor do dashboard, tags de Reclamações, Canais de Venda, etc).
+      </p>
+      {accounts.map(a => {
+        const meta = ACCT_PLAT[a.platform]
+        const id = acctRowId(a)
+        const dirty = (drafts[id] ?? '') !== (a.nickname ?? '')
+        return (
+          <div key={id} className="flex items-center gap-3 rounded-xl p-3" style={{ background: '#0e0e11', border: '1px solid #1e1e24' }}>
+            <span className="text-[10px] font-bold px-2 py-1 rounded-lg flex-shrink-0" style={{ background: meta.bg, color: meta.fg }}>
+              {meta.abbr}
+            </span>
+            <div className="flex-1 min-w-0">
+              <input
+                value={drafts[id] ?? ''}
+                onChange={e => setDrafts(d => ({ ...d, [id]: e.target.value }))}
+                maxLength={80}
+                placeholder={`${meta.label} ${acctKey(a)}`}
+                className="w-full bg-[#09090b] border border-[#1e1e24] rounded-lg px-3 py-1.5 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-cyan-500/40"
+              />
+              <p className="text-[10px] text-zinc-600 mt-1">{meta.label} · {acctKey(a)} · {a.orders} pedidos</p>
+            </div>
+            <button onClick={() => save(a)} disabled={!dirty || saving === id || !(drafts[id] ?? '').trim()}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all disabled:opacity-40 flex-shrink-0"
+              style={{ background: dirty ? 'linear-gradient(135deg,#00E5FF,#00b8cc)' : '#1e1e24', color: dirty ? '#000' : '#71717a' }}>
+              {saving === id ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+              Salvar
+            </button>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 export default function IntegracoesPage() {
   const t = useTranslations('integracoes')
   const [mlConns, setMlConns]         = useState<MlConn[]>([])
@@ -828,6 +929,11 @@ export default function IntegracoesPage() {
               status={status} description={m.desc} onConnect={onConnect} />
           )
         })}
+      </Section>
+
+      {/* ── Nomes das contas ─────────────────────────────────────────────── */}
+      <Section id="contas" title="Nomes das contas" subtitle="Identidade de cada conta/loja em todo o sistema" icon={<Settings size={13} />}>
+        <AccountNamesSection getHeaders={getHeaders} onToast={showToast} />
       </Section>
 
       {/* ── Mensageiros ──────────────────────────────────────────────────── */}
