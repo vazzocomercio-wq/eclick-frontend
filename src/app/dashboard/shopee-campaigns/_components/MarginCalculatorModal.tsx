@@ -36,12 +36,14 @@ interface MarginResult {
 interface Form {
   price:                    number
   discount_pct:             number  // 0-100 na UI
-  shopee_commission_pct:    number  // 0-100
+  estimated_take_rate_pct:  number  // 0-100 — take rate Shopee (comissão+serviço+transação+programas)
   affiliate_commission_pct: number  // 0-100
   cost:                     number
 }
 
-const DEFAULT: Form = { price: 99.9, discount_pct: 10, shopee_commission_pct: 14, affiliate_commission_pct: 0, cost: 45 }
+// take rate inicial = placeholder; sobrescrito on-mount pelo valor REAL
+// configurado da org (org_channel_settings), evitando subestimar o custo Shopee.
+const DEFAULT: Form = { price: 99.9, discount_pct: 10, estimated_take_rate_pct: 30, affiliate_commission_pct: 0, cost: 45 }
 
 export default function MarginCalculatorModal({ onClose }: { onClose: () => void }) {
   const t = useTranslations('shopeeCampaigns.marginCalc')
@@ -61,7 +63,7 @@ export default function MarginCalculatorModal({ onClose }: { onClose: () => void
         body:    JSON.stringify({
           price:                    f.price,
           discount_pct:             f.discount_pct / 100,
-          shopee_commission_pct:    f.shopee_commission_pct / 100,
+          estimated_take_rate_pct:  f.estimated_take_rate_pct / 100,
           affiliate_commission_pct: f.affiliate_commission_pct / 100,
           cost:                     f.cost,
         }),
@@ -78,6 +80,28 @@ export default function MarginCalculatorModal({ onClose }: { onClose: () => void
     debounce.current = setTimeout(() => void evaluate(form), 400)
     return () => { if (debounce.current) clearTimeout(debounce.current) }
   }, [form, evaluate])
+
+  // Busca o take rate REAL configurado da org (org_channel_settings) e usa como
+  // valor inicial — em vez de um default genérico que subestima o custo Shopee.
+  useEffect(() => {
+    let alive = true
+    void (async () => {
+      try {
+        const sb = createClient()
+        const { data: { session } } = await sb.auth.getSession()
+        const res = await fetch(`${BACKEND}/channel-settings/shopee`, {
+          headers: { Authorization: `Bearer ${session?.access_token ?? ''}` },
+        })
+        if (!res.ok) return
+        const d = (await res.json()) as { estimated_take_rate_pct?: number; commission_pct?: number } | null
+        const pct = Number(d?.estimated_take_rate_pct ?? d?.commission_pct)
+        if (alive && Number.isFinite(pct) && pct > 0) {
+          setForm(f => ({ ...f, estimated_take_rate_pct: Math.round(pct * 10) / 10 }))
+        }
+      } catch { /* mantém o placeholder */ }
+    })()
+    return () => { alive = false }
+  }, [])
 
   const set = <K extends keyof Form>(k: K, v: number) => setForm(f => ({ ...f, [k]: v }))
 
@@ -98,7 +122,7 @@ export default function MarginCalculatorModal({ onClose }: { onClose: () => void
         <div className="space-y-3">
           <NumRow label={t('price')}        value={form.price}                    prefix="R$" step={1}  onChange={v => set('price', v)} />
           <SliderRow label={t('discount')}  value={form.discount_pct}             max={80}    onChange={v => set('discount_pct', v)} />
-          <SliderRow label={t('shopeeCom')} value={form.shopee_commission_pct}    max={25}    onChange={v => set('shopee_commission_pct', v)} />
+          <SliderRow label={t('shopeeCom')} value={form.estimated_take_rate_pct}  max={45}    onChange={v => set('estimated_take_rate_pct', v)} />
           <SliderRow label={t('affCom')}    value={form.affiliate_commission_pct} max={30}    onChange={v => set('affiliate_commission_pct', v)} />
           <NumRow label={t('cost')}         value={form.cost}                     prefix="R$" step={1}  onChange={v => set('cost', v)} />
         </div>

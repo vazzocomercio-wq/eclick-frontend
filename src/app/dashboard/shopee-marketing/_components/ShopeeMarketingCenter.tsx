@@ -94,7 +94,7 @@ export default function ShopeeMarketingCenter() {
           <h1 className="text-white text-lg font-semibold">Marketing Shopee inteligente</h1>
           <p className="text-zinc-500 text-xs">
             Recomendações margem-safe de Oferta Relâmpago / Cupom / Desconto
-            {data && <span className="text-zinc-600"> · {data.total_candidates} produtos analisados · piso {data.floor_pct}% · comissão {data.commission_pct.toFixed(1)}%{data.already_promoted ? ` · ${data.already_promoted} já em campanha (ver Resultados)` : ''}</span>}
+            {data && <span className="text-zinc-600"> · {data.total_candidates} produtos analisados · piso {data.floor_pct}% · take estimado {data.commission_pct.toFixed(1)}%{data.already_promoted ? ` · ${data.already_promoted} já em campanha (ver Resultados)` : ''}</span>}
           </p>
         </div>
         <button onClick={load} className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors"

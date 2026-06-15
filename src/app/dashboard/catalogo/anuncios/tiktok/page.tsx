@@ -601,8 +601,9 @@ export default function TikTokListingsPage() {
         const headers = await getHeaders()
         const res = await fetch(`${BACKEND}/channel-settings/tiktok_shop`, { headers })
         if (res.ok) {
-          const d = (await res.json()) as { commission_pct?: number } | null
-          if (d && Number.isFinite(Number(d.commission_pct))) setCommissionPct(Number(d.commission_pct))
+          const d = (await res.json()) as { estimated_take_rate_pct?: number; commission_pct?: number } | null
+          const pct = Number(d?.estimated_take_rate_pct ?? d?.commission_pct)
+          if (Number.isFinite(pct)) setCommissionPct(pct)
         }
       } catch { /* silencioso — usa o default */ }
     })()
@@ -619,7 +620,7 @@ export default function TikTokListingsPage() {
         await fetch(`${BACKEND}/channel-settings/tiktok_shop`, {
           method: 'PATCH',
           headers: { ...headers, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ commission_pct: v }),
+          body: JSON.stringify({ estimated_take_rate_pct: v }),
         })
       } catch { /* silencioso */ }
     }, 600) as unknown as number

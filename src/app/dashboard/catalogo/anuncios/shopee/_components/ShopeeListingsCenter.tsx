@@ -943,12 +943,12 @@ function LinkSection({ link, onLink, onUnlink }: {
           {m && (
             <div className="grid grid-cols-3 gap-2 pt-1">
               <Metric label="Preço" value={brl(m.price)} />
-              <Metric label={`Comissão ${m.commission_pct}%`} value={brl(m.sale_fee)} />
+              <Metric label={`Take estimado ${m.commission_pct}%`} value={brl(m.sale_fee)} />
               <Metric label="Margem" value={`${m.contribution_margin_pct}%`} color={marginHex(m.contribution_margin_pct)} />
             </div>
           )}
           {m && m.commission_pct === 0 && (
-            <p className="text-[10px] text-amber-500/80">⚠ comissão Shopee não configurada — margem otimista. Ajuste em Configurações › Canais.</p>
+            <p className="text-[10px] text-amber-500/80">⚠ take rate Shopee não configurado — margem otimista. Ajuste em Configurações › Canais.</p>
           )}
         </div>
       ) : picking ? (
