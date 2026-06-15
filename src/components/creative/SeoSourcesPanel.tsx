@@ -14,6 +14,7 @@
  */
 
 import { X, Search, Sparkles, TrendingUp, Tag, FileText, AlertCircle } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 
 interface SeoSourcesData {
   category_ml_id:   string
@@ -35,6 +36,7 @@ interface Props {
 }
 
 export default function SeoSourcesPanel({ open, onClose, generationMetadata }: Props) {
+  const t = useTranslations('creative.seoSources')
   if (!open) return null
 
   const seo = (generationMetadata?.seo_sources as SeoSourcesData | null) ?? null
@@ -53,13 +55,13 @@ export default function SeoSourcesPanel({ open, onClose, generationMetadata }: P
         <header className="sticky top-0 z-10 bg-zinc-950 border-b border-zinc-800 px-5 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Sparkles size={16} className="text-cyan-400" />
-            <h2 className="text-sm font-semibold text-zinc-100">Fontes do e-Otimizer IA</h2>
+            <h2 className="text-sm font-semibold text-zinc-100">{t('headerTitle')}</h2>
           </div>
           <button
             type="button"
             onClick={onClose}
             className="p-1.5 rounded-lg hover:bg-zinc-900 text-zinc-500 hover:text-zinc-200"
-            aria-label="Fechar"
+            aria-label={t('closeAria')}
           >
             <X size={16} />
           </button>
@@ -74,8 +76,8 @@ export default function SeoSourcesPanel({ open, onClose, generationMetadata }: P
 
               <Section
                 icon={<TrendingUp size={13} />}
-                title="Top 5 anúncios concorrentes analisados"
-                hint="A IA aprendeu padrões observando estes anúncios reais da categoria."
+                title={t('competitorsTitle')}
+                hint={t('competitorsHint')}
               >
                 <ol className="space-y-1.5">
                   {seo.competitors_analyzed.map((title, i) => (
@@ -89,19 +91,19 @@ export default function SeoSourcesPanel({ open, onClose, generationMetadata }: P
 
               <Section
                 icon={<Tag size={13} />}
-                title="Keywords com origem rastreável"
-                hint="Cada palavra-chave veio de N anúncios reais — clique pra expandir."
+                title={t('keywordsTitle')}
+                hint={t('keywordsHint')}
               >
                 <KeywordsTable keywords={seo.top_keywords_used} />
               </Section>
 
               <Section
                 icon={<FileText size={13} />}
-                title="Padrão de título da categoria"
+                title={t('titlePatternTitle')}
               >
                 <div className="grid grid-cols-2 gap-3 text-[12px]">
-                  <Metric label="Tamanho médio" value={`${seo.avg_title_length} chars`} />
-                  <Metric label="Preço mediano" value={`R$ ${seo.price_median.toFixed(2)}`} />
+                  <Metric label={t('avgTitleLabel')} value={t('avgTitleValue', { length: seo.avg_title_length })} />
+                  <Metric label={t('priceMedianLabel')} value={t('priceMedianValue', { price: seo.price_median.toFixed(2) })} />
                 </div>
               </Section>
 
@@ -117,29 +119,29 @@ export default function SeoSourcesPanel({ open, onClose, generationMetadata }: P
 // ── Sub-components ──────────────────────────────────────────────────────────
 
 function EmptyState() {
+  const t = useTranslations('creative.seoSources')
   return (
     <div className="flex flex-col items-center gap-3 py-12 text-center text-zinc-500">
       <Search size={32} className="opacity-30" />
-      <h3 className="text-sm font-medium text-zinc-300">Sem fontes registradas</h3>
+      <h3 className="text-sm font-medium text-zinc-300">{t('emptyTitle')}</h3>
       <p className="text-[12px] max-w-sm">
-        Este anúncio foi gerado antes do e-Otimizer IA estar ativo, OU a pesquisa
-        de mercado falhou na hora de gerar (ML offline). Regenere o anúncio
-        pra capturar as fontes.
+        {t('emptyDescription')}
       </p>
     </div>
   )
 }
 
 function Intro({ categoryMlId }: { categoryMlId: string }) {
+  const t = useTranslations('creative.seoSources')
   return (
     <div className="rounded-lg border border-cyan-400/30 bg-cyan-400/5 p-3 text-[12px] text-cyan-200">
       <p>
-        Este anúncio foi gerado com análise de mercado real. A IA leu 20 anúncios
-        concorrentes da categoria <strong className="font-mono">{categoryMlId}</strong>{' '}
-        e usou os padrões empíricos pra escolher título, keywords e atributos.
+        {t.rich('introBody', {
+          category: () => <strong className="font-mono">{categoryMlId}</strong>,
+        })}
       </p>
       <p className="mt-1.5 text-[11px] text-cyan-300/70">
-        Nenhuma keyword foi inventada — todas têm origem rastreável.
+        {t('introNote')}
       </p>
     </div>
   )
@@ -166,6 +168,7 @@ function Section({
 }
 
 function KeywordsTable({ keywords }: { keywords: SeoSourcesData['top_keywords_used'] }) {
+  const t = useTranslations('creative.seoSources')
   // Ordena: use primeiro, depois use_if_true, depois avoid
   const ordered = [...keywords].sort((a, b) => {
     const w: Record<string, number> = { use: 0, use_if_true: 1, avoid: 2 }
@@ -180,9 +183,9 @@ function KeywordsTable({ keywords }: { keywords: SeoSourcesData['top_keywords_us
       <table className="w-full text-[11px]">
         <thead>
           <tr className="bg-zinc-900 text-zinc-500 text-[10px] uppercase tracking-wider">
-            <th className="text-left px-2.5 py-1.5">Palavra</th>
-            <th className="text-center px-2 py-1.5">Origem</th>
-            <th className="text-right px-2.5 py-1.5">Recomendação</th>
+            <th className="text-left px-2.5 py-1.5">{t('colWord')}</th>
+            <th className="text-center px-2 py-1.5">{t('colSource')}</th>
+            <th className="text-right px-2.5 py-1.5">{t('colRecommendation')}</th>
           </tr>
         </thead>
         <tbody>
@@ -190,8 +193,8 @@ function KeywordsTable({ keywords }: { keywords: SeoSourcesData['top_keywords_us
             <tr key={i} className={i % 2 === 0 ? 'bg-zinc-950' : 'bg-zinc-900/50'}>
               <td className="px-2.5 py-1.5 text-zinc-200 font-medium">{kw.keyword}</td>
               <td className="px-2 py-1.5 text-center text-zinc-400 font-mono">
-                <span title={`MLBs: ${kw.sources_mlb.slice(0, 5).join(', ')}${kw.sources_mlb.length > 5 ? '…' : ''}`}>
-                  {kw.frequency} de 20
+                <span title={t('sourceTooltip', { mlbs: `${kw.sources_mlb.slice(0, 5).join(', ')}${kw.sources_mlb.length > 5 ? '…' : ''}` })}>
+                  {t('sourceFrequency', { count: kw.frequency })}
                 </span>
               </td>
               <td className="px-2.5 py-1.5 text-right">
@@ -203,7 +206,7 @@ function KeywordsTable({ keywords }: { keywords: SeoSourcesData['top_keywords_us
       </table>
       {hidden > 0 && (
         <div className="px-2.5 py-1.5 text-[10px] text-zinc-500 bg-zinc-900/70 text-center border-t border-zinc-800">
-          +{hidden} keywords adicionais
+          {t('moreKeywords', { count: hidden })}
         </div>
       )}
     </div>
@@ -211,10 +214,11 @@ function KeywordsTable({ keywords }: { keywords: SeoSourcesData['top_keywords_us
 }
 
 function RecommendBadge({ value }: { value: 'use' | 'use_if_true' | 'avoid' }) {
+  const t = useTranslations('creative.seoSources')
   const cfg = {
-    use:         { label: '✓ Usar',          cls: 'bg-emerald-400/15 text-emerald-300 border-emerald-400/30' },
-    use_if_true: { label: '⚠ Se for verdade', cls: 'bg-amber-400/15 text-amber-300 border-amber-400/30' },
-    avoid:       { label: '✗ Evitar',         cls: 'bg-red-400/15 text-red-300 border-red-400/30' },
+    use:         { label: t('badgeUse'),       cls: 'bg-emerald-400/15 text-emerald-300 border-emerald-400/30' },
+    use_if_true: { label: t('badgeUseIfTrue'), cls: 'bg-amber-400/15 text-amber-300 border-amber-400/30' },
+    avoid:       { label: t('badgeAvoid'),     cls: 'bg-red-400/15 text-red-300 border-red-400/30' },
   }[value]
   return (
     <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] border ${cfg.cls}`}>
@@ -233,13 +237,14 @@ function Metric({ label, value }: { label: string; value: string }) {
 }
 
 function Legend() {
+  const t = useTranslations('creative.seoSources')
   return (
     <div className="rounded-lg border border-zinc-800 bg-zinc-900/30 p-3">
       <div className="flex items-start gap-2 text-[11px] text-zinc-400">
         <AlertCircle size={12} className="text-cyan-400 shrink-0 mt-0.5" />
         <div className="space-y-1">
-          <p><strong className="text-zinc-200">Como funciona:</strong> a IA buscou os 50 anúncios mais relevantes da categoria, filtrou os ruins (vendedor amarelo, preço outlier, suspeitos) e escolheu os 20 melhores baseado em vendas/dia, posição orgânica, reputação e relevância vs seu produto.</p>
-          <p>Cada keyword aqui aparece em pelo menos 1 desses 20 anúncios — origem 100% rastreável.</p>
+          <p>{t.rich('legendHowItWorks', { label: (chunks) => <strong className="text-zinc-200">{chunks}</strong> })}</p>
+          <p>{t('legendTraceable')}</p>
         </div>
       </div>
     </div>

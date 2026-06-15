@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
+import { useTranslations } from 'next-intl'
 import {
   Gauge, ChevronDown, ChevronUp, AlertTriangle, AlertCircle,
   CheckCircle2, Info, Loader2, RefreshCw, Sparkles,
@@ -39,6 +40,7 @@ interface Props {
 export default function ListingSeoPanel({
   listingId, variant, picturesCount, listingVersion, onJumpToField, className,
 }: Props) {
+  const t = useTranslations('creative.seoPanel')
   const [data, setData]       = useState<CreativeListingSeoResult | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError]     = useState<string | null>(null)
@@ -80,7 +82,7 @@ export default function ListingSeoPanel({
         >
           <div className="flex items-center gap-2 min-w-0">
             <Gauge size={14} className={classByScore(data?.scores.structural ?? 50, 'text')} />
-            <span className="text-xs font-semibold text-zinc-200">e-Otimizer SEO</span>
+            <span className="text-xs font-semibold text-zinc-200">{t('heading')}</span>
             {loading && !data ? (
               <Loader2 size={11} className="animate-spin text-zinc-500" />
             ) : data ? (
@@ -96,12 +98,12 @@ export default function ListingSeoPanel({
                 </span>
                 {(data.summary.critical_count > 0 || data.summary.high_count > 0) && (
                   <span className="text-[11px] text-zinc-400 truncate">
-                    · {data.summary.critical_count + data.summary.high_count} {data.summary.critical_count + data.summary.high_count === 1 ? 'item a corrigir' : 'itens a corrigir'}
+                    · {t('itemsToFix', { count: data.summary.critical_count + data.summary.high_count })}
                   </span>
                 )}
               </>
             ) : (
-              <span className="text-[11px] text-zinc-500">{error ?? 'calculando…'}</span>
+              <span className="text-[11px] text-zinc-500">{error ?? t('calculating')}</span>
             )}
           </div>
           {data && data.issues.length > 0 && (
@@ -126,9 +128,9 @@ export default function ListingSeoPanel({
       <div className="flex items-center justify-between px-3 py-2 border-b border-zinc-800">
         <div className="flex items-center gap-2">
           <Sparkles size={13} className="text-cyan-400" />
-          <h3 className="text-xs font-semibold text-zinc-200">e-Otimizer SEO</h3>
+          <h3 className="text-xs font-semibold text-zinc-200">{t('heading')}</h3>
           <span className="text-[9px] font-mono px-1.5 py-0.5 rounded-md bg-cyan-400/10 text-cyan-300 border border-cyan-400/20">
-            PRÉ-PUBLICAÇÃO
+            {t('prePublishBadge')}
           </span>
         </div>
         {loading && <Loader2 size={11} className="animate-spin text-zinc-500" />}
@@ -141,7 +143,7 @@ export default function ListingSeoPanel({
         </div>
       ) : !data ? (
         <div className="p-3 text-[11px] text-zinc-500 flex items-center gap-2">
-          <Loader2 size={11} className="animate-spin" /> calculando score…
+          <Loader2 size={11} className="animate-spin" /> {t('calculatingScore')}
         </div>
       ) : (
         <div className="p-3 space-y-3">
@@ -157,32 +159,32 @@ export default function ListingSeoPanel({
               </div>
             </div>
             <div className="ml-auto text-right text-[10px] text-zinc-500">
-              <div>{data.issues.length} {data.issues.length === 1 ? 'apontamento' : 'apontamentos'}</div>
+              <div>{t('findings', { count: data.issues.length })}</div>
               {data.summary.critical_count > 0 && (
-                <div className="text-red-300">⚠ {data.summary.critical_count} críticos</div>
+                <div className="text-red-300">⚠ {t('criticalCount', { count: data.summary.critical_count })}</div>
               )}
             </div>
           </div>
 
           {/* Breakdown bars */}
           <div className="space-y-1.5">
-            <ScoreBar label="Título"      value={data.scores.title}      weight={40} />
-            <ScoreBar label="Atributos"   value={data.scores.attributes} weight={40} />
-            <ScoreBar label="Imagens"     value={data.scores.pictures}   weight={20} />
+            <ScoreBar label={t('barTitle')}      value={data.scores.title}      weight={40} />
+            <ScoreBar label={t('barAttributes')} value={data.scores.attributes} weight={40} />
+            <ScoreBar label={t('barPictures')}   value={data.scores.pictures}   weight={20} />
           </div>
 
           {/* Context summary */}
           <div className="text-[10px] text-zinc-500 leading-relaxed border-t border-zinc-800 pt-2">
             <div>
-              {data.context.title_length} chars no título
-              {data.context.has_brand_in_title  && <span className="text-emerald-400"> · marca ✓</span>}
-              {!data.context.has_brand_in_title && <span className="text-amber-400"> · sem marca</span>}
+              {t('titleChars', { count: data.context.title_length })}
+              {data.context.has_brand_in_title  && <span className="text-emerald-400"> · {t('brandOk')}</span>}
+              {!data.context.has_brand_in_title && <span className="text-amber-400"> · {t('brandMissing')}</span>}
             </div>
             <div>
-              {data.context.attributes_filled}/{data.context.attributes_total || '—'} atributos preenchidos
+              {t('attributesFilled', { filled: data.context.attributes_filled, total: data.context.attributes_total || '—' })}
             </div>
             {picturesCount !== undefined && (
-              <div>{data.context.pictures_count} imagens aprovadas</div>
+              <div>{t('picturesApproved', { count: data.context.pictures_count })}</div>
             )}
           </div>
 
@@ -195,7 +197,7 @@ export default function ListingSeoPanel({
 
           {data.issues.length === 0 && (
             <div className="text-[11px] text-emerald-300 flex items-center gap-1.5 pt-1">
-              <CheckCircle2 size={11} /> tudo certo — listing pronto pra publicar
+              <CheckCircle2 size={11} /> {t('allGood')}
             </div>
           )}
         </div>
@@ -224,6 +226,7 @@ function ScoreBar({ label, value, weight }: { label: string; value: number; weig
 }
 
 function IssuesList({ issues, onJumpToField }: { issues: SeoIssue[]; onJumpToField?: Props['onJumpToField'] }) {
+  const t = useTranslations('creative.seoPanel')
   return (
     <ul className="space-y-1">
       {issues.map((issue, idx) => (
@@ -244,9 +247,9 @@ function IssuesList({ issues, onJumpToField }: { issues: SeoIssue[]; onJumpToFie
                 type="button"
                 onClick={() => onJumpToField(issue.fixesField!)}
                 className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-zinc-900 hover:bg-zinc-800 text-cyan-300 border border-zinc-800"
-                title={`Ir pro campo ${issue.fixesField}`}
+                title={t('jumpToFieldTitle', { field: issue.fixesField })}
               >
-                Ir →
+                {t('jumpButton')}
               </button>
             )}
           </div>

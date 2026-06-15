@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { Plus, X, Save, Loader2, AlertCircle, RefreshCw, ExternalLink, CheckCircle2, Sparkles } from 'lucide-react'
 import type { CreativeListing } from './types'
 import { CreativeApi } from './api'
@@ -44,6 +45,7 @@ function fromListing(l: CreativeListing): EditableState {
 }
 
 export default function ListingEditor({ listing, onSaved, disabled }: Props) {
+  const t = useTranslations('creative.listingEditor')
   const [state, setState]   = useState<EditableState>(() => fromListing(listing))
   const [dirty, setDirty]   = useState(false)
   const [saving, setSaving] = useState(false)
@@ -98,7 +100,7 @@ export default function ListingEditor({ listing, onSaved, disabled }: Props) {
       {/* Save bar */}
       <div className="sticky top-0 z-10 -mx-3 px-3 py-2 bg-zinc-950/90 backdrop-blur border-b border-zinc-800 flex items-center justify-between">
         <span className={`text-[11px] ${dirty ? 'text-amber-400' : 'text-zinc-500'}`}>
-          {dirty ? '● alterações não salvas' : '✓ tudo salvo'}
+          {dirty ? t('unsavedChanges') : t('allSaved')}
         </span>
         <div className="flex items-center gap-2">
           {hasSeoSources && (
@@ -106,9 +108,9 @@ export default function ListingEditor({ listing, onSaved, disabled }: Props) {
               type="button"
               onClick={() => setSeoOpen(true)}
               className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-cyan-400/30 hover:border-cyan-400/60 text-cyan-300 text-xs font-medium transition-all"
-              title="Ver os anúncios e keywords reais que serviram de base"
+              title={t('viewSourcesTitle')}
             >
-              <Sparkles size={12} /> Ver fontes
+              <Sparkles size={12} /> {t('viewSources')}
             </button>
           )}
           <button
@@ -118,7 +120,7 @@ export default function ListingEditor({ listing, onSaved, disabled }: Props) {
             className="glow-rainbow flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-400 hover:bg-cyan-300 disabled:opacity-50 disabled:cursor-not-allowed text-black text-xs font-semibold transition-all"
           >
             {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
-            Salvar
+            {t('save')}
           </button>
         </div>
       </div>
@@ -139,15 +141,15 @@ export default function ListingEditor({ listing, onSaved, disabled }: Props) {
       <PublishReadinessBanner listing={listing} mlAttributes={state.ml_attributes} />
 
       <div data-seo-field="title">
-        <Field label="Título" value={state.title} onChange={v => update('title', v)} disabled={disabled} maxLength={60} />
+        <Field label={t('title')} value={state.title} onChange={v => update('title', v)} disabled={disabled} maxLength={60} />
       </div>
       <div data-seo-field="subtitle">
-        <Field label="Subtítulo" value={state.subtitle} onChange={v => update('subtitle', v)} disabled={disabled} placeholder="Opcional" />
+        <Field label={t('subtitle')} value={state.subtitle} onChange={v => update('subtitle', v)} disabled={disabled} placeholder={t('optional')} />
       </div>
 
       {/* Description */}
       <div data-seo-field="description">
-        <Label>Descrição</Label>
+        <Label>{t('description')}</Label>
         <textarea
           value={state.description}
           onChange={e => update('description', e.target.value)}
@@ -160,17 +162,17 @@ export default function ListingEditor({ listing, onSaved, disabled }: Props) {
       {/* Bullets */}
       <div data-seo-field="bullets">
         <ListField
-          label="Bullets"
+          label={t('bullets')}
           items={state.bullets}
           onChange={v => update('bullets', v)}
-          placeholder="✅ Ex: Material premium em ABS resistente"
+          placeholder={t('bulletsPlaceholder')}
           disabled={disabled}
         />
       </div>
 
       {/* Atributos ML — fonte única (ml_attributes), com IA + "não se aplica" */}
       <div data-seo-field="attributes">
-        <p className="text-[10px] uppercase tracking-wider text-zinc-500 mb-2">Atributos do anúncio</p>
+        <p className="text-[10px] uppercase tracking-wider text-zinc-500 mb-2">{t('listingAttributes')}</p>
         <MlAttributesPanel
           listingId={listing.id}
           categoryId={listing.category_ml_id ?? null}
@@ -182,30 +184,30 @@ export default function ListingEditor({ listing, onSaved, disabled }: Props) {
 
       {/* Keywords */}
       <ListField
-        label="Palavras-chave"
+        label={t('keywords')}
         items={state.keywords}
         onChange={v => update('keywords', v)}
-        placeholder="Ex: organizador gaveta plástico"
+        placeholder={t('keywordsPlaceholder')}
         chipMode
         disabled={disabled}
       />
 
       {/* Search tags */}
       <ListField
-        label="Tags de busca"
+        label={t('searchTags')}
         items={state.search_tags}
         onChange={v => update('search_tags', v)}
-        placeholder="Ex: cozinha, banheiro"
+        placeholder={t('searchTagsPlaceholder')}
         chipMode
         disabled={disabled}
       />
 
       <Field
-        label="Categoria sugerida"
+        label={t('suggestedCategory')}
         value={state.suggested_category}
         onChange={v => update('suggested_category', v)}
         disabled={disabled}
-        placeholder="Categoria sugerida pelo marketplace"
+        placeholder={t('suggestedCategoryPlaceholder')}
       />
 
       {/* Sub-sprint A: Categoria ML real (MLB...) com badge linkável + refresh */}
@@ -220,10 +222,10 @@ export default function ListingEditor({ listing, onSaved, disabled }: Props) {
 
       {/* Commercial differentials */}
       <ListField
-        label="Diferenciais comerciais"
+        label={t('commercialDifferentials')}
         items={state.commercial_differentials}
         onChange={v => update('commercial_differentials', v)}
-        placeholder="Ex: Garantia estendida"
+        placeholder={t('commercialDifferentialsPlaceholder')}
         chipMode
         disabled={disabled}
       />
@@ -242,6 +244,7 @@ function Field({
 }: {
   label: string; value: string; onChange: (v: string) => void; disabled?: boolean; placeholder?: string; maxLength?: number
 }) {
+  const t = useTranslations('creative.listingEditor')
   const len = value.length
   return (
     <div>
@@ -252,7 +255,7 @@ function Field({
             len > maxLength ? 'text-red-400'
               : len > maxLength * 0.85 ? 'text-amber-400'
                 : 'text-zinc-500'
-          }`} title={`Limite recomendado: ${maxLength} caracteres`}>
+          }`} title={t('charLimitTitle', { max: maxLength })}>
             {len}/{maxLength}
           </span>
         )}
@@ -377,9 +380,10 @@ function FaqEditor({
   onChange: (next: Array<{ q: string; a: string }>) => void
   disabled?: boolean
 }) {
+  const t = useTranslations('creative.listingEditor')
   return (
     <div>
-      <Label>FAQ</Label>
+      <Label>{t('faq')}</Label>
       <div className="space-y-2">
         {items.map((item, i) => (
           <div key={i} className="rounded-lg border border-zinc-800 bg-zinc-950 p-2 space-y-1.5">
@@ -393,7 +397,7 @@ function FaqEditor({
                   onChange(next)
                 }}
                 disabled={disabled}
-                placeholder="Pergunta"
+                placeholder={t('faqQuestion')}
                 className="flex-1 bg-zinc-900 border border-zinc-800 rounded px-2 py-1.5 text-xs text-zinc-200 outline-none focus:border-cyan-400 placeholder:text-zinc-600"
               />
               {!disabled && (
@@ -414,7 +418,7 @@ function FaqEditor({
                 onChange(next)
               }}
               disabled={disabled}
-              placeholder="Resposta"
+              placeholder={t('faqAnswer')}
               rows={2}
               className="w-full bg-zinc-900 border border-zinc-800 rounded px-2 py-1.5 text-xs text-zinc-300 outline-none focus:border-cyan-400 placeholder:text-zinc-600 resize-y"
             />
@@ -426,7 +430,7 @@ function FaqEditor({
             onClick={() => onChange([...items, { q: '', a: '' }])}
             className="w-full px-3 py-1.5 rounded-lg bg-zinc-900 border border-dashed border-zinc-800 hover:border-cyan-400/40 hover:text-cyan-400 text-zinc-500 text-xs flex items-center justify-center gap-1"
           >
-            <Plus size={12} /> Adicionar FAQ
+            <Plus size={12} /> {t('addFaq')}
           </button>
         )}
       </div>
@@ -450,6 +454,7 @@ function MlCategoryBadge({
   onUpdated: (next: CreativeListing) => void
   disabled?: boolean
 }) {
+  const t = useTranslations('creative.listingEditor')
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError]           = useState<string | null>(null)
   const categoryId = listing.category_ml_id
@@ -471,7 +476,7 @@ function MlCategoryBadge({
   return (
     <div className="space-y-2">
       <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-500">
-        Categoria Mercado Livre <span className="text-[9px] text-zinc-600 normal-case font-medium">(usada no anúncio)</span>
+        {t('mlCategory')} <span className="text-[9px] text-zinc-600 normal-case font-medium">{t('usedInListing')}</span>
       </label>
 
       {categoryId ? (
@@ -484,14 +489,14 @@ function MlCategoryBadge({
               target="_blank"
               rel="noopener"
               className="opacity-70 hover:opacity-100"
-              title="Ver categoria no ML"
+              title={t('viewCategoryOnMl')}
             >
               <ExternalLink size={10} />
             </a>
           </span>
           {nAttrs > 0 && (
             <span className="text-[10px] text-zinc-500">
-              {nAttrs} atributo{nAttrs === 1 ? '' : 's'} sugerido{nAttrs === 1 ? '' : 's'}
+              {t('nAttrsSuggested', { n: nAttrs })}
             </span>
           )}
           <button
@@ -499,17 +504,17 @@ function MlCategoryBadge({
             onClick={handleRefresh}
             disabled={disabled || refreshing}
             className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors disabled:opacity-50"
-            title="Re-detectar categoria com base no título atual"
+            title={t('refreshCategoryTitle')}
           >
             {refreshing ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />}
-            Atualizar
+            {t('refresh')}
           </button>
         </div>
       ) : (
         <div className="flex items-center gap-2 flex-wrap">
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-500/10 text-amber-300 border border-amber-500/30 text-xs">
             <AlertCircle size={11} />
-            Sem categoria ML detectada
+            {t('noMlCategory')}
           </span>
           <button
             type="button"
@@ -518,7 +523,7 @@ function MlCategoryBadge({
             className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] text-cyan-300 hover:text-cyan-200 hover:bg-cyan-400/10 transition-colors disabled:opacity-50"
           >
             {refreshing ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />}
-            Detectar agora
+            {t('detectNow')}
           </button>
         </div>
       )}
@@ -549,6 +554,7 @@ function PublishReadinessBanner({
   listing:      CreativeListing
   mlAttributes: Array<{ id: string; value_id?: string; value_name?: string }>
 }) {
+  const t = useTranslations('creative.listingEditor')
   const categoryMlId = listing.category_ml_id
   const attrs = listing.attributes_ml_suggested ?? []
 
@@ -557,7 +563,7 @@ function PublishReadinessBanner({
       <div className="flex items-center gap-2 rounded-lg border border-amber-400/30 bg-amber-400/5 px-3 py-2 text-xs">
         <AlertCircle size={12} className="text-amber-400 shrink-0" />
         <span className="text-amber-200 flex-1">
-          Sem categoria ML detectada. Detecte abaixo pra habilitar a publicação.
+          {t('noMlCategoryDetectBelow')}
         </span>
       </div>
     )
@@ -594,12 +600,16 @@ function PublishReadinessBanner({
       )}
       <span className={['flex-1', ok ? 'text-emerald-200' : 'text-amber-200'].join(' ')}>
         {ok ? (
-          <>Pronto pra publicar — todos os {totalReq} atributos sugeridos preenchidos.</>
+          <>{t('readyToPublish', { total: totalReq })}</>
         ) : totalReq === 0 ? (
-          <>Nenhum atributo sugerido pela categoria ML. Verifique manualmente antes de publicar.</>
+          <>{t('noSuggestedAttrs')}</>
         ) : (
           <>
-            <strong>{missing.length}</strong> de {totalReq} atributos sugeridos faltam:{' '}
+            {t.rich('attrsMissing', {
+              missing: missing.length,
+              total: totalReq,
+              b: (c) => <strong>{c}</strong>,
+            })}{' '}
             <span className="text-amber-300/80">{missing.slice(0, 3).map(m => m.name).join(', ')}{missing.length > 3 ? '…' : ''}</span>
           </>
         )}
@@ -613,7 +623,7 @@ function PublishReadinessBanner({
             : 'bg-zinc-900 border border-zinc-800 hover:border-amber-400/40 text-zinc-300',
         ].join(' ')}
       >
-        {ok ? 'Publicar no ML' : 'Revisar e publicar'} →
+        {ok ? t('publishOnMl') : t('reviewAndPublish')} →
       </a>
     </div>
   )

@@ -13,6 +13,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { Sparkles, Loader2, AlertCircle } from 'lucide-react'
 import MLAttributesForm from './MLAttributesForm'
 import { CreativeApi } from './api'
@@ -30,6 +31,7 @@ interface Props {
 }
 
 export default function MlAttributesPanel({ listingId, categoryId, value, onChange, autoFill }: Props) {
+  const t = useTranslations('creative.mlAttributes')
   const [required, setRequired]       = useState<MlRequiredAttribute[]>([])
   const [recommended, setRecommended] = useState<MlRequiredAttribute[]>([])
   const [loading, setLoading]         = useState(false)
@@ -76,17 +78,17 @@ export default function MlAttributesPanel({ listingId, categoryId, value, onChan
   }, [loading, required, recommended, autoFill])
 
   if (!categoryId) {
-    return <p className="text-xs text-zinc-500">Categoria ML não definida — atributos indisponíveis.</p>
+    return <p className="text-xs text-zinc-500">{t('noCategory')}</p>
   }
   if (loading) {
     return (
       <div className="flex items-center gap-2 text-xs text-zinc-500 py-2">
-        <Loader2 size={12} className="animate-spin" /> Carregando atributos da categoria…
+        <Loader2 size={12} className="animate-spin" /> {t('loadingAttributes')}
       </div>
     )
   }
   if (loadError) {
-    return <div className="text-xs text-red-300">Falha ao carregar atributos: {loadError}</div>
+    return <div className="text-xs text-red-300">{t('loadError', { error: loadError })}</div>
   }
 
   return (
@@ -94,8 +96,9 @@ export default function MlAttributesPanel({ listingId, categoryId, value, onChan
       {/* Preenchimento por IA */}
       <div className="flex items-start justify-between gap-2">
         <p className="text-[11px] text-zinc-500 flex-1">
-          A IA preenche pelos dados do produto; o que ela não conseguir determinar fica
-          como <span className="text-zinc-400">&quot;Não se aplica&quot;</span>.
+          {t.rich('aiHint', {
+            notApplicable: (chunks) => <span className="text-zinc-400">{chunks}</span>,
+          })}
         </p>
         <button
           type="button"
@@ -104,8 +107,8 @@ export default function MlAttributesPanel({ listingId, categoryId, value, onChan
           className="shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold border border-cyan-400/30 bg-cyan-400/10 text-cyan-300 hover:bg-cyan-400/20 disabled:opacity-60"
         >
           {aiFilling
-            ? <><Loader2 size={11} className="animate-spin" /> Preenchendo…</>
-            : <><Sparkles size={11} /> Preencher com IA</>}
+            ? <><Loader2 size={11} className="animate-spin" /> {t('filling')}</>
+            : <><Sparkles size={11} /> {t('fillWithAi')}</>}
         </button>
       </div>
       {aiError && (
@@ -117,7 +120,7 @@ export default function MlAttributesPanel({ listingId, categoryId, value, onChan
       {required.length > 0 && (
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-wider text-red-300 mb-1.5">
-            Obrigatórios ({required.length})
+            {t('requiredHeading', { count: required.length })}
           </p>
           <MLAttributesForm attributes={required} values={value} onChange={onChange} />
         </div>
@@ -126,14 +129,14 @@ export default function MlAttributesPanel({ listingId, categoryId, value, onChan
       {recommended.length > 0 && (
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 mb-1.5">
-            Recomendados ({recommended.length}) — preencha ou marque &quot;Não se aplica&quot;
+            {t('recommendedHeading', { count: recommended.length })}
           </p>
           <MLAttributesForm attributes={recommended} values={value} onChange={onChange} allowNotApplicable />
         </div>
       )}
 
       {required.length === 0 && recommended.length === 0 && (
-        <p className="text-xs text-zinc-500">Sem atributos pra esta categoria.</p>
+        <p className="text-xs text-zinc-500">{t('noAttributes')}</p>
       )}
     </div>
   )

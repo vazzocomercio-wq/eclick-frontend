@@ -1,6 +1,7 @@
 'use client'
 
 import { ChevronDown } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { useState } from 'react'
 import type { CreativeListing, Marketplace } from './types'
 
@@ -16,6 +17,7 @@ interface Props {
  * conferir antes de aprovar.
  */
 export default function ListingPreview({ listing, variant, productImage }: Props) {
+  const t = useTranslations('creative.previewPanel')
   const v = variant ? listing.marketplace_variants?.[variant] : null
   const title       = v?.title       ?? listing.title
   const description = v?.description ?? listing.description
@@ -31,7 +33,7 @@ export default function ListingPreview({ listing, variant, productImage }: Props
           <span className="h-2.5 w-2.5 rounded-full bg-emerald-500/60" />
         </div>
         <span className="text-[10px] text-zinc-500 ml-2">
-          Preview · {variant ? `variante ${variant}` : 'base'}
+          {t('previewLabel')} · {variant ? t('variantLabel', { variant }) : t('baseLabel')}
         </span>
       </div>
 
@@ -67,7 +69,7 @@ export default function ListingPreview({ listing, variant, productImage }: Props
         {description && (
           <details className="rounded-lg bg-zinc-900/50 border border-zinc-800">
             <summary className="text-xs text-zinc-300 px-3 py-2 cursor-pointer flex items-center justify-between hover:bg-zinc-900">
-              <span className="font-medium">Descrição completa</span>
+              <span className="font-medium">{t('fullDescription')}</span>
               <ChevronDown size={12} />
             </summary>
             <div className="px-3 pb-3 pt-1 text-xs text-zinc-400 whitespace-pre-line leading-relaxed">
@@ -79,7 +81,7 @@ export default function ListingPreview({ listing, variant, productImage }: Props
         {/* Technical sheet */}
         {Object.keys(listing.technical_sheet ?? {}).length > 0 && !variant && (
           <div>
-            <h3 className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">Ficha técnica</h3>
+            <h3 className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">{t('technicalSheet')}</h3>
             <div className="rounded-lg border border-zinc-800 overflow-hidden">
               <table className="w-full text-xs">
                 <tbody>
@@ -98,7 +100,7 @@ export default function ListingPreview({ listing, variant, productImage }: Props
         {/* FAQ */}
         {!variant && listing.faq?.length > 0 && (
           <div>
-            <h3 className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">FAQ</h3>
+            <h3 className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">{t('faq')}</h3>
             <div className="space-y-1.5">
               {listing.faq.map((f, i) => <FaqItem key={i} q={f.q} a={f.a} />)}
             </div>
@@ -108,7 +110,7 @@ export default function ListingPreview({ listing, variant, productImage }: Props
         {/* Keywords (compact) */}
         {!variant && listing.keywords?.length > 0 && (
           <div>
-            <h3 className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">Palavras-chave</h3>
+            <h3 className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">{t('keywords')}</h3>
             <div className="flex flex-wrap gap-1">
               {listing.keywords.map((k, i) => (
                 <span key={i} className="text-[10px] px-2 py-0.5 rounded-full bg-zinc-900 border border-zinc-800 text-zinc-400">

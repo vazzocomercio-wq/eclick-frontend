@@ -297,14 +297,14 @@ export default function ListingDetailPage() {
                 type="button"
                 onClick={() => setForceEdit(true)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-cyan-400/40 text-zinc-200 text-xs transition-all"
-                title="Destrava os campos para editar este anúncio aprovado"
+                title={t('reopenToEditTooltip')}
               >
-                <Edit3 size={12} /> Reabrir para editar
+                <Edit3 size={12} /> {t('reopenToEdit')}
               </button>
             )}
             {approved && forceEdit && (
               <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-400/10 border border-amber-400/30 text-amber-200 text-xs">
-                <Edit3 size={12} /> Editando aprovado
+                <Edit3 size={12} /> {t('editingApproved')}
               </span>
             )}
           </div>

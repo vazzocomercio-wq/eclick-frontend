@@ -1,6 +1,7 @@
 'use client'
 
 import { Plus, Loader2 } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { useState } from 'react'
 import { MARKETPLACE_OPTIONS, type Marketplace, type CreativeListing } from './types'
 import { CreativeApi } from './api'
@@ -13,6 +14,7 @@ interface Props {
 }
 
 export default function MarketplaceVariantTabs({ listing, active, onSelect, onChange }: Props) {
+  const t = useTranslations('creative.variantTabs')
   const [generating, setGenerating] = useState<Marketplace | null>(null)
   const [error, setError]           = useState<string | null>(null)
 
@@ -39,7 +41,7 @@ export default function MarketplaceVariantTabs({ listing, active, onSelect, onCh
     <div className="space-y-2">
       <div className="flex flex-wrap gap-1.5 items-center">
         <Tab active={active === null} onClick={() => onSelect(null)}>
-          Base
+          {t('base')}
         </Tab>
         {existing.map(m => {
           const opt = MARKETPLACE_OPTIONS.find(o => o.value === m)
@@ -54,7 +56,7 @@ export default function MarketplaceVariantTabs({ listing, active, onSelect, onCh
         {missing.length > 0 && (
           <details className="relative">
             <summary className="list-none cursor-pointer flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] bg-zinc-950 text-zinc-400 border border-dashed border-zinc-800 hover:border-cyan-400/40 hover:text-cyan-300">
-              <Plus size={10} /> Variante
+              <Plus size={10} /> {t('addVariant')}
             </summary>
             <div className="absolute z-10 mt-1 right-0 min-w-[180px] rounded-lg border border-zinc-800 bg-zinc-950 shadow-lg p-1">
               {missing.map(target => {
@@ -70,7 +72,7 @@ export default function MarketplaceVariantTabs({ listing, active, onSelect, onCh
                   >
                     {busy ? <Loader2 size={10} className="animate-spin" /> : <span>{opt?.emoji}</span>}
                     <span>{opt?.label ?? target}</span>
-                    {busy && <span className="text-[10px] text-cyan-400 ml-auto">gerando…</span>}
+                    {busy && <span className="text-[10px] text-cyan-400 ml-auto">{t('generating')}</span>}
                   </button>
                 )
               })}

@@ -9,6 +9,7 @@
  */
 
 import { useEffect, useState, useCallback } from 'react'
+import { useTranslations } from 'next-intl'
 import { Sparkles, Loader2, Swords, TrendingUp, ChevronDown } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import { scoreBand, dimensionLabel, dimensionColor } from '@/components/ai-visibility/geo-labels'
@@ -18,10 +19,6 @@ const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? process.env.NEXT_PUBLIC_A
 interface Dim { name: string; score: number; weight: number; reasoning?: string }
 interface ScoreRes { geoScore: number; dimensions: Dim[] }
 interface SimRes { avg_rank: number | null; candidate_count: number; candidate_source: string | null; queries: Array<{ query: string; rank: number | null }>; note: string | null }
-
-const SOURCE_LABEL: Record<string, string> = {
-  radar: 'concorrentes reais (Radar)', synthetic: 'concorrentes de mercado (IA)', catalog: 'mesma categoria do catálogo',
-}
 
 async function post<T>(path: string, body: unknown): Promise<T> {
   const { data } = await createClient().auth.getSession()
@@ -35,6 +32,10 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 }
 
 export default function GeoVisibilityPanel({ listingId, listingVersion }: { listingId: string; listingVersion: number }) {
+  const t = useTranslations('creative.geoPanel')
+  const sourceLabel: Record<string, string> = {
+    radar: t('sourceRadar'), synthetic: t('sourceSynthetic'), catalog: t('sourceCatalog'),
+  }
   const [score, setScore] = useState<ScoreRes | null>(null)
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState<string | null>(null)
@@ -67,20 +68,20 @@ export default function GeoVisibilityPanel({ listingId, listingVersion }: { list
     <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-3">
       <div className="flex items-center justify-between mb-2">
         <h4 className="text-[10px] uppercase tracking-wider text-zinc-500 flex items-center gap-1.5">
-          <Sparkles size={11} className="text-cyan-400" /> Visibilidade em IA (GEO)
+          <Sparkles size={11} className="text-cyan-400" /> {t('title')}
         </h4>
         {score && band && (
           <span className="text-xs font-bold tabular-nums" style={{ color: band.color }}>{score.geoScore}/100</span>
         )}
       </div>
 
-      {loading && <div className="flex items-center gap-2 text-xs text-zinc-500 py-2"><Loader2 size={13} className="animate-spin text-cyan-400" /> Avaliando o rascunho…</div>}
-      {err && <div className="text-xs text-red-300 py-1">Falha ao pontuar: {err}</div>}
+      {loading && <div className="flex items-center gap-2 text-xs text-zinc-500 py-2"><Loader2 size={13} className="animate-spin text-cyan-400" /> {t('evaluating')}</div>}
+      {err && <div className="text-xs text-red-300 py-1">{t('scoreError', { error: err })}</div>}
 
       {score && band && (
         <>
           <p className="text-[11px] text-zinc-400 mb-2">
-            Quão provável é o ChatGPT/Perplexity/Gemini citar este anúncio. <span style={{ color: band.color }}>{band.label}.</span>
+            {t('intro')} <span style={{ color: band.color }}>{band.label}.</span>
           </p>
           <div className="space-y-1.5">
             {weak.map(d => (
@@ -97,7 +98,7 @@ export default function GeoVisibilityPanel({ listingId, listingVersion }: { list
           </div>
           {(score.dimensions?.length ?? 0) > 3 && (
             <button onClick={() => setExpanded(v => !v)} className="mt-2 inline-flex items-center gap-1 text-[10px] text-zinc-500 hover:text-cyan-300">
-              <ChevronDown size={11} className={expanded ? 'rotate-180 transition-transform' : 'transition-transform'} /> {expanded ? 'menos' : 'ver as 8 dimensões'}
+              <ChevronDown size={11} className={expanded ? 'rotate-180 transition-transform' : 'transition-transform'} /> {expanded ? t('showLess') : t('showAllDimensions')}
             </button>
           )}
 
@@ -107,20 +108,24 @@ export default function GeoVisibilityPanel({ listingId, listingVersion }: { list
               <button onClick={runSim} disabled={simBusy}
                 className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-cyan-400/30 hover:border-cyan-400/60 text-cyan-300 text-xs transition-all disabled:opacity-60">
                 {simBusy ? <Loader2 size={12} className="animate-spin" /> : <Swords size={12} />}
-                {simBusy ? 'Simulando ranking…' : 'Testar ranking na IA'}
+                {simBusy ? t('simulating') : t('testRanking')}
               </button>
             )}
             {simErr && <div className="text-xs text-red-300 py-1">{simErr}</div>}
             {sim && (
               sim.note ? (
-                <p className="text-[11px] text-zinc-500">Não foi possível simular ({sim.note}).</p>
+                <p className="text-[11px] text-zinc-500">{t('simUnavailable', { note: sim.note })}</p>
               ) : (
                 <div>
                   <div className="flex items-center gap-2 text-xs">
                     <TrendingUp size={13} className="text-cyan-400" />
-                    <span className="text-zinc-200">Posição média no ranking da IA: <b className="tabular-nums">{sim.avg_rank ?? '—'}º</b> de {sim.candidate_count}</span>
+                    <span className="text-zinc-200">{t.rich('avgRank', {
+                      rank: sim.avg_rank ?? '—',
+                      count: sim.candidate_count,
+                      b: (chunks) => <b className="tabular-nums">{chunks}</b>,
+                    })}</span>
                   </div>
-                  <p className="text-[10px] text-zinc-500 mt-0.5">páreo: {SOURCE_LABEL[sim.candidate_source ?? ''] ?? sim.candidate_source}</p>
+                  <p className="text-[10px] text-zinc-500 mt-0.5">{t('matchup', { source: sourceLabel[sim.candidate_source ?? ''] ?? sim.candidate_source ?? '' })}</p>
                   <div className="mt-2 space-y-1">
                     {sim.queries.map((q, i) => (
                       <div key={i} className="flex items-start justify-between gap-2 text-[11px]">
@@ -129,7 +134,7 @@ export default function GeoVisibilityPanel({ listingId, listingVersion }: { list
                       </div>
                     ))}
                   </div>
-                  <button onClick={runSim} disabled={simBusy} className="mt-2 text-[10px] text-zinc-500 hover:text-cyan-300">testar de novo</button>
+                  <button onClick={runSim} disabled={simBusy} className="mt-2 text-[10px] text-zinc-500 hover:text-cyan-300">{t('testAgain')}</button>
                 </div>
               )
             )}

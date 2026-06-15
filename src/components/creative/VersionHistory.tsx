@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { useTranslations } from 'next-intl'
 import { History, GitBranch, Check } from 'lucide-react'
 import type { CreativeListing } from './types'
 
@@ -11,6 +12,8 @@ interface Props {
 }
 
 export default function VersionHistory({ listings, productId, currentListingId }: Props) {
+  const t = useTranslations('creative.versionHistory')
+
   if (listings.length === 0) return null
 
   return (
@@ -18,10 +21,10 @@ export default function VersionHistory({ listings, productId, currentListingId }
       <summary className="cursor-pointer px-4 py-2.5 flex items-center justify-between hover:bg-zinc-900 transition-colors">
         <div className="flex items-center gap-2">
           <History size={14} className="text-cyan-400" />
-          <span className="text-sm font-semibold text-zinc-200">Histórico de versões</span>
+          <span className="text-sm font-semibold text-zinc-200">{t('title')}</span>
           <span className="text-[10px] text-zinc-500">({listings.length})</span>
         </div>
-        <span className="text-[10px] text-zinc-500">expandir</span>
+        <span className="text-[10px] text-zinc-500">{t('expand')}</span>
       </summary>
       <div className="border-t border-zinc-800 divide-y divide-zinc-800">
         {listings.map(l => {
@@ -47,14 +50,14 @@ export default function VersionHistory({ listings, productId, currentListingId }
                   <p className="text-zinc-200 truncate" title={l.title}>{l.title}</p>
                   <p className="text-[10px] text-zinc-500">
                     {new Date(l.created_at).toLocaleString('pt-BR')}
-                    {l.parent_listing_id ? ' · regenerado' : ' · original'}
+                    {l.parent_listing_id ? ` · ${t('regenerated')}` : ` · ${t('original')}`}
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-3 shrink-0 pl-2">
                 {l.status === 'approved' && (
                   <span className="flex items-center gap-1 text-[10px] text-emerald-400">
-                    <Check size={10} /> aprovado
+                    <Check size={10} /> {t('approved')}
                   </span>
                 )}
                 {typeof cost === 'number' && (
