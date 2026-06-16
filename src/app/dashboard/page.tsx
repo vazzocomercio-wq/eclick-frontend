@@ -436,7 +436,7 @@ function DashHeader({ period, setPeriod, scope, setScope, platforms, onRefresh, 
             const active = scope.platform === p
             const color = meta?.color ?? '#00E5FF'
             return (
-              <button key={p} onClick={() => setScope({ platform: p, seller_id: null })}
+              <button key={p} onClick={() => setScope({ platform: p, seller_id: null, account_id: null })}
                 className="px-3 py-1.5 rounded-md text-[12px] font-semibold transition-all"
                 style={{ background: active ? `${color}18` : 'transparent', color: active ? color : 'var(--text-muted)' }}>
                 {p === 'all' ? t('channelAll') : (meta?.label ?? p)}

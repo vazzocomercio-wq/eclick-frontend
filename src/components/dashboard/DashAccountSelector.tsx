@@ -15,13 +15,15 @@ const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'https://eclick-backend-p
 //   seller_id: number | null  (só ML tem múltiplas contas; Shopee/TikTok = null)
 
 export interface DashScope {
-  platform: string         // 'all' = todas as plataformas
-  seller_id: number | null // null = todas as contas da plataforma
+  platform: string          // 'all' = todas as plataformas
+  seller_id: number | null  // ML: conta; Shopee/TikTok = null
+  account_id: string | null // Shopee/TikTok: loja do canal (channel_account_id)
 }
 
 export interface DashAccount {
   platform: string
   seller_id: number | null
+  account_id: string | null
   nickname: string
   orders: number
 }
@@ -29,7 +31,7 @@ export interface DashAccount {
 const LS_KEY = 'eclick.dash.scope'
 const SCOPE_CHANGED_EVENT = 'eclick:dash-scope-changed'
 
-const ALL_SCOPE: DashScope = { platform: 'all', seller_id: null }
+const ALL_SCOPE: DashScope = { platform: 'all', seller_id: null, account_id: null }
 
 /** Metadados de exibição por plataforma (label curto + cor da marca). */
 export const PLATFORM_META: Record<string, { label: string; color: string }> = {
@@ -49,6 +51,7 @@ export function getStoredScope(): DashScope {
     return {
       platform: typeof p.platform === 'string' ? p.platform : 'all',
       seller_id: typeof p.seller_id === 'number' ? p.seller_id : null,
+      account_id: typeof p.account_id === 'string' ? p.account_id : null,
     }
   } catch { return ALL_SCOPE }
 }
@@ -62,13 +65,14 @@ export function setStoredScope(scope: DashScope) {
 
 /** Chave estável pra dependências de efeito (refetch quando muda). */
 export function scopeKey(s: DashScope): string {
-  return `${s.platform}:${s.seller_id ?? 'all'}`
+  return `${s.platform}:${s.seller_id ?? 'all'}:${s.account_id ?? 'all'}`
 }
 
-/** Monta o sufixo de query pros endpoints (&seller_id=&platforms=). */
+/** Monta o sufixo de query pros endpoints (&seller_id=&platforms=&account_id=). */
 export function buildScopeQuery(s: DashScope): string {
   const parts: string[] = []
   if (s.seller_id != null) parts.push(`seller_id=${s.seller_id}`)
+  if (s.account_id != null) parts.push(`account_id=${encodeURIComponent(s.account_id)}`)
   if (s.platform && s.platform !== 'all') parts.push(`platforms=${encodeURIComponent(s.platform)}`)
   return parts.length ? '&' + parts.join('&') : ''
 }
@@ -95,30 +99,21 @@ export function useDashScope() {
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const raw = await res.json() as DashAccount[]
-      // /orders/accounts agora separa LOJAS do canal (account_id Shopee/TikTok)
-      // pro filtro da tela de pedidos. O escopo do dashboard é por
-      // (platform, seller_id) — agrega de volta pra não duplicar pills.
-      const merged = new Map<string, DashAccount>()
-      for (const a of raw) {
-        const k = `${a.platform}|${a.seller_id ?? ''}`
-        const prev = merged.get(k)
-        if (prev) {
-          prev.orders += a.orders
-          // várias lojas agregadas → rótulo genérico da plataforma
-          prev.nickname = a.platform === 'shopee' ? 'Shopee'
-            : a.platform === 'tiktok_shop' ? 'TikTok Shop' : prev.nickname
-        } else merged.set(k, { ...a })
-      }
-      const list = [...merged.values()].sort((x, y) => y.orders - x.orders)
+      // Uma pill por conta/loja (ML por seller_id; Shopee/TikTok por account_id),
+      // cada uma com seu nome custom (account_labels). Antes agregávamos as lojas
+      // Shopee numa pill "Shopee" genérica — agora o escopo carrega account_id,
+      // então cada loja aparece e é selecionável pelo nome.
+      const list = [...raw].sort((x, y) => y.orders - x.orders)
       setAccounts(list)
-      // F17-C: /orders/accounts agora vem filtrado pelo escopo do user no
-      // backend. Se o escopo salvo no LS aponta pra conta/plataforma que o
-      // user não enxerga (mais), reseta pra "todas" — evita 403 nos KPIs.
+      // F17-C: /orders/accounts vem filtrado pelo escopo do user no backend. Se
+      // o escopo salvo no LS aponta pra conta que o user não enxerga (mais),
+      // reseta pra "todas" — evita 403 nos KPIs.
       const stored = getStoredScope()
       if (stored.platform !== 'all') {
         const stillValid = list.some(a =>
           a.platform === stored.platform
-          && (stored.seller_id == null || a.seller_id === stored.seller_id))
+          && (stored.seller_id == null || a.seller_id === stored.seller_id)
+          && (stored.account_id == null || a.account_id === stored.account_id))
         if (!stillValid) {
           setScopeRaw(ALL_SCOPE)
           setStoredScope(ALL_SCOPE)
@@ -158,9 +153,9 @@ interface Props {
   className?: string
 }
 
-/** Valor serializado pra <option> — combina plataforma + conta. */
-function optValue(a: DashAccount): string {
-  return `${a.platform}|${a.seller_id ?? ''}`
+/** Valor serializado pra <option> — combina plataforma + conta + loja. */
+function optValue(a: { platform: string; seller_id: number | null; account_id: string | null }): string {
+  return `${a.platform}|${a.seller_id ?? ''}|${a.account_id ?? ''}`
 }
 
 export default function DashAccountSelector({ scope, setScope, accounts, loading = false, compact = false, className = '' }: Props) {
@@ -178,7 +173,7 @@ export default function DashAccountSelector({ scope, setScope, accounts, loading
 
   const current = scope.platform === 'all'
     ? ''
-    : optValue({ platform: scope.platform, seller_id: scope.seller_id } as DashAccount)
+    : optValue({ platform: scope.platform, seller_id: scope.seller_id, account_id: scope.account_id })
 
   return (
     <div className={`flex items-center gap-2 ${className}`}>
@@ -188,8 +183,12 @@ export default function DashAccountSelector({ scope, setScope, accounts, loading
           onChange={e => {
             const v = e.target.value
             if (!v) { setScope(ALL_SCOPE); return }
-            const [platform, sellerRaw] = v.split('|')
-            setScope({ platform, seller_id: sellerRaw ? Number(sellerRaw) : null })
+            const [platform, sellerRaw, accountRaw] = v.split('|')
+            setScope({
+              platform,
+              seller_id:  sellerRaw ? Number(sellerRaw) : null,
+              account_id: accountRaw || null,
+            })
           }}
           className={[
             'appearance-none bg-zinc-950 border border-zinc-800 rounded-lg pl-8 pr-7 py-1.5 text-zinc-200 outline-none focus:border-cyan-400 cursor-pointer',
