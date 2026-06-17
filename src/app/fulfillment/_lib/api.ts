@@ -266,10 +266,13 @@ export interface WaveConsolidatedItem {
 
 // ── Endereçamento de estoque (WMS slotting) ─────────────────────────────────
 export type LocationType = 'picking' | 'pulmao' | 'staging' | 'devolucao'
+export type AddressScheme = 'coluna_estante_nivel' | 'rua_estante_nivel_posicao'
 export interface WarehouseLocation {
   id: string
   warehouse_id: string
   code: string
+  coluna: string | null
+  setor: string | null
   rua: number | null
   estante: number | null
   nivel: number | null
@@ -406,10 +409,14 @@ export const fulfillmentApi = {
 
   // Endereçamento de estoque (WMS slotting)
   locations: (wid?: string) => api<WarehouseLocation[]>(`/fulfillment/locations${wid ? `?warehouse_id=${wid}` : ''}`),
-  createLocation: (body: { warehouseId: string; code?: string; rua?: number; estante?: number; nivel?: number; posicao?: number; type?: LocationType }) =>
+  locationScheme: () => api<{ scheme: AddressScheme }>('/fulfillment/locations/scheme'),
+  setLocationScheme: (scheme: AddressScheme) => api<{ ok: boolean; scheme: AddressScheme }>('/fulfillment/locations/scheme', { method: 'PUT', body: JSON.stringify({ scheme }) }),
+  createLocation: (body: { warehouseId: string; code?: string; coluna?: string; setor?: string; rua?: number; estante?: number; nivel?: number; posicao?: number; type?: LocationType }) =>
     api<{ ok: boolean; id: string }>('/fulfillment/locations', { method: 'POST', body: JSON.stringify(body) }),
-  generateLocations: (body: { warehouseId: string; ruaFrom: number; ruaTo: number; estanteFrom: number; estanteTo: number; nivelFrom: number; nivelTo: number; posicaoFrom: number; posicaoTo: number; type?: LocationType }) =>
+  generateLocations: (body: { warehouseId: string; scheme?: AddressScheme; colFrom?: string; colTo?: string; setores?: Record<string, string>; ruaFrom?: number; ruaTo?: number; posicaoFrom?: number; posicaoTo?: number; estanteFrom: number; estanteTo: number; nivelFrom: number; nivelTo: number; type?: LocationType }) =>
     api<{ ok: boolean; created: number; skipped: number }>('/fulfillment/locations/generate', { method: 'POST', body: JSON.stringify(body) }),
+  setSector: (body: { warehouseId: string; coluna: string; setor: string | null }) =>
+    api<{ ok: boolean }>('/fulfillment/locations/sector', { method: 'POST', body: JSON.stringify(body) }),
   updateLocation: (id: string, patch: { is_active?: boolean; type?: LocationType; sequence?: number }) =>
     api<{ ok: boolean }>(`/fulfillment/locations/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
   deleteLocation: (id: string) => api<{ ok: boolean }>(`/fulfillment/locations/${id}`, { method: 'DELETE' }),
