@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import {
-  ArrowLeft, Layers, Plus, Sparkles, Play, X, Check, ChevronRight, PackageSearch, RefreshCw, Loader2,
+  ArrowLeft, Layers, Plus, Sparkles, Play, X, Check, ChevronRight, PackageSearch, RefreshCw, Loader2, ShoppingCart,
 } from 'lucide-react'
 import { Scanner } from '../_components/Scanner'
 import {
@@ -360,6 +360,7 @@ function WaveDetailView({ id, onExit }: { id: string; onExit: () => void }) {
               ))}
             </ul>
           </div>
+          <CartPlanPanel waveId={id} warehouseId={wave.warehouse_id} plan={wave.cart_plan ?? null} onPlanned={load} />
           <button onClick={release} disabled={busy}
             className="flex w-full items-center justify-center gap-2 rounded-2xl py-4 text-lg font-bold disabled:opacity-50"
             style={{ background: '#00E5FF', color: '#04222a' }}>
@@ -380,6 +381,12 @@ function WaveDetailView({ id, onExit }: { id: string; onExit: () => void }) {
               <span className="text-sm font-semibold" style={{ color: '#71717a' }}>Coleta consolidada</span>
               <span className="text-sm font-bold tabular-nums" style={{ color: allCollected ? '#4ADE50' : '#00E5FF' }}>{collectedUnits}/{totalUnits}</span>
             </div>
+            {wave.cart_plan && wave.cart_plan.carts.length > 0 && (
+              <div className="mb-2 rounded-lg px-3 py-2 text-xs" style={{ background: 'rgba(0,229,255,0.08)', border: '1px solid rgba(0,229,255,0.25)', color: '#a5f3fc' }}>
+                🛒 Plano: <b>{wave.cart_plan.carts.length} carrinho(s)</b> ({wave.cart_plan.cartName})
+                {wave.cart_plan.toMeasure.length > 0 && <span style={{ color: '#fcd34d' }}> · {wave.cart_plan.toMeasure.length} item(s) a medir</span>}
+              </div>
+            )}
             <ul className="flex flex-col gap-1.5">
               {wave.consolidated.map((it) => {
                 const done = it.collectedQty >= it.totalQty
@@ -479,6 +486,48 @@ function ChannelPill({ channel }: { channel: string }) {
 }
 function ErrBox({ msg }: { msg: string }) {
   return <div className="rounded-xl p-3 text-sm" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>{msg}</div>
+}
+
+// Plano de carrinhos (cubagem): escolhe um carrinho e divide a onda em carrinhos pela rota.
+function CartPlanPanel({ waveId, warehouseId, plan, onPlanned }: { waveId: string; warehouseId: string | null; plan: import('../_lib/api').CartPlan | null; onPlanned: () => Promise<void> | void }) {
+  const [carts, setCarts] = useState<import('../_lib/api').PickingCart[]>([])
+  const [cartId, setCartId] = useState<string>('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  useEffect(() => { fulfillmentApi.carts(warehouseId ?? undefined).then((c) => { setCarts(c); if (c[0]) setCartId(c[0].id) }).catch(() => {}) }, [warehouseId])
+  async function plan_() {
+    if (!cartId) { setErr('Cadastre/escolha um carrinho.'); return }
+    setBusy(true); setErr(null)
+    try { await fulfillmentApi.planWaveCarts(waveId, cartId); await onPlanned() }
+    catch (e) { setErr((e as Error).message) } finally { setBusy(false) }
+  }
+  return (
+    <div className="rounded-2xl p-4" style={{ background: '#0c0c10', border: '1px solid rgba(255,255,255,0.08)' }}>
+      <div className="mb-2 flex items-center gap-2"><ShoppingCart size={15} color="#00E5FF" /><span className="text-sm font-semibold" style={{ color: '#71717a' }}>Plano de carrinhos (cubagem)</span></div>
+      {carts.length === 0
+        ? <p className="text-xs" style={{ color: '#fcd34d' }}>Nenhum carrinho cadastrado — cadastre em 🛒 Carrinhos no início.</p>
+        : (
+          <div className="flex gap-2">
+            <select value={cartId} onChange={(e) => setCartId(e.target.value)} className="flex-1 rounded-lg px-2 py-2 text-sm outline-none" style={{ background: '#121214', color: '#fafafa', border: '1px solid rgba(255,255,255,0.08)' }}>
+              {carts.map((c) => <option key={c.id} value={c.id}>{c.name} ({(c.usable_volume_cm3 / 1000).toFixed(1)} L úteis)</option>)}
+            </select>
+            <button onClick={plan_} disabled={busy} className="rounded-lg px-3 py-2 text-sm font-bold disabled:opacity-50" style={{ background: '#00E5FF', color: '#04222a' }}>Planejar</button>
+          </div>
+        )}
+      {err && <p className="mt-2 text-xs" style={{ color: '#f87171' }}>{err}</p>}
+      {plan && plan.carts.length > 0 && (
+        <div className="mt-2 flex flex-col gap-1">
+          <div className="text-xs font-semibold" style={{ color: '#a5f3fc' }}>{plan.carts.length} carrinho(s) · {plan.cartName}{plan.toMeasure.length > 0 ? ` · ${plan.toMeasure.length} a medir` : ''}</div>
+          {plan.carts.map((c) => (
+            <div key={c.index} className="rounded-lg px-2 py-1.5 text-xs" style={{ background: '#121214' }}>
+              <b style={{ color: '#00E5FF' }}>Carrinho {c.index}</b> <span style={{ color: '#71717a' }}>· {c.items.length} SKU(s) · {(c.volumeUsed / 1000).toFixed(1)}/{(c.volumeCap / 1000).toFixed(1)} L</span>
+            </div>
+          ))}
+          {plan.toMeasure.length > 0 && <div className="text-xs" style={{ color: '#fcd34d' }}>⚠ {plan.toMeasure.length} item(s) sem medida ficaram de fora — meça em 🛒 Carrinhos.</div>}
+        </div>
+      )}
+    </div>
+  )
 }
 function Empty({ icon, text }: { icon: React.ReactNode; text: string }) {
   return <div className="rounded-2xl p-8 text-center" style={{ background: '#0c0c10', border: '1px solid rgba(255,255,255,0.08)' }}><div className="mb-2 flex justify-center">{icon}</div><p className="text-sm" style={{ color: '#a1a1aa' }}>{text}</p></div>

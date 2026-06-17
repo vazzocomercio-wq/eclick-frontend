@@ -18,6 +18,7 @@ interface OrderGroup {
   accountLabel: string | null
   platform: string | null
   company: string | null
+  profile: string | null
   customer: string
   tasks: PickTask[]
 }
@@ -43,6 +44,7 @@ export default function PickingPage() {
           accountLabel: t.order?.accountLabel ?? null,
           platform: t.order?.platform ?? null,
           company: t.order?.companyName ?? null,
+          profile: t.order?.pick_profile ?? null,
           customer: t.order?.customer?.name ?? '',
           tasks: [],
         }
@@ -100,6 +102,7 @@ export default function PickingPage() {
                   <div className="flex items-center gap-2">
                     <span className="font-bold">#{g.reference}</span>
                     <ChannelPill platform={g.platform} channel={g.channel} label={g.accountLabel} />
+                    <ProfilePill profile={g.profile} />
                     {late && <span className="rounded-full px-2 py-0.5 text-[11px] font-bold" style={{ background: '#EF444422', color: '#f87171' }}>ATRASADO</span>}
                   </div>
                   <div className="text-sm" style={{ color: '#a1a1aa' }}>{g.customer || 'Cliente'} · {total} {total === 1 ? 'item' : 'itens'}{g.company ? ` · ${g.company}` : ''}</div>
@@ -300,6 +303,17 @@ function DamageSheet({ sku, onClose, onSubmit }: { sku: string; onClose: () => v
   )
 }
 
+function ProfilePill({ profile }: { profile?: string | null }) {
+  if (!profile) return null
+  const map: Record<string, { t: string; c: string }> = {
+    single: { t: 'Unitário', c: '#4ADE50' },
+    mono_multi: { t: 'Mono-SKU', c: '#00E5FF' },
+    multi: { t: 'Multi-item', c: '#a78bfa' },
+  }
+  const m = map[profile]
+  if (!m) return null
+  return <span className="rounded-full px-2 py-0.5 text-[11px] font-semibold" style={{ background: `${m.c}1a`, color: m.c }}>{m.t}</span>
+}
 function ChannelPill({ platform, channel, label }: { platform?: string | null; channel?: string | null; label?: string | null }) {
   const key = (platform ?? channel ?? '').toLowerCase()
   const c = key.includes('mercado') ? '#FFE600'

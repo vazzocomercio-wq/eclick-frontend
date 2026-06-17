@@ -2,13 +2,14 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
-import { PackageSearch, PackageCheck, AlertTriangle, ScanLine, RefreshCw, Warehouse as WarehouseIcon, Settings, Users, Clock, RotateCcw, Layers, Building2, Tv, Truck, Box, MapPin } from 'lucide-react'
+import { PackageSearch, PackageCheck, AlertTriangle, ScanLine, RefreshCw, Warehouse as WarehouseIcon, Settings, Users, Clock, RotateCcw, Layers, Building2, Tv, Truck, Box, MapPin, ShoppingCart } from 'lucide-react'
 import { fulfillmentApi, type Warehouse, type DashboardData } from './_lib/api'
 import { SettingsSheet } from './_components/SettingsSheet'
 import { TeamSheet } from './_components/TeamSheet'
 import { CompaniesSheet } from './_components/CompaniesSheet'
 import { PackagingSheet } from './_components/PackagingSheet'
 import { LocationsSheet } from './_components/LocationsSheet'
+import { CartsSheet } from './_components/CartsSheet'
 
 const WID_KEY = 'eclick_fulfillment_wid'
 
@@ -23,6 +24,7 @@ export default function FulfillmentHub() {
   const [showCompanies, setShowCompanies] = useState(false)
   const [showPackaging, setShowPackaging] = useState(false)
   const [showLocations, setShowLocations] = useState(false)
+  const [showCarts, setShowCarts] = useState(false)
 
   const load = useCallback(async (warehouseId: string | null) => {
     try {
@@ -75,6 +77,9 @@ export default function FulfillmentHub() {
           <button onClick={() => setShowLocations(true)} className="rounded-xl p-3" style={{ background: '#18181b' }} aria-label="Endereçamento">
             <MapPin size={18} color="#a1a1aa" />
           </button>
+          <button onClick={() => setShowCarts(true)} className="rounded-xl p-3" style={{ background: '#18181b' }} aria-label="Carrinhos e medição">
+            <ShoppingCart size={18} color="#a1a1aa" />
+          </button>
           <button onClick={() => setShowTeam(true)} className="rounded-xl p-3" style={{ background: '#18181b' }} aria-label="Equipe">
             <Users size={18} color="#a1a1aa" />
           </button>
@@ -95,6 +100,7 @@ export default function FulfillmentHub() {
       {showCompanies && <CompaniesSheet onClose={() => setShowCompanies(false)} />}
       {showPackaging && <PackagingSheet onClose={() => setShowPackaging(false)} />}
       {showLocations && <LocationsSheet warehouses={warehouses} warehouseId={wid} onClose={() => setShowLocations(false)} />}
+      {showCarts && <CartsSheet warehouses={warehouses} warehouseId={wid} onClose={() => setShowCarts(false)} />}
 
       {warehouses.length > 1 && (
         <select

@@ -84,8 +84,10 @@ export interface PickTask {
   sla_deadline: string | null
   location_code?: string | null
   location_seq?: number | null
-  order?: { reference?: string | null; channel?: string | null; customer?: { name?: string }; accountLabel?: string | null; platform?: string | null; companyName?: string | null } | null
+  order?: { reference?: string | null; channel?: string | null; customer?: { name?: string }; accountLabel?: string | null; platform?: string | null; companyName?: string | null; pick_profile?: PickProfile | null } | null
 }
+
+export type PickProfile = 'single' | 'mono_multi' | 'multi'
 
 export interface PackTask {
   id: string
@@ -282,10 +284,28 @@ export interface WarehouseLocation {
   is_active: boolean
 }
 export interface AbcSuggestion { productId: string; sku: string | null; name: string | null; abc: string | null; code: string; locationId: string }
+
+// ── Carrinho de coleta (cubagem) + medição ──────────────────────────────────
+export interface PickingCart {
+  id: string
+  warehouse_id: string | null
+  name: string
+  width_cm: number
+  length_cm: number
+  height_cm: number
+  fill_factor: number
+  is_active: boolean
+  usable_volume_cm3: number
+}
+export interface CartPlanCart { index: number; volumeUsed: number; volumeCap: number; items: Array<{ sku: string; title: string | null; qty: number; locationCode: string | null }> }
+export interface CartPlan { cartName: string; capacity: number; carts: CartPlanCart[]; toMeasure: Array<{ sku: string; title: string | null }> }
+export interface ProductToMeasure { productId: string | null; sku: string; title: string | null }
 export interface WaveOrderLink { fulfillmentOrderId: string; sorted: boolean; reference: string | null; channel: string | null }
 export interface WaveDetail extends WaveSummary {
   orders: WaveOrderLink[]
   consolidated: WaveConsolidatedItem[]
+  cart_id?: string | null
+  cart_plan?: CartPlan | null
 }
 export interface WaveSuggestion { foId: string; reference: string | null; channel: string | null; score: number; reason: string }
 export interface WaveSuggestResponse {
@@ -428,4 +448,17 @@ export const fulfillmentApi = {
     api<{ ok: boolean; locationId: string; code: string }>('/fulfillment/locations/assign', { method: 'POST', body: JSON.stringify(body) }),
   setPickLocation: (pickTaskId: string, code: string) =>
     api<{ ok: boolean; code: string }>(`/fulfillment/pick-tasks/${pickTaskId}/set-location`, { method: 'POST', body: JSON.stringify({ code }) }),
+
+  // Carrinhos de coleta (cubagem) + medição
+  carts: (wid?: string) => api<PickingCart[]>(`/fulfillment/carts${wid ? `?warehouse_id=${wid}` : ''}`),
+  createCart: (body: { warehouseId?: string | null; name: string; width_cm: number; length_cm: number; height_cm: number; fill_factor?: number }) =>
+    api<{ ok: boolean; id: string }>('/fulfillment/carts', { method: 'POST', body: JSON.stringify(body) }),
+  updateCart: (id: string, patch: { name?: string; width_cm?: number; length_cm?: number; height_cm?: number; fill_factor?: number; is_active?: boolean }) =>
+    api<{ ok: boolean }>(`/fulfillment/carts/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+  deleteCart: (id: string) => api<{ ok: boolean }>(`/fulfillment/carts/${id}`, { method: 'DELETE' }),
+  productsToMeasure: (wid?: string) => api<ProductToMeasure[]>(`/fulfillment/products-to-measure${wid ? `?warehouse_id=${wid}` : ''}`),
+  measureProduct: (body: { productId?: string; sku?: string; width_cm: number; length_cm: number; height_cm: number }) =>
+    api<{ ok: boolean; sku: string | null }>('/fulfillment/products/measure', { method: 'POST', body: JSON.stringify(body) }),
+  planWaveCarts: (waveId: string, cartId: string) =>
+    api<{ ok: boolean; carts: number; toMeasure: number; plan: CartPlan }>(`/fulfillment/waves/${waveId}/cart-plan`, { method: 'POST', body: JSON.stringify({ cartId }) }),
 }
