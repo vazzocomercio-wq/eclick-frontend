@@ -211,6 +211,7 @@ const SECTIONS: NavSection[] = [
     key: 'compras',
     labelKey: 'sections.compras',
     items: [
+      { labelKey: 'items.radarTendencias',     href: '/dashboard/radar-tendencias',     icon: <TrendingUp size={15} /> },
       { labelKey: 'items.comprasInteligencia', href: '/dashboard/compras/inteligencia', icon: <Brain size={15} />,    badgeKey: 'compras-criticos' as BadgeKey },
       { labelKey: 'items.comprasFornecedores', href: '/dashboard/compras/fornecedores', icon: <Building2 size={15} /> },
       { labelKey: 'items.comprasImportacoes',  href: '/dashboard/compras/importacoes',  icon: <Ship size={15} /> },
