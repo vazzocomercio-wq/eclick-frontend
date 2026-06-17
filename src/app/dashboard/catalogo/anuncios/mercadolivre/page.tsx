@@ -1501,6 +1501,8 @@ export default function MLAnunciosPage() {
   // listing_id → dados do vínculo, pro botão "Desvincular".
   const [linkMap, setLinkMap]               = useState<Map<string, { vinculoId: string; productId: string; productName: string }>>(new Map())
 
+  // Ordenação (param `sort` → ML `orders`). '' = Predefinido (relevância ML).
+  const [sortBy, setSortBy]                   = useState('')
   // Filtros avançados
   const [advOpen, setAdvOpen]                 = useState(false)
   const [filterListingType, setFilterListingType] = useState<'all' | 'premium' | 'gold' | 'classic'>('all')
@@ -1577,6 +1579,7 @@ export default function MLAnunciosPage() {
       // Busca unificada — o backend resolve título / SKU / código MLB.
       if (query.trim()) params.set('q', query.trim())
       if (selectedSellerId != null) params.set('seller_id', String(selectedSellerId))
+      if (sortBy) params.set('sort', sortBy)
       const res  = await fetch(`${BACKEND}/ml/listings?${params}`, { headers })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const body = await res.json()
@@ -1590,7 +1593,7 @@ export default function MLAnunciosPage() {
     } finally {
       setLoading(false)
     }
-  }, [getHeaders, selectedSellerId, t])
+  }, [getHeaders, selectedSellerId, sortBy, t])
 
   // ── Status de catálogo (price_to_win) — AO VIVO no ML ──────────────────
   // Busca pros anúncios de catálogo da página atual. Não espera a coleta
@@ -1669,6 +1672,8 @@ export default function MLAnunciosPage() {
   // Quando troca de conta, volta pra página 0 e limpa seleção pra evitar
   // operar em IDs que sumiram do filtro atual.
   useEffect(() => { setPage(0); setSelected(new Set()) }, [selectedSellerId])
+  // troca de ordenação volta pra página 1 (o loadItems refaz via dep sortBy)
+  useEffect(() => { setPage(0) }, [sortBy])
 
   // Load linked listing IDs (used by the "Produto vinculado" badge) AND
   // the per-listing stock map (used by the inline stock input on each card).
@@ -2217,6 +2222,16 @@ export default function MLAnunciosPage() {
             {t('ml.clear')}
           </button>
         )}
+        {/* Ordenação */}
+        <select value={sortBy} onChange={e => setSortBy(e.target.value)}
+          className="ml-auto text-sm px-3 py-2 rounded-xl text-zinc-200 outline-none cursor-pointer"
+          style={{ background: '#111114', border: '1px solid #27272a' }}
+          title="Ordenar anúncios">
+          <option value="">Predefinido</option>
+          <option value="created_desc">Últimos criados</option>
+          <option value="created_asc">Criados primeiro</option>
+          <option value="updated_desc">Últimos alterados</option>
+        </select>
       </div>
 
       {/* ── Tabs ──────────────────────────────────────────────────── */}

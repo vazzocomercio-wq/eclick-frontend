@@ -587,6 +587,8 @@ export default function TikTokListingsPage() {
   const [toasts, setToasts] = useState<Toast[]>([])
   const [linkTarget, setLinkTarget] = useState<TkListing | null>(null)
   const [linking, setLinking] = useState(false)
+  // Ordenação (param `sort`). '' = Predefinido.
+  const [sortBy, setSortBy] = useState('')
   // Cópia em lote pra outras contas/plataformas
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [copyOpen, setCopyOpen] = useState(false)
@@ -644,6 +646,7 @@ export default function TikTokListingsPage() {
       const headers = await getHeaders()
       const params = new URLSearchParams({ status: currentTab, offset: String(currentPage * PAGE_SIZE), limit: String(PAGE_SIZE) })
       if (query.trim()) params.set('q', query.trim())
+      if (sortBy) params.set('sort', sortBy)
       const res = await fetch(`${BACKEND}/tiktok-shop/listings?${params.toString()}`, { headers })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const body = (await res.json()) as { items: TkListing[]; total: number }
@@ -655,7 +658,7 @@ export default function TikTokListingsPage() {
     } finally {
       setLoading(false)
     }
-  }, [getHeaders, toast, t])
+  }, [getHeaders, toast, sortBy, t])
 
   const loadCounts = useCallback(async () => {
     try {
@@ -761,6 +764,7 @@ export default function TikTokListingsPage() {
   useEffect(() => { void loadCounts() }, [loadCounts])
   useEffect(() => { void loadLinkMap() }, [loadLinkMap])
   useEffect(() => { void loadItems(tab, page, q) }, [tab, page, q, loadItems])
+  useEffect(() => { setPage(0) }, [sortBy])
 
   async function saveMargin(productId: string, patch: { cost: number | null; taxPct: number | null }) {
     const { error } = await supabase.from('products').update({ cost_price: patch.cost, tax_percentage: patch.taxPct }).eq('id', productId)
@@ -989,6 +993,16 @@ export default function TikTokListingsPage() {
         {(q || qInput) && (
           <button onClick={() => { setQInput(''); setQ(''); setPage(0) }} className="text-xs text-zinc-500 hover:text-zinc-300 px-2">✕</button>
         )}
+        {/* Ordenação */}
+        <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}
+          className="text-sm px-3 py-2 rounded-lg outline-none cursor-pointer"
+          style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }}
+          title="Ordenar anúncios">
+          <option value="">Predefinido</option>
+          <option value="created_desc">Últimos criados</option>
+          <option value="created_asc">Criados primeiro</option>
+          <option value="updated_desc">Últimos alterados</option>
+        </select>
       </div>
 
       {/* Count line */}
