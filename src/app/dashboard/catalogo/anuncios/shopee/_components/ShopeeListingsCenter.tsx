@@ -53,6 +53,8 @@ interface ListingCard {
   top_issues:      Issue[]
   total_issues:    number
   computed_at:     string
+  created_at:      string | null
+  updated_at:      string | null
 }
 
 // F18 Fase A/B — vínculo + margem por anúncio (de /shopee/listings/link-status)
@@ -87,6 +89,8 @@ export default function ShopeeListingsCenter() {
   const [summary, setSummary]   = useState<{ linked: number; with_margin: number } | null>(null)
   const [autoBusy, setAutoBusy] = useState(false)
   const [notice, setNotice]     = useState<string | null>(null)
+  // Ordenação (client-side; '' = padrão por score)
+  const [sortBy, setSortBy]     = useState('')
   // Cópia em lote pra outras contas/plataformas (item_id selecionados)
   const [picked, setPicked]     = useState<Set<number>>(new Set())
   const [copyOpen, setCopyOpen] = useState(false)
@@ -127,7 +131,7 @@ export default function ShopeeListingsCenter() {
 
   useEffect(() => { void load() }, [load])
   // volta pra primeira página quando muda busca/loja/quantidade por página
-  useEffect(() => { setPage(1) }, [query, shopFilter, perPage])
+  useEffect(() => { setPage(1) }, [query, shopFilter, perPage, sortBy])
 
   const autoLink = useCallback(async () => {
     setAutoBusy(true); setError(null); setNotice(null)
@@ -220,10 +224,25 @@ export default function ShopeeListingsCenter() {
 
   // lojas distintas (multi-conta) — pro filtro por loja
   const shopIds = [...new Set((items ?? []).map(it => it.shop_id).filter((n): n is number => n != null))].sort()
-  const filtered = (items ?? []).filter(it =>
+  const filteredBase = (items ?? []).filter(it =>
     (!query || (it.title ?? '').toLowerCase().includes(query.toLowerCase())) &&
     (shopFilter === 'all' || it.shop_id === shopFilter),
   )
+  // Ordenação client-side (lista vem completa, limit=1000). Sem sort = ordem
+  // padrão (score, piores primeiro). Datas null vão pro fim.
+  const filtered = (() => {
+    if (!sortBy) return filteredBase
+    const field = sortBy.startsWith('created') ? 'created_at' : 'updated_at'
+    const dir = sortBy.endsWith('asc') ? 1 : -1
+    return [...filteredBase].sort((a, b) => {
+      const av = a[field] ? Date.parse(a[field] as string) : null
+      const bv = b[field] ? Date.parse(b[field] as string) : null
+      if (av === bv) return 0
+      if (av === null) return 1
+      if (bv === null) return -1
+      return av < bv ? -dir : dir
+    })
+  })()
 
   // paginação no cliente (os dados já vêm completos do backend)
   const totalPages = Math.max(1, Math.ceil(filtered.length / perPage))
@@ -256,7 +275,7 @@ export default function ShopeeListingsCenter() {
           })}
         </div>
       )}
-      <Toolbar query={query} onQuery={setQuery} t={t} />
+      <Toolbar query={query} onQuery={setQuery} sortBy={sortBy} onSort={setSortBy} t={t} />
       {notice && (
         <div className="rounded-xl p-3 flex items-start gap-2"
           style={{ background: 'rgba(52,211,153,0.08)', border: '1px solid rgba(52,211,153,0.25)' }}>
@@ -410,7 +429,7 @@ function Header({ total, summary, onRefresh, onAutoLink, autoBusy, onPropagate, 
   )
 }
 
-function Toolbar({ query, onQuery, t }: { query: string; onQuery: (s: string) => void; t: ReturnType<typeof useTranslations> }) {
+function Toolbar({ query, onQuery, sortBy, onSort, t }: { query: string; onQuery: (s: string) => void; sortBy: string; onSort: (s: string) => void; t: ReturnType<typeof useTranslations> }) {
   return (
     <div className="flex items-center gap-2">
       <div className="relative flex-1 max-w-md">
@@ -424,6 +443,16 @@ function Toolbar({ query, onQuery, t }: { query: string; onQuery: (s: string) =>
           style={{ background: '#111114', border: '1px solid #1e1e24', outline: 'none' }}
         />
       </div>
+      {/* Ordenação (client-side) */}
+      <select value={sortBy} onChange={e => onSort(e.target.value)}
+        className="text-xs px-3 py-2 rounded-lg text-zinc-300 outline-none cursor-pointer"
+        style={{ background: '#111114', border: '1px solid #1e1e24' }}
+        title="Ordenar anúncios">
+        <option value="">Predefinido</option>
+        <option value="created_desc">Últimos criados</option>
+        <option value="created_asc">Criados primeiro</option>
+        <option value="updated_desc">Últimos alterados</option>
+      </select>
     </div>
   )
 }
