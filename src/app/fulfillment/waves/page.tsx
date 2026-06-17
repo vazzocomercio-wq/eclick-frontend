@@ -385,6 +385,7 @@ function WaveDetailView({ id, onExit }: { id: string; onExit: () => void }) {
               <div className="mb-2 rounded-lg px-3 py-2 text-xs" style={{ background: 'rgba(0,229,255,0.08)', border: '1px solid rgba(0,229,255,0.25)', color: '#a5f3fc' }}>
                 🛒 Plano: <b>{wave.cart_plan.carts.length} carrinho(s)</b> ({wave.cart_plan.cartName})
                 {wave.cart_plan.toMeasure.length > 0 && <span style={{ color: '#fcd34d' }}> · {wave.cart_plan.toMeasure.length} item(s) a medir</span>}
+                {wave.cart_plan.oversized && wave.cart_plan.oversized.length > 0 && <span style={{ color: '#fb923c' }}> · {wave.cart_plan.oversized.length} grande(s)</span>}
               </div>
             )}
             <ul className="flex flex-col gap-1.5">
@@ -521,9 +522,11 @@ function CartPlanPanel({ waveId, warehouseId, plan, onPlanned }: { waveId: strin
           {plan.carts.map((c) => (
             <div key={c.index} className="rounded-lg px-2 py-1.5 text-xs" style={{ background: '#121214' }}>
               <b style={{ color: '#00E5FF' }}>Carrinho {c.index}</b> <span style={{ color: '#71717a' }}>· {c.items.length} SKU(s) · {(c.volumeUsed / 1000).toFixed(1)}/{(c.volumeCap / 1000).toFixed(1)} L</span>
+              {c.items.some((i) => i.split) && <span style={{ color: '#a78bfa' }}> · lote dividido</span>}
             </div>
           ))}
           {plan.toMeasure.length > 0 && <div className="text-xs" style={{ color: '#fcd34d' }}>⚠ {plan.toMeasure.length} item(s) sem medida ficaram de fora — meça em 🛒 Carrinhos.</div>}
+          {plan.oversized && plan.oversized.length > 0 && <div className="text-xs" style={{ color: '#fb923c' }}>📦 {plan.oversized.length} item(s) grande(s) não cabem no carrinho (use outro carrinho/leve à mão): {plan.oversized.map((o) => o.sku).join(', ')}</div>}
         </div>
       )}
     </div>

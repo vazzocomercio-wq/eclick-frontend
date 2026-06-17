@@ -297,8 +297,8 @@ export interface PickingCart {
   is_active: boolean
   usable_volume_cm3: number
 }
-export interface CartPlanCart { index: number; volumeUsed: number; volumeCap: number; items: Array<{ sku: string; title: string | null; qty: number; locationCode: string | null }> }
-export interface CartPlan { cartName: string; capacity: number; carts: CartPlanCart[]; toMeasure: Array<{ sku: string; title: string | null }> }
+export interface CartPlanCart { index: number; volumeUsed: number; volumeCap: number; items: Array<{ sku: string; title: string | null; qty: number; locationCode: string | null; split?: boolean }> }
+export interface CartPlan { cartName: string; capacity: number; carts: CartPlanCart[]; toMeasure: Array<{ sku: string; title: string | null }>; oversized?: Array<{ sku: string; title: string | null; unitVolumeCm3: number }> }
 export interface ProductToMeasure { productId: string | null; sku: string; title: string | null }
 export interface WaveOrderLink { fulfillmentOrderId: string; sorted: boolean; reference: string | null; channel: string | null }
 export interface WaveDetail extends WaveSummary {
