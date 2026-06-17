@@ -386,7 +386,12 @@ function WaveDetailView({ id, onExit }: { id: string; onExit: () => void }) {
                 return (
                   <li key={it.sku} className="rounded-lg px-3 py-2" style={{ background: done ? '#0c2814' : '#121214', border: `1px solid ${done ? '#4ADE5044' : 'transparent'}` }}>
                     <div className="flex items-center justify-between">
-                      <span className="font-mono text-sm font-bold">{it.sku}</span>
+                      <div className="flex items-center gap-2">
+                        {it.locationCode
+                          ? <span className="font-mono text-xs font-bold" style={{ color: '#00E5FF' }}>📍{it.locationCode}</span>
+                          : <span className="text-xs" style={{ color: '#52525b' }}>📍—</span>}
+                        <span className="font-mono text-sm font-bold">{it.sku}</span>
+                      </div>
                       <span className="text-sm font-bold tabular-nums" style={{ color: done ? '#4ADE50' : '#fafafa' }}>{it.collectedQty}/{it.totalQty}</span>
                     </div>
                     {it.title && <div className="text-xs" style={{ color: '#71717a' }}>{it.title}</div>}

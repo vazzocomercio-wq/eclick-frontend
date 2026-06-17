@@ -49,7 +49,10 @@ export default function PickingPage() {
         g.tasks.push(t)
         map.set(t.fulfillment_order_id, g)
       }
-      setGroups([...map.values()])
+      // ordena os itens de cada pedido pela ROTA (endereço); sem endereço por último
+      const groups = [...map.values()]
+      for (const g of groups) g.tasks.sort((a, b) => (a.location_seq ?? Infinity) - (b.location_seq ?? Infinity))
+      setGroups(groups)
       setErr(null)
     } catch (e) {
       setErr((e as Error).message)
@@ -103,6 +106,9 @@ export default function PickingPage() {
                   <ul className="mt-1.5 flex flex-col gap-0.5">
                     {g.tasks.slice(0, 3).map((t) => (
                       <li key={t.id} className="truncate text-xs">
+                        {t.location_code
+                          ? <span className="font-mono font-semibold" style={{ color: '#00E5FF' }}>📍{t.location_code} </span>
+                          : <span style={{ color: '#52525b' }}>📍— </span>}
                         <span className="tabular-nums" style={{ color: '#71717a' }}>{t.expected_qty}×</span>{' '}
                         <span className="font-mono" style={{ color: '#d4d4d8' }}>{t.sku}</span>
                         {t.title ? <span style={{ color: '#71717a' }}> · {t.title}</span> : null}
@@ -128,6 +134,7 @@ function PickSession({ group, onExit, onChange }: { group: OrderGroup; onExit: (
   const [msg, setMsg] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [showDamage, setShowDamage] = useState(false)
+  const [setLoc, setSetLoc] = useState(false)
 
   // Item atual = primeiro não-concluído
   const idx = tasks.findIndex((t) => t.status !== 'picked' && t.status !== 'cancelled')
@@ -162,6 +169,17 @@ function PickSession({ group, onExit, onChange }: { group: OrderGroup; onExit: (
     if (!current) return
     try { await sendOrQueue(`/fulfillment/pick-tasks/${current.id}/block`, 'POST', { reason }); onChange(); onExit() }
     catch (e) { setMsg((e as Error).message) }
+  }
+
+  async function captureLocation(code: string) {
+    if (!current) return
+    setBusy(true); setMsg(null)
+    try {
+      const r = await fulfillmentApi.setPickLocation(current.id, code)
+      setTasks((prev) => prev.map((t) => t.id === current.id ? { ...t, location_code: r.code } : t))
+      feedbackOk(); setSetLoc(false); setMsg(`Endereço ${r.code} salvo ✓`)
+    } catch (e) { feedbackError(); setMsg((e as Error).message) }
+    finally { setBusy(false) }
   }
 
   async function reportDamage(base64: string, mime: string, severity: string) {
@@ -215,9 +233,22 @@ function PickSession({ group, onExit, onChange }: { group: OrderGroup; onExit: (
             <div className="font-mono text-2xl font-bold tracking-wide">{current.sku}</div>
             {current.title && <div className="mt-1 text-sm" style={{ color: '#a1a1aa' }}>{current.title}</div>}
             {current.expected_barcode && <div className="mt-2 text-xs" style={{ color: '#52525b' }}>EAN {current.expected_barcode}</div>}
+
+            {/* Endereço de coleta (onde pegar) + capture-on-pick */}
+            <div className="mt-3 flex items-center justify-between rounded-xl px-3 py-2"
+              style={{ background: current.location_code ? 'rgba(0,229,255,0.10)' : '#18181b', border: `1px solid ${current.location_code ? 'rgba(0,229,255,0.4)' : 'rgba(255,255,255,0.08)'}` }}>
+              {current.location_code
+                ? <span className="font-mono text-lg font-bold" style={{ color: '#00E5FF' }}>📍 {current.location_code}</span>
+                : <span className="text-sm" style={{ color: '#a1a1aa' }}>📍 Sem endereço</span>}
+              <button onClick={() => setSetLoc((v) => !v)} className="text-xs font-semibold" style={{ color: '#00E5FF' }}>
+                {setLoc ? 'Cancelar' : current.location_code ? 'Trocar' : 'Definir'}
+              </button>
+            </div>
           </div>
 
-          <Scanner onScan={onScan} disabled={busy} hint="Bipe o produto (SKU, EAN ou QR)" />
+          {setLoc
+            ? <Scanner onScan={captureLocation} disabled={busy} hint="Bipe a etiqueta da prateleira (ex.: R02-E05-N3-P01)" />
+            : <Scanner onScan={onScan} disabled={busy} hint="Bipe o produto (SKU, EAN ou QR)" />}
 
           {msg && (
             <div className="rounded-xl p-3 text-center text-sm font-semibold" style={{ background: flash === 'err' ? 'rgba(239,68,68,0.12)' : 'rgba(74,222,80,0.10)', color: flash === 'err' ? '#f87171' : '#4ADE50' }}>

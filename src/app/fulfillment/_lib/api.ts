@@ -82,6 +82,8 @@ export interface PickTask {
   status: string
   priority: number
   sla_deadline: string | null
+  location_code?: string | null
+  location_seq?: number | null
   order?: { reference?: string | null; channel?: string | null; customer?: { name?: string }; accountLabel?: string | null; platform?: string | null; companyName?: string | null } | null
 }
 
@@ -255,10 +257,28 @@ export interface WaveConsolidatedItem {
   sku: string
   title: string | null
   expected_barcode: string | null
+  locationCode: string | null
+  locationSeq: number | null
   totalQty: number
   collectedQty: number
   perOrder: Array<{ foId: string; ref: string | null; qty: number }>
 }
+
+// ── Endereçamento de estoque (WMS slotting) ─────────────────────────────────
+export type LocationType = 'picking' | 'pulmao' | 'staging' | 'devolucao'
+export interface WarehouseLocation {
+  id: string
+  warehouse_id: string
+  code: string
+  rua: number | null
+  estante: number | null
+  nivel: number | null
+  posicao: number | null
+  sequence: number
+  location_type: LocationType
+  is_active: boolean
+}
+export interface AbcSuggestion { productId: string; sku: string | null; name: string | null; abc: string | null; code: string; locationId: string }
 export interface WaveOrderLink { fulfillmentOrderId: string; sorted: boolean; reference: string | null; channel: string | null }
 export interface WaveDetail extends WaveSummary {
   orders: WaveOrderLink[]
@@ -383,4 +403,22 @@ export const fulfillmentApi = {
   completeWaveOrder: (id: string, foId: string) =>
     api<{ ok: boolean; allSorted?: boolean; alreadySorted?: boolean }>(`/fulfillment/waves/${id}/orders/${foId}/complete`, { method: 'POST' }),
   cancelWave: (id: string) => api<{ ok: boolean }>(`/fulfillment/waves/${id}/cancel`, { method: 'POST' }),
+
+  // Endereçamento de estoque (WMS slotting)
+  locations: (wid?: string) => api<WarehouseLocation[]>(`/fulfillment/locations${wid ? `?warehouse_id=${wid}` : ''}`),
+  createLocation: (body: { warehouseId: string; code?: string; rua?: number; estante?: number; nivel?: number; posicao?: number; type?: LocationType }) =>
+    api<{ ok: boolean; id: string }>('/fulfillment/locations', { method: 'POST', body: JSON.stringify(body) }),
+  generateLocations: (body: { warehouseId: string; ruaFrom: number; ruaTo: number; estanteFrom: number; estanteTo: number; nivelFrom: number; nivelTo: number; posicaoFrom: number; posicaoTo: number; type?: LocationType }) =>
+    api<{ ok: boolean; created: number; skipped: number }>('/fulfillment/locations/generate', { method: 'POST', body: JSON.stringify(body) }),
+  updateLocation: (id: string, patch: { is_active?: boolean; type?: LocationType; sequence?: number }) =>
+    api<{ ok: boolean }>(`/fulfillment/locations/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+  deleteLocation: (id: string) => api<{ ok: boolean }>(`/fulfillment/locations/${id}`, { method: 'DELETE' }),
+  importLocations: (body: { warehouseId: string; rows: Array<{ sku: string; code: string }> }) =>
+    api<{ ok: boolean; linked: number; skippedNoProduct: string[]; total: number }>('/fulfillment/locations/import', { method: 'POST', body: JSON.stringify(body) }),
+  abcSuggest: (body: { warehouseId: string; apply?: boolean; limit?: number }) =>
+    api<{ ok: boolean; suggestions: AbcSuggestion[]; applied: number }>('/fulfillment/locations/abc-suggest', { method: 'POST', body: JSON.stringify(body) }),
+  assignLocation: (body: { productId: string; warehouseId: string; code: string; isPrimary?: boolean }) =>
+    api<{ ok: boolean; locationId: string; code: string }>('/fulfillment/locations/assign', { method: 'POST', body: JSON.stringify(body) }),
+  setPickLocation: (pickTaskId: string, code: string) =>
+    api<{ ok: boolean; code: string }>(`/fulfillment/pick-tasks/${pickTaskId}/set-location`, { method: 'POST', body: JSON.stringify({ code }) }),
 }
