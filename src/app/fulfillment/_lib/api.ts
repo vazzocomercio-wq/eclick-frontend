@@ -457,7 +457,7 @@ export const fulfillmentApi = {
     api<{ ok: boolean }>(`/fulfillment/carts/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
   deleteCart: (id: string) => api<{ ok: boolean }>(`/fulfillment/carts/${id}`, { method: 'DELETE' }),
   productsToMeasure: (wid?: string) => api<ProductToMeasure[]>(`/fulfillment/products-to-measure${wid ? `?warehouse_id=${wid}` : ''}`),
-  measureProduct: (body: { productId?: string; sku?: string; width_cm: number; length_cm: number; height_cm: number }) =>
+  measureProduct: (body: { productId?: string; sku?: string; width_cm: number; length_cm: number; height_cm: number; weight_kg?: number | null }) =>
     api<{ ok: boolean; sku: string | null }>('/fulfillment/products/measure', { method: 'POST', body: JSON.stringify(body) }),
   planWaveCarts: (waveId: string, cartId: string) =>
     api<{ ok: boolean; carts: number; toMeasure: number; plan: CartPlan }>(`/fulfillment/waves/${waveId}/cart-plan`, { method: 'POST', body: JSON.stringify({ cartId }) }),

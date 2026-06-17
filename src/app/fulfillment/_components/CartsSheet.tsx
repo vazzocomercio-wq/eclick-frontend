@@ -107,12 +107,12 @@ export function CartsSheet({ warehouses, warehouseId, onClose }: { warehouses: W
 }
 
 function MeasureRow({ p, onSaved, setErr }: { p: ProductToMeasure; onSaved: () => void; setErr: (s: string) => void }) {
-  const [d, setD] = useState({ w: 0, l: 0, h: 0 })
+  const [d, setD] = useState({ w: 0, l: 0, h: 0, kg: 0 })
   const [busy, setBusy] = useState(false)
   async function save() {
     if (!(d.w > 0 && d.l > 0 && d.h > 0)) { setErr('Informe L×C×A maiores que zero.'); return }
     setBusy(true)
-    try { await fulfillmentApi.measureProduct({ productId: p.productId ?? undefined, sku: p.sku, width_cm: d.w, length_cm: d.l, height_cm: d.h }); onSaved() }
+    try { await fulfillmentApi.measureProduct({ productId: p.productId ?? undefined, sku: p.sku, width_cm: d.w, length_cm: d.l, height_cm: d.h, weight_kg: d.kg > 0 ? d.kg : undefined }); onSaved() }
     catch (e) { setErr((e as Error).message) } finally { setBusy(false) }
   }
   const inp = 'w-full rounded-lg px-1.5 py-1 text-center text-sm outline-none tabular-nums'
@@ -127,7 +127,11 @@ function MeasureRow({ p, onSaved, setErr }: { p: ProductToMeasure; onSaved: () =
         <span style={{ color: '#52525b' }}>×</span>
         <input type="number" placeholder="A" min={0} onChange={(e) => setD({ ...d, h: Number(e.target.value) || 0 })} className={inp} style={st} />
         <span className="text-[11px]" style={{ color: '#52525b' }}>cm</span>
-        <button onClick={save} disabled={busy} className="ml-auto rounded-lg px-2.5 py-1.5 text-xs font-bold disabled:opacity-50" style={{ background: '#4ADE50', color: '#06210d' }}><Check size={14} /></button>
+      </div>
+      <div className="mt-1.5 flex items-center gap-1.5">
+        <input type="number" placeholder="peso" min={0} step="0.01" onChange={(e) => setD({ ...d, kg: Number(e.target.value) || 0 })} className={inp} style={{ ...st, maxWidth: 90 }} />
+        <span className="text-[11px]" style={{ color: '#52525b' }}>kg (opcional)</span>
+        <button onClick={save} disabled={busy} className="ml-auto flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-bold disabled:opacity-50" style={{ background: '#4ADE50', color: '#06210d' }}><Check size={14} /> Salvar</button>
       </div>
     </li>
   )
