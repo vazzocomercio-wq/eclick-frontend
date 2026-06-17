@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase'
 import AccountSelector, { useMlAccount } from '@/components/ml/AccountSelector'
 import { fallbackFeeRate, computeContributionMargin, round2, estimateSaleFee } from '@/lib/margin'
 import { useConfirm } from '@/components/ui/dialog-provider'
+import CopyToChannelsModal, { type CopyItem } from '@/components/catalog/CopyToChannelsModal'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 
@@ -1492,6 +1493,8 @@ export default function MLAnunciosPage() {
   const [linkOpen, setLinkOpen]             = useState(false)
   const [linking, setLinking]               = useState(false)
   const [linkTargets, setLinkTargets]       = useState<MListing[]>([])
+  // Copiar pra outras contas/plataformas (bulk)
+  const [copyOpen, setCopyOpen]             = useState(false)
   // Map listing_id -> stock info (filled from Supabase). Used to render the
   // inline stock input on each card and to compute the page-total KPI.
   const [stockMap, setStockMap]             = useState<Map<string, { stock_id: string; product_id: string; quantity: number }>>(new Map())
@@ -1982,6 +1985,17 @@ export default function MLAnunciosPage() {
   const unlinkedSelected = useMemo(
     () => items.filter(i => selected.has(i.id) && !linkedIds.has(i.id)),
     [items, selected, linkedIds],
+  )
+
+  // Selecionados COM produto vinculado → copiáveis pra outras contas/plataformas.
+  const copyItems = useMemo<CopyItem[]>(
+    () => [...selected]
+      .map(id => {
+        const link = linkMap.get(id)
+        return link ? { product_id: link.productId, listing_id: id, platform: 'mercadolivre' } : null
+      })
+      .filter((x): x is CopyItem => x !== null),
+    [selected, linkMap],
   )
 
   function openLinkModal() {
@@ -2534,6 +2548,20 @@ export default function MLAnunciosPage() {
               {t('ml.createProducts')}
             </button>
             <button
+              onClick={() => setCopyOpen(true)}
+              disabled={copyItems.length === 0}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{ background: 'rgba(0,229,255,0.12)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.35)' }}
+              title={copyItems.length === 0 ? 'Vincule os anúncios a um produto pra poder copiar' : `Copiar ${copyItems.length} anúncio(s) pra outras contas/plataformas`}>
+              <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" />
+              </svg>
+              Copiar p/ contas
+              {copyItems.length > 0 && copyItems.length !== selected.size && (
+                <span className="text-[11px] opacity-80">({copyItems.length})</span>
+              )}
+            </button>
+            <button
               onClick={() => setSelected(new Set())}
               className="px-4 py-2.5 rounded-xl text-sm font-medium border transition-all"
               style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>
@@ -2570,6 +2598,16 @@ export default function MLAnunciosPage() {
           linking={linking}
           onConfirm={handleBulkLink}
           onClose={() => { if (!linking) setLinkOpen(false) }}
+        />
+      )}
+
+      {/* ── Copiar pra outras contas/plataformas ──────────────────── */}
+      {copyOpen && (
+        <CopyToChannelsModal
+          items={copyItems}
+          unlinkedCount={selected.size - copyItems.length}
+          onClose={() => setCopyOpen(false)}
+          onDone={(msg) => { setCopyOpen(false); setSelected(new Set()); toast(msg, 'success') }}
         />
       )}
     </div>
