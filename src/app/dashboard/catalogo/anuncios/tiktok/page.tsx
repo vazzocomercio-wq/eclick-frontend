@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import { computeContributionMargin, round2 } from '@/lib/margin'
 import { useConfirm } from '@/components/ui/dialog-provider'
+import CopyToChannelsModal, { type CopyItem } from '@/components/catalog/CopyToChannelsModal'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 
@@ -231,7 +232,7 @@ function MarginPanel({ price, commissionPct, info, orgTaxPct, onSave }: {
 
 // ── Listing card ───────────────────────────────────────────────────────────
 
-function ListingCard({ item, linked, linkedStock, marginInfo, orgTaxPct, commissionPct, matchedProduct, onLink, onLinkKnown, onUnlink, onSaveMargin, onUpdatePrice, onSetActive }: {
+function ListingCard({ item, linked, linkedStock, marginInfo, orgTaxPct, commissionPct, matchedProduct, selected, onSelect, onLink, onLinkKnown, onUnlink, onSaveMargin, onUpdatePrice, onSetActive }: {
   item: TkListing
   linked: boolean
   linkedStock: number | null
@@ -239,6 +240,8 @@ function ListingCard({ item, linked, linkedStock, marginInfo, orgTaxPct, commiss
   orgTaxPct: number | null
   commissionPct: number
   matchedProduct: { id: string; name: string } | null
+  selected: boolean
+  onSelect: (skuId: string) => void
   onLink: (item: TkListing) => void
   onLinkKnown: (item: TkListing, product: { id: string; name: string }) => void
   onUnlink: (item: TkListing) => void
@@ -270,7 +273,10 @@ function ListingCard({ item, linked, linkedStock, marginInfo, orgTaxPct, commiss
   }
 
   return (
-    <div className="flex gap-4 p-4 rounded-xl" style={{ background: '#0f0f12', border: '1px solid #1a1a1f' }}>
+    <div className="flex gap-4 p-4 rounded-xl" style={{ background: selected ? 'rgba(0,229,255,0.05)' : '#0f0f12', border: selected ? '1px solid rgba(0,229,255,0.35)' : '1px solid #1a1a1f' }}>
+      {/* Checkbox de seleção (cópia em lote) */}
+      <input type="checkbox" checked={selected} onChange={() => onSelect(item.sku_id)}
+        className="w-4 h-4 mt-1 rounded accent-cyan-400 cursor-pointer shrink-0" />
       {/* Thumb */}
       <div className="w-16 h-16 rounded-lg overflow-hidden shrink-0" style={{ background: '#1c1c1f' }}>
         {item.image ? (
@@ -581,6 +587,12 @@ export default function TikTokListingsPage() {
   const [toasts, setToasts] = useState<Toast[]>([])
   const [linkTarget, setLinkTarget] = useState<TkListing | null>(null)
   const [linking, setLinking] = useState(false)
+  // Cópia em lote pra outras contas/plataformas
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [copyOpen, setCopyOpen] = useState(false)
+  const toggleSelect = useCallback((skuId: string) => setSelected((prev) => {
+    const n = new Set(prev); n.has(skuId) ? n.delete(skuId) : n.add(skuId); return n
+  }), [])
 
   const toast = useCallback((msg: string, type: Toast['type'] = 'info') => {
     const id = Date.now() + Math.random()
@@ -999,6 +1011,8 @@ export default function TikTokListingsPage() {
               orgTaxPct={orgTax.pct}
               commissionPct={commissionPct}
               matchedProduct={item.seller_sku ? (productBySku[item.seller_sku] ?? null) : null}
+              selected={selected.has(item.sku_id)}
+              onSelect={toggleSelect}
               onLink={(it) => setLinkTarget(it)}
               onLinkKnown={(it, product) => linkTo(product.id, product.name, 1, [it])}
               onUnlink={unlink}
@@ -1018,6 +1032,47 @@ export default function TikTokListingsPage() {
           linking={linking}
           onConfirm={(productId, label, qty) => linkTo(productId, label, qty, [linkTarget])}
           onClose={() => setLinkTarget(null)}
+        />
+      )}
+
+      {/* Bulk bar — copiar selecionados pra outras contas/plataformas */}
+      {selected.size > 0 && (() => {
+        const copyItems: CopyItem[] = [...selected]
+          .map((sku) => {
+            const link = linkMap.get(sku)
+            return link ? { product_id: link.productId, listing_id: sku, platform: 'tiktok_shop' } : null
+          })
+          .filter((x): x is CopyItem => x !== null)
+        return (
+          <div className="fixed bottom-0 left-0 right-0 z-40 flex items-center justify-between px-6 py-4"
+            style={{ background: '#111114', borderTop: '1px solid #00E5FF33', boxShadow: '0 -4px 24px rgba(0,229,255,0.08)' }}>
+            <span className="flex items-center gap-2 text-sm font-semibold text-white">
+              <span className="flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold" style={{ background: '#00E5FF', color: '#000' }}>{selected.size}</span>
+              {selected.size === 1 ? 'anúncio selecionado' : 'anúncios selecionados'}
+            </span>
+            <div className="flex items-center gap-3">
+              <button onClick={() => setCopyOpen(true)} disabled={copyItems.length === 0}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
+                style={{ background: 'rgba(0,229,255,0.12)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.35)' }}
+                title={copyItems.length === 0 ? 'Vincule os anúncios a um produto pra poder copiar' : `Copiar ${copyItems.length} anúncio(s) pra outras contas/plataformas`}>
+                <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" /></svg>
+                Copiar p/ contas{copyItems.length > 0 && copyItems.length !== selected.size && <span className="text-[11px] opacity-80">({copyItems.length})</span>}
+              </button>
+              <button onClick={() => setSelected(new Set())} className="px-4 py-2.5 rounded-xl text-sm font-medium border transition-all" style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>Cancelar</button>
+            </div>
+          </div>
+        )
+      })()}
+
+      {copyOpen && (
+        <CopyToChannelsModal
+          items={[...selected].map((sku) => {
+            const link = linkMap.get(sku)
+            return link ? { product_id: link.productId, listing_id: sku, platform: 'tiktok_shop' } : null
+          }).filter((x): x is CopyItem => x !== null)}
+          unlinkedCount={[...selected].filter((sku) => !linkMap.has(sku)).length}
+          onClose={() => setCopyOpen(false)}
+          onDone={(msg) => { setCopyOpen(false); setSelected(new Set()); toast(msg, 'success') }}
         />
       )}
 

@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import { computeContributionMargin, round2 } from '@/lib/margin'
+import CopyToChannelsModal, { type CopyItem } from '@/components/catalog/CopyToChannelsModal'
 
 /** F18 F1.2 — Listing Center Shopee.
  *  Consome GET /shopee/listings/scores (diagnóstico: Algorithm Score 4 pilares +
@@ -86,6 +87,12 @@ export default function ShopeeListingsCenter() {
   const [summary, setSummary]   = useState<{ linked: number; with_margin: number } | null>(null)
   const [autoBusy, setAutoBusy] = useState(false)
   const [notice, setNotice]     = useState<string | null>(null)
+  // Cópia em lote pra outras contas/plataformas (item_id selecionados)
+  const [picked, setPicked]     = useState<Set<number>>(new Set())
+  const [copyOpen, setCopyOpen] = useState(false)
+  const togglePick = useCallback((itemId: number) => setPicked(prev => {
+    const n = new Set(prev); n.has(itemId) ? n.delete(itemId) : n.add(itemId); return n
+  }), [])
   const [propagBusy, setPropagBusy]     = useState(false)
   const [propagConfirm, setPropagConfirm] = useState(false)
   const [shopFilter, setShopFilter]     = useState<number | 'all'>('all')
@@ -271,6 +278,8 @@ export default function ShopeeListingsCenter() {
           <div className="flex flex-col gap-3">
             {paged.map(it => (
               <ListingRow key={`${it.shop_id}:${it.item_id}`} card={it} link={links.get(it.item_id) ?? null}
+                picked={picked.has(it.item_id)}
+                onPick={togglePick}
                 onOpen={() => setSelected(it)}
                 onUnlink={() => unlinkItem(it.item_id)}
                 onSavePrice={(p) => savePrice(it.item_id, p)}
@@ -295,6 +304,44 @@ export default function ShopeeListingsCenter() {
           onUnlink={() => unlinkItem(selected.item_id)}
           onSaved={load}
           t={t}
+        />
+      )}
+
+      {/* Bulk bar — copiar selecionados pra outras contas/plataformas */}
+      {picked.size > 0 && (() => {
+        const resolve = (id: number) => links.get(id)?.product?.id ?? (items ?? []).find(c => c.item_id === id)?.product_id ?? null
+        const copyItems: CopyItem[] = [...picked]
+          .map(id => { const pid = resolve(id); return pid ? { product_id: pid, listing_id: String(id), platform: 'shopee' } : null })
+          .filter((x): x is CopyItem => x !== null)
+        return (
+          <div className="fixed bottom-0 left-0 right-0 z-40 flex items-center justify-between px-6 py-4"
+            style={{ background: '#111114', borderTop: '1px solid #00E5FF33', boxShadow: '0 -4px 24px rgba(0,229,255,0.08)' }}>
+            <span className="flex items-center gap-2 text-sm font-semibold text-white">
+              <span className="flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold" style={{ background: '#00E5FF', color: '#000' }}>{picked.size}</span>
+              {picked.size === 1 ? 'anúncio selecionado' : 'anúncios selecionados'}
+            </span>
+            <div className="flex items-center gap-3">
+              <button onClick={() => setCopyOpen(true)} disabled={copyItems.length === 0}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
+                style={{ background: 'rgba(0,229,255,0.12)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.35)' }}
+                title={copyItems.length === 0 ? 'Vincule os anúncios a um produto pra poder copiar' : `Copiar ${copyItems.length} anúncio(s) pra outras contas/plataformas`}>
+                <Link2 size={14} /> Copiar p/ contas{copyItems.length > 0 && copyItems.length !== picked.size && <span className="text-[11px] opacity-80">({copyItems.length})</span>}
+              </button>
+              <button onClick={() => setPicked(new Set())} className="px-4 py-2.5 rounded-xl text-sm font-medium border transition-all" style={{ borderColor: '#3f3f46', color: '#a1a1aa' }}>Cancelar</button>
+            </div>
+          </div>
+        )
+      })()}
+
+      {copyOpen && (
+        <CopyToChannelsModal
+          items={[...picked].map(id => {
+            const pid = links.get(id)?.product?.id ?? (items ?? []).find(c => c.item_id === id)?.product_id ?? null
+            return pid ? { product_id: pid, listing_id: String(id), platform: 'shopee' } : null
+          }).filter((x): x is CopyItem => x !== null)}
+          unlinkedCount={[...picked].filter(id => !(links.get(id)?.product?.id ?? (items ?? []).find(c => c.item_id === id)?.product_id)).length}
+          onClose={() => setCopyOpen(false)}
+          onDone={(msg) => { setCopyOpen(false); setPicked(new Set()); setNotice(msg) }}
         />
       )}
     </div>
@@ -462,9 +509,11 @@ function pageWindow(current: number, total: number): Array<number | '…'> {
 // bruto, custo/imposto editáveis, margem contrib, tarifa Shopee). Mantém TODO o
 // dado Shopee: Algorithm Score (gauge + 4 pilares) + issues; clique abre o
 // drawer com a edição rica (preço/estoque por variação, conteúdo, issues).
-function ListingRow({ card, link, onOpen, onUnlink, onSavePrice, onSaveStock, onSaveMargin, t }: {
+function ListingRow({ card, link, picked, onPick, onOpen, onUnlink, onSavePrice, onSaveStock, onSaveMargin, t }: {
   card: ListingCard
   link: LinkInfo | null
+  picked: boolean
+  onPick: (itemId: number) => void
   onOpen: () => void
   onUnlink: () => Promise<void>
   onSavePrice: (price: number) => Promise<boolean>
@@ -545,7 +594,11 @@ function ListingRow({ card, link, onOpen, onUnlink, onSavePrice, onSaveStock, on
 
   return (
     <div className="flex gap-3 p-4 rounded-xl transition-colors"
-      style={{ background: '#0f0f12', border: '1px solid #1a1a1f' }}>
+      style={{ background: picked ? 'rgba(0,229,255,0.05)' : '#0f0f12', border: picked ? '1px solid rgba(0,229,255,0.35)' : '1px solid #1a1a1f' }}>
+
+      {/* Checkbox de seleção (cópia em lote) */}
+      <input type="checkbox" checked={picked} onChange={() => onPick(card.item_id)}
+        className="w-4 h-4 mt-1 rounded accent-cyan-400 cursor-pointer shrink-0" />
 
       {/* Confirmação de mudança de preço (modal in-app) */}
       {confirmPrice != null && (
