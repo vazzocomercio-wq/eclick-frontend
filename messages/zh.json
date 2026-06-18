@@ -6848,6 +6848,7 @@
         "priorityHigh": "高",
         "priorityUrgent": "紧急",
         "urgentNoWhatsapp": "操作员未登记 WhatsApp — 紧急任务提醒将不会发送。请在团队（Active CRM）中添加号码。",
+        "invitedWarning": "该操作员尚未接受邀请（邀请待处理）。在他接受邀请并首次登录之前，将不会在 Active 中收到卡片。请在团队（Active CRM）中确认接受，或选择其他操作员。",
         "notes": "备注（可选）",
         "notesPlaceholder": "给操作员的额外说明",
         "cancel": "取消",

@@ -6854,6 +6854,7 @@
         "priorityHigh": "High",
         "priorityUrgent": "Urgent",
         "urgentNoWhatsapp": "Operator has no WhatsApp on file — the urgent task alert will NOT be sent. Add the number in Team (Active CRM).",
+        "invitedWarning": "This operator has not accepted the invite yet (invite pending). They will NOT receive the card in Active until they accept the invite and log in for the first time. Confirm acceptance in Team (Active CRM) or pick another operator.",
         "notes": "Notes (optional)",
         "notesPlaceholder": "Extra instructions for the operator",
         "cancel": "Cancel",

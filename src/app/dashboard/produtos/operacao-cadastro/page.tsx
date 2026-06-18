@@ -899,6 +899,14 @@ function DispatchModal({ count, onClose, onConfirm, loading, mode = 'cadastro' }
             </Field>
           </div>
 
+          {operator && agents.find(a => a.user_id === operator)?.status === 'invited' && (
+            <div className="rounded-lg p-2.5 text-xs flex items-start gap-2"
+              style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>
+              <span className="shrink-0">⚠️</span>
+              <span>{t('ops.modal.invitedWarning')}</span>
+            </div>
+          )}
+
           {priority === 'urgent' && operator && !agents.find(a => a.user_id === operator)?.whatsapp_phone && (
             <div className="rounded-lg p-2.5 text-xs flex items-start gap-2"
               style={{ background: 'rgba(245,158,11,0.10)', color: '#fbbf24', border: '1px solid rgba(245,158,11,0.3)' }}>

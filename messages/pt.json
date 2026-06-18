@@ -7024,6 +7024,7 @@
         "priorityHigh": "Alta",
         "priorityUrgent": "Urgente",
         "urgentNoWhatsapp": "Operador sem WhatsApp cadastrado — o alerta de tarefa urgente NÃO será enviado. Cadastre o número em Equipe (Active CRM).",
+        "invitedWarning": "Esse operador ainda não aceitou o convite (convite pendente). Ele NÃO vai receber o card no Active até aceitar o convite e fazer o primeiro login. Confirme o aceite em Equipe (Active CRM) ou escolha outro operador.",
         "notes": "Observações (opcional)",
         "notesPlaceholder": "Instruções extras pro operador",
         "cancel": "Cancelar",
