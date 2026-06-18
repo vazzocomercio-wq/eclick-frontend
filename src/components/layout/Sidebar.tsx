@@ -10,7 +10,7 @@ import {
   Home, Radio, BarChart3, Package, ShoppingBag, MessageCircle,
   Truck, DollarSign, Brain, Building2, Ship, Users, Target,
   Heart, MessageSquare, CheckSquare, Sparkles, Image as ImageIcon,
-  Megaphone, ShoppingCart, TrendingUp, Settings, UserCog,
+  Megaphone, ShoppingCart, TrendingUp, Settings, UserCog, Flame,
   Plug, Database, ChevronDown, Bot, Inbox, BookOpen,
   GraduationCap, LineChart, Shield, Users2, TrendingDown,
   Zap, Map as MapIcon, Bell, Wand2, Layers, Store, Palette, Link2, Calendar, FileText, Eye,
@@ -212,6 +212,7 @@ const SECTIONS: NavSection[] = [
     labelKey: 'sections.compras',
     items: [
       { labelKey: 'items.radarTendencias',     href: '/dashboard/radar-tendencias',     icon: <TrendingUp size={15} /> },
+      { labelKey: 'items.radarShopee',         href: '/dashboard/radar-shopee',         icon: <Flame size={15} /> },
       { labelKey: 'items.comprasInteligencia', href: '/dashboard/compras/inteligencia', icon: <Brain size={15} />,    badgeKey: 'compras-criticos' as BadgeKey },
       { labelKey: 'items.comprasFornecedores', href: '/dashboard/compras/fornecedores', icon: <Building2 size={15} /> },
       { labelKey: 'items.comprasImportacoes',  href: '/dashboard/compras/importacoes',  icon: <Ship size={15} /> },
