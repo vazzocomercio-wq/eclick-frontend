@@ -507,7 +507,7 @@ function RankDelta({ delta }: { delta: number | null }) {
 interface Series { date: string; value: number }
 interface PricePoint { date: string; value: number; orig: number | null; discountPct: number | null }
 interface AnalyticsData {
-  product: { name: string; category_name: string | null; url: string | null; thumbnail: string | null; current_price_cents: number | null; current_orig_price_cents: number | null; current_discount_pct: number | null }
+  product: { external_id: string; name: string; category_name: string | null; url: string | null; thumbnail: string | null; current_price_cents: number | null; current_orig_price_cents: number | null; current_discount_pct: number | null }
   score: { trend_score: number; momentum: number; volume_score: number; breadth_score: number; best_seller_rank: number | null; rank_delta: number | null; buy_decision: BuyDecision; ai_rationale: string | null; confidence: number } | null
   visits: { available: boolean; series: { date: string; total: number }[]; total: number; avgPerDay: number; peak: { date: string; total: number } | null }
   salesEstimate: { available: boolean; conversionPct: number; series: Series[]; total: number; perDay: number }
@@ -565,7 +565,19 @@ function AnalyticsModal({ productId, onClose }: { productId: string; onClose: ()
             <p className="text-sm font-semibold leading-snug truncate" style={{ color: '#fafafa' }}>{data?.product.name ?? 'Carregando…'}</p>
             <p className="text-xs" style={{ color: '#52525b' }}>{data?.product.category_name ?? ''}</p>
           </div>
-          <button onClick={onClose}><X size={18} style={{ color: '#71717a' }} /></button>
+          <div className="flex items-center gap-2 shrink-0">
+            {data?.product && (
+              <a
+                href={data.product.url ?? `https://www.mercadolivre.com.br/p/${data.product.external_id}`}
+                target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg"
+                style={{ background: '#1e1e24', color: '#00E5FF', border: '1px solid #27272a' }}
+              >
+                Ver anúncio <ExternalLink size={13} />
+              </a>
+            )}
+            <button onClick={onClose}><X size={18} style={{ color: '#71717a' }} /></button>
+          </div>
         </div>
 
         {/* filtro de período */}
