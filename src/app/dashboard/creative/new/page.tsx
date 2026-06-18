@@ -98,7 +98,6 @@ export default function CreativeNewPage() {
   const [catalogLinkId, setCatalogLinkId] = useState<string | null>(null)
   /** Fotos do produto do catálogo. Se houver, no submit o anúncio importa
    *  essas fotos como imagens aprovadas em vez de gerar com IA. */
-  const [catalogPhotos, setCatalogPhotos] = useState<string[]>([])
   /** Custo de referência do catálogo (líquido já com o desconto do fornecedor).
    *  Só exibido no Step 2 pra orientar o operador — NÃO é salvo no anúncio. */
   const [catalogCost, setCatalogCost] = useState<CatalogCost | null>(null)
@@ -171,7 +170,6 @@ export default function CreativeNewPage() {
           brand:    prefill.catalog.brand ?? '',
         })
         setCatalogLinkId(catalogProductId)
-        setCatalogPhotos(prefill.catalog.photo_urls)
 
         // Pré-preenche o Step 2 com tudo que o catálogo tem (cor, material,
         // dimensões, peso, público, características, SKU, EAN). Mantém o valor
@@ -333,20 +331,18 @@ export default function CreativeNewPage() {
       const desiredImageCount = Math.max(1, Math.min(20, briefing.image_count ?? 10))
       const maxCostUsd        = computeMaxCostUsd(desiredImageCount)
 
-      // Anúncio vindo do catálogo COM fotos → importa essas fotos como imagens
-      // aprovadas (operador publica sem gerar IA). Senão → gera imagens IA.
-      const useCatalogPhotos = catalogPhotos.length > 0
-
+      // O operador configurou geração de imagens (templates/ambientes/tamanho/
+      // estilo) → SEMPRE gera imagens IA, mesmo que o produto tenha fotos de
+      // catálogo. Antes, ter fotos de catálogo desviava pro import silencioso e
+      // jogava o usuário no editor de texto em vez da tela de geração.
       const [listingResult, imageResult] = await Promise.allSettled([
         CreativeApi.generateListing(product.id, briefingRow.id),
-        useCatalogPhotos
-          ? CreativeApi.importCatalogImages(product.id, briefingRow.id)
-          : CreativeApi.createImageJob({
-              product_id:   product.id,
-              briefing_id:  briefingRow.id,
-              count:        desiredImageCount,
-              max_cost_usd: maxCostUsd,
-            }),
+        CreativeApi.createImageJob({
+          product_id:   product.id,
+          briefing_id:  briefingRow.id,
+          count:        desiredImageCount,
+          max_cost_usd: maxCostUsd,
+        }),
       ])
 
       // Texto é blocker — se falhou, aborta tudo
@@ -358,25 +354,18 @@ export default function CreativeNewPage() {
       }
 
       const listing = listingResult.value
-      // Job de imagem só existe quando geramos com IA — importação não tem
-      // polling (as imagens já entram aprovadas).
-      const imageJobId = !useCatalogPhotos && imageResult.status === 'fulfilled'
+      const imageJobId = imageResult.status === 'fulfilled'
         ? (imageResult.value as { id: string }).id
         : null
 
       // Imagem é best-effort — warning, mas segue pro listing
       if (imageResult.status === 'rejected') {
-        setWarning(
-          useCatalogPhotos
-            ? t('warnCatalogImport', { message: (imageResult.reason as Error)?.message ?? t('genError') })
-            : t('warnImages', { message: (imageResult.reason as Error)?.message ?? t('genError') }),
-        )
+        setWarning(t('warnImages', { message: (imageResult.reason as Error)?.message ?? t('genError') }))
       }
 
       setPhase('done')
-      // Gerou imagens com IA → abre DIRETO a tela de geração de imagens (o user
-      // quer ver as imagens nascendo, não cair no editor de texto). Sem IA
-      // (fotos do catálogo, já aprovadas) → vai pro editor do anúncio.
+      // Gerou imagens com IA → abre DIRETO a tela de geração de imagens.
+      // Só cai no editor do anúncio se a geração de imagem falhou (best-effort).
       if (imageJobId) {
         router.push(`/dashboard/creative/${product.id}/images/${imageJobId}`)
       } else {
