@@ -1,7 +1,7 @@
 /**
  * Política de Privacidade (LGPD). Página pública estática — destino do aceite
- * do form da Auditoria GEO. TODO(user): confirmar razão social/CNPJ e o email
- * de contato/encarregado reais antes de divulgar amplamente.
+ * do form da Auditoria GEO e linkada no rodapé das telas públicas.
+ * Entidade operadora: Vazzo Comércio LTDA (marca e-Click).
  */
 import type { Metadata } from 'next'
 import Link from 'next/link'
@@ -16,16 +16,19 @@ const CYAN = '#00E5FF'
 const TXT = '#fafafa'
 const MUT = '#a1a1aa'
 
+const RAZAO = 'Vazzo Comércio LTDA'
+const CNPJ = '29.049.890/0001-08'
 const CONTATO = 'privacidade@eclick.app.br'
-const ATUALIZACAO = '26 de maio de 2026'
+const ATUALIZACAO = '18 de junho de 2026'
 
 export default function PrivacidadePage() {
   return (
     <div className="geo-page" style={{ background: '#09090b', color: TXT, minHeight: '100vh', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
-      <header style={{ maxWidth: 760, margin: '0 auto', padding: '20px' }}>
-        <Link href="/auditoria-gratis" style={{ fontSize: 20, fontWeight: 900, letterSpacing: '-0.03em', color: TXT, textDecoration: 'none' }}>
+      <header style={{ maxWidth: 760, margin: '0 auto', padding: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Link href="/" style={{ fontSize: 20, fontWeight: 900, letterSpacing: '-0.03em', color: TXT, textDecoration: 'none' }}>
           e<span style={{ color: CYAN }}>-</span>Click
         </Link>
+        <Link href="/termos" style={{ fontSize: 13, color: MUT, textDecoration: 'none' }}>Termos de Serviço</Link>
       </header>
 
       <main style={{ maxWidth: 760, margin: '0 auto', padding: '8px 20px 64px', lineHeight: 1.7 }}>
@@ -34,7 +37,7 @@ export default function PrivacidadePage() {
         </h1>
         <p style={{ color: '#71717a', fontSize: 13, margin: '0 0 28px' }}>Última atualização: {ATUALIZACAO}</p>
 
-        <P>A e-Click (“nós”) respeita a sua privacidade e trata seus dados pessoais conforme a Lei Geral de Proteção de Dados (Lei nº 13.709/2018 — LGPD). Esta política explica, em linguagem simples, o que coletamos na <b>Auditoria GEO gratuita</b> e como usamos.</P>
+        <P>A e-Click, operada por <b>{RAZAO}</b> (CNPJ <b>{CNPJ}</b>) (“nós”), respeita a sua privacidade e trata seus dados pessoais conforme a Lei Geral de Proteção de Dados (Lei nº 13.709/2018 — LGPD). Esta política explica, em linguagem simples, o que coletamos na <b>Auditoria GEO gratuita</b> e ao usar a Plataforma, e como usamos.</P>
 
         <H>1. Quais dados coletamos</H>
         <P>Quando você usa a Auditoria GEO, coletamos: <b>nome, email e WhatsApp</b> que você informa no formulário; a <b>URL</b> que você pede pra auditar; dados técnicos mínimos (uma versão criptografada — hash — do seu IP, para limitar abuso, e o navegador). Não coletamos dados sensíveis.</P>
@@ -61,7 +64,9 @@ export default function PrivacidadePage() {
         <P>Dúvidas sobre privacidade ou para exercer seus direitos: <a href={`mailto:${CONTATO}`} style={{ color: CYAN }}>{CONTATO}</a>.</P>
 
         <p style={{ marginTop: 36, fontSize: 13, color: '#52525b' }}>
-          <Link href="/auditoria-gratis" style={{ color: CYAN }}>← Voltar para a Auditoria GEO</Link>
+          <Link href="/" style={{ color: CYAN }}>← Voltar para a e-Click</Link>
+          <span style={{ margin: '0 10px', color: '#3f3f46' }}>·</span>
+          <Link href="/termos" style={{ color: CYAN }}>Termos de Serviço</Link>
         </p>
       </main>
     </div>

@@ -186,6 +186,13 @@ function LoginContent() {
             </Link>
           </p>
         </div>
+
+        {/* Rodapé legal — links públicos exigidos por revisões de apps (TikTok/Meta) */}
+        <footer className="mt-6 flex items-center justify-center gap-3 text-xs text-zinc-600">
+          <Link href="/privacidade" className="hover:text-zinc-400 transition-colors">Política de Privacidade</Link>
+          <span className="text-zinc-700">·</span>
+          <Link href="/termos" className="hover:text-zinc-400 transition-colors">Termos de Serviço</Link>
+        </footer>
       </div>
     </div>
   )

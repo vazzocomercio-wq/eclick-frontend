@@ -38,8 +38,8 @@ export function useNotifyOnComplete() {
     try {
       const notif = new Notification(title, {
         body,
-        icon: '/favicon.ico',
-        badge: '/favicon.ico',
+        icon: '/icon.png',
+        badge: '/icon.png',
         tag:   opts.tag,
         // renotify: true,  // comportamento padrão do tag já agrupa
       })
