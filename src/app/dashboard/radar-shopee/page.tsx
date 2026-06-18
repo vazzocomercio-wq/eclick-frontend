@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase'
 import {
   Flame, RefreshCw, ShoppingCart, X, ExternalLink, Sparkles,
   Star, Percent, Tag, Link2, Loader2, BarChart3, Activity, Trophy, DollarSign, Info,
+  FolderTree, ChevronRight, Check,
 } from 'lucide-react'
 import {
   ResponsiveContainer, AreaChart, Area, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid,
@@ -64,6 +65,7 @@ export default function RadarShopeePage() {
   const [keyword, setKeyword]   = useState('')
   const [analyzeId, setAnalyzeId] = useState<number | null>(null)
   const [auto, setAuto]         = useState(false)
+  const [catOpen, setCatOpen]   = useState(false)
   const [error, setError]       = useState<string | null>(null)
   const [msg, setMsg]           = useState<string | null>(null)
 
@@ -89,6 +91,17 @@ export default function RadarShopeePage() {
       const body = term ? { keywords: term.split(',').map(s => s.trim()).filter(Boolean), pages: 2 } : { pages: 2 }
       const r = await api<{ upserted: number; scored: number; errors: string[] }>('/shopee-affiliate/radar/ingest', { method: 'POST', body: JSON.stringify(body) })
       setMsg(`Busca concluída: ${r.upserted} produtos campeões trazidos.`)
+      await load()
+    } catch (e) { setError(e instanceof Error ? e.message : 'Falha na busca') }
+    finally { setIng(false) }
+  }
+
+  const ingestCats = async (catIds: number[]) => {
+    if (!catIds.length) return
+    setIng(true); setError(null); setMsg(null)
+    try {
+      const r = await api<{ upserted: number }>('/shopee-affiliate/radar/ingest', { method: 'POST', body: JSON.stringify({ cat_ids: catIds, pages: 2 }) })
+      setMsg(`Busca por categoria: ${r.upserted} produtos campeões trazidos.`)
       await load()
     } catch (e) { setError(e instanceof Error ? e.message : 'Falha na busca') }
     finally { setIng(false) }
@@ -130,6 +143,10 @@ export default function RadarShopeePage() {
           <div className="flex items-center gap-2">
             <input value={keyword} onChange={e => setKeyword(e.target.value)} placeholder="palavras (ex: luminária, abajur)"
               className="px-3 py-2.5 rounded-lg text-sm outline-none w-56" style={{ background: '#0a0a0e', color: '#fafafa', border: '1px solid #27272a' }} />
+            <button onClick={() => setCatOpen(true)} disabled={connected === false}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold disabled:opacity-50" style={{ background: '#111114', color: '#fafafa', border: '1px solid #27272a' }}>
+              <FolderTree size={15} style={{ color: SHOPEE }} /> Categorias
+            </button>
             <button onClick={() => ingest()} disabled={ingesting || connected === false}
               className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold disabled:opacity-50" style={{ background: SHOPEE, color: '#fff' }}>
               <RefreshCw size={15} className={ingesting ? 'animate-spin' : ''} />
@@ -183,6 +200,67 @@ export default function RadarShopeePage() {
         )}
       </div>
       {analyzeId != null && <AnalyticsModal itemId={analyzeId} onClose={() => setAnalyzeId(null)} />}
+      {catOpen && <CategoryPicker onClose={() => setCatOpen(false)} onSearch={async (ids) => { setCatOpen(false); await ingestCats(ids) }} />}
+    </div>
+  )
+}
+
+// ── Category picker (árvore Shopee drill-down) ──────────────────────────────────
+interface ShopeeCat { id: string; name: string; isLeaf: boolean }
+function CategoryPicker({ onClose, onSearch }: { onClose: () => void; onSearch: (catIds: number[]) => Promise<void> }) {
+  const [path, setPath]   = useState<ShopeeCat[]>([])
+  const [items, setItems] = useState<ShopeeCat[]>([])
+  const [sel, setSel]     = useState<Set<string>>(new Set())
+  const [loading, setLoad] = useState(true)
+
+  const fetchLevel = useCallback(async (parent: string | null) => {
+    setLoad(true)
+    try { setItems(await api<ShopeeCat[]>(`/shopee-affiliate/radar/categories${parent ? `?parent=${parent}` : ''}`)) }
+    catch { setItems([]) } finally { setLoad(false) }
+  }, [])
+  useEffect(() => { void fetchLevel(null) }, [fetchLevel])
+
+  const drill = (c: ShopeeCat) => { setPath(p => [...p, c]); void fetchLevel(c.id) }
+  const goTo  = (idx: number) => { const np = path.slice(0, idx); setPath(np); void fetchLevel(np.length ? np[np.length - 1].id : null) }
+  const toggle = (id: string) => setSel(s => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n })
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={onClose}>
+      <div className="w-full max-w-2xl rounded-2xl overflow-hidden flex flex-col" style={{ background: '#0d0d10', border: '1px solid #27272a', maxHeight: '85vh' }} onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between p-4" style={{ borderBottom: '1px solid #1e1e24' }}>
+          <div className="flex items-center gap-2 text-sm font-bold"><FolderTree size={16} style={{ color: SHOPEE }} /> Categorias da Shopee</div>
+          <button onClick={onClose}><X size={18} style={{ color: '#71717a' }} /></button>
+        </div>
+        <div className="flex items-center gap-1 flex-wrap px-4 py-2 text-xs" style={{ borderBottom: '1px solid #1e1e24', color: '#a1a1aa' }}>
+          <button onClick={() => goTo(0)} className="hover:underline" style={{ color: path.length ? SHOPEE : '#fafafa' }}>Todas</button>
+          {path.map((c, i) => (
+            <span key={c.id} className="flex items-center gap-1">
+              <ChevronRight size={12} style={{ color: '#3f3f46' }} />
+              <button onClick={() => goTo(i + 1)} className="hover:underline" style={{ color: i === path.length - 1 ? '#fafafa' : SHOPEE }}>{c.name}</button>
+            </span>
+          ))}
+        </div>
+        <div className="flex-1 overflow-y-auto p-2">
+          {loading ? <div className="flex justify-center py-12" style={{ color: '#52525b' }}><Loader2 size={18} className="animate-spin" /></div>
+          : items.length === 0 ? <p className="text-xs text-center py-12" style={{ color: '#52525b' }}>Sem subcategorias.</p>
+          : items.map(c => (
+            <div key={c.id} className="flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-white/5">
+              <button onClick={() => toggle(c.id)} className="w-5 h-5 rounded flex items-center justify-center shrink-0" style={sel.has(c.id) ? { background: SHOPEE } : { border: '1px solid #3f3f46' }}>
+                {sel.has(c.id) && <Check size={13} style={{ color: '#fff' }} />}
+              </button>
+              <span className="flex-1 text-sm cursor-pointer" style={{ color: '#d4d4d8' }} onClick={() => toggle(c.id)}>{c.name}</span>
+              {!c.isLeaf && <button onClick={() => drill(c)} className="flex items-center gap-1 text-xs px-2 py-1 rounded-md" style={{ color: '#71717a', border: '1px solid #1e1e24' }}>Abrir <ChevronRight size={12} /></button>}
+            </div>
+          ))}
+        </div>
+        <div className="flex items-center justify-between p-4" style={{ borderTop: '1px solid #1e1e24' }}>
+          <span className="text-xs" style={{ color: '#a1a1aa' }}>{sel.size} selecionada(s)</span>
+          <button onClick={() => onSearch([...sel].map(Number))} disabled={sel.size === 0}
+            className="flex items-center gap-2 text-sm font-bold px-4 py-2 rounded-lg disabled:opacity-50" style={{ background: SHOPEE, color: '#fff' }}>
+            <RefreshCw size={14} /> Buscar campeões dessas categorias
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

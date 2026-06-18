@@ -94,6 +94,7 @@ export default function RadarTendenciasPage() {
   const [category, setCategory] = useState<string>('all')   // filtro da lista por categoria
   const [settings, setSettings] = useState<TrendsSettings | null>(null)
   const [pickerOpen, setPicker] = useState(false)
+  const [keyword, setKeyword]   = useState('')
   const [analyzeId, setAnalyzeId] = useState<string | null>(null)
   const [error, setError]       = useState<string | null>(null)
   const [msg, setMsg]           = useState<string | null>(null)
@@ -144,6 +145,21 @@ export default function RadarTendenciasPage() {
     }
   }
 
+  const searchNow = async () => {
+    const kw = keyword.trim()
+    if (!kw) return
+    setColl(true); setError(null); setMsg(null)
+    try {
+      const r = await api<{ resolved: number; scored: number }>('/trends/search', { method: 'POST', body: JSON.stringify({ keyword: kw }) })
+      setMsg(`Busca "${kw}": ${r.resolved} produtos encontrados.`)
+      await load()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Falha na busca')
+    } finally {
+      setColl(false)
+    }
+  }
+
   const setWatch = async (productId: string, dec: string) => {
     try {
       await api(`/trends/watchlist`, { method: 'POST', body: JSON.stringify({ product_id: productId, decision: dec }) })
@@ -182,7 +198,17 @@ export default function RadarTendenciasPage() {
               Produtos em alta no Mercado Livre, com recomendação de compra. A margem deve ser validada com o custo do fornecedor.
             </p>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+            <div className="flex items-center">
+              <input value={keyword} onChange={e => setKeyword(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') void searchNow() }}
+                placeholder="buscar produto (ex: fone bluetooth)"
+                className="px-3 py-2.5 rounded-l-lg text-sm outline-none w-56" style={{ background: '#0a0a0e', color: '#fafafa', border: '1px solid #27272a' }} />
+              <button onClick={searchNow} disabled={collecting || !keyword.trim()}
+                className="flex items-center gap-1 px-3 py-2.5 rounded-r-lg text-sm font-semibold disabled:opacity-50"
+                style={{ background: '#1e1e24', color: '#00E5FF', border: '1px solid #27272a', borderLeft: 'none' }}>
+                <Search size={15} /> Buscar
+              </button>
+            </div>
             <button
               onClick={() => setPicker(true)}
               className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition"
