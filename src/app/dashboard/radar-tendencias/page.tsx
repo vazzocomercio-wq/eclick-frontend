@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase'
 import {
   TrendingUp, RefreshCw, Search, ShoppingCart, Eye, X, ExternalLink,
   ArrowUp, ArrowDown, Minus, Sparkles, Flame, ChevronRight, Check, FolderTree, Save, Loader2,
-  BarChart3, Activity, DollarSign, Trophy, Info,
+  BarChart3, Activity, DollarSign, Trophy, Info, Copy, AlertTriangle,
 } from 'lucide-react'
 import {
   ResponsiveContainer, AreaChart, Area, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid,
@@ -526,6 +526,7 @@ function AnalyticsModal({ productId, onClose }: { productId: string; onClose: ()
   const [loading, setLoading] = useState(true)
   const [err, setErr]         = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
+  const [cloneOpen, setCloneOpen] = useState(false)
 
   useEffect(() => {
     let alive = true
@@ -567,6 +568,15 @@ function AnalyticsModal({ productId, onClose }: { productId: string; onClose: ()
           </div>
           <div className="flex items-center gap-2 shrink-0">
             {data?.product && (
+              <button
+                onClick={() => setCloneOpen(true)}
+                className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg"
+                style={{ background: '#00E5FF', color: '#09090b' }}
+              >
+                <Copy size={13} /> Copiar p/ minha conta
+              </button>
+            )}
+            {data?.product && (
               <a
                 href={data.product.url ?? `https://www.mercadolivre.com.br/p/${data.product.external_id}`}
                 target="_blank" rel="noopener noreferrer"
@@ -579,6 +589,15 @@ function AnalyticsModal({ productId, onClose }: { productId: string; onClose: ()
             <button onClick={onClose}><X size={18} style={{ color: '#71717a' }} /></button>
           </div>
         </div>
+
+        {cloneOpen && data && (
+          <CloneModal
+            productId={productId}
+            productName={data.product.name}
+            defaultPriceCents={data.product.current_price_cents}
+            onClose={() => setCloneOpen(false)}
+          />
+        )}
 
         {/* filtro de período */}
         <div className="flex items-center gap-2 px-4 py-2" style={{ borderBottom: '1px solid #1e1e24' }}>
@@ -713,6 +732,132 @@ function AnalyticsModal({ productId, onClose }: { productId: string; onClose: ()
               </div>
             </>
           ) : null}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Clone modal (copiar p/ contas ML via anúncio de catálogo) ───────────────────
+
+interface MlAccount { seller_id: number; nickname: string | null }
+interface CloneResult { seller_id: number; ok: boolean; item_id?: string; permalink?: string; error?: string }
+
+function CloneModal({ productId, productName, defaultPriceCents, onClose }: {
+  productId: string
+  productName: string
+  defaultPriceCents: number | null
+  onClose: () => void
+}) {
+  const [accounts, setAccounts] = useState<MlAccount[]>([])
+  const [sel, setSel]           = useState<Set<number>>(new Set())
+  const [priceReais, setPrice]  = useState<string>(defaultPriceCents != null ? (defaultPriceCents / 100).toFixed(2) : '')
+  const [stock, setStock]       = useState<string>('1')
+  const [loading, setLoading]   = useState(true)
+  const [publishing, setPub]    = useState(false)
+  const [results, setResults]   = useState<CloneResult[] | null>(null)
+  const [err, setErr]           = useState<string | null>(null)
+
+  useEffect(() => {
+    api<MlAccount[]>('/trends/ml-accounts')
+      .then(a => { setAccounts(a); setSel(new Set(a.map(x => x.seller_id))) })  // default: todas
+      .catch(e => setErr(e instanceof Error ? e.message : 'Falha ao listar contas'))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const toggle = (id: number) => setSel(s => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n })
+
+  const publish = async () => {
+    setPub(true); setErr(null)
+    try {
+      const cents = Math.round(parseFloat(priceReais.replace(',', '.')) * 100)
+      if (!Number.isFinite(cents) || cents <= 0) throw new Error('Informe um preço válido.')
+      const r = await api<{ results: CloneResult[] }>(`/trends/product/${productId}/clone`, {
+        method: 'POST',
+        body: JSON.stringify({ seller_ids: [...sel], price_cents: cents, stock: Math.max(1, parseInt(stock) || 1) }),
+      })
+      setResults(r.results)
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Falha ao publicar') }
+    finally { setPub(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.75)' }} onClick={onClose}>
+      <div className="w-full max-w-md rounded-2xl overflow-hidden flex flex-col" style={{ background: '#0d0d10', border: '1px solid #27272a', maxHeight: '90vh' }} onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between p-4" style={{ borderBottom: '1px solid #1e1e24' }}>
+          <div className="flex items-center gap-2 text-sm font-bold"><Copy size={16} style={{ color: '#00E5FF' }} /> Copiar para minha conta</div>
+          <button onClick={onClose}><X size={18} style={{ color: '#71717a' }} /></button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4">
+          {results ? (
+            <div className="space-y-2">
+              {results.map(r => {
+                const acc = accounts.find(a => a.seller_id === r.seller_id)
+                return (
+                  <div key={r.seller_id} className="rounded-lg p-3 text-xs" style={{ background: '#111114', border: `1px solid ${r.ok ? 'rgba(74,222,128,0.3)' : 'rgba(239,68,68,0.3)'}` }}>
+                    <div className="font-semibold" style={{ color: r.ok ? '#4ade80' : '#f87171' }}>
+                      {r.ok ? '✓ Publicado' : '✗ Falhou'} — {acc?.nickname ?? r.seller_id}
+                    </div>
+                    {r.ok && r.permalink && <a href={r.permalink} target="_blank" rel="noopener noreferrer" className="underline" style={{ color: '#00E5FF' }}>Abrir anúncio</a>}
+                    {!r.ok && <div style={{ color: '#a1a1aa' }}>{r.error}</div>}
+                  </div>
+                )
+              })}
+              <button onClick={onClose} className="w-full mt-2 py-2 rounded-lg text-sm font-semibold" style={{ background: '#1e1e24', color: '#fafafa' }}>Fechar</button>
+            </div>
+          ) : (
+            <>
+              <p className="text-xs mb-3 leading-relaxed" style={{ color: '#a1a1aa' }}>
+                Cria um <strong>anúncio de catálogo</strong> vinculado a <span style={{ color: '#d4d4d8' }}>{productName.slice(0, 50)}…</span> — título, fotos e ficha vêm do catálogo do ML automaticamente. Você define preço e estoque.
+              </p>
+
+              <label className="text-xs font-semibold" style={{ color: '#a1a1aa' }}>Contas</label>
+              {loading ? (
+                <div className="flex justify-center py-4"><Loader2 size={16} className="animate-spin" style={{ color: '#52525b' }} /></div>
+              ) : accounts.length === 0 ? (
+                <p className="text-xs py-2" style={{ color: '#52525b' }}>Nenhuma conta ML integrada.</p>
+              ) : (
+                <div className="space-y-1 mt-1 mb-3">
+                  {accounts.map(a => (
+                    <button key={a.seller_id} onClick={() => toggle(a.seller_id)} className="w-full flex items-center gap-2 px-2 py-2 rounded-lg" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+                      <span className="w-4 h-4 rounded flex items-center justify-center shrink-0" style={sel.has(a.seller_id) ? { background: '#00E5FF' } : { border: '1px solid #3f3f46' }}>
+                        {sel.has(a.seller_id) && <Check size={11} style={{ color: '#09090b' }} />}
+                      </span>
+                      <span className="text-sm" style={{ color: '#d4d4d8' }}>{a.nickname ?? a.seller_id}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-2 mb-3">
+                <div>
+                  <label className="text-xs font-semibold" style={{ color: '#a1a1aa' }}>Preço de venda (R$)</label>
+                  <input value={priceReais} onChange={e => setPrice(e.target.value)} inputMode="decimal"
+                    className="w-full mt-1 px-2 py-1.5 rounded-lg text-sm outline-none" style={{ background: '#0a0a0e', color: '#fafafa', border: '1px solid #27272a' }} />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold" style={{ color: '#a1a1aa' }}>Estoque</label>
+                  <input value={stock} onChange={e => setStock(e.target.value)} inputMode="numeric"
+                    className="w-full mt-1 px-2 py-1.5 rounded-lg text-sm outline-none" style={{ background: '#0a0a0e', color: '#fafafa', border: '1px solid #27272a' }} />
+                </div>
+              </div>
+
+              <div className="flex items-start gap-1.5 text-[11px] mb-3 rounded-lg p-2" style={{ background: 'rgba(252,211,77,0.08)', color: '#fcd34d' }}>
+                <AlertTriangle size={13} className="shrink-0 mt-0.5" />
+                <span>Isto <strong>publica anúncios reais</strong> à venda nas contas escolhidas. Revise preço e estoque antes de confirmar.</span>
+              </div>
+
+              {err && <div className="rounded-lg p-2 text-xs mb-3" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171' }}>{err}</div>}
+
+              <button onClick={publish} disabled={publishing || sel.size === 0}
+                className="w-full py-2.5 rounded-lg text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50"
+                style={{ background: '#00E5FF', color: '#09090b' }}>
+                {publishing ? <Loader2 size={15} className="animate-spin" /> : <Copy size={15} />}
+                Publicar em {sel.size} conta(s)
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>
