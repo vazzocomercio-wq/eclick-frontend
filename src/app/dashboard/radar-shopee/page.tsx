@@ -12,6 +12,7 @@ import {
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 const SHOPEE = '#EE4D2D'
+const NICHES = ['Iluminação', 'Casa e Decoração', 'Cozinha', 'Organização', 'Eletrônicos', 'Beleza', 'Pet', 'Fitness', 'Bebê', 'Ferramentas']
 
 type BuyDecision = 'comprar' | 'observar' | 'ignorar'
 
@@ -61,6 +62,7 @@ export default function RadarShopeePage() {
   const [decision, setDecision] = useState<BuyDecision | 'all'>('all')
   const [keyword, setKeyword]   = useState('')
   const [analyzeId, setAnalyzeId] = useState<number | null>(null)
+  const [auto, setAuto]         = useState(false)
   const [error, setError]       = useState<string | null>(null)
   const [msg, setMsg]           = useState<string | null>(null)
 
@@ -76,16 +78,26 @@ export default function RadarShopeePage() {
 
   useEffect(() => { void load() }, [load])
   useEffect(() => { void api<{ connected: boolean }>('/shopee-affiliate/radar/status').then(s => setConn(s.connected)).catch(() => setConn(false)) }, [])
+  useEffect(() => { void api<{ auto: boolean }>('/shopee-affiliate/radar/settings').then(s => setAuto(s.auto)).catch(() => {}) }, [])
 
-  const ingest = async () => {
+  const ingest = async (kw?: string) => {
+    const term = (kw ?? keyword).trim()
     setIng(true); setError(null); setMsg(null)
+    if (kw != null) setKeyword(kw)
     try {
-      const body = keyword.trim() ? { keywords: keyword.split(',').map(s => s.trim()).filter(Boolean), pages: 2 } : { pages: 2 }
+      const body = term ? { keywords: term.split(',').map(s => s.trim()).filter(Boolean), pages: 2 } : { pages: 2 }
       const r = await api<{ upserted: number; scored: number; errors: string[] }>('/shopee-affiliate/radar/ingest', { method: 'POST', body: JSON.stringify(body) })
       setMsg(`Busca concluída: ${r.upserted} produtos campeões trazidos.`)
       await load()
     } catch (e) { setError(e instanceof Error ? e.message : 'Falha na busca') }
     finally { setIng(false) }
+  }
+
+  const toggleAuto = async () => {
+    const next = !auto
+    setAuto(next)
+    try { await api('/shopee-affiliate/radar/settings', { method: 'PATCH', body: JSON.stringify({ auto: next }) }) }
+    catch { setAuto(!next) }
   }
 
   const counts = {
@@ -111,12 +123,27 @@ export default function RadarShopeePage() {
           <div className="flex items-center gap-2">
             <input value={keyword} onChange={e => setKeyword(e.target.value)} placeholder="palavras (ex: luminária, abajur)"
               className="px-3 py-2.5 rounded-lg text-sm outline-none w-56" style={{ background: '#0a0a0e', color: '#fafafa', border: '1px solid #27272a' }} />
-            <button onClick={ingest} disabled={ingesting || connected === false}
+            <button onClick={() => ingest()} disabled={ingesting || connected === false}
               className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold disabled:opacity-50" style={{ background: SHOPEE, color: '#fff' }}>
               <RefreshCw size={15} className={ingesting ? 'animate-spin' : ''} />
               {ingesting ? 'Buscando…' : 'Buscar campeões'}
             </button>
           </div>
+        </div>
+
+        {/* Nichos (atalhos de busca) + auto diário */}
+        <div className="flex items-center gap-2 mb-4 flex-wrap">
+          <span className="text-xs" style={{ color: '#52525b' }}>Nichos:</span>
+          {NICHES.map(n => (
+            <button key={n} onClick={() => ingest(n)} disabled={ingesting || connected === false}
+              className="px-2.5 py-1 rounded-full text-xs font-medium disabled:opacity-50"
+              style={{ background: '#111114', color: '#d4d4d8', border: '1px solid #27272a' }}>{n}</button>
+          ))}
+          <button onClick={toggleAuto} className="ml-auto flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold"
+            style={auto ? { background: 'rgba(74,222,128,0.12)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)' } : { background: '#111114', color: '#71717a', border: '1px solid #1e1e24' }}>
+            <span className="w-2 h-2 rounded-full" style={{ background: auto ? '#4ade80' : '#3f3f46' }} />
+            {auto ? 'Atualiza todo dia (5:30)' : 'Atualizar todo dia: off'}
+          </button>
         </div>
 
         {connected === false && (
