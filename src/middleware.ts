@@ -93,6 +93,7 @@ export async function middleware(request: NextRequest) {
     earlyPath.startsWith('/auditoria-gratis') ||
     earlyPath.startsWith('/sou-afiliado-shopee') ||
     earlyPath.startsWith('/privacidade') ||
+    earlyPath.startsWith('/termos') ||
     earlyPath.startsWith('/blog') ||
     earlyPath.startsWith('/solicitar-acesso') ||
     earlyPath.startsWith('/forgot-password') ||
@@ -148,6 +149,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/auditoria-gratis') ||  // landing pública GEO + loading/resultado/OG/descadastro
     pathname.startsWith('/sou-afiliado-shopee') || // F18 F4.3 — self-signup afiliado (opt-in LGPD)
     pathname.startsWith('/privacidade') ||
+    pathname.startsWith('/termos') ||            // Termos de Serviço público
     pathname.startsWith('/blog') ||              // blog público GEO
     pathname === '/llms.txt' ||
     pathname === '/sitemap.xml' ||
@@ -201,6 +203,6 @@ export const config = {
   // CDN — é o que reativa o cache (o early-return no corpo não basta, pois o
   // simples fato de a rota ser coberta pelo middleware já força no-store).
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|blog|auditoria-gratis|privacidade|sitemap\\.xml|rss\\.xml|robots\\.txt|llms\\.txt|.*\\.(?:svg|png|jpg|jpeg|gif|webp|woff2?|ttf|otf)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|blog|auditoria-gratis|privacidade|termos|sitemap\\.xml|rss\\.xml|robots\\.txt|llms\\.txt|.*\\.(?:svg|png|jpg|jpeg|gif|webp|woff2?|ttf|otf)$).*)',
   ],
 }
