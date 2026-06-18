@@ -5,7 +5,11 @@ import { createClient } from '@/lib/supabase'
 import {
   TrendingUp, RefreshCw, Search, ShoppingCart, Eye, X, ExternalLink,
   ArrowUp, ArrowDown, Minus, Sparkles, Flame, ChevronRight, Check, FolderTree, Save, Loader2,
+  BarChart3, Activity, DollarSign, Trophy, Info,
 } from 'lucide-react'
+import {
+  ResponsiveContainer, AreaChart, Area, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid,
+} from 'recharts'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 
@@ -89,6 +93,7 @@ export default function RadarTendenciasPage() {
   const [category, setCategory] = useState<string>('all')   // filtro da lista por categoria
   const [settings, setSettings] = useState<TrendsSettings | null>(null)
   const [pickerOpen, setPicker] = useState(false)
+  const [analyzeId, setAnalyzeId] = useState<string | null>(null)
   const [error, setError]       = useState<string | null>(null)
   const [msg, setMsg]           = useState<string | null>(null)
 
@@ -248,7 +253,7 @@ export default function RadarTendenciasPage() {
               </div>
             ) : (
               <div className="space-y-3">
-                {cards.map(c => <ProductRow key={c.product_id} c={c} onWatch={setWatch} onUnwatch={unwatch} />)}
+                {cards.map(c => <ProductRow key={c.product_id} c={c} onWatch={setWatch} onUnwatch={unwatch} onAnalyze={setAnalyzeId} />)}
               </div>
             )}
           </div>
@@ -284,6 +289,8 @@ export default function RadarTendenciasPage() {
           onSave={async (ids) => { await saveCategories(ids); setPicker(false) }}
         />
       )}
+
+      {analyzeId && <AnalyticsModal productId={analyzeId} onClose={() => setAnalyzeId(null)} />}
     </div>
   )
 }
@@ -385,10 +392,11 @@ function CategoryPicker({ initial, onClose, onSave }: {
 
 // ── Product row ───────────────────────────────────────────────────────────────
 
-function ProductRow({ c, onWatch, onUnwatch }: {
+function ProductRow({ c, onWatch, onUnwatch, onAnalyze }: {
   c: RadarCard
   onWatch: (id: string, dec: string) => void
   onUnwatch: (id: string) => void
+  onAnalyze: (id: string) => void
 }) {
   const dm = c.buy_decision ? DECISION_META[c.buy_decision] : null
 
@@ -463,6 +471,9 @@ function ProductRow({ c, onWatch, onUnwatch }: {
               </button>
             </>
           )}
+          <button onClick={() => onAnalyze(c.product_id)} className="text-[11px] flex items-center gap-1 px-2 py-1 rounded-md font-semibold" style={{ background: 'rgba(0,229,255,0.10)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.25)' }}>
+            <BarChart3 size={12} /> Analisar
+          </button>
           {c.url && (
             <a href={c.url} target="_blank" rel="noopener noreferrer" className="text-[11px] flex items-center gap-1 px-2 py-1 rounded-md ml-auto" style={{ color: '#71717a' }}>
               Ver no ML <ExternalLink size={12} />
@@ -479,4 +490,182 @@ function RankDelta({ delta }: { delta: number | null }) {
   if (delta > 0) return <span className="text-[10px] flex items-center gap-0.5 font-bold" style={{ color: '#4ade80' }}><ArrowUp size={11} />{delta}</span>
   if (delta < 0) return <span className="text-[10px] flex items-center gap-0.5 font-bold" style={{ color: '#f87171' }}><ArrowDown size={11} />{Math.abs(delta)}</span>
   return <span className="text-[10px] flex items-center gap-0.5" style={{ color: '#52525b' }}><Minus size={11} /></span>
+}
+
+// ── Analytics modal ─────────────────────────────────────────────────────────
+
+interface Series { date: string; value: number }
+interface AnalyticsData {
+  product: { name: string; category_name: string | null; url: string | null; thumbnail: string | null; current_price_cents: number | null }
+  score: { trend_score: number; momentum: number; volume_score: number; breadth_score: number; best_seller_rank: number | null; rank_delta: number | null; buy_decision: BuyDecision; ai_rationale: string | null; confidence: number } | null
+  visits: { available: boolean; series: { date: string; total: number }[]; total: number; avgPerDay: number; peak: { date: string; total: number } | null }
+  price: { series: Series[]; min: number | null; max: number | null; avg: number | null; points: number }
+  rank: { series: Series[]; best: number | null; points: number }
+  scoreHistory: { series: Series[]; points: number }
+  salesAvailable: boolean
+  days: number
+}
+
+const fmtDay = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}`
+
+function AnalyticsModal({ productId, onClose }: { productId: string; onClose: () => void }) {
+  const [days, setDays]       = useState(30)
+  const [data, setData]       = useState<AnalyticsData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [err, setErr]         = useState<string | null>(null)
+
+  useEffect(() => {
+    let alive = true
+    setLoading(true); setErr(null)
+    api<AnalyticsData>(`/trends/product/${productId}/analytics?days=${days}`)
+      .then(d => { if (alive) setData(d) })
+      .catch(e => { if (alive) setErr(e instanceof Error ? e.message : 'Falha') })
+      .finally(() => { if (alive) setLoading(false) })
+    return () => { alive = false }
+  }, [productId, days])
+
+  const dm = data?.score?.buy_decision ? DECISION_META[data.score.buy_decision] : null
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={onClose}>
+      <div className="w-full max-w-4xl rounded-2xl overflow-hidden flex flex-col" style={{ background: '#0d0d10', border: '1px solid #27272a', maxHeight: '92vh' }} onClick={e => e.stopPropagation()}>
+
+        {/* header */}
+        <div className="flex items-start gap-3 p-4" style={{ borderBottom: '1px solid #1e1e24' }}>
+          <div className="shrink-0 w-12 h-12 rounded-lg overflow-hidden flex items-center justify-center" style={{ background: '#0a0a0e' }}>
+            {data?.product.thumbnail
+              // eslint-disable-next-line @next/next/no-img-element
+              ? <img src={data.product.thumbnail} alt="" className="w-full h-full object-cover" />
+              : <BarChart3 size={18} style={{ color: '#3f3f46' }} />}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 text-[11px] uppercase tracking-wider font-semibold" style={{ color: '#00E5FF' }}>
+              <BarChart3 size={12} /> Análise do produto
+            </div>
+            <p className="text-sm font-semibold leading-snug truncate" style={{ color: '#fafafa' }}>{data?.product.name ?? 'Carregando…'}</p>
+            <p className="text-xs" style={{ color: '#52525b' }}>{data?.product.category_name ?? ''}</p>
+          </div>
+          <button onClick={onClose}><X size={18} style={{ color: '#71717a' }} /></button>
+        </div>
+
+        {/* filtro de período */}
+        <div className="flex items-center gap-2 px-4 py-2" style={{ borderBottom: '1px solid #1e1e24' }}>
+          <span className="text-xs" style={{ color: '#52525b' }}>Período:</span>
+          {[7, 30, 90].map(d => (
+            <button key={d} onClick={() => setDays(d)} className="px-2.5 py-1 rounded-md text-xs font-semibold transition"
+              style={days === d ? { background: '#00E5FF', color: '#09090b' } : { background: '#1e1e24', color: '#a1a1aa' }}>
+              {d} dias
+            </button>
+          ))}
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4">
+          {loading ? (
+            <div className="flex items-center justify-center py-20" style={{ color: '#52525b' }}><Loader2 size={20} className="animate-spin" /></div>
+          ) : err ? (
+            <div className="rounded-lg p-3 text-sm" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171' }}>{err}</div>
+          ) : data ? (
+            <>
+              {/* KPIs */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+                <Kpi icon={<TrendingUp size={13} />} label="Trend Score" value={data.score ? String(Math.round(data.score.trend_score)) : '—'} color={scoreColor(data.score?.trend_score ?? null)} />
+                <Kpi icon={<Trophy size={13} />} label="Rank vendas" value={data.score?.best_seller_rank != null ? `#${data.score.best_seller_rank}` : '—'} color="#a5f3fc" />
+                <Kpi icon={<Activity size={13} />} label={`Visitas ${days}d`} value={data.visits.available ? data.visits.total.toLocaleString('pt-BR') : '—'} color="#00E5FF" />
+                <Kpi icon={<DollarSign size={13} />} label="Preço atual" value={brl(data.product.current_price_cents)} color="#4ade80" />
+              </div>
+
+              {/* decisão + IA */}
+              {dm && (
+                <div className="rounded-lg p-3 mb-4 flex items-start gap-2" style={{ background: dm.bg, border: `1px solid ${dm.border}` }}>
+                  <span className="text-xs font-bold px-2 py-0.5 rounded shrink-0" style={{ background: dm.color, color: '#09090b' }}>{dm.label}</span>
+                  <span className="text-xs leading-relaxed" style={{ color: '#d4d4d8' }}>{data.score?.ai_rationale ?? ''}</span>
+                </div>
+              )}
+
+              {/* Visitas — headline */}
+              <ChartCard title="Visitas no tempo" subtitle={data.visits.available ? `${data.visits.avgPerDay}/dia · pico ${data.visits.peak?.total ?? 0}` : 'indisponível pra este item'}>
+                {data.visits.available && data.visits.series.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={200}>
+                    <AreaChart data={data.visits.series}>
+                      <defs><linearGradient id="gv" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#00E5FF" stopOpacity={0.4} /><stop offset="100%" stopColor="#00E5FF" stopOpacity={0} /></linearGradient></defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#1e1e24" vertical={false} />
+                      <XAxis dataKey="date" tickFormatter={fmtDay} tick={{ fill: '#52525b', fontSize: 10 }} minTickGap={24} />
+                      <YAxis tick={{ fill: '#52525b', fontSize: 10 }} width={36} />
+                      <Tooltip contentStyle={TT} labelFormatter={(d) => fmtDay(String(d))} formatter={(v) => [v, 'visitas']} />
+                      <Area type="monotone" dataKey="total" stroke="#00E5FF" strokeWidth={2} fill="url(#gv)" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                ) : <Empty text="Sem dados de visitas pra este produto." />}
+              </ChartCard>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+                {/* Preço */}
+                <ChartCard title="Preço praticado" subtitle={data.price.points >= 2 ? `mín ${brl(data.price.min)} · máx ${brl(data.price.max)}` : 'histórico acumula a cada atualização'}>
+                  {data.price.points >= 2 ? (
+                    <ResponsiveContainer width="100%" height={170}>
+                      <LineChart data={data.price.series}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#1e1e24" vertical={false} />
+                        <XAxis dataKey="date" tickFormatter={fmtDay} tick={{ fill: '#52525b', fontSize: 10 }} minTickGap={24} />
+                        <YAxis tick={{ fill: '#52525b', fontSize: 10 }} width={48} tickFormatter={(v: number) => `R$${Math.round(v / 100)}`} />
+                        <Tooltip contentStyle={TT} labelFormatter={(d) => fmtDay(String(d))} formatter={(v) => [brl(Number(v)), 'preço']} />
+                        <Line type="monotone" dataKey="value" stroke="#4ade80" strokeWidth={2} dot={false} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  ) : <Empty text="Só 1 ponto até agora. A cada 'Atualizar' o histórico cresce." />}
+                </ChartCard>
+
+                {/* Ranking */}
+                <ChartCard title="Posição no ranking de vendas" subtitle={data.rank.points >= 2 ? `melhor: #${data.rank.best}` : 'histórico acumula a cada atualização'}>
+                  {data.rank.points >= 2 ? (
+                    <ResponsiveContainer width="100%" height={170}>
+                      <LineChart data={data.rank.series}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#1e1e24" vertical={false} />
+                        <XAxis dataKey="date" tickFormatter={fmtDay} tick={{ fill: '#52525b', fontSize: 10 }} minTickGap={24} />
+                        <YAxis reversed allowDecimals={false} tick={{ fill: '#52525b', fontSize: 10 }} width={28} />
+                        <Tooltip contentStyle={TT} labelFormatter={(d) => fmtDay(String(d))} formatter={(v) => [`#${v}`, 'posição']} />
+                        <Line type="monotone" dataKey="value" stroke="#a5f3fc" strokeWidth={2} dot={false} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  ) : <Empty text="Só 1 ponto até agora. A cada 'Atualizar' o histórico cresce." />}
+                </ChartCard>
+              </div>
+
+              {/* nota vendas */}
+              <div className="flex items-start gap-2 mt-4 text-xs" style={{ color: '#52525b' }}>
+                <Info size={13} className="shrink-0 mt-0.5" />
+                <span>Vendas e conversão de concorrentes não são divulgadas pelo Mercado Livre (privacidade). As <strong>visitas</strong> são o indicador público de demanda. Preço, ranking e score acumulam histórico a cada atualização do radar.</span>
+              </div>
+            </>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const TT = { background: '#0a0a0e', border: '1px solid #27272a', borderRadius: 8, fontSize: 12, color: '#fafafa' } as const
+
+function Kpi({ icon, label, value, color }: { icon: React.ReactNode; label: string; value: string; color: string }) {
+  return (
+    <div className="rounded-lg p-3" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+      <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider mb-1" style={{ color: '#52525b' }}>{icon}{label}</div>
+      <div className="text-lg font-extrabold" style={{ color }}>{value}</div>
+    </div>
+  )
+}
+
+function ChartCard({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-xl p-4" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+      <div className="mb-2">
+        <div className="text-sm font-bold" style={{ color: '#fafafa' }}>{title}</div>
+        {subtitle && <div className="text-xs" style={{ color: '#52525b' }}>{subtitle}</div>}
+      </div>
+      {children}
+    </div>
+  )
+}
+
+function Empty({ text }: { text: string }) {
+  return <div className="flex items-center justify-center text-center text-xs py-12 px-4" style={{ color: '#52525b' }}>{text}</div>
 }
