@@ -23,6 +23,7 @@ interface RadarCard {
   category_id:         string | null
   category_name:       string | null
   price_ref_cents:     number | null
+  visits_per_day:      number | null
   status:              string | null
   thumbnail:           string | null
   url:                 string | null
@@ -44,7 +45,7 @@ interface RisingSearch {
 }
 
 interface MlCat { id: string; name: string }
-interface TrendsSettings { categories: string[]; target_margin_pct: number; auto_enabled: boolean }
+interface TrendsSettings { categories: string[]; target_margin_pct: number; est_conversion_pct: number; auto_enabled: boolean }
 
 // ── HTTP helpers ────────────────────────────────────────────────────────────
 
@@ -253,7 +254,7 @@ export default function RadarTendenciasPage() {
               </div>
             ) : (
               <div className="space-y-3">
-                {cards.map(c => <ProductRow key={c.product_id} c={c} onWatch={setWatch} onUnwatch={unwatch} onAnalyze={setAnalyzeId} />)}
+                {cards.map(c => <ProductRow key={c.product_id} c={c} conv={settings?.est_conversion_pct ?? 1.5} onWatch={setWatch} onUnwatch={unwatch} onAnalyze={setAnalyzeId} />)}
               </div>
             )}
           </div>
@@ -392,13 +393,15 @@ function CategoryPicker({ initial, onClose, onSave }: {
 
 // ── Product row ───────────────────────────────────────────────────────────────
 
-function ProductRow({ c, onWatch, onUnwatch, onAnalyze }: {
+function ProductRow({ c, conv, onWatch, onUnwatch, onAnalyze }: {
   c: RadarCard
+  conv: number
   onWatch: (id: string, dec: string) => void
   onUnwatch: (id: string) => void
   onAnalyze: (id: string) => void
 }) {
   const dm = c.buy_decision ? DECISION_META[c.buy_decision] : null
+  const estSalesDay = c.visits_per_day != null ? Math.round(c.visits_per_day * conv / 100 * 10) / 10 : null
 
   return (
     <div className="rounded-xl p-4 flex gap-4" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
@@ -424,7 +427,14 @@ function ProductRow({ c, onWatch, onUnwatch, onAnalyze }: {
               <span className="text-xs" style={{ color: '#52525b' }}>{c.category_name ?? ''}</span>
             </div>
             <p className="text-sm font-medium leading-snug truncate" style={{ color: '#fafafa' }}>{c.name}</p>
-            <p className="text-sm font-bold mt-0.5" style={{ color: '#00E5FF' }}>{brl(c.price_ref_cents)}</p>
+            <div className="flex items-center gap-3 mt-0.5">
+              <span className="text-sm font-bold" style={{ color: '#00E5FF' }}>{brl(c.price_ref_cents)}</span>
+              {estSalesDay != null && (
+                <span className="text-xs" style={{ color: '#71717a' }} title="Estimativa: visitas/dia × conversão">
+                  ~{estSalesDay}/dia vendas <span style={{ color: '#52525b' }}>(est.)</span>
+                </span>
+              )}
+            </div>
           </div>
 
           {/* score + decisão */}
@@ -499,10 +509,11 @@ interface AnalyticsData {
   product: { name: string; category_name: string | null; url: string | null; thumbnail: string | null; current_price_cents: number | null }
   score: { trend_score: number; momentum: number; volume_score: number; breadth_score: number; best_seller_rank: number | null; rank_delta: number | null; buy_decision: BuyDecision; ai_rationale: string | null; confidence: number } | null
   visits: { available: boolean; series: { date: string; total: number }[]; total: number; avgPerDay: number; peak: { date: string; total: number } | null }
+  salesEstimate: { available: boolean; conversionPct: number; series: Series[]; total: number; perDay: number }
   price: { series: Series[]; min: number | null; max: number | null; avg: number | null; points: number }
   rank: { series: Series[]; best: number | null; points: number }
   scoreHistory: { series: Series[]; points: number }
-  salesAvailable: boolean
+  salesReal: boolean
   days: number
 }
 
@@ -513,6 +524,7 @@ function AnalyticsModal({ productId, onClose }: { productId: string; onClose: ()
   const [data, setData]       = useState<AnalyticsData | null>(null)
   const [loading, setLoading] = useState(true)
   const [err, setErr]         = useState<string | null>(null)
+  const [reloadKey, setReloadKey] = useState(0)
 
   useEffect(() => {
     let alive = true
@@ -522,7 +534,14 @@ function AnalyticsModal({ productId, onClose }: { productId: string; onClose: ()
       .catch(e => { if (alive) setErr(e instanceof Error ? e.message : 'Falha') })
       .finally(() => { if (alive) setLoading(false) })
     return () => { alive = false }
-  }, [productId, days])
+  }, [productId, days, reloadKey])
+
+  const saveConv = async (pct: number) => {
+    try {
+      await api('/trends/settings', { method: 'PATCH', body: JSON.stringify({ est_conversion_pct: pct }) })
+      setReloadKey(k => k + 1)
+    } catch { /* ignora */ }
+  }
 
   const dm = data?.score?.buy_decision ? DECISION_META[data.score.buy_decision] : null
 
@@ -567,10 +586,11 @@ function AnalyticsModal({ productId, onClose }: { productId: string; onClose: ()
           ) : data ? (
             <>
               {/* KPIs */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-4">
                 <Kpi icon={<TrendingUp size={13} />} label="Trend Score" value={data.score ? String(Math.round(data.score.trend_score)) : '—'} color={scoreColor(data.score?.trend_score ?? null)} />
                 <Kpi icon={<Trophy size={13} />} label="Rank vendas" value={data.score?.best_seller_rank != null ? `#${data.score.best_seller_rank}` : '—'} color="#a5f3fc" />
                 <Kpi icon={<Activity size={13} />} label={`Visitas ${days}d`} value={data.visits.available ? data.visits.total.toLocaleString('pt-BR') : '—'} color="#00E5FF" />
+                <Kpi icon={<ShoppingCart size={13} />} label="Vendas/dia (est.)" value={data.salesEstimate.available ? `~${data.salesEstimate.perDay}` : '—'} color="#fcd34d" />
                 <Kpi icon={<DollarSign size={13} />} label="Preço atual" value={brl(data.product.current_price_cents)} color="#4ade80" />
               </div>
 
@@ -597,6 +617,39 @@ function AnalyticsModal({ productId, onClose }: { productId: string; onClose: ()
                   </ResponsiveContainer>
                 ) : <Empty text="Sem dados de visitas pra este produto." />}
               </ChartCard>
+
+              {/* Vendas estimadas */}
+              <div className="mt-3">
+                <ChartCard
+                  title="Vendas estimadas / dia"
+                  subtitle={data.salesEstimate.available ? `~${data.salesEstimate.total} no período · visitas × conversão` : 'indisponível'}
+                >
+                  <div className="flex items-center gap-2 mb-2 text-xs" style={{ color: '#a1a1aa' }}>
+                    <span>Conversão:</span>
+                    {[1, 1.5, 2, 3].map(p => (
+                      <button key={p} onClick={() => saveConv(p)} className="px-2 py-0.5 rounded-md font-semibold"
+                        style={Math.abs(data.salesEstimate.conversionPct - p) < 0.01
+                          ? { background: '#fcd34d', color: '#09090b' }
+                          : { background: '#1e1e24', color: '#a1a1aa' }}>
+                        {p}%
+                      </button>
+                    ))}
+                    <span style={{ color: '#52525b' }}>(visitas × conversão = estimativa)</span>
+                  </div>
+                  {data.salesEstimate.available && data.salesEstimate.series.length > 0 ? (
+                    <ResponsiveContainer width="100%" height={170}>
+                      <AreaChart data={data.salesEstimate.series}>
+                        <defs><linearGradient id="gs" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#fcd34d" stopOpacity={0.35} /><stop offset="100%" stopColor="#fcd34d" stopOpacity={0} /></linearGradient></defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#1e1e24" vertical={false} />
+                        <XAxis dataKey="date" tickFormatter={fmtDay} tick={{ fill: '#52525b', fontSize: 10 }} minTickGap={24} />
+                        <YAxis tick={{ fill: '#52525b', fontSize: 10 }} width={32} />
+                        <Tooltip contentStyle={TT} labelFormatter={(d) => fmtDay(String(d))} formatter={(v) => [v, 'vendas est.']} />
+                        <Area type="monotone" dataKey="value" stroke="#fcd34d" strokeWidth={2} fill="url(#gs)" />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  ) : <Empty text="Sem base de visitas pra estimar." />}
+                </ChartCard>
+              </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
                 {/* Preço */}
