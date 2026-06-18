@@ -505,12 +505,13 @@ function RankDelta({ delta }: { delta: number | null }) {
 // ── Analytics modal ─────────────────────────────────────────────────────────
 
 interface Series { date: string; value: number }
+interface PricePoint { date: string; value: number; orig: number | null; discountPct: number | null }
 interface AnalyticsData {
-  product: { name: string; category_name: string | null; url: string | null; thumbnail: string | null; current_price_cents: number | null }
+  product: { name: string; category_name: string | null; url: string | null; thumbnail: string | null; current_price_cents: number | null; current_orig_price_cents: number | null; current_discount_pct: number | null }
   score: { trend_score: number; momentum: number; volume_score: number; breadth_score: number; best_seller_rank: number | null; rank_delta: number | null; buy_decision: BuyDecision; ai_rationale: string | null; confidence: number } | null
   visits: { available: boolean; series: { date: string; total: number }[]; total: number; avgPerDay: number; peak: { date: string; total: number } | null }
   salesEstimate: { available: boolean; conversionPct: number; series: Series[]; total: number; perDay: number }
-  price: { series: Series[]; min: number | null; max: number | null; avg: number | null; points: number }
+  price: { series: PricePoint[]; min: number | null; max: number | null; avg: number | null; points: number }
   rank: { series: Series[]; best: number | null; points: number }
   scoreHistory: { series: Series[]; points: number }
   salesReal: boolean
@@ -611,7 +612,7 @@ function AnalyticsModal({ productId, onClose }: { productId: string; onClose: ()
                       <CartesianGrid strokeDasharray="3 3" stroke="#1e1e24" vertical={false} />
                       <XAxis dataKey="date" tickFormatter={fmtDay} tick={{ fill: '#52525b', fontSize: 10 }} minTickGap={24} />
                       <YAxis tick={{ fill: '#52525b', fontSize: 10 }} width={36} />
-                      <Tooltip contentStyle={TT} labelFormatter={(d) => fmtDay(String(d))} formatter={(v) => [v, 'visitas']} />
+                      <Tooltip content={(p) => <VisitsTooltip p={p as unknown as TipProps} conv={data.salesEstimate.conversionPct} />} />
                       <Area type="monotone" dataKey="total" stroke="#00E5FF" strokeWidth={2} fill="url(#gv)" />
                     </AreaChart>
                   </ResponsiveContainer>
@@ -653,15 +654,25 @@ function AnalyticsModal({ productId, onClose }: { productId: string; onClose: ()
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
                 {/* Preço */}
-                <ChartCard title="Preço praticado" subtitle={data.price.points >= 2 ? `mín ${brl(data.price.min)} · máx ${brl(data.price.max)}` : 'histórico acumula a cada atualização'}>
+                <ChartCard
+                  title="Preço praticado"
+                  subtitle={
+                    data.product.current_discount_pct != null
+                      ? `hoje ${brl(data.product.current_price_cents)} · de ${brl(data.product.current_orig_price_cents)} (-${data.product.current_discount_pct}%)`
+                      : data.price.points >= 2 ? `mín ${brl(data.price.min)} · máx ${brl(data.price.max)}` : 'histórico acumula a cada atualização'
+                  }
+                >
                   {data.price.points >= 2 ? (
                     <ResponsiveContainer width="100%" height={170}>
                       <LineChart data={data.price.series}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#1e1e24" vertical={false} />
                         <XAxis dataKey="date" tickFormatter={fmtDay} tick={{ fill: '#52525b', fontSize: 10 }} minTickGap={24} />
                         <YAxis tick={{ fill: '#52525b', fontSize: 10 }} width={48} tickFormatter={(v: number) => `R$${Math.round(v / 100)}`} />
-                        <Tooltip contentStyle={TT} labelFormatter={(d) => fmtDay(String(d))} formatter={(v) => [brl(Number(v)), 'preço']} />
-                        <Line type="monotone" dataKey="value" stroke="#4ade80" strokeWidth={2} dot={false} />
+                        <Tooltip content={(p) => <PriceTooltip p={p as unknown as TipProps} />} />
+                        {data.price.series.some(s => s.orig != null) && (
+                          <Line type="monotone" dataKey="orig" stroke="#71717a" strokeWidth={1} strokeDasharray="4 3" dot={false} connectNulls name="cheio" />
+                        )}
+                        <Line type="monotone" dataKey="value" stroke="#4ade80" strokeWidth={2} dot={false} name="final" />
                       </LineChart>
                     </ResponsiveContainer>
                   ) : <Empty text="Só 1 ponto até agora. A cada 'Atualizar' o histórico cresce." />}
@@ -697,6 +708,43 @@ function AnalyticsModal({ productId, onClose }: { productId: string; onClose: ()
 }
 
 const TT = { background: '#0a0a0e', border: '1px solid #27272a', borderRadius: 8, fontSize: 12, color: '#fafafa' } as const
+const TIP_BOX = 'rounded-lg px-3 py-2 text-xs' as const
+const tipStyle = { background: '#0a0a0e', border: '1px solid #27272a' } as const
+
+interface TipProps { active?: boolean; payload?: { value?: number; payload?: Record<string, unknown> }[]; label?: string }
+
+/** Tooltip de visitas: mostra visitas + venda/dia estimada (visitas × conversão). */
+function VisitsTooltip({ p, conv }: { p: TipProps; conv: number }) {
+  if (!p.active || !p.payload?.length) return null
+  const visits = Number(p.payload[0].value) || 0
+  const sales = Math.round(visits * conv / 100 * 10) / 10
+  return (
+    <div className={TIP_BOX} style={tipStyle}>
+      <div style={{ color: '#fafafa' }}>{fmtDay(String(p.label ?? ''))}</div>
+      <div style={{ color: '#00E5FF' }}>visitas: {visits.toLocaleString('pt-BR')}</div>
+      <div style={{ color: '#fcd34d' }}>venda/dia (est): ~{sales}</div>
+    </div>
+  )
+}
+
+/** Tooltip de preço: final + cheio (de) + % desconto do dia. */
+function PriceTooltip({ p }: { p: TipProps }) {
+  if (!p.active || !p.payload?.length) return null
+  const row = p.payload[0].payload as { value?: number; orig?: number | null; discountPct?: number | null }
+  const final = row?.value != null ? brl(Math.round(row.value)) : '—'
+  return (
+    <div className={TIP_BOX} style={tipStyle}>
+      <div style={{ color: '#fafafa' }}>{fmtDay(String(p.label ?? ''))}</div>
+      <div style={{ color: '#4ade80' }}>preço: {final}</div>
+      {row?.orig != null && (
+        <>
+          <div style={{ color: '#71717a', textDecoration: 'line-through' }}>de: {brl(Math.round(row.orig))}</div>
+          {row.discountPct != null && <div style={{ color: '#fcd34d' }}>desconto: {row.discountPct}%</div>}
+        </>
+      )}
+    </div>
+  )
+}
 
 function Kpi({ icon, label, value, color }: { icon: React.ReactNode; label: string; value: string; color: string }) {
   return (
