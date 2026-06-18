@@ -32,6 +32,7 @@ interface Offer {
   product_link:    string | null
   offer_link:      string | null
   image_url:       string | null
+  watched:         boolean
 }
 
 async function token(): Promise<string | null> {
@@ -59,7 +60,7 @@ export default function RadarShopeePage() {
   const [loading, setLoading]   = useState(true)
   const [ingesting, setIng]     = useState(false)
   const [connected, setConn]    = useState<boolean | null>(null)
-  const [decision, setDecision] = useState<BuyDecision | 'all'>('all')
+  const [tab, setTab]           = useState<BuyDecision | 'all' | 'watched'>('all')
   const [keyword, setKeyword]   = useState('')
   const [analyzeId, setAnalyzeId] = useState<number | null>(null)
   const [auto, setAuto]         = useState(false)
@@ -69,12 +70,12 @@ export default function RadarShopeePage() {
   const load = useCallback(async () => {
     setLoading(true); setError(null)
     try {
-      const q = decision === 'all' ? '' : `?decision=${decision}`
+      const q = tab === 'all' ? '' : tab === 'watched' ? '?watched=true' : `?decision=${tab}`
       const r = await api<{ items: Offer[] }>(`/shopee-affiliate/radar${q}`)
       setItems(r.items)
     } catch (e) { setError(e instanceof Error ? e.message : 'Falha ao carregar') }
     finally { setLoading(false) }
-  }, [decision])
+  }, [tab])
 
   useEffect(() => { void load() }, [load])
   useEffect(() => { void api<{ connected: boolean }>('/shopee-affiliate/radar/status').then(s => setConn(s.connected)).catch(() => setConn(false)) }, [])
@@ -98,6 +99,12 @@ export default function RadarShopeePage() {
     setAuto(next)
     try { await api('/shopee-affiliate/radar/settings', { method: 'PATCH', body: JSON.stringify({ auto: next }) }) }
     catch { setAuto(!next) }
+  }
+
+  const setWatch = async (itemId: number, watched: boolean) => {
+    setItems(its => its.map(i => i.item_id === itemId ? { ...i, watched } : i))
+    try { await api(`/shopee-affiliate/radar/product/${itemId}/watch`, { method: 'POST', body: JSON.stringify({ watched }) }) }
+    catch (e) { setError(e instanceof Error ? e.message : 'Falha'); setItems(its => its.map(i => i.item_id === itemId ? { ...i, watched: !watched } : i)) }
   }
 
   const counts = {
@@ -155,10 +162,10 @@ export default function RadarShopeePage() {
         {msg && <div className="rounded-lg p-3 text-sm mb-4" style={{ background: 'rgba(74,222,128,0.10)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)' }}>{msg}</div>}
 
         {/* Filtros */}
-        <div className="flex items-center gap-2 mb-4">
-          {([['all', `Todos (${items.length})`], ['comprar', `Comprar (${counts.comprar})`], ['observar', `Observar (${counts.observar})`], ['ignorar', `Ignorar (${counts.ignorar})`]] as const).map(([k, lbl]) => (
-            <button key={k} onClick={() => setDecision(k as BuyDecision | 'all')} className="px-3 py-1.5 rounded-lg text-xs font-semibold"
-              style={decision === k ? { background: '#27272a', color: '#fafafa', border: '1px solid #3f3f46' } : { background: '#111114', color: '#a1a1aa', border: '1px solid #1e1e24' }}>{lbl}</button>
+        <div className="flex items-center gap-2 mb-4 flex-wrap">
+          {([['all', `Todos`], ['comprar', `Comprar (${counts.comprar})`], ['observar', `Observar (${counts.observar})`], ['ignorar', `Ignorar (${counts.ignorar})`], ['watched', '⭐ Observados']] as const).map(([k, lbl]) => (
+            <button key={k} onClick={() => setTab(k as BuyDecision | 'all' | 'watched')} className="px-3 py-1.5 rounded-lg text-xs font-semibold"
+              style={tab === k ? { background: '#27272a', color: '#fafafa', border: '1px solid #3f3f46' } : { background: '#111114', color: '#a1a1aa', border: '1px solid #1e1e24' }}>{lbl}</button>
           ))}
         </div>
 
@@ -167,10 +174,12 @@ export default function RadarShopeePage() {
         ) : items.length === 0 ? (
           <div className="rounded-xl p-10 text-center" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
             <Flame size={32} className="mx-auto mb-3" style={{ color: '#3f3f46' }} />
-            <p className="text-sm" style={{ color: '#a1a1aa' }}>Nenhum produto ainda. Clique em <strong style={{ color: SHOPEE }}>Buscar campeões</strong> (deixe a busca vazia pra trazer os mais vendidos gerais, ou digite palavras do seu nicho).</p>
+            {tab === 'watched'
+              ? <p className="text-sm" style={{ color: '#a1a1aa' }}>Nenhum produto observado. Clique em <strong style={{ color: '#fcd34d' }}>⭐ Observar</strong> num produto pra monitorá-lo todo dia (o histórico de vendas dele passa a acumular).</p>
+              : <p className="text-sm" style={{ color: '#a1a1aa' }}>Nenhum produto ainda. Clique em <strong style={{ color: SHOPEE }}>Buscar campeões</strong> (deixe a busca vazia pra trazer os mais vendidos gerais, ou digite palavras do seu nicho).</p>}
           </div>
         ) : (
-          <div className="space-y-3">{items.map(o => <OfferRow key={o.item_id} o={o} onAnalyze={setAnalyzeId} />)}</div>
+          <div className="space-y-3">{items.map(o => <OfferRow key={o.item_id} o={o} onAnalyze={setAnalyzeId} onWatch={setWatch} />)}</div>
         )}
       </div>
       {analyzeId != null && <AnalyticsModal itemId={analyzeId} onClose={() => setAnalyzeId(null)} />}
@@ -178,7 +187,7 @@ export default function RadarShopeePage() {
   )
 }
 
-function OfferRow({ o, onAnalyze }: { o: Offer; onAnalyze: (id: number) => void }) {
+function OfferRow({ o, onAnalyze, onWatch }: { o: Offer; onAnalyze: (id: number) => void; onWatch: (id: number, w: boolean) => void }) {
   const dm = o.buy_decision ? DECISION[o.buy_decision] : null
   return (
     <div className="rounded-xl p-4 flex gap-4" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
@@ -209,6 +218,10 @@ function OfferRow({ o, onAnalyze }: { o: Offer; onAnalyze: (id: number) => void 
         {o.ai_rationale && <div className="flex gap-1.5 mt-2 text-xs leading-relaxed" style={{ color: '#a1a1aa' }}><Sparkles size={13} className="shrink-0 mt-0.5" style={{ color: SHOPEE }} /><span>{o.ai_rationale}</span></div>}
         <div className="flex items-center gap-2 mt-3">
           <button onClick={() => onAnalyze(o.item_id)} className="text-[11px] flex items-center gap-1 px-2 py-1 rounded-md font-semibold" style={{ background: 'rgba(238,77,45,0.12)', color: SHOPEE, border: '1px solid rgba(238,77,45,0.3)' }}><BarChart3 size={12} /> Analisar</button>
+          <button onClick={() => onWatch(o.item_id, !o.watched)} className="text-[11px] flex items-center gap-1 px-2 py-1 rounded-md font-semibold"
+            style={o.watched ? { background: 'rgba(252,211,77,0.12)', color: '#fcd34d', border: '1px solid rgba(252,211,77,0.3)' } : { background: '#1e1e24', color: '#a1a1aa', border: '1px solid #27272a' }}>
+            <Star size={12} fill={o.watched ? '#fcd34d' : 'none'} /> {o.watched ? 'Observando' : 'Observar'}
+          </button>
           {o.product_link && <a href={o.product_link} target="_blank" rel="noopener noreferrer" className="text-[11px] flex items-center gap-1 px-2 py-1 rounded-md ml-auto" style={{ color: '#71717a' }}>Ver na Shopee <ExternalLink size={12} /></a>}
         </div>
       </div>
