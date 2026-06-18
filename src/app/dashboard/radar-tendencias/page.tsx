@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import {
   TrendingUp, RefreshCw, Search, ShoppingCart, Eye, X, ExternalLink,
-  ArrowUp, ArrowDown, Minus, Sparkles, Flame,
+  ArrowUp, ArrowDown, Minus, Sparkles, Flame, ChevronRight, Check, FolderTree, Save, Loader2,
 } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
@@ -38,6 +38,9 @@ interface RisingSearch {
   position:      number
   category_name: string | null
 }
+
+interface MlCat { id: string; name: string }
+interface TrendsSettings { categories: string[]; target_margin_pct: number; auto_enabled: boolean }
 
 // ── HTTP helpers ────────────────────────────────────────────────────────────
 
@@ -83,16 +86,22 @@ export default function RadarTendenciasPage() {
   const [loading, setLoading]   = useState(true)
   const [collecting, setColl]   = useState(false)
   const [decision, setDecision] = useState<BuyDecision | 'all'>('all')
+  const [category, setCategory] = useState<string>('all')   // filtro da lista por categoria
+  const [settings, setSettings] = useState<TrendsSettings | null>(null)
+  const [pickerOpen, setPicker] = useState(false)
   const [error, setError]       = useState<string | null>(null)
   const [msg, setMsg]           = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
     try {
-      const q = decision === 'all' ? '' : `?decision=${decision}`
+      const params = new URLSearchParams()
+      if (decision !== 'all') params.set('decision', decision)
+      if (category !== 'all') params.set('category', category)
+      const qs = params.toString() ? `?${params}` : ''
       const [radar, rs] = await Promise.all([
-        api<{ items: RadarCard[]; total: number }>(`/trends/radar${q}`),
-        api<RisingSearch[]>(`/trends/rising-searches`),
+        api<{ items: RadarCard[]; total: number }>(`/trends/radar${qs}`),
+        api<RisingSearch[]>(`/trends/rising-searches${category !== 'all' ? `?category=${category}` : ''}`),
       ])
       setCards(radar.items)
       setRising(rs)
@@ -101,9 +110,18 @@ export default function RadarTendenciasPage() {
     } finally {
       setLoading(false)
     }
-  }, [decision])
+  }, [decision, category])
 
   useEffect(() => { void load() }, [load])
+  useEffect(() => { void api<TrendsSettings>('/trends/settings').then(setSettings).catch(() => {}) }, [])
+
+  const saveCategories = async (ids: string[]) => {
+    try {
+      const s = await api<TrendsSettings>('/trends/settings', { method: 'PATCH', body: JSON.stringify({ categories: ids }) })
+      setSettings(s)
+      setMsg(`${ids.length} categoria(s) selecionada(s). Clique em "Atualizar agora" pra escanear.`)
+    } catch (e) { setError(e instanceof Error ? e.message : 'Falha ao salvar categorias') }
+  }
 
   const collectNow = async () => {
     setColl(true); setError(null); setMsg(null)
@@ -138,6 +156,10 @@ export default function RadarTendenciasPage() {
     observar: cards.filter(c => c.buy_decision === 'observar').length,
     ignorar:  cards.filter(c => c.buy_decision === 'ignorar').length,
   }
+  // categorias presentes nos cards (pro filtro da lista)
+  const catOptions = Array.from(
+    new Map(cards.filter(c => c.category_id).map(c => [c.category_id as string, c.category_name ?? c.category_id as string])).entries(),
+  )
 
   return (
     <div className="min-h-screen p-6" style={{ background: '#09090b', color: '#fafafa' }}>
@@ -154,15 +176,25 @@ export default function RadarTendenciasPage() {
               Produtos em alta no Mercado Livre, com recomendação de compra. A margem deve ser validada com o custo do fornecedor.
             </p>
           </div>
-          <button
-            onClick={collectNow}
-            disabled={collecting}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition disabled:opacity-50"
-            style={{ background: '#00E5FF', color: '#09090b' }}
-          >
-            <RefreshCw size={15} className={collecting ? 'animate-spin' : ''} />
-            {collecting ? 'Buscando tendências…' : 'Atualizar agora'}
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => setPicker(true)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition"
+              style={{ background: '#111114', color: '#fafafa', border: '1px solid #27272a' }}
+            >
+              <FolderTree size={15} style={{ color: '#00E5FF' }} />
+              Categorias{settings && settings.categories.length > 0 ? ` (${settings.categories.length})` : ''}
+            </button>
+            <button
+              onClick={collectNow}
+              disabled={collecting}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition disabled:opacity-50"
+              style={{ background: '#00E5FF', color: '#09090b' }}
+            >
+              <RefreshCw size={15} className={collecting ? 'animate-spin' : ''} />
+              {collecting ? 'Buscando tendências…' : 'Atualizar agora'}
+            </button>
+          </div>
         </div>
 
         {error && (
@@ -193,6 +225,18 @@ export default function RadarTendenciasPage() {
                     : { background: '#111114', color: '#a1a1aa', border: '1px solid #1e1e24' }}
                 >{lbl}</button>
               ))}
+
+              {catOptions.length > 0 && (
+                <select
+                  value={category}
+                  onChange={e => setCategory(e.target.value)}
+                  className="ml-auto px-3 py-1.5 rounded-lg text-xs font-semibold outline-none"
+                  style={{ background: '#111114', color: '#a1a1aa', border: '1px solid #1e1e24' }}
+                >
+                  <option value="all">Todas as categorias</option>
+                  {catOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+                </select>
+              )}
             </div>
 
             {loading ? (
@@ -230,6 +274,109 @@ export default function RadarTendenciasPage() {
               )}
             </div>
           </aside>
+        </div>
+      </div>
+
+      {pickerOpen && (
+        <CategoryPicker
+          initial={settings?.categories ?? []}
+          onClose={() => setPicker(false)}
+          onSave={async (ids) => { await saveCategories(ids); setPicker(false) }}
+        />
+      )}
+    </div>
+  )
+}
+
+// ── Category picker (árvore drill-down ML) ──────────────────────────────────────
+
+function CategoryPicker({ initial, onClose, onSave }: {
+  initial: string[]
+  onClose: () => void
+  onSave: (ids: string[]) => Promise<void>
+}) {
+  const [path, setPath]       = useState<MlCat[]>([])         // breadcrumb (vazio = raiz)
+  const [items, setItems]     = useState<MlCat[]>([])
+  const [selected, setSel]    = useState<Set<string>>(new Set(initial))
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving]   = useState(false)
+
+  const fetchLevel = useCallback(async (parent: string | null) => {
+    setLoading(true)
+    try {
+      const data = await api<MlCat[]>(`/trends/ml-categories${parent ? `?parent=${parent}` : ''}`)
+      setItems(data)
+    } catch { setItems([]) } finally { setLoading(false) }
+  }, [])
+
+  useEffect(() => { void fetchLevel(null) }, [fetchLevel])
+
+  const drill = (c: MlCat) => { setPath(p => [...p, c]); void fetchLevel(c.id) }
+  const goTo  = (idx: number) => {
+    const np = path.slice(0, idx)
+    setPath(np)
+    void fetchLevel(np.length ? np[np.length - 1].id : null)
+  }
+  const toggle = (c: MlCat) => setSel(s => {
+    const n = new Set(s)
+    if (n.has(c.id)) n.delete(c.id); else n.add(c.id)
+    return n
+  })
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={onClose}>
+      <div className="w-full max-w-2xl rounded-2xl overflow-hidden flex flex-col" style={{ background: '#0d0d10', border: '1px solid #27272a', maxHeight: '85vh' }} onClick={e => e.stopPropagation()}>
+        {/* header */}
+        <div className="flex items-center justify-between p-4" style={{ borderBottom: '1px solid #1e1e24' }}>
+          <div className="flex items-center gap-2 text-sm font-bold"><FolderTree size={16} style={{ color: '#00E5FF' }} /> Categorias pra escanear</div>
+          <button onClick={onClose}><X size={18} style={{ color: '#71717a' }} /></button>
+        </div>
+
+        {/* breadcrumb */}
+        <div className="flex items-center gap-1 flex-wrap px-4 py-2 text-xs" style={{ borderBottom: '1px solid #1e1e24', color: '#a1a1aa' }}>
+          <button onClick={() => goTo(0)} className="hover:underline" style={{ color: path.length ? '#00E5FF' : '#fafafa' }}>Todas</button>
+          {path.map((c, i) => (
+            <span key={c.id} className="flex items-center gap-1">
+              <ChevronRight size={12} style={{ color: '#3f3f46' }} />
+              <button onClick={() => goTo(i + 1)} className="hover:underline" style={{ color: i === path.length - 1 ? '#fafafa' : '#00E5FF' }}>{c.name}</button>
+            </span>
+          ))}
+        </div>
+
+        {/* lista */}
+        <div className="flex-1 overflow-y-auto p-2">
+          {loading ? (
+            <div className="flex items-center justify-center py-12" style={{ color: '#52525b' }}><Loader2 size={18} className="animate-spin" /></div>
+          ) : items.length === 0 ? (
+            <p className="text-xs text-center py-12" style={{ color: '#52525b' }}>Sem subcategorias — selecione no nível acima.</p>
+          ) : items.map(c => (
+            <div key={c.id} className="flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-white/5">
+              <button onClick={() => toggle(c)} className="w-5 h-5 rounded flex items-center justify-center shrink-0"
+                style={selected.has(c.id) ? { background: '#00E5FF' } : { border: '1px solid #3f3f46' }}>
+                {selected.has(c.id) && <Check size={13} style={{ color: '#09090b' }} />}
+              </button>
+              <span className="flex-1 text-sm cursor-pointer" style={{ color: '#d4d4d8' }} onClick={() => toggle(c)}>{c.name}</span>
+              <button onClick={() => drill(c)} className="flex items-center gap-1 text-xs px-2 py-1 rounded-md" style={{ color: '#71717a', border: '1px solid #1e1e24' }}>
+                Abrir <ChevronRight size={12} />
+              </button>
+            </div>
+          ))}
+        </div>
+
+        {/* footer */}
+        <div className="flex items-center justify-between p-4" style={{ borderTop: '1px solid #1e1e24' }}>
+          <span className="text-xs" style={{ color: '#a1a1aa' }}>{selected.size} selecionada(s)</span>
+          <div className="flex items-center gap-2">
+            <button onClick={onClose} className="text-sm px-3 py-2 rounded-lg" style={{ color: '#a1a1aa' }}>Cancelar</button>
+            <button
+              onClick={async () => { setSaving(true); await onSave([...selected]); setSaving(false) }}
+              disabled={saving}
+              className="flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-lg disabled:opacity-50"
+              style={{ background: '#00E5FF', color: '#09090b' }}
+            >
+              {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Salvar
+            </button>
+          </div>
         </div>
       </div>
     </div>
