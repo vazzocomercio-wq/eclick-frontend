@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import Link from 'next/link'
-import { Plus, Sparkles, Loader2, Image as ImageIcon, Clock, CheckCircle2, AlertCircle, Search, X, ArrowDownAZ, ArrowDown, Trash2, Archive } from 'lucide-react'
+import { Plus, Sparkles, Loader2, Image as ImageIcon, Clock, CheckCircle2, AlertCircle, Search, X, ArrowDownAZ, ArrowDown, Trash2, Archive, ImagePlus } from 'lucide-react'
 import { CreativeApi } from '@/components/creative/api'
 import CreativeUsageCard from '@/components/creative/CreativeUsageCard'
 import type { CreativeProduct } from '@/components/creative/types'
@@ -123,12 +123,20 @@ export default function CreativeListPage() {
               {t('beta')}
             </span>
           </div>
-          <Link
-            href="/dashboard/creative/new"
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan-400 hover:bg-cyan-300 text-black text-sm font-semibold transition-all shadow-[0_0_12px_rgba(0,229,255,0.25)]"
-          >
-            <Plus size={14} /> {t('newAd')}
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/dashboard/creative/quick"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-700 text-sm font-semibold transition-all"
+            >
+              <ImagePlus size={14} /> {t('quickAd')}
+            </Link>
+            <Link
+              href="/dashboard/creative/new"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan-400 hover:bg-cyan-300 text-black text-sm font-semibold transition-all shadow-[0_0_12px_rgba(0,229,255,0.25)]"
+            >
+              <Plus size={14} /> {t('newAd')}
+            </Link>
+          </div>
         </header>
 
         <p className="text-sm text-zinc-400 mb-6 max-w-2xl">

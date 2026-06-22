@@ -44,11 +44,48 @@ export interface CanvaStatus {
   scope?: string | null
 }
 
+export interface CanvaDesignSummary {
+  id:            string
+  title:         string
+  thumbnail_url: string | null
+  edit_url:      string
+  page_count:    number
+  updated_at:    string
+}
+
+/** Asset exportado (espelhado no Storage). storage_url é público e serve de
+ *  fonte pra importar como imagem do anúncio. */
+export interface CanvaExportAsset {
+  id:           string
+  canva_design_id: string
+  name:         string
+  format:       string
+  storage_url:  string | null
+  thumbnail_url: string | null
+}
+
 // ── API ───────────────────────────────────────────────────────────────────
 
 export const CanvaApi = {
   getStatus: () =>
     api<CanvaStatus>('/canva/oauth/status'),
+
+  /** Lista os designs do usuário no Canva (com busca + paginação por continuation). */
+  listDesigns: (opts: { query?: string; continuation?: string } = {}) => {
+    const qs = new URLSearchParams()
+    if (opts.query)        qs.set('query', opts.query)
+    if (opts.continuation) qs.set('continuation', opts.continuation)
+    const suffix = qs.toString() ? `?${qs.toString()}` : ''
+    return api<{ items: CanvaDesignSummary[]; continuation: string | null }>(`/canva/designs${suffix}`)
+  },
+
+  /** Exporta um design pra imagem (PNG por padrão), espelha no Storage e
+   *  devolve o asset com storage_url. Demora ~5-15s. */
+  exportDesign: (body: { designId: string; format?: 'png' | 'jpg'; name?: string }) =>
+    api<CanvaExportAsset>('/canva/export', {
+      method: 'POST',
+      body: JSON.stringify({ designId: body.designId, format: body.format ?? 'png', name: body.name }),
+    }),
 
   /** Retorna { authorize_url } pra frontend redirecionar (não faz redirect direto). */
   getAuthorizeUrl: (redirectTo?: string) =>

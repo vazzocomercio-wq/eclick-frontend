@@ -8901,6 +8901,7 @@
       "title": "AI 创意",
       "beta": "测试版",
       "newAd": "新建广告",
+      "quickAd": "现成图片",
       "intro": "完整的广告创建流水线。上传产品图片，AI 即可为你选择的市场生成优化的标题、描述、要点、规格表和关键词。",
       "searchPlaceholder": "按名称、SKU 或品牌搜索…",
       "filterAll": "全部",

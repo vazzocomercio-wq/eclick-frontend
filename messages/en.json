@@ -8907,6 +8907,7 @@
       "title": "AI Creative",
       "beta": "BETA",
       "newAd": "New ad",
+      "quickAd": "Ready-made images",
       "intro": "Complete ad creation pipeline. Upload a product photo and AI generates a title, description, bullets, spec sheet and keywords optimized for the marketplace you choose.",
       "searchPlaceholder": "Search by name, SKU or brand…",
       "filterAll": "All",

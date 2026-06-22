@@ -224,6 +224,25 @@ export const CreativeApi = {
       method: 'POST', body: JSON.stringify(body),
     }),
 
+  /** Caminho rápido "Imagens prontas": cria produto + importa imagens + anúncio
+   *  e devolve { creative_product_id, listing_id } pra cair na publicação. */
+  quickListing: (body: {
+    name?:               string
+    catalog_product_id?: string | null
+    target_marketplace?: Marketplace
+    images:              Array<{ url: string; kind?: 'canva' | 'upload' | 'external' }>
+    text_mode?:          'catalog' | 'ai' | 'blank'
+  }) =>
+    api<{ creative_product_id: string; listing_id: string; images_imported: number }>(
+      '/creative/quick-listing', { method: 'POST', body: JSON.stringify(body) },
+    ),
+
+  /** Busca produtos do catálogo (tabela products) pro seletor de vínculo. */
+  searchCatalogProducts: (search: string) =>
+    api<{ data: Array<{ id: string; name: string; sku?: string | null; brand?: string | null; photo_urls?: string[] | null }> }>(
+      `/products?per_page=20&search=${encodeURIComponent(search)}`,
+    ),
+
   archiveProduct: (id: string) =>
     api<{ ok: true }>(`/creative/products/${id}`, { method: 'DELETE' }),
 
