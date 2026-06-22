@@ -7,8 +7,8 @@ import { CanvaApi, type CanvaDesignSummary, type CanvaExportAsset } from './canv
 interface Props {
   /** IDs de design já escolhidos (pra marcar o check). */
   pickedDesignIds: Set<string>
-  /** Chamado quando um design é exportado com sucesso (vira imagem do anúncio). */
-  onPicked:   (asset: CanvaExportAsset) => void
+  /** Chamado quando um design é exportado — devolve TODAS as páginas (em ordem). */
+  onPicked:   (assets: CanvaExportAsset[]) => void
   /** Chamado quando um design é desmarcado. */
   onUnpicked: (designId: string) => void
   /** Pra onde voltar após OAuth do Canva. */
@@ -86,9 +86,10 @@ export default function CanvaDesignPicker({ pickedDesignIds, onPicked, onUnpicke
     setExporting(prev => new Set(prev).add(d.id))
     setError(null)
     try {
-      const asset = await CanvaApi.exportDesign({ designId: d.id, format: 'png', name: d.title })
-      if (!asset.storage_url) throw new Error('export sem URL utilizável')
-      onPicked(asset)
+      const assets = await CanvaApi.exportDesign({ designId: d.id, format: 'png', name: d.title })
+      const usable = assets.filter(a => !!a.storage_url)
+      if (usable.length === 0) throw new Error('export sem URL utilizável')
+      onPicked(usable)
     } catch (e: unknown) {
       setError(`Falha ao exportar "${d.title}": ${(e as Error).message}`)
     } finally {

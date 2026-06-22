@@ -13,10 +13,11 @@ import type { CanvaExportAsset } from '@/components/creative/canvaApi'
 import type { Marketplace } from '@/components/creative/types'
 
 interface PickedImage {
-  key:   string                  // designId (canva) ou storage_path (upload)
-  url:   string                  // URL que o backend baixa
-  thumb: string                  // miniatura pra preview
-  kind:  'canva' | 'upload'
+  key:       string              // id do asset (canva) ou storage_path (upload) — único por página
+  url:       string              // URL que o backend baixa
+  thumb:     string              // miniatura pra preview
+  kind:      'canva' | 'upload'
+  designId?: string              // design de origem (canva) — agrupa páginas do mesmo design
 }
 
 interface CatalogHit {
@@ -56,7 +57,7 @@ export default function QuickListingPage() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError]           = useState<string | null>(null)
 
-  const pickedDesignIds = new Set(images.filter(i => i.kind === 'canva').map(i => i.key))
+  const pickedDesignIds = new Set(images.filter(i => i.designId).map(i => i.designId!))
 
   // Busca de catálogo (debounce 350ms)
   useEffect(() => {
@@ -92,15 +93,18 @@ export default function QuickListingPage() {
   }
 
   // ── Imagens ──
-  function onCanvaPicked(asset: CanvaExportAsset) {
-    if (!asset.storage_url) return
-    setImages(prev => prev.some(i => i.key === asset.canva_design_id) ? prev : [
-      ...prev,
-      { key: asset.canva_design_id, url: asset.storage_url!, thumb: asset.thumbnail_url ?? asset.storage_url!, kind: 'canva' },
-    ])
+  // Um design do Canva pode ter VÁRIAS páginas → cada uma vira uma imagem (em ordem).
+  function onCanvaPicked(assets: CanvaExportAsset[]) {
+    const novos: PickedImage[] = assets
+      .filter(a => !!a.storage_url)
+      .map(a => ({ key: a.id, url: a.storage_url!, thumb: a.storage_url!, kind: 'canva' as const, designId: a.canva_design_id }))
+    setImages(prev => {
+      const existentes = new Set(prev.map(i => i.key))
+      return [...prev, ...novos.filter(n => !existentes.has(n.key))]
+    })
   }
   function onCanvaUnpicked(designId: string) {
-    setImages(prev => prev.filter(i => i.key !== designId))
+    setImages(prev => prev.filter(i => i.designId !== designId))
   }
   function removeImage(key: string) {
     setImages(prev => prev.filter(i => i.key !== key))

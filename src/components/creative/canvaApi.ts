@@ -80,9 +80,9 @@ export const CanvaApi = {
   },
 
   /** Exporta um design pra imagem (PNG por padrão), espelha no Storage e
-   *  devolve o asset com storage_url. Demora ~5-15s. */
+   *  devolve UM asset POR PÁGINA do design (em ordem). Demora ~5-15s. */
   exportDesign: (body: { designId: string; format?: 'png' | 'jpg'; name?: string }) =>
-    api<CanvaExportAsset>('/canva/export', {
+    api<CanvaExportAsset[]>('/canva/export', {
       method: 'POST',
       body: JSON.stringify({ designId: body.designId, format: body.format ?? 'png', name: body.name }),
     }),
