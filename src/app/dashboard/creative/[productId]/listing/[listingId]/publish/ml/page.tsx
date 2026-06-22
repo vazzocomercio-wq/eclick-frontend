@@ -90,6 +90,8 @@ export default function MLPublishPage() {
 
   // Preço de atacado calculado no painel de markup — enviado ao ML pós-publicação.
   const [wholesale, setWholesale] = useState<{ price: number; minQty: number } | null>(null)
+  // Custo (CMV) do produto do catálogo — pré-preenche o painel de markup.
+  const [catalogCost, setCatalogCost] = useState<number | null>(null)
 
   // Atributos recomendados — preenchimento por IA
   const [aiFilling, setAiFilling] = useState(false)
@@ -122,6 +124,14 @@ export default function MLPublishPage() {
         CreativeApi.listProductImageJobs(productId).catch(() => [] as CreativeImageJob[]),
       ])
       setCtx(c)
+      // Custo (CMV) do produto do catálogo vinculado — pré-preenche o markup.
+      // Best-effort: o .catch garante que NUNCA derruba a tela de publicação.
+      if (c.product?.product_id) {
+        const net = await CreativeApi.getCatalogPrefill(c.product.product_id)
+          .then(pf => pf.catalog?.cost?.net ?? null)
+          .catch(() => null)
+        setCatalogCost(net)
+      }
       // Job de imagens mais recente — alvo do link "Ir aprovar imagens".
       const latestJob = [...jobs].sort(
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
@@ -227,7 +237,10 @@ export default function MLPublishPage() {
     if (aiFilledRef.current) return
     if (!preview || preview.recommended_attributes.length === 0) return
     aiFilledRef.current = true
-    if (attributes.length === 0) void fillWithAI()
+    // Considera "vazio" mesmo quando só há GTIN/BRAND (preenchidos do catálogo,
+    // não pela IA) — senão o auto-preenchimento dos recomendados nunca rodava.
+    const meaningful = attributes.filter(a => a.id !== 'GTIN' && a.id !== 'BRAND')
+    if (meaningful.length === 0) void fillWithAI()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [preview])
 
@@ -587,6 +600,7 @@ export default function MLPublishPage() {
                 productId={productId}
                 listingType={listingType}
                 initialDimensions={product.dimensions}
+                initialCost={catalogCost ?? undefined}
                 onWholesaleChange={setWholesale}
               />
             </Section>

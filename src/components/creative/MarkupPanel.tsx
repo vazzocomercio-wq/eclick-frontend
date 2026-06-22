@@ -49,6 +49,8 @@ interface MarkupPanelProps {
   listingType: string
   /** Dimensões da embalagem do produto, para pré-preencher os campos de frete. */
   initialDimensions?: Record<string, unknown>
+  /** Custo do produto (CMV, R$) vindo do catálogo — pré-preenche o campo de custo. */
+  initialCost?: number
   /** Emite o preço de atacado calculado (ou null) — a publicação envia ao ML. */
   onWholesaleChange?: (w: { price: number; minQty: number } | null) => void
 }
@@ -58,17 +60,30 @@ const num = (s: string): number => {
   return Number.isFinite(n) && n >= 0 ? n : 0
 }
 const brl = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-const dimStr = (d: Record<string, unknown> | undefined, key: string): string => {
-  const v = d?.[key]
-  return v == null || v === '' ? '' : String(v)
+/**
+ * Extrai o número de valores do cadastro como "75 cm", "1,2 kg" ou "75".
+ * Os campos do painel são numéricos (largura/altura/profundidade em cm, peso
+ * em GRAMAS), então a unidade tem que sair e o peso em kg vira gramas.
+ * Vazio/sem número → '' (mostra o placeholder).
+ */
+const dimNum = (d: Record<string, unknown> | undefined, key: string): string => {
+  const raw = d?.[key]
+  if (raw == null || raw === '') return ''
+  const s = String(raw).trim()
+  const m = s.replace(',', '.').match(/[\d.]+/)
+  if (!m) return ''
+  let n = Number(m[0])
+  if (!Number.isFinite(n)) return ''
+  if (key === 'peso' && /kg/i.test(s)) n = Math.round(n * 1000)  // kg → g
+  return String(n)
 }
 
 export default function MarkupPanel({
   defaultFeePercent, currentPrice, onApplyPrice, listingId, productId, listingType, initialDimensions,
-  onWholesaleChange,
+  initialCost, onWholesaleChange,
 }: MarkupPanelProps) {
   const [targetMargin, setTargetMargin] = useState('')
-  const [cost, setCost]                 = useState('')
+  const [cost, setCost]                 = useState(() => initialCost != null && initialCost > 0 ? String(initialCost) : '')
   const [feePct, setFeePct]             = useState(String(defaultFeePercent))
   const [feeTouched, setFeeTouched]     = useState(false)
   const [taxPct, setTaxPct]             = useState('')
@@ -78,10 +93,10 @@ export default function MarkupPanel({
 
   // Frete
   const [sellerPaysShipping, setSellerPaysShipping] = useState(true)
-  const [largura, setLargura] = useState(() => dimStr(initialDimensions, 'largura'))
-  const [altura, setAltura]   = useState(() => dimStr(initialDimensions, 'altura'))
-  const [profund, setProfund] = useState(() => dimStr(initialDimensions, 'profundidade'))
-  const [peso, setPeso]       = useState(() => dimStr(initialDimensions, 'peso'))
+  const [largura, setLargura] = useState(() => dimNum(initialDimensions, 'largura'))
+  const [altura, setAltura]   = useState(() => dimNum(initialDimensions, 'altura'))
+  const [profund, setProfund] = useState(() => dimNum(initialDimensions, 'profundidade'))
+  const [peso, setPeso]       = useState(() => dimNum(initialDimensions, 'peso'))
   const [shippingCost, setShippingCost]       = useState(0)
   const [shippingMeta, setShippingMeta]       = useState<MlShippingCost | null>(null)
   const [shippingFetchedFor, setShippingFetchedFor] = useState(0)
@@ -106,11 +121,14 @@ export default function MarkupPanel({
   useEffect(() => {
     const L = num(profund), W = num(largura), H = num(altura), wt = num(peso)
     if (!L || !W || !H || !wt) return
+    // Compara contra o MESMO parse usado no pré-preenchimento — assim, no mount,
+    // os campos batem com o que veio do produto e NÃO disparam PATCH (só grava
+    // quando o usuário realmente edita uma medida).
     const changed =
-      largura.trim() !== dimStr(initialDimensions, 'largura') ||
-      altura.trim()  !== dimStr(initialDimensions, 'altura') ||
-      profund.trim() !== dimStr(initialDimensions, 'profundidade') ||
-      peso.trim()    !== dimStr(initialDimensions, 'peso')
+      largura.trim() !== dimNum(initialDimensions, 'largura') ||
+      altura.trim()  !== dimNum(initialDimensions, 'altura') ||
+      profund.trim() !== dimNum(initialDimensions, 'profundidade') ||
+      peso.trim()    !== dimNum(initialDimensions, 'peso')
     if (!changed) return
     const id = setTimeout(() => {
       void CreativeApi.updateProduct(productId, {
