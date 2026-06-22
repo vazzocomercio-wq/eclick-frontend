@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useTranslations } from 'next-intl'
-import { Plus, X, Save, Loader2, AlertCircle, RefreshCw, ExternalLink, CheckCircle2, Sparkles } from 'lucide-react'
+import { Plus, X, Save, Loader2, AlertCircle, RefreshCw, ExternalLink, CheckCircle2, Sparkles, Search, Pencil } from 'lucide-react'
 import type { CreativeListing } from './types'
 import { CreativeApi } from './api'
 import MlAttributesPanel from './MlAttributesPanel'
@@ -460,6 +460,13 @@ function MlCategoryBadge({
   const categoryId = listing.category_ml_id
   const nAttrs     = listing.attributes_ml_suggested?.length ?? 0
 
+  // Seleção manual de categoria (busca por palavra no ML)
+  const [picking, setPicking]     = useState(false)
+  const [query, setQuery]         = useState('')
+  const [results, setResults]     = useState<Array<{ category_id: string; category_name: string; domain_name: string | null }>>([])
+  const [searching, setSearching] = useState(false)
+  const [saving, setSaving]       = useState<string | null>(null)
+
   const handleRefresh = async () => {
     setRefreshing(true)
     setError(null)
@@ -470,6 +477,35 @@ function MlCategoryBadge({
       setError((e as Error).message)
     } finally {
       setRefreshing(false)
+    }
+  }
+
+  const handleSearch = async () => {
+    if (!query.trim()) return
+    setSearching(true)
+    setError(null)
+    try {
+      setResults(await CreativeApi.searchMlCategories(query.trim()))
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setSearching(false)
+    }
+  }
+
+  const handlePick = async (cid: string) => {
+    setSaving(cid)
+    setError(null)
+    try {
+      const updated = await CreativeApi.setMlCategory(listing.id, cid)
+      onUpdated(updated)
+      setPicking(false)
+      setQuery('')
+      setResults([])
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setSaving(null)
     }
   }
 
@@ -509,6 +545,15 @@ function MlCategoryBadge({
             {refreshing ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />}
             {t('refresh')}
           </button>
+          <button
+            type="button"
+            onClick={() => setPicking(p => !p)}
+            disabled={disabled}
+            className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] text-cyan-300 hover:text-cyan-200 hover:bg-cyan-400/10 transition-colors disabled:opacity-50"
+            title="Escolher a categoria manualmente"
+          >
+            <Pencil size={10} /> Alterar
+          </button>
         </div>
       ) : (
         <div className="flex items-center gap-2 flex-wrap">
@@ -525,6 +570,68 @@ function MlCategoryBadge({
             {refreshing ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />}
             {t('detectNow')}
           </button>
+          <button
+            type="button"
+            onClick={() => setPicking(p => !p)}
+            disabled={disabled}
+            className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800 transition-colors disabled:opacity-50"
+          >
+            <Pencil size={10} /> Escolher manualmente
+          </button>
+        </div>
+      )}
+
+      {/* Seletor manual de categoria */}
+      {picking && (
+        <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-2.5 space-y-2">
+          <div className="flex gap-1.5">
+            <div className="relative flex-1">
+              <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500" />
+              <input
+                type="text"
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); void handleSearch() } }}
+                placeholder="Buscar categoria por palavra (ex: pendente, luminária)…"
+                className="w-full pl-8 pr-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded text-xs text-zinc-200 outline-none focus:border-cyan-400 placeholder:text-zinc-600"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={handleSearch}
+              disabled={searching || !query.trim()}
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded bg-cyan-400/10 text-cyan-300 border border-cyan-400/30 text-xs hover:bg-cyan-400/20 disabled:opacity-50"
+            >
+              {searching ? <Loader2 size={12} className="animate-spin" /> : <Search size={12} />} Buscar
+            </button>
+          </div>
+
+          {results.length > 0 ? (
+            <div className="max-h-52 overflow-y-auto rounded border border-zinc-800 divide-y divide-zinc-900">
+              {results.map(r => {
+                const current = r.category_id === categoryId
+                return (
+                  <button
+                    key={r.category_id}
+                    type="button"
+                    onClick={() => handlePick(r.category_id)}
+                    disabled={!!saving}
+                    className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 text-left hover:bg-zinc-900 disabled:opacity-50"
+                  >
+                    <span className="min-w-0">
+                      <span className="block text-xs text-zinc-200 truncate">{r.category_name}</span>
+                      <span className="block text-[10px] text-zinc-500 truncate">{r.category_id}{r.domain_name ? ` · ${r.domain_name}` : ''}</span>
+                    </span>
+                    {saving === r.category_id
+                      ? <Loader2 size={12} className="animate-spin text-cyan-300 shrink-0" />
+                      : current ? <CheckCircle2 size={12} className="text-cyan-400 shrink-0" /> : null}
+                  </button>
+                )
+              })}
+            </div>
+          ) : (!searching && query.trim() && (
+            <p className="text-[10px] text-zinc-500">Nenhuma categoria encontrada. Tente outra palavra.</p>
+          ))}
         </div>
       )}
 

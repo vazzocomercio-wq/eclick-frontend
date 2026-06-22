@@ -385,6 +385,18 @@ export const CreativeApi = {
   refreshMlCategory: (listingId: string) =>
     api<CreativeListing>(`/creative/listings/${listingId}/refresh-ml-category`, { method: 'POST' }),
 
+  /** Busca candidatos de categoria ML por palavra (seletor manual). */
+  searchMlCategories: (q: string) =>
+    api<Array<{ category_id: string; category_name: string; domain_name: string | null }>>(
+      `/creative/ml/search-categories?q=${encodeURIComponent(q)}`,
+    ),
+
+  /** Define manualmente a categoria ML do anúncio. */
+  setMlCategory: (listingId: string, categoryId: string) =>
+    api<CreativeListing>(`/creative/listings/${listingId}/set-ml-category`, {
+      method: 'POST', body: JSON.stringify({ category_id: categoryId }),
+    }),
+
   /** Sub-sprint B (prep): attributes ML formatados pra montar ficha técnica. */
   getMlCategoryAttributesDetail: (categoryId: string) =>
     api<Array<{
