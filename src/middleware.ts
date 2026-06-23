@@ -137,6 +137,7 @@ export async function middleware(request: NextRequest) {
 
   // /loja/* eh storefront publico — sem auth
   const isPublicRoute =
+    pathname === '/' ||                          // homepage pública institucional (logado cai no /dashboard logo abaixo)
     pathname.startsWith('/login') ||
     pathname.startsWith('/register') ||
     pathname.startsWith('/solicitar-acesso') ||
