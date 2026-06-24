@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback, type CSSProperties } from 'react'
+import { useEffect, useState, useCallback, useRef, type CSSProperties } from 'react'
 import { createClient } from '@/lib/supabase'
 import {
   DndContext, DragOverlay, PointerSensor, useSensor, useSensors,
@@ -11,7 +11,7 @@ import {
   Lightbulb, Loader2, Plus, X, Sparkles, Cpu, DollarSign, Settings2,
   AlertTriangle, CheckCircle2, FileBox, RefreshCw, Check, Ban, Package,
   Factory, Boxes, Send, Rocket, ListChecks, History, ClipboardList,
-  Printer as PrinterIcon, TrendingUp, Gauge, Wifi,
+  Printer as PrinterIcon, TrendingUp, Gauge, Wifi, Upload,
 } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
@@ -130,6 +130,38 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BACKEND}${path}`, { ...init, headers: { 'Content-Type': 'application/json', ...(t ? { Authorization: `Bearer ${t}` } : {}), ...(init?.headers ?? {}) } })
   if (!res.ok) { const body = await res.json().catch(() => ({})); throw new Error(`[${res.status}] ${(body as { message?: string }).message ?? 'erro'}`) }
   return (await res.json()) as T
+}
+
+// sobe o arquivo DIRETO pro storage via URL assinada (não passa pela API)
+async function uploadFile(file: File): Promise<string> {
+  const meta = await api<{ path: string; token: string; public_url: string }>('/product-os/upload-url', { method: 'POST', body: JSON.stringify({ filename: file.name }) })
+  const sb = createClient()
+  const { error } = await sb.storage.from('product-os').uploadToSignedUrl(meta.path, meta.token, file)
+  if (error) throw new Error(error.message)
+  return meta.public_url
+}
+function fileTypeOf(name: string): string {
+  const ext = (name.split('.').pop() ?? '').toLowerCase()
+  return ['stl', '3mf', 'step', 'obj'].includes(ext) ? ext : 'other'
+}
+
+function UploadButton({ label, accept, multiple, onUploaded }: { label: string; accept?: string; multiple?: boolean; onUploaded: (urls: string[], files: File[]) => void }) {
+  const [busy, setBusy] = useState(false); const ref = useRef<HTMLInputElement>(null)
+  const handle = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []); if (!files.length) return
+    setBusy(true)
+    try { const urls: string[] = []; for (const f of files) urls.push(await uploadFile(f)); onUploaded(urls, files) }
+    catch (err) { window.alert('Falha no upload: ' + (err instanceof Error ? err.message : 'erro')) }
+    finally { setBusy(false); if (ref.current) ref.current.value = '' }
+  }
+  return (
+    <>
+      <input ref={ref} type="file" accept={accept} multiple={multiple} onChange={e => void handle(e)} style={{ display: 'none' }} />
+      <button type="button" onClick={() => ref.current?.click()} disabled={busy} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold disabled:opacity-50" style={{ background: '#111114', border: '1px solid #27272a', color: '#a5f3fc' }}>
+        {busy ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />} {label}
+      </button>
+    </>
+  )
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -676,7 +708,8 @@ function BriefingTab({ dev, onChanged }: { dev: DevDetail; onChanged: () => void
 
 function VersionsTab({ dev, onChanged }: { dev: DevDetail; onChanged: () => void }) {
   const [adding, setAdding] = useState(false); const [err, setErr] = useState('')
-  const [form, setForm] = useState({ changelog: '', file_url: '', material: '', weight_g: '', print_time_minutes: '', volume_cm3: '' })
+  const [form, setForm] = useState({ changelog: '', file_url: '', file_type: '', material: '', weight_g: '', print_time_minutes: '', volume_cm3: '' })
+  const [photos, setPhotos] = useState<string[]>([])
   const [slicer, setSlicer] = useState(''); const [parsing, setParsing] = useState(false); const [showSlicer, setShowSlicer] = useState(false)
   const importSlicer = async () => {
     setParsing(true); setErr('')
@@ -690,8 +723,8 @@ function VersionsTab({ dev, onChanged }: { dev: DevDetail; onChanged: () => void
   const add = async () => {
     setAdding(true); setErr('')
     try {
-      await api(`/product-os/${dev.id}/versions`, { method: 'POST', body: JSON.stringify({ changelog: form.changelog || undefined, file_url: form.file_url || undefined, material: form.material || undefined, weight_g: form.weight_g ? Number(form.weight_g) : undefined, print_time_minutes: form.print_time_minutes ? Number(form.print_time_minutes) : undefined, volume_cm3: form.volume_cm3 ? Number(form.volume_cm3) : undefined }) })
-      setForm({ changelog: '', file_url: '', material: '', weight_g: '', print_time_minutes: '', volume_cm3: '' }); onChanged()
+      await api(`/product-os/${dev.id}/versions`, { method: 'POST', body: JSON.stringify({ changelog: form.changelog || undefined, file_url: form.file_url || undefined, file_type: form.file_type || undefined, material: form.material || undefined, weight_g: form.weight_g ? Number(form.weight_g) : undefined, print_time_minutes: form.print_time_minutes ? Number(form.print_time_minutes) : undefined, volume_cm3: form.volume_cm3 ? Number(form.volume_cm3) : undefined, prototype_photo_urls: photos.length ? photos : undefined }) })
+      setForm({ changelog: '', file_url: '', file_type: '', material: '', weight_g: '', print_time_minutes: '', volume_cm3: '' }); setPhotos([]); onChanged()
     } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setAdding(false) }
   }
   const setApproval = async (vid: string, approved: boolean) => { try { await api(`/product-os/versions/${vid}/approval`, { method: 'POST', body: JSON.stringify({ approved }) }); onChanged() } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } }
@@ -709,9 +742,20 @@ function VersionsTab({ dev, onChanged }: { dev: DevDetail; onChanged: () => void
           </div>
         )}
         <Input label="Changelog" value={form.changelog} onChange={v => setForm(f => ({ ...f, changelog: v }))} />
-        <Input label="URL do arquivo (STL/3MF)" value={form.file_url} onChange={v => setForm(f => ({ ...f, file_url: v }))} />
+        <div className="flex items-center gap-2">
+          <UploadButton label="Subir arquivo (STL/3MF/STEP)" accept=".stl,.3mf,.step,.obj" onUploaded={(urls, files) => setForm(f => ({ ...f, file_url: urls[0], file_type: fileTypeOf(files[0].name) }))} />
+          {form.file_url && <span className="text-[10px]" style={{ color: '#4ade80' }}>✓ arquivo enviado ({form.file_type})</span>}
+        </div>
         <div className="grid grid-cols-2 gap-2"><Input label="Material" value={form.material} onChange={v => setForm(f => ({ ...f, material: v }))} /><Input label="Peso (g)" value={form.weight_g} onChange={v => setForm(f => ({ ...f, weight_g: v }))} /></div>
         <div className="grid grid-cols-2 gap-2"><Input label="Tempo impressão (min)" value={form.print_time_minutes} onChange={v => setForm(f => ({ ...f, print_time_minutes: v }))} /><Input label="Volume (cm³)" value={form.volume_cm3} onChange={v => setForm(f => ({ ...f, volume_cm3: v }))} /></div>
+        <div className="flex items-center gap-2">
+          <UploadButton label="Fotos do protótipo" accept="image/*" multiple onUploaded={urls => setPhotos(p => [...p, ...urls])} />
+          {photos.length > 0 && <span className="text-[10px]" style={{ color: '#4ade80' }}>{photos.length} foto(s)</span>}
+        </div>
+        {photos.length > 0 && <div className="flex flex-wrap gap-1">{photos.map((u, i) => (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img key={i} src={u} alt="" className="h-10 w-10 rounded object-cover" style={{ border: '1px solid #27272a' }} />
+        ))}</div>}
         <button onClick={() => void add()} disabled={adding} className="flex w-full items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}>{adding ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />} Adicionar versão</button>
       </div>
       {err && <div className="whitespace-pre-line rounded-lg p-2.5 text-xs" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>{err}</div>}
@@ -1365,7 +1409,10 @@ function NewProductModal({ onClose, onCreated }: { onClose: () => void; onCreate
         <Input label="Categoria" value={form.category} onChange={v => setForm(f => ({ ...f, category: v }))} />
         <Input label="Descrição / ideia" value={form.description} onChange={v => setForm(f => ({ ...f, description: v }))} />
         <Input label="Link de inspiração" value={form.inspiration_url} onChange={v => setForm(f => ({ ...f, inspiration_url: v }))} />
-        <Input label="URL imagem de referência" value={form.reference_url} onChange={v => setForm(f => ({ ...f, reference_url: v }))} />
+        <div className="flex items-center gap-2">
+          <UploadButton label="Imagem de referência" accept="image/*" onUploaded={urls => setForm(f => ({ ...f, reference_url: urls[0] }))} />
+          {form.reference_url && <span className="text-[10px]" style={{ color: '#4ade80' }}>✓ imagem enviada</span>}
+        </div>
       </div>
       <div className="mt-4 flex justify-end"><button onClick={() => void create()} disabled={busy} className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}>{busy ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />} Criar</button></div>
     </Modal>
