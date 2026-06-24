@@ -11,7 +11,7 @@ import {
   Lightbulb, Loader2, Plus, X, Sparkles, Cpu, DollarSign, Settings2,
   AlertTriangle, CheckCircle2, FileBox, RefreshCw, Check, Ban, Package,
   Factory, Boxes, Send, Rocket, ListChecks, History, ClipboardList,
-  Printer as PrinterIcon, TrendingUp, Gauge,
+  Printer as PrinterIcon, TrendingUp, Gauge, Wifi,
 } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
@@ -75,6 +75,14 @@ interface ProductionPlan {
   capacity_hours: number; active_printers: number; hours_used: number; hours_idle: number; utilization_pct: number; total_contribution: number
   plan: Array<{ product_dev_id: string; name: string; units: number; hours: number; profit_per_hour: number | null; contribution: number }>
 }
+interface FarmStatus {
+  id: string; name: string; config_status: string; bound: boolean; online: boolean; state: string
+  job_name: string | null; progress_pct: number | null; layer_current: number | null; layer_total: number | null
+  nozzle_temp: number | null; bed_temp: number | null; remaining_minutes: number | null
+  ams: Array<{ slot: string; material: string; color: string; remain_pct: number }> | null
+  error_code: string | null; error_text: string | null; last_update: string | null
+}
+interface FarmAgent { id: string; name: string; status: string; version: string | null; last_seen_at: string | null; online: boolean }
 interface PrinterAnalytics {
   printer: { id: string; name: string; brand: string | null; model: string | null; status: string; build_volume_mm: string | null; has_ams: boolean; acquisition_cost: number; acquisition_date: string | null }
   performance: { jobs_total: number; jobs_done: number; jobs_failed: number; success_rate_pct: number | null; total_print_hours: number; avg_minutes_per_job: number | null; filament_used_g: number }
@@ -810,14 +818,23 @@ function ProductionPlanCard({ onOpen }: { onOpen: (id: string) => void }) {
 // ── IMPRESSORAS ───────────────────────────────────────────────────────
 function PrintersPanel() {
   const [list, setList] = useState<Printer[]>([]); const [loading, setLoading] = useState(true); const [err, setErr] = useState(''); const [showNew, setShowNew] = useState(false); const [openPrinter, setOpenPrinter] = useState<string | null>(null)
+  const [live, setLive] = useState<Record<string, FarmStatus>>({}); const [showConnect, setShowConnect] = useState(false)
   const load = useCallback(async () => { setLoading(true); setErr(''); try { setList(await api<Printer[]>('/product-os/printers')) } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setLoading(false) } }, [])
   useEffect(() => { void load() }, [load])
+  // estado ao vivo: poll a cada 5s
+  useEffect(() => {
+    let alive = true
+    const tick = async () => { try { const s = await api<FarmStatus[]>('/product-os/farm/status'); if (alive) setLive(Object.fromEntries(s.map(x => [x.id, x]))) } catch { /* */ } }
+    void tick(); const it = setInterval(tick, 5000)
+    return () => { alive = false; clearInterval(it) }
+  }, [])
   const fmt = (n: number) => `R$ ${n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
         <p className="text-xs" style={{ color: '#a1a1aa' }}>Cada impressora tem um custo de aquisição que o lucro da produção vai quitando.</p>
-        <button onClick={() => setShowNew(true)} className="ml-auto flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}><Plus size={12} /> Nova impressora</button>
+        <button onClick={() => setShowConnect(true)} className="ml-auto flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold" style={{ background: '#111114', border: '1px solid #27272a', color: '#a5f3fc' }}><Wifi size={12} /> Conectar farm</button>
+        <button onClick={() => setShowNew(true)} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}><Plus size={12} /> Nova impressora</button>
       </div>
       {err && <div className="rounded-lg p-2.5 text-xs" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>{err}</div>}
       {loading ? <div className="flex items-center gap-2 p-6 text-sm" style={{ color: '#71717a' }}><Loader2 size={16} className="animate-spin" /> Carregando…</div> : (
@@ -830,6 +847,7 @@ function PrintersPanel() {
                 {p.status !== 'ativa' && <span className="rounded px-1.5 py-0.5 text-[9px] font-bold" style={{ background: '#1a1a1f', color: '#fcd34d' }}>{p.status}</span>}
               </div>
               <p className="mt-0.5 text-[10px]" style={{ color: '#71717a' }}>{[p.brand, p.model, p.build_volume_mm].filter(Boolean).join(' · ') || 'sem detalhes'}{p.has_ams ? ' · AMS' : ''}</p>
+              <LiveBadge lv={live[p.id]} />
 
               {/* payback */}
               <div className="mt-3">
@@ -856,7 +874,71 @@ function PrintersPanel() {
       )}
       {showNew && <NewPrinterModal onClose={() => setShowNew(false)} onCreated={() => { setShowNew(false); void load() }} />}
       {openPrinter && <PrinterDetailDrawer id={openPrinter} onClose={() => setOpenPrinter(null)} />}
+      {showConnect && <ConnectFarmModal onClose={() => setShowConnect(false)} />}
     </div>
+  )
+}
+
+function LiveBadge({ lv }: { lv?: FarmStatus }) {
+  if (!lv || !lv.bound) return <p className="mt-1 text-[9px]" style={{ color: '#3f3f46' }}>sem telemetria (vincule o nº de série)</p>
+  const label: Record<string, string> = { printing: 'imprimindo', paused: 'pausada', error: 'erro', offline: 'offline', idle: 'ociosa', sem_dados: 'sem dados' }
+  const color = lv.state === 'printing' ? '#00E5FF' : lv.state === 'error' ? '#f87171' : lv.state === 'offline' ? '#52525b' : lv.online ? '#4ade80' : '#52525b'
+  return (
+    <div className="mt-1.5" onClick={e => e.stopPropagation()}>
+      <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
+        <span className="h-1.5 w-1.5 rounded-full" style={{ background: color }} />
+        <span style={{ color: '#a1a1aa' }}>{label[lv.state] ?? lv.state}</span>
+        {lv.nozzle_temp != null && <span style={{ color: '#52525b' }}>· bico {Math.round(lv.nozzle_temp)}°</span>}
+        {lv.state === 'printing' && lv.remaining_minutes != null && <span style={{ color: '#52525b' }}>· {lv.remaining_minutes}min</span>}
+      </div>
+      {lv.state === 'printing' && lv.progress_pct != null && (
+        <div className="mt-1 flex items-center gap-1.5">
+          <div className="h-1 flex-1 overflow-hidden rounded-full" style={{ background: '#0a0a0e' }}><div className="h-full rounded-full" style={{ width: `${lv.progress_pct}%`, background: '#00E5FF' }} /></div>
+          <span className="text-[9px]" style={{ color: '#a5f3fc' }}>{Math.round(lv.progress_pct)}%</span>
+        </div>
+      )}
+      {lv.job_name && lv.state === 'printing' && <p className="mt-0.5 truncate text-[9px]" style={{ color: '#52525b' }}>{lv.job_name}</p>}
+      {lv.error_text && <p className="mt-0.5 text-[9px]" style={{ color: '#f87171' }}>{lv.error_code} {lv.error_text}</p>}
+    </div>
+  )
+}
+
+function ConnectFarmModal({ onClose }: { onClose: () => void }) {
+  const [agents, setAgents] = useState<FarmAgent[]>([]); const [token, setToken] = useState<{ name: string; token: string } | null>(null)
+  const [name, setName] = useState('Agente da fábrica'); const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [copied, setCopied] = useState(false)
+  const load = useCallback(async () => { try { setAgents(await api<FarmAgent[]>('/product-os/farm/agents')) } catch { /* */ } }, [])
+  useEffect(() => { void load() }, [load])
+  const create = async () => { setBusy(true); setErr(''); try { setToken(await api<{ name: string; token: string }>('/product-os/farm/agents', { method: 'POST', body: JSON.stringify({ name }) })); void load() } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setBusy(false) } }
+  return (
+    <Modal title="Conectar a farm" onClose={onClose}>
+      <p className="mb-3 text-xs" style={{ color: '#a1a1aa' }}>Rode o <b>e-Click Farm Agent</b> num PC sempre ligado na fábrica. Gere um token, cole no <code>config.json</code> do agente e cadastre o nº de série de cada impressora no cadastro dela.</p>
+      {err && <div className="mb-3 rounded-lg p-2.5 text-xs" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>{err}</div>}
+      {token ? (
+        <div className="mb-3 rounded-lg p-3" style={{ background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.3)' }}>
+          <p className="text-xs font-bold" style={{ color: '#4ade80' }}>Token gerado — copie agora (aparece só uma vez):</p>
+          <code className="mt-1.5 block break-all rounded p-2 text-[10px]" style={{ background: '#0a0a0e', color: '#a5f3fc' }}>{token.token}</code>
+          <button onClick={() => { void navigator.clipboard.writeText(token.token); setCopied(true) }} className="mt-1.5 rounded px-2 py-1 text-[10px] font-semibold" style={{ background: 'rgba(0,229,255,0.10)', color: '#a5f3fc', border: '1px solid #27272a' }}>{copied ? 'copiado ✓' : 'copiar'}</button>
+        </div>
+      ) : (
+        <div className="mb-3 flex items-end gap-2">
+          <div className="flex-1"><Input label="Nome do agente" value={name} onChange={setName} /></div>
+          <button onClick={() => void create()} disabled={busy} className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF', height: 34 }}>{busy ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />} Gerar</button>
+        </div>
+      )}
+      <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wide" style={{ color: '#71717a' }}>Agentes</p>
+      {agents.length === 0 ? <p className="text-xs" style={{ color: '#52525b' }}>Nenhum agente ainda.</p> : (
+        <div className="space-y-1.5">
+          {agents.map(a => (
+            <div key={a.id} className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs" style={{ background: '#0a0a0e', border: '1px solid #1a1a1f' }}>
+              <span className="h-1.5 w-1.5 rounded-full" style={{ background: a.online ? '#4ade80' : '#52525b' }} />
+              <span className="font-semibold text-white">{a.name}</span>
+              {a.version && <span className="text-[9px]" style={{ color: '#52525b' }}>v{a.version}</span>}
+              <span className="ml-auto text-[9px]" style={{ color: '#52525b' }}>{a.online ? 'online' : a.last_seen_at ? `visto ${new Date(a.last_seen_at).toLocaleString('pt-BR')}` : 'nunca conectou'}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </Modal>
   )
 }
 
@@ -950,14 +1032,14 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 function NewPrinterModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
-  const [f, setF] = useState({ name: '', brand: '', model: '', build_volume_mm: '', nozzle_mm: '', has_ams: false, power_watts: '', acquisition_cost: '', acquisition_date: '', expected_lifetime_hours: '' })
+  const [f, setF] = useState({ name: '', brand: '', model: '', build_volume_mm: '', nozzle_mm: '', has_ams: false, power_watts: '', acquisition_cost: '', acquisition_date: '', expected_lifetime_hours: '', serial_number: '' })
   const [busy, setBusy] = useState(false); const [err, setErr] = useState('')
   const set = (k: keyof typeof f, v: string | boolean) => setF(s => ({ ...s, [k]: v }))
   const create = async () => {
     if (!f.name.trim()) { setErr('Nome obrigatório'); return }
     setBusy(true); setErr('')
     try {
-      await api('/product-os/printers', { method: 'POST', body: JSON.stringify({ name: f.name, brand: f.brand || undefined, model: f.model || undefined, build_volume_mm: f.build_volume_mm || undefined, nozzle_mm: f.nozzle_mm ? Number(f.nozzle_mm) : undefined, has_ams: f.has_ams, power_watts: f.power_watts ? Number(f.power_watts) : undefined, acquisition_cost: Number(f.acquisition_cost) || 0, acquisition_date: f.acquisition_date || undefined, expected_lifetime_hours: f.expected_lifetime_hours ? Number(f.expected_lifetime_hours) : undefined }) })
+      await api('/product-os/printers', { method: 'POST', body: JSON.stringify({ name: f.name, brand: f.brand || undefined, model: f.model || undefined, build_volume_mm: f.build_volume_mm || undefined, nozzle_mm: f.nozzle_mm ? Number(f.nozzle_mm) : undefined, has_ams: f.has_ams, power_watts: f.power_watts ? Number(f.power_watts) : undefined, acquisition_cost: Number(f.acquisition_cost) || 0, acquisition_date: f.acquisition_date || undefined, expected_lifetime_hours: f.expected_lifetime_hours ? Number(f.expected_lifetime_hours) : undefined, serial_number: f.serial_number || undefined }) })
       onCreated()
     } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setBusy(false) }
   }
@@ -968,6 +1050,7 @@ function NewPrinterModal({ onClose, onCreated }: { onClose: () => void; onCreate
         <Input label="Nome *" value={f.name} onChange={v => set('name', v)} />
         <div className="grid grid-cols-2 gap-2"><Input label="Marca" value={f.brand} onChange={v => set('brand', v)} /><Input label="Modelo" value={f.model} onChange={v => set('model', v)} /></div>
         <div className="grid grid-cols-2 gap-2"><Input label="Volume (LxLxA mm)" value={f.build_volume_mm} onChange={v => set('build_volume_mm', v)} /><Input label="Bico (mm)" value={f.nozzle_mm} onChange={v => set('nozzle_mm', v)} /></div>
+        <Input label="Nº de série (p/ telemetria ao vivo)" value={f.serial_number} onChange={v => set('serial_number', v)} placeholder="01PXXXXXXXXXXXX" />
         <div className="grid grid-cols-2 gap-2"><Input label="Custo de aquisição (R$) *" value={f.acquisition_cost} onChange={v => set('acquisition_cost', v)} /><Input label="Data de compra" value={f.acquisition_date} onChange={v => set('acquisition_date', v)} placeholder="2026-01-15" /></div>
         <div className="grid grid-cols-2 gap-2"><Input label="Vida útil (horas)" value={f.expected_lifetime_hours} onChange={v => set('expected_lifetime_hours', v)} /><Input label="Consumo (W)" value={f.power_watts} onChange={v => set('power_watts', v)} /></div>
         <label className="flex items-center gap-2 text-xs" style={{ color: '#a1a1aa' }}><input type="checkbox" checked={f.has_ams} onChange={e => set('has_ams', e.target.checked)} /> Tem AMS (multi-cor)</label>
