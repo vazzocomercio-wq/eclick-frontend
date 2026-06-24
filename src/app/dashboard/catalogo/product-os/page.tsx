@@ -48,7 +48,12 @@ interface Order {
   jobs?: Job[]
 }
 interface Job { id: string; job_number: number; status: string; filament_used_g: number | null; print_time_minutes: number | null; failure_reason: string | null }
-interface Input { id: string; kind: string; name: string; material: string | null; color: string | null; unit: string; quantity: number; reserved_quantity: number; reorder_threshold: number; cost_per_unit: number; available: number; alert: boolean }
+interface Input {
+  id: string; kind: string; sku: string | null; name: string; description: string | null
+  material: string | null; color: string | null; color_hex: string | null; brand: string | null; supplier: string | null
+  diameter_mm: number | null; spool_weight_g: number | null; unit: string
+  quantity: number; reserved_quantity: number; reorder_threshold: number; cost_per_unit: number; available: number; alert: boolean
+}
 interface BomLine { id?: string; kind: string; description: string | null; quantity: number; unit: string; unit_cost: number; waste_pct: number }
 interface Quality { id: string; checklist: Array<{ key: string; label: string; ok: boolean }>; approved: boolean; notes: string | null }
 interface DevEvent { id: string; event_type: string; payload: Record<string, unknown>; is_auto: boolean; created_at: string }
@@ -366,19 +371,13 @@ function InsumosPanel() {
   const [list, setList] = useState<Input[]>([])
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState('')
-  const [showNew, setShowNew] = useState(false)
+  const [showNew, setShowNew] = useState(false); const [restockItem, setRestockItem] = useState<Input | null>(null)
   const load = useCallback(async () => {
     setLoading(true); setErr('')
     try { setList(await api<Input[]>('/product-os/production-inputs')) }
     catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setLoading(false) }
   }, [])
   useEffect(() => { void load() }, [load])
-
-  const restock = async (id: string) => {
-    const v = window.prompt('Quantidade a adicionar:'); if (!v) return
-    try { await api(`/product-os/production-inputs/${id}/movement`, { method: 'POST', body: JSON.stringify({ type: 'in', quantity: Number(v) || 0 }) }); void load() }
-    catch (e) { setErr(e instanceof Error ? e.message : 'Erro') }
-  }
 
   return (
     <div className="space-y-3">
@@ -392,30 +391,70 @@ function InsumosPanel() {
           {list.map(i => (
             <div key={i.id} className="rounded-xl p-3" style={{ background: '#111114', border: `1px solid ${i.alert ? 'rgba(252,211,77,0.4)' : '#27272a'}` }}>
               <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-white">{i.name}</span>
+                {i.color_hex && <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: i.color_hex.startsWith('#') ? i.color_hex : `#${i.color_hex}`, border: '1px solid #27272a' }} />}
+                <span className="truncate text-xs font-bold text-white">{i.name}</span>
                 {i.alert && <span className="rounded px-1.5 py-0.5 text-[9px] font-bold" style={{ background: 'rgba(252,211,77,0.12)', color: '#fcd34d' }}>repor</span>}
-                <button onClick={() => void restock(i.id)} className="ml-auto rounded px-1.5 py-0.5 text-[9px] font-semibold" style={{ background: 'rgba(0,229,255,0.10)', color: '#a5f3fc', border: '1px solid #27272a' }}>+ repor</button>
+                <button onClick={() => setRestockItem(i)} className="ml-auto rounded px-1.5 py-0.5 text-[9px] font-semibold" style={{ background: 'rgba(0,229,255,0.10)', color: '#a5f3fc', border: '1px solid #27272a' }}>+ repor</button>
               </div>
-              <p className="mt-1 text-[10px]" style={{ color: '#71717a' }}>{i.kind}{i.material ? ` · ${i.material}` : ''}{i.color ? ` · ${i.color}` : ''}</p>
-              <div className="mt-1.5 flex items-baseline gap-1"><span className="text-lg font-extrabold text-cyan-400">{i.available}</span><span className="text-[10px]" style={{ color: '#52525b' }}>{i.unit} disp. ({i.quantity} − {i.reserved_quantity} reserv.)</span></div>
+              <p className="mt-1 text-[10px]" style={{ color: '#71717a' }}>{[i.sku, i.kind, i.material, i.brand, i.color].filter(Boolean).join(' · ')}{i.diameter_mm ? ` · ${i.diameter_mm}mm` : ''}</p>
+              <div className="mt-1.5 flex items-baseline gap-1"><span className="text-lg font-extrabold text-cyan-400">{i.available}</span><span className="text-[10px]" style={{ color: '#52525b' }}>{i.unit} disp. ({i.quantity} − {i.reserved_quantity})</span></div>
+              <p className="mt-0.5 text-[10px]" style={{ color: '#71717a' }}>custo médio <b style={{ color: '#a5f3fc' }}>R$ {Number(i.cost_per_unit).toFixed(2)}/{i.unit}</b></p>
             </div>
           ))}
           {list.length === 0 && <p className="text-xs" style={{ color: '#52525b' }}>Nenhum insumo cadastrado.</p>}
         </div>
       )}
       {showNew && <NewInputModal onClose={() => setShowNew(false)} onCreated={() => { setShowNew(false); void load() }} />}
+      {restockItem && <RestockModal item={restockItem} onClose={() => setRestockItem(null)} onDone={() => { setRestockItem(null); void load() }} />}
     </div>
   )
 }
 
-function NewInputModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
-  const [f, setF] = useState({ kind: 'filamento', name: '', material: '', color: '', unit: 'g', quantity: '', reorder_threshold: '', cost_per_unit: '' })
+function RestockModal({ item, onClose, onDone }: { item: Input; onClose: () => void; onDone: () => void }) {
+  const [qty, setQty] = useState(''); const [unitCost, setUnitCost] = useState(String(item.cost_per_unit ?? ''))
   const [busy, setBusy] = useState(false); const [err, setErr] = useState('')
+  const q = Number(qty) || 0, c = Number(unitCost) || 0
+  // prévia do novo custo médio ponderado
+  const newAvg = (q > 0) ? ((Number(item.quantity) * Number(item.cost_per_unit) + q * c) / (Number(item.quantity) + q)) : Number(item.cost_per_unit)
+  const save = async () => {
+    if (q <= 0) { setErr('Informe a quantidade'); return }
+    setBusy(true); setErr('')
+    try { await api(`/product-os/production-inputs/${item.id}/movement`, { method: 'POST', body: JSON.stringify({ type: 'in', quantity: q, unit_cost: unitCost ? c : undefined }) }); onDone() }
+    catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setBusy(false) }
+  }
+  return (
+    <Modal title={`Repor — ${item.name}`} onClose={onClose}>
+      {err && <div className="mb-3 rounded-lg p-2.5 text-xs" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>{err}</div>}
+      <p className="mb-3 text-xs" style={{ color: '#a1a1aa' }}>Estoque atual: {item.quantity} {item.unit} · custo médio R$ {Number(item.cost_per_unit).toFixed(2)}/{item.unit}</p>
+      <div className="grid grid-cols-2 gap-2">
+        <Input label={`Entrada (${item.unit})`} value={qty} onChange={setQty} />
+        <Input label={`Preço da entrada (R$/${item.unit})`} value={unitCost} onChange={setUnitCost} />
+      </div>
+      <div className="mt-3 rounded-lg p-2.5 text-xs" style={{ background: '#0a0a0e', border: '1px solid #1a1a1f' }}>
+        <div className="flex justify-between" style={{ color: '#a1a1aa' }}><span>Novo estoque</span><span className="font-bold text-white">{Number(item.quantity) + q} {item.unit}</span></div>
+        <div className="flex justify-between" style={{ color: '#a1a1aa' }}><span>Novo custo médio ponderado</span><span className="font-bold text-cyan-400">R$ {newAvg.toFixed(2)}/{item.unit}</span></div>
+      </div>
+      <div className="mt-4 flex justify-end"><button onClick={() => void save()} disabled={busy} className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}>{busy ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />} Dar entrada</button></div>
+    </Modal>
+  )
+}
+
+function NewInputModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const [f, setF] = useState({ kind: 'filamento', sku: '', name: '', description: '', material: '', color: '', color_hex: '', brand: '', supplier: '', diameter_mm: '', spool_weight_g: '', unit: 'g', quantity: '', reorder_threshold: '', cost_per_unit: '' })
+  const [busy, setBusy] = useState(false); const [err, setErr] = useState('')
+  const set = (k: keyof typeof f, v: string) => setF(s => ({ ...s, [k]: v }))
+  const isFil = f.kind === 'filamento'
   const create = async () => {
     if (!f.name.trim()) { setErr('Nome obrigatório'); return }
     setBusy(true); setErr('')
     try {
-      await api('/product-os/production-inputs', { method: 'POST', body: JSON.stringify({ kind: f.kind, name: f.name, material: f.material || undefined, color: f.color || undefined, unit: f.unit, quantity: Number(f.quantity) || 0, reorder_threshold: Number(f.reorder_threshold) || 0, cost_per_unit: Number(f.cost_per_unit) || 0 }) })
+      await api('/product-os/production-inputs', { method: 'POST', body: JSON.stringify({
+        kind: f.kind, sku: f.sku || undefined, name: f.name, description: f.description || undefined,
+        material: f.material || undefined, color: f.color || undefined, color_hex: f.color_hex || undefined,
+        brand: f.brand || undefined, supplier: f.supplier || undefined,
+        diameter_mm: f.diameter_mm ? Number(f.diameter_mm) : undefined, spool_weight_g: f.spool_weight_g ? Number(f.spool_weight_g) : undefined,
+        unit: f.unit, quantity: Number(f.quantity) || 0, reorder_threshold: Number(f.reorder_threshold) || 0, cost_per_unit: Number(f.cost_per_unit) || 0,
+      }) })
       onCreated()
     } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setBusy(false) }
   }
@@ -424,16 +463,37 @@ function NewInputModal({ onClose, onCreated }: { onClose: () => void; onCreated:
       {err && <div className="mb-3 rounded-lg p-2.5 text-xs" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>{err}</div>}
       <div className="space-y-2.5">
         <div className="grid grid-cols-2 gap-2">
-          <label className="block"><span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#71717a' }}>Tipo</span>
-            <select value={f.kind} onChange={e => setF(s => ({ ...s, kind: e.target.value }))} className="w-full rounded-lg px-2.5 py-1.5 text-xs outline-none" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }}>
+          <label className="block"><span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#71717a' }}>Categoria</span>
+            <select value={f.kind} onChange={e => set('kind', e.target.value)} className="w-full rounded-lg px-2.5 py-1.5 text-xs outline-none" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }}>
               <option value="filamento">Filamento</option><option value="embalagem">Embalagem</option><option value="etiqueta">Etiqueta</option><option value="outro">Outro</option>
             </select></label>
-          <Input label="Unidade" value={f.unit} onChange={v => setF(s => ({ ...s, unit: v }))} />
+          <Input label="SKU" value={f.sku} onChange={v => set('sku', v)} />
         </div>
-        <Input label="Nome" value={f.name} onChange={v => setF(s => ({ ...s, name: v }))} />
-        <div className="grid grid-cols-2 gap-2"><Input label="Material (PLA/PETG)" value={f.material} onChange={v => setF(s => ({ ...s, material: v }))} /><Input label="Cor" value={f.color} onChange={v => setF(s => ({ ...s, color: v }))} /></div>
-        <div className="grid grid-cols-3 gap-2"><Input label="Qtd inicial" value={f.quantity} onChange={v => setF(s => ({ ...s, quantity: v }))} /><Input label="Alerta abaixo de" value={f.reorder_threshold} onChange={v => setF(s => ({ ...s, reorder_threshold: v }))} /><Input label="Custo/un" value={f.cost_per_unit} onChange={v => setF(s => ({ ...s, cost_per_unit: v }))} /></div>
-        <div className="flex justify-end"><button onClick={() => void create()} disabled={busy} className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}>{busy ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />} Criar</button></div>
+        <Input label="Nome *" value={f.name} onChange={v => set('name', v)} />
+        <Input label="Descrição" value={f.description} onChange={v => set('description', v)} />
+        <div className="grid grid-cols-2 gap-2">
+          <Input label={isFil ? 'Tipo (PLA/PETG/ABS)' : 'Tipo/Material'} value={f.material} onChange={v => set('material', v)} />
+          <label className="block"><span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#71717a' }}>Unidade de medida</span>
+            <select value={f.unit} onChange={e => set('unit', e.target.value)} className="w-full rounded-lg px-2.5 py-1.5 text-xs outline-none" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }}>
+              <option value="g">grama (g)</option><option value="kg">quilo (kg)</option><option value="un">unidade (un)</option><option value="m">metro (m)</option>
+            </select></label>
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          <Input label="Cor" value={f.color} onChange={v => set('color', v)} />
+          <Input label="Cor (hex)" value={f.color_hex} onChange={v => set('color_hex', v)} placeholder="#FFFFFF" />
+          <Input label="Marca" value={f.brand} onChange={v => set('brand', v)} />
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <Input label="Fornecedor" value={f.supplier} onChange={v => set('supplier', v)} />
+          {isFil ? <Input label="Diâmetro (mm)" value={f.diameter_mm} onChange={v => set('diameter_mm', v)} placeholder="1.75" /> : <Input label="Peso do rolo (g)" value={f.spool_weight_g} onChange={v => set('spool_weight_g', v)} />}
+        </div>
+        <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color: '#71717a' }}>Estoque inicial</p>
+        <div className="grid grid-cols-3 gap-2">
+          <Input label={`Qtd (${f.unit})`} value={f.quantity} onChange={v => set('quantity', v)} />
+          <Input label={`Preço (R$/${f.unit})`} value={f.cost_per_unit} onChange={v => set('cost_per_unit', v)} />
+          <Input label="Alerta abaixo de" value={f.reorder_threshold} onChange={v => set('reorder_threshold', v)} />
+        </div>
+        <div className="flex justify-end"><button onClick={() => void create()} disabled={busy} className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}>{busy ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />} Cadastrar</button></div>
       </div>
     </Modal>
   )
