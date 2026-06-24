@@ -75,6 +75,14 @@ interface ProductionPlan {
   capacity_hours: number; active_printers: number; hours_used: number; hours_idle: number; utilization_pct: number; total_contribution: number
   plan: Array<{ product_dev_id: string; name: string; units: number; hours: number; profit_per_hour: number | null; contribution: number }>
 }
+interface PrinterAnalytics {
+  printer: { id: string; name: string; brand: string | null; model: string | null; status: string; build_volume_mm: string | null; has_ams: boolean; acquisition_cost: number; acquisition_date: string | null }
+  performance: { jobs_total: number; jobs_done: number; jobs_failed: number; success_rate_pct: number | null; total_print_hours: number; avg_minutes_per_job: number | null; filament_used_g: number }
+  throughput: { units_produced: number; units_30d: number; orders_done: number; orders_active: number }
+  economics: { accumulated_contribution: number; paid_pct: number | null; remaining_to_payback: number; paid_off: boolean; revenue_per_hour: number | null; depreciation_per_hour: number | null; days_owned: number | null; utilization_pct: number | null }
+  by_product: Array<{ product_dev_id: string; name: string; units: number; hours: number; contribution: number; profit_per_hour: number | null }>
+  recent_orders: Array<{ order_number: number; name: string; status: string; quantity: number; contribution_total: number | null; completed_at: string | null }>
+}
 
 const COLUMNS: { key: Status; label: string }[] = [
   { key: 'ideia', label: 'Ideia' }, { key: 'briefing', label: 'Briefing' }, { key: 'modelagem', label: 'Modelagem' },
@@ -801,7 +809,7 @@ function ProductionPlanCard({ onOpen }: { onOpen: (id: string) => void }) {
 
 // ── IMPRESSORAS ───────────────────────────────────────────────────────
 function PrintersPanel() {
-  const [list, setList] = useState<Printer[]>([]); const [loading, setLoading] = useState(true); const [err, setErr] = useState(''); const [showNew, setShowNew] = useState(false)
+  const [list, setList] = useState<Printer[]>([]); const [loading, setLoading] = useState(true); const [err, setErr] = useState(''); const [showNew, setShowNew] = useState(false); const [openPrinter, setOpenPrinter] = useState<string | null>(null)
   const load = useCallback(async () => { setLoading(true); setErr(''); try { setList(await api<Printer[]>('/product-os/printers')) } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setLoading(false) } }, [])
   useEffect(() => { void load() }, [load])
   const fmt = (n: number) => `R$ ${n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -815,7 +823,7 @@ function PrintersPanel() {
       {loading ? <div className="flex items-center gap-2 p-6 text-sm" style={{ color: '#71717a' }}><Loader2 size={16} className="animate-spin" /> Carregando…</div> : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {list.map(p => (
-            <div key={p.id} className="rounded-xl p-4" style={{ background: '#111114', border: `1px solid ${p.paid_off ? 'rgba(74,222,128,0.4)' : '#27272a'}` }}>
+            <div key={p.id} onClick={() => setOpenPrinter(p.id)} className="cursor-pointer rounded-xl p-4 transition-colors hover:border-cyan-700" style={{ background: '#111114', border: `1px solid ${p.paid_off ? 'rgba(74,222,128,0.4)' : '#27272a'}` }}>
               <div className="flex items-center gap-2">
                 <PrinterIcon size={15} className="text-cyan-400" />
                 <span className="text-sm font-bold text-white">{p.name}</span>
@@ -847,9 +855,96 @@ function PrintersPanel() {
         </div>
       )}
       {showNew && <NewPrinterModal onClose={() => setShowNew(false)} onCreated={() => { setShowNew(false); void load() }} />}
+      {openPrinter && <PrinterDetailDrawer id={openPrinter} onClose={() => setOpenPrinter(null)} />}
     </div>
   )
 }
+
+function PrinterDetailDrawer({ id, onClose }: { id: string; onClose: () => void }) {
+  const [a, setA] = useState<PrinterAnalytics | null>(null); const [err, setErr] = useState('')
+  useEffect(() => { void (async () => { try { setA(await api<PrinterAnalytics>(`/product-os/printers/${id}/analytics`)) } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } })() }, [id])
+  const money = (n: number) => `R$ ${n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={onClose}>
+      <div className="h-full w-full max-w-lg overflow-y-auto p-5" style={{ background: '#0a0a0e', borderLeft: '1px solid #27272a' }} onClick={e => e.stopPropagation()}>
+        {!a ? <div className="flex items-center gap-2 text-sm" style={{ color: '#71717a' }}>{err ? <span style={{ color: '#f87171' }}>{err}</span> : <><Loader2 size={16} className="animate-spin" /> Carregando…</>}</div> : (
+          <>
+            <div className="mb-4 flex items-start gap-2">
+              <PrinterIcon size={18} className="mt-0.5 text-cyan-400" />
+              <div>
+                <h2 className="text-base font-extrabold text-white">{a.printer.name}</h2>
+                <p className="text-xs" style={{ color: '#71717a' }}>{[a.printer.brand, a.printer.model, a.printer.build_volume_mm].filter(Boolean).join(' · ') || 'sem detalhes'}{a.printer.has_ams ? ' · AMS' : ''} · {a.printer.status}</p>
+              </div>
+              <button onClick={onClose} className="ml-auto" style={{ color: '#71717a' }}><X size={18} /></button>
+            </div>
+
+            {/* payback */}
+            <div className="mb-3 rounded-xl p-4" style={{ background: '#111114', border: `1px solid ${a.economics.paid_off ? 'rgba(74,222,128,0.4)' : '#27272a'}` }}>
+              <div className="mb-1 flex items-center justify-between text-[11px]"><span style={{ color: '#a1a1aa' }}>Investimento {money(a.printer.acquisition_cost)}</span><span className="font-bold" style={{ color: a.economics.paid_off ? '#4ade80' : '#00E5FF' }}>{a.economics.paid_off ? '✓ Se pagou' : `${(a.economics.paid_pct ?? 0).toFixed(0)}% quitado`}</span></div>
+              <div className="h-2 w-full overflow-hidden rounded-full" style={{ background: '#0a0a0e', border: '1px solid #1a1a1f' }}><div className="h-full rounded-full" style={{ width: `${Math.min(100, a.economics.paid_pct ?? 0)}%`, background: a.economics.paid_off ? '#4ade80' : '#00E5FF' }} /></div>
+              <div className="mt-1 flex justify-between text-[10px]" style={{ color: '#71717a' }}><span>lucro gerado {money(a.economics.accumulated_contribution)}</span><span>{a.economics.paid_off ? 'lucro livre' : `falta ${money(a.economics.remaining_to_payback)}`}</span></div>
+            </div>
+
+            {/* KPIs */}
+            <div className="mb-3 grid grid-cols-3 gap-2">
+              <Stat label="R$/hora real" value={a.economics.revenue_per_hour != null ? money(a.economics.revenue_per_hour) : '—'} />
+              <Stat label="Horas impressas" value={`${a.performance.total_print_hours.toFixed(0)}h`} />
+              <Stat label="Taxa de sucesso" value={a.performance.success_rate_pct != null ? `${a.performance.success_rate_pct.toFixed(0)}%` : '—'} />
+              <Stat label="Unidades" value={String(a.throughput.units_produced)} />
+              <Stat label="Filamento usado" value={`${(a.performance.filament_used_g / 1000).toFixed(2)} kg`} />
+              <Stat label="Utilização" value={a.economics.utilization_pct != null ? `${a.economics.utilization_pct.toFixed(0)}%` : '—'} />
+            </div>
+
+            {/* confiabilidade */}
+            <div className="mb-3 rounded-xl p-3" style={{ background: '#111114', border: '1px solid #27272a' }}>
+              <p className="mb-1.5 text-xs font-bold text-white">Confiabilidade</p>
+              <div className="flex flex-wrap gap-3 text-[11px]" style={{ color: '#a1a1aa' }}>
+                <span>{a.performance.jobs_done} jobs OK</span>
+                <span style={{ color: a.performance.jobs_failed > 0 ? '#f87171' : '#52525b' }}>{a.performance.jobs_failed} falhas</span>
+                <span>média {a.performance.avg_minutes_per_job != null ? `${a.performance.avg_minutes_per_job.toFixed(0)} min/job` : '—'}</span>
+                <span>{a.throughput.orders_active} ordem(ns) ativa(s)</span>
+              </div>
+            </div>
+
+            {/* por produto */}
+            <div className="mb-3 rounded-xl p-3" style={{ background: '#111114', border: '1px solid #27272a' }}>
+              <p className="mb-2 text-xs font-bold text-white">O que ela mais produz (R$/hora)</p>
+              {a.by_product.length === 0 ? <p className="text-xs" style={{ color: '#52525b' }}>Nenhuma produção concluída ainda.</p> : (
+                <div className="space-y-1.5">
+                  {a.by_product.map(p => (
+                    <div key={p.product_dev_id} className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs" style={{ background: '#0a0a0e', border: '1px solid #1a1a1f' }}>
+                      <span className="truncate font-semibold text-white">{p.name}</span>
+                      <span className="ml-auto text-[10px]" style={{ color: '#71717a' }}>{p.units} un · {p.hours}h</span>
+                      <span className="font-bold" style={{ color: '#00E5FF' }}>{p.profit_per_hour != null ? money(p.profit_per_hour) + '/h' : '—'}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* ordens recentes */}
+            <div className="rounded-xl p-3" style={{ background: '#111114', border: '1px solid #27272a' }}>
+              <p className="mb-2 text-xs font-bold text-white">Ordens recentes</p>
+              {a.recent_orders.length === 0 ? <p className="text-xs" style={{ color: '#52525b' }}>Sem ordens.</p> : (
+                <div className="space-y-1">
+                  {a.recent_orders.map(o => (
+                    <div key={o.order_number} className="flex items-center gap-2 text-[11px]" style={{ color: '#a1a1aa' }}>
+                      <span className="font-bold" style={{ color: '#52525b' }}>#{o.order_number}</span>
+                      <span className="truncate text-white">{o.name}</span>
+                      <span className="ml-auto">{o.quantity} un</span>
+                      <span style={{ color: o.status === 'disponivel' ? '#4ade80' : o.status === 'cancelado' ? '#52525b' : '#fcd34d', width: 70, textAlign: 'right' }}>{o.status}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function Stat({ label, value }: { label: string; value: string }) {
   return <div className="rounded-lg py-1.5" style={{ background: '#0a0a0e', border: '1px solid #1a1a1f' }}><p className="text-sm font-bold text-white">{value}</p><p className="text-[9px]" style={{ color: '#52525b' }}>{label}</p></div>
 }
