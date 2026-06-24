@@ -54,6 +54,7 @@ interface Input {
   diameter_mm: number | null; spool_weight_g: number | null; unit: string
   quantity: number; reserved_quantity: number; reorder_threshold: number; cost_per_unit: number; available: number; alert: boolean
 }
+interface InputMovement { id: string; movement_type: string; quantity: number; unit_cost: number | null; balance_after: number | null; notes: string | null; created_at: string }
 interface BomLine { id?: string; kind: string; description: string | null; quantity: number; unit: string; unit_cost: number; waste_pct: number }
 interface Quality { id: string; checklist: Array<{ key: string; label: string; ok: boolean }>; approved: boolean; notes: string | null }
 interface DevEvent { id: string; event_type: string; payload: Record<string, unknown>; is_auto: boolean; created_at: string }
@@ -371,7 +372,7 @@ function InsumosPanel() {
   const [list, setList] = useState<Input[]>([])
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState('')
-  const [showNew, setShowNew] = useState(false); const [restockItem, setRestockItem] = useState<Input | null>(null)
+  const [showNew, setShowNew] = useState(false); const [restockItem, setRestockItem] = useState<Input | null>(null); const [openInsumo, setOpenInsumo] = useState<Input | null>(null)
   const load = useCallback(async () => {
     setLoading(true); setErr('')
     try { setList(await api<Input[]>('/product-os/production-inputs')) }
@@ -389,12 +390,12 @@ function InsumosPanel() {
       {loading ? <div className="flex items-center gap-2 p-6 text-sm" style={{ color: '#71717a' }}><Loader2 size={16} className="animate-spin" /> Carregando…</div> : (
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {list.map(i => (
-            <div key={i.id} className="rounded-xl p-3" style={{ background: '#111114', border: `1px solid ${i.alert ? 'rgba(252,211,77,0.4)' : '#27272a'}` }}>
+            <div key={i.id} onClick={() => setOpenInsumo(i)} className="cursor-pointer rounded-xl p-3 transition-colors hover:border-cyan-700" style={{ background: '#111114', border: `1px solid ${i.alert ? 'rgba(252,211,77,0.4)' : '#27272a'}` }}>
               <div className="flex items-center gap-2">
                 {i.color_hex && <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: i.color_hex.startsWith('#') ? i.color_hex : `#${i.color_hex}`, border: '1px solid #27272a' }} />}
                 <span className="truncate text-xs font-bold text-white">{i.name}</span>
                 {i.alert && <span className="rounded px-1.5 py-0.5 text-[9px] font-bold" style={{ background: 'rgba(252,211,77,0.12)', color: '#fcd34d' }}>repor</span>}
-                <button onClick={() => setRestockItem(i)} className="ml-auto rounded px-1.5 py-0.5 text-[9px] font-semibold" style={{ background: 'rgba(0,229,255,0.10)', color: '#a5f3fc', border: '1px solid #27272a' }}>+ repor</button>
+                <button onClick={e => { e.stopPropagation(); setRestockItem(i) }} className="ml-auto rounded px-1.5 py-0.5 text-[9px] font-semibold" style={{ background: 'rgba(0,229,255,0.10)', color: '#a5f3fc', border: '1px solid #27272a' }}>+ repor</button>
               </div>
               <p className="mt-1 text-[10px]" style={{ color: '#71717a' }}>{[i.sku, i.kind, i.material, i.brand, i.color].filter(Boolean).join(' · ')}{i.diameter_mm ? ` · ${i.diameter_mm}mm` : ''}</p>
               <div className="mt-1.5 flex items-baseline gap-1"><span className="text-lg font-extrabold text-cyan-400">{i.available}</span><span className="text-[10px]" style={{ color: '#52525b' }}>{i.unit} disp. ({i.quantity} − {i.reserved_quantity})</span></div>
@@ -406,6 +407,87 @@ function InsumosPanel() {
       )}
       {showNew && <NewInputModal onClose={() => setShowNew(false)} onCreated={() => { setShowNew(false); void load() }} />}
       {restockItem && <RestockModal item={restockItem} onClose={() => setRestockItem(null)} onDone={() => { setRestockItem(null); void load() }} />}
+      {openInsumo && <InsumoDetailDrawer item={openInsumo} onClose={() => setOpenInsumo(null)} onChanged={() => { setOpenInsumo(null); void load() }} />}
+    </div>
+  )
+}
+
+function InsumoDetailDrawer({ item, onClose, onChanged }: { item: Input; onClose: () => void; onChanged: () => void }) {
+  const [f, setF] = useState({
+    sku: item.sku ?? '', name: item.name, description: item.description ?? '', material: item.material ?? '',
+    color: item.color ?? '', color_hex: item.color_hex ?? '', brand: item.brand ?? '', supplier: item.supplier ?? '',
+    diameter_mm: item.diameter_mm != null ? String(item.diameter_mm) : '', unit: item.unit,
+    reorder_threshold: String(item.reorder_threshold ?? ''),
+  })
+  const set = (k: keyof typeof f, v: string) => setF(s => ({ ...s, [k]: v }))
+  const [movs, setMovs] = useState<InputMovement[]>([]); const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [msg, setMsg] = useState('')
+  useEffect(() => { void (async () => { try { setMovs(await api<InputMovement[]>(`/product-os/production-inputs/${item.id}/movements`)) } catch { /* */ } })() }, [item.id])
+  const save = async () => {
+    setBusy(true); setErr(''); setMsg('')
+    try {
+      await api(`/product-os/production-inputs/${item.id}`, { method: 'PATCH', body: JSON.stringify({
+        sku: f.sku || null, name: f.name, description: f.description || null, material: f.material || null,
+        color: f.color || null, color_hex: f.color_hex || null, brand: f.brand || null, supplier: f.supplier || null,
+        diameter_mm: f.diameter_mm ? Number(f.diameter_mm) : null, unit: f.unit, reorder_threshold: Number(f.reorder_threshold) || 0,
+      }) })
+      setMsg('Insumo atualizado.'); onChanged()
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setBusy(false) }
+  }
+  const deactivate = async () => {
+    if (!window.confirm('Desativar este insumo? Ele some da lista (não é apagado).')) return
+    try { await api(`/product-os/production-inputs/${item.id}`, { method: 'PATCH', body: JSON.stringify({ is_active: false }) }); onChanged() }
+    catch (e) { setErr(e instanceof Error ? e.message : 'Erro') }
+  }
+  const MOV: Record<string, string> = { in: 'Entrada', adjust: 'Ajuste', reserve: 'Reserva', release: 'Liberação', consume: 'Consumo' }
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={onClose}>
+      <div className="h-full w-full max-w-lg overflow-y-auto p-5" style={{ background: '#0a0a0e', borderLeft: '1px solid #27272a' }} onClick={e => e.stopPropagation()}>
+        <div className="mb-3 flex items-start gap-2">
+          {item.color_hex && <span className="mt-1 h-3.5 w-3.5 shrink-0 rounded-full" style={{ background: item.color_hex.startsWith('#') ? item.color_hex : `#${item.color_hex}`, border: '1px solid #27272a' }} />}
+          <div><h2 className="text-base font-extrabold text-white">{item.name}</h2><p className="text-xs" style={{ color: '#71717a' }}>{item.kind}{item.sku ? ` · ${item.sku}` : ''}</p></div>
+          <button onClick={onClose} className="ml-auto" style={{ color: '#71717a' }}><X size={18} /></button>
+        </div>
+
+        {/* estoque */}
+        <div className="mb-3 grid grid-cols-3 gap-2">
+          <Stat label={`Disponível (${item.unit})`} value={String(item.available)} />
+          <Stat label="Reservado" value={String(item.reserved_quantity)} />
+          <Stat label="Custo médio" value={`R$ ${Number(item.cost_per_unit).toFixed(2)}`} />
+        </div>
+
+        {err && <div className="mb-3 rounded-lg p-2.5 text-xs" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>{err}</div>}
+        {msg && <div className="mb-3 rounded-lg p-2.5 text-xs" style={{ background: 'rgba(74,222,128,0.10)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)' }}>{msg}</div>}
+
+        {/* edição */}
+        <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wide" style={{ color: '#71717a' }}>Dados do insumo</p>
+        <div className="space-y-2.5">
+          <div className="grid grid-cols-2 gap-2"><Input label="SKU" value={f.sku} onChange={v => set('sku', v)} /><Input label="Tipo/Material" value={f.material} onChange={v => set('material', v)} /></div>
+          <Input label="Nome" value={f.name} onChange={v => set('name', v)} />
+          <Input label="Descrição" value={f.description} onChange={v => set('description', v)} />
+          <div className="grid grid-cols-3 gap-2"><Input label="Cor" value={f.color} onChange={v => set('color', v)} /><Input label="Cor (hex)" value={f.color_hex} onChange={v => set('color_hex', v)} /><Input label="Marca" value={f.brand} onChange={v => set('brand', v)} /></div>
+          <div className="grid grid-cols-3 gap-2"><Input label="Fornecedor" value={f.supplier} onChange={v => set('supplier', v)} /><Input label="Diâmetro (mm)" value={f.diameter_mm} onChange={v => set('diameter_mm', v)} /><Input label="Alerta abaixo de" value={f.reorder_threshold} onChange={v => set('reorder_threshold', v)} /></div>
+          <div className="flex items-center gap-2">
+            <button onClick={() => void deactivate()} className="rounded-lg px-3 py-2 text-xs font-semibold" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#71717a' }}>Desativar</button>
+            <button onClick={() => void save()} disabled={busy} className="ml-auto flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}>{busy ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />} Salvar</button>
+          </div>
+        </div>
+
+        {/* histórico */}
+        <p className="mb-1.5 mt-4 text-[10px] font-bold uppercase tracking-wide" style={{ color: '#71717a' }}>Movimentações</p>
+        {movs.length === 0 ? <p className="text-xs" style={{ color: '#52525b' }}>Sem movimentações.</p> : (
+          <div className="space-y-1">
+            {movs.map(m => (
+              <div key={m.id} className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[11px]" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
+                <span className="font-semibold" style={{ color: m.movement_type === 'in' ? '#4ade80' : m.movement_type === 'consume' ? '#f87171' : '#a1a1aa' }}>{MOV[m.movement_type] ?? m.movement_type}</span>
+                <span style={{ color: '#a1a1aa' }}>{m.quantity} {item.unit}</span>
+                {m.unit_cost != null && <span style={{ color: '#a5f3fc' }}>@ R$ {Number(m.unit_cost).toFixed(2)}</span>}
+                {m.balance_after != null && <span style={{ color: '#52525b' }}>→ {m.balance_after}</span>}
+                <span className="ml-auto text-[9px]" style={{ color: '#52525b' }}>{new Date(m.created_at).toLocaleString('pt-BR')}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
