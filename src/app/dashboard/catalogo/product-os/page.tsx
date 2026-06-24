@@ -83,6 +83,10 @@ interface FarmStatus {
   error_code: string | null; error_text: string | null; last_update: string | null
 }
 interface FarmAgent { id: string; name: string; status: string; version: string | null; last_seen_at: string | null; online: boolean }
+interface SchedulerResult {
+  idle_printers: number; queued_orders: number
+  assignments: Array<{ order_id: string; order_number: number; product_dev_id: string; name: string; quantity: number; printer_id: string; printer_name: string; profit_per_hour: number | null }>
+}
 interface PrinterAnalytics {
   printer: { id: string; name: string; brand: string | null; model: string | null; status: string; build_volume_mm: string | null; has_ams: boolean; acquisition_cost: number; acquisition_date: string | null }
   performance: { jobs_total: number; jobs_done: number; jobs_failed: number; success_rate_pct: number | null; total_print_hours: number; avg_minutes_per_job: number | null; filament_used_g: number }
@@ -738,6 +742,7 @@ function FactoryPanel({ onGoTo, onOpen }: { onGoTo: (t: 'impressoras' | 'rentabi
       </div>
 
       <ProductionPlanCard onOpen={onOpen} />
+      <SchedulerCard />
 
       <div className="grid gap-3 lg:grid-cols-2">
         {/* top produtos */}
@@ -819,6 +824,47 @@ function ProductionPlanCard({ onOpen }: { onOpen: (id: string) => void }) {
               ))}
             </div>
           )}
+        </>
+      )}
+    </div>
+  )
+}
+
+function SchedulerCard() {
+  const [data, setData] = useState<SchedulerResult | null>(null); const [loading, setLoading] = useState(true); const [msg, setMsg] = useState('')
+  const load = useCallback(async () => { setLoading(true); try { setData(await api<SchedulerResult>('/product-os/farm/scheduler')) } catch { /* */ } finally { setLoading(false) } }, [])
+  useEffect(() => { void load() }, [load])
+  const apply = async () => {
+    if (!data?.assignments.length) return
+    setMsg('')
+    try { const r = await api<{ assigned: number }>('/product-os/farm/scheduler/apply', { method: 'POST', body: JSON.stringify({ assignments: data.assignments.map(a => ({ order_id: a.order_id, printer_id: a.printer_id })) }) }); setMsg(`${r.assigned} ordem(ns) atribuída(s).`); void load() }
+    catch (e) { setMsg(e instanceof Error ? e.message : 'Erro') }
+  }
+  const money = (n: number) => `R$ ${n.toFixed(2)}`
+  return (
+    <div className="rounded-xl p-4" style={{ background: '#111114', border: '1px solid #27272a' }}>
+      <div className="mb-2 flex items-center gap-2">
+        <Wifi size={14} className="text-cyan-400" />
+        <span className="text-xs font-bold text-white">Scheduler — o que pôr em cada impressora ociosa</span>
+        {data && data.assignments.length > 0 && <button onClick={() => void apply()} className="ml-auto rounded px-2 py-1 text-[10px] font-bold" style={{ background: 'rgba(0,229,255,0.12)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.35)' }}>Atribuir tudo</button>}
+      </div>
+      {loading ? <div className="flex items-center gap-2 text-xs" style={{ color: '#71717a' }}><Loader2 size={12} className="animate-spin" /> Calculando…</div> : !data ? null : (
+        <>
+          <p className="mb-2 text-[11px]" style={{ color: '#52525b' }}>{data.idle_printers} impressora(s) ociosa(s) · {data.queued_orders} ordem(ns) na fila</p>
+          {data.assignments.length === 0 ? <p className="text-xs" style={{ color: '#52525b' }}>Nada a sugerir — precisa de impressora ociosa online + ordem na fila com R$/hora.</p> : (
+            <div className="space-y-1.5">
+              {data.assignments.map(a => (
+                <div key={a.order_id} className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs" style={{ background: '#0a0a0e', border: '1px solid #1a1a1f' }}>
+                  <PrinterIcon size={12} className="text-cyan-400" />
+                  <span className="font-semibold text-white">{a.printer_name}</span>
+                  <span style={{ color: '#52525b' }}>←</span>
+                  <span className="truncate" style={{ color: '#a1a1aa' }}>#{a.order_number} {a.name} ({a.quantity}un)</span>
+                  <span className="ml-auto font-bold" style={{ color: '#00E5FF' }}>{a.profit_per_hour != null ? money(a.profit_per_hour) + '/h' : '—'}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {msg && <p className="mt-2 text-[10px]" style={{ color: '#a5f3fc' }}>{msg}</p>}
         </>
       )}
     </div>
