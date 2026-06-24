@@ -62,6 +62,7 @@ interface Printer {
   id: string; name: string; brand: string | null; model: string | null; build_volume_mm: string | null; nozzle_mm: number | null
   has_ams: boolean; power_watts: number | null; acquisition_cost: number; acquisition_date: string | null
   expected_lifetime_hours: number | null; status: string; notes: string | null
+  serial_number: string | null; lan_ip: string | null
   accumulated_contribution: number; paid_pct: number | null; remaining_to_payback: number; paid_off: boolean
   total_units_produced: number; total_print_minutes: number; active_orders: number; depreciation_per_hour: number | null
 }
@@ -734,7 +735,6 @@ function VersionsTab({ dev, onChanged }: { dev: DevDetail; onChanged: () => void
       setForm({ changelog: '', file_url: '', file_type: '', material: '', weight_g: '', print_time_minutes: '', volume_cm3: '' }); setPhotos([]); onChanged()
     } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setAdding(false) }
   }
-  const setApproval = async (vid: string, approved: boolean) => { try { await api(`/product-os/versions/${vid}/approval`, { method: 'POST', body: JSON.stringify({ approved }) }); onChanged() } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } }
   return (
     <div className="space-y-3">
       <div className="rounded-lg p-3 space-y-2" style={{ background: '#111114', border: '1px solid #27272a' }}>
@@ -766,17 +766,50 @@ function VersionsTab({ dev, onChanged }: { dev: DevDetail; onChanged: () => void
         <button onClick={() => void add()} disabled={adding} className="flex w-full items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}>{adding ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />} Adicionar versão</button>
       </div>
       {err && <div className="whitespace-pre-line rounded-lg p-2.5 text-xs" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>{err}</div>}
-      {dev.versions.map(v => (
-        <div key={v.id} className="rounded-lg p-3" style={{ background: '#111114', border: `1px solid ${v.approved ? 'rgba(74,222,128,0.35)' : '#27272a'}` }}>
-          <div className="flex items-center gap-2"><span className="rounded px-1.5 py-0.5 text-[10px] font-bold" style={{ background: '#1a1a1f', color: '#a5f3fc' }}>v{v.version_number}</span><span className="text-xs font-semibold text-white">{v.changelog ?? 'sem changelog'}</span><span className="ml-auto text-[10px]" style={{ color: '#71717a' }}>{v.status}</span></div>
-          <div className="mt-1.5 flex flex-wrap gap-2 text-[10px]" style={{ color: '#a1a1aa' }}>{v.material && <span>{v.material}</span>}{v.weight_g != null && <span>{v.weight_g} g</span>}{v.print_time_minutes != null && <span>{v.print_time_minutes} min</span>}{v.volume_cm3 != null && <span>{v.volume_cm3} cm³</span>}{v.file_url && <a href={v.file_url} target="_blank" rel="noreferrer" className="text-cyan-400 underline">arquivo</a>}</div>
-          <div className="mt-2 flex gap-1.5">
-            <button onClick={() => void setApproval(v.id, true)} className="flex items-center gap-1 rounded px-2 py-1 text-[10px] font-semibold" style={{ background: 'rgba(74,222,128,0.10)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)' }}><Check size={10} /> Aprovar</button>
-            <button onClick={() => void setApproval(v.id, false)} className="flex items-center gap-1 rounded px-2 py-1 text-[10px] font-semibold" style={{ background: '#0a0a0e', color: '#71717a', border: '1px solid #27272a' }}><Ban size={10} /> Reprovar</button>
-          </div>
-        </div>
-      ))}
+      {dev.versions.map(v => <VersionCard key={v.id} v={v} onChanged={onChanged} />)}
       {dev.versions.length === 0 && <p className="text-xs" style={{ color: '#52525b' }}>Nenhuma versão ainda.</p>}
+    </div>
+  )
+}
+
+function VersionCard({ v, onChanged }: { v: Version; onChanged: () => void }) {
+  const [editing, setEditing] = useState(false); const [busy, setBusy] = useState(false); const [err, setErr] = useState('')
+  const [f, setF] = useState({ changelog: v.changelog ?? '', material: v.material ?? '', weight_g: v.weight_g != null ? String(v.weight_g) : '', print_time_minutes: v.print_time_minutes != null ? String(v.print_time_minutes) : '', volume_cm3: v.volume_cm3 != null ? String(v.volume_cm3) : '' })
+  const setApproval = async (approved: boolean) => { try { await api(`/product-os/versions/${v.id}/approval`, { method: 'POST', body: JSON.stringify({ approved }) }); onChanged() } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } }
+  const save = async () => {
+    setBusy(true); setErr('')
+    try { await api(`/product-os/versions/${v.id}`, { method: 'PATCH', body: JSON.stringify({ changelog: f.changelog || null, material: f.material || null, weight_g: f.weight_g ? Number(f.weight_g) : null, print_time_minutes: f.print_time_minutes ? Number(f.print_time_minutes) : null, volume_cm3: f.volume_cm3 ? Number(f.volume_cm3) : null }) }); setEditing(false); onChanged() }
+    catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setBusy(false) }
+  }
+  return (
+    <div className="rounded-lg p-3" style={{ background: '#111114', border: `1px solid ${v.approved ? 'rgba(74,222,128,0.35)' : '#27272a'}` }}>
+      <div className="flex items-center gap-2">
+        <span className="rounded px-1.5 py-0.5 text-[10px] font-bold" style={{ background: '#1a1a1f', color: '#a5f3fc' }}>v{v.version_number}</span>
+        <span className="truncate text-xs font-semibold text-white">{v.changelog ?? 'sem changelog'}</span>
+        <button onClick={() => setEditing(e => !e)} className="ml-auto text-[10px]" style={{ color: '#71717a' }}>{editing ? 'cancelar' : 'editar'}</button>
+        <span className="text-[10px]" style={{ color: '#71717a' }}>{v.status}</span>
+      </div>
+      {err && <p className="mt-1 text-[10px]" style={{ color: '#f87171' }}>{err}</p>}
+      {editing ? (
+        <div className="mt-2 space-y-2">
+          <Input label="Changelog" value={f.changelog} onChange={x => setF(s => ({ ...s, changelog: x }))} />
+          <div className="grid grid-cols-2 gap-2"><Input label="Material" value={f.material} onChange={x => setF(s => ({ ...s, material: x }))} /><Input label="Peso (g)" value={f.weight_g} onChange={x => setF(s => ({ ...s, weight_g: x }))} /></div>
+          <div className="grid grid-cols-2 gap-2"><Input label="Tempo (min)" value={f.print_time_minutes} onChange={x => setF(s => ({ ...s, print_time_minutes: x }))} /><Input label="Volume (cm³)" value={f.volume_cm3} onChange={x => setF(s => ({ ...s, volume_cm3: x }))} /></div>
+          <button onClick={() => void save()} disabled={busy} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[10px] font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}>{busy ? <Loader2 size={11} className="animate-spin" /> : <CheckCircle2 size={11} />} Salvar versão</button>
+        </div>
+      ) : (
+        <>
+          <div className="mt-1.5 flex flex-wrap gap-2 text-[10px]" style={{ color: '#a1a1aa' }}>{v.material && <span>{v.material}</span>}{v.weight_g != null && <span>{v.weight_g} g</span>}{v.print_time_minutes != null && <span>{v.print_time_minutes} min</span>}{v.volume_cm3 != null && <span>{v.volume_cm3} cm³</span>}{v.file_url && <a href={v.file_url} target="_blank" rel="noreferrer" className="text-cyan-400 underline">arquivo</a>}</div>
+          {v.prototype_photo_urls && v.prototype_photo_urls.length > 0 && <div className="mt-1 flex flex-wrap gap-1">{v.prototype_photo_urls.map((u, i) => (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img key={i} src={u} alt="" className="h-8 w-8 rounded object-cover" style={{ border: '1px solid #27272a' }} />
+          ))}</div>}
+          <div className="mt-2 flex gap-1.5">
+            <button onClick={() => void setApproval(true)} className="flex items-center gap-1 rounded px-2 py-1 text-[10px] font-semibold" style={{ background: 'rgba(74,222,128,0.10)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)' }}><Check size={10} /> Aprovar</button>
+            <button onClick={() => void setApproval(false)} className="flex items-center gap-1 rounded px-2 py-1 text-[10px] font-semibold" style={{ background: '#0a0a0e', color: '#71717a', border: '1px solid #27272a' }}><Ban size={10} /> Reprovar</button>
+          </div>
+        </>
+      )}
     </div>
   )
 }
@@ -1116,7 +1149,7 @@ function SchedulerCard() {
 
 // ── IMPRESSORAS ───────────────────────────────────────────────────────
 function PrintersPanel() {
-  const [list, setList] = useState<Printer[]>([]); const [loading, setLoading] = useState(true); const [err, setErr] = useState(''); const [showNew, setShowNew] = useState(false); const [openPrinter, setOpenPrinter] = useState<string | null>(null)
+  const [list, setList] = useState<Printer[]>([]); const [loading, setLoading] = useState(true); const [err, setErr] = useState(''); const [showNew, setShowNew] = useState(false); const [openPrinter, setOpenPrinter] = useState<Printer | null>(null)
   const [live, setLive] = useState<Record<string, FarmStatus>>({}); const [showConnect, setShowConnect] = useState(false)
   const load = useCallback(async () => { setLoading(true); setErr(''); try { setList(await api<Printer[]>('/product-os/printers')) } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setLoading(false) } }, [])
   useEffect(() => { void load() }, [load])
@@ -1139,7 +1172,7 @@ function PrintersPanel() {
       {loading ? <div className="flex items-center gap-2 p-6 text-sm" style={{ color: '#71717a' }}><Loader2 size={16} className="animate-spin" /> Carregando…</div> : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {list.map(p => (
-            <div key={p.id} onClick={() => setOpenPrinter(p.id)} className="cursor-pointer rounded-xl p-4 transition-colors hover:border-cyan-700" style={{ background: '#111114', border: `1px solid ${p.paid_off ? 'rgba(74,222,128,0.4)' : '#27272a'}` }}>
+            <div key={p.id} onClick={() => setOpenPrinter(p)} className="cursor-pointer rounded-xl p-4 transition-colors hover:border-cyan-700" style={{ background: '#111114', border: `1px solid ${p.paid_off ? 'rgba(74,222,128,0.4)' : '#27272a'}` }}>
               <div className="flex items-center gap-2">
                 <PrinterIcon size={15} className="text-cyan-400" />
                 <span className="text-sm font-bold text-white">{p.name}</span>
@@ -1172,7 +1205,7 @@ function PrintersPanel() {
         </div>
       )}
       {showNew && <NewPrinterModal onClose={() => setShowNew(false)} onCreated={() => { setShowNew(false); void load() }} />}
-      {openPrinter && <PrinterDetailDrawer id={openPrinter} onClose={() => setOpenPrinter(null)} />}
+      {openPrinter && <PrinterDetailDrawer printer={openPrinter} onClose={() => setOpenPrinter(null)} onChanged={() => void load()} />}
       {showConnect && <ConnectFarmModal onClose={() => setShowConnect(false)} />}
     </div>
   )
@@ -1241,9 +1274,18 @@ function ConnectFarmModal({ onClose }: { onClose: () => void }) {
   )
 }
 
-function PrinterDetailDrawer({ id, onClose }: { id: string; onClose: () => void }) {
+function PrinterDetailDrawer({ printer, onClose, onChanged }: { printer: Printer; onClose: () => void; onChanged: () => void }) {
+  const id = printer.id
   const [a, setA] = useState<PrinterAnalytics | null>(null); const [err, setErr] = useState('')
   const [live, setLive] = useState<FarmStatus | null>(null); const [cmdMsg, setCmdMsg] = useState('')
+  const [editing, setEditing] = useState(false); const [savingEdit, setSavingEdit] = useState(false)
+  const [ef, setEf] = useState({ name: printer.name, brand: printer.brand ?? '', model: printer.model ?? '', build_volume_mm: printer.build_volume_mm ?? '', acquisition_cost: String(printer.acquisition_cost ?? ''), expected_lifetime_hours: printer.expected_lifetime_hours != null ? String(printer.expected_lifetime_hours) : '', status: printer.status, serial_number: printer.serial_number ?? '', lan_ip: printer.lan_ip ?? '' })
+  const setE = (k: keyof typeof ef, v: string) => setEf(s => ({ ...s, [k]: v }))
+  const saveEdit = async () => {
+    setSavingEdit(true); setErr('')
+    try { await api(`/product-os/printers/${id}`, { method: 'PATCH', body: JSON.stringify({ name: ef.name, brand: ef.brand || null, model: ef.model || null, build_volume_mm: ef.build_volume_mm || null, acquisition_cost: Number(ef.acquisition_cost) || 0, expected_lifetime_hours: ef.expected_lifetime_hours ? Number(ef.expected_lifetime_hours) : null, status: ef.status, serial_number: ef.serial_number || null, lan_ip: ef.lan_ip || null }) }); onChanged(); onClose() }
+    catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setSavingEdit(false) }
+  }
   useEffect(() => { void (async () => { try { setA(await api<PrinterAnalytics>(`/product-os/printers/${id}/analytics`)) } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } })() }, [id])
   const loadLive = useCallback(async () => { try { const s = await api<FarmStatus[]>('/product-os/farm/status'); setLive(s.find(x => x.id === id) ?? null) } catch { /* */ } }, [id])
   useEffect(() => { void loadLive(); const it = setInterval(() => void loadLive(), 5000); return () => clearInterval(it) }, [loadLive])
@@ -1265,8 +1307,26 @@ function PrinterDetailDrawer({ id, onClose }: { id: string; onClose: () => void 
                 <h2 className="text-base font-extrabold text-white">{a.printer.name}</h2>
                 <p className="text-xs" style={{ color: '#71717a' }}>{[a.printer.brand, a.printer.model, a.printer.build_volume_mm].filter(Boolean).join(' · ') || 'sem detalhes'}{a.printer.has_ams ? ' · AMS' : ''} · {a.printer.status}</p>
               </div>
-              <button onClick={onClose} className="ml-auto" style={{ color: '#71717a' }}><X size={18} /></button>
+              <button onClick={() => setEditing(e => !e)} className="ml-auto text-[11px] font-semibold" style={{ color: '#a5f3fc' }}>{editing ? 'cancelar' : 'editar'}</button>
+              <button onClick={onClose} style={{ color: '#71717a' }}><X size={18} /></button>
             </div>
+
+            {editing && (
+              <div className="mb-3 space-y-2 rounded-lg p-3" style={{ background: '#111114', border: '1px solid rgba(0,229,255,0.25)' }}>
+                <Input label="Nome" value={ef.name} onChange={v => setE('name', v)} />
+                <div className="grid grid-cols-2 gap-2"><Input label="Marca" value={ef.brand} onChange={v => setE('brand', v)} /><Input label="Modelo" value={ef.model} onChange={v => setE('model', v)} /></div>
+                <div className="grid grid-cols-2 gap-2"><Input label="Volume (mm)" value={ef.build_volume_mm} onChange={v => setE('build_volume_mm', v)} /><Input label="Custo de aquisição (R$)" value={ef.acquisition_cost} onChange={v => setE('acquisition_cost', v)} /></div>
+                <div className="grid grid-cols-2 gap-2"><Input label="Nº de série" value={ef.serial_number} onChange={v => setE('serial_number', v)} /><Input label="IP na rede" value={ef.lan_ip} onChange={v => setE('lan_ip', v)} /></div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Input label="Vida útil (h)" value={ef.expected_lifetime_hours} onChange={v => setE('expected_lifetime_hours', v)} />
+                  <label className="block"><span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#71717a' }}>Status</span>
+                    <select value={ef.status} onChange={e => setE('status', e.target.value)} className="w-full rounded-lg px-2.5 py-1.5 text-xs outline-none" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }}>
+                      <option value="ativa">Ativa</option><option value="manutencao">Manutenção</option><option value="aposentada">Aposentada</option>
+                    </select></label>
+                </div>
+                <button onClick={() => void saveEdit()} disabled={savingEdit} className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}>{savingEdit ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />} Salvar impressora</button>
+              </div>
+            )}
 
             {/* controle ao vivo */}
             {live && (
