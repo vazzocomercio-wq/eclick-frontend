@@ -63,6 +63,12 @@ interface ProfitRow {
   product_dev_id: string; name: string; category: string | null; print_minutes_unit: number; cost_unit: number; price_unit: number
   contribution_unit: number; profit_per_hour: number | null; units_sold_30d: number; units_produced: number; recommendation: string
 }
+interface FactoryOverview {
+  printers: { count: number; active: number; total_investment: number; total_paid_back: number; payback_pct: number | null; paid_off: number; total_print_hours: number }
+  production: { orders_done: number; orders_active: number; units_produced: number; units_30d: number; total_contribution: number; free_profit: number }
+  inputs: { low_stock: Array<{ name: string; available: number; unit: string }> }
+  top_products: ProfitRow[]
+}
 
 const COLUMNS: { key: Status; label: string }[] = [
   { key: 'ideia', label: 'Ideia' }, { key: 'briefing', label: 'Briefing' }, { key: 'modelagem', label: 'Modelagem' },
@@ -96,7 +102,7 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
 
 // ════════════════════════════════════════════════════════════════════
 export default function ProductOsPage() {
-  const [tab, setTab] = useState<'ciclo' | 'producao' | 'impressoras' | 'rentabilidade' | 'insumos'>('ciclo')
+  const [tab, setTab] = useState<'fabrica' | 'ciclo' | 'producao' | 'impressoras' | 'rentabilidade' | 'insumos'>('fabrica')
   const [items, setItems] = useState<ProductDev[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -130,13 +136,14 @@ export default function ProductOsPage() {
 
       {/* tabs */}
       <div className="flex gap-1 rounded-lg p-1" style={{ background: '#111114', border: '1px solid #1a1a1f', width: 'fit-content' }}>
-        {([['ciclo', 'Ciclo de vida', <Lightbulb key="a" size={13} />], ['producao', 'Produção', <Factory key="b" size={13} />], ['impressoras', 'Impressoras', <PrinterIcon key="d" size={13} />], ['rentabilidade', 'Rentabilidade', <TrendingUp key="e" size={13} />], ['insumos', 'Insumos', <Boxes key="c" size={13} />]] as const).map(([k, lbl, ic]) => (
+        {([['fabrica', 'Fábrica', <Gauge key="f" size={13} />], ['ciclo', 'Ciclo de vida', <Lightbulb key="a" size={13} />], ['producao', 'Produção', <Factory key="b" size={13} />], ['impressoras', 'Impressoras', <PrinterIcon key="d" size={13} />], ['rentabilidade', 'Rentabilidade', <TrendingUp key="e" size={13} />], ['insumos', 'Insumos', <Boxes key="c" size={13} />]] as const).map(([k, lbl, ic]) => (
           <button key={k} onClick={() => setTab(k)} className="flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-semibold" style={{ background: tab === k ? 'rgba(0,229,255,0.12)' : 'transparent', color: tab === k ? '#00E5FF' : '#71717a' }}>{ic}{lbl}</button>
         ))}
       </div>
 
       {error && <div className="flex items-center gap-2 rounded-lg p-3 text-sm" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}><AlertTriangle size={14} className="shrink-0" /> <span className="whitespace-pre-line">{error}</span></div>}
 
+      {tab === 'fabrica' && <FactoryPanel onGoTo={setTab} onOpen={setOpenId} />}
       {tab === 'ciclo' && <LifecycleBoard items={items} loading={loading} onOpen={setOpenId} onChanged={load} setError={setError} />}
       {tab === 'producao' && <ProductionBoard products={items} />}
       {tab === 'impressoras' && <PrintersPanel />}
@@ -634,6 +641,85 @@ function TimelineTab({ devId }: { devId: string }) {
           </div>
         </div>
       ))}
+    </div>
+  )
+}
+
+// ── PAINEL DA FÁBRICA ─────────────────────────────────────────────────
+function FactoryPanel({ onGoTo, onOpen }: { onGoTo: (t: 'impressoras' | 'rentabilidade' | 'insumos' | 'producao') => void; onOpen: (id: string) => void }) {
+  const [ov, setOv] = useState<FactoryOverview | null>(null); const [loading, setLoading] = useState(true); const [err, setErr] = useState('')
+  useEffect(() => { void (async () => { try { setOv(await api<FactoryOverview>('/product-os/factory-overview')) } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setLoading(false) } })() }, [])
+  const money = (n: number) => `R$ ${n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  if (loading) return <div className="flex items-center gap-2 p-6 text-sm" style={{ color: '#71717a' }}><Loader2 size={16} className="animate-spin" /> Carregando…</div>
+  if (err) return <div className="rounded-lg p-2.5 text-xs" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>{err}</div>
+  if (!ov) return null
+  const pk = ov.printers, pr = ov.production
+  return (
+    <div className="space-y-4">
+      {/* KPIs principais */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Kpi label="Investido em máquinas" value={money(pk.total_investment)} sub={`${pk.count} impressora(s) · ${pk.paid_off} já paga(s)`} accent="#a5f3fc" onClick={() => onGoTo('impressoras')} />
+        <div className="rounded-xl p-4" style={{ background: '#111114', border: '1px solid #27272a' }}>
+          <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#71717a' }}>Payback geral</p>
+          <p className="mt-1 text-2xl font-extrabold text-white">{pk.payback_pct == null ? '—' : `${pk.payback_pct.toFixed(0)}%`}</p>
+          <div className="mt-2 h-2 w-full overflow-hidden rounded-full" style={{ background: '#0a0a0e', border: '1px solid #1a1a1f' }}>
+            <div className="h-full rounded-full" style={{ width: `${Math.min(100, pk.payback_pct ?? 0)}%`, background: '#00E5FF' }} />
+          </div>
+          <p className="mt-1 text-[10px]" style={{ color: '#52525b' }}>{money(pk.total_paid_back)} de {money(pk.total_investment)} quitado</p>
+        </div>
+        <Kpi label="Lucro livre" value={money(pr.free_profit)} sub="contribuição após pagar as máquinas" accent="#4ade80" />
+        <Kpi label="Produção (30d)" value={String(pr.units_30d)} sub={`${pr.units_produced} unidades no total`} accent="#fafafa" onClick={() => onGoTo('producao')} />
+      </div>
+
+      {/* KPIs secundários */}
+      <div className="grid gap-3 sm:grid-cols-4">
+        <Kpi label="Horas impressas" value={`${pk.total_print_hours.toFixed(0)}h`} accent="#a1a1aa" />
+        <Kpi label="Ordens em produção" value={String(pr.orders_active)} accent="#a1a1aa" onClick={() => onGoTo('producao')} />
+        <Kpi label="Ordens concluídas" value={String(pr.orders_done)} accent="#a1a1aa" />
+        <Kpi label="Contribuição gerada" value={money(pr.total_contribution)} accent="#a1a1aa" />
+      </div>
+
+      <div className="grid gap-3 lg:grid-cols-2">
+        {/* top produtos */}
+        <div className="rounded-xl p-4" style={{ background: '#111114', border: '1px solid #27272a' }}>
+          <div className="mb-2 flex items-center gap-2"><TrendingUp size={14} className="text-cyan-400" /><span className="text-xs font-bold text-white">Mais rentáveis (R$/hora de máquina)</span><button onClick={() => onGoTo('rentabilidade')} className="ml-auto text-[10px] font-semibold text-cyan-400">ver tudo →</button></div>
+          {ov.top_products.length === 0 ? <p className="text-xs" style={{ color: '#52525b' }}>Sem produtos com tempo de impressão ainda.</p> : (
+            <div className="space-y-1.5">
+              {ov.top_products.map((p, i) => (
+                <button key={p.product_dev_id} onClick={() => onOpen(p.product_dev_id)} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs" style={{ background: '#0a0a0e', border: '1px solid #1a1a1f' }}>
+                  <span className="font-bold" style={{ color: '#52525b' }}>{i + 1}</span>
+                  <span className="truncate font-semibold text-white">{p.name}</span>
+                  <span className="ml-auto font-bold" style={{ color: p.profit_per_hour && p.profit_per_hour > 0 ? '#00E5FF' : '#f87171' }}>{p.profit_per_hour == null ? '—' : money(p.profit_per_hour) + '/h'}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* insumos em alerta */}
+        <div className="rounded-xl p-4" style={{ background: '#111114', border: `1px solid ${ov.inputs.low_stock.length ? 'rgba(252,211,77,0.4)' : '#27272a'}` }}>
+          <div className="mb-2 flex items-center gap-2"><AlertTriangle size={14} style={{ color: ov.inputs.low_stock.length ? '#fcd34d' : '#52525b' }} /><span className="text-xs font-bold text-white">Insumos para repor</span><button onClick={() => onGoTo('insumos')} className="ml-auto text-[10px] font-semibold text-cyan-400">gerenciar →</button></div>
+          {ov.inputs.low_stock.length === 0 ? <p className="text-xs" style={{ color: '#4ade80' }}>✓ Tudo abastecido.</p> : (
+            <div className="space-y-1.5">
+              {ov.inputs.low_stock.map((i, idx) => (
+                <div key={idx} className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs" style={{ background: '#0a0a0e', border: '1px solid #1a1a1f' }}>
+                  <span className="font-semibold text-white">{i.name}</span>
+                  <span className="ml-auto font-bold" style={{ color: '#fcd34d' }}>{i.available} {i.unit}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+function Kpi({ label, value, sub, accent, onClick }: { label: string; value: string; sub?: string; accent: string; onClick?: () => void }) {
+  return (
+    <div onClick={onClick} className={`rounded-xl p-4 ${onClick ? 'cursor-pointer' : ''}`} style={{ background: '#111114', border: '1px solid #27272a' }}>
+      <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#71717a' }}>{label}</p>
+      <p className="mt-1 text-2xl font-extrabold" style={{ color: accent }}>{value}</p>
+      {sub && <p className="mt-0.5 text-[10px]" style={{ color: '#52525b' }}>{sub}</p>}
     </div>
   )
 }
