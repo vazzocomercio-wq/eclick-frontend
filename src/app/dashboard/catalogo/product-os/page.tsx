@@ -621,7 +621,13 @@ function NewInputModal({ onClose, onCreated }: { onClose: () => void; onCreated:
 // ════════════════════════════════════════════════════════════════════
 // DRAWER de detalhe
 // ════════════════════════════════════════════════════════════════════
-type DrawerTab = 'briefing' | 'versoes' | 'custo' | 'bom' | 'qualidade' | 'timeline'
+interface CostReality {
+  estimated_unit_cost: number; real_unit_cost_avg: number; variance_pct: number | null
+  total_units_produced: number; total_estimated: number; total_real: number
+  orders: Array<{ order_number: number; is_prototype: boolean; quantity: number; real_time_min: number; material_cost: number; real_unit_cost: number; estimated_unit_cost: number; real_total: number }>
+  consumption: Array<{ name: string; unit: string; qty: number; cost: number }>
+}
+type DrawerTab = 'briefing' | 'versoes' | 'custo' | 'real' | 'bom' | 'qualidade' | 'timeline'
 function DetailDrawer({ id, onClose, onChanged }: { id: string; onClose: () => void; onChanged: () => void }) {
   const [dev, setDev] = useState<DevDetail | null>(null)
   const [err, setErr] = useState(''); const [msg, setMsg] = useState('')
@@ -665,7 +671,7 @@ function DetailDrawer({ id, onClose, onChanged }: { id: string; onClose: () => v
             {msg && <div className="mb-3 rounded-lg p-2.5 text-xs" style={{ background: 'rgba(74,222,128,0.10)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)' }}>{msg}</div>}
 
             <div className="mb-4 flex flex-wrap gap-1 rounded-lg p-1" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
-              {([['briefing', 'Briefing', <Sparkles key="a" size={11} />], ['versoes', 'Versões', <FileBox key="b" size={11} />], ['custo', 'Custo', <DollarSign key="c" size={11} />], ['bom', 'BOM', <ListChecks key="d" size={11} />], ['qualidade', 'Qualidade', <ClipboardList key="e" size={11} />], ['timeline', 'Timeline', <History key="f" size={11} />]] as const).map(([k, lbl, ic]) => (
+              {([['briefing', 'Briefing', <Sparkles key="a" size={11} />], ['versoes', 'Versões', <FileBox key="b" size={11} />], ['custo', 'Custo', <DollarSign key="c" size={11} />], ['real', 'Custo real', <Gauge key="g" size={11} />], ['bom', 'BOM', <ListChecks key="d" size={11} />], ['qualidade', 'Qualidade', <ClipboardList key="e" size={11} />], ['timeline', 'Timeline', <History key="f" size={11} />]] as const).map(([k, lbl, ic]) => (
                 <button key={k} onClick={() => setTab(k)} className="flex items-center justify-center gap-1 rounded px-2 py-1.5 text-[11px] font-semibold" style={{ background: tab === k ? 'rgba(0,229,255,0.12)' : 'transparent', color: tab === k ? '#00E5FF' : '#71717a' }}>{ic}{lbl}</button>
               ))}
             </div>
@@ -673,6 +679,7 @@ function DetailDrawer({ id, onClose, onChanged }: { id: string; onClose: () => v
             {tab === 'briefing' && <BriefingTab dev={dev} onChanged={() => { void reload(); onChanged() }} />}
             {tab === 'versoes' && <VersionsTab dev={dev} onChanged={() => { void reload(); onChanged() }} />}
             {tab === 'custo' && <CostTab dev={dev} onChanged={onChanged} />}
+            {tab === 'real' && <CostRealityTab devId={dev.id} />}
             {tab === 'bom' && <BomTab devId={dev.id} />}
             {tab === 'qualidade' && <QualityTab devId={dev.id} />}
             {tab === 'timeline' && <TimelineTab devId={dev.id} />}
@@ -797,6 +804,51 @@ function CostTab({ dev, onChanged }: { dev: DevDetail; onChanged: () => void }) 
           {res.suggested_prices.map(s => <div key={s.channel} className="flex items-center justify-between py-1 text-xs"><span style={{ color: '#a1a1aa' }}>{CHANNEL_LABEL[s.channel] ?? s.channel} <span style={{ color: '#52525b' }}>· taxa {s.fee_pct}%</span></span><span className="font-bold text-white">{s.price > 0 ? `R$ ${s.price.toFixed(2)}` : '—'}</span></div>)}
         </div>
       </>}
+    </div>
+  )
+}
+
+function CostRealityTab({ devId }: { devId: string }) {
+  const [d, setD] = useState<CostReality | null>(null); const [loading, setLoading] = useState(true); const [err, setErr] = useState('')
+  useEffect(() => { void (async () => { try { setD(await api<CostReality>(`/product-os/${devId}/cost-reality`)) } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setLoading(false) } })() }, [devId])
+  const money = (n: number) => `R$ ${n.toFixed(2)}`
+  if (loading) return <div className="flex items-center gap-2 text-sm" style={{ color: '#71717a' }}><Loader2 size={14} className="animate-spin" /> Carregando…</div>
+  if (err) return <div className="rounded-lg p-2.5 text-xs" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>{err}</div>
+  if (!d) return null
+  if (d.total_units_produced === 0) return <p className="text-xs" style={{ color: '#52525b' }}>Nenhuma produção concluída ainda. O custo real aparece quando uma ordem chega em &quot;Disponível&quot;.</p>
+  const v = d.variance_pct
+  return (
+    <div className="space-y-3">
+      <p className="text-xs" style={{ color: '#a1a1aa' }}>Quanto você <b>achou</b> que custava × quanto <b>custou de verdade</b> (material consumido + tempo real).</p>
+      <div className="grid grid-cols-3 gap-2">
+        <Stat label="Estimado/un" value={money(d.estimated_unit_cost)} />
+        <Stat label="REAL/un" value={money(d.real_unit_cost_avg)} />
+        <div className="rounded-lg py-1.5 text-center" style={{ background: '#0a0a0e', border: '1px solid #1a1a1f' }}>
+          <p className="text-sm font-bold" style={{ color: v == null ? '#a1a1aa' : v > 0 ? '#f87171' : '#4ade80' }}>{v == null ? '—' : (v > 0 ? '+' : '') + v.toFixed(1) + '%'}</p>
+          <p className="text-[9px]" style={{ color: '#52525b' }}>variância</p>
+        </div>
+      </div>
+      <p className="text-[10px]" style={{ color: '#52525b' }}>{d.total_units_produced} un produzidas · estimado {money(d.total_estimated)} × real {money(d.total_real)}</p>
+
+      <div className="rounded-lg p-3" style={{ background: '#111114', border: '1px solid #27272a' }}>
+        <p className="mb-2 text-xs font-bold text-white">Insumos consumidos</p>
+        {d.consumption.length === 0 ? <p className="text-xs" style={{ color: '#52525b' }}>Sem consumo registrado (vincule um insumo ao material da versão).</p> : d.consumption.map((c, i) => (
+          <div key={i} className="flex items-center justify-between py-0.5 text-xs"><span style={{ color: '#a1a1aa' }}>{c.name}</span><span style={{ color: '#71717a' }}>{c.qty} {c.unit} · <b className="text-cyan-400">{money(c.cost)}</b></span></div>
+        ))}
+      </div>
+
+      <div className="rounded-lg p-3" style={{ background: '#111114', border: '1px solid #27272a' }}>
+        <p className="mb-2 text-xs font-bold text-white">Por ordem concluída</p>
+        {d.orders.map(o => (
+          <div key={o.order_number} className="flex items-center gap-2 py-1 text-[11px]" style={{ color: '#a1a1aa' }}>
+            <span className="font-bold" style={{ color: '#52525b' }}>#{o.order_number}</span>
+            {o.is_prototype && <span className="rounded px-1 text-[8px] font-bold" style={{ background: 'rgba(168,85,247,0.15)', color: '#c4b5fd' }}>prot</span>}
+            <span>{o.quantity}un · {o.real_time_min}min</span>
+            <span className="ml-auto">real <b className="text-white">{money(o.real_unit_cost)}</b>/un</span>
+            <span style={{ color: '#52525b' }}>est {money(o.estimated_unit_cost)}</span>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
