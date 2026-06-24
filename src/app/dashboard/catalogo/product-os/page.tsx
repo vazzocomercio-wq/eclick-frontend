@@ -44,7 +44,7 @@ interface Settings {
 }
 interface Order {
   id: string; product_dev_id: string; order_number: number; quantity: number; machine: string | null; status: string
-  printer_id: string | null; estimated_time_minutes: number | null; estimated_filament_g: number | null; created_at: string
+  printer_id: string | null; is_prototype: boolean; estimated_time_minutes: number | null; estimated_filament_g: number | null; created_at: string
   jobs?: Job[]
 }
 interface Job { id: string; job_number: number; status: string; filament_used_g: number | null; print_time_minutes: number | null; failure_reason: string | null }
@@ -286,7 +286,8 @@ function ProductionBoard({ products }: { products: ProductDev[] }) {
     catch (e) { setErr(e instanceof Error ? e.message : 'Erro') }
   }
 
-  const approved = products.filter(p => ['aprovado', 'publicado', 'monitorando'].includes(p.status))
+  // produto cadastrado → produção; projeto com versão (modelagem+) → protótipo
+  const approved = products.filter(p => p.product_id || !['ideia', 'briefing'].includes(p.status))
 
   return (
     <div className="space-y-3">
@@ -306,7 +307,10 @@ function ProductionBoard({ products }: { products: ProductDev[] }) {
                 <div className="flex flex-col gap-2 px-2 pb-2" style={{ minHeight: 60 }}>
                   {cards.map(o => (
                     <div key={o.id} className="rounded-lg p-2.5" style={{ background: '#111114', border: '1px solid #27272a' }}>
-                      <p className="text-xs font-bold text-white">#{o.order_number} · {nameOf(o.product_dev_id)}</p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="truncate text-xs font-bold text-white">#{o.order_number} · {nameOf(o.product_dev_id)}</p>
+                        {o.is_prototype && <span className="shrink-0 rounded px-1 py-0.5 text-[8px] font-bold" style={{ background: 'rgba(168,85,247,0.15)', color: '#c4b5fd' }}>protótipo</span>}
+                      </div>
                       <p className="text-[10px]" style={{ color: '#71717a' }}>{o.quantity} un{o.estimated_filament_g ? ` · ${o.estimated_filament_g} g` : ''}{o.machine ? ` · ${o.machine}` : ''}</p>
                       <div className="mt-1.5 flex flex-wrap gap-1">
                         {(ORDER_NEXT[o.status] ?? []).map(ns => (
@@ -344,13 +348,14 @@ function NewOrderModal({ approved, onClose, onCreated }: { approved: ProductDev[
   return (
     <Modal title="Nova ordem de produção" onClose={onClose}>
       {err && <div className="mb-3 rounded-lg p-2.5 text-xs" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>{err}</div>}
-      {approved.length === 0 ? <p className="text-xs" style={{ color: '#a1a1aa' }}>Nenhum produto aprovado ainda. Aprove uma versão no Ciclo de vida primeiro.</p> : (
+      {approved.length === 0 ? <p className="text-xs" style={{ color: '#a1a1aa' }}>Nenhum projeto pronto. Avance um projeto pra modelagem pra imprimir protótipo, ou cadastre o produto (&quot;Virar anúncio&quot;) pra produzir unidades de venda.</p> : (
         <div className="space-y-2.5">
           <label className="block"><span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#71717a' }}>Produto</span>
             <select value={devId} onChange={e => setDevId(e.target.value)} className="w-full rounded-lg px-2.5 py-1.5 text-xs outline-none" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }}>
-              {approved.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              {approved.map(p => <option key={p.id} value={p.id}>{p.name}{p.product_id ? '' : ' (sem cadastro → protótipo)'}</option>)}
             </select>
           </label>
+          {(() => { const sel = approved.find(p => p.id === devId); const isProto = !!sel && !sel.product_id; return <p className="text-[10px]" style={{ color: isProto ? '#c4b5fd' : '#4ade80' }}>{isProto ? '🧪 Protótipo — consome insumo, NÃO vira estoque de venda.' : '📦 Produção — consome insumo e entra no estoque do produto cadastrado.'}</p> })()}
           <div className="grid grid-cols-2 gap-2">
             <Input label="Quantidade" value={qty} onChange={setQty} />
             <label className="block"><span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#71717a' }}>Impressora</span>
