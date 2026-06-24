@@ -61,13 +61,19 @@ interface Printer {
 }
 interface ProfitRow {
   product_dev_id: string; name: string; category: string | null; print_minutes_unit: number; cost_unit: number; price_unit: number
-  contribution_unit: number; profit_per_hour: number | null; units_sold_30d: number; units_produced: number; recommendation: string
+  contribution_unit: number; profit_per_hour: number | null; units_sold_30d: number; units_produced: number
+  revenue_30d: number; realized_profit_30d: number; recommendation: string
 }
 interface FactoryOverview {
   printers: { count: number; active: number; total_investment: number; total_paid_back: number; payback_pct: number | null; paid_off: number; total_print_hours: number }
   production: { orders_done: number; orders_active: number; units_produced: number; units_30d: number; total_contribution: number; free_profit: number }
+  sales: { revenue_30d: number; realized_profit_30d: number; units_sold_30d: number }
   inputs: { low_stock: Array<{ name: string; available: number; unit: string }> }
   top_products: ProfitRow[]
+}
+interface ProductionPlan {
+  capacity_hours: number; active_printers: number; hours_used: number; hours_idle: number; utilization_pct: number; total_contribution: number
+  plan: Array<{ product_dev_id: string; name: string; units: number; hours: number; profit_per_hour: number | null; contribution: number }>
 }
 
 const COLUMNS: { key: Status; label: string }[] = [
@@ -494,6 +500,16 @@ function BriefingTab({ dev, onChanged }: { dev: DevDetail; onChanged: () => void
 function VersionsTab({ dev, onChanged }: { dev: DevDetail; onChanged: () => void }) {
   const [adding, setAdding] = useState(false); const [err, setErr] = useState('')
   const [form, setForm] = useState({ changelog: '', file_url: '', material: '', weight_g: '', print_time_minutes: '', volume_cm3: '' })
+  const [slicer, setSlicer] = useState(''); const [parsing, setParsing] = useState(false); const [showSlicer, setShowSlicer] = useState(false)
+  const importSlicer = async () => {
+    setParsing(true); setErr('')
+    try {
+      const r = await api<{ weight_g: number | null; print_time_minutes: number | null; material: string | null }>('/product-os/parse-slicer', { method: 'POST', body: JSON.stringify({ text: slicer }) })
+      if (r.weight_g == null && r.print_time_minutes == null) { setErr('Não encontrei peso/tempo no texto. Cole o resumo do slicer ou o cabeçalho do G-code.'); return }
+      setForm(f => ({ ...f, weight_g: r.weight_g != null ? String(r.weight_g) : f.weight_g, print_time_minutes: r.print_time_minutes != null ? String(r.print_time_minutes) : f.print_time_minutes, material: r.material ?? f.material }))
+      setShowSlicer(false); setSlicer('')
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setParsing(false) }
+  }
   const add = async () => {
     setAdding(true); setErr('')
     try {
@@ -505,7 +521,16 @@ function VersionsTab({ dev, onChanged }: { dev: DevDetail; onChanged: () => void
   return (
     <div className="space-y-3">
       <div className="rounded-lg p-3 space-y-2" style={{ background: '#111114', border: '1px solid #27272a' }}>
-        <p className="text-xs font-bold text-white">Nova versão</p>
+        <div className="flex items-center gap-2"><p className="text-xs font-bold text-white">Nova versão</p>
+          <button onClick={() => setShowSlicer(s => !s)} className="ml-auto flex items-center gap-1 rounded px-2 py-1 text-[10px] font-semibold" style={{ background: 'rgba(0,229,255,0.10)', color: '#a5f3fc', border: '1px solid #27272a' }}><FileBox size={10} /> Importar do slicer</button>
+        </div>
+        {showSlicer && (
+          <div className="space-y-1.5 rounded-lg p-2" style={{ background: '#0a0a0e', border: '1px solid #1a1a1f' }}>
+            <p className="text-[10px]" style={{ color: '#71717a' }}>Cole o resumo do Bambu Studio/Orca (ou o cabeçalho do .gcode). Extraio peso, tempo e material.</p>
+            <textarea value={slicer} onChange={e => setSlicer(e.target.value)} rows={3} placeholder="Ex: Total time: 1h 32m · Total filament: 145.2 g · PLA" className="w-full rounded-lg px-2 py-1.5 text-[11px] outline-none" style={{ background: '#111114', border: '1px solid #27272a', color: '#fafafa' }} />
+            <button onClick={() => void importSlicer()} disabled={parsing || !slicer.trim()} className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[10px] font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}>{parsing ? <Loader2 size={10} className="animate-spin" /> : <Cpu size={10} />} Extrair</button>
+          </div>
+        )}
         <Input label="Changelog" value={form.changelog} onChange={v => setForm(f => ({ ...f, changelog: v }))} />
         <Input label="URL do arquivo (STL/3MF)" value={form.file_url} onChange={v => setForm(f => ({ ...f, file_url: v }))} />
         <div className="grid grid-cols-2 gap-2"><Input label="Material" value={form.material} onChange={v => setForm(f => ({ ...f, material: v }))} /><Input label="Peso (g)" value={form.weight_g} onChange={v => setForm(f => ({ ...f, weight_g: v }))} /></div>
@@ -679,6 +704,15 @@ function FactoryPanel({ onGoTo, onOpen }: { onGoTo: (t: 'impressoras' | 'rentabi
         <Kpi label="Contribuição gerada" value={money(pr.total_contribution)} accent="#a1a1aa" />
       </div>
 
+      {/* vendas reais (fecha o ciclo produzi→vendi→lucrei) */}
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Kpi label="Faturamento (30d)" value={money(ov.sales.revenue_30d)} sub="vendas reais dos produtos publicados" accent="#4ade80" />
+        <Kpi label="Lucro real (30d)" value={money(ov.sales.realized_profit_30d)} accent="#4ade80" />
+        <Kpi label="Unidades vendidas (30d)" value={String(ov.sales.units_sold_30d)} accent="#a1a1aa" />
+      </div>
+
+      <ProductionPlanCard onOpen={onOpen} />
+
       <div className="grid gap-3 lg:grid-cols-2">
         {/* top produtos */}
         <div className="rounded-xl p-4" style={{ background: '#111114', border: '1px solid #27272a' }}>
@@ -720,6 +754,47 @@ function Kpi({ label, value, sub, accent, onClick }: { label: string; value: str
       <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#71717a' }}>{label}</p>
       <p className="mt-1 text-2xl font-extrabold" style={{ color: accent }}>{value}</p>
       {sub && <p className="mt-0.5 text-[10px]" style={{ color: '#52525b' }}>{sub}</p>}
+    </div>
+  )
+}
+
+function ProductionPlanCard({ onOpen }: { onOpen: (id: string) => void }) {
+  const [plan, setPlan] = useState<ProductionPlan | null>(null); const [loading, setLoading] = useState(true); const [hours, setHours] = useState('')
+  const load = useCallback(async (h?: string) => { setLoading(true); try { setPlan(await api<ProductionPlan>(`/product-os/production-plan${h ? `?hours=${h}` : ''}`)) } catch { /* */ } finally { setLoading(false) } }, [])
+  useEffect(() => { void load() }, [load])
+  const money = (n: number) => `R$ ${n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  return (
+    <div className="rounded-xl p-4" style={{ background: '#111114', border: '1px solid #27272a' }}>
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <Factory size={14} className="text-cyan-400" />
+        <span className="text-xs font-bold text-white">Plano de produção sugerido</span>
+        <span className="text-[10px]" style={{ color: '#52525b' }}>maximiza R$/hora do parque, limitado pela demanda</span>
+        <div className="ml-auto flex items-center gap-1">
+          <input value={hours} onChange={e => setHours(e.target.value)} placeholder="horas" className="w-16 rounded px-2 py-1 text-[10px] outline-none" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }} />
+          <button onClick={() => void load(hours || undefined)} className="rounded px-2 py-1 text-[10px] font-semibold" style={{ background: 'rgba(0,229,255,0.10)', color: '#a5f3fc', border: '1px solid #27272a' }}>recalcular</button>
+        </div>
+      </div>
+      {loading ? <div className="flex items-center gap-2 text-xs" style={{ color: '#71717a' }}><Loader2 size={12} className="animate-spin" /> Calculando…</div> : !plan ? null : (
+        <>
+          <div className="mb-2 flex flex-wrap gap-3 text-[11px]" style={{ color: '#a1a1aa' }}>
+            <span>{plan.active_printers} máquina(s) · capacidade {plan.capacity_hours}h</span>
+            <span>utilização <b style={{ color: '#00E5FF' }}>{plan.utilization_pct}%</b></span>
+            <span>ociosas {plan.hours_idle}h</span>
+            <span>contribuição prevista <b style={{ color: '#4ade80' }}>{money(plan.total_contribution)}</b></span>
+          </div>
+          {plan.plan.length === 0 ? <p className="text-xs" style={{ color: '#52525b' }}>Sem produtos que vendam + tenham tempo de impressão pra planejar. Publique produtos e registre tempo/vendas.</p> : (
+            <div className="space-y-1.5">
+              {plan.plan.map(p => (
+                <button key={p.product_dev_id} onClick={() => onOpen(p.product_dev_id)} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs" style={{ background: '#0a0a0e', border: '1px solid #1a1a1f' }}>
+                  <span className="truncate font-semibold text-white">{p.name}</span>
+                  <span className="ml-auto" style={{ color: '#a5f3fc' }}>{p.units} un · {p.hours}h</span>
+                  <span className="font-bold" style={{ color: '#4ade80' }}>{money(p.contribution)}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </>
+      )}
     </div>
   )
 }
@@ -829,7 +904,7 @@ function ProfitabilityPanel({ onOpen }: { onOpen: (id: string) => void }) {
         <div className="overflow-x-auto rounded-xl" style={{ border: '1px solid #27272a' }}>
           <table className="w-full text-xs">
             <thead><tr style={{ background: '#0c0c10', color: '#71717a' }}>
-              {['Produto', 'R$/hora', 'Contrib./un', 'Tempo/un', 'Custo', 'Preço', 'Vendas 30d', 'Ação'].map((h, i) => <th key={h} className={`px-3 py-2 font-semibold ${i === 0 ? 'text-left' : 'text-right'} ${h === 'Ação' ? 'text-center' : ''}`}>{h}</th>)}
+              {['Produto', 'R$/hora', 'Contrib./un', 'Tempo/un', 'Custo', 'Preço', 'Vendas 30d', 'Lucro 30d', 'Ação'].map((h, i) => <th key={h} className={`px-3 py-2 font-semibold ${i === 0 ? 'text-left' : 'text-right'} ${h === 'Ação' ? 'text-center' : ''}`}>{h}</th>)}
             </tr></thead>
             <tbody>
               {rows.map(r => {
@@ -843,11 +918,12 @@ function ProfitabilityPanel({ onOpen }: { onOpen: (id: string) => void }) {
                     <td className="px-3 py-2 text-right" style={{ color: '#71717a' }}>{money(r.cost_unit)}</td>
                     <td className="px-3 py-2 text-right" style={{ color: '#71717a' }}>{r.price_unit ? money(r.price_unit) : '—'}</td>
                     <td className="px-3 py-2 text-right" style={{ color: r.units_sold_30d > 0 ? '#4ade80' : '#52525b' }}>{r.units_sold_30d}</td>
+                    <td className="px-3 py-2 text-right" style={{ color: r.realized_profit_30d > 0 ? '#4ade80' : '#52525b' }}>{r.realized_profit_30d > 0 ? money(r.realized_profit_30d) : '—'}</td>
                     <td className="px-3 py-2 text-center"><span className="rounded px-1.5 py-0.5 text-[9px] font-bold" style={{ background: rec.bg, color: rec.color }}>{rec.label}</span></td>
                   </tr>
                 )
               })}
-              {rows.length === 0 && <tr><td colSpan={8} className="px-3 py-6 text-center text-xs" style={{ color: '#52525b' }}>Sem produtos com dados de tempo de impressão ainda.</td></tr>}
+              {rows.length === 0 && <tr><td colSpan={9} className="px-3 py-6 text-center text-xs" style={{ color: '#52525b' }}>Sem produtos com dados de tempo de impressão ainda.</td></tr>}
             </tbody>
           </table>
         </div>
