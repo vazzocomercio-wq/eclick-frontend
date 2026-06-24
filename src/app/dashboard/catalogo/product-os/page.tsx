@@ -44,7 +44,7 @@ interface Settings {
 }
 interface Order {
   id: string; product_dev_id: string; order_number: number; quantity: number; machine: string | null; status: string
-  estimated_time_minutes: number | null; estimated_filament_g: number | null; created_at: string
+  printer_id: string | null; estimated_time_minutes: number | null; estimated_filament_g: number | null; created_at: string
   jobs?: Job[]
 }
 interface Job { id: string; job_number: number; status: string; filament_used_g: number | null; print_time_minutes: number | null; failure_reason: string | null }
@@ -265,8 +265,14 @@ function ProductionBoard({ products }: { products: ProductDev[] }) {
   }, [])
   useEffect(() => { void load() }, [load])
 
+  const [notice, setNotice] = useState('')
   const transition = async (oid: string, status: string) => {
     try { await api(`/product-os/production-orders/${oid}/transition`, { method: 'POST', body: JSON.stringify({ status }) }); void load() }
+    catch (e) { setErr(e instanceof Error ? e.message : 'Erro') }
+  }
+  const sendToPrinter = async (oid: string) => {
+    setErr(''); setNotice('')
+    try { await api(`/product-os/farm/orders/${oid}/send`, { method: 'POST' }); setNotice('Job enviado pra impressora (envio experimental — confirme na máquina).') }
     catch (e) { setErr(e instanceof Error ? e.message : 'Erro') }
   }
 
@@ -279,6 +285,7 @@ function ProductionBoard({ products }: { products: ProductDev[] }) {
         <button onClick={() => setShowNew(true)} className="ml-auto flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}><Plus size={12} /> Nova ordem</button>
       </div>
       {err && <div className="rounded-lg p-2.5 text-xs" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>{err}</div>}
+      {notice && <div className="rounded-lg p-2.5 text-xs" style={{ background: 'rgba(74,222,128,0.10)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)' }}>{notice}</div>}
       {loading ? <div className="flex items-center gap-2 p-6 text-sm" style={{ color: '#71717a' }}><Loader2 size={16} className="animate-spin" /> Carregando…</div> : (
         <div className="flex gap-3 overflow-x-auto pb-4">
           {ORDER_COLS.map(col => {
@@ -296,6 +303,9 @@ function ProductionBoard({ products }: { products: ProductDev[] }) {
                           <button key={ns} onClick={() => void transition(o.id, ns)} className="rounded px-1.5 py-0.5 text-[9px] font-semibold" style={{ background: ns === 'cancelado' || ns === 'falhou' ? '#0a0a0e' : 'rgba(0,229,255,0.10)', color: ns === 'cancelado' || ns === 'falhou' ? '#71717a' : '#a5f3fc', border: '1px solid #27272a' }}>{ns}</button>
                         ))}
                       </div>
+                      {o.printer_id && !['disponivel', 'cancelado'].includes(o.status) && (
+                        <button onClick={() => void sendToPrinter(o.id)} className="mt-1 flex w-full items-center justify-center gap-1 rounded px-1.5 py-1 text-[9px] font-bold" style={{ background: 'rgba(0,229,255,0.10)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.3)' }}><Send size={9} /> Enviar pra impressora</button>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -944,7 +954,16 @@ function ConnectFarmModal({ onClose }: { onClose: () => void }) {
 
 function PrinterDetailDrawer({ id, onClose }: { id: string; onClose: () => void }) {
   const [a, setA] = useState<PrinterAnalytics | null>(null); const [err, setErr] = useState('')
+  const [live, setLive] = useState<FarmStatus | null>(null); const [cmdMsg, setCmdMsg] = useState('')
   useEffect(() => { void (async () => { try { setA(await api<PrinterAnalytics>(`/product-os/printers/${id}/analytics`)) } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } })() }, [id])
+  const loadLive = useCallback(async () => { try { const s = await api<FarmStatus[]>('/product-os/farm/status'); setLive(s.find(x => x.id === id) ?? null) } catch { /* */ } }, [id])
+  useEffect(() => { void loadLive(); const it = setInterval(() => void loadLive(), 5000); return () => clearInterval(it) }, [loadLive])
+  const cmd = async (type: string) => {
+    if (type === 'stop' && !window.confirm('Parar a impressão atual? Isso cancela o job na máquina.')) return
+    setCmdMsg('')
+    try { await api(`/product-os/farm/printers/${id}/command`, { method: 'POST', body: JSON.stringify({ type }) }); setCmdMsg('Comando enviado à impressora.') }
+    catch (e) { setCmdMsg(e instanceof Error ? e.message : 'Erro') }
+  }
   const money = (n: number) => `R$ ${n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
   return (
     <div className="fixed inset-0 z-50 flex justify-end" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={onClose}>
@@ -959,6 +978,28 @@ function PrinterDetailDrawer({ id, onClose }: { id: string; onClose: () => void 
               </div>
               <button onClick={onClose} className="ml-auto" style={{ color: '#71717a' }}><X size={18} /></button>
             </div>
+
+            {/* controle ao vivo */}
+            {live && (
+              <div className="mb-3 rounded-lg p-2.5" style={{ background: live.online ? 'rgba(0,229,255,0.05)' : '#0c0c10', border: `1px solid ${live.online ? 'rgba(0,229,255,0.25)' : '#1a1a1f'}` }}>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="h-1.5 w-1.5 rounded-full" style={{ background: live.online ? (live.state === 'printing' ? '#00E5FF' : live.state === 'error' ? '#f87171' : '#4ade80') : '#52525b' }} />
+                  <span className="text-[11px] font-semibold" style={{ color: '#a1a1aa' }}>{live.online ? live.state : 'offline'}</span>
+                  {live.state === 'printing' && live.progress_pct != null && <span className="text-[11px]" style={{ color: '#a5f3fc' }}>{Math.round(live.progress_pct)}%{live.remaining_minutes != null ? ` · ${live.remaining_minutes}min` : ''}</span>}
+                  {live.online && (
+                    <div className="ml-auto flex gap-1">
+                      {live.state === 'printing' && <CtrlBtn onClick={() => void cmd('pause')} label="Pausar" />}
+                      {live.state === 'paused' && <CtrlBtn onClick={() => void cmd('resume')} label="Retomar" />}
+                      {(live.state === 'printing' || live.state === 'paused') && <CtrlBtn onClick={() => void cmd('stop')} label="Parar" danger />}
+                      <CtrlBtn onClick={() => void cmd('light_on')} label="Luz" />
+                      <CtrlBtn onClick={() => void cmd('light_off')} label="Off" />
+                    </div>
+                  )}
+                </div>
+                {cmdMsg && <p className="mt-1 text-[10px]" style={{ color: '#a5f3fc' }}>{cmdMsg}</p>}
+                {!live.online && <p className="mt-1 text-[10px]" style={{ color: '#52525b' }}>Offline — sem controle. Verifique o agente na fábrica.</p>}
+              </div>
+            )}
 
             {/* payback */}
             <div className="mb-3 rounded-xl p-4" style={{ background: '#111114', border: `1px solid ${a.economics.paid_off ? 'rgba(74,222,128,0.4)' : '#27272a'}` }}>
@@ -1029,6 +1070,9 @@ function PrinterDetailDrawer({ id, onClose }: { id: string; onClose: () => void 
 
 function Stat({ label, value }: { label: string; value: string }) {
   return <div className="rounded-lg py-1.5" style={{ background: '#0a0a0e', border: '1px solid #1a1a1f' }}><p className="text-sm font-bold text-white">{value}</p><p className="text-[9px]" style={{ color: '#52525b' }}>{label}</p></div>
+}
+function CtrlBtn({ onClick, label, danger }: { onClick: () => void; label: string; danger?: boolean }) {
+  return <button onClick={onClick} className="rounded px-2 py-1 text-[10px] font-semibold" style={{ background: danger ? 'rgba(239,68,68,0.10)' : 'rgba(0,229,255,0.10)', color: danger ? '#f87171' : '#a5f3fc', border: `1px solid ${danger ? 'rgba(239,68,68,0.3)' : '#27272a'}` }}>{label}</button>
 }
 
 function NewPrinterModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
