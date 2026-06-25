@@ -66,6 +66,10 @@ interface Printer {
   accumulated_contribution: number; paid_pct: number | null; remaining_to_payback: number; paid_off: boolean
   total_units_produced: number; total_print_minutes: number; active_orders: number; depreciation_per_hour: number | null
 }
+interface ConsumePreview {
+  source: 'bom' | 'filament' | 'none'; quantity: number; total_cost: number; all_sufficient: boolean; material?: string | null
+  lines: Array<{ input_id: string | null; name: string; unit: string; needed: number; available: number; sufficient: boolean; unit_cost: number; line_cost: number }>
+}
 interface ProfitRow {
   product_dev_id: string; name: string; category: string | null; print_minutes_unit: number; cost_unit: number; price_unit: number
   contribution_unit: number; profit_per_hour: number | null; units_sold_30d: number; units_produced: number
@@ -371,7 +375,19 @@ function NewOrderModal({ approved, onClose, onCreated }: { approved: ProductDev[
   const [qty, setQty] = useState('1'); const [printerId, setPrinterId] = useState('')
   const [printers, setPrinters] = useState<Printer[]>([])
   const [busy, setBusy] = useState(false); const [err, setErr] = useState('')
+  const [preview, setPreview] = useState<ConsumePreview | null>(null); const [prevLoading, setPrevLoading] = useState(false)
   useEffect(() => { void (async () => { try { setPrinters(await api<Printer[]>('/product-os/printers')) } catch { /* */ } })() }, [])
+  useEffect(() => {
+    const n = Number(qty) || 0
+    if (!devId || n < 1) { setPreview(null); return }
+    let cancel = false; setPrevLoading(true)
+    const t = setTimeout(() => { void (async () => {
+      try { const p = await api<ConsumePreview>('/product-os/production-orders/preview', { method: 'POST', body: JSON.stringify({ product_dev_id: devId, quantity: n }) }); if (!cancel) setPreview(p) }
+      catch { if (!cancel) setPreview(null) }
+      finally { if (!cancel) setPrevLoading(false) }
+    })() }, 350)
+    return () => { cancel = true; clearTimeout(t) }
+  }, [devId, qty])
   const create = async () => {
     if (!devId) { setErr('Selecione um produto aprovado'); return }
     setBusy(true); setErr('')
@@ -398,6 +414,25 @@ function NewOrderModal({ approved, onClose, onCreated }: { approved: ProductDev[
               </select>
             </label>
           </div>
+          {prevLoading && <p className="text-[10px]" style={{ color: '#52525b' }}>Calculando consumo…</p>}
+          {preview && preview.lines.length > 0 && (
+            <div className="rounded-lg p-2.5" style={{ background: '#0d0d10', border: '1px solid #27272a' }}>
+              <div className="mb-1.5 flex items-center justify-between">
+                <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#71717a' }}>Vai consumir do estoque{preview.source === 'filament' ? ' (filamento)' : ''}</span>
+                <span className="text-[10px]" style={{ color: '#a5f3fc' }}>≈ R$ {preview.total_cost.toFixed(2)}</span>
+              </div>
+              <div className="space-y-1">
+                {preview.lines.map((l, idx) => (
+                  <div key={l.input_id ?? idx} className="flex items-center justify-between text-[11px]">
+                    <span className="truncate" style={{ color: '#d4d4d8' }}>{l.name}</span>
+                    <span className="ml-2 shrink-0" style={{ color: l.sufficient ? '#4ade80' : '#f87171' }}>{l.needed} {l.unit} <span style={{ color: '#52525b' }}>/ {l.available} disp.</span></span>
+                  </div>
+                ))}
+              </div>
+              {!preview.all_sufficient && <p className="mt-1.5 text-[10px]" style={{ color: '#fcd34d' }}>⚠️ Estoque insuficiente em algum insumo — reponha antes de concluir a produção.</p>}
+            </div>
+          )}
+          {preview && preview.lines.length === 0 && preview.source === 'none' && <p className="text-[10px]" style={{ color: '#52525b' }}>Sem composição (BOM) nem peso de versão — nenhum insumo será reservado.</p>}
           <div className="flex justify-end"><button onClick={() => void create()} disabled={busy} className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}>{busy ? <Loader2 size={12} className="animate-spin" /> : <Factory size={12} />} Criar ordem</button></div>
         </div>
       )}
