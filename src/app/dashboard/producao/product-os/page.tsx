@@ -846,6 +846,10 @@ function VersionsTab({ dev, onChanged }: { dev: DevDetail; onChanged: () => void
       setForm({ changelog: '', file_url: '', file_type: '', material: '', weight_g: '', print_time_minutes: '', volume_cm3: '' }); setPhotos([]); onChanged()
     } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setAdding(false) }
   }
+  const removeFormFile = async () => {
+    const u = form.file_url; setForm(f => ({ ...f, file_url: '', file_type: '' }))
+    if (u) { try { await api('/product-os/delete-file', { method: 'POST', body: JSON.stringify({ url: u }) }) } catch { /* arquivo solto, segue */ } }
+  }
   return (
     <div className="space-y-3">
       <div className="rounded-lg p-3 space-y-2" style={{ background: '#111114', border: '1px solid #27272a' }}>
@@ -862,7 +866,7 @@ function VersionsTab({ dev, onChanged }: { dev: DevDetail; onChanged: () => void
         <Input label="Changelog" value={form.changelog} onChange={v => setForm(f => ({ ...f, changelog: v }))} />
         <div className="flex items-center gap-2">
           <UploadButton label="Subir arquivo (STL/3MF/STEP)" accept=".stl,.3mf,.step,.obj" onUploaded={(urls, files) => setForm(f => ({ ...f, file_url: urls[0], file_type: fileTypeOf(files[0].name) }))} />
-          {form.file_url && <span className="text-[10px]" style={{ color: '#4ade80' }}>✓ arquivo enviado ({form.file_type})</span>}
+          {form.file_url && <span className="flex items-center gap-1.5 text-[10px]" style={{ color: '#4ade80' }}>✓ arquivo enviado ({form.file_type}) <button onClick={() => void removeFormFile()} className="flex items-center gap-0.5" style={{ color: '#f87171' }}><Trash2 size={10} /> remover</button></span>}
         </div>
         <div className="grid grid-cols-2 gap-2"><Input label="Material" value={form.material} onChange={v => setForm(f => ({ ...f, material: v }))} /><Input label="Peso (g)" value={form.weight_g} onChange={v => setForm(f => ({ ...f, weight_g: v }))} /></div>
         <div className="grid grid-cols-2 gap-2"><Input label="Tempo impressão (min)" value={form.print_time_minutes} onChange={v => setForm(f => ({ ...f, print_time_minutes: v }))} /><Input label="Volume (cm³)" value={form.volume_cm3} onChange={v => setForm(f => ({ ...f, volume_cm3: v }))} /></div>
@@ -887,6 +891,7 @@ function VersionCard({ v, onChanged }: { v: Version; onChanged: () => void }) {
   const [editing, setEditing] = useState(false); const [busy, setBusy] = useState(false); const [err, setErr] = useState('')
   const [f, setF] = useState({ changelog: v.changelog ?? '', material: v.material ?? '', weight_g: v.weight_g != null ? String(v.weight_g) : '', print_time_minutes: v.print_time_minutes != null ? String(v.print_time_minutes) : '', volume_cm3: v.volume_cm3 != null ? String(v.volume_cm3) : '' })
   const setApproval = async (approved: boolean) => { try { await api(`/product-os/versions/${v.id}/approval`, { method: 'POST', body: JSON.stringify({ approved }) }); onChanged() } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } }
+  const removeFile = async () => { if (!window.confirm('Excluir o arquivo do storage? Libera espaço e não dá pra desfazer.')) return; setBusy(true); setErr(''); try { await api(`/product-os/versions/${v.id}/remove-file`, { method: 'POST' }); onChanged() } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setBusy(false) } }
   const save = async () => {
     setBusy(true); setErr('')
     try { await api(`/product-os/versions/${v.id}`, { method: 'PATCH', body: JSON.stringify({ changelog: f.changelog || null, material: f.material || null, weight_g: f.weight_g ? Number(f.weight_g) : null, print_time_minutes: f.print_time_minutes ? Number(f.print_time_minutes) : null, volume_cm3: f.volume_cm3 ? Number(f.volume_cm3) : null }) }); setEditing(false); onChanged() }
@@ -910,7 +915,7 @@ function VersionCard({ v, onChanged }: { v: Version; onChanged: () => void }) {
         </div>
       ) : (
         <>
-          <div className="mt-1.5 flex flex-wrap gap-2 text-[10px]" style={{ color: '#a1a1aa' }}>{v.material && <span>{v.material}</span>}{v.weight_g != null && <span>{v.weight_g} g</span>}{v.print_time_minutes != null && <span>{v.print_time_minutes} min</span>}{v.volume_cm3 != null && <span>{v.volume_cm3} cm³</span>}{v.file_url && <a href={v.file_url} target="_blank" rel="noreferrer" className="text-cyan-400 underline">arquivo</a>}</div>
+          <div className="mt-1.5 flex flex-wrap gap-2 text-[10px]" style={{ color: '#a1a1aa' }}>{v.material && <span>{v.material}</span>}{v.weight_g != null && <span>{v.weight_g} g</span>}{v.print_time_minutes != null && <span>{v.print_time_minutes} min</span>}{v.volume_cm3 != null && <span>{v.volume_cm3} cm³</span>}{v.file_url && <a href={v.file_url} target="_blank" rel="noreferrer" className="text-cyan-400 underline">arquivo</a>}{v.file_url && <button onClick={() => void removeFile()} disabled={busy} className="flex items-center gap-0.5 disabled:opacity-50" style={{ color: '#f87171' }}><Trash2 size={10} /> excluir arquivo</button>}</div>
           {v.prototype_photo_urls && v.prototype_photo_urls.length > 0 && <div className="mt-1 flex flex-wrap gap-1">{v.prototype_photo_urls.map((u, i) => (
             // eslint-disable-next-line @next/next/no-img-element
             <img key={i} src={u} alt="" className="h-8 w-8 rounded object-cover" style={{ border: '1px solid #27272a' }} />
