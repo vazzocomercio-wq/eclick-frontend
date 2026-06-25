@@ -494,7 +494,7 @@ function InsumosPanel() {
   const [list, setList] = useState<Input[]>([])
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState('')
-  const [showNew, setShowNew] = useState(false); const [restockItem, setRestockItem] = useState<Input | null>(null); const [openInsumo, setOpenInsumo] = useState<Input | null>(null)
+  const [showNew, setShowNew] = useState(false); const [showNf, setShowNf] = useState(false); const [restockItem, setRestockItem] = useState<Input | null>(null); const [openInsumo, setOpenInsumo] = useState<Input | null>(null)
   const load = useCallback(async () => {
     setLoading(true); setErr('')
     try { setList(await api<Input[]>('/product-os/production-inputs')) }
@@ -506,7 +506,8 @@ function InsumosPanel() {
     <div className="space-y-3">
       <div className="flex items-center gap-2">
         <p className="text-xs" style={{ color: '#a1a1aa' }}>Estoque de filamento, embalagem e etiquetas. A produção reserva e baixa automaticamente.</p>
-        <button onClick={() => setShowNew(true)} className="ml-auto flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}><Plus size={12} /> Novo insumo</button>
+        <button onClick={() => setShowNf(true)} className="ml-auto flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold" style={{ background: '#111114', border: '1px solid #27272a', color: '#a5f3fc' }}><FileBox size={12} /> Importar NF (XML)</button>
+        <button onClick={() => setShowNew(true)} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}><Plus size={12} /> Novo insumo</button>
       </div>
       {err && <div className="rounded-lg p-2.5 text-xs" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>{err}</div>}
       {loading ? <div className="flex items-center gap-2 p-6 text-sm" style={{ color: '#71717a' }}><Loader2 size={16} className="animate-spin" /> Carregando…</div> : (
@@ -528,6 +529,7 @@ function InsumosPanel() {
         </div>
       )}
       {showNew && <NewInputModal onClose={() => setShowNew(false)} onCreated={() => { setShowNew(false); void load() }} />}
+      {showNf && <ImportNfModal onClose={() => setShowNf(false)} onImported={() => { setShowNf(false); void load() }} />}
       {restockItem && <RestockModal item={restockItem} onClose={() => setRestockItem(null)} onDone={() => { setRestockItem(null); void load() }} />}
       {openInsumo && <InsumoDetailDrawer item={openInsumo} onClose={() => setOpenInsumo(null)} onChanged={() => { setOpenInsumo(null); void load() }} />}
     </div>
@@ -640,6 +642,112 @@ function RestockModal({ item, onClose, onDone }: { item: Input; onClose: () => v
       </div>
       <div className="mt-4 flex justify-end"><button onClick={() => void save()} disabled={busy} className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}>{busy ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />} Dar entrada</button></div>
     </Modal>
+  )
+}
+
+interface NfeItem { code: string | null; ean: string | null; description: string; ncm: string | null; cfop: string | null; unit: string; quantity: number; unit_cost: number; total: number; kind: string; material: string | null }
+interface NfePreview {
+  supplier: { tax_id: string | null; name: string; legal_name: string; ie: string | null; phone: string | null; address: Record<string, string | null> }
+  nf: { number: string | null; serie: string | null; date: string | null; access_key: string | null; total: number }
+  items: NfeItem[]; supplier_existing_id: string | null; already_imported: boolean
+  items_matched: { index: number; input_id: string | null; input_name: string | null }[]
+}
+type NfRow = NfeItem & { include: boolean; link_input_id: string | null; match_name: string | null }
+
+function ImportNfModal({ onClose, onImported }: { onClose: () => void; onImported: () => void }) {
+  const [preview, setPreview] = useState<NfePreview | null>(null)
+  const [rows, setRows] = useState<NfRow[]>([])
+  const [busy, setBusy] = useState(false); const [committing, setCommitting] = useState(false); const [err, setErr] = useState(''); const [msg, setMsg] = useState('')
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0]; if (!f) return
+    setBusy(true); setErr(''); setPreview(null)
+    try {
+      const xml = await f.text()
+      const p = await api<NfePreview>('/product-os/production-inputs/import-nfe/preview', { method: 'POST', body: JSON.stringify({ xml }) })
+      setPreview(p)
+      setRows(p.items.map((it, i) => { const m = p.items_matched.find(x => x.index === i); return { ...it, include: true, link_input_id: m?.input_id ?? null, match_name: m?.input_name ?? null } }))
+    } catch (e2) { setErr(e2 instanceof Error ? e2.message : 'Erro ao ler a NF') } finally { setBusy(false); if (fileRef.current) fileRef.current.value = '' }
+  }
+  const doImport = async () => {
+    if (!preview) return
+    setCommitting(true); setErr(''); setMsg('')
+    try {
+      const r = await api<{ created: number; restocked: number }>('/product-os/production-inputs/import-nfe', { method: 'POST', body: JSON.stringify({
+        supplier: { ...preview.supplier, use_existing_id: preview.supplier_existing_id },
+        nf: { access_key: preview.nf.access_key, number: preview.nf.number, total: preview.nf.total },
+        items: rows.map(r => ({ include: r.include, link_input_id: r.link_input_id, name: r.description, sku: r.code, unit: r.unit, quantity: r.quantity, unit_cost: r.unit_cost, kind: r.kind, material: r.material, description: r.description })),
+      }) })
+      setMsg(`Importado: ${r.created} insumo(s) novo(s), ${r.restocked} abastecido(s). Fornecedor e estoque atualizados.`)
+      setTimeout(onImported, 1200)
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Erro ao importar') } finally { setCommitting(false) }
+  }
+  const KINDS = ['filamento', 'embalagem', 'etiqueta', 'outro']
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={onClose}>
+      <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl p-5" style={{ background: '#111114', border: '1px solid #27272a' }} onClick={e => e.stopPropagation()}>
+        <div className="mb-4 flex items-center gap-2"><h3 className="text-sm font-bold text-white">Importar NF de insumo (XML)</h3><button onClick={onClose} className="ml-auto" style={{ color: '#71717a' }}><X size={16} /></button></div>
+        {err && <div className="mb-3 rounded-lg p-2.5 text-xs" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>{err}</div>}
+        {msg && <div className="mb-3 rounded-lg p-2.5 text-xs" style={{ background: 'rgba(74,222,128,0.10)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)' }}>{msg}</div>}
+
+        {!preview ? (
+          <div className="space-y-2">
+            <p className="text-xs" style={{ color: '#a1a1aa' }}>Suba o <b style={{ color: '#a5f3fc' }}>XML</b> da NF-e de compra. O sistema cria o fornecedor e os insumos, e dá entrada no estoque ao custo da nota (recalcula o custo médio). Cada item você revisa antes.</p>
+            <input ref={fileRef} type="file" accept=".xml,text/xml,application/xml" onChange={e => void onFile(e)} style={{ display: 'none' }} />
+            <button onClick={() => fileRef.current?.click()} disabled={busy} className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}>{busy ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />} Escolher XML da NF</button>
+            <p className="text-[11px]" style={{ color: '#52525b' }}>PDF (DANFE) ainda não — use o XML (toda NF-e tem; peça ao fornecedor ou baixe no portal da SEFAZ).</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {/* fornecedor */}
+            <div className="rounded-xl p-3" style={{ background: '#0a0a0e', border: '1px solid #1a1a1f' }}>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-bold uppercase tracking-wide" style={{ color: '#71717a' }}>Fornecedor</span>
+                <span className="rounded px-1.5 py-0.5 text-[9px] font-bold" style={{ background: preview.supplier_existing_id ? 'rgba(165,243,252,0.12)' : 'rgba(74,222,128,0.12)', color: preview.supplier_existing_id ? '#a5f3fc' : '#4ade80' }}>{preview.supplier_existing_id ? 'já cadastrado' : 'novo'}</span>
+              </div>
+              <p className="mt-1 text-sm font-bold text-white">{preview.supplier.name}</p>
+              <p className="text-[11px]" style={{ color: '#71717a' }}>{preview.supplier.legal_name}{preview.supplier.tax_id ? ` · CNPJ ${preview.supplier.tax_id}` : ''}{preview.supplier.address?.city ? ` · ${preview.supplier.address.city}/${preview.supplier.address.uf}` : ''}</p>
+            </div>
+
+            {preview.already_imported && <div className="rounded-lg p-2.5 text-[11px]" style={{ background: 'rgba(252,211,77,0.10)', color: '#fcd34d', border: '1px solid rgba(252,211,77,0.25)' }}>⚠️ Esta NF (chave {preview.nf.access_key?.slice(0, 10)}…) já foi importada antes — importar de novo dá entrada dobrada no estoque. O sistema vai recusar.</div>}
+
+            <p className="text-[11px]" style={{ color: '#71717a' }}>NF {preview.nf.number ?? '—'} · total R$ {Number(preview.nf.total).toFixed(2)} · {rows.length} itens</p>
+
+            {/* itens */}
+            <div className="space-y-2">
+              {rows.map((r, i) => (
+                <div key={i} className="rounded-lg p-2.5" style={{ background: '#0a0a0e', border: `1px solid ${r.include ? '#27272a' : '#1a1a1f'}`, opacity: r.include ? 1 : 0.55 }}>
+                  <div className="flex items-start gap-2">
+                    <input type="checkbox" checked={r.include} onChange={e => setRows(rs => rs.map((x, j) => j === i ? { ...x, include: e.target.checked } : x))} className="mt-0.5" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xs font-semibold text-white">{r.description}</p>
+                      <p className="text-[10px]" style={{ color: '#71717a' }}>{r.code ? `cód ${r.code} · ` : ''}{r.quantity} {r.unit} × R$ {r.unit_cost.toFixed(2)} = R$ {r.total.toFixed(2)}</p>
+                      <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                        <select value={r.kind} onChange={e => setRows(rs => rs.map((x, j) => j === i ? { ...x, kind: e.target.value } : x))} className="rounded px-1.5 py-0.5 text-[10px] outline-none" style={{ background: '#111114', border: '1px solid #27272a', color: '#fafafa' }}>
+                          {KINDS.map(k => <option key={k} value={k}>{k}</option>)}
+                        </select>
+                        {r.match_name ? (
+                          <label className="flex items-center gap-1 text-[10px]" style={{ color: '#a5f3fc' }}>
+                            <input type="checkbox" checked={!!r.link_input_id} onChange={e => setRows(rs => rs.map((x, j) => j === i ? { ...x, link_input_id: e.target.checked ? (preview.items_matched.find(m => m.index === i)?.input_id ?? null) : null } : x))} />
+                            {r.link_input_id ? `abastece "${r.match_name}"` : `criar novo (em vez de "${r.match_name}")`}
+                          </label>
+                        ) : <span className="text-[10px]" style={{ color: '#4ade80' }}>novo insumo</span>}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex items-center justify-end">
+              <button onClick={() => void doImport()} disabled={committing || preview.already_imported || !rows.some(r => r.include)} className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}>{committing ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />} Importar {rows.filter(r => r.include).length} item(ns)</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   )
 }
 
