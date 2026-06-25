@@ -645,7 +645,7 @@ function RestockModal({ item, onClose, onDone }: { item: Input; onClose: () => v
   )
 }
 
-interface NfeItem { code: string | null; ean: string | null; description: string; ncm: string | null; cfop: string | null; unit: string; quantity: number; unit_cost: number; total: number; kind: string; material: string | null }
+interface NfeItem { code: string | null; ean: string | null; description: string; ncm: string | null; cfop: string | null; unit: string; quantity: number; unit_cost: number; total: number; kind: string; material: string | null; color: string | null; diameter_mm: number | null; spool_weight_g: number | null; raw_unit: string; raw_quantity: number; raw_unit_cost: number; conversion: string | null }
 interface NfePreview {
   supplier: { tax_id: string | null; name: string; legal_name: string; ie: string | null; phone: string | null; address: Record<string, string | null> }
   nf: { number: string | null; serie: string | null; date: string | null; access_key: string | null; total: number }
@@ -684,7 +684,7 @@ function ImportNfModal({ onClose, onImported }: { onClose: () => void; onImporte
       const r = await api<{ created: number; restocked: number }>('/product-os/production-inputs/import-nfe', { method: 'POST', body: JSON.stringify({
         supplier: { ...preview.supplier, use_existing_id: preview.supplier_existing_id },
         nf: { access_key: preview.nf.access_key, number: preview.nf.number, total: preview.nf.total },
-        items: rows.map(r => ({ include: r.include, link_input_id: r.link_input_id, name: r.description, sku: r.code, unit: r.unit, quantity: r.quantity, unit_cost: r.unit_cost, kind: r.kind, material: r.material, description: r.description })),
+        items: rows.map(r => ({ include: r.include, link_input_id: r.link_input_id, name: r.description, sku: r.code, unit: r.unit, quantity: r.quantity, unit_cost: r.unit_cost, kind: r.kind, material: r.material, description: r.description, color: r.color, diameter_mm: r.diameter_mm, spool_weight_g: r.spool_weight_g })),
       }) })
       setMsg(`Importado: ${r.created} insumo(s) novo(s), ${r.restocked} abastecido(s). Fornecedor e estoque atualizados.`)
       setTimeout(onImported, 1200)
@@ -730,15 +730,30 @@ function ImportNfModal({ onClose, onImported }: { onClose: () => void; onImporte
                     <input type="checkbox" checked={r.include} onChange={e => setRows(rs => rs.map((x, j) => j === i ? { ...x, include: e.target.checked } : x))} className="mt-0.5" />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-xs font-semibold text-white">{r.description}</p>
-                      <p className="text-[10px]" style={{ color: '#71717a' }}>{r.code ? `cód ${r.code} · ` : ''}{r.quantity} {r.unit} × R$ {r.unit_cost.toFixed(2)} = R$ {r.total.toFixed(2)}</p>
-                      <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                      <p className="text-[10px]" style={{ color: '#71717a' }}>NF: {r.raw_quantity} {r.raw_unit} × R$ {r.raw_unit_cost.toFixed(2)} = R$ {r.total.toFixed(2)}{r.code ? ` · cód ${r.code}` : ''}</p>
+                      {r.conversion && <p className="text-[10px]" style={{ color: '#a5f3fc' }}>↳ convertido: {r.conversion}</p>}
+                      {/* campos que alimentam o sistema — edite se a leitura errou */}
+                      <div className="mt-1.5 grid grid-cols-3 gap-1.5">
+                        {([['quantity', 'Quantidade'], ['unit', 'Unidade'], ['unit_cost', 'Custo/un']] as const).map(([f, lbl]) => (
+                          <label key={f} className="block"><span className="block text-[9px] uppercase tracking-wide" style={{ color: '#52525b' }}>{lbl}</span>
+                            {f === 'unit'
+                              ? <select value={r.unit} onChange={e => setRows(rs => rs.map((x, j) => j === i ? { ...x, unit: e.target.value } : x))} className="w-full rounded px-1.5 py-0.5 text-[11px] outline-none" style={{ background: '#111114', border: '1px solid #27272a', color: '#fafafa' }}>{['g', 'kg', 'un', 'm'].map(u => <option key={u} value={u}>{u}</option>)}</select>
+                              : <input type="number" step={f === 'unit_cost' ? '0.00001' : '1'} value={r[f]} onChange={e => setRows(rs => rs.map((x, j) => j === i ? { ...x, [f]: Number(e.target.value) || 0 } : x))} className="w-full rounded px-1.5 py-0.5 text-[11px] outline-none" style={{ background: '#111114', border: '1px solid #27272a', color: '#fafafa' }} />}
+                          </label>
+                        ))}
+                      </div>
+                      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                         <select value={r.kind} onChange={e => setRows(rs => rs.map((x, j) => j === i ? { ...x, kind: e.target.value } : x))} className="rounded px-1.5 py-0.5 text-[10px] outline-none" style={{ background: '#111114', border: '1px solid #27272a', color: '#fafafa' }}>
                           {KINDS.map(k => <option key={k} value={k}>{k}</option>)}
                         </select>
+                        {r.material && <span className="rounded px-1.5 py-0.5 text-[9px]" style={{ background: '#111114', color: '#a1a1aa', border: '1px solid #27272a' }}>{r.material}</span>}
+                        {r.color && <span className="rounded px-1.5 py-0.5 text-[9px]" style={{ background: '#111114', color: '#a1a1aa', border: '1px solid #27272a' }}>{r.color}</span>}
+                        {r.diameter_mm && <span className="rounded px-1.5 py-0.5 text-[9px]" style={{ background: '#111114', color: '#a1a1aa', border: '1px solid #27272a' }}>{r.diameter_mm}mm</span>}
+                        {r.spool_weight_g && <span className="rounded px-1.5 py-0.5 text-[9px]" style={{ background: '#111114', color: '#a1a1aa', border: '1px solid #27272a' }}>rolo {r.spool_weight_g}g</span>}
                         {r.match_name ? (
                           <label className="flex items-center gap-1 text-[10px]" style={{ color: '#a5f3fc' }}>
                             <input type="checkbox" checked={!!r.link_input_id} onChange={e => setRows(rs => rs.map((x, j) => j === i ? { ...x, link_input_id: e.target.checked ? (preview.items_matched.find(m => m.index === i)?.input_id ?? null) : null } : x))} />
-                            {r.link_input_id ? `abastece "${r.match_name}"` : `criar novo (em vez de "${r.match_name}")`}
+                            {r.link_input_id ? `abastece "${r.match_name}"` : `criar novo`}
                           </label>
                         ) : <span className="text-[10px]" style={{ color: '#4ade80' }}>novo insumo</span>}
                       </div>
