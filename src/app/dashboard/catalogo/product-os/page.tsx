@@ -58,6 +58,14 @@ interface InputMovement { id: string; movement_type: string; quantity: number; u
 interface BomLine { id?: string; kind: string; description: string | null; quantity: number; unit: string; unit_cost: number; waste_pct: number }
 interface Quality { id: string; checklist: Array<{ key: string; label: string; ok: boolean }>; approved: boolean; notes: string | null }
 interface DevEvent { id: string; event_type: string; payload: Record<string, unknown>; is_auto: boolean; created_at: string }
+interface LicenseVerdict { level: 'green' | 'yellow' | 'red'; can_remodel: boolean; can_commercial: boolean; label: string; reason: string }
+interface MwPreview {
+  source_url: string; external_id: string; title: string; license: string | null; license_title: string | null
+  allow_recreation: boolean; is_printable: boolean; cover_url: string | null; creator: string | null
+  download_count: number; print_count: number; like_count: number; collection_count: number
+  tags: string[]; weight_g: number | null; print_time_minutes: number | null; material_count: number | null
+  need_ams: boolean; is_remix: boolean; verdict: LicenseVerdict; already_imported_id: string | null
+}
 interface Printer {
   id: string; name: string; brand: string | null; model: string | null; build_volume_mm: string | null; nozzle_mm: number | null
   has_ams: boolean; power_watts: number | null; acquisition_cost: number; acquisition_date: string | null
@@ -177,6 +185,7 @@ export default function ProductOsPage() {
   const [error, setError] = useState('')
   const [openId, setOpenId] = useState<string | null>(null)
   const [showNew, setShowNew] = useState(false)
+  const [showImport, setShowImport] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
 
   const load = useCallback(async () => {
@@ -199,6 +208,7 @@ export default function ProductOsPage() {
         <div className="ml-auto flex items-center gap-2">
           <button onClick={() => void load()} className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold" style={{ background: '#111114', border: '1px solid #27272a', color: '#a1a1aa' }}><RefreshCw size={12} /> Atualizar</button>
           <button onClick={() => setShowSettings(true)} className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold" style={{ background: '#111114', border: '1px solid #27272a', color: '#a1a1aa' }}><Settings2 size={12} /> Fabricação</button>
+          <button onClick={() => setShowImport(true)} className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold" style={{ background: '#111114', border: '1px solid #27272a', color: '#a5f3fc' }}><Boxes size={12} /> Importar do MakerWorld</button>
           <button onClick={() => setShowNew(true)} className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}><Plus size={12} /> Novo produto</button>
         </div>
       </div>
@@ -221,6 +231,7 @@ export default function ProductOsPage() {
 
       {openId && <DetailDrawer id={openId} onClose={() => setOpenId(null)} onChanged={() => void load()} />}
       {showNew && <NewProductModal onClose={() => setShowNew(false)} onCreated={() => { setShowNew(false); void load() }} />}
+      {showImport && <ImportMakerworldModal onClose={() => setShowImport(false)} onImported={id => { setShowImport(false); void load(); setTab('ciclo'); setOpenId(id) }} />}
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
     </div>
   )
@@ -1562,6 +1573,79 @@ function NewProductModal({ onClose, onCreated }: { onClose: () => void; onCreate
         </div>
       </div>
       <div className="mt-4 flex justify-end"><button onClick={() => void create()} disabled={busy} className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}>{busy ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />} Criar</button></div>
+    </Modal>
+  )
+}
+
+const VERDICT_STYLE: Record<'green' | 'yellow' | 'red', { color: string; bg: string; border: string; icon: React.ReactNode }> = {
+  green:  { color: '#4ade80', bg: 'rgba(74,222,128,0.10)', border: 'rgba(74,222,128,0.30)', icon: <CheckCircle2 size={13} /> },
+  yellow: { color: '#fcd34d', bg: 'rgba(252,211,77,0.10)', border: 'rgba(252,211,77,0.30)', icon: <AlertTriangle size={13} /> },
+  red:    { color: '#f87171', bg: 'rgba(239,68,68,0.10)', border: 'rgba(239,68,68,0.30)', icon: <Ban size={13} /> },
+}
+
+function ImportMakerworldModal({ onClose, onImported }: { onClose: () => void; onImported: (id: string) => void }) {
+  const [url, setUrl] = useState('')
+  const [preview, setPreview] = useState<MwPreview | null>(null)
+  const [busy, setBusy] = useState(false); const [importing, setImporting] = useState(false); const [err, setErr] = useState('')
+
+  const fetchPreview = async () => {
+    if (!url.trim()) { setErr('Cole o link do modelo MakerWorld.'); return }
+    setBusy(true); setErr(''); setPreview(null)
+    try { setPreview(await api<MwPreview>('/product-os/import/makerworld/preview', { method: 'POST', body: JSON.stringify({ url }) })) }
+    catch (e) { setErr(e instanceof Error ? e.message : 'Erro ao ler o MakerWorld') } finally { setBusy(false) }
+  }
+  const doImport = async () => {
+    setImporting(true); setErr('')
+    try { const r = await api<{ product_dev: { id: string } }>('/product-os/import/makerworld', { method: 'POST', body: JSON.stringify({ url }) }); onImported(r.product_dev.id) }
+    catch (e) { setErr(e instanceof Error ? e.message : 'Erro ao importar') } finally { setImporting(false) }
+  }
+  const fmtTime = (m: number) => m >= 60 ? `${Math.floor(m / 60)}h${String(m % 60).padStart(2, '0')}` : `${m}min`
+  const v = preview ? VERDICT_STYLE[preview.verdict.level] : null
+
+  return (
+    <Modal title="Importar do MakerWorld" onClose={onClose}>
+      {err && <div className="mb-3 rounded-lg p-2.5 text-xs" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>{err}</div>}
+      <p className="mb-3 text-xs" style={{ color: '#a1a1aa' }}>Cole o link do modelo (ex: <span style={{ color: '#a5f3fc' }}>makerworld.com/en/models/1234567</span>) ou só o ID. Lemos peso, tempo, material, capa e a licença.</p>
+      <div className="flex items-end gap-2">
+        <div className="flex-1"><Input label="Link ou ID do MakerWorld" value={url} onChange={setUrl} placeholder="https://makerworld.com/en/models/…" /></div>
+        <button onClick={() => void fetchPreview()} disabled={busy} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold disabled:opacity-50" style={{ background: '#111114', border: '1px solid #27272a', color: '#a5f3fc' }}>{busy ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />} Buscar</button>
+      </div>
+
+      {preview && v && (
+        <div className="mt-4 space-y-3">
+          <div className="flex gap-3 rounded-xl p-3" style={{ background: '#0a0a0e', border: '1px solid #1a1a1f' }}>
+            <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-lg" style={{ background: '#111114', border: '1px solid #27272a' }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              {preview.cover_url ? <img src={preview.cover_url} alt="" className="h-full w-full object-cover" /> : <Package size={20} style={{ color: '#3f3f46' }} />}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold leading-tight text-white">{preview.title}</p>
+              <p className="mt-0.5 text-[11px]" style={{ color: '#71717a' }}>{preview.creator ?? 'criador desconhecido'}{preview.is_remix && ' · remix'}</p>
+              <div className="mt-1.5 flex flex-wrap gap-1.5 text-[10px]" style={{ color: '#a1a1aa' }}>
+                {preview.weight_g != null && <span className="rounded px-1.5 py-0.5" style={{ background: '#111114', border: '1px solid #27272a' }}>⚖ {preview.weight_g} g</span>}
+                {preview.print_time_minutes != null && <span className="rounded px-1.5 py-0.5" style={{ background: '#111114', border: '1px solid #27272a' }}>⏱ {fmtTime(preview.print_time_minutes)}</span>}
+                {preview.material_count != null && <span className="rounded px-1.5 py-0.5" style={{ background: '#111114', border: '1px solid #27272a' }}>{preview.need_ams ? '🎨 multicor (AMS)' : '1 material'}</span>}
+                <span className="rounded px-1.5 py-0.5" style={{ background: '#111114', border: '1px solid #27272a' }}>⬇ {preview.download_count} · 🖨 {preview.print_count}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* selo de licença — só informa, não bloqueia (bloqueio é a Peça 2) */}
+          <div className="rounded-xl p-3" style={{ background: v.bg, border: `1px solid ${v.border}` }}>
+            <div className="flex items-center gap-1.5 text-xs font-bold" style={{ color: v.color }}>{v.icon} {preview.verdict.label}{preview.license && <span className="ml-1 font-mono text-[10px] font-normal opacity-80">({preview.license})</span>}</div>
+            <p className="mt-1 text-[11px] leading-snug" style={{ color: '#a1a1aa' }}>{preview.verdict.reason}</p>
+          </div>
+
+          {preview.already_imported_id && (
+            <div className="rounded-lg p-2.5 text-[11px]" style={{ background: 'rgba(252,211,77,0.08)', color: '#fcd34d', border: '1px solid rgba(252,211,77,0.25)' }}>Este modelo já foi importado antes. Importar de novo cria um produto duplicado.</div>
+          )}
+
+          <div className="flex items-center justify-between">
+            <a href={preview.source_url} target="_blank" rel="noopener noreferrer" className="text-[11px] underline" style={{ color: '#71717a' }}>Ver no MakerWorld ↗</a>
+            <button onClick={() => void doImport()} disabled={importing} className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}>{importing ? <Loader2 size={12} className="animate-spin" /> : <Rocket size={12} />} Importar como produto</button>
+          </div>
+        </div>
+      )}
     </Modal>
   )
 }
