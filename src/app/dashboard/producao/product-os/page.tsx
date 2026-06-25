@@ -662,10 +662,17 @@ function ImportNfModal({ onClose, onImported }: { onClose: () => void; onImporte
 
   const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]; if (!f) return
+    const isPdf = /\.pdf$/i.test(f.name) || f.type === 'application/pdf'
     setBusy(true); setErr(''); setPreview(null)
     try {
-      const xml = await f.text()
-      const p = await api<NfePreview>('/product-os/production-inputs/import-nfe/preview', { method: 'POST', body: JSON.stringify({ xml }) })
+      let p: NfePreview
+      if (isPdf) {
+        const b64 = await new Promise<string>((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1] ?? ''); r.onerror = () => rej(new Error('falha ao ler PDF')); r.readAsDataURL(f) })
+        p = await api<NfePreview>('/product-os/production-inputs/import-nfe/preview-pdf', { method: 'POST', body: JSON.stringify({ pdf_base64: b64 }) })
+      } else {
+        const xml = await f.text()
+        p = await api<NfePreview>('/product-os/production-inputs/import-nfe/preview', { method: 'POST', body: JSON.stringify({ xml }) })
+      }
       setPreview(p)
       setRows(p.items.map((it, i) => { const m = p.items_matched.find(x => x.index === i); return { ...it, include: true, link_input_id: m?.input_id ?? null, match_name: m?.input_name ?? null } }))
     } catch (e2) { setErr(e2 instanceof Error ? e2.message : 'Erro ao ler a NF') } finally { setBusy(false); if (fileRef.current) fileRef.current.value = '' }
@@ -694,10 +701,10 @@ function ImportNfModal({ onClose, onImported }: { onClose: () => void; onImporte
 
         {!preview ? (
           <div className="space-y-2">
-            <p className="text-xs" style={{ color: '#a1a1aa' }}>Suba o <b style={{ color: '#a5f3fc' }}>XML</b> da NF-e de compra. O sistema cria o fornecedor e os insumos, e dá entrada no estoque ao custo da nota (recalcula o custo médio). Cada item você revisa antes.</p>
-            <input ref={fileRef} type="file" accept=".xml,text/xml,application/xml" onChange={e => void onFile(e)} style={{ display: 'none' }} />
-            <button onClick={() => fileRef.current?.click()} disabled={busy} className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}>{busy ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />} Escolher XML da NF</button>
-            <p className="text-[11px]" style={{ color: '#52525b' }}>PDF (DANFE) ainda não — use o XML (toda NF-e tem; peça ao fornecedor ou baixe no portal da SEFAZ).</p>
+            <p className="text-xs" style={{ color: '#a1a1aa' }}>Suba o <b style={{ color: '#a5f3fc' }}>XML</b> ou o <b style={{ color: '#a5f3fc' }}>PDF (DANFE)</b> da NF-e de compra. O sistema cria o fornecedor e os insumos, e dá entrada no estoque ao custo da nota (recalcula o custo médio). Cada item você revisa antes.</p>
+            <input ref={fileRef} type="file" accept=".xml,.pdf,text/xml,application/xml,application/pdf" onChange={e => void onFile(e)} style={{ display: 'none' }} />
+            <button onClick={() => fileRef.current?.click()} disabled={busy} className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}>{busy ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />} {busy ? 'Lendo a NF…' : 'Escolher XML ou PDF da NF'}</button>
+            <p className="text-[11px]" style={{ color: '#52525b' }}>O <b>XML</b> é mais preciso (dados exatos). O <b>PDF</b> é lido por IA (leva alguns segundos e pode errar — confira os itens antes de importar).</p>
           </div>
         ) : (
           <div className="space-y-3">
