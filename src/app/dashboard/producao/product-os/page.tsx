@@ -729,7 +729,13 @@ function DetailDrawer({ id, onClose, onChanged }: { id: string; onClose: () => v
     catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setBusy(null) }
   }
   const publish = async () => {
-    const q = window.prompt('Quantas unidades já produzidas para entrar no estoque? (0 se nenhuma)', '0')
+    const q = await prompt({
+      title: 'Publicar no catálogo',
+      message: 'Quantas unidades já produzidas devem entrar no estoque agora? (0 se nenhuma)',
+      defaultValue: '0',
+      placeholder: '0',
+      confirmLabel: 'Publicar',
+    })
     if (q == null) return
     setBusy('publish'); setErr(''); setMsg('')
     try { const r = await api<{ product_id: string }>(`/product-os/${id}/publish-to-catalog`, { method: 'POST', body: JSON.stringify({ produced_quantity: Number(q) || 0 }) }); setMsg(`Publicado no catálogo (produto ${r.product_id.slice(0, 8)}). Gere o anúncio na IA Criativo.`); void reload(); onChanged() }
