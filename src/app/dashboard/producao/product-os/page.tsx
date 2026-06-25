@@ -495,12 +495,19 @@ function InsumosPanel() {
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState('')
   const [showNew, setShowNew] = useState(false); const [showNf, setShowNf] = useState(false); const [restockItem, setRestockItem] = useState<Input | null>(null); const [openInsumo, setOpenInsumo] = useState<Input | null>(null)
+  const [busyId, setBusyId] = useState<string | null>(null)
   const load = useCallback(async () => {
     setLoading(true); setErr('')
     try { setList(await api<Input[]>('/product-os/production-inputs')) }
     catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setLoading(false) }
   }, [])
   useEffect(() => { void load() }, [load])
+  const delInput = async (i: Input) => {
+    if (!window.confirm(`Excluir o insumo "${i.name}"? Apaga o histórico de movimentações e não dá pra desfazer.`)) return
+    setBusyId(i.id); setErr('')
+    try { await api(`/product-os/production-inputs/${i.id}/delete`, { method: 'POST' }); await load() }
+    catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setBusyId(null) }
+  }
 
   return (
     <div className="space-y-3">
@@ -510,22 +517,33 @@ function InsumosPanel() {
         <button onClick={() => setShowNew(true)} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}><Plus size={12} /> Novo insumo</button>
       </div>
       {err && <div className="rounded-lg p-2.5 text-xs" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>{err}</div>}
-      {loading ? <div className="flex items-center gap-2 p-6 text-sm" style={{ color: '#71717a' }}><Loader2 size={16} className="animate-spin" /> Carregando…</div> : (
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {list.map(i => (
-            <div key={i.id} onClick={() => setOpenInsumo(i)} className="cursor-pointer rounded-xl p-3 transition-colors hover:border-cyan-700" style={{ background: '#111114', border: `1px solid ${i.alert ? 'rgba(252,211,77,0.4)' : '#27272a'}` }}>
-              <div className="flex items-center gap-2">
-                {i.color_hex && <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: i.color_hex.startsWith('#') ? i.color_hex : `#${i.color_hex}`, border: '1px solid #27272a' }} />}
-                <span className="truncate text-xs font-bold text-white">{i.name}</span>
-                {i.alert && <span className="rounded px-1.5 py-0.5 text-[9px] font-bold" style={{ background: 'rgba(252,211,77,0.12)', color: '#fcd34d' }}>repor</span>}
-                <button onClick={e => { e.stopPropagation(); setRestockItem(i) }} className="ml-auto rounded px-1.5 py-0.5 text-[9px] font-semibold" style={{ background: 'rgba(0,229,255,0.10)', color: '#a5f3fc', border: '1px solid #27272a' }}>+ repor</button>
+      {loading ? <div className="flex items-center gap-2 p-6 text-sm" style={{ color: '#71717a' }}><Loader2 size={16} className="animate-spin" /> Carregando…</div>
+        : list.length === 0 ? <p className="text-xs" style={{ color: '#52525b' }}>Nenhum insumo cadastrado.</p> : (
+        <div className="overflow-hidden rounded-xl" style={{ border: '1px solid #1a1a1f' }}>
+          {list.map((i, idx) => (
+            <div key={i.id} onClick={() => setOpenInsumo(i)} className="flex cursor-pointer items-center gap-3 px-3 py-2.5 transition-colors hover:bg-white/5" style={{ background: '#111114', borderTop: idx ? '1px solid #1a1a1f' : undefined }}>
+              <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: i.color_hex ? (i.color_hex.startsWith('#') ? i.color_hex : `#${i.color_hex}`) : '#27272a', border: '1px solid #27272a' }} />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="truncate text-xs font-bold text-white">{i.name}</span>
+                  {i.alert && <span className="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold" style={{ background: 'rgba(252,211,77,0.12)', color: '#fcd34d' }}>repor</span>}
+                </div>
+                <p className="truncate text-[10px]" style={{ color: '#71717a' }}>{[i.sku, i.kind, i.material, i.brand, i.color].filter(Boolean).join(' · ')}{i.diameter_mm ? ` · ${i.diameter_mm}mm` : ''}</p>
               </div>
-              <p className="mt-1 text-[10px]" style={{ color: '#71717a' }}>{[i.sku, i.kind, i.material, i.brand, i.color].filter(Boolean).join(' · ')}{i.diameter_mm ? ` · ${i.diameter_mm}mm` : ''}</p>
-              <div className="mt-1.5 flex items-baseline gap-1"><span className="text-lg font-extrabold text-cyan-400">{i.available}</span><span className="text-[10px]" style={{ color: '#52525b' }}>{i.unit} disp. ({i.quantity} − {i.reserved_quantity})</span></div>
-              <p className="mt-0.5 text-[10px]" style={{ color: '#71717a' }}>custo médio <b style={{ color: '#a5f3fc' }}>R$ {Number(i.cost_per_unit).toFixed(2)}/{i.unit}</b></p>
+              <div className="hidden shrink-0 text-right sm:block" style={{ width: 110 }}>
+                <p className="text-sm font-extrabold leading-tight text-cyan-400">{i.available} <span className="text-[10px] font-normal" style={{ color: '#52525b' }}>{i.unit}</span></p>
+                <p className="text-[9px]" style={{ color: '#52525b' }}>disp. ({i.quantity}−{i.reserved_quantity})</p>
+              </div>
+              <div className="hidden shrink-0 text-right md:block" style={{ width: 120 }}>
+                <p className="text-[11px] font-semibold" style={{ color: '#a5f3fc' }}>R$ {Number(i.cost_per_unit).toFixed(Number(i.cost_per_unit) < 1 ? 4 : 2)}</p>
+                <p className="text-[9px]" style={{ color: '#52525b' }}>custo médio/{i.unit}</p>
+              </div>
+              <div className="flex shrink-0 items-center gap-1.5">
+                <button onClick={e => { e.stopPropagation(); setRestockItem(i) }} title="Repor estoque" className="rounded px-2 py-1 text-[10px] font-semibold" style={{ background: 'rgba(0,229,255,0.10)', color: '#a5f3fc', border: '1px solid #27272a' }}>+ repor</button>
+                <button onClick={e => { e.stopPropagation(); void delInput(i) }} disabled={busyId === i.id} title="Excluir insumo" className="rounded p-1 disabled:opacity-50" style={{ background: '#0a0a0e', color: '#f87171', border: '1px solid #27272a' }}>{busyId === i.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}</button>
+              </div>
             </div>
           ))}
-          {list.length === 0 && <p className="text-xs" style={{ color: '#52525b' }}>Nenhum insumo cadastrado.</p>}
         </div>
       )}
       {showNew && <NewInputModal onClose={() => setShowNew(false)} onCreated={() => { setShowNew(false); void load() }} />}
