@@ -677,6 +677,7 @@ function ImportNfModal({ onClose, onImported }: { onClose: () => void; onImporte
   const [preview, setPreview] = useState<NfePreview | null>(null)
   const [rows, setRows] = useState<NfRow[]>([])
   const [busy, setBusy] = useState(false); const [committing, setCommitting] = useState(false); const [err, setErr] = useState(''); const [msg, setMsg] = useState('')
+  const [force, setForce] = useState(false) // reimportar uma NF já carimbada (insumos foram excluídos)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -704,6 +705,7 @@ function ImportNfModal({ onClose, onImported }: { onClose: () => void; onImporte
         supplier: { ...preview.supplier, use_existing_id: preview.supplier_existing_id },
         nf: { access_key: preview.nf.access_key, number: preview.nf.number, total: preview.nf.total },
         items: rows.map(r => ({ include: r.include, link_input_id: r.link_input_id, name: r.description, sku: r.code, unit: r.unit, quantity: r.quantity, unit_cost: r.unit_cost, kind: r.kind, material: r.material, description: r.description, color: r.color, diameter_mm: r.diameter_mm, spool_weight_g: r.spool_weight_g })),
+        force: preview.already_imported && force,
       }) })
       setMsg(`Importado: ${r.created} insumo(s) novo(s), ${r.restocked} abastecido(s). Fornecedor e estoque atualizados.`)
       setTimeout(onImported, 1200)
@@ -737,7 +739,15 @@ function ImportNfModal({ onClose, onImported }: { onClose: () => void; onImporte
               <p className="text-[11px]" style={{ color: '#71717a' }}>{preview.supplier.legal_name}{preview.supplier.tax_id ? ` · CNPJ ${preview.supplier.tax_id}` : ''}{preview.supplier.address?.city ? ` · ${preview.supplier.address.city}/${preview.supplier.address.uf}` : ''}</p>
             </div>
 
-            {preview.already_imported && <div className="rounded-lg p-2.5 text-[11px]" style={{ background: 'rgba(252,211,77,0.10)', color: '#fcd34d', border: '1px solid rgba(252,211,77,0.25)' }}>⚠️ Esta NF (chave {preview.nf.access_key?.slice(0, 10)}…) já foi importada antes — importar de novo dá entrada dobrada no estoque. O sistema vai recusar.</div>}
+            {preview.already_imported && (
+              <div className="rounded-lg p-2.5 text-[11px]" style={{ background: force ? 'rgba(248,113,113,0.10)' : 'rgba(252,211,77,0.10)', color: force ? '#f87171' : '#fcd34d', border: `1px solid ${force ? 'rgba(248,113,113,0.3)' : 'rgba(252,211,77,0.25)'}` }}>
+                <p>⚠️ Esta NF (chave {preview.nf.access_key?.slice(0, 10)}…) já foi importada antes. Reimportar dá <b>entrada de estoque de novo</b> — use só se você <b>excluiu os insumos</b> e quer recriá-los.</p>
+                <label className="mt-1.5 flex items-center gap-1.5 font-semibold" style={{ cursor: 'pointer' }}>
+                  <input type="checkbox" checked={force} onChange={e => setForce(e.target.checked)} />
+                  Importar mesmo assim (reimportar esta nota)
+                </label>
+              </div>
+            )}
 
             <p className="text-[11px]" style={{ color: '#71717a' }}>NF {preview.nf.number ?? '—'} · total R$ {Number(preview.nf.total).toFixed(2)} · {rows.length} itens</p>
 
@@ -783,7 +793,7 @@ function ImportNfModal({ onClose, onImported }: { onClose: () => void; onImporte
             </div>
 
             <div className="flex items-center justify-end">
-              <button onClick={() => void doImport()} disabled={committing || preview.already_imported || !rows.some(r => r.include)} className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}>{committing ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />} Importar {rows.filter(r => r.include).length} item(ns)</button>
+              <button onClick={() => void doImport()} disabled={committing || (preview.already_imported && !force) || !rows.some(r => r.include)} className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-bold disabled:opacity-50" style={{ background: force ? 'rgba(248,113,113,0.12)' : 'rgba(0,229,255,0.12)', border: `1px solid ${force ? 'rgba(248,113,113,0.35)' : 'rgba(0,229,255,0.35)'}`, color: force ? '#f87171' : '#00E5FF' }}>{committing ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />} {force ? 'Reimportar' : 'Importar'} {rows.filter(r => r.include).length} item(ns)</button>
             </div>
           </div>
         )}
