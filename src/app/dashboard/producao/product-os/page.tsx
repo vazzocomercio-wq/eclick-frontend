@@ -169,6 +169,14 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   return (await res.json()) as T
 }
 
+// limite de upload = teto global do projeto Supabase (bucket product-os)
+const MAX_UPLOAD_MB = 100
+function friendlyUploadError(e: unknown): string {
+  const m = e instanceof Error ? e.message : 'erro'
+  if (/maximum allowed size|payload too large|exceeded|413/i.test(m)) return `Arquivo grande demais (limite ${MAX_UPLOAD_MB} MB). Comprima o modelo (reduza a malha/decimate) ou exporte em menor resolução.`
+  return 'Falha no upload: ' + m
+}
+
 // sobe o arquivo DIRETO pro storage via URL assinada (não passa pela API)
 async function uploadFile(file: File): Promise<string> {
   const meta = await api<{ path: string; token: string; public_url: string }>('/product-os/upload-url', { method: 'POST', body: JSON.stringify({ filename: file.name }) })
@@ -183,21 +191,25 @@ function fileTypeOf(name: string): string {
 }
 
 function UploadButton({ label, accept, multiple, onUploaded }: { label: string; accept?: string; multiple?: boolean; onUploaded: (urls: string[], files: File[]) => void }) {
-  const [busy, setBusy] = useState(false); const ref = useRef<HTMLInputElement>(null)
+  const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const ref = useRef<HTMLInputElement>(null)
   const handle = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []); if (!files.length) return
+    setErr('')
+    const big = files.find(f => f.size > MAX_UPLOAD_MB * 1048576)
+    if (big) { setErr(`"${big.name}" tem ${(big.size / 1048576).toFixed(0)} MB e passa do limite de ${MAX_UPLOAD_MB} MB. Comprima o modelo (reduza a malha) ou exporte em menor resolução.`); if (ref.current) ref.current.value = ''; return }
     setBusy(true)
     try { const urls: string[] = []; for (const f of files) urls.push(await uploadFile(f)); onUploaded(urls, files) }
-    catch (err) { window.alert('Falha no upload: ' + (err instanceof Error ? err.message : 'erro')) }
+    catch (e2) { setErr(friendlyUploadError(e2)) }
     finally { setBusy(false); if (ref.current) ref.current.value = '' }
   }
   return (
-    <>
+    <div className="inline-flex flex-col gap-1.5">
       <input ref={ref} type="file" accept={accept} multiple={multiple} onChange={e => void handle(e)} style={{ display: 'none' }} />
-      <button type="button" onClick={() => ref.current?.click()} disabled={busy} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold disabled:opacity-50" style={{ background: '#111114', border: '1px solid #27272a', color: '#a5f3fc' }}>
+      <button type="button" onClick={() => ref.current?.click()} disabled={busy} className="flex w-fit items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold disabled:opacity-50" style={{ background: '#111114', border: '1px solid #27272a', color: '#a5f3fc' }}>
         {busy ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />} {label}
       </button>
-    </>
+      {err && <div className="rounded-lg p-2 text-[11px] leading-snug" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>{err}</div>}
+    </div>
   )
 }
 
