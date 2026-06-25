@@ -13,6 +13,7 @@ import {
   Factory, Boxes, Send, Rocket, ListChecks, History, ClipboardList,
   Printer as PrinterIcon, TrendingUp, Gauge, Wifi, Upload, Trophy, Trash2, ExternalLink,
 } from 'lucide-react'
+import { usePrompt } from '@/components/ui/dialog-provider'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
@@ -698,6 +699,7 @@ function DetailDrawer({ id, onClose, onChanged }: { id: string; onClose: () => v
   const [err, setErr] = useState(''); const [msg, setMsg] = useState('')
   const [tab, setTab] = useState<DrawerTab>('briefing')
   const [busy, setBusy] = useState<'dispatch' | 'publish' | 'license' | null>(null)
+  const prompt = usePrompt()
 
   const reload = useCallback(async () => { try { setDev(await api<DevDetail>(`/product-os/${id}`)) } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } }, [id])
   useEffect(() => { void reload() }, [reload])
@@ -705,7 +707,14 @@ function DetailDrawer({ id, onClose, onChanged }: { id: string; onClose: () => v
   const setClearance = async (cleared: boolean) => {
     let note: string | undefined
     if (cleared) {
-      const n = window.prompt('Por que a licença está liberada? (ex: comprei licença comercial; autorizado pelo criador em 20/06)', '')
+      const n = await prompt({
+        title: 'Liberar licença',
+        message: 'Registre por que esta licença está liberada — fica no histórico do produto como comprovação.',
+        placeholder: 'Ex: comprei a licença comercial; autorizado pelo criador em 20/06; arte própria…',
+        multiline: true,
+        confirmLabel: 'Liberar licença',
+        variant: 'warning',
+      })
       if (n == null) return
       note = n.trim() || undefined
     }
@@ -1608,7 +1617,7 @@ function NewProductModal({ onClose, onCreated }: { onClose: () => void; onCreate
   )
 }
 
-const PLATFORM_LABEL: Record<string, string> = { makerworld: 'MakerWorld', thingiverse: 'Thingiverse', cults3d: 'Cults3D', thangs: 'Thangs' }
+const PLATFORM_LABEL: Record<string, string> = { makerworld: 'MakerWorld', thingiverse: 'Thingiverse', cults3d: 'Cults3D', thangs: 'Thangs', myminifactory: 'MyMiniFactory' }
 const platformName = (p?: string) => (p ? PLATFORM_LABEL[p] ?? p : '')
 
 const VERDICT_STYLE: Record<'green' | 'yellow' | 'red', { color: string; bg: string; border: string; icon: React.ReactNode }> = {
