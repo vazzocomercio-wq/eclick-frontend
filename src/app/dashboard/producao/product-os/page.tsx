@@ -81,7 +81,7 @@ interface ExtModel {
   cover_url: string | null; creator: string | null; download_count: number; like_count: number
   price: number | null; verdict: LicenseVerdict
 }
-interface SourceInfo { platform: string; label: string; configured: boolean; can_creator: boolean; can_discover: boolean }
+interface SourceInfo { platform: string; label: string; configured: boolean; can_creator: boolean; can_discover: boolean; can_categories: boolean }
 interface TrackedCreator { id: string; platform: string; handle: string; display_name: string | null; last_model_count: number | null }
 interface MwPreview {
   platform: string; source_url: string; external_id: string; title: string; license: string | null; license_title: string | null
@@ -1961,6 +1961,7 @@ function CreatorsView({ onImported }: { onImported: (id: string) => void }) {
 function DiscoverView({ onImported }: { onImported: (id: string) => void }) {
   const [sources, setSources] = useState<SourceInfo[]>([])
   const [platform, setPlatform] = useState(''); const [commercial, setCommercial] = useState(true)
+  const [cats, setCats] = useState<{ slug: string; name: string }[]>([]); const [category, setCategory] = useState('')
   const [models, setModels] = useState<ExtModel[]>([]); const [loading, setLoading] = useState(false); const [err, setErr] = useState('')
 
   useEffect(() => { void (async () => {
@@ -1968,30 +1969,44 @@ function DiscoverView({ onImported }: { onImported: (id: string) => void }) {
     catch (e) { setErr(e instanceof Error ? e.message : 'Erro') }
   })() }, [])
 
+  // carrega categorias quando troca de plataforma (se a fonte expuser)
+  useEffect(() => {
+    const src = sources.find(s => s.platform === platform); setCategory(''); setCats([])
+    if (!src?.can_categories) return
+    void (async () => { try { setCats(await api<{ slug: string; name: string }[]>(`/product-os/categories?platform=${platform}`)) } catch { /* sem categorias */ } })()
+  }, [platform, sources])
+
   const load = useCallback(async () => {
     if (!platform) return
     setLoading(true); setErr('')
-    try { setModels(await api<ExtModel[]>(`/product-os/discover?platform=${platform}&commercial=${commercial ? '1' : '0'}`)) }
+    try { setModels(await api<ExtModel[]>(`/product-os/discover?platform=${platform}&commercial=${commercial ? '1' : '0'}${category ? `&category=${encodeURIComponent(category)}` : ''}`)) }
     catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setLoading(false) }
-  }, [platform, commercial])
+  }, [platform, commercial, category])
   useEffect(() => { void load() }, [load])
 
   return (
     <div className="space-y-3">
       <div className="rounded-xl p-3" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
         {!sources.length ? <p className="text-[11px]" style={{ color: '#fcd34d' }}>Nenhuma fonte com feed de descoberta configurada (Cults3D).</p> : (
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-end gap-3">
             <label className="block"><span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#71717a' }}>Plataforma</span>
               <select value={platform} onChange={e => setPlatform(e.target.value)} className="rounded-lg px-2.5 py-1.5 text-xs outline-none" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }}>
                 {sources.map(s => <option key={s.platform} value={s.platform}>{s.label}</option>)}
               </select></label>
-            <label className="flex cursor-pointer items-center gap-2 text-xs" style={{ color: '#a1a1aa' }}>
-              <input type="checkbox" checked={commercial} onChange={e => setCommercial(e.target.checked)} /> Só licença comercial (vendáveis)
+            {cats.length > 0 && (
+              <label className="block"><span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#71717a' }}>Categoria</span>
+                <select value={category} onChange={e => setCategory(e.target.value)} className="max-w-[220px] rounded-lg px-2.5 py-1.5 text-xs outline-none" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }}>
+                  <option value="">Todas as categorias</option>
+                  {cats.map(c => <option key={c.slug} value={c.slug}>{c.name}</option>)}
+                </select></label>
+            )}
+            <label className="flex cursor-pointer items-center gap-2 pb-1.5 text-xs" style={{ color: '#a1a1aa' }}>
+              <input type="checkbox" checked={commercial} onChange={e => setCommercial(e.target.checked)} /> Só vendáveis
             </label>
             <button onClick={() => void load()} disabled={loading} className="ml-auto flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold disabled:opacity-50" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#a1a1aa' }}>{loading ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />} Atualizar</button>
           </div>
         )}
-        <p className="mt-2 text-[11px]" style={{ color: '#71717a' }}>Campeões da plataforma por downloads. Com o filtro comercial ligado, só aparecem modelos que dá pra <span style={{ color: '#4ade80' }}>vender</span> — o veredito ainda flagra os sem-derivados (vermelho).</p>
+        <p className="mt-2 text-[11px]" style={{ color: '#71717a' }}>Campeões por downloads — filtre por <span style={{ color: '#a5f3fc' }}>categoria</span> (Decoração, Vasos, Luminárias…) e por licença <span style={{ color: '#4ade80' }}>comercial</span>. O veredito ainda flagra os sem-derivados (vermelho).</p>
       </div>
       {err && <div className="rounded-lg p-2.5 text-xs" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>{err}</div>}
       {loading ? <div className="flex items-center gap-2 text-sm" style={{ color: '#71717a' }}><Loader2 size={14} className="animate-spin" /> Carregando…</div>
