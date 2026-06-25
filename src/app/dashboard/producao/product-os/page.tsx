@@ -270,6 +270,7 @@ export default function ProductOsPage() {
       {showNew && <NewProductModal onClose={() => setShowNew(false)} onCreated={() => { setShowNew(false); void load() }} />}
       {showImport && <ImportMakerworldModal onClose={() => setShowImport(false)} onImported={id => { setShowImport(false); void load(); setTab('ciclo'); setOpenId(id) }} />}
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
+      <ConfirmHost />
     </div>
   )
 }
@@ -495,7 +496,7 @@ function InsumosPanel() {
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState('')
   const [showNew, setShowNew] = useState(false); const [showNf, setShowNf] = useState(false); const [restockItem, setRestockItem] = useState<Input | null>(null); const [openInsumo, setOpenInsumo] = useState<Input | null>(null)
-  const [busyId, setBusyId] = useState<string | null>(null)
+  const [busyId, setBusyId] = useState<string | null>(null); const [confirmDel, setConfirmDel] = useState<Input | null>(null)
   const load = useCallback(async () => {
     setLoading(true); setErr('')
     try { setList(await api<Input[]>('/product-os/production-inputs')) }
@@ -503,10 +504,9 @@ function InsumosPanel() {
   }, [])
   useEffect(() => { void load() }, [load])
   const delInput = async (i: Input) => {
-    if (!window.confirm(`Excluir o insumo "${i.name}"? Apaga o histórico de movimentações e não dá pra desfazer.`)) return
     setBusyId(i.id); setErr('')
-    try { await api(`/product-os/production-inputs/${i.id}/delete`, { method: 'POST' }); await load() }
-    catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setBusyId(null) }
+    try { await api(`/product-os/production-inputs/${i.id}/delete`, { method: 'POST' }); setConfirmDel(null); await load() }
+    catch (e) { setErr(e instanceof Error ? e.message : 'Erro'); setConfirmDel(null) } finally { setBusyId(null) }
   }
 
   return (
@@ -540,12 +540,13 @@ function InsumosPanel() {
               </div>
               <div className="flex shrink-0 items-center gap-1.5">
                 <button onClick={e => { e.stopPropagation(); setRestockItem(i) }} title="Repor estoque" className="rounded px-2 py-1 text-[10px] font-semibold" style={{ background: 'rgba(0,229,255,0.10)', color: '#a5f3fc', border: '1px solid #27272a' }}>+ repor</button>
-                <button onClick={e => { e.stopPropagation(); void delInput(i) }} disabled={busyId === i.id} title="Excluir insumo" className="rounded p-1 disabled:opacity-50" style={{ background: '#0a0a0e', color: '#f87171', border: '1px solid #27272a' }}>{busyId === i.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}</button>
+                <button onClick={e => { e.stopPropagation(); setConfirmDel(i) }} disabled={busyId === i.id} title="Excluir insumo" className="rounded p-1 disabled:opacity-50" style={{ background: '#0a0a0e', color: '#f87171', border: '1px solid #27272a' }}>{busyId === i.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}</button>
               </div>
             </div>
           ))}
         </div>
       )}
+      {confirmDel && <ConfirmModal title="Excluir insumo" danger busy={busyId === confirmDel.id} confirmLabel="Excluir" onClose={() => setConfirmDel(null)} onConfirm={() => void delInput(confirmDel)} message={<>Excluir o insumo <b style={{ color: '#fafafa' }}>{confirmDel.name}</b>? Apaga também o histórico de movimentações e <b>não dá pra desfazer</b>.</>} />}
       {showNew && <NewInputModal onClose={() => setShowNew(false)} onCreated={() => { setShowNew(false); void load() }} />}
       {showNf && <ImportNfModal onClose={() => setShowNf(false)} onImported={() => { setShowNf(false); void load() }} />}
       {restockItem && <RestockModal item={restockItem} onClose={() => setRestockItem(null)} onDone={() => { setRestockItem(null); void load() }} />}
@@ -576,7 +577,7 @@ function InsumoDetailDrawer({ item, onClose, onChanged }: { item: Input; onClose
     } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setBusy(false) }
   }
   const deactivate = async () => {
-    if (!window.confirm('Desativar este insumo? Ele some da lista (não é apagado).')) return
+    if (!(await confirmDialog({ title: 'Desativar insumo', message: 'Desativar este insumo? Ele some da lista (não é apagado — o histórico fica).', confirmLabel: 'Desativar' }))) return
     try { await api(`/product-os/production-inputs/${item.id}`, { method: 'PATCH', body: JSON.stringify({ is_active: false }) }); onChanged() }
     catch (e) { setErr(e instanceof Error ? e.message : 'Erro') }
   }
@@ -1039,7 +1040,7 @@ function VersionCard({ v, onChanged }: { v: Version; onChanged: () => void }) {
   const [editing, setEditing] = useState(false); const [busy, setBusy] = useState(false); const [err, setErr] = useState('')
   const [f, setF] = useState({ changelog: v.changelog ?? '', material: v.material ?? '', weight_g: v.weight_g != null ? String(v.weight_g) : '', print_time_minutes: v.print_time_minutes != null ? String(v.print_time_minutes) : '', volume_cm3: v.volume_cm3 != null ? String(v.volume_cm3) : '' })
   const setApproval = async (approved: boolean) => { try { await api(`/product-os/versions/${v.id}/approval`, { method: 'POST', body: JSON.stringify({ approved }) }); onChanged() } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } }
-  const removeFile = async () => { if (!window.confirm('Excluir o arquivo do storage? Libera espaço e não dá pra desfazer.')) return; setBusy(true); setErr(''); try { await api(`/product-os/versions/${v.id}/remove-file`, { method: 'POST' }); onChanged() } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setBusy(false) } }
+  const removeFile = async () => { if (!(await confirmDialog({ title: 'Excluir arquivo', message: 'Excluir o arquivo do storage? Libera espaço e não dá pra desfazer.', danger: true, confirmLabel: 'Excluir' }))) return; setBusy(true); setErr(''); try { await api(`/product-os/versions/${v.id}/remove-file`, { method: 'POST' }); onChanged() } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setBusy(false) } }
   const save = async () => {
     setBusy(true); setErr('')
     try { await api(`/product-os/versions/${v.id}`, { method: 'PATCH', body: JSON.stringify({ changelog: f.changelog || null, material: f.material || null, weight_g: f.weight_g ? Number(f.weight_g) : null, print_time_minutes: f.print_time_minutes ? Number(f.print_time_minutes) : null, volume_cm3: f.volume_cm3 ? Number(f.volume_cm3) : null }) }); setEditing(false); onChanged() }
@@ -1554,7 +1555,7 @@ function PrinterDetailDrawer({ printer, onClose, onChanged }: { printer: Printer
   const loadLive = useCallback(async () => { try { const s = await api<FarmStatus[]>('/product-os/farm/status'); setLive(s.find(x => x.id === id) ?? null) } catch { /* */ } }, [id])
   useEffect(() => { void loadLive(); const it = setInterval(() => void loadLive(), 5000); return () => clearInterval(it) }, [loadLive])
   const cmd = async (type: string) => {
-    if (type === 'stop' && !window.confirm('Parar a impressão atual? Isso cancela o job na máquina.')) return
+    if (type === 'stop' && !(await confirmDialog({ title: 'Parar impressão', message: 'Parar a impressão atual? Isso cancela o job na máquina.', danger: true, confirmLabel: 'Parar' }))) return
     setCmdMsg('')
     try { await api(`/product-os/farm/printers/${id}/command`, { method: 'POST', body: JSON.stringify({ type }) }); setCmdMsg('Comando enviado à impressora.') }
     catch (e) { setCmdMsg(e instanceof Error ? e.message : 'Erro') }
@@ -1952,7 +1953,7 @@ function RadarWatchlist({ onImported }: { onImported: (id: string) => void }) {
   const setDecision = (id: string, decision: string) => void act(id, () => api(`/product-os/radar/${id}/decision`, { method: 'POST', body: JSON.stringify({ decision }) }))
   const refreshOne = (id: string) => void act(id, () => api(`/product-os/radar/${id}/refresh`, { method: 'POST' }))
   const aiSuggest = (id: string) => void act(id, () => api(`/product-os/radar/${id}/ai-suggest`, { method: 'POST' }))
-  const remove = (id: string) => { if (window.confirm('Remover do radar?')) void act(id, () => api(`/product-os/radar/${id}/remove`, { method: 'POST' })) }
+  const remove = async (id: string) => { if (await confirmDialog({ title: 'Remover do radar', message: 'Remover este item do radar?', danger: true, confirmLabel: 'Remover' })) void act(id, () => api(`/product-os/radar/${id}/remove`, { method: 'POST' })) }
   const importIt = async (it: RadarItem) => {
     setBusyId(it.id); setErr('')
     try { const r = await api<{ product_dev: { id: string } }>('/product-os/import/makerworld', { method: 'POST', body: JSON.stringify({ url: it.source_url || it.external_id }) }); onImported(r.product_dev.id) }
@@ -2069,7 +2070,7 @@ function CreatorsView({ onImported }: { onImported: (id: string) => void }) {
     try { const r = await api<{ creator: TrackedCreator; models: ExtModel[] }>('/product-os/creators', { method: 'POST', body: JSON.stringify({ platform, handle }) }); setHandle(''); await loadAll(); setSelected(r.creator.id); setModels(r.models) }
     catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setAdding(false) }
   }
-  const remove = async (id: string) => { if (!window.confirm('Deixar de seguir?')) return; try { await api(`/product-os/creators/${id}/remove`, { method: 'POST' }); if (selected === id) { setSelected(null); setModels([]) } await loadAll() } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } }
+  const remove = async (id: string) => { if (!(await confirmDialog({ title: 'Deixar de seguir', message: 'Deixar de seguir este criador?', confirmLabel: 'Deixar de seguir' }))) return; try { await api(`/product-os/creators/${id}/remove`, { method: 'POST' }); if (selected === id) { setSelected(null); setModels([]) } await loadAll() } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } }
 
   return (
     <div className="space-y-3">
@@ -2261,6 +2262,31 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
       </div>
     </div>
   )
+}
+
+function ConfirmModal({ title, message, confirmLabel = 'Confirmar', danger, busy, onConfirm, onClose }: { title: string; message: React.ReactNode; confirmLabel?: string; danger?: boolean; busy?: boolean; onConfirm: () => void; onClose: () => void }) {
+  const c = danger ? { bg: 'rgba(239,68,68,0.12)', border: 'rgba(239,68,68,0.4)', color: '#f87171' } : { bg: 'rgba(0,229,255,0.12)', border: 'rgba(0,229,255,0.35)', color: '#00E5FF' }
+  return (
+    <Modal title={title} onClose={onClose}>
+      <p className="text-sm leading-relaxed" style={{ color: '#a1a1aa' }}>{message}</p>
+      <div className="mt-5 flex justify-end gap-2">
+        <button onClick={onClose} disabled={busy} className="rounded-lg px-4 py-2 text-xs font-semibold disabled:opacity-50" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#a1a1aa' }}>Cancelar</button>
+        <button onClick={onConfirm} disabled={busy} className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-bold disabled:opacity-50" style={{ background: c.bg, border: `1px solid ${c.border}`, color: c.color }}>{busy ? <Loader2 size={12} className="animate-spin" /> : danger ? <Trash2 size={12} /> : <CheckCircle2 size={12} />} {confirmLabel}</button>
+      </div>
+    </Modal>
+  )
+}
+
+// confirm imperativo (substitui window.confirm) — renderizado pelo ConfirmHost
+type ConfirmOpts = { title: string; message: React.ReactNode; confirmLabel?: string; danger?: boolean }
+let _confirm: ((o: ConfirmOpts) => Promise<boolean>) | null = null
+function confirmDialog(o: ConfirmOpts): Promise<boolean> { return _confirm ? _confirm(o) : Promise.resolve(true) }
+function ConfirmHost() {
+  const [st, setSt] = useState<{ o: ConfirmOpts; resolve: (v: boolean) => void } | null>(null)
+  useEffect(() => { _confirm = o => new Promise<boolean>(res => setSt({ o, resolve: res })); return () => { _confirm = null } }, [])
+  if (!st) return null
+  const done = (v: boolean) => { st.resolve(v); setSt(null) }
+  return <ConfirmModal title={st.o.title} message={st.o.message} confirmLabel={st.o.confirmLabel} danger={st.o.danger} onConfirm={() => done(true)} onClose={() => done(false)} />
 }
 
 function Input({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string }) {
