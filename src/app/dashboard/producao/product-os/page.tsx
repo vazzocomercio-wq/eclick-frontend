@@ -170,7 +170,7 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 // limite de upload = teto global do projeto Supabase (bucket product-os)
-const MAX_UPLOAD_MB = 100
+const MAX_UPLOAD_MB = 200
 function friendlyUploadError(e: unknown): string {
   const m = e instanceof Error ? e.message : 'erro'
   if (/maximum allowed size|payload too large|exceeded|413/i.test(m)) return `Arquivo grande demais (limite ${MAX_UPLOAD_MB} MB). Comprima o modelo (reduza a malha/decimate) ou exporte em menor resolução.`
