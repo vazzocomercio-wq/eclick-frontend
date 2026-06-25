@@ -1963,6 +1963,7 @@ function DiscoverView({ onImported }: { onImported: (id: string) => void }) {
   const [platform, setPlatform] = useState(''); const [commercial, setCommercial] = useState(true)
   const [cats, setCats] = useState<{ slug: string; name: string }[]>([]); const [category, setCategory] = useState('')
   const [query, setQuery] = useState(''); const [submittedQuery, setSubmittedQuery] = useState('')
+  const [sort, setSort] = useState<'downloads' | 'recent'>('downloads')
   const [models, setModels] = useState<ExtModel[]>([]); const [loading, setLoading] = useState(false); const [err, setErr] = useState('')
 
   useEffect(() => { void (async () => {
@@ -1980,10 +1981,10 @@ function DiscoverView({ onImported }: { onImported: (id: string) => void }) {
   const load = useCallback(async () => {
     if (!platform) return
     setLoading(true); setErr('')
-    const qs = submittedQuery ? `&q=${encodeURIComponent(submittedQuery)}` : (category ? `&category=${encodeURIComponent(category)}` : '')
+    const qs = submittedQuery ? `&q=${encodeURIComponent(submittedQuery)}` : `${category ? `&category=${encodeURIComponent(category)}` : ''}&sort=${sort}`
     try { setModels(await api<ExtModel[]>(`/product-os/discover?platform=${platform}&commercial=${commercial ? '1' : '0'}${qs}`)) }
     catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setLoading(false) }
-  }, [platform, commercial, category, submittedQuery])
+  }, [platform, commercial, category, submittedQuery, sort])
   useEffect(() => { void load() }, [load])
   const doSearch = () => setSubmittedQuery(query.trim())
   const clearSearch = () => { setQuery(''); setSubmittedQuery('') }
@@ -2014,6 +2015,13 @@ function DiscoverView({ onImported }: { onImported: (id: string) => void }) {
             <label className="flex cursor-pointer items-center gap-2 pb-1.5 text-xs" style={{ color: '#a1a1aa' }}>
               <input type="checkbox" checked={commercial} onChange={e => setCommercial(e.target.checked)} /> Só vendáveis
             </label>
+            {!submittedQuery && (
+              <div className="flex items-center gap-1 pb-1 rounded-lg p-0.5" style={{ background: '#0a0a0e', border: '1px solid #27272a' }}>
+                {([['downloads', 'Mais baixados'], ['recent', 'Recentes']] as const).map(([k, lbl]) => (
+                  <button key={k} onClick={() => setSort(k)} className="rounded px-2 py-1 text-[10px] font-semibold" style={{ background: sort === k ? 'rgba(0,229,255,0.12)' : 'transparent', color: sort === k ? '#00E5FF' : '#71717a' }}>{lbl}</button>
+                ))}
+              </div>
+            )}
             <button onClick={() => void load()} disabled={loading} className="ml-auto flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold disabled:opacity-50" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#a1a1aa' }}>{loading ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />} Atualizar</button>
           </div>
         )}
