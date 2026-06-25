@@ -11,7 +11,7 @@ import {
   Lightbulb, Loader2, Plus, X, Sparkles, Cpu, DollarSign, Settings2,
   AlertTriangle, CheckCircle2, FileBox, RefreshCw, Check, Ban, Package,
   Factory, Boxes, Send, Rocket, ListChecks, History, ClipboardList,
-  Printer as PrinterIcon, TrendingUp, Gauge, Wifi, Upload, Trophy, Trash2, ExternalLink,
+  Printer as PrinterIcon, TrendingUp, Gauge, Wifi, Upload, Trophy, Trash2, ExternalLink, Users, Flame, Heart, Download,
 } from 'lucide-react'
 import { usePrompt } from '@/components/ui/dialog-provider'
 
@@ -76,6 +76,13 @@ interface RadarItem {
   ai_suggestion: { decision?: string; confidence?: number; rationale?: string } | null
   notes: string | null; first_seen_at: string; last_checked_at: string | null
 }
+interface ExtModel {
+  platform: string; source_url: string; external_id: string; title: string; license: string | null
+  cover_url: string | null; creator: string | null; download_count: number; like_count: number
+  price: number | null; verdict: LicenseVerdict
+}
+interface SourceInfo { platform: string; label: string; configured: boolean; can_creator: boolean; can_discover: boolean }
+interface TrackedCreator { id: string; platform: string; handle: string; display_name: string | null; last_model_count: number | null }
 interface MwPreview {
   platform: string; source_url: string; external_id: string; title: string; license: string | null; license_title: string | null
   allow_recreation: boolean; is_printable: boolean; cover_url: string | null; creator: string | null
@@ -1741,6 +1748,22 @@ function ImportMakerworldModal({ onClose, onImported }: { onClose: () => void; o
 }
 
 function RadarPanel({ onImported }: { onImported: (id: string) => void }) {
+  const [mode, setMode] = useState<'radar' | 'criadores' | 'emalta'>('radar')
+  return (
+    <div className="space-y-3">
+      <div className="flex gap-1 rounded-lg p-1" style={{ background: '#0a0a0e', border: '1px solid #1a1a1f', width: 'fit-content' }}>
+        {([['radar', 'Meu radar', <Trophy key="1" size={12} />], ['criadores', 'Criadores', <Users key="2" size={12} />], ['emalta', 'Em alta', <Flame key="3" size={12} />]] as const).map(([k, lbl, ic]) => (
+          <button key={k} onClick={() => setMode(k)} className="flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-semibold" style={{ background: mode === k ? 'rgba(0,229,255,0.12)' : 'transparent', color: mode === k ? '#00E5FF' : '#71717a' }}>{ic}{lbl}</button>
+        ))}
+      </div>
+      {mode === 'radar' && <RadarWatchlist onImported={onImported} />}
+      {mode === 'criadores' && <CreatorsView onImported={onImported} />}
+      {mode === 'emalta' && <DiscoverView onImported={onImported} />}
+    </div>
+  )
+}
+
+function RadarWatchlist({ onImported }: { onImported: (id: string) => void }) {
   const [items, setItems] = useState<RadarItem[]>([])
   const [loading, setLoading] = useState(true)
   const [url, setUrl] = useState(''); const [adding, setAdding] = useState(false); const [refreshing, setRefreshing] = useState(false)
@@ -1846,6 +1869,161 @@ function RadarCard({ it, rank, busy, onDecision, onRefresh, onAi, onRemove, onIm
             <button onClick={() => onRemove(it.id)} disabled={busy} title="Remover do radar" className="flex items-center gap-1 rounded px-2 py-1 text-[10px] font-semibold disabled:opacity-50" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#f87171' }}><Trash2 size={11} /></button>
           </div>
         </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Criadores (Fase E) ────────────────────────────────────────────
+function CreatorsView({ onImported }: { onImported: (id: string) => void }) {
+  const [sources, setSources] = useState<SourceInfo[]>([])
+  const [creators, setCreators] = useState<TrackedCreator[]>([])
+  const [platform, setPlatform] = useState(''); const [handle, setHandle] = useState('')
+  const [adding, setAdding] = useState(false); const [err, setErr] = useState('')
+  const [selected, setSelected] = useState<string | null>(null)
+  const [models, setModels] = useState<ExtModel[]>([]); const [loadingModels, setLoadingModels] = useState(false)
+
+  const loadAll = useCallback(async () => {
+    try {
+      const [s, c] = await Promise.all([api<SourceInfo[]>('/product-os/sources'), api<TrackedCreator[]>('/product-os/creators')])
+      const creatorSources = s.filter(x => x.configured && x.can_creator)
+      setSources(creatorSources); setCreators(c)
+      if (!platform && creatorSources[0]) setPlatform(creatorSources[0].platform)
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') }
+  }, [platform])
+  useEffect(() => { void loadAll() }, [loadAll])
+
+  const openCreator = async (c: TrackedCreator) => {
+    setSelected(c.id); setLoadingModels(true); setErr(''); setModels([])
+    try { setModels(await api<ExtModel[]>(`/product-os/creators/${c.id}/models`)) }
+    catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setLoadingModels(false) }
+  }
+  const add = async () => {
+    if (!platform || !handle.trim()) return
+    setAdding(true); setErr('')
+    try { const r = await api<{ creator: TrackedCreator; models: ExtModel[] }>('/product-os/creators', { method: 'POST', body: JSON.stringify({ platform, handle }) }); setHandle(''); await loadAll(); setSelected(r.creator.id); setModels(r.models) }
+    catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setAdding(false) }
+  }
+  const remove = async (id: string) => { if (!window.confirm('Deixar de seguir?')) return; try { await api(`/product-os/creators/${id}/remove`, { method: 'POST' }); if (selected === id) { setSelected(null); setModels([]) } await loadAll() } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } }
+
+  return (
+    <div className="space-y-3">
+      <div className="rounded-xl p-3" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
+        <div className="flex flex-wrap items-end gap-2">
+          <label className="block"><span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#71717a' }}>Plataforma</span>
+            <select value={platform} onChange={e => setPlatform(e.target.value)} className="rounded-lg px-2.5 py-1.5 text-xs outline-none" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }}>
+              {sources.map(s => <option key={s.platform} value={s.platform}>{s.label}</option>)}
+            </select></label>
+          <div className="min-w-[180px] flex-1"><Input label="Nick do criador" value={handle} onChange={setHandle} placeholder="ex: CreativeTools" /></div>
+          <button onClick={() => void add()} disabled={adding || !handle.trim()} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}>{adding ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />} Seguir</button>
+        </div>
+        {!sources.length && <p className="mt-2 text-[11px]" style={{ color: '#fcd34d' }}>Nenhuma fonte com busca por criador configurada (Thingiverse/Cults3D).</p>}
+      </div>
+
+      {err && <div className="rounded-lg p-2.5 text-xs" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>{err}</div>}
+
+      {creators.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {creators.map(c => (
+            <button key={c.id} onClick={() => void openCreator(c)} className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold" style={{ background: selected === c.id ? 'rgba(0,229,255,0.12)' : '#111114', border: `1px solid ${selected === c.id ? 'rgba(0,229,255,0.35)' : '#27272a'}`, color: selected === c.id ? '#00E5FF' : '#a1a1aa' }}>
+              <Users size={11} />{c.display_name || c.handle}<span style={{ color: '#52525b' }}>· {platformName(c.platform)}</span>
+              <span onClick={e => { e.stopPropagation(); void remove(c.id) }} style={{ color: '#52525b' }}><Trash2 size={11} /></span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {loadingModels ? <div className="flex items-center gap-2 text-sm" style={{ color: '#71717a' }}><Loader2 size={14} className="animate-spin" /> Carregando modelos…</div>
+        : selected && !models.length ? <p className="text-xs" style={{ color: '#a1a1aa' }}>Nenhum modelo encontrado.</p>
+        : models.length > 0 ? <ExtModelGrid models={models} onImported={onImported} /> : !creators.length ? <p className="text-xs" style={{ color: '#a1a1aa' }}>Siga um criador pra ver e ranquear os modelos dele.</p> : <p className="text-xs" style={{ color: '#71717a' }}>Clique num criador acima pra ver os modelos.</p>}
+    </div>
+  )
+}
+
+// ── Em alta / descoberta (Fase D) ─────────────────────────────────
+function DiscoverView({ onImported }: { onImported: (id: string) => void }) {
+  const [sources, setSources] = useState<SourceInfo[]>([])
+  const [platform, setPlatform] = useState(''); const [commercial, setCommercial] = useState(true)
+  const [models, setModels] = useState<ExtModel[]>([]); const [loading, setLoading] = useState(false); const [err, setErr] = useState('')
+
+  useEffect(() => { void (async () => {
+    try { const s = await api<SourceInfo[]>('/product-os/sources'); const d = s.filter(x => x.configured && x.can_discover); setSources(d); if (d[0]) setPlatform(d[0].platform) }
+    catch (e) { setErr(e instanceof Error ? e.message : 'Erro') }
+  })() }, [])
+
+  const load = useCallback(async () => {
+    if (!platform) return
+    setLoading(true); setErr('')
+    try { setModels(await api<ExtModel[]>(`/product-os/discover?platform=${platform}&commercial=${commercial ? '1' : '0'}`)) }
+    catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setLoading(false) }
+  }, [platform, commercial])
+  useEffect(() => { void load() }, [load])
+
+  return (
+    <div className="space-y-3">
+      <div className="rounded-xl p-3" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
+        {!sources.length ? <p className="text-[11px]" style={{ color: '#fcd34d' }}>Nenhuma fonte com feed de descoberta configurada (Cults3D).</p> : (
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="block"><span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#71717a' }}>Plataforma</span>
+              <select value={platform} onChange={e => setPlatform(e.target.value)} className="rounded-lg px-2.5 py-1.5 text-xs outline-none" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }}>
+                {sources.map(s => <option key={s.platform} value={s.platform}>{s.label}</option>)}
+              </select></label>
+            <label className="flex cursor-pointer items-center gap-2 text-xs" style={{ color: '#a1a1aa' }}>
+              <input type="checkbox" checked={commercial} onChange={e => setCommercial(e.target.checked)} /> Só licença comercial (vendáveis)
+            </label>
+            <button onClick={() => void load()} disabled={loading} className="ml-auto flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold disabled:opacity-50" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#a1a1aa' }}>{loading ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />} Atualizar</button>
+          </div>
+        )}
+        <p className="mt-2 text-[11px]" style={{ color: '#71717a' }}>Campeões da plataforma por downloads. Com o filtro comercial ligado, só aparecem modelos que dá pra <span style={{ color: '#4ade80' }}>vender</span> — o veredito ainda flagra os sem-derivados (vermelho).</p>
+      </div>
+      {err && <div className="rounded-lg p-2.5 text-xs" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>{err}</div>}
+      {loading ? <div className="flex items-center gap-2 text-sm" style={{ color: '#71717a' }}><Loader2 size={14} className="animate-spin" /> Carregando…</div>
+        : <ExtModelGrid models={models} onImported={onImported} />}
+    </div>
+  )
+}
+
+// grid compartilhado de modelos externos (criadores + em alta)
+function ExtModelGrid({ models, onImported }: { models: ExtModel[]; onImported: (id: string) => void }) {
+  const [busy, setBusy] = useState<string | null>(null); const [msg, setMsg] = useState(''); const [err, setErr] = useState('')
+  const imp = async (m: ExtModel) => { setBusy(m.source_url); setErr(''); try { const r = await api<{ product_dev: { id: string } }>('/product-os/import/makerworld', { method: 'POST', body: JSON.stringify({ url: m.source_url }) }); onImported(r.product_dev.id) } catch (e) { setErr(e instanceof Error ? e.message : 'Erro'); setBusy(null) } }
+  const obs = async (m: ExtModel) => { setBusy(m.source_url + ':o'); setErr(''); setMsg('') ; try { await api('/product-os/radar', { method: 'POST', body: JSON.stringify({ url: m.source_url }) }); setMsg(`Adicionado ao radar: ${m.title}`) } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setBusy(null) } }
+  if (!models.length) return null
+  return (
+    <div className="space-y-2">
+      {msg && <div className="rounded-lg p-2 text-[11px]" style={{ background: 'rgba(74,222,128,0.10)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)' }}>{msg}</div>}
+      {err && <div className="rounded-lg p-2 text-[11px]" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>{err}</div>}
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+        {models.map(m => <ExtModelCard key={m.platform + m.external_id} m={m} busy={busy === m.source_url} busyObs={busy === m.source_url + ':o'} onImport={() => void imp(m)} onObserve={() => void obs(m)} />)}
+      </div>
+    </div>
+  )
+}
+
+function ExtModelCard({ m, busy, busyObs, onImport, onObserve }: { m: ExtModel; busy: boolean; busyObs: boolean; onImport: () => void; onObserve: () => void }) {
+  const v = VERDICT_STYLE[m.verdict.level]
+  return (
+    <div className="flex flex-col rounded-xl p-2.5" style={{ background: '#111114', border: '1px solid #27272a' }}>
+      <div className="flex gap-2.5">
+        <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-lg" style={{ background: '#0a0a0e', border: '1px solid #1a1a1f' }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          {m.cover_url ? <img src={m.cover_url} alt="" className="h-full w-full object-cover" /> : <Package size={18} style={{ color: '#3f3f46' }} />}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="line-clamp-2 text-xs font-bold leading-tight text-white">{m.title}</p>
+          <p className="mt-0.5 truncate text-[10px]" style={{ color: '#71717a' }}>{platformName(m.platform)} · {m.creator ?? '—'}</p>
+          <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px]" style={{ color: '#a1a1aa' }}>
+            <span className="flex items-center gap-0.5"><Download size={10} />{m.download_count}</span>
+            <span className="flex items-center gap-0.5"><Heart size={10} />{m.like_count}</span>
+            {m.price ? <span style={{ color: '#fcd34d' }}>${m.price.toFixed(2)}</span> : null}
+          </div>
+        </div>
+      </div>
+      <span className="mt-2 flex w-fit items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold" style={{ background: v.bg, color: v.color, border: `1px solid ${v.border}` }}>{v.icon}{m.license ?? m.verdict.label}</span>
+      <div className="mt-2 flex items-center gap-1.5">
+        <button onClick={onImport} disabled={busy} className="flex items-center gap-1 rounded px-2 py-1 text-[10px] font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}>{busy ? <Loader2 size={11} className="animate-spin" /> : <Rocket size={11} />} Importar</button>
+        <button onClick={onObserve} disabled={busyObs} className="flex items-center gap-1 rounded px-2 py-1 text-[10px] font-semibold disabled:opacity-50" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#a5f3fc' }}>{busyObs ? <Loader2 size={11} className="animate-spin" /> : <Trophy size={11} />} + Radar</button>
+        <a href={m.source_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 rounded px-2 py-1 text-[10px] font-semibold" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#71717a' }}><ExternalLink size={11} /></a>
       </div>
     </div>
   )
