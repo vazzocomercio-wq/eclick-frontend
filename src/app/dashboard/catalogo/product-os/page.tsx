@@ -11,7 +11,7 @@ import {
   Lightbulb, Loader2, Plus, X, Sparkles, Cpu, DollarSign, Settings2,
   AlertTriangle, CheckCircle2, FileBox, RefreshCw, Check, Ban, Package,
   Factory, Boxes, Send, Rocket, ListChecks, History, ClipboardList,
-  Printer as PrinterIcon, TrendingUp, Gauge, Wifi, Upload,
+  Printer as PrinterIcon, TrendingUp, Gauge, Wifi, Upload, Trophy, Trash2, ExternalLink,
 } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
@@ -64,6 +64,16 @@ interface LicenseStatus {
   imported: boolean; platform: string | null; source_url: string | null; license: string | null
   verdict: LicenseVerdict | null; cleared: boolean; cleared_note: string | null; cleared_at: string | null
   blocked: boolean; can_publish: boolean
+}
+interface RadarItem {
+  id: string; external_id: string; title: string | null; cover_url: string | null; creator: string | null; source_url: string | null
+  license: string | null; verdict: LicenseVerdict
+  last_download_count: number; last_print_count: number; last_like_count: number; last_collection_count: number
+  downloads_per_week: number | null; prints_per_week: number | null; champion_score: number | null
+  velocity_status: 'coletando' | 'ok'; days_tracked: number; snapshots_count: number
+  decision: 'observar' | 'comprar' | 'ignorar'
+  ai_suggestion: { decision?: string; confidence?: number; rationale?: string } | null
+  notes: string | null; first_seen_at: string; last_checked_at: string | null
 }
 interface MwPreview {
   source_url: string; external_id: string; title: string; license: string | null; license_title: string | null
@@ -185,7 +195,7 @@ function UploadButton({ label, accept, multiple, onUploaded }: { label: string; 
 
 // ════════════════════════════════════════════════════════════════════
 export default function ProductOsPage() {
-  const [tab, setTab] = useState<'fabrica' | 'ciclo' | 'producao' | 'impressoras' | 'rentabilidade' | 'insumos'>('fabrica')
+  const [tab, setTab] = useState<'fabrica' | 'ciclo' | 'producao' | 'impressoras' | 'rentabilidade' | 'radar' | 'insumos'>('fabrica')
   const [items, setItems] = useState<ProductDev[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -221,7 +231,7 @@ export default function ProductOsPage() {
 
       {/* tabs */}
       <div className="flex gap-1 rounded-lg p-1" style={{ background: '#111114', border: '1px solid #1a1a1f', width: 'fit-content' }}>
-        {([['fabrica', 'Fábrica', <Gauge key="f" size={13} />], ['ciclo', 'Ciclo de vida', <Lightbulb key="a" size={13} />], ['producao', 'Produção', <Factory key="b" size={13} />], ['impressoras', 'Impressoras', <PrinterIcon key="d" size={13} />], ['rentabilidade', 'Rentabilidade', <TrendingUp key="e" size={13} />], ['insumos', 'Insumos', <Boxes key="c" size={13} />]] as const).map(([k, lbl, ic]) => (
+        {([['fabrica', 'Fábrica', <Gauge key="f" size={13} />], ['ciclo', 'Ciclo de vida', <Lightbulb key="a" size={13} />], ['producao', 'Produção', <Factory key="b" size={13} />], ['impressoras', 'Impressoras', <PrinterIcon key="d" size={13} />], ['rentabilidade', 'Rentabilidade', <TrendingUp key="e" size={13} />], ['radar', 'Radar', <Trophy key="r" size={13} />], ['insumos', 'Insumos', <Boxes key="c" size={13} />]] as const).map(([k, lbl, ic]) => (
           <button key={k} onClick={() => setTab(k)} className="flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-semibold" style={{ background: tab === k ? 'rgba(0,229,255,0.12)' : 'transparent', color: tab === k ? '#00E5FF' : '#71717a' }}>{ic}{lbl}</button>
         ))}
       </div>
@@ -233,6 +243,7 @@ export default function ProductOsPage() {
       {tab === 'producao' && <ProductionBoard products={items} />}
       {tab === 'impressoras' && <PrintersPanel />}
       {tab === 'rentabilidade' && <ProfitabilityPanel onOpen={setOpenId} />}
+      {tab === 'radar' && <RadarPanel onImported={id => { void load(); setTab('ciclo'); setOpenId(id) }} />}
       {tab === 'insumos' && <InsumosPanel />}
 
       {openId && <DetailDrawer id={openId} onClose={() => setOpenId(null)} onChanged={() => void load()} />}
@@ -1708,6 +1719,117 @@ function ImportMakerworldModal({ onClose, onImported }: { onClose: () => void; o
         </div>
       )}
     </Modal>
+  )
+}
+
+function RadarPanel({ onImported }: { onImported: (id: string) => void }) {
+  const [items, setItems] = useState<RadarItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const [url, setUrl] = useState(''); const [adding, setAdding] = useState(false); const [refreshing, setRefreshing] = useState(false)
+  const [err, setErr] = useState(''); const [busyId, setBusyId] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    setLoading(true); setErr('')
+    try { setItems(await api<RadarItem[]>('/product-os/radar')) }
+    catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setLoading(false) }
+  }, [])
+  useEffect(() => { void load() }, [load])
+
+  const add = async () => {
+    if (!url.trim()) return
+    setAdding(true); setErr('')
+    try { await api('/product-os/radar', { method: 'POST', body: JSON.stringify({ url }) }); setUrl(''); await load() }
+    catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setAdding(false) }
+  }
+  const refreshAll = async () => { setRefreshing(true); setErr(''); try { await api('/product-os/radar/refresh', { method: 'POST' }); await load() } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setRefreshing(false) } }
+  const act = async (id: string, fn: () => Promise<unknown>) => { setBusyId(id); setErr(''); try { await fn(); await load() } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setBusyId(null) } }
+  const setDecision = (id: string, decision: string) => void act(id, () => api(`/product-os/radar/${id}/decision`, { method: 'POST', body: JSON.stringify({ decision }) }))
+  const refreshOne = (id: string) => void act(id, () => api(`/product-os/radar/${id}/refresh`, { method: 'POST' }))
+  const aiSuggest = (id: string) => void act(id, () => api(`/product-os/radar/${id}/ai-suggest`, { method: 'POST' }))
+  const remove = (id: string) => { if (window.confirm('Remover do radar?')) void act(id, () => api(`/product-os/radar/${id}/remove`, { method: 'POST' })) }
+  const importIt = async (it: RadarItem) => {
+    setBusyId(it.id); setErr('')
+    try { const r = await api<{ product_dev: { id: string } }>('/product-os/import/makerworld', { method: 'POST', body: JSON.stringify({ url: it.source_url || it.external_id }) }); onImported(r.product_dev.id) }
+    catch (e) { setErr(e instanceof Error ? e.message : 'Erro'); setBusyId(null) }
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="rounded-xl p-3" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="min-w-[260px] flex-1"><Input label="Adicionar modelo ao radar (link ou ID do MakerWorld)" value={url} onChange={setUrl} placeholder="https://makerworld.com/en/models/…" /></div>
+          <button onClick={() => void add()} disabled={adding || !url.trim()} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}>{adding ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />} Observar</button>
+          <button onClick={() => void refreshAll()} disabled={refreshing || !items.length} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold disabled:opacity-50" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#a1a1aa' }}>{refreshing ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />} Atualizar tudo</button>
+        </div>
+        <p className="mt-2 text-[11px]" style={{ color: '#71717a' }}>O ranking é por <span style={{ color: '#a5f3fc' }}>velocidade</span> (downloads/prints ganhos por semana), não pelo total. Modelos novos sobem conforme o sistema os fotografa ao longo dos dias (1×/dia automático).</p>
+      </div>
+
+      {err && <div className="rounded-lg p-2.5 text-xs" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>{err}</div>}
+
+      {loading ? <div className="flex items-center gap-2 text-sm" style={{ color: '#71717a' }}><Loader2 size={14} className="animate-spin" /> Carregando…</div>
+        : !items.length ? <p className="text-xs" style={{ color: '#a1a1aa' }}>Radar vazio. Cole o link de um modelo do MakerWorld que você quer acompanhar.</p>
+        : <div className="space-y-2">{items.map((it, idx) => <RadarCard key={it.id} it={it} rank={idx + 1} busy={busyId === it.id} onDecision={setDecision} onRefresh={refreshOne} onAi={aiSuggest} onRemove={remove} onImport={importIt} />)}</div>}
+    </div>
+  )
+}
+
+function RadarCard({ it, rank, busy, onDecision, onRefresh, onAi, onRemove, onImport }: {
+  it: RadarItem; rank: number; busy: boolean
+  onDecision: (id: string, d: string) => void; onRefresh: (id: string) => void; onAi: (id: string) => void; onRemove: (id: string) => void; onImport: (it: RadarItem) => void
+}) {
+  const v = VERDICT_STYLE[it.verdict.level]
+  const coleta = it.velocity_status === 'coletando'
+  const DEC: Array<[string, string, string]> = [['comprar', 'Comprar', '#4ade80'], ['observar', 'Observar', '#a5f3fc'], ['ignorar', 'Ignorar', '#71717a']]
+  return (
+    <div className="rounded-xl p-3" style={{ background: '#111114', border: '1px solid #27272a' }}>
+      <div className="flex gap-3">
+        <div className="flex flex-col items-center gap-1">
+          <span className="text-[10px] font-bold" style={{ color: '#52525b' }}>#{rank}</span>
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-lg" style={{ background: '#0a0a0e', border: '1px solid #1a1a1f' }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            {it.cover_url ? <img src={it.cover_url} alt="" className="h-full w-full object-cover" /> : <Package size={18} style={{ color: '#3f3f46' }} />}
+          </div>
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start gap-2">
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-bold text-white">{it.title ?? `MakerWorld ${it.external_id}`}</p>
+              <p className="truncate text-[11px]" style={{ color: '#71717a' }}>{it.creator ?? 'criador desconhecido'}</p>
+            </div>
+            <span className="flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold" style={{ background: v.bg, color: v.color, border: `1px solid ${v.border}` }}>{v.icon}{it.license ?? it.verdict.label}</span>
+          </div>
+
+          {/* métricas */}
+          <div className="mt-2 flex flex-wrap items-center gap-3">
+            <div className="text-center"><p className="text-base font-extrabold leading-none" style={{ color: coleta ? '#52525b' : '#00E5FF' }}>{coleta ? '—' : it.champion_score}</p><p className="text-[9px] uppercase" style={{ color: '#52525b' }}>score</p></div>
+            <div className="text-center"><p className="text-sm font-bold leading-none text-white">{coleta ? '—' : `+${it.downloads_per_week}`}</p><p className="text-[9px]" style={{ color: '#52525b' }}>downloads/sem</p></div>
+            <div className="text-center"><p className="text-sm font-bold leading-none text-white">{coleta ? '—' : `+${it.prints_per_week}`}</p><p className="text-[9px]" style={{ color: '#52525b' }}>prints/sem</p></div>
+            <div className="text-center"><p className="text-xs font-semibold leading-none" style={{ color: '#a1a1aa' }}>{it.last_download_count} · {it.last_print_count}</p><p className="text-[9px]" style={{ color: '#52525b' }}>tot. down · print</p></div>
+            {coleta && <span className="rounded px-1.5 py-0.5 text-[9px] font-semibold" style={{ background: 'rgba(252,211,77,0.10)', color: '#fcd34d', border: '1px solid rgba(252,211,77,0.25)' }}>coletando ({it.days_tracked}d)</span>}
+          </div>
+
+          {it.ai_suggestion?.rationale && (
+            <div className="mt-2 rounded-lg p-2 text-[11px]" style={{ background: 'rgba(0,229,255,0.06)', border: '1px solid rgba(0,229,255,0.18)', color: '#a5f3fc' }}>
+              <span className="font-bold">IA: {it.ai_suggestion.decision}</span>{typeof it.ai_suggestion.confidence === 'number' && <span style={{ color: '#71717a' }}> ({Math.round(it.ai_suggestion.confidence * 100)}%)</span>} — <span style={{ color: '#a1a1aa' }}>{it.ai_suggestion.rationale}</span>
+            </div>
+          )}
+
+          {/* decisão + ações */}
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            {DEC.map(([key, lbl, color]) => (
+              <button key={key} onClick={() => onDecision(it.id, key)} disabled={busy} className="rounded px-2 py-1 text-[10px] font-bold disabled:opacity-50" style={{ background: it.decision === key ? `${color}22` : 'transparent', color: it.decision === key ? color : '#52525b', border: `1px solid ${it.decision === key ? color + '55' : '#27272a'}` }}>{lbl}</button>
+            ))}
+            <span className="mx-1 h-4 w-px" style={{ background: '#27272a' }} />
+            <button onClick={() => onImport(it)} disabled={busy} title="Importar como produto" className="flex items-center gap-1 rounded px-2 py-1 text-[10px] font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}><Rocket size={11} /> Importar</button>
+            <button onClick={() => onAi(it.id)} disabled={busy} title="Sugestão da IA" className="flex items-center gap-1 rounded px-2 py-1 text-[10px] font-semibold disabled:opacity-50" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#a5f3fc' }}><Sparkles size={11} /> IA</button>
+            <button onClick={() => onRefresh(it.id)} disabled={busy} title="Atualizar métricas" className="flex items-center gap-1 rounded px-2 py-1 text-[10px] font-semibold disabled:opacity-50" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#a1a1aa' }}>{busy ? <Loader2 size={11} className="animate-spin" /> : <RefreshCw size={11} />}</button>
+            {it.source_url && <a href={it.source_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 rounded px-2 py-1 text-[10px] font-semibold" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#71717a' }}><ExternalLink size={11} /></a>}
+            <button onClick={() => onRemove(it.id)} disabled={busy} title="Remover do radar" className="flex items-center gap-1 rounded px-2 py-1 text-[10px] font-semibold disabled:opacity-50" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#f87171' }}><Trash2 size={11} /></button>
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }
 
