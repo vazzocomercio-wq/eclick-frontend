@@ -26,6 +26,7 @@ interface ProductDev {
   briefing: Record<string, unknown> | null; briefing_text: string | null
   target_marketplaces: string[]; target_price: number | null; estimated_cost: number | null
   product_id: string | null; active_deal_id: string | null; position: number; created_at: string
+  source_platform?: string | null; license_status?: LicenseStatus
 }
 interface Version {
   id: string; version_number: number; changelog: string | null; file_url: string | null; file_type: string | null
@@ -59,6 +60,11 @@ interface BomLine { id?: string; kind: string; description: string | null; quant
 interface Quality { id: string; checklist: Array<{ key: string; label: string; ok: boolean }>; approved: boolean; notes: string | null }
 interface DevEvent { id: string; event_type: string; payload: Record<string, unknown>; is_auto: boolean; created_at: string }
 interface LicenseVerdict { level: 'green' | 'yellow' | 'red'; can_remodel: boolean; can_commercial: boolean; label: string; reason: string }
+interface LicenseStatus {
+  imported: boolean; platform: string | null; source_url: string | null; license: string | null
+  verdict: LicenseVerdict | null; cleared: boolean; cleared_note: string | null; cleared_at: string | null
+  blocked: boolean; can_publish: boolean
+}
 interface MwPreview {
   source_url: string; external_id: string; title: string; license: string | null; license_title: string | null
   allow_recreation: boolean; is_printable: boolean; cover_url: string | null; creator: string | null
@@ -296,6 +302,7 @@ function DevCard({ dev, dragging }: { dev: ProductDev; dragging?: boolean }) {
         <div className="min-w-0 flex-1"><p className="truncate text-xs font-bold text-white">{dev.name}</p><p className="truncate text-[10px]" style={{ color: '#71717a' }}>{dev.category ?? 'sem categoria'}</p></div>
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
+        {dev.license_status?.imported && <LicenseBadge st={dev.license_status} compact />}
         {dev.briefing && <Pill icon={<Sparkles size={9} />} label="briefing" />}
         {dev.estimated_cost != null && <Pill icon={<DollarSign size={9} />} label={`R$ ${dev.estimated_cost.toFixed(2)}`} />}
         {dev.product_id && <Pill icon={<Rocket size={9} />} label="no catálogo" />}
@@ -679,10 +686,22 @@ function DetailDrawer({ id, onClose, onChanged }: { id: string; onClose: () => v
   const [dev, setDev] = useState<DevDetail | null>(null)
   const [err, setErr] = useState(''); const [msg, setMsg] = useState('')
   const [tab, setTab] = useState<DrawerTab>('briefing')
-  const [busy, setBusy] = useState<'dispatch' | 'publish' | null>(null)
+  const [busy, setBusy] = useState<'dispatch' | 'publish' | 'license' | null>(null)
 
   const reload = useCallback(async () => { try { setDev(await api<DevDetail>(`/product-os/${id}`)) } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } }, [id])
   useEffect(() => { void reload() }, [reload])
+
+  const setClearance = async (cleared: boolean) => {
+    let note: string | undefined
+    if (cleared) {
+      const n = window.prompt('Por que a licença está liberada? (ex: comprei licença comercial; autorizado pelo criador em 20/06)', '')
+      if (n == null) return
+      note = n.trim() || undefined
+    }
+    setBusy('license'); setErr(''); setMsg('')
+    try { await api(`/product-os/${id}/license-clearance`, { method: 'POST', body: JSON.stringify({ cleared, note }) }); setMsg(cleared ? 'Licença marcada como liberada.' : 'Liberação removida.'); void reload(); onChanged() }
+    catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setBusy(null) }
+  }
 
   const dispatch = async () => {
     setBusy('dispatch'); setErr(''); setMsg('')
@@ -710,9 +729,10 @@ function DetailDrawer({ id, onClose, onChanged }: { id: string; onClose: () => v
             {/* ações */}
             <div className="mb-3 flex flex-wrap gap-2">
               <button onClick={() => void dispatch()} disabled={busy !== null} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold disabled:opacity-50" style={{ background: '#111114', border: '1px solid #27272a', color: '#a5f3fc' }}>{busy === 'dispatch' ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />} Despachar pro time</button>
-              <button onClick={() => void publish()} disabled={busy !== null || dev.status !== 'aprovado'} title={dev.status !== 'aprovado' ? 'Aprove uma versão primeiro' : ''} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold disabled:opacity-40" style={{ background: 'rgba(74,222,128,0.10)', border: '1px solid rgba(74,222,128,0.3)', color: '#4ade80' }}>{busy === 'publish' ? <Loader2 size={12} className="animate-spin" /> : <Rocket size={12} />} {dev.product_id ? 'No catálogo ✓' : 'Virar anúncio'}</button>
+              <button onClick={() => void publish()} disabled={busy !== null || dev.status !== 'aprovado' || (dev.license_status?.blocked ?? false)} title={dev.license_status?.blocked ? 'Licença bloqueia a publicação — libere em "Licença & origem"' : dev.status !== 'aprovado' ? 'Aprove uma versão primeiro' : ''} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold disabled:opacity-40" style={{ background: 'rgba(74,222,128,0.10)', border: '1px solid rgba(74,222,128,0.3)', color: '#4ade80' }}>{busy === 'publish' ? <Loader2 size={12} className="animate-spin" /> : <Rocket size={12} />} {dev.product_id ? 'No catálogo ✓' : 'Virar anúncio'}</button>
             </div>
 
+            {dev.license_status && <LicenseOriginBlock st={dev.license_status} onClear={c => void setClearance(c)} busy={busy === 'license'} />}
             {dev.description && <p className="mb-3 text-xs" style={{ color: '#a1a1aa' }}>{dev.description}</p>}
             {err && <div className="mb-3 whitespace-pre-line rounded-lg p-2.5 text-xs" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>{err}</div>}
             {msg && <div className="mb-3 rounded-lg p-2.5 text-xs" style={{ background: 'rgba(74,222,128,0.10)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)' }}>{msg}</div>}
@@ -1581,6 +1601,47 @@ const VERDICT_STYLE: Record<'green' | 'yellow' | 'red', { color: string; bg: str
   green:  { color: '#4ade80', bg: 'rgba(74,222,128,0.10)', border: 'rgba(74,222,128,0.30)', icon: <CheckCircle2 size={13} /> },
   yellow: { color: '#fcd34d', bg: 'rgba(252,211,77,0.10)', border: 'rgba(252,211,77,0.30)', icon: <AlertTriangle size={13} /> },
   red:    { color: '#f87171', bg: 'rgba(239,68,68,0.10)', border: 'rgba(239,68,68,0.30)', icon: <Ban size={13} /> },
+}
+
+function LicenseBadge({ st, compact }: { st: LicenseStatus; compact?: boolean }) {
+  if (!st.imported || !st.verdict) return null
+  if (st.cleared) {
+    const s = VERDICT_STYLE.green
+    return <span className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold" style={{ background: s.bg, color: s.color, border: `1px solid ${s.border}` }}><CheckCircle2 size={9} /> licença liberada</span>
+  }
+  const s = VERDICT_STYLE[st.verdict.level]
+  const label = compact ? (st.verdict.level === 'green' ? 'licença OK' : st.verdict.level === 'yellow' ? 'não comercial' : 'bloqueado') : st.verdict.label
+  return <span className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold" style={{ background: s.bg, color: s.color, border: `1px solid ${s.border}` }}>{s.icon}{st.license ? <span className="font-mono">{st.license}</span> : label}</span>
+}
+
+/** Bloco "Licença & origem" no drawer — porteiro da Peça 2. */
+function LicenseOriginBlock({ st, onClear, busy }: { st: LicenseStatus; onClear: (cleared: boolean) => void; busy: boolean }) {
+  if (!st.imported || !st.verdict) return null
+  const v = st.cleared ? VERDICT_STYLE.green : VERDICT_STYLE[st.verdict.level]
+  return (
+    <div className="mb-3 rounded-xl p-3" style={{ background: '#0a0a0e', border: `1px solid ${v.border}` }}>
+      <div className="flex items-center gap-2">
+        <span className="text-[11px] font-bold uppercase tracking-wide" style={{ color: '#71717a' }}>Licença &amp; origem</span>
+        <LicenseBadge st={st} />
+        {st.source_url && <a href={st.source_url} target="_blank" rel="noopener noreferrer" className="ml-auto text-[11px] underline" style={{ color: '#71717a' }}>Ver origem ↗</a>}
+      </div>
+      <p className="mt-1.5 text-[11px] leading-snug" style={{ color: '#a1a1aa' }}>{st.verdict.reason}</p>
+
+      {st.cleared ? (
+        <div className="mt-2 rounded-lg p-2" style={{ background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.25)' }}>
+          <p className="text-[11px] font-semibold" style={{ color: '#4ade80' }}>✓ Licença liberada{st.cleared_at ? ` em ${new Date(st.cleared_at).toLocaleDateString('pt-BR')}` : ''}</p>
+          {st.cleared_note && <p className="mt-0.5 text-[11px]" style={{ color: '#a1a1aa' }}>{st.cleared_note}</p>}
+          <button onClick={() => onClear(false)} disabled={busy} className="mt-1.5 flex items-center gap-1 rounded px-2 py-1 text-[10px] font-semibold disabled:opacity-50" style={{ background: '#111114', border: '1px solid #27272a', color: '#a1a1aa' }}>{busy ? <Loader2 size={10} className="animate-spin" /> : <Ban size={10} />} Remover liberação</button>
+        </div>
+      ) : st.blocked ? (
+        <div className="mt-2 rounded-lg p-2" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)' }}>
+          <p className="text-[11px] font-semibold" style={{ color: '#f87171' }}>Publicação bloqueada — a licença não permite remodelar e vender.</p>
+          <p className="mt-0.5 text-[11px]" style={{ color: '#a1a1aa' }}>Se você adquiriu licença comercial ou foi autorizado pelo criador, registre a liberação.</p>
+          <button onClick={() => onClear(true)} disabled={busy} className="mt-1.5 flex items-center gap-1 rounded px-2 py-1 text-[10px] font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}>{busy ? <Loader2 size={10} className="animate-spin" /> : <CheckCircle2 size={10} />} Marcar licença liberada</button>
+        </div>
+      ) : null}
+    </div>
+  )
 }
 
 function ImportMakerworldModal({ onClose, onImported }: { onClose: () => void; onImported: (id: string) => void }) {
