@@ -66,7 +66,7 @@ interface LicenseStatus {
   blocked: boolean; can_publish: boolean
 }
 interface RadarItem {
-  id: string; external_id: string; title: string | null; cover_url: string | null; creator: string | null; source_url: string | null
+  id: string; platform: string; external_id: string; title: string | null; cover_url: string | null; creator: string | null; source_url: string | null
   license: string | null; verdict: LicenseVerdict
   last_download_count: number; last_print_count: number; last_like_count: number; last_collection_count: number
   downloads_per_week: number | null; prints_per_week: number | null; champion_score: number | null
@@ -76,7 +76,7 @@ interface RadarItem {
   notes: string | null; first_seen_at: string; last_checked_at: string | null
 }
 interface MwPreview {
-  source_url: string; external_id: string; title: string; license: string | null; license_title: string | null
+  platform: string; source_url: string; external_id: string; title: string; license: string | null; license_title: string | null
   allow_recreation: boolean; is_printable: boolean; cover_url: string | null; creator: string | null
   download_count: number; print_count: number; like_count: number; collection_count: number
   tags: string[]; weight_g: number | null; print_time_minutes: number | null; material_count: number | null
@@ -224,7 +224,7 @@ export default function ProductOsPage() {
         <div className="ml-auto flex items-center gap-2">
           <button onClick={() => void load()} className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold" style={{ background: '#111114', border: '1px solid #27272a', color: '#a1a1aa' }}><RefreshCw size={12} /> Atualizar</button>
           <button onClick={() => setShowSettings(true)} className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold" style={{ background: '#111114', border: '1px solid #27272a', color: '#a1a1aa' }}><Settings2 size={12} /> Fabricação</button>
-          <button onClick={() => setShowImport(true)} className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold" style={{ background: '#111114', border: '1px solid #27272a', color: '#a5f3fc' }}><Boxes size={12} /> Importar do MakerWorld</button>
+          <button onClick={() => setShowImport(true)} className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold" style={{ background: '#111114', border: '1px solid #27272a', color: '#a5f3fc' }}><Boxes size={12} /> Importar modelo 3D</button>
           <button onClick={() => setShowNew(true)} className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}><Plus size={12} /> Novo produto</button>
         </div>
       </div>
@@ -1608,6 +1608,9 @@ function NewProductModal({ onClose, onCreated }: { onClose: () => void; onCreate
   )
 }
 
+const PLATFORM_LABEL: Record<string, string> = { makerworld: 'MakerWorld', thingiverse: 'Thingiverse', cults3d: 'Cults3D', thangs: 'Thangs' }
+const platformName = (p?: string) => (p ? PLATFORM_LABEL[p] ?? p : '')
+
 const VERDICT_STYLE: Record<'green' | 'yellow' | 'red', { color: string; bg: string; border: string; icon: React.ReactNode }> = {
   green:  { color: '#4ade80', bg: 'rgba(74,222,128,0.10)', border: 'rgba(74,222,128,0.30)', icon: <CheckCircle2 size={13} /> },
   yellow: { color: '#fcd34d', bg: 'rgba(252,211,77,0.10)', border: 'rgba(252,211,77,0.30)', icon: <AlertTriangle size={13} /> },
@@ -1675,11 +1678,11 @@ function ImportMakerworldModal({ onClose, onImported }: { onClose: () => void; o
   const v = preview ? VERDICT_STYLE[preview.verdict.level] : null
 
   return (
-    <Modal title="Importar do MakerWorld" onClose={onClose}>
+    <Modal title="Importar modelo 3D" onClose={onClose}>
       {err && <div className="mb-3 rounded-lg p-2.5 text-xs" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>{err}</div>}
-      <p className="mb-3 text-xs" style={{ color: '#a1a1aa' }}>Cole o link do modelo (ex: <span style={{ color: '#a5f3fc' }}>makerworld.com/en/models/1234567</span>) ou só o ID. Lemos peso, tempo, material, capa e a licença.</p>
+      <p className="mb-3 text-xs" style={{ color: '#a1a1aa' }}>Cole o link do modelo — <span style={{ color: '#a5f3fc' }}>MakerWorld</span>, <span style={{ color: '#a5f3fc' }}>Thingiverse</span> e mais. Lemos capa, métricas, licença e (quando houver) peso/tempo/material.</p>
       <div className="flex items-end gap-2">
-        <div className="flex-1"><Input label="Link ou ID do MakerWorld" value={url} onChange={setUrl} placeholder="https://makerworld.com/en/models/…" /></div>
+        <div className="flex-1"><Input label="Link ou ID do modelo" value={url} onChange={setUrl} placeholder="makerworld.com/models/… ou thingiverse.com/thing:…" /></div>
         <button onClick={() => void fetchPreview()} disabled={busy} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold disabled:opacity-50" style={{ background: '#111114', border: '1px solid #27272a', color: '#a5f3fc' }}>{busy ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />} Buscar</button>
       </div>
 
@@ -1692,7 +1695,7 @@ function ImportMakerworldModal({ onClose, onImported }: { onClose: () => void; o
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-sm font-bold leading-tight text-white">{preview.title}</p>
-              <p className="mt-0.5 text-[11px]" style={{ color: '#71717a' }}>{preview.creator ?? 'criador desconhecido'}{preview.is_remix && ' · remix'}</p>
+              <p className="mt-0.5 text-[11px]" style={{ color: '#71717a' }}>{platformName(preview.platform)} · {preview.creator ?? 'criador desconhecido'}{preview.is_remix && ' · remix'}</p>
               <div className="mt-1.5 flex flex-wrap gap-1.5 text-[10px]" style={{ color: '#a1a1aa' }}>
                 {preview.weight_g != null && <span className="rounded px-1.5 py-0.5" style={{ background: '#111114', border: '1px solid #27272a' }}>⚖ {preview.weight_g} g</span>}
                 {preview.print_time_minutes != null && <span className="rounded px-1.5 py-0.5" style={{ background: '#111114', border: '1px solid #27272a' }}>⏱ {fmtTime(preview.print_time_minutes)}</span>}
@@ -1757,7 +1760,7 @@ function RadarPanel({ onImported }: { onImported: (id: string) => void }) {
     <div className="space-y-3">
       <div className="rounded-xl p-3" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
         <div className="flex flex-wrap items-end gap-2">
-          <div className="min-w-[260px] flex-1"><Input label="Adicionar modelo ao radar (link ou ID do MakerWorld)" value={url} onChange={setUrl} placeholder="https://makerworld.com/en/models/…" /></div>
+          <div className="min-w-[260px] flex-1"><Input label="Adicionar ao radar (link MakerWorld, Thingiverse…)" value={url} onChange={setUrl} placeholder="makerworld.com/models/… ou thingiverse.com/thing:…" /></div>
           <button onClick={() => void add()} disabled={adding || !url.trim()} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}>{adding ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />} Observar</button>
           <button onClick={() => void refreshAll()} disabled={refreshing || !items.length} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold disabled:opacity-50" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#a1a1aa' }}>{refreshing ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />} Atualizar tudo</button>
         </div>
@@ -1795,7 +1798,7 @@ function RadarCard({ it, rank, busy, onDecision, onRefresh, onAi, onRemove, onIm
           <div className="flex items-start gap-2">
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-bold text-white">{it.title ?? `MakerWorld ${it.external_id}`}</p>
-              <p className="truncate text-[11px]" style={{ color: '#71717a' }}>{it.creator ?? 'criador desconhecido'}</p>
+              <p className="truncate text-[11px]" style={{ color: '#71717a' }}>{platformName(it.platform)} · {it.creator ?? 'criador desconhecido'}</p>
             </div>
             <span className="flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold" style={{ background: v.bg, color: v.color, border: `1px solid ${v.border}` }}>{v.icon}{it.license ?? it.verdict.label}</span>
           </div>
