@@ -15,7 +15,7 @@ import {
   GraduationCap, LineChart, Shield, Users2, TrendingDown,
   Zap, Map as MapIcon, Bell, Wand2, Layers, Store, Palette, Link2, Calendar, FileText, Eye,
   RotateCcw, CreditCard, Scale, Trophy, AlertTriangle as AlertTriangleIcon, Sparkles as SparklesIcon,
-  LayoutDashboard, Tag, Wallet, Gift, Rocket,
+  LayoutDashboard, Tag, Wallet, Gift, Rocket, Factory,
 } from 'lucide-react'
 import { CORE_MODULES } from '@/lib/modules'
 
@@ -121,7 +121,6 @@ const SECTIONS: NavSection[] = [
           },
           { labelKey: 'items.multiplicador', href: '/dashboard/catalogo/multiplicador' },
           { labelKey: 'items.composicao', href: '/dashboard/catalogo/composicao' },
-          { labelKey: 'items.productOs', href: '/dashboard/catalogo/product-os' },
           { labelKey: 'items.vinculos',  href: '/dashboard/catalogo/vinculos',  badgeKey: 'vinculos' as BadgeKey },
           {
             labelKey: 'items.estoque', href: '/dashboard/catalogo/estoque',
@@ -257,6 +256,7 @@ const SECTIONS: NavSection[] = [
     key: 'producao',
     labelKey: 'sections.producao',
     items: [
+      { labelKey: 'items.productOs',          href: '/dashboard/producao/product-os', icon: <Factory size={15} /> },
       { labelKey: 'items.producaoTarefas',   href: '/dashboard/producao/tarefas',    icon: <CheckSquare size={15} /> },
       { labelKey: 'items.producaoConteudoIa', href: '/dashboard/producao/conteudo',  icon: <Sparkles size={15} /> },
       { labelKey: 'items.producaoConteudoSocial', href: '/dashboard/social',         icon: <Megaphone size={15} /> },
