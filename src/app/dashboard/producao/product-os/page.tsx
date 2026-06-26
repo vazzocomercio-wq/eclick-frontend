@@ -11,7 +11,7 @@ import {
   Lightbulb, Loader2, Plus, X, Sparkles, Cpu, DollarSign, Settings2,
   AlertTriangle, CheckCircle2, FileBox, RefreshCw, Check, Ban, Package,
   Factory, Boxes, Send, Rocket, ListChecks, History, ClipboardList,
-  Printer as PrinterIcon, TrendingUp, Gauge, Wifi, Upload, Trophy, Trash2, ExternalLink, Users, Flame, Heart, Download, Search,
+  Printer as PrinterIcon, TrendingUp, Gauge, Wifi, Upload, Trophy, Trash2, ExternalLink, Users, Flame, Heart, Download, Search, Layers,
 } from 'lucide-react'
 import { usePrompt } from '@/components/ui/dialog-provider'
 
@@ -35,6 +35,25 @@ interface Version {
   prototype_photo_urls: string[]; status: string; approved: boolean; notes: string | null; created_at: string
 }
 interface DevDetail extends ProductDev { versions: Version[] }
+interface Part {
+  id: string; product_dev_id: string; name: string; qty_per_product: number; is_optional: boolean
+  stock_qty: number; reserved_qty: number; available: number; sort_order: number; notes: string | null
+}
+interface AssemblyOrder { id: string; order_number: number; quantity: number; status: string; created_at: string; completed_at: string | null }
+interface AssemblyPreview {
+  quantity: number
+  parts: Array<{ part_id: string; name: string; needed: number; available: number; unit: string; is_optional: boolean; sufficient: boolean; missing: number }>
+  insumos: Array<{ input_id: string; name: string; needed: number; available: number; unit: string; sufficient: boolean; missing: number }>
+  all_sufficient: boolean
+  missing_parts: Array<{ part_id: string; name: string; missing: number }>
+}
+interface PartCost {
+  cost: { total: number; parts_total: number; insumos_total: number; packaging: number }
+  parts: Array<{ part_id: string; name: string; qty_per_product: number; weight_g: number | null; print_minutes: number | null; unit_cost: number; line_cost: number; has_version: boolean }>
+  insumos: Array<{ kind: string; description: string | null; quantity: number; unit_cost: number; line_cost: number }>
+  missing_versions: string[]
+  target_margin_pct: number; suggested_prices: Array<{ channel: string; fee_pct: number; price: number; margin_pct: number }>
+}
 interface CostResult {
   cost: { filament: number; energy: number; labor: number; packaging: number; waste: number; total: number }
   inputs: { weight_g: number; print_time_minutes: number; material: string; cost_per_kg: number }
@@ -871,7 +890,7 @@ interface CostReality {
   orders: Array<{ order_number: number; is_prototype: boolean; quantity: number; real_time_min: number; material_cost: number; real_unit_cost: number; estimated_unit_cost: number; real_total: number }>
   consumption: Array<{ name: string; unit: string; qty: number; cost: number }>
 }
-type DrawerTab = 'briefing' | 'versoes' | 'custo' | 'real' | 'bom' | 'qualidade' | 'timeline'
+type DrawerTab = 'briefing' | 'versoes' | 'pecas' | 'custo' | 'real' | 'bom' | 'qualidade' | 'timeline'
 function DetailDrawer({ id, onClose, onChanged }: { id: string; onClose: () => void; onChanged: () => void }) {
   const [dev, setDev] = useState<DevDetail | null>(null)
   const [err, setErr] = useState(''); const [msg, setMsg] = useState('')
@@ -942,13 +961,14 @@ function DetailDrawer({ id, onClose, onChanged }: { id: string; onClose: () => v
             {msg && <div className="mb-3 rounded-lg p-2.5 text-xs" style={{ background: 'rgba(74,222,128,0.10)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)' }}>{msg}</div>}
 
             <div className="mb-4 flex flex-wrap gap-1 rounded-lg p-1" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
-              {([['briefing', 'Briefing', <Sparkles key="a" size={11} />], ['versoes', 'Versões', <FileBox key="b" size={11} />], ['custo', 'Custo', <DollarSign key="c" size={11} />], ['real', 'Custo real', <Gauge key="g" size={11} />], ['bom', 'BOM', <ListChecks key="d" size={11} />], ['qualidade', 'Qualidade', <ClipboardList key="e" size={11} />], ['timeline', 'Timeline', <History key="f" size={11} />]] as const).map(([k, lbl, ic]) => (
+              {([['briefing', 'Briefing', <Sparkles key="a" size={11} />], ['versoes', 'Versões', <FileBox key="b" size={11} />], ['pecas', 'Peças', <Boxes key="p" size={11} />], ['custo', 'Custo', <DollarSign key="c" size={11} />], ['real', 'Custo real', <Gauge key="g" size={11} />], ['bom', 'BOM', <ListChecks key="d" size={11} />], ['qualidade', 'Qualidade', <ClipboardList key="e" size={11} />], ['timeline', 'Timeline', <History key="f" size={11} />]] as const).map(([k, lbl, ic]) => (
                 <button key={k} onClick={() => setTab(k)} className="flex items-center justify-center gap-1 rounded px-2 py-1.5 text-[11px] font-semibold" style={{ background: tab === k ? 'rgba(0,229,255,0.12)' : 'transparent', color: tab === k ? '#00E5FF' : '#71717a' }}>{ic}{lbl}</button>
               ))}
             </div>
 
             {tab === 'briefing' && <BriefingTab dev={dev} onChanged={() => { void reload(); onChanged() }} />}
             {tab === 'versoes' && <VersionsTab dev={dev} onChanged={() => { void reload(); onChanged() }} />}
+            {tab === 'pecas' && <PartsTab dev={dev} onChanged={() => { void reload(); onChanged() }} />}
             {tab === 'custo' && <CostTab dev={dev} onChanged={onChanged} />}
             {tab === 'real' && <CostRealityTab devId={dev.id} />}
             {tab === 'bom' && <BomTab devId={dev.id} />}
@@ -1084,6 +1104,322 @@ function VersionCard({ v, onChanged }: { v: Version; onChanged: () => void }) {
             <button onClick={() => void setApproval(false)} className="flex items-center gap-1 rounded px-2 py-1 text-[10px] font-semibold" style={{ background: '#0a0a0e', color: '#71717a', border: '1px solid #27272a' }}><Ban size={10} /> Reprovar</button>
           </div>
         </>
+      )}
+    </div>
+  )
+}
+
+// ── PEÇAS & MONTAGEM ──────────────────────────────────────────────────
+function PartsTab({ dev, onChanged }: { dev: DevDetail; onChanged: () => void }) {
+  const [parts, setParts] = useState<Part[]>([]); const [loading, setLoading] = useState(true); const [err, setErr] = useState('')
+  const [name, setName] = useState(''); const [qpp, setQpp] = useState('1'); const [optional, setOptional] = useState(false); const [adding, setAdding] = useState(false)
+  const [cost, setCost] = useState<PartCost | null>(null); const [costBusy, setCostBusy] = useState(false); const [margin, setMargin] = useState('30')
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try { setParts(await api<Part[]>(`/product-os/parts?product_dev_id=${dev.id}`)) } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setLoading(false) }
+  }, [dev.id])
+  useEffect(() => { void load() }, [load])
+
+  const add = async () => {
+    if (!name.trim()) { setErr('Dê um nome à peça (ex: Base, Cúpula)'); return }
+    setAdding(true); setErr('')
+    try { await api('/product-os/parts', { method: 'POST', body: JSON.stringify({ product_dev_id: dev.id, name: name.trim(), qty_per_product: Number(qpp) || 1, is_optional: optional }) }); setName(''); setQpp('1'); setOptional(false); await load() }
+    catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setAdding(false) }
+  }
+  const computeCost = async () => {
+    setCostBusy(true); setErr('')
+    try { setCost(await api<PartCost>('/product-os/cost-from-parts', { method: 'POST', body: JSON.stringify({ product_dev_id: dev.id, target_margin_pct: Number(margin) || 30 }) })); onChanged() }
+    catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setCostBusy(false) }
+  }
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs" style={{ color: '#a1a1aa' }}>Um produto pode ser feito de várias <b style={{ color: '#a5f3fc' }}>peças</b> imprimíveis (base, cúpula, conector…). Cada peça tem seus arquivos e pode ser <b style={{ color: '#a5f3fc' }}>produzida sozinha</b>; a <b style={{ color: '#a5f3fc' }}>montagem</b> junta as peças prontas no produto final.</p>
+      {err && <div className="whitespace-pre-line rounded-lg p-2.5 text-xs" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>{err}</div>}
+
+      {/* nova peça */}
+      <div className="rounded-lg p-3 space-y-2" style={{ background: '#111114', border: '1px solid #27272a' }}>
+        <p className="text-xs font-bold text-white">Nova peça</p>
+        <div className="grid grid-cols-2 gap-2"><Input label="Nome da peça" value={name} onChange={setName} /><Input label="Qtd por produto" value={qpp} onChange={setQpp} /></div>
+        <label className="flex items-center gap-1.5 text-[11px]" style={{ color: '#a1a1aa' }}><input type="checkbox" checked={optional} onChange={e => setOptional(e.target.checked)} /> Peça opcional (não trava a montagem)</label>
+        <button onClick={() => void add()} disabled={adding} className="flex w-full items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}>{adding ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />} Adicionar peça</button>
+      </div>
+
+      {loading ? <p className="text-xs" style={{ color: '#52525b' }}>Carregando peças…</p>
+        : parts.length === 0 ? <p className="text-xs" style={{ color: '#52525b' }}>Nenhuma peça ainda. Produto de peça única? Use a aba <b>Versões</b> normalmente.</p>
+        : parts.map(p => <PartCard key={p.id} part={p} dev={dev} onChanged={() => { void load(); onChanged() }} />)}
+
+      {/* custo somado */}
+      {parts.length > 0 && (
+        <div className="rounded-lg p-3 space-y-2" style={{ background: '#0d0d10', border: '1px solid #27272a' }}>
+          <div className="flex items-end gap-2">
+            <Input label="Margem-alvo (%)" value={margin} onChange={setMargin} />
+            <button onClick={() => void computeCost()} disabled={costBusy} className="flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF', height: 34 }}>{costBusy ? <Loader2 size={12} className="animate-spin" /> : <DollarSign size={12} />} Custo (peças + insumos)</button>
+          </div>
+          {cost && (
+            <div className="space-y-2">
+              {cost.missing_versions.length > 0 && <p className="text-[10px]" style={{ color: '#fcd34d' }}>⚠️ Sem peso/tempo nas peças: {cost.missing_versions.join(', ')}. Adicione uma versão (com material e peso) pra contar o filamento.</p>}
+              <div className="space-y-1">
+                {cost.parts.map(l => (
+                  <div key={l.part_id} className="flex items-center justify-between text-[11px]"><span style={{ color: '#d4d4d8' }}>{l.name} <span style={{ color: '#52525b' }}>×{l.qty_per_product}{l.weight_g != null ? ` · ${l.weight_g}g` : ''}{l.print_minutes != null ? ` · ${l.print_minutes}min` : ''}</span></span><span style={{ color: '#a1a1aa' }}>R$ {l.line_cost.toFixed(2)}</span></div>
+                ))}
+                {cost.insumos.map((l, i) => <div key={i} className="flex items-center justify-between text-[11px]"><span style={{ color: '#d4d4d8' }}>{l.description ?? l.kind} <span style={{ color: '#52525b' }}>({l.kind})</span></span><span style={{ color: '#a1a1aa' }}>R$ {l.line_cost.toFixed(2)}</span></div>)}
+                {cost.cost.packaging > 0 && <div className="flex items-center justify-between text-[11px]"><span style={{ color: '#d4d4d8' }}>Embalagem</span><span style={{ color: '#a1a1aa' }}>R$ {cost.cost.packaging.toFixed(2)}</span></div>}
+              </div>
+              <div className="flex items-center justify-between border-t pt-1.5 text-xs font-bold" style={{ borderColor: '#27272a', color: '#fafafa' }}><span>Custo total / produto</span><span style={{ color: '#00E5FF' }}>R$ {cost.cost.total.toFixed(2)}</span></div>
+              <div className="grid grid-cols-2 gap-1.5">
+                {cost.suggested_prices.map(s => <div key={s.channel} className="rounded p-1.5 text-[10px]" style={{ background: '#111114', border: '1px solid #1a1a1f' }}><span style={{ color: '#71717a' }}>{CHANNEL_LABEL[s.channel] ?? s.channel}</span><div className="font-bold" style={{ color: '#4ade80' }}>R$ {s.price.toFixed(2)}</div><span style={{ color: '#52525b' }}>margem {s.margin_pct}%</span></div>)}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* montagem */}
+      {parts.length > 0 && <AssemblySection devId={dev.id} onChanged={() => { void load(); onChanged() }} />}
+    </div>
+  )
+}
+
+function PartCard({ part, dev, onChanged }: { part: Part; dev: DevDetail; onChanged: () => void }) {
+  const [open, setOpen] = useState(false); const [printing, setPrinting] = useState(false); const [editing, setEditing] = useState(false)
+  const [err, setErr] = useState(''); const [name, setName] = useState(part.name); const [qpp, setQpp] = useState(String(part.qty_per_product))
+  const prompt = usePrompt()
+
+  const save = async () => {
+    setErr('')
+    try { await api(`/product-os/parts/${part.id}`, { method: 'PATCH', body: JSON.stringify({ name: name.trim(), qty_per_product: Number(qpp) || 1 }) }); setEditing(false); onChanged() }
+    catch (e) { setErr(e instanceof Error ? e.message : 'Erro') }
+  }
+  const del = async () => {
+    if (!(await confirmDialog({ title: 'Excluir peça', message: `Excluir "${part.name}"? Apaga também as versões/arquivos dela. Não dá pra desfazer.`, danger: true, confirmLabel: 'Excluir' }))) return
+    setErr('')
+    try { await api(`/product-os/parts/${part.id}/delete`, { method: 'POST' }); onChanged() } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') }
+  }
+  const adjust = async () => {
+    const v = await prompt({ title: 'Ajustar estoque de peças', message: `Quantas "${part.name}" prontas você tem em mãos? (define o valor absoluto)`, defaultValue: String(part.stock_qty), placeholder: '0', confirmLabel: 'Ajustar' })
+    if (v == null) return
+    setErr('')
+    try { await api(`/product-os/parts/${part.id}/adjust-stock`, { method: 'POST', body: JSON.stringify({ quantity: Number(v) || 0 }) }); onChanged() } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') }
+  }
+
+  return (
+    <div className="rounded-lg p-3" style={{ background: '#111114', border: '1px solid #27272a' }}>
+      <div className="flex items-center gap-2">
+        <Boxes size={13} style={{ color: '#a5f3fc' }} />
+        {editing ? (
+          <>
+            <input value={name} onChange={e => setName(e.target.value)} className="flex-1 rounded px-1.5 py-0.5 text-xs outline-none" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }} />
+            <input value={qpp} onChange={e => setQpp(e.target.value)} className="w-12 rounded px-1.5 py-0.5 text-xs outline-none" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }} />
+            <button onClick={() => void save()} className="text-[10px] font-bold" style={{ color: '#4ade80' }}>salvar</button>
+            <button onClick={() => { setEditing(false); setName(part.name); setQpp(String(part.qty_per_product)) }} className="text-[10px]" style={{ color: '#71717a' }}>cancelar</button>
+          </>
+        ) : (
+          <>
+            <span className="text-xs font-bold text-white">{part.name}</span>
+            <span className="rounded px-1.5 py-0.5 text-[9px] font-bold" style={{ background: '#1a1a1f', color: '#a1a1aa' }}>×{part.qty_per_product}/produto</span>
+            {part.is_optional && <span className="rounded px-1.5 py-0.5 text-[9px]" style={{ background: '#1a1a1f', color: '#71717a' }}>opcional</span>}
+            <button onClick={() => setEditing(true)} className="ml-auto text-[10px]" style={{ color: '#71717a' }}>editar</button>
+            <button onClick={() => void del()} className="flex items-center gap-0.5 text-[10px]" style={{ color: '#f87171' }}><Trash2 size={10} /></button>
+          </>
+        )}
+      </div>
+      {err && <p className="mt-1 text-[10px]" style={{ color: '#f87171' }}>{err}</p>}
+
+      {/* estoque de peças prontas */}
+      <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px]">
+        <span className="rounded px-2 py-1 font-bold" style={{ background: 'rgba(74,222,128,0.10)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.25)' }}>{part.available} disponíveis</span>
+        <span style={{ color: '#71717a' }}>{part.stock_qty} prontas · {part.reserved_qty} reservadas</span>
+        <button onClick={() => void adjust()} className="ml-auto text-[10px]" style={{ color: '#a5f3fc' }}>ajustar</button>
+      </div>
+
+      <div className="mt-2 flex gap-1.5">
+        <button onClick={() => setPrinting(true)} className="flex items-center gap-1 rounded px-2 py-1 text-[10px] font-semibold" style={{ background: 'rgba(0,229,255,0.10)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.3)' }}><Factory size={10} /> Imprimir esta peça</button>
+        <button onClick={() => setOpen(o => !o)} className="flex items-center gap-1 rounded px-2 py-1 text-[10px] font-semibold" style={{ background: '#0a0a0e', color: '#a1a1aa', border: '1px solid #27272a' }}><FileBox size={10} /> Versões/arquivos {open ? '▲' : '▼'}</button>
+      </div>
+
+      {open && <PartVersionsEditor partId={part.id} onChanged={onChanged} />}
+      {printing && <PartOrderModal part={part} devId={dev.id} onClose={() => setPrinting(false)} onCreated={() => { setPrinting(false); onChanged() }} />}
+    </div>
+  )
+}
+
+function PartVersionsEditor({ partId, onChanged }: { partId: string; onChanged: () => void }) {
+  const [versions, setVersions] = useState<Version[]>([]); const [loading, setLoading] = useState(true); const [err, setErr] = useState('')
+  const [form, setForm] = useState({ changelog: '', file_url: '', file_type: '', material: '', weight_g: '', print_time_minutes: '' }); const [adding, setAdding] = useState(false)
+  const [slicer, setSlicer] = useState(''); const [showSlicer, setShowSlicer] = useState(false); const [parsing, setParsing] = useState(false)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try { setVersions(await api<Version[]>(`/product-os/parts/${partId}/versions`)) } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setLoading(false) }
+  }, [partId])
+  useEffect(() => { void load() }, [load])
+
+  const importSlicer = async () => {
+    setParsing(true); setErr('')
+    try {
+      const r = await api<{ weight_g: number | null; print_time_minutes: number | null; material: string | null }>('/product-os/parse-slicer', { method: 'POST', body: JSON.stringify({ text: slicer }) })
+      if (r.weight_g == null && r.print_time_minutes == null) { setErr('Não encontrei peso/tempo no texto.'); return }
+      setForm(f => ({ ...f, weight_g: r.weight_g != null ? String(r.weight_g) : f.weight_g, print_time_minutes: r.print_time_minutes != null ? String(r.print_time_minutes) : f.print_time_minutes, material: r.material ?? f.material }))
+      setShowSlicer(false); setSlicer('')
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setParsing(false) }
+  }
+  const add = async () => {
+    setAdding(true); setErr('')
+    try { await api(`/product-os/parts/${partId}/versions`, { method: 'POST', body: JSON.stringify({ changelog: form.changelog || undefined, file_url: form.file_url || undefined, file_type: form.file_type || undefined, material: form.material || undefined, weight_g: form.weight_g ? Number(form.weight_g) : undefined, print_time_minutes: form.print_time_minutes ? Number(form.print_time_minutes) : undefined }) }); setForm({ changelog: '', file_url: '', file_type: '', material: '', weight_g: '', print_time_minutes: '' }); await load(); onChanged() }
+    catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setAdding(false) }
+  }
+  const setApproval = async (vid: string, approved: boolean) => { try { await api(`/product-os/versions/${vid}/approval`, { method: 'POST', body: JSON.stringify({ approved }) }); await load() } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } }
+
+  return (
+    <div className="mt-2 rounded-lg p-2.5 space-y-2" style={{ background: '#0a0a0e', border: '1px solid #1a1a1f' }}>
+      {err && <p className="text-[10px]" style={{ color: '#f87171' }}>{err}</p>}
+      <div className="space-y-1.5">
+        <div className="flex items-center gap-2"><span className="text-[10px] font-bold" style={{ color: '#a1a1aa' }}>Nova versão da peça</span><button onClick={() => setShowSlicer(s => !s)} className="ml-auto text-[10px]" style={{ color: '#a5f3fc' }}>importar do slicer</button></div>
+        {showSlicer && (
+          <div className="space-y-1.5 rounded p-2" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
+            <textarea value={slicer} onChange={e => setSlicer(e.target.value)} rows={2} placeholder="Cole o resumo do Bambu/Orca (peso, tempo, material)" className="w-full rounded px-2 py-1 text-[10px] outline-none" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }} />
+            <button onClick={() => void importSlicer()} disabled={parsing || !slicer.trim()} className="flex items-center gap-1 rounded px-2 py-1 text-[10px] font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.35)' }}>{parsing ? <Loader2 size={10} className="animate-spin" /> : <Cpu size={10} />} Extrair</button>
+          </div>
+        )}
+        <div className="flex items-center gap-2">
+          <UploadButton label="Subir STL/3MF" accept=".stl,.3mf,.step,.obj" onUploaded={(urls, files) => setForm(f => ({ ...f, file_url: urls[0], file_type: fileTypeOf(files[0].name) }))} />
+          {form.file_url && <span className="text-[10px]" style={{ color: '#4ade80' }}>✓ {form.file_type}</span>}
+        </div>
+        <div className="grid grid-cols-3 gap-1.5">
+          <Input label="Material" value={form.material} onChange={v => setForm(f => ({ ...f, material: v }))} />
+          <Input label="Peso (g)" value={form.weight_g} onChange={v => setForm(f => ({ ...f, weight_g: v }))} />
+          <Input label="Tempo (min)" value={form.print_time_minutes} onChange={v => setForm(f => ({ ...f, print_time_minutes: v }))} />
+        </div>
+        <button onClick={() => void add()} disabled={adding} className="flex items-center gap-1 rounded px-2 py-1 text-[10px] font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.35)' }}>{adding ? <Loader2 size={10} className="animate-spin" /> : <Plus size={10} />} Adicionar versão</button>
+      </div>
+      {loading ? <p className="text-[10px]" style={{ color: '#52525b' }}>…</p> : versions.map(v => (
+        <div key={v.id} className="flex items-center gap-2 rounded p-1.5 text-[10px]" style={{ background: '#111114', border: `1px solid ${v.approved ? 'rgba(74,222,128,0.35)' : '#1a1a1f'}` }}>
+          <span className="rounded px-1 py-0.5 font-bold" style={{ background: '#1a1a1f', color: '#a5f3fc' }}>v{v.version_number}</span>
+          <span style={{ color: '#a1a1aa' }}>{v.material ?? '—'}{v.weight_g != null ? ` · ${v.weight_g}g` : ''}{v.print_time_minutes != null ? ` · ${v.print_time_minutes}min` : ''}</span>
+          {v.file_url && <a href={v.file_url} target="_blank" rel="noreferrer" className="text-cyan-400 underline">arquivo</a>}
+          <div className="ml-auto flex gap-1">
+            <button onClick={() => void setApproval(v.id, true)} className="rounded px-1.5 py-0.5 font-semibold" style={{ background: 'rgba(74,222,128,0.10)', color: '#4ade80' }}>aprovar</button>
+            {v.approved && <span style={{ color: '#4ade80' }}>✓</span>}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function PartOrderModal({ part, devId, onClose, onCreated }: { part: Part; devId: string; onClose: () => void; onCreated: () => void }) {
+  const [qty, setQty] = useState('1'); const [printerId, setPrinterId] = useState(''); const [printers, setPrinters] = useState<Printer[]>([])
+  const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [preview, setPreview] = useState<ConsumePreview | null>(null)
+  useEffect(() => { void (async () => { try { setPrinters(await api<Printer[]>('/product-os/printers')) } catch { /* */ } })() }, [])
+  useEffect(() => {
+    const n = Number(qty) || 0; if (n < 1) { setPreview(null); return }
+    let cancel = false
+    const t = setTimeout(() => { void (async () => {
+      try { const p = await api<ConsumePreview>('/product-os/production-orders/preview', { method: 'POST', body: JSON.stringify({ product_dev_id: devId, part_id: part.id, quantity: n }) }); if (!cancel) setPreview(p) } catch { if (!cancel) setPreview(null) }
+    })() }, 350)
+    return () => { cancel = true; clearTimeout(t) }
+  }, [qty, devId, part.id])
+  const create = async () => {
+    setBusy(true); setErr('')
+    try { await api('/product-os/production-orders', { method: 'POST', body: JSON.stringify({ product_dev_id: devId, part_id: part.id, quantity: Number(qty) || 1, printer_id: printerId || undefined, machine: printers.find(p => p.id === printerId)?.name || undefined }) }); onCreated() }
+    catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setBusy(false) }
+  }
+  return (
+    <Modal title={`Imprimir peça: ${part.name}`} onClose={onClose}>
+      {err && <div className="mb-3 rounded-lg p-2.5 text-xs" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>{err}</div>}
+      <p className="mb-2 text-[11px]" style={{ color: '#a1a1aa' }}>Cria uma ordem de produção só desta peça. Ao concluir, as unidades entram no <b style={{ color: '#a5f3fc' }}>estoque de peças prontas</b> (não no produto — a montagem faz isso depois).</p>
+      <div className="grid grid-cols-2 gap-2">
+        <Input label="Quantidade" value={qty} onChange={setQty} />
+        <label className="block"><span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#71717a' }}>Impressora</span>
+          <select value={printerId} onChange={e => setPrinterId(e.target.value)} className="w-full rounded-lg px-2.5 py-1.5 text-xs outline-none" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }}>
+            <option value="">— sem impressora —</option>{printers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        </label>
+      </div>
+      {preview && preview.lines.length > 0 && (
+        <div className="mt-2 rounded-lg p-2.5" style={{ background: '#0d0d10', border: '1px solid #27272a' }}>
+          <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#71717a' }}>Vai consumir de filamento</span>
+          {preview.lines.map((l, i) => <div key={i} className="flex items-center justify-between text-[11px]"><span style={{ color: '#d4d4d8' }}>{l.name}</span><span style={{ color: l.sufficient ? '#4ade80' : '#f87171' }}>{l.needed} {l.unit} <span style={{ color: '#52525b' }}>/ {l.available} disp.</span></span></div>)}
+          {!preview.all_sufficient && <p className="mt-1 text-[10px]" style={{ color: '#fcd34d' }}>⚠️ Filamento insuficiente — reponha antes de concluir.</p>}
+        </div>
+      )}
+      <div className="mt-3 flex justify-end"><button onClick={() => void create()} disabled={busy} className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}>{busy ? <Loader2 size={12} className="animate-spin" /> : <Factory size={12} />} Criar ordem da peça</button></div>
+    </Modal>
+  )
+}
+
+function AssemblySection({ devId, onChanged }: { devId: string; onChanged: () => void }) {
+  const [qty, setQty] = useState('1'); const [preview, setPreview] = useState<AssemblyPreview | null>(null)
+  const [orders, setOrders] = useState<AssemblyOrder[]>([]); const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [msg, setMsg] = useState('')
+
+  const loadOrders = useCallback(async () => { try { setOrders(await api<AssemblyOrder[]>(`/product-os/assemblies?product_dev_id=${devId}`)) } catch { /* */ } }, [devId])
+  useEffect(() => { void loadOrders() }, [loadOrders])
+  useEffect(() => {
+    const n = Number(qty) || 0; if (n < 1) { setPreview(null); return }
+    let cancel = false
+    const t = setTimeout(() => { void (async () => {
+      try { const p = await api<AssemblyPreview>('/product-os/assemblies/preview', { method: 'POST', body: JSON.stringify({ product_dev_id: devId, quantity: n }) }); if (!cancel) setPreview(p) } catch { if (!cancel) setPreview(null) }
+    })() }, 350)
+    return () => { cancel = true; clearTimeout(t) }
+  }, [qty, devId])
+
+  const create = async () => {
+    setBusy(true); setErr(''); setMsg('')
+    try { await api('/product-os/assemblies', { method: 'POST', body: JSON.stringify({ product_dev_id: devId, quantity: Number(qty) || 1 }) }); setMsg('Montagem criada — peças e insumos reservados.'); await loadOrders(); onChanged() }
+    catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setBusy(false) }
+  }
+  const transition = async (aid: string, status: string) => {
+    setErr('')
+    try { await api(`/product-os/assemblies/${aid}/transition`, { method: 'POST', body: JSON.stringify({ status }) }); await loadOrders(); onChanged() }
+    catch (e) { setErr(e instanceof Error ? e.message : 'Erro') }
+  }
+  const nextAction: Record<string, { to: string; label: string } | undefined> = {
+    fila: { to: 'montando', label: 'Iniciar montagem' }, montando: { to: 'concluido', label: 'Concluir' },
+  }
+
+  return (
+    <div className="rounded-lg p-3 space-y-2" style={{ background: 'rgba(0,229,255,0.04)', border: '1px solid rgba(0,229,255,0.2)' }}>
+      <div className="flex items-center gap-2"><Layers size={13} style={{ color: '#00E5FF' }} /><p className="text-xs font-bold text-white">Montar o produto</p></div>
+      <p className="text-[11px]" style={{ color: '#a1a1aa' }}>Junta as peças prontas (+ embalagem/etiqueta) num produto acabado. Se faltar peça, mostro quanto e você gera a OP de impressão dela.</p>
+      {err && <div className="whitespace-pre-line rounded-lg p-2.5 text-[11px]" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>{err}</div>}
+      {msg && <div className="rounded-lg p-2.5 text-[11px]" style={{ background: 'rgba(74,222,128,0.10)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)' }}>{msg}</div>}
+
+      <div className="flex items-end gap-2">
+        <Input label="Qtd a montar" value={qty} onChange={setQty} />
+        <button onClick={() => void create()} disabled={busy || !preview?.all_sufficient} title={!preview?.all_sufficient ? 'Estoque insuficiente — veja as faltas abaixo' : ''} className="flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold disabled:opacity-40" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF', height: 34 }}>{busy ? <Loader2 size={12} className="animate-spin" /> : <Layers size={12} />} Montar</button>
+      </div>
+
+      {preview && (
+        <div className="space-y-1">
+          {preview.parts.map(l => (
+            <div key={l.part_id} className="flex items-center justify-between text-[11px]"><span style={{ color: '#d4d4d8' }}>{l.name}{l.is_optional ? ' (opcional)' : ''}</span><span style={{ color: l.sufficient ? '#4ade80' : '#f87171' }}>{l.needed} {l.unit} <span style={{ color: '#52525b' }}>/ {l.available} prontas</span>{!l.sufficient && !l.is_optional ? ` · faltam ${l.missing}` : ''}</span></div>
+          ))}
+          {preview.insumos.map((l, i) => (
+            <div key={i} className="flex items-center justify-between text-[11px]"><span style={{ color: '#d4d4d8' }}>{l.name}</span><span style={{ color: l.sufficient ? '#4ade80' : '#f87171' }}>{l.needed} {l.unit} <span style={{ color: '#52525b' }}>/ {l.available} disp.</span></span></div>
+          ))}
+          {!preview.all_sufficient && <p className="text-[10px]" style={{ color: '#fcd34d' }}>⚠️ Falta estoque. Gere as OPs de impressão das peças que faltam (botão &quot;Imprimir esta peça&quot; acima) e volte aqui.</p>}
+        </div>
+      )}
+
+      {orders.length > 0 && (
+        <div className="space-y-1 border-t pt-2" style={{ borderColor: 'rgba(0,229,255,0.15)' }}>
+          {orders.map(o => {
+            const act = nextAction[o.status]
+            return (
+              <div key={o.id} className="flex items-center gap-2 text-[11px]">
+                <span className="rounded px-1.5 py-0.5 font-bold" style={{ background: '#1a1a1f', color: '#a5f3fc' }}>#{o.order_number}</span>
+                <span style={{ color: '#d4d4d8' }}>montar {o.quantity}</span>
+                <span className="rounded px-1.5 py-0.5" style={{ background: '#111114', color: o.status === 'concluido' ? '#4ade80' : o.status === 'cancelado' ? '#71717a' : '#fcd34d' }}>{o.status}</span>
+                <div className="ml-auto flex gap-1">
+                  {act && <button onClick={() => void transition(o.id, act.to)} className="rounded px-2 py-0.5 font-semibold" style={{ background: 'rgba(74,222,128,0.10)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)' }}>{act.label}</button>}
+                  {(o.status === 'fila' || o.status === 'montando') && <button onClick={() => void transition(o.id, 'cancelado')} className="rounded px-2 py-0.5" style={{ background: '#0a0a0e', color: '#71717a', border: '1px solid #27272a' }}>cancelar</button>}
+                </div>
+              </div>
+            )
+          })}
+        </div>
       )}
     </div>
   )
