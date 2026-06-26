@@ -38,6 +38,12 @@ interface DevDetail extends ProductDev { versions: Version[] }
 interface Part {
   id: string; product_dev_id: string; name: string; qty_per_product: number; is_optional: boolean
   stock_qty: number; reserved_qty: number; available: number; sort_order: number; notes: string | null
+  width_mm: number | null; depth_mm: number | null; height_mm: number | null
+}
+interface PartSuggestion { name: string; qty_per_product: number; is_optional: boolean; width_mm: number | null; depth_mm: number | null; height_mm: number | null; rationale: string }
+interface PlatePlan {
+  quantity: number; bed: { name: string; x: number; y: number; z: number }; gap_mm: number; total_plates: number; missing_dims: string[]; note: string
+  lines: Array<{ part_id: string; name: string; qty_per_product: number; needed: number; width_mm: number | null; depth_mm: number | null; height_mm: number | null; per_plate: number | null; plates: number | null; fit_note: string | null; plate_minutes: number | null; has_dims: boolean }>
 }
 interface AssemblyOrder { id: string; order_number: number; quantity: number; status: string; created_at: string; completed_at: string | null }
 interface AssemblyPreview {
@@ -1113,7 +1119,9 @@ function VersionCard({ v, onChanged }: { v: Version; onChanged: () => void }) {
 function PartsTab({ dev, onChanged }: { dev: DevDetail; onChanged: () => void }) {
   const [parts, setParts] = useState<Part[]>([]); const [loading, setLoading] = useState(true); const [err, setErr] = useState('')
   const [name, setName] = useState(''); const [qpp, setQpp] = useState('1'); const [optional, setOptional] = useState(false); const [adding, setAdding] = useState(false)
+  const [dims, setDims] = useState({ w: '', d: '', h: '' })
   const [cost, setCost] = useState<PartCost | null>(null); const [costBusy, setCostBusy] = useState(false); const [margin, setMargin] = useState('30')
+  const [suggesting, setSuggesting] = useState(false); const [suggestions, setSuggestions] = useState<PartSuggestion[] | null>(null); const [suggestSource, setSuggestSource] = useState<'briefing' | 'ia'>('ia'); const [picked, setPicked] = useState<Set<number>>(new Set()); const [creating, setCreating] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -1121,16 +1129,30 @@ function PartsTab({ dev, onChanged }: { dev: DevDetail; onChanged: () => void })
   }, [dev.id])
   useEffect(() => { void load() }, [load])
 
+  const numOrNull = (s: string) => { const n = Number(s); return s.trim() && Number.isFinite(n) && n > 0 ? n : null }
   const add = async () => {
     if (!name.trim()) { setErr('Dê um nome à peça (ex: Base, Cúpula)'); return }
     setAdding(true); setErr('')
-    try { await api('/product-os/parts', { method: 'POST', body: JSON.stringify({ product_dev_id: dev.id, name: name.trim(), qty_per_product: Number(qpp) || 1, is_optional: optional }) }); setName(''); setQpp('1'); setOptional(false); await load() }
+    try { await api('/product-os/parts', { method: 'POST', body: JSON.stringify({ product_dev_id: dev.id, name: name.trim(), qty_per_product: Number(qpp) || 1, is_optional: optional, width_mm: numOrNull(dims.w), depth_mm: numOrNull(dims.d), height_mm: numOrNull(dims.h) }) }); setName(''); setQpp('1'); setOptional(false); setDims({ w: '', d: '', h: '' }); await load() }
     catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setAdding(false) }
   }
   const computeCost = async () => {
     setCostBusy(true); setErr('')
     try { setCost(await api<PartCost>('/product-os/cost-from-parts', { method: 'POST', body: JSON.stringify({ product_dev_id: dev.id, target_margin_pct: Number(margin) || 30 }) })); onChanged() }
     catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setCostBusy(false) }
+  }
+  const suggest = async () => {
+    setSuggesting(true); setErr(''); setSuggestions(null)
+    try { const r = await api<{ source: 'briefing' | 'ia'; suggestions: PartSuggestion[] }>('/product-os/suggest-parts', { method: 'POST', body: JSON.stringify({ product_dev_id: dev.id }) }); setSuggestions(r.suggestions); setSuggestSource(r.source); setPicked(new Set(r.suggestions.map((_, i) => i))) }
+    catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setSuggesting(false) }
+  }
+  const createSelected = async () => {
+    if (!suggestions) return
+    const chosen = suggestions.filter((_, i) => picked.has(i))
+    if (!chosen.length) { setErr('Marque ao menos uma peça'); return }
+    setCreating(true); setErr('')
+    try { await api('/product-os/parts/bulk', { method: 'POST', body: JSON.stringify({ product_dev_id: dev.id, parts: chosen.map(s => ({ name: s.name, qty_per_product: s.qty_per_product, is_optional: s.is_optional, width_mm: s.width_mm, depth_mm: s.depth_mm, height_mm: s.height_mm })) }) }); setSuggestions(null); await load(); onChanged() }
+    catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setCreating(false) }
   }
 
   return (
@@ -1140,11 +1162,34 @@ function PartsTab({ dev, onChanged }: { dev: DevDetail; onChanged: () => void })
 
       {/* nova peça */}
       <div className="rounded-lg p-3 space-y-2" style={{ background: '#111114', border: '1px solid #27272a' }}>
-        <p className="text-xs font-bold text-white">Nova peça</p>
+        <div className="flex items-center gap-2"><p className="text-xs font-bold text-white">Nova peça</p>
+          <button onClick={() => void suggest()} disabled={suggesting} className="ml-auto flex items-center gap-1 rounded px-2 py-1 text-[10px] font-semibold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.10)', color: '#a5f3fc', border: '1px solid #27272a' }}>{suggesting ? <Loader2 size={10} className="animate-spin" /> : <Sparkles size={10} />} Sugerir peças com IA</button>
+        </div>
         <div className="grid grid-cols-2 gap-2"><Input label="Nome da peça" value={name} onChange={setName} /><Input label="Qtd por produto" value={qpp} onChange={setQpp} /></div>
+        <div className="grid grid-cols-3 gap-2"><Input label="Largura (mm)" value={dims.w} onChange={v => setDims(d => ({ ...d, w: v }))} /><Input label="Profund. (mm)" value={dims.d} onChange={v => setDims(d => ({ ...d, d: v }))} /><Input label="Altura (mm)" value={dims.h} onChange={v => setDims(d => ({ ...d, h: v }))} /></div>
+        <p className="text-[9px]" style={{ color: '#52525b' }}>Dimensões são opcionais — alimentam o plano de pratos (quantas cabem na mesa).</p>
         <label className="flex items-center gap-1.5 text-[11px]" style={{ color: '#a1a1aa' }}><input type="checkbox" checked={optional} onChange={e => setOptional(e.target.checked)} /> Peça opcional (não trava a montagem)</label>
         <button onClick={() => void add()} disabled={adding} className="flex w-full items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}>{adding ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />} Adicionar peça</button>
       </div>
+
+      {/* sugestões da IA */}
+      {suggestions && (
+        <div className="rounded-lg p-3 space-y-2" style={{ background: 'rgba(0,229,255,0.04)', border: '1px solid rgba(0,229,255,0.2)' }}>
+          <p className="text-xs font-bold text-white">{suggestSource === 'briefing' ? '🧩 Peças do briefing' : '🤖 Peças sugeridas pela IA'} <span className="font-normal" style={{ color: '#71717a' }}>— marque as que quer criar</span></p>
+          {suggestions.length === 0 && <p className="text-[11px]" style={{ color: '#fcd34d' }}>A IA não sugeriu peças (talvez seja 1 peça só). Cadastre manualmente acima.</p>}
+          {suggestions.map((s, i) => (
+            <label key={i} className="flex items-start gap-2 rounded p-2 text-[11px]" style={{ background: '#0a0a0e', border: '1px solid #1a1a1f', cursor: 'pointer' }}>
+              <input type="checkbox" checked={picked.has(i)} onChange={e => setPicked(p => { const n = new Set(p); if (e.target.checked) n.add(i); else n.delete(i); return n })} className="mt-0.5" />
+              <div className="min-w-0 flex-1">
+                <span className="font-bold text-white">{s.name}</span> <span style={{ color: '#a1a1aa' }}>×{s.qty_per_product}/produto</span>
+                {(s.width_mm || s.depth_mm || s.height_mm) && <span style={{ color: '#52525b' }}> · {s.width_mm ?? '?'}×{s.depth_mm ?? '?'}×{s.height_mm ?? '?'}mm</span>}
+                {s.rationale && <p style={{ color: '#71717a' }}>{s.rationale}</p>}
+              </div>
+            </label>
+          ))}
+          {suggestions.length > 0 && <div className="flex gap-2"><button onClick={() => void createSelected()} disabled={creating} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold disabled:opacity-50" style={{ background: 'rgba(74,222,128,0.10)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)' }}>{creating ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />} Criar {picked.size} peça(s)</button><button onClick={() => setSuggestions(null)} className="rounded-lg px-3 py-1.5 text-xs" style={{ background: '#0a0a0e', color: '#71717a', border: '1px solid #27272a' }}>descartar</button></div>}
+        </div>
+      )}
 
       {loading ? <p className="text-xs" style={{ color: '#52525b' }}>Carregando peças…</p>
         : parts.length === 0 ? <p className="text-xs" style={{ color: '#52525b' }}>Nenhuma peça ainda. Produto de peça única? Use a aba <b>Versões</b> normalmente.</p>
@@ -1176,8 +1221,47 @@ function PartsTab({ dev, onChanged }: { dev: DevDetail; onChanged: () => void })
         </div>
       )}
 
+      {/* plano de pratos */}
+      {parts.length > 0 && <PlatePlanSection devId={dev.id} />}
+
       {/* montagem */}
       {parts.length > 0 && <AssemblySection devId={dev.id} onChanged={() => { void load(); onChanged() }} />}
+    </div>
+  )
+}
+
+function PlatePlanSection({ devId }: { devId: string }) {
+  const [qty, setQty] = useState('10'); const [plan, setPlan] = useState<PlatePlan | null>(null); const [busy, setBusy] = useState(false); const [err, setErr] = useState('')
+  const compute = async () => {
+    setBusy(true); setErr('')
+    try { setPlan(await api<PlatePlan>('/product-os/plate-plan', { method: 'POST', body: JSON.stringify({ product_dev_id: devId, quantity: Number(qty) || 1 }) })) }
+    catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setBusy(false) }
+  }
+  return (
+    <div className="rounded-lg p-3 space-y-2" style={{ background: '#0d0d10', border: '1px solid #27272a' }}>
+      <div className="flex items-center gap-2"><Layers size={13} style={{ color: '#a5f3fc' }} /><p className="text-xs font-bold text-white">Plano de pratos (aproveitamento da mesa)</p></div>
+      <p className="text-[11px]" style={{ color: '#a1a1aa' }}>Estima quantas unidades de cada peça cabem num prato e quantos pratos pra produzir X produtos. Precisa das dimensões da peça (largura/profundidade).</p>
+      {err && <div className="rounded-lg p-2.5 text-[11px]" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>{err}</div>}
+      <div className="flex items-end gap-2">
+        <Input label="Qtd de produtos" value={qty} onChange={setQty} />
+        <button onClick={() => void compute()} disabled={busy} className="flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF', height: 34 }}>{busy ? <Loader2 size={12} className="animate-spin" /> : <Layers size={12} />} Calcular pratos</button>
+      </div>
+      {plan && (
+        <div className="space-y-1.5">
+          <p className="text-[10px]" style={{ color: '#71717a' }}>Mesa usada: <b style={{ color: '#a5f3fc' }}>{plan.bed.name}</b> ({plan.bed.x}×{plan.bed.y}×{plan.bed.z}mm) · folga {plan.gap_mm}mm</p>
+          {plan.missing_dims.length > 0 && <p className="text-[10px]" style={{ color: '#fcd34d' }}>⚠️ Sem dimensões: {plan.missing_dims.join(', ')} — edite a peça e informe largura/profundidade.</p>}
+          {plan.lines.map(l => (
+            <div key={l.part_id} className="flex items-center justify-between rounded p-1.5 text-[11px]" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
+              <span style={{ color: '#d4d4d8' }}>{l.name} <span style={{ color: '#52525b' }}>· precisa {l.needed}</span></span>
+              {l.per_plate == null ? <span style={{ color: '#71717a' }}>{l.fit_note ?? 'sem dimensões'}</span>
+                : l.per_plate === 0 ? <span style={{ color: '#f87171' }}>não cabe — {l.fit_note}</span>
+                : <span style={{ color: '#4ade80' }}>{l.per_plate}/prato · <b>{l.plates} prato(s)</b>{l.plate_minutes ? <span style={{ color: '#52525b' }}> · ~{Math.round(l.plate_minutes / 60)}h/prato</span> : ''}</span>}
+            </div>
+          ))}
+          <div className="flex items-center justify-between border-t pt-1.5 text-xs font-bold" style={{ borderColor: '#27272a', color: '#fafafa' }}><span>Total de pratos</span><span style={{ color: '#00E5FF' }}>{plan.total_plates}</span></div>
+          <p className="text-[10px]" style={{ color: '#52525b' }}>{plan.note}</p>
+        </div>
+      )}
     </div>
   )
 }
@@ -1185,11 +1269,13 @@ function PartsTab({ dev, onChanged }: { dev: DevDetail; onChanged: () => void })
 function PartCard({ part, dev, onChanged }: { part: Part; dev: DevDetail; onChanged: () => void }) {
   const [open, setOpen] = useState(false); const [printing, setPrinting] = useState(false); const [editing, setEditing] = useState(false)
   const [err, setErr] = useState(''); const [name, setName] = useState(part.name); const [qpp, setQpp] = useState(String(part.qty_per_product))
+  const [pdims, setPdims] = useState({ w: part.width_mm != null ? String(part.width_mm) : '', d: part.depth_mm != null ? String(part.depth_mm) : '', h: part.height_mm != null ? String(part.height_mm) : '' })
   const prompt = usePrompt()
+  const numOrNull = (s: string) => { const n = Number(s); return s.trim() && Number.isFinite(n) && n > 0 ? n : null }
 
   const save = async () => {
     setErr('')
-    try { await api(`/product-os/parts/${part.id}`, { method: 'PATCH', body: JSON.stringify({ name: name.trim(), qty_per_product: Number(qpp) || 1 }) }); setEditing(false); onChanged() }
+    try { await api(`/product-os/parts/${part.id}`, { method: 'PATCH', body: JSON.stringify({ name: name.trim(), qty_per_product: Number(qpp) || 1, width_mm: numOrNull(pdims.w), depth_mm: numOrNull(pdims.d), height_mm: numOrNull(pdims.h) }) }); setEditing(false); onChanged() }
     catch (e) { setErr(e instanceof Error ? e.message : 'Erro') }
   }
   const del = async () => {
@@ -1209,16 +1295,22 @@ function PartCard({ part, dev, onChanged }: { part: Part; dev: DevDetail; onChan
       <div className="flex items-center gap-2">
         <Boxes size={13} style={{ color: '#a5f3fc' }} />
         {editing ? (
-          <>
-            <input value={name} onChange={e => setName(e.target.value)} className="flex-1 rounded px-1.5 py-0.5 text-xs outline-none" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }} />
-            <input value={qpp} onChange={e => setQpp(e.target.value)} className="w-12 rounded px-1.5 py-0.5 text-xs outline-none" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }} />
-            <button onClick={() => void save()} className="text-[10px] font-bold" style={{ color: '#4ade80' }}>salvar</button>
-            <button onClick={() => { setEditing(false); setName(part.name); setQpp(String(part.qty_per_product)) }} className="text-[10px]" style={{ color: '#71717a' }}>cancelar</button>
-          </>
+          <div className="flex-1 space-y-1.5">
+            <div className="flex items-center gap-2">
+              <input value={name} onChange={e => setName(e.target.value)} className="flex-1 rounded px-1.5 py-0.5 text-xs outline-none" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }} />
+              <input value={qpp} onChange={e => setQpp(e.target.value)} className="w-12 rounded px-1.5 py-0.5 text-xs outline-none" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }} title="qtd/produto" />
+              <button onClick={() => void save()} className="text-[10px] font-bold" style={{ color: '#4ade80' }}>salvar</button>
+              <button onClick={() => { setEditing(false); setName(part.name); setQpp(String(part.qty_per_product)); setPdims({ w: part.width_mm != null ? String(part.width_mm) : '', d: part.depth_mm != null ? String(part.depth_mm) : '', h: part.height_mm != null ? String(part.height_mm) : '' }) }} className="text-[10px]" style={{ color: '#71717a' }}>cancelar</button>
+            </div>
+            <div className="flex items-center gap-1.5">
+              {(['w', 'd', 'h'] as const).map((k, i) => <input key={k} value={pdims[k]} onChange={e => setPdims(p => ({ ...p, [k]: e.target.value }))} placeholder={['larg', 'prof', 'alt'][i] + ' mm'} className="w-16 rounded px-1.5 py-0.5 text-[10px] outline-none" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }} />)}
+            </div>
+          </div>
         ) : (
           <>
             <span className="text-xs font-bold text-white">{part.name}</span>
             <span className="rounded px-1.5 py-0.5 text-[9px] font-bold" style={{ background: '#1a1a1f', color: '#a1a1aa' }}>×{part.qty_per_product}/produto</span>
+            {(part.width_mm || part.depth_mm) && <span className="rounded px-1.5 py-0.5 text-[9px]" style={{ background: '#1a1a1f', color: '#71717a' }}>{part.width_mm ?? '?'}×{part.depth_mm ?? '?'}{part.height_mm ? `×${part.height_mm}` : ''}mm</span>}
             {part.is_optional && <span className="rounded px-1.5 py-0.5 text-[9px]" style={{ background: '#1a1a1f', color: '#71717a' }}>opcional</span>}
             <button onClick={() => setEditing(true)} className="ml-auto text-[10px]" style={{ color: '#71717a' }}>editar</button>
             <button onClick={() => void del()} className="flex items-center gap-0.5 text-[10px]" style={{ color: '#f87171' }}><Trash2 size={10} /></button>
