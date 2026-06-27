@@ -217,15 +217,16 @@ function fileTypeOf(name: string): string {
 
 /** Se o arquivo subido for um .3mf fatiado (Bambu), lê peso/tempo/material de
  *  dentro dele. STL não tem esses dados. Devolve só os campos achados. */
-async function fetch3mfMetrics(url: string, filename: string): Promise<{ material?: string; weight_g?: string; print_time_minutes?: string } | null> {
+async function fetch3mfMetrics(url: string, filename: string): Promise<{ material?: string; weight_g?: string; print_time_minutes?: string; width_mm?: number; depth_mm?: number } | null> {
   if (!/\.3mf$/i.test(filename)) return null
   try {
-    const r = await api<{ weight_g: number | null; print_time_minutes: number | null; material: string | null; found: boolean }>('/product-os/parse-3mf', { method: 'POST', body: JSON.stringify({ url }) })
+    const r = await api<{ weight_g: number | null; print_time_minutes: number | null; material: string | null; width_mm: number | null; depth_mm: number | null; found: boolean }>('/product-os/parse-3mf', { method: 'POST', body: JSON.stringify({ url }) })
     if (!r.found) return null
     return {
       material: r.material ?? undefined,
       weight_g: r.weight_g != null ? String(r.weight_g) : undefined,
       print_time_minutes: r.print_time_minutes != null ? String(r.print_time_minutes) : undefined,
+      width_mm: r.width_mm ?? undefined, depth_mm: r.depth_mm ?? undefined,
     }
   } catch { return null }
 }
@@ -1401,7 +1402,7 @@ function PartVersionsEditor({ partId, onChanged }: { partId: string; onChanged: 
           </div>
         )}
         <div className="flex items-center gap-2">
-          <UploadButton label="Subir STL/3MF" accept=".stl,.3mf,.step,.obj" onUploaded={(urls, files) => { setForm(f => ({ ...f, file_url: urls[0], file_type: fileTypeOf(files[0].name) })); void fetch3mfMetrics(urls[0], files[0].name).then(m => { if (m) setForm(f => ({ ...f, material: m.material ?? f.material, weight_g: m.weight_g ?? f.weight_g, print_time_minutes: m.print_time_minutes ?? f.print_time_minutes })) }) }} />
+          <UploadButton label="Subir STL/3MF" accept=".stl,.3mf,.step,.obj" onUploaded={(urls, files) => { setForm(f => ({ ...f, file_url: urls[0], file_type: fileTypeOf(files[0].name) })); void fetch3mfMetrics(urls[0], files[0].name).then(async m => { if (!m) return; setForm(f => ({ ...f, material: m.material ?? f.material, weight_g: m.weight_g ?? f.weight_g, print_time_minutes: m.print_time_minutes ?? f.print_time_minutes })); if (m.width_mm || m.depth_mm) { try { await api(`/product-os/parts/${partId}`, { method: 'PATCH', body: JSON.stringify({ width_mm: m.width_mm ?? null, depth_mm: m.depth_mm ?? null }) }); onChanged() } catch { /* dims best-effort */ } } }) }} />
           {form.file_url && <span className="text-[10px]" style={{ color: '#4ade80' }}>✓ {form.file_type}</span>}
         </div>
         <div className="grid grid-cols-3 gap-1.5">
