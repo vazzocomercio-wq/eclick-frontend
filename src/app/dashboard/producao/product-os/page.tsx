@@ -11,7 +11,7 @@ import {
   Lightbulb, Loader2, Plus, X, Sparkles, Cpu, DollarSign, Settings2,
   AlertTriangle, CheckCircle2, FileBox, RefreshCw, Check, Ban, Package,
   Factory, Boxes, Send, Rocket, ListChecks, History, ClipboardList,
-  Printer as PrinterIcon, TrendingUp, Gauge, Wifi, Upload, Trophy, Trash2, ExternalLink, Users, Flame, Heart, Download, Search, Layers,
+  Printer as PrinterIcon, TrendingUp, Gauge, Wifi, Upload, Trophy, Trash2, ExternalLink, Users, Flame, Heart, Download, Search, Layers, Eye, EyeOff,
 } from 'lucide-react'
 import { usePrompt } from '@/components/ui/dialog-provider'
 
@@ -1916,6 +1916,8 @@ function stateColor(lv?: FarmStatus): string {
 function LiveMonitorPanel() {
   const [printers, setPrinters] = useState<Printer[]>([]); const [live, setLive] = useState<Record<string, FarmStatus>>({})
   const [loaded, setLoaded] = useState<Record<string, LoadedFilament[]>>({}); const [err, setErr] = useState(''); const [cmdMsg, setCmdMsg] = useState<Record<string, string>>({})
+  const [camHidden, setCamHidden] = useState<Record<string, boolean>>(() => { try { return JSON.parse(localStorage.getItem('product-os:camHidden') || '{}') } catch { return {} } })
+  const toggleCam = (pid: string) => setCamHidden(m => { const next = { ...m, [pid]: !m[pid] }; try { localStorage.setItem('product-os:camHidden', JSON.stringify(next)) } catch { /* */ } return next })
 
   useEffect(() => { void (async () => { try { setPrinters(await api<Printer[]>('/product-os/printers')) } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } })() }, [])
   // telemetria ao vivo (5s)
@@ -1954,13 +1956,18 @@ function LiveMonitorPanel() {
                   <PrinterIcon size={15} className="text-cyan-400" />
                   <span className="text-sm font-bold text-white">{p.name}</span>
                   <span className="ml-auto rounded px-2 py-0.5 text-[10px] font-bold tracking-wide" style={{ background: '#0a0a0e', color: c, border: `1px solid ${c}33` }}>{lv ? (lv.online ? (STATE_LABEL[lv.state] ?? lv.state) : 'OFFLINE') : '—'}</span>
+                  {lv?.camera_url && (
+                    <button type="button" onClick={() => toggleCam(p.id)} title={camHidden[p.id] ? 'Mostrar câmera' : 'Ocultar câmera (só dados)'} className="rounded p-1 transition-colors hover:bg-white/5" style={{ color: '#71717a' }}>
+                      {camHidden[p.id] ? <EyeOff size={14} /> : <Eye size={14} />}
+                    </button>
+                  )}
                 </div>
                 <p className="mt-0.5 text-[10px]" style={{ color: '#71717a' }}>{[p.brand, p.model, p.build_volume_mm].filter(Boolean).join(' · ') || 'sem detalhes'}{p.has_ams ? ' · AMS' : ''}{lv?.last_update ? ` · atualizado ${new Date(lv.last_update).toLocaleTimeString('pt-BR')}` : ''}</p>
 
                 {!lv?.bound && <p className="mt-2 text-[11px]" style={{ color: '#fcd34d' }}>Sem telemetria — vincule o nº de série e deixe o agente rodando.</p>}
 
                 {/* câmera ao vivo */}
-                {lv?.camera_url && (
+                {lv?.camera_url && !camHidden[p.id] && (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={`${lv.camera_url}?t=${encodeURIComponent(lv.camera_at ?? '')}`} alt="câmera" className="mt-3 w-full rounded-lg" style={{ border: '1px solid #1a1a1f', aspectRatio: '4 / 3', objectFit: 'cover', background: '#0a0a0e' }} onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
                 )}
