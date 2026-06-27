@@ -215,6 +215,21 @@ function fileTypeOf(name: string): string {
   return ['stl', '3mf', 'step', 'obj'].includes(ext) ? ext : 'other'
 }
 
+/** Se o arquivo subido for um .3mf fatiado (Bambu), lê peso/tempo/material de
+ *  dentro dele. STL não tem esses dados. Devolve só os campos achados. */
+async function fetch3mfMetrics(url: string, filename: string): Promise<{ material?: string; weight_g?: string; print_time_minutes?: string } | null> {
+  if (!/\.3mf$/i.test(filename)) return null
+  try {
+    const r = await api<{ weight_g: number | null; print_time_minutes: number | null; material: string | null; found: boolean }>('/product-os/parse-3mf', { method: 'POST', body: JSON.stringify({ url }) })
+    if (!r.found) return null
+    return {
+      material: r.material ?? undefined,
+      weight_g: r.weight_g != null ? String(r.weight_g) : undefined,
+      print_time_minutes: r.print_time_minutes != null ? String(r.print_time_minutes) : undefined,
+    }
+  } catch { return null }
+}
+
 function UploadButton({ label, accept, multiple, onUploaded }: { label: string; accept?: string; multiple?: boolean; onUploaded: (urls: string[], files: File[]) => void }) {
   const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const ref = useRef<HTMLInputElement>(null)
   const handle = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1061,7 +1076,7 @@ function VersionsTab({ dev, onChanged }: { dev: DevDetail; onChanged: () => void
         )}
         <Input label="Changelog" value={form.changelog} onChange={v => setForm(f => ({ ...f, changelog: v }))} />
         <div className="flex items-center gap-2">
-          <UploadButton label="Subir arquivo (STL/3MF/STEP)" accept=".stl,.3mf,.step,.obj" onUploaded={(urls, files) => setForm(f => ({ ...f, file_url: urls[0], file_type: fileTypeOf(files[0].name) }))} />
+          <UploadButton label="Subir arquivo (STL/3MF/STEP)" accept=".stl,.3mf,.step,.obj" onUploaded={(urls, files) => { setForm(f => ({ ...f, file_url: urls[0], file_type: fileTypeOf(files[0].name) })); void fetch3mfMetrics(urls[0], files[0].name).then(m => { if (m) setForm(f => ({ ...f, material: m.material ?? f.material, weight_g: m.weight_g ?? f.weight_g, print_time_minutes: m.print_time_minutes ?? f.print_time_minutes })) }) }} />
           {form.file_url && <span className="flex items-center gap-1.5 text-[10px]" style={{ color: '#4ade80' }}>✓ arquivo enviado ({form.file_type}) <button onClick={() => void removeFormFile()} className="flex items-center gap-0.5" style={{ color: '#f87171' }}><Trash2 size={10} /> remover</button></span>}
         </div>
         <div className="grid grid-cols-2 gap-2"><Input label="Material" value={form.material} onChange={v => setForm(f => ({ ...f, material: v }))} /><Input label="Peso (g)" value={form.weight_g} onChange={v => setForm(f => ({ ...f, weight_g: v }))} /></div>
@@ -1386,7 +1401,7 @@ function PartVersionsEditor({ partId, onChanged }: { partId: string; onChanged: 
           </div>
         )}
         <div className="flex items-center gap-2">
-          <UploadButton label="Subir STL/3MF" accept=".stl,.3mf,.step,.obj" onUploaded={(urls, files) => setForm(f => ({ ...f, file_url: urls[0], file_type: fileTypeOf(files[0].name) }))} />
+          <UploadButton label="Subir STL/3MF" accept=".stl,.3mf,.step,.obj" onUploaded={(urls, files) => { setForm(f => ({ ...f, file_url: urls[0], file_type: fileTypeOf(files[0].name) })); void fetch3mfMetrics(urls[0], files[0].name).then(m => { if (m) setForm(f => ({ ...f, material: m.material ?? f.material, weight_g: m.weight_g ?? f.weight_g, print_time_minutes: m.print_time_minutes ?? f.print_time_minutes })) }) }} />
           {form.file_url && <span className="text-[10px]" style={{ color: '#4ade80' }}>✓ {form.file_type}</span>}
         </div>
         <div className="grid grid-cols-3 gap-1.5">
