@@ -46,7 +46,7 @@ interface PlatePlan {
   quantity: number; bed: { name: string; x: number; y: number; z: number }; gap_mm: number; total_plates: number; missing_dims: string[]; note: string
   lines: Array<{ part_id: string; name: string; qty_per_product: number; needed: number; width_mm: number | null; depth_mm: number | null; height_mm: number | null; per_plate: number | null; plates: number | null; fit_note: string | null; plate_minutes: number | null; has_dims: boolean }>
 }
-interface AssemblyOrder { id: string; order_number: number; quantity: number; status: string; created_at: string; completed_at: string | null }
+interface AssemblyOrder { id: string; product_dev_id: string; order_number: number; quantity: number; status: string; created_at: string; completed_at: string | null }
 interface AssemblyPreview {
   quantity: number
   parts: Array<{ part_id: string; name: string; needed: number; available: number; unit: string; is_optional: boolean; sufficient: boolean; missing: number }>
@@ -72,7 +72,7 @@ interface Settings {
 }
 interface Order {
   id: string; product_dev_id: string; order_number: number; quantity: number; machine: string | null; status: string
-  printer_id: string | null; is_prototype: boolean; estimated_time_minutes: number | null; estimated_filament_g: number | null; actual_filament_g?: number | null; created_at: string
+  printer_id: string | null; is_prototype: boolean; estimated_time_minutes: number | null; estimated_filament_g: number | null; actual_filament_g?: number | null; part_id?: string | null; created_at: string
   jobs?: Job[]
 }
 interface Job { id: string; job_number: number; status: string; filament_used_g: number | null; print_time_minutes: number | null; failure_reason: string | null }
@@ -173,12 +173,24 @@ const COLUMNS: { key: Status; label: string }[] = [
 ]
 const ORDER_COLS: { key: string; label: string }[] = [
   { key: 'fila', label: 'Fila' }, { key: 'imprimindo', label: 'Imprimindo' }, { key: 'acabamento', label: 'Acabamento' },
-  { key: 'qualidade', label: 'Qualidade' }, { key: 'embalado', label: 'Embalado' }, { key: 'disponivel', label: 'Disponível' },
+  { key: 'qualidade', label: 'Qualidade' }, { key: 'pronta', label: 'Peça pronta' }, { key: 'montagem', label: 'Montagem' },
+  { key: 'embalado', label: 'Embalado' }, { key: 'disponivel', label: 'Disponível' },
 ]
+// produto inteiro (1 peça): qualidade → embalado → disponível
 const ORDER_NEXT: Record<string, string[]> = {
   fila: ['imprimindo', 'cancelado'], imprimindo: ['pausado', 'falhou', 'acabamento'], pausado: ['imprimindo'],
   falhou: ['reimpressao'], reimpressao: ['imprimindo'], acabamento: ['qualidade'], qualidade: ['embalado', 'falhou'],
   embalado: ['disponivel'], disponivel: [], cancelado: [],
+}
+// OP de PEÇA: qualidade → pronta (vira estoque de peça; não embala)
+const PART_ORDER_NEXT: Record<string, string[]> = {
+  fila: ['imprimindo', 'cancelado'], imprimindo: ['pausado', 'falhou', 'acabamento'], pausado: ['imprimindo'],
+  falhou: ['reimpressao'], reimpressao: ['imprimindo'], acabamento: ['qualidade'], qualidade: ['pronta', 'falhou'],
+  pronta: [], cancelado: [],
+}
+// montagem: montando → embalado → disponível
+const ASSEMBLY_NEXT: Record<string, string[]> = {
+  fila: ['montando', 'cancelado'], montando: ['embalado', 'cancelado'], embalado: ['disponivel'], disponivel: [], concluido: [], cancelado: [],
 }
 const CHANNEL_LABEL: Record<string, string> = { mercado_livre: 'Mercado Livre', shopee: 'Shopee', tiktok: 'TikTok', loja: 'Loja própria' }
 const DEFAULT_QC: Array<{ key: string; label: string; ok: boolean }> = [
@@ -477,15 +489,23 @@ function Pill({ icon, label }: { icon: React.ReactNode; label: string }) {
 // ── BOARD: produção ───────────────────────────────────────────────────
 function ProductionBoard({ products }: { products: ProductDev[] }) {
   const [orders, setOrders] = useState<Order[]>([])
+  const [assemblies, setAssemblies] = useState<AssemblyOrder[]>([])
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState('')
   const [showNew, setShowNew] = useState(false)
+  const [showNewAsm, setShowNewAsm] = useState(false)
   const nameOf = (devId: string) => products.find(p => p.id === devId)?.name ?? '—'
 
   const load = useCallback(async (silent?: boolean) => {
     if (!silent) setLoading(true)
     setErr('')
-    try { setOrders(await api<Order[]>('/product-os/production-orders')) }
+    try {
+      const [o, a] = await Promise.all([
+        api<Order[]>('/product-os/production-orders'),
+        api<AssemblyOrder[]>('/product-os/assemblies').catch(() => [] as AssemblyOrder[]),
+      ])
+      setOrders(o); setAssemblies(a)
+    }
     catch (e) { if (!silent) setErr(e instanceof Error ? e.message : 'Erro') } finally { if (!silent) setLoading(false) }
   }, [])
   // primeiro load + refresh silencioso a cada 5s → cards mudam sozinhos quando a impressora avança o estado
@@ -496,6 +516,12 @@ function ProductionBoard({ products }: { products: ProductDev[] }) {
     try { await api(`/product-os/production-orders/${oid}/transition`, { method: 'POST', body: JSON.stringify({ status }) }); void load() }
     catch (e) { setErr(e instanceof Error ? e.message : 'Erro') }
   }
+  const transitionAsm = async (aid: string, status: string) => {
+    try { await api(`/product-os/assemblies/${aid}/transition`, { method: 'POST', body: JSON.stringify({ status }) }); void load() }
+    catch (e) { setErr(e instanceof Error ? e.message : 'Erro') }
+  }
+  // em qual coluna a montagem aparece: fila/montando → Montagem; embalado/disponível na sua; concluído(legado)→Disponível
+  const asmCol = (a: AssemblyOrder) => (a.status === 'fila' || a.status === 'montando') ? 'montagem' : (a.status === 'concluido' ? 'disponivel' : a.status)
   const sendToPrinter = async (oid: string) => {
     setErr(''); setNotice('')
     try { await api(`/product-os/farm/orders/${oid}/send`, { method: 'POST' }); setNotice('Job enviado pra impressora (envio experimental — confirme na máquina).') }
@@ -508,8 +534,9 @@ function ProductionBoard({ products }: { products: ProductDev[] }) {
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
-        <p className="text-xs" style={{ color: '#a1a1aa' }}>Ordens de produção e fila de impressão.</p>
-        <button onClick={() => setShowNew(true)} className="ml-auto flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}><Plus size={12} /> Nova ordem</button>
+        <p className="text-xs" style={{ color: '#a1a1aa' }}>Ordens de produção, peças e montagem. Peças prontas viram estoque → montam o produto → embalado → disponível.</p>
+        <button onClick={() => setShowNewAsm(true)} className="ml-auto flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold" style={{ background: 'rgba(168,85,247,0.12)', border: '1px solid rgba(168,85,247,0.35)', color: '#c4b5fd' }}><Boxes size={12} /> Nova montagem</button>
+        <button onClick={() => setShowNew(true)} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}><Plus size={12} /> Nova ordem</button>
       </div>
       {err && <div className="rounded-lg p-2.5 text-xs" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>{err}</div>}
       {notice && <div className="rounded-lg p-2.5 text-xs" style={{ background: 'rgba(74,222,128,0.10)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)' }}>{notice}</div>}
@@ -517,30 +544,47 @@ function ProductionBoard({ products }: { products: ProductDev[] }) {
         <HScroll className="flex gap-3 pb-4">
           {ORDER_COLS.map(col => {
             const cards = orders.filter(o => o.status === col.key)
+            const asms = assemblies.filter(a => asmCol(a) === col.key)
             return (
               <div key={col.key} className="flex w-60 shrink-0 flex-col rounded-xl" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
-                <div className="flex items-center justify-between px-3 py-2.5"><span className="text-xs font-bold uppercase tracking-wide" style={{ color: '#a1a1aa' }}>{col.label}</span><span className="rounded px-1.5 py-0.5 text-[10px] font-bold" style={{ background: '#1a1a1f', color: '#71717a' }}>{cards.length}</span></div>
+                <div className="flex items-center justify-between px-3 py-2.5"><span className="text-xs font-bold uppercase tracking-wide" style={{ color: '#a1a1aa' }}>{col.label}</span><span className="rounded px-1.5 py-0.5 text-[10px] font-bold" style={{ background: '#1a1a1f', color: '#71717a' }}>{cards.length + asms.length}</span></div>
                 <div className="flex flex-col gap-2 px-2 pb-2" style={{ minHeight: 60 }}>
                   {cards.map(o => (
                     <div key={o.id} className="rounded-lg p-2.5" style={{ background: '#111114', border: '1px solid #27272a' }}>
                       <div className="flex items-center gap-1.5">
                         <span className="shrink-0 rounded px-1 py-0.5 font-mono text-[9px] font-bold" style={{ background: 'rgba(0,229,255,0.12)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.25)' }}>OP-{String(o.order_number).padStart(4, '0')}</span>
                         <p className="truncate text-xs font-bold text-white">{nameOf(o.product_dev_id)}</p>
+                        {o.part_id && <span className="shrink-0 rounded px-1 py-0.5 text-[8px] font-bold" style={{ background: 'rgba(0,229,255,0.12)', color: '#67e8f9' }}>🧩 peça</span>}
                         {o.is_prototype && <span className="shrink-0 rounded px-1 py-0.5 text-[8px] font-bold" style={{ background: 'rgba(168,85,247,0.15)', color: '#c4b5fd' }}>protótipo</span>}
                       </div>
                       <p className="text-[10px]" style={{ color: '#71717a' }}>{o.quantity} un{o.estimated_filament_g ? ` · ${o.estimated_filament_g} g` : ''}{o.machine ? ` · ${o.machine}` : ''}</p>
                       <div className="mt-1.5 flex flex-wrap gap-1">
-                        {(ORDER_NEXT[o.status] ?? []).map(ns => (
+                        {((o.part_id ? PART_ORDER_NEXT : ORDER_NEXT)[o.status] ?? []).map(ns => (
                           <button key={ns} onClick={() => void transition(o.id, ns)} className="rounded px-1.5 py-0.5 text-[9px] font-semibold" style={{ background: ns === 'cancelado' || ns === 'falhou' ? '#0a0a0e' : 'rgba(0,229,255,0.10)', color: ns === 'cancelado' || ns === 'falhou' ? '#71717a' : '#a5f3fc', border: '1px solid #27272a' }}>{ns}</button>
                         ))}
                       </div>
-                      {o.printer_id && !['disponivel', 'cancelado'].includes(o.status) && (
+                      {o.printer_id && !['disponivel', 'pronta', 'cancelado'].includes(o.status) && (
                         <button onClick={() => void sendToPrinter(o.id)} className="mt-1 flex w-full items-center justify-center gap-1 rounded px-1.5 py-1 text-[9px] font-bold" style={{ background: 'rgba(0,229,255,0.10)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.3)' }}><Send size={9} /> Enviar pra impressora</button>
                       )}
                       {['acabamento', 'qualidade', 'embalado'].includes(o.status) && (
                         <RealWeightInput oid={o.id} actual={o.actual_filament_g ?? null} estimated={o.estimated_filament_g} onSaved={() => void load(true)} />
                       )}
                       {o.status !== 'cancelado' && <UnitsViewer oid={o.id} qty={o.quantity} />}
+                    </div>
+                  ))}
+                  {asms.map(a => (
+                    <div key={a.id} className="rounded-lg p-2.5" style={{ background: '#111114', border: '1px solid rgba(168,85,247,0.3)' }}>
+                      <div className="flex items-center gap-1.5">
+                        <span className="shrink-0 rounded px-1 py-0.5 font-mono text-[9px] font-bold" style={{ background: 'rgba(168,85,247,0.15)', color: '#c4b5fd', border: '1px solid rgba(168,85,247,0.3)' }}>MT-{String(a.order_number).padStart(4, '0')}</span>
+                        <p className="truncate text-xs font-bold text-white">{nameOf(a.product_dev_id)}</p>
+                        <span className="shrink-0 rounded px-1 py-0.5 text-[8px] font-bold" style={{ background: 'rgba(168,85,247,0.15)', color: '#c4b5fd' }}>🔧 montagem</span>
+                      </div>
+                      <p className="text-[10px]" style={{ color: '#71717a' }}>{a.quantity} un · junta as peças no produto</p>
+                      <div className="mt-1.5 flex flex-wrap gap-1">
+                        {(ASSEMBLY_NEXT[a.status] ?? []).map(ns => (
+                          <button key={ns} onClick={() => void transitionAsm(a.id, ns)} className="rounded px-1.5 py-0.5 text-[9px] font-semibold" style={{ background: ns === 'cancelado' ? '#0a0a0e' : 'rgba(168,85,247,0.12)', color: ns === 'cancelado' ? '#71717a' : '#d8b4fe', border: '1px solid #27272a' }}>{ns}</button>
+                        ))}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -550,7 +594,65 @@ function ProductionBoard({ products }: { products: ProductDev[] }) {
         </HScroll>
       )}
       {showNew && <NewOrderModal approved={approved} onClose={() => setShowNew(false)} onCreated={() => { setShowNew(false); void load() }} />}
+      {showNewAsm && <NewAssemblyModal products={approved} onClose={() => setShowNewAsm(false)} onCreated={() => { setShowNewAsm(false); void load() }} />}
     </div>
+  )
+}
+
+function NewAssemblyModal({ products, onClose, onCreated }: { products: ProductDev[]; onClose: () => void; onCreated: () => void }) {
+  const [devId, setDevId] = useState(products[0]?.id ?? '')
+  const [qty, setQty] = useState('1'); const [busy, setBusy] = useState(false); const [err, setErr] = useState('')
+  const [preview, setPreview] = useState<AssemblyPreview | null>(null); const [prevLoading, setPrevLoading] = useState(false)
+  useEffect(() => {
+    const n = Number(qty) || 0
+    if (!devId || n < 1) { setPreview(null); return }
+    let cancel = false; setPrevLoading(true); setErr('')
+    const t = setTimeout(() => { void (async () => {
+      try { const p = await api<AssemblyPreview>('/product-os/assemblies/preview', { method: 'POST', body: JSON.stringify({ product_dev_id: devId, quantity: n }) }); if (!cancel) setPreview(p) }
+      catch (e) { if (!cancel) { setPreview(null); setErr(e instanceof Error ? e.message : 'Erro') } }
+      finally { if (!cancel) setPrevLoading(false) }
+    })() }, 350)
+    return () => { cancel = true; clearTimeout(t) }
+  }, [devId, qty])
+  const create = async () => {
+    if (!devId) { setErr('Selecione um produto'); return }
+    setBusy(true); setErr('')
+    try { await api('/product-os/assemblies', { method: 'POST', body: JSON.stringify({ product_dev_id: devId, quantity: Number(qty) || 1 }) }); onCreated() }
+    catch (e) { setErr(e instanceof Error ? e.message : 'Erro'); setBusy(false) }
+  }
+  return (
+    <Modal title="Nova montagem" onClose={onClose}>
+      <div className="space-y-3">
+        <p className="text-xs" style={{ color: '#a1a1aa' }}>Junta as <b style={{ color: '#d8b4fe' }}>peças prontas</b> no produto final. Reserva as peças e os insumos de montagem; ao embalar, consome tudo.</p>
+        <label className="block text-xs" style={{ color: '#a1a1aa' }}>Produto
+          <select value={devId} onChange={e => setDevId(e.target.value)} className="mt-1 w-full rounded-lg px-2 py-2 text-sm text-white" style={{ background: '#0a0a0e', border: '1px solid #27272a' }}>
+            {products.map(p => <option key={p.id} value={p.id}>{p.name}{p.code ? ` (${p.code})` : ''}</option>)}
+          </select>
+        </label>
+        <Input label="Quantidade a montar" value={qty} onChange={setQty} />
+        {prevLoading && <p className="text-[11px]" style={{ color: '#71717a' }}>Calculando o que precisa…</p>}
+        {preview && (
+          <div className="rounded-lg p-2.5 space-y-1" style={{ background: '#0a0a0e', border: '1px solid #27272a' }}>
+            <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#71717a' }}>Peças necessárias</p>
+            {preview.parts.map(l => (
+              <div key={l.part_id} className="flex items-center justify-between text-[11px]">
+                <span style={{ color: '#d4d4d8' }}>{l.name}{l.is_optional ? ' (opcional)' : ''}</span>
+                <span style={{ color: l.sufficient ? '#4ade80' : '#f87171' }}>{l.available}/{l.needed}{l.sufficient ? ' ✓' : ` (faltam ${l.missing})`}</span>
+              </div>
+            ))}
+            {preview.insumos?.map(l => (
+              <div key={l.input_id} className="flex items-center justify-between text-[11px]">
+                <span style={{ color: '#d4d4d8' }}>{l.name}</span>
+                <span style={{ color: l.sufficient ? '#4ade80' : '#f87171' }}>{l.available}/{l.needed} {l.unit}{l.sufficient ? ' ✓' : ` (faltam ${l.missing})`}</span>
+              </div>
+            ))}
+            {!preview.all_sufficient && <p className="text-[10px]" style={{ color: '#fcd34d' }}>⚠️ Falta estoque — produza as peças que faltam (OP de peça) antes de montar.</p>}
+          </div>
+        )}
+        {err && <div className="whitespace-pre-line rounded-lg p-2.5 text-xs" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>{err}</div>}
+        <button onClick={() => void create()} disabled={busy || (preview ? !preview.all_sufficient : false)} className="w-full rounded-lg px-3 py-2 text-sm font-bold disabled:opacity-50" style={{ background: 'rgba(168,85,247,0.15)', color: '#d8b4fe', border: '1px solid rgba(168,85,247,0.35)' }}>{busy ? 'Criando…' : 'Criar montagem'}</button>
+      </div>
+    </Modal>
   )
 }
 
