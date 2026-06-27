@@ -149,6 +149,7 @@ interface FarmStatus {
   nozzle_temp: number | null; bed_temp: number | null; remaining_minutes: number | null
   ams: Array<{ slot: string; material: string; color: string; remain_pct: number }> | null
   error_code: string | null; error_text: string | null; last_update: string | null
+  camera_url?: string | null; camera_at?: string | null
 }
 interface FarmAgent { id: string; name: string; status: string; version: string | null; last_seen_at: string | null; online: boolean }
 interface SchedulerResult {
@@ -1957,6 +1958,12 @@ function LiveMonitorPanel() {
                 <p className="mt-0.5 text-[10px]" style={{ color: '#71717a' }}>{[p.brand, p.model, p.build_volume_mm].filter(Boolean).join(' · ') || 'sem detalhes'}{p.has_ams ? ' · AMS' : ''}{lv?.last_update ? ` · atualizado ${new Date(lv.last_update).toLocaleTimeString('pt-BR')}` : ''}</p>
 
                 {!lv?.bound && <p className="mt-2 text-[11px]" style={{ color: '#fcd34d' }}>Sem telemetria — vincule o nº de série e deixe o agente rodando.</p>}
+
+                {/* câmera ao vivo */}
+                {lv?.camera_url && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={`${lv.camera_url}?t=${encodeURIComponent(lv.camera_at ?? '')}`} alt="câmera" className="mt-3 w-full rounded-lg" style={{ border: '1px solid #1a1a1f', aspectRatio: '4 / 3', objectFit: 'cover', background: '#0a0a0e' }} onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
+                )}
 
                 {/* progresso */}
                 {printing && (
