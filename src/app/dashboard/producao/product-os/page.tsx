@@ -149,7 +149,7 @@ interface FarmStatus {
   nozzle_temp: number | null; bed_temp: number | null; remaining_minutes: number | null
   ams: Array<{ slot: string; material: string; color: string; remain_pct: number }> | null
   error_code: string | null; error_text: string | null; last_update: string | null
-  camera_url?: string | null; camera_at?: string | null
+  camera_url?: string | null; camera_at?: string | null; light_on?: boolean | null
 }
 interface FarmAgent { id: string; name: string; status: string; version: string | null; last_seen_at: string | null; online: boolean }
 interface SchedulerResult {
@@ -1918,12 +1918,13 @@ function LiveMonitorPanel() {
   const [loaded, setLoaded] = useState<Record<string, LoadedFilament[]>>({}); const [err, setErr] = useState(''); const [cmdMsg, setCmdMsg] = useState<Record<string, string>>({})
   const [camHidden, setCamHidden] = useState<Record<string, boolean>>(() => { try { return JSON.parse(localStorage.getItem('product-os:camHidden') || '{}') } catch { return {} } })
   const toggleCam = (pid: string) => setCamHidden(m => { const next = { ...m, [pid]: !m[pid] }; try { localStorage.setItem('product-os:camHidden', JSON.stringify(next)) } catch { /* */ } return next })
+  const [lightOpt, setLightOpt] = useState<Record<string, boolean>>({})  // estado otimista da luz até a telemetria confirmar
 
   useEffect(() => { void (async () => { try { setPrinters(await api<Printer[]>('/product-os/printers')) } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } })() }, [])
   // telemetria ao vivo (5s)
   useEffect(() => {
     let alive = true
-    const tick = async () => { try { const s = await api<FarmStatus[]>('/product-os/farm/status'); if (alive) setLive(Object.fromEntries(s.map(x => [x.id, x]))) } catch { /* */ } }
+    const tick = async () => { try { const s = await api<FarmStatus[]>('/product-os/farm/status'); if (!alive) return; setLive(Object.fromEntries(s.map(x => [x.id, x]))); setLightOpt(opt => { const next = { ...opt }; let ch = false; for (const x of s) if (x.id in next && x.light_on != null && next[x.id] === x.light_on) { delete next[x.id]; ch = true }; return ch ? next : opt }) } catch { /* */ } }
     void tick(); const it = setInterval(tick, 5000); return () => { alive = false; clearInterval(it) }
   }, [])
   // filamento montado por impressora (refresca a cada 20s)
@@ -2025,8 +2026,7 @@ function LiveMonitorPanel() {
                     {lv.state === 'printing' && <CtrlBtn onClick={() => void cmd(p.id, 'pause')} label="Pausar" />}
                     {lv.state === 'paused' && <CtrlBtn onClick={() => void cmd(p.id, 'resume')} label="Retomar" />}
                     {(lv.state === 'printing' || lv.state === 'paused') && <CtrlBtn onClick={() => void cmd(p.id, 'stop')} label="Parar" danger />}
-                    <CtrlBtn onClick={() => void cmd(p.id, 'light_on')} label="Luz" />
-                    <CtrlBtn onClick={() => void cmd(p.id, 'light_off')} label="Off" />
+                    {(() => { const on = lightOpt[p.id] ?? lv.light_on ?? false; return <CtrlBtn onClick={() => { setLightOpt(m => ({ ...m, [p.id]: !on })); void cmd(p.id, on ? 'light_off' : 'light_on') }} label={on ? '💡 Luz: ligada' : '🌙 Luz: apagada'} /> })()}
                   </div>
                 )}
                 {cmdMsg[p.id] && <p className="mt-1 text-[10px]" style={{ color: '#a5f3fc' }}>{cmdMsg[p.id]}</p>}
