@@ -76,7 +76,7 @@ interface Order {
 }
 interface Job { id: string; job_number: number; status: string; filament_used_g: number | null; print_time_minutes: number | null; failure_reason: string | null }
 interface Input {
-  id: string; kind: string; sku: string | null; name: string; description: string | null
+  id: string; kind: string; sku: string | null; barcode: string | null; name: string; description: string | null
   material: string | null; color: string | null; color_hex: string | null; brand: string | null; supplier: string | null
   diameter_mm: number | null; spool_weight_g: number | null; unit: string
   quantity: number; reserved_quantity: number; reorder_threshold: number; cost_per_unit: number; available: number; alert: boolean
@@ -582,7 +582,7 @@ function InsumosPanel() {
 
 function InsumoDetailDrawer({ item, onClose, onChanged }: { item: Input; onClose: () => void; onChanged: () => void }) {
   const [f, setF] = useState({
-    sku: item.sku ?? '', name: item.name, description: item.description ?? '', material: item.material ?? '',
+    sku: item.sku ?? '', barcode: item.barcode ?? '', name: item.name, description: item.description ?? '', material: item.material ?? '',
     color: item.color ?? '', color_hex: item.color_hex ?? '', brand: item.brand ?? '', supplier: item.supplier ?? '',
     diameter_mm: item.diameter_mm != null ? String(item.diameter_mm) : '', unit: item.unit,
     reorder_threshold: String(item.reorder_threshold ?? ''),
@@ -594,7 +594,7 @@ function InsumoDetailDrawer({ item, onClose, onChanged }: { item: Input; onClose
     setBusy(true); setErr(''); setMsg('')
     try {
       await api(`/product-os/production-inputs/${item.id}`, { method: 'PATCH', body: JSON.stringify({
-        sku: f.sku || null, name: f.name, description: f.description || null, material: f.material || null,
+        sku: f.sku || null, barcode: f.barcode || null, name: f.name, description: f.description || null, material: f.material || null,
         color: f.color || null, color_hex: f.color_hex || null, brand: f.brand || null, supplier: f.supplier || null,
         diameter_mm: f.diameter_mm ? Number(f.diameter_mm) : null, unit: f.unit, reorder_threshold: Number(f.reorder_threshold) || 0,
       }) })
@@ -630,6 +630,7 @@ function InsumoDetailDrawer({ item, onClose, onChanged }: { item: Input; onClose
         <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wide" style={{ color: '#71717a' }}>Dados do insumo</p>
         <div className="space-y-2.5">
           <div className="grid grid-cols-2 gap-2"><Input label="SKU" value={f.sku} onChange={v => set('sku', v)} /><Input label="Tipo/Material" value={f.material} onChange={v => set('material', v)} /></div>
+          <Input label="Código de barras (escaneie aqui)" value={f.barcode} onChange={v => set('barcode', v)} placeholder="bipe o código ou digite" />
           <Input label="Nome" value={f.name} onChange={v => set('name', v)} />
           <Input label="Descrição" value={f.description} onChange={v => set('description', v)} />
           <div className="grid grid-cols-3 gap-2"><Input label="Cor" value={f.color} onChange={v => set('color', v)} /><Input label="Cor (hex)" value={f.color_hex} onChange={v => set('color_hex', v)} /><Input label="Marca" value={f.brand} onChange={v => set('brand', v)} /></div>
@@ -828,7 +829,7 @@ function ImportNfModal({ onClose, onImported }: { onClose: () => void; onImporte
 }
 
 function NewInputModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
-  const [f, setF] = useState({ kind: 'filamento', sku: '', name: '', description: '', material: '', color: '', color_hex: '', brand: '', supplier: '', diameter_mm: '', spool_weight_g: '', unit: 'g', quantity: '', reorder_threshold: '', cost_per_unit: '' })
+  const [f, setF] = useState({ kind: 'filamento', sku: '', barcode: '', name: '', description: '', material: '', color: '', color_hex: '', brand: '', supplier: '', diameter_mm: '', spool_weight_g: '', unit: 'g', quantity: '', reorder_threshold: '', cost_per_unit: '' })
   const [busy, setBusy] = useState(false); const [err, setErr] = useState('')
   const set = (k: keyof typeof f, v: string) => setF(s => ({ ...s, [k]: v }))
   const isFil = f.kind === 'filamento'
@@ -837,7 +838,7 @@ function NewInputModal({ onClose, onCreated }: { onClose: () => void; onCreated:
     setBusy(true); setErr('')
     try {
       await api('/product-os/production-inputs', { method: 'POST', body: JSON.stringify({
-        kind: f.kind, sku: f.sku || undefined, name: f.name, description: f.description || undefined,
+        kind: f.kind, sku: f.sku || undefined, barcode: f.barcode || undefined, name: f.name, description: f.description || undefined,
         material: f.material || undefined, color: f.color || undefined, color_hex: f.color_hex || undefined,
         brand: f.brand || undefined, supplier: f.supplier || undefined,
         diameter_mm: f.diameter_mm ? Number(f.diameter_mm) : undefined, spool_weight_g: f.spool_weight_g ? Number(f.spool_weight_g) : undefined,
@@ -857,6 +858,7 @@ function NewInputModal({ onClose, onCreated }: { onClose: () => void; onCreated:
             </select></label>
           <Input label="SKU" value={f.sku} onChange={v => set('sku', v)} />
         </div>
+        <Input label="Código de barras (escaneie aqui)" value={f.barcode} onChange={v => set('barcode', v)} placeholder="bipe o código ou digite" />
         <Input label="Nome *" value={f.name} onChange={v => set('name', v)} />
         <Input label="Descrição" value={f.description} onChange={v => set('description', v)} />
         <div className="grid grid-cols-2 gap-2">
@@ -1979,12 +1981,47 @@ function ConnectFarmModal({ onClose }: { onClose: () => void }) {
 
 interface LoadedFilament {
   id: string; slot: number; loaded_at: string; loaded_g: number | null; consumed_g: number; available: number
-  input: { id: string; name: string; material: string | null; color: string | null; color_hex: string | null; unit: string; quantity: number; cost_per_unit: number; spool_weight_g: number | null } | null
+  input: { id: string; name: string; sku: string | null; barcode: string | null; material: string | null; color: string | null; color_hex: string | null; unit: string; quantity: number; cost_per_unit: number; spool_weight_g: number | null } | null
 }
+
+/** Busca de filamento: digita OU escaneia (nome/SKU/cor/material/código de barras).
+ *  Leitor de código de barras = teclado: ele digita o código e dá Enter → casa exato e seleciona. */
+function FilamentPicker({ filaments, exclude, placeholder, onPick }: { filaments: Input[]; exclude?: string[]; placeholder?: string; onPick: (id: string) => void }) {
+  const [q, setQ] = useState('')
+  const norm = (s: string | null | undefined) => (s ?? '').toLowerCase()
+  const list = filaments.filter(f => !(exclude ?? []).includes(f.id))
+  const term = q.trim().toLowerCase()
+  const matches = term ? list.filter(f => [f.name, f.sku, f.barcode, f.color, f.material].some(v => norm(v).includes(term))) : list
+  const submit = () => {
+    const exact = list.find(f => norm(f.sku) === term || norm(f.barcode) === term)
+    const pick = exact ?? (matches.length === 1 ? matches[0] : null)
+    if (pick) { onPick(pick.id); setQ('') }
+  }
+  return (
+    <div>
+      <input value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); submit() } }}
+        placeholder={placeholder ?? 'Escanear ou digitar nome / SKU / código de barras…'}
+        className="w-full rounded-lg px-2.5 py-1.5 text-xs outline-none" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }} />
+      {term && (
+        <div className="mt-1 max-h-48 overflow-y-auto rounded-lg" style={{ background: '#0a0a0e', border: '1px solid #27272a' }}>
+          {matches.length === 0 ? <p className="p-2 text-[10px]" style={{ color: '#71717a' }}>Nada encontrado pra “{q}”.</p>
+            : matches.slice(0, 25).map(f => (
+              <button key={f.id} onClick={() => { onPick(f.id); setQ('') }} className="block w-full px-2 py-1.5 text-left text-[11px]" style={{ borderBottom: '1px solid #1a1a1f', color: '#d4d4d8' }}>
+                <span className="font-semibold text-white">{f.name}</span>
+                <span style={{ color: '#52525b' }}> · {(Number(f.quantity) - Number(f.reserved_quantity)).toFixed(0)}{f.unit}{f.color ? ` · ${f.color}` : ''}{f.sku ? ` · SKU ${f.sku}` : ''}{f.barcode ? ` · ${f.barcode}` : ''}</span>
+              </button>
+            ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function LoadedFilamentSection({ printerId, onChanged }: { printerId: string; onChanged: () => void }) {
   const [loaded, setLoaded] = useState<LoadedFilament[]>([]); const [filaments, setFilaments] = useState<Input[]>([])
-  const [pick, setPick] = useState(''); const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [msg, setMsg] = useState('')
-  const [usage, setUsage] = useState(''); const [showUsage, setShowUsage] = useState(false)
+  const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [msg, setMsg] = useState('')
+  const [swapSlot, setSwapSlot] = useState<number | null>(null); const [adding, setAdding] = useState(false)
+  const [usageSlot, setUsageSlot] = useState<number | null>(null); const [usageVal, setUsageVal] = useState('')
 
   const load = useCallback(async () => {
     try {
@@ -1997,76 +2034,82 @@ function LoadedFilamentSection({ printerId, onChanged }: { printerId: string; on
   }, [printerId])
   useEffect(() => { void load() }, [load])
 
-  const cur = loaded[0] ?? null
-  const doLoad = async (inputId: string) => {
-    if (!inputId) return
+  const usedSlots = loaded.map(l => l.slot)
+  const nextSlot = usedSlots.length ? Math.max(...usedSlots) + 1 : 0
+  const loadedIds = loaded.map(l => l.input?.id).filter(Boolean) as string[]
+
+  const doLoad = async (inputId: string, slot: number) => {
     setBusy(true); setErr(''); setMsg('')
-    try { await api(`/product-os/printers/${printerId}/load-filament`, { method: 'POST', body: JSON.stringify({ input_id: inputId }) }); setPick(''); setMsg('Filamento montado — o consumo desta impressora passa a baixar esse rolo.'); await load(); onChanged() }
+    try { await api(`/product-os/printers/${printerId}/load-filament`, { method: 'POST', body: JSON.stringify({ input_id: inputId, slot }) }); setMsg('Filamento montado — o consumo desta máquina passa a baixar esse rolo.'); setSwapSlot(null); setAdding(false); await load(); onChanged() }
     catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setBusy(false) }
   }
-  const unload = async () => {
-    if (!(await confirmDialog({ title: 'Tirar filamento', message: `Tirar "${cur?.input?.name}" da impressora? A sessão é fechada (o rendizado fica no histórico).`, confirmLabel: 'Tirar' }))) return
+  const unload = async (slot: number, name?: string) => {
+    if (!(await confirmDialog({ title: 'Tirar filamento', message: `Tirar "${name ?? ''}" da impressora? A sessão é fechada (o rendimento fica no histórico).`, confirmLabel: 'Tirar' }))) return
     setBusy(true); setErr('')
-    try { await api(`/product-os/printers/${printerId}/unload-filament`, { method: 'POST', body: JSON.stringify({}) }); await load(); onChanged() }
+    try { await api(`/product-os/printers/${printerId}/unload-filament`, { method: 'POST', body: JSON.stringify({ slot }) }); await load(); onChanged() }
     catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setBusy(false) }
   }
-  const logUsage = async () => {
-    const g = Number(usage) || 0
+  const logUsage = async (slot: number) => {
+    const g = Number(usageVal) || 0
     if (g <= 0) { setErr('Informe as gramas usadas.'); return }
     setBusy(true); setErr(''); setMsg('')
-    try { await api(`/product-os/printers/${printerId}/filament-usage`, { method: 'POST', body: JSON.stringify({ grams: g }) }); setUsage(''); setShowUsage(false); setMsg(`Baixados ${g} g do rolo.`); await load(); onChanged() }
+    try { await api(`/product-os/printers/${printerId}/filament-usage`, { method: 'POST', body: JSON.stringify({ grams: g, slot }) }); setUsageVal(''); setUsageSlot(null); setMsg(`Baixados ${g} g do rolo.`); await load(); onChanged() }
     catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setBusy(false) }
   }
 
   return (
     <div className="mb-3 rounded-lg p-3" style={{ background: '#111114', border: '1px solid #27272a' }}>
-      <div className="mb-2 flex items-center gap-2"><Boxes size={13} style={{ color: '#a5f3fc' }} /><span className="text-xs font-bold text-white">Filamento na impressora</span></div>
+      <div className="mb-2 flex items-center gap-2"><Boxes size={13} style={{ color: '#a5f3fc' }} /><span className="text-xs font-bold text-white">Filamento na impressora</span>{loaded.length > 1 && <span className="text-[10px]" style={{ color: '#71717a' }}>{loaded.length} bandejas</span>}</div>
       {err && <p className="mb-1.5 text-[10px]" style={{ color: '#f87171' }}>{err}</p>}
       {msg && <p className="mb-1.5 text-[10px]" style={{ color: '#4ade80' }}>{msg}</p>}
 
-      {cur && cur.input ? (
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            {cur.input.color_hex && <span className="h-4 w-4 rounded-full border" style={{ background: cur.input.color_hex, borderColor: '#3f3f46' }} />}
-            <span className="text-sm font-bold text-white">{cur.input.name}</span>
-            {cur.input.material && <span className="rounded px-1.5 py-0.5 text-[9px]" style={{ background: '#1a1a1f', color: '#a1a1aa' }}>{cur.input.material}</span>}
-            {cur.input.color && <span className="rounded px-1.5 py-0.5 text-[9px]" style={{ background: '#1a1a1f', color: '#a1a1aa' }}>{cur.input.color}</span>}
-          </div>
-          <div className="grid grid-cols-3 gap-2">
-            <Stat label="Disponível" value={`${cur.available.toFixed(0)} ${cur.input.unit}`} />
-            <Stat label="Custo/g" value={`R$ ${Number(cur.input.cost_per_unit).toFixed(5)}`} />
-            <Stat label="Usado neste rolo" value={`${Number(cur.consumed_g).toFixed(0)} g`} />
-          </div>
-          <p className="text-[10px]" style={{ color: '#71717a' }}>Toda impressão concluída nesta máquina baixa este rolo (gramas × custo médio). Montado em {new Date(cur.loaded_at).toLocaleString('pt-BR')}.</p>
-          <div className="flex flex-wrap gap-1.5">
-            <button onClick={() => setShowUsage(s => !s)} className="rounded px-2 py-1 text-[10px] font-semibold" style={{ background: 'rgba(0,229,255,0.10)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.3)' }}>Registrar uso avulso</button>
-            <select value={pick} onChange={e => { if (e.target.value) void doLoad(e.target.value) }} disabled={busy} className="rounded px-2 py-1 text-[10px] outline-none" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#a5f3fc' }}>
-              <option value="">↔ Trocar por…</option>
-              {filaments.filter(f => f.id !== cur.input?.id).map(f => <option key={f.id} value={f.id}>{f.name}{f.color ? ` (${f.color})` : ''}</option>)}
-            </select>
-            <button onClick={() => void unload()} disabled={busy} className="rounded px-2 py-1 text-[10px]" style={{ background: '#0a0a0e', color: '#71717a', border: '1px solid #27272a' }}>Tirar</button>
-          </div>
-          {showUsage && (
-            <div className="flex items-end gap-2 rounded-lg p-2" style={{ background: '#0a0a0e', border: '1px solid #1a1a1f' }}>
-              <Input label="Gramas usadas (impressão fora de ordem)" value={usage} onChange={setUsage} />
-              <button onClick={() => void logUsage()} disabled={busy} className="flex items-center gap-1 rounded-lg px-3 py-2 text-[10px] font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF', height: 34 }}>{busy ? <Loader2 size={11} className="animate-spin" /> : 'Baixar'}</button>
-            </div>
-          )}
-        </div>
-      ) : (
+      {loaded.length === 0 && (
         <div className="space-y-1.5">
-          <p className="text-[11px]" style={{ color: '#a1a1aa' }}>Nenhum filamento montado. Escolha qual rolo está na máquina para o sistema acompanhar custo e uso dele.</p>
-          {filaments.length === 0 ? <p className="text-[10px]" style={{ color: '#fcd34d' }}>Nenhum filamento no estoque. Cadastre em Insumos (ou importe uma NF) primeiro.</p> : (
-            <div className="flex items-center gap-2">
-              <select value={pick} onChange={e => setPick(e.target.value)} className="flex-1 rounded-lg px-2.5 py-1.5 text-xs outline-none" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }}>
-                <option value="">— escolher filamento —</option>
-                {filaments.map(f => <option key={f.id} value={f.id}>{f.name}{f.color ? ` (${f.color})` : ''} · {(Number(f.quantity) - Number(f.reserved_quantity)).toFixed(0)}{f.unit}</option>)}
-              </select>
-              <button onClick={() => void doLoad(pick)} disabled={busy || !pick} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}>{busy ? <Loader2 size={12} className="animate-spin" /> : <Boxes size={12} />} Carregar</button>
-            </div>
-          )}
+          <p className="text-[11px]" style={{ color: '#a1a1aa' }}>Nenhum filamento montado. Escaneie/escolha qual rolo está na máquina pro sistema acompanhar custo e uso.</p>
+          {filaments.length === 0 ? <p className="text-[10px]" style={{ color: '#fcd34d' }}>Nenhum filamento no estoque. Cadastre em Insumos (ou importe uma NF) primeiro.</p>
+            : <FilamentPicker filaments={filaments} onPick={id => void doLoad(id, 0)} />}
         </div>
       )}
+
+      {loaded.map(l => l.input && (
+        <div key={l.id} className="mb-2 rounded-lg p-2.5" style={{ background: '#0a0a0e', border: '1px solid #1a1a1f' }}>
+          <div className="flex items-center gap-2">
+            {loaded.length > 1 && <span className="rounded px-1.5 py-0.5 text-[9px] font-bold" style={{ background: '#1a1a1f', color: '#71717a' }}>bandeja {l.slot + 1}</span>}
+            {l.input.color_hex && <span className="h-4 w-4 rounded-full border" style={{ background: l.input.color_hex, borderColor: '#3f3f46' }} />}
+            <span className="text-sm font-bold text-white">{l.input.name}</span>
+            {l.input.material && <span className="rounded px-1.5 py-0.5 text-[9px]" style={{ background: '#111114', color: '#a1a1aa' }}>{l.input.material}</span>}
+            {l.input.color && <span className="rounded px-1.5 py-0.5 text-[9px]" style={{ background: '#111114', color: '#a1a1aa' }}>{l.input.color}</span>}
+          </div>
+          {(l.input.sku || l.input.barcode) && <p className="mt-0.5 text-[9px]" style={{ color: '#52525b' }}>{l.input.sku ? `SKU ${l.input.sku}` : ''}{l.input.sku && l.input.barcode ? ' · ' : ''}{l.input.barcode ? `cód ${l.input.barcode}` : ''}</p>}
+          <div className="mt-1.5 grid grid-cols-3 gap-2">
+            <Stat label="Disponível" value={`${l.available.toFixed(0)} ${l.input.unit}`} />
+            <Stat label="Custo/g" value={`R$ ${Number(l.input.cost_per_unit).toFixed(5)}`} />
+            <Stat label="Usado neste rolo" value={`${Number(l.consumed_g).toFixed(0)} g`} />
+          </div>
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            <button onClick={() => { setUsageSlot(usageSlot === l.slot ? null : l.slot); setUsageVal('') }} className="rounded px-2 py-1 text-[10px] font-semibold" style={{ background: 'rgba(0,229,255,0.10)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.3)' }}>Registrar uso avulso</button>
+            <button onClick={() => setSwapSlot(swapSlot === l.slot ? null : l.slot)} className="rounded px-2 py-1 text-[10px] font-semibold" style={{ background: '#111114', color: '#a5f3fc', border: '1px solid #27272a' }}>↔ Trocar</button>
+            <button onClick={() => void unload(l.slot, l.input?.name)} disabled={busy} className="rounded px-2 py-1 text-[10px]" style={{ background: '#111114', color: '#71717a', border: '1px solid #27272a' }}>Tirar</button>
+          </div>
+          {usageSlot === l.slot && (
+            <div className="mt-1.5 flex items-end gap-2 rounded-lg p-2" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
+              <Input label="Gramas usadas (impressão fora de ordem)" value={usageVal} onChange={setUsageVal} />
+              <button onClick={() => void logUsage(l.slot)} disabled={busy} className="flex items-center gap-1 rounded-lg px-3 py-2 text-[10px] font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF', height: 34 }}>{busy ? <Loader2 size={11} className="animate-spin" /> : 'Baixar'}</button>
+            </div>
+          )}
+          {swapSlot === l.slot && <div className="mt-1.5"><FilamentPicker filaments={filaments} exclude={loadedIds} placeholder="Trocar por… (nome / SKU / código)" onPick={id => void doLoad(id, l.slot)} /></div>}
+        </div>
+      ))}
+
+      {loaded.length > 0 && (
+        adding
+          ? <div className="rounded-lg p-2" style={{ background: '#0a0a0e', border: '1px solid #1a1a1f' }}>
+              <div className="mb-1 flex items-center justify-between"><span className="text-[10px] font-semibold" style={{ color: '#a1a1aa' }}>Carregar em outra bandeja (#{nextSlot + 1})</span><button onClick={() => setAdding(false)} className="text-[10px]" style={{ color: '#71717a' }}>cancelar</button></div>
+              <FilamentPicker filaments={filaments} exclude={loadedIds} onPick={id => void doLoad(id, nextSlot)} />
+            </div>
+          : <button onClick={() => setAdding(true)} className="text-[10px] font-semibold" style={{ color: '#a5f3fc' }}>+ Carregar outro rolo (AMS)</button>
+      )}
+      <p className="mt-2 text-[10px]" style={{ color: '#52525b' }}>Toda impressão concluída nesta máquina baixa o rolo montado (gramas × custo médio). Leitor de código de barras funciona na busca (escaneie → Enter).</p>
     </div>
   )
 }
