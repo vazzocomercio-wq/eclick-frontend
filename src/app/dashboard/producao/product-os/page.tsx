@@ -253,7 +253,7 @@ function HScroll({ children, className }: { children: React.ReactNode; className
   return (
     <>
       <style>{`.os-hscroll::-webkit-scrollbar{display:none}`}</style>
-      <div ref={ref} className={`os-hscroll ${className ?? ''}`} style={{ cursor: 'grab', scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+      <div ref={ref} className={`os-hscroll ${className ?? ''}`} style={{ cursor: 'grab', overflowX: 'auto', overflowY: 'hidden', scrollbarWidth: 'none', msOverflowStyle: 'none', touchAction: 'pan-y', userSelect: 'none' }}
         onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={end} onPointerLeave={end} onWheel={onWheel}>
         {children}
       </div>
