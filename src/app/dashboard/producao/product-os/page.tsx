@@ -71,7 +71,7 @@ interface Settings {
 }
 interface Order {
   id: string; product_dev_id: string; order_number: number; quantity: number; machine: string | null; status: string
-  printer_id: string | null; is_prototype: boolean; estimated_time_minutes: number | null; estimated_filament_g: number | null; created_at: string
+  printer_id: string | null; is_prototype: boolean; estimated_time_minutes: number | null; estimated_filament_g: number | null; actual_filament_g?: number | null; created_at: string
   jobs?: Job[]
 }
 interface Job { id: string; job_number: number; status: string; filament_used_g: number | null; print_time_minutes: number | null; failure_reason: string | null }
@@ -218,18 +218,72 @@ function fileTypeOf(name: string): string {
 
 /** Se o arquivo subido for um .3mf fatiado (Bambu), lê peso/tempo/material de
  *  dentro dele. STL não tem esses dados. Devolve só os campos achados. */
-async function fetch3mfMetrics(url: string, filename: string): Promise<{ material?: string; weight_g?: string; print_time_minutes?: string; width_mm?: number; depth_mm?: number } | null> {
+async function fetch3mfMetrics(url: string, filename: string): Promise<{ material?: string; weight_g?: string; print_time_minutes?: string; width_mm?: number; depth_mm?: number; height_mm?: number } | null> {
   if (!/\.3mf$/i.test(filename)) return null
   try {
-    const r = await api<{ weight_g: number | null; print_time_minutes: number | null; material: string | null; width_mm: number | null; depth_mm: number | null; found: boolean }>('/product-os/parse-3mf', { method: 'POST', body: JSON.stringify({ url }) })
+    const r = await api<{ weight_g: number | null; print_time_minutes: number | null; material: string | null; width_mm: number | null; depth_mm: number | null; height_mm: number | null; found: boolean }>('/product-os/parse-3mf', { method: 'POST', body: JSON.stringify({ url }) })
     if (!r.found) return null
     return {
       material: r.material ?? undefined,
       weight_g: r.weight_g != null ? String(r.weight_g) : undefined,
       print_time_minutes: r.print_time_minutes != null ? String(r.print_time_minutes) : undefined,
-      width_mm: r.width_mm ?? undefined, depth_mm: r.depth_mm ?? undefined,
+      width_mm: r.width_mm ?? undefined, depth_mm: r.depth_mm ?? undefined, height_mm: r.height_mm ?? undefined,
     }
   } catch { return null }
+}
+
+/** Faixa rolável na horizontal SEM barra de rolagem visível: arrasta com o
+ *  mouse (clica e puxa) e a roda do mouse rola lateral. Clicar em botão/link
+ *  dentro não inicia o arraste. */
+function HScroll({ children, className }: { children: React.ReactNode; className?: string }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const drag = useRef({ down: false, startX: 0, scroll: 0 })
+  const onPointerDown = (e: React.PointerEvent) => {
+    const el = ref.current; if (!el) return
+    if ((e.target as HTMLElement).closest('button, a, input, textarea, select')) return  // deixa o clique passar
+    drag.current = { down: true, startX: e.clientX, scroll: el.scrollLeft }
+    el.style.cursor = 'grabbing'; try { el.setPointerCapture(e.pointerId) } catch { /* */ }
+  }
+  const onPointerMove = (e: React.PointerEvent) => {
+    const el = ref.current; if (!el || !drag.current.down) return
+    el.scrollLeft = drag.current.scroll - (e.clientX - drag.current.startX)
+  }
+  const end = (e: React.PointerEvent) => { const el = ref.current; if (!el) return; drag.current.down = false; el.style.cursor = 'grab'; try { el.releasePointerCapture(e.pointerId) } catch { /* */ } }
+  const onWheel = (e: React.WheelEvent) => { const el = ref.current; if (!el || el.scrollWidth <= el.clientWidth) return; if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) el.scrollLeft += e.deltaY }
+  return (
+    <>
+      <style>{`.os-hscroll::-webkit-scrollbar{display:none}`}</style>
+      <div ref={ref} className={`os-hscroll ${className ?? ''}`} style={{ cursor: 'grab', scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+        onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={end} onPointerLeave={end} onWheel={onWheel}>
+        {children}
+      </div>
+    </>
+  )
+}
+
+/** Campo compacto pra pesar a peça na balança e gravar o peso REAL do
+ *  filamento (sobrepõe o estimado no custo quando a OP fecha). */
+function RealWeightInput({ oid, actual, estimated, onSaved }: { oid: string; actual: number | null; estimated: number | null; onSaved: () => void }) {
+  const [editing, setEditing] = useState(false)
+  const [val, setVal] = useState(actual != null ? String(actual) : '')
+  const [busy, setBusy] = useState(false)
+  const save = async () => {
+    setBusy(true)
+    try { await api(`/product-os/production-orders/${oid}`, { method: 'PATCH', body: JSON.stringify({ actual_filament_g: val.trim() ? Number(val.replace(',', '.')) : null }) }); setEditing(false); onSaved() }
+    catch { /* */ } finally { setBusy(false) }
+  }
+  if (!editing) return (
+    <button onClick={() => setEditing(true)} className="mt-1 flex w-full items-center justify-center gap-1 rounded px-1.5 py-1 text-[9px] font-semibold" style={{ background: '#0a0a0e', color: actual != null ? '#4ade80' : '#71717a', border: '1px solid #27272a' }}>
+      ⚖️ {actual != null ? `${actual} g real` : 'pesar peça'}
+    </button>
+  )
+  return (
+    <div className="mt-1 flex items-center gap-1">
+      <input autoFocus type="text" inputMode="decimal" value={val} onChange={e => setVal(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') void save(); if (e.key === 'Escape') setEditing(false) }}
+        placeholder={estimated != null ? `est. ${estimated}` : 'gramas'} className="w-full rounded px-1.5 py-1 text-[10px] text-white" style={{ background: '#0a0a0e', border: '1px solid #27272a' }} />
+      <button onClick={() => void save()} disabled={busy} className="rounded px-1.5 py-1 text-[9px] font-bold" style={{ background: 'rgba(0,229,255,0.10)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.3)' }}>{busy ? '…' : 'ok'}</button>
+    </div>
+  )
 }
 
 function UploadButton({ label, accept, multiple, onUploaded }: { label: string; accept?: string; multiple?: boolean; onUploaded: (urls: string[], files: File[]) => void }) {
@@ -398,12 +452,14 @@ function ProductionBoard({ products }: { products: ProductDev[] }) {
   const [showNew, setShowNew] = useState(false)
   const nameOf = (devId: string) => products.find(p => p.id === devId)?.name ?? '—'
 
-  const load = useCallback(async () => {
-    setLoading(true); setErr('')
+  const load = useCallback(async (silent?: boolean) => {
+    if (!silent) setLoading(true)
+    setErr('')
     try { setOrders(await api<Order[]>('/product-os/production-orders')) }
-    catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setLoading(false) }
+    catch (e) { if (!silent) setErr(e instanceof Error ? e.message : 'Erro') } finally { if (!silent) setLoading(false) }
   }, [])
-  useEffect(() => { void load() }, [load])
+  // primeiro load + refresh silencioso a cada 5s → cards mudam sozinhos quando a impressora avança o estado
+  useEffect(() => { void load(); const it = setInterval(() => void load(true), 5000); return () => clearInterval(it) }, [load])
 
   const [notice, setNotice] = useState('')
   const transition = async (oid: string, status: string) => {
@@ -428,7 +484,7 @@ function ProductionBoard({ products }: { products: ProductDev[] }) {
       {err && <div className="rounded-lg p-2.5 text-xs" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>{err}</div>}
       {notice && <div className="rounded-lg p-2.5 text-xs" style={{ background: 'rgba(74,222,128,0.10)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)' }}>{notice}</div>}
       {loading ? <div className="flex items-center gap-2 p-6 text-sm" style={{ color: '#71717a' }}><Loader2 size={16} className="animate-spin" /> Carregando…</div> : (
-        <div className="flex gap-3 overflow-x-auto pb-4">
+        <HScroll className="flex gap-3 pb-4">
           {ORDER_COLS.map(col => {
             const cards = orders.filter(o => o.status === col.key)
             return (
@@ -450,13 +506,16 @@ function ProductionBoard({ products }: { products: ProductDev[] }) {
                       {o.printer_id && !['disponivel', 'cancelado'].includes(o.status) && (
                         <button onClick={() => void sendToPrinter(o.id)} className="mt-1 flex w-full items-center justify-center gap-1 rounded px-1.5 py-1 text-[9px] font-bold" style={{ background: 'rgba(0,229,255,0.10)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.3)' }}><Send size={9} /> Enviar pra impressora</button>
                       )}
+                      {['acabamento', 'qualidade', 'embalado'].includes(o.status) && (
+                        <RealWeightInput oid={o.id} actual={o.actual_filament_g ?? null} estimated={o.estimated_filament_g} onSaved={() => void load(true)} />
+                      )}
                     </div>
                   ))}
                 </div>
               </div>
             )
           })}
-        </div>
+        </HScroll>
       )}
       {showNew && <NewOrderModal approved={approved} onClose={() => setShowNew(false)} onCreated={() => { setShowNew(false); void load() }} />}
     </div>
@@ -1404,7 +1463,7 @@ function PartVersionsEditor({ partId, onChanged }: { partId: string; onChanged: 
           </div>
         )}
         <div className="flex items-center gap-2">
-          <UploadButton label="Subir STL/3MF" accept=".stl,.3mf,.step,.obj" onUploaded={(urls, files) => { setForm(f => ({ ...f, file_url: urls[0], file_type: fileTypeOf(files[0].name) })); void fetch3mfMetrics(urls[0], files[0].name).then(async m => { if (!m) return; setForm(f => ({ ...f, material: m.material ?? f.material, weight_g: m.weight_g ?? f.weight_g, print_time_minutes: m.print_time_minutes ?? f.print_time_minutes })); if (m.width_mm || m.depth_mm) { try { await api(`/product-os/parts/${partId}`, { method: 'PATCH', body: JSON.stringify({ width_mm: m.width_mm ?? null, depth_mm: m.depth_mm ?? null }) }); onChanged() } catch { /* dims best-effort */ } } }) }} />
+          <UploadButton label="Subir STL/3MF" accept=".stl,.3mf,.step,.obj" onUploaded={(urls, files) => { setForm(f => ({ ...f, file_url: urls[0], file_type: fileTypeOf(files[0].name) })); void fetch3mfMetrics(urls[0], files[0].name).then(async m => { if (!m) return; setForm(f => ({ ...f, material: m.material ?? f.material, weight_g: m.weight_g ?? f.weight_g, print_time_minutes: m.print_time_minutes ?? f.print_time_minutes })); if (m.width_mm || m.depth_mm || m.height_mm) { try { await api(`/product-os/parts/${partId}`, { method: 'PATCH', body: JSON.stringify({ width_mm: m.width_mm ?? null, depth_mm: m.depth_mm ?? null, height_mm: m.height_mm ?? null }) }); onChanged() } catch { /* dims best-effort */ } } }) }} />
           {form.file_url && <span className="text-[10px]" style={{ color: '#4ade80' }}>✓ {form.file_type}</span>}
         </div>
         <div className="grid grid-cols-3 gap-1.5">
