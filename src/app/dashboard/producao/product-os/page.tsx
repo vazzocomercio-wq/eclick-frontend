@@ -256,7 +256,7 @@ function UploadButton({ label, accept, multiple, onUploaded }: { label: string; 
 
 // ════════════════════════════════════════════════════════════════════
 export default function ProductOsPage() {
-  const [tab, setTab] = useState<'fabrica' | 'ciclo' | 'producao' | 'impressoras' | 'rentabilidade' | 'radar' | 'insumos'>('fabrica')
+  const [tab, setTab] = useState<'fabrica' | 'monitor' | 'ciclo' | 'producao' | 'impressoras' | 'rentabilidade' | 'radar' | 'insumos'>('fabrica')
   const [items, setItems] = useState<ProductDev[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -292,7 +292,7 @@ export default function ProductOsPage() {
 
       {/* tabs */}
       <div className="flex gap-1 rounded-lg p-1" style={{ background: '#111114', border: '1px solid #1a1a1f', width: 'fit-content' }}>
-        {([['fabrica', 'Fábrica', <Gauge key="f" size={13} />], ['ciclo', 'Ciclo de vida', <Lightbulb key="a" size={13} />], ['producao', 'Produção', <Factory key="b" size={13} />], ['impressoras', 'Impressoras', <PrinterIcon key="d" size={13} />], ['rentabilidade', 'Rentabilidade', <TrendingUp key="e" size={13} />], ['radar', 'Radar', <Trophy key="r" size={13} />], ['insumos', 'Insumos', <Boxes key="c" size={13} />]] as const).map(([k, lbl, ic]) => (
+        {([['fabrica', 'Fábrica', <Gauge key="f" size={13} />], ['ciclo', 'Ciclo de vida', <Lightbulb key="a" size={13} />], ['producao', 'Produção', <Factory key="b" size={13} />], ['monitor', 'Ao vivo', <Wifi key="m" size={13} />], ['impressoras', 'Impressoras', <PrinterIcon key="d" size={13} />], ['rentabilidade', 'Rentabilidade', <TrendingUp key="e" size={13} />], ['radar', 'Radar', <Trophy key="r" size={13} />], ['insumos', 'Insumos', <Boxes key="c" size={13} />]] as const).map(([k, lbl, ic]) => (
           <button key={k} onClick={() => setTab(k)} className="flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-semibold" style={{ background: tab === k ? 'rgba(0,229,255,0.12)' : 'transparent', color: tab === k ? '#00E5FF' : '#71717a' }}>{ic}{lbl}</button>
         ))}
       </div>
@@ -300,6 +300,7 @@ export default function ProductOsPage() {
       {error && <div className="flex items-center gap-2 rounded-lg p-3 text-sm" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}><AlertTriangle size={14} className="shrink-0" /> <span className="whitespace-pre-line">{error}</span></div>}
 
       {tab === 'fabrica' && <FactoryPanel onGoTo={setTab} onOpen={setOpenId} />}
+      {tab === 'monitor' && <LiveMonitorPanel />}
       {tab === 'ciclo' && <LifecycleBoard items={items} loading={loading} onOpen={setOpenId} onChanged={load} setError={setError} />}
       {tab === 'producao' && <ProductionBoard products={items} />}
       {tab === 'impressoras' && <PrintersPanel />}
@@ -1905,6 +1906,125 @@ function SchedulerCard() {
 }
 
 // ── IMPRESSORAS ───────────────────────────────────────────────────────
+// ── MONITOR AO VIVO (um painel por impressora) ─────────────────────────
+const STATE_LABEL: Record<string, string> = { printing: 'IMPRIMINDO', paused: 'PAUSADA', error: 'ERRO', offline: 'OFFLINE', idle: 'OCIOSA', sem_dados: 'SEM DADOS' }
+function stateColor(lv?: FarmStatus): string {
+  if (!lv || !lv.online) return '#52525b'
+  return lv.state === 'printing' ? '#00E5FF' : lv.state === 'error' ? '#f87171' : lv.state === 'paused' ? '#fcd34d' : '#4ade80'
+}
+function LiveMonitorPanel() {
+  const [printers, setPrinters] = useState<Printer[]>([]); const [live, setLive] = useState<Record<string, FarmStatus>>({})
+  const [loaded, setLoaded] = useState<Record<string, LoadedFilament[]>>({}); const [err, setErr] = useState(''); const [cmdMsg, setCmdMsg] = useState<Record<string, string>>({})
+
+  useEffect(() => { void (async () => { try { setPrinters(await api<Printer[]>('/product-os/printers')) } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } })() }, [])
+  // telemetria ao vivo (5s)
+  useEffect(() => {
+    let alive = true
+    const tick = async () => { try { const s = await api<FarmStatus[]>('/product-os/farm/status'); if (alive) setLive(Object.fromEntries(s.map(x => [x.id, x]))) } catch { /* */ } }
+    void tick(); const it = setInterval(tick, 5000); return () => { alive = false; clearInterval(it) }
+  }, [])
+  // filamento montado por impressora (refresca a cada 20s)
+  const loadFilaments = useCallback(async (ids: string[]) => {
+    const entries = await Promise.all(ids.map(async id => { try { return [id, await api<LoadedFilament[]>(`/product-os/printers/${id}/loaded-filament`)] as const } catch { return [id, []] as const } }))
+    setLoaded(Object.fromEntries(entries))
+  }, [])
+  useEffect(() => { if (!printers.length) return; const ids = printers.map(p => p.id); void loadFilaments(ids); const it = setInterval(() => void loadFilaments(ids), 20000); return () => clearInterval(it) }, [printers, loadFilaments])
+
+  const cmd = async (pid: string, type: string) => {
+    if (type === 'stop' && !(await confirmDialog({ title: 'Parar impressão', message: 'Parar a impressão atual? Cancela o job na máquina.', danger: true, confirmLabel: 'Parar' }))) return
+    setCmdMsg(m => ({ ...m, [pid]: '' }))
+    try { await api(`/product-os/farm/printers/${pid}/command`, { method: 'POST', body: JSON.stringify({ type }) }); setCmdMsg(m => ({ ...m, [pid]: 'Comando enviado.' })) }
+    catch (e) { setCmdMsg(m => ({ ...m, [pid]: e instanceof Error ? e.message : 'Erro' })) }
+  }
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs" style={{ color: '#a1a1aa' }}>Acompanhamento ao vivo de cada impressora — estado, progresso, camada, tempo, temperaturas e filamento. Atualiza a cada 5s.</p>
+      {err && <div className="rounded-lg p-2.5 text-xs" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>{err}</div>}
+      {printers.length === 0 ? <p className="text-xs" style={{ color: '#52525b' }}>Nenhuma impressora cadastrada. Cadastre em <b>Impressoras</b> e conecte o agente (Conectar farm).</p> : (
+        <div className="grid gap-3 lg:grid-cols-2">
+          {printers.map(p => {
+            const lv = live[p.id]; const c = stateColor(lv); const printing = lv?.state === 'printing'; const fil = loaded[p.id] ?? []
+            return (
+              <div key={p.id} className="rounded-xl p-4" style={{ background: '#111114', border: `1px solid ${printing ? 'rgba(0,229,255,0.35)' : '#27272a'}` }}>
+                {/* header */}
+                <div className="flex items-center gap-2">
+                  <span className="h-2.5 w-2.5 rounded-full" style={{ background: c, boxShadow: printing ? `0 0 8px ${c}` : 'none' }} />
+                  <PrinterIcon size={15} className="text-cyan-400" />
+                  <span className="text-sm font-bold text-white">{p.name}</span>
+                  <span className="ml-auto rounded px-2 py-0.5 text-[10px] font-bold tracking-wide" style={{ background: '#0a0a0e', color: c, border: `1px solid ${c}33` }}>{lv ? (lv.online ? (STATE_LABEL[lv.state] ?? lv.state) : 'OFFLINE') : '—'}</span>
+                </div>
+                <p className="mt-0.5 text-[10px]" style={{ color: '#71717a' }}>{[p.brand, p.model, p.build_volume_mm].filter(Boolean).join(' · ') || 'sem detalhes'}{p.has_ams ? ' · AMS' : ''}{lv?.last_update ? ` · atualizado ${new Date(lv.last_update).toLocaleTimeString('pt-BR')}` : ''}</p>
+
+                {!lv?.bound && <p className="mt-2 text-[11px]" style={{ color: '#fcd34d' }}>Sem telemetria — vincule o nº de série e deixe o agente rodando.</p>}
+
+                {/* progresso */}
+                {printing && (
+                  <div className="mt-3">
+                    {lv.job_name && <p className="truncate text-[11px]" style={{ color: '#d4d4d8' }}>🖨️ {lv.job_name}</p>}
+                    <div className="mt-1 flex items-center gap-2">
+                      <div className="h-2.5 flex-1 overflow-hidden rounded-full" style={{ background: '#0a0a0e', border: '1px solid #1a1a1f' }}><div className="h-full rounded-full" style={{ width: `${lv.progress_pct ?? 0}%`, background: '#00E5FF' }} /></div>
+                      <span className="text-xs font-bold" style={{ color: '#00E5FF' }}>{Math.round(lv.progress_pct ?? 0)}%</span>
+                    </div>
+                    <div className="mt-1.5 grid grid-cols-3 gap-2">
+                      <Stat label="Camada" value={lv.layer_total ? `${lv.layer_current ?? 0}/${lv.layer_total}` : '—'} />
+                      <Stat label="Restante" value={lv.remaining_minutes != null ? (lv.remaining_minutes >= 60 ? `${Math.floor(lv.remaining_minutes / 60)}h${String(lv.remaining_minutes % 60).padStart(2, '0')}` : `${lv.remaining_minutes}min`) : '—'} />
+                      <Stat label="Conclusão" value={lv.remaining_minutes != null ? new Date(Date.now() + lv.remaining_minutes * 60000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '—'} />
+                    </div>
+                  </div>
+                )}
+
+                {/* temperaturas */}
+                {lv?.bound && (
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <Stat label="Bico" value={lv.nozzle_temp != null ? `${Math.round(lv.nozzle_temp)}°C` : '—'} />
+                    <Stat label="Mesa" value={lv.bed_temp != null ? `${Math.round(lv.bed_temp)}°C` : '—'} />
+                  </div>
+                )}
+
+                {/* filamento montado (e-Click) */}
+                {fil.length > 0 && (
+                  <div className="mt-3 space-y-1">
+                    <p className="text-[9px] font-semibold uppercase tracking-wide" style={{ color: '#71717a' }}>Filamento montado</p>
+                    {fil.map(f => f.input && (
+                      <div key={f.id} className="flex items-center gap-1.5 text-[10px]">
+                        {f.input.color_hex && <span className="h-2.5 w-2.5 rounded-full border" style={{ background: f.input.color_hex, borderColor: '#3f3f46' }} />}
+                        <span style={{ color: '#d4d4d8' }}>{fil.length > 1 ? `B${f.slot + 1}: ` : ''}{f.input.name}</span>
+                        <span style={{ color: '#52525b' }}>· {f.available.toFixed(0)}{f.input.unit} disp.</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* AMS (telemetria) */}
+                {lv?.ams && lv.ams.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {lv.ams.map((a, i) => <span key={i} className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px]" style={{ background: '#0a0a0e', color: '#a1a1aa', border: '1px solid #1a1a1f' }}>{a.color && <span className="h-2 w-2 rounded-full" style={{ background: a.color }} />}{a.material || 'AMS'} {a.remain_pct != null ? `${a.remain_pct}%` : ''}</span>)}
+                  </div>
+                )}
+
+                {lv?.error_text && <p className="mt-2 text-[10px]" style={{ color: '#f87171' }}>⚠️ {lv.error_code} {lv.error_text}</p>}
+
+                {/* controles */}
+                {lv?.online && lv.bound && (
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {lv.state === 'printing' && <CtrlBtn onClick={() => void cmd(p.id, 'pause')} label="Pausar" />}
+                    {lv.state === 'paused' && <CtrlBtn onClick={() => void cmd(p.id, 'resume')} label="Retomar" />}
+                    {(lv.state === 'printing' || lv.state === 'paused') && <CtrlBtn onClick={() => void cmd(p.id, 'stop')} label="Parar" danger />}
+                    <CtrlBtn onClick={() => void cmd(p.id, 'light_on')} label="Luz" />
+                    <CtrlBtn onClick={() => void cmd(p.id, 'light_off')} label="Off" />
+                  </div>
+                )}
+                {cmdMsg[p.id] && <p className="mt-1 text-[10px]" style={{ color: '#a5f3fc' }}>{cmdMsg[p.id]}</p>}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function PrintersPanel() {
   const [list, setList] = useState<Printer[]>([]); const [loading, setLoading] = useState(true); const [err, setErr] = useState(''); const [showNew, setShowNew] = useState(false); const [openPrinter, setOpenPrinter] = useState<Printer | null>(null)
   const [live, setLive] = useState<Record<string, FarmStatus>>({}); const [showConnect, setShowConnect] = useState(false)
