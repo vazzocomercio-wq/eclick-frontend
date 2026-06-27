@@ -451,10 +451,13 @@ function NewOrderModal({ approved, onClose, onCreated }: { approved: ProductDev[
   const [printers, setPrinters] = useState<Printer[]>([])
   const [busy, setBusy] = useState(false); const [err, setErr] = useState('')
   const [preview, setPreview] = useState<ConsumePreview | null>(null); const [prevLoading, setPrevLoading] = useState(false)
+  const [parts, setParts] = useState<Part[]>([])
   useEffect(() => { void (async () => { try { setPrinters(await api<Printer[]>('/product-os/printers')) } catch { /* */ } })() }, [])
+  useEffect(() => { setParts([]); if (!devId) return; void (async () => { try { setParts(await api<Part[]>(`/product-os/parts?product_dev_id=${devId}`)) } catch { /* */ } })() }, [devId])
+  const hasParts = parts.length > 0
   useEffect(() => {
     const n = Number(qty) || 0
-    if (!devId || n < 1) { setPreview(null); return }
+    if (!devId || n < 1 || hasParts) { setPreview(null); return }
     let cancel = false; setPrevLoading(true)
     const t = setTimeout(() => { void (async () => {
       try { const p = await api<ConsumePreview>('/product-os/production-orders/preview', { method: 'POST', body: JSON.stringify({ product_dev_id: devId, quantity: n }) }); if (!cancel) setPreview(p) }
@@ -462,9 +465,10 @@ function NewOrderModal({ approved, onClose, onCreated }: { approved: ProductDev[
       finally { if (!cancel) setPrevLoading(false) }
     })() }, 350)
     return () => { cancel = true; clearTimeout(t) }
-  }, [devId, qty])
+  }, [devId, qty, hasParts])
   const create = async () => {
     if (!devId) { setErr('Selecione um produto aprovado'); return }
+    if (hasParts) { setErr('Este produto é feito de peças — imprima cada peça pela aba Peças (Imprimir esta peça).'); return }
     setBusy(true); setErr('')
     try { await api('/product-os/production-orders', { method: 'POST', body: JSON.stringify({ product_dev_id: devId, quantity: Number(qty) || 1, printer_id: printerId || undefined, machine: printers.find(p => p.id === printerId)?.name || undefined }) }); onCreated() }
     catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setBusy(false) }
@@ -480,6 +484,11 @@ function NewOrderModal({ approved, onClose, onCreated }: { approved: ProductDev[
             </select>
           </label>
           {(() => { const sel = approved.find(p => p.id === devId); const isProto = !!sel && !sel.product_id; return <p className="text-[10px]" style={{ color: isProto ? '#c4b5fd' : '#4ade80' }}>{isProto ? '🧪 Protótipo — consome insumo, NÃO vira estoque de venda.' : '📦 Produção — consome insumo e entra no estoque do produto cadastrado.'}</p> })()}
+          {hasParts && (
+            <div className="rounded-lg p-2.5 text-[11px]" style={{ background: 'rgba(252,211,77,0.10)', color: '#fcd34d', border: '1px solid rgba(252,211,77,0.25)' }}>
+              🧩 Este produto é feito de <b>{parts.length} peça(s)</b> ({parts.map(p => p.name).join(', ')}). A ordem do produto inteiro <b>não se aplica</b> aqui — abra o produto, vá na aba <b>Peças</b> e use <b>“Imprimir esta peça”</b> em cada uma; depois <b>“Montar o produto”</b>.
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-2">
             <Input label="Quantidade" value={qty} onChange={setQty} />
             <label className="block"><span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#71717a' }}>Impressora</span>
@@ -508,7 +517,7 @@ function NewOrderModal({ approved, onClose, onCreated }: { approved: ProductDev[
             </div>
           )}
           {preview && preview.lines.length === 0 && preview.source === 'none' && <p className="text-[10px]" style={{ color: '#52525b' }}>Sem composição (BOM) nem peso de versão — nenhum insumo será reservado.</p>}
-          <div className="flex justify-end"><button onClick={() => void create()} disabled={busy} className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}>{busy ? <Loader2 size={12} className="animate-spin" /> : <Factory size={12} />} Criar ordem</button></div>
+          <div className="flex justify-end"><button onClick={() => void create()} disabled={busy || hasParts} title={hasParts ? 'Produto feito de peças — imprima pela aba Peças' : ''} className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}>{busy ? <Loader2 size={12} className="animate-spin" /> : <Factory size={12} />} Criar ordem</button></div>
         </div>
       )}
     </Modal>
@@ -1364,7 +1373,6 @@ function PartVersionsEditor({ partId, onChanged }: { partId: string; onChanged: 
     try { await api(`/product-os/parts/${partId}/versions`, { method: 'POST', body: JSON.stringify({ changelog: form.changelog || undefined, file_url: form.file_url || undefined, file_type: form.file_type || undefined, material: form.material || undefined, weight_g: form.weight_g ? Number(form.weight_g) : undefined, print_time_minutes: form.print_time_minutes ? Number(form.print_time_minutes) : undefined }) }); setForm({ changelog: '', file_url: '', file_type: '', material: '', weight_g: '', print_time_minutes: '' }); await load(); onChanged() }
     catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setAdding(false) }
   }
-  const setApproval = async (vid: string, approved: boolean) => { try { await api(`/product-os/versions/${vid}/approval`, { method: 'POST', body: JSON.stringify({ approved }) }); await load() } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } }
 
   return (
     <div className="mt-2 rounded-lg p-2.5 space-y-2" style={{ background: '#0a0a0e', border: '1px solid #1a1a1f' }}>
@@ -1388,17 +1396,45 @@ function PartVersionsEditor({ partId, onChanged }: { partId: string; onChanged: 
         </div>
         <button onClick={() => void add()} disabled={adding} className="flex items-center gap-1 rounded px-2 py-1 text-[10px] font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.35)' }}>{adding ? <Loader2 size={10} className="animate-spin" /> : <Plus size={10} />} Adicionar versão</button>
       </div>
-      {loading ? <p className="text-[10px]" style={{ color: '#52525b' }}>…</p> : versions.map(v => (
-        <div key={v.id} className="flex items-center gap-2 rounded p-1.5 text-[10px]" style={{ background: '#111114', border: `1px solid ${v.approved ? 'rgba(74,222,128,0.35)' : '#1a1a1f'}` }}>
-          <span className="rounded px-1 py-0.5 font-bold" style={{ background: '#1a1a1f', color: '#a5f3fc' }}>v{v.version_number}</span>
-          <span style={{ color: '#a1a1aa' }}>{v.material ?? '—'}{v.weight_g != null ? ` · ${v.weight_g}g` : ''}{v.print_time_minutes != null ? ` · ${v.print_time_minutes}min` : ''}</span>
-          {v.file_url && <a href={v.file_url} target="_blank" rel="noreferrer" className="text-cyan-400 underline">arquivo</a>}
-          <div className="ml-auto flex gap-1">
-            <button onClick={() => void setApproval(v.id, true)} className="rounded px-1.5 py-0.5 font-semibold" style={{ background: 'rgba(74,222,128,0.10)', color: '#4ade80' }}>aprovar</button>
-            {v.approved && <span style={{ color: '#4ade80' }}>✓</span>}
-          </div>
+      {loading ? <p className="text-[10px]" style={{ color: '#52525b' }}>…</p> : versions.map(v => <PartVersionRow key={v.id} v={v} onChanged={load} />)}
+    </div>
+  )
+}
+
+function PartVersionRow({ v, onChanged }: { v: Version; onChanged: () => void | Promise<void> }) {
+  const [edit, setEdit] = useState(false); const [busy, setBusy] = useState(false); const [err, setErr] = useState('')
+  const [f, setF] = useState({ material: v.material ?? '', weight_g: v.weight_g != null ? String(v.weight_g) : '', print_time_minutes: v.print_time_minutes != null ? String(v.print_time_minutes) : '' })
+  const noMetrics = v.weight_g == null
+  const setApproval = async (approved: boolean) => { setBusy(true); setErr(''); try { await api(`/product-os/versions/${v.id}/approval`, { method: 'POST', body: JSON.stringify({ approved }) }); await onChanged() } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setBusy(false) } }
+  const save = async () => {
+    setBusy(true); setErr('')
+    try { await api(`/product-os/versions/${v.id}`, { method: 'PATCH', body: JSON.stringify({ material: f.material || null, weight_g: f.weight_g ? Number(f.weight_g) : null, print_time_minutes: f.print_time_minutes ? Number(f.print_time_minutes) : null }) }); setEdit(false); await onChanged() }
+    catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setBusy(false) }
+  }
+  return (
+    <div className="rounded p-1.5 text-[10px]" style={{ background: '#111114', border: `1px solid ${v.approved ? 'rgba(74,222,128,0.35)' : noMetrics ? 'rgba(252,211,77,0.35)' : '#1a1a1f'}` }}>
+      <div className="flex items-center gap-2">
+        <span className="rounded px-1 py-0.5 font-bold" style={{ background: '#1a1a1f', color: '#a5f3fc' }}>v{v.version_number}</span>
+        <span style={{ color: '#a1a1aa' }}>{v.material ?? '—'}{v.weight_g != null ? ` · ${v.weight_g}g` : ''}{v.print_time_minutes != null ? ` · ${v.print_time_minutes}min` : ''}</span>
+        {v.file_url && <a href={v.file_url} target="_blank" rel="noreferrer" className="text-cyan-400 underline">arquivo</a>}
+        <div className="ml-auto flex items-center gap-1.5">
+          <button onClick={() => setEdit(e => !e)} style={{ color: '#71717a' }}>{edit ? 'cancelar' : 'editar'}</button>
+          <button onClick={() => void setApproval(true)} disabled={busy || noMetrics} title={noMetrics ? 'Preencha o peso antes de aprovar' : ''} className="rounded px-1.5 py-0.5 font-semibold disabled:opacity-40" style={{ background: 'rgba(74,222,128,0.10)', color: '#4ade80' }}>aprovar</button>
+          {v.approved && <span style={{ color: '#4ade80' }}>✓</span>}
         </div>
-      ))}
+      </div>
+      {noMetrics && !edit && <p className="mt-1" style={{ color: '#fcd34d' }}>⚠️ sem peso — clique em “editar” e preencha pra contar o filamento.</p>}
+      {err && <p className="mt-1" style={{ color: '#f87171' }}>{err}</p>}
+      {edit && (
+        <div className="mt-1.5 space-y-1.5">
+          <div className="grid grid-cols-3 gap-1.5">
+            <Input label="Material" value={f.material} onChange={x => setF(s => ({ ...s, material: x }))} />
+            <Input label="Peso (g)" value={f.weight_g} onChange={x => setF(s => ({ ...s, weight_g: x }))} />
+            <Input label="Tempo (min)" value={f.print_time_minutes} onChange={x => setF(s => ({ ...s, print_time_minutes: x }))} />
+          </div>
+          <button onClick={() => void save()} disabled={busy} className="flex items-center gap-1 rounded px-2 py-1 font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.35)' }}>{busy ? <Loader2 size={10} className="animate-spin" /> : <CheckCircle2 size={10} />} Salvar</button>
+        </div>
+      )}
     </div>
   )
 }
