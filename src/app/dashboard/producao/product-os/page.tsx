@@ -1977,6 +1977,100 @@ function ConnectFarmModal({ onClose }: { onClose: () => void }) {
   )
 }
 
+interface LoadedFilament {
+  id: string; slot: number; loaded_at: string; loaded_g: number | null; consumed_g: number; available: number
+  input: { id: string; name: string; material: string | null; color: string | null; color_hex: string | null; unit: string; quantity: number; cost_per_unit: number; spool_weight_g: number | null } | null
+}
+function LoadedFilamentSection({ printerId, onChanged }: { printerId: string; onChanged: () => void }) {
+  const [loaded, setLoaded] = useState<LoadedFilament[]>([]); const [filaments, setFilaments] = useState<Input[]>([])
+  const [pick, setPick] = useState(''); const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [msg, setMsg] = useState('')
+  const [usage, setUsage] = useState(''); const [showUsage, setShowUsage] = useState(false)
+
+  const load = useCallback(async () => {
+    try {
+      const [l, f] = await Promise.all([
+        api<LoadedFilament[]>(`/product-os/printers/${printerId}/loaded-filament`),
+        api<Input[]>(`/product-os/production-inputs?kind=filamento`),
+      ])
+      setLoaded(l); setFilaments(f)
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') }
+  }, [printerId])
+  useEffect(() => { void load() }, [load])
+
+  const cur = loaded[0] ?? null
+  const doLoad = async (inputId: string) => {
+    if (!inputId) return
+    setBusy(true); setErr(''); setMsg('')
+    try { await api(`/product-os/printers/${printerId}/load-filament`, { method: 'POST', body: JSON.stringify({ input_id: inputId }) }); setPick(''); setMsg('Filamento montado — o consumo desta impressora passa a baixar esse rolo.'); await load(); onChanged() }
+    catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setBusy(false) }
+  }
+  const unload = async () => {
+    if (!(await confirmDialog({ title: 'Tirar filamento', message: `Tirar "${cur?.input?.name}" da impressora? A sessão é fechada (o rendizado fica no histórico).`, confirmLabel: 'Tirar' }))) return
+    setBusy(true); setErr('')
+    try { await api(`/product-os/printers/${printerId}/unload-filament`, { method: 'POST', body: JSON.stringify({}) }); await load(); onChanged() }
+    catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setBusy(false) }
+  }
+  const logUsage = async () => {
+    const g = Number(usage) || 0
+    if (g <= 0) { setErr('Informe as gramas usadas.'); return }
+    setBusy(true); setErr(''); setMsg('')
+    try { await api(`/product-os/printers/${printerId}/filament-usage`, { method: 'POST', body: JSON.stringify({ grams: g }) }); setUsage(''); setShowUsage(false); setMsg(`Baixados ${g} g do rolo.`); await load(); onChanged() }
+    catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setBusy(false) }
+  }
+
+  return (
+    <div className="mb-3 rounded-lg p-3" style={{ background: '#111114', border: '1px solid #27272a' }}>
+      <div className="mb-2 flex items-center gap-2"><Boxes size={13} style={{ color: '#a5f3fc' }} /><span className="text-xs font-bold text-white">Filamento na impressora</span></div>
+      {err && <p className="mb-1.5 text-[10px]" style={{ color: '#f87171' }}>{err}</p>}
+      {msg && <p className="mb-1.5 text-[10px]" style={{ color: '#4ade80' }}>{msg}</p>}
+
+      {cur && cur.input ? (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            {cur.input.color_hex && <span className="h-4 w-4 rounded-full border" style={{ background: cur.input.color_hex, borderColor: '#3f3f46' }} />}
+            <span className="text-sm font-bold text-white">{cur.input.name}</span>
+            {cur.input.material && <span className="rounded px-1.5 py-0.5 text-[9px]" style={{ background: '#1a1a1f', color: '#a1a1aa' }}>{cur.input.material}</span>}
+            {cur.input.color && <span className="rounded px-1.5 py-0.5 text-[9px]" style={{ background: '#1a1a1f', color: '#a1a1aa' }}>{cur.input.color}</span>}
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <Stat label="Disponível" value={`${cur.available.toFixed(0)} ${cur.input.unit}`} />
+            <Stat label="Custo/g" value={`R$ ${Number(cur.input.cost_per_unit).toFixed(5)}`} />
+            <Stat label="Usado neste rolo" value={`${Number(cur.consumed_g).toFixed(0)} g`} />
+          </div>
+          <p className="text-[10px]" style={{ color: '#71717a' }}>Toda impressão concluída nesta máquina baixa este rolo (gramas × custo médio). Montado em {new Date(cur.loaded_at).toLocaleString('pt-BR')}.</p>
+          <div className="flex flex-wrap gap-1.5">
+            <button onClick={() => setShowUsage(s => !s)} className="rounded px-2 py-1 text-[10px] font-semibold" style={{ background: 'rgba(0,229,255,0.10)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.3)' }}>Registrar uso avulso</button>
+            <select value={pick} onChange={e => { if (e.target.value) void doLoad(e.target.value) }} disabled={busy} className="rounded px-2 py-1 text-[10px] outline-none" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#a5f3fc' }}>
+              <option value="">↔ Trocar por…</option>
+              {filaments.filter(f => f.id !== cur.input?.id).map(f => <option key={f.id} value={f.id}>{f.name}{f.color ? ` (${f.color})` : ''}</option>)}
+            </select>
+            <button onClick={() => void unload()} disabled={busy} className="rounded px-2 py-1 text-[10px]" style={{ background: '#0a0a0e', color: '#71717a', border: '1px solid #27272a' }}>Tirar</button>
+          </div>
+          {showUsage && (
+            <div className="flex items-end gap-2 rounded-lg p-2" style={{ background: '#0a0a0e', border: '1px solid #1a1a1f' }}>
+              <Input label="Gramas usadas (impressão fora de ordem)" value={usage} onChange={setUsage} />
+              <button onClick={() => void logUsage()} disabled={busy} className="flex items-center gap-1 rounded-lg px-3 py-2 text-[10px] font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF', height: 34 }}>{busy ? <Loader2 size={11} className="animate-spin" /> : 'Baixar'}</button>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-1.5">
+          <p className="text-[11px]" style={{ color: '#a1a1aa' }}>Nenhum filamento montado. Escolha qual rolo está na máquina para o sistema acompanhar custo e uso dele.</p>
+          {filaments.length === 0 ? <p className="text-[10px]" style={{ color: '#fcd34d' }}>Nenhum filamento no estoque. Cadastre em Insumos (ou importe uma NF) primeiro.</p> : (
+            <div className="flex items-center gap-2">
+              <select value={pick} onChange={e => setPick(e.target.value)} className="flex-1 rounded-lg px-2.5 py-1.5 text-xs outline-none" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }}>
+                <option value="">— escolher filamento —</option>
+                {filaments.map(f => <option key={f.id} value={f.id}>{f.name}{f.color ? ` (${f.color})` : ''} · {(Number(f.quantity) - Number(f.reserved_quantity)).toFixed(0)}{f.unit}</option>)}
+              </select>
+              <button onClick={() => void doLoad(pick)} disabled={busy || !pick} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}>{busy ? <Loader2 size={12} className="animate-spin" /> : <Boxes size={12} />} Carregar</button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function PrinterDetailDrawer({ printer, onClose, onChanged }: { printer: Printer; onClose: () => void; onChanged: () => void }) {
   const id = printer.id
   const [a, setA] = useState<PrinterAnalytics | null>(null); const [err, setErr] = useState('')
@@ -2052,6 +2146,9 @@ function PrinterDetailDrawer({ printer, onClose, onChanged }: { printer: Printer
                 {!live.online && <p className="mt-1 text-[10px]" style={{ color: '#52525b' }}>Offline — sem controle. Verifique o agente na fábrica.</p>}
               </div>
             )}
+
+            {/* filamento carregado */}
+            <LoadedFilamentSection printerId={id} onChanged={onChanged} />
 
             {/* payback */}
             <div className="mb-3 rounded-xl p-4" style={{ background: '#111114', border: `1px solid ${a.economics.paid_off ? 'rgba(74,222,128,0.4)' : '#27272a'}` }}>
