@@ -21,7 +21,7 @@ const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? process.env.NEXT_PUBLIC_A
 type Status = 'ideia' | 'briefing' | 'modelagem' | 'prototipo' | 'aprovado' | 'publicado' | 'monitorando' | 'arquivado'
 interface ReferenceImage { url: string; source_url?: string | null; notes?: string | null }
 interface ProductDev {
-  id: string; name: string; category: string | null; description: string | null; status: Status
+  id: string; name: string; code?: string | null; category: string | null; description: string | null; status: Status
   production_profile: 'impressao_3d' | 'marca_propria' | 'generico'
   reference_images: ReferenceImage[]; inspiration_url: string | null
   briefing: Record<string, unknown> | null; briefing_text: string | null
@@ -36,10 +36,11 @@ interface Version {
 }
 interface DevDetail extends ProductDev { versions: Version[] }
 interface Part {
-  id: string; product_dev_id: string; name: string; qty_per_product: number; is_optional: boolean
+  id: string; product_dev_id: string; name: string; code?: string | null; qty_per_product: number; is_optional: boolean
   stock_qty: number; reserved_qty: number; available: number; sort_order: number; notes: string | null
   width_mm: number | null; depth_mm: number | null; height_mm: number | null
 }
+interface ProdUnit { id: string; serial: string; seq: number; status: string }
 interface PartSuggestion { name: string; qty_per_product: number; is_optional: boolean; width_mm: number | null; depth_mm: number | null; height_mm: number | null; rationale: string }
 interface PlatePlan {
   quantity: number; bed: { name: string; x: number; y: number; z: number }; gap_mm: number; total_plates: number; missing_dims: string[]; note: string
@@ -286,6 +287,35 @@ function RealWeightInput({ oid, actual, estimated, onSaved }: { oid: string; act
   )
 }
 
+/** Mostra os seriais (unidades) de uma OP — cada peça física identificada. */
+function UnitsViewer({ oid, qty }: { oid: string; qty: number }) {
+  const [open, setOpen] = useState(false); const [units, setUnits] = useState<ProdUnit[] | null>(null)
+  const toggle = async () => {
+    const next = !open; setOpen(next)
+    if (next && units === null) { try { setUnits(await api<ProdUnit[]>(`/product-os/production-orders/${oid}/units`)) } catch { setUnits([]) } }
+  }
+  const STU: Record<string, string> = { planejada: '#71717a', produzida: '#4ade80', descartada: '#f87171' }
+  return (
+    <div className="mt-1">
+      <button onClick={() => void toggle()} className="flex w-full items-center justify-center gap-1 rounded px-1.5 py-1 text-[9px] font-semibold" style={{ background: '#0a0a0e', color: '#a1a1aa', border: '1px solid #27272a' }}>
+        🔖 {qty > 1 ? `${qty} seriais` : 'serial'} {open ? '▲' : '▼'}
+      </button>
+      {open && (
+        <div className="mt-1 space-y-0.5">
+          {units === null ? <p className="text-[9px]" style={{ color: '#52525b' }}>carregando…</p>
+            : units.length === 0 ? <p className="text-[9px]" style={{ color: '#52525b' }}>sem seriais</p>
+            : units.map(u => (
+              <div key={u.id} className="flex items-center gap-1 rounded px-1.5 py-0.5 font-mono text-[9px]" style={{ background: '#0a0a0e', border: '1px solid #1a1a1f' }}>
+                <span className="h-1.5 w-1.5 rounded-full" style={{ background: STU[u.status] ?? '#71717a' }} />
+                <span style={{ color: '#d4d4d8' }}>{u.serial}</span>
+              </div>
+            ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function UploadButton({ label, accept, multiple, onUploaded }: { label: string; accept?: string; multiple?: boolean; onUploaded: (urls: string[], files: File[]) => void }) {
   const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const ref = useRef<HTMLInputElement>(null)
   const handle = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -494,7 +524,8 @@ function ProductionBoard({ products }: { products: ProductDev[] }) {
                   {cards.map(o => (
                     <div key={o.id} className="rounded-lg p-2.5" style={{ background: '#111114', border: '1px solid #27272a' }}>
                       <div className="flex items-center gap-1.5">
-                        <p className="truncate text-xs font-bold text-white">#{o.order_number} · {nameOf(o.product_dev_id)}</p>
+                        <span className="shrink-0 rounded px-1 py-0.5 font-mono text-[9px] font-bold" style={{ background: 'rgba(0,229,255,0.12)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.25)' }}>OP-{String(o.order_number).padStart(4, '0')}</span>
+                        <p className="truncate text-xs font-bold text-white">{nameOf(o.product_dev_id)}</p>
                         {o.is_prototype && <span className="shrink-0 rounded px-1 py-0.5 text-[8px] font-bold" style={{ background: 'rgba(168,85,247,0.15)', color: '#c4b5fd' }}>protótipo</span>}
                       </div>
                       <p className="text-[10px]" style={{ color: '#71717a' }}>{o.quantity} un{o.estimated_filament_g ? ` · ${o.estimated_filament_g} g` : ''}{o.machine ? ` · ${o.machine}` : ''}</p>
@@ -509,6 +540,7 @@ function ProductionBoard({ products }: { products: ProductDev[] }) {
                       {['acabamento', 'qualidade', 'embalado'].includes(o.status) && (
                         <RealWeightInput oid={o.id} actual={o.actual_filament_g ?? null} estimated={o.estimated_filament_g} onSaved={() => void load(true)} />
                       )}
+                      {o.status !== 'cancelado' && <UnitsViewer oid={o.id} qty={o.quantity} />}
                     </div>
                   ))}
                 </div>
@@ -1246,6 +1278,7 @@ function PartsTab({ dev, onChanged }: { dev: DevDetail; onChanged: () => void })
   return (
     <div className="space-y-3">
       <p className="text-xs" style={{ color: '#a1a1aa' }}>Um produto pode ser feito de várias <b style={{ color: '#a5f3fc' }}>peças</b> imprimíveis (base, cúpula, conector…). Cada peça tem seus arquivos e pode ser <b style={{ color: '#a5f3fc' }}>produzida sozinha</b>; a <b style={{ color: '#a5f3fc' }}>montagem</b> junta as peças prontas no produto final.</p>
+      {dev.code && <p className="text-[11px]" style={{ color: '#71717a' }}>Código do produto: <span className="font-mono font-bold" style={{ color: '#00E5FF' }}>{dev.code}</span> — cada peça é um sub-código sequencial dele.</p>}
       {err && <div className="whitespace-pre-line rounded-lg p-2.5 text-xs" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>{err}</div>}
 
       {/* nova peça */}
@@ -1396,6 +1429,7 @@ function PartCard({ part, dev, onChanged }: { part: Part; dev: DevDetail; onChan
           </div>
         ) : (
           <>
+            {part.code && <span className="rounded px-1.5 py-0.5 text-[9px] font-bold font-mono" style={{ background: 'rgba(0,229,255,0.12)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.25)' }}>{part.code}</span>}
             <span className="text-xs font-bold text-white">{part.name}</span>
             <span className="rounded px-1.5 py-0.5 text-[9px] font-bold" style={{ background: '#1a1a1f', color: '#a1a1aa' }}>×{part.qty_per_product}/produto</span>
             {(part.width_mm || part.depth_mm) && <span className="rounded px-1.5 py-0.5 text-[9px]" style={{ background: '#1a1a1f', color: '#71717a' }}>{part.width_mm ?? '?'}×{part.depth_mm ?? '?'}{part.height_mm ? `×${part.height_mm}` : ''}mm</span>}
