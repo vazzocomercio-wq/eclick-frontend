@@ -180,14 +180,14 @@ const ORDER_COLS: { key: string; label: string }[] = [
 ]
 // produto inteiro (1 peça): qualidade → embalado → disponível
 const ORDER_NEXT: Record<string, string[]> = {
-  fila: ['imprimindo', 'cancelado'], imprimindo: ['pausado', 'falhou', 'acabamento'], pausado: ['imprimindo'],
-  falhou: ['reimpressao'], reimpressao: ['imprimindo'], acabamento: ['qualidade'], qualidade: ['embalado', 'falhou'],
+  fila: ['imprimindo', 'cancelado'], imprimindo: ['pausado', 'falhou', 'acabamento', 'cancelado'], pausado: ['imprimindo', 'cancelado'],
+  falhou: ['reimpressao', 'cancelado'], reimpressao: ['imprimindo', 'cancelado'], acabamento: ['qualidade'], qualidade: ['embalado', 'falhou'],
   embalado: ['disponivel'], disponivel: [], cancelado: [],
 }
 // OP de PEÇA: qualidade → pronta (vira estoque de peça; não embala)
 const PART_ORDER_NEXT: Record<string, string[]> = {
-  fila: ['imprimindo', 'cancelado'], imprimindo: ['pausado', 'falhou', 'acabamento'], pausado: ['imprimindo'],
-  falhou: ['reimpressao'], reimpressao: ['imprimindo'], acabamento: ['qualidade'], qualidade: ['pronta', 'falhou'],
+  fila: ['imprimindo', 'cancelado'], imprimindo: ['pausado', 'falhou', 'acabamento', 'cancelado'], pausado: ['imprimindo', 'cancelado'],
+  falhou: ['reimpressao', 'cancelado'], reimpressao: ['imprimindo', 'cancelado'], acabamento: ['qualidade'], qualidade: ['pronta', 'falhou'],
   pronta: [], cancelado: [],
 }
 // montagem: montando → embalado → disponível
@@ -527,6 +527,7 @@ function ProductionBoard({ products }: { products: ProductDev[] }) {
 
   const [notice, setNotice] = useState('')
   const transition = async (oid: string, status: string) => {
+    if (status === 'cancelado' && !(await confirmDialog({ title: 'Cancelar ordem', message: 'Cancelar esta OP? Libera o filamento reservado. Não dá pra desfazer.', danger: true, confirmLabel: 'Cancelar OP' }))) return
     try { await api(`/product-os/production-orders/${oid}/transition`, { method: 'POST', body: JSON.stringify({ status }) }); void load() }
     catch (e) { setErr(e instanceof Error ? e.message : 'Erro') }
   }
