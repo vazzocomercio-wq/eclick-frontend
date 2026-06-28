@@ -1642,7 +1642,7 @@ function PartVersionsEditor({ partId, onChanged }: { partId: string; onChanged: 
   }
   const add = async () => {
     setAdding(true); setErr('')
-    try { await api(`/product-os/parts/${partId}/versions`, { method: 'POST', body: JSON.stringify({ changelog: form.changelog || undefined, file_url: form.file_url || undefined, file_type: form.file_type || undefined, material: form.material || undefined, weight_g: form.weight_g ? Number(form.weight_g) : undefined, print_time_minutes: form.print_time_minutes ? Number(form.print_time_minutes) : undefined, filaments: form.filaments.length > 1 ? form.filaments : undefined }) }); setForm({ changelog: '', file_url: '', file_type: '', material: '', weight_g: '', print_time_minutes: '', filaments: [] }); await load(); onChanged() }
+    try { await api(`/product-os/parts/${partId}/versions`, { method: 'POST', body: JSON.stringify({ changelog: form.changelog || undefined, file_url: form.file_url || undefined, file_type: form.file_type || undefined, material: form.material || undefined, weight_g: form.weight_g ? Number(form.weight_g) : undefined, print_time_minutes: form.print_time_minutes ? Number(form.print_time_minutes) : undefined, filaments: form.filaments.length ? form.filaments : undefined }) }); setForm({ changelog: '', file_url: '', file_type: '', material: '', weight_g: '', print_time_minutes: '', filaments: [] }); await load(); onChanged() }
     catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setAdding(false) }
   }
 
@@ -1722,9 +1722,17 @@ function PartOrderModal({ part, devId, onClose, onCreated }: { part: Part; devId
   const [filaments, setFilaments] = useState<Filament[]>([]); const [filMap, setFilMap] = useState<Record<number, string>>({})
   const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [preview, setPreview] = useState<ConsumePreview | null>(null)
   useEffect(() => { void (async () => { try { setPrinters(await api<Printer[]>('/product-os/printers')) } catch { /* */ } })() }, [])
-  // pega as cores da versão da peça (aprovada > última com arquivo) → multicor mostra 1 rolo por cor
+  // pega as cores da versão da peça (aprovada > última com arquivo). Se a versão não
+  // tem as cores salvas (versão antiga), relê o .3mf na hora. Multicor = 1 rolo por cor;
+  // 1 cor = auto-seleciona o rolo pela cor fatiada.
   useEffect(() => { void (async () => {
-    try { const vs = await api<Version[]>(`/product-os/parts/${part.id}/versions`); const ref = vs.find(v => v.approved) ?? vs.find(v => v.file_url) ?? vs[0]; setFilaments((ref?.filaments && ref.filaments.length > 1) ? ref.filaments : []) } catch { setFilaments([]) }
+    try {
+      const vs = await api<Version[]>(`/product-os/parts/${part.id}/versions`)
+      const ref = vs.find(v => v.approved) ?? vs.find(v => v.file_url) ?? vs[0]
+      let fils = (ref?.filaments && ref.filaments.length) ? ref.filaments : []
+      if (!fils.length && ref?.file_url) { const m = await fetch3mfMetrics(ref.file_url, ref.file_url); if (m?.filaments?.length) fils = m.filaments }
+      setFilaments(fils)
+    } catch { setFilaments([]) }
   })() }, [part.id])
   const multicor = filaments.length > 1
   useEffect(() => {
@@ -1756,7 +1764,7 @@ function PartOrderModal({ part, devId, onClose, onCreated }: { part: Part; devId
           </select>
         </label>
       </div>
-      {printerId && !multicor && <div className="mt-2"><SpoolPicker printerId={printerId} value={loadedInputId} onChange={setLoadedInputId} /></div>}
+      {printerId && !multicor && <div className="mt-2"><SpoolPicker printerId={printerId} material={filaments[0]?.material} color={filaments[0]?.color} value={loadedInputId} onChange={setLoadedInputId} /></div>}
       {printerId && multicor && (
         <div className="mt-2 space-y-2 rounded-lg p-2.5" style={{ background: 'rgba(168,85,247,0.06)', border: '1px solid rgba(168,85,247,0.25)' }}>
           <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#d8b4fe' }}>🎨 Peça multicor — escolha o rolo de cada cor</p>
@@ -2497,7 +2505,7 @@ function SpoolPicker({ printerId, material, color, value, onChange }: { printerI
   if (!printerId || rolls.length === 0) return null
   return (
     <label className="block">
-      <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#71717a' }}>Rolo na impressora{rolls.length > 1 ? ' — escolha a cor' : ''}</span>
+      <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#71717a' }}>Rolo na impressora{color ? ' (auto pela cor — pode trocar)' : (rolls.length > 1 ? ' — escolha a cor' : '')}</span>
       <select value={value} onChange={e => onChange(e.target.value)} className="w-full rounded-lg px-2.5 py-1.5 text-xs outline-none" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }}>
         {rolls.map(r => r.input && <option key={r.id} value={r.input.id}>B{r.slot + 1}: {[r.input.color, r.input.material].filter(Boolean).join(' ')} — {r.available.toFixed(0)}{r.input.unit} disp.</option>)}
       </select>
