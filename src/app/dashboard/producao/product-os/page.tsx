@@ -11,7 +11,7 @@ import {
   Lightbulb, Loader2, Plus, X, Sparkles, Cpu, DollarSign, Settings2,
   AlertTriangle, CheckCircle2, FileBox, RefreshCw, Check, Ban, Package,
   Factory, Boxes, Send, Rocket, ListChecks, History, ClipboardList,
-  Printer as PrinterIcon, TrendingUp, Gauge, Wifi, Upload, Trophy, Trash2, ExternalLink, Users, Flame, Heart, Download, Search, Layers, Eye, EyeOff,
+  Printer as PrinterIcon, TrendingUp, Gauge, Wifi, Upload, Trophy, Trash2, ExternalLink, Users, Flame, Heart, Download, Search, Layers, Eye, EyeOff, ShieldAlert,
 } from 'lucide-react'
 import { usePrompt } from '@/components/ui/dialog-provider'
 
@@ -153,6 +153,8 @@ interface FarmStatus {
   ams: Array<{ slot: string; material: string; color: string; remain_pct: number }> | null
   error_code: string | null; error_text: string | null; last_update: string | null
   camera_url?: string | null; camera_at?: string | null; light_on?: boolean | null
+  ai_detection_enabled?: boolean; ai_sensitivity?: string
+  open_failure?: { id: string; reason: string | null; detected_at: string } | null
 }
 interface FarmAgent { id: string; name: string; status: string; version: string | null; last_seen_at: string | null; online: boolean }
 interface SchedulerResult {
@@ -2235,6 +2237,9 @@ function LiveMonitorPanel() {
     try { await api(`/product-os/farm/printers/${pid}/command`, { method: 'POST', body: JSON.stringify({ type }) }); setCmdMsg(m => ({ ...m, [pid]: 'Comando enviado.' })) }
     catch (e) { setCmdMsg(m => ({ ...m, [pid]: e instanceof Error ? e.message : 'Erro' })) }
   }
+  const ackFail = async (pid: string, id: string, fp: boolean) => {
+    try { await api(`/product-os/farm/failures/${id}/ack`, { method: 'POST', body: JSON.stringify({ false_positive: fp }) }); setLive(o => ({ ...o, [pid]: { ...o[pid], open_failure: null } })) } catch { /* */ }
+  }
 
   return (
     <div className="space-y-3">
@@ -2261,6 +2266,18 @@ function LiveMonitorPanel() {
                 <p className="mt-0.5 text-[10px]" style={{ color: '#71717a' }}>{[p.brand, p.model, p.build_volume_mm].filter(Boolean).join(' · ') || 'sem detalhes'}{p.has_ams ? ' · AMS' : ''}{lv?.last_update ? ` · atualizado ${new Date(lv.last_update).toLocaleTimeString('pt-BR')}` : ''}</p>
 
                 {!lv?.bound && <p className="mt-2 text-[11px]" style={{ color: '#fcd34d' }}>Sem telemetria — vincule o nº de série e deixe o agente rodando.</p>}
+
+                {/* T1-A: alerta de falha detectada */}
+                {lv?.open_failure && (
+                  <div className="mt-2 rounded-lg p-2.5" style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.45)' }}>
+                    <p className="text-[11px] font-bold" style={{ color: '#fca5a5' }}>🛑 Falha detectada — produção pausada</p>
+                    {lv.open_failure.reason && <p className="mt-0.5 text-[10px]" style={{ color: '#f87171' }}>{lv.open_failure.reason} · {new Date(lv.open_failure.detected_at).toLocaleTimeString('pt-BR')}</p>}
+                    <div className="mt-1.5 flex gap-1.5">
+                      <button type="button" onClick={() => void ackFail(p.id, lv.open_failure!.id, false)} className="rounded px-2 py-0.5 text-[10px] font-semibold" style={{ background: '#27272a', color: '#e4e4e7' }}>Reconhecer</button>
+                      <button type="button" onClick={() => void ackFail(p.id, lv.open_failure!.id, true)} className="rounded px-2 py-0.5 text-[10px]" style={{ color: '#a1a1aa' }}>Falso positivo</button>
+                    </div>
+                  </div>
+                )}
 
                 {/* câmera ao vivo */}
                 {lv?.camera_url && !camHidden[p.id] && (
@@ -2665,6 +2682,10 @@ function PrinterDetailDrawer({ printer, onClose, onChanged }: { printer: Printer
     try { await api(`/product-os/farm/printers/${id}/command`, { method: 'POST', body: JSON.stringify({ type }) }); setCmdMsg('Comando enviado à impressora.') }
     catch (e) { setCmdMsg(e instanceof Error ? e.message : 'Erro') }
   }
+  const setAi = async (enabled: boolean, sensitivity?: string) => {
+    try { await api(`/product-os/farm/printers/${id}/ai-detection`, { method: 'POST', body: JSON.stringify({ enabled, sensitivity }) }); await loadLive() }
+    catch (e) { setCmdMsg(e instanceof Error ? e.message : 'Erro') }
+  }
   const money = (n: number) => `R$ ${n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
   return (
     <div className="fixed inset-0 z-50 flex justify-end" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={onClose}>
@@ -2717,6 +2738,27 @@ function PrinterDetailDrawer({ printer, onClose, onChanged }: { printer: Printer
                 </div>
                 {cmdMsg && <p className="mt-1 text-[10px]" style={{ color: '#a5f3fc' }}>{cmdMsg}</p>}
                 {!live.online && <p className="mt-1 text-[10px]" style={{ color: '#52525b' }}>Offline — sem controle. Verifique o agente na fábrica.</p>}
+              </div>
+            )}
+
+            {/* T1-A: vigilância de falha por IA */}
+            {live && (
+              <div className="mb-3 rounded-lg p-2.5" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
+                <div className="flex items-center gap-2">
+                  <ShieldAlert size={13} style={{ color: live.ai_detection_enabled ? '#4ade80' : '#52525b' }} />
+                  <span className="text-[11px] font-bold text-white">Vigilância de falha por IA</span>
+                  <button type="button" onClick={() => void setAi(!live.ai_detection_enabled, live.ai_sensitivity)} className="ml-auto rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: live.ai_detection_enabled ? 'rgba(74,222,128,0.15)' : '#27272a', color: live.ai_detection_enabled ? '#4ade80' : '#a1a1aa', border: `1px solid ${live.ai_detection_enabled ? 'rgba(74,222,128,0.4)' : '#3f3f46'}` }}>{live.ai_detection_enabled ? 'Ligada' : 'Desligada'}</button>
+                </div>
+                <p className="mt-1 text-[10px]" style={{ color: '#71717a' }}>A impressora detecta spaghetti / falha na 1ª camada e <b>pausa sozinha</b>; o e-Click registra a falha e avisa no WhatsApp com a foto da câmera.</p>
+                {live.ai_detection_enabled && (
+                  <div className="mt-2 flex items-center gap-1.5">
+                    <span className="text-[10px]" style={{ color: '#a1a1aa' }}>Sensibilidade:</span>
+                    {(['low', 'medium', 'high'] as const).map(s => {
+                      const on = (live.ai_sensitivity || 'medium') === s
+                      return <button key={s} type="button" onClick={() => void setAi(true, s)} className="rounded px-2 py-0.5 text-[10px] font-semibold" style={{ background: on ? 'rgba(0,229,255,0.12)' : '#0a0a0e', color: on ? '#00E5FF' : '#71717a', border: `1px solid ${on ? 'rgba(0,229,255,0.35)' : '#27272a'}` }}>{s === 'low' ? 'Baixa' : s === 'medium' ? 'Média' : 'Alta'}</button>
+                    })}
+                  </div>
+                )}
               </div>
             )}
 
