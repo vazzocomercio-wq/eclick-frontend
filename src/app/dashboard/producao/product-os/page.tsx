@@ -1755,7 +1755,7 @@ function PartOrderModal({ part, devId, onClose, onCreated }: { part: Part; devId
                 {f.color && <span className="h-3 w-3 rounded-full border" style={{ background: f.color.startsWith('#') ? f.color : `#${f.color.slice(0, 6)}`, borderColor: '#3f3f46' }} />}
                 Cor {f.index} <span style={{ color: '#52525b' }}>{f.weight_g}g</span>
               </span>
-              <div className="flex-1"><SpoolPicker printerId={printerId} material={f.material} value={filMap[f.index] ?? ''} onChange={id => setFilMap(m => ({ ...m, [f.index]: id }))} /></div>
+              <div className="flex-1"><SpoolPicker printerId={printerId} material={f.material} color={f.color} value={filMap[f.index] ?? ''} onChange={id => setFilMap(m => ({ ...m, [f.index]: id }))} /></div>
             </div>
           ))}
         </div>
@@ -2445,10 +2445,24 @@ interface LoadedFilament {
   input: { id: string; name: string; sku: string | null; barcode: string | null; material: string | null; color: string | null; color_hex: string | null; unit: string; quantity: number; cost_per_unit: number; spool_weight_g: number | null } | null
 }
 
+/** hex (#RRGGBB ou RRGGBBAA) → {r,g,b}; null se inválido. */
+function hexToRgb(h?: string | null): { r: number; g: number; b: number } | null {
+  if (!h) return null
+  const s = h.replace('#', '').slice(0, 6)
+  if (s.length < 6) return null
+  const n = parseInt(s, 16)
+  if (Number.isNaN(n)) return null
+  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 }
+}
+/** distância de cor (euclidiana em RGB) — menor = mais parecida. */
+function colorDist(a: { r: number; g: number; b: number }, b: { r: number; g: number; b: number }): number {
+  return Math.sqrt((a.r - b.r) ** 2 + (a.g - b.g) ** 2 + (a.b - b.b) ** 2)
+}
+
 /** Seletor do rolo montado na impressora — garante reservar do filamento EXATO
  *  que vai rodar (cor/slot), não um chute por material. Some se a impressora não
  *  tem rolo montado (cai no fallback por material). */
-function SpoolPicker({ printerId, material, value, onChange }: { printerId: string; material?: string | null; value: string; onChange: (id: string) => void }) {
+function SpoolPicker({ printerId, material, color, value, onChange }: { printerId: string; material?: string | null; color?: string | null; value: string; onChange: (id: string) => void }) {
   const [rolls, setRolls] = useState<LoadedFilament[]>([])
   useEffect(() => {
     if (!printerId) { setRolls([]); return }
@@ -2459,9 +2473,16 @@ function SpoolPicker({ printerId, material, value, onChange }: { printerId: stri
   useEffect(() => {
     if (!rolls.length) { if (value) onChange(''); return }
     if (value && rolls.some(r => r.input?.id === value)) return
-    const match = material ? rolls.find(r => r.input?.material?.toUpperCase() === material.toUpperCase()) : null
-    onChange((match ?? rolls[0]).input?.id ?? '')
-  }, [rolls, material]) // eslint-disable-line react-hooks/exhaustive-deps
+    // prioridade: rolo da COR fatiada mais próxima → mesmo material → 1º
+    const rgb = hexToRgb(color)
+    let best: LoadedFilament | null = null
+    if (rgb) {
+      let bestD = 100  // limiar: só casa se for razoavelmente próxima
+      for (const r of rolls) { const c = hexToRgb(r.input?.color_hex); if (!c) continue; const d = colorDist(rgb, c); if (d < bestD) { bestD = d; best = r } }
+    }
+    if (!best && material) best = rolls.find(r => r.input?.material?.toUpperCase() === material.toUpperCase()) ?? null
+    onChange((best ?? rolls[0]).input?.id ?? '')
+  }, [rolls, material, color]) // eslint-disable-line react-hooks/exhaustive-deps
   if (!printerId || rolls.length === 0) return null
   return (
     <label className="block">
