@@ -1560,6 +1560,14 @@ function PartCard({ part, dev, onChanged }: { part: Part; dev: DevDetail; onChan
     setErr('')
     try { await api(`/product-os/parts/${part.id}/adjust-stock`, { method: 'POST', body: JSON.stringify({ quantity: Number(v) || 0 }) }); onChanged() } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') }
   }
+  const stockOut = async () => {
+    const q = await prompt({ title: 'Saída p/ SAC / reposição', message: `Quantas "${part.name}" vão sair do estoque? (disponível: ${part.available})`, placeholder: '1', confirmLabel: 'Continuar' })
+    if (q == null) return
+    const n = Number(q); if (!Number.isFinite(n) || n <= 0) { setErr('Quantidade inválida'); return }
+    const reason = await prompt({ title: 'Motivo da saída', message: 'Pra quê? (ex: reposição SAC pedido #123, peça quebrada, amostra)', placeholder: 'reposição SAC', confirmLabel: 'Dar baixa' })
+    setErr('')
+    try { await api(`/product-os/parts/${part.id}/stock-out`, { method: 'POST', body: JSON.stringify({ quantity: n, reason: reason ?? 'Saída p/ reposição/SAC' }) }); onChanged() } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') }
+  }
 
   return (
     <div className="rounded-lg p-3" style={{ background: '#111114', border: '1px solid #27272a' }}>
@@ -1595,7 +1603,10 @@ function PartCard({ part, dev, onChanged }: { part: Part; dev: DevDetail; onChan
       <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px]">
         <span className="rounded px-2 py-1 font-bold" style={{ background: 'rgba(74,222,128,0.10)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.25)' }}>{part.available} disponíveis</span>
         <span style={{ color: '#71717a' }}>{part.stock_qty} prontas · {part.reserved_qty} reservadas</span>
-        <button onClick={() => void adjust()} className="ml-auto text-[10px]" style={{ color: '#a5f3fc' }}>ajustar</button>
+        <div className="ml-auto flex items-center gap-2">
+          {part.available > 0 && <button onClick={() => void stockOut()} className="text-[10px]" style={{ color: '#fcd34d' }}>saída SAC/reposição</button>}
+          <button onClick={() => void adjust()} className="text-[10px]" style={{ color: '#a5f3fc' }}>ajustar</button>
+        </div>
       </div>
 
       <div className="mt-2 flex gap-1.5">
