@@ -29,10 +29,12 @@ interface ProductDev {
   product_id: string | null; active_deal_id: string | null; position: number; created_at: string
   source_platform?: string | null; license_status?: LicenseStatus
 }
+interface Filament { index: number; material: string | null; color: string | null; weight_g: number }
 interface Version {
   id: string; version_number: number; changelog: string | null; file_url: string | null; file_type: string | null
   material: string | null; weight_g: number | null; print_time_minutes: number | null; volume_cm3: number | null
   prototype_photo_urls: string[]; status: string; approved: boolean; notes: string | null; created_at: string
+  filaments?: Filament[] | null
 }
 interface DevDetail extends ProductDev { versions: Version[] }
 interface Part {
@@ -231,16 +233,17 @@ function fileTypeOf(name: string): string {
 
 /** Se o arquivo subido for um .3mf fatiado (Bambu), lê peso/tempo/material de
  *  dentro dele. STL não tem esses dados. Devolve só os campos achados. */
-async function fetch3mfMetrics(url: string, filename: string): Promise<{ material?: string; weight_g?: string; print_time_minutes?: string; width_mm?: number; depth_mm?: number; height_mm?: number } | null> {
+async function fetch3mfMetrics(url: string, filename: string): Promise<{ material?: string; weight_g?: string; print_time_minutes?: string; width_mm?: number; depth_mm?: number; height_mm?: number; filaments?: Filament[] } | null> {
   if (!/\.3mf$/i.test(filename)) return null
   try {
-    const r = await api<{ weight_g: number | null; print_time_minutes: number | null; material: string | null; width_mm: number | null; depth_mm: number | null; height_mm: number | null; found: boolean }>('/product-os/parse-3mf', { method: 'POST', body: JSON.stringify({ url }) })
+    const r = await api<{ weight_g: number | null; print_time_minutes: number | null; material: string | null; width_mm: number | null; depth_mm: number | null; height_mm: number | null; filaments: Filament[]; found: boolean }>('/product-os/parse-3mf', { method: 'POST', body: JSON.stringify({ url }) })
     if (!r.found) return null
     return {
       material: r.material ?? undefined,
       weight_g: r.weight_g != null ? String(r.weight_g) : undefined,
       print_time_minutes: r.print_time_minutes != null ? String(r.print_time_minutes) : undefined,
       width_mm: r.width_mm ?? undefined, depth_mm: r.depth_mm ?? undefined, height_mm: r.height_mm ?? undefined,
+      filaments: Array.isArray(r.filaments) ? r.filaments : undefined,
     }
   } catch { return null }
 }
@@ -1608,7 +1611,7 @@ function PartCard({ part, dev, onChanged }: { part: Part; dev: DevDetail; onChan
 
 function PartVersionsEditor({ partId, onChanged }: { partId: string; onChanged: () => void }) {
   const [versions, setVersions] = useState<Version[]>([]); const [loading, setLoading] = useState(true); const [err, setErr] = useState('')
-  const [form, setForm] = useState({ changelog: '', file_url: '', file_type: '', material: '', weight_g: '', print_time_minutes: '' }); const [adding, setAdding] = useState(false)
+  const [form, setForm] = useState<{ changelog: string; file_url: string; file_type: string; material: string; weight_g: string; print_time_minutes: string; filaments: Filament[] }>({ changelog: '', file_url: '', file_type: '', material: '', weight_g: '', print_time_minutes: '', filaments: [] }); const [adding, setAdding] = useState(false)
   const [slicer, setSlicer] = useState(''); const [showSlicer, setShowSlicer] = useState(false); const [parsing, setParsing] = useState(false)
 
   const load = useCallback(async () => {
@@ -1628,7 +1631,7 @@ function PartVersionsEditor({ partId, onChanged }: { partId: string; onChanged: 
   }
   const add = async () => {
     setAdding(true); setErr('')
-    try { await api(`/product-os/parts/${partId}/versions`, { method: 'POST', body: JSON.stringify({ changelog: form.changelog || undefined, file_url: form.file_url || undefined, file_type: form.file_type || undefined, material: form.material || undefined, weight_g: form.weight_g ? Number(form.weight_g) : undefined, print_time_minutes: form.print_time_minutes ? Number(form.print_time_minutes) : undefined }) }); setForm({ changelog: '', file_url: '', file_type: '', material: '', weight_g: '', print_time_minutes: '' }); await load(); onChanged() }
+    try { await api(`/product-os/parts/${partId}/versions`, { method: 'POST', body: JSON.stringify({ changelog: form.changelog || undefined, file_url: form.file_url || undefined, file_type: form.file_type || undefined, material: form.material || undefined, weight_g: form.weight_g ? Number(form.weight_g) : undefined, print_time_minutes: form.print_time_minutes ? Number(form.print_time_minutes) : undefined, filaments: form.filaments.length > 1 ? form.filaments : undefined }) }); setForm({ changelog: '', file_url: '', file_type: '', material: '', weight_g: '', print_time_minutes: '', filaments: [] }); await load(); onChanged() }
     catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setAdding(false) }
   }
 
@@ -1644,9 +1647,14 @@ function PartVersionsEditor({ partId, onChanged }: { partId: string; onChanged: 
           </div>
         )}
         <div className="flex items-center gap-2">
-          <UploadButton label="Subir STL/3MF" accept=".stl,.3mf,.step,.obj" onUploaded={(urls, files) => { setForm(f => ({ ...f, file_url: urls[0], file_type: fileTypeOf(files[0].name) })); void fetch3mfMetrics(urls[0], files[0].name).then(async m => { if (!m) return; setForm(f => ({ ...f, material: m.material ?? f.material, weight_g: m.weight_g ?? f.weight_g, print_time_minutes: m.print_time_minutes ?? f.print_time_minutes })); if (m.width_mm || m.depth_mm || m.height_mm) { try { await api(`/product-os/parts/${partId}`, { method: 'PATCH', body: JSON.stringify({ width_mm: m.width_mm ?? null, depth_mm: m.depth_mm ?? null, height_mm: m.height_mm ?? null }) }); onChanged() } catch { /* dims best-effort */ } } }) }} />
+          <UploadButton label="Subir STL/3MF" accept=".stl,.3mf,.step,.obj" onUploaded={(urls, files) => { setForm(f => ({ ...f, file_url: urls[0], file_type: fileTypeOf(files[0].name) })); void fetch3mfMetrics(urls[0], files[0].name).then(async m => { if (!m) return; setForm(f => ({ ...f, material: m.material ?? f.material, weight_g: m.weight_g ?? f.weight_g, print_time_minutes: m.print_time_minutes ?? f.print_time_minutes, filaments: m.filaments ?? [] })); if (m.width_mm || m.depth_mm || m.height_mm) { try { await api(`/product-os/parts/${partId}`, { method: 'PATCH', body: JSON.stringify({ width_mm: m.width_mm ?? null, depth_mm: m.depth_mm ?? null, height_mm: m.height_mm ?? null }) }); onChanged() } catch { /* dims best-effort */ } } }) }} />
           {form.file_url && <span className="text-[10px]" style={{ color: '#4ade80' }}>✓ {form.file_type}</span>}
         </div>
+        {form.filaments.length > 1 && (
+          <div className="rounded p-1.5 text-[10px]" style={{ background: 'rgba(168,85,247,0.08)', border: '1px solid rgba(168,85,247,0.25)', color: '#d8b4fe' }}>
+            🎨 {form.filaments.length} cores detectadas: {form.filaments.map(f => `${f.color ? '' : ''}${f.weight_g}g`).join(' + ')} — você escolhe o rolo de cada uma ao imprimir.
+          </div>
+        )}
         <div className="grid grid-cols-3 gap-1.5">
           <Input label="Material" value={form.material} onChange={v => setForm(f => ({ ...f, material: v }))} />
           <Input label="Peso (g)" value={form.weight_g} onChange={v => setForm(f => ({ ...f, weight_g: v }))} />
@@ -1700,8 +1708,14 @@ function PartVersionRow({ v, onChanged }: { v: Version; onChanged: () => void | 
 function PartOrderModal({ part, devId, onClose, onCreated }: { part: Part; devId: string; onClose: () => void; onCreated: () => void }) {
   const [qty, setQty] = useState('1'); const [printerId, setPrinterId] = useState(''); const [printers, setPrinters] = useState<Printer[]>([])
   const [loadedInputId, setLoadedInputId] = useState('')
+  const [filaments, setFilaments] = useState<Filament[]>([]); const [filMap, setFilMap] = useState<Record<number, string>>({})
   const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [preview, setPreview] = useState<ConsumePreview | null>(null)
   useEffect(() => { void (async () => { try { setPrinters(await api<Printer[]>('/product-os/printers')) } catch { /* */ } })() }, [])
+  // pega as cores da versão da peça (aprovada > última com arquivo) → multicor mostra 1 rolo por cor
+  useEffect(() => { void (async () => {
+    try { const vs = await api<Version[]>(`/product-os/parts/${part.id}/versions`); const ref = vs.find(v => v.approved) ?? vs.find(v => v.file_url) ?? vs[0]; setFilaments((ref?.filaments && ref.filaments.length > 1) ? ref.filaments : []) } catch { setFilaments([]) }
+  })() }, [part.id])
+  const multicor = filaments.length > 1
   useEffect(() => {
     const n = Number(qty) || 0; if (n < 1) { setPreview(null); return }
     let cancel = false
@@ -1712,7 +1726,10 @@ function PartOrderModal({ part, devId, onClose, onCreated }: { part: Part; devId
   }, [qty, devId, part.id])
   const create = async () => {
     setBusy(true); setErr('')
-    try { await api('/product-os/production-orders', { method: 'POST', body: JSON.stringify({ product_dev_id: devId, part_id: part.id, quantity: Number(qty) || 1, printer_id: printerId || undefined, machine: printers.find(p => p.id === printerId)?.name || undefined, loaded_input_id: loadedInputId || undefined }) }); onCreated() }
+    try {
+      const filament_map = multicor ? filaments.map(f => ({ index: f.index, input_id: filMap[f.index] })).filter(m => m.input_id) : undefined
+      await api('/product-os/production-orders', { method: 'POST', body: JSON.stringify({ product_dev_id: devId, part_id: part.id, quantity: Number(qty) || 1, printer_id: printerId || undefined, machine: printers.find(p => p.id === printerId)?.name || undefined, loaded_input_id: !multicor ? (loadedInputId || undefined) : undefined, filament_map }) }); onCreated()
+    }
     catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setBusy(false) }
   }
   const noWeight = !!preview && preview.lines.length === 0
@@ -1728,8 +1745,22 @@ function PartOrderModal({ part, devId, onClose, onCreated }: { part: Part; devId
           </select>
         </label>
       </div>
-      {printerId && <div className="mt-2"><SpoolPicker printerId={printerId} value={loadedInputId} onChange={setLoadedInputId} /></div>}
-      {noWeight && <div className="mt-2 rounded-lg p-2.5 text-[11px]" style={{ background: 'rgba(252,211,77,0.10)', color: '#fcd34d', border: '1px solid rgba(252,211,77,0.3)' }}>⚠️ Esta peça está <b>sem peso</b> — nada de filamento será reservado nem custeado. Fatie o arquivo (.3mf) ou informe o peso na versão da peça antes de imprimir.</div>}
+      {printerId && !multicor && <div className="mt-2"><SpoolPicker printerId={printerId} value={loadedInputId} onChange={setLoadedInputId} /></div>}
+      {printerId && multicor && (
+        <div className="mt-2 space-y-2 rounded-lg p-2.5" style={{ background: 'rgba(168,85,247,0.06)', border: '1px solid rgba(168,85,247,0.25)' }}>
+          <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#d8b4fe' }}>🎨 Peça multicor — escolha o rolo de cada cor</p>
+          {filaments.map(f => (
+            <div key={f.index} className="flex items-center gap-2">
+              <span className="flex items-center gap-1 text-[11px]" style={{ color: '#d4d4d8', minWidth: 78 }}>
+                {f.color && <span className="h-3 w-3 rounded-full border" style={{ background: f.color.startsWith('#') ? f.color : `#${f.color.slice(0, 6)}`, borderColor: '#3f3f46' }} />}
+                Cor {f.index} <span style={{ color: '#52525b' }}>{f.weight_g}g</span>
+              </span>
+              <div className="flex-1"><SpoolPicker printerId={printerId} material={f.material} value={filMap[f.index] ?? ''} onChange={id => setFilMap(m => ({ ...m, [f.index]: id }))} /></div>
+            </div>
+          ))}
+        </div>
+      )}
+      {noWeight && !multicor && <div className="mt-2 rounded-lg p-2.5 text-[11px]" style={{ background: 'rgba(252,211,77,0.10)', color: '#fcd34d', border: '1px solid rgba(252,211,77,0.3)' }}>⚠️ Esta peça está <b>sem peso</b> — nada de filamento será reservado nem custeado. Fatie o arquivo (.3mf) ou informe o peso na versão da peça antes de imprimir.</div>}
       {preview && preview.lines.length > 0 && (
         <div className="mt-2 rounded-lg p-2.5" style={{ background: '#0d0d10', border: '1px solid #27272a' }}>
           <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#71717a' }}>Vai consumir de filamento</span>
