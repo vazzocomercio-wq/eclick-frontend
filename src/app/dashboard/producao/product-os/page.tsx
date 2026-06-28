@@ -702,7 +702,7 @@ function NewAssemblyModal({ products, onClose, onCreated }: { products: ProductD
 
 function NewOrderModal({ approved, onClose, onCreated }: { approved: ProductDev[]; onClose: () => void; onCreated: () => void }) {
   const [devId, setDevId] = useState(approved[0]?.id ?? '')
-  const [qty, setQty] = useState('1'); const [printerId, setPrinterId] = useState('')
+  const [qty, setQty] = useState('1'); const [printerId, setPrinterId] = useState(''); const [loadedInputId, setLoadedInputId] = useState('')
   const [printers, setPrinters] = useState<Printer[]>([])
   const [busy, setBusy] = useState(false); const [err, setErr] = useState('')
   const [preview, setPreview] = useState<ConsumePreview | null>(null); const [prevLoading, setPrevLoading] = useState(false)
@@ -725,7 +725,7 @@ function NewOrderModal({ approved, onClose, onCreated }: { approved: ProductDev[
     if (!devId) { setErr('Selecione um produto aprovado'); return }
     if (hasParts) { setErr('Este produto é feito de peças — imprima cada peça pela aba Peças (Imprimir esta peça).'); return }
     setBusy(true); setErr('')
-    try { await api('/product-os/production-orders', { method: 'POST', body: JSON.stringify({ product_dev_id: devId, quantity: Number(qty) || 1, printer_id: printerId || undefined, machine: printers.find(p => p.id === printerId)?.name || undefined }) }); onCreated() }
+    try { await api('/product-os/production-orders', { method: 'POST', body: JSON.stringify({ product_dev_id: devId, quantity: Number(qty) || 1, printer_id: printerId || undefined, machine: printers.find(p => p.id === printerId)?.name || undefined, loaded_input_id: loadedInputId || undefined }) }); onCreated() }
     catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setBusy(false) }
   }
   return (
@@ -753,6 +753,7 @@ function NewOrderModal({ approved, onClose, onCreated }: { approved: ProductDev[
               </select>
             </label>
           </div>
+          {printerId && !hasParts && <SpoolPicker printerId={printerId} value={loadedInputId} onChange={setLoadedInputId} />}
           {prevLoading && <p className="text-[10px]" style={{ color: '#52525b' }}>Calculando consumo…</p>}
           {preview && preview.lines.length > 0 && (
             <div className="rounded-lg p-2.5" style={{ background: '#0d0d10', border: '1px solid #27272a' }}>
@@ -1698,6 +1699,7 @@ function PartVersionRow({ v, onChanged }: { v: Version; onChanged: () => void | 
 
 function PartOrderModal({ part, devId, onClose, onCreated }: { part: Part; devId: string; onClose: () => void; onCreated: () => void }) {
   const [qty, setQty] = useState('1'); const [printerId, setPrinterId] = useState(''); const [printers, setPrinters] = useState<Printer[]>([])
+  const [loadedInputId, setLoadedInputId] = useState('')
   const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [preview, setPreview] = useState<ConsumePreview | null>(null)
   useEffect(() => { void (async () => { try { setPrinters(await api<Printer[]>('/product-os/printers')) } catch { /* */ } })() }, [])
   useEffect(() => {
@@ -1710,9 +1712,10 @@ function PartOrderModal({ part, devId, onClose, onCreated }: { part: Part; devId
   }, [qty, devId, part.id])
   const create = async () => {
     setBusy(true); setErr('')
-    try { await api('/product-os/production-orders', { method: 'POST', body: JSON.stringify({ product_dev_id: devId, part_id: part.id, quantity: Number(qty) || 1, printer_id: printerId || undefined, machine: printers.find(p => p.id === printerId)?.name || undefined }) }); onCreated() }
+    try { await api('/product-os/production-orders', { method: 'POST', body: JSON.stringify({ product_dev_id: devId, part_id: part.id, quantity: Number(qty) || 1, printer_id: printerId || undefined, machine: printers.find(p => p.id === printerId)?.name || undefined, loaded_input_id: loadedInputId || undefined }) }); onCreated() }
     catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setBusy(false) }
   }
+  const noWeight = !!preview && preview.lines.length === 0
   return (
     <Modal title={`Imprimir peça: ${part.name}`} onClose={onClose}>
       {err && <div className="mb-3 rounded-lg p-2.5 text-xs" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>{err}</div>}
@@ -1725,6 +1728,8 @@ function PartOrderModal({ part, devId, onClose, onCreated }: { part: Part; devId
           </select>
         </label>
       </div>
+      {printerId && <div className="mt-2"><SpoolPicker printerId={printerId} value={loadedInputId} onChange={setLoadedInputId} /></div>}
+      {noWeight && <div className="mt-2 rounded-lg p-2.5 text-[11px]" style={{ background: 'rgba(252,211,77,0.10)', color: '#fcd34d', border: '1px solid rgba(252,211,77,0.3)' }}>⚠️ Esta peça está <b>sem peso</b> — nada de filamento será reservado nem custeado. Fatie o arquivo (.3mf) ou informe o peso na versão da peça antes de imprimir.</div>}
       {preview && preview.lines.length > 0 && (
         <div className="mt-2 rounded-lg p-2.5" style={{ background: '#0d0d10', border: '1px solid #27272a' }}>
           <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#71717a' }}>Vai consumir de filamento</span>
@@ -1763,7 +1768,7 @@ function AssemblySection({ devId, onChanged }: { devId: string; onChanged: () =>
     catch (e) { setErr(e instanceof Error ? e.message : 'Erro') }
   }
   const nextAction: Record<string, { to: string; label: string } | undefined> = {
-    fila: { to: 'montando', label: 'Iniciar montagem' }, montando: { to: 'concluido', label: 'Concluir' },
+    fila: { to: 'montando', label: 'Iniciar montagem' }, montando: { to: 'embalado', label: 'Embalar' }, embalado: { to: 'disponivel', label: 'Disponível p/ venda' },
   }
 
   return (
@@ -2407,6 +2412,34 @@ function ConnectFarmModal({ onClose }: { onClose: () => void }) {
 interface LoadedFilament {
   id: string; slot: number; loaded_at: string; loaded_g: number | null; consumed_g: number; available: number
   input: { id: string; name: string; sku: string | null; barcode: string | null; material: string | null; color: string | null; color_hex: string | null; unit: string; quantity: number; cost_per_unit: number; spool_weight_g: number | null } | null
+}
+
+/** Seletor do rolo montado na impressora — garante reservar do filamento EXATO
+ *  que vai rodar (cor/slot), não um chute por material. Some se a impressora não
+ *  tem rolo montado (cai no fallback por material). */
+function SpoolPicker({ printerId, material, value, onChange }: { printerId: string; material?: string | null; value: string; onChange: (id: string) => void }) {
+  const [rolls, setRolls] = useState<LoadedFilament[]>([])
+  useEffect(() => {
+    if (!printerId) { setRolls([]); return }
+    let alive = true
+    void (async () => { try { const r = await api<LoadedFilament[]>(`/product-os/printers/${printerId}/loaded-filament`); if (alive) setRolls(r.filter(x => x.input)) } catch { if (alive) setRolls([]) } })()
+    return () => { alive = false }
+  }, [printerId])
+  useEffect(() => {
+    if (!rolls.length) { if (value) onChange(''); return }
+    if (value && rolls.some(r => r.input?.id === value)) return
+    const match = material ? rolls.find(r => r.input?.material?.toUpperCase() === material.toUpperCase()) : null
+    onChange((match ?? rolls[0]).input?.id ?? '')
+  }, [rolls, material]) // eslint-disable-line react-hooks/exhaustive-deps
+  if (!printerId || rolls.length === 0) return null
+  return (
+    <label className="block">
+      <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#71717a' }}>Rolo na impressora{rolls.length > 1 ? ' — escolha a cor' : ''}</span>
+      <select value={value} onChange={e => onChange(e.target.value)} className="w-full rounded-lg px-2.5 py-1.5 text-xs outline-none" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }}>
+        {rolls.map(r => r.input && <option key={r.id} value={r.input.id}>B{r.slot + 1}: {[r.input.color, r.input.material].filter(Boolean).join(' ')} — {r.available.toFixed(0)}{r.input.unit} disp.</option>)}
+      </select>
+    </label>
+  )
 }
 
 /** Busca de filamento: digita OU escaneia (nome/SKU/cor/material/código de barras).
