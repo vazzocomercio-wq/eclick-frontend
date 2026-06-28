@@ -2033,6 +2033,72 @@ function TimelineTab({ devId }: { devId: string }) {
 }
 
 // ── PAINEL DA FÁBRICA ─────────────────────────────────────────────────
+interface FailureStats {
+  window_days: number
+  total: { attempts: number; failures: number; rate: number | null }
+  printers: Array<{ printer_id: string; name: string; attempts: number; failures: number; false_positives: number; rate: number | null; last_failure: { reason: string | null; detected_at: string } | null }>
+}
+interface FarmFailureRow {
+  id: string; printer_id: string; printer_name: string; job_name: string | null; reason: string | null
+  state: string | null; camera_url: string | null; auto_paused: boolean; acknowledged_at: string | null; false_positive: boolean; detected_at: string; open: boolean
+}
+
+/** T1-A: KPI de confiabilidade — taxa de falha por impressora + falhas recentes. */
+function ReliabilityCard() {
+  const [stats, setStats] = useState<FailureStats | null>(null)
+  const [fails, setFails] = useState<FarmFailureRow[]>([])
+  const [loading, setLoading] = useState(true)
+  const load = useCallback(async () => {
+    setLoading(true)
+    try { const [s, f] = await Promise.all([api<FailureStats>('/product-os/farm/failure-stats'), api<FarmFailureRow[]>('/product-os/farm/failures')]); setStats(s); setFails(f) } catch { /* */ } finally { setLoading(false) }
+  }, [])
+  useEffect(() => { void load() }, [load])
+  const ack = async (id: string, fp: boolean) => { try { await api(`/product-os/farm/failures/${id}/ack`, { method: 'POST', body: JSON.stringify({ false_positive: fp }) }); void load() } catch { /* */ } }
+  const rateColor = (r: number | null) => r == null ? '#52525b' : r < 5 ? '#4ade80' : r < 15 ? '#fcd34d' : '#f87171'
+  if (loading || !stats || stats.printers.length === 0) return null
+  const recent = fails.slice(0, 6)
+  return (
+    <div className="rounded-xl p-4" style={{ background: '#111114', border: '1px solid #27272a' }}>
+      <div className="mb-2 flex items-center gap-2">
+        <ShieldAlert size={14} className="text-cyan-400" />
+        <span className="text-xs font-bold text-white">Confiabilidade · taxa de falha</span>
+        <span className="text-[10px]" style={{ color: '#52525b' }}>últimos {stats.window_days} dias</span>
+        {stats.total.rate != null && <span className="ml-auto text-[11px] font-bold" style={{ color: rateColor(stats.total.rate) }}>{stats.total.rate}% geral · {stats.total.failures}/{stats.total.attempts}</span>}
+      </div>
+      <div className="space-y-1.5">
+        {stats.printers.map(p => (
+          <div key={p.printer_id} className="rounded-lg px-2.5 py-1.5" style={{ background: '#0a0a0e', border: '1px solid #1a1a1f' }}>
+            <div className="flex items-center gap-2 text-xs">
+              <PrinterIcon size={12} style={{ color: '#71717a' }} />
+              <span className="font-semibold text-white">{p.name}</span>
+              <span className="ml-auto font-bold" style={{ color: rateColor(p.rate) }}>{p.rate == null ? 'sem dados' : `${p.rate}%`}</span>
+            </div>
+            <div className="mt-1 flex items-center gap-2">
+              <div className="h-1.5 flex-1 overflow-hidden rounded-full" style={{ background: '#18181b' }}><div className="h-full rounded-full" style={{ width: `${Math.min(100, p.rate ?? 0)}%`, background: rateColor(p.rate) }} /></div>
+              <span className="whitespace-nowrap text-[10px]" style={{ color: '#52525b' }}>{p.failures} falha(s) / {p.attempts} impr.{p.false_positives ? ` · ${p.false_positives} falso+` : ''}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+      {recent.length > 0 && (
+        <div className="mt-3">
+          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#71717a' }}>Falhas recentes</p>
+          <div className="space-y-1">
+            {recent.map(f => (
+              <div key={f.id} className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[11px]" style={{ background: '#0a0a0e', border: `1px solid ${f.open ? 'rgba(239,68,68,0.35)' : '#1a1a1f'}` }}>
+                <span style={{ color: f.false_positive ? '#52525b' : '#f87171' }}>{f.false_positive ? '⚪' : '🛑'}</span>
+                <span className="truncate" style={{ color: '#d4d4d8' }}>{f.printer_name}{f.job_name ? ` · ${f.job_name}` : ''}{f.reason ? ` — ${f.reason}` : ''}</span>
+                <span className="ml-auto whitespace-nowrap text-[10px]" style={{ color: '#52525b' }}>{new Date(f.detected_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+                {f.open && <button type="button" onClick={() => void ack(f.id, false)} className="rounded px-1.5 py-0.5 text-[10px] font-semibold" style={{ background: '#27272a', color: '#e4e4e7' }}>ok</button>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function FactoryPanel({ onGoTo, onOpen }: { onGoTo: (t: 'impressoras' | 'rentabilidade' | 'insumos' | 'producao') => void; onOpen: (id: string) => void }) {
   const [ov, setOv] = useState<FactoryOverview | null>(null); const [loading, setLoading] = useState(true); const [err, setErr] = useState('')
   useEffect(() => { void (async () => { try { setOv(await api<FactoryOverview>('/product-os/factory-overview')) } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setLoading(false) } })() }, [])
@@ -2075,6 +2141,7 @@ function FactoryPanel({ onGoTo, onOpen }: { onGoTo: (t: 'impressoras' | 'rentabi
 
       <ProductionPlanCard onOpen={onOpen} />
       <SchedulerCard />
+      <ReliabilityCard />
 
       <div className="grid gap-3 lg:grid-cols-2">
         {/* top produtos */}
