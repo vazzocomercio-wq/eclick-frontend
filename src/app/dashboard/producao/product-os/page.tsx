@@ -253,7 +253,7 @@ function HScroll({ children, className }: { children: React.ReactNode; className
   const drag = useRef({ down: false, startX: 0, scroll: 0 })
   const onPointerDown = (e: React.PointerEvent) => {
     const el = ref.current; if (!el) return
-    if ((e.target as HTMLElement).closest('button, a, input, textarea, select')) return  // deixa o clique passar
+    if ((e.target as HTMLElement).closest('button, a, input, textarea, select, [data-card]')) return  // clique/arraste-de-card passam; rola só no vazio
     drag.current = { down: true, startX: e.clientX, scroll: el.scrollLeft }
     el.style.cursor = 'grabbing'; try { el.setPointerCapture(e.pointerId) } catch { /* */ }
   }
@@ -271,6 +271,17 @@ function HScroll({ children, className }: { children: React.ReactNode; className
         {children}
       </div>
     </>
+  )
+}
+
+/** Wrapper que torna o card arrastável (move entre colunas). `data-card` faz o
+ *  HScroll ignorar o arraste do card (rola só no vazio). Ghost via DragOverlay. */
+function DragWrap({ id, data, children }: { id: string; data: Record<string, unknown>; children: React.ReactNode }) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id, data })
+  return (
+    <div ref={setNodeRef} {...attributes} {...listeners} data-card="1" style={{ opacity: isDragging ? 0.3 : 1, cursor: 'grab' }}>
+      {children}
+    </div>
   )
 }
 
@@ -522,6 +533,28 @@ function ProductionBoard({ products }: { products: ProductDev[] }) {
   }
   // em qual coluna a montagem aparece: fila/montando → Montagem; embalado/disponível na sua; concluído(legado)→Disponível
   const asmCol = (a: AssemblyOrder) => (a.status === 'fila' || a.status === 'montando') ? 'montagem' : (a.status === 'concluido' ? 'disponivel' : a.status)
+
+  // arrastar cards entre colunas (respeita as transições válidas; senão ignora)
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
+  const [activeDrag, setActiveDrag] = useState<{ code: string; name: string; color: string } | null>(null)
+  const onDragStart = (e: DragStartEvent) => {
+    const d = e.active.data.current as { code?: string; name?: string; kind?: string } | undefined
+    if (d) setActiveDrag({ code: d.code ?? '', name: d.name ?? '', color: d.kind === 'asm' ? '#c4b5fd' : '#00E5FF' })
+  }
+  const onDragEnd = (e: DragEndEvent) => {
+    setActiveDrag(null)
+    const over = e.over?.id ? String(e.over.id) : null
+    const d = e.active.data.current as { kind?: string; id?: string; status?: string; partId?: boolean } | undefined
+    if (!over || !d?.id || !d.status) return
+    if (d.kind === 'op') {
+      const nexts = (d.partId ? PART_ORDER_NEXT : ORDER_NEXT)[d.status] ?? []
+      if (nexts.includes(over)) void transition(d.id, over)
+    } else {
+      const map: Record<string, string> = { montagem: 'montando', embalado: 'embalado', disponivel: 'disponivel' }
+      const ts = map[over]; const nexts = ASSEMBLY_NEXT[d.status] ?? []
+      if (ts && nexts.includes(ts)) void transitionAsm(d.id, ts)
+    }
+  }
   const sendToPrinter = async (oid: string) => {
     setErr(''); setNotice('')
     try { await api(`/product-os/farm/orders/${oid}/send`, { method: 'POST' }); setNotice('Job enviado pra impressora (envio experimental — confirme na máquina).') }
@@ -541,16 +574,16 @@ function ProductionBoard({ products }: { products: ProductDev[] }) {
       {err && <div className="rounded-lg p-2.5 text-xs" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>{err}</div>}
       {notice && <div className="rounded-lg p-2.5 text-xs" style={{ background: 'rgba(74,222,128,0.10)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)' }}>{notice}</div>}
       {loading ? <div className="flex items-center gap-2 p-6 text-sm" style={{ color: '#71717a' }}><Loader2 size={16} className="animate-spin" /> Carregando…</div> : (
+        <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={onDragStart} onDragEnd={onDragEnd}>
         <HScroll className="flex gap-3 pb-4">
           {ORDER_COLS.map(col => {
             const cards = orders.filter(o => o.status === col.key)
             const asms = assemblies.filter(a => asmCol(a) === col.key)
             return (
-              <div key={col.key} className="flex w-60 shrink-0 flex-col rounded-xl" style={{ background: '#0c0c10', border: '1px solid #1a1a1f' }}>
-                <div className="flex items-center justify-between px-3 py-2.5"><span className="text-xs font-bold uppercase tracking-wide" style={{ color: '#a1a1aa' }}>{col.label}</span><span className="rounded px-1.5 py-0.5 text-[10px] font-bold" style={{ background: '#1a1a1f', color: '#71717a' }}>{cards.length + asms.length}</span></div>
-                <div className="flex flex-col gap-2 px-2 pb-2" style={{ minHeight: 60 }}>
+              <Column key={col.key} id={col.key} label={col.label} count={cards.length + asms.length}>
                   {cards.map(o => (
-                    <div key={o.id} className="rounded-lg p-2.5" style={{ background: '#111114', border: '1px solid #27272a' }}>
+                    <DragWrap key={o.id} id={o.id} data={{ kind: 'op', id: o.id, status: o.status, partId: !!o.part_id, code: `OP-${String(o.order_number).padStart(4, '0')}`, name: nameOf(o.product_dev_id) }}>
+                    <div className="rounded-lg p-2.5" style={{ background: '#111114', border: '1px solid #27272a' }}>
                       <div className="flex items-center gap-1.5">
                         <span className="shrink-0 rounded px-1 py-0.5 font-mono text-[9px] font-bold" style={{ background: 'rgba(0,229,255,0.12)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.25)' }}>OP-{String(o.order_number).padStart(4, '0')}</span>
                         <p className="truncate text-xs font-bold text-white">{nameOf(o.product_dev_id)}</p>
@@ -571,9 +604,11 @@ function ProductionBoard({ products }: { products: ProductDev[] }) {
                       )}
                       {o.status !== 'cancelado' && <UnitsViewer oid={o.id} qty={o.quantity} />}
                     </div>
+                    </DragWrap>
                   ))}
                   {asms.map(a => (
-                    <div key={a.id} className="rounded-lg p-2.5" style={{ background: '#111114', border: '1px solid rgba(168,85,247,0.3)' }}>
+                    <DragWrap key={a.id} id={a.id} data={{ kind: 'asm', id: a.id, status: a.status, code: `MT-${String(a.order_number).padStart(4, '0')}`, name: nameOf(a.product_dev_id) }}>
+                    <div className="rounded-lg p-2.5" style={{ background: '#111114', border: '1px solid rgba(168,85,247,0.3)' }}>
                       <div className="flex items-center gap-1.5">
                         <span className="shrink-0 rounded px-1 py-0.5 font-mono text-[9px] font-bold" style={{ background: 'rgba(168,85,247,0.15)', color: '#c4b5fd', border: '1px solid rgba(168,85,247,0.3)' }}>MT-{String(a.order_number).padStart(4, '0')}</span>
                         <p className="truncate text-xs font-bold text-white">{nameOf(a.product_dev_id)}</p>
@@ -586,12 +621,21 @@ function ProductionBoard({ products }: { products: ProductDev[] }) {
                         ))}
                       </div>
                     </div>
+                    </DragWrap>
                   ))}
-                </div>
-              </div>
+              </Column>
             )
           })}
         </HScroll>
+        <DragOverlay>{activeDrag ? (
+          <div className="rounded-lg p-2.5" style={{ background: '#111114', border: `1px solid ${activeDrag.color}`, boxShadow: `0 8px 24px ${activeDrag.color}33` }}>
+            <div className="flex items-center gap-1.5">
+              <span className="shrink-0 rounded px-1 py-0.5 font-mono text-[9px] font-bold" style={{ color: activeDrag.color, border: `1px solid ${activeDrag.color}55` }}>{activeDrag.code}</span>
+              <span className="truncate text-xs font-bold text-white">{activeDrag.name}</span>
+            </div>
+          </div>
+        ) : null}</DragOverlay>
+        </DndContext>
       )}
       {showNew && <NewOrderModal approved={approved} onClose={() => setShowNew(false)} onCreated={() => { setShowNew(false); void load() }} />}
       {showNewAsm && <NewAssemblyModal products={approved} onClose={() => setShowNewAsm(false)} onCreated={() => { setShowNewAsm(false); void load() }} />}
