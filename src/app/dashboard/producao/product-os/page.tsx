@@ -75,7 +75,7 @@ interface Settings {
 }
 interface Order {
   id: string; product_dev_id: string; order_number: number; quantity: number; machine: string | null; status: string
-  printer_id: string | null; is_prototype: boolean; estimated_time_minutes: number | null; estimated_filament_g: number | null; actual_filament_g?: number | null; part_id?: string | null; created_at: string
+  printer_id: string | null; is_prototype: boolean; estimated_time_minutes: number | null; estimated_filament_g: number | null; actual_filament_g?: number | null; part_id?: string | null; due_at?: string | null; created_at: string
   jobs?: Job[]
 }
 interface Job { id: string; job_number: number; status: string; filament_used_g: number | null; print_time_minutes: number | null; failure_reason: string | null }
@@ -159,9 +159,11 @@ interface FarmStatus {
   open_failure?: { id: string; reason: string | null; detected_at: string } | null
 }
 interface FarmAgent { id: string; name: string; status: string; version: string | null; last_seen_at: string | null; online: boolean }
-interface SchedulerResult {
-  idle_printers: number; queued_orders: number
-  assignments: Array<{ order_id: string; order_number: number; product_dev_id: string; name: string; quantity: number; printer_id: string; printer_name: string; profit_per_hour: number | null }>
+interface SchedulePlan {
+  now: string; eligible_printers: number; offline_printers: number; queued_orders: number
+  scheduled: number; unscheduled_count: number; late_count: number; all_done_at: string | null
+  assignments: Array<{ order_id: string; order_number: number; product_dev_id: string; name: string; quantity: number; printer_id: string; printer_name: string; profit_per_hour: number | null; fit: 'exact' | 'material' | 'unknown' | 'none'; duration_minutes: number | null; needs_time: boolean; start_at: string; finish_at: string | null; due_at: string | null; late: boolean }>
+  unscheduled: Array<{ order_id: string; order_number: number; name: string; quantity: number; reason: string }>
 }
 interface PrinterAnalytics {
   printer: { id: string; name: string; brand: string | null; model: string | null; status: string; build_volume_mm: string | null; has_ams: boolean; acquisition_cost: number; acquisition_date: string | null }
@@ -294,6 +296,30 @@ function DragWrap({ id, data, children }: { id: string; data: Record<string, unk
 
 /** Campo compacto pra pesar a peça na balança e gravar o peso REAL do
  *  filamento (sobrepõe o estimado no custo quando a OP fecha). */
+function DueDateInput({ oid, due, onSaved }: { oid: string; due: string | null; onSaved: () => void }) {
+  const [editing, setEditing] = useState(false)
+  const toLocal = (iso: string | null) => { if (!iso) return ''; try { const d = new Date(iso); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16) } catch { return '' } }
+  const [val, setVal] = useState(toLocal(due))
+  const [busy, setBusy] = useState(false)
+  const save = async (clear?: boolean) => {
+    setBusy(true)
+    try { await api(`/product-os/production-orders/${oid}`, { method: 'PATCH', body: JSON.stringify({ due_at: clear || !val ? null : new Date(val).toISOString() }) }); setEditing(false); onSaved() }
+    catch { /* */ } finally { setBusy(false) }
+  }
+  if (!editing) return (
+    <button onClick={() => setEditing(true)} className="mt-1 flex w-full items-center justify-center gap-1 rounded px-1.5 py-1 text-[9px] font-semibold" style={{ background: '#0a0a0e', color: due ? '#a5f3fc' : '#71717a', border: '1px solid #27272a' }}>
+      ⏰ {due ? `prazo ${new Date(due).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}` : 'definir prazo'}
+    </button>
+  )
+  return (
+    <div className="mt-1 flex items-center gap-1">
+      <input autoFocus type="datetime-local" value={val} onChange={e => setVal(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') void save(); if (e.key === 'Escape') setEditing(false) }}
+        className="w-full rounded px-1.5 py-1 text-[10px] text-white" style={{ background: '#0a0a0e', border: '1px solid #27272a' }} />
+      <button onClick={() => void save()} disabled={busy} className="rounded px-1.5 py-1 text-[9px] font-bold" style={{ background: 'rgba(0,229,255,0.10)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.3)' }}>{busy ? '…' : 'ok'}</button>
+      {due && <button onClick={() => void save(true)} disabled={busy} className="rounded px-1.5 py-1 text-[9px]" style={{ background: '#0a0a0e', color: '#71717a', border: '1px solid #27272a' }}>×</button>}
+    </div>
+  )
+}
 function RealWeightInput({ oid, actual, estimated, onSaved }: { oid: string; actual: number | null; estimated: number | null; onSaved: () => void }) {
   const [editing, setEditing] = useState(false)
   const [val, setVal] = useState(actual != null ? String(actual) : '')
@@ -610,6 +636,7 @@ function ProductionBoard({ products }: { products: ProductDev[] }) {
                       {['acabamento', 'qualidade', 'embalado'].includes(o.status) && (
                         <RealWeightInput oid={o.id} actual={o.actual_filament_g ?? null} estimated={o.estimated_filament_g} onSaved={() => void load(true)} />
                       )}
+                      {o.status === 'fila' && <DueDateInput oid={o.id} due={o.due_at ?? null} onSaved={() => void load(true)} />}
                       {o.status !== 'cancelado' && <UnitsViewer oid={o.id} qty={o.quantity} />}
                     </div>
                     </DragWrap>
@@ -2376,14 +2403,24 @@ function MakeToOrderCard({ onOpen }: { onOpen: (id: string) => void }) {
   )
 }
 
+const FIT_BADGE: Record<string, { label: string; color: string; bg: string }> = {
+  exact: { label: 'cor ✓', color: '#4ade80', bg: 'rgba(74,222,128,0.12)' },
+  material: { label: 'só material', color: '#fcd34d', bg: 'rgba(252,211,77,0.12)' },
+  unknown: { label: 'rolo montado', color: '#a1a1aa', bg: 'rgba(161,161,170,0.12)' },
+  none: { label: '—', color: '#71717a', bg: 'transparent' },
+}
+function fmtDateTime(iso: string | null): string {
+  if (!iso) return '—'
+  try { return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) } catch { return '—' }
+}
 function SchedulerCard() {
-  const [data, setData] = useState<SchedulerResult | null>(null); const [loading, setLoading] = useState(true); const [msg, setMsg] = useState('')
-  const load = useCallback(async () => { setLoading(true); try { setData(await api<SchedulerResult>('/product-os/farm/scheduler')) } catch { /* */ } finally { setLoading(false) } }, [])
+  const [data, setData] = useState<SchedulePlan | null>(null); const [loading, setLoading] = useState(true); const [msg, setMsg] = useState('')
+  const load = useCallback(async () => { setLoading(true); try { setData(await api<SchedulePlan>('/product-os/farm/schedule-plan')) } catch { /* */ } finally { setLoading(false) } }, [])
   useEffect(() => { void load() }, [load])
   const apply = async () => {
     if (!data?.assignments.length) return
     setMsg('')
-    try { const r = await api<{ assigned: number }>('/product-os/farm/scheduler/apply', { method: 'POST', body: JSON.stringify({ assignments: data.assignments.map(a => ({ order_id: a.order_id, printer_id: a.printer_id })) }) }); setMsg(`${r.assigned} ordem(ns) atribuída(s).`); void load() }
+    try { const r = await api<{ assigned: number }>('/product-os/farm/scheduler/apply', { method: 'POST', body: JSON.stringify({ assignments: data.assignments.map(a => ({ order_id: a.order_id, printer_id: a.printer_id })) }) }); setMsg(`${r.assigned} ordem(ns) atribuída(s) às impressoras.`); void load() }
     catch (e) { setMsg(e instanceof Error ? e.message : 'Erro') }
   }
   const money = (n: number) => `R$ ${n.toFixed(2)}`
@@ -2391,21 +2428,44 @@ function SchedulerCard() {
     <div className="rounded-xl p-4" style={{ background: '#111114', border: '1px solid #27272a' }}>
       <div className="mb-2 flex items-center gap-2">
         <Wifi size={14} className="text-cyan-400" />
-        <span className="text-xs font-bold text-white">Scheduler — o que pôr em cada impressora ociosa</span>
-        {data && data.assignments.length > 0 && <button onClick={() => void apply()} className="ml-auto rounded px-2 py-1 text-[10px] font-bold" style={{ background: 'rgba(0,229,255,0.12)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.35)' }}>Atribuir tudo</button>}
+        <span className="text-xs font-bold text-white">Plano de produção — capacidade finita (prazo + filamento)</span>
+        {data && data.assignments.length > 0 && <button onClick={() => void apply()} className="ml-auto rounded px-2 py-1 text-[10px] font-bold" style={{ background: 'rgba(0,229,255,0.12)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.35)' }}>Atribuir às impressoras</button>}
       </div>
       {loading ? <div className="flex items-center gap-2 text-xs" style={{ color: '#71717a' }}><Loader2 size={12} className="animate-spin" /> Calculando…</div> : !data ? null : (
         <>
-          <p className="mb-2 text-[11px]" style={{ color: '#52525b' }}>{data.idle_printers} impressora(s) ociosa(s) · {data.queued_orders} ordem(ns) na fila</p>
-          {data.assignments.length === 0 ? <p className="text-xs" style={{ color: '#52525b' }}>Nada a sugerir — precisa de impressora ociosa online + ordem na fila com R$/hora.</p> : (
+          <p className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px]" style={{ color: '#52525b' }}>
+            <span>{data.eligible_printers} impressora(s) elegível(eis){data.offline_printers > 0 ? ` · ${data.offline_printers} offline` : ''} · {data.queued_orders} na fila</span>
+            {data.all_done_at && <span style={{ color: '#a5f3fc' }}>· tudo pronto até <span className="font-bold">{fmtDateTime(data.all_done_at)}</span></span>}
+            {data.late_count > 0 && <span className="font-bold" style={{ color: '#f87171' }}>· {data.late_count} atrasada(s)</span>}
+          </p>
+          {data.assignments.length === 0 && data.unscheduled.length === 0 ? (
+            <p className="text-xs" style={{ color: '#52525b' }}>Nada na fila — crie ordens de produção (status fila) e monte o filamento nas impressoras.</p>
+          ) : (
             <div className="space-y-1.5">
-              {data.assignments.map(a => (
-                <div key={a.order_id} className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs" style={{ background: '#0a0a0e', border: '1px solid #1a1a1f' }}>
-                  <PrinterIcon size={12} className="text-cyan-400" />
-                  <span className="font-semibold text-white">{a.printer_name}</span>
-                  <span style={{ color: '#52525b' }}>←</span>
-                  <span className="truncate" style={{ color: '#a1a1aa' }}>#{a.order_number} {a.name} ({a.quantity}un)</span>
-                  <span className="ml-auto font-bold" style={{ color: '#00E5FF' }}>{a.profit_per_hour != null ? money(a.profit_per_hour) + '/h' : '—'}</span>
+              {data.assignments.map(a => {
+                const fit = FIT_BADGE[a.fit] ?? FIT_BADGE.none
+                return (
+                  <div key={a.order_id} className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg px-2.5 py-1.5 text-xs" style={{ background: '#0a0a0e', border: a.late ? '1px solid rgba(248,113,113,0.4)' : '1px solid #1a1a1f' }}>
+                    <PrinterIcon size={12} className="shrink-0 text-cyan-400" />
+                    <span className="font-semibold text-white">{a.printer_name}</span>
+                    <span style={{ color: '#52525b' }}>←</span>
+                    <span className="truncate" style={{ color: '#a1a1aa' }}>OP-{String(a.order_number).padStart(4, '0')} {a.name} ({a.quantity}un)</span>
+                    {a.fit !== 'none' && <span className="rounded px-1.5 py-0.5 text-[9px] font-bold" style={{ background: fit.bg, color: fit.color }}>{fit.label}</span>}
+                    <span className="ml-auto flex items-center gap-2">
+                      {a.needs_time ? <span className="text-[10px]" style={{ color: '#fcd34d' }}>sem tempo na versão</span> : (
+                        <span className="text-[10px]" style={{ color: a.late ? '#f87171' : '#71717a' }}>{fmtDateTime(a.start_at)} → {fmtDateTime(a.finish_at)}</span>
+                      )}
+                      <span className="font-bold" style={{ color: '#00E5FF' }}>{a.profit_per_hour != null ? money(a.profit_per_hour) + '/h' : '—'}</span>
+                    </span>
+                    {a.late && <span className="w-full text-[10px] font-semibold" style={{ color: '#f87171' }}>⚠ vai passar do prazo ({fmtDateTime(a.due_at)})</span>}
+                  </div>
+                )
+              })}
+              {data.unscheduled.map(u => (
+                <div key={u.order_id} className="flex flex-wrap items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs" style={{ background: 'rgba(248,113,113,0.06)', border: '1px solid rgba(248,113,113,0.25)' }}>
+                  <AlertTriangle size={12} className="shrink-0" style={{ color: '#f87171' }} />
+                  <span className="truncate" style={{ color: '#a1a1aa' }}>OP-{String(u.order_number).padStart(4, '0')} {u.name} ({u.quantity}un)</span>
+                  <span className="ml-auto text-[10px]" style={{ color: '#f87171' }}>{u.reason}</span>
                 </div>
               ))}
             </div>
