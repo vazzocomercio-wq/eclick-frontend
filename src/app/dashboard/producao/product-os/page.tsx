@@ -139,6 +139,7 @@ interface FactoryOverview {
   printers: { count: number; active: number; total_investment: number; total_paid_back: number; payback_pct: number | null; paid_off: number; total_print_hours: number }
   production: { orders_done: number; orders_active: number; units_produced: number; units_30d: number; total_contribution: number; free_profit: number }
   sales: { revenue_30d: number; realized_profit_30d: number; units_sold_30d: number }
+  material?: { filament_g_total: number; filament_g_30d: number; cost_total: number; cost_30d: number }
   inputs: { low_stock: Array<{ name: string; available: number; unit: string }> }
   top_products: ProfitRow[]
 }
@@ -2131,6 +2132,14 @@ function FactoryPanel({ onGoTo, onOpen }: { onGoTo: (t: 'impressoras' | 'rentabi
         <Kpi label="Ordens concluídas" value={String(pr.orders_done)} accent="#a1a1aa" />
         <Kpi label="Contribuição gerada" value={money(pr.total_contribution)} accent="#a1a1aa" />
       </div>
+
+      {/* material consumido (real, independe de preço de venda) */}
+      {ov.material && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Kpi label="Filamento consumido" value={ov.material.filament_g_total >= 1000 ? `${(ov.material.filament_g_total / 1000).toFixed(2)} kg` : `${ov.material.filament_g_total.toFixed(0)} g`} sub={`${ov.material.filament_g_30d.toFixed(0)} g nos últimos 30d`} accent="#a5f3fc" />
+          <Kpi label="Custo de material" value={money(ov.material.cost_total)} sub={`${money(ov.material.cost_30d)} nos últimos 30d`} accent="#fcd34d" />
+        </div>
+      )}
 
       {/* vendas reais (fecha o ciclo produzi→vendi→lucrei) */}
       <div className="grid gap-3 sm:grid-cols-3">
