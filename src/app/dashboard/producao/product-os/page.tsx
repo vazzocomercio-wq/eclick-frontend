@@ -28,6 +28,7 @@ interface ProductDev {
   target_marketplaces: string[]; target_price: number | null; estimated_cost: number | null
   product_id: string | null; active_deal_id: string | null; position: number; created_at: string
   source_platform?: string | null; license_status?: LicenseStatus
+  mto_enabled?: boolean; mto_mode?: 'suggest' | 'auto'; mto_reorder_point?: number; mto_batch_qty?: number
 }
 interface Filament { index: number; material: string | null; color: string | null; weight_g: number }
 interface Version {
@@ -1170,7 +1171,7 @@ interface CostReality {
   orders: Array<{ order_number: number; is_prototype: boolean; quantity: number; real_time_min: number; material_cost: number; real_unit_cost: number; estimated_unit_cost: number; real_total: number }>
   consumption: Array<{ name: string; unit: string; qty: number; cost: number }>
 }
-type DrawerTab = 'briefing' | 'versoes' | 'pecas' | 'custo' | 'real' | 'bom' | 'qualidade' | 'timeline'
+type DrawerTab = 'briefing' | 'versoes' | 'pecas' | 'custo' | 'real' | 'bom' | 'qualidade' | 'reposicao' | 'timeline'
 function DetailDrawer({ id, onClose, onChanged }: { id: string; onClose: () => void; onChanged: () => void }) {
   const [dev, setDev] = useState<DevDetail | null>(null)
   const [err, setErr] = useState(''); const [msg, setMsg] = useState('')
@@ -1241,7 +1242,7 @@ function DetailDrawer({ id, onClose, onChanged }: { id: string; onClose: () => v
             {msg && <div className="mb-3 rounded-lg p-2.5 text-xs" style={{ background: 'rgba(74,222,128,0.10)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)' }}>{msg}</div>}
 
             <div className="mb-4 flex flex-wrap gap-1 rounded-lg p-1" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
-              {([['briefing', 'Briefing', <Sparkles key="a" size={11} />], ['versoes', 'Versões', <FileBox key="b" size={11} />], ['pecas', 'Peças', <Boxes key="p" size={11} />], ['custo', 'Custo', <DollarSign key="c" size={11} />], ['real', 'Custo real', <Gauge key="g" size={11} />], ['bom', 'BOM', <ListChecks key="d" size={11} />], ['qualidade', 'Qualidade', <ClipboardList key="e" size={11} />], ['timeline', 'Timeline', <History key="f" size={11} />]] as const).map(([k, lbl, ic]) => (
+              {([['briefing', 'Briefing', <Sparkles key="a" size={11} />], ['versoes', 'Versões', <FileBox key="b" size={11} />], ['pecas', 'Peças', <Boxes key="p" size={11} />], ['custo', 'Custo', <DollarSign key="c" size={11} />], ['real', 'Custo real', <Gauge key="g" size={11} />], ['bom', 'BOM', <ListChecks key="d" size={11} />], ['qualidade', 'Qualidade', <ClipboardList key="e" size={11} />], ['reposicao', 'Reposição', <RefreshCw key="r" size={11} />], ['timeline', 'Timeline', <History key="f" size={11} />]] as const).map(([k, lbl, ic]) => (
                 <button key={k} onClick={() => setTab(k)} className="flex items-center justify-center gap-1 rounded px-2 py-1.5 text-[11px] font-semibold" style={{ background: tab === k ? 'rgba(0,229,255,0.12)' : 'transparent', color: tab === k ? '#00E5FF' : '#71717a' }}>{ic}{lbl}</button>
               ))}
             </div>
@@ -1253,6 +1254,7 @@ function DetailDrawer({ id, onClose, onChanged }: { id: string; onClose: () => v
             {tab === 'real' && <CostRealityTab devId={dev.id} />}
             {tab === 'bom' && <BomTab devId={dev.id} />}
             {tab === 'qualidade' && <QualityTab devId={dev.id} />}
+            {tab === 'reposicao' && <RestockTab dev={dev} onChanged={() => { void reload(); onChanged() }} />}
             {tab === 'timeline' && <TimelineTab devId={dev.id} />}
           </>
         )}
@@ -2148,6 +2150,7 @@ function FactoryPanel({ onGoTo, onOpen }: { onGoTo: (t: 'impressoras' | 'rentabi
         <Kpi label="Unidades vendidas (30d)" value={String(ov.sales.units_sold_30d)} accent="#a1a1aa" />
       </div>
 
+      <MakeToOrderCard onOpen={onOpen} />
       <ProductionPlanCard onOpen={onOpen} />
       <SchedulerCard />
       <ReliabilityCard />
@@ -2234,6 +2237,141 @@ function ProductionPlanCard({ onOpen }: { onOpen: (id: string) => void }) {
           )}
         </>
       )}
+    </div>
+  )
+}
+
+function RestockTab({ dev, onChanged }: { dev: DevDetail; onChanged: () => void }) {
+  const [enabled, setEnabled] = useState(!!dev.mto_enabled)
+  const [mode, setMode] = useState<'suggest' | 'auto'>(dev.mto_mode === 'auto' ? 'auto' : 'suggest')
+  const [point, setPoint] = useState(String(dev.mto_reorder_point ?? 0))
+  const [batch, setBatch] = useState(String(dev.mto_batch_qty ?? 0))
+  const [saving, setSaving] = useState(false); const [msg, setMsg] = useState('')
+  const save = async () => {
+    setSaving(true); setMsg('')
+    try {
+      await api(`/product-os/${dev.id}/make-to-order`, { method: 'PATCH', body: JSON.stringify({
+        mto_enabled: enabled, mto_mode: mode, mto_reorder_point: Number(point) || 0, mto_batch_qty: Number(batch) || 0,
+      }) })
+      setMsg('Configuração salva.'); onChanged()
+    } catch (e) { setMsg(e instanceof Error ? e.message : 'Erro') } finally { setSaving(false) }
+  }
+  return (
+    <div className="space-y-4">
+      <p className="text-xs" style={{ color: '#a1a1aa' }}>
+        Quando um pedido (Mercado Livre, Shopee, TikTok ou loja própria) baixa o estoque deste produto a/abaixo do ponto de reposição, o sistema repõe a produção sozinho — sugerindo, ou criando a ordem direto no modo automático. Fecha o loop <span className="text-white">vendi → produzi → repus</span>.
+      </p>
+      {!dev.product_id && (
+        <div className="flex items-start gap-2 rounded-lg p-2.5 text-[11px]" style={{ background: 'rgba(252,211,77,0.10)', color: '#fcd34d', border: '1px solid rgba(252,211,77,0.3)' }}>
+          <AlertTriangle size={13} className="mt-0.5 shrink-0" />
+          <span>Este produto ainda não tem SKU/estoque (não foi publicado no catálogo). A reposição só dispara depois que ele virar anúncio e passar a ter estoque vendável.</span>
+        </div>
+      )}
+
+      <label className="flex items-center gap-2.5 text-sm text-white">
+        <button type="button" onClick={() => setEnabled(v => !v)} className="relative h-5 w-9 rounded-full transition-colors" style={{ background: enabled ? '#00E5FF' : '#3f3f46' }}>
+          <span className="absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all" style={{ left: enabled ? '18px' : '2px' }} />
+        </button>
+        Reposição automática {enabled ? 'ligada' : 'desligada'}
+      </label>
+
+      <div className={enabled ? '' : 'pointer-events-none opacity-40'}>
+        <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#71717a' }}>Modo</p>
+        <div className="mb-4 flex gap-1 rounded-lg p-1" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
+          {([['suggest', 'Sugerir', 'só sugere — você confirma'], ['auto', 'Automático', 'cria a ordem sozinho']] as const).map(([k, lbl, hint]) => (
+            <button key={k} type="button" onClick={() => setMode(k)} className="flex-1 rounded px-2 py-1.5 text-left" style={{ background: mode === k ? 'rgba(0,229,255,0.12)' : 'transparent', border: mode === k ? '1px solid rgba(0,229,255,0.35)' : '1px solid transparent' }}>
+              <span className="block text-[11px] font-bold" style={{ color: mode === k ? '#00E5FF' : '#a1a1aa' }}>{lbl}</span>
+              <span className="block text-[9px]" style={{ color: '#52525b' }}>{hint}</span>
+            </button>
+          ))}
+        </div>
+        {mode === 'auto' && (
+          <div className="mb-4 flex items-start gap-2 rounded-lg p-2.5 text-[11px]" style={{ background: 'rgba(252,211,77,0.10)', color: '#fcd34d', border: '1px solid rgba(252,211,77,0.3)' }}>
+            <AlertTriangle size={13} className="mt-0.5 shrink-0" />
+            <span>No automático a ordem é criada e RESERVA filamento sem confirmação. Use só em produtos com demanda estável.</span>
+          </div>
+        )}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#71717a' }}>Ponto de reposição</label>
+            <input type="number" min={0} value={point} onChange={e => setPoint(e.target.value)} className="w-full rounded-lg px-2.5 py-1.5 text-sm text-white" style={{ background: '#0a0a0e', border: '1px solid #27272a' }} />
+            <p className="mt-1 text-[9px]" style={{ color: '#52525b' }}>dispara quando o estoque chega a este nível</p>
+          </div>
+          <div>
+            <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#71717a' }}>Produzir por vez</label>
+            <input type="number" min={1} value={batch} onChange={e => setBatch(e.target.value)} className="w-full rounded-lg px-2.5 py-1.5 text-sm text-white" style={{ background: '#0a0a0e', border: '1px solid #27272a' }} />
+            <p className="mt-1 text-[9px]" style={{ color: '#52525b' }}>quantas unidades a ordem vai produzir</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-3">
+        <button onClick={() => void save()} disabled={saving} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold disabled:opacity-50" style={{ background: '#00E5FF', color: '#0a0a0e' }}>
+          {saving ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />} Salvar
+        </button>
+        {msg && <span className="text-[11px]" style={{ color: msg === 'Configuração salva.' ? '#4ade80' : '#f87171' }}>{msg}</span>}
+      </div>
+    </div>
+  )
+}
+
+interface Suggestion {
+  id: string; product_dev_id: string; product_id: string | null; product_name: string | null; product_code: string | null
+  reason: string | null; available_at_trigger: number | null; reorder_point: number | null; suggested_qty: number
+  mode: string; status: string; source: string; production_order_id: string | null; created_at: string
+}
+function MakeToOrderCard({ onOpen }: { onOpen: (id: string) => void }) {
+  const [list, setList] = useState<Suggestion[] | null>(null); const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState<string>(''); const [msg, setMsg] = useState('')
+  const load = useCallback(async () => { setLoading(true); try { setList(await api<Suggestion[]>('/product-os/make-to-order/suggestions?status=pending')) } catch { setList([]) } finally { setLoading(false) } }, [])
+  useEffect(() => { void load() }, [load])
+  const reconcile = async () => {
+    setBusy('reconcile'); setMsg('')
+    try { const r = await api<{ evaluated: number; suggested: unknown[]; auto_created: unknown[] }>('/product-os/make-to-order/reconcile', { method: 'POST' }); setMsg(`Verificados ${r.evaluated} produto(s) · ${r.suggested.length} nova(s) sugestão(ões) · ${r.auto_created.length} OP(s) automática(s).`); await load() }
+    catch (e) { setMsg(e instanceof Error ? e.message : 'Erro') } finally { setBusy('') }
+  }
+  const accept = async (s: Suggestion) => {
+    setBusy(s.id); setMsg('')
+    try { const r = await api<{ production_order_id: string }>(`/product-os/make-to-order/suggestions/${s.id}/accept`, { method: 'POST', body: JSON.stringify({ quantity: s.suggested_qty }) }); setMsg(`Ordem de produção criada (${s.suggested_qty} un.).`); void r; await load() }
+    catch (e) { setMsg(e instanceof Error ? e.message : 'Erro') } finally { setBusy('') }
+  }
+  const dismiss = async (s: Suggestion) => {
+    setBusy(s.id); setMsg('')
+    try { await api(`/product-os/make-to-order/suggestions/${s.id}/dismiss`, { method: 'POST' }); await load() }
+    catch (e) { setMsg(e instanceof Error ? e.message : 'Erro') } finally { setBusy('') }
+  }
+  return (
+    <div className="rounded-xl p-4" style={{ background: '#111114', border: '1px solid #27272a' }}>
+      <div className="mb-2 flex items-center gap-2">
+        <RefreshCw size={14} className="text-cyan-400" />
+        <span className="text-xs font-bold text-white">Reposição da produção — pedidos baixaram o estoque</span>
+        <button onClick={() => void reconcile()} disabled={busy === 'reconcile'} className="ml-auto flex items-center gap-1 rounded px-2 py-1 text-[10px] font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.35)' }}>
+          {busy === 'reconcile' ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />} Verificar agora
+        </button>
+      </div>
+      {loading ? <div className="flex items-center gap-2 text-xs" style={{ color: '#71717a' }}><Loader2 size={12} className="animate-spin" /> Carregando…</div> : !list || list.length === 0 ? (
+        <p className="text-xs" style={{ color: '#52525b' }}>Nenhuma reposição pendente. Ligue a reposição automática em cada produto (aba Reposição) — quando o estoque cair, ele aparece aqui.</p>
+      ) : (
+        <div className="space-y-1.5">
+          {list.map(s => (
+            <div key={s.id} className="flex flex-wrap items-center gap-2 rounded-lg px-2.5 py-2 text-xs" style={{ background: '#0a0a0e', border: '1px solid #1a1a1f' }}>
+              <Package size={12} className="text-cyan-400 shrink-0" />
+              <button onClick={() => onOpen(s.product_dev_id)} className="font-semibold text-white hover:underline">{s.product_name ?? s.product_code ?? 'Produto'}</button>
+              {s.product_code && <span className="font-mono text-[10px]" style={{ color: '#52525b' }}>{s.product_code}</span>}
+              <span className="truncate" style={{ color: '#a1a1aa' }}>{s.reason}</span>
+              <div className="ml-auto flex items-center gap-1.5">
+                <button onClick={() => void accept(s)} disabled={!!busy} className="flex items-center gap-1 rounded px-2 py-1 text-[10px] font-bold disabled:opacity-50" style={{ background: 'rgba(74,222,128,0.12)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.35)' }}>
+                  {busy === s.id ? <Loader2 size={10} className="animate-spin" /> : <Check size={10} />} Criar OP ({s.suggested_qty})
+                </button>
+                <button onClick={() => void dismiss(s)} disabled={!!busy} className="flex items-center gap-1 rounded px-2 py-1 text-[10px] font-semibold disabled:opacity-50" style={{ background: 'transparent', color: '#71717a', border: '1px solid #27272a' }}>
+                  <Ban size={10} /> Dispensar
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {msg && <p className="mt-2 text-[10px]" style={{ color: '#a5f3fc' }}>{msg}</p>}
     </div>
   )
 }
