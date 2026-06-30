@@ -1334,12 +1334,13 @@ function GenerateImageModal({ dev, onClose, onSaved }: { dev: { id: string; name
     for (const r of dev.reference_images ?? []) if (r.url && !out.includes(r.url)) out.push(r.url)
     return out
   }, [dev])
-  const [useRef, setUseRef] = useState(true); const [refUrl, setRefUrl] = useState<string>('')
-  useEffect(() => { setRefUrl(candidates[0] ?? ''); setUseRef(candidates.length > 0) }, [candidates])
+  const [useRef, setUseRef] = useState(true); const [refUrls, setRefUrls] = useState<string[]>([])
+  useEffect(() => { setRefUrls(candidates.slice(0, 1)); setUseRef(candidates.length > 0) }, [candidates])
+  const toggleRef = (u: string) => setRefUrls(prev => prev.includes(u) ? prev.filter(x => x !== u) : (prev.length >= 4 ? prev : [...prev, u]))
   useEffect(() => { void (async () => { try { setPalettes(await api<Palette[]>('/product-os/palettes')) } catch { /* */ } })() }, [])
   const gen = async () => {
     setBusy(true); setErr(''); setResult(null); setSavedMsg('')
-    try { const r = await api<{ url: string; palette: string | null; colors: Array<{ hex: string }>; provider: string; used_reference?: boolean }>(`/product-os/${dev.id}/generate-image`, { method: 'POST', body: JSON.stringify({ palette_id: paletteId || undefined, extra: extra.trim() || undefined, use_reference: useRef && !!refUrl, reference_url: useRef && refUrl ? refUrl : undefined }) }); setResult(r) }
+    try { const r = await api<{ url: string; palette: string | null; colors: Array<{ hex: string }>; provider: string; used_reference?: boolean }>(`/product-os/${dev.id}/generate-image`, { method: 'POST', body: JSON.stringify({ palette_id: paletteId || undefined, extra: extra.trim() || undefined, use_reference: useRef && refUrls.length > 0, reference_urls: useRef && refUrls.length ? refUrls : undefined }) }); setResult(r) }
     catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setBusy(false) }
   }
   const saveRef = async () => {
@@ -1366,20 +1367,24 @@ function GenerateImageModal({ dev, onClose, onSaved }: { dev: { id: string; name
           <div className="mb-3">
             <label className="mb-1 flex items-center gap-2 text-[11px] text-white">
               <button type="button" onClick={() => setUseRef(v => !v)} className="relative h-4 w-7 rounded-full transition-colors" style={{ background: useRef ? '#00E5FF' : '#3f3f46' }}><span className="absolute top-0.5 h-3 w-3 rounded-full bg-white transition-all" style={{ left: useRef ? '14px' : '2px' }} /></button>
-              Usar foto do produto como referência <span style={{ color: '#52525b' }}>(mais fiel — inclui imagens do MakerWorld)</span>
+              Usar fotos do produto como referência <span style={{ color: '#52525b' }}>(mais fiel — inclui imagens do MakerWorld)</span>
             </label>
             {useRef && (
-              <div className="flex flex-wrap gap-1.5">
-                {candidates.map(u => (
-                  <button key={u} onClick={() => setRefUrl(u)} className="h-12 w-12 overflow-hidden rounded-lg" style={{ border: refUrl === u ? '2px solid #00E5FF' : '1px solid #27272a' }}>
-                    <img src={u} alt="ref" className="h-full w-full object-cover" />
-                  </button>
-                ))}
-              </div>
+              <>
+                <p className="mb-1 text-[10px]" style={{ color: '#52525b' }}>Selecione 1 a 4 ângulos do MESMO produto ({refUrls.length} selecionada{refUrls.length === 1 ? '' : 's'}).</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {candidates.map(u => (
+                    <button key={u} onClick={() => toggleRef(u)} className="relative h-12 w-12 overflow-hidden rounded-lg" style={{ border: refUrls.includes(u) ? '2px solid #00E5FF' : '1px solid #27272a' }}>
+                      <img src={u} alt="ref" className="h-full w-full object-cover" />
+                      {refUrls.includes(u) && <span className="absolute right-0 top-0 flex h-4 w-4 items-center justify-center rounded-bl text-[9px] font-bold" style={{ background: '#00E5FF', color: '#0a0a0e' }}>✓</span>}
+                    </button>
+                  ))}
+                </div>
+              </>
             )}
           </div>
         )}
-        <button onClick={() => void gen()} disabled={busy} className="flex w-full items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold disabled:opacity-50" style={{ background: '#00E5FF', color: '#0a0a0e' }}>{busy ? <><Loader2 size={13} className="animate-spin" /> Gerando… (~10s)</> : <><Sparkles size={13} /> {useRef && refUrl ? 'Gerar a partir da referência' : 'Gerar imagem'}</>}</button>
+        <button onClick={() => void gen()} disabled={busy} className="flex w-full items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold disabled:opacity-50" style={{ background: '#00E5FF', color: '#0a0a0e' }}>{busy ? <><Loader2 size={13} className="animate-spin" /> Gerando… (~10s)</> : <><Sparkles size={13} /> {useRef && refUrls.length ? `Gerar a partir de ${refUrls.length} foto${refUrls.length > 1 ? 's' : ''}` : 'Gerar imagem'}</>}</button>
         {err && <p className="mt-2 text-[11px]" style={{ color: '#f87171' }}>{err}</p>}
         {result && (
           <div className="mt-3">
