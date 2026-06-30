@@ -746,8 +746,10 @@ function NewOrderModal({ approved, onClose, onCreated }: { approved: ProductDev[
   const [busy, setBusy] = useState(false); const [err, setErr] = useState('')
   const [preview, setPreview] = useState<ConsumePreview | null>(null); const [prevLoading, setPrevLoading] = useState(false)
   const [parts, setParts] = useState<Part[]>([])
+  const [variants, setVariants] = useState<SkuData['variants']>([]); const [skuVariantId, setSkuVariantId] = useState('')
   useEffect(() => { void (async () => { try { setPrinters(await api<Printer[]>('/product-os/printers')) } catch { /* */ } })() }, [])
   useEffect(() => { setParts([]); if (!devId) return; void (async () => { try { setParts(await api<Part[]>(`/product-os/parts?product_dev_id=${devId}`)) } catch { /* */ } })() }, [devId])
+  useEffect(() => { setVariants([]); setSkuVariantId(''); if (!devId) return; void (async () => { try { const s = await api<SkuData>(`/product-os/${devId}/sku`); setVariants(s.variants ?? []) } catch { /* */ } })() }, [devId])
   const hasParts = parts.length > 0
   useEffect(() => {
     const n = Number(qty) || 0
@@ -764,7 +766,7 @@ function NewOrderModal({ approved, onClose, onCreated }: { approved: ProductDev[
     if (!devId) { setErr('Selecione um produto aprovado'); return }
     if (hasParts) { setErr('Este produto é feito de peças — imprima cada peça pela aba Peças (Imprimir esta peça).'); return }
     setBusy(true); setErr('')
-    try { await api('/product-os/production-orders', { method: 'POST', body: JSON.stringify({ product_dev_id: devId, quantity: Number(qty) || 1, printer_id: printerId || undefined, machine: printers.find(p => p.id === printerId)?.name || undefined, loaded_input_id: loadedInputId || undefined }) }); onCreated() }
+    try { await api('/product-os/production-orders', { method: 'POST', body: JSON.stringify({ product_dev_id: devId, quantity: Number(qty) || 1, printer_id: printerId || undefined, machine: printers.find(p => p.id === printerId)?.name || undefined, loaded_input_id: loadedInputId || undefined, sku_variant_id: skuVariantId || undefined }) }); onCreated() }
     catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setBusy(false) }
   }
   return (
@@ -778,6 +780,14 @@ function NewOrderModal({ approved, onClose, onCreated }: { approved: ProductDev[
             </select>
           </label>
           {(() => { const sel = approved.find(p => p.id === devId); const isProto = !!sel && !sel.product_id; return <p className="text-[10px]" style={{ color: isProto ? '#c4b5fd' : '#4ade80' }}>{isProto ? '🧪 Protótipo — consome insumo, NÃO vira estoque de venda.' : '📦 Produção — consome insumo e entra no estoque do produto cadastrado.'}</p> })()}
+          {variants.length > 0 && (
+            <label className="block"><span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#71717a' }}>Cor a produzir (estoque por cor)</span>
+              <select value={skuVariantId} onChange={e => setSkuVariantId(e.target.value)} className="w-full rounded-lg px-2.5 py-1.5 text-xs outline-none" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }}>
+                <option value="">— produto inteiro (estoque geral) —</option>
+                {variants.map(v => <option key={v.id} value={v.id}>{v.cor?.label ?? 'Cor'} · {v.sku}</option>)}
+              </select>
+            </label>
+          )}
           {hasParts && (
             <div className="rounded-lg p-2.5 text-[11px]" style={{ background: 'rgba(252,211,77,0.10)', color: '#fcd34d', border: '1px solid rgba(252,211,77,0.25)' }}>
               🧩 Este produto é feito de <b>{parts.length} peça(s)</b> ({parts.map(p => p.name).join(', ')}). A ordem do produto inteiro <b>não se aplica</b> aqui — abra o produto, vá na aba <b>Peças</b> e use <b>“Imprimir esta peça”</b> em cada uma; depois <b>“Montar o produto”</b>.
@@ -1405,12 +1415,22 @@ function GenerateImageModal({ dev, onClose, onSaved }: { dev: { id: string; name
     </div>
   )
 }
-function PublishModal({ devId, devName, onClose, onDone }: { devId: string; devName: string; onClose: () => void; onDone: (msg: string) => void }) {
+function PublishModal({ dev, onClose, onDone }: { dev: DevDetail; onClose: () => void; onDone: (msg: string) => void }) {
+  const devId = dev.id, devName = dev.name
   const [sku, setSku] = useState<SkuData | null>(null)
   const [mode, setMode] = useState<'single' | 'variable'>('single')
   const [qty, setQty] = useState('0')
   const [rows, setRows] = useState<Record<string, { price: string; stock: string }>>({})
   const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [loading, setLoading] = useState(true)
+  // fotos do anúncio: protótipo + reference_images (inclui as IMAGENS GERADAS pela IA e MakerWorld). 1ª = capa.
+  const photos = useMemo(() => {
+    const out: string[] = []
+    for (const v of dev.versions ?? []) for (const u of v.prototype_photo_urls ?? []) if (u && !out.includes(u)) out.push(u)
+    for (const r of dev.reference_images ?? []) if (r.url && !out.includes(r.url)) out.push(r.url)
+    return out
+  }, [dev])
+  const [cover, setCover] = useState('')
+  useEffect(() => { setCover(photos[0] ?? '') }, [photos])
   useEffect(() => { void (async () => {
     try {
       const d = await api<SkuData>(`/product-os/${devId}/sku`); setSku(d)
@@ -1420,12 +1440,14 @@ function PublishModal({ devId, devName, onClose, onDone }: { devId: string; devN
   })() }, [devId])
   const variants = sku?.variants ?? []
   const setRow = (id: string, field: 'price' | 'stock', val: string) => setRows(r => ({ ...r, [id]: { ...(r[id] ?? { price: '', stock: '0' }), [field]: val } }))
+  const orderedPhotos = cover ? [cover, ...photos.filter(p => p !== cover)] : photos
   const publish = async () => {
     setBusy(true); setErr('')
     try {
+      const base = orderedPhotos.length ? { photo_urls: orderedPhotos } : {}
       const body = mode === 'variable'
-        ? { variation_mode: 'variable' as const, variants: variants.map(v => ({ id: v.id, price: rows[v.id]?.price ? Number(rows[v.id].price.replace(',', '.')) : null, stock: Number(rows[v.id]?.stock || 0) })) }
-        : { variation_mode: 'single' as const, produced_quantity: Number(qty) || 0 }
+        ? { ...base, variation_mode: 'variable' as const, variants: variants.map(v => ({ id: v.id, price: rows[v.id]?.price ? Number(rows[v.id].price.replace(',', '.')) : null, stock: Number(rows[v.id]?.stock || 0) })) }
+        : { ...base, variation_mode: 'single' as const, produced_quantity: Number(qty) || 0 }
       const r = await api<{ product_id: string; sku: string | null; mode: string; variants: number }>(`/product-os/${devId}/publish-to-catalog`, { method: 'POST', body: JSON.stringify(body) })
       onDone(`Publicado no catálogo (${r.mode === 'variable' ? `${r.variants} cores` : 'produto único'}${r.sku ? `, SKU ${r.sku}` : ''}). Pronto para enviar às plataformas / loja.`)
     } catch (e) { setErr(e instanceof Error ? e.message : 'Erro'); setBusy(false) }
@@ -1473,7 +1495,20 @@ function PublishModal({ devId, devName, onClose, onDone }: { devId: string; devN
               </div>
             )}
 
-            <p className="mt-3 text-[10px] leading-relaxed" style={{ color: '#71717a' }}>O produto entra no catálogo com <span className="text-white">SKU e EAN</span> já preenchidos, pronto para a IA Criativo publicar no ML/Shopee/TikTok e para a loja. {mode === 'variable' ? 'Cada cor vira uma variação (modelo do catálogo/ML).' : ''}</p>
+            {photos.length > 0 && (
+              <div className="mt-3">
+                <p className="mb-1 text-[10px] font-semibold uppercase" style={{ color: '#71717a' }}>Fotos do anúncio · clique para definir a capa ({photos.length})</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {orderedPhotos.map((u, i) => (
+                    <button key={u} onClick={() => setCover(u)} className="relative h-14 w-14 overflow-hidden rounded-lg" style={{ border: i === 0 ? '2px solid #4ade80' : '1px solid #27272a' }}>
+                      <img src={u} alt="foto" className="h-full w-full object-cover" />
+                      {i === 0 && <span className="absolute bottom-0 left-0 right-0 text-center text-[8px] font-bold" style={{ background: 'rgba(74,222,128,0.85)', color: '#0a0a0e' }}>capa</span>}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            <p className="mt-3 text-[10px] leading-relaxed" style={{ color: '#71717a' }}>O produto entra no catálogo com <span className="text-white">SKU e EAN</span> já preenchidos{photos.length ? ' e as fotos escolhidas' : ''}, pronto para a IA Criativo publicar no ML/Shopee/TikTok e para a loja. {mode === 'variable' ? 'Cada cor vira uma variação (modelo do catálogo/ML).' : ''}</p>
             {err && <p className="mt-2 text-[11px]" style={{ color: '#f87171' }}>{err}</p>}
             <div className="mt-4 flex justify-end gap-2">
               <button onClick={onClose} className="rounded-lg px-3 py-1.5 text-xs font-semibold" style={{ background: '#111114', color: '#a1a1aa', border: '1px solid #27272a' }}>Cancelar</button>
@@ -1538,7 +1573,7 @@ function DetailDrawer({ id, onClose, onChanged }: { id: string; onClose: () => v
               <button onClick={() => setShowImage(true)} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold" style={{ background: '#111114', border: '1px solid #27272a', color: '#c084fc' }}><Palette size={12} /> Gerar imagem</button>
               <button onClick={() => setShowPublish(true)} disabled={busy !== null || !!dev.product_id || dev.status !== 'aprovado' || (dev.license_status?.blocked ?? false)} title={dev.license_status?.blocked ? 'Licença bloqueia a publicação — libere em "Licença & origem"' : dev.status !== 'aprovado' ? 'Aprove uma versão primeiro' : ''} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold disabled:opacity-40" style={{ background: 'rgba(74,222,128,0.10)', border: '1px solid rgba(74,222,128,0.3)', color: '#4ade80' }}>{<Rocket size={12} />} {dev.product_id ? 'No catálogo ✓' : 'Virar anúncio'}</button>
             </div>
-            {showPublish && <PublishModal devId={id} devName={dev.name} onClose={() => setShowPublish(false)} onDone={m => { setShowPublish(false); setMsg(m); void reload(); onChanged() }} />}
+            {showPublish && <PublishModal dev={dev} onClose={() => setShowPublish(false)} onDone={m => { setShowPublish(false); setMsg(m); void reload(); onChanged() }} />}
             {showImage && <GenerateImageModal dev={dev} onClose={() => setShowImage(false)} onSaved={() => { void reload(); onChanged() }} />}
 
             {dev.license_status && <LicenseOriginBlock st={dev.license_status} onClear={c => void setClearance(c)} busy={busy === 'license'} />}
