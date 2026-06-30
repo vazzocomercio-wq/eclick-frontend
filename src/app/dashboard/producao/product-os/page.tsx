@@ -2274,7 +2274,8 @@ interface TaxOption { id: string; kind: string; code: string; label: string; par
 interface SkuData {
   classification: { marca: TaxOption | null; categoria: TaxOption | null; sub: TaxOption | null; linha: TaxOption | null; caracteristica: TaxOption | null }
   base: string | null
-  variants: Array<{ id: string; sku: string; product_id: string | null; cor: { id: string; code: string; label: string } | null }>
+  ean?: string | null
+  variants: Array<{ id: string; sku: string; ean?: string | null; product_id: string | null; cor: { id: string; code: string; label: string } | null }>
 }
 function SegmentPicker({ label, kind, parentId, value, onChange, suggestLabel, alphaCode }: {
   label: string; kind: string; parentId: string | null; value: TaxOption | null
@@ -2374,6 +2375,13 @@ function SkuTab({ dev }: { dev: DevDetail }) {
     catch (e) { setMsg(e instanceof Error ? e.message : 'Erro') } finally { setSaving(false) }
   }
   const corCode = (id: string) => cores.find(c => c.id === id)?.code ?? '??'
+  const copy = (t: string) => { try { void navigator.clipboard.writeText(t) } catch { /* */ } }
+  const genEan = async () => {
+    setSaving(true); setMsg('')
+    try { const d = await api<SkuData>(`/product-os/${dev.id}/sku/generate-ean`, { method: 'POST', body: JSON.stringify({}) }); setData(d); setSelCor(d.variants.map(v => v.cor?.id).filter(Boolean) as string[]); setMsg('EAN gerado.') }
+    catch (e) { setMsg(e instanceof Error ? e.message : 'Erro') } finally { setSaving(false) }
+  }
+  const missingEan = !!data && (data.variants.length ? data.variants.some(v => !v.ean) : !data.ean)
 
   if (loading) return <div className="flex items-center gap-2 p-4 text-sm" style={{ color: '#71717a' }}><Loader2 size={14} className="animate-spin" /> Carregando…</div>
   return (
@@ -2426,15 +2434,40 @@ function SkuTab({ dev }: { dev: DevDetail }) {
         {data && data.variants.length > 0 && (
           <div className="mt-2 space-y-1">
             {data.variants.map(v => (
-              <div key={v.id} className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs" style={{ background: '#0a0a0e', border: '1px solid #1a1a1f' }}>
-                <Barcode size={12} className="text-cyan-400" />
+              <div key={v.id} className="flex flex-wrap items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs" style={{ background: '#0a0a0e', border: '1px solid #1a1a1f' }}>
+                <Barcode size={12} className="shrink-0 text-cyan-400" />
                 <span className="font-mono font-bold text-white">{v.sku}</span>
                 <span style={{ color: '#71717a' }}>{v.cor?.label}</span>
-                {v.product_id && <span className="ml-auto rounded px-1.5 py-0.5 text-[9px] font-bold" style={{ background: 'rgba(74,222,128,0.12)', color: '#4ade80' }}>publicado</span>}
+                {v.ean ? (
+                  <button onClick={() => copy(v.ean!)} title="copiar EAN" className="ml-auto flex items-center gap-1 rounded px-1.5 py-0.5 font-mono text-[10px] font-bold" style={{ background: '#111114', color: '#a5f3fc', border: '1px solid #27272a' }}>EAN {v.ean}</button>
+                ) : <span className="ml-auto text-[10px]" style={{ color: '#52525b' }}>sem EAN</span>}
+                {v.product_id && <span className="rounded px-1.5 py-0.5 text-[9px] font-bold" style={{ background: 'rgba(74,222,128,0.12)', color: '#4ade80' }}>publicado</span>}
               </div>
             ))}
           </div>
         )}
+      </div>
+
+      {/* EAN interno (1 clique) */}
+      <div className="rounded-xl p-3" style={{ background: '#111114', border: '1px solid #27272a' }}>
+        <div className="mb-1.5 flex items-center gap-2">
+          <Barcode size={14} className="text-cyan-400" />
+          <span className="text-xs font-bold text-white">Código de barras (EAN-13)</span>
+          {data && (
+            <button onClick={() => void genEan()} disabled={saving} className="ml-auto flex items-center gap-1 rounded px-2 py-1 text-[10px] font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.35)' }}>
+              {saving ? <Loader2 size={10} className="animate-spin" /> : <Barcode size={10} />} {missingEan ? 'Gerar EAN com 1 clique' : 'Gerar faltantes'}
+            </button>
+          )}
+        </div>
+        {data && data.variants.length === 0 && (
+          <div className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs" style={{ background: '#0a0a0e', border: '1px solid #1a1a1f' }}>
+            <span style={{ color: '#71717a' }}>EAN do produto:</span>
+            {data.ean ? <button onClick={() => copy(data.ean!)} title="copiar" className="font-mono font-bold" style={{ color: '#a5f3fc' }}>{data.ean}</button> : <span style={{ color: '#52525b' }}>ainda não gerado</span>}
+          </div>
+        )}
+        <p className="mt-2 text-[10px] leading-relaxed" style={{ color: '#71717a' }}>
+          EAN-13 válido de <span className="text-white">uso interno</span> (prefixo 2, faixa restrita do GS1 — não colide com nenhum produto no mundo). Serve como código de barras na <span className="text-white">Shopee, TikTok, loja própria e no estoque/expedição</span>. ⚠️ No <span className="text-white">Mercado Livre</span>, para produto próprio sem GTIN oficial, marque “não possui código universal” e use este como SKU do vendedor — não como GTIN oficial (o ML valida GTIN contra a GS1).
+        </p>
       </div>
       {msg && <p className="text-[11px]" style={{ color: msg.includes('Erro') ? '#f87171' : '#4ade80' }}>{msg}</p>}
     </div>
