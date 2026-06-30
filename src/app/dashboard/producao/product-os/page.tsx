@@ -1206,12 +1206,14 @@ function palettePrompt(p: Palette): string {
   const cores = p.colors.map(c => `${c.label ? c.label + ' ' : ''}${c.hex}`).join(', ')
   return `Use exatamente esta paleta de cores na imagem do produto: ${cores}. Fundo e iluminação que valorizem essas cores; produto impresso em 3D, fotografia de catálogo limpa.`
 }
-function PaletteEditor({ initial, cats, onSave, onCancel, saving }: { initial: Partial<Palette>; cats: TaxOption[]; onSave: (b: { name: string; category_id: string | null; colors: Array<{ hex: string; label: string }> }) => void; onCancel: () => void; saving: boolean }) {
+function PaletteEditor({ initial, cats, filaments, onSave, onCancel, saving }: { initial: Partial<Palette>; cats: TaxOption[]; filaments: Input[]; onSave: (b: { name: string; category_id: string | null; colors: Array<{ hex: string; label: string; input_id?: string }> }) => void; onCancel: () => void; saving: boolean }) {
   const [name, setName] = useState(initial.name ?? '')
   const [catId, setCatId] = useState(initial.category_id ?? '')
-  const [colors, setColors] = useState<Array<{ hex: string; label: string }>>((initial.colors ?? []).map(c => ({ hex: c.hex, label: c.label ?? '' })))
+  const [colors, setColors] = useState<Array<{ hex: string; label: string; input_id?: string }>>((initial.colors ?? []).map(c => ({ hex: c.hex, label: c.label ?? '' })))
   const [nh, setNh] = useState('#888888'); const [nl, setNl] = useState('')
   const addColor = () => { if (!/^#[0-9a-fA-F]{6}$/.test(nh)) return; setColors(c => [...c, { hex: nh.toLowerCase(), label: nl.trim() }]); setNl('') }
+  const addFilament = (f: Input) => { if (!f.color_hex) return; setColors(c => c.some(x => x.input_id === f.id) ? c : [...c, { hex: f.color_hex!.toLowerCase(), label: f.color || f.name, input_id: f.id }]) }
+  const fil = filaments.filter(f => f.color_hex && /^#[0-9a-f]{6}$/i.test(f.color_hex))
   return (
     <div className="rounded-xl p-3 mb-3" style={{ background: '#111114', border: '1px solid #27272a' }}>
       <div className="grid gap-2 sm:grid-cols-2">
@@ -1229,6 +1231,16 @@ function PaletteEditor({ initial, cats, onSave, onCancel, saving }: { initial: P
           </span>
         ))}
       </div>
+      {fil.length > 0 && (
+        <div className="mt-2">
+          <p className="mb-1 text-[9px] font-semibold uppercase tracking-wide" style={{ color: '#71717a' }}>Pegar da cartela de filamentos ({fil.length})</p>
+          <div className="flex flex-wrap gap-1" style={{ maxHeight: 76, overflowY: 'auto' }}>
+            {fil.map(f => (
+              <button key={f.id} onClick={() => addFilament(f)} title={`${f.color || f.name} ${f.color_hex}`} className="h-6 w-6 rounded-full" style={{ background: f.color_hex!, border: colors.some(c => c.input_id === f.id) ? '2px solid #00E5FF' : '1px solid #3f3f46' }} />
+            ))}
+          </div>
+        </div>
+      )}
       <div className="mt-2 flex items-center gap-1.5">
         <input type="color" value={nh} onChange={e => setNh(e.target.value)} className="h-8 w-8 cursor-pointer rounded" style={{ background: 'transparent', border: '1px solid #27272a' }} />
         <input value={nl} onChange={e => setNl(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addColor() }} placeholder="nome da cor" className="w-28 rounded-lg px-2 py-1 text-[11px] text-white" style={{ background: '#0a0a0e', border: '1px solid #27272a' }} />
@@ -1242,17 +1254,20 @@ function PaletteEditor({ initial, cats, onSave, onCancel, saving }: { initial: P
   )
 }
 function PalettesPanel() {
-  const [cats, setCats] = useState<TaxOption[]>([]); const [palettes, setPalettes] = useState<Palette[]>([])
+  const [cats, setCats] = useState<TaxOption[]>([]); const [palettes, setPalettes] = useState<Palette[]>([]); const [filaments, setFilaments] = useState<Input[]>([])
   const [filter, setFilter] = useState('all'); const [editing, setEditing] = useState<string | 'new' | null>(null)
   const [busy, setBusy] = useState(false); const [msg, setMsg] = useState(''); const [loading, setLoading] = useState(true)
   const load = useCallback(async () => {
     setLoading(true)
-    try { const [c, p] = await Promise.all([api<TaxOption[]>('/product-os/sku/taxonomy?kind=categoria'), api<Palette[]>('/product-os/palettes')]); setCats(c); setPalettes(p) } catch { /* */ } finally { setLoading(false) }
+    try {
+      const [c, p, f] = await Promise.all([api<TaxOption[]>('/product-os/sku/taxonomy?kind=categoria'), api<Palette[]>('/product-os/palettes'), api<Input[]>('/product-os/production-inputs').catch(() => [] as Input[])])
+      setCats(c); setPalettes(p); setFilaments(f.filter(x => x.kind === 'filamento'))
+    } catch { /* */ } finally { setLoading(false) }
   }, [])
   useEffect(() => { void load() }, [load])
   const shown = filter === 'all' ? palettes : palettes.filter(p => p.category_id === filter)
   const copyPrompt = (p: Palette) => { try { void navigator.clipboard.writeText(palettePrompt(p)); setMsg(`Prompt de cores de "${p.name}" copiado — cole na geração de imagem.`) } catch { /* */ } }
-  const save = async (id: string | 'new', body: { name: string; category_id: string | null; colors: Array<{ hex: string; label: string }> }) => {
+  const save = async (id: string | 'new', body: { name: string; category_id: string | null; colors: Array<{ hex: string; label: string; input_id?: string }> }) => {
     setBusy(true); setMsg('')
     try { if (id === 'new') await api('/product-os/palettes', { method: 'POST', body: JSON.stringify(body) }); else await api(`/product-os/palettes/${id}`, { method: 'PATCH', body: JSON.stringify(body) }); setEditing(null); await load() }
     catch (e) { setMsg(e instanceof Error ? e.message : 'Erro') } finally { setBusy(false) }
@@ -1272,11 +1287,11 @@ function PalettesPanel() {
         <button onClick={() => setEditing('new')} className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-bold" style={{ background: 'rgba(0,229,255,0.12)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.35)' }}><Plus size={12} /> Nova paleta</button>
         {msg && <span className="text-[11px]" style={{ color: msg.includes('Erro') ? '#f87171' : '#4ade80' }}>{msg}</span>}
       </div>
-      {editing === 'new' && <PaletteEditor initial={{ category_id: filter !== 'all' ? filter : null }} cats={cats} saving={busy} onSave={b => void save('new', b)} onCancel={() => setEditing(null)} />}
+      {editing === 'new' && <PaletteEditor initial={{ category_id: filter !== 'all' ? filter : null }} cats={cats} filaments={filaments} saving={busy} onSave={b => void save('new', b)} onCancel={() => setEditing(null)} />}
       {shown.length === 0 ? <p className="text-xs" style={{ color: '#52525b' }}>Nenhuma paleta nesta categoria — clique em Nova paleta para criar.</p> : (
         <div className="grid gap-3 sm:grid-cols-2">
           {shown.map(p => editing === p.id ? (
-            <div className="sm:col-span-2" key={p.id}><PaletteEditor initial={p} cats={cats} saving={busy} onSave={b => void save(p.id, b)} onCancel={() => setEditing(null)} /></div>
+            <div className="sm:col-span-2" key={p.id}><PaletteEditor initial={p} cats={cats} filaments={filaments} saving={busy} onSave={b => void save(p.id, b)} onCancel={() => setEditing(null)} /></div>
           ) : (
             <div key={p.id} className="rounded-xl p-3" style={{ background: '#111114', border: p.is_primary ? '1px solid rgba(0,229,255,0.35)' : '1px solid #27272a' }}>
               <div className="mb-2 flex items-center gap-2">
@@ -1300,6 +1315,59 @@ function PalettesPanel() {
           ))}
         </div>
       )}
+    </div>
+  )
+}
+function GenerateImageModal({ dev, onClose, onSaved }: { dev: DevDetail; onClose: () => void; onSaved: () => void }) {
+  const [palettes, setPalettes] = useState<Palette[]>([])
+  const [paletteId, setPaletteId] = useState(''); const [extra, setExtra] = useState('')
+  const [busy, setBusy] = useState(false); const [err, setErr] = useState('')
+  const [result, setResult] = useState<{ url: string; palette: string | null; colors: Array<{ hex: string }>; provider: string } | null>(null)
+  const [saving, setSaving] = useState(false); const [savedMsg, setSavedMsg] = useState('')
+  useEffect(() => { void (async () => { try { setPalettes(await api<Palette[]>('/product-os/palettes')) } catch { /* */ } })() }, [])
+  const gen = async () => {
+    setBusy(true); setErr(''); setResult(null); setSavedMsg('')
+    try { const r = await api<{ url: string; palette: string | null; colors: Array<{ hex: string }>; provider: string }>(`/product-os/${dev.id}/generate-image`, { method: 'POST', body: JSON.stringify({ palette_id: paletteId || undefined, extra: extra.trim() || undefined }) }); setResult(r) }
+    catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setBusy(false) }
+  }
+  const saveRef = async () => {
+    if (!result) return; setSaving(true); setErr('')
+    try { await api(`/product-os/${dev.id}`, { method: 'PATCH', body: JSON.stringify({ reference_images: [...(dev.reference_images ?? []), { url: result.url, notes: `IA · ${result.palette ?? 'paleta'}` }] }) }); setSavedMsg('Salva nas referências do produto ✓'); onSaved() }
+    catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setSaving(false) }
+  }
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={onClose}>
+      <div className="w-full max-w-lg rounded-xl p-5" style={{ background: '#0a0a0e', border: '1px solid #27272a', maxHeight: '92vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+        <div className="mb-3 flex items-center gap-2">
+          <Palette size={16} className="text-cyan-400" />
+          <h3 className="text-sm font-extrabold text-white">Gerar imagem com paleta — {dev.name}</h3>
+          <button onClick={onClose} className="ml-auto" style={{ color: '#71717a' }}><X size={16} /></button>
+        </div>
+        <p className="mb-3 text-[11px]" style={{ color: '#71717a' }}>Recurso próprio do Product OS. A IA gera uma foto de catálogo do produto aplicando a paleta escolhida. Consome crédito de IA.</p>
+        <label className="mb-1 block text-[10px] font-semibold uppercase" style={{ color: '#71717a' }}>Paleta</label>
+        <select value={paletteId} onChange={e => setPaletteId(e.target.value)} className="mb-2 w-full rounded-lg px-2.5 py-1.5 text-sm text-white" style={{ background: '#111114', border: '1px solid #27272a' }}>
+          <option value="">Automática (primária da categoria)</option>
+          {palettes.map(p => <option key={p.id} value={p.id}>{p.is_primary ? '★ ' : ''}{p.name}{p.category ? ` · ${p.category.label}` : ''}</option>)}
+        </select>
+        <input value={extra} onChange={e => setExtra(e.target.value)} placeholder="instrução extra (opcional): ex. sobre mesa de mármore" className="mb-3 w-full rounded-lg px-2.5 py-1.5 text-sm text-white" style={{ background: '#111114', border: '1px solid #27272a' }} />
+        <button onClick={() => void gen()} disabled={busy} className="flex w-full items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold disabled:opacity-50" style={{ background: '#00E5FF', color: '#0a0a0e' }}>{busy ? <><Loader2 size={13} className="animate-spin" /> Gerando… (~10s)</> : <><Sparkles size={13} /> Gerar imagem</>}</button>
+        {err && <p className="mt-2 text-[11px]" style={{ color: '#f87171' }}>{err}</p>}
+        {result && (
+          <div className="mt-3">
+            <img src={result.url} alt="prévia" className="w-full rounded-lg" style={{ border: '1px solid #27272a' }} />
+            <div className="mt-1 flex items-center gap-1.5">
+              {result.colors?.slice(0, 8).map((c, i) => <span key={i} className="h-3 w-3 rounded-full" style={{ background: c.hex, border: '1px solid #3f3f46' }} />)}
+              <span className="ml-1 text-[10px]" style={{ color: '#52525b' }}>{result.palette ?? 'sem paleta'} · {result.provider}</span>
+            </div>
+            <div className="mt-2 flex gap-2">
+              <button onClick={() => void saveRef()} disabled={saving || !!savedMsg} className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-bold disabled:opacity-50" style={{ background: 'rgba(74,222,128,0.12)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.35)' }}>{saving ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />} Salvar nas referências</button>
+              <button onClick={() => void gen()} disabled={busy} className="rounded-lg px-3 py-1.5 text-xs font-semibold" style={{ background: '#111114', color: '#a1a1aa', border: '1px solid #27272a' }}>Gerar outra</button>
+              <a href={result.url} target="_blank" rel="noreferrer" className="rounded-lg px-3 py-1.5 text-xs font-semibold" style={{ background: '#111114', color: '#a5f3fc', border: '1px solid #27272a' }}>Abrir</a>
+            </div>
+            {savedMsg && <p className="mt-1.5 text-[11px]" style={{ color: '#4ade80' }}>{savedMsg}</p>}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -1389,6 +1457,7 @@ function DetailDrawer({ id, onClose, onChanged }: { id: string; onClose: () => v
   const [tab, setTab] = useState<DrawerTab>('briefing')
   const [busy, setBusy] = useState<'dispatch' | 'publish' | 'license' | null>(null)
   const [showPublish, setShowPublish] = useState(false)
+  const [showImage, setShowImage] = useState(false)
   const prompt = usePrompt()
 
   const reload = useCallback(async () => { try { setDev(await api<DevDetail>(`/product-os/${id}`)) } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } }, [id])
@@ -1432,9 +1501,11 @@ function DetailDrawer({ id, onClose, onChanged }: { id: string; onClose: () => v
             {/* ações */}
             <div className="mb-3 flex flex-wrap gap-2">
               <button onClick={() => void dispatch()} disabled={busy !== null} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold disabled:opacity-50" style={{ background: '#111114', border: '1px solid #27272a', color: '#a5f3fc' }}>{busy === 'dispatch' ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />} Despachar pro time</button>
+              <button onClick={() => setShowImage(true)} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold" style={{ background: '#111114', border: '1px solid #27272a', color: '#c084fc' }}><Palette size={12} /> Gerar imagem</button>
               <button onClick={() => setShowPublish(true)} disabled={busy !== null || !!dev.product_id || dev.status !== 'aprovado' || (dev.license_status?.blocked ?? false)} title={dev.license_status?.blocked ? 'Licença bloqueia a publicação — libere em "Licença & origem"' : dev.status !== 'aprovado' ? 'Aprove uma versão primeiro' : ''} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold disabled:opacity-40" style={{ background: 'rgba(74,222,128,0.10)', border: '1px solid rgba(74,222,128,0.3)', color: '#4ade80' }}>{<Rocket size={12} />} {dev.product_id ? 'No catálogo ✓' : 'Virar anúncio'}</button>
             </div>
             {showPublish && <PublishModal devId={id} devName={dev.name} onClose={() => setShowPublish(false)} onDone={m => { setShowPublish(false); setMsg(m); void reload(); onChanged() }} />}
+            {showImage && <GenerateImageModal dev={dev} onClose={() => setShowImage(false)} onSaved={() => { void reload(); onChanged() }} />}
 
             {dev.license_status && <LicenseOriginBlock st={dev.license_status} onClear={c => void setClearance(c)} busy={busy === 'license'} />}
             {dev.description && <p className="mb-3 text-xs" style={{ color: '#a1a1aa' }}>{dev.description}</p>}
