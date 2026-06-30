@@ -1199,11 +1199,92 @@ interface CostReality {
   consumption: Array<{ name: string; unit: string; qty: number; cost: number }>
 }
 type DrawerTab = 'briefing' | 'versoes' | 'pecas' | 'sku' | 'custo' | 'real' | 'bom' | 'qualidade' | 'reposicao' | 'timeline'
+function PublishModal({ devId, devName, onClose, onDone }: { devId: string; devName: string; onClose: () => void; onDone: (msg: string) => void }) {
+  const [sku, setSku] = useState<SkuData | null>(null)
+  const [mode, setMode] = useState<'single' | 'variable'>('single')
+  const [qty, setQty] = useState('0')
+  const [rows, setRows] = useState<Record<string, { price: string; stock: string }>>({})
+  const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [loading, setLoading] = useState(true)
+  useEffect(() => { void (async () => {
+    try {
+      const d = await api<SkuData>(`/product-os/${devId}/sku`); setSku(d)
+      if (d.variants.length) { setMode('variable'); setRows(Object.fromEntries(d.variants.map(v => [v.id, { price: '', stock: '0' }]))) }
+    } catch { setSku({ classification: { marca: null, categoria: null, sub: null, linha: null, caracteristica: null }, base: null, variants: [] }) }
+    finally { setLoading(false) }
+  })() }, [devId])
+  const variants = sku?.variants ?? []
+  const setRow = (id: string, field: 'price' | 'stock', val: string) => setRows(r => ({ ...r, [id]: { ...(r[id] ?? { price: '', stock: '0' }), [field]: val } }))
+  const publish = async () => {
+    setBusy(true); setErr('')
+    try {
+      const body = mode === 'variable'
+        ? { variation_mode: 'variable' as const, variants: variants.map(v => ({ id: v.id, price: rows[v.id]?.price ? Number(rows[v.id].price.replace(',', '.')) : null, stock: Number(rows[v.id]?.stock || 0) })) }
+        : { variation_mode: 'single' as const, produced_quantity: Number(qty) || 0 }
+      const r = await api<{ product_id: string; sku: string | null; mode: string; variants: number }>(`/product-os/${devId}/publish-to-catalog`, { method: 'POST', body: JSON.stringify(body) })
+      onDone(`Publicado no catálogo (${r.mode === 'variable' ? `${r.variants} cores` : 'produto único'}${r.sku ? `, SKU ${r.sku}` : ''}). Pronto para enviar às plataformas / loja.`)
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Erro'); setBusy(false) }
+  }
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={onClose}>
+      <div className="w-full max-w-lg rounded-xl p-5" style={{ background: '#0a0a0e', border: '1px solid #27272a', maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+        <div className="mb-3 flex items-center gap-2">
+          <Rocket size={16} className="text-green-400" />
+          <h3 className="text-sm font-extrabold text-white">Publicar no catálogo — {devName}</h3>
+          <button onClick={onClose} className="ml-auto" style={{ color: '#71717a' }}><X size={16} /></button>
+        </div>
+        {loading ? <div className="flex items-center gap-2 p-4 text-sm" style={{ color: '#71717a' }}><Loader2 size={14} className="animate-spin" /> Carregando…</div> : (
+          <>
+            {variants.length > 0 ? (
+              <div className="mb-3 flex gap-1 rounded-lg p-1" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
+                {([['single', 'Produto único', 'um SKU só (cor base)'], ['variable', 'Produto variável', `${variants.length} cores`]] as const).map(([k, lbl, hint]) => (
+                  <button key={k} onClick={() => setMode(k)} className="flex-1 rounded px-2 py-1.5 text-left" style={{ background: mode === k ? 'rgba(0,229,255,0.12)' : 'transparent', border: mode === k ? '1px solid rgba(0,229,255,0.35)' : '1px solid transparent' }}>
+                    <span className="block text-[11px] font-bold" style={{ color: mode === k ? '#00E5FF' : '#a1a1aa' }}>{lbl}</span>
+                    <span className="block text-[9px]" style={{ color: '#52525b' }}>{hint}</span>
+                  </button>
+                ))}
+              </div>
+            ) : <p className="mb-3 text-[11px]" style={{ color: '#71717a' }}>Sem variantes de cor — vai como produto único. (Defina cores na aba SKU para publicar como variável.)</p>}
+
+            {mode === 'variable' && variants.length > 0 ? (
+              <div className="space-y-1.5">
+                <div className="grid grid-cols-[1fr_auto_auto] gap-2 px-1 text-[9px] font-semibold uppercase" style={{ color: '#52525b' }}><span>Cor / SKU</span><span>Preço R$</span><span>Estoque</span></div>
+                {variants.map(v => (
+                  <div key={v.id} className="grid grid-cols-[1fr_auto_auto] items-center gap-2 rounded-lg px-2 py-1.5" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-semibold text-white">{v.cor?.label ?? 'Cor'}</p>
+                      <p className="truncate font-mono text-[9px]" style={{ color: '#52525b' }}>{v.sku}{v.ean ? ` · EAN ${v.ean}` : ''}</p>
+                    </div>
+                    <input value={rows[v.id]?.price ?? ''} onChange={e => setRow(v.id, 'price', e.target.value)} placeholder="—" inputMode="decimal" className="w-16 rounded px-1.5 py-1 text-right text-[11px] text-white" style={{ background: '#0a0a0e', border: '1px solid #27272a' }} />
+                    <input value={rows[v.id]?.stock ?? '0'} onChange={e => setRow(v.id, 'stock', e.target.value)} inputMode="numeric" className="w-14 rounded px-1.5 py-1 text-right text-[11px] text-white" style={{ background: '#0a0a0e', border: '1px solid #27272a' }} />
+                  </div>
+                ))}
+                <p className="text-[10px]" style={{ color: '#fcd34d' }}>⚠️ Estoque por cor é inicial/manual aqui. O crédito automático da produção por cor entra na próxima etapa.</p>
+              </div>
+            ) : (
+              <div>
+                <label className="mb-1 block text-[10px] font-semibold uppercase" style={{ color: '#71717a' }}>Unidades já produzidas no estoque agora</label>
+                <input value={qty} onChange={e => setQty(e.target.value)} inputMode="numeric" className="w-full rounded-lg px-2.5 py-1.5 text-sm text-white" style={{ background: '#111114', border: '1px solid #27272a' }} />
+              </div>
+            )}
+
+            <p className="mt-3 text-[10px] leading-relaxed" style={{ color: '#71717a' }}>O produto entra no catálogo com <span className="text-white">SKU e EAN</span> já preenchidos, pronto para a IA Criativo publicar no ML/Shopee/TikTok e para a loja. {mode === 'variable' ? 'Cada cor vira uma variação (modelo do catálogo/ML).' : ''}</p>
+            {err && <p className="mt-2 text-[11px]" style={{ color: '#f87171' }}>{err}</p>}
+            <div className="mt-4 flex justify-end gap-2">
+              <button onClick={onClose} className="rounded-lg px-3 py-1.5 text-xs font-semibold" style={{ background: '#111114', color: '#a1a1aa', border: '1px solid #27272a' }}>Cancelar</button>
+              <button onClick={() => void publish()} disabled={busy} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold disabled:opacity-50" style={{ background: '#4ade80', color: '#0a0a0e' }}>{busy ? <Loader2 size={12} className="animate-spin" /> : <Rocket size={12} />} Publicar</button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
 function DetailDrawer({ id, onClose, onChanged }: { id: string; onClose: () => void; onChanged: () => void }) {
   const [dev, setDev] = useState<DevDetail | null>(null)
   const [err, setErr] = useState(''); const [msg, setMsg] = useState('')
   const [tab, setTab] = useState<DrawerTab>('briefing')
   const [busy, setBusy] = useState<'dispatch' | 'publish' | 'license' | null>(null)
+  const [showPublish, setShowPublish] = useState(false)
   const prompt = usePrompt()
 
   const reload = useCallback(async () => { try { setDev(await api<DevDetail>(`/product-os/${id}`)) } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } }, [id])
@@ -1233,19 +1314,6 @@ function DetailDrawer({ id, onClose, onChanged }: { id: string; onClose: () => v
     try { const r = await api<{ message?: string }>(`/product-os/${id}/dispatch`, { method: 'POST', body: JSON.stringify({}) }); setMsg(r.message ?? 'Enviado ao Active.'); void reload(); onChanged() }
     catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setBusy(null) }
   }
-  const publish = async () => {
-    const q = await prompt({
-      title: 'Publicar no catálogo',
-      message: 'Quantas unidades já produzidas devem entrar no estoque agora? (0 se nenhuma)',
-      defaultValue: '0',
-      placeholder: '0',
-      confirmLabel: 'Publicar',
-    })
-    if (q == null) return
-    setBusy('publish'); setErr(''); setMsg('')
-    try { const r = await api<{ product_id: string }>(`/product-os/${id}/publish-to-catalog`, { method: 'POST', body: JSON.stringify({ produced_quantity: Number(q) || 0 }) }); setMsg(`Publicado no catálogo (produto ${r.product_id.slice(0, 8)}). Gere o anúncio na IA Criativo.`); void reload(); onChanged() }
-    catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setBusy(null) }
-  }
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={onClose}>
@@ -1260,8 +1328,9 @@ function DetailDrawer({ id, onClose, onChanged }: { id: string; onClose: () => v
             {/* ações */}
             <div className="mb-3 flex flex-wrap gap-2">
               <button onClick={() => void dispatch()} disabled={busy !== null} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold disabled:opacity-50" style={{ background: '#111114', border: '1px solid #27272a', color: '#a5f3fc' }}>{busy === 'dispatch' ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />} Despachar pro time</button>
-              <button onClick={() => void publish()} disabled={busy !== null || dev.status !== 'aprovado' || (dev.license_status?.blocked ?? false)} title={dev.license_status?.blocked ? 'Licença bloqueia a publicação — libere em "Licença & origem"' : dev.status !== 'aprovado' ? 'Aprove uma versão primeiro' : ''} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold disabled:opacity-40" style={{ background: 'rgba(74,222,128,0.10)', border: '1px solid rgba(74,222,128,0.3)', color: '#4ade80' }}>{busy === 'publish' ? <Loader2 size={12} className="animate-spin" /> : <Rocket size={12} />} {dev.product_id ? 'No catálogo ✓' : 'Virar anúncio'}</button>
+              <button onClick={() => setShowPublish(true)} disabled={busy !== null || !!dev.product_id || dev.status !== 'aprovado' || (dev.license_status?.blocked ?? false)} title={dev.license_status?.blocked ? 'Licença bloqueia a publicação — libere em "Licença & origem"' : dev.status !== 'aprovado' ? 'Aprove uma versão primeiro' : ''} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold disabled:opacity-40" style={{ background: 'rgba(74,222,128,0.10)', border: '1px solid rgba(74,222,128,0.3)', color: '#4ade80' }}>{<Rocket size={12} />} {dev.product_id ? 'No catálogo ✓' : 'Virar anúncio'}</button>
             </div>
+            {showPublish && <PublishModal devId={id} devName={dev.name} onClose={() => setShowPublish(false)} onDone={m => { setShowPublish(false); setMsg(m); void reload(); onChanged() }} />}
 
             {dev.license_status && <LicenseOriginBlock st={dev.license_status} onClear={c => void setClearance(c)} busy={busy === 'license'} />}
             {dev.description && <p className="mb-3 text-xs" style={{ color: '#a1a1aa' }}>{dev.description}</p>}
