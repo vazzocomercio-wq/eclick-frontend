@@ -990,7 +990,7 @@ function RestockModal({ item, onClose, onDone }: { item: Input; onClose: () => v
   )
 }
 
-interface NfeItem { code: string | null; ean: string | null; description: string; ncm: string | null; cfop: string | null; unit: string; quantity: number; unit_cost: number; total: number; kind: string; material: string | null; color: string | null; diameter_mm: number | null; spool_weight_g: number | null; raw_unit: string; raw_quantity: number; raw_unit_cost: number; conversion: string | null }
+interface NfeItem { code: string | null; ean: string | null; description: string; ncm: string | null; cfop: string | null; unit: string; quantity: number; unit_cost: number; total: number; kind: string; material: string | null; color: string | null; color_hex: string | null; diameter_mm: number | null; spool_weight_g: number | null; raw_unit: string; raw_quantity: number; raw_unit_cost: number; conversion: string | null }
 interface NfePreview {
   supplier: { tax_id: string | null; name: string; legal_name: string; ie: string | null; phone: string | null; address: Record<string, string | null> }
   nf: { number: string | null; serie: string | null; date: string | null; access_key: string | null; total: number }
@@ -1030,7 +1030,7 @@ function ImportNfModal({ onClose, onImported }: { onClose: () => void; onImporte
       const r = await api<{ created: number; restocked: number }>('/product-os/production-inputs/import-nfe', { method: 'POST', body: JSON.stringify({
         supplier: { ...preview.supplier, use_existing_id: preview.supplier_existing_id },
         nf: { access_key: preview.nf.access_key, number: preview.nf.number, total: preview.nf.total },
-        items: rows.map(r => ({ include: r.include, link_input_id: r.link_input_id, name: r.description, sku: r.code, unit: r.unit, quantity: r.quantity, unit_cost: r.unit_cost, kind: r.kind, material: r.material, description: r.description, color: r.color, diameter_mm: r.diameter_mm, spool_weight_g: r.spool_weight_g })),
+        items: rows.map(r => ({ include: r.include, link_input_id: r.link_input_id, name: r.description, sku: r.code, barcode: r.ean, unit: r.unit, quantity: r.quantity, unit_cost: r.unit_cost, kind: r.kind, material: r.material, description: r.description, color: r.color, color_hex: r.color_hex, diameter_mm: r.diameter_mm, spool_weight_g: r.spool_weight_g })),
         force: preview.already_imported && force,
       }) })
       setMsg(`Importado: ${r.created} insumo(s) novo(s), ${r.restocked} abastecido(s). Fornecedor e estoque atualizados.`)
