@@ -11,7 +11,7 @@ import {
   Lightbulb, Loader2, Plus, X, Sparkles, Cpu, DollarSign, Settings2,
   AlertTriangle, CheckCircle2, FileBox, RefreshCw, Check, Ban, Package,
   Factory, Boxes, Send, Rocket, ListChecks, History, ClipboardList,
-  Printer as PrinterIcon, TrendingUp, Gauge, Wifi, Upload, Trophy, Trash2, ExternalLink, Users, Flame, Heart, Download, Search, Layers, Eye, EyeOff, ShieldAlert, Barcode,
+  Printer as PrinterIcon, TrendingUp, Gauge, Wifi, Upload, Trophy, Trash2, ExternalLink, Users, Flame, Heart, Download, Search, Layers, Eye, EyeOff, ShieldAlert, Barcode, Palette, Copy, Star,
 } from 'lucide-react'
 import { usePrompt } from '@/components/ui/dialog-provider'
 
@@ -397,7 +397,7 @@ function UploadButton({ label, accept, multiple, onUploaded }: { label: string; 
 
 // ════════════════════════════════════════════════════════════════════
 export default function ProductOsPage() {
-  const [tab, setTab] = useState<'fabrica' | 'monitor' | 'ciclo' | 'producao' | 'impressoras' | 'rentabilidade' | 'radar' | 'insumos'>('fabrica')
+  const [tab, setTab] = useState<'fabrica' | 'monitor' | 'ciclo' | 'producao' | 'impressoras' | 'rentabilidade' | 'radar' | 'insumos' | 'paletas'>('fabrica')
   const [items, setItems] = useState<ProductDev[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -433,7 +433,7 @@ export default function ProductOsPage() {
 
       {/* tabs */}
       <div className="flex gap-1 rounded-lg p-1" style={{ background: '#111114', border: '1px solid #1a1a1f', width: 'fit-content' }}>
-        {([['fabrica', 'Fábrica', <Gauge key="f" size={13} />], ['ciclo', 'Ciclo de vida', <Lightbulb key="a" size={13} />], ['producao', 'Produção', <Factory key="b" size={13} />], ['monitor', 'Ao vivo', <Wifi key="m" size={13} />], ['impressoras', 'Impressoras', <PrinterIcon key="d" size={13} />], ['rentabilidade', 'Rentabilidade', <TrendingUp key="e" size={13} />], ['radar', 'Radar', <Trophy key="r" size={13} />], ['insumos', 'Insumos', <Boxes key="c" size={13} />]] as const).map(([k, lbl, ic]) => (
+        {([['fabrica', 'Fábrica', <Gauge key="f" size={13} />], ['ciclo', 'Ciclo de vida', <Lightbulb key="a" size={13} />], ['producao', 'Produção', <Factory key="b" size={13} />], ['monitor', 'Ao vivo', <Wifi key="m" size={13} />], ['impressoras', 'Impressoras', <PrinterIcon key="d" size={13} />], ['rentabilidade', 'Rentabilidade', <TrendingUp key="e" size={13} />], ['radar', 'Radar', <Trophy key="r" size={13} />], ['insumos', 'Insumos', <Boxes key="c" size={13} />], ['paletas', 'Paletas', <Palette key="pl" size={13} />]] as const).map(([k, lbl, ic]) => (
           <button key={k} onClick={() => setTab(k)} className="flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-semibold" style={{ background: tab === k ? 'rgba(0,229,255,0.12)' : 'transparent', color: tab === k ? '#00E5FF' : '#71717a' }}>{ic}{lbl}</button>
         ))}
       </div>
@@ -448,6 +448,7 @@ export default function ProductOsPage() {
       {tab === 'rentabilidade' && <ProfitabilityPanel onOpen={setOpenId} />}
       {tab === 'radar' && <RadarPanel onImported={id => { void load(); setTab('ciclo'); setOpenId(id) }} />}
       {tab === 'insumos' && <InsumosPanel />}
+      {tab === 'paletas' && <PalettesPanel />}
 
       {openId && <DetailDrawer id={openId} onClose={() => setOpenId(null)} onChanged={() => void load()} />}
       {showNew && <NewProductModal onClose={() => setShowNew(false)} onCreated={() => { setShowNew(false); void load() }} />}
@@ -1199,6 +1200,109 @@ interface CostReality {
   consumption: Array<{ name: string; unit: string; qty: number; cost: number }>
 }
 type DrawerTab = 'briefing' | 'versoes' | 'pecas' | 'sku' | 'custo' | 'real' | 'bom' | 'qualidade' | 'reposicao' | 'timeline'
+// ── Paletas de cor por categoria (recurso do Product OS, não toca no Creative) ──
+interface Palette { id: string; name: string; category_id: string | null; category: { id: string; code: string; label: string } | null; colors: Array<{ hex: string; label?: string }>; is_primary: boolean; notes?: string | null }
+function palettePrompt(p: Palette): string {
+  const cores = p.colors.map(c => `${c.label ? c.label + ' ' : ''}${c.hex}`).join(', ')
+  return `Use exatamente esta paleta de cores na imagem do produto: ${cores}. Fundo e iluminação que valorizem essas cores; produto impresso em 3D, fotografia de catálogo limpa.`
+}
+function PaletteEditor({ initial, cats, onSave, onCancel, saving }: { initial: Partial<Palette>; cats: TaxOption[]; onSave: (b: { name: string; category_id: string | null; colors: Array<{ hex: string; label: string }> }) => void; onCancel: () => void; saving: boolean }) {
+  const [name, setName] = useState(initial.name ?? '')
+  const [catId, setCatId] = useState(initial.category_id ?? '')
+  const [colors, setColors] = useState<Array<{ hex: string; label: string }>>((initial.colors ?? []).map(c => ({ hex: c.hex, label: c.label ?? '' })))
+  const [nh, setNh] = useState('#888888'); const [nl, setNl] = useState('')
+  const addColor = () => { if (!/^#[0-9a-fA-F]{6}$/.test(nh)) return; setColors(c => [...c, { hex: nh.toLowerCase(), label: nl.trim() }]); setNl('') }
+  return (
+    <div className="rounded-xl p-3 mb-3" style={{ background: '#111114', border: '1px solid #27272a' }}>
+      <div className="grid gap-2 sm:grid-cols-2">
+        <input value={name} onChange={e => setName(e.target.value)} placeholder="Nome da paleta (ex: Glam Rosé)" className="rounded-lg px-2.5 py-1.5 text-sm text-white" style={{ background: '#0a0a0e', border: '1px solid #27272a' }} />
+        <select value={catId} onChange={e => setCatId(e.target.value)} className="rounded-lg px-2.5 py-1.5 text-sm text-white" style={{ background: '#0a0a0e', border: '1px solid #27272a' }}>
+          <option value="">— sem categoria (geral) —</option>
+          {cats.map(c => <option key={c.id} value={c.id}>{c.code} · {c.label}</option>)}
+        </select>
+      </div>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {colors.map((c, i) => (
+          <span key={i} className="flex items-center gap-1 rounded-full py-0.5 pl-1 pr-2 text-[11px]" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#a1a1aa' }}>
+            <span className="h-4 w-4 rounded-full" style={{ background: c.hex, border: '1px solid #3f3f46' }} />{c.label || c.hex}
+            <button onClick={() => setColors(cs => cs.filter((_, j) => j !== i))} style={{ color: '#71717a' }}>×</button>
+          </span>
+        ))}
+      </div>
+      <div className="mt-2 flex items-center gap-1.5">
+        <input type="color" value={nh} onChange={e => setNh(e.target.value)} className="h-8 w-8 cursor-pointer rounded" style={{ background: 'transparent', border: '1px solid #27272a' }} />
+        <input value={nl} onChange={e => setNl(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addColor() }} placeholder="nome da cor" className="w-28 rounded-lg px-2 py-1 text-[11px] text-white" style={{ background: '#0a0a0e', border: '1px solid #27272a' }} />
+        <button onClick={addColor} className="rounded-lg px-2 py-1 text-[11px] font-bold" style={{ background: 'rgba(0,229,255,0.12)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.3)' }}>+ cor</button>
+        <div className="ml-auto flex gap-1.5">
+          <button onClick={onCancel} className="rounded-lg px-3 py-1 text-xs font-semibold" style={{ background: '#0a0a0e', color: '#a1a1aa', border: '1px solid #27272a' }}>Cancelar</button>
+          <button onClick={() => onSave({ name: name.trim(), category_id: catId || null, colors })} disabled={saving || !name.trim() || !colors.length} className="flex items-center gap-1 rounded-lg px-3 py-1 text-xs font-bold disabled:opacity-50" style={{ background: '#00E5FF', color: '#0a0a0e' }}>{saving ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />} Salvar</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+function PalettesPanel() {
+  const [cats, setCats] = useState<TaxOption[]>([]); const [palettes, setPalettes] = useState<Palette[]>([])
+  const [filter, setFilter] = useState('all'); const [editing, setEditing] = useState<string | 'new' | null>(null)
+  const [busy, setBusy] = useState(false); const [msg, setMsg] = useState(''); const [loading, setLoading] = useState(true)
+  const load = useCallback(async () => {
+    setLoading(true)
+    try { const [c, p] = await Promise.all([api<TaxOption[]>('/product-os/sku/taxonomy?kind=categoria'), api<Palette[]>('/product-os/palettes')]); setCats(c); setPalettes(p) } catch { /* */ } finally { setLoading(false) }
+  }, [])
+  useEffect(() => { void load() }, [load])
+  const shown = filter === 'all' ? palettes : palettes.filter(p => p.category_id === filter)
+  const copyPrompt = (p: Palette) => { try { void navigator.clipboard.writeText(palettePrompt(p)); setMsg(`Prompt de cores de "${p.name}" copiado — cole na geração de imagem.`) } catch { /* */ } }
+  const save = async (id: string | 'new', body: { name: string; category_id: string | null; colors: Array<{ hex: string; label: string }> }) => {
+    setBusy(true); setMsg('')
+    try { if (id === 'new') await api('/product-os/palettes', { method: 'POST', body: JSON.stringify(body) }); else await api(`/product-os/palettes/${id}`, { method: 'PATCH', body: JSON.stringify(body) }); setEditing(null); await load() }
+    catch (e) { setMsg(e instanceof Error ? e.message : 'Erro') } finally { setBusy(false) }
+  }
+  const setPrimary = async (p: Palette) => { setBusy(true); try { await api(`/product-os/palettes/${p.id}/primary`, { method: 'POST' }); await load() } catch (e) { setMsg(e instanceof Error ? e.message : 'Erro') } finally { setBusy(false) } }
+  const del = async (p: Palette) => { if (!(await confirmDialog({ title: 'Excluir paleta', message: `Excluir "${p.name}"?`, danger: true, confirmLabel: 'Excluir' }))) return; setBusy(true); try { await api(`/product-os/palettes/${p.id}/delete`, { method: 'POST' }); await load() } catch { /* */ } finally { setBusy(false) } }
+
+  if (loading) return <div className="flex items-center gap-2 p-6 text-sm" style={{ color: '#71717a' }}><Loader2 size={16} className="animate-spin" /> Carregando…</div>
+  return (
+    <div className="space-y-3">
+      <p className="text-xs" style={{ color: '#a1a1aa' }}>Cartelas de cor por categoria para a <b className="text-white">geração de imagens</b> dos produtos. Cada categoria pode ter uma paleta <b className="text-white">primária</b> (a escolhida). Use <b className="text-white">copiar prompt de cores</b> e cole onde gerar a imagem. As cores batem com os filamentos que você imprime.</p>
+      <div className="flex flex-wrap items-center gap-2">
+        <select value={filter} onChange={e => setFilter(e.target.value)} className="rounded-lg px-2.5 py-1.5 text-xs text-white" style={{ background: '#111114', border: '1px solid #27272a' }}>
+          <option value="all">Todas as categorias</option>
+          {cats.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+        </select>
+        <button onClick={() => setEditing('new')} className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-bold" style={{ background: 'rgba(0,229,255,0.12)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.35)' }}><Plus size={12} /> Nova paleta</button>
+        {msg && <span className="text-[11px]" style={{ color: msg.includes('Erro') ? '#f87171' : '#4ade80' }}>{msg}</span>}
+      </div>
+      {editing === 'new' && <PaletteEditor initial={{ category_id: filter !== 'all' ? filter : null }} cats={cats} saving={busy} onSave={b => void save('new', b)} onCancel={() => setEditing(null)} />}
+      {shown.length === 0 ? <p className="text-xs" style={{ color: '#52525b' }}>Nenhuma paleta nesta categoria — clique em Nova paleta para criar.</p> : (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {shown.map(p => editing === p.id ? (
+            <div className="sm:col-span-2" key={p.id}><PaletteEditor initial={p} cats={cats} saving={busy} onSave={b => void save(p.id, b)} onCancel={() => setEditing(null)} /></div>
+          ) : (
+            <div key={p.id} className="rounded-xl p-3" style={{ background: '#111114', border: p.is_primary ? '1px solid rgba(0,229,255,0.35)' : '1px solid #27272a' }}>
+              <div className="mb-2 flex items-center gap-2">
+                {p.is_primary && <Star size={13} className="shrink-0 fill-cyan-400 text-cyan-400" />}
+                <span className="text-sm font-bold text-white">{p.name}</span>
+                <span className="rounded px-1.5 py-0.5 text-[9px] font-semibold" style={{ background: '#0a0a0e', color: '#71717a', border: '1px solid #1a1a1f' }}>{p.category?.label ?? 'geral'}</span>
+              </div>
+              <div className="mb-2 flex h-9 overflow-hidden rounded-lg" style={{ border: '1px solid #1a1a1f' }}>
+                {p.colors.map((c, i) => <div key={i} className="flex-1" style={{ background: c.hex }} title={`${c.label ?? ''} ${c.hex}`} />)}
+              </div>
+              <div className="mb-2 flex flex-wrap gap-1">
+                {p.colors.map((c, i) => <span key={i} className="font-mono text-[9px]" style={{ color: '#52525b' }}>{c.hex}{i < p.colors.length - 1 ? ' ·' : ''}</span>)}
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                <button onClick={() => copyPrompt(p)} className="flex items-center gap-1 rounded px-2 py-1 text-[10px] font-bold" style={{ background: 'rgba(0,229,255,0.12)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.3)' }}><Copy size={10} /> Copiar prompt de cores</button>
+                {!p.is_primary && p.category_id && <button onClick={() => void setPrimary(p)} disabled={busy} className="flex items-center gap-1 rounded px-2 py-1 text-[10px] font-semibold" style={{ background: '#0a0a0e', color: '#a5f3fc', border: '1px solid #27272a' }}><Star size={10} /> Tornar primária</button>}
+                <button onClick={() => setEditing(p.id)} className="rounded px-2 py-1 text-[10px] font-semibold" style={{ background: '#0a0a0e', color: '#a1a1aa', border: '1px solid #27272a' }}>Editar</button>
+                <button onClick={() => void del(p)} className="rounded px-2 py-1 text-[10px]" style={{ background: '#0a0a0e', color: '#71717a', border: '1px solid #27272a' }}><Trash2 size={10} /></button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 function PublishModal({ devId, devName, onClose, onDone }: { devId: string; devName: string; onClose: () => void; onDone: (msg: string) => void }) {
   const [sku, setSku] = useState<SkuData | null>(null)
   const [mode, setMode] = useState<'single' | 'variable'>('single')
