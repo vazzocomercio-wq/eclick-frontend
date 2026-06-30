@@ -11,7 +11,7 @@ import {
   Lightbulb, Loader2, Plus, X, Sparkles, Cpu, DollarSign, Settings2,
   AlertTriangle, CheckCircle2, FileBox, RefreshCw, Check, Ban, Package,
   Factory, Boxes, Send, Rocket, ListChecks, History, ClipboardList,
-  Printer as PrinterIcon, TrendingUp, Gauge, Wifi, Upload, Trophy, Trash2, ExternalLink, Users, Flame, Heart, Download, Search, Layers, Eye, EyeOff, ShieldAlert,
+  Printer as PrinterIcon, TrendingUp, Gauge, Wifi, Upload, Trophy, Trash2, ExternalLink, Users, Flame, Heart, Download, Search, Layers, Eye, EyeOff, ShieldAlert, Barcode,
 } from 'lucide-react'
 import { usePrompt } from '@/components/ui/dialog-provider'
 
@@ -1198,7 +1198,7 @@ interface CostReality {
   orders: Array<{ order_number: number; is_prototype: boolean; quantity: number; real_time_min: number; material_cost: number; real_unit_cost: number; estimated_unit_cost: number; real_total: number }>
   consumption: Array<{ name: string; unit: string; qty: number; cost: number }>
 }
-type DrawerTab = 'briefing' | 'versoes' | 'pecas' | 'custo' | 'real' | 'bom' | 'qualidade' | 'reposicao' | 'timeline'
+type DrawerTab = 'briefing' | 'versoes' | 'pecas' | 'sku' | 'custo' | 'real' | 'bom' | 'qualidade' | 'reposicao' | 'timeline'
 function DetailDrawer({ id, onClose, onChanged }: { id: string; onClose: () => void; onChanged: () => void }) {
   const [dev, setDev] = useState<DevDetail | null>(null)
   const [err, setErr] = useState(''); const [msg, setMsg] = useState('')
@@ -1269,7 +1269,7 @@ function DetailDrawer({ id, onClose, onChanged }: { id: string; onClose: () => v
             {msg && <div className="mb-3 rounded-lg p-2.5 text-xs" style={{ background: 'rgba(74,222,128,0.10)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)' }}>{msg}</div>}
 
             <div className="mb-4 flex flex-wrap gap-1 rounded-lg p-1" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
-              {([['briefing', 'Briefing', <Sparkles key="a" size={11} />], ['versoes', 'Versões', <FileBox key="b" size={11} />], ['pecas', 'Peças', <Boxes key="p" size={11} />], ['custo', 'Custo', <DollarSign key="c" size={11} />], ['real', 'Custo real', <Gauge key="g" size={11} />], ['bom', 'BOM', <ListChecks key="d" size={11} />], ['qualidade', 'Qualidade', <ClipboardList key="e" size={11} />], ['reposicao', 'Reposição', <RefreshCw key="r" size={11} />], ['timeline', 'Timeline', <History key="f" size={11} />]] as const).map(([k, lbl, ic]) => (
+              {([['briefing', 'Briefing', <Sparkles key="a" size={11} />], ['versoes', 'Versões', <FileBox key="b" size={11} />], ['pecas', 'Peças', <Boxes key="p" size={11} />], ['sku', 'SKU', <Barcode key="s" size={11} />], ['custo', 'Custo', <DollarSign key="c" size={11} />], ['real', 'Custo real', <Gauge key="g" size={11} />], ['bom', 'BOM', <ListChecks key="d" size={11} />], ['qualidade', 'Qualidade', <ClipboardList key="e" size={11} />], ['reposicao', 'Reposição', <RefreshCw key="r" size={11} />], ['timeline', 'Timeline', <History key="f" size={11} />]] as const).map(([k, lbl, ic]) => (
                 <button key={k} onClick={() => setTab(k)} className="flex items-center justify-center gap-1 rounded px-2 py-1.5 text-[11px] font-semibold" style={{ background: tab === k ? 'rgba(0,229,255,0.12)' : 'transparent', color: tab === k ? '#00E5FF' : '#71717a' }}>{ic}{lbl}</button>
               ))}
             </div>
@@ -1277,6 +1277,7 @@ function DetailDrawer({ id, onClose, onChanged }: { id: string; onClose: () => v
             {tab === 'briefing' && <BriefingTab dev={dev} onChanged={() => { void reload(); onChanged() }} />}
             {tab === 'versoes' && <VersionsTab dev={dev} onChanged={() => { void reload(); onChanged() }} />}
             {tab === 'pecas' && <PartsTab dev={dev} onChanged={() => { void reload(); onChanged() }} />}
+            {tab === 'sku' && <SkuTab dev={dev} />}
             {tab === 'custo' && <CostTab dev={dev} onChanged={onChanged} />}
             {tab === 'real' && <CostRealityTab devId={dev.id} />}
             {tab === 'bom' && <BomTab devId={dev.id} />}
@@ -2268,6 +2269,177 @@ function ProductionPlanCard({ onOpen }: { onOpen: (id: string) => void }) {
   )
 }
 
+// ── Gerador de SKU ────────────────────────────────────────────────────
+interface TaxOption { id: string; kind: string; code: string; label: string; parent_id: string | null }
+interface SkuData {
+  classification: { marca: TaxOption | null; categoria: TaxOption | null; sub: TaxOption | null; linha: TaxOption | null; caracteristica: TaxOption | null }
+  base: string | null
+  variants: Array<{ id: string; sku: string; product_id: string | null; cor: { id: string; code: string; label: string } | null }>
+}
+function SegmentPicker({ label, kind, parentId, value, onChange, suggestLabel, alphaCode }: {
+  label: string; kind: string; parentId: string | null; value: TaxOption | null
+  onChange: (o: TaxOption | null) => void; suggestLabel?: string; alphaCode?: boolean
+}) {
+  const [opts, setOpts] = useState<TaxOption[]>([])
+  const [adding, setAdding] = useState(false)
+  const [newLabel, setNewLabel] = useState(''); const [newCode, setNewCode] = useState('')
+  const [busy, setBusy] = useState(false); const [err, setErr] = useState('')
+  const topLevel = kind === 'marca' || kind === 'categoria' || kind === 'cor'
+  const blocked = !topLevel && !parentId
+  const load = useCallback(async () => {
+    if (blocked) { setOpts([]); return }
+    try { setOpts(await api<TaxOption[]>(`/product-os/sku/taxonomy?kind=${kind}${parentId ? `&parent_id=${parentId}` : ''}`)) } catch { setOpts([]) }
+  }, [kind, parentId, blocked])
+  useEffect(() => { void load() }, [load])
+  const create = async () => {
+    if (!newLabel.trim()) return
+    setBusy(true); setErr('')
+    try {
+      const o = await api<TaxOption>('/product-os/sku/taxonomy', { method: 'POST', body: JSON.stringify({ kind, label: newLabel.trim(), parent_id: parentId, code: alphaCode ? newCode.trim() : undefined }) })
+      setAdding(false); setNewLabel(''); setNewCode(''); await load(); onChange(o)
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setBusy(false) }
+  }
+  return (
+    <div className="rounded-lg p-2" style={{ background: '#0a0a0e', border: '1px solid #27272a', opacity: blocked ? 0.5 : 1 }}>
+      <p className="mb-1 text-[9px] font-semibold uppercase tracking-wide" style={{ color: '#71717a' }}>{label}</p>
+      {!adding ? (
+        <>
+          <select disabled={blocked} value={value?.id ?? ''} onChange={e => onChange(opts.find(o => o.id === e.target.value) ?? null)}
+            className="w-full rounded px-1.5 py-1 text-[11px] text-white" style={{ background: '#111114', border: '1px solid #27272a' }}>
+            <option value="">{blocked ? '(escolha o nível acima)' : '— escolher —'}</option>
+            {opts.map(o => <option key={o.id} value={o.id}>{o.code} · {o.label}</option>)}
+          </select>
+          {!blocked && <button onClick={() => { setNewLabel(suggestLabel ?? ''); setAdding(true) }} className="mt-1 flex items-center gap-1 text-[9px] font-semibold text-cyan-400"><Plus size={9} /> nova</button>}
+        </>
+      ) : (
+        <div className="space-y-1">
+          {alphaCode && <input value={newCode} onChange={e => setNewCode(e.target.value.toUpperCase())} placeholder="cód (VZ)" maxLength={4} className="w-full rounded px-1.5 py-1 text-[11px] text-white" style={{ background: '#111114', border: '1px solid #27272a' }} />}
+          <input autoFocus value={newLabel} onChange={e => setNewLabel(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') void create(); if (e.key === 'Escape') setAdding(false) }} placeholder="nome" className="w-full rounded px-1.5 py-1 text-[11px] text-white" style={{ background: '#111114', border: '1px solid #27272a' }} />
+          <div className="flex gap-1">
+            <button onClick={() => void create()} disabled={busy} className="flex-1 rounded px-1.5 py-1 text-[9px] font-bold" style={{ background: 'rgba(0,229,255,0.12)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.3)' }}>{busy ? '…' : 'criar'}</button>
+            <button onClick={() => setAdding(false)} className="rounded px-1.5 py-1 text-[9px]" style={{ background: '#111114', color: '#71717a', border: '1px solid #27272a' }}>×</button>
+          </div>
+          {err && <p className="text-[9px]" style={{ color: '#f87171' }}>{err}</p>}
+        </div>
+      )}
+    </div>
+  )
+}
+function SkuBox({ label, code }: { label: string; code: string | null }) {
+  return (
+    <div className="flex flex-col items-center">
+      <span className="mb-1 text-[9px] font-semibold uppercase tracking-wide" style={{ color: '#71717a' }}>{label}</span>
+      <div className="flex h-12 w-full min-w-[44px] items-center justify-center rounded-lg text-lg font-extrabold" style={{ background: '#0a0a0e', border: '1px solid #3f3f46', color: code ? '#fafafa' : '#3f3f46' }}>{code ?? '··'}</div>
+    </div>
+  )
+}
+function SkuTab({ dev }: { dev: DevDetail }) {
+  const [data, setData] = useState<SkuData | null>(null)
+  const [marca, setMarca] = useState<TaxOption | null>(null); const [cat, setCat] = useState<TaxOption | null>(null)
+  const [sub, setSub] = useState<TaxOption | null>(null); const [linha, setLinha] = useState<TaxOption | null>(null); const [carac, setCarac] = useState<TaxOption | null>(null)
+  const [cores, setCores] = useState<TaxOption[]>([]); const [selCor, setSelCor] = useState<string[]>([])
+  const [newCor, setNewCor] = useState(''); const [addingCor, setAddingCor] = useState(false)
+  const [saving, setSaving] = useState(false); const [msg, setMsg] = useState(''); const [loading, setLoading] = useState(true)
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const d = await api<SkuData>(`/product-os/${dev.id}/sku`); setData(d)
+      setMarca(d.classification.marca); setCat(d.classification.categoria); setSub(d.classification.sub); setLinha(d.classification.linha); setCarac(d.classification.caracteristica)
+      setSelCor(d.variants.map(v => v.cor?.id).filter(Boolean) as string[])
+    } catch { /* */ } finally { setLoading(false) }
+  }, [dev.id])
+  useEffect(() => { void load() }, [load])
+  const loadCores = useCallback(async () => { try { setCores(await api<TaxOption[]>('/product-os/sku/taxonomy?kind=cor')) } catch { /* */ } }, [])
+  useEffect(() => { void loadCores() }, [loadCores])
+
+  const allSet = !!(marca && cat && sub && linha && carac)
+  const previewBase = allSet ? `${marca!.code}${cat!.code}${sub!.code}${linha!.code}${carac!.code}` : null
+  const dirty = previewBase !== (data?.base ?? null)
+
+  const saveClass = async () => {
+    if (!allSet) return
+    setSaving(true); setMsg('')
+    try { const d = await api<SkuData>(`/product-os/${dev.id}/sku`, { method: 'PUT', body: JSON.stringify({ marca_id: marca!.id, categoria_id: cat!.id, sub_id: sub!.id, linha_id: linha!.id, caracteristica_id: carac!.id }) }); setData(d); setMsg('SKU base salvo.') }
+    catch (e) { setMsg(e instanceof Error ? e.message : 'Erro') } finally { setSaving(false) }
+  }
+  const saveColors = async (ids: string[]) => {
+    setSaving(true); setMsg('')
+    try { const d = await api<SkuData>(`/product-os/${dev.id}/sku/colors`, { method: 'PUT', body: JSON.stringify({ cor_ids: ids }) }); setData(d); setSelCor(d.variants.map(v => v.cor?.id).filter(Boolean) as string[]); setMsg('Cores e SKUs atualizados.') }
+    catch (e) { setMsg(e instanceof Error ? e.message : 'Erro') } finally { setSaving(false) }
+  }
+  const createCor = async () => {
+    if (!newCor.trim()) return
+    setSaving(true)
+    try { const o = await api<TaxOption>('/product-os/sku/taxonomy', { method: 'POST', body: JSON.stringify({ kind: 'cor', label: newCor.trim() }) }); setNewCor(''); setAddingCor(false); await loadCores(); if (data?.base) await saveColors([...selCor, o.id]) }
+    catch (e) { setMsg(e instanceof Error ? e.message : 'Erro') } finally { setSaving(false) }
+  }
+  const corCode = (id: string) => cores.find(c => c.id === id)?.code ?? '??'
+
+  if (loading) return <div className="flex items-center gap-2 p-4 text-sm" style={{ color: '#71717a' }}><Loader2 size={14} className="animate-spin" /> Carregando…</div>
+  return (
+    <div className="space-y-4">
+      <p className="text-xs" style={{ color: '#a1a1aa' }}>O SKU é gerado pela taxonomia: <span className="font-mono text-white">MARCA+CATEGORIA+SUB+LINHA+CARACTERÍSTICA-COR</span>. A Característica é o que diferencia o modelo dentro da linha. A Cor é a variação — cada cor vira um SKU.</p>
+
+      {/* seletores */}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        <SegmentPicker label="Marca" kind="marca" parentId={null} value={marca} onChange={o => setMarca(o)} alphaCode />
+        <SegmentPicker label="Categoria" kind="categoria" parentId={null} value={cat} onChange={o => { setCat(o); setSub(null); setLinha(null); setCarac(null) }} />
+        <SegmentPicker label="Sub-categoria" kind="sub" parentId={cat?.id ?? null} value={sub} onChange={o => { setSub(o); setLinha(null); setCarac(null) }} />
+        <SegmentPicker label="Linha" kind="linha" parentId={sub?.id ?? null} value={linha} onChange={o => { setLinha(o); setCarac(null) }} />
+        <SegmentPicker label="Característica" kind="caracteristica" parentId={linha?.id ?? null} value={carac} onChange={o => setCarac(o)} suggestLabel={dev.name} />
+      </div>
+
+      {/* preview estilo cartão */}
+      <div className="rounded-xl p-3" style={{ background: '#111114', border: '1px solid #27272a' }}>
+        <div className="grid grid-cols-6 gap-1.5">
+          <SkuBox label="Marca" code={marca?.code ?? null} />
+          <SkuBox label="Categ." code={cat?.code ?? null} />
+          <SkuBox label="Sub" code={sub?.code ?? null} />
+          <SkuBox label="Linha" code={linha?.code ?? null} />
+          <SkuBox label="Caract." code={carac?.code ?? null} />
+          <SkuBox label="Cor" code={selCor.length ? corCode(selCor[0]) : null} />
+        </div>
+        <div className="mt-3 rounded-lg p-2.5 text-center" style={{ background: '#0a0a0e', border: '1px solid #27272a' }}>
+          <p className="font-mono text-xl font-extrabold tracking-wide" style={{ color: previewBase ? '#00E5FF' : '#3f3f46' }}>{previewBase ? `${previewBase}${selCor.length ? '-' + corCode(selCor[0]) : '-CC'}` : 'VZ········-··'}</p>
+          {allSet && <p className="mt-1 text-[11px]" style={{ color: '#a1a1aa' }}>{[marca!.label, cat!.label, sub!.label, linha!.label, carac!.label].join(', ')}</p>}
+        </div>
+        <button onClick={() => void saveClass()} disabled={!allSet || saving || !dirty} className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold disabled:opacity-40" style={{ background: '#00E5FF', color: '#0a0a0e' }}>
+          {saving ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />} {data?.base && !dirty ? 'SKU base salvo' : 'Gerar SKU base'}
+        </button>
+      </div>
+
+      {/* cores → variantes */}
+      <div className={data?.base ? '' : 'pointer-events-none opacity-40'}>
+        <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#71717a' }}>Cores do modelo (cada cor = 1 SKU)</p>
+        <div className="flex flex-wrap gap-1.5">
+          {cores.map(c => {
+            const on = selCor.includes(c.id)
+            return <button key={c.id} onClick={() => void saveColors(on ? selCor.filter(x => x !== c.id) : [...selCor, c.id])} disabled={saving} className="rounded-full px-2.5 py-1 text-[11px] font-semibold" style={{ background: on ? 'rgba(0,229,255,0.12)' : '#0a0a0e', color: on ? '#00E5FF' : '#a1a1aa', border: on ? '1px solid rgba(0,229,255,0.35)' : '1px solid #27272a' }}>{c.code} · {c.label}</button>
+          })}
+          {!addingCor ? <button onClick={() => setAddingCor(true)} className="flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold" style={{ background: '#0a0a0e', color: '#71717a', border: '1px dashed #3f3f46' }}><Plus size={10} /> nova cor</button> : (
+            <span className="flex items-center gap-1">
+              <input autoFocus value={newCor} onChange={e => setNewCor(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') void createCor(); if (e.key === 'Escape') setAddingCor(false) }} placeholder="cor" className="w-24 rounded-full px-2.5 py-1 text-[11px] text-white" style={{ background: '#0a0a0e', border: '1px solid #27272a' }} />
+              <button onClick={() => void createCor()} className="rounded-full px-2 py-1 text-[10px] font-bold" style={{ background: 'rgba(0,229,255,0.12)', color: '#00E5FF' }}>ok</button>
+            </span>
+          )}
+        </div>
+        {data && data.variants.length > 0 && (
+          <div className="mt-2 space-y-1">
+            {data.variants.map(v => (
+              <div key={v.id} className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs" style={{ background: '#0a0a0e', border: '1px solid #1a1a1f' }}>
+                <Barcode size={12} className="text-cyan-400" />
+                <span className="font-mono font-bold text-white">{v.sku}</span>
+                <span style={{ color: '#71717a' }}>{v.cor?.label}</span>
+                {v.product_id && <span className="ml-auto rounded px-1.5 py-0.5 text-[9px] font-bold" style={{ background: 'rgba(74,222,128,0.12)', color: '#4ade80' }}>publicado</span>}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      {msg && <p className="text-[11px]" style={{ color: msg.includes('Erro') ? '#f87171' : '#4ade80' }}>{msg}</p>}
+    </div>
+  )
+}
 function RestockTab({ dev, onChanged }: { dev: DevDetail; onChanged: () => void }) {
   const [enabled, setEnabled] = useState(!!dev.mto_enabled)
   const [mode, setMode] = useState<'suggest' | 'auto'>(dev.mto_mode === 'auto' ? 'auto' : 'suggest')
