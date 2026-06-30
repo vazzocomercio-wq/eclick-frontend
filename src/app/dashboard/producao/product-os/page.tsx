@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback, useRef, type CSSProperties } from 'react'
+import { useEffect, useState, useCallback, useRef, useMemo, type CSSProperties } from 'react'
 import { createClient } from '@/lib/supabase'
 import {
   DndContext, DragOverlay, PointerSensor, useSensor, useSensors,
@@ -463,6 +463,7 @@ export default function ProductOsPage() {
 function LifecycleBoard({ items, loading, onOpen, onChanged, setError }: { items: ProductDev[]; loading: boolean; onOpen: (id: string) => void; onChanged: () => Promise<void>; setError: (s: string) => void }) {
   const [list, setList] = useState(items)
   const [activeId, setActiveId] = useState<string | null>(null)
+  const [imageFor, setImageFor] = useState<ProductDev | null>(null)
   useEffect(() => setList(items), [items])
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
@@ -482,10 +483,11 @@ function LifecycleBoard({ items, loading, onOpen, onChanged, setError }: { items
     <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={(e: DragStartEvent) => setActiveId(String(e.active.id))} onDragEnd={onDragEnd}>
       <div className="flex gap-3 overflow-x-auto pb-4">
         {COLUMNS.map(col => <Column key={col.key} id={col.key} label={col.label} count={list.filter(d => d.status === col.key).length}>
-          {list.filter(d => d.status === col.key).map(d => <DraggableCard key={d.id} id={d.id} onOpen={() => onOpen(d.id)}><DevCard dev={d} /></DraggableCard>)}
+          {list.filter(d => d.status === col.key).map(d => <DraggableCard key={d.id} id={d.id} onOpen={() => onOpen(d.id)}><DevCard dev={d} onGenImage={() => setImageFor(d)} /></DraggableCard>)}
         </Column>)}
       </div>
       <DragOverlay>{active ? <DevCard dev={active} dragging /> : null}</DragOverlay>
+      {imageFor && <GenerateImageModal dev={imageFor} onClose={() => setImageFor(null)} onSaved={() => { setImageFor(null); void onChanged() }} />}
     </DndContext>
   )
 }
@@ -506,7 +508,7 @@ function DraggableCard({ id, onOpen, children }: { id: string; onOpen: () => voi
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id })
   return <div ref={setNodeRef} {...attributes} {...listeners} onClick={onOpen} style={{ opacity: isDragging ? 0.3 : 1, cursor: 'grab' }}>{children}</div>
 }
-function DevCard({ dev, dragging }: { dev: ProductDev; dragging?: boolean }) {
+function DevCard({ dev, dragging, onGenImage }: { dev: ProductDev; dragging?: boolean; onGenImage?: () => void }) {
   const cover = dev.reference_images?.[0]?.url
   return (
     <div className="rounded-lg p-2.5" style={{ background: '#111114', border: `1px solid ${dragging ? 'rgba(0,229,255,0.5)' : '#27272a'}`, boxShadow: dragging ? '0 8px 24px rgba(0,229,255,0.15)' : undefined }}>
@@ -516,6 +518,7 @@ function DevCard({ dev, dragging }: { dev: ProductDev; dragging?: boolean }) {
           {cover ? <img src={cover} alt="" className="h-full w-full object-cover" /> : <Package size={14} style={{ color: '#3f3f46' }} />}
         </div>
         <div className="min-w-0 flex-1"><p className="truncate text-xs font-bold text-white">{dev.name}</p><p className="truncate text-[10px]" style={{ color: '#71717a' }}>{dev.category ?? 'sem categoria'}</p></div>
+        {onGenImage && <button onClick={e => { e.stopPropagation(); onGenImage() }} onPointerDown={e => e.stopPropagation()} title="Gerar imagem com IA" className="shrink-0 rounded-md p-1" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#c084fc' }}><Palette size={12} /></button>}
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
         {dev.license_status?.imported && <LicenseBadge st={dev.license_status} compact />}
@@ -1318,16 +1321,25 @@ function PalettesPanel() {
     </div>
   )
 }
-function GenerateImageModal({ dev, onClose, onSaved }: { dev: DevDetail; onClose: () => void; onSaved: () => void }) {
+function GenerateImageModal({ dev, onClose, onSaved }: { dev: { id: string; name: string; reference_images?: ReferenceImage[]; versions?: Version[] }; onClose: () => void; onSaved: () => void }) {
   const [palettes, setPalettes] = useState<Palette[]>([])
   const [paletteId, setPaletteId] = useState(''); const [extra, setExtra] = useState('')
   const [busy, setBusy] = useState(false); const [err, setErr] = useState('')
-  const [result, setResult] = useState<{ url: string; palette: string | null; colors: Array<{ hex: string }>; provider: string } | null>(null)
+  const [result, setResult] = useState<{ url: string; palette: string | null; colors: Array<{ hex: string }>; provider: string; used_reference?: boolean } | null>(null)
   const [saving, setSaving] = useState(false); const [savedMsg, setSavedMsg] = useState('')
+  // imagens disponíveis (fotos do protótipo + reference_images, que inclui as do MakerWorld importado)
+  const candidates = useMemo(() => {
+    const out: string[] = []
+    for (const v of dev.versions ?? []) for (const u of v.prototype_photo_urls ?? []) if (u && !out.includes(u)) out.push(u)
+    for (const r of dev.reference_images ?? []) if (r.url && !out.includes(r.url)) out.push(r.url)
+    return out
+  }, [dev])
+  const [useRef, setUseRef] = useState(true); const [refUrl, setRefUrl] = useState<string>('')
+  useEffect(() => { setRefUrl(candidates[0] ?? ''); setUseRef(candidates.length > 0) }, [candidates])
   useEffect(() => { void (async () => { try { setPalettes(await api<Palette[]>('/product-os/palettes')) } catch { /* */ } })() }, [])
   const gen = async () => {
     setBusy(true); setErr(''); setResult(null); setSavedMsg('')
-    try { const r = await api<{ url: string; palette: string | null; colors: Array<{ hex: string }>; provider: string }>(`/product-os/${dev.id}/generate-image`, { method: 'POST', body: JSON.stringify({ palette_id: paletteId || undefined, extra: extra.trim() || undefined }) }); setResult(r) }
+    try { const r = await api<{ url: string; palette: string | null; colors: Array<{ hex: string }>; provider: string; used_reference?: boolean }>(`/product-os/${dev.id}/generate-image`, { method: 'POST', body: JSON.stringify({ palette_id: paletteId || undefined, extra: extra.trim() || undefined, use_reference: useRef && !!refUrl, reference_url: useRef && refUrl ? refUrl : undefined }) }); setResult(r) }
     catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setBusy(false) }
   }
   const saveRef = async () => {
@@ -1350,7 +1362,24 @@ function GenerateImageModal({ dev, onClose, onSaved }: { dev: DevDetail; onClose
           {palettes.map(p => <option key={p.id} value={p.id}>{p.is_primary ? '★ ' : ''}{p.name}{p.category ? ` · ${p.category.label}` : ''}</option>)}
         </select>
         <input value={extra} onChange={e => setExtra(e.target.value)} placeholder="instrução extra (opcional): ex. sobre mesa de mármore" className="mb-3 w-full rounded-lg px-2.5 py-1.5 text-sm text-white" style={{ background: '#111114', border: '1px solid #27272a' }} />
-        <button onClick={() => void gen()} disabled={busy} className="flex w-full items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold disabled:opacity-50" style={{ background: '#00E5FF', color: '#0a0a0e' }}>{busy ? <><Loader2 size={13} className="animate-spin" /> Gerando… (~10s)</> : <><Sparkles size={13} /> Gerar imagem</>}</button>
+        {candidates.length > 0 && (
+          <div className="mb-3">
+            <label className="mb-1 flex items-center gap-2 text-[11px] text-white">
+              <button type="button" onClick={() => setUseRef(v => !v)} className="relative h-4 w-7 rounded-full transition-colors" style={{ background: useRef ? '#00E5FF' : '#3f3f46' }}><span className="absolute top-0.5 h-3 w-3 rounded-full bg-white transition-all" style={{ left: useRef ? '14px' : '2px' }} /></button>
+              Usar foto do produto como referência <span style={{ color: '#52525b' }}>(mais fiel — inclui imagens do MakerWorld)</span>
+            </label>
+            {useRef && (
+              <div className="flex flex-wrap gap-1.5">
+                {candidates.map(u => (
+                  <button key={u} onClick={() => setRefUrl(u)} className="h-12 w-12 overflow-hidden rounded-lg" style={{ border: refUrl === u ? '2px solid #00E5FF' : '1px solid #27272a' }}>
+                    <img src={u} alt="ref" className="h-full w-full object-cover" />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+        <button onClick={() => void gen()} disabled={busy} className="flex w-full items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold disabled:opacity-50" style={{ background: '#00E5FF', color: '#0a0a0e' }}>{busy ? <><Loader2 size={13} className="animate-spin" /> Gerando… (~10s)</> : <><Sparkles size={13} /> {useRef && refUrl ? 'Gerar a partir da referência' : 'Gerar imagem'}</>}</button>
         {err && <p className="mt-2 text-[11px]" style={{ color: '#f87171' }}>{err}</p>}
         {result && (
           <div className="mt-3">
