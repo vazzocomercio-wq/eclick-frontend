@@ -511,7 +511,7 @@ function Column({ id, label, count, children }: { id: string; label: string; cou
 }
 function DraggableCard({ id, onOpen, children }: { id: string; onOpen: () => void; children: React.ReactNode }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id })
-  return <div ref={setNodeRef} {...attributes} {...listeners} onClick={onOpen} style={{ opacity: isDragging ? 0.3 : 1, cursor: 'grab' }}>{children}</div>
+  return <div ref={setNodeRef} {...attributes} {...listeners} data-card="1" onClick={onOpen} style={{ opacity: isDragging ? 0.3 : 1, cursor: 'grab' }}>{children}</div>
 }
 function DevCard({ dev, dragging, onGenImage }: { dev: ProductDev; dragging?: boolean; onGenImage?: () => void }) {
   const cover = dev.reference_images?.[0]?.url
