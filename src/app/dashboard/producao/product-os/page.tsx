@@ -3969,17 +3969,47 @@ function ProfitabilityPanel({ onOpen }: { onOpen: (id: string) => void }) {
 function NewProductModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const [form, setForm] = useState({ name: '', category: '', description: '', inspiration_url: '', reference_url: '' })
   const [busy, setBusy] = useState(false); const [err, setErr] = useState('')
+  // Linha (coleção) — escolher existente ou criar nova já na criação do projeto
+  const [lines, setLines] = useState<TaxOption[]>([])
+  const [lineId, setLineId] = useState(''); const [newLine, setNewLine] = useState(''); const [creatingLine, setCreatingLine] = useState(false)
+  useEffect(() => { void (async () => { try { setLines(await api<TaxOption[]>('/product-os/lines')) } catch { /* */ } })() }, [])
   const create = async () => {
     if (!form.name.trim()) { setErr('Nome é obrigatório'); return }
     setBusy(true); setErr('')
-    try { await api('/product-os', { method: 'POST', body: JSON.stringify({ name: form.name, category: form.category || undefined, description: form.description || undefined, inspiration_url: form.inspiration_url || undefined, reference_images: form.reference_url ? [{ url: form.reference_url }] : undefined }) }); onCreated() }
-    catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setBusy(false) }
+    try {
+      const dev = await api<{ id: string }>('/product-os', { method: 'POST', body: JSON.stringify({ name: form.name, category: form.category || undefined, description: form.description || undefined, inspiration_url: form.inspiration_url || undefined, reference_images: form.reference_url ? [{ url: form.reference_url }] : undefined }) })
+      const body = creatingLine ? (newLine.trim() ? { line_name: newLine.trim() } : null) : (lineId ? { line_id: lineId } : null)
+      if (body) await api(`/product-os/${dev.id}/line`, { method: 'POST', body: JSON.stringify(body) }).catch(() => {})
+      onCreated()
+    }
+    catch (e) { setErr(e instanceof Error ? e.message : 'Erro'); setBusy(false) }
   }
   return (
     <Modal title="Novo produto" onClose={onClose}>
       {err && <div className="mb-3 rounded-lg p-2.5 text-xs" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>{err}</div>}
       <div className="space-y-2.5">
         <Input label="Nome *" value={form.name} onChange={v => setForm(f => ({ ...f, name: v }))} />
+
+        {/* Linha de produtos (coleção) */}
+        <div className="rounded-lg p-2.5" style={{ background: '#0a0a0e', border: '1px solid #27272a' }}>
+          <div className="mb-1 flex items-center gap-1.5"><Layers size={12} className="text-cyan-400" /><span className="text-[11px] font-bold text-white">Linha de produtos (coleção)</span></div>
+          <p className="mb-1.5 text-[10px]" style={{ color: '#71717a' }}>A qual linha este produto pertence? (ex: “Ella”). Pode definir depois na Ficha.</p>
+          {!creatingLine ? (
+            <div className="flex gap-1">
+              <select value={lineId} onChange={e => setLineId(e.target.value)} className="flex-1 rounded-lg px-2 py-1.5 text-[11px] text-white" style={{ background: '#111114', border: '1px solid #27272a' }}>
+                <option value="">— sem linha por enquanto —</option>
+                {lines.map(l => <option key={l.id} value={l.id}>{l.label}</option>)}
+              </select>
+              <button onClick={() => { setCreatingLine(true); setLineId('') }} className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[10px] font-semibold" style={{ background: '#111114', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.3)' }}><Plus size={11} /> nova</button>
+            </div>
+          ) : (
+            <div className="flex gap-1">
+              <input autoFocus value={newLine} onChange={e => setNewLine(e.target.value)} placeholder="nome da linha (ex: Ella)" className="flex-1 rounded-lg px-2 py-1.5 text-[11px] text-white outline-none" style={{ background: '#111114', border: '1px solid #27272a' }} />
+              <button onClick={() => { setCreatingLine(false); setNewLine('') }} className="rounded-lg px-2.5 py-1.5 text-[10px]" style={{ background: '#111114', color: '#71717a', border: '1px solid #27272a' }}>×</button>
+            </div>
+          )}
+        </div>
+
         <Input label="Categoria" value={form.category} onChange={v => setForm(f => ({ ...f, category: v }))} />
         <Input label="Descrição / ideia" value={form.description} onChange={v => setForm(f => ({ ...f, description: v }))} />
         <Input label="Link de inspiração" value={form.inspiration_url} onChange={v => setForm(f => ({ ...f, inspiration_url: v }))} />
