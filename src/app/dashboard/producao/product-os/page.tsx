@@ -2848,6 +2848,8 @@ interface Suggestion { marca: string | null; marca_code: string | null; categori
 interface MlCat { id: string | null; name: string | null; path: string | null }
 interface MlCatOption { id: string; name: string; path: string }
 interface EnrichResult { ficha: { title: string; description: string; brand: string; bullets: string[]; attributes: Record<string, string>; tags: string[] }; suggestion: Suggestion; ml_category: MlCat; already_ready: boolean }
+interface MeasResp { weight_g: number | null; width_mm: number | null; depth_mm: number | null; height_mm: number | null; weight_source: string; dims_source: string; parts: number; override: { weight_g: number | null; width_mm: number | null; depth_mm: number | null; height_mm: number | null } }
+const MEAS_SRC: Record<string, string> = { manual: 'corrigido', pecas: 'soma das peças', versao: 'versão do projeto', briefing: 'briefing', parcial: 'parcial', none: '—' }
 
 // Ficha de catálogo — a transição projeto → produto pronto para a IA Criativo.
 // A IA preenche a partir da fonte (MakerWorld etc.); o operador revisa/edita, define
@@ -2898,6 +2900,34 @@ function FichaTab({ dev, onChanged }: { dev: DevDetail; onChanged: () => void })
       setSku(d); setNewLine(''); await loadLines()
       setMsg('Linha definida. Categoria/Sub vieram do ML quando disponíveis.'); onChanged()
     } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setAssigningLine(false) }
+  }
+
+  // Peso & medidas do produto FINAL (para envio no anúncio)
+  const [meas, setMeas] = useState<MeasResp | null>(null)
+  const [mForm, setMForm] = useState({ weight_g: '', width_mm: '', depth_mm: '', height_mm: '' })
+  const [savingMeas, setSavingMeas] = useState(false); const [pulling, setPulling] = useState(false)
+  const loadMeas = useCallback(async () => {
+    try { const m = await api<MeasResp>(`/product-os/${dev.id}/measures`); setMeas(m); setMForm({ weight_g: m.override.weight_g != null ? String(m.override.weight_g) : '', width_mm: m.override.width_mm != null ? String(m.override.width_mm) : '', depth_mm: m.override.depth_mm != null ? String(m.override.depth_mm) : '', height_mm: m.override.height_mm != null ? String(m.override.height_mm) : '' }) } catch { /* */ }
+  }, [dev.id])
+  useEffect(() => { void loadMeas() }, [loadMeas])
+  const numOrNull = (s: string) => { const n = Number(String(s).replace(',', '.')); return Number.isFinite(n) && n > 0 ? n : null }
+  const saveMeas = async () => {
+    setSavingMeas(true); setErr(''); setMsg('')
+    try {
+      await api(`/product-os/${dev.id}`, { method: 'PATCH', body: JSON.stringify({ final_weight_g: numOrNull(mForm.weight_g), final_width_mm: numOrNull(mForm.width_mm), final_depth_mm: numOrNull(mForm.depth_mm), final_height_mm: numOrNull(mForm.height_mm) }) })
+      await loadMeas(); setMsg('Medidas do produto salvas.'); onChanged()
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setSavingMeas(false) }
+  }
+  const pull3mf = async () => {
+    const v = (dev.versions ?? []).find(x => x.approved) ?? (dev.versions ?? [])[0]
+    if (!v?.file_url) { setErr('A versão aprovada não tem arquivo .3mf para ler as dimensões.'); return }
+    setPulling(true); setErr(''); setMsg('')
+    try {
+      const r = await api<{ width_mm: number | null; depth_mm: number | null; height_mm: number | null; found: boolean }>('/product-os/parse-3mf', { method: 'POST', body: JSON.stringify({ url: v.file_url }) })
+      if (!r.found && r.width_mm == null) { setErr('O .3mf não traz dimensões (exporte com o plate fatiado no Bambu Studio).'); return }
+      setMForm(f => ({ ...f, width_mm: r.width_mm != null ? String(r.width_mm) : f.width_mm, depth_mm: r.depth_mm != null ? String(r.depth_mm) : f.depth_mm, height_mm: r.height_mm != null ? String(r.height_mm) : f.height_mm }))
+      setMsg('Dimensões lidas do .3mf — confira e salve.')
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setPulling(false) }
   }
 
   const enrich = async (force: boolean) => {
@@ -3003,6 +3033,25 @@ function FichaTab({ dev, onChanged }: { dev: DevDetail; onChanged: () => void })
             ))}
           </div>
         )}
+      </div>
+
+      {/* Peso & medidas do PRODUTO FINAL (montado) — para envio */}
+      <div className="rounded-lg p-3" style={{ background: '#111114', border: '1px solid #27272a' }}>
+        <div className="mb-1 flex items-center gap-1.5"><Package size={12} className="text-cyan-400" /><span className="text-[11px] font-bold text-white">Peso &amp; medidas do produto (envio)</span></div>
+        <p className="mb-2 text-[10px]" style={{ color: '#71717a' }}>Do produto {meas && meas.parts > 0 ? <span className="text-white">MONTADO ({meas.parts} peças somadas)</span> : 'inteiro'}. Vazio = usa o cálculo automático (placeholder); preencha só pra corrigir.</p>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {([['weight_g', 'Peso (g)', meas?.weight_g], ['width_mm', 'Largura (mm)', meas?.width_mm], ['depth_mm', 'Comprim. (mm)', meas?.depth_mm], ['height_mm', 'Altura (mm)', meas?.height_mm]] as const).map(([k, lbl, computed]) => (
+            <div key={k}>
+              <label className="mb-0.5 block text-[9px] font-semibold uppercase" style={{ color: '#71717a' }}>{lbl}</label>
+              <input value={mForm[k]} onChange={e => setMForm(f => ({ ...f, [k]: e.target.value }))} inputMode="decimal" placeholder={computed != null ? String(computed) : '—'} className="w-full rounded px-2 py-1.5 text-[11px] text-white outline-none" style={{ background: '#0a0a0e', border: '1px solid #27272a' }} />
+            </div>
+          ))}
+        </div>
+        <p className="mt-1 text-[9px]" style={{ color: '#52525b' }}>fonte — peso: {MEAS_SRC[meas?.weight_source ?? 'none']} · dimensões: {MEAS_SRC[meas?.dims_source ?? 'none']}</p>
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          <button onClick={() => void pull3mf()} disabled={pulling} className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[10px] font-semibold disabled:opacity-50" style={{ background: '#0a0a0e', color: '#a5f3fc', border: '1px solid #27272a' }}>{pulling ? <Loader2 size={11} className="animate-spin" /> : <FileBox size={11} />} puxar dimensões do .3mf</button>
+          <button onClick={() => void saveMeas()} disabled={savingMeas} className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[10px] font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.35)' }}>{savingMeas ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />} salvar medidas</button>
+        </div>
       </div>
 
       <Input label="Título de marketplace (≤60)" value={title} onChange={setTitle} />
