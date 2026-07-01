@@ -33,6 +33,7 @@ interface ProductDev {
   catalog_title?: string | null; catalog_description?: string | null; catalog_brand?: string | null
   catalog_bullets?: string[]; catalog_attributes?: Record<string, string>; catalog_tags?: string[]
   catalog_ready?: boolean; enrichment?: Record<string, unknown> | null
+  category_ml_id?: string | null; category_ml_path?: Array<{ id: string; name: string }> | null
 }
 interface Filament { index: number; material: string | null; color: string | null; weight_g: number }
 interface Version {
@@ -2803,7 +2804,9 @@ function SkuTab({ dev }: { dev: DevDetail }) {
   )
 }
 interface Suggestion { marca: string | null; marca_code: string | null; categoria: string | null; sub: string | null; linha: string | null; caracteristica: string | null }
-interface EnrichResult { ficha: { title: string; description: string; brand: string; bullets: string[]; attributes: Record<string, string>; tags: string[] }; suggestion: Suggestion; already_ready: boolean }
+interface MlCat { id: string | null; name: string | null; path: string | null }
+interface MlCatOption { id: string; name: string; path: string }
+interface EnrichResult { ficha: { title: string; description: string; brand: string; bullets: string[]; attributes: Record<string, string>; tags: string[] }; suggestion: Suggestion; ml_category: MlCat; already_ready: boolean }
 
 // Ficha de catálogo — a transição projeto → produto pronto para a IA Criativo.
 // A IA preenche a partir da fonte (MakerWorld etc.); o operador revisa/edita, define
@@ -2820,6 +2823,24 @@ function FichaTab({ dev, onChanged }: { dev: DevDetail; onChanged: () => void })
   const [sku, setSku] = useState<SkuData | null>(null)
   const [enriching, setEnriching] = useState(false); const [saving, setSaving] = useState(false); const [applying, setApplying] = useState(false)
   const [msg, setMsg] = useState(''); const [err, setErr] = useState('')
+  // categoria do Mercado Livre (árvore real)
+  const initPath = (dev.category_ml_path ?? []).map(p => p.name).join(' › ')
+  const [mlCat, setMlCat] = useState<MlCat>({ id: dev.category_ml_id ?? null, name: (dev.category_ml_path ?? []).slice(-1)[0]?.name ?? null, path: initPath || null })
+  const [mlQuery, setMlQuery] = useState(''); const [mlOpts, setMlOpts] = useState<MlCatOption[]>([]); const [mlSearching, setMlSearching] = useState(false); const [mlOpen, setMlOpen] = useState(false)
+
+  const searchMl = async () => {
+    if (!mlQuery.trim()) return
+    setMlSearching(true)
+    try { setMlOpts(await api<MlCatOption[]>(`/product-os/ml-categories/search?q=${encodeURIComponent(mlQuery.trim())}`)) } catch { setMlOpts([]) } finally { setMlSearching(false) }
+  }
+  const pickMl = async (o: MlCatOption | null) => {
+    setSaving(true); setErr(''); setMsg('')
+    try {
+      const r = await api<{ category_ml_id: string | null; path: Array<{ id: string; name: string }> }>(`/product-os/${dev.id}/ml-category`, { method: 'POST', body: JSON.stringify({ category_id: o?.id ?? null }) })
+      setMlCat({ id: r.category_ml_id, name: r.path.slice(-1)[0]?.name ?? null, path: r.path.length ? r.path.map(p => p.name).join(' › ') : null })
+      setMlOpen(false); setMlOpts([]); setMlQuery(''); setMsg(o ? 'Categoria do ML definida.' : 'Categoria do ML removida.'); onChanged()
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setSaving(false) }
+  }
 
   const loadSku = useCallback(async () => { try { setSku(await api<SkuData>(`/product-os/${dev.id}/sku`)) } catch { /* */ } }, [dev.id])
   useEffect(() => { void loadSku() }, [loadSku])
@@ -2831,7 +2852,8 @@ function FichaTab({ dev, onChanged }: { dev: DevDetail; onChanged: () => void })
       setTitle(r.ficha.title); setDesc(r.ficha.description); setBrand(r.ficha.brand)
       setBullets(r.ficha.bullets); setAttrs(Object.entries(r.ficha.attributes)); setTags(r.ficha.tags.join(', '))
       setSuggestion(r.suggestion)
-      setMsg(r.already_ready ? 'Ficha já validada — recarregada (use "Refazer com IA" para regerar).' : 'Ficha preenchida pela IA. Revise e ajuste antes de publicar.')
+      if (r.ml_category?.id) setMlCat(r.ml_category)
+      setMsg(r.already_ready ? 'Ficha já validada — recarregada (use "Refazer com IA" para regerar).' : `Ficha preenchida pela IA.${r.ml_category?.id ? ' Categoria do ML prevista.' : ''} Revise e ajuste antes de publicar.`)
     } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setEnriching(false) }
   }
   const save = async (markReady?: boolean) => {
@@ -2882,6 +2904,38 @@ function FichaTab({ dev, onChanged }: { dev: DevDetail; onChanged: () => void })
             <p className="text-[10px]" style={{ color: '#fcd34d' }}>Todo produto precisa pertencer a uma linha antes de publicar.</p>
             {canSuggest && <div className="rounded p-2 text-[10px]" style={{ background: '#0a0a0e', border: '1px solid #27272a' }}><span style={{ color: '#71717a' }}>Sugestão da IA:</span> <span className="text-white">{suggestionStr}</span></div>}
             <button onClick={() => void applySuggestion()} disabled={applying || !canSuggest} title={canSuggest ? '' : 'Preencha com a IA primeiro'} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-bold disabled:opacity-40" style={{ background: '#fcd34d', color: '#0a0a0e' }}>{applying ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />} Aplicar sugestão da IA (cria o que faltar)</button>
+          </div>
+        )}
+      </div>
+
+      {/* Categoria do Mercado Livre — árvore real */}
+      <div className="rounded-lg p-3" style={{ background: '#111114', border: '1px solid #27272a' }}>
+        <div className="flex items-center gap-2">
+          <Boxes size={13} className="text-cyan-400" />
+          <span className="text-xs font-bold text-white">Categoria do Mercado Livre</span>
+          {mlCat.id && <span className="ml-auto rounded px-1.5 py-0.5 font-mono text-[9px]" style={{ background: '#0a0a0e', color: '#a5f3fc', border: '1px solid #27272a' }}>{mlCat.id}</span>}
+        </div>
+        {mlCat.id ? (
+          <div className="mt-1.5 flex items-center gap-2">
+            <p className="min-w-0 flex-1 truncate text-[11px]" style={{ color: '#a1a1aa' }}>{mlCat.path ?? mlCat.name}</p>
+            <button onClick={() => setMlOpen(o => !o)} className="shrink-0 text-[10px] font-semibold text-cyan-400">trocar</button>
+            <button onClick={() => void pickMl(null)} className="shrink-0 text-[10px]" style={{ color: '#f87171' }}>remover</button>
+          </div>
+        ) : (
+          <p className="mt-1 text-[10px]" style={{ color: '#71717a' }}>Puxa da árvore oficial do ML (a que já espelhamos). Preencha com IA para prever, ou busque abaixo. Vira <span className="text-white">category_ml_id</span> no anúncio.</p>
+        )}
+        {(mlOpen || !mlCat.id) && (
+          <div className="mt-2 space-y-1.5">
+            <div className="flex gap-1">
+              <input value={mlQuery} onChange={e => setMlQuery(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') void searchMl() }} placeholder="ex: vaso decorativo, suporte de maquiagem…" className="flex-1 rounded px-2 py-1 text-[11px] text-white" style={{ background: '#0a0a0e', border: '1px solid #27272a' }} />
+              <button onClick={() => void searchMl()} disabled={mlSearching || !mlQuery.trim()} className="rounded px-2 py-1 text-[10px] font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.35)' }}>{mlSearching ? <Loader2 size={11} className="animate-spin" /> : 'buscar'}</button>
+            </div>
+            {mlOpts.map(o => (
+              <button key={o.id} onClick={() => void pickMl(o)} className="block w-full rounded px-2 py-1.5 text-left" style={{ background: '#0a0a0e', border: '1px solid #1a1a1f' }}>
+                <p className="text-[11px] font-semibold text-white">{o.name}</p>
+                <p className="truncate text-[9px]" style={{ color: '#52525b' }}>{o.path || o.id}</p>
+              </button>
+            ))}
           </div>
         )}
       </div>
