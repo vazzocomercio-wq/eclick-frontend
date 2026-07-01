@@ -2615,7 +2615,7 @@ function SegmentPicker({ label, kind, parentId, value, onChange, suggestLabel, a
   const [adding, setAdding] = useState(false)
   const [newLabel, setNewLabel] = useState(''); const [newCode, setNewCode] = useState('')
   const [busy, setBusy] = useState(false); const [err, setErr] = useState('')
-  const topLevel = kind === 'marca' || kind === 'categoria' || kind === 'cor'
+  const topLevel = kind === 'marca' || kind === 'categoria' || kind === 'cor' || kind === 'linha'
   const blocked = !topLevel && !parentId
   const load = useCallback(async () => {
     if (blocked) { setOpts([]); return }
@@ -2716,14 +2716,14 @@ function SkuTab({ dev }: { dev: DevDetail }) {
   if (loading) return <div className="flex items-center gap-2 p-4 text-sm" style={{ color: '#71717a' }}><Loader2 size={14} className="animate-spin" /> Carregando…</div>
   return (
     <div className="space-y-4">
-      <p className="text-xs" style={{ color: '#a1a1aa' }}>O SKU é gerado pela taxonomia: <span className="font-mono text-white">MARCA+CATEGORIA+SUB+LINHA+CARACTERÍSTICA-COR</span>. A Característica é o que diferencia o modelo dentro da linha. A Cor é a variação — cada cor vira um SKU.</p>
+      <p className="text-xs" style={{ color: '#a1a1aa' }}>O SKU é gerado pela taxonomia: <span className="font-mono text-white">MARCA+CATEGORIA+SUB+LINHA+CARACTERÍSTICA-COR</span>. A <span className="text-white">Linha</span> é uma coleção transversal (ex: “Ella”) que reúne produtos de qualquer categoria. A Característica diferencia o modelo dentro da linha. A Cor é a variação — cada cor vira um SKU.</p>
 
       {/* seletores */}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         <SegmentPicker label="Marca" kind="marca" parentId={null} value={marca} onChange={o => setMarca(o)} alphaCode />
-        <SegmentPicker label="Categoria" kind="categoria" parentId={null} value={cat} onChange={o => { setCat(o); setSub(null); setLinha(null); setCarac(null) }} />
-        <SegmentPicker label="Sub-categoria" kind="sub" parentId={cat?.id ?? null} value={sub} onChange={o => { setSub(o); setLinha(null); setCarac(null) }} />
-        <SegmentPicker label="Linha" kind="linha" parentId={sub?.id ?? null} value={linha} onChange={o => { setLinha(o); setCarac(null) }} />
+        <SegmentPicker label="Categoria" kind="categoria" parentId={null} value={cat} onChange={o => { setCat(o); setSub(null) }} />
+        <SegmentPicker label="Sub-categoria" kind="sub" parentId={cat?.id ?? null} value={sub} onChange={o => setSub(o)} />
+        <SegmentPicker label="Linha (coleção)" kind="linha" parentId={null} value={linha} onChange={o => { setLinha(o); setCarac(null) }} />
         <SegmentPicker label="Característica" kind="caracteristica" parentId={linha?.id ?? null} value={carac} onChange={o => setCarac(o)} suggestLabel={dev.name} />
       </div>
 
@@ -2845,6 +2845,20 @@ function FichaTab({ dev, onChanged }: { dev: DevDetail; onChanged: () => void })
   const loadSku = useCallback(async () => { try { setSku(await api<SkuData>(`/product-os/${dev.id}/sku`)) } catch { /* */ } }, [dev.id])
   useEffect(() => { void loadSku() }, [loadSku])
 
+  // Linhas (coleções transversais, ex: "Ella") — escolher existente ou criar nova
+  const [lines, setLines] = useState<TaxOption[]>([])
+  const [newLine, setNewLine] = useState(''); const [assigningLine, setAssigningLine] = useState(false)
+  const loadLines = useCallback(async () => { try { setLines(await api<TaxOption[]>('/product-os/lines')) } catch { /* */ } }, [])
+  useEffect(() => { void loadLines() }, [loadLines])
+  const assignLine = async (body: { line_id?: string; line_name?: string }) => {
+    setAssigningLine(true); setErr(''); setMsg('')
+    try {
+      const d = await api<SkuData>(`/product-os/${dev.id}/line`, { method: 'POST', body: JSON.stringify(body) })
+      setSku(d); setNewLine(''); await loadLines()
+      setMsg('Linha definida. Categoria/Sub vieram do ML quando disponíveis.'); onChanged()
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setAssigningLine(false) }
+  }
+
   const enrich = async (force: boolean) => {
     setEnriching(true); setErr(''); setMsg('')
     try {
@@ -2878,7 +2892,6 @@ function FichaTab({ dev, onChanged }: { dev: DevDetail; onChanged: () => void })
 
   const descLen = desc.trim().length
   const linhaSet = !!sku?.classification.linha
-  const suggestionStr = suggestion ? [suggestion.categoria, suggestion.sub, suggestion.linha, suggestion.caracteristica].filter(Boolean).join(' › ') : ''
   const canSuggest = !!(suggestion?.categoria && suggestion?.sub && suggestion?.linha)
 
   return (
@@ -2890,22 +2903,33 @@ function FichaTab({ dev, onChanged }: { dev: DevDetail; onChanged: () => void })
         {(title || desc) && <button onClick={() => void save()} disabled={saving} className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold disabled:opacity-50" style={{ background: '#111114', border: '1px solid #27272a', color: '#a1a1aa' }}>{saving ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />} Salvar ficha</button>}
       </div>
 
-      {/* Linha de produtos — OBRIGATÓRIA */}
+      {/* Linha de produtos = COLEÇÃO transversal (ex: "Ella") — obrigatória */}
       <div className="rounded-lg p-3" style={{ background: linhaSet ? 'rgba(74,222,128,0.06)' : 'rgba(252,211,77,0.06)', border: `1px solid ${linhaSet ? 'rgba(74,222,128,0.3)' : 'rgba(252,211,77,0.3)'}` }}>
         <div className="flex items-center gap-2">
-          <Barcode size={13} style={{ color: linhaSet ? '#4ade80' : '#fcd34d' }} />
+          <Layers size={13} style={{ color: linhaSet ? '#4ade80' : '#fcd34d' }} />
           <span className="text-xs font-bold text-white">Linha de produtos {linhaSet ? '' : '(obrigatória)'}</span>
-          {linhaSet && <span className="ml-auto font-mono text-[11px]" style={{ color: '#4ade80' }}>{sku?.classification.linha?.label} · {sku?.base ?? 'base pendente'}</span>}
+          {linhaSet && <span className="ml-auto rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ background: 'rgba(74,222,128,0.15)', color: '#4ade80' }}>{sku?.classification.linha?.label}</span>}
         </div>
-        {linhaSet ? (
-          <p className="mt-1 text-[10px]" style={{ color: '#71717a' }}>{[sku?.classification.categoria?.label, sku?.classification.sub?.label, sku?.classification.linha?.label, sku?.classification.caracteristica?.label].filter(Boolean).join(' › ')} · edite na aba <span className="text-white">SKU</span>.</p>
-        ) : (
-          <div className="mt-1.5 space-y-1.5">
-            <p className="text-[10px]" style={{ color: '#fcd34d' }}>Todo produto precisa pertencer a uma linha antes de publicar.</p>
-            {canSuggest && <div className="rounded p-2 text-[10px]" style={{ background: '#0a0a0e', border: '1px solid #27272a' }}><span style={{ color: '#71717a' }}>Sugestão da IA:</span> <span className="text-white">{suggestionStr}</span></div>}
-            <button onClick={() => void applySuggestion()} disabled={applying || !canSuggest} title={canSuggest ? '' : 'Preencha com a IA primeiro'} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-bold disabled:opacity-40" style={{ background: '#fcd34d', color: '#0a0a0e' }}>{applying ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />} Aplicar sugestão da IA (cria o que faltar)</button>
+        <p className="mt-1 text-[10px]" style={{ color: '#71717a' }}>A linha é uma <span className="text-white">coleção de lançamento</span> — vários produtos entram na mesma linha (ex: “Ella”) e compartilham a comunicação. Escolha uma existente ou crie uma nova.</p>
+
+        {/* linhas existentes (chips) */}
+        {lines.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {lines.map(l => {
+              const on = sku?.classification.linha?.id === l.id
+              return <button key={l.id} onClick={() => { if (!on) void assignLine({ line_id: l.id }) }} disabled={assigningLine} className="rounded-full px-2.5 py-1 text-[11px] font-semibold" style={{ background: on ? 'rgba(74,222,128,0.15)' : '#0a0a0e', color: on ? '#4ade80' : '#a1a1aa', border: on ? '1px solid rgba(74,222,128,0.4)' : '1px solid #27272a' }}>{on ? '✓ ' : ''}{l.label}</button>
+            })}
           </div>
         )}
+
+        {/* criar nova linha */}
+        <div className="mt-2 flex gap-1">
+          <input value={newLine} onChange={e => setNewLine(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && newLine.trim()) void assignLine({ line_name: newLine.trim() }) }} placeholder="+ criar nova linha (ex: Ella, Matelassê…)" className="flex-1 rounded-lg px-2.5 py-1.5 text-[11px] text-white outline-none" style={{ background: '#0a0a0e', border: '1px solid #27272a' }} />
+          <button onClick={() => { if (newLine.trim()) void assignLine({ line_name: newLine.trim() }) }} disabled={assigningLine || !newLine.trim()} className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-[11px] font-bold disabled:opacity-40" style={{ background: '#4ade80', color: '#0a0a0e' }}>{assigningLine ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />} criar</button>
+        </div>
+
+        {linhaSet && <p className="mt-1.5 text-[10px]" style={{ color: '#71717a' }}>Classificação: <span className="text-white">{[sku?.classification.marca?.label, sku?.classification.categoria?.label, sku?.classification.sub?.label, sku?.classification.linha?.label, sku?.classification.caracteristica?.label].filter(Boolean).join(' › ')}</span> · SKU {sku?.base ?? 'pendente (defina categoria do ML + característica na aba SKU)'}</p>}
+        {!linhaSet && canSuggest && <button onClick={() => void applySuggestion()} disabled={applying} className="mt-2 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[10px] font-bold disabled:opacity-40" style={{ background: '#111114', color: '#fcd34d', border: '1px solid rgba(252,211,77,0.3)' }}>{applying ? <Loader2 size={11} className="animate-spin" /> : <Sparkles size={11} />} ou usar a linha sugerida pela IA: {suggestion?.linha}</button>}
       </div>
 
       {/* Categoria do Mercado Livre — árvore real */}
