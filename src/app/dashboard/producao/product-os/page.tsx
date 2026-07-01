@@ -481,11 +481,11 @@ function LifecycleBoard({ items, loading, onOpen, onChanged, setError }: { items
   if (loading) return <div className="flex items-center gap-2 p-8 text-sm" style={{ color: '#71717a' }}><Loader2 size={16} className="animate-spin" /> Carregando…</div>
   return (
     <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={(e: DragStartEvent) => setActiveId(String(e.active.id))} onDragEnd={onDragEnd}>
-      <div className="flex gap-3 overflow-x-auto pb-4">
+      <HScroll className="flex gap-3 pb-4">
         {COLUMNS.map(col => <Column key={col.key} id={col.key} label={col.label} count={list.filter(d => d.status === col.key).length}>
           {list.filter(d => d.status === col.key).map(d => <DraggableCard key={d.id} id={d.id} onOpen={() => onOpen(d.id)}><DevCard dev={d} onGenImage={() => setImageFor(d)} /></DraggableCard>)}
         </Column>)}
-      </div>
+      </HScroll>
       <DragOverlay>{active ? <DevCard dev={active} dragging /> : null}</DragOverlay>
       {imageFor && <GenerateImageModal dev={imageFor} onClose={() => setImageFor(null)} onSaved={() => { setImageFor(null); void onChanged() }} />}
     </DndContext>
