@@ -2720,10 +2720,22 @@ function SkuTab({ dev }: { dev: DevDetail }) {
     try { const d = await api<SkuData>(`/product-os/${dev.id}/sku/colors`, { method: 'PUT', body: JSON.stringify({ cor_ids: ids }) }); setData(d); setSelCor(d.variants.map(v => v.cor?.id).filter(Boolean) as string[]); setMsg('Cores e SKUs atualizados.') }
     catch (e) { setMsg(e instanceof Error ? e.message : 'Erro') } finally { setSaving(false) }
   }
+  // Cor exige o SKU base salvo (variante = base-cor). Se ainda não salvou (ou mudou os segmentos), salva o base antes.
+  const applyColors = async (ids: string[]) => {
+    if (!allSet) { setMsg('Escolha Marca, Categoria, Sub, Linha e Característica primeiro.'); return }
+    if (!data?.base || dirty) await saveClass()
+    await saveColors(ids)
+  }
   const createCor = async () => {
     if (!newCor.trim()) return
+    if (!allSet) { setMsg('Escolha Marca, Categoria, Sub, Linha e Característica primeiro.'); return }
     setSaving(true)
-    try { const o = await api<TaxOption>('/product-os/sku/taxonomy', { method: 'POST', body: JSON.stringify({ kind: 'cor', label: newCor.trim() }) }); setNewCor(''); setAddingCor(false); await loadCores(); if (data?.base) await saveColors([...selCor, o.id]) }
+    try {
+      const o = await api<TaxOption>('/product-os/sku/taxonomy', { method: 'POST', body: JSON.stringify({ kind: 'cor', label: newCor.trim() }) })
+      setNewCor(''); setAddingCor(false); await loadCores()
+      if (!data?.base || dirty) await saveClass()
+      await saveColors([...selCor, o.id])
+    }
     catch (e) { setMsg(e instanceof Error ? e.message : 'Erro') } finally { setSaving(false) }
   }
   const corCode = (id: string) => cores.find(c => c.id === id)?.code ?? '??'
@@ -2790,12 +2802,14 @@ function SkuTab({ dev }: { dev: DevDetail }) {
       </div>
 
       {/* cores → variantes */}
-      <div className={data?.base ? '' : 'pointer-events-none opacity-40'}>
+      <div className={allSet ? '' : 'pointer-events-none opacity-40'}>
         <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#71717a' }}>Cores do modelo (cada cor = 1 SKU)</p>
+        {allSet && !data?.base && <p className="mb-1.5 text-[10px]" style={{ color: '#fcd34d' }}>Ao escolher a 1ª cor, o SKU base é salvo automaticamente.</p>}
+        {!allSet && <p className="mb-1.5 text-[10px]" style={{ color: '#71717a' }}>Escolha Marca, Categoria, Sub, Linha e Característica acima para liberar as cores.</p>}
         <div className="flex flex-wrap gap-1.5">
           {cores.map(c => {
             const on = selCor.includes(c.id)
-            return <button key={c.id} onClick={() => void saveColors(on ? selCor.filter(x => x !== c.id) : [...selCor, c.id])} disabled={saving} className="rounded-full px-2.5 py-1 text-[11px] font-semibold" style={{ background: on ? 'rgba(0,229,255,0.12)' : '#0a0a0e', color: on ? '#00E5FF' : '#a1a1aa', border: on ? '1px solid rgba(0,229,255,0.35)' : '1px solid #27272a' }}>{c.code} · {c.label}</button>
+            return <button key={c.id} onClick={() => void applyColors(on ? selCor.filter(x => x !== c.id) : [...selCor, c.id])} disabled={saving} className="rounded-full px-2.5 py-1 text-[11px] font-semibold" style={{ background: on ? 'rgba(0,229,255,0.12)' : '#0a0a0e', color: on ? '#00E5FF' : '#a1a1aa', border: on ? '1px solid rgba(0,229,255,0.35)' : '1px solid #27272a' }}>{c.code} · {c.label}</button>
           })}
           {!addingCor ? <button onClick={() => setAddingCor(true)} className="flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold" style={{ background: '#0a0a0e', color: '#71717a', border: '1px dashed #3f3f46' }}><Plus size={10} /> nova cor</button> : (
             <span className="flex items-center gap-1">
