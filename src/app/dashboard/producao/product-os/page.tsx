@@ -155,7 +155,7 @@ interface FarmStatus {
   ams: Array<{ slot: string; material: string; color: string; remain_pct: number }> | null
   error_code: string | null; error_text: string | null; last_update: string | null
   camera_url?: string | null; camera_at?: string | null; light_on?: boolean | null
-  ai_detection_enabled?: boolean; ai_sensitivity?: string
+  ai_detection_enabled?: boolean; ai_sensitivity?: string; auto_dispatch?: boolean
   open_failure?: { id: string; reason: string | null; detected_at: string } | null
 }
 interface FarmAgent { id: string; name: string; status: string; version: string | null; last_seen_at: string | null; online: boolean }
@@ -2935,11 +2935,17 @@ function SchedulerCard() {
   const [data, setData] = useState<SchedulePlan | null>(null); const [loading, setLoading] = useState(true); const [msg, setMsg] = useState('')
   const load = useCallback(async () => { setLoading(true); try { setData(await api<SchedulePlan>('/product-os/farm/schedule-plan')) } catch { /* */ } finally { setLoading(false) } }, [])
   useEffect(() => { void load() }, [load])
+  const [dispatching, setDispatching] = useState(false)
   const apply = async () => {
     if (!data?.assignments.length) return
     setMsg('')
     try { const r = await api<{ assigned: number }>('/product-os/farm/scheduler/apply', { method: 'POST', body: JSON.stringify({ assignments: data.assignments.map(a => ({ order_id: a.order_id, printer_id: a.printer_id })) }) }); setMsg(`${r.assigned} ordem(ns) atribuída(s) às impressoras.`); void load() }
     catch (e) { setMsg(e instanceof Error ? e.message : 'Erro') }
+  }
+  const dispatch = async () => {
+    setDispatching(true); setMsg('')
+    try { const r = await api<{ dispatched: Array<{ order_number: number; name: string }> }>('/product-os/farm/auto-dispatch', { method: 'POST' }); setMsg(r.dispatched.length ? `Iniciou ${r.dispatched.length} impressão(ões): ${r.dispatched.map(d => `OP-${String(d.order_number).padStart(4, '0')}`).join(', ')}.` : 'Nada a iniciar — precisa de impressora ociosa com auto-impressão ligada + ordem compatível na fila.'); void load() }
+    catch (e) { setMsg(e instanceof Error ? e.message : 'Erro') } finally { setDispatching(false) }
   }
   const money = (n: number) => `R$ ${n.toFixed(2)}`
   return (
@@ -2947,7 +2953,10 @@ function SchedulerCard() {
       <div className="mb-2 flex items-center gap-2">
         <Wifi size={14} className="text-cyan-400" />
         <span className="text-xs font-bold text-white">Plano de produção — capacidade finita (prazo + filamento)</span>
-        {data && data.assignments.length > 0 && <button onClick={() => void apply()} className="ml-auto rounded px-2 py-1 text-[10px] font-bold" style={{ background: 'rgba(0,229,255,0.12)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.35)' }}>Atribuir às impressoras</button>}
+        {data && data.assignments.length > 0 && <div className="ml-auto flex gap-1.5">
+          <button onClick={() => void apply()} className="rounded px-2 py-1 text-[10px] font-bold" style={{ background: '#0a0a0e', color: '#a5f3fc', border: '1px solid #27272a' }}>Atribuir</button>
+          <button onClick={() => void dispatch()} disabled={dispatching} title="Inicia agora nas impressoras ociosas com auto-impressão ligada" className="flex items-center gap-1 rounded px-2 py-1 text-[10px] font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.35)' }}>{dispatching ? <Loader2 size={10} className="animate-spin" /> : <Rocket size={10} />} Despachar agora</button>
+        </div>}
       </div>
       {loading ? <div className="flex items-center gap-2 text-xs" style={{ color: '#71717a' }}><Loader2 size={12} className="animate-spin" /> Calculando…</div> : !data ? null : (
         <>
@@ -3478,6 +3487,11 @@ function PrinterDetailDrawer({ printer, onClose, onChanged }: { printer: Printer
     try { await api(`/product-os/farm/printers/${id}/ai-detection`, { method: 'POST', body: JSON.stringify({ enabled, sensitivity }) }); await loadLive() }
     catch (e) { setCmdMsg(e instanceof Error ? e.message : 'Erro') }
   }
+  const setAutoDisp = async (enabled: boolean) => {
+    if (enabled && !(await confirmDialog({ title: 'Ligar auto-impressão', message: 'Quando esta impressora ficar ociosa, o sistema vai INICIAR sozinho a próxima ordem da fila que ela consegue rodar (filamento certo + .3mf). Confirmar?', confirmLabel: 'Ligar lights-out' }))) return
+    try { await api(`/product-os/farm/printers/${id}/auto-dispatch`, { method: 'POST', body: JSON.stringify({ enabled }) }); await loadLive() }
+    catch (e) { setCmdMsg(e instanceof Error ? e.message : 'Erro') }
+  }
   const money = (n: number) => `R$ ${n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
   return (
     <div className="fixed inset-0 z-50 flex justify-end" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={onClose}>
@@ -3551,6 +3565,18 @@ function PrinterDetailDrawer({ printer, onClose, onChanged }: { printer: Printer
                     })}
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* auto-impressão (lights-out) */}
+            {live && (
+              <div className="mb-3 rounded-lg p-2.5" style={{ background: '#0c0c10', border: `1px solid ${live.auto_dispatch ? 'rgba(0,229,255,0.3)' : '#1a1a1f'}` }}>
+                <div className="flex items-center gap-2">
+                  <Rocket size={13} style={{ color: live.auto_dispatch ? '#00E5FF' : '#52525b' }} />
+                  <span className="text-[11px] font-bold text-white">Auto-impressão (lights-out)</span>
+                  <button type="button" onClick={() => void setAutoDisp(!live.auto_dispatch)} className="ml-auto rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: live.auto_dispatch ? 'rgba(0,229,255,0.15)' : '#27272a', color: live.auto_dispatch ? '#00E5FF' : '#a1a1aa', border: `1px solid ${live.auto_dispatch ? 'rgba(0,229,255,0.4)' : '#3f3f46'}` }}>{live.auto_dispatch ? 'Ligada' : 'Desligada'}</button>
+                </div>
+                <p className="mt-1 text-[10px]" style={{ color: '#71717a' }}>Quando ficar ociosa, inicia <b>sozinha</b> a próxima ordem da fila que consegue rodar (filamento certo + .3mf), pela prioridade R$/hora. ⚠️ ação real na máquina — exige o start remoto da Bambu (Developer Mode).</p>
               </div>
             )}
 
