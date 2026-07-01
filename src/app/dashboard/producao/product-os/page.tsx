@@ -34,6 +34,7 @@ interface ProductDev {
   catalog_bullets?: string[]; catalog_attributes?: Record<string, string>; catalog_tags?: string[]
   catalog_ready?: boolean; enrichment?: Record<string, unknown> | null
   category_ml_id?: string | null; category_ml_path?: Array<{ id: string; name: string }> | null
+  cost_breakdown?: CostResult | null
 }
 interface Filament { index: number; material: string | null; color: string | null; weight_g: number }
 interface Version {
@@ -2239,7 +2240,8 @@ function AssemblySection({ devId, onChanged }: { devId: string; onChanged: () =>
 }
 
 function CostTab({ dev, onChanged }: { dev: DevDetail; onChanged: () => void }) {
-  const [res, setRes] = useState<CostResult | null>(null); const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [margin, setMargin] = useState('30')
+  const [res, setRes] = useState<CostResult | null>(dev.cost_breakdown ?? null); const [busy, setBusy] = useState(false); const [err, setErr] = useState('')
+  const [margin, setMargin] = useState(dev.cost_breakdown?.target_margin_pct != null ? String(dev.cost_breakdown.target_margin_pct) : '30')
   const compute = async () => {
     setBusy(true); setErr('')
     try { setRes(await api<CostResult>(`/product-os/${dev.id}/cost`, { method: 'POST', body: JSON.stringify({ target_margin_pct: Number(margin) || 30 }) })); onChanged() }
@@ -2247,7 +2249,7 @@ function CostTab({ dev, onChanged }: { dev: DevDetail; onChanged: () => void }) 
   }
   return (
     <div className="space-y-3">
-      <p className="text-xs" style={{ color: '#a1a1aa' }}>Usa peso/tempo/material da versão aprovada (ou a última) + as constantes de fabricação da org.</p>
+      <p className="text-xs" style={{ color: '#a1a1aa' }}>Usa peso/tempo/material da versão aprovada (ou a última) + as constantes de fabricação da org. {res ? <span style={{ color: '#4ade80' }}>Último cálculo salvo — recalcule se algo mudou.</span> : ''}</p>
       <div className="flex items-end gap-2"><Input label="Margem-alvo (%)" value={margin} onChange={setMargin} /><button onClick={() => void compute()} disabled={busy} className="flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF', height: 34 }}>{busy ? <Loader2 size={12} className="animate-spin" /> : <DollarSign size={12} />} Calcular</button></div>
       {err && <div className="whitespace-pre-line rounded-lg p-2.5 text-xs" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>{err}</div>}
       {res && <>
