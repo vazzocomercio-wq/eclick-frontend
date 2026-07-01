@@ -29,6 +29,10 @@ interface ProductDev {
   product_id: string | null; active_deal_id: string | null; position: number; created_at: string
   source_platform?: string | null; license_status?: LicenseStatus
   mto_enabled?: boolean; mto_mode?: 'suggest' | 'auto'; mto_reorder_point?: number; mto_batch_qty?: number
+  sku_linha_id?: string | null; sku_base?: string | null
+  catalog_title?: string | null; catalog_description?: string | null; catalog_brand?: string | null
+  catalog_bullets?: string[]; catalog_attributes?: Record<string, string>; catalog_tags?: string[]
+  catalog_ready?: boolean; enrichment?: Record<string, unknown> | null
 }
 interface Filament { index: number; material: string | null; color: string | null; weight_g: number }
 interface Version {
@@ -1212,7 +1216,7 @@ interface CostReality {
   orders: Array<{ order_number: number; is_prototype: boolean; quantity: number; real_time_min: number; material_cost: number; real_unit_cost: number; estimated_unit_cost: number; real_total: number }>
   consumption: Array<{ name: string; unit: string; qty: number; cost: number }>
 }
-type DrawerTab = 'briefing' | 'versoes' | 'pecas' | 'sku' | 'custo' | 'real' | 'bom' | 'qualidade' | 'reposicao' | 'timeline'
+type DrawerTab = 'briefing' | 'versoes' | 'pecas' | 'sku' | 'ficha' | 'custo' | 'real' | 'bom' | 'qualidade' | 'reposicao' | 'timeline'
 // ── Paletas de cor por categoria (recurso do Product OS, não toca no Creative) ──
 interface Palette { id: string; name: string; category_id: string | null; category: { id: string; code: string; label: string } | null; colors: Array<{ hex: string; label?: string }>; is_primary: boolean; notes?: string | null }
 function palettePrompt(p: Palette): string {
@@ -1439,6 +1443,8 @@ function PublishModal({ dev, onClose, onDone }: { dev: DevDetail; onClose: () =>
     finally { setLoading(false) }
   })() }, [devId])
   const variants = sku?.variants ?? []
+  const linhaSet = !!sku?.classification.linha
+  const fichaFilled = !!(dev.catalog_title || dev.catalog_description)
   const setRow = (id: string, field: 'price' | 'stock', val: string) => setRows(r => ({ ...r, [id]: { ...(r[id] ?? { price: '', stock: '0' }), [field]: val } }))
   const orderedPhotos = cover ? [cover, ...photos.filter(p => p !== cover)] : photos
   const publish = async () => {
@@ -1462,6 +1468,15 @@ function PublishModal({ dev, onClose, onDone }: { dev: DevDetail; onClose: () =>
         </div>
         {loading ? <div className="flex items-center gap-2 p-4 text-sm" style={{ color: '#71717a' }}><Loader2 size={14} className="animate-spin" /> Carregando…</div> : (
           <>
+            {!linhaSet && (
+              <div className="mb-3 rounded-lg p-2.5 text-[11px]" style={{ background: 'rgba(252,211,77,0.08)', color: '#fcd34d', border: '1px solid rgba(252,211,77,0.3)' }}>⚠️ <span className="font-bold">Linha de produtos não definida.</span> Defina a linha na aba <span className="text-white">Ficha</span> (ou SKU) antes de publicar — a publicação está bloqueada.</div>
+            )}
+            {linhaSet && !fichaFilled && (
+              <div className="mb-3 rounded-lg p-2.5 text-[11px]" style={{ background: 'rgba(0,229,255,0.06)', color: '#a5f3fc', border: '1px solid rgba(0,229,255,0.25)' }}>💡 A ficha ainda não foi preenchida — o produto irá com nome/descrição crus. Preencha na aba <span className="text-white">Ficha</span> (título de ML, descrição, atributos) para chegar pronto na IA Criativo.</div>
+            )}
+            {linhaSet && fichaFilled && (
+              <div className="mb-3 rounded-lg p-2.5 text-[11px]" style={{ background: 'rgba(74,222,128,0.06)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.25)' }}>✓ Ficha preenchida{dev.catalog_ready ? ' e validada' : ''} — <span className="text-white">{dev.catalog_title}</span></div>
+            )}
             {variants.length > 0 ? (
               <div className="mb-3 flex gap-1 rounded-lg p-1" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
                 {([['single', 'Produto único', 'um SKU só (cor base)'], ['variable', 'Produto variável', `${variants.length} cores`]] as const).map(([k, lbl, hint]) => (
@@ -1512,7 +1527,7 @@ function PublishModal({ dev, onClose, onDone }: { dev: DevDetail; onClose: () =>
             {err && <p className="mt-2 text-[11px]" style={{ color: '#f87171' }}>{err}</p>}
             <div className="mt-4 flex justify-end gap-2">
               <button onClick={onClose} className="rounded-lg px-3 py-1.5 text-xs font-semibold" style={{ background: '#111114', color: '#a1a1aa', border: '1px solid #27272a' }}>Cancelar</button>
-              <button onClick={() => void publish()} disabled={busy} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold disabled:opacity-50" style={{ background: '#4ade80', color: '#0a0a0e' }}>{busy ? <Loader2 size={12} className="animate-spin" /> : <Rocket size={12} />} Publicar</button>
+              <button onClick={() => void publish()} disabled={busy || !linhaSet} title={!linhaSet ? 'Defina a linha de produtos antes de publicar' : ''} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold disabled:opacity-40" style={{ background: '#4ade80', color: '#0a0a0e' }}>{busy ? <Loader2 size={12} className="animate-spin" /> : <Rocket size={12} />} Publicar</button>
             </div>
           </>
         )}
@@ -1582,7 +1597,7 @@ function DetailDrawer({ id, onClose, onChanged }: { id: string; onClose: () => v
             {msg && <div className="mb-3 rounded-lg p-2.5 text-xs" style={{ background: 'rgba(74,222,128,0.10)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)' }}>{msg}</div>}
 
             <div className="mb-4 flex flex-wrap gap-1 rounded-lg p-1" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
-              {([['briefing', 'Briefing', <Sparkles key="a" size={11} />], ['versoes', 'Versões', <FileBox key="b" size={11} />], ['pecas', 'Peças', <Boxes key="p" size={11} />], ['sku', 'SKU', <Barcode key="s" size={11} />], ['custo', 'Custo', <DollarSign key="c" size={11} />], ['real', 'Custo real', <Gauge key="g" size={11} />], ['bom', 'BOM', <ListChecks key="d" size={11} />], ['qualidade', 'Qualidade', <ClipboardList key="e" size={11} />], ['reposicao', 'Reposição', <RefreshCw key="r" size={11} />], ['timeline', 'Timeline', <History key="f" size={11} />]] as const).map(([k, lbl, ic]) => (
+              {([['briefing', 'Briefing', <Sparkles key="a" size={11} />], ['versoes', 'Versões', <FileBox key="b" size={11} />], ['pecas', 'Peças', <Boxes key="p" size={11} />], ['sku', 'SKU', <Barcode key="s" size={11} />], ['ficha', 'Ficha', <ClipboardList key="fi" size={11} />], ['custo', 'Custo', <DollarSign key="c" size={11} />], ['real', 'Custo real', <Gauge key="g" size={11} />], ['bom', 'BOM', <ListChecks key="d" size={11} />], ['qualidade', 'Qualidade', <ClipboardList key="e" size={11} />], ['reposicao', 'Reposição', <RefreshCw key="r" size={11} />], ['timeline', 'Timeline', <History key="f" size={11} />]] as const).map(([k, lbl, ic]) => (
                 <button key={k} onClick={() => setTab(k)} className="flex items-center justify-center gap-1 rounded px-2 py-1.5 text-[11px] font-semibold" style={{ background: tab === k ? 'rgba(0,229,255,0.12)' : 'transparent', color: tab === k ? '#00E5FF' : '#71717a' }}>{ic}{lbl}</button>
               ))}
             </div>
@@ -1591,6 +1606,7 @@ function DetailDrawer({ id, onClose, onChanged }: { id: string; onClose: () => v
             {tab === 'versoes' && <VersionsTab dev={dev} onChanged={() => { void reload(); onChanged() }} />}
             {tab === 'pecas' && <PartsTab dev={dev} onChanged={() => { void reload(); onChanged() }} />}
             {tab === 'sku' && <SkuTab dev={dev} />}
+            {tab === 'ficha' && <FichaTab dev={dev} onChanged={() => { void reload(); onChanged() }} />}
             {tab === 'custo' && <CostTab dev={dev} onChanged={onChanged} />}
             {tab === 'real' && <CostRealityTab devId={dev.id} />}
             {tab === 'bom' && <BomTab devId={dev.id} />}
@@ -2783,6 +2799,141 @@ function SkuTab({ dev }: { dev: DevDetail }) {
         </p>
       </div>
       {msg && <p className="text-[11px]" style={{ color: msg.includes('Erro') ? '#f87171' : '#4ade80' }}>{msg}</p>}
+    </div>
+  )
+}
+interface Suggestion { marca: string | null; marca_code: string | null; categoria: string | null; sub: string | null; linha: string | null; caracteristica: string | null }
+interface EnrichResult { ficha: { title: string; description: string; brand: string; bullets: string[]; attributes: Record<string, string>; tags: string[] }; suggestion: Suggestion; already_ready: boolean }
+
+// Ficha de catálogo — a transição projeto → produto pronto para a IA Criativo.
+// A IA preenche a partir da fonte (MakerWorld etc.); o operador revisa/edita, define
+// a LINHA de produtos (obrigatória) e marca "pronto". Publicar leva tudo pro catálogo.
+function FichaTab({ dev, onChanged }: { dev: DevDetail; onChanged: () => void }) {
+  const [title, setTitle] = useState(dev.catalog_title ?? '')
+  const [desc, setDesc] = useState(dev.catalog_description ?? '')
+  const [brand, setBrand] = useState(dev.catalog_brand ?? '')
+  const [bullets, setBullets] = useState<string[]>(dev.catalog_bullets ?? [])
+  const [attrs, setAttrs] = useState<Array<[string, string]>>(Object.entries(dev.catalog_attributes ?? {}))
+  const [tags, setTags] = useState((dev.catalog_tags ?? []).join(', '))
+  const [ready, setReady] = useState(!!dev.catalog_ready)
+  const [suggestion, setSuggestion] = useState<Suggestion | null>((dev.enrichment as { suggestion?: Suggestion } | null)?.suggestion ?? null)
+  const [sku, setSku] = useState<SkuData | null>(null)
+  const [enriching, setEnriching] = useState(false); const [saving, setSaving] = useState(false); const [applying, setApplying] = useState(false)
+  const [msg, setMsg] = useState(''); const [err, setErr] = useState('')
+
+  const loadSku = useCallback(async () => { try { setSku(await api<SkuData>(`/product-os/${dev.id}/sku`)) } catch { /* */ } }, [dev.id])
+  useEffect(() => { void loadSku() }, [loadSku])
+
+  const enrich = async (force: boolean) => {
+    setEnriching(true); setErr(''); setMsg('')
+    try {
+      const r = await api<EnrichResult>(`/product-os/${dev.id}/enrich`, { method: 'POST', body: JSON.stringify({ force }) })
+      setTitle(r.ficha.title); setDesc(r.ficha.description); setBrand(r.ficha.brand)
+      setBullets(r.ficha.bullets); setAttrs(Object.entries(r.ficha.attributes)); setTags(r.ficha.tags.join(', '))
+      setSuggestion(r.suggestion)
+      setMsg(r.already_ready ? 'Ficha já validada — recarregada (use "Refazer com IA" para regerar).' : 'Ficha preenchida pela IA. Revise e ajuste antes de publicar.')
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setEnriching(false) }
+  }
+  const save = async (markReady?: boolean) => {
+    setSaving(true); setErr(''); setMsg('')
+    try {
+      const attributes = Object.fromEntries(attrs.filter(([k, v]) => k.trim() && v.trim()))
+      const body: Record<string, unknown> = { title, description: desc, brand, bullets: bullets.filter(b => b.trim()), attributes, tags: tags.split(',').map(t => t.trim()).filter(Boolean) }
+      if (typeof markReady === 'boolean') { body.ready = markReady; setReady(markReady) }
+      await api(`/product-os/${dev.id}/ficha`, { method: 'PUT', body: JSON.stringify(body) })
+      setMsg(markReady === true ? '✓ Ficha validada — pronto para a IA Criativo.' : markReady === false ? 'Marcado como rascunho.' : 'Ficha salva.')
+      onChanged()
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setSaving(false) }
+  }
+  const applySuggestion = async () => {
+    if (!suggestion) return
+    setApplying(true); setErr(''); setMsg('')
+    try {
+      await api(`/product-os/${dev.id}/ficha/apply-classification`, { method: 'POST', body: JSON.stringify(suggestion) })
+      await loadSku(); setMsg('Classificação aplicada (linha definida). Se faltava algum nível, criei automaticamente.'); onChanged()
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setApplying(false) }
+  }
+
+  const descLen = desc.trim().length
+  const linhaSet = !!sku?.classification.linha
+  const suggestionStr = suggestion ? [suggestion.categoria, suggestion.sub, suggestion.linha, suggestion.caracteristica].filter(Boolean).join(' › ') : ''
+  const canSuggest = !!(suggestion?.categoria && suggestion?.sub && suggestion?.linha)
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs" style={{ color: '#a1a1aa' }}>A <span className="text-white">ficha</span> é o que vira o produto no catálogo — título, descrição, marca, atributos e a <span className="text-white">linha de produtos</span>. A IA preenche a partir da fonte (MakerWorld, imagens, briefing). Revise, defina a linha e marque <span className="text-white">pronto para a IA Criativo</span>.</p>
+
+      <div className="flex flex-wrap gap-2">
+        <button onClick={() => void enrich(false)} disabled={enriching} className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}>{enriching ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}{title || desc ? 'Refazer com IA' : 'Preencher com IA'}</button>
+        {(title || desc) && <button onClick={() => void save()} disabled={saving} className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold disabled:opacity-50" style={{ background: '#111114', border: '1px solid #27272a', color: '#a1a1aa' }}>{saving ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />} Salvar ficha</button>}
+      </div>
+
+      {/* Linha de produtos — OBRIGATÓRIA */}
+      <div className="rounded-lg p-3" style={{ background: linhaSet ? 'rgba(74,222,128,0.06)' : 'rgba(252,211,77,0.06)', border: `1px solid ${linhaSet ? 'rgba(74,222,128,0.3)' : 'rgba(252,211,77,0.3)'}` }}>
+        <div className="flex items-center gap-2">
+          <Barcode size={13} style={{ color: linhaSet ? '#4ade80' : '#fcd34d' }} />
+          <span className="text-xs font-bold text-white">Linha de produtos {linhaSet ? '' : '(obrigatória)'}</span>
+          {linhaSet && <span className="ml-auto font-mono text-[11px]" style={{ color: '#4ade80' }}>{sku?.classification.linha?.label} · {sku?.base ?? 'base pendente'}</span>}
+        </div>
+        {linhaSet ? (
+          <p className="mt-1 text-[10px]" style={{ color: '#71717a' }}>{[sku?.classification.categoria?.label, sku?.classification.sub?.label, sku?.classification.linha?.label, sku?.classification.caracteristica?.label].filter(Boolean).join(' › ')} · edite na aba <span className="text-white">SKU</span>.</p>
+        ) : (
+          <div className="mt-1.5 space-y-1.5">
+            <p className="text-[10px]" style={{ color: '#fcd34d' }}>Todo produto precisa pertencer a uma linha antes de publicar.</p>
+            {canSuggest && <div className="rounded p-2 text-[10px]" style={{ background: '#0a0a0e', border: '1px solid #27272a' }}><span style={{ color: '#71717a' }}>Sugestão da IA:</span> <span className="text-white">{suggestionStr}</span></div>}
+            <button onClick={() => void applySuggestion()} disabled={applying || !canSuggest} title={canSuggest ? '' : 'Preencha com a IA primeiro'} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-bold disabled:opacity-40" style={{ background: '#fcd34d', color: '#0a0a0e' }}>{applying ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />} Aplicar sugestão da IA (cria o que faltar)</button>
+          </div>
+        )}
+      </div>
+
+      <Input label="Título de marketplace (≤60)" value={title} onChange={setTitle} />
+      <div>
+        <div className="mb-1 flex items-center justify-between"><label className="text-[10px] font-semibold uppercase" style={{ color: '#71717a' }}>Descrição</label><span className="text-[10px]" style={{ color: descLen >= 80 ? '#4ade80' : '#fcd34d' }}>{descLen} chars {descLen < 80 ? '(mín. 80)' : '✓'}</span></div>
+        <textarea value={desc} onChange={e => setDesc(e.target.value)} rows={5} className="w-full rounded-lg px-2.5 py-2 text-xs text-white outline-none" style={{ background: '#111114', border: '1px solid #27272a' }} />
+      </div>
+      <Input label="Marca" value={brand} onChange={setBrand} placeholder="Ex: Vazzo" />
+
+      {/* Bullets */}
+      <div>
+        <label className="mb-1 block text-[10px] font-semibold uppercase" style={{ color: '#71717a' }}>Bullets / benefícios</label>
+        <div className="space-y-1">
+          {bullets.map((b, i) => (
+            <div key={i} className="flex items-center gap-1">
+              <input value={b} onChange={e => setBullets(bs => bs.map((x, j) => j === i ? e.target.value : x))} className="flex-1 rounded px-2 py-1 text-[11px] text-white" style={{ background: '#111114', border: '1px solid #27272a' }} />
+              <button onClick={() => setBullets(bs => bs.filter((_, j) => j !== i))} style={{ color: '#f87171' }}><X size={12} /></button>
+            </div>
+          ))}
+          <button onClick={() => setBullets(bs => [...bs, ''])} className="flex items-center gap-1 text-[10px] font-semibold text-cyan-400"><Plus size={10} /> bullet</button>
+        </div>
+      </div>
+
+      {/* Atributos */}
+      <div>
+        <label className="mb-1 block text-[10px] font-semibold uppercase" style={{ color: '#71717a' }}>Atributos (ficha técnica)</label>
+        <div className="space-y-1">
+          {attrs.map(([k, v], i) => (
+            <div key={i} className="flex items-center gap-1">
+              <input value={k} onChange={e => setAttrs(a => a.map((x, j) => j === i ? [e.target.value, x[1]] : x))} placeholder="ex: Material" className="w-1/3 rounded px-2 py-1 text-[11px] text-white" style={{ background: '#111114', border: '1px solid #27272a' }} />
+              <input value={v} onChange={e => setAttrs(a => a.map((x, j) => j === i ? [x[0], e.target.value] : x))} placeholder="ex: PLA" className="flex-1 rounded px-2 py-1 text-[11px] text-white" style={{ background: '#111114', border: '1px solid #27272a' }} />
+              <button onClick={() => setAttrs(a => a.filter((_, j) => j !== i))} style={{ color: '#f87171' }}><X size={12} /></button>
+            </div>
+          ))}
+          <button onClick={() => setAttrs(a => [...a, ['', '']])} className="flex items-center gap-1 text-[10px] font-semibold text-cyan-400"><Plus size={10} /> atributo</button>
+        </div>
+      </div>
+
+      <Input label="Tags (separadas por vírgula)" value={tags} onChange={setTags} />
+
+      {/* Pronto para IA Criativo */}
+      <div className="rounded-lg p-3" style={{ background: ready ? 'rgba(74,222,128,0.08)' : '#111114', border: `1px solid ${ready ? 'rgba(74,222,128,0.35)' : '#27272a'}` }}>
+        <div className="flex items-center gap-2">
+          <div className="min-w-0"><p className="text-xs font-bold" style={{ color: ready ? '#4ade80' : '#e4e4e7' }}>{ready ? '✓ Pronto para a IA Criativo' : 'Pronto para a IA Criativo?'}</p><p className="text-[10px]" style={{ color: '#71717a' }}>Marque quando a ficha estiver revisada. Publicar leva tudo pro catálogo.</p></div>
+          <button onClick={() => void save(!ready)} disabled={saving} className="ml-auto shrink-0 rounded-lg px-3 py-1.5 text-[11px] font-bold disabled:opacity-50" style={{ background: ready ? '#111114' : '#4ade80', color: ready ? '#a1a1aa' : '#0a0a0e', border: ready ? '1px solid #27272a' : 'none' }}>{ready ? 'Voltar a rascunho' : 'Marcar pronto'}</button>
+        </div>
+      </div>
+
+      {msg && <p className="text-[11px]" style={{ color: '#4ade80' }}>{msg}</p>}
+      {err && <p className="whitespace-pre-line text-[11px]" style={{ color: '#f87171' }}>{err}</p>}
     </div>
   )
 }
