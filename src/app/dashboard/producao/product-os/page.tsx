@@ -1349,9 +1349,13 @@ function GenerateImageModal({ dev, onClose, onSaved }: { dev: { id: string; name
     for (const r of dev.reference_images ?? []) if (r.url && !out.includes(r.url)) out.push(r.url)
     return out
   }, [dev])
+  // imagens base subidas na hora (habilita o image-to-image mesmo em produto do zero)
+  const [uploaded, setUploaded] = useState<string[]>([])
+  const allCandidates = useMemo(() => { const s = new Set<string>([...candidates, ...uploaded]); return [...s] }, [candidates, uploaded])
   const [useRef, setUseRef] = useState(true); const [refUrls, setRefUrls] = useState<string[]>([])
   useEffect(() => { setRefUrls(candidates.slice(0, 1)); setUseRef(candidates.length > 0) }, [candidates])
   const toggleRef = (u: string) => setRefUrls(prev => prev.includes(u) ? prev.filter(x => x !== u) : (prev.length >= 4 ? prev : [...prev, u]))
+  const addBaseImage = (u: string) => { if (!u) return; setUploaded(p => p.includes(u) ? p : [...p, u]); setRefUrls(p => p.includes(u) ? p : (p.length >= 4 ? p : [...p, u])); setUseRef(true) }
   useEffect(() => { void (async () => { try { setPalettes(await api<Palette[]>('/product-os/palettes')) } catch { /* */ } })() }, [])
   const gen = async () => {
     setBusy(true); setErr(''); setResult(null); setSavedMsg('')
@@ -1378,27 +1382,30 @@ function GenerateImageModal({ dev, onClose, onSaved }: { dev: { id: string; name
           {palettes.map(p => <option key={p.id} value={p.id}>{p.is_primary ? '★ ' : ''}{p.name}{p.category ? ` · ${p.category.label}` : ''}</option>)}
         </select>
         <input value={extra} onChange={e => setExtra(e.target.value)} placeholder="instrução extra (opcional): ex. sobre mesa de mármore" className="mb-3 w-full rounded-lg px-2.5 py-1.5 text-sm text-white" style={{ background: '#111114', border: '1px solid #27272a' }} />
-        {candidates.length > 0 && (
-          <div className="mb-3">
-            <label className="mb-1 flex items-center gap-2 text-[11px] text-white">
-              <button type="button" onClick={() => setUseRef(v => !v)} className="relative h-4 w-7 rounded-full transition-colors" style={{ background: useRef ? '#00E5FF' : '#3f3f46' }}><span className="absolute top-0.5 h-3 w-3 rounded-full bg-white transition-all" style={{ left: useRef ? '14px' : '2px' }} /></button>
-              Usar fotos do produto como referência <span style={{ color: '#52525b' }}>(mais fiel — inclui imagens do MakerWorld)</span>
+        <div className="mb-3 rounded-lg p-2.5" style={{ background: '#111114', border: '1px solid #27272a' }}>
+          <div className="mb-1.5 flex items-center justify-between gap-2">
+            <label className="flex items-center gap-2 text-[11px] text-white">
+              <button type="button" onClick={() => allCandidates.length && setUseRef(v => !v)} disabled={allCandidates.length === 0} className="relative h-4 w-7 rounded-full transition-colors disabled:opacity-40" style={{ background: useRef && allCandidates.length ? '#00E5FF' : '#3f3f46' }}><span className="absolute top-0.5 h-3 w-3 rounded-full bg-white transition-all" style={{ left: useRef && allCandidates.length ? '14px' : '2px' }} /></button>
+              Gerar com inspiração numa imagem base
             </label>
-            {useRef && (
-              <>
-                <p className="mb-1 text-[10px]" style={{ color: '#52525b' }}>Selecione 1 a 4 ângulos do MESMO produto ({refUrls.length} selecionada{refUrls.length === 1 ? '' : 's'}).</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {candidates.map(u => (
-                    <button key={u} onClick={() => toggleRef(u)} className="relative h-12 w-12 overflow-hidden rounded-lg" style={{ border: refUrls.includes(u) ? '2px solid #00E5FF' : '1px solid #27272a' }}>
-                      <img src={u} alt="ref" className="h-full w-full object-cover" />
-                      {refUrls.includes(u) && <span className="absolute right-0 top-0 flex h-4 w-4 items-center justify-center rounded-bl text-[9px] font-bold" style={{ background: '#00E5FF', color: '#0a0a0e' }}>✓</span>}
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
+            <UploadButton label="Subir imagem base" accept="image/*" onUploaded={urls => addBaseImage(urls[0])} />
           </div>
-        )}
+          {allCandidates.length > 0 ? (useRef && (
+            <>
+              <p className="mb-1 text-[10px]" style={{ color: '#52525b' }}>Selecione 1 a 4 imagens do MESMO produto ({refUrls.length} selecionada{refUrls.length === 1 ? '' : 's'}) — inclui fotos do MakerWorld e as que você subir.</p>
+              <div className="flex flex-wrap gap-1.5">
+                {allCandidates.map(u => (
+                  <button key={u} onClick={() => toggleRef(u)} className="relative h-12 w-12 overflow-hidden rounded-lg" style={{ border: refUrls.includes(u) ? '2px solid #00E5FF' : '1px solid #27272a' }}>
+                    <img src={u} alt="ref" className="h-full w-full object-cover" />
+                    {refUrls.includes(u) && <span className="absolute right-0 top-0 flex h-4 w-4 items-center justify-center rounded-bl text-[9px] font-bold" style={{ background: '#00E5FF', color: '#0a0a0e' }}>✓</span>}
+                  </button>
+                ))}
+              </div>
+            </>
+          )) : (
+            <p className="text-[10px]" style={{ color: '#52525b' }}>Produto do zero, sem imagem ainda? Suba uma <span className="text-white">imagem base</span> acima pra gerar com inspiração nela — ou gere só pelo texto/paleta abaixo.</p>
+          )}
+        </div>
         <button onClick={() => void gen()} disabled={busy} className="flex w-full items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold disabled:opacity-50" style={{ background: '#00E5FF', color: '#0a0a0e' }}>{busy ? <><Loader2 size={13} className="animate-spin" /> Gerando… (~10s)</> : <><Sparkles size={13} /> {useRef && refUrls.length ? `Gerar a partir de ${refUrls.length} foto${refUrls.length > 1 ? 's' : ''}` : 'Gerar imagem'}</>}</button>
         {err && <p className="mt-2 text-[11px]" style={{ color: '#f87171' }}>{err}</p>}
         {result && (
@@ -4013,9 +4020,12 @@ function NewProductModal({ onClose, onCreated }: { onClose: () => void; onCreate
         <Input label="Categoria" value={form.category} onChange={v => setForm(f => ({ ...f, category: v }))} />
         <Input label="Descrição / ideia" value={form.description} onChange={v => setForm(f => ({ ...f, description: v }))} />
         <Input label="Link de inspiração" value={form.inspiration_url} onChange={v => setForm(f => ({ ...f, inspiration_url: v }))} />
-        <div className="flex items-center gap-2">
-          <UploadButton label="Imagem de referência" accept="image/*" onUploaded={urls => setForm(f => ({ ...f, reference_url: urls[0] }))} />
-          {form.reference_url && <span className="text-[10px]" style={{ color: '#4ade80' }}>✓ imagem enviada</span>}
+        <div>
+          <div className="flex items-center gap-2">
+            <UploadButton label="Imagem base / referência" accept="image/*" onUploaded={urls => setForm(f => ({ ...f, reference_url: urls[0] }))} />
+            {form.reference_url && <span className="text-[10px]" style={{ color: '#4ade80' }}>✓ imagem enviada</span>}
+          </div>
+          <p className="mt-1 text-[10px]" style={{ color: '#71717a' }}>Serve de base pra IA gerar a foto de catálogo com inspiração nela. Opcional — dá pra subir depois na hora de gerar a imagem.</p>
         </div>
       </div>
       <div className="mt-4 flex justify-end"><button onClick={() => void create()} disabled={busy} className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}>{busy ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />} Criar</button></div>
