@@ -2645,6 +2645,7 @@ function SegmentPicker({ label, kind, parentId, value, onChange, suggestLabel, a
           <select disabled={blocked} value={value?.id ?? ''} onChange={e => onChange(opts.find(o => o.id === e.target.value) ?? null)}
             className="w-full rounded px-1.5 py-1 text-[11px] text-white" style={{ background: '#111114', border: '1px solid #27272a' }}>
             <option value="">{blocked ? '(escolha o nível acima)' : '— escolher —'}</option>
+            {value && !opts.some(o => o.id === value.id) && <option value={value.id}>{value.code} · {value.label}</option>}
             {opts.map(o => <option key={o.id} value={o.id}>{o.code} · {o.label}</option>)}
           </select>
           {!blocked && <button onClick={() => { setNewLabel(suggestLabel ?? ''); setAdding(true) }} className="mt-1 flex items-center gap-1 text-[9px] font-semibold text-cyan-400"><Plus size={9} /> nova</button>}
@@ -2690,6 +2691,18 @@ function SkuTab({ dev }: { dev: DevDetail }) {
   const loadCores = useCallback(async () => { try { setCores(await api<TaxOption[]>('/product-os/sku/taxonomy?kind=cor')) } catch { /* */ } }, [])
   useEffect(() => { void loadCores() }, [loadCores])
 
+  // Categoria/Sub puxadas da árvore do Mercado Livre (a que espelhamos)
+  const [mlPath, setMlPath] = useState<Array<{ id: string; name: string }>>(dev.category_ml_path ?? [])
+  const [mlQuery, setMlQuery] = useState(''); const [mlOpts, setMlOpts] = useState<MlCatOption[]>([]); const [mlBusy, setMlBusy] = useState(false)
+  const searchMlCat = async () => { if (!mlQuery.trim()) return; setMlBusy(true); try { setMlOpts(await api<MlCatOption[]>(`/product-os/ml-categories/search?q=${encodeURIComponent(mlQuery.trim())}`)) } catch { setMlOpts([]) } finally { setMlBusy(false) } }
+  const pickMlCat = async (o: MlCatOption) => {
+    setMlBusy(true); setMsg('')
+    try {
+      const r = await api<{ category_ml_id: string | null; path: Array<{ id: string; name: string }> }>(`/product-os/${dev.id}/ml-category`, { method: 'POST', body: JSON.stringify({ category_id: o.id }) })
+      setMlPath(r.path); setMlOpts([]); setMlQuery(''); await load(); setMsg('Categoria e Sub puxadas do Mercado Livre.')
+    } catch (e) { setMsg(e instanceof Error ? e.message : 'Erro') } finally { setMlBusy(false) }
+  }
+
   const allSet = !!(marca && cat && sub && linha && carac)
   const previewBase = allSet ? `${marca!.code}${cat!.code}${sub!.code}${linha!.code}${carac!.code}` : null
   const dirty = previewBase !== (data?.base ?? null)
@@ -2724,6 +2737,27 @@ function SkuTab({ dev }: { dev: DevDetail }) {
   return (
     <div className="space-y-4">
       <p className="text-xs" style={{ color: '#a1a1aa' }}>O SKU é gerado pela taxonomia: <span className="font-mono text-white">MARCA+CATEGORIA+SUB+LINHA+CARACTERÍSTICA-COR</span>. A <span className="text-white">Linha</span> é uma coleção transversal (ex: “Ella”) que reúne produtos de qualquer categoria. A Característica diferencia o modelo dentro da linha. A Cor é a variação — cada cor vira um SKU.</p>
+
+      {/* Categoria/Sub pela ÁRVORE DO MERCADO LIVRE (define os nós internos) */}
+      <div className="rounded-lg p-2.5" style={{ background: '#111114', border: '1px solid #27272a' }}>
+        <div className="mb-1 flex items-center gap-1.5"><Boxes size={12} className="text-cyan-400" /><span className="text-[11px] font-bold text-white">Categoria pela árvore do Mercado Livre</span></div>
+        {mlPath.length > 0 && <p className="mb-1.5 text-[10px]" style={{ color: '#4ade80' }}>✓ {mlPath.map(p => p.name).join(' › ')}</p>}
+        <p className="mb-1.5 text-[10px]" style={{ color: '#71717a' }}>Busque a categoria oficial do ML — ela define a <span className="text-white">Categoria</span> e a <span className="text-white">Sub</span> abaixo (cria os nós internos com código). Também dá pra editar na mão.</p>
+        <div className="flex gap-1">
+          <input value={mlQuery} onChange={e => setMlQuery(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') void searchMlCat() }} placeholder="ex: bandeja decorativa, suporte de maquiagem…" className="flex-1 rounded-lg px-2 py-1.5 text-[11px] text-white outline-none" style={{ background: '#0a0a0e', border: '1px solid #27272a' }} />
+          <button onClick={() => void searchMlCat()} disabled={mlBusy || !mlQuery.trim()} className="rounded-lg px-2.5 py-1.5 text-[10px] font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.35)' }}>{mlBusy ? <Loader2 size={11} className="animate-spin" /> : 'buscar'}</button>
+        </div>
+        {mlOpts.length > 0 && (
+          <div className="mt-1.5 space-y-1">
+            {mlOpts.map(o => (
+              <button key={o.id} onClick={() => void pickMlCat(o)} className="block w-full rounded px-2 py-1.5 text-left" style={{ background: '#0a0a0e', border: '1px solid #1a1a1f' }}>
+                <p className="text-[11px] font-semibold text-white">{o.name}</p>
+                <p className="truncate text-[9px]" style={{ color: '#52525b' }}>{o.path || o.id}</p>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* seletores */}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
