@@ -2837,7 +2837,7 @@ function SkuTab({ dev }: { dev: DevDetail }) {
           </div>
         )}
         <p className="mt-2 text-[10px] leading-relaxed" style={{ color: '#71717a' }}>
-          EAN-13 válido de <span className="text-white">uso interno</span> (prefixo 2, faixa restrita do GS1 — não colide com nenhum produto no mundo). Serve como código de barras na <span className="text-white">Shopee, TikTok, loja própria e no estoque/expedição</span>. ⚠️ No <span className="text-white">Mercado Livre</span>, para produto próprio sem GTIN oficial, marque “não possui código universal” e use este como SKU do vendedor — não como GTIN oficial (o ML valida GTIN contra a GS1).
+          EAN-13 válido com <span className="text-white">prefixo GS1 Brasil (789/790)</span>. Serve como código de barras na <span className="text-white">Shopee, TikTok, loja própria e no estoque/expedição</span>. ⚠️ Como não usa um <span className="text-white">prefixo de empresa GS1 próprio</span>, o restante é gerado por nós — é um código INTERNO, não um GTIN oficial registrado. No <span className="text-white">Mercado Livre</span>, marque “não possui código universal” e use como SKU do vendedor (o ML valida GTIN oficial contra a GS1). Para GTIN 100% oficial, registre um prefixo na GS1 Brasil e cole aqui.
         </p>
       </div>
       {msg && <p className="text-[11px]" style={{ color: msg.includes('Erro') ? '#f87171' : '#4ade80' }}>{msg}</p>}
