@@ -84,6 +84,7 @@ interface Order {
   printer_id: string | null; is_prototype: boolean; estimated_time_minutes: number | null; estimated_filament_g: number | null; actual_filament_g?: number | null; part_id?: string | null; due_at?: string | null; created_at: string
   last_transition_source?: string | null; status_changed_at?: string | null
   version?: { thumbnail_url: string | null } | Array<{ thumbnail_url: string | null }> | null
+  part?: { name: string; code: string | null } | Array<{ name: string; code: string | null }> | null
   jobs?: Job[]
 }
 interface Job { id: string; job_number: number; status: string; filament_used_g: number | null; print_time_minutes: number | null; failure_reason: string | null }
@@ -633,6 +634,7 @@ function ProductionBoard({ products }: { products: ProductDev[] }) {
   // imagem do card: preview extraído do .3mf da versão > foto de referência do produto
   const devImg = (devId: string) => products.find(p => p.id === devId)?.reference_images?.[0]?.url ?? null
   const thumbOf = (o: Order) => { const rel = Array.isArray(o.version) ? o.version[0] : o.version; return rel?.thumbnail_url ?? devImg(o.product_dev_id) }
+  const partOf = (o: Order) => { const rel = Array.isArray(o.part) ? o.part[0] : o.part; return rel ?? null }
 
   const load = useCallback(async (silent?: boolean) => {
     if (!silent) setLoading(true)
@@ -686,7 +688,7 @@ function ProductionBoard({ products }: { products: ProductDev[] }) {
     if (flt === 'stale' && !isStale(o)) return false
     if (!query.trim()) return true
     const q = query.trim().toLowerCase()
-    return nameOf(o.product_dev_id).toLowerCase().includes(q) || `op-${String(o.order_number).padStart(4, '0')}`.includes(q) || String(o.order_number) === q.replace(/^op-?0*/, '')
+    return nameOf(o.product_dev_id).toLowerCase().includes(q) || (partOf(o)?.name ?? '').toLowerCase().includes(q) || `op-${String(o.order_number).padStart(4, '0')}`.includes(q) || String(o.order_number) === q.replace(/^op-?0*/, '')
   }
   const visibleOrders = orders.filter(matches)
   const visibleAsms = flt ? [] : assemblies.filter(a => !query.trim() || nameOf(a.product_dev_id).toLowerCase().includes(query.trim().toLowerCase()))
@@ -882,7 +884,7 @@ function ProductionBoard({ products }: { products: ProductDev[] }) {
                             <span className="shrink-0 rounded px-1 py-0.5 font-mono text-[9px] font-bold" style={{ background: 'rgba(0,229,255,0.12)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.25)' }}>OP-{String(o.order_number).padStart(4, '0')}</span>
                             <p className="truncate text-xs font-bold text-white">{nameOf(o.product_dev_id)}</p>
                             {o.last_transition_source === 'auto' && <span title="Avançou sozinho — movido pela telemetria da impressora" className="shrink-0 text-[10px]">⚡</span>}
-                            {o.part_id && <span className="shrink-0 rounded px-1 py-0.5 text-[8px] font-bold" style={{ background: 'rgba(0,229,255,0.12)', color: '#67e8f9' }}>🧩 peça</span>}
+                            {o.part_id && <span title={partOf(o)?.code ?? undefined} className="max-w-[110px] shrink-0 truncate rounded px-1 py-0.5 text-[8px] font-bold" style={{ background: 'rgba(0,229,255,0.12)', color: '#67e8f9' }}>🧩 {partOf(o)?.name ?? 'peça'}</span>}
                             {o.is_prototype && <span className="shrink-0 rounded px-1 py-0.5 text-[8px] font-bold" style={{ background: 'rgba(168,85,247,0.15)', color: '#c4b5fd' }}>protótipo</span>}
                           </div>
                           <p className="text-[10px]" style={{ color: '#71717a' }}>{o.quantity} un{o.estimated_filament_g ? ` · ${o.estimated_filament_g} g` : ''}{o.machine ? ` · ${o.machine}` : ''}</p>
