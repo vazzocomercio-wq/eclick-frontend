@@ -83,6 +83,7 @@ interface Order {
   id: string; product_dev_id: string; order_number: number; quantity: number; machine: string | null; status: string
   printer_id: string | null; is_prototype: boolean; estimated_time_minutes: number | null; estimated_filament_g: number | null; actual_filament_g?: number | null; part_id?: string | null; due_at?: string | null; created_at: string
   last_transition_source?: string | null; status_changed_at?: string | null
+  version?: { thumbnail_url: string | null } | Array<{ thumbnail_url: string | null }> | null
   jobs?: Job[]
 }
 interface Job { id: string; job_number: number; status: string; filament_used_g: number | null; print_time_minutes: number | null; failure_reason: string | null }
@@ -629,6 +630,9 @@ function ProductionBoard({ products }: { products: ProductDev[] }) {
   const [showNew, setShowNew] = useState(false)
   const [showNewAsm, setShowNewAsm] = useState(false)
   const nameOf = (devId: string) => products.find(p => p.id === devId)?.name ?? '—'
+  // imagem do card: preview extraído do .3mf da versão > foto de referência do produto
+  const devImg = (devId: string) => products.find(p => p.id === devId)?.reference_images?.[0]?.url ?? null
+  const thumbOf = (o: Order) => { const rel = Array.isArray(o.version) ? o.version[0] : o.version; return rel?.thumbnail_url ?? devImg(o.product_dev_id) }
 
   const load = useCallback(async (silent?: boolean) => {
     if (!silent) setLoading(true)
@@ -870,15 +874,20 @@ function ProductionBoard({ products }: { products: ProductDev[] }) {
                   {cards.map(o => (
                     <DragWrap key={o.id} id={o.id} data={{ kind: 'op', id: o.id, status: o.status, partId: !!o.part_id, code: `OP-${String(o.order_number).padStart(4, '0')}`, name: nameOf(o.product_dev_id) }}>
                     <div className="rounded-lg p-2.5" style={{ background: '#111114', border: '1px solid #27272a' }}>
-                      <div className="flex items-center gap-1.5">
-                        <button onClick={e => { e.stopPropagation(); toggleSelect(o.id) }} onPointerDown={e => e.stopPropagation()} title="selecionar pra mover em lote" className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded" style={{ border: `1px solid ${selected.has(o.id) ? '#00E5FF' : '#3f3f46'}`, background: selected.has(o.id) ? 'rgba(0,229,255,0.25)' : 'transparent', color: '#00E5FF' }}>{selected.has(o.id) && <Check size={9} />}</button>
-                        <span className="shrink-0 rounded px-1 py-0.5 font-mono text-[9px] font-bold" style={{ background: 'rgba(0,229,255,0.12)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.25)' }}>OP-{String(o.order_number).padStart(4, '0')}</span>
-                        <p className="truncate text-xs font-bold text-white">{nameOf(o.product_dev_id)}</p>
-                        {o.last_transition_source === 'auto' && <span title="Avançou sozinho — movido pela telemetria da impressora" className="shrink-0 text-[10px]">⚡</span>}
-                        {o.part_id && <span className="shrink-0 rounded px-1 py-0.5 text-[8px] font-bold" style={{ background: 'rgba(0,229,255,0.12)', color: '#67e8f9' }}>🧩 peça</span>}
-                        {o.is_prototype && <span className="shrink-0 rounded px-1 py-0.5 text-[8px] font-bold" style={{ background: 'rgba(168,85,247,0.15)', color: '#c4b5fd' }}>protótipo</span>}
+                      <div className="flex gap-2">
+                        {thumbOf(o) && <img src={thumbOf(o)!} alt="" className="h-10 w-10 shrink-0 rounded-md object-cover" style={{ border: '1px solid #27272a', background: '#0a0a0e' }} />}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <button onClick={e => { e.stopPropagation(); toggleSelect(o.id) }} onPointerDown={e => e.stopPropagation()} title="selecionar pra mover em lote" className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded" style={{ border: `1px solid ${selected.has(o.id) ? '#00E5FF' : '#3f3f46'}`, background: selected.has(o.id) ? 'rgba(0,229,255,0.25)' : 'transparent', color: '#00E5FF' }}>{selected.has(o.id) && <Check size={9} />}</button>
+                            <span className="shrink-0 rounded px-1 py-0.5 font-mono text-[9px] font-bold" style={{ background: 'rgba(0,229,255,0.12)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.25)' }}>OP-{String(o.order_number).padStart(4, '0')}</span>
+                            <p className="truncate text-xs font-bold text-white">{nameOf(o.product_dev_id)}</p>
+                            {o.last_transition_source === 'auto' && <span title="Avançou sozinho — movido pela telemetria da impressora" className="shrink-0 text-[10px]">⚡</span>}
+                            {o.part_id && <span className="shrink-0 rounded px-1 py-0.5 text-[8px] font-bold" style={{ background: 'rgba(0,229,255,0.12)', color: '#67e8f9' }}>🧩 peça</span>}
+                            {o.is_prototype && <span className="shrink-0 rounded px-1 py-0.5 text-[8px] font-bold" style={{ background: 'rgba(168,85,247,0.15)', color: '#c4b5fd' }}>protótipo</span>}
+                          </div>
+                          <p className="text-[10px]" style={{ color: '#71717a' }}>{o.quantity} un{o.estimated_filament_g ? ` · ${o.estimated_filament_g} g` : ''}{o.machine ? ` · ${o.machine}` : ''}</p>
+                        </div>
                       </div>
-                      <p className="text-[10px]" style={{ color: '#71717a' }}>{o.quantity} un{o.estimated_filament_g ? ` · ${o.estimated_filament_g} g` : ''}{o.machine ? ` · ${o.machine}` : ''}</p>
                       {isStale(o) && (
                         <p className="mt-1 text-[9px] font-semibold" style={{ color: (ageOf(o) ?? 0) > 72 * 3600000 ? '#f87171' : '#fcd34d' }}>⏱ há {fmtAge(ageOf(o) ?? 0)} nesta etapa</p>
                       )}
@@ -908,12 +917,17 @@ function ProductionBoard({ products }: { products: ProductDev[] }) {
                   {asms.map(a => (
                     <DragWrap key={a.id} id={a.id} data={{ kind: 'asm', id: a.id, status: a.status, code: `MT-${String(a.order_number).padStart(4, '0')}`, name: nameOf(a.product_dev_id) }}>
                     <div className="rounded-lg p-2.5" style={{ background: '#111114', border: '1px solid rgba(168,85,247,0.3)' }}>
-                      <div className="flex items-center gap-1.5">
-                        <span className="shrink-0 rounded px-1 py-0.5 font-mono text-[9px] font-bold" style={{ background: 'rgba(168,85,247,0.15)', color: '#c4b5fd', border: '1px solid rgba(168,85,247,0.3)' }}>MT-{String(a.order_number).padStart(4, '0')}</span>
-                        <p className="truncate text-xs font-bold text-white">{nameOf(a.product_dev_id)}</p>
-                        <span className="shrink-0 rounded px-1 py-0.5 text-[8px] font-bold" style={{ background: 'rgba(168,85,247,0.15)', color: '#c4b5fd' }}>🔧 montagem</span>
+                      <div className="flex gap-2">
+                        {devImg(a.product_dev_id) && <img src={devImg(a.product_dev_id)!} alt="" className="h-10 w-10 shrink-0 rounded-md object-cover" style={{ border: '1px solid #27272a', background: '#0a0a0e' }} />}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="shrink-0 rounded px-1 py-0.5 font-mono text-[9px] font-bold" style={{ background: 'rgba(168,85,247,0.15)', color: '#c4b5fd', border: '1px solid rgba(168,85,247,0.3)' }}>MT-{String(a.order_number).padStart(4, '0')}</span>
+                            <p className="truncate text-xs font-bold text-white">{nameOf(a.product_dev_id)}</p>
+                            <span className="shrink-0 rounded px-1 py-0.5 text-[8px] font-bold" style={{ background: 'rgba(168,85,247,0.15)', color: '#c4b5fd' }}>🔧 montagem</span>
+                          </div>
+                          <p className="text-[10px]" style={{ color: '#71717a' }}>{a.quantity} un · junta as peças no produto</p>
+                        </div>
                       </div>
-                      <p className="text-[10px]" style={{ color: '#71717a' }}>{a.quantity} un · junta as peças no produto</p>
                       <div className="mt-1.5 flex flex-wrap gap-1">
                         {(ASSEMBLY_NEXT[a.status] ?? []).map(ns => (
                           <button key={ns} onClick={() => void transitionAsm(a.id, ns)} className="rounded px-1.5 py-0.5 text-[9px] font-semibold" style={{ background: ns === 'cancelado' ? '#0a0a0e' : 'rgba(168,85,247,0.12)', color: ns === 'cancelado' ? '#71717a' : '#d8b4fe', border: '1px solid #27272a' }}>{NEXT_LABEL[ns] ?? ns}</button>
