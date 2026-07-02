@@ -206,6 +206,28 @@ const PART_ORDER_NEXT: Record<string, string[]> = {
 const ASSEMBLY_NEXT: Record<string, string[]> = {
   fila: ['montando', 'cancelado'], montando: ['embalado', 'cancelado'], embalado: ['disponivel'], disponivel: [], concluido: [], cancelado: [],
 }
+// caminho "feliz" entre etapas (BFS, sem passar por falhou/cancelado): permite arrastar o card
+// DIRETO pra uma etapa mais à frente — o sistema executa cada transição intermediária em sequência
+function pathTo(map: Record<string, string[]>, from: string, to: string): string[] | null {
+  if (from === to) return null
+  const prev: Record<string, string> = {}
+  const seen = new Set([from]); const q = [from]
+  while (q.length) {
+    const cur = q.shift()!
+    for (const n of map[cur] ?? []) {
+      if (n === 'cancelado' || n === 'falhou' || seen.has(n)) continue
+      seen.add(n); prev[n] = cur
+      if (n === to) { const path = [n]; let p = cur; while (p !== from) { path.unshift(p); p = prev[p] } return path }
+      q.push(n)
+    }
+  }
+  return null
+}
+function reachableFrom(map: Record<string, string[]>, from: string): Set<string> {
+  const seen = new Set<string>(); const q = [from]
+  while (q.length) { const c = q.shift()!; for (const n of map[c] ?? []) { if (n === 'cancelado' || n === 'falhou' || seen.has(n)) continue; seen.add(n); q.push(n) } }
+  return seen
+}
 const CHANNEL_LABEL: Record<string, string> = { mercado_livre: 'Mercado Livre', shopee: 'Shopee', tiktok: 'TikTok', loja: 'Loja própria' }
 const DEFAULT_QC: Array<{ key: string; label: string; ok: boolean }> = [
   { key: 'estavel', label: 'Peça estável', ok: false }, { key: 'suporta_peso', label: 'Suporta o peso esperado', ok: false },
@@ -277,10 +299,20 @@ function HScroll({ children, className }: { children: React.ReactNode; className
     el.scrollLeft = drag.current.scroll - (e.clientX - drag.current.startX)
   }
   const end = (e: React.PointerEvent) => { const el = ref.current; if (!el) return; drag.current.down = false; el.style.cursor = 'grab'; try { el.releasePointerCapture(e.pointerId) } catch { /* */ } }
-  const onWheel = (e: React.WheelEvent) => { const el = ref.current; if (!el || el.scrollWidth <= el.clientWidth) return; if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) el.scrollLeft += e.deltaY }
+  const onWheel = (e: React.WheelEvent) => {
+    const el = ref.current; if (!el || el.scrollWidth <= el.clientWidth) return
+    // roda sobre uma coluna que tem rolagem própria → deixa a coluna rolar na vertical (nativo)
+    const v = (e.target as HTMLElement).closest('[data-vscroll]')
+    if (v && v.scrollHeight > v.clientHeight) return
+    if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) el.scrollLeft += e.deltaY
+  }
   return (
     <>
-      <style>{`.os-hscroll::-webkit-scrollbar{display:none}`}</style>
+      <style>{`.os-hscroll::-webkit-scrollbar{display:none}
+.os-vscroll{scrollbar-width:thin;scrollbar-color:#27272a transparent}
+.os-vscroll::-webkit-scrollbar{width:5px}
+.os-vscroll::-webkit-scrollbar-thumb{background:#27272a;border-radius:3px}
+.os-vscroll::-webkit-scrollbar-track{background:transparent}`}</style>
       <div ref={ref} className={`os-hscroll ${className ?? ''}`} style={{ cursor: 'grab', overflowX: 'auto', overflowY: 'hidden', scrollbarWidth: 'none', msOverflowStyle: 'none', touchAction: 'pan-y', userSelect: 'none' }}
         onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={end} onPointerLeave={end} onWheel={onWheel}>
         {children}
@@ -500,15 +532,16 @@ function LifecycleBoard({ items, loading, onOpen, onChanged, setError }: { items
   )
 }
 
-function Column({ id, label, count, children }: { id: string; label: string; count: number; children: React.ReactNode }) {
+function Column({ id, label, count, dim, children }: { id: string; label: string; count: number; dim?: boolean; children: React.ReactNode }) {
   const { setNodeRef, isOver } = useDroppable({ id })
   return (
-    <div ref={setNodeRef} className="flex w-64 shrink-0 flex-col rounded-xl" style={{ background: isOver ? 'rgba(0,229,255,0.05)' : '#0c0c10', border: `1px solid ${isOver ? 'rgba(0,229,255,0.4)' : '#1a1a1f'}` }}>
+    <div ref={setNodeRef} className="flex w-64 shrink-0 flex-col rounded-xl" style={{ background: isOver ? 'rgba(0,229,255,0.05)' : '#0c0c10', border: `1px solid ${isOver ? 'rgba(0,229,255,0.4)' : '#1a1a1f'}`, opacity: dim ? 0.35 : 1, transition: 'opacity .15s' }}>
       <div className="flex items-center justify-between px-3 py-2.5">
         <span className="text-xs font-bold uppercase tracking-wide" style={{ color: '#a1a1aa' }}>{label}</span>
         <span className="rounded px-1.5 py-0.5 text-[10px] font-bold" style={{ background: '#1a1a1f', color: '#71717a' }}>{count}</span>
       </div>
-      <div className="flex flex-col gap-2 px-2 pb-2" style={{ minHeight: 80 }}>{children}</div>
+      {/* rolagem própria da coluna: a roda do mouse rola os cards AQUI, não a página (HScroll respeita data-vscroll) */}
+      <div data-vscroll="1" className="os-vscroll flex flex-col gap-2 px-2 pb-2" style={{ minHeight: 80, maxHeight: 'max(240px, calc(100vh - 380px))', overflowY: 'auto', overscrollBehavior: 'contain' }}>{children}</div>
     </div>
   )
 }
@@ -582,28 +615,57 @@ function ProductionBoard({ products }: { products: ProductDev[] }) {
     try { await api(`/product-os/assemblies/${aid}/transition`, { method: 'POST', body: JSON.stringify({ status }) }); void load(true) }
     catch (e) { setAssemblies(prev); setErr(e instanceof Error ? e.message : 'Erro') }
   }
+  // arrastou pra uma etapa mais à frente → executa as transições intermediárias em sequência (otimista)
+  const transitionChain = async (oid: string, path: string[]) => {
+    const prev = orders
+    setOrders(os => os.map(o => o.id === oid ? { ...o, status: path[path.length - 1] } : o))
+    try { for (const s of path) await api(`/product-os/production-orders/${oid}/transition`, { method: 'POST', body: JSON.stringify({ status: s }) }); void load(true) }
+    catch (e) { setOrders(prev); setErr(e instanceof Error ? e.message : 'Erro') }
+  }
+  const transitionAsmChain = async (aid: string, path: string[]) => {
+    const prev = assemblies
+    setAssemblies(as => as.map(a => a.id === aid ? { ...a, status: path[path.length - 1] } : a))
+    try { for (const s of path) await api(`/product-os/assemblies/${aid}/transition`, { method: 'POST', body: JSON.stringify({ status: s }) }); void load(true) }
+    catch (e) { setAssemblies(prev); setErr(e instanceof Error ? e.message : 'Erro') }
+  }
   // em qual coluna a montagem aparece: fila/montando → Montagem; embalado/disponível na sua; concluído(legado)→Disponível
   const asmCol = (a: AssemblyOrder) => (a.status === 'fila' || a.status === 'montando') ? 'montagem' : (a.status === 'concluido' ? 'disponivel' : a.status)
 
-  // arrastar cards entre colunas (respeita as transições válidas; senão ignora)
+  // arrastar cards entre colunas: aceita etapa mais à frente (cadeia de transições);
+  // durante o arraste, as colunas que NÃO são destino válido ficam apagadas
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
   const [activeDrag, setActiveDrag] = useState<{ code: string; name: string; color: string } | null>(null)
+  const [validCols, setValidCols] = useState<Set<string> | null>(null)
+  const [warn, setWarn] = useState('')
+  const asmColOf = (status: string) => (status === 'fila' || status === 'montando') ? 'montagem' : (status === 'concluido' ? 'disponivel' : status)
   const onDragStart = (e: DragStartEvent) => {
-    const d = e.active.data.current as { code?: string; name?: string; kind?: string } | undefined
+    const d = e.active.data.current as { code?: string; name?: string; kind?: string; status?: string; partId?: boolean } | undefined
     if (d) setActiveDrag({ code: d.code ?? '', name: d.name ?? '', color: d.kind === 'asm' ? '#c4b5fd' : '#00E5FF' })
+    if (d?.status) {
+      if (d.kind === 'op') setValidCols(new Set([...reachableFrom(d.partId ? PART_ORDER_NEXT : ORDER_NEXT, d.status), d.status]))
+      else setValidCols(new Set([...[...reachableFrom(ASSEMBLY_NEXT, d.status)].map(asmColOf), asmColOf(d.status)]))
+    }
   }
-  const onDragEnd = (e: DragEndEvent) => {
-    setActiveDrag(null)
+  const onDragEnd = async (e: DragEndEvent) => {
+    setActiveDrag(null); setValidCols(null)
     const over = e.over?.id ? String(e.over.id) : null
     const d = e.active.data.current as { kind?: string; id?: string; status?: string; partId?: boolean } | undefined
     if (!over || !d?.id || !d.status) return
+    const invalid = () => { const lbl = ORDER_COLS.find(c => c.key === over)?.label ?? over; setWarn(`Esse card não pode ir pra "${lbl}" a partir da etapa atual.`); window.setTimeout(() => setWarn(''), 4000) }
     if (d.kind === 'op') {
-      const nexts = (d.partId ? PART_ORDER_NEXT : ORDER_NEXT)[d.status] ?? []
-      if (nexts.includes(over)) void transition(d.id, over)
+      if (over === d.status) return
+      const path = pathTo(d.partId ? PART_ORDER_NEXT : ORDER_NEXT, d.status, over)
+      if (path) {
+        // pular a inspeção de Qualidade de propósito exige confirmação (rastreabilidade de manufatura)
+        if (path.includes('qualidade') && path[path.length - 1] !== 'qualidade' && !(await confirmDialog({ title: 'Pular Qualidade', message: 'Esse movimento passa direto pela etapa de Qualidade sem inspeção. Avançar assim mesmo?', confirmLabel: 'Avançar' }))) return
+        void transitionChain(d.id, path)
+      } else invalid()
     } else {
-      const map: Record<string, string> = { montagem: 'montando', embalado: 'embalado', disponivel: 'disponivel' }
-      const ts = map[over]; const nexts = ASSEMBLY_NEXT[d.status] ?? []
-      if (ts && nexts.includes(ts)) void transitionAsm(d.id, ts)
+      if (over === asmColOf(d.status)) return
+      const tmap: Record<string, string> = { montagem: 'montando', embalado: 'embalado', disponivel: 'disponivel' }
+      const ts = tmap[over]
+      const path = ts ? pathTo(ASSEMBLY_NEXT, d.status, ts) : null
+      if (path) void transitionAsmChain(d.id, path); else invalid()
     }
   }
   const sendToPrinter = async (oid: string) => {
@@ -624,14 +686,15 @@ function ProductionBoard({ products }: { products: ProductDev[] }) {
       </div>
       {err && <div className="rounded-lg p-2.5 text-xs" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>{err}</div>}
       {notice && <div className="rounded-lg p-2.5 text-xs" style={{ background: 'rgba(74,222,128,0.10)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)' }}>{notice}</div>}
+      {warn && <div className="rounded-lg p-2.5 text-xs" style={{ background: 'rgba(252,211,77,0.10)', color: '#fcd34d', border: '1px solid rgba(252,211,77,0.3)' }}>{warn}</div>}
       {loading ? <div className="flex items-center gap-2 p-6 text-sm" style={{ color: '#71717a' }}><Loader2 size={16} className="animate-spin" /> Carregando…</div> : (
-        <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={onDragStart} onDragEnd={onDragEnd}>
+        <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => { setActiveDrag(null); setValidCols(null) }}>
         <HScroll className="flex gap-3 pb-4">
           {ORDER_COLS.map(col => {
             const cards = orders.filter(o => o.status === col.key)
             const asms = assemblies.filter(a => asmCol(a) === col.key)
             return (
-              <Column key={col.key} id={col.key} label={col.label} count={cards.length + asms.length}>
+              <Column key={col.key} id={col.key} label={col.label} count={cards.length + asms.length} dim={!!validCols && !validCols.has(col.key)}>
                   {cards.map(o => (
                     <DragWrap key={o.id} id={o.id} data={{ kind: 'op', id: o.id, status: o.status, partId: !!o.part_id, code: `OP-${String(o.order_number).padStart(4, '0')}`, name: nameOf(o.product_dev_id) }}>
                     <div className="rounded-lg p-2.5" style={{ background: '#111114', border: '1px solid #27272a' }}>
