@@ -11,7 +11,7 @@ import {
   Lightbulb, Loader2, Plus, X, Sparkles, Cpu, DollarSign, Settings2,
   AlertTriangle, CheckCircle2, FileBox, RefreshCw, Check, Ban, Package,
   Factory, Boxes, Send, Rocket, ListChecks, History, ClipboardList,
-  Printer as PrinterIcon, TrendingUp, Gauge, Wifi, Upload, Trophy, Trash2, ExternalLink, Users, Flame, Heart, Download, Search, Layers, Eye, EyeOff, ShieldAlert, Barcode, Palette, Copy, Star,
+  Printer as PrinterIcon, TrendingUp, Gauge, Wifi, Upload, Trophy, Trash2, ExternalLink, Users, Flame, Heart, Download, Search, Layers, Eye, EyeOff, ShieldAlert, Barcode, Palette, Copy, Star, Archive,
 } from 'lucide-react'
 import { usePrompt } from '@/components/ui/dialog-provider'
 
@@ -1851,7 +1851,7 @@ function DetailDrawer({ id, onClose, onChanged }: { id: string; onClose: () => v
   const [dev, setDev] = useState<DevDetail | null>(null)
   const [err, setErr] = useState(''); const [msg, setMsg] = useState('')
   const [tab, setTab] = useState<DrawerTab>('briefing')
-  const [busy, setBusy] = useState<'dispatch' | 'publish' | 'license' | null>(null)
+  const [busy, setBusy] = useState<'dispatch' | 'publish' | 'license' | 'archive' | null>(null)
   const [showPublish, setShowPublish] = useState(false)
   const [showImage, setShowImage] = useState(false)
   const prompt = usePrompt()
@@ -1884,6 +1884,13 @@ function DetailDrawer({ id, onClose, onChanged }: { id: string; onClose: () => v
     catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setBusy(null) }
   }
 
+  const archive = async () => {
+    if (!(await confirmDialog({ title: 'Arquivar produto', message: `Arquivar "${dev?.name}"? Ele some do quadro Ciclo de vida, mas o histórico, as versões e os arquivos ficam guardados.`, danger: true, confirmLabel: 'Arquivar' }))) return
+    setBusy('archive'); setErr(''); setMsg('')
+    try { await api(`/product-os/${id}/archive`, { method: 'POST', body: JSON.stringify({}) }); onChanged(); onClose() }
+    catch (e) { setErr(e instanceof Error ? e.message : 'Erro'); setBusy(null) }
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex justify-end" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={onClose}>
       <div className="h-full w-full max-w-xl overflow-y-auto p-5" style={{ background: '#0a0a0e', borderLeft: '1px solid #27272a' }} onClick={e => e.stopPropagation()}>
@@ -1899,6 +1906,7 @@ function DetailDrawer({ id, onClose, onChanged }: { id: string; onClose: () => v
               <button onClick={() => void dispatch()} disabled={busy !== null} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold disabled:opacity-50" style={{ background: '#111114', border: '1px solid #27272a', color: '#a5f3fc' }}>{busy === 'dispatch' ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />} Despachar pro time</button>
               <button onClick={() => setShowImage(true)} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold" style={{ background: '#111114', border: '1px solid #27272a', color: '#c084fc' }}><Palette size={12} /> Gerar imagem</button>
               <button onClick={() => setShowPublish(true)} disabled={busy !== null || !!dev.product_id || dev.status !== 'aprovado' || (dev.license_status?.blocked ?? false)} title={dev.license_status?.blocked ? 'Licença bloqueia a publicação — libere em "Licença & origem"' : dev.status !== 'aprovado' ? 'Aprove uma versão primeiro' : ''} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold disabled:opacity-40" style={{ background: 'rgba(74,222,128,0.10)', border: '1px solid rgba(74,222,128,0.3)', color: '#4ade80' }}>{<Rocket size={12} />} {dev.product_id ? 'No catálogo ✓' : 'Virar anúncio'}</button>
+              <button onClick={() => void archive()} disabled={busy !== null} title="Tira o produto do quadro sem apagar o histórico" className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold disabled:opacity-50" style={{ background: '#111114', border: '1px solid #27272a', color: '#f87171' }}>{busy === 'archive' ? <Loader2 size={12} className="animate-spin" /> : <Archive size={12} />} Arquivar</button>
             </div>
             {showPublish && <PublishModal dev={dev} onClose={() => setShowPublish(false)} onDone={m => { setShowPublish(false); setMsg(m); void reload(); onChanged() }} />}
             {showImage && <GenerateImageModal dev={dev} onClose={() => setShowImage(false)} onSaved={() => { void reload(); onChanged() }} />}
