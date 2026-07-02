@@ -42,7 +42,10 @@ interface Version {
   material: string | null; weight_g: number | null; print_time_minutes: number | null; volume_cm3: number | null
   prototype_photo_urls: string[]; status: string; approved: boolean; notes: string | null; created_at: string
   filaments?: Filament[] | null
+  sliced_file_url?: string | null
 }
+
+interface SliceJobStatus { id: string; status: string; error: string | null; result_meta?: { prediction_s?: number; filaments?: Array<{ used_g?: number }> } | null }
 interface DevDetail extends ProductDev { versions: Version[] }
 interface Part {
   id: string; product_dev_id: string; name: string; code?: string | null; qty_per_product: number; is_optional: boolean
@@ -2000,6 +2003,39 @@ function VersionsTab({ dev, onChanged }: { dev: DevDetail; onChanged: () => void
   )
 }
 
+/** Botão "Fatiar (auto)": cria o job de fatiamento (Bambu Studio CLI no PC da
+ *  farm) e acompanha por poll até concluir/falhar. Concluiu → recarrega a
+ *  versão (tempo/gramas reais + arquivo .gcode.3mf prontos pra impressora). */
+function SliceButton({ versionId, onChanged }: { versionId: string; onChanged: () => void }) {
+  const [job, setJob] = useState<SliceJobStatus | null>(null)
+  const [busy, setBusy] = useState(false); const [msg, setMsg] = useState('')
+  const active = !!job && ['pending', 'running'].includes(job.status)
+  useEffect(() => {
+    if (!active) return
+    const t = setInterval(() => {
+      void api<SliceJobStatus | null>(`/product-os/farm/versions/${versionId}/slice`)
+        .then(j => { setJob(j); if (j?.status === 'done') onChanged() })
+        .catch(() => { /* rede instável: tenta no próximo ciclo */ })
+    }, 5000)
+    return () => clearInterval(t)
+  }, [active, versionId, onChanged])
+  const start = async () => {
+    setBusy(true); setMsg('')
+    try {
+      const j = await api<SliceJobStatus>(`/product-os/farm/versions/${versionId}/slice`, { method: 'POST' })
+      setJob({ id: j.id, status: j.status || 'pending', error: null })
+    } catch (e) { setMsg(e instanceof Error ? e.message : 'Erro') } finally { setBusy(false) }
+  }
+  if (active) return <span className="flex items-center gap-1 text-[10px]" style={{ color: '#a5f3fc' }}><Loader2 size={10} className="animate-spin" /> fatiando no PC da farm…</span>
+  return (
+    <span className="flex flex-wrap items-center gap-1.5">
+      <button onClick={() => void start()} disabled={busy} className="flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-semibold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.10)', color: '#a5f3fc', border: '1px solid rgba(0,229,255,0.3)' }}>{busy ? <Loader2 size={10} className="animate-spin" /> : <Cpu size={10} />} Fatiar (auto)</button>
+      {job?.status === 'failed' && <span className="text-[10px]" style={{ color: '#f87171' }}>falhou: {job.error ?? 'erro no fatiamento'}</span>}
+      {msg && <span className="text-[10px]" style={{ color: '#f87171' }}>{msg}</span>}
+    </span>
+  )
+}
+
 function VersionCard({ v, onChanged }: { v: Version; onChanged: () => void }) {
   const [editing, setEditing] = useState(false); const [busy, setBusy] = useState(false); const [err, setErr] = useState('')
   const [f, setF] = useState({ changelog: v.changelog ?? '', material: v.material ?? '', weight_g: v.weight_g != null ? String(v.weight_g) : '', print_time_minutes: v.print_time_minutes != null ? String(v.print_time_minutes) : '', volume_cm3: v.volume_cm3 != null ? String(v.volume_cm3) : '' })
@@ -2028,7 +2064,8 @@ function VersionCard({ v, onChanged }: { v: Version; onChanged: () => void }) {
         </div>
       ) : (
         <>
-          <div className="mt-1.5 flex flex-wrap gap-2 text-[10px]" style={{ color: '#a1a1aa' }}>{v.material && <span>{v.material}</span>}{v.weight_g != null && <span>{v.weight_g} g</span>}{v.print_time_minutes != null && <span>{v.print_time_minutes} min</span>}{v.volume_cm3 != null && <span>{v.volume_cm3} cm³</span>}{v.file_url && <a href={v.file_url} target="_blank" rel="noreferrer" className="text-cyan-400 underline">arquivo</a>}{v.file_url && <button onClick={() => void removeFile()} disabled={busy} className="flex items-center gap-0.5 disabled:opacity-50" style={{ color: '#f87171' }}><Trash2 size={10} /> excluir arquivo</button>}</div>
+          <div className="mt-1.5 flex flex-wrap gap-2 text-[10px]" style={{ color: '#a1a1aa' }}>{v.material && <span>{v.material}</span>}{v.weight_g != null && <span>{v.weight_g} g</span>}{v.print_time_minutes != null && <span>{v.print_time_minutes} min</span>}{v.volume_cm3 != null && <span>{v.volume_cm3} cm³</span>}{v.file_url && <a href={v.file_url} target="_blank" rel="noreferrer" className="text-cyan-400 underline">arquivo</a>}{v.sliced_file_url && <a href={v.sliced_file_url} target="_blank" rel="noreferrer" className="flex items-center gap-0.5 underline" style={{ color: '#4ade80' }}>✓ fatiado</a>}{v.file_url && <button onClick={() => void removeFile()} disabled={busy} className="flex items-center gap-0.5 disabled:opacity-50" style={{ color: '#f87171' }}><Trash2 size={10} /> excluir arquivo</button>}</div>
+          {v.file_url && !v.sliced_file_url && !/\.gcode\.3mf/i.test(v.file_url) && /\.(stl|3mf|obj)([?#]|$)/i.test(v.file_url.split('?')[0]) && <div className="mt-1.5"><SliceButton versionId={v.id} onChanged={onChanged} /></div>}
           {v.prototype_photo_urls && v.prototype_photo_urls.length > 0 && <div className="mt-1 flex flex-wrap gap-1">{v.prototype_photo_urls.map((u, i) => (
             // eslint-disable-next-line @next/next/no-img-element
             <img key={i} src={u} alt="" className="h-8 w-8 rounded object-cover" style={{ border: '1px solid #27272a' }} />
