@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef, useMemo, type CSSProperties } from 'react'
 import { createClient } from '@/lib/supabase'
 import {
-  DndContext, DragOverlay, PointerSensor, useSensor, useSensors,
+  DndContext, DragOverlay, PointerSensor, TouchSensor, useSensor, useSensors,
   useDraggable, useDroppable, closestCorners,
   type DragEndEvent, type DragStartEvent,
 } from '@dnd-kit/core'
@@ -82,7 +82,7 @@ interface Settings {
 interface Order {
   id: string; product_dev_id: string; order_number: number; quantity: number; machine: string | null; status: string
   printer_id: string | null; is_prototype: boolean; estimated_time_minutes: number | null; estimated_filament_g: number | null; actual_filament_g?: number | null; part_id?: string | null; due_at?: string | null; created_at: string
-  last_transition_source?: string | null
+  last_transition_source?: string | null; status_changed_at?: string | null
   jobs?: Job[]
 }
 interface Job { id: string; job_number: number; status: string; filament_used_g: number | null; print_time_minutes: number | null; failure_reason: string | null }
@@ -235,6 +235,9 @@ const NEXT_LABEL: Record<string, string> = {
   embalado: 'embalar', disponivel: 'disponível', pronta: 'peça pronta', reimpressao: 'reimprimir',
   falhou: 'marcar falha', cancelado: 'cancelar', montando: 'montar',
 }
+// etapas onde desfazer é seguro (nenhum efeito de estoque/reserva rodou)
+const UNDO_SAFE = ['fila', 'imprimindo', 'pausado', 'acabamento', 'qualidade', 'embalado', 'reimpressao', 'falhou']
+const fmtAge = (ms: number) => { const h = Math.floor(ms / 3600000); return h >= 48 ? `${Math.floor(h / 24)}d` : `${h}h` }
 const CHANNEL_LABEL: Record<string, string> = { mercado_livre: 'Mercado Livre', shopee: 'Shopee', tiktok: 'TikTok', loja: 'Loja própria' }
 const DEFAULT_QC: Array<{ key: string; label: string; ok: boolean }> = [
   { key: 'estavel', label: 'Peça estável', ok: false }, { key: 'suporta_peso', label: 'Suporta o peso esperado', ok: false },
@@ -512,7 +515,8 @@ function LifecycleBoard({ items, loading, onOpen, onChanged, setError }: { items
   const [activeId, setActiveId] = useState<string | null>(null)
   const [imageFor, setImageFor] = useState<ProductDev | null>(null)
   useEffect(() => setList(items), [items])
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
+  // touch (tablet): long-press 250ms inicia o arraste; tap curto abre o card
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }), useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }))
 
   const onDragEnd = async (e: DragEndEvent) => {
     setActiveId(null)
@@ -539,15 +543,23 @@ function LifecycleBoard({ items, loading, onOpen, onChanged, setError }: { items
   )
 }
 
-function Column({ id, label, count, capacity, dim, children }: { id: string; label: string; count: number; capacity?: number | null; dim?: boolean; children: React.ReactNode }) {
+function Column({ id, label, count, capacity, dim, collapsed, onToggleCollapse, children }: { id: string; label: string; count: number; capacity?: number | null; dim?: boolean; collapsed?: boolean; onToggleCollapse?: () => void; children: React.ReactNode }) {
   const { setNodeRef, isOver } = useDroppable({ id })
   // WIP: contador vira usado/capacidade — âmbar cheio, vermelho estourado (capacidade = nº de impressoras ativas)
   const wipColor = capacity != null ? (count > capacity ? '#f87171' : count >= capacity ? '#fcd34d' : '#71717a') : '#71717a'
+  // coluna colapsada = barra estreita (continua sendo alvo de drop)
+  if (collapsed) return (
+    <div ref={setNodeRef} onClick={onToggleCollapse} className="flex w-10 shrink-0 cursor-pointer flex-col items-center gap-2 rounded-xl py-3" style={{ background: isOver ? 'rgba(0,229,255,0.05)' : '#0c0c10', border: `1px solid ${isOver ? 'rgba(0,229,255,0.4)' : '#1a1a1f'}`, opacity: dim ? 0.35 : 1 }} title={`${label} — clique pra expandir`}>
+      <span className="rounded px-1 py-0.5 text-[10px] font-bold" style={{ background: '#1a1a1f', color: wipColor }}>{count}</span>
+      <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: '#a1a1aa', writingMode: 'vertical-rl' }}>{label}</span>
+    </div>
+  )
   return (
     <div ref={setNodeRef} className="flex w-64 shrink-0 flex-col rounded-xl" style={{ background: isOver ? 'rgba(0,229,255,0.05)' : '#0c0c10', border: `1px solid ${isOver ? 'rgba(0,229,255,0.4)' : '#1a1a1f'}`, opacity: dim ? 0.35 : 1, transition: 'opacity .15s' }}>
-      <div className="flex items-center justify-between px-3 py-2.5">
+      <div className="flex items-center gap-1.5 px-3 py-2.5">
         <span className="text-xs font-bold uppercase tracking-wide" style={{ color: '#a1a1aa' }}>{label}</span>
-        <span title={capacity != null ? `${count} de ${capacity} impressora${capacity === 1 ? '' : 's'} em uso` : undefined} className="rounded px-1.5 py-0.5 text-[10px] font-bold" style={{ background: '#1a1a1f', color: wipColor }}>{capacity != null ? `${count}/${capacity}` : count}</span>
+        {onToggleCollapse && <button onClick={onToggleCollapse} title="recolher coluna" className="text-[10px]" style={{ color: '#3f3f46' }}>«</button>}
+        <span title={capacity != null ? `${count} de ${capacity} impressora${capacity === 1 ? '' : 's'} em uso` : undefined} className="ml-auto rounded px-1.5 py-0.5 text-[10px] font-bold" style={{ background: '#1a1a1f', color: wipColor }}>{capacity != null ? `${count}/${capacity}` : count}</span>
       </div>
       {/* rolagem própria da coluna: a roda do mouse rola os cards AQUI, não a página (HScroll respeita data-vscroll).
           flex-1 = a coluna estica até o pé do quadro (altura vem do HScroll), sem "rodapé" vazio */}
@@ -627,14 +639,84 @@ function ProductionBoard({ products }: { products: ProductDev[] }) {
   // por OP na fila: motivo de bloqueio (não-agendável) ou falta de tempo estimado
   const blockedReason = new Map((plan?.unscheduled ?? []).map(u => [u.order_id, u.reason]))
   const needsTime = new Set((plan?.assignments ?? []).filter(a => a.needs_time).map(a => a.order_id))
+  const lateSet = new Set((plan?.assignments ?? []).filter(a => a.late).map(a => a.order_id))
+  const offlinePrinters = farm.filter(p => p.config_status === 'ativa' && p.bound && !p.online).length
+  const openFailures = farm.filter(p => p.open_failure).length
+
+  // busca + filtro por pendência (chips da barra)
+  const [query, setQuery] = useState('')
+  const [flt, setFlt] = useState<'' | 'blocked' | 'late' | 'stale'>('')
+  const AGE_MS = 24 * 3600000
+  const ageOf = (o: Order) => o.status_changed_at ? Date.now() - new Date(o.status_changed_at).getTime() : null
+  const isStale = (o: Order) => { if (['pronta', 'disponivel', 'cancelado'].includes(o.status)) return false; const a = ageOf(o); return a != null && a > AGE_MS }
+  const staleCount = orders.filter(isStale).length
+  const matches = (o: Order) => {
+    if (flt === 'blocked' && !blockedReason.has(o.id)) return false
+    if (flt === 'late' && !lateSet.has(o.id)) return false
+    if (flt === 'stale' && !isStale(o)) return false
+    if (!query.trim()) return true
+    const q = query.trim().toLowerCase()
+    return nameOf(o.product_dev_id).toLowerCase().includes(q) || `op-${String(o.order_number).padStart(4, '0')}`.includes(q) || String(o.order_number) === q.replace(/^op-?0*/, '')
+  }
+  const visibleOrders = orders.filter(matches)
+  const visibleAsms = flt ? [] : assemblies.filter(a => !query.trim() || nameOf(a.product_dev_id).toLowerCase().includes(query.trim().toLowerCase()))
+
+  // colapsar colunas de arquivo (persistido por navegador)
+  const [collapsedCols, setCollapsedCols] = useState<Set<string>>(new Set())
+  useEffect(() => { try { setCollapsedCols(new Set(JSON.parse(localStorage.getItem('po-prod-collapsed') ?? '[]') as string[])) } catch { /* */ } }, [])
+  const toggleCol = (k: string) => setCollapsedCols(prev => { const n = new Set(prev); if (n.has(k)) n.delete(k); else n.add(k); try { localStorage.setItem('po-prod-collapsed', JSON.stringify([...n])) } catch { /* */ } return n })
+
+  // seleção em lote (só OPs; montagem fica de fora)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [bulkTarget, setBulkTarget] = useState('')
+  const toggleSelect = (oid: string) => setSelected(prev => { const n = new Set(prev); if (n.has(oid)) n.delete(oid); else n.add(oid); return n })
+  const bulkMove = async () => {
+    if (!bulkTarget) return
+    const sel = orders.filter(o => selected.has(o.id))
+    const plans = sel.map(o => ({ o, path: o.status === bulkTarget ? null : pathTo(o.part_id ? PART_ORDER_NEXT : ORDER_NEXT, o.status, bulkTarget) })).filter(p => p.path) as Array<{ o: Order; path: string[] }>
+    const skipped = sel.length - plans.length
+    if (!plans.length) { setWarn('Nenhuma das OPs selecionadas pode ir pra essa etapa.'); window.setTimeout(() => setWarn(''), 4000); return }
+    if (plans.some(p => p.path.includes('qualidade') && p.path[p.path.length - 1] !== 'qualidade') && !(await confirmDialog({ title: 'Pular Qualidade', message: 'Algumas OPs vão passar direto pela etapa de Qualidade sem inspeção. Avançar assim mesmo?', confirmLabel: 'Avançar' }))) return
+    const prev = orders
+    setOrders(os => os.map(o => { const p = plans.find(x => x.o.id === o.id); return p ? { ...o, status: bulkTarget, last_transition_source: 'manual' } : o }))
+    try {
+      for (const p of plans) for (const s of p.path) await api(`/product-os/production-orders/${p.o.id}/transition`, { method: 'POST', body: JSON.stringify({ status: s }) })
+      setNotice(`${plans.length} OP${plans.length > 1 ? 's movidas' : ' movida'} pra "${ORDER_COLS.find(c => c.key === bulkTarget)?.label ?? bulkTarget}"${skipped ? ` · ${skipped} não podia${skipped > 1 ? 'm' : ''} e ficou${skipped > 1 ? 'ram' : ''} onde estava${skipped > 1 ? 'm' : ''}` : ''}.`)
+      window.setTimeout(() => setNotice(''), 5000)
+    }
+    catch (e) { setOrders(prev); setErr(e instanceof Error ? e.message : 'Erro') }
+    finally { setSelected(new Set()); setBulkTarget(''); void load(true); void loadAux() }
+  }
+
+  // desfazer o último movimento (~6s, só etapas sem efeito de estoque)
+  const [undo, setUndo] = useState<{ oid: string; code: string; from: string; to: string } | null>(null)
+  const undoTimer = useRef<number | null>(null)
+  const offerUndo = (oid: string, code: string, from: string, to: string) => {
+    if (!UNDO_SAFE.includes(from) || !UNDO_SAFE.includes(to)) return
+    setUndo({ oid, code, from, to })
+    if (undoTimer.current) window.clearTimeout(undoTimer.current)
+    undoTimer.current = window.setTimeout(() => setUndo(null), 6000)
+  }
+  const doUndo = async () => {
+    if (!undo) return
+    const u = undo; setUndo(null)
+    setOrders(os => os.map(o => o.id === u.oid ? { ...o, status: u.from } : o))
+    try { await api(`/product-os/production-orders/${u.oid}/undo`, { method: 'POST', body: JSON.stringify({ to: u.from }) }); void load(true); void loadAux() }
+    catch (e) { setErr(e instanceof Error ? e.message : 'Erro'); void load(true) }
+  }
 
   const [notice, setNotice] = useState('')
   // otimista: o card muda de coluna na hora; o load SILENCIOSO reconcilia com o servidor (sem spinner = sem piscar)
   const transition = async (oid: string, status: string) => {
     if (status === 'cancelado' && !(await confirmDialog({ title: 'Cancelar ordem', message: 'Cancelar esta OP? Libera o filamento reservado. Não dá pra desfazer.', danger: true, confirmLabel: 'Cancelar OP' }))) return
     const prev = orders
+    const cur = orders.find(o => o.id === oid)
     setOrders(os => os.map(o => o.id === oid ? { ...o, status, last_transition_source: 'manual' } : o))
-    try { await api(`/product-os/production-orders/${oid}/transition`, { method: 'POST', body: JSON.stringify({ status }) }); void load(true); void loadAux() }
+    try {
+      await api(`/product-os/production-orders/${oid}/transition`, { method: 'POST', body: JSON.stringify({ status }) })
+      if (cur) offerUndo(oid, `OP-${String(cur.order_number).padStart(4, '0')}`, cur.status, status)
+      void load(true); void loadAux()
+    }
     catch (e) { setOrders(prev); setErr(e instanceof Error ? e.message : 'Erro') }
   }
   const transitionAsm = async (aid: string, status: string) => {
@@ -647,8 +729,13 @@ function ProductionBoard({ products }: { products: ProductDev[] }) {
   // arrastou pra uma etapa mais à frente → executa as transições intermediárias em sequência (otimista)
   const transitionChain = async (oid: string, path: string[]) => {
     const prev = orders
+    const cur = orders.find(o => o.id === oid)
     setOrders(os => os.map(o => o.id === oid ? { ...o, status: path[path.length - 1], last_transition_source: 'manual' } : o))
-    try { for (const s of path) await api(`/product-os/production-orders/${oid}/transition`, { method: 'POST', body: JSON.stringify({ status: s }) }); void load(true); void loadAux() }
+    try {
+      for (const s of path) await api(`/product-os/production-orders/${oid}/transition`, { method: 'POST', body: JSON.stringify({ status: s }) })
+      if (cur) offerUndo(oid, `OP-${String(cur.order_number).padStart(4, '0')}`, cur.status, path[path.length - 1])
+      void load(true); void loadAux()
+    }
     catch (e) { setOrders(prev); setErr(e instanceof Error ? e.message : 'Erro') }
   }
   const transitionAsmChain = async (aid: string, path: string[]) => {
@@ -662,7 +749,7 @@ function ProductionBoard({ products }: { products: ProductDev[] }) {
 
   // arrastar cards entre colunas: aceita etapa mais à frente (cadeia de transições);
   // durante o arraste, as colunas que NÃO são destino válido ficam apagadas
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }), useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }))
   const [activeDrag, setActiveDrag] = useState<{ code: string; name: string; color: string } | null>(null)
   const [validCols, setValidCols] = useState<Set<string> | null>(null)
   const [warn, setWarn] = useState('')
@@ -708,11 +795,39 @@ function ProductionBoard({ products }: { products: ProductDev[] }) {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <p className="text-xs" style={{ color: '#a1a1aa' }}>Ordens de produção, peças e montagem. Peças prontas viram estoque → montam o produto → embalado → disponível.</p>
-        <button onClick={() => setShowNewAsm(true)} className="ml-auto flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold" style={{ background: 'rgba(168,85,247,0.12)', border: '1px solid rgba(168,85,247,0.35)', color: '#c4b5fd' }}><Boxes size={12} /> Nova montagem</button>
+        <div className="ml-auto flex items-center gap-1 rounded-lg px-2" style={{ background: '#0a0a0e', border: '1px solid #27272a' }}>
+          <Search size={11} style={{ color: '#52525b' }} />
+          <input value={query} onChange={e => setQuery(e.target.value)} placeholder="buscar OP ou produto…" className="w-36 bg-transparent py-1.5 text-[11px] text-white outline-none" />
+          {query && <button onClick={() => setQuery('')} style={{ color: '#71717a' }}><X size={11} /></button>}
+        </div>
+        <button onClick={() => setShowNewAsm(true)} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold" style={{ background: 'rgba(168,85,247,0.12)', border: '1px solid rgba(168,85,247,0.35)', color: '#c4b5fd' }}><Boxes size={12} /> Nova montagem</button>
         <button onClick={() => setShowNew(true)} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}><Plus size={12} /> Nova ordem</button>
       </div>
+      {/* barra de pendências: cada chip filtra o quadro (clica de novo pra limpar) */}
+      {(blockedReason.size > 0 || lateSet.size > 0 || staleCount > 0 || offlinePrinters > 0 || openFailures > 0) && (
+        <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
+          {blockedReason.size > 0 && <button onClick={() => setFlt(f => f === 'blocked' ? '' : 'blocked')} className="rounded-full px-2 py-0.5 font-semibold" style={{ background: flt === 'blocked' ? 'rgba(239,68,68,0.25)' : 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.35)' }}>⛔ {blockedReason.size} bloqueada{blockedReason.size > 1 ? 's' : ''}</button>}
+          {lateSet.size > 0 && <button onClick={() => setFlt(f => f === 'late' ? '' : 'late')} className="rounded-full px-2 py-0.5 font-semibold" style={{ background: flt === 'late' ? 'rgba(252,211,77,0.25)' : 'rgba(252,211,77,0.10)', color: '#fcd34d', border: '1px solid rgba(252,211,77,0.35)' }}>⏰ {lateSet.size} com prazo em risco</button>}
+          {staleCount > 0 && <button onClick={() => setFlt(f => f === 'stale' ? '' : 'stale')} className="rounded-full px-2 py-0.5 font-semibold" style={{ background: flt === 'stale' ? 'rgba(252,211,77,0.25)' : 'rgba(252,211,77,0.10)', color: '#fcd34d', border: '1px solid rgba(252,211,77,0.35)' }}>⏱ {staleCount} parada{staleCount > 1 ? 's' : ''} há +24h</button>}
+          {offlinePrinters > 0 && <span className="rounded-full px-2 py-0.5 font-semibold" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.35)' }}>📡 {offlinePrinters} impressora{offlinePrinters > 1 ? 's' : ''} offline</span>}
+          {openFailures > 0 && <span className="rounded-full px-2 py-0.5 font-semibold" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.35)' }}>🛑 {openFailures} falha{openFailures > 1 ? 's' : ''} aberta{openFailures > 1 ? 's' : ''}</span>}
+          {flt && <button onClick={() => setFlt('')} className="rounded-full px-2 py-0.5" style={{ color: '#71717a', border: '1px dashed #3f3f46' }}>limpar filtro</button>}
+        </div>
+      )}
+      {/* barra de ação da seleção em lote */}
+      {selected.size > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg p-2 text-xs" style={{ background: 'rgba(0,229,255,0.06)', border: '1px solid rgba(0,229,255,0.3)' }}>
+          <span className="font-bold text-white">{selected.size} OP{selected.size > 1 ? 's' : ''} selecionada{selected.size > 1 ? 's' : ''}</span>
+          <select value={bulkTarget} onChange={e => setBulkTarget(e.target.value)} className="rounded px-2 py-1 text-[11px] outline-none" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }}>
+            <option value="">mover para…</option>
+            {ORDER_COLS.filter(c => c.key !== 'montagem').map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
+          </select>
+          <button onClick={() => void bulkMove()} disabled={!bulkTarget} className="rounded px-2.5 py-1 text-[11px] font-bold disabled:opacity-40" style={{ background: '#00E5FF', color: '#0a0a0e' }}>Mover</button>
+          <button onClick={() => setSelected(new Set())} className="rounded px-2 py-1 text-[11px]" style={{ color: '#71717a', border: '1px solid #27272a' }}>limpar seleção</button>
+        </div>
+      )}
       {err && <div className="rounded-lg p-2.5 text-xs" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>{err}</div>}
       {notice && <div className="rounded-lg p-2.5 text-xs" style={{ background: 'rgba(74,222,128,0.10)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)' }}>{notice}</div>}
       {warn && <div className="rounded-lg p-2.5 text-xs" style={{ background: 'rgba(252,211,77,0.10)', color: '#fcd34d', border: '1px solid rgba(252,211,77,0.3)' }}>{warn}</div>}
@@ -720,14 +835,15 @@ function ProductionBoard({ products }: { products: ProductDev[] }) {
         <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => { setActiveDrag(null); setValidCols(null) }}>
         <HScroll className="flex h-[max(320px,calc(100vh-330px))] gap-3 pb-2">
           {ORDER_COLS.map(col => {
-            const cards = orders.filter(o => o.status === col.key)
-            const asms = assemblies.filter(a => asmCol(a) === col.key)
+            const cards = visibleOrders.filter(o => o.status === col.key)
+            const asms = visibleAsms.filter(a => asmCol(a) === col.key)
             return (
-              <Column key={col.key} id={col.key} label={col.label} count={cards.length + asms.length} capacity={col.key === 'imprimindo' && printCapacity > 0 ? printCapacity : undefined} dim={!!validCols && !validCols.has(col.key)}>
+              <Column key={col.key} id={col.key} label={col.label} count={cards.length + asms.length} capacity={col.key === 'imprimindo' && printCapacity > 0 ? printCapacity : undefined} dim={!!validCols && !validCols.has(col.key)} collapsed={collapsedCols.has(col.key)} onToggleCollapse={() => toggleCol(col.key)}>
                   {cards.map(o => (
                     <DragWrap key={o.id} id={o.id} data={{ kind: 'op', id: o.id, status: o.status, partId: !!o.part_id, code: `OP-${String(o.order_number).padStart(4, '0')}`, name: nameOf(o.product_dev_id) }}>
                     <div className="rounded-lg p-2.5" style={{ background: '#111114', border: '1px solid #27272a' }}>
                       <div className="flex items-center gap-1.5">
+                        <button onClick={e => { e.stopPropagation(); toggleSelect(o.id) }} onPointerDown={e => e.stopPropagation()} title="selecionar pra mover em lote" className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded" style={{ border: `1px solid ${selected.has(o.id) ? '#00E5FF' : '#3f3f46'}`, background: selected.has(o.id) ? 'rgba(0,229,255,0.25)' : 'transparent', color: '#00E5FF' }}>{selected.has(o.id) && <Check size={9} />}</button>
                         <span className="shrink-0 rounded px-1 py-0.5 font-mono text-[9px] font-bold" style={{ background: 'rgba(0,229,255,0.12)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.25)' }}>OP-{String(o.order_number).padStart(4, '0')}</span>
                         <p className="truncate text-xs font-bold text-white">{nameOf(o.product_dev_id)}</p>
                         {o.last_transition_source === 'auto' && <span title="Avançou sozinho — movido pela telemetria da impressora" className="shrink-0 text-[10px]">⚡</span>}
@@ -735,6 +851,9 @@ function ProductionBoard({ products }: { products: ProductDev[] }) {
                         {o.is_prototype && <span className="shrink-0 rounded px-1 py-0.5 text-[8px] font-bold" style={{ background: 'rgba(168,85,247,0.15)', color: '#c4b5fd' }}>protótipo</span>}
                       </div>
                       <p className="text-[10px]" style={{ color: '#71717a' }}>{o.quantity} un{o.estimated_filament_g ? ` · ${o.estimated_filament_g} g` : ''}{o.machine ? ` · ${o.machine}` : ''}</p>
+                      {isStale(o) && (
+                        <p className="mt-1 text-[9px] font-semibold" style={{ color: (ageOf(o) ?? 0) > 72 * 3600000 ? '#f87171' : '#fcd34d' }}>⏱ há {fmtAge(ageOf(o) ?? 0)} nesta etapa</p>
+                      )}
                       {o.status === 'fila' && blockedReason.has(o.id) && (
                         <p className="mt-1 rounded px-1.5 py-0.5 text-[9px] font-semibold" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>⛔ {blockedReason.get(o.id)}</p>
                       )}
@@ -791,6 +910,12 @@ function ProductionBoard({ products }: { products: ProductDev[] }) {
       )}
       {showNew && <NewOrderModal approved={approved} onClose={() => setShowNew(false)} onCreated={() => { setShowNew(false); void load(true) }} />}
       {showNewAsm && <NewAssemblyModal products={approved} onClose={() => setShowNewAsm(false)} onCreated={() => { setShowNewAsm(false); void load(true) }} />}
+      {undo && (
+        <div className="fixed bottom-5 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-lg px-3 py-2 text-xs shadow-xl" style={{ background: '#18181b', border: '1px solid #3f3f46', color: '#fafafa' }}>
+          <span><span className="font-mono font-bold" style={{ color: '#00E5FF' }}>{undo.code}</span> movida pra <span className="font-semibold">{ORDER_COLS.find(c => c.key === undo.to)?.label ?? undo.to}</span></span>
+          <button onClick={() => void doUndo()} className="rounded px-2 py-0.5 font-bold" style={{ background: 'rgba(0,229,255,0.15)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.4)' }}>Desfazer</button>
+        </div>
+      )}
     </div>
   )
 }
