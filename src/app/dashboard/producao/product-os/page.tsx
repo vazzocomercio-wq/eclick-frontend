@@ -1790,14 +1790,7 @@ function PublishModal({ dev, onClose, onDone }: { dev: DevDetail; onClose: () =>
               <div className="mb-3 rounded-lg p-2.5 text-[11px]" style={{ background: 'rgba(74,222,128,0.06)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.25)' }}>✓ Ficha preenchida{dev.catalog_ready ? ' e validada' : ''} — <span className="text-white">{dev.catalog_title}</span></div>
             )}
             {variants.length > 0 ? (
-              <div className="mb-3 flex gap-1 rounded-lg p-1" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
-                {([['single', 'Produto único', 'um SKU só (cor base)'], ['variable', 'Produto variável', `${variants.length} cores`]] as const).map(([k, lbl, hint]) => (
-                  <button key={k} onClick={() => setMode(k)} className="flex-1 rounded px-2 py-1.5 text-left" style={{ background: mode === k ? 'rgba(0,229,255,0.12)' : 'transparent', border: mode === k ? '1px solid rgba(0,229,255,0.35)' : '1px solid transparent' }}>
-                    <span className="block text-[11px] font-bold" style={{ color: mode === k ? '#00E5FF' : '#a1a1aa' }}>{lbl}</span>
-                    <span className="block text-[9px]" style={{ color: '#52525b' }}>{hint}</span>
-                  </button>
-                ))}
-              </div>
+              <p className="mb-3 rounded-lg p-2 text-[11px]" style={{ background: 'rgba(0,229,255,0.06)', color: '#a5f3fc', border: '1px solid rgba(0,229,255,0.25)' }}>Produto variável — {variants.length} {variants.length === 1 ? 'cor' : 'cores'} (cada cor = 1 SKU). O SKU base fica no produto; o da cor, na variação.</p>
             ) : <p className="mb-3 text-[11px]" style={{ color: '#71717a' }}>Sem variantes de cor — vai como produto único. (Defina cores na aba SKU para publicar como variável.)</p>}
 
             {mode === 'variable' && variants.length > 0 ? (
