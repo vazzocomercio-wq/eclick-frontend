@@ -102,6 +102,10 @@ export default function ShopeeListingsCenter() {
   const [shopFilter, setShopFilter]     = useState<number | 'all'>('all')
   const [perPage, setPerPage]   = useState(50)   // quantidade por página: 20/50/100/200
   const [page, setPage]         = useState(1)
+  // nomes das lojas (nickname da conexão) — identifica a loja pelo NOME, não pelo shop_id
+  const [shops, setShops]       = useState<Array<{ shop_id: number; nickname: string }>>([])
+  const shopName = useCallback((shopId: number) =>
+    shops.find(s => s.shop_id === shopId)?.nickname ?? `#${shopId}`, [shops])
 
   const load = useCallback(async () => {
     setError(null)
@@ -112,9 +116,10 @@ export default function ShopeeListingsCenter() {
         fetch(`${BACKEND}/shopee/listings/link-status`, { headers }),
       ])
       if (!scoresRes.ok) throw new Error(`HTTP ${scoresRes.status}`)
-      const body = await scoresRes.json() as { items: ListingCard[]; total: number }
+      const body = await scoresRes.json() as { items: ListingCard[]; total: number; shops?: Array<{ shop_id: number; nickname: string }> }
       setItems(body.items ?? [])
       setTotal(body.total ?? 0)
+      setShops(body.shops ?? [])
       // link-status é enriquecimento (não crítico): falha → segue sem margem
       if (linkRes.ok) {
         const ls = await linkRes.json() as LinkStatus
@@ -265,11 +270,12 @@ export default function ShopeeListingsCenter() {
             const count = sid === 'all' ? (items?.length ?? 0) : (items ?? []).filter(it => it.shop_id === sid).length
             return (
               <button key={String(sid)} onClick={() => setShopFilter(sid)}
-                className="text-[11px] font-mono font-semibold px-2.5 py-1 rounded-full transition-colors"
+                className="text-[11px] font-semibold px-2.5 py-1 rounded-full transition-colors"
+                title={sid === 'all' ? undefined : `Loja Shopee #${sid}`}
                 style={on
                   ? (p ? { background: p.bg, color: p.color, border: `1px solid ${p.border}` } : { background: 'rgba(238,77,45,0.15)', color: SHOPEE, border: '1px solid rgba(238,77,45,0.4)' })
                   : { background: '#111114', color: '#71717a', border: '1px solid #27272a' }}>
-                {sid === 'all' ? 'Todas' : `#${sid}`} <span className="opacity-60">({count})</span>
+                {sid === 'all' ? 'Todas' : shopName(sid as number)} <span className="opacity-60">({count})</span>
               </button>
             )
           })}
@@ -297,6 +303,7 @@ export default function ShopeeListingsCenter() {
           <div className="flex flex-col gap-3">
             {paged.map(it => (
               <ListingRow key={`${it.shop_id}:${it.item_id}`} card={it} link={links.get(it.item_id) ?? null}
+                shopLabel={shopName(it.shop_id)}
                 picked={picked.has(it.item_id)}
                 onPick={togglePick}
                 onOpen={() => setSelected(it)}
@@ -317,6 +324,7 @@ export default function ShopeeListingsCenter() {
       {selected && (
         <Drawer
           card={selected}
+          shopLabel={shopName(selected.shop_id)}
           link={links.get(selected.item_id) ?? null}
           onClose={() => setSelected(null)}
           onLink={(pid) => linkProduct(selected.item_id, pid)}
@@ -538,9 +546,10 @@ function pageWindow(current: number, total: number): Array<number | '…'> {
 // bruto, custo/imposto editáveis, margem contrib, tarifa Shopee). Mantém TODO o
 // dado Shopee: Algorithm Score (gauge + 4 pilares) + issues; clique abre o
 // drawer com a edição rica (preço/estoque por variação, conteúdo, issues).
-function ListingRow({ card, link, picked, onPick, onOpen, onUnlink, onSavePrice, onSaveStock, onSaveMargin, t }: {
+function ListingRow({ card, link, shopLabel, picked, onPick, onOpen, onUnlink, onSavePrice, onSaveStock, onSaveMargin, t }: {
   card: ListingCard
   link: LinkInfo | null
+  shopLabel: string
   picked: boolean
   onPick: (itemId: number) => void
   onOpen: () => void
@@ -664,8 +673,8 @@ function ListingRow({ card, link, picked, onPick, onOpen, onUnlink, onSavePrice,
         <div className="flex flex-wrap gap-1.5 mb-1.5 items-center">
           <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full" style={{ background: 'rgba(238,77,45,0.12)', color: SHOPEE, border: '1px solid rgba(238,77,45,0.25)' }}>SHOPEE</span>
           {card.shop_id != null && (() => { const p = shopPalette(card.shop_id); return (
-            <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full" title={`Loja Shopee ${card.shop_id}`}
-              style={{ background: p.bg, color: p.color, border: `1px solid ${p.border}` }}>#{card.shop_id}</span>
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" title={`Loja Shopee #${card.shop_id}`}
+              style={{ background: p.bg, color: p.color, border: `1px solid ${p.border}` }}>{shopLabel}</span>
           ) })()}
           <span className="flex items-center gap-1 text-[10px] font-medium text-emerald-400">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Ativo
@@ -855,9 +864,10 @@ function PillarBar({ value, label, weight }: { value: number; label: string; wei
   )
 }
 
-function Drawer({ card, link, onClose, onLink, onUnlink, onSaved, t }: {
+function Drawer({ card, link, shopLabel, onClose, onLink, onUnlink, onSaved, t }: {
   card: ListingCard
   link: LinkInfo | null
+  shopLabel: string
   onClose: () => void
   onLink: (productId: string) => Promise<void>
   onUnlink: () => Promise<void>
@@ -877,7 +887,7 @@ function Drawer({ card, link, onClose, onLink, onUnlink, onSaved, t }: {
             <div>
               <p className="text-[10px] uppercase tracking-wider text-zinc-600 font-semibold">{t('drawer.eyebrow')}</p>
               <h3 className="text-white font-semibold mt-1 leading-tight">{card.title ?? `Item ${card.item_id}`}</h3>
-              <p className="text-xs text-zinc-500 mt-1">#{card.item_id} · {t('drawer.shop')} {card.shop_id}</p>
+              <p className="text-xs text-zinc-500 mt-1" title={`Loja Shopee #${card.shop_id}`}>#{card.item_id} · {t('drawer.shop')} {shopLabel}</p>
             </div>
             <button onClick={onClose} aria-label={t('drawer.close')} className="text-zinc-500 hover:text-white">
               <X size={18} />
