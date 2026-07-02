@@ -1024,7 +1024,7 @@ function NewAssemblyModal({ products, onClose, onCreated }: { products: ProductD
   )
 }
 
-function NewOrderModal({ approved, onClose, onCreated }: { approved: ProductDev[]; onClose: () => void; onCreated: () => void }) {
+function NewOrderModal({ approved, versionId, onClose, onCreated }: { approved: ProductDev[]; versionId?: string; onClose: () => void; onCreated: () => void }) {
   const [devId, setDevId] = useState(approved[0]?.id ?? '')
   const [qty, setQty] = useState('1'); const [printerId, setPrinterId] = useState(''); const [loadedInputId, setLoadedInputId] = useState('')
   const [printers, setPrinters] = useState<Printer[]>([])
@@ -1041,17 +1041,17 @@ function NewOrderModal({ approved, onClose, onCreated }: { approved: ProductDev[
     if (!devId || n < 1 || hasParts) { setPreview(null); return }
     let cancel = false; setPrevLoading(true)
     const t = setTimeout(() => { void (async () => {
-      try { const p = await api<ConsumePreview>('/product-os/production-orders/preview', { method: 'POST', body: JSON.stringify({ product_dev_id: devId, quantity: n }) }); if (!cancel) setPreview(p) }
+      try { const p = await api<ConsumePreview>('/product-os/production-orders/preview', { method: 'POST', body: JSON.stringify({ product_dev_id: devId, quantity: n, version_id: versionId || undefined }) }); if (!cancel) setPreview(p) }
       catch { if (!cancel) setPreview(null) }
       finally { if (!cancel) setPrevLoading(false) }
     })() }, 350)
     return () => { cancel = true; clearTimeout(t) }
-  }, [devId, qty, hasParts])
+  }, [devId, qty, hasParts, versionId])
   const create = async () => {
     if (!devId) { setErr('Selecione um produto aprovado'); return }
     if (hasParts) { setErr('Este produto é feito de peças — imprima cada peça pela aba Peças (Imprimir esta peça).'); return }
     setBusy(true); setErr('')
-    try { await api('/product-os/production-orders', { method: 'POST', body: JSON.stringify({ product_dev_id: devId, quantity: Number(qty) || 1, printer_id: printerId || undefined, machine: printers.find(p => p.id === printerId)?.name || undefined, loaded_input_id: loadedInputId || undefined, sku_variant_id: skuVariantId || undefined }) }); onCreated() }
+    try { await api('/product-os/production-orders', { method: 'POST', body: JSON.stringify({ product_dev_id: devId, version_id: versionId || undefined, quantity: Number(qty) || 1, printer_id: printerId || undefined, machine: printers.find(p => p.id === printerId)?.name || undefined, loaded_input_id: loadedInputId || undefined, sku_variant_id: skuVariantId || undefined }) }); onCreated() }
     catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setBusy(false) }
   }
   return (
@@ -1943,6 +1943,7 @@ function BriefingTab({ dev, onChanged }: { dev: DevDetail; onChanged: () => void
 
 function VersionsTab({ dev, onChanged }: { dev: DevDetail; onChanged: () => void }) {
   const [adding, setAdding] = useState(false); const [err, setErr] = useState('')
+  const [printV, setPrintV] = useState<Version | null>(null); const [created, setCreated] = useState('')
   const [form, setForm] = useState({ changelog: '', file_url: '', file_type: '', material: '', weight_g: '', print_time_minutes: '', volume_cm3: '' })
   const [photos, setPhotos] = useState<string[]>([])
   const [slicer, setSlicer] = useState(''); const [parsing, setParsing] = useState(false); const [showSlicer, setShowSlicer] = useState(false)
@@ -1997,8 +1998,10 @@ function VersionsTab({ dev, onChanged }: { dev: DevDetail; onChanged: () => void
         <button onClick={() => void add()} disabled={adding} className="flex w-full items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}>{adding ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />} Adicionar versão</button>
       </div>
       {err && <div className="whitespace-pre-line rounded-lg p-2.5 text-xs" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>{err}</div>}
-      {dev.versions.map(v => <VersionCard key={v.id} v={v} onChanged={onChanged} />)}
+      {created && <div className="rounded-lg p-2.5 text-xs" style={{ background: 'rgba(74,222,128,0.10)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)' }}>{created}</div>}
+      {dev.versions.map(v => <VersionCard key={v.id} v={v} onChanged={onChanged} onPrint={() => { setCreated(''); setPrintV(v) }} />)}
       {dev.versions.length === 0 && <p className="text-xs" style={{ color: '#52525b' }}>Nenhuma versão ainda.</p>}
+      {printV && <NewOrderModal approved={[dev]} versionId={printV.id} onClose={() => setPrintV(null)} onCreated={() => { setPrintV(null); setCreated(`OP criada com a v${printV.version_number} — acompanhe na aba Produção.`) }} />}
     </div>
   )
 }
@@ -2036,7 +2039,7 @@ function SliceButton({ versionId, onChanged }: { versionId: string; onChanged: (
   )
 }
 
-function VersionCard({ v, onChanged }: { v: Version; onChanged: () => void }) {
+function VersionCard({ v, onChanged, onPrint }: { v: Version; onChanged: () => void; onPrint?: () => void }) {
   const [editing, setEditing] = useState(false); const [busy, setBusy] = useState(false); const [err, setErr] = useState('')
   const [f, setF] = useState({ changelog: v.changelog ?? '', material: v.material ?? '', weight_g: v.weight_g != null ? String(v.weight_g) : '', print_time_minutes: v.print_time_minutes != null ? String(v.print_time_minutes) : '', volume_cm3: v.volume_cm3 != null ? String(v.volume_cm3) : '' })
   const setApproval = async (approved: boolean) => { try { await api(`/product-os/versions/${v.id}/approval`, { method: 'POST', body: JSON.stringify({ approved }) }); onChanged() } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } }
@@ -2070,9 +2073,10 @@ function VersionCard({ v, onChanged }: { v: Version; onChanged: () => void }) {
             // eslint-disable-next-line @next/next/no-img-element
             <img key={i} src={u} alt="" className="h-8 w-8 rounded object-cover" style={{ border: '1px solid #27272a' }} />
           ))}</div>}
-          <div className="mt-2 flex gap-1.5">
+          <div className="mt-2 flex flex-wrap gap-1.5">
             <button onClick={() => void setApproval(true)} className="flex items-center gap-1 rounded px-2 py-1 text-[10px] font-semibold" style={{ background: 'rgba(74,222,128,0.10)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)' }}><Check size={10} /> Aprovar</button>
             <button onClick={() => void setApproval(false)} className="flex items-center gap-1 rounded px-2 py-1 text-[10px] font-semibold" style={{ background: '#0a0a0e', color: '#71717a', border: '1px solid #27272a' }}><Ban size={10} /> Reprovar</button>
+            {onPrint && <button onClick={onPrint} className="ml-auto flex items-center gap-1 rounded px-2 py-1 text-[10px] font-bold" style={{ background: 'rgba(0,229,255,0.12)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.35)' }}><Send size={10} /> Enviar para imprimir</button>}
           </div>
         </>
       )}
