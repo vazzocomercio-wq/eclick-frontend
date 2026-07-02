@@ -9322,6 +9322,7 @@
       "copyJson": "复制 JSON",
       "publishDisabledBtn": "发布已禁用",
       "publishDisabledBtnTooltip": "在 Railway 上设置 CREATIVE_ML_PUBLISH_ENABLED=true 以启用",
+      "retry": "重试",
       "resolvePending": "发布前请解决待处理项",
       "publishNow": "立即发布到 ML（paused）",
       "confirmTitle": "发布到 Mercado Livre",

@@ -27,7 +27,7 @@ async function token(): Promise<string | null> {
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const t = await token()
-  const res = await fetch(`${BACKEND}${path}`, {
+  const doFetch = () => fetch(`${BACKEND}${path}`, {
     ...init,
     headers: {
       'Content-Type': 'application/json',
@@ -35,6 +35,25 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
       ...(init?.headers ?? {}),
     },
   })
+  let res: Response
+  try {
+    res = await doFetch()
+  } catch {
+    // Falha de REDE (servidor não respondeu / conexão caiu) — o fetch lança
+    // TypeError "Failed to fetch" sem status. GETs são idempotentes: tenta
+    // 1x de novo antes de desistir. Mutações NÃO são re-enviadas.
+    const method = (init?.method ?? 'GET').toUpperCase()
+    if (method === 'GET') {
+      await new Promise(r => setTimeout(r, 800))
+      try {
+        res = await doFetch()
+      } catch {
+        throw new Error('Sem resposta do servidor — verifique sua internet e tente de novo.')
+      }
+    } else {
+      throw new Error('Sem resposta do servidor — verifique sua internet. Confira se a ação foi concluída antes de repetir.')
+    }
+  }
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
     const msg = (body as { message?: string; error?: string }).message ?? (body as { error?: string }).error ?? 'erro'

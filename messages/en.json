@@ -9328,6 +9328,7 @@
       "copyJson": "copy JSON",
       "publishDisabledBtn": "Publishing disabled",
       "publishDisabledBtnTooltip": "Set CREATIVE_ML_PUBLISH_ENABLED=true on Railway to enable",
+      "retry": "Try again",
       "resolvePending": "Resolve pending items before publishing",
       "publishNow": "Publish now on ML (paused)",
       "confirmTitle": "Publish on Mercado Livre",

@@ -308,7 +308,16 @@ export default function MLPublishPage() {
         <Link href={`/dashboard/creative/${productId}/listing/${listingId}`} className="inline-flex items-center gap-2 text-zinc-400 hover:text-zinc-100 mb-4">
           <ArrowLeft size={14} /> {t('back')}
         </Link>
-        <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">{error ?? t('listingNotFound')}</div>
+        <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200 flex flex-wrap items-center justify-between gap-3">
+          <span>{error ?? t('listingNotFound')}</span>
+          <button
+            type="button"
+            onClick={() => void load()}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-400/40 text-red-100 hover:bg-red-500/20 text-xs font-medium shrink-0"
+          >
+            <RefreshCw size={12} /> {t('retry')}
+          </button>
+        </div>
       </div>
     )
   }
