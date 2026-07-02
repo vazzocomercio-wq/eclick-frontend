@@ -412,10 +412,12 @@ export default function ProductOsPage() {
   const [showImport, setShowImport] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
 
-  const load = useCallback(async () => {
-    setLoading(true); setError('')
+  // silent = atualiza os dados SEM trocar a tela pelo spinner (evita o "pisca" a cada mudança de drawer/modal)
+  const load = useCallback(async (silent?: boolean) => {
+    if (!silent) setLoading(true)
+    setError('')
     try { const data = await api<ProductDev[]>('/product-os'); setItems(data.filter(d => d.status !== 'arquivado')) }
-    catch (e) { setError(e instanceof Error ? e.message : 'Erro ao carregar') } finally { setLoading(false) }
+    catch (e) { if (!silent) setError(e instanceof Error ? e.message : 'Erro ao carregar') } finally { if (!silent) setLoading(false) }
   }, [])
   useEffect(() => { void load() }, [load])
 
@@ -448,17 +450,17 @@ export default function ProductOsPage() {
 
       {tab === 'fabrica' && <FactoryPanel onGoTo={setTab} onOpen={setOpenId} />}
       {tab === 'monitor' && <LiveMonitorPanel />}
-      {tab === 'ciclo' && <LifecycleBoard items={items} loading={loading} onOpen={setOpenId} onChanged={load} setError={setError} />}
+      {tab === 'ciclo' && <LifecycleBoard items={items} loading={loading} onOpen={setOpenId} onChanged={() => load(true)} setError={setError} />}
       {tab === 'producao' && <ProductionBoard products={items} />}
       {tab === 'impressoras' && <PrintersPanel />}
       {tab === 'rentabilidade' && <ProfitabilityPanel onOpen={setOpenId} />}
-      {tab === 'radar' && <RadarPanel onImported={id => { void load(); setTab('ciclo'); setOpenId(id) }} />}
+      {tab === 'radar' && <RadarPanel onImported={id => { void load(true); setTab('ciclo'); setOpenId(id) }} />}
       {tab === 'insumos' && <InsumosPanel />}
       {tab === 'paletas' && <PalettesPanel />}
 
-      {openId && <DetailDrawer id={openId} onClose={() => setOpenId(null)} onChanged={() => void load()} />}
-      {showNew && <NewProductModal onClose={() => setShowNew(false)} onCreated={() => { setShowNew(false); void load() }} />}
-      {showImport && <ImportMakerworldModal onClose={() => setShowImport(false)} onImported={id => { setShowImport(false); void load(); setTab('ciclo'); setOpenId(id) }} />}
+      {openId && <DetailDrawer id={openId} onClose={() => setOpenId(null)} onChanged={() => void load(true)} />}
+      {showNew && <NewProductModal onClose={() => setShowNew(false)} onCreated={() => { setShowNew(false); void load(true) }} />}
+      {showImport && <ImportMakerworldModal onClose={() => setShowImport(false)} onImported={id => { setShowImport(false); void load(true); setTab('ciclo'); setOpenId(id) }} />}
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
       <ConfirmHost />
     </div>
@@ -566,14 +568,19 @@ function ProductionBoard({ products }: { products: ProductDev[] }) {
   useEffect(() => { void load(); const it = setInterval(() => void load(true), 5000); return () => clearInterval(it) }, [load])
 
   const [notice, setNotice] = useState('')
+  // otimista: o card muda de coluna na hora; o load SILENCIOSO reconcilia com o servidor (sem spinner = sem piscar)
   const transition = async (oid: string, status: string) => {
     if (status === 'cancelado' && !(await confirmDialog({ title: 'Cancelar ordem', message: 'Cancelar esta OP? Libera o filamento reservado. Não dá pra desfazer.', danger: true, confirmLabel: 'Cancelar OP' }))) return
-    try { await api(`/product-os/production-orders/${oid}/transition`, { method: 'POST', body: JSON.stringify({ status }) }); void load() }
-    catch (e) { setErr(e instanceof Error ? e.message : 'Erro') }
+    const prev = orders
+    setOrders(os => os.map(o => o.id === oid ? { ...o, status } : o))
+    try { await api(`/product-os/production-orders/${oid}/transition`, { method: 'POST', body: JSON.stringify({ status }) }); void load(true) }
+    catch (e) { setOrders(prev); setErr(e instanceof Error ? e.message : 'Erro') }
   }
   const transitionAsm = async (aid: string, status: string) => {
-    try { await api(`/product-os/assemblies/${aid}/transition`, { method: 'POST', body: JSON.stringify({ status }) }); void load() }
-    catch (e) { setErr(e instanceof Error ? e.message : 'Erro') }
+    const prev = assemblies
+    setAssemblies(as => as.map(a => a.id === aid ? { ...a, status } : a))
+    try { await api(`/product-os/assemblies/${aid}/transition`, { method: 'POST', body: JSON.stringify({ status }) }); void load(true) }
+    catch (e) { setAssemblies(prev); setErr(e instanceof Error ? e.message : 'Erro') }
   }
   // em qual coluna a montagem aparece: fila/montando → Montagem; embalado/disponível na sua; concluído(legado)→Disponível
   const asmCol = (a: AssemblyOrder) => (a.status === 'fila' || a.status === 'montando') ? 'montagem' : (a.status === 'concluido' ? 'disponivel' : a.status)
@@ -682,8 +689,8 @@ function ProductionBoard({ products }: { products: ProductDev[] }) {
         ) : null}</DragOverlay>
         </DndContext>
       )}
-      {showNew && <NewOrderModal approved={approved} onClose={() => setShowNew(false)} onCreated={() => { setShowNew(false); void load() }} />}
-      {showNewAsm && <NewAssemblyModal products={approved} onClose={() => setShowNewAsm(false)} onCreated={() => { setShowNewAsm(false); void load() }} />}
+      {showNew && <NewOrderModal approved={approved} onClose={() => setShowNew(false)} onCreated={() => { setShowNew(false); void load(true) }} />}
+      {showNewAsm && <NewAssemblyModal products={approved} onClose={() => setShowNewAsm(false)} onCreated={() => { setShowNewAsm(false); void load(true) }} />}
     </div>
   )
 }
