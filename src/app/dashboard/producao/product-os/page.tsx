@@ -4082,7 +4082,9 @@ function FilamentPicker({ filaments, exclude, placeholder, onPick }: { filaments
   const norm = (s: string | null | undefined) => (s ?? '').toLowerCase()
   const list = filaments.filter(f => !(exclude ?? []).includes(f.id))
   const term = q.trim().toLowerCase()
-  const matches = term ? list.filter(f => [f.name, f.sku, f.barcode, f.color, f.material].some(v => norm(v).includes(term))) : list
+  const disp = (f: Input) => Number(f.quantity) - Number(f.reserved_quantity)
+  const matches = (term ? list.filter(f => [f.name, f.sku, f.barcode, f.color, f.material].some(v => norm(v).includes(term))) : list)
+    .slice().sort((a, b) => (disp(b) > 0 ? 1 : 0) - (disp(a) > 0 ? 1 : 0) || a.name.localeCompare(b.name))
   const submit = () => {
     const exact = list.find(f => norm(f.sku) === term || norm(f.barcode) === term)
     const pick = exact ?? (matches.length === 1 ? matches[0] : null)
@@ -4091,28 +4093,54 @@ function FilamentPicker({ filaments, exclude, placeholder, onPick }: { filaments
   return (
     <div>
       <input value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); submit() } }}
-        placeholder={placeholder ?? 'Escanear ou digitar nome / SKU / código de barras…'}
+        placeholder={placeholder ?? 'Escanear ou filtrar nome / SKU / código… (ou escolha abaixo)'}
         className="w-full rounded-lg px-2.5 py-1.5 text-xs outline-none" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }} />
-      {term && (
-        <div className="mt-1 max-h-48 overflow-y-auto rounded-lg" style={{ background: '#0a0a0e', border: '1px solid #27272a' }}>
-          {matches.length === 0 ? <p className="p-2 text-[10px]" style={{ color: '#71717a' }}>Nada encontrado pra “{q}”.</p>
-            : matches.slice(0, 25).map(f => (
-              <button key={f.id} onClick={() => { onPick(f.id); setQ('') }} className="block w-full px-2 py-1.5 text-left text-[11px]" style={{ borderBottom: '1px solid #1a1a1f', color: '#d4d4d8' }}>
-                <span className="font-semibold text-white">{f.name}</span>
-                <span style={{ color: '#52525b' }}> · {(Number(f.quantity) - Number(f.reserved_quantity)).toFixed(0)}{f.unit}{f.color ? ` · ${f.color}` : ''}{f.sku ? ` · SKU ${f.sku}` : ''}{f.barcode ? ` · ${f.barcode}` : ''}</span>
+      <div className="mt-1 max-h-48 overflow-y-auto rounded-lg" style={{ background: '#0a0a0e', border: '1px solid #27272a' }}>
+        {matches.length === 0 ? <p className="p-2 text-[10px]" style={{ color: '#71717a' }}>{term ? `Nada encontrado pra “${q}”.` : 'Nenhum filamento no estoque. Cadastre em Insumos primeiro.'}</p>
+          : matches.slice(0, 40).map(f => {
+            const d = disp(f)
+            return (
+              <button key={f.id} onClick={() => { onPick(f.id); setQ('') }} className="flex w-full items-center gap-2 px-2 py-1.5 text-left text-[11px]" style={{ borderBottom: '1px solid #1a1a1f', color: '#d4d4d8', opacity: d > 0 ? 1 : 0.45 }}>
+                {f.color_hex && <span className="h-3 w-3 shrink-0 rounded-full border" style={{ background: f.color_hex, borderColor: '#3f3f46' }} />}
+                <span className="min-w-0 flex-1 truncate"><span className="font-semibold text-white">{f.name}</span>
+                  <span style={{ color: '#52525b' }}>{f.color ? ` · ${f.color}` : ''}{f.material ? ` · ${f.material}` : ''}{f.sku ? ` · SKU ${f.sku}` : ''}{f.barcode ? ` · ${f.barcode}` : ''}</span></span>
+                <span className="shrink-0 text-[10px] font-semibold" style={{ color: d > 0 ? '#4ade80' : '#f87171' }}>{d.toFixed(0)}{f.unit}</span>
               </button>
-            ))}
-        </div>
-      )}
+            )
+          })}
+      </div>
     </div>
   )
 }
 
-function LoadedFilamentSection({ printerId, onChanged }: { printerId: string; onChanged: () => void }) {
+/** Escolha da bandeja do AMS (1–4). Ocupada = desabilitada (troca é pelo ↔ Trocar do rolo). */
+function SlotChoice({ used, value, onChange }: { used: number[]; value: number; onChange: (s: number) => void }) {
+  return (
+    <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
+      <span className="text-[10px] font-semibold" style={{ color: '#71717a' }}>Bandeja:</span>
+      {[0, 1, 2, 3].map(s => {
+        const occ = used.includes(s)
+        return (
+          <button key={s} type="button" disabled={occ} onClick={() => onChange(s)}
+            className="rounded px-2.5 py-1 text-[10px] font-bold disabled:cursor-not-allowed"
+            style={value === s && !occ ? { background: 'rgba(0,229,255,0.15)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.4)' }
+              : { background: '#111114', color: occ ? '#3f3f46' : '#a1a1aa', border: '1px solid #27272a' }}>
+            {s + 1}{occ ? ' •' : ''}
+          </button>
+        )
+      })}
+      {used.length > 0 && <span className="text-[9px]" style={{ color: '#52525b' }}>• ocupada — troque pelo ↔ Trocar</span>}
+    </div>
+  )
+}
+
+function LoadedFilamentSection({ printerId, hasAms, onChanged }: { printerId: string; hasAms?: boolean; onChanged: () => void }) {
   const [loaded, setLoaded] = useState<LoadedFilament[]>([]); const [filaments, setFilaments] = useState<Input[]>([])
   const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [msg, setMsg] = useState('')
   const [swapSlot, setSwapSlot] = useState<number | null>(null); const [adding, setAdding] = useState(false)
   const [usageSlot, setUsageSlot] = useState<number | null>(null); const [usageVal, setUsageVal] = useState('')
+  const [addSlot, setAddSlot] = useState<number | null>(null)
+  const ams = hasAms !== false
 
   const load = useCallback(async () => {
     try {
@@ -4126,12 +4154,14 @@ function LoadedFilamentSection({ printerId, onChanged }: { printerId: string; on
   useEffect(() => { void load() }, [load])
 
   const usedSlots = loaded.map(l => l.slot)
-  const nextSlot = usedSlots.length ? Math.max(...usedSlots) + 1 : 0
+  const freeSlots = [0, 1, 2, 3].filter(s => !usedSlots.includes(s))
   const loadedIds = loaded.map(l => l.input?.id).filter(Boolean) as string[]
+  // bandeja escolhida pro carregamento (default = primeira livre)
+  const chosenSlot = addSlot != null && !usedSlots.includes(addSlot) ? addSlot : (freeSlots[0] ?? 0)
 
   const doLoad = async (inputId: string, slot: number) => {
     setBusy(true); setErr(''); setMsg('')
-    try { await api(`/product-os/printers/${printerId}/load-filament`, { method: 'POST', body: JSON.stringify({ input_id: inputId, slot }) }); setMsg('Filamento montado — o consumo desta máquina passa a baixar esse rolo.'); setSwapSlot(null); setAdding(false); await load(); onChanged() }
+    try { await api(`/product-os/printers/${printerId}/load-filament`, { method: 'POST', body: JSON.stringify({ input_id: inputId, slot }) }); setMsg(`Filamento montado na bandeja ${slot + 1} — o consumo desta máquina passa a baixar esse rolo.`); setSwapSlot(null); setAdding(false); setAddSlot(null); await load(); onChanged() }
     catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setBusy(false) }
   }
   const unload = async (slot: number, name?: string) => {
@@ -4156,9 +4186,12 @@ function LoadedFilamentSection({ printerId, onChanged }: { printerId: string; on
 
       {loaded.length === 0 && (
         <div className="space-y-1.5">
-          <p className="text-[11px]" style={{ color: '#a1a1aa' }}>Nenhum filamento montado. Escaneie/escolha qual rolo está na máquina pro sistema acompanhar custo e uso.</p>
+          <p className="text-[11px]" style={{ color: '#a1a1aa' }}>Nenhum filamento montado. Escolha na lista (ou escaneie) qual rolo está na máquina pro sistema acompanhar custo e uso.</p>
           {filaments.length === 0 ? <p className="text-[10px]" style={{ color: '#fcd34d' }}>Nenhum filamento no estoque. Cadastre em Insumos (ou importe uma NF) primeiro.</p>
-            : <FilamentPicker filaments={filaments} onPick={id => void doLoad(id, 0)} />}
+            : <>
+                {ams && <SlotChoice used={usedSlots} value={chosenSlot} onChange={setAddSlot} />}
+                <FilamentPicker filaments={filaments} onPick={id => void doLoad(id, ams ? chosenSlot : 0)} />
+              </>}
         </div>
       )}
 
@@ -4192,11 +4225,12 @@ function LoadedFilamentSection({ printerId, onChanged }: { printerId: string; on
         </div>
       ))}
 
-      {loaded.length > 0 && (
+      {loaded.length > 0 && ams && freeSlots.length > 0 && (
         adding
           ? <div className="rounded-lg p-2" style={{ background: '#0a0a0e', border: '1px solid #1a1a1f' }}>
-              <div className="mb-1 flex items-center justify-between"><span className="text-[10px] font-semibold" style={{ color: '#a1a1aa' }}>Carregar em outra bandeja (#{nextSlot + 1})</span><button onClick={() => setAdding(false)} className="text-[10px]" style={{ color: '#71717a' }}>cancelar</button></div>
-              <FilamentPicker filaments={filaments} exclude={loadedIds} onPick={id => void doLoad(id, nextSlot)} />
+              <div className="mb-1 flex items-center justify-between"><span className="text-[10px] font-semibold" style={{ color: '#a1a1aa' }}>Carregar rolo na bandeja {chosenSlot + 1}</span><button onClick={() => { setAdding(false); setAddSlot(null) }} className="text-[10px]" style={{ color: '#71717a' }}>cancelar</button></div>
+              <SlotChoice used={usedSlots} value={chosenSlot} onChange={setAddSlot} />
+              <FilamentPicker filaments={filaments} exclude={loadedIds} onPick={id => void doLoad(id, chosenSlot)} />
             </div>
           : <button onClick={() => setAdding(true)} className="text-[10px] font-semibold" style={{ color: '#a5f3fc' }}>+ Carregar outro rolo (AMS)</button>
       )}
@@ -4324,7 +4358,7 @@ function PrinterDetailDrawer({ printer, onClose, onChanged }: { printer: Printer
             )}
 
             {/* filamento carregado */}
-            <LoadedFilamentSection printerId={id} onChanged={onChanged} />
+            <LoadedFilamentSection printerId={id} hasAms={printer.has_ams} onChanged={onChanged} />
 
             {/* payback */}
             <div className="mb-3 rounded-xl p-4" style={{ background: '#111114', border: `1px solid ${a.economics.paid_off ? 'rgba(74,222,128,0.4)' : '#27272a'}` }}>
