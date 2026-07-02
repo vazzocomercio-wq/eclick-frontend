@@ -2008,16 +2008,19 @@ function VersionsTab({ dev, onChanged }: { dev: DevDetail; onChanged: () => void
 
 /** Botão "Fatiar (auto)": cria o job de fatiamento (Bambu Studio CLI no PC da
  *  farm) e acompanha por poll até concluir/falhar. Concluiu → recarrega a
- *  versão (tempo/gramas reais + arquivo .gcode.3mf prontos pra impressora). */
-function SliceButton({ versionId, onChanged }: { versionId: string; onChanged: () => void }) {
+ *  versão (tempo/gramas reais + arquivo .gcode.3mf prontos pra impressora).
+ *  `showPlate`: projeto .3mf pode ter várias peças (um prato por peça) —
+ *  escolhe QUAL prato fatiar. */
+function SliceButton({ versionId, onChanged, showPlate }: { versionId: string; onChanged: () => void | Promise<void>; showPlate?: boolean }) {
   const [job, setJob] = useState<SliceJobStatus | null>(null)
+  const [plate, setPlate] = useState('1')
   const [busy, setBusy] = useState(false); const [msg, setMsg] = useState('')
   const active = !!job && ['pending', 'running'].includes(job.status)
   useEffect(() => {
     if (!active) return
     const t = setInterval(() => {
       void api<SliceJobStatus | null>(`/product-os/farm/versions/${versionId}/slice`)
-        .then(j => { setJob(j); if (j?.status === 'done') onChanged() })
+        .then(j => { setJob(j); if (j?.status === 'done') void onChanged() })
         .catch(() => { /* rede instável: tenta no próximo ciclo */ })
     }, 5000)
     return () => clearInterval(t)
@@ -2025,19 +2028,29 @@ function SliceButton({ versionId, onChanged }: { versionId: string; onChanged: (
   const start = async () => {
     setBusy(true); setMsg('')
     try {
-      const j = await api<SliceJobStatus>(`/product-os/farm/versions/${versionId}/slice`, { method: 'POST' })
+      const j = await api<SliceJobStatus>(`/product-os/farm/versions/${versionId}/slice`, { method: 'POST', body: JSON.stringify({ plate: Number(plate) || 1 }) })
       setJob({ id: j.id, status: j.status || 'pending', error: null })
     } catch (e) { setMsg(e instanceof Error ? e.message : 'Erro') } finally { setBusy(false) }
   }
-  if (active) return <span className="flex items-center gap-1 text-[10px]" style={{ color: '#a5f3fc' }}><Loader2 size={10} className="animate-spin" /> fatiando no PC da farm…</span>
+  if (active) return <span className="flex items-center gap-1 text-[10px]" style={{ color: '#a5f3fc' }}><Loader2 size={10} className="animate-spin" /> fatiando no PC da farm{showPlate ? ` (prato ${plate})` : ''}…</span>
   return (
     <span className="flex flex-wrap items-center gap-1.5">
-      <button onClick={() => void start()} disabled={busy} className="flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-semibold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.10)', color: '#a5f3fc', border: '1px solid rgba(0,229,255,0.3)' }}>{busy ? <Loader2 size={10} className="animate-spin" /> : <Cpu size={10} />} Fatiar (auto)</button>
+      {showPlate && (
+        <label className="flex items-center gap-1 text-[10px]" style={{ color: '#71717a' }} title="Projeto com várias peças? Cada peça fica num prato — escolha qual fatiar.">
+          prato
+          <input value={plate} onChange={e => setPlate(e.target.value.replace(/\D/g, '').slice(0, 2))} inputMode="numeric" className="w-9 rounded px-1 py-0.5 text-center text-[10px] outline-none" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }} />
+        </label>
+      )}
+      <button onClick={() => void start()} disabled={busy || (showPlate && !plate)} className="flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-semibold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.10)', color: '#a5f3fc', border: '1px solid rgba(0,229,255,0.3)' }}>{busy ? <Loader2 size={10} className="animate-spin" /> : <Cpu size={10} />} Fatiar (auto)</button>
       {job?.status === 'failed' && <span className="text-[10px]" style={{ color: '#f87171' }}>falhou: {job.error ?? 'erro no fatiamento'}</span>}
       {msg && <span className="text-[10px]" style={{ color: '#f87171' }}>{msg}</span>}
     </span>
   )
 }
+
+/** A versão pode ser fatiada? (tem modelo, ainda não fatiado, formato aceito) */
+const canSlice = (v: Version) => !!v.file_url && !v.sliced_file_url && !/\.gcode\.3mf/i.test(v.file_url) && /\.(stl|3mf|obj)([?#]|$)/i.test(v.file_url.split('?')[0])
+const is3mfProject = (v: Version) => !!v.file_url && /\.3mf([?#]|$)/i.test(v.file_url.split('?')[0])
 
 function VersionCard({ v, onChanged, onPrint }: { v: Version; onChanged: () => void; onPrint?: () => void }) {
   const [editing, setEditing] = useState(false); const [busy, setBusy] = useState(false); const [err, setErr] = useState('')
@@ -2068,7 +2081,7 @@ function VersionCard({ v, onChanged, onPrint }: { v: Version; onChanged: () => v
       ) : (
         <>
           <div className="mt-1.5 flex flex-wrap gap-2 text-[10px]" style={{ color: '#a1a1aa' }}>{v.material && <span>{v.material}</span>}{v.weight_g != null && <span>{v.weight_g} g</span>}{v.print_time_minutes != null && <span>{v.print_time_minutes} min</span>}{v.volume_cm3 != null && <span>{v.volume_cm3} cm³</span>}{v.file_url && <a href={v.file_url} target="_blank" rel="noreferrer" className="text-cyan-400 underline">arquivo</a>}{v.sliced_file_url && <a href={v.sliced_file_url} target="_blank" rel="noreferrer" className="flex items-center gap-0.5 underline" style={{ color: '#4ade80' }}>✓ fatiado</a>}{v.file_url && <button onClick={() => void removeFile()} disabled={busy} className="flex items-center gap-0.5 disabled:opacity-50" style={{ color: '#f87171' }}><Trash2 size={10} /> excluir arquivo</button>}</div>
-          {v.file_url && !v.sliced_file_url && !/\.gcode\.3mf/i.test(v.file_url) && /\.(stl|3mf|obj)([?#]|$)/i.test(v.file_url.split('?')[0]) && <div className="mt-1.5"><SliceButton versionId={v.id} onChanged={onChanged} /></div>}
+          {canSlice(v) && <div className="mt-1.5"><SliceButton versionId={v.id} onChanged={onChanged} showPlate={is3mfProject(v)} /></div>}
           {v.prototype_photo_urls && v.prototype_photo_urls.length > 0 && <div className="mt-1 flex flex-wrap gap-1">{v.prototype_photo_urls.map((u, i) => (
             // eslint-disable-next-line @next/next/no-img-element
             <img key={i} src={u} alt="" className="h-8 w-8 rounded object-cover" style={{ border: '1px solid #27272a' }} />
@@ -2393,12 +2406,14 @@ function PartVersionRow({ v, onChanged }: { v: Version; onChanged: () => void | 
         <span className="rounded px-1 py-0.5 font-bold" style={{ background: '#1a1a1f', color: '#a5f3fc' }}>v{v.version_number}</span>
         <span style={{ color: '#a1a1aa' }}>{v.material ?? '—'}{v.weight_g != null ? ` · ${v.weight_g}g` : ''}{v.print_time_minutes != null ? ` · ${v.print_time_minutes}min` : ''}</span>
         {v.file_url && <a href={v.file_url} target="_blank" rel="noreferrer" className="text-cyan-400 underline">arquivo</a>}
+        {v.sliced_file_url && <a href={v.sliced_file_url} target="_blank" rel="noreferrer" className="underline" style={{ color: '#4ade80' }}>✓ fatiado</a>}
         <div className="ml-auto flex items-center gap-1.5">
           <button onClick={() => setEdit(e => !e)} style={{ color: '#71717a' }}>{edit ? 'cancelar' : 'editar'}</button>
           <button onClick={() => void setApproval(true)} disabled={busy || noMetrics} title={noMetrics ? 'Preencha o peso antes de aprovar' : ''} className="rounded px-1.5 py-0.5 font-semibold disabled:opacity-40" style={{ background: 'rgba(74,222,128,0.10)', color: '#4ade80' }}>aprovar</button>
           {v.approved && <span style={{ color: '#4ade80' }}>✓</span>}
         </div>
       </div>
+      {canSlice(v) && <div className="mt-1.5"><SliceButton versionId={v.id} onChanged={onChanged} showPlate={is3mfProject(v)} /></div>}
       {noMetrics && !edit && <p className="mt-1" style={{ color: '#fcd34d' }}>⚠️ sem peso — clique em “editar” e preencha pra contar o filamento.</p>}
       {err && <p className="mt-1" style={{ color: '#f87171' }}>{err}</p>}
       {edit && (
