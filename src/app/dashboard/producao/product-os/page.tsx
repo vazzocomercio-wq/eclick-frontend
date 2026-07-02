@@ -3052,6 +3052,7 @@ function SegmentPicker({ label, kind, parentId, value, onChange, suggestLabel, a
             {value && !opts.some(o => o.id === value.id) && <option value={value.id}>{value.code} · {value.label}</option>}
             {opts.map(o => <option key={o.id} value={o.id}>{o.code} · {o.label}</option>)}
           </select>
+          {!blocked && !opts.length && !topLevel && <p className="mt-1 text-[9px]" style={{ color: '#71717a' }}>nenhuma {label.toLowerCase()} neste nível ainda — as de outros níveis não aparecem aqui</p>}
           {!blocked && <button onClick={() => { setNewLabel(suggestLabel ?? ''); setAdding(true) }} className="mt-1 flex items-center gap-1 text-[9px] font-semibold text-cyan-400"><Plus size={9} /> nova</button>}
         </>
       ) : (
