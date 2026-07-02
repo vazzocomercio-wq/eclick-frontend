@@ -62,9 +62,15 @@ interface PlatePlan {
   lines: Array<{ part_id: string; name: string; qty_per_product: number; needed: number; width_mm: number | null; depth_mm: number | null; height_mm: number | null; per_plate: number | null; plates: number | null; fit_note: string | null; plate_minutes: number | null; has_dims: boolean }>
 }
 interface AssemblyOrder { id: string; product_dev_id: string; order_number: number; quantity: number; status: string; created_at: string; completed_at: string | null }
+/** "1 reservada p/ Montagem #3" — explica por que o disponível está abaixo do estoque produzido */
+function reservedHint(l: { sufficient: boolean; reserved?: number; reserved_by?: Array<{ assembly_id: string; order_number: number | null; qty: number }> }): string {
+  if (l.sufficient || !l.reserved_by?.length || !l.reserved) return ''
+  const plural = l.reserved > 1 ? 's' : ''
+  return `${l.reserved} reservada${plural} p/ ${l.reserved_by.map(r => `Montagem #${r.order_number ?? '?'}`).join(', ')}`
+}
 interface AssemblyPreview {
   quantity: number
-  parts: Array<{ part_id: string; name: string; needed: number; available: number; unit: string; is_optional: boolean; sufficient: boolean; missing: number }>
+  parts: Array<{ part_id: string; name: string; needed: number; available: number; unit: string; is_optional: boolean; sufficient: boolean; missing: number; reserved?: number; reserved_by?: Array<{ assembly_id: string; order_number: number | null; qty: number }> }>
   insumos: Array<{ input_id: string; name: string; needed: number; available: number; unit: string; sufficient: boolean; missing: number }>
   all_sufficient: boolean
   missing_parts: Array<{ part_id: string; name: string; missing: number }>
@@ -1006,9 +1012,12 @@ function NewAssemblyModal({ products, onClose, onCreated }: { products: ProductD
           <div className="rounded-lg p-2.5 space-y-1" style={{ background: '#0a0a0e', border: '1px solid #27272a' }}>
             <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#71717a' }}>Peças necessárias</p>
             {preview.parts.map(l => (
-              <div key={l.part_id} className="flex items-center justify-between text-[11px]">
-                <span style={{ color: '#d4d4d8' }}>{l.name}{l.is_optional ? ' (opcional)' : ''}</span>
-                <span style={{ color: l.sufficient ? '#4ade80' : '#f87171' }}>{l.available}/{l.needed}{l.sufficient ? ' ✓' : ` (faltam ${l.missing})`}</span>
+              <div key={l.part_id}>
+                <div className="flex items-center justify-between text-[11px]">
+                  <span style={{ color: '#d4d4d8' }}>{l.name}{l.is_optional ? ' (opcional)' : ''}</span>
+                  <span style={{ color: l.sufficient ? '#4ade80' : '#f87171' }}>{l.available}/{l.needed}{l.sufficient ? ' ✓' : ` (faltam ${l.missing})`}</span>
+                </div>
+                {reservedHint(l) && <p className="text-right text-[10px]" style={{ color: '#fcd34d' }}>{reservedHint(l)}</p>}
               </div>
             ))}
             {preview.insumos?.map(l => (
@@ -1017,7 +1026,9 @@ function NewAssemblyModal({ products, onClose, onCreated }: { products: ProductD
                 <span style={{ color: l.sufficient ? '#4ade80' : '#f87171' }}>{l.available}/{l.needed} {l.unit}{l.sufficient ? ' ✓' : ` (faltam ${l.missing})`}</span>
               </div>
             ))}
-            {!preview.all_sufficient && <p className="text-[10px]" style={{ color: '#fcd34d' }}>⚠️ Falta estoque — produza as peças que faltam (OP de peça) antes de montar.</p>}
+            {!preview.all_sufficient && (preview.parts.some(l => !l.sufficient && l.reserved_by?.length)
+              ? <p className="text-[10px]" style={{ color: '#fcd34d' }}>⚠️ As peças produzidas já estão reservadas pela montagem indicada acima — conclua (ou cancele) essa montagem, ou produza mais peças para montar outra unidade.</p>
+              : <p className="text-[10px]" style={{ color: '#fcd34d' }}>⚠️ Falta estoque — produza as peças que faltam (OP de peça) antes de montar.</p>)}
           </div>
         )}
         {err && <div className="whitespace-pre-line rounded-lg p-2.5 text-xs" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>{err}</div>}
@@ -2586,12 +2597,17 @@ function AssemblySection({ devId, onChanged }: { devId: string; onChanged: () =>
       {preview && (
         <div className="space-y-1">
           {preview.parts.map(l => (
-            <div key={l.part_id} className="flex items-center justify-between text-[11px]"><span style={{ color: '#d4d4d8' }}>{l.name}{l.is_optional ? ' (opcional)' : ''}</span><span style={{ color: l.sufficient ? '#4ade80' : '#f87171' }}>{l.needed} {l.unit} <span style={{ color: '#52525b' }}>/ {l.available} prontas</span>{!l.sufficient && !l.is_optional ? ` · faltam ${l.missing}` : ''}</span></div>
+            <div key={l.part_id}>
+              <div className="flex items-center justify-between text-[11px]"><span style={{ color: '#d4d4d8' }}>{l.name}{l.is_optional ? ' (opcional)' : ''}</span><span style={{ color: l.sufficient ? '#4ade80' : '#f87171' }}>{l.needed} {l.unit} <span style={{ color: '#52525b' }}>/ {l.available} prontas</span>{!l.sufficient && !l.is_optional ? ` · faltam ${l.missing}` : ''}</span></div>
+              {reservedHint(l) && <p className="text-right text-[10px]" style={{ color: '#fcd34d' }}>{reservedHint(l)}</p>}
+            </div>
           ))}
           {preview.insumos.map((l, i) => (
             <div key={i} className="flex items-center justify-between text-[11px]"><span style={{ color: '#d4d4d8' }}>{l.name}</span><span style={{ color: l.sufficient ? '#4ade80' : '#f87171' }}>{l.needed} {l.unit} <span style={{ color: '#52525b' }}>/ {l.available} disp.</span></span></div>
           ))}
-          {!preview.all_sufficient && <p className="text-[10px]" style={{ color: '#fcd34d' }}>⚠️ Falta estoque. Gere as OPs de impressão das peças que faltam (botão &quot;Imprimir esta peça&quot; acima) e volte aqui.</p>}
+          {!preview.all_sufficient && (preview.parts.some(l => !l.sufficient && l.reserved_by?.length)
+            ? <p className="text-[10px]" style={{ color: '#fcd34d' }}>⚠️ As peças produzidas já estão reservadas pela montagem indicada acima — conclua (ou cancele) essa montagem, ou imprima mais peças.</p>
+            : <p className="text-[10px]" style={{ color: '#fcd34d' }}>⚠️ Falta estoque. Gere as OPs de impressão das peças que faltam (botão &quot;Imprimir esta peça&quot; acima) e volte aqui.</p>)}
         </div>
       )}
 
