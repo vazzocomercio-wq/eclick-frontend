@@ -82,6 +82,7 @@ interface Settings {
 interface Order {
   id: string; product_dev_id: string; order_number: number; quantity: number; machine: string | null; status: string
   printer_id: string | null; is_prototype: boolean; estimated_time_minutes: number | null; estimated_filament_g: number | null; actual_filament_g?: number | null; part_id?: string | null; due_at?: string | null; created_at: string
+  last_transition_source?: string | null
   jobs?: Job[]
 }
 interface Job { id: string; job_number: number; status: string; filament_used_g: number | null; print_time_minutes: number | null; failure_reason: string | null }
@@ -227,6 +228,12 @@ function reachableFrom(map: Record<string, string[]>, from: string): Set<string>
   const seen = new Set<string>(); const q = [from]
   while (q.length) { const c = q.shift()!; for (const n of map[c] ?? []) { if (n === 'cancelado' || n === 'falhou' || seen.has(n)) continue; seen.add(n); q.push(n) } }
   return seen
+}
+// rótulo de AÇÃO dos chips de transição (o que o clique faz, não o nome cru do status)
+const NEXT_LABEL: Record<string, string> = {
+  imprimindo: 'imprimir', pausado: 'pausar', acabamento: 'acabamento', qualidade: 'qualidade',
+  embalado: 'embalar', disponivel: 'disponível', pronta: 'peça pronta', reimpressao: 'reimprimir',
+  falhou: 'marcar falha', cancelado: 'cancelar', montando: 'montar',
 }
 const CHANNEL_LABEL: Record<string, string> = { mercado_livre: 'Mercado Livre', shopee: 'Shopee', tiktok: 'TikTok', loja: 'Loja própria' }
 const DEFAULT_QC: Array<{ key: string; label: string; ok: boolean }> = [
@@ -521,7 +528,7 @@ function LifecycleBoard({ items, loading, onOpen, onChanged, setError }: { items
   if (loading) return <div className="flex items-center gap-2 p-8 text-sm" style={{ color: '#71717a' }}><Loader2 size={16} className="animate-spin" /> Carregando…</div>
   return (
     <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={(e: DragStartEvent) => setActiveId(String(e.active.id))} onDragEnd={onDragEnd}>
-      <HScroll className="flex gap-3 pb-4">
+      <HScroll className="flex h-[max(320px,calc(100vh-330px))] gap-3 pb-2">
         {COLUMNS.map(col => <Column key={col.key} id={col.key} label={col.label} count={list.filter(d => d.status === col.key).length}>
           {list.filter(d => d.status === col.key).map(d => <DraggableCard key={d.id} id={d.id} onOpen={() => onOpen(d.id)}><DevCard dev={d} onGenImage={() => setImageFor(d)} /></DraggableCard>)}
         </Column>)}
@@ -532,16 +539,19 @@ function LifecycleBoard({ items, loading, onOpen, onChanged, setError }: { items
   )
 }
 
-function Column({ id, label, count, dim, children }: { id: string; label: string; count: number; dim?: boolean; children: React.ReactNode }) {
+function Column({ id, label, count, capacity, dim, children }: { id: string; label: string; count: number; capacity?: number | null; dim?: boolean; children: React.ReactNode }) {
   const { setNodeRef, isOver } = useDroppable({ id })
+  // WIP: contador vira usado/capacidade — âmbar cheio, vermelho estourado (capacidade = nº de impressoras ativas)
+  const wipColor = capacity != null ? (count > capacity ? '#f87171' : count >= capacity ? '#fcd34d' : '#71717a') : '#71717a'
   return (
     <div ref={setNodeRef} className="flex w-64 shrink-0 flex-col rounded-xl" style={{ background: isOver ? 'rgba(0,229,255,0.05)' : '#0c0c10', border: `1px solid ${isOver ? 'rgba(0,229,255,0.4)' : '#1a1a1f'}`, opacity: dim ? 0.35 : 1, transition: 'opacity .15s' }}>
       <div className="flex items-center justify-between px-3 py-2.5">
         <span className="text-xs font-bold uppercase tracking-wide" style={{ color: '#a1a1aa' }}>{label}</span>
-        <span className="rounded px-1.5 py-0.5 text-[10px] font-bold" style={{ background: '#1a1a1f', color: '#71717a' }}>{count}</span>
+        <span title={capacity != null ? `${count} de ${capacity} impressora${capacity === 1 ? '' : 's'} em uso` : undefined} className="rounded px-1.5 py-0.5 text-[10px] font-bold" style={{ background: '#1a1a1f', color: wipColor }}>{capacity != null ? `${count}/${capacity}` : count}</span>
       </div>
-      {/* rolagem própria da coluna: a roda do mouse rola os cards AQUI, não a página (HScroll respeita data-vscroll) */}
-      <div data-vscroll="1" className="os-vscroll flex flex-col gap-2 px-2 pb-2" style={{ minHeight: 80, maxHeight: 'max(240px, calc(100vh - 380px))', overflowY: 'auto', overscrollBehavior: 'contain' }}>{children}</div>
+      {/* rolagem própria da coluna: a roda do mouse rola os cards AQUI, não a página (HScroll respeita data-vscroll).
+          flex-1 = a coluna estica até o pé do quadro (altura vem do HScroll), sem "rodapé" vazio */}
+      <div data-vscroll="1" className="os-vscroll flex flex-1 flex-col gap-2 px-2 pb-2" style={{ minHeight: 80, overflowY: 'auto', overscrollBehavior: 'contain' }}>{children}</div>
     </div>
   )
 }
@@ -600,16 +610,35 @@ function ProductionBoard({ products }: { products: ProductDev[] }) {
   // primeiro load + refresh silencioso a cada 5s → cards mudam sozinhos quando a impressora avança o estado
   useEffect(() => { void load(); const it = setInterval(() => void load(true), 5000); return () => clearInterval(it) }, [load])
 
+  // capacidade do parque (WIP da coluna Imprimindo) + motivos de bloqueio da fila (plano de capacidade finita)
+  const [farm, setFarm] = useState<FarmStatus[]>([])
+  const [plan, setPlan] = useState<SchedulePlan | null>(null)
+  const loadAux = useCallback(async () => {
+    try {
+      const [f, p] = await Promise.all([
+        api<FarmStatus[]>('/product-os/farm/status').catch(() => [] as FarmStatus[]),
+        api<SchedulePlan>('/product-os/farm/schedule-plan').catch(() => null),
+      ])
+      setFarm(f); setPlan(p)
+    } catch { /* melhor sem WIP/bloqueio do que quebrar o quadro */ }
+  }, [])
+  useEffect(() => { void loadAux(); const it = setInterval(() => void loadAux(), 30000); return () => clearInterval(it) }, [loadAux])
+  const printCapacity = farm.filter(p => p.config_status === 'ativa').length
+  // por OP na fila: motivo de bloqueio (não-agendável) ou falta de tempo estimado
+  const blockedReason = new Map((plan?.unscheduled ?? []).map(u => [u.order_id, u.reason]))
+  const needsTime = new Set((plan?.assignments ?? []).filter(a => a.needs_time).map(a => a.order_id))
+
   const [notice, setNotice] = useState('')
   // otimista: o card muda de coluna na hora; o load SILENCIOSO reconcilia com o servidor (sem spinner = sem piscar)
   const transition = async (oid: string, status: string) => {
     if (status === 'cancelado' && !(await confirmDialog({ title: 'Cancelar ordem', message: 'Cancelar esta OP? Libera o filamento reservado. Não dá pra desfazer.', danger: true, confirmLabel: 'Cancelar OP' }))) return
     const prev = orders
-    setOrders(os => os.map(o => o.id === oid ? { ...o, status } : o))
-    try { await api(`/product-os/production-orders/${oid}/transition`, { method: 'POST', body: JSON.stringify({ status }) }); void load(true) }
+    setOrders(os => os.map(o => o.id === oid ? { ...o, status, last_transition_source: 'manual' } : o))
+    try { await api(`/product-os/production-orders/${oid}/transition`, { method: 'POST', body: JSON.stringify({ status }) }); void load(true); void loadAux() }
     catch (e) { setOrders(prev); setErr(e instanceof Error ? e.message : 'Erro') }
   }
   const transitionAsm = async (aid: string, status: string) => {
+    if (status === 'cancelado' && !(await confirmDialog({ title: 'Cancelar montagem', message: 'Cancelar esta montagem? Libera as peças e os insumos reservados. Não dá pra desfazer.', danger: true, confirmLabel: 'Cancelar montagem' }))) return
     const prev = assemblies
     setAssemblies(as => as.map(a => a.id === aid ? { ...a, status } : a))
     try { await api(`/product-os/assemblies/${aid}/transition`, { method: 'POST', body: JSON.stringify({ status }) }); void load(true) }
@@ -618,8 +647,8 @@ function ProductionBoard({ products }: { products: ProductDev[] }) {
   // arrastou pra uma etapa mais à frente → executa as transições intermediárias em sequência (otimista)
   const transitionChain = async (oid: string, path: string[]) => {
     const prev = orders
-    setOrders(os => os.map(o => o.id === oid ? { ...o, status: path[path.length - 1] } : o))
-    try { for (const s of path) await api(`/product-os/production-orders/${oid}/transition`, { method: 'POST', body: JSON.stringify({ status: s }) }); void load(true) }
+    setOrders(os => os.map(o => o.id === oid ? { ...o, status: path[path.length - 1], last_transition_source: 'manual' } : o))
+    try { for (const s of path) await api(`/product-os/production-orders/${oid}/transition`, { method: 'POST', body: JSON.stringify({ status: s }) }); void load(true); void loadAux() }
     catch (e) { setOrders(prev); setErr(e instanceof Error ? e.message : 'Erro') }
   }
   const transitionAsmChain = async (aid: string, path: string[]) => {
@@ -689,28 +718,36 @@ function ProductionBoard({ products }: { products: ProductDev[] }) {
       {warn && <div className="rounded-lg p-2.5 text-xs" style={{ background: 'rgba(252,211,77,0.10)', color: '#fcd34d', border: '1px solid rgba(252,211,77,0.3)' }}>{warn}</div>}
       {loading ? <div className="flex items-center gap-2 p-6 text-sm" style={{ color: '#71717a' }}><Loader2 size={16} className="animate-spin" /> Carregando…</div> : (
         <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => { setActiveDrag(null); setValidCols(null) }}>
-        <HScroll className="flex gap-3 pb-4">
+        <HScroll className="flex h-[max(320px,calc(100vh-330px))] gap-3 pb-2">
           {ORDER_COLS.map(col => {
             const cards = orders.filter(o => o.status === col.key)
             const asms = assemblies.filter(a => asmCol(a) === col.key)
             return (
-              <Column key={col.key} id={col.key} label={col.label} count={cards.length + asms.length} dim={!!validCols && !validCols.has(col.key)}>
+              <Column key={col.key} id={col.key} label={col.label} count={cards.length + asms.length} capacity={col.key === 'imprimindo' && printCapacity > 0 ? printCapacity : undefined} dim={!!validCols && !validCols.has(col.key)}>
                   {cards.map(o => (
                     <DragWrap key={o.id} id={o.id} data={{ kind: 'op', id: o.id, status: o.status, partId: !!o.part_id, code: `OP-${String(o.order_number).padStart(4, '0')}`, name: nameOf(o.product_dev_id) }}>
                     <div className="rounded-lg p-2.5" style={{ background: '#111114', border: '1px solid #27272a' }}>
                       <div className="flex items-center gap-1.5">
                         <span className="shrink-0 rounded px-1 py-0.5 font-mono text-[9px] font-bold" style={{ background: 'rgba(0,229,255,0.12)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.25)' }}>OP-{String(o.order_number).padStart(4, '0')}</span>
                         <p className="truncate text-xs font-bold text-white">{nameOf(o.product_dev_id)}</p>
+                        {o.last_transition_source === 'auto' && <span title="Avançou sozinho — movido pela telemetria da impressora" className="shrink-0 text-[10px]">⚡</span>}
                         {o.part_id && <span className="shrink-0 rounded px-1 py-0.5 text-[8px] font-bold" style={{ background: 'rgba(0,229,255,0.12)', color: '#67e8f9' }}>🧩 peça</span>}
                         {o.is_prototype && <span className="shrink-0 rounded px-1 py-0.5 text-[8px] font-bold" style={{ background: 'rgba(168,85,247,0.15)', color: '#c4b5fd' }}>protótipo</span>}
                       </div>
                       <p className="text-[10px]" style={{ color: '#71717a' }}>{o.quantity} un{o.estimated_filament_g ? ` · ${o.estimated_filament_g} g` : ''}{o.machine ? ` · ${o.machine}` : ''}</p>
+                      {o.status === 'fila' && blockedReason.has(o.id) && (
+                        <p className="mt-1 rounded px-1.5 py-0.5 text-[9px] font-semibold" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>⛔ {blockedReason.get(o.id)}</p>
+                      )}
+                      {o.status === 'fila' && !blockedReason.has(o.id) && needsTime.has(o.id) && (
+                        <p className="mt-1 rounded px-1.5 py-0.5 text-[9px] font-semibold" style={{ background: 'rgba(252,211,77,0.10)', color: '#fcd34d', border: '1px solid rgba(252,211,77,0.3)' }}>⚠ versão sem tempo de impressão — prazo não calculável</p>
+                      )}
                       <div className="mt-1.5 flex flex-wrap gap-1">
                         {((o.part_id ? PART_ORDER_NEXT : ORDER_NEXT)[o.status] ?? []).map(ns => (
-                          <button key={ns} onClick={() => void transition(o.id, ns)} className="rounded px-1.5 py-0.5 text-[9px] font-semibold" style={{ background: ns === 'cancelado' || ns === 'falhou' ? '#0a0a0e' : 'rgba(0,229,255,0.10)', color: ns === 'cancelado' || ns === 'falhou' ? '#71717a' : '#a5f3fc', border: '1px solid #27272a' }}>{ns}</button>
+                          <button key={ns} onClick={() => void transition(o.id, ns)} className="rounded px-1.5 py-0.5 text-[9px] font-semibold" style={{ background: ns === 'cancelado' || ns === 'falhou' ? '#0a0a0e' : 'rgba(0,229,255,0.10)', color: ns === 'cancelado' || ns === 'falhou' ? '#71717a' : '#a5f3fc', border: '1px solid #27272a' }}>{NEXT_LABEL[ns] ?? ns}</button>
                         ))}
                       </div>
-                      {o.printer_id && !['disponivel', 'pronta', 'cancelado'].includes(o.status) && (
+                      {/* mandar job pra máquina só faz sentido na Fila/Reimpressão — fora disso imprimiria DE NOVO */}
+                      {o.printer_id && ['fila', 'reimpressao'].includes(o.status) && (
                         <button onClick={() => void sendToPrinter(o.id)} className="mt-1 flex w-full items-center justify-center gap-1 rounded px-1.5 py-1 text-[9px] font-bold" style={{ background: 'rgba(0,229,255,0.10)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.3)' }}><Send size={9} /> Enviar pra impressora</button>
                       )}
                       {['acabamento', 'qualidade', 'embalado'].includes(o.status) && (
@@ -732,7 +769,7 @@ function ProductionBoard({ products }: { products: ProductDev[] }) {
                       <p className="text-[10px]" style={{ color: '#71717a' }}>{a.quantity} un · junta as peças no produto</p>
                       <div className="mt-1.5 flex flex-wrap gap-1">
                         {(ASSEMBLY_NEXT[a.status] ?? []).map(ns => (
-                          <button key={ns} onClick={() => void transitionAsm(a.id, ns)} className="rounded px-1.5 py-0.5 text-[9px] font-semibold" style={{ background: ns === 'cancelado' ? '#0a0a0e' : 'rgba(168,85,247,0.12)', color: ns === 'cancelado' ? '#71717a' : '#d8b4fe', border: '1px solid #27272a' }}>{ns}</button>
+                          <button key={ns} onClick={() => void transitionAsm(a.id, ns)} className="rounded px-1.5 py-0.5 text-[9px] font-semibold" style={{ background: ns === 'cancelado' ? '#0a0a0e' : 'rgba(168,85,247,0.12)', color: ns === 'cancelado' ? '#71717a' : '#d8b4fe', border: '1px solid #27272a' }}>{NEXT_LABEL[ns] ?? ns}</button>
                         ))}
                       </div>
                     </div>
