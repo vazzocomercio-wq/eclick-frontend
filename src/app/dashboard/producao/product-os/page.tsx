@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef, useMemo, type CSSProperties } from 'react'
 import { createClient } from '@/lib/supabase'
 import {
-  DndContext, DragOverlay, PointerSensor, TouchSensor, useSensor, useSensors,
+  DndContext, DragOverlay, MouseSensor, TouchSensor, useSensor, useSensors,
   useDraggable, useDroppable, closestCorners,
   type DragEndEvent, type DragStartEvent,
 } from '@dnd-kit/core'
@@ -254,6 +254,9 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   return (await res.json()) as T
 }
 
+// erro do backend chega como "[400] mensagem em PT" — checar só "Erro" pintava falha de verde
+function isErrMsg(m: string): boolean { return /^\[\d+\]/.test(m) || m.includes('Erro') }
+
 // limite de upload = teto global do projeto Supabase (bucket product-os)
 const MAX_UPLOAD_MB = 200
 function friendlyUploadError(e: unknown): string {
@@ -348,11 +351,11 @@ function DueDateInput({ oid, due, onSaved }: { oid: string; due: string | null; 
   const [editing, setEditing] = useState(false)
   const toLocal = (iso: string | null) => { if (!iso) return ''; try { const d = new Date(iso); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16) } catch { return '' } }
   const [val, setVal] = useState(toLocal(due))
-  const [busy, setBusy] = useState(false)
+  const [busy, setBusy] = useState(false); const [err, setErr] = useState('')
   const save = async (clear?: boolean) => {
-    setBusy(true)
+    setBusy(true); setErr('')
     try { await api(`/product-os/production-orders/${oid}`, { method: 'PATCH', body: JSON.stringify({ due_at: clear || !val ? null : new Date(val).toISOString() }) }); setEditing(false); onSaved() }
-    catch { /* */ } finally { setBusy(false) }
+    catch (e) { setErr(e instanceof Error ? e.message : 'Erro ao salvar') } finally { setBusy(false) }
   }
   if (!editing) return (
     <button onClick={() => setEditing(true)} className="mt-1 flex w-full items-center justify-center gap-1 rounded px-1.5 py-1 text-[9px] font-semibold" style={{ background: '#0a0a0e', color: due ? '#a5f3fc' : '#71717a', border: '1px solid #27272a' }}>
@@ -360,22 +363,25 @@ function DueDateInput({ oid, due, onSaved }: { oid: string; due: string | null; 
     </button>
   )
   return (
-    <div className="mt-1 flex items-center gap-1">
-      <input autoFocus type="datetime-local" value={val} onChange={e => setVal(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') void save(); if (e.key === 'Escape') setEditing(false) }}
-        className="w-full rounded px-1.5 py-1 text-[10px] text-white" style={{ background: '#0a0a0e', border: '1px solid #27272a' }} />
-      <button onClick={() => void save()} disabled={busy} className="rounded px-1.5 py-1 text-[9px] font-bold" style={{ background: 'rgba(0,229,255,0.10)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.3)' }}>{busy ? '…' : 'ok'}</button>
-      {due && <button onClick={() => void save(true)} disabled={busy} className="rounded px-1.5 py-1 text-[9px]" style={{ background: '#0a0a0e', color: '#71717a', border: '1px solid #27272a' }}>×</button>}
+    <div className="mt-1">
+      <div className="flex items-center gap-1">
+        <input autoFocus type="datetime-local" value={val} onChange={e => setVal(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') void save(); if (e.key === 'Escape') setEditing(false) }}
+          className="w-full rounded px-1.5 py-1 text-[10px] text-white" style={{ background: '#0a0a0e', border: '1px solid #27272a' }} />
+        <button onClick={() => void save()} disabled={busy} className="rounded px-1.5 py-1 text-[9px] font-bold" style={{ background: 'rgba(0,229,255,0.10)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.3)' }}>{busy ? '…' : 'ok'}</button>
+        {due && <button onClick={() => void save(true)} disabled={busy} className="rounded px-1.5 py-1 text-[9px]" style={{ background: '#0a0a0e', color: '#71717a', border: '1px solid #27272a' }}>×</button>}
+      </div>
+      {err && <p className="mt-0.5 text-[9px]" style={{ color: '#f87171' }}>{err}</p>}
     </div>
   )
 }
 function RealWeightInput({ oid, actual, estimated, onSaved }: { oid: string; actual: number | null; estimated: number | null; onSaved: () => void }) {
   const [editing, setEditing] = useState(false)
   const [val, setVal] = useState(actual != null ? String(actual) : '')
-  const [busy, setBusy] = useState(false)
+  const [busy, setBusy] = useState(false); const [err, setErr] = useState('')
   const save = async () => {
-    setBusy(true)
+    setBusy(true); setErr('')
     try { await api(`/product-os/production-orders/${oid}`, { method: 'PATCH', body: JSON.stringify({ actual_filament_g: val.trim() ? Number(val.replace(',', '.')) : null }) }); setEditing(false); onSaved() }
-    catch { /* */ } finally { setBusy(false) }
+    catch (e) { setErr(e instanceof Error ? e.message : 'Erro ao salvar') } finally { setBusy(false) }
   }
   if (!editing) return (
     <button onClick={() => setEditing(true)} className="mt-1 flex w-full items-center justify-center gap-1 rounded px-1.5 py-1 text-[9px] font-semibold" style={{ background: '#0a0a0e', color: actual != null ? '#4ade80' : '#71717a', border: '1px solid #27272a' }}>
@@ -383,10 +389,13 @@ function RealWeightInput({ oid, actual, estimated, onSaved }: { oid: string; act
     </button>
   )
   return (
-    <div className="mt-1 flex items-center gap-1">
-      <input autoFocus type="text" inputMode="decimal" value={val} onChange={e => setVal(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') void save(); if (e.key === 'Escape') setEditing(false) }}
-        placeholder={estimated != null ? `est. ${estimated}` : 'gramas'} className="w-full rounded px-1.5 py-1 text-[10px] text-white" style={{ background: '#0a0a0e', border: '1px solid #27272a' }} />
-      <button onClick={() => void save()} disabled={busy} className="rounded px-1.5 py-1 text-[9px] font-bold" style={{ background: 'rgba(0,229,255,0.10)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.3)' }}>{busy ? '…' : 'ok'}</button>
+    <div className="mt-1">
+      <div className="flex items-center gap-1">
+        <input autoFocus type="text" inputMode="decimal" value={val} onChange={e => setVal(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') void save(); if (e.key === 'Escape') setEditing(false) }}
+          placeholder={estimated != null ? `est. ${estimated}` : 'gramas'} className="w-full rounded px-1.5 py-1 text-[10px] text-white" style={{ background: '#0a0a0e', border: '1px solid #27272a' }} />
+        <button onClick={() => void save()} disabled={busy} className="rounded px-1.5 py-1 text-[9px] font-bold" style={{ background: 'rgba(0,229,255,0.10)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.3)' }}>{busy ? '…' : 'ok'}</button>
+      </div>
+      {err && <p className="mt-0.5 text-[9px]" style={{ color: '#f87171' }}>{err}</p>}
     </div>
   )
 }
@@ -481,8 +490,8 @@ export default function ProductOsPage() {
         </div>
       </div>
 
-      {/* tabs */}
-      <div className="flex gap-1 rounded-lg p-1" style={{ background: '#111114', border: '1px solid #1a1a1f', width: 'fit-content' }}>
+      {/* tabs — overflow-x no mobile: 9 abas não cabem em 375px, sem isso Radar/Insumos/Paletas somem */}
+      <div className="flex max-w-full gap-1 overflow-x-auto rounded-lg p-1" style={{ background: '#111114', border: '1px solid #1a1a1f', width: 'fit-content', scrollbarWidth: 'none' }}>
         {([['fabrica', 'Fábrica', <Gauge key="f" size={13} />], ['ciclo', 'Ciclo de vida', <Lightbulb key="a" size={13} />], ['producao', 'Produção', <Factory key="b" size={13} />], ['monitor', 'Ao vivo', <Wifi key="m" size={13} />], ['impressoras', 'Impressoras', <PrinterIcon key="d" size={13} />], ['rentabilidade', 'Rentabilidade', <TrendingUp key="e" size={13} />], ['radar', 'Radar', <Trophy key="r" size={13} />], ['insumos', 'Insumos', <Boxes key="c" size={13} />], ['paletas', 'Paletas', <Palette key="pl" size={13} />]] as const).map(([k, lbl, ic]) => (
           <button key={k} onClick={() => setTab(k)} className="flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-semibold" style={{ background: tab === k ? 'rgba(0,229,255,0.12)' : 'transparent', color: tab === k ? '#00E5FF' : '#71717a' }}>{ic}{lbl}</button>
         ))}
@@ -500,7 +509,8 @@ export default function ProductOsPage() {
       {tab === 'insumos' && <InsumosPanel />}
       {tab === 'paletas' && <PalettesPanel />}
 
-      {openId && <DetailDrawer id={openId} onClose={() => setOpenId(null)} onChanged={() => void load(true)} />}
+      {/* key={openId}: trocar de produto REMONTA o drawer — mata a corrida do fetch antigo sobrescrever o produto novo */}
+      {openId && <DetailDrawer key={openId} id={openId} onClose={() => setOpenId(null)} onChanged={() => void load(true)} />}
       {showNew && <NewProductModal onClose={() => setShowNew(false)} onCreated={() => { setShowNew(false); void load(true) }} />}
       {showImport && <ImportMakerworldModal onClose={() => setShowImport(false)} onImported={id => { setShowImport(false); void load(true); setTab('ciclo'); setOpenId(id) }} />}
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
@@ -515,8 +525,10 @@ function LifecycleBoard({ items, loading, onOpen, onChanged, setError }: { items
   const [activeId, setActiveId] = useState<string | null>(null)
   const [imageFor, setImageFor] = useState<ProductDev | null>(null)
   useEffect(() => setList(items), [items])
-  // touch (tablet): long-press 250ms inicia o arraste; tap curto abre o card
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }), useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }))
+  // touch (tablet/celular): long-press 250ms inicia o arraste; tap curto abre o card.
+  // MouseSensor (não PointerSensor!) — o PointerSensor captura o toque ANTES do
+  // TouchSensor e o long-press nunca roda, sequestrando a rolagem do quadro.
+  const sensors = useSensors(useSensor(MouseSensor, { activationConstraint: { distance: 5 } }), useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }))
 
   const onDragEnd = async (e: DragEndEvent) => {
     setActiveId(null)
@@ -619,8 +631,11 @@ function ProductionBoard({ products }: { products: ProductDev[] }) {
     }
     catch (e) { if (!silent) setErr(e instanceof Error ? e.message : 'Erro') } finally { if (!silent) setLoading(false) }
   }, [])
-  // primeiro load + refresh silencioso a cada 5s → cards mudam sozinhos quando a impressora avança o estado
-  useEffect(() => { void load(); const it = setInterval(() => void load(true), 5000); return () => clearInterval(it) }, [load])
+  // primeiro load + refresh silencioso a cada 5s → cards mudam sozinhos quando a impressora avança o estado.
+  // PAUSA durante um arraste: o setOrders do servidor no meio do drag re-renderiza sob o
+  // ponteiro e pode "voltar" o card antes do drop.
+  const draggingRef = useRef(false)
+  useEffect(() => { void load(); const it = setInterval(() => { if (!draggingRef.current) void load(true) }, 5000); return () => clearInterval(it) }, [load])
 
   // capacidade do parque (WIP da coluna Imprimindo) + motivos de bloqueio da fila (plano de capacidade finita)
   const [farm, setFarm] = useState<FarmStatus[]>([])
@@ -749,12 +764,13 @@ function ProductionBoard({ products }: { products: ProductDev[] }) {
 
   // arrastar cards entre colunas: aceita etapa mais à frente (cadeia de transições);
   // durante o arraste, as colunas que NÃO são destino válido ficam apagadas
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }), useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }))
+  const sensors = useSensors(useSensor(MouseSensor, { activationConstraint: { distance: 6 } }), useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }))
   const [activeDrag, setActiveDrag] = useState<{ code: string; name: string; color: string } | null>(null)
   const [validCols, setValidCols] = useState<Set<string> | null>(null)
   const [warn, setWarn] = useState('')
   const asmColOf = (status: string) => (status === 'fila' || status === 'montando') ? 'montagem' : (status === 'concluido' ? 'disponivel' : status)
   const onDragStart = (e: DragStartEvent) => {
+    draggingRef.current = true
     const d = e.active.data.current as { code?: string; name?: string; kind?: string; status?: string; partId?: boolean } | undefined
     if (d) setActiveDrag({ code: d.code ?? '', name: d.name ?? '', color: d.kind === 'asm' ? '#c4b5fd' : '#00E5FF' })
     if (d?.status) {
@@ -763,6 +779,7 @@ function ProductionBoard({ products }: { products: ProductDev[] }) {
     }
   }
   const onDragEnd = async (e: DragEndEvent) => {
+    draggingRef.current = false
     setActiveDrag(null); setValidCols(null)
     const over = e.over?.id ? String(e.over.id) : null
     const d = e.active.data.current as { kind?: string; id?: string; status?: string; partId?: boolean } | undefined
@@ -832,7 +849,7 @@ function ProductionBoard({ products }: { products: ProductDev[] }) {
       {notice && <div className="rounded-lg p-2.5 text-xs" style={{ background: 'rgba(74,222,128,0.10)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)' }}>{notice}</div>}
       {warn && <div className="rounded-lg p-2.5 text-xs" style={{ background: 'rgba(252,211,77,0.10)', color: '#fcd34d', border: '1px solid rgba(252,211,77,0.3)' }}>{warn}</div>}
       {loading ? <div className="flex items-center gap-2 p-6 text-sm" style={{ color: '#71717a' }}><Loader2 size={16} className="animate-spin" /> Carregando…</div> : (
-        <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => { setActiveDrag(null); setValidCols(null) }}>
+        <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => { draggingRef.current = false; setActiveDrag(null); setValidCols(null) }}>
         <HScroll className="flex gap-3 pb-2" style={{ height: 'max(320px, calc(100vh - 330px))' }}>
           {ORDER_COLS.map(col => {
             const cards = visibleOrders.filter(o => o.status === col.key)
@@ -1060,7 +1077,7 @@ function NewOrderModal({ approved, onClose, onCreated }: { approved: ProductDev[
             </div>
           )}
           {preview && preview.lines.length === 0 && preview.source === 'none' && <p className="text-[10px]" style={{ color: '#52525b' }}>Sem composição (BOM) nem peso de versão — nenhum insumo será reservado.</p>}
-          <div className="flex justify-end"><button onClick={() => void create()} disabled={busy || hasParts} title={hasParts ? 'Produto feito de peças — imprima pela aba Peças' : ''} className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}>{busy ? <Loader2 size={12} className="animate-spin" /> : <Factory size={12} />} Criar ordem</button></div>
+          <div className="flex justify-end"><button onClick={() => void create()} disabled={busy || hasParts || (!!preview && !preview.all_sufficient)} title={hasParts ? 'Produto feito de peças — imprima pela aba Peças' : preview && !preview.all_sufficient ? 'Insumo insuficiente — reponha antes de criar a ordem' : ''} className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}>{busy ? <Loader2 size={12} className="animate-spin" /> : <Factory size={12} />} Criar ordem</button></div>
         </div>
       )}
     </Modal>
@@ -1106,6 +1123,8 @@ function InsumosPanel() {
                   {i.alert && <span className="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold" style={{ background: 'rgba(252,211,77,0.12)', color: '#fcd34d' }}>repor</span>}
                 </div>
                 <p className="truncate text-[10px]" style={{ color: '#71717a' }}>{[i.sku, i.kind, i.material, i.brand, i.color].filter(Boolean).join(' · ')}{i.diameter_mm ? ` · ${i.diameter_mm}mm` : ''}</p>
+                {/* no celular as colunas de estoque somem — o número precisa aparecer na linha */}
+                <p className="text-[10px] font-semibold sm:hidden" style={{ color: '#22d3ee' }}>{i.available} {i.unit} disp. <span style={{ color: '#52525b' }}>· R$ {Number(i.cost_per_unit).toFixed(Number(i.cost_per_unit) < 1 ? 4 : 2)}/{i.unit}</span></p>
               </div>
               <div className="hidden shrink-0 text-right sm:block" style={{ width: 110 }}>
                 <p className="text-sm font-extrabold leading-tight text-cyan-400">{i.available} <span className="text-[10px] font-normal" style={{ color: '#52525b' }}>{i.unit}</span></p>
@@ -1524,7 +1543,7 @@ function PalettesPanel() {
     catch (e) { setMsg(e instanceof Error ? e.message : 'Erro') } finally { setBusy(false) }
   }
   const setPrimary = async (p: Palette) => { setBusy(true); try { await api(`/product-os/palettes/${p.id}/primary`, { method: 'POST' }); await load() } catch (e) { setMsg(e instanceof Error ? e.message : 'Erro') } finally { setBusy(false) } }
-  const del = async (p: Palette) => { if (!(await confirmDialog({ title: 'Excluir paleta', message: `Excluir "${p.name}"?`, danger: true, confirmLabel: 'Excluir' }))) return; setBusy(true); try { await api(`/product-os/palettes/${p.id}/delete`, { method: 'POST' }); await load() } catch { /* */ } finally { setBusy(false) } }
+  const del = async (p: Palette) => { if (!(await confirmDialog({ title: 'Excluir paleta', message: `Excluir "${p.name}"?`, danger: true, confirmLabel: 'Excluir' }))) return; setBusy(true); try { await api(`/product-os/palettes/${p.id}/delete`, { method: 'POST' }); await load() } catch (e) { setMsg(e instanceof Error ? e.message : 'Erro ao excluir') } finally { setBusy(false) } }
 
   if (loading) return <div className="flex items-center gap-2 p-6 text-sm" style={{ color: '#71717a' }}><Loader2 size={16} className="animate-spin" /> Carregando…</div>
   return (
@@ -1536,7 +1555,7 @@ function PalettesPanel() {
           {cats.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
         </select>
         <button onClick={() => setEditing('new')} className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-bold" style={{ background: 'rgba(0,229,255,0.12)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.35)' }}><Plus size={12} /> Nova paleta</button>
-        {msg && <span className="text-[11px]" style={{ color: msg.includes('Erro') ? '#f87171' : '#4ade80' }}>{msg}</span>}
+        {msg && <span className="text-[11px]" style={{ color: isErrMsg(msg) ? '#f87171' : '#4ade80' }}>{msg}</span>}
       </div>
       {editing === 'new' && <PaletteEditor initial={{ category_id: filter !== 'all' ? filter : null }} cats={cats} filaments={filaments} saving={busy} onSave={b => void save('new', b)} onCancel={() => setEditing(null)} />}
       {shown.length === 0 ? <p className="text-xs" style={{ color: '#52525b' }}>Nenhuma paleta nesta categoria — clique em Nova paleta para criar.</p> : (
@@ -1680,11 +1699,16 @@ function PublishModal({ dev, onClose, onDone }: { dev: DevDetail; onClose: () =>
     try {
       const d = await api<SkuData>(`/product-os/${devId}/sku`); setSku(d)
       if (d.variants.length) { setMode('variable'); setRows(Object.fromEntries(d.variants.map(v => [v.id, { price: '', stock: '0' }]))) }
-    } catch { setSku({ classification: { marca: null, categoria: null, sub: null, linha: null, caracteristica: null }, base: null, variants: [] }) }
+    } catch (e) {
+      // falha real (rede/permissão) NÃO é "sem variantes" — mostra o erro em vez de publicar como único
+      setErr(e instanceof Error ? e.message : 'Erro ao carregar o SKU')
+      setSku({ classification: { marca: null, categoria: null, sub: null, linha: null, caracteristica: null }, base: null, variants: [] })
+    }
     finally { setLoading(false) }
   })() }, [devId])
   const variants = sku?.variants ?? []
   const linhaSet = !!sku?.classification.linha
+  const baseSet = !!sku?.base
   const fichaFilled = !!(dev.catalog_title || dev.catalog_description)
   const setRow = (id: string, field: 'price' | 'stock', val: string) => setRows(r => ({ ...r, [id]: { ...(r[id] ?? { price: '', stock: '0' }), [field]: val } }))
   const orderedPhotos = cover ? [cover, ...photos.filter(p => p !== cover)] : photos
@@ -1711,6 +1735,9 @@ function PublishModal({ dev, onClose, onDone }: { dev: DevDetail; onClose: () =>
           <>
             {!linhaSet && (
               <div className="mb-3 rounded-lg p-2.5 text-[11px]" style={{ background: 'rgba(252,211,77,0.08)', color: '#fcd34d', border: '1px solid rgba(252,211,77,0.3)' }}>⚠️ <span className="font-bold">Linha de produtos não definida.</span> Defina a linha na aba <span className="text-white">Ficha</span> (ou SKU) antes de publicar — a publicação está bloqueada.</div>
+            )}
+            {linhaSet && !baseSet && (
+              <div className="mb-3 rounded-lg p-2.5 text-[11px]" style={{ background: 'rgba(252,211,77,0.08)', color: '#fcd34d', border: '1px solid rgba(252,211,77,0.3)' }}>⚠️ <span className="font-bold">SKU incompleto.</span> Complete Marca, Categoria, Sub e Característica na aba <span className="text-white">SKU</span> — sem o SKU fechado o produto não entra no catálogo.</div>
             )}
             {linhaSet && !fichaFilled && (
               <div className="mb-3 rounded-lg p-2.5 text-[11px]" style={{ background: 'rgba(0,229,255,0.06)', color: '#a5f3fc', border: '1px solid rgba(0,229,255,0.25)' }}>💡 A ficha ainda não foi preenchida — o produto irá com nome/descrição crus. Preencha na aba <span className="text-white">Ficha</span> (título de ML, descrição, atributos) para chegar pronto na IA Criativo.</div>
@@ -1768,7 +1795,7 @@ function PublishModal({ dev, onClose, onDone }: { dev: DevDetail; onClose: () =>
             {err && <p className="mt-2 text-[11px]" style={{ color: '#f87171' }}>{err}</p>}
             <div className="mt-4 flex justify-end gap-2">
               <button onClick={onClose} className="rounded-lg px-3 py-1.5 text-xs font-semibold" style={{ background: '#111114', color: '#a1a1aa', border: '1px solid #27272a' }}>Cancelar</button>
-              <button onClick={() => void publish()} disabled={busy || !linhaSet} title={!linhaSet ? 'Defina a linha de produtos antes de publicar' : ''} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold disabled:opacity-40" style={{ background: '#4ade80', color: '#0a0a0e' }}>{busy ? <Loader2 size={12} className="animate-spin" /> : <Rocket size={12} />} Publicar</button>
+              <button onClick={() => void publish()} disabled={busy || !linhaSet || !baseSet} title={!linhaSet ? 'Defina a linha de produtos antes de publicar' : !baseSet ? 'Complete a classificação do SKU antes de publicar' : ''} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold disabled:opacity-40" style={{ background: '#4ade80', color: '#0a0a0e' }}>{busy ? <Loader2 size={12} className="animate-spin" /> : <Rocket size={12} />} Publicar</button>
             </div>
           </>
         )}
@@ -2384,6 +2411,7 @@ function PartOrderModal({ part, devId, onClose, onCreated }: { part: Part; devId
         </div>
       )}
       {noWeight && !multicor && <div className="mt-2 rounded-lg p-2.5 text-[11px]" style={{ background: 'rgba(252,211,77,0.10)', color: '#fcd34d', border: '1px solid rgba(252,211,77,0.3)' }}>⚠️ Esta peça está <b>sem peso</b> — nada de filamento será reservado nem custeado. Fatie o arquivo (.3mf) ou informe o peso na versão da peça antes de imprimir.</div>}
+      {multicor && printerId && filaments.some(f => !filMap[f.index]) && <div className="mt-2 rounded-lg p-2.5 text-[11px]" style={{ background: 'rgba(252,211,77,0.10)', color: '#fcd34d', border: '1px solid rgba(252,211,77,0.3)' }}>⚠️ Escolha o rolo de <b>todas as cores</b> antes de criar a ordem — cor sem rolo ficaria sem reserva de filamento.</div>}
       {preview && preview.lines.length > 0 && (
         <div className="mt-2 rounded-lg p-2.5" style={{ background: '#0d0d10', border: '1px solid #27272a' }}>
           <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#71717a' }}>Vai consumir de filamento</span>
@@ -2391,7 +2419,7 @@ function PartOrderModal({ part, devId, onClose, onCreated }: { part: Part; devId
           {!preview.all_sufficient && <p className="mt-1 text-[10px]" style={{ color: '#fcd34d' }}>⚠️ Filamento insuficiente — reponha antes de concluir.</p>}
         </div>
       )}
-      <div className="mt-3 flex justify-end"><button onClick={() => void create()} disabled={busy} className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}>{busy ? <Loader2 size={12} className="animate-spin" /> : <Factory size={12} />} Criar ordem da peça</button></div>
+      <div className="mt-3 flex justify-end"><button onClick={() => void create()} disabled={busy || (multicor && !!printerId && filaments.some(f => !filMap[f.index]))} className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}>{busy ? <Loader2 size={12} className="animate-spin" /> : <Factory size={12} />} Criar ordem da peça</button></div>
     </Modal>
   )
 }
@@ -2594,7 +2622,7 @@ function QualityTab({ devId }: { devId: string }) {
   }
   return (
     <div className="space-y-3">
-      <p className="text-xs" style={{ color: '#a1a1aa' }}>Checklist antes de publicar. Aprovar libera o botão "Virar anúncio".</p>
+      <p className="text-xs" style={{ color: '#a1a1aa' }}>Checklist antes de publicar. Se existir um checklist <b style={{ color: '#f87171' }}>reprovado</b>, a publicação é bloqueada; sem checklist, produto genérico/marca própria publica normalmente (inspeção recomendada).</p>
       {err && <div className="rounded-lg p-2.5 text-xs" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>{err}</div>}
       {saved && <div className="rounded-lg p-2.5 text-xs" style={{ background: 'rgba(74,222,128,0.10)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)' }}>Checklist salvo.</div>}
       <div className="space-y-1.5">
@@ -2938,24 +2966,29 @@ function SkuTab({ dev }: { dev: DevDetail }) {
   }
 
   const allSet = !!(marca && cat && sub && linha && carac)
-  const previewBase = allSet ? `${marca!.code}${cat!.code}${sub!.code}${linha!.code}${carac!.code}` : null
+  // formato novo: MARCA-MIOLO (hífen após a marca; ex VZ-07010202). SKUs antigos sem hífen continuam válidos.
+  const previewBase = allSet ? `${marca!.code}-${cat!.code}${sub!.code}${linha!.code}${carac!.code}` : null
   const dirty = previewBase !== (data?.base ?? null)
+  // Master SKU: publicado no catálogo = classificação travada (o backend também bloqueia)
+  const published = !!dev.product_id || !!data?.variants.some(v => v.product_id)
 
-  const saveClass = async () => {
-    if (!allSet) return
+  const saveClass = async (): Promise<boolean> => {
+    if (!allSet) return false
     setSaving(true); setMsg('')
-    try { const d = await api<SkuData>(`/product-os/${dev.id}/sku`, { method: 'PUT', body: JSON.stringify({ marca_id: marca!.id, categoria_id: cat!.id, sub_id: sub!.id, linha_id: linha!.id, caracteristica_id: carac!.id }) }); setData(d); setMsg('SKU base salvo.') }
-    catch (e) { setMsg(e instanceof Error ? e.message : 'Erro') } finally { setSaving(false) }
+    try { const d = await api<SkuData>(`/product-os/${dev.id}/sku`, { method: 'PUT', body: JSON.stringify({ marca_id: marca!.id, categoria_id: cat!.id, sub_id: sub!.id, linha_id: linha!.id, caracteristica_id: carac!.id }) }); setData(d); setMsg('SKU base salvo.'); return true }
+    catch (e) { setMsg(e instanceof Error ? e.message : 'Erro'); return false } finally { setSaving(false) }
   }
   const saveColors = async (ids: string[]) => {
     setSaving(true); setMsg('')
     try { const d = await api<SkuData>(`/product-os/${dev.id}/sku/colors`, { method: 'PUT', body: JSON.stringify({ cor_ids: ids }) }); setData(d); setSelCor(d.variants.map(v => v.cor?.id).filter(Boolean) as string[]); setMsg('Cores e SKUs atualizados.') }
     catch (e) { setMsg(e instanceof Error ? e.message : 'Erro') } finally { setSaving(false) }
   }
-  // Cor exige o SKU base salvo (variante = base-cor). Se ainda não salvou (ou mudou os segmentos), salva o base antes.
+  // Cor exige o SKU base salvo (variante = base-cor). Se ainda não salvou (ou mudou os
+  // segmentos), salva o base antes — e SÓ segue se o salvamento deu certo (senão o erro
+  // real era engolido pelo segundo erro "defina a classificação").
   const applyColors = async (ids: string[]) => {
     if (!allSet) { setMsg('Escolha Marca, Categoria, Sub, Linha e Característica primeiro.'); return }
-    if (!data?.base || dirty) await saveClass()
+    if ((!data?.base || dirty) && !(await saveClass())) return
     await saveColors(ids)
   }
   const createCor = async () => {
@@ -2965,7 +2998,7 @@ function SkuTab({ dev }: { dev: DevDetail }) {
     try {
       const o = await api<TaxOption>('/product-os/sku/taxonomy', { method: 'POST', body: JSON.stringify({ kind: 'cor', label: newCor.trim() }) })
       setNewCor(''); setAddingCor(false); await loadCores()
-      if (!data?.base || dirty) await saveClass()
+      if ((!data?.base || dirty) && !(await saveClass())) return
       await saveColors([...selCor, o.id])
     }
     catch (e) { setMsg(e instanceof Error ? e.message : 'Erro') } finally { setSaving(false) }
@@ -2982,7 +3015,12 @@ function SkuTab({ dev }: { dev: DevDetail }) {
   if (loading) return <div className="flex items-center gap-2 p-4 text-sm" style={{ color: '#71717a' }}><Loader2 size={14} className="animate-spin" /> Carregando…</div>
   return (
     <div className="space-y-4">
-      <p className="text-xs" style={{ color: '#a1a1aa' }}>O SKU é gerado pela taxonomia: <span className="font-mono text-white">MARCA+CATEGORIA+SUB+LINHA+CARACTERÍSTICA-COR</span>. A <span className="text-white">Linha</span> é uma coleção transversal (ex: “Ella”) que reúne produtos de qualquer categoria. A Característica diferencia o modelo dentro da linha. A Cor é a variação — cada cor vira um SKU.</p>
+      <p className="text-xs" style={{ color: '#a1a1aa' }}>O SKU é gerado pela taxonomia: <span className="font-mono text-white">MARCA-CATEG·SUB·LINHA·CARACT-COR</span> (ex: <span className="font-mono text-white">VZ-07010202-47</span>). A <span className="text-white">Linha</span> é uma coleção transversal (ex: “Ella”) que reúne produtos de qualquer categoria. A Característica diferencia o modelo dentro da linha. A Cor é a variação — cada cor vira um SKU.</p>
+      {published && (
+        <div className="rounded-lg p-2.5 text-[11px]" style={{ background: 'rgba(252,211,77,0.08)', color: '#fcd34d', border: '1px solid rgba(252,211,77,0.3)' }}>
+          🔒 <span className="font-bold">Produto publicado no catálogo — o SKU é permanente (Master SKU).</span> Pedidos, anúncios e relatórios penduram nesse código; a classificação não pode mais mudar. Cores novas ainda podem ser adicionadas.
+        </div>
+      )}
 
       {/* Categoria/Sub pela ÁRVORE DO MERCADO LIVRE (define os nós internos) */}
       <div className="rounded-lg p-2.5" style={{ background: '#111114', border: '1px solid #27272a' }}>
@@ -3025,11 +3063,11 @@ function SkuTab({ dev }: { dev: DevDetail }) {
           <SkuBox label="Cor" code={selCor.length ? corCode(selCor[0]) : null} />
         </div>
         <div className="mt-3 rounded-lg p-2.5 text-center" style={{ background: '#0a0a0e', border: '1px solid #27272a' }}>
-          <p className="font-mono text-xl font-extrabold tracking-wide" style={{ color: previewBase ? '#00E5FF' : '#3f3f46' }}>{previewBase ? `${previewBase}${selCor.length ? '-' + corCode(selCor[0]) : '-CC'}` : 'VZ········-··'}</p>
+          <p className="font-mono text-xl font-extrabold tracking-wide" style={{ color: previewBase ? '#00E5FF' : '#3f3f46' }}>{previewBase ? `${previewBase}${selCor.length ? '-' + corCode(selCor[0]) : '-CC'}` : 'VZ-········-··'}</p>
           {allSet && <p className="mt-1 text-[11px]" style={{ color: '#a1a1aa' }}>{[marca!.label, cat!.label, sub!.label, linha!.label, carac!.label].join(', ')}</p>}
         </div>
-        <button onClick={() => void saveClass()} disabled={!allSet || saving || !dirty} className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold disabled:opacity-40" style={{ background: '#00E5FF', color: '#0a0a0e' }}>
-          {saving ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />} {data?.base && !dirty ? 'SKU base salvo' : 'Gerar SKU base'}
+        <button onClick={() => void saveClass()} disabled={!allSet || saving || !dirty || published} title={published ? 'SKU permanente — produto já publicado no catálogo' : ''} className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold disabled:opacity-40" style={{ background: '#00E5FF', color: '#0a0a0e' }}>
+          {saving ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />} {published ? 'SKU permanente 🔒' : data?.base && !dirty ? 'SKU base salvo' : 'Gerar SKU base'}
         </button>
       </div>
 
@@ -3088,7 +3126,7 @@ function SkuTab({ dev }: { dev: DevDetail }) {
           EAN-13 válido com <span className="text-white">prefixo GS1 Brasil (789/790)</span>. Serve como código de barras na <span className="text-white">Shopee, TikTok, loja própria e no estoque/expedição</span>. ⚠️ Como não usa um <span className="text-white">prefixo de empresa GS1 próprio</span>, o restante é gerado por nós — é um código INTERNO, não um GTIN oficial registrado. No <span className="text-white">Mercado Livre</span>, marque “não possui código universal” e use como SKU do vendedor (o ML valida GTIN oficial contra a GS1). Para GTIN 100% oficial, registre um prefixo na GS1 Brasil e cole aqui.
         </p>
       </div>
-      {msg && <p className="text-[11px]" style={{ color: msg.includes('Erro') ? '#f87171' : '#4ade80' }}>{msg}</p>}
+      {msg && <p className="text-[11px]" style={{ color: isErrMsg(msg) ? '#f87171' : '#4ade80' }}>{msg}</p>}
     </div>
   )
 }
@@ -3427,27 +3465,29 @@ function RestockTab({ dev, onChanged }: { dev: DevDetail; onChanged: () => void 
   )
 }
 
-interface Suggestion {
+// NÃO chamar de "Suggestion": já existe a Suggestion da classificação IA lá em cima —
+// mesmo nome faria o TS fundir as duas interfaces e a checagem de tipo viraria pó.
+interface MtoSuggestion {
   id: string; product_dev_id: string; product_id: string | null; product_name: string | null; product_code: string | null
   reason: string | null; available_at_trigger: number | null; reorder_point: number | null; suggested_qty: number
   mode: string; status: string; source: string; production_order_id: string | null; created_at: string
 }
 function MakeToOrderCard({ onOpen }: { onOpen: (id: string) => void }) {
-  const [list, setList] = useState<Suggestion[] | null>(null); const [loading, setLoading] = useState(true)
+  const [list, setList] = useState<MtoSuggestion[] | null>(null); const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState<string>(''); const [msg, setMsg] = useState('')
-  const load = useCallback(async () => { setLoading(true); try { setList(await api<Suggestion[]>('/product-os/make-to-order/suggestions?status=pending')) } catch { setList([]) } finally { setLoading(false) } }, [])
+  const load = useCallback(async () => { setLoading(true); try { setList(await api<MtoSuggestion[]>('/product-os/make-to-order/suggestions?status=pending')) } catch { setList([]) } finally { setLoading(false) } }, [])
   useEffect(() => { void load() }, [load])
   const reconcile = async () => {
     setBusy('reconcile'); setMsg('')
     try { const r = await api<{ evaluated: number; suggested: unknown[]; auto_created: unknown[] }>('/product-os/make-to-order/reconcile', { method: 'POST' }); setMsg(`Verificados ${r.evaluated} produto(s) · ${r.suggested.length} nova(s) sugestão(ões) · ${r.auto_created.length} OP(s) automática(s).`); await load() }
     catch (e) { setMsg(e instanceof Error ? e.message : 'Erro') } finally { setBusy('') }
   }
-  const accept = async (s: Suggestion) => {
+  const accept = async (s: MtoSuggestion) => {
     setBusy(s.id); setMsg('')
     try { const r = await api<{ production_order_id: string }>(`/product-os/make-to-order/suggestions/${s.id}/accept`, { method: 'POST', body: JSON.stringify({ quantity: s.suggested_qty }) }); setMsg(`Ordem de produção criada (${s.suggested_qty} un.).`); void r; await load() }
     catch (e) { setMsg(e instanceof Error ? e.message : 'Erro') } finally { setBusy('') }
   }
-  const dismiss = async (s: Suggestion) => {
+  const dismiss = async (s: MtoSuggestion) => {
     setBusy(s.id); setMsg('')
     try { await api(`/product-os/make-to-order/suggestions/${s.id}/dismiss`, { method: 'POST' }); await load() }
     catch (e) { setMsg(e instanceof Error ? e.message : 'Erro') } finally { setBusy('') }
@@ -4848,7 +4888,8 @@ function ConfirmModal({ title, message, confirmLabel = 'Confirmar', danger, busy
 // confirm imperativo (substitui window.confirm) — renderizado pelo ConfirmHost
 type ConfirmOpts = { title: string; message: React.ReactNode; confirmLabel?: string; danger?: boolean }
 let _confirm: ((o: ConfirmOpts) => Promise<boolean>) | null = null
-function confirmDialog(o: ConfirmOpts): Promise<boolean> { return _confirm ? _confirm(o) : Promise.resolve(true) }
+// sem host montado, o default é RECUSAR — confirmar ação destrutiva sozinho é o pior caso
+function confirmDialog(o: ConfirmOpts): Promise<boolean> { return _confirm ? _confirm(o) : Promise.resolve(false) }
 function ConfirmHost() {
   const [st, setSt] = useState<{ o: ConfirmOpts; resolve: (v: boolean) => void } | null>(null)
   useEffect(() => { _confirm = o => new Promise<boolean>(res => setSt({ o, resolve: res })); return () => { _confirm = null } }, [])
