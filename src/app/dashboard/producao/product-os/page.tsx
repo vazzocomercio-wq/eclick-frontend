@@ -295,7 +295,7 @@ async function fetch3mfMetrics(url: string, filename: string): Promise<{ materia
 /** Faixa rolável na horizontal SEM barra de rolagem visível: arrasta com o
  *  mouse (clica e puxa) e a roda do mouse rola lateral. Clicar em botão/link
  *  dentro não inicia o arraste. */
-function HScroll({ children, className }: { children: React.ReactNode; className?: string }) {
+function HScroll({ children, className, style }: { children: React.ReactNode; className?: string; style?: CSSProperties }) {
   const ref = useRef<HTMLDivElement>(null)
   const drag = useRef({ down: false, startX: 0, scroll: 0 })
   const onPointerDown = (e: React.PointerEvent) => {
@@ -323,7 +323,7 @@ function HScroll({ children, className }: { children: React.ReactNode; className
 .os-vscroll::-webkit-scrollbar{width:5px}
 .os-vscroll::-webkit-scrollbar-thumb{background:#27272a;border-radius:3px}
 .os-vscroll::-webkit-scrollbar-track{background:transparent}`}</style>
-      <div ref={ref} className={`os-hscroll ${className ?? ''}`} style={{ cursor: 'grab', overflowX: 'auto', overflowY: 'hidden', scrollbarWidth: 'none', msOverflowStyle: 'none', touchAction: 'pan-y', userSelect: 'none' }}
+      <div ref={ref} className={`os-hscroll ${className ?? ''}`} style={{ cursor: 'grab', overflowX: 'auto', overflowY: 'hidden', scrollbarWidth: 'none', msOverflowStyle: 'none', touchAction: 'pan-y', userSelect: 'none', ...style }}
         onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={end} onPointerLeave={end} onWheel={onWheel}>
         {children}
       </div>
@@ -532,7 +532,7 @@ function LifecycleBoard({ items, loading, onOpen, onChanged, setError }: { items
   if (loading) return <div className="flex items-center gap-2 p-8 text-sm" style={{ color: '#71717a' }}><Loader2 size={16} className="animate-spin" /> Carregando…</div>
   return (
     <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={(e: DragStartEvent) => setActiveId(String(e.active.id))} onDragEnd={onDragEnd}>
-      <HScroll className="flex h-[max(320px,calc(100vh-330px))] gap-3 pb-2">
+      <HScroll className="flex gap-3 pb-2" style={{ height: 'max(320px, calc(100vh - 330px))' }}>
         {COLUMNS.map(col => <Column key={col.key} id={col.key} label={col.label} count={list.filter(d => d.status === col.key).length}>
           {list.filter(d => d.status === col.key).map(d => <DraggableCard key={d.id} id={d.id} onOpen={() => onOpen(d.id)}><DevCard dev={d} onGenImage={() => setImageFor(d)} /></DraggableCard>)}
         </Column>)}
@@ -833,7 +833,7 @@ function ProductionBoard({ products }: { products: ProductDev[] }) {
       {warn && <div className="rounded-lg p-2.5 text-xs" style={{ background: 'rgba(252,211,77,0.10)', color: '#fcd34d', border: '1px solid rgba(252,211,77,0.3)' }}>{warn}</div>}
       {loading ? <div className="flex items-center gap-2 p-6 text-sm" style={{ color: '#71717a' }}><Loader2 size={16} className="animate-spin" /> Carregando…</div> : (
         <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => { setActiveDrag(null); setValidCols(null) }}>
-        <HScroll className="flex h-[max(320px,calc(100vh-330px))] gap-3 pb-2">
+        <HScroll className="flex gap-3 pb-2" style={{ height: 'max(320px, calc(100vh - 330px))' }}>
           {ORDER_COLS.map(col => {
             const cards = visibleOrders.filter(o => o.status === col.key)
             const asms = visibleAsms.filter(a => asmCol(a) === col.key)
