@@ -285,6 +285,7 @@ export default function Tab1Basic({ data, set, orgId, categoryName, categoryPath
               <label className={lbl}>GTIN / EAN</label>
               <input type="text" className={inp} placeholder="Ex: 7891234567890" maxLength={14}
                 value={data.gtin} onChange={e => set('gtin', e.target.value)} />
+              {data.hasVariations && <p className="text-[11px] text-zinc-500 mt-1">{t('tab1.gtinPerVariation')}</p>}
             </div>
           </div>
 

@@ -6406,7 +6406,8 @@
       "condUsed": "Used",
       "condRefurbished": "Refurbished",
       "categorySection": "ML Category",
-      "categoryUndefined": "Not set"
+      "categoryUndefined": "Not set",
+      "gtinPerVariation": "Product with variations: each variation's EAN is on the Variations tab."
     },
     "tab2": {
       "titleSection": "Listing title",
@@ -6462,7 +6463,8 @@
         "value": "Value",
         "price": "Price (R$)",
         "stock": "Stock",
-        "sku": "Variation SKU"
+        "sku": "Variation SKU",
+        "ean": "EAN"
       },
       "valuePlaceholder": "e.g. Red",
       "addVariation": "Add variation",

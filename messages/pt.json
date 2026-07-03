@@ -6577,7 +6577,8 @@
       "condUsed": "Usado",
       "condRefurbished": "Recondicionado",
       "categorySection": "Categoria ML",
-      "categoryUndefined": "Não definida"
+      "categoryUndefined": "Não definida",
+      "gtinPerVariation": "Produto com variações: o EAN de cada cor fica na aba Variações."
     },
     "tab2": {
       "titleSection": "Título do anúncio",
@@ -6633,7 +6634,8 @@
         "value": "Valor",
         "price": "Preço (R$)",
         "stock": "Estoque",
-        "sku": "SKU variação"
+        "sku": "SKU variação",
+        "ean": "EAN"
       },
       "valuePlaceholder": "Ex: Vermelho",
       "addVariation": "Adicionar variação",

@@ -11,6 +11,7 @@ export type Variation = {
   price: string
   stock: string
   sku: string
+  ean?: string | null
 }
 
 export type ProductForm = {

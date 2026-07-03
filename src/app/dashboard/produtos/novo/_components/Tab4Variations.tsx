@@ -36,7 +36,7 @@ export default function Tab4Variations({ data, set }: TabProps) {
   function addVariation() {
     const v: Variation = {
       id: `${uid}-${Date.now()}`,
-      type: 'Cor', value: '', price: data.price, stock: '', sku: '',
+      type: 'Cor', value: '', price: data.price, stock: '', sku: '', ean: '',
     }
     set('variations', [...data.variations, v])
   }
@@ -82,12 +82,13 @@ export default function Tab4Variations({ data, set }: TabProps) {
             <div className="rounded-xl border overflow-hidden" style={{ borderColor: '#1e1e24' }}>
               {/* Table header */}
               <div className="grid gap-2 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-widest text-zinc-500"
-                style={{ gridTemplateColumns: '140px 1fr 110px 90px 130px 36px', background: '#0c0c0f', borderBottom: '1px solid #1e1e24' }}>
+                style={{ gridTemplateColumns: '140px 1fr 100px 80px 120px 130px 36px', background: '#0c0c0f', borderBottom: '1px solid #1e1e24' }}>
                 <span>{t('tab4.col.type')}</span>
                 <span>{t('tab4.col.value')}</span>
                 <span>{t('tab4.col.price')}</span>
                 <span>{t('tab4.col.stock')}</span>
                 <span>{t('tab4.col.sku')}</span>
+                <span>{t('tab4.col.ean')}</span>
                 <span />
               </div>
               {/* Rows */}
@@ -95,7 +96,7 @@ export default function Tab4Variations({ data, set }: TabProps) {
                 <div key={v.id}
                   className="grid gap-2 px-4 py-2.5 items-center"
                   style={{
-                    gridTemplateColumns: '140px 1fr 110px 90px 130px 36px',
+                    gridTemplateColumns: '140px 1fr 100px 80px 120px 130px 36px',
                     background: i % 2 === 0 ? '#111114' : '#0f0f12',
                     borderBottom: '1px solid #1e1e24',
                   }}>
@@ -111,6 +112,8 @@ export default function Tab4Variations({ data, set }: TabProps) {
                     onChange={e => updateVariation(v.id, 'stock', e.target.value)} />
                   <input type="text" className={inp} placeholder="SKU-VAR-001" value={v.sku}
                     onChange={e => updateVariation(v.id, 'sku', e.target.value)} />
+                  <input type="text" className={inp} placeholder="789…" maxLength={14} value={v.ean ?? ''}
+                    onChange={e => updateVariation(v.id, 'ean', e.target.value)} />
                   <button type="button" onClick={() => removeVariation(v.id)}
                     className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors shrink-0"
                     style={{ color: '#71717a' }}

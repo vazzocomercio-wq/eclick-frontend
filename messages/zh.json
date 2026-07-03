@@ -6400,7 +6400,8 @@
       "condUsed": "二手",
       "condRefurbished": "翻新",
       "categorySection": "ML 类目",
-      "categoryUndefined": "未设置"
+      "categoryUndefined": "未设置",
+      "gtinPerVariation": "有变体的商品：每个变体的 EAN 在“变体”标签页。"
     },
     "tab2": {
       "titleSection": "刊登标题",
@@ -6456,7 +6457,8 @@
         "value": "值",
         "price": "价格 (R$)",
         "stock": "库存",
-        "sku": "变体 SKU"
+        "sku": "变体 SKU",
+        "ean": "EAN"
       },
       "valuePlaceholder": "例如：红色",
       "addVariation": "添加变体",
