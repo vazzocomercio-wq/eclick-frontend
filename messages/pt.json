@@ -6649,7 +6649,13 @@
         "capacity": "Capacidade",
         "material": "Material",
         "style": "Estilo"
-      }
+      },
+      "newColor": "+ Cadastrar nova cor…",
+      "newColorLabel": "Nova cor (entra no catálogo do SKU):",
+      "newColorPlaceholder": "Ex: Cobre",
+      "newColorSave": "Cadastrar",
+      "newColorCancel": "cancelar",
+      "tipColor": "Cor: escolher pelo catálogo do SKU atualiza só o final do SKU da variação (BASE-código). Cor nova cadastrada aqui vale também no gerador de SKU do Product OS."
     },
     "tab5": {
       "priceSection": "Preço e estoque",

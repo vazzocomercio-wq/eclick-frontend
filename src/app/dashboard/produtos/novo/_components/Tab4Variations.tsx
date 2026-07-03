@@ -1,13 +1,24 @@
 'use client'
 
-import { useId } from 'react'
+import { Fragment, useCallback, useEffect, useId, useState } from 'react'
 import { useTranslations } from 'next-intl'
+import { createClient } from '@/lib/supabase'
 import type { TabProps, Variation } from '../types'
+
+const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
+async function getToken(): Promise<string | null> {
+  const supabase = createClient()
+  const { data } = await supabase.auth.getSession()
+  return data.session?.access_token ?? null
+}
 
 const inp = 'w-full bg-[#1c1c1f] border border-[#3f3f46] text-white text-sm rounded-lg px-3 py-2 outline-none transition-all placeholder-zinc-600 focus:border-[#00E5FF] focus:ring-1 focus:ring-[#00E5FF20]'
 const sec = 'text-[11px] font-semibold uppercase tracking-widest text-zinc-500 mb-4 pb-2 border-b border-[#1e1e24]'
 
 const VARIATION_TYPES = ['Cor', 'Voltagem', 'Tamanho', 'Modelo', 'Capacidade', 'Material', 'Estilo']
+
+// cor do catálogo do gerador de SKU (Product OS) — mesma taxonomia, mesma fonte
+type SkuColor = { id: string; code: string; label: string }
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
   return (
@@ -33,16 +44,77 @@ export default function Tab4Variations({ data, set }: TabProps) {
     'Estilo': t('tab4.varType.style'),
   }
 
+  // catálogo de cores do SKU: seletor único pra variação Cor. Se a busca falhar
+  // (sem permissão/offline), o campo volta a ser texto livre — nada quebra.
+  const [colors, setColors] = useState<SkuColor[]>([])
+  const [colorsReady, setColorsReady] = useState(false)
+  const [newFor, setNewFor] = useState<string | null>(null)
+  const [newName, setNewName] = useState('')
+  const [savingColor, setSavingColor] = useState(false)
+  const [colorErr, setColorErr] = useState('')
+
+  const loadColors = useCallback(async () => {
+    try {
+      const token = await getToken()
+      if (!token) return
+      const res = await fetch(`${BACKEND}/product-os/sku/taxonomy?kind=cor`, { headers: { Authorization: `Bearer ${token}` } })
+      if (!res.ok) return
+      const j = await res.json()
+      if (Array.isArray(j)) { setColors(j as SkuColor[]); setColorsReady(true) }
+    } catch { /* segue com texto livre */ }
+  }, [])
+  useEffect(() => { void loadColors() }, [loadColors])
+
+  function patchVariation(id: string, patch: Partial<Variation>) {
+    set('variations', data.variations.map(v => v.id === id ? { ...v, ...patch } : v))
+  }
+  function updateVariation(id: string, field: keyof Variation, value: string) {
+    patchVariation(id, { [field]: value })
+  }
+
+  /** Base do SKU (sem o sufixo de cor): SKU interno do produto ou deduzida de
+   *  uma variação já no padrão BASE-NN. */
+  function skuBase(): string {
+    const b = (data.sku ?? '').trim()
+    if (b) return b
+    const w = data.variations.find(x => /-\d{2}$/.test(x.sku ?? ''))
+    return w ? w.sku.replace(/-\d{2}$/, '') : ''
+  }
+
+  /** Escolher a cor só troca o CAMPO DE COR: valor = nome da cor, SKU = BASE-código. */
+  function applyColor(v: Variation, cor: SkuColor) {
+    const base = skuBase()
+    patchVariation(v.id, { value: cor.label, sku: base ? `${base}-${cor.code}` : v.sku })
+  }
+
+  const sameLabel = (a: string, b: string) => a.localeCompare(b, undefined, { sensitivity: 'base' }) === 0
+
+  async function createColor(v: Variation) {
+    const label = newName.trim()
+    if (!label) return
+    setSavingColor(true); setColorErr('')
+    try {
+      const token = await getToken()
+      const res = await fetch(`${BACKEND}/product-os/sku/taxonomy`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind: 'cor', label }),
+      })
+      const j = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error((j as { message?: string }).message ?? 'Erro ao cadastrar cor')
+      const cor = j as SkuColor
+      setColors(cs => (cs.some(c => c.id === cor.id) ? cs : [...cs, cor].sort((a, b) => a.code.localeCompare(b.code))))
+      applyColor(v, cor)
+      setNewFor(null); setNewName('')
+    } catch (e) { setColorErr(e instanceof Error ? e.message : 'Erro') } finally { setSavingColor(false) }
+  }
+
   function addVariation() {
     const v: Variation = {
       id: `${uid}-${Date.now()}`,
       type: 'Cor', value: '', price: data.price, stock: '', sku: '', ean: '',
     }
     set('variations', [...data.variations, v])
-  }
-
-  function updateVariation(id: string, field: keyof Variation, value: string) {
-    set('variations', data.variations.map(v => v.id === id ? { ...v, [field]: value } : v))
   }
 
   function removeVariation(id: string) {
@@ -93,37 +165,74 @@ export default function Tab4Variations({ data, set }: TabProps) {
               </div>
               {/* Rows */}
               {data.variations.map((v, i) => (
-                <div key={v.id}
-                  className="grid gap-2 px-4 py-2.5 items-center"
-                  style={{
-                    gridTemplateColumns: '140px 1fr 100px 80px 120px 130px 36px',
-                    background: i % 2 === 0 ? '#111114' : '#0f0f12',
-                    borderBottom: '1px solid #1e1e24',
-                  }}>
-                  <select className={inp} value={v.type} onChange={e => updateVariation(v.id, 'type', e.target.value)}
-                    style={{ background: '#1c1c1f' }}>
-                    {VARIATION_TYPES.map(vt => <option key={vt} value={vt}>{VARIATION_TYPE_LABEL[vt] ?? vt}</option>)}
-                  </select>
-                  <input type="text" className={inp} placeholder={t('tab4.valuePlaceholder')} value={v.value}
-                    onChange={e => updateVariation(v.id, 'value', e.target.value)} />
-                  <input type="text" className={inp} placeholder="0,00" value={v.price}
-                    onChange={e => updateVariation(v.id, 'price', e.target.value)} />
-                  <input type="number" className={inp} placeholder="0" min={0} value={v.stock}
-                    onChange={e => updateVariation(v.id, 'stock', e.target.value)} />
-                  <input type="text" className={inp} placeholder="SKU-VAR-001" value={v.sku}
-                    onChange={e => updateVariation(v.id, 'sku', e.target.value)} />
-                  <input type="text" className={inp} placeholder="789…" maxLength={14} value={v.ean ?? ''}
-                    onChange={e => updateVariation(v.id, 'ean', e.target.value)} />
-                  <button type="button" onClick={() => removeVariation(v.id)}
-                    className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors shrink-0"
-                    style={{ color: '#71717a' }}
-                    onMouseEnter={e => (e.currentTarget.style.color = '#f87171')}
-                    onMouseLeave={e => (e.currentTarget.style.color = '#71717a')}>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
-                </div>
+                <Fragment key={v.id}>
+                  <div
+                    className="grid gap-2 px-4 py-2.5 items-center"
+                    style={{
+                      gridTemplateColumns: '140px 1fr 100px 80px 120px 130px 36px',
+                      background: i % 2 === 0 ? '#111114' : '#0f0f12',
+                      borderBottom: '1px solid #1e1e24',
+                    }}>
+                    <select className={inp} value={v.type} onChange={e => updateVariation(v.id, 'type', e.target.value)}
+                      style={{ background: '#1c1c1f' }}>
+                      {VARIATION_TYPES.map(vt => <option key={vt} value={vt}>{VARIATION_TYPE_LABEL[vt] ?? vt}</option>)}
+                    </select>
+                    {v.type === 'Cor' && colorsReady ? (
+                      <select className={inp} style={{ background: '#1c1c1f' }}
+                        value={colors.find(c => sameLabel(c.label, v.value))?.id ?? ''}
+                        onChange={e => {
+                          const val = e.target.value
+                          if (val === '__new') { setNewFor(v.id); setNewName(''); setColorErr('') }
+                          else if (val) { const cor = colors.find(c => c.id === val); if (cor) applyColor(v, cor) }
+                        }}>
+                        <option value="" disabled>{v.value || t('tab4.valuePlaceholder')}</option>
+                        {colors.map(c => <option key={c.id} value={c.id}>{c.label} · {c.code}</option>)}
+                        <option value="__new">{t('tab4.newColor')}</option>
+                      </select>
+                    ) : (
+                      <input type="text" className={inp} placeholder={t('tab4.valuePlaceholder')} value={v.value}
+                        onChange={e => updateVariation(v.id, 'value', e.target.value)} />
+                    )}
+                    <input type="text" className={inp} placeholder="0,00" value={v.price}
+                      onChange={e => updateVariation(v.id, 'price', e.target.value)} />
+                    <input type="number" className={inp} placeholder="0" min={0} value={v.stock}
+                      onChange={e => updateVariation(v.id, 'stock', e.target.value)} />
+                    <input type="text" className={inp} placeholder="SKU-VAR-001" value={v.sku}
+                      onChange={e => updateVariation(v.id, 'sku', e.target.value)} />
+                    <input type="text" className={inp} placeholder="789…" maxLength={14} value={v.ean ?? ''}
+                      onChange={e => updateVariation(v.id, 'ean', e.target.value)} />
+                    <button type="button" onClick={() => removeVariation(v.id)}
+                      className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors shrink-0"
+                      style={{ color: '#71717a' }}
+                      onMouseEnter={e => (e.currentTarget.style.color = '#f87171')}
+                      onMouseLeave={e => (e.currentTarget.style.color = '#71717a')}>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </div>
+                  {/* cadastro inline de cor nova → alimenta o catálogo do SKU e aplica na linha */}
+                  {newFor === v.id && (
+                    <div className="px-4 py-2.5 flex flex-wrap items-center gap-2"
+                      style={{ background: '#0c0c0f', borderBottom: '1px solid #1e1e24' }}>
+                      <span className="text-[11px] shrink-0 text-zinc-400">{t('tab4.newColorLabel')}</span>
+                      <input autoFocus type="text" className={inp} style={{ maxWidth: 260 }}
+                        placeholder={t('tab4.newColorPlaceholder')} value={newName}
+                        onChange={e => setNewName(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); void createColor(v) } }} />
+                      <button type="button" disabled={savingColor || !newName.trim()} onClick={() => void createColor(v)}
+                        className="px-3 py-2 rounded-lg text-[12px] font-semibold disabled:opacity-50 shrink-0"
+                        style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}>
+                        {savingColor ? '…' : t('tab4.newColorSave')}
+                      </button>
+                      <button type="button" onClick={() => { setNewFor(null); setColorErr('') }}
+                        className="text-[12px] shrink-0" style={{ color: '#71717a' }}>
+                        {t('tab4.newColorCancel')}
+                      </button>
+                      {colorErr && <span className="text-[11px]" style={{ color: '#f87171' }}>{colorErr}</span>}
+                    </div>
+                  )}
+                </Fragment>
               ))}
             </div>
           )}
@@ -138,9 +247,10 @@ export default function Tab4Variations({ data, set }: TabProps) {
           </button>
 
           {data.hasVariations && data.variations.length > 0 && (
-            <div className="mt-4 px-4 py-3 rounded-lg text-[12px]"
+            <div className="mt-4 px-4 py-3 rounded-lg text-[12px] space-y-1"
               style={{ background: 'rgba(0,229,255,0.05)', border: '1px solid rgba(0,229,255,0.12)', color: '#71717a' }}>
-              <span style={{ color: '#00E5FF' }}>{t('tab4.tipLabel')}</span> {t('tab4.tipText')}
+              <p><span style={{ color: '#00E5FF' }}>{t('tab4.tipLabel')}</span> {t('tab4.tipText')}</p>
+              {colorsReady && <p>{t('tab4.tipColor')}</p>}
             </div>
           )}
         </section>
