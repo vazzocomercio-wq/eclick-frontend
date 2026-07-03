@@ -52,6 +52,8 @@ export default function Tab4Variations({ data, set }: TabProps) {
   const [newName, setNewName] = useState('')
   const [savingColor, setSavingColor] = useState(false)
   const [colorErr, setColorErr] = useState('')
+  const [genFor, setGenFor] = useState<string | null>(null)
+  const [genErr, setGenErr] = useState('')
 
   const loadColors = useCallback(async () => {
     try {
@@ -109,6 +111,21 @@ export default function Tab4Variations({ data, set }: TabProps) {
     } catch (e) { setColorErr(e instanceof Error ? e.message : 'Erro') } finally { setSavingColor(false) }
   }
 
+  /** Gera EAN interno (789/790) no backend — mesma numeração e checagem de
+   *  unicidade do gerador do Product OS. */
+  async function genEanFor(v: Variation) {
+    setGenFor(v.id); setGenErr('')
+    try {
+      const token = await getToken()
+      const res = await fetch(`${BACKEND}/product-os/sku/ean/mint`, {
+        method: 'POST', headers: { Authorization: `Bearer ${token}` },
+      })
+      const j = await res.json().catch(() => ({}))
+      if (!res.ok || !(j as { ean?: string }).ean) throw new Error((j as { message?: string }).message ?? 'Erro ao gerar EAN')
+      patchVariation(v.id, { ean: (j as { ean: string }).ean })
+    } catch (e) { setGenErr(e instanceof Error ? e.message : 'Erro') } finally { setGenFor(null) }
+  }
+
   function addVariation() {
     const v: Variation = {
       id: `${uid}-${Date.now()}`,
@@ -151,10 +168,11 @@ export default function Tab4Variations({ data, set }: TabProps) {
               {t('tab4.emptyTable')}
             </p>
           ) : (
-            <div className="rounded-xl border overflow-hidden" style={{ borderColor: '#1e1e24' }}>
+            <div className="rounded-xl border overflow-x-auto" style={{ borderColor: '#1e1e24' }}>
+              <div style={{ minWidth: 920 }}>
               {/* Table header */}
               <div className="grid gap-2 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-widest text-zinc-500"
-                style={{ gridTemplateColumns: '140px 1fr 100px 80px 120px 130px 36px', background: '#0c0c0f', borderBottom: '1px solid #1e1e24' }}>
+                style={{ gridTemplateColumns: '140px minmax(160px,1fr) 95px 75px 130px 150px 36px', background: '#0c0c0f', borderBottom: '1px solid #1e1e24' }}>
                 <span>{t('tab4.col.type')}</span>
                 <span>{t('tab4.col.value')}</span>
                 <span>{t('tab4.col.price')}</span>
@@ -169,7 +187,7 @@ export default function Tab4Variations({ data, set }: TabProps) {
                   <div
                     className="grid gap-2 px-4 py-2.5 items-center"
                     style={{
-                      gridTemplateColumns: '140px 1fr 100px 80px 120px 130px 36px',
+                      gridTemplateColumns: '140px minmax(160px,1fr) 95px 75px 130px 150px 36px',
                       background: i % 2 === 0 ? '#111114' : '#0f0f12',
                       borderBottom: '1px solid #1e1e24',
                     }}>
@@ -199,8 +217,19 @@ export default function Tab4Variations({ data, set }: TabProps) {
                       onChange={e => updateVariation(v.id, 'stock', e.target.value)} />
                     <input type="text" className={inp} placeholder="SKU-VAR-001" value={v.sku}
                       onChange={e => updateVariation(v.id, 'sku', e.target.value)} />
-                    <input type="text" className={inp} placeholder="789…" maxLength={14} value={v.ean ?? ''}
-                      onChange={e => updateVariation(v.id, 'ean', e.target.value)} />
+                    <div className="relative">
+                      <input type="text" className={inp} style={{ paddingRight: (v.ean ?? '').trim() ? undefined : 34 }}
+                        placeholder="789…" maxLength={14} value={v.ean ?? ''}
+                        onChange={e => updateVariation(v.id, 'ean', e.target.value)} />
+                      {!(v.ean ?? '').trim() && (
+                        <button type="button" title={t('tab4.genEan')} disabled={genFor === v.id}
+                          onClick={() => void genEanFor(v)}
+                          className="absolute right-1.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded flex items-center justify-center text-[13px] disabled:opacity-50"
+                          style={{ color: '#00E5FF', background: 'rgba(0,229,255,0.10)' }}>
+                          {genFor === v.id ? '…' : '⚡'}
+                        </button>
+                      )}
+                    </div>
                     <button type="button" onClick={() => removeVariation(v.id)}
                       className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors shrink-0"
                       style={{ color: '#71717a' }}
@@ -234,8 +263,11 @@ export default function Tab4Variations({ data, set }: TabProps) {
                   )}
                 </Fragment>
               ))}
+              </div>
             </div>
           )}
+
+          {genErr && <p className="mt-2 text-[12px]" style={{ color: '#f87171' }}>{genErr}</p>}
 
           <button type="button" onClick={addVariation}
             className="mt-4 flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border transition-all"

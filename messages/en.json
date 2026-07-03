@@ -6484,7 +6484,8 @@
       "newColorPlaceholder": "E.g.: Copper",
       "newColorSave": "Register",
       "newColorCancel": "cancel",
-      "tipColor": "Color: picking from the SKU catalog updates only the color suffix of the variation SKU (BASE-code). A new color registered here is also available in the Product OS SKU generator."
+      "tipColor": "Color: picking from the SKU catalog updates only the color suffix of the variation SKU (BASE-code). A new color registered here is also available in the Product OS SKU generator.",
+      "genEan": "Generate internal EAN (789…) — same generator as the SKU"
     },
     "tab5": {
       "priceSection": "Price and stock",

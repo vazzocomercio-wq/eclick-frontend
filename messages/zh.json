@@ -6478,7 +6478,8 @@
       "newColorPlaceholder": "例：铜色",
       "newColorSave": "登记",
       "newColorCancel": "取消",
-      "tipColor": "颜色：从 SKU 目录选择只会更新变体 SKU 的颜色后缀（BASE-代码）。在此登记的新颜色也会出现在 Product OS 的 SKU 生成器中。"
+      "tipColor": "颜色：从 SKU 目录选择只会更新变体 SKU 的颜色后缀（BASE-代码）。在此登记的新颜色也会出现在 Product OS 的 SKU 生成器中。",
+      "genEan": "生成内部 EAN（789…）— 与 SKU 相同的生成器"
     },
     "tab5": {
       "priceSection": "价格和库存",
