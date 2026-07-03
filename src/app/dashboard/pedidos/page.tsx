@@ -1264,12 +1264,17 @@ function OrderCard({
           <FinRow icon="🏪"
             label={isMl
               ? `${t('card.finMlFee')}${order.platform_fee_source === 'api' ? ' ✓ real' : ''}`
-              : `Tarifa ${channelName}${isShopee ? (order.platform_fee_source === 'escrow' ? ' ✓ real' : ' (estimada)') : ''}`}
+              : `Tarifa ${channelName}${isShopee ? (order.platform_fee_source === 'escrow' ? ' ✓ real' : ' (estimada)')
+                : isTikTok ? (order.platform_fee_source === 'settlement' ? ' ✓ real' : ' (estimada)') : ''}`}
             value={`-${brl(order.tarifa_ml)}`} color="#f87171"
             tooltip={isShopee
               ? (order.platform_fee_source === 'escrow'
                   ? 'Tarifa REAL do repasse (escrow) da Shopee — valor exato cobrado neste pedido.'
                   : 'Estimativa pelas regras de tarifa (% + taxa fixa por item). Vira o valor REAL quando a Shopee libera o repasse do pedido.')
+              : isTikTok
+              ? (order.platform_fee_source === 'settlement'
+                  ? 'Tarifa REAL do settlement (repasse) do TikTok Shop — valor exato cobrado neste pedido.'
+                  : 'Estimativa pelas regras de tarifa (12% + R$4 por item). Vira o valor REAL quando o TikTok liquida o repasse do pedido.')
               : t('card.finMlFeeTooltip', { value: brl(order.tarifa_ml), pct: order.total_amount > 0 ? Math.round((order.tarifa_ml / order.total_amount) * 1000) / 10 : 0 })} />
 
           <FinRow icon="🚚" label={t('card.finSellerShipping')}
