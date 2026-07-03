@@ -1262,7 +1262,9 @@ function OrderCard({
               Shopee: 'real' quando o escrow (repasse) já reconciliou o valor
               exato; 'estimada' enquanto o pedido não fecha. */}
           <FinRow icon="🏪"
-            label={isMl ? t('card.finMlFee') : `Tarifa ${channelName}${isShopee ? (order.platform_fee_source === 'escrow' ? ' ✓ real' : ' (estimada)') : ''}`}
+            label={isMl
+              ? `${t('card.finMlFee')}${order.platform_fee_source === 'api' ? ' ✓ real' : ''}`
+              : `Tarifa ${channelName}${isShopee ? (order.platform_fee_source === 'escrow' ? ' ✓ real' : ' (estimada)') : ''}`}
             value={`-${brl(order.tarifa_ml)}`} color="#f87171"
             tooltip={isShopee
               ? (order.platform_fee_source === 'escrow'
