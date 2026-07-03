@@ -122,6 +122,8 @@ type MOrder = {
   tax_amount:          number | null
   contribution_margin: number | null
   contribution_margin_pct: number | null
+  /** 'escrow' = tarifa REAL reconciliada do repasse; 'estimated' = estimativa */
+  platform_fee_source?: string | null
   shipping_breakdown?: {
     buyer_paid:  number
     ml_refund:   number
@@ -1256,10 +1258,17 @@ function OrderCard({
               tooltip={t('card.finMlShippingRefundTooltip')} />
           )}
 
-          {/* Rótulo da tarifa por canal — fora do ML é a comissão da plataforma
-              (Shopee/TikTok: estimada via configuração até a fatura real). */}
-          <FinRow icon="🏪" label={isMl ? t('card.finMlFee') : `Tarifa ${channelName}`} value={`-${brl(order.tarifa_ml)}`} color="#f87171"
-            tooltip={t('card.finMlFeeTooltip', { value: brl(order.tarifa_ml), pct: order.total_amount > 0 ? Math.round((order.tarifa_ml / order.total_amount) * 1000) / 10 : 0 })} />
+          {/* Rótulo da tarifa por canal — fora do ML é a comissão da plataforma.
+              Shopee: 'real' quando o escrow (repasse) já reconciliou o valor
+              exato; 'estimada' enquanto o pedido não fecha. */}
+          <FinRow icon="🏪"
+            label={isMl ? t('card.finMlFee') : `Tarifa ${channelName}${isShopee ? (order.platform_fee_source === 'escrow' ? ' ✓ real' : ' (estimada)') : ''}`}
+            value={`-${brl(order.tarifa_ml)}`} color="#f87171"
+            tooltip={isShopee
+              ? (order.platform_fee_source === 'escrow'
+                  ? 'Tarifa REAL do repasse (escrow) da Shopee — valor exato cobrado neste pedido.'
+                  : 'Estimativa pelas regras de tarifa (% + taxa fixa por item). Vira o valor REAL quando a Shopee libera o repasse do pedido.')
+              : t('card.finMlFeeTooltip', { value: brl(order.tarifa_ml), pct: order.total_amount > 0 ? Math.round((order.tarifa_ml / order.total_amount) * 1000) / 10 : 0 })} />
 
           <FinRow icon="🚚" label={t('card.finSellerShipping')}
             value={order.frete_vendedor ? `-${brl(order.frete_vendedor)}` : brl(0)} color={order.frete_vendedor > 0 ? '#f87171' : '#71717a'}
@@ -1447,7 +1456,10 @@ function OrderCard({
               <div className="flex items-center justify-between gap-2 py-0.5">
                 <span className="text-xs shrink-0">⚖️</span>
                 <span className="flex-1 text-xs text-zinc-500 leading-tight">{t('card.tax')}</span>
-                <span className="text-[11px] text-zinc-700">—</span>
+                {/* fallback: imposto gravado no pedido na ingestão (sem vínculo carregado) */}
+                {order.tax_amount != null && order.tax_amount > 0
+                  ? <span className="text-xs font-semibold tabular-nums text-zinc-200">{brl(order.tax_amount)}</span>
+                  : <span className="text-[11px] text-zinc-700">—</span>}
               </div>
               <p className="text-[10px] text-zinc-700 text-right mt-0.5">{t('card.listingNotLinked')}</p>
             </>
@@ -1456,12 +1468,18 @@ function OrderCard({
               <div className="flex items-center justify-between gap-2 py-0.5">
                 <span className="text-xs shrink-0">📦</span>
                 <span className="flex-1 text-xs text-zinc-500 leading-tight">{t('card.costCmv')}</span>
-                <span className="text-[11px] text-zinc-700">—</span>
+                {/* fallback: custo/imposto gravados no pedido na ingestão — o
+                    mesmo dado que alimenta a margem lá embaixo (consistência) */}
+                {order.cost_price != null && order.cost_price > 0
+                  ? <span className="text-xs font-semibold tabular-nums text-zinc-200">{brl(order.cost_price)}</span>
+                  : <span className="text-[11px] text-zinc-700">—</span>}
               </div>
               <div className="flex items-center justify-between gap-2 py-0.5">
                 <span className="text-xs shrink-0">⚖️</span>
                 <span className="flex-1 text-xs text-zinc-500 leading-tight">{t('card.tax')}</span>
-                <span className="text-[11px] text-zinc-700">—</span>
+                {order.tax_amount != null && order.tax_amount > 0
+                  ? <span className="text-xs font-semibold tabular-nums text-zinc-200">{brl(order.tax_amount)}</span>
+                  : <span className="text-[11px] text-zinc-700">—</span>}
               </div>
             </>
           )}
@@ -2342,13 +2360,15 @@ export default function PedidosPage() {
     finally { setSyncing(false) }
   }, [syncing, getHeaders, loadPending, t, platformFilter, loadKpis, loadOrders, crossTabMode])
 
-  // Busca todos os vínculos uma vez — matching feito localmente em memória
+  // Busca todos os vínculos uma vez — matching feito localmente em memória.
+  // Shopee incluída: o card resolve pelo item_id do anúncio (listing_id),
+  // igual ao ML — sem isso CMV/Imposto ficavam "—" em pedido Shopee.
   useEffect(() => {
     supabase
       .from('product_listings')
       .select('listing_id, quantity_per_unit, product:products(id, sku, name, cost_price, tax_percentage)')
       .eq('is_active', true)
-      .eq('platform', 'mercadolivre')
+      .in('platform', ['mercadolivre', 'shopee'])
       .limit(5000)
       .then(({ data, error }) => {
         if (error) console.error('[pedidos] erro query product_listings:', error)
