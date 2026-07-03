@@ -32,6 +32,21 @@ type Order = {
   items: OrderItem[]
   shipping_state?: string | null
   shipping_city?: string | null
+  /** canal da venda (mercadolivre | shopee | tiktok_shop | …) — /orders/recent */
+  source?: string | null
+  account_nickname?: string | null
+}
+
+/** Cor/rótulo por canal (feed multicanal). */
+const CHANNEL_BADGE: Record<string, { label: string; bg: string; color: string }> = {
+  mercadolivre: { label: 'ML',     bg: '#ffe600',              color: '#333' },
+  manual:       { label: 'ML',     bg: '#ffe600',              color: '#333' },
+  shopee:       { label: 'SHP',    bg: 'rgba(238,77,45,0.9)',  color: '#fff' },
+  tiktok_shop:  { label: 'TTK',    bg: 'rgba(255,59,92,0.9)',  color: '#fff' },
+  storefront:   { label: 'LOJA',   bg: 'rgba(0,229,255,0.85)', color: '#032' },
+}
+function channelBadge(source?: string | null) {
+  return CHANNEL_BADGE[source ?? ''] ?? { label: source?.slice(0, 3).toUpperCase() ?? '—', bg: '#3f3f46', color: '#d4d4d8' }
 }
 
 type DayMetrics = { revenue: number; count: number; units: number; avgTicket: number }
@@ -68,7 +83,12 @@ function brazilHour(dateStr: string): number {
   return new Date(new Date(dateStr).getTime() - 3 * 60 * 60 * 1000).getUTCHours()
 }
 
-function isPaid(o: Order) { return o.status === 'paid' || o.status === 'payment_in_process' }
+// Shopee/TikTok mudam de status rápido (paid → shipped → delivered em horas);
+// todos são venda PAGA — sem shipped/delivered a receita do dia "sumia".
+function isPaid(o: Order) {
+  return o.status === 'paid' || o.status === 'payment_in_process'
+    || o.status === 'shipped' || o.status === 'delivered'
+}
 
 function metricsFor(orders: Order[], ds: string): DayMetrics {
   const day = orders.filter(o => orderBrazilDate(o.date_created) === ds && isPaid(o))
@@ -241,7 +261,9 @@ export default function VendasAoVivoPage() {
       return
     }
 
-    // Step 1: verify connection (backend falls back to first available record)
+    // Step 1: verify connection — qualquer canal conta (a tela é multicanal;
+    // o /ml/status continua como sinal, mas pedidos de Shopee/TikTok também
+    // "conectam" a tela via Step 2).
     try {
       const statusRes = await fetch(`${BACKEND}/ml/status`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -252,25 +274,21 @@ export default function VendasAoVivoPage() {
       }
     } catch { /* silent */ }
 
-    // Step 2: fetch orders — 7-day window using Brazil time (UTC-3)
+    // Step 2: fetch orders — TODAS as plataformas (orders unificado), janela
+    // de 7 dias em horário do Brasil (UTC-3).
     try {
       const brazilNow = new Date(Date.now() - 3 * 60 * 60 * 1000)
-      const brazilToday = brazilNow.toISOString().slice(0, 10)
       brazilNow.setUTCDate(brazilNow.getUTCDate() - 7)
       const dateFrom = brazilNow.toISOString().slice(0, 10)
 
-      console.log('[vendas-ao-vivo] data hoje GMT-3:', brazilToday)
-      console.log('[vendas-ao-vivo] date_from enviado:', dateFrom)
-
       const res = await fetch(
-        `${BACKEND}/ml/recent-orders?date_from=${dateFrom}`,
+        `${BACKEND}/orders/recent?date_from=${dateFrom}&limit=5000`,
         { headers: { Authorization: `Bearer ${token}` } },
       )
       if (res.ok) {
         const json = await res.json()
         const next: Order[] = json.orders ?? []
-        console.log('[vendas-ao-vivo] pedidos retornados:', next.length)
-        console.log('[vendas-ao-vivo] pedidos hoje:', next.filter(o => o.date_created.slice(0, 10) === brazilToday).length)
+        if (next.length > 0) setConnected(true)
         const nextIds = new Set(next.map((o: Order) => o.id))
         newIdsRef.current = new Set([...nextIds].filter(id => !prevIdsRef.current.has(id) && prevIdsRef.current.size > 0))
         prevIdsRef.current = nextIds
@@ -368,7 +386,13 @@ export default function VendasAoVivoPage() {
                 <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: '#00E5FF' }} />
                 {t('live')}
               </span>
-              <span className="text-[10px] font-black px-1.5 py-0.5 rounded" style={{ background: '#ffe600', color: '#333' }}>ML</span>
+              {/* multicanal: um mini-badge por canal */}
+              <span className="flex items-center gap-1">
+                {(['mercadolivre', 'shopee', 'tiktok_shop'] as const).map(s => {
+                  const b = channelBadge(s)
+                  return <span key={s} className="text-[9px] font-black px-1.5 py-0.5 rounded" style={{ background: b.bg, color: b.color }}>{b.label}</span>
+                })}
+              </span>
             </div>
             <p className="text-zinc-500 text-[12px] capitalize">{dateLabel} · {timeStr}</p>
             {minAgo !== null && (
@@ -623,7 +647,12 @@ export default function VendasAoVivoPage() {
           <div className="rounded-2xl overflow-hidden" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
             <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid #1e1e24', background: '#0d0d10' }}>
               <p className="text-white text-sm font-semibold">{t('recentOrdersTitle')}</p>
-              <span className="text-[10px] font-black px-1.5 py-0.5 rounded" style={{ background: '#ffe600', color: '#333' }}>ML</span>
+              <span className="flex items-center gap-1">
+                {(['mercadolivre', 'shopee', 'tiktok_shop'] as const).map(s => {
+                  const b = channelBadge(s)
+                  return <span key={s} className="text-[9px] font-black px-1.5 py-0.5 rounded" style={{ background: b.bg, color: b.color }}>{b.label}</span>
+                })}
+              </span>
             </div>
             <div className="overflow-y-auto" style={{ maxHeight: 420 }}>
               {loading ? [...Array(6)].map((_, i) => (
@@ -651,6 +680,10 @@ export default function VendasAoVivoPage() {
                     onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.02)')}
                     onMouseLeave={e => (e.currentTarget.style.background = isNew ? 'rgba(0,229,255,0.04)' : 'transparent')}>
                     <span className="text-zinc-500 text-[11px] font-mono shrink-0 w-12">{timeLabel}</span>
+                    {(() => { const b = channelBadge(o.source); return (
+                      <span className="text-[8px] font-black px-1 py-0.5 rounded shrink-0" title={o.account_nickname ?? undefined}
+                        style={{ background: b.bg, color: b.color }}>{b.label}</span>
+                    ) })()}
                     <p className="flex-1 text-zinc-300 text-[12px] truncate min-w-0">{firstItem}</p>
                     <div className="flex items-center gap-2 shrink-0">
                       <span className={`text-[11px] font-bold ${isPaid(o) ? '' : 'text-zinc-600'}`}
@@ -659,7 +692,7 @@ export default function VendasAoVivoPage() {
                       </span>
                       <span className="text-[9px] px-1 py-0.5 rounded font-semibold"
                         style={{ background: isPaid(o) ? 'rgba(52,211,153,0.1)' : 'rgba(113,113,122,0.15)', color: isPaid(o) ? '#34d399' : '#71717a' }}>
-                        {o.status === 'paid' ? t('statusPaid') : o.status === 'cancelled' ? t('statusCancelled') : t('statusPending')}
+                        {isPaid(o) ? t('statusPaid') : o.status === 'cancelled' ? t('statusCancelled') : t('statusPending')}
                       </span>
                     </div>
                   </div>

@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
-import { getStoredSellerId } from '@/components/ml/AccountSelector'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
 
@@ -37,12 +36,10 @@ export function useTodayOrders() {
       const today = getBrazilToday()
       const token = await getToken()
       if (!token) { setLoading(false); return }
-      // Propaga seller_id selecionado no AccountSelector — sem isso pega
-      // sempre conta default (mais recente) e mistura dados.
-      const sellerId = getStoredSellerId()
-      const sellerSuffix = sellerId != null ? `&seller_id=${sellerId}` : ''
+      // Multicanal: /orders/recent (tabela unificada) — vendas de hoje de
+      // TODAS as plataformas (ML + Shopee + TikTok), sem filtro de conta.
       const res = await fetch(
-        `${BACKEND}/ml/recent-orders?date_from=${today}&date_to=${today}&limit=200${sellerSuffix}`,
+        `${BACKEND}/orders/recent?date_from=${today}&date_to=${today}&limit=1000`,
         { headers: { Authorization: `Bearer ${token}` } },
       )
       if (!res.ok) { setLoading(false); return }
