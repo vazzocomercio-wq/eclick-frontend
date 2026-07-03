@@ -34,7 +34,7 @@ import { Acc, Field, Input, Textarea, NumberInput, Select, Toggle, ColorField, S
 import { ImageUploadField } from '@/components/storefront/ImageUploadField'
 import { BlockListEditor } from './BlockListEditor'
 import { CollectionsEditor } from './CollectionsEditor'
-import { LeadFormEditor } from './LeadFormEditor'
+import { LeadFormEditor, FunnelPicker } from './LeadFormEditor'
 import { RoomVisualizerEditor } from './RoomVisualizerEditor'
 import type { SectionTypography, FontPair, LeadFormSection, RoomVisualizerSection, ProductKitsSection } from '@/lib/storefront/v3/types'
 import { FONT_PAIRS_V3, FONT_PAIRS_V3_DEFINITIONS } from '@/lib/storefront/v3/font-pairs'
@@ -477,7 +477,15 @@ function SettingsEditor({ section, onChange, setSettings }: {
               onChange={v => setSettings({ variant: v as 'minimal' | 'columns' })} />
           </Field>
           <Field label="Mostrar newsletter"><Toggle value={s.settings.showNewsletter} onChange={v => setSettings({ showNewsletter: v })} /></Field>
-          <Field label="Mostrar redes sociais"><Toggle value={s.settings.showSocialIcons} onChange={v => setSettings({ showSocialIcons: v })} /></Field>
+          {s.settings.showNewsletter && (
+            <div style={{ marginTop: 8, marginBottom: 8, paddingTop: 10, borderTop: '1px solid #27272a' }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: '#a1a1aa', marginBottom: 6 }}>
+                Destino dos inscritos da newsletter (Active CRM)
+              </div>
+              <FunnelPicker settings={s.settings} onChange={patch => setSettings(patch)} />
+            </div>
+          )}
+          <Field label="Mostrar redes sociais" hint="Usa os links de redes sociais configurados na loja."><Toggle value={s.settings.showSocialIcons} onChange={v => setSettings({ showSocialIcons: v })} /></Field>
           <Field label="Mostrar meios de pagamento"><Toggle value={s.settings.showPaymentMethods} onChange={v => setSettings({ showPaymentMethods: v })} /></Field>
           <Field label="Copyright"><Input value={s.settings.copyright ?? ''} onChange={v => setSettings({ copyright: v || undefined })} /></Field>
         </>
@@ -978,6 +986,13 @@ function SettingsEditor({ section, onChange, setSettings }: {
           <Field label="Texto do botão"><Input value={s.settings.ctaLabel} onChange={v => setSettings({ ctaLabel: v })} /></Field>
           <Field label="Placeholder do email"><Input value={s.settings.placeholder} onChange={v => setSettings({ placeholder: v })} /></Field>
           <Field label="Mensagem de sucesso"><Input value={s.settings.successMessage} onChange={v => setSettings({ successMessage: v })} /></Field>
+          {/* Destino do inscrito no Active CRM (obrigatório pro envio funcionar) */}
+          <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid #27272a' }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: '#a1a1aa', marginBottom: 6 }}>
+              Destino dos inscritos (Active CRM)
+            </div>
+            <FunnelPicker settings={s.settings} onChange={patch => setSettings(patch)} />
+          </div>
         </>
       )
     }

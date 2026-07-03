@@ -130,15 +130,28 @@ export interface StorefrontProduct {
  *  faz SELECT *). Mantido por compat. */
 export type StorefrontProductDetail = StorefrontProduct
 
+/**
+ * Fetch público com distinção entre "não existe" e "backend fora do ar":
+ *  - HTTP 404 (ou 200 com corpo null) → null → rotas chamam notFound() (correto)
+ *  - Erro de rede / 5xx / resposta inválida → throw → error.tsx da rota
+ *    mostra "Loja temporariamente indisponível" em vez de um 404 enganoso.
+ */
 async function fetchJson<T>(url: string): Promise<T | null> {
+  let res: Response
   try {
-    const res = await fetch(url, { next: { revalidate: 60 } })
-    if (!res.ok) return null
-    const text = await res.text()
-    if (!text || text === 'null') return null
+    res = await fetch(url, { next: { revalidate: 60 } })
+  } catch (e) {
+    // Falha de rede/DNS — NÃO significa que a loja não existe
+    throw new Error(`Falha de rede ao consultar a loja: ${e instanceof Error ? e.message : String(e)}`)
+  }
+  if (res.status === 404) return null
+  if (!res.ok) throw new Error(`Backend da loja respondeu ${res.status}`)
+  const text = await res.text()
+  if (!text || text === 'null') return null
+  try {
     return JSON.parse(text) as T
   } catch {
-    return null
+    throw new Error('Resposta inválida do backend da loja')
   }
 }
 
@@ -175,10 +188,16 @@ export interface StoreCategoryGroup {
 }
 
 export async function getStoreCategories(slug: string): Promise<StoreCategoryGroup[]> {
-  const data = await fetchJson<{ groups?: StoreCategoryGroup[] }>(
-    `${BACKEND}/public/store/${encodeURIComponent(slug)}/categories`,
-  )
-  return data?.groups ?? []
+  // Dado acessório (filtro de categorias) — erro de backend NÃO derruba a
+  // página, só degrada (sem filtro).
+  try {
+    const data = await fetchJson<{ groups?: StoreCategoryGroup[] }>(
+      `${BACKEND}/public/store/${encodeURIComponent(slug)}/categories`,
+    )
+    return data?.groups ?? []
+  } catch {
+    return []
+  }
 }
 
 /** Regras de bônus ativas — vitrine usa pra renderizar badge "LEVE 2 PAGUE 1"
@@ -192,15 +211,20 @@ export async function getActiveBonusRules(slug: string): Promise<Array<{
   gift_product_id:    string | null
   gift_qty:           number
 }>> {
-  const data = await fetchJson<{ rules?: Array<{
-    id: string; name: string;
-    type: 'bogo' | 'free_above_value' | 'gift_with_product';
-    trigger_product_id: string | null; trigger_qty: number;
-    gift_product_id: string | null; gift_qty: number;
-  }> }>(
-    `${BACKEND}/public/bonus/by-slug/${encodeURIComponent(slug)}/active-rules`,
-  )
-  return data?.rules ?? []
+  // Dado acessório (badges de bônus) — erro de backend NÃO derruba a página.
+  try {
+    const data = await fetchJson<{ rules?: Array<{
+      id: string; name: string;
+      type: 'bogo' | 'free_above_value' | 'gift_with_product';
+      trigger_product_id: string | null; trigger_qty: number;
+      gift_product_id: string | null; gift_qty: number;
+    }> }>(
+      `${BACKEND}/public/bonus/by-slug/${encodeURIComponent(slug)}/active-rules`,
+    )
+    return data?.rules ?? []
+  } catch {
+    return []
+  }
 }
 
 export async function getProduct(

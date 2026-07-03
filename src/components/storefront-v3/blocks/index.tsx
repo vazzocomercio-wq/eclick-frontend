@@ -8,6 +8,14 @@
 import type { RenderCtx } from '../RenderCtx'
 import { PriceDisplay } from '../PriceDisplay'
 import { clampRem, ctaButtonStyle, fieldFontFamily, fluidRem } from '../helpers'
+import {
+  Star, Heart, Truck, Shield, ShieldCheck, Gift, Package, CreditCard,
+  Lock, CheckCircle2, Sparkles, Zap, Award, BadgeCheck, ThumbsUp,
+  Clock, MapPin, Phone, Mail, MessageCircle, Headphones, RefreshCw,
+  RotateCcw, Leaf, Sun, Smile, Tag, Percent, ShoppingBag, Flame,
+  Gem, Wrench, Home, Globe, Recycle,
+  type LucideIcon,
+} from 'lucide-react'
 import type {
   HeadingBlock, SubheadingBlock, ParagraphBlock,
   ImageBlock, VideoBlock as VideoBlk,
@@ -134,9 +142,60 @@ export function Spacer({ block }: { ctx: RenderCtx; block: SpacerBlock }) {
   return <div style={{ height: block.settings.height }} />
 }
 
+// Mapa ESTÁTICO de ~30 ícones lucide comuns por nome (kebab-case).
+// Imports nomeados no topo do arquivo (tree-shakeable) — NUNCA importar o
+// pacote inteiro dinamicamente (explode o bundle). Nome desconhecido cai
+// no losango.
+const ICON_MAP: Record<string, LucideIcon> = {
+  'star': Star, 'estrela': Star,
+  'heart': Heart, 'coracao': Heart,
+  'truck': Truck, 'caminhao': Truck, 'frete': Truck,
+  'shield': Shield, 'escudo': Shield,
+  'shield-check': ShieldCheck,
+  'gift': Gift, 'presente': Gift,
+  'package': Package, 'pacote': Package,
+  'credit-card': CreditCard, 'cartao': CreditCard,
+  'lock': Lock, 'cadeado': Lock,
+  'check-circle': CheckCircle2, 'check-circle-2': CheckCircle2,
+  'sparkles': Sparkles, 'brilho': Sparkles,
+  'zap': Zap, 'raio': Zap,
+  'award': Award, 'medalha': Award,
+  'badge-check': BadgeCheck, 'verificado': BadgeCheck,
+  'thumbs-up': ThumbsUp, 'joinha': ThumbsUp,
+  'clock': Clock, 'relogio': Clock,
+  'map-pin': MapPin, 'localizacao': MapPin,
+  'phone': Phone, 'telefone': Phone,
+  'mail': Mail, 'email': Mail,
+  'message-circle': MessageCircle, 'mensagem': MessageCircle,
+  'headphones': Headphones, 'atendimento': Headphones,
+  'refresh-cw': RefreshCw, 'troca': RefreshCw,
+  'rotate-ccw': RotateCcw, 'devolucao': RotateCcw,
+  'leaf': Leaf, 'folha': Leaf,
+  'sun': Sun, 'sol': Sun,
+  'smile': Smile, 'sorriso': Smile,
+  'tag': Tag, 'etiqueta': Tag,
+  'percent': Percent, 'desconto': Percent,
+  'shopping-bag': ShoppingBag, 'sacola': ShoppingBag,
+  'flame': Flame, 'fogo': Flame,
+  'gem': Gem, 'diamante': Gem,
+  'wrench': Wrench, 'ferramenta': Wrench,
+  'home': Home, 'casa': Home,
+  'globe': Globe, 'mundo': Globe,
+  'recycle': Recycle, 'reciclagem': Recycle,
+}
+
 export function Icon({ block }: { ctx: RenderCtx; block: IconBlock }) {
-  // Stub: cria placeholder com nome do icone. B.3b vai integrar lucide-react.
-  return <span style={{ fontSize: block.settings.size, color: block.settings.color ?? 'var(--c-text)' }}>◆</span>
+  const { name, size, color } = block.settings
+  // Normaliza: "Shield Check"/"shield_check"/"ShieldCheck" → "shield-check"
+  const key = (name ?? '')
+    .trim()
+    .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+    .replace(/[\s_]+/g, '-')
+    .toLowerCase()
+  const Cmp = ICON_MAP[key]
+  if (Cmp) return <Cmp size={size} style={{ color: color ?? 'var(--c-text)' }} aria-hidden />
+  // Fallback: losango (nome desconhecido ou vazio)
+  return <span style={{ fontSize: size, color: color ?? 'var(--c-text)' }}>◆</span>
 }
 
 export function ProductCardMini({ ctx, block }: { ctx: RenderCtx; block: ProductCardMiniBlock }) {

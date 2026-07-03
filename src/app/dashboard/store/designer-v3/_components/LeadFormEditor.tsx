@@ -109,7 +109,20 @@ export function LeadFormEditor({ settings, onChange }: {
   )
 }
 
-function FunnelPicker({ settings, onChange }: { settings: Settings; onChange: (patch: Partial<Settings>) => void }) {
+/** Subset de settings que carrega o destino no Active CRM — compartilhado
+ *  entre leadForm, newsletter e a newsletter do rodapé (siteFooter). */
+export interface FunnelDestinationSettings {
+  pipelineId?:   string
+  stageId?:      string
+  assignedTo?:   string
+  pipelineName?: string
+  stageName?:    string
+}
+
+export function FunnelPicker({ settings, onChange }: {
+  settings: FunnelDestinationSettings
+  onChange: (patch: Partial<FunnelDestinationSettings>) => void
+}) {
   const [pipelines, setPipelines] = useState<Pipeline[] | null>(null)
   const [stages, setStages] = useState<Stage[] | null>(null)
   const [agents, setAgents] = useState<Agent[] | null>(null)

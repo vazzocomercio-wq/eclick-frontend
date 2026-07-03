@@ -13,6 +13,7 @@ import type {
 import type { RenderCtx } from '../RenderCtx'
 import { PriceDisplay } from '../PriceDisplay'
 import { clampRem, ctaButtonStyle, fieldFontFamily, fluidRem } from '../helpers'
+import { NewsletterSignup } from './NewsletterSignup'
 
 const HEIGHT_BANNER_PRESET: Record<Exclude<ImageBannerSection['settings']['height'], 'custom'>, string> = {
   sm:         '280px',
@@ -262,32 +263,27 @@ export function Faq({ section }: { ctx: RenderCtx; section: FaqSection }) {
   )
 }
 
-export function Newsletter({ section }: { ctx: RenderCtx; section: NewsletterSection }) {
-  const { title, description, ctaLabel, placeholder } = section.settings
+export function Newsletter({ ctx, section }: { ctx: RenderCtx; section: NewsletterSection }) {
+  const { title, description, ctaLabel, placeholder, successMessage } = section.settings
   return (
     <div className="container mx-auto px-4 text-center" style={{ maxWidth: 560 }}>
       {title && <h2 style={{ fontFamily: 'var(--f-heading)', fontSize: '1.75rem', color: 'var(--c-text)' }}>{title}</h2>}
       {description && <p style={{ marginTop: 8, color: 'var(--c-text-muted)' }}>{description}</p>}
-      {/* TODO B.4+: submeter pra endpoint /storefront/newsletter via Client component */}
-      <form className="mt-6 flex flex-col sm:flex-row gap-3" action="#" method="post">
-        <input
-          type="email" required placeholder={placeholder} aria-label="Email"
-          inputMode="email"
-          style={{
-            flex: 1, padding: '12px 16px', minHeight: 44,
-            border: '1px solid var(--c-border)', borderRadius: 'var(--r)',
-            background: 'var(--c-surface)', color: 'var(--c-text)',
+      {/* Formulário funcional (Client) — POST /public/store/by-slug/:slug/lead */}
+      <div className="mt-6">
+        <NewsletterSignup
+          slug={ctx.slug}
+          sectionId={section.id}
+          placeholder={placeholder}
+          ctaLabel={ctaLabel}
+          successMessage={successMessage || 'Inscrito! ✓'}
+          destination={{
+            pipelineId: section.settings.pipelineId,
+            stageId:    section.settings.stageId,
+            assignedTo: section.settings.assignedTo,
           }}
         />
-        <button type="submit"
-          style={{
-            padding: '12px 24px', minHeight: 44,
-            background: 'var(--c-primary)', color: 'var(--c-on-accent)',
-            borderRadius: 'var(--r)', border: 'none', fontWeight: 500, cursor: 'pointer',
-          }}>
-          {ctaLabel}
-        </button>
-      </form>
+      </div>
     </div>
   )
 }

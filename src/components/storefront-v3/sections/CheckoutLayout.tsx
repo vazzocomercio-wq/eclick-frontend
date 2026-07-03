@@ -1,19 +1,19 @@
 /**
- * CheckoutLayout v3 — envelope/placeholder do checkout.
+ * CheckoutLayout v3 — ponte pro checkout real.
  *
- * Server Component esqueleto. Form e gateway sao Client Component que a
- * rota `/loja/[slug]/checkout` em B.5 monta dentro deste envelope.
+ * O formulário de pagamento de verdade vive na rota dedicada
+ * `/loja/[slug]/checkout`. Esta section mostra um card com o resumo do
+ * carrinho (Client) + botão "Ir para o checkout" apontando pra rota real.
  *
- * Settings importantes:
- *  - steps: 'multi' | 'single' (mobile-first default = single via overrides)
- *  - requireAccount, askForCpf, askForCnpj
+ * Settings de steps/requireAccount/askForCpf/askForCnpj continuam expostos
+ * como data-attrs pra fase em que o form for embutido aqui.
  */
 
 import type { CheckoutLayoutSection } from '@/lib/storefront/v3/types'
 import type { RenderCtx } from '../RenderCtx'
+import { CheckoutSummaryClient } from '../CartClient'
 
-export function CheckoutLayoutSectionView({ ctx: _ctx, section }: { ctx: RenderCtx; section: CheckoutLayoutSection }) {
-  void _ctx
+export function CheckoutLayoutSectionView({ ctx, section }: { ctx: RenderCtx; section: CheckoutLayoutSection }) {
   const { steps, requireAccount, askForCpf, askForCnpj, trustBadges } = section.settings
   return (
     <div
@@ -27,13 +27,7 @@ export function CheckoutLayoutSectionView({ ctx: _ctx, section }: { ctx: RenderC
       <h1 className="mb-6" style={{ fontFamily: 'var(--f-heading)', color: 'var(--c-text)', fontSize: '1.75rem' }}>
         Finalizar compra
       </h1>
-      <div id="checkout-mount" style={{
-        padding: 40, textAlign: 'center',
-        background: 'var(--c-surface)', borderRadius: 'var(--r)',
-        color: 'var(--c-text-muted)',
-      }}>
-        Carregando formulário de pagamento...
-      </div>
+      <CheckoutSummaryClient slug={ctx.slug} />
       {trustBadges.length > 0 && (
         <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
           {trustBadges.map((src, i) => (

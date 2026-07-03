@@ -21,6 +21,8 @@ import { WishlistButton } from '../WishlistButton'
 import { ReviewStars } from '@/components/storefront/ReviewStars'
 import { WhatsAppIcon } from '@/components/storefront/WhatsAppIcon'
 import { RoomVisualizerLauncher } from '../RoomVisualizerLauncher'
+import { AddToCartClient } from './AddToCartClient'
+import { ShareButtons } from './ShareButtons'
 
 export function ProductDetailLayoutSectionView({ ctx, section }: { ctx: RenderCtx; section: ProductDetailLayoutSection }) {
   const { galleryPosition, stickyAddToCart, showShareButtons } = section.settings
@@ -32,8 +34,6 @@ export function ProductDetailLayoutSectionView({ ctx, section }: { ctx: RenderCt
       </div>
     )
   }
-  void stickyAddToCart // marcador — vira AddToCartSticky em B.5
-
   // Combina photo_urls (array principal) + images jsonb (legado) — dedup.
   const photoUrls = product.photo_urls ?? []
   const imagesJson = (product as unknown as { images?: unknown }).images
@@ -124,17 +124,22 @@ export function ProductDetailLayoutSectionView({ ctx, section }: { ctx: RenderCt
             </ul>
           )}
 
-          {/* CTA — sera substituida por AddToCartSticky client na B.5 */}
+          {/* CTA real — stepper + adicionar ao carrinho (+ barra sticky mobile) */}
           <div className="mt-6 flex flex-col sm:flex-row gap-3">
-            <button
-              style={{
-                flex: 1, padding: '14px 24px', minHeight: 48,
-                background: 'var(--c-primary)', color: 'var(--c-on-accent)',
-                border: 0, borderRadius: 'var(--r)', cursor: 'pointer',
-                fontWeight: 600, fontSize: 16,
-              }}>
-              Adicionar ao carrinho
-            </button>
+            <div className="flex-1 min-w-0">
+              <AddToCartClient
+                slug={ctx.slug}
+                product={{
+                  id:       product.id,
+                  name:     product.name,
+                  // Preço unitário efetivo (promo aplicada quando houver)
+                  price:    product.effective_price ?? product.price,
+                  imageUrl: photos[0],
+                }}
+                // Default retrocompatível: setting ausente no jsonb = sticky ligado
+                sticky={stickyAddToCart ?? true}
+              />
+            </div>
             {ctx.store.whatsapp_number && (
               <a href={`https://wa.me/${ctx.store.whatsapp_number.replace(/\D/g, '')}?text=${encodeURIComponent(`Olá! Tenho interesse no ${product.name}.`)}`}
                 target="_blank" rel="noopener noreferrer"
@@ -157,9 +162,7 @@ export function ProductDetailLayoutSectionView({ ctx, section }: { ctx: RenderCt
 
           {showShareButtons && (
             <div className="mt-6 text-sm" style={{ color: 'var(--c-text-muted)' }}>
-              Compartilhar:{' '}
-              <a href="#" style={{ color: 'var(--c-primary)', textDecoration: 'underline', marginRight: 12 }}>WhatsApp</a>
-              <a href="#" style={{ color: 'var(--c-primary)', textDecoration: 'underline' }}>Copiar link</a>
+              <ShareButtons productName={product.name} />
             </div>
           )}
         </div>

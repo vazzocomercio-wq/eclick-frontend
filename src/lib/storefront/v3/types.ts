@@ -331,6 +331,14 @@ export type SiteFooterSection = SectionBase<'siteFooter', {
   showSocialIcons:   boolean
   showPaymentMethods: boolean
   copyright?:        string
+  // Destino do inscrito da newsletter do rodapé no Active CRM (opcional —
+  // mesmo mecanismo do leadForm/newsletter).
+  pipelineId?:   string
+  stageId?:      string
+  assignedTo?:   string          // org_members.id (opcional)
+  // Rótulos legíveis pra exibir no editor (cache; não usados no envio)
+  pipelineName?: string
+  stageName?:    string
 }>
 
 export type AnnouncementBarSection = SectionBase<'announcementBar', {
@@ -525,6 +533,14 @@ export type NewsletterSection = SectionBase<'newsletter', {
   ctaLabel:     string
   placeholder:  string
   successMessage: string
+  // Destino do inscrito no Active CRM (mesmo mecanismo do leadForm).
+  // Opcional — sem funil configurado o envio falha com aviso amigável.
+  pipelineId?:   string
+  stageId?:      string
+  assignedTo?:   string          // org_members.id (opcional)
+  // Rótulos legíveis pra exibir no editor (cache; não usados no envio)
+  pipelineName?: string
+  stageName?:    string
 }>
 
 export type VideoBlockSection = SectionBase<'videoBlock', {
