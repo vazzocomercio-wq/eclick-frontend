@@ -74,6 +74,8 @@ export default function CentralResultadoPage() {
   const [nf, setNf] = useState({ label: '', category: 'aluguel', amount: '', recurrence: 'monthly' })
   // form de tarifa de frete (Flex)
   const [sr, setSr] = useState({ logistic_type: 'self_service', amount: '', valid_from: thisMonth() + '-01' })
+  // upload do relatório de Shopee Ads (a API de Ads é fechada pro app)
+  const [adsUpload, setAdsUpload] = useState<{ busy: boolean; msg: string; ok: boolean }>({ busy: false, msg: '', ok: true })
 
   const getHeaders = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
@@ -142,6 +144,28 @@ export default function CentralResultadoPage() {
     setBusy(true)
     try { const h = await getHeaders(); await fetch(`${BACKEND}/financeiro/shipping-rates/${id}`, { method: 'DELETE', headers: h }); await load() }
     catch (e) { setErr(e instanceof Error ? e.message : 'Falha ao remover tarifa.') } finally { setBusy(false) }
+  }
+  const uploadAdsReport = async (file: File) => {
+    setAdsUpload({ busy: true, msg: '', ok: true })
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) throw new Error('Sessão expirada — faça login de novo.')
+      const fd = new FormData()
+      fd.append('file', file)
+      // sem Content-Type manual — o browser define o boundary do multipart
+      const res = await fetch(`${BACKEND}/shopee/sync/ads-report`, {
+        method: 'POST', headers: { Authorization: `Bearer ${session.access_token}` }, body: fd,
+      })
+      const j = await res.json()
+      if (!res.ok) throw new Error(j?.message ?? 'Falha ao importar o relatório.')
+      setAdsUpload({
+        busy: false, ok: true,
+        msg: `Importado: ${j.charges_upserted} dia(s), ${brl(j.total)} de ${j.period_from ?? '?'} a ${j.period_to ?? '?'}.`,
+      })
+      await load()
+    } catch (e) {
+      setAdsUpload({ busy: false, ok: false, msg: e instanceof Error ? e.message : 'Falha ao importar.' })
+    }
   }
 
   const netOk = con?.net_margin_pct != null && con.net_margin_pct >= (con?.target_net_margin_pct ?? 15)
@@ -360,6 +384,29 @@ export default function CentralResultadoPage() {
                   })}
                 </div>
               )}
+            </section>
+
+            {/* Shopee Ads — importar relatório (API de Ads fechada pro app) */}
+            <section className="mt-6 rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
+              <div className="mb-1 flex items-center gap-2">
+                <Megaphone className="h-4 w-4 text-orange-400" />
+                <h2 className="text-sm font-semibold text-zinc-200">Shopee Ads — importar relatório</h2>
+              </div>
+              <p className="mb-3 text-[11px] text-zinc-500">
+                A Shopee <span className="text-zinc-400">não libera o gasto de Ads pela API</span>. Exporte o relatório com dados diários
+                (Seller Center → Anúncios Shopee → Dados → Exportar) e envie aqui — o gasto entra na conta de Publicidade (ADS) deste painel.
+                Reenviar o mesmo período só atualiza os valores, não duplica.
+              </p>
+              <div className="flex flex-wrap items-center gap-3">
+                <label className={`inline-flex cursor-pointer items-center gap-1.5 rounded border border-orange-500/40 bg-orange-500/10 px-3 py-1.5 text-xs font-medium text-orange-300 hover:bg-orange-500/20 ${adsUpload.busy ? 'pointer-events-none opacity-40' : ''}`}>
+                  <Plus className="h-3 w-3" /> {adsUpload.busy ? 'Importando…' : 'Enviar relatório (.xlsx ou .csv)'}
+                  <input type="file" accept=".xlsx,.xls,.csv" className="hidden" disabled={adsUpload.busy}
+                    onChange={(e) => { const f = e.target.files?.[0]; if (f) void uploadAdsReport(f); e.target.value = '' }} />
+                </label>
+                {adsUpload.msg && (
+                  <span className={`text-xs ${adsUpload.ok ? 'text-emerald-400' : 'text-red-400'}`}>{adsUpload.msg}</span>
+                )}
+              </div>
             </section>
 
             {/* Lucro por SKU */}
