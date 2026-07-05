@@ -1046,9 +1046,22 @@ function NewOrderModal({ approved, versionId, onClose, onCreated }: { approved: 
   const [preview, setPreview] = useState<ConsumePreview | null>(null); const [prevLoading, setPrevLoading] = useState(false)
   const [parts, setParts] = useState<Part[]>([])
   const [variants, setVariants] = useState<SkuData['variants']>([]); const [skuVariantId, setSkuVariantId] = useState('')
+  const [filaments, setFilaments] = useState<Filament[]>([]); const [filMap, setFilMap] = useState<Record<number, string>>({})
   useEffect(() => { void (async () => { try { setPrinters(await api<Printer[]>('/product-os/printers')) } catch { /* */ } })() }, [])
   useEffect(() => { setParts([]); if (!devId) return; void (async () => { try { setParts(await api<Part[]>(`/product-os/parts?product_dev_id=${devId}`)) } catch { /* */ } })() }, [devId])
   useEffect(() => { setVariants([]); setSkuVariantId(''); if (!devId) return; void (async () => { try { const s = await api<SkuData>(`/product-os/${devId}/sku`); setVariants(s.variants ?? []) } catch { /* */ } })() }, [devId])
+  // pega as cores da versão do produto (a indicada > aprovada > última com arquivo). Se a
+  // versão não tem as cores salvas (versão antiga), relê o .3mf na hora. Multicor = 1 rolo por cor.
+  useEffect(() => { setFilaments([]); setFilMap({}); if (!devId) return; void (async () => {
+    try {
+      const vs = await api<Version[]>(`/product-os/${devId}/versions`)
+      const ref = (versionId ? vs.find(v => v.id === versionId) : undefined) ?? vs.find(v => v.approved) ?? vs.find(v => v.file_url) ?? vs[0]
+      let fils = (ref?.filaments && ref.filaments.length) ? ref.filaments : []
+      if (!fils.length && ref?.file_url) { const m = await fetch3mfMetrics(ref.file_url, ref.file_url); if (m?.filaments?.length) fils = m.filaments }
+      setFilaments(fils)
+    } catch { setFilaments([]) }
+  })() }, [devId, versionId])
+  const multicor = filaments.length > 1
   const hasParts = parts.length > 0
   useEffect(() => {
     const n = Number(qty) || 0
@@ -1065,7 +1078,10 @@ function NewOrderModal({ approved, versionId, onClose, onCreated }: { approved: 
     if (!devId) { setErr('Selecione um produto aprovado'); return }
     if (hasParts) { setErr('Este produto é feito de peças — imprima cada peça pela aba Peças (Imprimir esta peça).'); return }
     setBusy(true); setErr('')
-    try { await api('/product-os/production-orders', { method: 'POST', body: JSON.stringify({ product_dev_id: devId, version_id: versionId || undefined, quantity: Number(qty) || 1, printer_id: printerId || undefined, machine: printers.find(p => p.id === printerId)?.name || undefined, loaded_input_id: loadedInputId || undefined, sku_variant_id: skuVariantId || undefined }) }); onCreated() }
+    try {
+      const filament_map = multicor ? filaments.map(f => ({ index: f.index, input_id: filMap[f.index] })).filter(m => m.input_id) : undefined
+      await api('/product-os/production-orders', { method: 'POST', body: JSON.stringify({ product_dev_id: devId, version_id: versionId || undefined, quantity: Number(qty) || 1, printer_id: printerId || undefined, machine: printers.find(p => p.id === printerId)?.name || undefined, loaded_input_id: !multicor ? (loadedInputId || undefined) : undefined, filament_map, sku_variant_id: skuVariantId || undefined }) }); onCreated()
+    }
     catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setBusy(false) }
   }
   return (
@@ -1101,7 +1117,21 @@ function NewOrderModal({ approved, versionId, onClose, onCreated }: { approved: 
               </select>
             </label>
           </div>
-          {printerId && !hasParts && <SpoolPicker printerId={printerId} value={loadedInputId} onChange={setLoadedInputId} />}
+          {printerId && !hasParts && !multicor && <SpoolPicker printerId={printerId} material={filaments[0]?.material} color={filaments[0]?.color} value={loadedInputId} onChange={setLoadedInputId} />}
+          {printerId && !hasParts && multicor && (
+            <div className="space-y-2 rounded-lg p-2.5" style={{ background: 'rgba(168,85,247,0.06)', border: '1px solid rgba(168,85,247,0.25)' }}>
+              <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#d8b4fe' }}>🎨 Produto multicor — escolha o rolo de cada cor</p>
+              {filaments.map(f => (
+                <div key={f.index} className="flex items-center gap-2">
+                  <span className="flex items-center gap-1 text-[11px]" style={{ color: '#d4d4d8', minWidth: 78 }}>
+                    {f.color && <span className="h-3 w-3 rounded-full border" style={{ background: f.color.startsWith('#') ? f.color : `#${f.color.slice(0, 6)}`, borderColor: '#3f3f46' }} />}
+                    Cor {f.index} <span style={{ color: '#52525b' }}>{f.weight_g}g</span>
+                  </span>
+                  <div className="flex-1"><SpoolPicker printerId={printerId} material={f.material} color={f.color} value={filMap[f.index] ?? ''} onChange={id => setFilMap(m => ({ ...m, [f.index]: id }))} /></div>
+                </div>
+              ))}
+            </div>
+          )}
           {prevLoading && <p className="text-[10px]" style={{ color: '#52525b' }}>Calculando consumo…</p>}
           {preview && preview.lines.length > 0 && (
             <div className="rounded-lg p-2.5" style={{ background: '#0d0d10', border: '1px solid #27272a' }}>
