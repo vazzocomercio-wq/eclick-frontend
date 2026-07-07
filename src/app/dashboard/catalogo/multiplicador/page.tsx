@@ -121,6 +121,9 @@ export default function MultiplicadorPage() {
   const [notice, setNotice]     = useState('')
   const [review, setReview]     = useState<Draft | null>(null)    // modal de revisão
   const [importOpen, setImportOpen] = useState(false)             // modal importar concorrente
+  // paginação dos candidatos (o backend aceita limit/offset e devolve total)
+  const [pageSize, setPageSize] = useState(20)
+  const [page, setPage]         = useState(0)
 
   // ── carregamento ──────────────────────────────────────────────────────────
 
@@ -133,9 +136,9 @@ export default function MultiplicadorPage() {
     setSel(prev => prev ?? defaultTarget(t))
   }, [])
 
-  const loadCandidates = useCallback(async (target: TargetSel, search: string) => {
+  const loadCandidates = useCallback(async (target: TargetSel, search: string, size: number, offset: number) => {
     const h = await authHeaders()
-    const params = new URLSearchParams({ target: target.platform, limit: '60' })
+    const params = new URLSearchParams({ target: target.platform, limit: String(size), offset: String(offset) })
     if (target.accountId) params.set('account_id', target.accountId)
     if (search.trim()) params.set('q', search.trim())
     const res = await fetch(`${BACKEND}/multiplier/candidates?${params}`, { headers: h })
@@ -173,13 +176,26 @@ export default function MultiplicadorPage() {
   useEffect(() => {
     if (!sel) return
     setCands(null); setError('')
-    loadCandidates(sel, q).catch(e => setError(e instanceof Error ? e.message : 'Falha ao listar candidatos.'))
-  }, [sel, loadCandidates]) // q só ao apertar Enter/botão (handleSearch)
+    loadCandidates(sel, q, pageSize, page * pageSize)
+      .catch(e => setError(e instanceof Error ? e.message : 'Falha ao listar candidatos.'))
+  }, [sel, page, pageSize, loadCandidates]) // q só ao apertar Enter/botão (handleSearch)
+
+  /** Troca de destino sempre volta pra 1ª página. */
+  const selectTarget = (t: TargetSel) => { setSel(t); setPage(0) }
+
+  // Página fora do alcance (total encolheu — ex.: candidato publicado saiu da
+  // lista) → volta pra última página válida em vez de mostrar lista vazia.
+  useEffect(() => {
+    if (cands && cands.items.length === 0 && cands.total > 0 && page > 0) {
+      setPage(Math.max(0, Math.ceil(cands.total / pageSize) - 1))
+    }
+  }, [cands, page, pageSize])
 
   const handleSearch = () => {
     if (!sel) return
+    if (page !== 0) { setPage(0); return } // efeito acima recarrega já na página 1
     setCands(null)
-    loadCandidates(sel, q).catch(e => setError(e instanceof Error ? e.message : 'Falha na busca.'))
+    loadCandidates(sel, q, pageSize, 0).catch(e => setError(e instanceof Error ? e.message : 'Falha na busca.'))
   }
 
   // ── ações ─────────────────────────────────────────────────────────────────
@@ -210,7 +226,7 @@ export default function MultiplicadorPage() {
     setReview(updated)
     if (msg) setNotice(msg)
     await loadDrafts()
-    if (sel) await loadCandidates(sel, q).catch(() => undefined)
+    if (sel) await loadCandidates(sel, q, pageSize, page * pageSize).catch(() => undefined)
   }
 
   // ── render ────────────────────────────────────────────────────────────────
@@ -234,7 +250,7 @@ export default function MultiplicadorPage() {
             style={{ background: 'rgba(0,229,255,0.10)', border: '1px solid rgba(0,229,255,0.3)', color: '#00E5FF' }}>
             <ExternalLink size={12} /> Importar de concorrente
           </button>
-          <button onClick={() => { setError(''); void loadDrafts(); if (sel) void loadCandidates(sel, q) }}
+          <button onClick={() => { setError(''); void loadDrafts(); if (sel) void loadCandidates(sel, q, pageSize, page * pageSize) }}
             className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold"
             style={{ background: '#111114', border: '1px solid #27272a', color: '#a1a1aa' }}>
             <RefreshCw size={12} /> Atualizar
@@ -262,22 +278,22 @@ export default function MultiplicadorPage() {
             <TargetChip key={`ml-${c.seller_id}`} icon={<ShoppingBag size={12} />}
               label={c.nickname ? `ML ${c.nickname}` : `ML ${c.seller_id}`}
               active={sel?.platform === 'mercadolivre' && sel.accountId === String(c.seller_id)}
-              onClick={() => setSel({ platform: 'mercadolivre', accountId: String(c.seller_id), label: c.nickname ? `ML ${c.nickname}` : `ML ${c.seller_id}` })} />
+              onClick={() => selectTarget({ platform: 'mercadolivre', accountId: String(c.seller_id), label: c.nickname ? `ML ${c.nickname}` : `ML ${c.seller_id}` })} />
           ))}
           {targets.shopee.map(s => (
             <TargetChip key={`shopee-${s.shop_id}`} icon={<ShoppingBag size={12} />}
               label={s.nickname ?? `Shopee ${s.shop_id}`}
               active={sel?.platform === 'shopee' && sel.accountId === String(s.shop_id)}
-              onClick={() => setSel({ platform: 'shopee', accountId: String(s.shop_id), label: s.nickname ?? `Shopee ${s.shop_id}` })} />
+              onClick={() => selectTarget({ platform: 'shopee', accountId: String(s.shop_id), label: s.nickname ?? `Shopee ${s.shop_id}` })} />
           ))}
           {targets.tiktok_shop.connected && (
             <TargetChip icon={<Store size={12} />} label="TikTok Shop"
               active={sel?.platform === 'tiktok_shop'}
-              onClick={() => setSel({ platform: 'tiktok_shop', accountId: null, label: 'TikTok Shop' })} />
+              onClick={() => selectTarget({ platform: 'tiktok_shop', accountId: null, label: 'TikTok Shop' })} />
           )}
           <TargetChip icon={<Globe size={12} />} label="Loja própria"
             active={sel?.platform === 'storefront'}
-            onClick={() => setSel({ platform: 'storefront', accountId: null, label: 'Loja própria' })} />
+            onClick={() => selectTarget({ platform: 'storefront', accountId: null, label: 'Loja própria' })} />
         </div>
       )}
 
@@ -346,6 +362,41 @@ export default function MultiplicadorPage() {
                 </button>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* paginação */}
+        {!loading && cands && cands.total > 0 && (
+          <div className="flex flex-wrap items-center gap-2 border-t px-4 py-3" style={{ borderColor: '#27272a' }}>
+            <span className="text-[11px]" style={{ color: '#52525b' }}>
+              Mostrando {Math.min(page * pageSize + 1, cands.total)}–{Math.min((page + 1) * pageSize, cands.total)} de {cands.total}
+            </span>
+            <div className="ml-auto flex flex-wrap items-center gap-1.5">
+              <span className="text-[11px]" style={{ color: '#52525b' }}>Por página:</span>
+              {[20, 50, 100, 200].map(n => (
+                <button key={n} onClick={() => { setPageSize(n); setPage(0) }}
+                  className="rounded px-2 py-1 text-[11px] font-semibold"
+                  style={pageSize === n
+                    ? { background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.4)', color: '#00E5FF' }
+                    : { background: '#0a0a0e', border: '1px solid #27272a', color: '#a1a1aa' }}>
+                  {n}
+                </button>
+              ))}
+              <span className="mx-1" style={{ color: '#27272a' }}>|</span>
+              <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}
+                className="rounded px-2.5 py-1 text-[11px] font-semibold disabled:opacity-40"
+                style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#a1a1aa' }}>
+                ← Anterior
+              </button>
+              <span className="text-[11px]" style={{ color: '#71717a' }}>
+                página {page + 1} de {Math.max(1, Math.ceil(cands.total / pageSize))}
+              </span>
+              <button onClick={() => setPage(p => p + 1)} disabled={(page + 1) * pageSize >= cands.total}
+                className="rounded px-2.5 py-1 text-[11px] font-semibold disabled:opacity-40"
+                style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#a1a1aa' }}>
+                Próxima →
+              </button>
+            </div>
           </div>
         )}
       </section>
