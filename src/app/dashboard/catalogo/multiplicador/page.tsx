@@ -537,8 +537,8 @@ function ReviewModal({ draft, onClose, onChanged }: {
     const body: Record<string, unknown> = { title, description: desc || null }
     const p = Number(price.replace(',', '.'))
     if (Number.isFinite(p) && p > 0) body.price = Math.round(p * 100) / 100
-    if (draft.target_platform === 'tiktok_shop' || draft.target_platform === 'mercadolivre') {
-      body.category_id = categoryId || null
+    if (draft.target_platform === 'tiktok_shop' || draft.target_platform === 'mercadolivre' || draft.target_platform === 'shopee') {
+      body.category_id = categoryId.trim() || null
     }
     if (draft.target_platform === 'mercadolivre') body.listing_type = listingType || null
     if (draft.target_platform === 'shopee' && varsDirty) {
@@ -644,6 +644,14 @@ function ReviewModal({ draft, onClose, onChanged }: {
               <Field label="Categoria ML (id)">
                 <input value={categoryId} onChange={e => setCategoryId(e.target.value)}
                   placeholder="prevista automaticamente"
+                  className="w-full rounded-lg px-3 py-2 text-sm outline-none"
+                  style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }} />
+              </Field>
+            )}
+            {draft.target_platform === 'shopee' && (
+              <Field label="Categoria Shopee (id — opcional)">
+                <input value={categoryId} onChange={e => setCategoryId(e.target.value)} inputMode="numeric"
+                  placeholder="vazio = recomendada automaticamente"
                   className="w-full rounded-lg px-3 py-2 text-sm outline-none"
                   style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }} />
               </Field>
