@@ -15,6 +15,19 @@ type MlAccount = {
   created_at: string
 }
 
+// Conta de marketplace_connections (Shopee/Magalu) — shape sanitizado do
+// GET /marketplace/connections
+type MpAccount = {
+  id: string
+  platform: string
+  shop_id: number | null
+  seller_id: number | null
+  nickname: string | null
+  status: string | null
+  expires_at: string | null
+  created_at: string | null
+}
+
 type Toast = { id: number; msg: string; type: 'success' | 'error' }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -111,6 +124,79 @@ function MlAccountCard({
         {[
           { label: t('account.nickname'), value: account.nickname ?? `#${account.seller_id}` },
           { label: t('account.tokenExpires'), value: new Date(account.expires_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) },
+          { label: t('account.connectedAt'), value: account.created_at ? new Date(account.created_at).toLocaleDateString('pt-BR') : '—' },
+        ].map(({ label, value }) => (
+          <div key={label} className="px-5 py-4" style={{ background: '#111114' }}>
+            <p className="text-zinc-500 text-xs mb-1">{label}</p>
+            <p className="text-white text-sm font-medium">{value}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ── Marketplace account card (Shopee/Magalu) ──────────────────────────────────
+
+function MpAccountCard({
+  account, logo, color, logoTextColor,
+  onDisconnect, disconnecting,
+}: {
+  account: MpAccount
+  logo: string
+  color: string
+  logoTextColor?: string
+  onDisconnect: (id: string) => void
+  disconnecting: string | null
+}) {
+  const t = useTranslations('integracoes')
+  const expired = account.expires_at ? isExpired(account.expires_at) : false
+  const loading = disconnecting === account.id
+  const externalId = account.shop_id ?? account.seller_id
+
+  return (
+    <div className="rounded-2xl overflow-hidden" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+      <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid #1e1e24' }}>
+        <div className="flex items-center gap-3">
+          <div
+            className="w-10 h-10 rounded-xl flex items-center justify-center text-xs font-bold shrink-0"
+            style={{ background: color, color: logoTextColor ?? '#fff' }}
+          >
+            {logo}
+          </div>
+          <div>
+            <p className="text-white text-sm font-semibold">
+              {account.nickname ?? t('account.unnamed', { id: externalId ?? '?' })}
+            </p>
+            <p className="text-zinc-500 text-xs mt-0.5">{t('account.id')}: {externalId ?? '—'}</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <span
+            className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full"
+            style={expired
+              ? { background: 'rgba(248,113,113,0.1)', color: '#f87171' }
+              : { background: 'rgba(52,211,153,0.1)', color: '#34d399' }}
+          >
+            <span className={`w-1.5 h-1.5 rounded-full ${expired ? 'bg-red-400' : 'bg-emerald-400 animate-pulse'}`} />
+            {expired ? t('account.expired') : t('account.active')}
+          </span>
+          <button
+            onClick={() => onDisconnect(account.id)}
+            disabled={loading}
+            className="px-4 py-1.5 rounded-lg text-sm font-medium border transition-all disabled:opacity-50"
+            style={{ borderColor: '#3f3f46', color: '#f87171', background: 'transparent' }}
+          >
+            {loading ? t('account.removing') : t('account.disconnect')}
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-px" style={{ background: '#1e1e24' }}>
+        {[
+          { label: t('account.nickname'), value: account.nickname ?? (externalId ? `#${externalId}` : '—') },
+          { label: t('account.tokenExpires'), value: account.expires_at ? new Date(account.expires_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '—' },
           { label: t('account.connectedAt'), value: account.created_at ? new Date(account.created_at).toLocaleDateString('pt-BR') : '—' },
         ].map(({ label, value }) => (
           <div key={label} className="px-5 py-4" style={{ background: '#111114' }}>
@@ -271,8 +357,10 @@ function MarketplaceConnectCard({
 export default function IntegracoesPage() {
   const t = useTranslations('integracoes')
   const [accounts, setAccounts] = useState<MlAccount[]>([])
+  const [mpAccounts, setMpAccounts] = useState<MpAccount[]>([])
   const [loadingStatus, setLoadingStatus] = useState(true)
   const [disconnecting, setDisconnecting] = useState<number | null>(null)
+  const [mpDisconnecting, setMpDisconnecting] = useState<string | null>(null)
   const [toasts, setToasts] = useState<Toast[]>([])
   const [connectingShopee, setConnectingShopee] = useState(false)
   const [connectingMagalu, setConnectingMagalu] = useState(false)
@@ -311,19 +399,31 @@ export default function IntegracoesPage() {
   const loadAccounts = useCallback(async () => {
     const token = await getToken()
     if (!token) { setLoadingStatus(false); return }
-    try {
-      const res = await fetch(`${BACKEND}/ml/connections`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      if (res.ok) {
-        const data = await res.json()
-        setAccounts(Array.isArray(data) ? data : [])
-      } else {
-        console.error('[ML connections] resposta:', res.status, res.statusText)
-      }
-    } catch (err) {
-      console.error('[ML connections] erro de rede:', err)
-    }
+    const headers = { Authorization: `Bearer ${token}` }
+    await Promise.all([
+      // Contas ML (tabela ml_connections)
+      fetch(`${BACKEND}/ml/connections`, { headers })
+        .then(async res => {
+          if (res.ok) {
+            const data = await res.json()
+            setAccounts(Array.isArray(data) ? data : [])
+          } else {
+            console.error('[ML connections] resposta:', res.status, res.statusText)
+          }
+        })
+        .catch(err => console.error('[ML connections] erro de rede:', err)),
+      // Contas Shopee/Magalu (tabela marketplace_connections)
+      fetch(`${BACKEND}/marketplace/connections`, { headers })
+        .then(async res => {
+          if (res.ok) {
+            const data = await res.json()
+            setMpAccounts(Array.isArray(data) ? data : [])
+          } else {
+            console.error('[MP connections] resposta:', res.status, res.statusText)
+          }
+        })
+        .catch(err => console.error('[MP connections] erro de rede:', err)),
+    ])
     setLoadingStatus(false)
   }, [])
 
@@ -359,6 +459,25 @@ export default function IntegracoesPage() {
       `&redirect_uri=${encodeURIComponent(redirectUri)}`
   }
 
+  async function handleMpDisconnect(id: string) {
+    setMpDisconnecting(id)
+    const token = await getToken()
+    if (!token) { toast(t('toast.sessionExpired'), 'error'); setMpDisconnecting(null); return }
+
+    const res = await fetch(`${BACKEND}/marketplace/connections/${id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    })
+
+    setMpDisconnecting(null)
+    if (res.ok || res.status === 204) {
+      setMpAccounts(prev => prev.filter(a => a.id !== id))
+      toast(t('toast.accountDisconnected'))
+    } else {
+      toast(t('toast.disconnectError'), 'error')
+    }
+  }
+
   async function handleDisconnect(sellerId: number) {
     setDisconnecting(sellerId)
     const token = await getToken()
@@ -377,6 +496,9 @@ export default function IntegracoesPage() {
       toast(t('toast.disconnectError'), 'error')
     }
   }
+
+  const shopeeAccounts = mpAccounts.filter(a => a.platform === 'shopee')
+  const magaluAccounts = mpAccounts.filter(a => a.platform === 'magalu')
 
   return (
     <>
@@ -427,6 +549,32 @@ export default function IntegracoesPage() {
               </div>
             )}
 
+            {/* Shopee section */}
+            {shopeeAccounts.length > 0 && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-6 h-6 rounded-md flex items-center justify-center text-[10px] font-bold"
+                    style={{ background: '#ee4d2d', color: '#fff' }}>
+                    SP
+                  </div>
+                  <span className="text-zinc-300 text-sm font-medium">Shopee</span>
+                  <span className="text-[11px] px-2 py-0.5 rounded-full font-medium"
+                    style={{ background: 'rgba(52,211,153,0.1)', color: '#34d399' }}>
+                    {t('connectedAccountsCount', { count: shopeeAccounts.length })}
+                  </span>
+                </div>
+                {shopeeAccounts.map(acc => (
+                  <MpAccountCard
+                    key={acc.id}
+                    account={acc}
+                    logo="SP"
+                    color="#ee4d2d"
+                    onDisconnect={handleMpDisconnect}
+                    disconnecting={mpDisconnecting}
+                  />
+                ))}
+              </div>
+            )}
             <MarketplaceConnectCard
               name="Shopee"
               logo="SP"
@@ -436,6 +584,32 @@ export default function IntegracoesPage() {
               connecting={connectingShopee}
             />
 
+            {/* Magalu section */}
+            {magaluAccounts.length > 0 && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-6 h-6 rounded-md flex items-center justify-center text-[10px] font-bold"
+                    style={{ background: '#0086ff', color: '#fff' }}>
+                    ML
+                  </div>
+                  <span className="text-zinc-300 text-sm font-medium">Magalu</span>
+                  <span className="text-[11px] px-2 py-0.5 rounded-full font-medium"
+                    style={{ background: 'rgba(52,211,153,0.1)', color: '#34d399' }}>
+                    {t('connectedAccountsCount', { count: magaluAccounts.length })}
+                  </span>
+                </div>
+                {magaluAccounts.map(acc => (
+                  <MpAccountCard
+                    key={acc.id}
+                    account={acc}
+                    logo="ML"
+                    color="#0086ff"
+                    onDisconnect={handleMpDisconnect}
+                    disconnecting={mpDisconnecting}
+                  />
+                ))}
+              </div>
+            )}
             <MarketplaceConnectCard
               name="Magalu"
               logo="ML"
