@@ -405,11 +405,14 @@ const ADMIN_SECTION: NavSection = {
   ],
 }
 
+// Ao INICIAR a página, todos os módulos ficam colapsados (pedido do produto,
+// 2026-07-07) — o usuário abre só o que vai usar; navegação SPA mantém o que
+// ele abriu até o próximo reload.
 const SECTION_DEFAULT_OPEN: Record<string, boolean> = {
-  visaogeral:      true,
-  active:          true,
-  marketplace:     true,
-  admin:           true,
+  visaogeral:      false,
+  active:          false,
+  marketplace:     false,
+  admin:           false,
   compras:         false,
   dropship:        false,
   crm:             false,
@@ -662,15 +665,11 @@ export default function Sidebar({ enabledModules = null, platformAdmin = false }
   const [openSections, setOpenSections] = useState<Record<string, boolean>>(SECTION_DEFAULT_OPEN)
   const mounted = useRef(true)
 
-  // Restore persisted state from localStorage
+  // Restore persisted state from localStorage — só a LARGURA (recolhido/
+  // expandido). O aberto/fechado das seções NÃO persiste mais: todo reload
+  // começa com tudo colapsado (SECTION_DEFAULT_OPEN).
   useEffect(() => {
     if (localStorage.getItem('sidebar-collapsed') === 'true') setCollapsed(true)
-    const restored: Record<string, boolean> = { ...SECTION_DEFAULT_OPEN }
-    SECTIONS.forEach(s => {
-      const v = localStorage.getItem(`sidebar-section-${s.key}`)
-      if (v !== null) restored[s.key] = v === 'true'
-    })
-    setOpenSections(restored)
   }, [])
 
   const toggleCollapsed = () => {
@@ -682,11 +681,7 @@ export default function Sidebar({ enabledModules = null, platformAdmin = false }
   }
 
   const toggleSection = (key: string) => {
-    setOpenSections(prev => {
-      const next = { ...prev, [key]: !prev[key] }
-      localStorage.setItem(`sidebar-section-${key}`, String(next[key]))
-      return next
-    })
+    setOpenSections(prev => ({ ...prev, [key]: !prev[key] }))
   }
 
   // Fetch badges in background
@@ -796,13 +791,16 @@ export default function Sidebar({ enabledModules = null, platformAdmin = false }
         ) : (
           <>
             {/* Logo oficial — classe 'logo-themed' aplica blend correto por
-                tema (screen no escuro, invert no claro) via globals.css. */}
-            <img
-              src="/logo.png"
-              alt="e-Click"
-              className="logo-themed"
-              style={{ width: 160 }}
-            />
+                tema (screen no escuro, invert no claro) via globals.css.
+                Clique leva pra home do painel. */}
+            <Link href="/dashboard" title={t('items.dashboard')} style={{ flexShrink: 0 }}>
+              <img
+                src="/logo.png"
+                alt="e-Click"
+                className="logo-themed"
+                style={{ width: 160, cursor: 'pointer' }}
+              />
+            </Link>
             <button
               onClick={toggleCollapsed}
               className="flex items-center justify-center w-7 h-7 rounded-md transition-colors"
