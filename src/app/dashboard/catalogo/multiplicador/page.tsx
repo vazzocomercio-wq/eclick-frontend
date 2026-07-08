@@ -24,6 +24,14 @@ type Targets = {
   storefront:   { connected: boolean }
 }
 
+type SourceListing = {
+  platform:   string
+  account_id: string | null
+  listing_id: string
+  title:      string | null
+  price:      number | null
+}
+
 type Candidate = {
   product_id:  string
   name:        string
@@ -33,6 +41,8 @@ type Candidate = {
   photo_count: number
   thumbnail:   string | null
   covered:     string[]
+  /** anúncios ativos do produto — o usuário escolhe qual é a REFERÊNCIA. */
+  sources?:    SourceListing[]
   warnings:    string[]
 }
 
@@ -121,6 +131,10 @@ export default function MultiplicadorPage() {
   const [notice, setNotice]     = useState('')
   const [review, setReview]     = useState<Draft | null>(null)    // modal de revisão
   const [importOpen, setImportOpen] = useState(false)             // modal importar concorrente
+  const [pickSource, setPickSource] = useState<Candidate | null>(null) // escolher anúncio referência
+  // paginação dos candidatos (o backend aceita limit/offset e devolve total)
+  const [pageSize, setPageSize] = useState(20)
+  const [page, setPage]         = useState(0)
 
   // ── carregamento ──────────────────────────────────────────────────────────
 
@@ -133,9 +147,9 @@ export default function MultiplicadorPage() {
     setSel(prev => prev ?? defaultTarget(t))
   }, [])
 
-  const loadCandidates = useCallback(async (target: TargetSel, search: string) => {
+  const loadCandidates = useCallback(async (target: TargetSel, search: string, size: number, offset: number) => {
     const h = await authHeaders()
-    const params = new URLSearchParams({ target: target.platform, limit: '60' })
+    const params = new URLSearchParams({ target: target.platform, limit: String(size), offset: String(offset) })
     if (target.accountId) params.set('account_id', target.accountId)
     if (search.trim()) params.set('q', search.trim())
     const res = await fetch(`${BACKEND}/multiplier/candidates?${params}`, { headers: h })
@@ -173,18 +187,33 @@ export default function MultiplicadorPage() {
   useEffect(() => {
     if (!sel) return
     setCands(null); setError('')
-    loadCandidates(sel, q).catch(e => setError(e instanceof Error ? e.message : 'Falha ao listar candidatos.'))
-  }, [sel, loadCandidates]) // q só ao apertar Enter/botão (handleSearch)
+    loadCandidates(sel, q, pageSize, page * pageSize)
+      .catch(e => setError(e instanceof Error ? e.message : 'Falha ao listar candidatos.'))
+  }, [sel, page, pageSize, loadCandidates]) // q só ao apertar Enter/botão (handleSearch)
+
+  /** Troca de destino sempre volta pra 1ª página. */
+  const selectTarget = (t: TargetSel) => { setSel(t); setPage(0) }
+
+  // Página fora do alcance (total encolheu — ex.: candidato publicado saiu da
+  // lista) → volta pra última página válida em vez de mostrar lista vazia.
+  useEffect(() => {
+    if (cands && cands.items.length === 0 && cands.total > 0 && page > 0) {
+      setPage(Math.max(0, Math.ceil(cands.total / pageSize) - 1))
+    }
+  }, [cands, page, pageSize])
 
   const handleSearch = () => {
     if (!sel) return
+    if (page !== 0) { setPage(0); return } // efeito acima recarrega já na página 1
     setCands(null)
-    loadCandidates(sel, q).catch(e => setError(e instanceof Error ? e.message : 'Falha na busca.'))
+    loadCandidates(sel, q, pageSize, 0).catch(e => setError(e instanceof Error ? e.message : 'Falha na busca.'))
   }
 
   // ── ações ─────────────────────────────────────────────────────────────────
 
-  const createDraft = async (c: Candidate) => {
+  /** Cria o rascunho. sourceListingId = anúncio REFERÊNCIA escolhido (é dele
+   *  que título/descrição/fotos/preço são copiados). */
+  const createDraft = async (c: Candidate, sourceListingId?: string | null) => {
     if (!sel) return
     setBusy(c.product_id); setError(''); setNotice('')
     try {
@@ -195,6 +224,7 @@ export default function MultiplicadorPage() {
           product_id: c.product_id,
           target_platform: sel.platform,
           target_account_id: sel.accountId,
+          source_listing_id: sourceListingId ?? null,
         }),
       })
       const body = await res.json()
@@ -210,7 +240,7 @@ export default function MultiplicadorPage() {
     setReview(updated)
     if (msg) setNotice(msg)
     await loadDrafts()
-    if (sel) await loadCandidates(sel, q).catch(() => undefined)
+    if (sel) await loadCandidates(sel, q, pageSize, page * pageSize).catch(() => undefined)
   }
 
   // ── render ────────────────────────────────────────────────────────────────
@@ -234,7 +264,7 @@ export default function MultiplicadorPage() {
             style={{ background: 'rgba(0,229,255,0.10)', border: '1px solid rgba(0,229,255,0.3)', color: '#00E5FF' }}>
             <ExternalLink size={12} /> Importar de concorrente
           </button>
-          <button onClick={() => { setError(''); void loadDrafts(); if (sel) void loadCandidates(sel, q) }}
+          <button onClick={() => { setError(''); void loadDrafts(); if (sel) void loadCandidates(sel, q, pageSize, page * pageSize) }}
             className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold"
             style={{ background: '#111114', border: '1px solid #27272a', color: '#a1a1aa' }}>
             <RefreshCw size={12} /> Atualizar
@@ -262,22 +292,22 @@ export default function MultiplicadorPage() {
             <TargetChip key={`ml-${c.seller_id}`} icon={<ShoppingBag size={12} />}
               label={c.nickname ? `ML ${c.nickname}` : `ML ${c.seller_id}`}
               active={sel?.platform === 'mercadolivre' && sel.accountId === String(c.seller_id)}
-              onClick={() => setSel({ platform: 'mercadolivre', accountId: String(c.seller_id), label: c.nickname ? `ML ${c.nickname}` : `ML ${c.seller_id}` })} />
+              onClick={() => selectTarget({ platform: 'mercadolivre', accountId: String(c.seller_id), label: c.nickname ? `ML ${c.nickname}` : `ML ${c.seller_id}` })} />
           ))}
           {targets.shopee.map(s => (
             <TargetChip key={`shopee-${s.shop_id}`} icon={<ShoppingBag size={12} />}
               label={s.nickname ?? `Shopee ${s.shop_id}`}
               active={sel?.platform === 'shopee' && sel.accountId === String(s.shop_id)}
-              onClick={() => setSel({ platform: 'shopee', accountId: String(s.shop_id), label: s.nickname ?? `Shopee ${s.shop_id}` })} />
+              onClick={() => selectTarget({ platform: 'shopee', accountId: String(s.shop_id), label: s.nickname ?? `Shopee ${s.shop_id}` })} />
           ))}
           {targets.tiktok_shop.connected && (
             <TargetChip icon={<Store size={12} />} label="TikTok Shop"
               active={sel?.platform === 'tiktok_shop'}
-              onClick={() => setSel({ platform: 'tiktok_shop', accountId: null, label: 'TikTok Shop' })} />
+              onClick={() => selectTarget({ platform: 'tiktok_shop', accountId: null, label: 'TikTok Shop' })} />
           )}
           <TargetChip icon={<Globe size={12} />} label="Loja própria"
             active={sel?.platform === 'storefront'}
-            onClick={() => setSel({ platform: 'storefront', accountId: null, label: 'Loja própria' })} />
+            onClick={() => selectTarget({ platform: 'storefront', accountId: null, label: 'Loja própria' })} />
         </div>
       )}
 
@@ -338,7 +368,14 @@ export default function MultiplicadorPage() {
                     ))}
                   </div>
                 </div>
-                <button onClick={() => void createDraft(c)} disabled={busy === c.product_id}
+                <button
+                  onClick={() => {
+                    // mais de um anúncio ativo → usuário escolhe a REFERÊNCIA;
+                    // um só → usa ele direto
+                    if ((c.sources?.length ?? 0) > 1) setPickSource(c)
+                    else void createDraft(c, c.sources?.[0]?.listing_id ?? null)
+                  }}
+                  disabled={busy === c.product_id}
                   className="flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold disabled:opacity-50"
                   style={{ background: 'rgba(0,229,255,0.10)', border: '1px solid rgba(0,229,255,0.3)', color: '#00E5FF' }}>
                   {busy === c.product_id ? <Loader2 size={12} className="animate-spin" /> : <Copy size={12} />}
@@ -346,6 +383,41 @@ export default function MultiplicadorPage() {
                 </button>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* paginação */}
+        {!loading && cands && cands.total > 0 && (
+          <div className="flex flex-wrap items-center gap-2 border-t px-4 py-3" style={{ borderColor: '#27272a' }}>
+            <span className="text-[11px]" style={{ color: '#52525b' }}>
+              Mostrando {Math.min(page * pageSize + 1, cands.total)}–{Math.min((page + 1) * pageSize, cands.total)} de {cands.total}
+            </span>
+            <div className="ml-auto flex flex-wrap items-center gap-1.5">
+              <span className="text-[11px]" style={{ color: '#52525b' }}>Por página:</span>
+              {[20, 50, 100, 200].map(n => (
+                <button key={n} onClick={() => { setPageSize(n); setPage(0) }}
+                  className="rounded px-2 py-1 text-[11px] font-semibold"
+                  style={pageSize === n
+                    ? { background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.4)', color: '#00E5FF' }
+                    : { background: '#0a0a0e', border: '1px solid #27272a', color: '#a1a1aa' }}>
+                  {n}
+                </button>
+              ))}
+              <span className="mx-1" style={{ color: '#27272a' }}>|</span>
+              <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}
+                className="rounded px-2.5 py-1 text-[11px] font-semibold disabled:opacity-40"
+                style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#a1a1aa' }}>
+                ← Anterior
+              </button>
+              <span className="text-[11px]" style={{ color: '#71717a' }}>
+                página {page + 1} de {Math.max(1, Math.ceil(cands.total / pageSize))}
+              </span>
+              <button onClick={() => setPage(p => p + 1)} disabled={(page + 1) * pageSize >= cands.total}
+                className="rounded px-2.5 py-1 text-[11px] font-semibold disabled:opacity-40"
+                style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#a1a1aa' }}>
+                Próxima →
+              </button>
+            </div>
           </div>
         )}
       </section>
@@ -394,6 +466,13 @@ export default function MultiplicadorPage() {
       {review && (
         <ReviewModal draft={review} onClose={() => setReview(null)} onChanged={afterReviewChange} />
       )}
+      {pickSource && (
+        <SourcePickerModal
+          candidate={pickSource}
+          targets={targets}
+          onClose={() => setPickSource(null)}
+          onPick={listingId => { const c = pickSource; setPickSource(null); void createDraft(c, listingId) }} />
+      )}
       {importOpen && targets && (
         <ImportCompetitorModal
           targets={targets}
@@ -406,6 +485,54 @@ export default function MultiplicadorPage() {
             if (draft) setReview(draft)
           }} />
       )}
+    </div>
+  )
+}
+
+// ── modal: escolher o anúncio REFERÊNCIA da cópia ────────────────────────────
+// O produto tem anúncio em 2+ canais — o usuário escolhe DE QUAL anúncio os
+// dados serão copiados (título, descrição, fotos, preço). É a referência que
+// alimenta o rascunho; quanto mais completo o anúncio escolhido, melhor a cópia.
+
+function SourcePickerModal({ candidate, targets, onClose, onPick }: {
+  candidate: Candidate
+  targets: Targets | null
+  onClose: () => void
+  onPick: (listingId: string) => void
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={onClose}>
+      <div className="w-full max-w-lg rounded-2xl p-5" style={{ background: '#111114', border: '1px solid #27272a' }} onClick={e => e.stopPropagation()}>
+        <div className="mb-1 flex items-center gap-2">
+          <Copy size={15} className="text-cyan-400" />
+          <h3 className="text-sm font-bold text-white">De qual anúncio copiar?</h3>
+          <button onClick={onClose} className="ml-auto" style={{ color: '#71717a' }}><X size={16} /></button>
+        </div>
+        <p className="mb-3 text-xs" style={{ color: '#a1a1aa' }}>
+          <span className="text-white">{candidate.name}</span> tem anúncio em {candidate.sources?.length} canais.
+          Escolha a <b>referência</b> — título, descrição, fotos e preço serão copiados dela.
+        </p>
+        <div className="space-y-1.5">
+          {(candidate.sources ?? []).map(s => (
+            <button key={`${s.platform}:${s.listing_id}`} onClick={() => onPick(s.listing_id)}
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left"
+              style={{ background: '#0a0a0e', border: '1px solid #27272a' }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(0,229,255,0.4)' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = '#27272a' }}>
+              <span className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold" style={{ background: 'rgba(0,229,255,0.07)', color: '#a5f3fc' }}>
+                {channelLabel(s.account_id ? `${s.platform}:${s.account_id}` : s.platform, targets)}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-xs text-white">{s.title ?? '(sem título)'}</span>
+                <span className="text-[10px]" style={{ color: '#71717a' }}>
+                  {s.listing_id}{s.price != null ? ` · R$ ${s.price.toFixed(2)}` : ''}
+                </span>
+              </span>
+              <Copy size={13} className="shrink-0" style={{ color: '#00E5FF' }} />
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }
@@ -537,8 +664,8 @@ function ReviewModal({ draft, onClose, onChanged }: {
     const body: Record<string, unknown> = { title, description: desc || null }
     const p = Number(price.replace(',', '.'))
     if (Number.isFinite(p) && p > 0) body.price = Math.round(p * 100) / 100
-    if (draft.target_platform === 'tiktok_shop' || draft.target_platform === 'mercadolivre') {
-      body.category_id = categoryId || null
+    if (draft.target_platform === 'tiktok_shop' || draft.target_platform === 'mercadolivre' || draft.target_platform === 'shopee') {
+      body.category_id = categoryId.trim() || null
     }
     if (draft.target_platform === 'mercadolivre') body.listing_type = listingType || null
     if (draft.target_platform === 'shopee' && varsDirty) {
@@ -644,6 +771,14 @@ function ReviewModal({ draft, onClose, onChanged }: {
               <Field label="Categoria ML (id)">
                 <input value={categoryId} onChange={e => setCategoryId(e.target.value)}
                   placeholder="prevista automaticamente"
+                  className="w-full rounded-lg px-3 py-2 text-sm outline-none"
+                  style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }} />
+              </Field>
+            )}
+            {draft.target_platform === 'shopee' && (
+              <Field label="Categoria Shopee (id — opcional)">
+                <input value={categoryId} onChange={e => setCategoryId(e.target.value)} inputMode="numeric"
+                  placeholder="vazio = recomendada automaticamente"
                   className="w-full rounded-lg px-3 py-2 text-sm outline-none"
                   style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }} />
               </Field>
