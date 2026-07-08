@@ -24,6 +24,14 @@ type Targets = {
   storefront:   { connected: boolean }
 }
 
+type SourceListing = {
+  platform:   string
+  account_id: string | null
+  listing_id: string
+  title:      string | null
+  price:      number | null
+}
+
 type Candidate = {
   product_id:  string
   name:        string
@@ -33,6 +41,8 @@ type Candidate = {
   photo_count: number
   thumbnail:   string | null
   covered:     string[]
+  /** anúncios ativos do produto — o usuário escolhe qual é a REFERÊNCIA. */
+  sources?:    SourceListing[]
   warnings:    string[]
 }
 
@@ -121,6 +131,7 @@ export default function MultiplicadorPage() {
   const [notice, setNotice]     = useState('')
   const [review, setReview]     = useState<Draft | null>(null)    // modal de revisão
   const [importOpen, setImportOpen] = useState(false)             // modal importar concorrente
+  const [pickSource, setPickSource] = useState<Candidate | null>(null) // escolher anúncio referência
   // paginação dos candidatos (o backend aceita limit/offset e devolve total)
   const [pageSize, setPageSize] = useState(20)
   const [page, setPage]         = useState(0)
@@ -200,7 +211,9 @@ export default function MultiplicadorPage() {
 
   // ── ações ─────────────────────────────────────────────────────────────────
 
-  const createDraft = async (c: Candidate) => {
+  /** Cria o rascunho. sourceListingId = anúncio REFERÊNCIA escolhido (é dele
+   *  que título/descrição/fotos/preço são copiados). */
+  const createDraft = async (c: Candidate, sourceListingId?: string | null) => {
     if (!sel) return
     setBusy(c.product_id); setError(''); setNotice('')
     try {
@@ -211,6 +224,7 @@ export default function MultiplicadorPage() {
           product_id: c.product_id,
           target_platform: sel.platform,
           target_account_id: sel.accountId,
+          source_listing_id: sourceListingId ?? null,
         }),
       })
       const body = await res.json()
@@ -354,7 +368,14 @@ export default function MultiplicadorPage() {
                     ))}
                   </div>
                 </div>
-                <button onClick={() => void createDraft(c)} disabled={busy === c.product_id}
+                <button
+                  onClick={() => {
+                    // mais de um anúncio ativo → usuário escolhe a REFERÊNCIA;
+                    // um só → usa ele direto
+                    if ((c.sources?.length ?? 0) > 1) setPickSource(c)
+                    else void createDraft(c, c.sources?.[0]?.listing_id ?? null)
+                  }}
+                  disabled={busy === c.product_id}
                   className="flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold disabled:opacity-50"
                   style={{ background: 'rgba(0,229,255,0.10)', border: '1px solid rgba(0,229,255,0.3)', color: '#00E5FF' }}>
                   {busy === c.product_id ? <Loader2 size={12} className="animate-spin" /> : <Copy size={12} />}
@@ -445,6 +466,13 @@ export default function MultiplicadorPage() {
       {review && (
         <ReviewModal draft={review} onClose={() => setReview(null)} onChanged={afterReviewChange} />
       )}
+      {pickSource && (
+        <SourcePickerModal
+          candidate={pickSource}
+          targets={targets}
+          onClose={() => setPickSource(null)}
+          onPick={listingId => { const c = pickSource; setPickSource(null); void createDraft(c, listingId) }} />
+      )}
       {importOpen && targets && (
         <ImportCompetitorModal
           targets={targets}
@@ -457,6 +485,54 @@ export default function MultiplicadorPage() {
             if (draft) setReview(draft)
           }} />
       )}
+    </div>
+  )
+}
+
+// ── modal: escolher o anúncio REFERÊNCIA da cópia ────────────────────────────
+// O produto tem anúncio em 2+ canais — o usuário escolhe DE QUAL anúncio os
+// dados serão copiados (título, descrição, fotos, preço). É a referência que
+// alimenta o rascunho; quanto mais completo o anúncio escolhido, melhor a cópia.
+
+function SourcePickerModal({ candidate, targets, onClose, onPick }: {
+  candidate: Candidate
+  targets: Targets | null
+  onClose: () => void
+  onPick: (listingId: string) => void
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={onClose}>
+      <div className="w-full max-w-lg rounded-2xl p-5" style={{ background: '#111114', border: '1px solid #27272a' }} onClick={e => e.stopPropagation()}>
+        <div className="mb-1 flex items-center gap-2">
+          <Copy size={15} className="text-cyan-400" />
+          <h3 className="text-sm font-bold text-white">De qual anúncio copiar?</h3>
+          <button onClick={onClose} className="ml-auto" style={{ color: '#71717a' }}><X size={16} /></button>
+        </div>
+        <p className="mb-3 text-xs" style={{ color: '#a1a1aa' }}>
+          <span className="text-white">{candidate.name}</span> tem anúncio em {candidate.sources?.length} canais.
+          Escolha a <b>referência</b> — título, descrição, fotos e preço serão copiados dela.
+        </p>
+        <div className="space-y-1.5">
+          {(candidate.sources ?? []).map(s => (
+            <button key={`${s.platform}:${s.listing_id}`} onClick={() => onPick(s.listing_id)}
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left"
+              style={{ background: '#0a0a0e', border: '1px solid #27272a' }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(0,229,255,0.4)' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = '#27272a' }}>
+              <span className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold" style={{ background: 'rgba(0,229,255,0.07)', color: '#a5f3fc' }}>
+                {channelLabel(s.account_id ? `${s.platform}:${s.account_id}` : s.platform, targets)}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-xs text-white">{s.title ?? '(sem título)'}</span>
+                <span className="text-[10px]" style={{ color: '#71717a' }}>
+                  {s.listing_id}{s.price != null ? ` · R$ ${s.price.toFixed(2)}` : ''}
+                </span>
+              </span>
+              <Copy size={13} className="shrink-0" style={{ color: '#00E5FF' }} />
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }
