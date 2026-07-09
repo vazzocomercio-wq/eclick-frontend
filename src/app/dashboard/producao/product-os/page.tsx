@@ -3823,6 +3823,11 @@ function LiveMonitorPanel() {
         <div className="grid gap-3 lg:grid-cols-2">
           {printers.map(p => {
             const lv = live[p.id]; const c = stateColor(lv); const printing = lv?.state === 'printing'; const fil = loaded[p.id] ?? []
+            // idade do último frame da câmera: quando imprimindo esperamos ~3s; se passar
+            // de 60s (ou 5min ocioso) a câmera travou (porta 6000 sem enviar) → avisa na tela
+            const camAgeMs = lv?.camera_at ? Date.now() - new Date(lv.camera_at).getTime() : null
+            const camStale = camAgeMs != null && camAgeMs > (printing ? 60000 : 300000)
+            const camAgeTxt = camAgeMs == null ? '' : camAgeMs < 60000 ? `${Math.round(camAgeMs / 1000)}s` : camAgeMs < 3600000 ? `${Math.round(camAgeMs / 60000)}min` : camAgeMs < 86400000 ? `${Math.floor(camAgeMs / 3600000)}h` : `${Math.floor(camAgeMs / 86400000)}d`
             return (
               <div key={p.id} className="rounded-xl p-4" style={{ background: '#111114', border: `1px solid ${printing ? 'rgba(0,229,255,0.35)' : '#27272a'}` }}>
                 {/* header */}
@@ -3855,8 +3860,11 @@ function LiveMonitorPanel() {
 
                 {/* câmera ao vivo */}
                 {lv?.camera_url && !camHidden[p.id] && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={`${lv.camera_url}?t=${encodeURIComponent(lv.camera_at ?? '')}`} alt="câmera" className="mt-3 w-full rounded-lg" style={{ border: '1px solid #1a1a1f', aspectRatio: '4 / 3', objectFit: 'cover', background: '#0a0a0e' }} onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
+                  <div className="relative mt-3">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={`${lv.camera_url}?t=${encodeURIComponent(lv.camera_at ?? '')}`} alt="câmera" className="w-full rounded-lg" style={{ border: '1px solid #1a1a1f', aspectRatio: '4 / 3', objectFit: 'cover', background: '#0a0a0e', filter: camStale ? 'grayscale(0.7) brightness(0.55)' : 'none' }} onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
+                    {camStale && <div className="absolute left-2 top-2 rounded px-2 py-0.5 text-[10px] font-bold" style={{ background: 'rgba(239,68,68,0.9)', color: '#fff' }}>⚠️ câmera parada há {camAgeTxt}</div>}
+                  </div>
                 )}
 
                 {/* progresso */}
