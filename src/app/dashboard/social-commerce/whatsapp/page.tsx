@@ -262,6 +262,13 @@ export default function WhatsappCatalogPage() {
                     <dd className="text-zinc-200">{channel.products_synced}</dd>
                   </div>
                 </dl>
+                {cfg.manual_link === true && (
+                  <div className="mt-3 rounded border border-amber-400/30 bg-amber-400/5 px-3 py-2 text-[11px] text-amber-200/90 leading-snug">
+                    Vínculo registrado manualmente — pra contas do app WhatsApp Business (SMB),
+                    a Meta não permite confirmar o vínculo pela API. Confira no app do WhatsApp
+                    (Ferramentas comerciais → Catálogo) se os produtos estão aparecendo.
+                  </div>
+                )}
                 {typeof cfg.display_phone === 'string' && (
                   <a
                     href={`https://wa.me/c/${String(cfg.display_phone).replace(/\D/g, '')}`}
