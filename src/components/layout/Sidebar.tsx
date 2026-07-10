@@ -8,7 +8,7 @@ import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase'
 import {
   Home, Radio, BarChart3, Package, ShoppingBag, MessageCircle,
-  Truck, DollarSign, Brain, Building2, Ship, Users, Target,
+  Truck, DollarSign, Brain, Building2, Ship, Users, Target, Receipt,
   Heart, MessageSquare, CheckSquare, Sparkles, Image as ImageIcon,
   Megaphone, ShoppingCart, TrendingUp, Settings, UserCog, Flame,
   Plug, Database, ChevronDown, Bot, Inbox, BookOpen,
@@ -263,6 +263,7 @@ const SECTIONS: NavSection[] = [
       { labelKey: 'items.producaoSocialImages', href: '/dashboard/social/images',    icon: <Sparkles size={15} /> },
       { labelKey: 'items.producaoAdsHub',     href: '/dashboard/ads-campaigns',       icon: <Megaphone size={15} /> },
       { labelKey: 'items.producaoPrecosIa',   href: '/dashboard/pricing-ai',          icon: <DollarSign size={15} /> },
+      { labelKey: 'items.producaoCustos3d',   href: '/dashboard/producao/custos',     icon: <Receipt size={15} /> },
       {
         labelKey: 'items.iaCriativo', href: '/dashboard/creative', icon: <Wand2 size={15} />,
         children: [
