@@ -145,7 +145,7 @@ export default function ShopeeListingsCenter() {
       const res = await fetch(`${BACKEND}/shopee/listings/auto-link`, { method: 'POST', headers })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const r = await res.json()
-      setNotice(`Auto-vínculo: ${r.items_linked} anúncios vinculados (${r.products_matched} produtos). ${r.items - r.items_linked} sem vínculo — vincule manualmente no detalhe.`)
+      setNotice(`Auto-vínculo: ${r.items_linked} anúncios vinculados (${r.products_matched} produtos${r.variation_links ? `, ${r.variation_links} por variação` : ''}). ${r.items - r.items_linked} sem vínculo — vincule manualmente no detalhe.`)
       await load()
     } catch (e) {
       setError((e as Error).message)
@@ -904,6 +904,9 @@ function Drawer({ card, link, shopLabel, onClose, onLink, onUnlink, onSaved, t }
           {/* F18 Fase A/B — Vínculo & Margem */}
           <LinkSection link={link} onLink={onLink} onUnlink={onUnlink} />
 
+          {/* Vínculo por VARIAÇÃO — model Shopee ↔ variação do catálogo (SKU) */}
+          <VariationsSection itemId={card.item_id} onSaved={onSaved} />
+
           {/* F18 Fase E — Editar conteúdo do anúncio (título/descrição) */}
           <ItemContentSection itemId={card.item_id} onSaved={onSaved} />
 
@@ -1078,6 +1081,183 @@ function LinkSection({ link, onLink, onUnlink }: {
           style={{ borderColor: 'rgba(0,229,255,0.3)', color: CYAN, background: 'rgba(0,229,255,0.05)' }}>
           <Link2 size={13} /> Vincular a um produto
         </button>
+      )}
+      {err && <p className="text-[11px] text-red-400">{err}</p>}
+    </div>
+  )
+}
+
+// Vínculo por VARIAÇÃO — cada model da Shopee (ex: cor Creme) casa com uma
+// variação do catálogo (products.variations[].sku). Chave = SKU da variação
+// (VZ-10010501-54 na Shopee = VZ-10010501-54 no cadastro). Carrega os models
+// DIRETO da Shopee (GET :itemId/models) com estado de vínculo + sugestão por
+// SKU; "Vincular todas" aplica as sugestões em 1 chamada.
+interface ModelLink {
+  product_id: string; product_name: string | null; product_sku: string | null
+  product_variation_sku: string | null; variation_value: string | null
+}
+interface ModelRow {
+  model_id:  number
+  model_sku: string
+  name:      string
+  price:     number | null
+  stock:     number | null
+  link:       ModelLink | null
+  suggestion: (ModelLink & { product_variation_sku: string }) | null
+}
+
+function VariationsSection({ itemId, onSaved }: { itemId: number; onSaved: () => Promise<void> | void }) {
+  const [open, setOpen]     = useState(false)
+  const [rows, setRows]     = useState<ModelRow[] | null>(null)
+  const [loading, setLoad]  = useState(false)
+  const [busy, setBusy]     = useState(false)
+  const [err, setErr]       = useState<string | null>(null)
+
+  const loadModels = useCallback(async () => {
+    setLoad(true); setErr(null)
+    try {
+      const headers = await authHeaders()
+      const res = await fetch(`${BACKEND}/shopee/listings/${itemId}/models`, { headers })
+      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.message ?? `HTTP ${res.status}`) }
+      const j = await res.json() as { models: ModelRow[] }
+      setRows(j.models ?? [])
+    } catch (e) {
+      setErr((e as Error).message)
+      setRows(null)
+    } finally {
+      setLoad(false)
+    }
+  }, [itemId])
+
+  const toggle = () => {
+    const next = !open
+    setOpen(next)
+    if (next && rows === null) void loadModels()
+  }
+
+  const applyLinks = useCallback(async (links: Array<{ model_id: number; product_id: string; product_variation_sku?: string | null }>) => {
+    setBusy(true); setErr(null)
+    try {
+      const headers = await authHeaders()
+      const res = await fetch(`${BACKEND}/shopee/listings/${itemId}/models/link`, {
+        method: 'POST', headers, body: JSON.stringify({ links }),
+      })
+      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.message ?? `HTTP ${res.status}`) }
+      await loadModels()
+      await onSaved()
+    } catch (e) {
+      setErr((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }, [itemId, loadModels, onSaved])
+
+  const unlinkModel = useCallback(async (modelId: number) => {
+    setBusy(true); setErr(null)
+    try {
+      const headers = await authHeaders()
+      const res = await fetch(`${BACKEND}/shopee/listings/${itemId}/models/${modelId}/unlink`, { method: 'POST', headers })
+      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.message ?? `HTTP ${res.status}`) }
+      await loadModels()
+      await onSaved()
+    } catch (e) {
+      setErr((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }, [itemId, loadModels, onSaved])
+
+  const suggestions = (rows ?? []).filter(r => !r.link && r.suggestion)
+  const linkedCount = (rows ?? []).filter(r => r.link).length
+
+  return (
+    <div className="rounded-2xl p-4 space-y-3" style={{ background: '#111114', border: '1px solid #1e1e24' }}>
+      <button onClick={toggle} className="w-full flex items-center gap-2">
+        <Boxes size={14} className="text-cyan-400" />
+        <h4 className="text-xs font-bold uppercase tracking-widest text-zinc-400">Variações</h4>
+        {rows !== null && rows.length > 0 && (
+          <span className="text-[10px] px-1.5 py-0.5 rounded-full"
+            style={linkedCount === rows.length
+              ? { background: 'rgba(74,222,128,0.12)', color: '#4ade80' }
+              : { background: 'rgba(0,229,255,0.10)',  color: CYAN }}>
+            {linkedCount}/{rows.length} vinculadas
+          </span>
+        )}
+        <span className="ml-auto text-[10px] text-zinc-600">{open ? 'ocultar' : 'abrir'}</span>
+      </button>
+
+      {open && (
+        loading ? (
+          <p className="text-[11px] text-zinc-500 py-2 text-center">Carregando variações da Shopee…</p>
+        ) : rows === null ? (
+          <p className="text-[11px] text-zinc-600 py-2 text-center">Não foi possível carregar as variações.</p>
+        ) : rows.length === 0 ? (
+          <p className="text-[11px] text-zinc-600 py-2 text-center">Este anúncio não tem variações.</p>
+        ) : (
+          <div className="space-y-2">
+            {suggestions.length > 0 && (
+              <button
+                onClick={() => applyLinks(suggestions.map(r => ({
+                  model_id:              r.model_id,
+                  product_id:            r.suggestion!.product_id,
+                  product_variation_sku: r.suggestion!.product_variation_sku,
+                })))}
+                disabled={busy}
+                className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium border transition-colors disabled:opacity-50"
+                style={{ borderColor: 'rgba(0,229,255,0.3)', color: CYAN, background: 'rgba(0,229,255,0.05)' }}>
+                <Sparkles size={13} /> Vincular {suggestions.length} variaç{suggestions.length === 1 ? 'ão' : 'ões'} pelo SKU
+              </button>
+            )}
+            {rows.map(r => (
+              <div key={r.model_id} className="rounded-lg p-2.5 space-y-1"
+                style={{ background: '#0d0d10', border: '1px solid #1e1e24' }}>
+                <div className="flex items-center gap-2">
+                  <p className="text-xs text-zinc-200 font-medium truncate">{r.name}</p>
+                  <span className="ml-auto text-[10px] text-zinc-600 shrink-0">
+                    SKU {r.model_sku || '—'}{r.stock != null ? ` · estoque ${r.stock}` : ''}
+                  </span>
+                </div>
+                {r.link ? (
+                  <div className="flex items-center gap-1.5">
+                    <Link2 size={11} className="text-emerald-400 shrink-0" />
+                    <p className="text-[11px] text-zinc-400 truncate">
+                      {r.link.product_name ?? r.link.product_sku ?? r.link.product_id}
+                      {r.link.product_variation_sku
+                        ? <span className="text-emerald-400"> · variação {r.link.variation_value ?? r.link.product_variation_sku}</span>
+                        : <span className="text-zinc-500"> · nível produto</span>}
+                    </p>
+                    <button onClick={() => unlinkModel(r.model_id)} disabled={busy}
+                      className="ml-auto text-[10px] text-zinc-600 hover:text-red-400 disabled:opacity-50 shrink-0">
+                      desvincular
+                    </button>
+                  </div>
+                ) : r.suggestion ? (
+                  <button
+                    onClick={() => applyLinks([{
+                      model_id:              r.model_id,
+                      product_id:            r.suggestion!.product_id,
+                      product_variation_sku: r.suggestion!.product_variation_sku,
+                    }])}
+                    disabled={busy}
+                    className="flex items-center gap-1.5 text-[11px] disabled:opacity-50"
+                    style={{ color: CYAN }}>
+                    <Link2 size={11} /> Vincular → {r.suggestion.variation_value ?? r.suggestion.product_variation_sku}
+                    <span className="text-zinc-600">({r.suggestion.product_name ?? r.suggestion.product_sku})</span>
+                  </button>
+                ) : (
+                  <p className="text-[11px] text-zinc-600">
+                    {r.model_sku
+                      ? <>Sem variação no catálogo com SKU <span className="text-zinc-400">{r.model_sku}</span> — cadastre a variação no produto ou ajuste o SKU na Shopee.</>
+                      : 'Variação sem SKU na Shopee — preencha o SKU da variação no Seller Center.'}
+                  </p>
+                )}
+              </div>
+            ))}
+            <p className="text-[10px] text-zinc-600">
+              A correspondência usa o SKU da variação: o mesmo código no cadastro do produto (aba Variações) e no anúncio.
+            </p>
+          </div>
+        )
       )}
       {err && <p className="text-[11px] text-red-400">{err}</p>}
     </div>

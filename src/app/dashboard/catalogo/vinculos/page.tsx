@@ -16,6 +16,7 @@ type VinculoRow = {
   account_id: string | null
   quantity_per_unit: number
   variation_id: string | null
+  product_variation_sku: string | null
   listing_title: string | null
   listing_price: number | null
   listing_thumbnail: string | null
@@ -233,19 +234,58 @@ function AddVinculoModal({
   const [accountId,   setAccountId]   = useState('')
   const [saving,      setSaving]      = useState(false)
   const [error,       setError]       = useState<string | null>(null)
+  // Vínculo por VARIAÇÃO: variações do anúncio ML (com SELLER_SKU) + variações
+  // do produto do catálogo (products.variations JSONB). Casadas pelo SKU.
+  const [mlVars,      setMlVars]      = useState<Array<{ variation_id: string; seller_sku: string | null; label: string | null }>>([])
+  const [catVars,     setCatVars]     = useState<Array<{ sku: string; value: string | null; type: string | null }>>([])
+  const [catVarSku,   setCatVarSku]   = useState('')
+
+  // variações do produto do catálogo (pro select "Variação do catálogo")
+  useEffect(() => {
+    (async () => {
+      try {
+        const sb = createClient()
+        const { data } = await sb.from('products').select('variations').eq('id', productId).maybeSingle()
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const vars = Array.isArray((data as any)?.variations) ? (data as any).variations as any[] : []
+        setCatVars(vars
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .map((v: any) => ({ sku: String(v?.sku ?? '').trim(), value: v?.value ?? null, type: v?.type ?? null }))
+          .filter(v => v.sku))
+      } catch { /* sem variações no catálogo — segue nível-produto */ }
+    })()
+  }, [productId])
 
   async function buscar() {
     const mlbId = parseMlbId(input)
     if (!mlbId) { setPreviewErr(t('links.modal.invalidId')); return }
-    setPreviewing(true); setPreviewErr(null); setPreview(null)
+    setPreviewing(true); setPreviewErr(null); setPreview(null); setMlVars([])
     try {
       const headers = await getHeaders()
       const res = await fetch(`${BACKEND}/ml/vinculos/preview?listing_id=${mlbId}`, { headers })
       if (!res.ok) { const d = await res.json(); throw new Error(d.message ?? `HTTP ${res.status}`) }
       setPreview(await res.json())
+      // variações do anúncio ML (best-effort — anúncio sem variação segue normal)
+      try {
+        const vRes = await fetch(`${BACKEND}/ml/items/${mlbId}/variations`, { headers })
+        if (vRes.ok) {
+          const vj = await vRes.json() as { variations?: Array<{ variation_id: string; seller_sku: string | null; label: string | null }> }
+          setMlVars(vj.variations ?? [])
+        }
+      } catch { /* enriquecimento opcional */ }
     } catch (e: unknown) {
       setPreviewErr(e instanceof Error ? e.message : t('links.modal.fetchError'))
     } finally { setPreviewing(false) }
+  }
+
+  // ao escolher a variação do ANÚNCIO, auto-seleciona a variação do CATÁLOGO
+  // com o mesmo SKU (SELLER_SKU do ML = products.variations[].sku)
+  function pickMlVariation(vid: string) {
+    setVariationId(vid)
+    const mlVar = mlVars.find(v => v.variation_id === vid)
+    if (mlVar?.seller_sku && catVars.some(c => c.sku === mlVar.seller_sku)) {
+      setCatVarSku(mlVar.seller_sku)
+    }
   }
 
   async function handleSave() {
@@ -262,6 +302,7 @@ function AddVinculoModal({
           listing_id:        preview.id,
           quantity_per_unit: Number(qty) || 1,
           variation_id:      variationId.trim() || null,
+          product_variation_sku: catVarSku || null,
           account_id:        accountId.trim()   || null,
           listing_title:     preview.title,
           listing_price:     preview.price,
@@ -346,9 +387,34 @@ function AddVinculoModal({
             </div>
             <div>
               <label className={lbl}>{t('links.modal.variationLabel')}</label>
-              <input value={variationId} onChange={e => setVariationId(e.target.value)}
-                placeholder={t('links.modal.variationPlaceholder')} className={inp} />
+              {mlVars.length > 0 ? (
+                <select value={variationId} onChange={e => pickMlVariation(e.target.value)} className={inp}>
+                  <option value="">Anúncio inteiro (todas)</option>
+                  {mlVars.map(v => (
+                    <option key={v.variation_id} value={v.variation_id}>
+                      {(v.label ?? v.variation_id) + (v.seller_sku ? ` · ${v.seller_sku}` : '')}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input value={variationId} onChange={e => setVariationId(e.target.value)}
+                  placeholder={t('links.modal.variationPlaceholder')} className={inp} />
+              )}
             </div>
+            {catVars.length > 0 && (
+              <div className="col-span-2">
+                <label className={lbl}>Variação do catálogo (SKU)</label>
+                <select value={catVarSku} onChange={e => setCatVarSku(e.target.value)} className={inp}>
+                  <option value="">Nível produto (sem variação)</option>
+                  {catVars.map(v => (
+                    <option key={v.sku} value={v.sku}>{(v.value ?? v.sku) + ` · ${v.sku}`}</option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-zinc-600 mt-1">
+                  Liga esta variação do anúncio à variação do produto no catálogo — escolha automática quando os SKUs batem.
+                </p>
+              </div>
+            )}
             <div className="col-span-2">
               <label className={lbl}>{t('links.modal.accountLabel')}</label>
               <input value={accountId} onChange={e => setAccountId(e.target.value)}
@@ -1472,6 +1538,13 @@ function ProductCard({
                       )}
                       <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded"
                         style={{ color: vb.color, background: vb.bg }}>{vbLabel}</span>
+                      {v.product_variation_sku && (
+                        <span title="Variação do catálogo vinculada (SKU da variação)"
+                          className="text-[10px] font-mono px-1.5 py-0.5 rounded"
+                          style={{ color: '#4ade80', background: 'rgba(74,222,128,0.1)' }}>
+                          {v.product_variation_sku}
+                        </span>
+                      )}
                     </div>
 
                     {/* Title (grayed, truncated, takes remaining space) */}
@@ -1585,7 +1658,7 @@ export default function VinculosPage() {
       .select(`
         id, name, sku, cost_price, photo_urls,
         product_listings(id, listing_id, platform, account_id, quantity_per_unit,
-          variation_id, listing_title, listing_price, listing_thumbnail, is_active),
+          variation_id, product_variation_sku, listing_title, listing_price, listing_thumbnail, is_active),
         product_stock(id, quantity, platform, account_id, virtual_quantity, min_stock_to_pause, auto_pause_enabled)
       `)
       .order('name')
