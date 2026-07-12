@@ -54,7 +54,11 @@ interface Part {
   id: string; product_dev_id: string; name: string; code?: string | null; qty_per_product: number; is_optional: boolean
   stock_qty: number; reserved_qty: number; available: number; sort_order: number; notes: string | null
   width_mm: number | null; depth_mm: number | null; height_mm: number | null
+  /** saldo por COR (baldes); cor_id null = "sem cor definida". A peça em si
+   *  não tem cor — a cor nasce na OP (colorway escolhido ao imprimir). */
+  color_stock?: Array<{ cor_id: string | null; code: string | null; label: string | null; stock_qty: number; reserved_qty: number; available: number }>
 }
+interface SkuVariantLite { id: string; sku: string; cor?: { id: string; code: string; label: string } | null }
 interface ProdUnit { id: string; serial: string; seq: number; status: string }
 interface PartSuggestion { name: string; qty_per_product: number; is_optional: boolean; width_mm: number | null; depth_mm: number | null; height_mm: number | null; rationale: string }
 interface PlatePlan {
@@ -81,7 +85,7 @@ function reservedHint(l: { sufficient: boolean; reserved?: number; reserved_by?:
 }
 interface AssemblyPreview {
   quantity: number
-  parts: Array<{ part_id: string; name: string; needed: number; available: number; unit: string; is_optional: boolean; sufficient: boolean; missing: number; reserved?: number; reserved_by?: Array<{ assembly_id: string; order_number: number | null; qty: number }> }>
+  parts: Array<{ part_id: string; name: string; needed: number; available: number; available_total?: number; unit: string; is_optional: boolean; sufficient: boolean; missing: number; reserved?: number; reserved_by?: Array<{ assembly_id: string; order_number: number | null; qty: number }> }>
   insumos: Array<{ input_id: string; name: string; needed: number; available: number; unit: string; sufficient: boolean; missing: number }>
   all_sufficient: boolean
   missing_parts: Array<{ part_id: string; name: string; missing: number }>
@@ -2160,12 +2164,17 @@ function PartsTab({ dev, onChanged }: { dev: DevDetail; onChanged: () => void })
   const [dims, setDims] = useState({ w: '', d: '', h: '' })
   const [cost, setCost] = useState<PartCost | null>(null); const [costBusy, setCostBusy] = useState(false); const [margin, setMargin] = useState('30')
   const [suggesting, setSuggesting] = useState(false); const [suggestions, setSuggestions] = useState<PartSuggestion[] | null>(null); const [suggestSource, setSuggestSource] = useState<'briefing' | 'ia'>('ia'); const [picked, setPicked] = useState<Set<number>>(new Set()); const [creating, setCreating] = useState(false)
+  const [variants, setVariants] = useState<SkuVariantLite[]>([])
 
   const load = useCallback(async () => {
     setLoading(true)
     try { setParts(await api<Part[]>(`/product-os/parts?product_dev_id=${dev.id}`)) } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setLoading(false) }
   }, [dev.id])
   useEffect(() => { void load() }, [load])
+  // colorways do produto (variantes de cor do SKU) — alimentam OP e montagem
+  useEffect(() => { void (async () => {
+    try { const s = await api<{ variants: SkuVariantLite[] }>(`/product-os/${dev.id}/sku`); setVariants(s.variants ?? []) } catch { setVariants([]) }
+  })() }, [dev.id])
 
   const numOrNull = (s: string) => { const n = Number(s); return s.trim() && Number.isFinite(n) && n > 0 ? n : null }
   const add = async () => {
@@ -2232,10 +2241,10 @@ function PartsTab({ dev, onChanged }: { dev: DevDetail; onChanged: () => void })
 
       {loading ? <p className="text-xs" style={{ color: '#52525b' }}>Carregando peças…</p>
         : parts.length === 0 ? <p className="text-xs" style={{ color: '#52525b' }}>Nenhuma peça ainda. Produto de peça única? Use a aba <b>Versões</b> normalmente.</p>
-        : parts.map(p => <PartCard key={p.id} part={p} dev={dev} allParts={parts} onChanged={() => { void load(); onChanged() }} />)}
+        : parts.map(p => <PartCard key={p.id} part={p} dev={dev} allParts={parts} variants={variants} onChanged={() => { void load(); onChanged() }} />)}
 
       {/* bandejas de impressão (composição de peças por impressão) */}
-      {parts.length > 0 && <PlatesSection dev={dev} parts={parts} onChanged={() => { void load(); onChanged() }} />}
+      {parts.length > 0 && <PlatesSection dev={dev} parts={parts} variants={variants} onChanged={() => { void load(); onChanged() }} />}
 
       {/* custo somado */}
       {parts.length > 0 && (
@@ -2267,7 +2276,7 @@ function PartsTab({ dev, onChanged }: { dev: DevDetail; onChanged: () => void })
       {parts.length > 0 && <PlatePlanSection devId={dev.id} />}
 
       {/* montagem */}
-      {parts.length > 0 && <AssemblySection devId={dev.id} onChanged={() => { void load(); onChanged() }} />}
+      {parts.length > 0 && <AssemblySection devId={dev.id} variants={variants} onChanged={() => { void load(); onChanged() }} />}
     </div>
   )
 }
@@ -2276,7 +2285,7 @@ function PartsTab({ dev, onChanged }: { dev: DevDetail; onChanged: () => void })
 // A bandeja é a unidade REAL de produção: 1 arquivo fatiado com N unidades
 // de ≥1 peça. Peso/tempo (do fatiador) valem pela bandeja inteira; a OP
 // conta bandejas e a conclusão credita o estoque de cada peça da composição.
-function PlatesSection({ dev, parts, onChanged }: { dev: DevDetail; parts: Part[]; onChanged: () => void }) {
+function PlatesSection({ dev, parts, variants, onChanged }: { dev: DevDetail; parts: Part[]; variants?: SkuVariantLite[]; onChanged: () => void }) {
   const [plates, setPlates] = useState<Plate[]>([]); const [loading, setLoading] = useState(true); const [err, setErr] = useState('')
   const [showNew, setShowNew] = useState(false)
   const [printing, setPrinting] = useState<Plate | null>(null)
@@ -2327,7 +2336,7 @@ function PlatesSection({ dev, parts, onChanged }: { dev: DevDetail; parts: Part[
         ))}
 
       {printing && anchorOf(printing) && (
-        <PartOrderModal part={anchorOf(printing) as Part} devId={dev.id} allParts={parts} plate={printing} onClose={() => setPrinting(null)} onCreated={() => { setPrinting(null); onChanged() }} />
+        <PartOrderModal part={anchorOf(printing) as Part} devId={dev.id} allParts={parts} variants={variants} plate={printing} onClose={() => setPrinting(null)} onCreated={() => { setPrinting(null); onChanged() }} />
       )}
     </div>
   )
@@ -2443,7 +2452,7 @@ function PlatePlanSection({ devId }: { devId: string }) {
   )
 }
 
-function PartCard({ part, dev, allParts, onChanged }: { part: Part; dev: DevDetail; allParts: Part[]; onChanged: () => void }) {
+function PartCard({ part, dev, allParts, variants, onChanged }: { part: Part; dev: DevDetail; allParts: Part[]; variants?: SkuVariantLite[]; onChanged: () => void }) {
   const [open, setOpen] = useState(false); const [printing, setPrinting] = useState(false); const [editing, setEditing] = useState(false)
   const [err, setErr] = useState(''); const [name, setName] = useState(part.name); const [qpp, setQpp] = useState(String(part.qty_per_product))
   const [pdims, setPdims] = useState({ w: part.width_mm != null ? String(part.width_mm) : '', d: part.depth_mm != null ? String(part.depth_mm) : '', h: part.height_mm != null ? String(part.height_mm) : '' })
@@ -2511,9 +2520,20 @@ function PartCard({ part, dev, allParts, onChanged }: { part: Part; dev: DevDeta
         <span style={{ color: '#71717a' }}>{part.stock_qty} prontas · {part.reserved_qty} reservadas</span>
         <div className="ml-auto flex items-center gap-2">
           {part.available > 0 && <button onClick={() => void stockOut()} className="text-[10px]" style={{ color: '#fcd34d' }}>saída SAC/reposição</button>}
-          <button onClick={() => void adjust()} className="text-[10px]" style={{ color: '#a5f3fc' }}>ajustar</button>
+          <button onClick={() => void adjust()} title="Define o total em mãos. A separação por cor é zerada (tudo vira 'sem cor')." className="text-[10px]" style={{ color: '#a5f3fc' }}>ajustar</button>
         </div>
       </div>
+      {/* saldo por cor (aparece quando alguma OP/montagem já declarou colorway) */}
+      {(part.color_stock?.some(b => b.cor_id) ?? false) && (
+        <div className="mt-1 flex flex-wrap items-center gap-1 text-[9px]">
+          <span style={{ color: '#52525b' }}>por cor:</span>
+          {part.color_stock!.map(b => (
+            <span key={b.cor_id ?? 'null'} className="rounded px-1.5 py-0.5 font-semibold" style={{ background: '#0a0a0e', color: b.cor_id ? '#a5f3fc' : '#71717a', border: '1px solid #1a1a1f' }}>
+              {b.available} {b.label ?? 'sem cor definida'}{b.reserved_qty > 0 ? ` (${b.reserved_qty} res.)` : ''}
+            </span>
+          ))}
+        </div>
+      )}
 
       <div className="mt-2 flex gap-1.5">
         <button onClick={() => setPrinting(true)} className="flex items-center gap-1 rounded px-2 py-1 text-[10px] font-semibold" style={{ background: 'rgba(0,229,255,0.10)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.3)' }}><Factory size={10} /> Imprimir esta peça</button>
@@ -2521,7 +2541,7 @@ function PartCard({ part, dev, allParts, onChanged }: { part: Part; dev: DevDeta
       </div>
 
       {open && <PartVersionsEditor partId={part.id} allParts={allParts} onChanged={onChanged} />}
-      {printing && <PartOrderModal part={part} devId={dev.id} allParts={allParts} onClose={() => setPrinting(false)} onCreated={() => { setPrinting(false); onChanged() }} />}
+      {printing && <PartOrderModal part={part} devId={dev.id} allParts={allParts} variants={variants} onClose={() => setPrinting(false)} onCreated={() => { setPrinting(false); onChanged() }} />}
     </div>
   )
 }
@@ -2649,9 +2669,13 @@ function PartVersionRow({ v, partId, allParts, onChanged }: { v: Version; partId
   )
 }
 
-function PartOrderModal({ part, devId, allParts, plate, onClose, onCreated }: { part: Part; devId: string; allParts?: Part[]; plate?: Plate; onClose: () => void; onCreated: () => void }) {
+function PartOrderModal({ part, devId, allParts, variants, plate, onClose, onCreated }: { part: Part; devId: string; allParts?: Part[]; variants?: SkuVariantLite[]; plate?: Plate; onClose: () => void; onCreated: () => void }) {
   const [qty, setQty] = useState('1'); const [printerId, setPrinterId] = useState(''); const [printers, setPrinters] = useState<Printer[]>([])
   const [loadedInputId, setLoadedInputId] = useState('')
+  // colorway: pra qual cor do produto estas peças estão sendo impressas —
+  // a conclusão credita o estoque de peças NO BALDE dessa cor
+  const [variantId, setVariantId] = useState('')
+  useEffect(() => { if (!variantId && variants?.length === 1) setVariantId(variants[0].id) }, [variants, variantId])
   const [filaments, setFilaments] = useState<Filament[]>([]); const [filMap, setFilMap] = useState<Record<number, string>>({})
   const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [preview, setPreview] = useState<ConsumePreview | null>(null)
   useEffect(() => { void (async () => { try { setPrinters(await api<Printer[]>('/product-os/printers')) } catch { /* */ } })() }, [])
@@ -2689,7 +2713,7 @@ function PartOrderModal({ part, devId, allParts, plate, onClose, onCreated }: { 
     setBusy(true); setErr('')
     try {
       const filament_map = multicor ? filaments.map(f => ({ index: f.index, input_id: filMap[f.index] })).filter(m => m.input_id) : undefined
-      await api('/product-os/production-orders', { method: 'POST', body: JSON.stringify({ product_dev_id: devId, part_id: part.id, version_id: plate?.version_id, quantity: Number(qty) || 1, printer_id: printerId || undefined, machine: printers.find(p => p.id === printerId)?.name || undefined, loaded_input_id: !multicor ? (loadedInputId || undefined) : undefined, filament_map }) }); onCreated()
+      await api('/product-os/production-orders', { method: 'POST', body: JSON.stringify({ product_dev_id: devId, part_id: part.id, version_id: plate?.version_id, quantity: Number(qty) || 1, printer_id: printerId || undefined, machine: printers.find(p => p.id === printerId)?.name || undefined, loaded_input_id: !multicor ? (loadedInputId || undefined) : undefined, filament_map, sku_variant_id: variantId || undefined }) }); onCreated()
     }
     catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setBusy(false) }
   }
@@ -2711,6 +2735,14 @@ function PartOrderModal({ part, devId, allParts, plate, onClose, onCreated }: { 
           </select>
         </label>
       </div>
+      {(variants?.length ?? 0) > 0 && (
+        <label className="mt-2 block"><span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#71717a' }}>Colorway (cor das peças no estoque)</span>
+          <select value={variantId} onChange={e => setVariantId(e.target.value)} className="w-full rounded-lg px-2.5 py-1.5 text-xs outline-none" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }}>
+            <option value="">— sem cor definida —</option>
+            {variants!.map(v => <option key={v.id} value={v.id}>{v.cor?.label ?? v.sku}</option>)}
+          </select>
+        </label>
+      )}
       {printerId && !multicor && <div className="mt-2"><SpoolPicker printerId={printerId} material={filaments[0]?.material} color={filaments[0]?.color} value={loadedInputId} onChange={setLoadedInputId} /></div>}
       {printerId && multicor && (
         <div className="mt-2 space-y-2 rounded-lg p-2.5" style={{ background: 'rgba(168,85,247,0.06)', border: '1px solid rgba(168,85,247,0.25)' }}>
@@ -2740,9 +2772,12 @@ function PartOrderModal({ part, devId, allParts, plate, onClose, onCreated }: { 
   )
 }
 
-function AssemblySection({ devId, onChanged }: { devId: string; onChanged: () => void }) {
+function AssemblySection({ devId, variants, onChanged }: { devId: string; variants?: SkuVariantLite[]; onChanged: () => void }) {
   const [qty, setQty] = useState('1'); const [preview, setPreview] = useState<AssemblyPreview | null>(null)
   const [orders, setOrders] = useState<AssemblyOrder[]>([]); const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [msg, setMsg] = useState('')
+  // colorway sendo montado: a reserva/consumo respeita o balde da cor
+  const [variantId, setVariantId] = useState('')
+  useEffect(() => { if (!variantId && variants?.length === 1) setVariantId(variants[0].id) }, [variants, variantId])
 
   const loadOrders = useCallback(async () => { try { setOrders(await api<AssemblyOrder[]>(`/product-os/assemblies?product_dev_id=${devId}`)) } catch { /* */ } }, [devId])
   useEffect(() => { void loadOrders() }, [loadOrders])
@@ -2750,14 +2785,14 @@ function AssemblySection({ devId, onChanged }: { devId: string; onChanged: () =>
     const n = Number(qty) || 0; if (n < 1) { setPreview(null); return }
     let cancel = false
     const t = setTimeout(() => { void (async () => {
-      try { const p = await api<AssemblyPreview>('/product-os/assemblies/preview', { method: 'POST', body: JSON.stringify({ product_dev_id: devId, quantity: n }) }); if (!cancel) setPreview(p) } catch { if (!cancel) setPreview(null) }
+      try { const p = await api<AssemblyPreview>('/product-os/assemblies/preview', { method: 'POST', body: JSON.stringify({ product_dev_id: devId, quantity: n, sku_variant_id: variantId || undefined }) }); if (!cancel) setPreview(p) } catch { if (!cancel) setPreview(null) }
     })() }, 350)
     return () => { cancel = true; clearTimeout(t) }
-  }, [qty, devId])
+  }, [qty, devId, variantId])
 
   const create = async () => {
     setBusy(true); setErr(''); setMsg('')
-    try { await api('/product-os/assemblies', { method: 'POST', body: JSON.stringify({ product_dev_id: devId, quantity: Number(qty) || 1 }) }); setMsg('Montagem criada — peças e insumos reservados.'); await loadOrders(); onChanged() }
+    try { await api('/product-os/assemblies', { method: 'POST', body: JSON.stringify({ product_dev_id: devId, quantity: Number(qty) || 1, sku_variant_id: variantId || undefined }) }); setMsg('Montagem criada — peças e insumos reservados.'); await loadOrders(); onChanged() }
     catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setBusy(false) }
   }
   const transition = async (aid: string, status: string) => {
@@ -2778,6 +2813,14 @@ function AssemblySection({ devId, onChanged }: { devId: string; onChanged: () =>
 
       <div className="flex items-end gap-2">
         <Input label="Qtd a montar" value={qty} onChange={setQty} />
+        {(variants?.length ?? 0) > 0 && (
+          <label className="block flex-1"><span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#71717a' }}>Colorway</span>
+            <select value={variantId} onChange={e => setVariantId(e.target.value)} className="w-full rounded-lg px-2.5 py-1.5 text-xs outline-none" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa', height: 34 }}>
+              <option value="">— sem cor —</option>
+              {variants!.map(v => <option key={v.id} value={v.id}>{v.cor?.label ?? v.sku}</option>)}
+            </select>
+          </label>
+        )}
         <button onClick={() => void create()} disabled={busy || !preview?.all_sufficient} title={!preview?.all_sufficient ? 'Estoque insuficiente — veja as faltas abaixo' : ''} className="flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold disabled:opacity-40" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF', height: 34 }}>{busy ? <Loader2 size={12} className="animate-spin" /> : <Layers size={12} />} Montar</button>
       </div>
 
@@ -2785,7 +2828,7 @@ function AssemblySection({ devId, onChanged }: { devId: string; onChanged: () =>
         <div className="space-y-1">
           {preview.parts.map(l => (
             <div key={l.part_id}>
-              <div className="flex items-center justify-between text-[11px]"><span style={{ color: '#d4d4d8' }}>{l.name}{l.is_optional ? ' (opcional)' : ''}</span><span style={{ color: l.sufficient ? '#4ade80' : '#f87171' }}>{l.needed} {l.unit} <span style={{ color: '#52525b' }}>/ {l.available} prontas</span>{!l.sufficient && !l.is_optional ? ` · faltam ${l.missing}` : ''}</span></div>
+              <div className="flex items-center justify-between text-[11px]"><span style={{ color: '#d4d4d8' }}>{l.name}{l.is_optional ? ' (opcional)' : ''}</span><span style={{ color: l.sufficient ? '#4ade80' : '#f87171' }}>{l.needed} {l.unit} <span style={{ color: '#52525b' }}>/ {l.available} prontas{l.available_total != null && l.available_total !== l.available ? ` na cor (${l.available_total} no total)` : ''}</span>{!l.sufficient && !l.is_optional ? ` · faltam ${l.missing}` : ''}</span></div>
               {reservedHint(l) && <p className="text-right text-[10px]" style={{ color: '#fcd34d' }}>{reservedHint(l)}</p>}
             </div>
           ))}
