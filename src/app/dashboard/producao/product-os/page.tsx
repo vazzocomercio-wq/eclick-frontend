@@ -43,7 +43,7 @@ interface Version {
   prototype_photo_urls: string[]; status: string; approved: boolean; notes: string | null; created_at: string
   filaments?: Filament[] | null
   sliced_file_url?: string | null
-  /** composição do prato: o que sai de UMA impressão (cópias e/ou peças
+  /** composição da bandeja: o que sai de UMA impressão (cópias e/ou peças
    *  diferentes juntas). Presente = peso/tempo POR PRATO e OP conta PRATOS. */
   plate_composition?: Array<{ part_id: string; units: number }> | null
 }
@@ -62,6 +62,17 @@ interface PlatePlan {
   lines: Array<{ part_id: string; name: string; qty_per_product: number; needed: number; width_mm: number | null; depth_mm: number | null; height_mm: number | null; per_plate: number | null; plates: number | null; fit_note: string | null; plate_minutes: number | null; has_dims: boolean }>
 }
 interface AssemblyOrder { id: string; product_dev_id: string; order_number: number; quantity: number; status: string; created_at: string; completed_at: string | null }
+/** BANDEJA de impressão: versão (de uma peça âncora) com composição — 1
+ *  arquivo fatiado que rende N unidades de ≥1 peça por impressão. */
+interface Plate {
+  version_id: string; part_id: string; anchor_name: string
+  version_number: number; changelog: string | null
+  material: string | null; weight_g: number | null; print_time_minutes: number | null
+  file_url: string | null; sliced_file_url: string | null; approved: boolean
+  filaments?: Filament[] | null
+  composition: Array<{ part_id: string; units: number; name: string; code: string | null }>
+  units_total: number; created_at: string
+}
 /** "1 reservada p/ Montagem #3" — explica por que o disponível está abaixo do estoque produzido */
 function reservedHint(l: { sufficient: boolean; reserved?: number; reserved_by?: Array<{ assembly_id: string; order_number: number | null; qty: number }> }): string {
   if (l.sufficient || !l.reserved_by?.length || !l.reserved) return ''
@@ -2195,7 +2206,7 @@ function PartsTab({ dev, onChanged }: { dev: DevDetail; onChanged: () => void })
         </div>
         <div className="grid grid-cols-2 gap-2"><Input label="Nome da peça" value={name} onChange={setName} /><Input label="Qtd por produto" value={qpp} onChange={setQpp} /></div>
         <div className="grid grid-cols-3 gap-2"><Input label="Largura (mm)" value={dims.w} onChange={v => setDims(d => ({ ...d, w: v }))} /><Input label="Profund. (mm)" value={dims.d} onChange={v => setDims(d => ({ ...d, d: v }))} /><Input label="Altura (mm)" value={dims.h} onChange={v => setDims(d => ({ ...d, h: v }))} /></div>
-        <p className="text-[9px]" style={{ color: '#52525b' }}>Dimensões são opcionais — alimentam o plano de pratos (quantas cabem na mesa).</p>
+        <p className="text-[9px]" style={{ color: '#52525b' }}>Dimensões são opcionais — alimentam o plano de bandejas (quantas cabem na mesa).</p>
         <label className="flex items-center gap-1.5 text-[11px]" style={{ color: '#a1a1aa' }}><input type="checkbox" checked={optional} onChange={e => setOptional(e.target.checked)} /> Peça opcional (não trava a montagem)</label>
         <button onClick={() => void add()} disabled={adding} className="flex w-full items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}>{adding ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />} Adicionar peça</button>
       </div>
@@ -2222,6 +2233,9 @@ function PartsTab({ dev, onChanged }: { dev: DevDetail; onChanged: () => void })
       {loading ? <p className="text-xs" style={{ color: '#52525b' }}>Carregando peças…</p>
         : parts.length === 0 ? <p className="text-xs" style={{ color: '#52525b' }}>Nenhuma peça ainda. Produto de peça única? Use a aba <b>Versões</b> normalmente.</p>
         : parts.map(p => <PartCard key={p.id} part={p} dev={dev} allParts={parts} onChanged={() => { void load(); onChanged() }} />)}
+
+      {/* bandejas de impressão (composição de peças por impressão) */}
+      {parts.length > 0 && <PlatesSection dev={dev} parts={parts} onChanged={() => { void load(); onChanged() }} />}
 
       {/* custo somado */}
       {parts.length > 0 && (
@@ -2258,6 +2272,141 @@ function PartsTab({ dev, onChanged }: { dev: DevDetail; onChanged: () => void })
   )
 }
 
+// ── BANDEJAS DE IMPRESSÃO ─────────────────────────────────────────────
+// A bandeja é a unidade REAL de produção: 1 arquivo fatiado com N unidades
+// de ≥1 peça. Peso/tempo (do fatiador) valem pela bandeja inteira; a OP
+// conta bandejas e a conclusão credita o estoque de cada peça da composição.
+function PlatesSection({ dev, parts, onChanged }: { dev: DevDetail; parts: Part[]; onChanged: () => void }) {
+  const [plates, setPlates] = useState<Plate[]>([]); const [loading, setLoading] = useState(true); const [err, setErr] = useState('')
+  const [showNew, setShowNew] = useState(false)
+  const [printing, setPrinting] = useState<Plate | null>(null)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try { setPlates(await api<Plate[]>(`/product-os/plates?product_dev_id=${dev.id}`)) } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setLoading(false) }
+  }, [dev.id])
+  useEffect(() => { void load() }, [load])
+
+  const anchorOf = (p: Plate) => parts.find(x => x.id === p.part_id)
+
+  return (
+    <div className="rounded-lg p-3 space-y-2" style={{ background: '#111114', border: '1px solid #27272a' }}>
+      <div className="flex items-center gap-2">
+        <Layers size={13} style={{ color: '#00E5FF' }} />
+        <p className="text-xs font-bold text-white">Bandejas de impressão</p>
+        <button onClick={() => setShowNew(s => !s)} className="ml-auto flex items-center gap-1 rounded px-2 py-1 text-[10px] font-semibold" style={{ background: 'rgba(0,229,255,0.10)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.3)' }}><Plus size={10} /> Nova bandeja</button>
+      </div>
+      <p className="text-[11px]" style={{ color: '#a1a1aa' }}>A bandeja é <b style={{ color: '#a5f3fc' }}>o que a impressora imprime de uma vez</b>: um arquivo fatiado com a composição de peças (ex: 2× Perna + 1× Plaqueta). O peso/tempo do fatiador valem pela bandeja inteira, e ao concluir cada impressão o estoque de <b style={{ color: '#a5f3fc' }}>todas as peças da composição</b> é creditado.</p>
+      {err && <div className="rounded-lg p-2.5 text-[11px]" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>{err}</div>}
+
+      {showNew && <NewPlateForm parts={parts} onDone={() => { setShowNew(false); void load(); onChanged() }} />}
+
+      {loading ? <p className="text-[10px]" style={{ color: '#52525b' }}>Carregando bandejas…</p>
+        : plates.length === 0 ? <p className="text-[10px]" style={{ color: '#52525b' }}>Nenhuma bandeja ainda. Crie uma com a composição do que sai junto numa impressão — ou siga imprimindo peça a peça.</p>
+        : plates.map(p => (
+          <div key={p.version_id} className="rounded p-2 text-[11px]" style={{ background: '#0a0a0e', border: `1px solid ${p.approved ? 'rgba(74,222,128,0.35)' : '#1a1a1f'}` }}>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-sm">🧺</span>
+              <span className="font-bold text-white">{p.changelog || `Bandeja v${p.version_number}`}</span>
+              {p.approved && <span title="versão aprovada" style={{ color: '#4ade80' }}>✓</span>}
+              <span className="rounded px-1.5 py-0.5 text-[9px]" style={{ background: '#1a1a1f', color: '#71717a' }}>âncora: {p.anchor_name}</span>
+              <div className="ml-auto flex items-center gap-1.5">
+                {p.file_url && <a href={p.file_url} target="_blank" rel="noreferrer" className="text-cyan-400 underline">arquivo</a>}
+                {p.sliced_file_url && <a href={p.sliced_file_url} target="_blank" rel="noreferrer" className="underline" style={{ color: '#4ade80' }}>✓ fatiado</a>}
+              </div>
+            </div>
+            <div className="mt-1 flex flex-wrap items-center gap-1.5">
+              {p.composition.map(c => (
+                <span key={c.part_id} className="rounded px-1.5 py-0.5 text-[10px] font-semibold" style={{ background: 'rgba(0,229,255,0.08)', color: '#a5f3fc', border: '1px solid rgba(0,229,255,0.2)' }}>{c.units}× {c.name}</span>
+              ))}
+              <span style={{ color: '#71717a' }}>{p.material ?? '—'}{p.weight_g != null ? ` · ${p.weight_g}g` : ''}{p.print_time_minutes != null ? ` · ${Math.floor(p.print_time_minutes / 60)}h${String(p.print_time_minutes % 60).padStart(2, '0')}` : ''} <span style={{ color: '#52525b' }}>por bandeja</span></span>
+              <button onClick={() => setPrinting(p)} className="ml-auto flex items-center gap-1 rounded px-2 py-1 text-[10px] font-semibold" style={{ background: 'rgba(0,229,255,0.10)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.3)' }}><Factory size={10} /> Imprimir esta bandeja</button>
+            </div>
+            {p.weight_g == null && <p className="mt-1 text-[10px]" style={{ color: '#fcd34d' }}>⚠️ sem peso — edite a versão na peça âncora ({p.anchor_name} → Versões/arquivos) e preencha pra reservar filamento.</p>}
+          </div>
+        ))}
+
+      {printing && anchorOf(printing) && (
+        <PartOrderModal part={anchorOf(printing) as Part} devId={dev.id} allParts={parts} plate={printing} onClose={() => setPrinting(null)} onCreated={() => { setPrinting(null); onChanged() }} />
+      )}
+    </div>
+  )
+}
+
+/** Nova bandeja: composição (unidades × peça) + números reais do fatiador.
+ *  Vira uma versão da peça ÂNCORA (a 1ª da composição) com plate_composition. */
+function NewPlateForm({ parts, onDone }: { parts: Part[]; onDone: () => void }) {
+  const [comp, setComp] = useState<Record<string, string>>({})
+  const [form, setForm] = useState({ name: '', material: '', weight_g: '', print_time_minutes: '', file_url: '', file_type: '' })
+  const [filaments, setFilaments] = useState<Filament[]>([])
+  const [slicer, setSlicer] = useState(''); const [showSlicer, setShowSlicer] = useState(false); const [parsing, setParsing] = useState(false)
+  const [busy, setBusy] = useState(false); const [err, setErr] = useState('')
+  const entries = parts.map(p => ({ part_id: p.id, units: Math.max(0, Math.round(Number(comp[p.id]) || 0)) })).filter(c => c.units > 0)
+  const anchor = entries.length ? parts.find(p => p.id === entries[0].part_id) : undefined
+
+  const importSlicer = async () => {
+    setParsing(true); setErr('')
+    try {
+      const r = await api<{ weight_g: number | null; print_time_minutes: number | null; material: string | null }>('/product-os/parse-slicer', { method: 'POST', body: JSON.stringify({ text: slicer }) })
+      if (r.weight_g == null && r.print_time_minutes == null) { setErr('Não encontrei peso/tempo no texto colado.'); return }
+      setForm(f => ({ ...f, weight_g: r.weight_g != null ? String(r.weight_g) : f.weight_g, print_time_minutes: r.print_time_minutes != null ? String(r.print_time_minutes) : f.print_time_minutes, material: r.material ?? f.material }))
+      setShowSlicer(false); setSlicer('')
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setParsing(false) }
+  }
+  const create = async () => {
+    if (!entries.length) { setErr('Informe quantas unidades de pelo menos 1 peça saem da bandeja.'); return }
+    if (!anchor) return
+    setBusy(true); setErr('')
+    try {
+      await api(`/product-os/parts/${anchor.id}/versions`, { method: 'POST', body: JSON.stringify({
+        changelog: form.name.trim() || undefined, file_url: form.file_url || undefined, file_type: form.file_type || undefined,
+        material: form.material || undefined, weight_g: form.weight_g ? Number(form.weight_g) : undefined,
+        print_time_minutes: form.print_time_minutes ? Number(form.print_time_minutes) : undefined,
+        filaments: filaments.length ? filaments : undefined, plate_composition: entries,
+      }) })
+      onDone()
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setBusy(false) }
+  }
+
+  return (
+    <div className="rounded-lg p-2.5 space-y-2" style={{ background: '#0a0a0e', border: '1px solid rgba(0,229,255,0.2)' }}>
+      {err && <p className="text-[10px]" style={{ color: '#f87171' }}>{err}</p>}
+      <div className="grid grid-cols-2 gap-1.5">
+        <Input label="Nome da bandeja" value={form.name} onChange={v => setForm(f => ({ ...f, name: v }))} />
+        <Input label="Material" value={form.material} onChange={v => setForm(f => ({ ...f, material: v }))} />
+      </div>
+      <div className="rounded p-2 space-y-1.5" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
+        <p className="text-[10px] font-bold" style={{ color: '#a1a1aa' }}>Composição <span className="font-normal" style={{ color: '#71717a' }}>— quantas unidades de cada peça saem de UMA impressão desta bandeja</span></p>
+        <div className="flex flex-wrap gap-2 text-[10px]">
+          {parts.map(p => (
+            <label key={p.id} className="flex items-center gap-1" style={{ color: '#a1a1aa' }}>
+              <input value={comp[p.id] ?? ''} onChange={e => setComp(s => ({ ...s, [p.id]: e.target.value.replace(/\D/g, '').slice(0, 3) }))} placeholder="0" inputMode="numeric" className="w-10 rounded px-1 py-0.5 text-center outline-none" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }} />
+              × {p.name}
+            </label>
+          ))}
+        </div>
+        {anchor && <p className="text-[9px]" style={{ color: '#52525b' }}>A bandeja fica registrada como versão da peça âncora <b>{anchor.name}</b> (a 1ª da composição).</p>}
+      </div>
+      <div className="flex items-center gap-2">
+        <UploadButton label="Subir 3MF fatiado" accept=".stl,.3mf" onUploaded={(urls, files) => { setForm(f => ({ ...f, file_url: urls[0], file_type: fileTypeOf(files[0].name) })); void fetch3mfMetrics(urls[0], files[0].name).then(m => { if (!m) return; setForm(f => ({ ...f, material: m.material ?? f.material, weight_g: m.weight_g ?? f.weight_g, print_time_minutes: m.print_time_minutes ?? f.print_time_minutes })); if (m.filaments?.length) setFilaments(m.filaments) }) }} />
+        {form.file_url && <span className="text-[10px]" style={{ color: '#4ade80' }}>✓ {form.file_type}</span>}
+        <button onClick={() => setShowSlicer(s => !s)} className="ml-auto text-[10px]" style={{ color: '#a5f3fc' }}>importar do slicer</button>
+      </div>
+      {showSlicer && (
+        <div className="space-y-1.5 rounded p-2" style={{ background: '#111114', border: '1px solid #1a1a1f' }}>
+          <textarea value={slicer} onChange={e => setSlicer(e.target.value)} rows={2} placeholder="Cole o resumo do Bambu/Orca (peso, tempo, material) — números da BANDEJA inteira" className="w-full rounded px-2 py-1 text-[10px] outline-none" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }} />
+          <button onClick={() => void importSlicer()} disabled={parsing || !slicer.trim()} className="flex items-center gap-1 rounded px-2 py-1 text-[10px] font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.35)' }}>{parsing ? <Loader2 size={10} className="animate-spin" /> : <Cpu size={10} />} Extrair</button>
+        </div>
+      )}
+      <div className="grid grid-cols-2 gap-1.5">
+        <Input label="Peso da bandeja (g)" value={form.weight_g} onChange={v => setForm(f => ({ ...f, weight_g: v }))} />
+        <Input label="Tempo da bandeja (min)" value={form.print_time_minutes} onChange={v => setForm(f => ({ ...f, print_time_minutes: v }))} />
+      </div>
+      <button onClick={() => void create()} disabled={busy || !entries.length} className="flex w-full items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}>{busy ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />} Criar bandeja</button>
+    </div>
+  )
+}
+
 function PlatePlanSection({ devId }: { devId: string }) {
   const [qty, setQty] = useState('10'); const [plan, setPlan] = useState<PlatePlan | null>(null); const [busy, setBusy] = useState(false); const [err, setErr] = useState('')
   const compute = async () => {
@@ -2267,12 +2416,12 @@ function PlatePlanSection({ devId }: { devId: string }) {
   }
   return (
     <div className="rounded-lg p-3 space-y-2" style={{ background: '#0d0d10', border: '1px solid #27272a' }}>
-      <div className="flex items-center gap-2"><Layers size={13} style={{ color: '#a5f3fc' }} /><p className="text-xs font-bold text-white">Plano de pratos (aproveitamento da mesa)</p></div>
-      <p className="text-[11px]" style={{ color: '#a1a1aa' }}>Estima quantas unidades de cada peça cabem num prato e quantos pratos pra produzir X produtos. Precisa das dimensões da peça (largura/profundidade).</p>
+      <div className="flex items-center gap-2"><Layers size={13} style={{ color: '#a5f3fc' }} /><p className="text-xs font-bold text-white">Plano de bandejas (aproveitamento da mesa)</p></div>
+      <p className="text-[11px]" style={{ color: '#a1a1aa' }}>Estima quantas unidades de cada peça cabem numa bandeja e quantas bandejas pra produzir X produtos. Precisa das dimensões da peça (largura/profundidade).</p>
       {err && <div className="rounded-lg p-2.5 text-[11px]" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>{err}</div>}
       <div className="flex items-end gap-2">
         <Input label="Qtd de produtos" value={qty} onChange={setQty} />
-        <button onClick={() => void compute()} disabled={busy} className="flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF', height: 34 }}>{busy ? <Loader2 size={12} className="animate-spin" /> : <Layers size={12} />} Calcular pratos</button>
+        <button onClick={() => void compute()} disabled={busy} className="flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF', height: 34 }}>{busy ? <Loader2 size={12} className="animate-spin" /> : <Layers size={12} />} Calcular bandejas</button>
       </div>
       {plan && (
         <div className="space-y-1.5">
@@ -2283,10 +2432,10 @@ function PlatePlanSection({ devId }: { devId: string }) {
               <span style={{ color: '#d4d4d8' }}>{l.name} <span style={{ color: '#52525b' }}>· precisa {l.needed}</span></span>
               {l.per_plate == null ? <span style={{ color: '#71717a' }}>{l.fit_note ?? 'sem dimensões'}</span>
                 : l.per_plate === 0 ? <span style={{ color: '#f87171' }}>não cabe — {l.fit_note}</span>
-                : <span style={{ color: '#4ade80' }}>{l.per_plate}/prato · <b>{l.plates} prato(s)</b>{l.plate_minutes ? <span style={{ color: '#52525b' }}> · ~{Math.round(l.plate_minutes / 60)}h/prato</span> : ''}</span>}
+                : <span style={{ color: '#4ade80' }}>{l.per_plate}/bandeja · <b>{l.plates} bandeja(s)</b>{l.plate_minutes ? <span style={{ color: '#52525b' }}> · ~{Math.round(l.plate_minutes / 60)}h/bandeja</span> : ''}</span>}
             </div>
           ))}
-          <div className="flex items-center justify-between border-t pt-1.5 text-xs font-bold" style={{ borderColor: '#27272a', color: '#fafafa' }}><span>Total de pratos</span><span style={{ color: '#00E5FF' }}>{plan.total_plates}</span></div>
+          <div className="flex items-center justify-between border-t pt-1.5 text-xs font-bold" style={{ borderColor: '#27272a', color: '#fafafa' }}><span>Total de bandejas</span><span style={{ color: '#00E5FF' }}>{plan.total_plates}</span></div>
           <p className="text-[10px]" style={{ color: '#52525b' }}>{plan.note}</p>
         </div>
       )}
@@ -2438,7 +2587,7 @@ function PartVersionsEditor({ partId, allParts, onChanged }: { partId: string; a
 function PartVersionRow({ v, partId, allParts, onChanged }: { v: Version; partId: string; allParts: Part[]; onChanged: () => void | Promise<void> }) {
   const [edit, setEdit] = useState(false); const [busy, setBusy] = useState(false); const [err, setErr] = useState('')
   const [f, setF] = useState({ material: v.material ?? '', weight_g: v.weight_g != null ? String(v.weight_g) : '', print_time_minutes: v.print_time_minutes != null ? String(v.print_time_minutes) : '' })
-  // composição do prato: quantas unidades de cada peça saem de UMA impressão
+  // composição da bandeja: quantas unidades de cada peça saem de UMA impressão
   const [comp, setComp] = useState<Record<string, string>>(() => {
     const m: Record<string, string> = {}
     for (const c of v.plate_composition ?? []) if (Number(c.units) > 0) m[c.part_id] = String(c.units)
@@ -2469,7 +2618,7 @@ function PartVersionRow({ v, partId, allParts, onChanged }: { v: Version; partId
       {canSlice(v) && <div className="mt-1.5"><SliceButton versionId={v.id} onChanged={onChanged} showPlate={is3mfProject(v)} /></div>}
       {!edit && compEntries.length > 0 && (
         <p className="mt-1 flex flex-wrap items-center gap-1" style={{ color: '#a5f3fc' }}>
-          🍽 prato composto: {compEntries.map(c => `${c.units}× ${partName(c.part_id)}`).join(' + ')} <span style={{ color: '#71717a' }}>· peso/tempo valem por PRATO e a OP conta pratos</span>
+          🧺 bandeja: {compEntries.map(c => `${c.units}× ${partName(c.part_id)}`).join(' + ')} <span style={{ color: '#71717a' }}>· peso/tempo valem pela BANDEJA e a OP conta bandejas</span>
         </p>
       )}
       {noMetrics && !edit && <p className="mt-1" style={{ color: '#fcd34d' }}>⚠️ sem peso — clique em “editar” e preencha pra contar o filamento.</p>}
@@ -2482,7 +2631,7 @@ function PartVersionRow({ v, partId, allParts, onChanged }: { v: Version; partId
             <Input label="Tempo (min)" value={f.print_time_minutes} onChange={x => setF(s => ({ ...s, print_time_minutes: x }))} />
           </div>
           <div className="rounded p-2 space-y-1.5" style={{ background: '#0a0a0e', border: '1px solid #1a1a1f' }}>
-            <p className="font-bold" style={{ color: '#a1a1aa' }}>🍽 Composição do prato <span className="font-normal" style={{ color: '#71717a' }}>— quantas unidades de cada peça saem de UMA impressão deste arquivo. Deixe tudo 0/vazio se o arquivo imprime só {`"`}1 unidade desta peça{`"`} (comportamento normal).</span></p>
+            <p className="font-bold" style={{ color: '#a1a1aa' }}>🧺 Composição da bandeja <span className="font-normal" style={{ color: '#71717a' }}>— quantas unidades de cada peça saem de UMA impressão deste arquivo. Deixe tudo 0/vazio se o arquivo imprime só {`"`}1 unidade desta peça{`"`} (comportamento normal).</span></p>
             <div className="flex flex-wrap gap-2">
               {allParts.map(p => (
                 <label key={p.id} className="flex items-center gap-1" style={{ color: p.id === partId ? '#a5f3fc' : '#a1a1aa' }}>
@@ -2491,7 +2640,7 @@ function PartVersionRow({ v, partId, allParts, onChanged }: { v: Version; partId
                 </label>
               ))}
             </div>
-            {compEntries.length > 0 && <p style={{ color: '#71717a' }}>Com a composição, o peso/tempo acima passam a valer pelo <b>prato inteiro</b> (é o que o fatiamento mede) e a quantidade da OP conta <b>pratos</b>. Ao concluir, cada peça listada entra no estoque.</p>}
+            {compEntries.length > 0 && <p style={{ color: '#71717a' }}>Com a composição, o peso/tempo acima passam a valer pela <b>bandeja inteira</b> (é o que o fatiamento mede) e a quantidade da OP conta <b>bandejas</b>. Ao concluir, cada peça listada entra no estoque. A bandeja aparece na seção <b>Bandejas de impressão</b>.</p>}
           </div>
           <button onClick={() => void save()} disabled={busy} className="flex items-center gap-1 rounded px-2 py-1 font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.35)' }}>{busy ? <Loader2 size={10} className="animate-spin" /> : <CheckCircle2 size={10} />} Salvar</button>
         </div>
@@ -2500,7 +2649,7 @@ function PartVersionRow({ v, partId, allParts, onChanged }: { v: Version; partId
   )
 }
 
-function PartOrderModal({ part, devId, allParts, onClose, onCreated }: { part: Part; devId: string; allParts?: Part[]; onClose: () => void; onCreated: () => void }) {
+function PartOrderModal({ part, devId, allParts, plate, onClose, onCreated }: { part: Part; devId: string; allParts?: Part[]; plate?: Plate; onClose: () => void; onCreated: () => void }) {
   const [qty, setQty] = useState('1'); const [printerId, setPrinterId] = useState(''); const [printers, setPrinters] = useState<Printer[]>([])
   const [loadedInputId, setLoadedInputId] = useState('')
   const [filaments, setFilaments] = useState<Filament[]>([]); const [filMap, setFilMap] = useState<Record<number, string>>({})
@@ -2509,9 +2658,16 @@ function PartOrderModal({ part, devId, allParts, onClose, onCreated }: { part: P
   // pega as cores da versão da peça (aprovada > última com arquivo). Se a versão não
   // tem as cores salvas (versão antiga), relê o .3mf na hora. Multicor = 1 rolo por cor;
   // 1 cor = auto-seleciona o rolo pela cor fatiada.
+  // Com `plate` (imprimir BANDEJA): usa a versão exata da bandeja, não a ref da peça.
   const [plateComp, setPlateComp] = useState<Array<{ part_id: string; units: number }>>([])
   useEffect(() => { void (async () => {
     try {
+      if (plate) {
+        let fils = (plate.filaments && plate.filaments.length) ? plate.filaments : []
+        if (!fils.length && plate.file_url) { const m = await fetch3mfMetrics(plate.file_url, plate.file_url); if (m?.filaments?.length) fils = m.filaments }
+        setFilaments(fils); setPlateComp(plate.composition)
+        return
+      }
       const vs = await api<Version[]>(`/product-os/parts/${part.id}/versions`)
       const ref = vs.find(v => v.approved) ?? vs.find(v => v.file_url) ?? vs[0]
       let fils = (ref?.filaments && ref.filaments.length) ? ref.filaments : []
@@ -2519,36 +2675,36 @@ function PartOrderModal({ part, devId, allParts, onClose, onCreated }: { part: P
       setFilaments(fils)
       setPlateComp(Array.isArray(ref?.plate_composition) ? ref.plate_composition.filter(c => Number(c.units) > 0) : [])
     } catch { setFilaments([]) }
-  })() }, [part.id])
+  })() }, [part.id, plate])
   const multicor = filaments.length > 1
   useEffect(() => {
     const n = Number(qty) || 0; if (n < 1) { setPreview(null); return }
     let cancel = false
     const t = setTimeout(() => { void (async () => {
-      try { const p = await api<ConsumePreview>('/product-os/production-orders/preview', { method: 'POST', body: JSON.stringify({ product_dev_id: devId, part_id: part.id, quantity: n }) }); if (!cancel) setPreview(p) } catch { if (!cancel) setPreview(null) }
+      try { const p = await api<ConsumePreview>('/product-os/production-orders/preview', { method: 'POST', body: JSON.stringify({ product_dev_id: devId, part_id: part.id, version_id: plate?.version_id, quantity: n }) }); if (!cancel) setPreview(p) } catch { if (!cancel) setPreview(null) }
     })() }, 350)
     return () => { cancel = true; clearTimeout(t) }
-  }, [qty, devId, part.id])
+  }, [qty, devId, part.id, plate?.version_id])
   const create = async () => {
     setBusy(true); setErr('')
     try {
       const filament_map = multicor ? filaments.map(f => ({ index: f.index, input_id: filMap[f.index] })).filter(m => m.input_id) : undefined
-      await api('/product-os/production-orders', { method: 'POST', body: JSON.stringify({ product_dev_id: devId, part_id: part.id, quantity: Number(qty) || 1, printer_id: printerId || undefined, machine: printers.find(p => p.id === printerId)?.name || undefined, loaded_input_id: !multicor ? (loadedInputId || undefined) : undefined, filament_map }) }); onCreated()
+      await api('/product-os/production-orders', { method: 'POST', body: JSON.stringify({ product_dev_id: devId, part_id: part.id, version_id: plate?.version_id, quantity: Number(qty) || 1, printer_id: printerId || undefined, machine: printers.find(p => p.id === printerId)?.name || undefined, loaded_input_id: !multicor ? (loadedInputId || undefined) : undefined, filament_map }) }); onCreated()
     }
     catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setBusy(false) }
   }
   const noWeight = !!preview && preview.lines.length === 0
   return (
-    <Modal title={`Imprimir peça: ${part.name}`} onClose={onClose}>
+    <Modal title={plate ? `Imprimir bandeja: ${plate.changelog || `Bandeja v${plate.version_number}`}` : `Imprimir peça: ${part.name}`} onClose={onClose}>
       {err && <div className="mb-3 rounded-lg p-2.5 text-xs" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>{err}</div>}
-      <p className="mb-2 text-[11px]" style={{ color: '#a1a1aa' }}>Cria uma ordem de produção só desta peça. Ao concluir, as unidades entram no <b style={{ color: '#a5f3fc' }}>estoque de peças prontas</b> (não no produto — a montagem faz isso depois).</p>
+      <p className="mb-2 text-[11px]" style={{ color: '#a1a1aa' }}>{plate ? <>Cria uma ordem de produção desta bandeja. Ao concluir cada impressão, o <b style={{ color: '#a5f3fc' }}>estoque de todas as peças da bandeja</b> é creditado.</> : <>Cria uma ordem de produção só desta peça. Ao concluir, as unidades entram no <b style={{ color: '#a5f3fc' }}>estoque de peças prontas</b> (não no produto — a montagem faz isso depois).</>}</p>
       {plateComp.length > 0 && (
         <div className="mb-2 rounded-lg p-2 text-[11px]" style={{ background: 'rgba(0,229,255,0.06)', border: '1px solid rgba(0,229,255,0.25)', color: '#a5f3fc' }}>
-          🍽 Este arquivo é um <b>prato composto</b> — cada impressão rende <b>{plateComp.map(c => `${c.units}× ${allParts?.find(p => p.id === c.part_id)?.name ?? 'peça'}`).join(' + ')}</b>. A quantidade abaixo conta <b>PRATOS</b> (impressões), e ao concluir o estoque de cada peça do prato é creditado.
+          🧺 Esta é uma <b>bandeja</b> — cada impressão rende <b>{plateComp.map(c => `${c.units}× ${allParts?.find(p => p.id === c.part_id)?.name ?? 'peça'}`).join(' + ')}</b>. A quantidade abaixo conta <b>BANDEJAS</b> (impressões), e ao concluir o estoque de cada peça da bandeja é creditado.
         </div>
       )}
       <div className="grid grid-cols-2 gap-2">
-        <Input label={plateComp.length ? 'Quantidade (pratos)' : 'Quantidade'} value={qty} onChange={setQty} />
+        <Input label={plateComp.length ? 'Quantidade (bandejas)' : 'Quantidade'} value={qty} onChange={setQty} />
         <label className="block"><span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#71717a' }}>Impressora</span>
           <select value={printerId} onChange={e => setPrinterId(e.target.value)} className="w-full rounded-lg px-2.5 py-1.5 text-xs outline-none" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }}>
             <option value="">— sem impressora —</option>{printers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -2579,7 +2735,7 @@ function PartOrderModal({ part, devId, allParts, onClose, onCreated }: { part: P
           {!preview.all_sufficient && <p className="mt-1 text-[10px]" style={{ color: '#fcd34d' }}>⚠️ Filamento insuficiente — reponha antes de concluir.</p>}
         </div>
       )}
-      <div className="mt-3 flex justify-end"><button onClick={() => void create()} disabled={busy || (multicor && !!printerId && filaments.some(f => !filMap[f.index]))} className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}>{busy ? <Loader2 size={12} className="animate-spin" /> : <Factory size={12} />} Criar ordem da peça</button></div>
+      <div className="mt-3 flex justify-end"><button onClick={() => void create()} disabled={busy || (multicor && !!printerId && filaments.some(f => !filMap[f.index]))} className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-bold disabled:opacity-50" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}>{busy ? <Loader2 size={12} className="animate-spin" /> : <Factory size={12} />} {plate ? 'Criar ordem da bandeja' : 'Criar ordem da peça'}</button></div>
     </Modal>
   )
 }
