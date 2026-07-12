@@ -13,6 +13,7 @@ import { createClient } from '@/lib/supabase'
 import {
   Zap, Factory, Receipt, Package, Boxes, Tag, FlaskConical, History,
   Plus, Trash2, Check, AlertTriangle, ShieldCheck, Loader2, Sparkles,
+  BellRing, Copy, Send,
 } from 'lucide-react'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
@@ -27,6 +28,7 @@ type Config = {
   manutencao_hora: number; manutencao_estimado: boolean
   mo_custo_hora: number; mo_minutos_padrao: number
   horas_mes_por_impressora: number; producao_estimado: boolean
+  alerta_whatsapp: string | null; watchdog_key: string
 }
 type Impressora = { id: string; modelo: string; quantidade: number; valor_pago: number; vida_util_horas: number; potencia_ams_w: number; estimado: boolean }
 type Potencia = { id: string; impressora_id: string; material: string; watts: number; estimado: boolean; fonte: string | null }
@@ -147,6 +149,7 @@ export default function CustosProducaoPage() {
   // formulários de adição
   const [fxNome, setFxNome] = useState(''); const [fxValor, setFxValor] = useState(''); const [fxCat, setFxCat] = useState('')
   const [explicacao, setExplicacao] = useState(''); const [explicando, setExplicando] = useState(false)
+  const [alertaNum, setAlertaNum] = useState(''); const [testando, setTestando] = useState(false)
   const [filMat, setFilMat] = useState(''); const [filPreco, setFilPreco] = useState('')
   const [potMat, setPotMat] = useState(''); const [potW, setPotW] = useState(''); const [potFonte, setPotFonte] = useState('')
   const [skNome, setSkNome] = useState(''); const [skG, setSkG] = useState(''); const [skH, setSkH] = useState(''); const [skMat, setSkMat] = useState('PLA')
@@ -158,7 +161,9 @@ export default function CustosProducaoPage() {
 
   const carregar = useCallback(async () => {
     try {
-      setDados(await api<Dados>('/prod3d/dados'))
+      const d = await api<Dados>('/prod3d/dados')
+      setDados(d)
+      setAlertaNum(d.config.alerta_whatsapp ?? '')
       setErro('')
     } catch (e: unknown) {
       setErro((e as Error).message)
@@ -573,6 +578,45 @@ export default function CustosProducaoPage() {
                 onClick={() => mudar(() => api('/prod3d/skus', { method: 'POST', body: JSON.stringify({ sku: skNome, gramas: parseFloat(skG), horas: parseFloat(skH), material: skMat }) }), 'SKU cadastrado')
                   .then(() => { setSkNome(''); setSkG(''); setSkH('') })}>
                 <Plus size={13} /> Cadastrar SKU
+              </button>
+            </div>
+          </Secao>
+
+          {/* Alerta de impressora no WhatsApp */}
+          <Secao icon={<BellRing size={15} />} titulo="Alerta de impressora no WhatsApp"
+            nota="A impressora pausou ou deu erro? O vigia local avisa neste número com a mensagem que a impressora deu. O vigia roda no computador da produção (mesma rede da impressora).">
+            <div className="flex flex-wrap items-end gap-2">
+              <div>
+                <div className="mb-1 text-xs" style={{ color: '#a1a1aa' }}>WhatsApp que recebe o alerta (DDI+DDD+número)</div>
+                <input placeholder="5511999998888" value={alertaNum} onChange={e => setAlertaNum(e.target.value)}
+                  className={inputCls} style={{ ...inputStyle, width: 180 }} />
+              </div>
+              <button className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold"
+                style={{ background: 'rgba(0,229,255,0.12)', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.4)' }}
+                onClick={() => mudar(() => api('/prod3d/alerta', { method: 'PATCH', body: JSON.stringify({ whatsapp: alertaNum }) }), 'Número salvo')}>
+                <Check size={13} /> Salvar número
+              </button>
+              <button disabled={testando} className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold"
+                style={{ background: 'transparent', color: '#4ade80', border: '1px solid rgba(74,222,80,0.4)' }}
+                onClick={async () => {
+                  setTestando(true)
+                  try {
+                    const r = await api<{ ok: boolean; error?: string }>('/prod3d/alerta-teste', { method: 'POST' })
+                    if (r.ok) { setFlash('Teste enviado — confira o WhatsApp'); setTimeout(() => setFlash(''), 3000) }
+                    else setErro(`Envio falhou: ${r.error ?? 'erro desconhecido'}`)
+                  } catch (e: unknown) { setErro((e as Error).message) } finally { setTestando(false) }
+                }}>
+                {testando ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />} Enviar teste
+              </button>
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs" style={{ color: '#71717a' }}>
+              <span>Chave do vigia (cole no configurador do computador da produção):</span>
+              <code className="rounded px-2 py-0.5" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#a1a1aa' }}>
+                {dados.config.watchdog_key}
+              </code>
+              <button title="Copiar" className="rounded-lg p-1 hover:bg-cyan-400/10" style={{ border: '1px solid #27272a', color: '#00E5FF' }}
+                onClick={() => { void navigator.clipboard.writeText(dados.config.watchdog_key); setFlash('Chave copiada'); setTimeout(() => setFlash(''), 2000) }}>
+                <Copy size={12} />
               </button>
             </div>
           </Secao>
