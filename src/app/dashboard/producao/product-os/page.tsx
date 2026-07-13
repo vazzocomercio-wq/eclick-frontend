@@ -164,7 +164,7 @@ interface Printer {
   total_units_produced: number; total_print_minutes: number; active_orders: number; depreciation_per_hour: number | null
 }
 interface ConsumePreview {
-  source: 'bom' | 'filament' | 'none'; quantity: number; total_cost: number; all_sufficient: boolean; material?: string | null
+  source: 'bom' | 'filament' | 'printer' | 'none'; quantity: number; total_cost: number; all_sufficient: boolean; material?: string | null
   lines: Array<{ input_id: string | null; name: string; unit: string; needed: number; available: number; sufficient: boolean; unit_cost: number; line_cost: number }>
 }
 interface ProfitRow {
@@ -1083,12 +1083,12 @@ function NewOrderModal({ approved, versionId, onClose, onCreated }: { approved: 
     if (!devId || n < 1 || hasParts) { setPreview(null); return }
     let cancel = false; setPrevLoading(true)
     const t = setTimeout(() => { void (async () => {
-      try { const p = await api<ConsumePreview>('/product-os/production-orders/preview', { method: 'POST', body: JSON.stringify({ product_dev_id: devId, quantity: n, version_id: versionId || undefined }) }); if (!cancel) setPreview(p) }
+      try { const p = await api<ConsumePreview>('/product-os/production-orders/preview', { method: 'POST', body: JSON.stringify({ product_dev_id: devId, quantity: n, version_id: versionId || undefined, printer_id: printerId || undefined, loaded_input_id: !multicor ? (loadedInputId || undefined) : undefined }) }); if (!cancel) setPreview(p) }
       catch { if (!cancel) setPreview(null) }
       finally { if (!cancel) setPrevLoading(false) }
     })() }, 350)
     return () => { cancel = true; clearTimeout(t) }
-  }, [devId, qty, hasParts, versionId])
+  }, [devId, qty, hasParts, versionId, printerId, loadedInputId, multicor])
   const create = async () => {
     if (!devId) { setErr('Selecione um produto aprovado'); return }
     if (hasParts) { setErr('Este produto é feito de peças — imprima cada peça pela aba Peças (Imprimir esta peça).'); return }
@@ -1151,7 +1151,7 @@ function NewOrderModal({ approved, versionId, onClose, onCreated }: { approved: 
           {preview && preview.lines.length > 0 && (
             <div className="rounded-lg p-2.5" style={{ background: '#0d0d10', border: '1px solid #27272a' }}>
               <div className="mb-1.5 flex items-center justify-between">
-                <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#71717a' }}>Vai consumir do estoque{preview.source === 'filament' ? ' (filamento)' : ''}</span>
+                <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#71717a' }}>Vai consumir do estoque{preview.source === 'printer' ? <span style={{ color: '#4ade80' }}> · rolo montado na impressora</span> : preview.source === 'filament' ? (printerId ? <span style={{ color: '#fcd34d' }}> · palpite (impressora sem rolo cadastrado)</span> : ' (filamento)') : ''}</span>
                 <span className="text-[10px]" style={{ color: '#a5f3fc' }}>≈ R$ {preview.total_cost.toFixed(2)}</span>
               </div>
               <div className="space-y-1">
@@ -2705,10 +2705,10 @@ function PartOrderModal({ part, devId, allParts, variants, plate, onClose, onCre
     const n = Number(qty) || 0; if (n < 1) { setPreview(null); return }
     let cancel = false
     const t = setTimeout(() => { void (async () => {
-      try { const p = await api<ConsumePreview>('/product-os/production-orders/preview', { method: 'POST', body: JSON.stringify({ product_dev_id: devId, part_id: part.id, version_id: plate?.version_id, quantity: n }) }); if (!cancel) setPreview(p) } catch { if (!cancel) setPreview(null) }
+      try { const p = await api<ConsumePreview>('/product-os/production-orders/preview', { method: 'POST', body: JSON.stringify({ product_dev_id: devId, part_id: part.id, version_id: plate?.version_id, quantity: n, printer_id: printerId || undefined, loaded_input_id: !multicor ? (loadedInputId || undefined) : undefined }) }); if (!cancel) setPreview(p) } catch { if (!cancel) setPreview(null) }
     })() }, 350)
     return () => { cancel = true; clearTimeout(t) }
-  }, [qty, devId, part.id, plate?.version_id])
+  }, [qty, devId, part.id, plate?.version_id, printerId, loadedInputId, multicor])
   const create = async () => {
     setBusy(true); setErr('')
     try {
@@ -2762,7 +2762,7 @@ function PartOrderModal({ part, devId, allParts, variants, plate, onClose, onCre
       {multicor && printerId && filaments.some(f => !filMap[f.index]) && <div className="mt-2 rounded-lg p-2.5 text-[11px]" style={{ background: 'rgba(252,211,77,0.10)', color: '#fcd34d', border: '1px solid rgba(252,211,77,0.3)' }}>⚠️ Escolha o rolo de <b>todas as cores</b> antes de criar a ordem — cor sem rolo ficaria sem reserva de filamento.</div>}
       {preview && preview.lines.length > 0 && (
         <div className="mt-2 rounded-lg p-2.5" style={{ background: '#0d0d10', border: '1px solid #27272a' }}>
-          <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#71717a' }}>Vai consumir de filamento</span>
+          <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#71717a' }}>Vai consumir de filamento{preview.source === 'printer' ? <span style={{ color: '#4ade80' }}> · rolo montado na impressora</span> : (printerId && preview.source === 'filament' ? <span style={{ color: '#fcd34d' }}> · palpite do estoque (impressora sem rolo cadastrado)</span> : null)}</span>
           {preview.lines.map((l, i) => <div key={i} className="flex items-center justify-between text-[11px]"><span style={{ color: '#d4d4d8' }}>{l.name}</span><span style={{ color: l.sufficient ? '#4ade80' : '#f87171' }}>{l.needed} {l.unit} <span style={{ color: '#52525b' }}>/ {l.available} disp.</span></span></div>)}
           {!preview.all_sufficient && <p className="mt-1 text-[10px]" style={{ color: '#fcd34d' }}>⚠️ Filamento insuficiente — reponha antes de concluir.</p>}
         </div>
@@ -4301,7 +4301,12 @@ function SpoolPicker({ printerId, material, color, value, onChange }: { printerI
     if (!best && material) best = rolls.find(r => r.input?.material?.toUpperCase() === material.toUpperCase()) ?? null
     onChange((best ?? rolls[0]).input?.id ?? '')
   }, [rolls, material, color]) // eslint-disable-line react-hooks/exhaustive-deps
-  if (!printerId || rolls.length === 0) return null
+  if (!printerId) return null
+  if (rolls.length === 0) return (
+    <p className="rounded-lg p-2 text-[11px]" style={{ background: 'rgba(252,211,77,0.10)', color: '#fcd34d', border: '1px solid rgba(252,211,77,0.3)' }}>
+      ⚠️ Esta impressora está <b>sem rolo cadastrado</b> — a reserva vai cair num rolo do estoque pelo material (pode não ser a cor montada). Registre o filamento em <b>Impressoras → Carregar filamento</b> e reabra esta janela.
+    </p>
+  )
   return (
     <label className="block">
       <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#71717a' }}>Rolo na impressora{color ? ' (auto pela cor — pode trocar)' : (rolls.length > 1 ? ' — escolha a cor' : '')}</span>
