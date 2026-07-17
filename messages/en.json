@@ -6473,6 +6473,7 @@
       "tipText": "The price and stock from the Sales tab are used as defaults when not filled in here.",
       "varType": {
         "color": "Color",
+        "colorSize": "Color + Size",
         "voltage": "Voltage",
         "size": "Size",
         "model": "Model",

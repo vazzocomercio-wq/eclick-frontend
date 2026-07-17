@@ -6644,6 +6644,7 @@
       "tipText": "O preço e estoque da aba Vendas serão usados como padrão quando não preenchidos aqui.",
       "varType": {
         "color": "Cor",
+        "colorSize": "Cor + Tamanho",
         "voltage": "Voltagem",
         "size": "Tamanho",
         "model": "Modelo",

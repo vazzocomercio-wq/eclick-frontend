@@ -6467,6 +6467,7 @@
       "tipText": "此处未填写时，将使用销售选项卡中的价格和库存作为默认值。",
       "varType": {
         "color": "颜色",
+        "colorSize": "颜色 + 尺寸",
         "voltage": "电压",
         "size": "尺寸",
         "model": "型号",

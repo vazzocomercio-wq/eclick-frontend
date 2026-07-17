@@ -15,7 +15,11 @@ async function getToken(): Promise<string | null> {
 const inp = 'w-full bg-[#1c1c1f] border border-[#3f3f46] text-white text-sm rounded-lg px-3 py-2 outline-none transition-all placeholder-zinc-600 focus:border-[#00E5FF] focus:ring-1 focus:ring-[#00E5FF20]'
 const sec = 'text-[11px] font-semibold uppercase tracking-widest text-zinc-500 mb-4 pb-2 border-b border-[#1e1e24]'
 
-const VARIATION_TYPES = ['Cor', 'Voltagem', 'Tamanho', 'Modelo', 'Capacidade', 'Material', 'Estilo']
+// 'Cor + Tamanho' = produto de DOIS eixos (Pendente Gota Creme G / Creme M).
+// O Product OS gera essas linhas com `attributes` preenchido; aqui o `value` é o
+// rótulo combinado ("Creme / G") e o editor é texto livre — não é uma cor só do
+// catálogo, então o seletor de cor não se aplica.
+const VARIATION_TYPES = ['Cor', 'Cor + Tamanho', 'Voltagem', 'Tamanho', 'Modelo', 'Capacidade', 'Material', 'Estilo']
 
 // cor do catálogo do gerador de SKU (Product OS) — mesma taxonomia, mesma fonte
 type SkuColor = { id: string; code: string; label: string }
@@ -36,12 +40,21 @@ export default function Tab4Variations({ data, set }: TabProps) {
   const uid = useId()
   const VARIATION_TYPE_LABEL: Record<string, string> = {
     'Cor': t('tab4.varType.color'),
+    'Cor + Tamanho': t('tab4.varType.colorSize'),
     'Voltagem': t('tab4.varType.voltage'),
     'Tamanho': t('tab4.varType.size'),
     'Modelo': t('tab4.varType.model'),
     'Capacidade': t('tab4.varType.capacity'),
     'Material': t('tab4.varType.material'),
     'Estilo': t('tab4.varType.style'),
+  }
+
+  /** Opções do seletor de tipo, SEMPRE incluindo o valor atual da linha.
+   *  Um <select> controlado com value fora das options renderiza vazio e, ao
+   *  primeiro toque, troca o valor por outro sem o usuário pedir — ou seja,
+   *  destrói silenciosamente um tipo que esta UI só não conhece ainda. */
+  function typeOptions(current: string): string[] {
+    return VARIATION_TYPES.includes(current) || !current ? VARIATION_TYPES : [current, ...VARIATION_TYPES]
   }
 
   // catálogo de cores do SKU: seletor único pra variação Cor. Se a busca falhar
@@ -193,7 +206,7 @@ export default function Tab4Variations({ data, set }: TabProps) {
                     }}>
                     <select className={inp} value={v.type} onChange={e => updateVariation(v.id, 'type', e.target.value)}
                       style={{ background: '#1c1c1f' }}>
-                      {VARIATION_TYPES.map(vt => <option key={vt} value={vt}>{VARIATION_TYPE_LABEL[vt] ?? vt}</option>)}
+                      {typeOptions(v.type).map(vt => <option key={vt} value={vt}>{VARIATION_TYPE_LABEL[vt] ?? vt}</option>)}
                     </select>
                     {v.type === 'Cor' && colorsReady ? (
                       <select className={inp} style={{ background: '#1c1c1f' }}

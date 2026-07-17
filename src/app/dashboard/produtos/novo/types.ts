@@ -12,6 +12,10 @@ export type Variation = {
   stock: string
   sku: string
   ean?: string | null
+  /** Eixos decompostos ({Cor:'Creme', Tamanho:'G'}). `value` é o rótulo que o
+   *  comprador vê ("Creme / G") e não decompõe; isto é a fonte estruturada,
+   *  gerada pelo Product OS. Aditivo — variação antiga não tem e nada quebra. */
+  attributes?: Record<string, string> | null
 }
 
 export type ProductForm = {
