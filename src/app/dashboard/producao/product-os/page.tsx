@@ -3238,7 +3238,7 @@ interface SkuData {
   classification: { marca: TaxOption | null; categoria: TaxOption | null; sub: TaxOption | null; linha: TaxOption | null; caracteristica: TaxOption | null }
   base: string | null
   ean?: string | null
-  variants: Array<{ id: string; sku: string; ean?: string | null; product_id: string | null; cor: { id: string; code: string; label: string } | null }>
+  variants: Array<{ id: string; sku: string; ean?: string | null; product_id: string | null; cor: { id: string; code: string; label: string } | null; tamanho?: { id: string; code: string; label: string } | null; weight_g?: number | null; print_time_minutes?: number | null }>
 }
 function SegmentPicker({ label, kind, parentId, value, onChange, suggestLabel, alphaCode }: {
   label: string; kind: string; parentId: string | null; value: TaxOption | null
@@ -3305,18 +3305,23 @@ function SkuTab({ dev }: { dev: DevDetail }) {
   const [sub, setSub] = useState<TaxOption | null>(null); const [linha, setLinha] = useState<TaxOption | null>(null); const [carac, setCarac] = useState<TaxOption | null>(null)
   const [cores, setCores] = useState<TaxOption[]>([]); const [selCor, setSelCor] = useState<string[]>([])
   const [newCor, setNewCor] = useState(''); const [addingCor, setAddingCor] = useState(false)
+  const [tamanhos, setTamanhos] = useState<TaxOption[]>([]); const [selTam, setSelTam] = useState<string[]>([])
+  const [newTam, setNewTam] = useState(''); const [newTamCode, setNewTamCode] = useState(''); const [addingTam, setAddingTam] = useState(false)
   const [saving, setSaving] = useState(false); const [msg, setMsg] = useState(''); const [loading, setLoading] = useState(true)
   const load = useCallback(async () => {
     setLoading(true)
     try {
       const d = await api<SkuData>(`/product-os/${dev.id}/sku`); setData(d)
       setMarca(d.classification.marca); setCat(d.classification.categoria); setSub(d.classification.sub); setLinha(d.classification.linha); setCarac(d.classification.caracteristica)
-      setSelCor(d.variants.map(v => v.cor?.id).filter(Boolean) as string[])
+      setSelCor([...new Set(d.variants.map(v => v.cor?.id).filter(Boolean) as string[])])
+      setSelTam([...new Set(d.variants.map(v => v.tamanho?.id).filter(Boolean) as string[])])
     } catch { /* */ } finally { setLoading(false) }
   }, [dev.id])
   useEffect(() => { void load() }, [load])
   const loadCores = useCallback(async () => { try { setCores(await api<TaxOption[]>('/product-os/sku/taxonomy?kind=cor')) } catch { /* */ } }, [])
   useEffect(() => { void loadCores() }, [loadCores])
+  const loadTamanhos = useCallback(async () => { try { setTamanhos(await api<TaxOption[]>('/product-os/sku/taxonomy?kind=tamanho')) } catch { /* */ } }, [])
+  useEffect(() => { void loadTamanhos() }, [loadTamanhos])
 
   // Categoria/Sub puxadas da árvore do Mercado Livre (a que espelhamos)
   const [mlPath, setMlPath] = useState<Array<{ id: string; name: string }>>(dev.category_ml_path ?? [])
@@ -3343,18 +3348,54 @@ function SkuTab({ dev }: { dev: DevDetail }) {
     try { const d = await api<SkuData>(`/product-os/${dev.id}/sku`, { method: 'PUT', body: JSON.stringify({ marca_id: marca!.id, categoria_id: cat!.id, sub_id: sub!.id, linha_id: linha!.id, caracteristica_id: carac!.id }) }); setData(d); setMsg('SKU base salvo.'); return true }
     catch (e) { setMsg(e instanceof Error ? e.message : 'Erro'); return false } finally { setSaving(false) }
   }
-  const saveColors = async (ids: string[]) => {
-    setSaving(true); setMsg('')
-    try { const d = await api<SkuData>(`/product-os/${dev.id}/sku/colors`, { method: 'PUT', body: JSON.stringify({ cor_ids: ids }) }); setData(d); setSelCor(d.variants.map(v => v.cor?.id).filter(Boolean) as string[]); setMsg('Cores e SKUs atualizados.') }
-    catch (e) { setMsg(e instanceof Error ? e.message : 'Erro') } finally { setSaving(false) }
+  // Métrica (peso/tempo) já gravada p/ uma combinação — carregada de volta pra
+  // não zerar: `setVariants` regrava weight_g/print_time do que vier, então a UI
+  // TEM que reenviar o peso existente de cada combo ao mexer nos eixos.
+  const metricFor = (corId: string, tamId: string | null) => {
+    const v = data?.variants.find(x => x.cor?.id === corId && (x.tamanho?.id ?? null) === tamId)
+    return { weight_g: v?.weight_g ?? null, print_time_minutes: v?.print_time_minutes ?? null }
   }
-  // Cor exige o SKU base salvo (variante = base-cor). Se ainda não salvou (ou mudou os
-  // segmentos), salva o base antes — e SÓ segue se o salvamento deu certo (senão o erro
-  // real era engolido pelo segundo erro "defina a classificação").
-  const applyColors = async (ids: string[]) => {
+  // Salva as variantes do modelo SEMPRE por /sku/variants (substitutivo). Sem
+  // tamanho, a combinação é cor + tamanho_id null → SKU base-cor (idêntico ao
+  // 1-eixo antigo). Com tamanho, é o produto cartesiano cor × tamanho. Vai sempre
+  // por aqui (e não por /sku/colors) pra também dar conta de TIRAR o último
+  // tamanho — o /sku/colors recusa quando o modelo já variava por tamanho.
+  const saveVariants = async (corIds: string[], tamIds: string[]) => {
+    if (tamIds.length > 0 && corIds.length === 0) { setMsg('Escolha ao menos uma cor — o SKU é cor × tamanho.'); return }
+    setSaving(true); setMsg('')
+    try {
+      const tamList: (string | null)[] = tamIds.length ? tamIds : [null]
+      const combos = corIds.flatMap(cor_id => tamList.map(tamanho_id => ({ cor_id, tamanho_id, ...metricFor(cor_id, tamanho_id) })))
+      const d = await api<SkuData>(`/product-os/${dev.id}/sku/variants`, { method: 'PUT', body: JSON.stringify({ variants: combos }) })
+      setData(d)
+      setSelCor([...new Set(d.variants.map(v => v.cor?.id).filter(Boolean) as string[])])
+      setSelTam([...new Set(d.variants.map(v => v.tamanho?.id).filter(Boolean) as string[])])
+      setMsg('Variantes e SKUs atualizados.')
+    } catch (e) { setMsg(e instanceof Error ? e.message : 'Erro') } finally { setSaving(false) }
+  }
+  // Cor/tamanho exigem o SKU base salvo (variante = base-cor[-tam]). Se ainda não
+  // salvou (ou mudou os segmentos), salva o base antes — e SÓ segue se deu certo
+  // (senão o erro real era engolido pelo segundo erro "defina a classificação").
+  const applyVariants = async (corIds: string[], tamIds: string[]) => {
     if (!allSet) { setMsg('Escolha Marca, Categoria, Sub, Linha e Característica primeiro.'); return }
     if ((!data?.base || dirty) && !(await saveClass())) return
-    await saveColors(ids)
+    await saveVariants(corIds, tamIds)
+  }
+  const applyColors = (ids: string[]) => applyVariants(ids, selTam)
+  const applyTamanhos = (ids: string[]) => applyVariants(selCor, ids)
+  // Grava só o peso/tempo de UMA variante (o resto das combinações vai junto com o
+  // peso que já tinha, pra não ser apagado). Aciona o preço-por-tamanho.
+  const saveVariantMetric = async (corId: string, tamId: string | null, weight_g: number | null, print_time_minutes: number | null) => {
+    setSaving(true); setMsg('')
+    try {
+      const combos = selCor.flatMap(cor_id => (selTam.length ? selTam : [null]).map(t => {
+        const same = cor_id === corId && t === tamId
+        const m = same ? { weight_g, print_time_minutes } : metricFor(cor_id, t)
+        return { cor_id, tamanho_id: t, ...m }
+      }))
+      const d = await api<SkuData>(`/product-os/${dev.id}/sku/variants`, { method: 'PUT', body: JSON.stringify({ variants: combos }) })
+      setData(d); setMsg('Peso/tempo salvos.')
+    } catch (e) { setMsg(e instanceof Error ? e.message : 'Erro') } finally { setSaving(false) }
   }
   const createCor = async () => {
     if (!newCor.trim()) return
@@ -3364,11 +3405,25 @@ function SkuTab({ dev }: { dev: DevDetail }) {
       const o = await api<TaxOption>('/product-os/sku/taxonomy', { method: 'POST', body: JSON.stringify({ kind: 'cor', label: newCor.trim() }) })
       setNewCor(''); setAddingCor(false); await loadCores()
       if ((!data?.base || dirty) && !(await saveClass())) return
-      await saveColors([...selCor, o.id])
+      await saveVariants([...selCor, o.id], selTam)
+    }
+    catch (e) { setMsg(e instanceof Error ? e.message : 'Erro') } finally { setSaving(false) }
+  }
+  // Tamanho usa código alfanumérico (G, M, GG) — pedido explícito p/ não sair ilegível.
+  const createTam = async () => {
+    if (!newTam.trim()) return
+    if (!allSet) { setMsg('Escolha Marca, Categoria, Sub, Linha e Característica primeiro.'); return }
+    setSaving(true)
+    try {
+      const o = await api<TaxOption>('/product-os/sku/taxonomy', { method: 'POST', body: JSON.stringify({ kind: 'tamanho', label: newTam.trim(), code: newTamCode.trim() || undefined }) })
+      setNewTam(''); setNewTamCode(''); setAddingTam(false); await loadTamanhos()
+      if ((!data?.base || dirty) && !(await saveClass())) return
+      await saveVariants(selCor, [...selTam, o.id])
     }
     catch (e) { setMsg(e instanceof Error ? e.message : 'Erro') } finally { setSaving(false) }
   }
   const corCode = (id: string) => cores.find(c => c.id === id)?.code ?? '??'
+  const tamCode = (id: string) => tamanhos.find(t => t.id === id)?.code ?? '??'
   const copy = (t: string) => { try { void navigator.clipboard.writeText(t) } catch { /* */ } }
   const genEan = async () => {
     setSaving(true); setMsg('')
@@ -3380,7 +3435,7 @@ function SkuTab({ dev }: { dev: DevDetail }) {
   if (loading) return <div className="flex items-center gap-2 p-4 text-sm" style={{ color: '#71717a' }}><Loader2 size={14} className="animate-spin" /> Carregando…</div>
   return (
     <div className="space-y-4">
-      <p className="text-xs" style={{ color: '#a1a1aa' }}>O SKU é gerado pela taxonomia: <span className="font-mono text-white">MARCA-CATEG·SUB·LINHA·CARACT-COR</span> (ex: <span className="font-mono text-white">VZ-07010202-47</span>). A <span className="text-white">Linha</span> é uma coleção transversal (ex: “Ella”) que reúne produtos de qualquer categoria. A Característica diferencia o modelo dentro da linha. A Cor é a variação — cada cor vira um SKU.</p>
+      <p className="text-xs" style={{ color: '#a1a1aa' }}>O SKU é gerado pela taxonomia: <span className="font-mono text-white">MARCA-CATEG·SUB·LINHA·CARACT-COR[-TAM]</span> (ex: <span className="font-mono text-white">VZ-07010202-47</span> ou <span className="font-mono text-white">VZ-07010202-47-G</span>). A <span className="text-white">Linha</span> é uma coleção transversal (ex: “Ella”) que reúne produtos de qualquer categoria. A Característica diferencia o modelo dentro da linha. As variações são <span className="text-white">Cor</span> e, opcionalmente, <span className="text-white">Tamanho</span> — cada combinação vira um SKU.</p>
       {published && (
         <div className="rounded-lg p-2.5 text-[11px]" style={{ background: 'rgba(252,211,77,0.08)', color: '#fcd34d', border: '1px solid rgba(252,211,77,0.3)' }}>
           🔒 <span className="font-bold">Produto publicado no catálogo — o SKU é permanente (Master SKU).</span> Pedidos, anúncios e relatórios penduram nesse código; a classificação não pode mais mudar. Cores novas ainda podem ser adicionadas.
@@ -3419,16 +3474,17 @@ function SkuTab({ dev }: { dev: DevDetail }) {
 
       {/* preview estilo cartão */}
       <div className="rounded-xl p-3" style={{ background: '#111114', border: '1px solid #27272a' }}>
-        <div className="grid grid-cols-6 gap-1.5">
+        <div className={`grid gap-1.5 ${selTam.length ? 'grid-cols-7' : 'grid-cols-6'}`}>
           <SkuBox label="Marca" code={marca?.code ?? null} />
           <SkuBox label="Categ." code={cat?.code ?? null} />
           <SkuBox label="Sub" code={sub?.code ?? null} />
           <SkuBox label="Linha" code={linha?.code ?? null} />
           <SkuBox label="Caract." code={carac?.code ?? null} />
           <SkuBox label="Cor" code={selCor.length ? corCode(selCor[0]) : null} />
+          {selTam.length > 0 && <SkuBox label="Tam." code={tamCode(selTam[0])} />}
         </div>
         <div className="mt-3 rounded-lg p-2.5 text-center" style={{ background: '#0a0a0e', border: '1px solid #27272a' }}>
-          <p className="font-mono text-xl font-extrabold tracking-wide" style={{ color: previewBase ? '#00E5FF' : '#3f3f46' }}>{previewBase ? `${previewBase}${selCor.length ? '-' + corCode(selCor[0]) : '-CC'}` : 'VZ-········-··'}</p>
+          <p className="font-mono text-xl font-extrabold tracking-wide" style={{ color: previewBase ? '#00E5FF' : '#3f3f46' }}>{previewBase ? `${previewBase}${selCor.length ? '-' + corCode(selCor[0]) : '-CC'}${selTam.length ? '-' + tamCode(selTam[0]) : ''}` : 'VZ-········-··'}</p>
           {allSet && <p className="mt-1 text-[11px]" style={{ color: '#a1a1aa' }}>{[marca!.label, cat!.label, sub!.label, linha!.label, carac!.label].join(', ')}</p>}
         </div>
         <button onClick={() => void saveClass()} disabled={!allSet || saving || !dirty || published} title={published ? 'SKU permanente — produto já publicado no catálogo' : ''} className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold disabled:opacity-40" style={{ background: '#00E5FF', color: '#0a0a0e' }}>
@@ -3453,13 +3509,39 @@ function SkuTab({ dev }: { dev: DevDetail }) {
             </span>
           )}
         </div>
+
+        {/* tamanhos → 2º eixo (opcional). Ligado = SKU vira cor × tamanho. */}
+        <p className="mb-1.5 mt-3 text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#71717a' }}>Tamanhos do modelo (opcional — vira cor × tamanho)</p>
+        <p className="mb-1.5 text-[10px]" style={{ color: '#71717a' }}>Sem tamanho o SKU fica <span className="font-mono text-white">base-cor</span>. Com tamanho, cada cor × tamanho vira um SKU (ex: <span className="font-mono text-white">-55-G</span>, <span className="font-mono text-white">-55-M</span>) — o mesmo anúncio com o tamanho no dropdown.</p>
+        <div className="flex flex-wrap gap-1.5">
+          {tamanhos.map(tm => {
+            const on = selTam.includes(tm.id)
+            return <button key={tm.id} onClick={() => void applyTamanhos(on ? selTam.filter(x => x !== tm.id) : [...selTam, tm.id])} disabled={saving} className="rounded-full px-2.5 py-1 text-[11px] font-semibold" style={{ background: on ? 'rgba(0,229,255,0.12)' : '#0a0a0e', color: on ? '#00E5FF' : '#a1a1aa', border: on ? '1px solid rgba(0,229,255,0.35)' : '1px solid #27272a' }}>{tm.code} · {tm.label}</button>
+          })}
+          {!addingTam ? <button onClick={() => setAddingTam(true)} className="flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold" style={{ background: '#0a0a0e', color: '#71717a', border: '1px dashed #3f3f46' }}><Plus size={10} /> novo tamanho</button> : (
+            <span className="flex items-center gap-1">
+              <input value={newTamCode} onChange={e => setNewTamCode(e.target.value.toUpperCase())} placeholder="cód (G)" maxLength={4} className="w-16 rounded-full px-2.5 py-1 text-[11px] text-white" style={{ background: '#0a0a0e', border: '1px solid #27272a' }} />
+              <input autoFocus value={newTam} onChange={e => setNewTam(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') void createTam(); if (e.key === 'Escape') setAddingTam(false) }} placeholder="tamanho (Grande)" className="w-32 rounded-full px-2.5 py-1 text-[11px] text-white" style={{ background: '#0a0a0e', border: '1px solid #27272a' }} />
+              <button onClick={() => void createTam()} className="rounded-full px-2 py-1 text-[10px] font-bold" style={{ background: 'rgba(0,229,255,0.12)', color: '#00E5FF' }}>ok</button>
+            </span>
+          )}
+        </div>
+
         {data && data.variants.length > 0 && (
-          <div className="mt-2 space-y-1">
+          <div className="mt-3 space-y-1">
             {data.variants.map(v => (
               <div key={v.id} className="flex flex-wrap items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs" style={{ background: '#0a0a0e', border: '1px solid #1a1a1f' }}>
                 <Barcode size={12} className="shrink-0 text-cyan-400" />
                 <span className="font-mono font-bold text-white">{v.sku}</span>
-                <span style={{ color: '#71717a' }}>{v.cor?.label}</span>
+                <span style={{ color: '#71717a' }}>{v.cor?.label}{v.tamanho ? ` · ${v.tamanho.label}` : ''}</span>
+                <span className="flex items-center gap-1" title="peso fatiado desta combinação — alimenta o preço por tamanho">
+                  <input type="number" min={0} step={0.1} defaultValue={v.weight_g ?? ''} key={`w-${v.id}-${v.weight_g ?? ''}`} onBlur={e => { const n = e.target.value === '' ? null : Number(e.target.value); if (n !== (v.weight_g ?? null)) void saveVariantMetric(v.cor!.id, v.tamanho?.id ?? null, n, v.print_time_minutes ?? null) }} className="w-16 rounded px-1.5 py-0.5 text-right font-mono text-[10px] text-white" style={{ background: '#111114', border: '1px solid #27272a' }} />
+                  <span className="text-[9px]" style={{ color: '#52525b' }}>g</span>
+                </span>
+                <span className="flex items-center gap-1" title="tempo fatiado (min)">
+                  <input type="number" min={0} step={1} defaultValue={v.print_time_minutes ?? ''} key={`t-${v.id}-${v.print_time_minutes ?? ''}`} onBlur={e => { const n = e.target.value === '' ? null : Math.round(Number(e.target.value)); if (n !== (v.print_time_minutes ?? null)) void saveVariantMetric(v.cor!.id, v.tamanho?.id ?? null, v.weight_g ?? null, n) }} className="w-14 rounded px-1.5 py-0.5 text-right font-mono text-[10px] text-white" style={{ background: '#111114', border: '1px solid #27272a' }} />
+                  <span className="text-[9px]" style={{ color: '#52525b' }}>min</span>
+                </span>
                 {v.ean ? (
                   <button onClick={() => copy(v.ean!)} title="copiar EAN" className="ml-auto flex items-center gap-1 rounded px-1.5 py-0.5 font-mono text-[10px] font-bold" style={{ background: '#111114', color: '#a5f3fc', border: '1px solid #27272a' }}>EAN {v.ean}</button>
                 ) : <span className="ml-auto text-[10px]" style={{ color: '#52525b' }}>sem EAN</span>}
