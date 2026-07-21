@@ -14,6 +14,8 @@ import {
   Printer as PrinterIcon, TrendingUp, Gauge, Wifi, Upload, Trophy, Trash2, ExternalLink, Users, Flame, Heart, Download, Search, Layers, Eye, EyeOff, ShieldAlert, Barcode, Palette, Copy, Star, Archive,
 } from 'lucide-react'
 import { usePrompt } from '@/components/ui/dialog-provider'
+// mesmo seletor de designs do Canva que a IA Criativo usa (só reusado, não alterado)
+import CanvaDesignPicker from '@/components/creative/CanvaDesignPicker'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
@@ -1776,14 +1778,23 @@ function PublishModal({ dev, onClose, onDone }: { dev: DevDetail; onClose: () =>
   const [rows, setRows] = useState<Record<string, { price: string; stock: string }>>({})
   const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [loading, setLoading] = useState(true)
   // fotos do anúncio: protótipo + reference_images (inclui as IMAGENS GERADAS pela IA e MakerWorld). 1ª = capa.
-  const photos = useMemo(() => {
+  const devPhotos = useMemo(() => {
     const out: string[] = []
     for (const v of dev.versions ?? []) for (const u of v.prototype_photo_urls ?? []) if (u && !out.includes(u)) out.push(u)
     for (const r of dev.reference_images ?? []) if (r.url && !out.includes(r.url)) out.push(r.url)
     return out
   }, [dev])
+  // + designs trazidos do Canva agora (1 design = todas as páginas dele, em ordem)
+  const [canvaOpen, setCanvaOpen] = useState(false)
+  const [canvaPicks, setCanvaPicks] = useState<Array<{ designId: string; url: string; name: string }>>([])
+  const pickedDesignIds = useMemo(() => new Set(canvaPicks.map(p => p.designId)), [canvaPicks])
+  const photos = useMemo(
+    () => [...devPhotos, ...canvaPicks.map(p => p.url).filter(u => !devPhotos.includes(u))],
+    [devPhotos, canvaPicks],
+  )
   const [cover, setCover] = useState('')
-  useEffect(() => { setCover(photos[0] ?? '') }, [photos])
+  // preserva a capa escolhida quando chegam fotos novas — só reposiciona se ela sumir
+  useEffect(() => { setCover(c => (c && photos.includes(c) ? c : photos[0] ?? '')) }, [photos])
   useEffect(() => { void (async () => {
     try {
       const d = await api<SkuData>(`/product-os/${devId}/sku`); setSku(d)
@@ -1804,6 +1815,9 @@ function PublishModal({ dev, onClose, onDone }: { dev: DevDetail; onClose: () =>
   const publish = async () => {
     setBusy(true); setErr('')
     try {
+      // o que veio do Canva vira referência do PRODUTO (fica no card, não só neste anúncio)
+      const novas = canvaPicks.filter(p => !devPhotos.includes(p.url)).map(p => ({ url: p.url, notes: `Canva · ${p.name}` }))
+      if (novas.length) await api(`/product-os/${devId}`, { method: 'PATCH', body: JSON.stringify({ reference_images: [...(dev.reference_images ?? []), ...novas] }) })
       const base = orderedPhotos.length ? { photo_urls: orderedPhotos } : {}
       const body = mode === 'variable'
         ? { ...base, variation_mode: 'variable' as const, variants: variants.map(v => ({ id: v.id, price: rows[v.id]?.price ? Number(rows[v.id].price.replace(',', '.')) : null, stock: Number(rows[v.id]?.stock || 0) })) }
@@ -1814,7 +1828,7 @@ function PublishModal({ dev, onClose, onDone }: { dev: DevDetail; onClose: () =>
   }
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={onClose}>
-      <div className="w-full max-w-lg rounded-xl p-5" style={{ background: '#0a0a0e', border: '1px solid #27272a', maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+      <div className={`w-full rounded-xl p-5 ${canvaOpen ? 'max-w-2xl' : 'max-w-lg'}`} style={{ background: '#0a0a0e', border: '1px solid #27272a', maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
         <div className="mb-3 flex items-center gap-2">
           <Rocket size={16} className="text-green-400" />
           <h3 className="text-sm font-extrabold text-white">Publicar no catálogo — {devName}</h3>
@@ -1860,9 +1874,16 @@ function PublishModal({ dev, onClose, onDone }: { dev: DevDetail; onClose: () =>
               </div>
             )}
 
-            {photos.length > 0 && (
-              <div className="mt-3">
-                <p className="mb-1 text-[10px] font-semibold uppercase" style={{ color: '#71717a' }}>Fotos do anúncio · clique para definir a capa ({photos.length})</p>
+            <div className="mt-3">
+              <div className="mb-1 flex items-center gap-2">
+                <p className="text-[10px] font-semibold uppercase" style={{ color: '#71717a' }}>
+                  Fotos do anúncio{photos.length > 0 ? ' · clique para definir a capa' : ''} ({photos.length})
+                </p>
+                <button onClick={() => setCanvaOpen(o => !o)} className="ml-auto flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-semibold" style={{ background: canvaOpen ? 'rgba(125,42,231,0.18)' : '#111114', color: '#c8a8ff', border: '1px solid rgba(125,42,231,0.45)' }}>
+                  <Palette size={10} /> {canvaOpen ? 'fechar Canva' : 'adicionar do Canva'}
+                </button>
+              </div>
+              {photos.length > 0 && (
                 <div className="flex flex-wrap gap-1.5">
                   {orderedPhotos.map((u, i) => (
                     <button key={u} onClick={() => setCover(u)} className="relative h-14 w-14 overflow-hidden rounded-lg" style={{ border: i === 0 ? '2px solid #4ade80' : '1px solid #27272a' }}>
@@ -1871,8 +1892,24 @@ function PublishModal({ dev, onClose, onDone }: { dev: DevDetail; onClose: () =>
                     </button>
                   ))}
                 </div>
-              </div>
-            )}
+              )}
+              {canvaOpen && (
+                <div className="mt-2 rounded-lg p-2.5" style={{ background: '#0f0f13', border: '1px solid #27272a' }}>
+                  <p className="mb-2 text-[10px] leading-relaxed" style={{ color: '#71717a' }}>
+                    Escolha um design do seu Canva — <span className="text-white">todas as páginas dele</span> entram como fotos, na ordem. Clique de novo para tirar.
+                  </p>
+                  <CanvaDesignPicker
+                    pickedDesignIds={pickedDesignIds}
+                    onPicked={assets => setCanvaPicks(prev => [
+                      ...prev,
+                      ...assets.filter(a => a.storage_url).map(a => ({ designId: a.canva_design_id, url: a.storage_url as string, name: a.name })),
+                    ])}
+                    onUnpicked={id => setCanvaPicks(prev => prev.filter(p => p.designId !== id))}
+                    redirectTo="/dashboard/producao/product-os"
+                  />
+                </div>
+              )}
+            </div>
             <p className="mt-3 text-[10px] leading-relaxed" style={{ color: '#71717a' }}>O produto entra no catálogo com <span className="text-white">SKU e EAN</span> já preenchidos{photos.length ? ' e as fotos escolhidas' : ''}, pronto para a IA Criativo publicar no ML/Shopee/TikTok e para a loja. {mode === 'variable' ? 'Cada cor vira uma variação (modelo do catálogo/ML).' : ''}</p>
             {err && <p className="mt-2 text-[11px]" style={{ color: '#f87171' }}>{err}</p>}
             <div className="mt-4 flex justify-end gap-2">
