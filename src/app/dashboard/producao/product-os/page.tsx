@@ -1679,6 +1679,81 @@ function PalettesPanel() {
     </div>
   )
 }
+// Arte JÁ pronta no Canva não passa por IA: entra direto como foto do produto
+// (reference_images) e segue pro anúncio na hora de publicar. Sem gastar crédito.
+// Quem quer o Canva só de INSPIRAÇÃO usa o "Gerar imagem" — são coisas diferentes.
+function CanvaPhotosModal({ dev, onClose, onSaved }: { dev: { id: string; name: string; reference_images?: ReferenceImage[] }; onClose: () => void; onSaved: () => void }) {
+  const [byDesign, setByDesign] = useState<Record<string, { name: string; urls: string[] }>>({})
+  const pickedDesignIds = useMemo(() => new Set(Object.keys(byDesign)), [byDesign])
+  const picked = useMemo(() => Object.values(byDesign).flatMap(d => d.urls.map(u => ({ url: u, name: d.name }))), [byDesign])
+  const [salvas, setSalvas] = useState<string[]>([])
+  const jaNoProduto = useMemo(() => new Set((dev.reference_images ?? []).map(r => r.url)), [dev.reference_images])
+  const novas = picked.filter(p => !jaNoProduto.has(p.url) && !salvas.includes(p.url))
+  const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [msg, setMsg] = useState('')
+  const salvar = async () => {
+    if (!novas.length) return
+    setBusy(true); setErr(''); setMsg('')
+    try {
+      // relê o dev antes de gravar: o PATCH manda a lista inteira e o card pode ter
+      // ganhado foto por outro caminho (IA, upload) enquanto o modal estava aberto
+      const atual = await api<{ reference_images?: ReferenceImage[] }>(`/product-os/${dev.id}`)
+      const base = atual.reference_images ?? []
+      const ja = new Set(base.map(r => r.url))
+      const add = novas.filter(p => !ja.has(p.url)).map(p => ({ url: p.url, notes: `Canva · ${p.name}` }))
+      if (add.length) await api(`/product-os/${dev.id}`, { method: 'PATCH', body: JSON.stringify({ reference_images: [...base, ...add] }) })
+      setSalvas(prev => [...prev, ...novas.map(p => p.url)])
+      setMsg(add.length
+        ? `${add.length} imagem${add.length > 1 ? 'ns' : ''} do Canva no produto ✓ — vão junto quando publicar.`
+        : 'Essas imagens já estavam no produto.')
+      onSaved()
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setBusy(false) }
+  }
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={onClose}>
+      <div className="w-full max-w-2xl rounded-xl p-5" style={{ background: '#0a0a0e', border: '1px solid #27272a', maxHeight: '92vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+        <div className="mb-3 flex items-center gap-2">
+          <ImageIcon size={16} style={{ color: '#c8a8ff' }} />
+          <h3 className="text-sm font-extrabold text-white">Fotos do Canva — {dev.name}</h3>
+          <button onClick={onClose} className="ml-auto" style={{ color: '#71717a' }}><X size={16} /></button>
+        </div>
+        <p className="mb-3 text-[11px] leading-relaxed" style={{ color: '#71717a' }}>
+          Arte <span className="text-white">já pronta</span> no Canva entra como está nas fotos do produto e segue pro anúncio quando você publicar. <span className="text-white">Sem IA, sem gastar crédito.</span>
+          <br />Escolha um design (todas as páginas dele entram, na ordem). Clique de novo para tirar.
+        </p>
+        <CanvaDesignPicker
+          pickedDesignIds={pickedDesignIds}
+          onPicked={assets => {
+            const urls = assets.map(a => a.storage_url).filter((u): u is string => !!u)
+            if (urls.length) setByDesign(m => ({ ...m, [assets[0].canva_design_id]: { name: assets[0].name, urls } }))
+          }}
+          onUnpicked={id => setByDesign(m => { const n = { ...m }; delete n[id]; return n })}
+          redirectTo="/dashboard/producao/product-os"
+        />
+        {picked.length > 0 && (
+          <div className="mt-3">
+            <p className="mb-1 text-[10px]" style={{ color: '#52525b' }}>{picked.length} página{picked.length > 1 ? 's' : ''} escolhida{picked.length > 1 ? 's' : ''}{picked.length !== novas.length ? ` · ${picked.length - novas.length} já no produto` : ''}</p>
+            <div className="flex flex-wrap gap-1.5">
+              {picked.map(p => {
+                const dentro = jaNoProduto.has(p.url) || salvas.includes(p.url)
+                return (
+                  <div key={p.url} className="relative h-14 w-14 overflow-hidden rounded-lg" style={{ border: dentro ? '2px solid #4ade80' : '1px solid #27272a' }} title={p.name}>
+                    <img src={p.url} alt={p.name} className="h-full w-full object-cover" />
+                    {dentro && <span className="absolute right-0 top-0 flex h-4 w-4 items-center justify-center rounded-bl text-[9px] font-bold" style={{ background: '#4ade80', color: '#0a0a0e' }}>✓</span>}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+        <button onClick={() => void salvar()} disabled={busy || novas.length === 0} className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold disabled:opacity-50" style={{ background: 'rgba(74,222,128,0.12)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.35)' }}>
+          {busy ? <><Loader2 size={13} className="animate-spin" /> Salvando…</> : <><Check size={13} /> {novas.length === 0 ? (picked.length ? 'Já estão no produto' : 'Escolha um design acima') : `Usar ${novas.length} como foto${novas.length > 1 ? 's' : ''} do produto`}</>}
+        </button>
+        {err && <p className="mt-2 text-[11px]" style={{ color: '#f87171' }}>{err}</p>}
+        {msg && <p className="mt-2 text-[11px]" style={{ color: '#4ade80' }}>{msg}</p>}
+      </div>
+    </div>
+  )
+}
 function GenerateImageModal({ dev, onClose, onSaved }: { dev: { id: string; name: string; reference_images?: ReferenceImage[]; versions?: Version[] }; onClose: () => void; onSaved: () => void }) {
   const [palettes, setPalettes] = useState<Palette[]>([])
   const [paletteId, setPaletteId] = useState(''); const [extra, setExtra] = useState('')
@@ -1716,33 +1791,6 @@ function GenerateImageModal({ dev, onClose, onSaved }: { dev: { id: string; name
     setCanvaByDesign(m => { const n = { ...m }; delete n[designId]; return n })
     setUploaded(p => p.filter(u => !urls.includes(u)))
     setRefUrls(p => p.filter(u => !urls.includes(u)))
-  }
-  // Arte JÁ pronta no Canva não precisa de IA: entra direto como foto do produto
-  // (reference_images) e segue pro anúncio na hora de publicar. Sem gastar crédito.
-  const [canvaSaving, setCanvaSaving] = useState(false); const [canvaMsg, setCanvaMsg] = useState('')
-  const [canvaSaved, setCanvaSaved] = useState<string[]>([])
-  const canvaPicked = useMemo(
-    () => Object.values(canvaByDesign).flatMap(d => d.urls.map(u => ({ url: u, name: d.name }))),
-    [canvaByDesign],
-  )
-  const canvaNovas = canvaPicked.filter(p => !candidates.includes(p.url) && !canvaSaved.includes(p.url))
-  const saveCanvaToDev = async () => {
-    if (!canvaNovas.length) return
-    setCanvaSaving(true); setErr(''); setCanvaMsg('')
-    try {
-      // relê o dev antes de gravar: o PATCH manda a lista inteira e o card pode ter
-      // ganhado foto por outro caminho (IA, upload) enquanto o modal estava aberto
-      const atual = await api<{ reference_images?: ReferenceImage[] }>(`/product-os/${dev.id}`)
-      const base = atual.reference_images ?? []
-      const ja = new Set(base.map(r => r.url))
-      const add = canvaNovas.filter(p => !ja.has(p.url)).map(p => ({ url: p.url, notes: `Canva · ${p.name}` }))
-      if (add.length) await api(`/product-os/${dev.id}`, { method: 'PATCH', body: JSON.stringify({ reference_images: [...base, ...add] }) })
-      setCanvaSaved(prev => [...prev, ...canvaNovas.map(p => p.url)])
-      setCanvaMsg(add.length
-        ? `${add.length} imagem${add.length > 1 ? 'ns' : ''} do Canva no produto ✓ — vão junto quando publicar.`
-        : 'Essas imagens já estavam no produto.')
-      onSaved()
-    } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setCanvaSaving(false) }
   }
   useEffect(() => { void (async () => { try { setPalettes(await api<Palette[]>('/product-os/palettes')) } catch { /* */ } })() }, [])
   const gen = async () => {
@@ -1786,9 +1834,8 @@ function GenerateImageModal({ dev, onClose, onSaved }: { dev: { id: string; name
           {canvaOpen && (
             <div className="mb-2 rounded-lg p-2.5" style={{ background: '#0a0a0e', border: '1px solid #27272a' }}>
               <p className="mb-2 text-[10px] leading-relaxed" style={{ color: '#71717a' }}>
-                Escolha um design do seu Canva (clique de novo para tirar). Depois:
-                <br />• <span className="text-white">arte já pronta</span> → <span style={{ color: '#4ade80' }}>usar como foto do produto</span>, sem IA e sem gastar crédito;
-                <br />• <span className="text-white">só de inspiração</span> → deixe na tira abaixo e gere a foto com a paleta.
+                Escolha um design do seu Canva — <span className="text-white">as páginas dele entram na tira abaixo</span> só como <span className="text-white">inspiração</span> pra IA. Clique de novo no design para tirar.
+                <br />Arte já pronta, que é pra usar como está? Feche isto e use <span style={{ color: '#4ade80' }}>Fotos do Canva</span> no produto — sem IA e sem gastar crédito.
               </p>
               <CanvaDesignPicker
                 pickedDesignIds={pickedDesignIds}
@@ -1796,16 +1843,6 @@ function GenerateImageModal({ dev, onClose, onSaved }: { dev: { id: string; name
                 onUnpicked={dropCanva}
                 redirectTo="/dashboard/producao/product-os"
               />
-              {canvaPicked.length > 0 && (
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <button type="button" onClick={() => void saveCanvaToDev()} disabled={canvaSaving || canvaNovas.length === 0} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-bold disabled:opacity-50" style={{ background: 'rgba(74,222,128,0.12)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.35)' }}>
-                    {canvaSaving ? <Loader2 size={12} className="animate-spin" /> : <ImageIcon size={12} />}
-                    {canvaNovas.length === 0 ? 'Já estão no produto' : `Usar ${canvaNovas.length} como foto${canvaNovas.length > 1 ? 's' : ''} do produto`}
-                  </button>
-                  <span className="text-[10px]" style={{ color: '#52525b' }}>sem IA · entra no ciclo de vida e vai pro anúncio ao publicar</span>
-                </div>
-              )}
-              {canvaMsg && <p className="mt-1.5 text-[11px]" style={{ color: '#4ade80' }}>{canvaMsg}</p>}
             </div>
           )}
           {allCandidates.length > 0 ? (useRef && (
@@ -2004,6 +2041,7 @@ function DetailDrawer({ id, onClose, onChanged }: { id: string; onClose: () => v
   const [busy, setBusy] = useState<'dispatch' | 'publish' | 'license' | 'archive' | null>(null)
   const [showPublish, setShowPublish] = useState(false)
   const [showImage, setShowImage] = useState(false)
+  const [showCanva, setShowCanva] = useState(false)
   const prompt = usePrompt()
 
   const reload = useCallback(async () => { try { setDev(await api<DevDetail>(`/product-os/${id}`)) } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } }, [id])
@@ -2054,12 +2092,14 @@ function DetailDrawer({ id, onClose, onChanged }: { id: string; onClose: () => v
             {/* ações */}
             <div className="mb-3 flex flex-wrap gap-2">
               <button onClick={() => void dispatch()} disabled={busy !== null} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold disabled:opacity-50" style={{ background: '#111114', border: '1px solid #27272a', color: '#a5f3fc' }}>{busy === 'dispatch' ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />} Despachar pro time</button>
-              <button onClick={() => setShowImage(true)} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold" style={{ background: '#111114', border: '1px solid #27272a', color: '#c084fc' }}><Palette size={12} /> Gerar imagem</button>
+              <button onClick={() => setShowImage(true)} title="A IA cria uma foto de catálogo nova (consome crédito)" className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold" style={{ background: '#111114', border: '1px solid #27272a', color: '#c084fc' }}><Palette size={12} /> Gerar imagem</button>
+              <button onClick={() => setShowCanva(true)} title="Arte já pronta no Canva entra como está nas fotos do produto — sem IA" className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold" style={{ background: '#111114', border: '1px solid rgba(125,42,231,0.45)', color: '#c8a8ff' }}><ImageIcon size={12} /> Fotos do Canva</button>
               <button onClick={() => setShowPublish(true)} disabled={busy !== null || !!dev.product_id || dev.status !== 'aprovado' || (dev.license_status?.blocked ?? false)} title={dev.license_status?.blocked ? 'Licença bloqueia a publicação — libere em "Licença & origem"' : dev.status !== 'aprovado' ? 'Aprove uma versão primeiro' : ''} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold disabled:opacity-40" style={{ background: 'rgba(74,222,128,0.10)', border: '1px solid rgba(74,222,128,0.3)', color: '#4ade80' }}>{<Rocket size={12} />} {dev.product_id ? 'No catálogo ✓' : 'Virar anúncio'}</button>
               <button onClick={() => void archive()} disabled={busy !== null} title="Tira o produto do quadro sem apagar o histórico" className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold disabled:opacity-50" style={{ background: '#111114', border: '1px solid #27272a', color: '#f87171' }}>{busy === 'archive' ? <Loader2 size={12} className="animate-spin" /> : <Archive size={12} />} Arquivar</button>
             </div>
             {showPublish && <PublishModal dev={dev} onClose={() => setShowPublish(false)} onDone={m => { setShowPublish(false); setMsg(m); void reload(); onChanged() }} />}
             {showImage && <GenerateImageModal dev={dev} onClose={() => setShowImage(false)} onSaved={() => { void reload(); onChanged() }} />}
+            {showCanva && <CanvaPhotosModal dev={dev} onClose={() => setShowCanva(false)} onSaved={() => { void reload(); onChanged() }} />}
 
             {dev.license_status && <LicenseOriginBlock st={dev.license_status} onClear={c => void setClearance(c)} busy={busy === 'license'} />}
             {dev.description && <p className="mb-3 text-xs" style={{ color: '#a1a1aa' }}>{dev.description}</p>}
