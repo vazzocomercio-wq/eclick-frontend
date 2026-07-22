@@ -1699,6 +1699,24 @@ function GenerateImageModal({ dev, onClose, onSaved }: { dev: { id: string; name
   useEffect(() => { setRefUrls(candidates.slice(0, 1)); setUseRef(candidates.length > 0) }, [candidates])
   const toggleRef = (u: string) => setRefUrls(prev => prev.includes(u) ? prev.filter(x => x !== u) : (prev.length >= 4 ? prev : [...prev, u]))
   const addBaseImage = (u: string) => { if (!u) return; setUploaded(p => p.includes(u) ? p : [...p, u]); setRefUrls(p => p.includes(u) ? p : (p.length >= 4 ? p : [...p, u])); setUseRef(true) }
+  // Canva como TERCEIRA origem de imagem base (além das fotos do produto e do
+  // upload): quem já montou a arte no Canva usa ela de inspiração pro image-to-image.
+  // Mesmo seletor de designs do IA Criativo — só reusado, o módulo dele não muda.
+  const [canvaOpen, setCanvaOpen] = useState(false)
+  const [canvaByDesign, setCanvaByDesign] = useState<Record<string, string[]>>({})
+  const pickedDesignIds = useMemo(() => new Set(Object.keys(canvaByDesign)), [canvaByDesign])
+  const addCanva = (assets: Array<{ canva_design_id: string; storage_url: string | null }>) => {
+    const urls = assets.map(a => a.storage_url).filter((u): u is string => !!u)
+    if (!urls.length) return
+    setCanvaByDesign(m => ({ ...m, [assets[0].canva_design_id]: urls }))
+    urls.forEach(addBaseImage)   // entram na tira; o cap de 4 do addBaseImage segura a seleção
+  }
+  const dropCanva = (designId: string) => {
+    const urls = canvaByDesign[designId] ?? []
+    setCanvaByDesign(m => { const n = { ...m }; delete n[designId]; return n })
+    setUploaded(p => p.filter(u => !urls.includes(u)))
+    setRefUrls(p => p.filter(u => !urls.includes(u)))
+  }
   useEffect(() => { void (async () => { try { setPalettes(await api<Palette[]>('/product-os/palettes')) } catch { /* */ } })() }, [])
   const gen = async () => {
     setBusy(true); setErr(''); setResult(null); setSavedMsg('')
@@ -1712,7 +1730,7 @@ function GenerateImageModal({ dev, onClose, onSaved }: { dev: { id: string; name
   }
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={onClose}>
-      <div className="w-full max-w-lg rounded-xl p-5" style={{ background: '#0a0a0e', border: '1px solid #27272a', maxHeight: '92vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+      <div className={`w-full rounded-xl p-5 ${canvaOpen ? 'max-w-2xl' : 'max-w-lg'}`} style={{ background: '#0a0a0e', border: '1px solid #27272a', maxHeight: '92vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
         <div className="mb-3 flex items-center gap-2">
           <Palette size={16} className="text-cyan-400" />
           <h3 className="text-sm font-extrabold text-white">Gerar imagem com paleta — {dev.name}</h3>
@@ -1731,11 +1749,29 @@ function GenerateImageModal({ dev, onClose, onSaved }: { dev: { id: string; name
               <button type="button" onClick={() => allCandidates.length && setUseRef(v => !v)} disabled={allCandidates.length === 0} className="relative h-4 w-7 rounded-full transition-colors disabled:opacity-40" style={{ background: useRef && allCandidates.length ? '#00E5FF' : '#3f3f46' }}><span className="absolute top-0.5 h-3 w-3 rounded-full bg-white transition-all" style={{ left: useRef && allCandidates.length ? '14px' : '2px' }} /></button>
               Gerar com inspiração numa imagem base
             </label>
-            <UploadButton label="Subir imagem base" accept="image/*" onUploaded={urls => addBaseImage(urls[0])} />
+            <div className="flex shrink-0 items-center gap-1.5">
+              <button type="button" onClick={() => setCanvaOpen(o => !o)} className="flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-semibold" style={{ background: canvaOpen ? 'rgba(125,42,231,0.18)' : '#0a0a0e', color: '#c8a8ff', border: '1px solid rgba(125,42,231,0.45)' }}>
+                <Palette size={10} /> {canvaOpen ? 'fechar Canva' : 'do Canva'}
+              </button>
+              <UploadButton label="Subir imagem base" accept="image/*" onUploaded={urls => addBaseImage(urls[0])} />
+            </div>
           </div>
+          {canvaOpen && (
+            <div className="mb-2 rounded-lg p-2.5" style={{ background: '#0a0a0e', border: '1px solid #27272a' }}>
+              <p className="mb-2 text-[10px] leading-relaxed" style={{ color: '#71717a' }}>
+                Escolha um design do seu Canva — <span className="text-white">as páginas dele entram na tira abaixo</span> como imagem base. Clique de novo no design para tirar.
+              </p>
+              <CanvaDesignPicker
+                pickedDesignIds={pickedDesignIds}
+                onPicked={addCanva}
+                onUnpicked={dropCanva}
+                redirectTo="/dashboard/producao/product-os"
+              />
+            </div>
+          )}
           {allCandidates.length > 0 ? (useRef && (
             <>
-              <p className="mb-1 text-[10px]" style={{ color: '#52525b' }}>Selecione 1 a 4 imagens do MESMO produto ({refUrls.length} selecionada{refUrls.length === 1 ? '' : 's'}) — inclui fotos do MakerWorld e as que você subir.</p>
+              <p className="mb-1 text-[10px]" style={{ color: '#52525b' }}>Selecione 1 a 4 imagens do MESMO produto ({refUrls.length} selecionada{refUrls.length === 1 ? '' : 's'}) — inclui fotos do MakerWorld, do Canva e as que você subir.</p>
               <div className="flex flex-wrap gap-1.5">
                 {allCandidates.map(u => (
                   <button key={u} onClick={() => toggleRef(u)} className="relative h-12 w-12 overflow-hidden rounded-lg" style={{ border: refUrls.includes(u) ? '2px solid #00E5FF' : '1px solid #27272a' }}>
@@ -1746,7 +1782,7 @@ function GenerateImageModal({ dev, onClose, onSaved }: { dev: { id: string; name
               </div>
             </>
           )) : (
-            <p className="text-[10px]" style={{ color: '#52525b' }}>Produto do zero, sem imagem ainda? Suba uma <span className="text-white">imagem base</span> acima pra gerar com inspiração nela — ou gere só pelo texto/paleta abaixo.</p>
+            <p className="text-[10px]" style={{ color: '#52525b' }}>Produto do zero, sem imagem ainda? Traga uma <span className="text-white">do Canva</span> ou suba uma <span className="text-white">imagem base</span> acima pra gerar com inspiração nela — ou gere só pelo texto/paleta abaixo.</p>
           )}
         </div>
         <button onClick={() => void gen()} disabled={busy} className="flex w-full items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold disabled:opacity-50" style={{ background: '#00E5FF', color: '#0a0a0e' }}>{busy ? <><Loader2 size={13} className="animate-spin" /> Gerando… (~10s)</> : <><Sparkles size={13} /> {useRef && refUrls.length ? `Gerar a partir de ${refUrls.length} foto${refUrls.length > 1 ? 's' : ''}` : 'Gerar imagem'}</>}</button>
